@@ -53,6 +53,11 @@ because durable children have no wall clock across replays. Proven by
   children and completes with `t.subagent.parent_expired`
   (`parent-idle-timeout`); a cancelled child with no finish for
   `childFinishTimeoutMs` (default 1 h) completes itself as cancelled.
+  Fan-out cap: delegations arriving while `maxInFlight` children run
+  (default 50) reject as `t.subagent.rejected` with
+  `max in-flight children N reached` instead of starting — backpressure,
+  never a wedged queue. Finished slots free on `parentNoteDone`, so a
+  re-signalled delegation starts once room opens.
   Duplicate delegation for a running child rejects as `t.subagent.rejected`
   instead of failing the parent — and whoever observes a child close must
   signal `parentNoteDone`, or the parent's in-memory entry stays `running`

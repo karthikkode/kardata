@@ -359,6 +359,55 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4)', () => {
     expect(await parent.handle.result()).toBe('done')
   }, 180_000)
 
+  it('delegations past max in-flight reject as events instead of starting', async () => {
+    const sessionId = `cap-${Date.now()}`
+    const workflowId = `subagents-parent-${sessionId}`
+    const parent = await client.workflow.start('delegateParent', {
+      taskQueue: taskQueue(),
+      workflowId,
+      args: [{ sessionId, maxInFlight: 2 }],
+    })
+    await waitFor(
+      async () => (await events(`session:${sessionId}`)).some((event) => event.type === 't.session.created'),
+      30_000,
+      'parent to start',
+    )
+    const stamp = Date.now()
+    const first = `sag-cap-a-${stamp}`
+    const second = `sag-cap-b-${stamp}`
+    const third = `sag-cap-c-${stamp}`
+    await parent.signal('parentDelegate', delegate(first, 'first goal'))
+    await parent.signal('parentDelegate', delegate(second, 'second goal'))
+    await launchedRecord(sessionId, first)
+    await launchedRecord(sessionId, second)
+
+    // Two running children fill the cap: the third rejects with its reason
+    // and never launches, while the parent and both children keep running.
+    await parent.signal('parentDelegate', delegate(third, 'third goal'))
+    let reasons: string[] = []
+    await waitFor(
+      async () => {
+        reasons = (await events(`session:${sessionId}`))
+          .filter((event) => event.type === 't.subagent.rejected')
+          .map((event) => event.payload['reason'] as string)
+        return reasons.length >= 1
+      },
+      30_000,
+      'cap rejection',
+    )
+    expect(reasons).toContain('max in-flight children 2 reached')
+    const launches = (await events(`session:${sessionId}`)).filter((event) => event.type === 't.subagent.launched')
+    expect(launches).toHaveLength(2)
+
+    for (const childId of [first, second]) {
+      await client.workflow.getHandle(childId).signal('childFinish')
+      expect(await client.workflow.getHandle(childId).result()).toBe('finished')
+      await parent.signal('parentNoteDone', { childId, status: 'finished' })
+    }
+    await parent.signal('parentFinish')
+    expect(await parent.result()).toBe('done')
+  }, 180_000)
+
   it('a cancelled child with no finish closes itself instead of waiting forever', async () => {
     const sessionId = `cf-${Date.now()}`
     const parent = await startParent(sessionId)

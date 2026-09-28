@@ -124,10 +124,17 @@ export interface DelegateParentInput {
    * running children and completes the parent instead of wedging it open.
    * Defaults to 24 h. */
   parentIdleTimeoutMs?: number
+  /** Fan-out cap: delegations arriving while this many children run reject
+   * as `t.subagent.rejected` instead of starting (backpressure, never a
+   * wedged queue). Defaults to 50. */
+  maxInFlight?: number
 }
 
 /** Default idle close for delegation parents. */
 export const DEFAULT_PARENT_IDLE_TIMEOUT_MS = 24 * 3_600_000
+
+/** Default fan-out cap for delegation parents. */
+export const DEFAULT_MAX_IN_FLIGHT_CHILDREN = 50
 
 export async function delegateParent(input: DelegateParentInput): Promise<string> {
   const partition = `session:${input.sessionId}`
@@ -258,6 +265,24 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
           depth: request.depth,
           maxDepth: request.maxDepth,
           reason: !request.goal.trim() ? 'delegation needs a non-empty goal' : `depth exceeds max ${request.maxDepth}`,
+        },
+      })
+      continue
+    }
+    const maxInFlight = input.maxInFlight ?? DEFAULT_MAX_IN_FLIGHT_CHILDREN
+    const running = [...children.values()].filter((record) => record.status === 'running').length
+    if (running >= maxInFlight) {
+      nonce += 1
+      await childActivities.appendEventActivity({
+        idempotencyKey: idempotencyKey(partition, 'rejected', nonce),
+        partition,
+        type: 't.subagent.rejected',
+        payload: {
+          childId: request.childId,
+          goal: request.goal,
+          depth: request.depth,
+          maxDepth: request.maxDepth,
+          reason: `max in-flight children ${maxInFlight} reached`,
         },
       })
       continue
