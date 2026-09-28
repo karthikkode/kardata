@@ -65,6 +65,7 @@ describe.skipIf(!LIVE)('fleet load runs (N subagents, real outputs)', () => {
     { leg: 'ten', children: 10, stage: 'Deep research', timeoutMs: 600_000, testTimeoutMs: 660_000 },
     { leg: 'fifty', children: 50, stage: 'Problem found', timeoutMs: 1_500_000, testTimeoutMs: 1_560_000 },
     { leg: 'hundred', children: 100, stage: 'Final validation', timeoutMs: 2_700_000, testTimeoutMs: 2_760_000 },
+    { leg: 'thousand', children: 1000, stage: 'Deep research', timeoutMs: 1_500_000, testTimeoutMs: 1_560_000 },
   ] as const
 
   function sectorFor(leg: string): string {
@@ -99,16 +100,19 @@ describe.skipIf(!LIVE)('fleet load runs (N subagents, real outputs)', () => {
 
     // One sector per leg with fixed company ids: legs stay disjoint in
     // one process, and reruns replay to identical rows (idempotent keys).
-    const fleet = generateFleet(7, 100, 4)
+    // The thousand leg gets its own seed so all 1000 names stay distinct.
+    const fleets = new Map<string, { name: string }[]>()
     for (const spec of LEGS) {
       const legSector = sectorFor(spec.leg)
       await createSector(pool, { name: `TEST Fleet Load ${spec.leg}`, topic: 'TEST DATA: subagent load runs', scope: SCOPE, sectorId: legSector })
+      fleets.set(spec.leg, generateFleet(spec.leg === 'thousand' ? 9 : 7, spec.children, 0).companies)
     }
     await projectNewEvents(pool)
     for (const spec of LEGS) {
       const legSector = sectorFor(spec.leg)
+      const names = fleets.get(spec.leg) as { name: string }[]
       for (let i = 0; i < spec.children; i++) {
-        const company = fleet.companies[i % fleet.companies.length] as { name: string }
+        const company = names[i % names.length] as { name: string }
         await markCompanyFound(pool, {
           sectorId: legSector,
           name: `${company.name} ${spec.leg}`,
@@ -168,8 +172,14 @@ describe.skipIf(!LIVE)('fleet load runs (N subagents, real outputs)', () => {
   }
 
   async function stageCount(leg: string, stage: string): Promise<number> {
-    const page = await listSectorCompanies(pool, sectorFor(leg), SCOPE, {}, { limit: 500, offset: 0 })
-    return page.companies.filter((company) => company.stage === stage).length
+    // Walks pages (server cap 500): the thousand leg exceeds one window.
+    let count = 0
+    for (let offset = 0; ; offset += 500) {
+      const page = await listSectorCompanies(pool, sectorFor(leg), SCOPE, {}, { limit: 500, offset })
+      count += page.companies.filter((company) => company.stage === stage).length
+      if (page.companies.length < 500) break
+    }
+    return count
   }
 
   async function runLeg(options: { leg: string; children: number; stage: string; timeoutMs: number }): Promise<void> {
@@ -262,4 +272,8 @@ describe.skipIf(!LIVE)('fleet load runs (N subagents, real outputs)', () => {
   it('runs 100 subagents to real company outputs', async () => {
     await runLeg({ leg: 'hundred', children: 100, stage: 'Final validation', timeoutMs: 2_700_000 })
   }, 2_760_000)
+
+  it('runs 1000 subagents to real company outputs', async () => {
+    await runLeg({ leg: 'thousand', children: 1000, stage: 'Deep research', timeoutMs: 1_500_000 })
+  }, 1_560_000)
 })

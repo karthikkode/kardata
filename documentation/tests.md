@@ -78,9 +78,9 @@ like the routes) seeds 1000 companies plus 12 documents.
   provider probes with keys. These prove wiring; hermetic suites prove
   logic. Neither substitutes for the other.
 - Fleet load (`tests/backend/workflows.fleet-load.test.ts`, needs both
-  Temporal flag and `TEST_DATABASE_URL`): 10/50/100 subagents against a
-  throwaway database plus an in-process backend over real HTTP MCP.
-  Scripted provider steps (zero tokens) with real tool execution, so
-  completions mean DB rows. Child ids derive from the run-unique
-  session: reruns never collide with still-running children from an
-  aborted run (which correctly reject as duplicates).
+  Temporal flag and `TEST_DATABASE_URL`): 10/50/100/1000 subagents
+  against a throwaway database plus an in-process backend over real
+  HTTP MCP. Scripted provider steps (zero tokens) with real tool
+  execution, so completions mean DB rows. Child ids derive from the
+  run-unique session: reruns never collide with still-running children
+  from an aborted run (which correctly reject as duplicates).
