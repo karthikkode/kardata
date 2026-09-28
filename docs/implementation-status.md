@@ -1,5 +1,30 @@
 # Implementation status
 
+## Fleet load runs: 10/50/100 subagents, real outputs (2026-09-28)
+
+- `tests/backend/workflows.fleet-load.test.ts` (new, live-gated
+  Temporal + TEST_DATABASE_URL): throwaway DB + in-process backend
+  over real HTTP MCP (own operator key, test-fleet scope), so not one
+  byte touches real data. Each child runs scripted provider steps
+  (zero tokens) with real tool execution: read the sector, advance its
+  companies' stages. Per-leg sectors with fixed ids plus a Filter
+  reset make legs disjoint and rerun-proof; the suite asserts
+  launched == completed == N, zero rejected, zero missed steer, and a
+  negative control (no outputs before steering).
+- Numbers (compose server, 5433, two consecutive full-file greens):
+  10 in 3.7 s, 50 in 18 s, 100 in 35 s; launch ~1 s at 100; zero
+  orphan workflows left running. Same-change doc:
+  `documentation/tests.md` fleet-load paragraph.
+- Red-suite account: the first composed run stalled (outputs never
+  landed). Investigation found rerun collisions (fixed child ids hit
+  still-running children from the aborted run and correctly rejected)
+  plus 163 stale running fleet workflows on the server, terminated via
+  tctl batch. Fixed with run-unique child ids, per-leg sectors, and
+  the reset baseline; two consecutive 3/3 greens since. The initial
+  stall's trigger beyond the collision was not isolated; the suite is
+  now collision-proof by construction, which is the stated guard
+  against recurrence.
+
 ## Subagent fan-out cap with backpressure (2026-09-28)
 
 - `delegateParent` takes `maxInFlight` (default 50): delegations
