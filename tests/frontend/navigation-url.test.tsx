@@ -13,7 +13,9 @@ const SECTOR = {
   companiesFound: 1,
   state: 'running',
   companies: [],
+  companiesTotal: 0,
   activity: [],
+  activityTotal: 0,
 }
 
 function setUrl(search: string): void {
@@ -30,8 +32,8 @@ beforeEach(() => {
       const urlText = String(url)
       const payload = urlText.endsWith('/v1/sectors')
         ? { ok: true, data: [SECTOR] }
-        : urlText.endsWith('/v1/companies')
-          ? { ok: true, data: [] }
+        : urlText.includes('/v1/companies')
+          ? { ok: true, data: { companies: [], total: 0 } }
           : urlText.includes('/v1/sectors/')
             ? { ok: true, data: SECTOR }
             : { ok: true, data: [] }

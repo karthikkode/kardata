@@ -1,5 +1,37 @@
 # Implementation status
 
+## Paged company/activity reads with server totals (2026-09-28)
+
+- `listCompanies`, `listSectorCompanies`, `sectorActivity` take
+  `{ limit 1-500 default 100, offset }` and return `{ rows, total }`;
+  invalid windows throw before SQL. Routes parse `limit`/`offset`
+  (detail answers `companiesTotal`/`activityTotal`; `/v1/companies`
+  answers `{ companies, total }`); MCP schemas/handlers pass them
+  through; `researchHealth` reads the tail window (total first, then
+  the last 200). Frontend company lists filter server-side via their
+  own `useStagingCompanies` windows with counts from totals; the
+  Dashboard preview counts `View all` from the total and labels
+  window-scoped searches honestly. Spec: openapi `CompanyList` /
+  `SectorDetail` plus limit/offset params updated.
+- Proven failing-first (paging hit SQL before validation), then live
+  on 5433: db.sectors + api.sectors + fleet-seed 18/18 (fleet seed
+  now asserts default page 100 rows + total 1000, second page 500).
+  Frontend 232 passed; e2e stubs serve paged shapes.
+- Red suites root-caused (all test side): skipped projector catch-up
+  before seed reads; non-idempotent seed keys doubling rows on rerun
+  (fixed with deterministic company ids + keys; DB reset once);
+  array-shape assertions on the new paged returns; and a CI e2e miss
+  where the runs-only stub in `visual.spec.ts` served the old array
+  shape for `/v1/companies`, crashing the client and hanging nav
+  (fixed the stub, proved 33/33 locally before re-push).
+- Correction to the earlier gap analysis: live web search/fetch
+  EXISTS (`backend/src/retrieval/web.ts`, MCP `web_search` /
+  `web_fetch` with SSRF guards, sweep activity wired) but
+  `KARDATA_WEB_SEARCH_KEY` is unconfigured here (fail-closed), and
+  the agents research `Retriever` seam is still stub-only. The
+  remaining retrieval gap is wiring the seam to the existing module
+  plus key provisioning, not a from-scratch build.
+
 ## Fleet seed for thousand-company runs (2026-09-28)
 
 - `tests/backend/fleet-seed.ts` (new): deterministic TEST generator

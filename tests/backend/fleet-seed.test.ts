@@ -62,8 +62,18 @@ describe.skipIf(!LIVE)('fleet seed at volume (live)', () => {
         await projectNewEvents(pool)
         const fleet = generateFleet(7, 1000, 12)
         const appendStart = Date.now()
-        for (const company of fleet.companies) {
-          await markCompanyFound(pool, { sectorId, name: company.name, stage: company.stage, scope })
+        for (let i = 0; i < fleet.companies.length; i++) {
+          const company = fleet.companies[i] as { name: string; stage: 'Filter' | 'Deep research' | 'Problem found' | 'Final validation' }
+          // Fixed ids + keys: reruns replay to the same 1000 rows instead
+          // of doubling them (exactly-once, like the routes).
+          await markCompanyFound(pool, {
+            sectorId,
+            name: company.name,
+            stage: company.stage,
+            scope,
+            companyId: `fleet-com-${i}`,
+            idempotencyKey: `fleet:company:${i}`,
+          })
         }
         const appendMs = Date.now() - appendStart
         const projectStart = Date.now()
@@ -74,7 +84,11 @@ describe.skipIf(!LIVE)('fleet seed at volume (live)', () => {
         const sector = await getSector(pool, sectorId, scope)
         expect(sector?.companiesFound).toBe(1000)
         const companies = await listSectorCompanies(pool, sectorId, scope)
-        expect(companies).toHaveLength(1000)
+        expect(companies.total).toBe(1000)
+        expect(companies.companies).toHaveLength(100)
+        const second = await listSectorCompanies(pool, sectorId, scope, {}, { limit: 500, offset: 500 })
+        expect(second.companies).toHaveLength(500)
+        expect(second.total).toBe(1000)
 
         const ingested = []
         for (const doc of fleet.docs) {

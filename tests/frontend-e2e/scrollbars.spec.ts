@@ -28,7 +28,9 @@ const COMPANIES = Array.from({ length: 30 }, (_, i) => ({
 const DETAIL = {
   ...SECTORS[0],
   companies: COMPANIES,
+  companiesTotal: COMPANIES.length,
   activity: COMPANIES.map((c, i) => ({ seq: i + 1, text: `Saw ${c.name}` })),
+  activityTotal: COMPANIES.length,
 }
 
 const UNITS = Array.from({ length: 30 }, (_, i) => ({
@@ -113,6 +115,7 @@ async function serveScrollbarApi(page: Page): Promise<void> {
     let data: unknown = []
     if (url.endsWith('/v1/sectors') && method === 'GET') data = SECTORS
     else if (url.endsWith('/v1/sectors/sec-overflow-1')) data = DETAIL
+    else if (url.includes('/v1/companies')) data = { companies: COMPANIES, total: COMPANIES.length }
     else if (url.includes('/v1/sectors/sec-overflow-1/documents')) data = DOCUMENTS
     else if (url.includes('/v1/sectors/sec-overflow-1/context')) data = CONTEXT
     else if (url.includes('/v1/runs')) data = []

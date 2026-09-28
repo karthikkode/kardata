@@ -20,6 +20,8 @@ const AfterSeq = z.number().int().min(0)
 const StateFilter = SectorState
 const QueryFilter = z.string().max(200)
 const SectorIdFilter = NonEmpty.optional()
+const PageLimit = z.number().int().min(1).max(500).optional()
+const PageOffset = z.number().int().min(0).optional()
 
 const StoredEvent = z.object({
   seq: z.number().int().min(0),
@@ -77,14 +79,20 @@ export const TOOL_SCHEMAS = {
     state: StateFilter.optional(),
     query: QueryFilter.optional(),
     sectorId: SectorIdFilter,
+    limit: PageLimit,
+    offset: PageOffset,
   }),
   'db.list_sector_companies': z.object({
     sectorId: NonEmpty,
     state: StateFilter.optional(),
     query: QueryFilter.optional(),
+    limit: PageLimit,
+    offset: PageOffset,
   }),
   'db.sector_activity': z.object({
     sectorId: NonEmpty,
+    limit: PageLimit,
+    offset: PageOffset,
   }),
   'db.create_sector': z.object({
     name: NonEmpty,

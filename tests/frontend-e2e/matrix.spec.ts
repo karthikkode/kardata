@@ -12,6 +12,9 @@ const SECTOR = {
   state: 'draft',
   companiesFound: 0,
   companies: [],
+  companiesTotal: 0,
+  activity: [],
+  activityTotal: 0,
   createdAt: '2026-09-27T00:00:00.000Z',
   updatedAt: '2026-09-27T01:00:00.000Z',
 }
@@ -23,6 +26,7 @@ async function serveMatrixApi(page: Page): Promise<void> {
     let data: unknown = []
     if (url.endsWith('/v1/sectors') && method === 'GET') data = [SECTOR]
     else if (url.endsWith('/v1/sectors/sec-foods')) data = SECTOR
+    else if (url.includes('/v1/companies')) data = { companies: [], total: 0 }
     else if (url.includes('/v1/sectors/sec-foods/context') && method === 'GET') {
       data = {
         sectorId: 'sec-foods',

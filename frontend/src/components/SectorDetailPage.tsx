@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, Eye, EyeOff, FileImage, FileSpreadsheet, FileText, Loader2, Upload } from 'lucide-react'
-import type { CompanyResearch, ResearchStatus, SectorDetail } from '../data/research'
+import type { ResearchStatus, SectorDetail } from '../data/research'
+import { useStagingCompanies } from '../data/research'
 import {
   getSectorContext,
   patchSectorContext,
@@ -36,18 +37,29 @@ type StateFilter = ResearchState | 'all'
 // Research runs are agent-started (MCP) and owner-paused from the sector
 // chat; this page keeps discovery output (companies, files, context).
 
-function CompanySection({ companies, sectorName }: { companies: CompanyResearch[]; sectorName: string }) {
+function CompanySection({
+  staging,
+  sectorId,
+  sectorName,
+}: {
+  staging: StagingConfig | null
+  sectorId: string
+  sectorName: string
+}) {
   const [query, setQuery] = useState('')
   const [active, setActive] = useState<StateFilter>('all')
-  const needle = query.trim().toLowerCase()
-  const rows = companies.filter(
-    (item) =>
-      (!needle ||
-        `${item.name} ${item.sectorName}`.toLowerCase().includes(needle)) &&
-      (active === 'all' || item.state === active),
-  )
-  const filtered = needle || active !== 'all'
-  const showCount = filtered || rows.length > 50
+  const needle = query.trim()
+  // Server-filtered window: the list never silently truncates, and the
+  // count line reads the server total, not the window length.
+  const companies = useStagingCompanies(staging, {
+    sectorId,
+    ...(active === 'all' ? {} : { state: active }),
+    ...(needle === '' ? {} : { query: needle }),
+  })
+  const filtered = needle !== '' || active !== 'all'
+  const total = companies.total
+  const rows = companies.items
+  const showCount = filtered || rows.length > 50 || (total ?? 0) > rows.length
   return (
     <section
       aria-label={`Companies in ${sectorName}`}
@@ -89,13 +101,25 @@ function CompanySection({ companies, sectorName }: { companies: CompanyResearch[
         ))}
       </div>
       <div className="mt-2">
+        {companies.status === 'loading' ? (
+          <SkeletonRows label={`Companies in ${sectorName} are loading`} />
+        ) : companies.status === 'error' ? (
+          <PanelError
+            heading="Companies did not load."
+            detail="Check your connection and try again."
+            onRetry={companies.retry}
+          />
+        ) : companies.status === 'denied' ? (
+          <DeniedNotice heading="Companies are not shared with this key." />
+        ) : (
+          <>
         {showCount ? (
           <p aria-live="polite" className="mb-2 text-xs text-muted-foreground">
-            Showing {rows.length} of {companies.length} companies
+            Showing {rows.length} of {total ?? rows.length} companies
           </p>
         ) : null}
         {rows.length ? (
-          <OverflowList total={rows.length}>
+          <OverflowList total={total ?? rows.length}>
             {rows.map((item) => (
               <CompanyRow key={item.id} research={item} />
             ))}
@@ -122,6 +146,8 @@ function CompanySection({ companies, sectorName }: { companies: CompanyResearch[
               </Button>
             ) : null}
           </div>
+        )}
+          </>
         )}
       </div>
     </section>
@@ -481,7 +507,7 @@ export function SectorDetailPage({
           </div>
         </div>
       </div>
-      <CompanySection companies={detail.companies} sectorName={detail.name} />
+      <CompanySection staging={staging} sectorId={detail.id} sectorName={detail.name} />
     </div>
   )
 }

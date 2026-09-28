@@ -43,7 +43,9 @@ const petCare: SectorDetail = {
       state: 'running',
     },
   ],
+  companiesTotal: 1,
   activity: [{ seq: 1, text: 'Research started for D2C pet brands.' }],
+  activityTotal: 1,
 }
 const quiet: SectorDetail = {
   id: 'seed-quiet',
@@ -52,7 +54,9 @@ const quiet: SectorDetail = {
   companiesFound: 0,
   state: 'queued',
   companies: [],
+  companiesTotal: 0,
   activity: [],
+  activityTotal: 0,
 }
 const draftSector: SectorDetail = {
   id: 'seed-draft',
@@ -61,7 +65,43 @@ const draftSector: SectorDetail = {
   companiesFound: 0,
   state: 'draft',
   companies: [],
+  companiesTotal: 0,
   activity: [],
+  activityTotal: 0,
+}
+
+/** Stubbed server for the company section: filters + pages like the
+ * backend (query/state params in, {companies, total} out) so the tests
+ * prove the component sends filters and renders server totals. Real
+ * server filtering rides on the backend live suites. */
+function stubCompanyServer(rows: Array<{ id: string; name: string; state: string }>): void {
+  const full = rows.map((row) => ({
+    sectorId: 'seed-pet-care',
+    sectorName: 'Pet care',
+    stage: 'Filter',
+    ...row,
+  }))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      const text = String(url)
+      if (text.includes('/v1/sessions')) {
+        return { ok: true, status: 200, json: async () => ({ ok: true, data: [] }) }
+      }
+      if (text.includes('/v1/companies')) {
+        const query = new URL(text, 'https://stub.test')
+        const needle = (query.searchParams.get('query') ?? '').toLowerCase()
+        const state = query.searchParams.get('state')
+        const filtered = full.filter(
+          (row) =>
+            (needle === '' || row.name.toLowerCase().includes(needle)) &&
+            (state === null || row.state === state),
+        )
+        return { ok: true, status: 200, json: async () => ({ ok: true, data: { companies: filtered, total: filtered.length } }) }
+      }
+      return { ok: false, status: 404, json: async () => ({ ok: false, error: { code: 'not_found', message: 'no' } }) }
+    }),
+  )
 }
 
 function renderPage(
@@ -165,43 +205,43 @@ describe('SectorDetailPage', () => {
 })
 
 describe('SectorDetailPage body', () => {
-  it('lists the sector companies with filters', () => {
-    renderPage()
-    expect(screen.getByText('West Paw')).toBeInTheDocument()
+  it('lists the sector companies with filters', async () => {
+    stubCompanyServer([{ id: 'seed-west', name: 'West Paw', state: 'running' }])
+    renderPage({ staging })
+    expect(await screen.findByText('West Paw')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Filter companies'), {
       target: { value: 'no-such-company' },
     })
-    expect(screen.getByText(/No companies match these filters/)).toBeInTheDocument()
+    expect(await screen.findByText(/No companies match these filters/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
-    expect(screen.getByText('West Paw')).toBeInTheDocument()
+    expect(await screen.findByText('West Paw')).toBeInTheDocument()
   })
 
-  it('states the company filter outcome', () => {
-    renderPage()
+  it('states the company filter outcome', async () => {
+    stubCompanyServer([{ id: 'seed-west', name: 'West Paw', state: 'running' }])
+    renderPage({ staging })
     fireEvent.change(screen.getByLabelText('Filter companies'), {
       target: { value: 'west' },
     })
-    expect(screen.getByText(/Showing 1 of .* companies/)).toBeInTheDocument()
+    expect(await screen.findByText(/Showing 1 of 1 companies/)).toBeInTheDocument()
   })
 
-  it('caps a 120-company section with a truthful total', () => {
-    const companies = Array.from({ length: 120 }, (_, index) => ({
+  it('caps a 120-company section with a truthful total', async () => {
+    const rows = Array.from({ length: 120 }, (_, index) => ({
       id: `bulk-${index + 1}`,
-      sectorId: 'seed-pet-care',
-      sectorName: 'Pet care',
       name: `Bulk company ${index + 1}`,
-      stage: 'Filter',
-      state: 'running' as const,
+      state: 'running',
     }))
-    renderPage({ detail: { ...petCare, companiesFound: 120, companies } })
+    stubCompanyServer(rows)
+    renderPage({ detail: { ...petCare, companiesFound: 120 }, staging })
     // The overflow list caps visible rows but keeps the true total and
-    // every row reachable through the filter.
-    const totalChip = screen.getByText('total').closest('p')
-    expect(totalChip).toHaveTextContent('120')
+    // every row reachable through the server filter.
+    expect(await screen.findByText('total')).toBeInTheDocument()
+    expect(screen.getByText('120')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Filter companies'), {
       target: { value: 'Bulk company 119' },
     })
-    expect(screen.getByText('Bulk company 119')).toBeInTheDocument()
+    expect(await screen.findByText('Bulk company 119')).toBeInTheDocument()
   })
 
   it('pauses a running research from the chat window', async () => {
@@ -370,10 +410,10 @@ describe('Sector open navigation', () => {
         const urlText = String(url)
         const payload = urlText.endsWith('/v1/sectors')
           ? { ok: true, data: [petCare] }
-          : urlText.endsWith('/v1/companies')
-            ? { ok: true, data: petCare.companies }
+          : urlText.includes('/v1/companies')
+            ? { ok: true, data: { companies: petCare.companies, total: petCare.companies.length } }
             : urlText.includes('/v1/sectors/')
-              ? { ok: true, data: petCare }
+              ? { ok: true, data: { ...petCare, companiesTotal: petCare.companies.length, activityTotal: petCare.activity.length } }
               : { ok: true, data: [] }
         return { ok: true, status: 200, json: async () => payload }
       }),

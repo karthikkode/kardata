@@ -126,11 +126,15 @@ describe.skipIf(!ENABLED)('sector research routes (B-S4)', () => {
       data: {
         companiesFound: number
         companies: Array<Record<string, unknown>>
+        companiesTotal: number
         activity: Array<{ text: string }>
+        activityTotal: number
       }
     }
     expect(data.data.companiesFound).toBe(1)
+    expect(data.data.companiesTotal).toBe(1)
     expect(data.data.companies[0]).toMatchObject({ name: 'West Paw', sectorName: 'Pet care' })
+    expect(data.data.activityTotal).toBeGreaterThanOrEqual(data.data.activity.length)
     expect(data.data.activity.map((entry) => entry.text)).toContain(
       'Research started for D2C pet brands.',
     )
@@ -157,9 +161,27 @@ describe.skipIf(!ENABLED)('sector research routes (B-S4)', () => {
       headers: authHeader(KEYS.viewer.presented),
     })
     expect(response.statusCode).toBe(200)
-    const data = (response.json() as { data: Array<Record<string, unknown>> }).data
-    expect(data).toHaveLength(1)
-    expect(data[0]).toMatchObject({ name: 'West Paw', stage: 'Final validation' })
+    const data = (response.json() as { data: { companies: Array<Record<string, unknown>>; total: number } }).data
+    expect(data.companies).toHaveLength(1)
+    expect(data.total).toBe(1)
+    expect(data.companies[0]).toMatchObject({ name: 'West Paw', stage: 'Final validation' })
+
+    const paged = await app.inject({
+      method: 'GET',
+      url: `/v1/companies?sectorId=${sector}&limit=1&offset=1`,
+      headers: authHeader(KEYS.viewer.presented),
+    })
+    expect(paged.statusCode).toBe(200)
+    const page = (paged.json() as { data: { companies: Array<Record<string, unknown>>; total: number } }).data
+    expect(page.total).toBe(1)
+    expect(page.companies).toHaveLength(0)
+
+    const bad = await app.inject({
+      method: 'GET',
+      url: `/v1/companies?sectorId=${sector}&limit=501`,
+      headers: authHeader(KEYS.viewer.presented),
+    })
+    expect(bad.statusCode).toBe(400)
   })
 
   it('restarts failed sectors for operators only', async () => {

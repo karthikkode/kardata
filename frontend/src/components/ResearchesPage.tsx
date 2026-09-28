@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import type { CompanyResearch, ResearchData, SectorResearch } from '../data/research'
-import type { ResearchState } from '../data/staging-api'
+import { useStagingCompanies } from '../data/research'
+import type { ResearchState, StagingConfig } from '../data/staging-api'
 import type { ResearchList } from './Dashboard'
 import {
   CompanyRow,
@@ -152,20 +153,13 @@ function FullList({
   if (data.status === 'offline') {
     return <UnavailableNotice onRetry={data.retry} />
   }
-  const base =
-    tab === 'sectors'
-      ? (data.items as SectorResearch[]).map((item) => ({
-          id: item.id,
-          text: `${item.name} ${item.topic}`,
-          state: item.state,
-          row: <SectorRow key={item.id} research={item} onOpen={onOpenSector} />,
-        }))
-      : (data.items as CompanyResearch[]).map((item) => ({
-          id: item.id,
-          text: `${item.name} ${item.sectorName}`,
-          state: item.state,
-          row: <CompanyRow key={item.id} research={item} />,
-        }))
+  // Sectors stay client-filtered: the sector list is small and unpaged.
+  const base = (data.items as SectorResearch[]).map((item) => ({
+    id: item.id,
+    text: `${item.name} ${item.topic}`,
+    state: item.state,
+    row: <SectorRow key={item.id} research={item} onOpen={onOpenSector} />,
+  }))
   const rows = base.filter(
     (item) =>
       (!needle || item.text.toLowerCase().includes(needle)) &&
@@ -203,6 +197,81 @@ function FullList({
         </p>
       ) : null}
       <OverflowList total={rows.length}>{rows.map((item) => item.row)}</OverflowList>
+    </>
+  )
+}
+
+// Companies filter server-side: the company list pages (default window
+// 100), so local filtering would silently search a partial window. The
+// count line reads the server total, never the window length.
+function CompaniesFullList({
+  staging,
+  query,
+  active,
+  onClear,
+}: {
+  staging: StagingConfig | null
+  query: string
+  active: StateFilter
+  onClear: () => void
+}) {
+  const needle = query.trim()
+  const data = useStagingCompanies(staging, {
+    ...(active === 'all' ? {} : { state: active }),
+    ...(needle === '' ? {} : { query: needle }),
+  })
+  if (data.status === 'loading') {
+    return <SkeletonRows label="Company researches are loading" />
+  }
+  if (data.status === 'error') {
+    return (
+      <PanelError
+        heading="Company researches did not load."
+        detail="Check your connection and try again."
+        onRetry={data.retry}
+      />
+    )
+  }
+  if (data.status === 'denied') {
+    return <DeniedNotice heading="Company researches are not shared with this key." />
+  }
+  if (data.status === 'offline') {
+    return <UnavailableNotice onRetry={data.retry} />
+  }
+  const rows = data.items
+  const total = data.total ?? rows.length
+  const filtered = needle !== '' || active !== 'all'
+  const showCount = filtered || rows.length > 50 || total > rows.length
+  if (!rows.length) {
+    return (
+      <div className="mt-2 rounded-lg border border-dashed border-border p-4">
+        <p className="text-sm text-muted-foreground">
+          {filtered
+            ? 'No researches match these filters. Clear them to see everything.'
+            : firstRunCopy.companies}
+        </p>
+        {filtered ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onClear}
+            className="mt-3"
+          >
+            Clear filters
+          </Button>
+        ) : null}
+      </div>
+    )
+  }
+  return (
+    <>
+      {showCount ? (
+        <p aria-live="polite" className="mb-2 text-xs text-muted-foreground">
+          Showing {rows.length} of {total} matching
+        </p>
+      ) : null}
+      <OverflowList total={total}>{rows.map((item) => <CompanyRow key={item.id} research={item} />)}</OverflowList>
     </>
   )
 }
@@ -276,7 +345,7 @@ function CreateSectorForm({
 export function ResearchesPage({
   initialTab,
   sectors,
-  companies,
+  staging,
   creating,
   createError,
   onBack,
@@ -286,7 +355,7 @@ export function ResearchesPage({
 }: {
   initialTab: ResearchList
   sectors: ResearchData<SectorResearch>
-  companies: ResearchData<CompanyResearch>
+  staging: StagingConfig | null
   creating: boolean
   createError: string | null
   onBack: () => void
@@ -297,7 +366,6 @@ export function ResearchesPage({
   const [tab, setTab] = useState<ResearchList>(initialTab)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState<StateFilter>('all')
-  const data = tab === 'sectors' ? sectors : companies
   // Tab switches sync to the URL (via App) so refresh keeps the tab.
   function changeTab(next: ResearchList): void {
     setTab(next)
@@ -325,18 +393,29 @@ export function ResearchesPage({
           onActive={setActive}
         />
         <div className="mt-4">
-          <FullList
-            key={tab}
-            data={data}
-            tab={tab}
-            query={query}
-            active={active}
-            onClear={() => {
-              setQuery('')
-              setActive('all')
-            }}
-            onOpenSector={onOpenSector}
-          />
+          {tab === 'sectors' ? (
+            <FullList
+              data={sectors}
+              tab={tab}
+              query={query}
+              active={active}
+              onClear={() => {
+                setQuery('')
+                setActive('all')
+              }}
+              onOpenSector={onOpenSector}
+            />
+          ) : (
+            <CompaniesFullList
+              staging={staging}
+              query={query}
+              active={active}
+              onClear={() => {
+                setQuery('')
+                setActive('all')
+              }}
+            />
+          )}
         </div>
       </section>
     </div>

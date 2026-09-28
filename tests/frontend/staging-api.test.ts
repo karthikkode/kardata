@@ -65,7 +65,9 @@ describe.skipIf(!ENABLED)('staging api client', () => {
   it('lists sectors and companies without fixtures', async () => {
     expect(Array.isArray(await listSectors(config))).toBe(true)
     expect(Array.isArray(await listSectors(config, { state: 'running', query: 'pet' }))).toBe(true)
-    expect(Array.isArray(await listCompanies(config))).toBe(true)
+    const page = await listCompanies(config)
+    expect(Array.isArray(page.companies)).toBe(true)
+    expect(page.total).toBeGreaterThanOrEqual(page.companies.length)
     expect(Array.isArray(await listTenantArtifacts(config))).toBe(true)
   })
 

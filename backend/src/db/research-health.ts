@@ -47,7 +47,12 @@ export async function researchHealth(
   if (!SectorIdSchema.safeParse(sectorId).success) throw new DbContractError('sectorId must be a non-empty string')
   const sector = await getSector(db, sectorId, scope)
   if (!sector) throw new DbContractError(`unknown sector ${sectorId}`)
-  const activity = await sectorActivity(db, sectorId, scope)
+  // Health signals come from the tail (latest entries), not the head: read
+  // the total first, then the last window. Two cheap reads; the partition
+  // scan dominates and stays small at thousand-event scale.
+  const head = await sectorActivity(db, sectorId, scope, { limit: 1, offset: 0 })
+  const tailOffset = Math.max(0, head.total - 200)
+  const { entries: activity } = await sectorActivity(db, sectorId, scope, { limit: 200, offset: tailOffset })
   const sessions = await listSessions(db, scope, sectorId)
   const sessionHealth: ResearchSessionHealth[] = []
   let liveThreads = 0
@@ -67,7 +72,7 @@ export async function researchHealth(
   }
   return {
     sector: { id: sector.id, name: sector.name, state: sector.state },
-    activityEntries: activity.length,
+    activityEntries: head.total,
     lastActivitySeq: activity.length > 0 ? (activity[activity.length - 1]?.seq ?? null) : null,
     sessions: sessionHealth,
     liveThreads,
