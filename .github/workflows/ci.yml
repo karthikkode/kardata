@@ -1,0 +1,36 @@
+# CI verify pipeline (no deploy target: this workflow proves, never ships).
+# Hermetic only: pr:verify (lint + typecheck + tests, all workspaces),
+# frontend production build, and the Playwright e2e suite against the Vite
+# dev server with stubbed /v1/* responses. Live-gated suites (Temporal,
+# compose smoke, provider probes) stay checklist-stated, never CI-run.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run pr:verify
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: npm run test:e2e
