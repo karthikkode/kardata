@@ -170,3 +170,13 @@ typecheck clean, `npm test` 231 passed / 6 skipped, `npm run build` clean,
 `npm run test:e2e` 33/33 (29 + polish 4). Backend lint/typecheck clean,
 hermetic 262 passed / 174 skipped (live-gated), live sector-context 4/4.
 Agents 178 passed (untouched sanity).
+
+## Scale proof (thousand-row UI, 2026-09-28)
+
+`tests/frontend-e2e/scale.spec.ts` serves a stubbed 1000-company sector
+and walks all ten Show-more windows: first window asserts
+`Scale company 100` + `Showing 100 of 1000 companies`, each click
+asserts the next hundred plus its count line, the tenth asserts
+`Showing 1000 of 1000 companies` with no Show-more button left.
+Stubbed, hermetic, no backend: `thousandWalkMs=1405` on the run that
+proved it. Verdict: pass, counts truthful at every window.

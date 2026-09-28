@@ -1,5 +1,19 @@
 # Implementation status
 
+## Thousand-scale proof: 1000 subagents + 1000-row UI (2026-09-28)
+
+- Fleet-load file gains the thousand leg (own 1000-company sector,
+  `maxInFlight` override path exercised, `stageCount` walks pages past
+  the 500 cap): launched 1000 children in 4.5 s, all 1000 real company
+  outputs in 293 s, 1000/1000 completed, zero rejected, zero missed,
+  zero tokens, zero orphans left running. Scaling is linear
+  (~0.3 s/output/child; launches serialize in the parent loop).
+- New `tests/frontend-e2e/scale.spec.ts`: stubbed 1000-company detail
+  walked through all ten Show-more windows with truthful totals at
+  every step in 1405 ms, button gone at 1000.
+- Same-change docs: `documentation/tests.md` fleet line,
+  `docs/frontend-verification.md` scale row (below).
+
 ## Show-more company windows (2026-09-28)
 
 - `useStagingCompanies` appends 100-row windows via `Show more
