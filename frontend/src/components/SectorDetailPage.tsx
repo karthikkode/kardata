@@ -119,11 +119,26 @@ function CompanySection({
           </p>
         ) : null}
         {rows.length ? (
+          <>
           <OverflowList total={total ?? rows.length}>
             {rows.map((item) => (
               <CompanyRow key={item.id} research={item} />
             ))}
           </OverflowList>
+          {(total ?? rows.length) > rows.length ? (
+            <div className="mt-2 flex justify-center">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={companies.showMore}
+                disabled={companies.loadingMore}
+              >
+                {companies.loadingMore ? 'Loading more…' : `Show more (${rows.length} of ${total})`}
+              </Button>
+            </div>
+          ) : null}
+          </>
         ) : (
           <div className="mt-2 rounded-lg border border-dashed border-border p-4">
             <p className="text-sm text-muted-foreground">

@@ -92,12 +92,15 @@ function stubCompanyServer(rows: Array<{ id: string; name: string; state: string
         const query = new URL(text, 'https://stub.test')
         const needle = (query.searchParams.get('query') ?? '').toLowerCase()
         const state = query.searchParams.get('state')
+        const limit = Number(query.searchParams.get('limit') ?? '100')
+        const offset = Number(query.searchParams.get('offset') ?? '0')
         const filtered = full.filter(
           (row) =>
             (needle === '' || row.name.toLowerCase().includes(needle)) &&
             (state === null || row.state === state),
         )
-        return { ok: true, status: 200, json: async () => ({ ok: true, data: { companies: filtered, total: filtered.length } }) }
+        const window = filtered.slice(offset, offset + limit)
+        return { ok: true, status: 200, json: async () => ({ ok: true, data: { companies: window, total: filtered.length } }) }
       }
       return { ok: false, status: 404, json: async () => ({ ok: false, error: { code: 'not_found', message: 'no' } }) }
     }),
@@ -242,6 +245,24 @@ describe('SectorDetailPage body', () => {
       target: { value: 'Bulk company 119' },
     })
     expect(await screen.findByText('Bulk company 119')).toBeInTheDocument()
+  })
+
+  it('pages the section with Show more until the total is reached', async () => {
+    const rows = Array.from({ length: 250 }, (_, index) => ({
+      id: `bulk-${index + 1}`,
+      name: `Bulk company ${index + 1}`,
+      state: 'running',
+    }))
+    stubCompanyServer(rows)
+    renderPage({ detail: { ...petCare, companiesFound: 250 }, staging })
+    expect(await screen.findByText('Bulk company 100')).toBeInTheDocument()
+    expect(screen.getByText('Showing 100 of 250 companies')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Show more/ }))
+    expect(await screen.findByText('Bulk company 200')).toBeInTheDocument()
+    expect(screen.getByText('Showing 200 of 250 companies')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Show more/ }))
+    expect(await screen.findByText('Bulk company 250')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Show more/ })).not.toBeInTheDocument()
   })
 
   it('pauses a running research from the chat window', async () => {
