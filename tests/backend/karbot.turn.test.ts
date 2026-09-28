@@ -156,6 +156,31 @@ describe('executeKarbotTurn', () => {
     expect(refs).toBeGreaterThan(skill)
     expect(chunk).toBeGreaterThan(refs)
   })
+  it('advertises web search, fetch, and browser tools to Karbot', async () => {
+    const calls: string[] = []
+    const names = [
+      'web_search',
+      'web_fetch',
+      'browser_navigate',
+      'browser_snapshot',
+      'browser_act',
+      'browser_close',
+      'browser_screenshot',
+      'db.find_key',
+    ]
+    const client = productMcpClient({
+      async listTools() {
+        return names.map((name) => ({ ...tool(), name }))
+      },
+      async callTool(name) { calls.push(name); return { content: 'ok' } },
+    })
+    const listed = (await client.listTools()).map((entry) => entry.name)
+    for (const name of names.slice(0, 7)) expect(listed).toContain(name)
+    expect(await client.callTool('web_search', { query: 'acme foods' })).toMatchObject({ content: 'ok' })
+    expect(await client.callTool('browser_navigate', { url: 'https://example.com' })).toMatchObject({ content: 'ok' })
+    expect(await client.callTool('db.find_key', {})).toMatchObject({ isError: true })
+    expect(calls).toEqual(['web_search', 'browser_navigate'])
+  })
   it('advertises product tools without operational database plumbing', async () => {
     const calls: string[] = []
     const client = productMcpClient({

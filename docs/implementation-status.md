@@ -1,5 +1,25 @@
 # Implementation status
 
+## Hound at fullest: palette + EN regions + live-leg proof (2026-09-28)
+
+- Karbot palette gains `web_search`, `web_fetch`, all five `browser_*`;
+  sector palette gains `web_search` + `web_fetch` (web reads only,
+  browser action stays Karbot-only). Proven failing-first in
+  `karbot.turn.test.ts` (grant advertisement + stacking order intact).
+- Sweep templates fan out per EN region by default (`ENGLISH_REGIONS`:
+  US/UK/Canada/Australia; base order stable, cap 30). Proven
+  failing-first in `sweep.rules.test.ts`.
+- Live proof, no code: keyless DDG-html returns hits from here;
+  worker→sidecar CDP navigates + snapshots + closes; webFetch extracts
+  text; keyed fails closed (no key configured). An earlier browser-probe
+  hang was a stale-dist artifact, cleared by the current image.
+- KB completeness verified for the ICP bar: all 7 migration DROPs are
+  old-stack internals/retired drafts (none touch ICP, qualification,
+  problems, offer, pricing); corpus accuracy 15/15 live. The corpus is
+  a starting hypothesis by design (icp.md says it evolves from
+  evidence), complete as a bar, not frozen truth.
+- Same-change docs: `docs/architecture.md` retrieval paragraphs.
+
 ## Thousand-scale proof: 1000 subagents + 1000-row UI (2026-09-28)
 
 - Fleet-load file gains the thousand leg (own 1000-company sector,

@@ -531,6 +531,13 @@ const PRODUCT_TOOLS = new Set([
   'db.kb_search',
   'db.ledger_upsert_company', 'db.ledger_get_company', 'db.ledger_list_companies',
   'db.ledger_record_problem', 'db.ledger_list_problems',
+  // Hound at fullest: live web search (keyed, else keyless pool), page
+  // fetch with caps and SSRF guards, and the browser leg (sidecar CDP,
+  // task-scoped sessions) when automated search is blocked. Keyed search
+  // fails closed without KARDATA_WEB_SEARCH_KEY; every leg fails loudly,
+  // never an empty list pretending to be exhaustive.
+  'web_search', 'web_fetch',
+  'browser_navigate', 'browser_snapshot', 'browser_act', 'browser_close', 'browser_screenshot',
 ])
 
 export function productMcpClient(client: TurnRunnerMcpClient): TurnRunnerMcpClient {
@@ -564,6 +571,12 @@ export const SECTOR_TOOLS: ReadonlySet<string> = new Set([
   'db.list_artifacts',
   'db.reference_artifact',
   'db.kb_search',
+  // Web retrieval reads the public web, not our database: search and
+  // fetch stay readable in sector scope so sector research skills can
+  // discover companies from chat. Browser action stays Karbot-only
+  // (sessions are task-scoped there; sector turns never drive pages).
+  'web_search',
+  'web_fetch',
   // Own-sector monitoring stays readable here; steering other sessions is
   // Karbot-only (send/steer need approver + confirmation anyway).
   'db.research_health',

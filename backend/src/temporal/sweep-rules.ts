@@ -3,10 +3,29 @@
 // imports — unit-tested directly like the B2.6 guard matrix.
 
 /** Query templates from sector identity. Deterministic: the same sector
- * always sweeps the same template order. */
-export function buildQueryTemplates(name: string, topic: string): string[] {
+ * always sweeps the same template order.
+ *
+ * English-speaking regions bound the discovery harness: every base
+ * template fans out per region so one region's index can never stand
+ * in for the whole market, and non-English results stay out by query
+ * construction (never by silent post-filtering). Base order is stable
+ * (regionals append after the base set, capped at 30); the optional
+ * override exists for tests and future region-scoped runs, never for
+ * live contraction. */
+export const ENGLISH_REGIONS: readonly string[] = [
+  'United States',
+  'United Kingdom',
+  'Canada',
+  'Australia',
+]
+
+export function buildQueryTemplates(
+  name: string,
+  topic: string,
+  regions: readonly string[] = ENGLISH_REGIONS,
+): string[] {
   const subject = (topic || name).trim()
-  const templates = [
+  const base = [
     subject,
     `${name} companies`,
     `${subject} startups vendors`,
@@ -14,7 +33,9 @@ export function buildQueryTemplates(name: string, topic: string): string[] {
     `best ${subject} companies`,
     `${subject} new entrants`,
   ]
-  return [...new Set(templates.map((template) => template.trim()).filter((template) => template.length > 1))]
+  const regional = regions.flatMap((region) => base.map((template) => `${template} ${region}`))
+  const templates = [...base, ...regional]
+  return [...new Set(templates.map((template) => template.trim()).filter((template) => template.length > 1))].slice(0, 30)
 }
 
 export interface CandidateHit {
