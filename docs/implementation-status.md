@@ -1,5 +1,22 @@
 # Implementation status
 
+## Fleet seed for thousand-company runs (2026-09-28)
+
+- `tests/backend/fleet-seed.ts` (new): deterministic TEST generator
+  (seeded PRNG, TEST labels on every name/file/marker, `test-fleet`
+  tenant scope, docs spanning the chunker cap). Proven by
+  `tests/backend/fleet-seed.test.ts` (failing-first on the missing
+  module; 5/5 after): hermetic determinism/label/count/stage
+  checks plus the live case (own DB, projector catch-up like the
+  routes) seeding 1000 companies + 12 docs on 5433 in 1.5 s
+  (appends 1248 ms, projection 154 ms, 4 multi-unit docs).
+- Red suite root-caused (test side wrong): first live run failed
+  `unknown sector` because the test skipped the projector
+  catch-up between `createSector` and `markCompanyFound`; fixed
+  to mirror the routes. Same-change doc: `documentation/tests.md`
+  fleet-seed section (a replaced header was caught on read-back
+  and repaired).
+
 ## First live sector research + recorded pack (2026-09-28)
 
 - Ran the research workflow against the real Meta provider
