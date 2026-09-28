@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { frozenClock } from './clock.js'
@@ -23,7 +23,11 @@ function loadPack(name: string): ResearchPack {
 }
 
 function packNames(): string[] {
-  return ['research-fintech-acme.json', 'research-fintech-live.json']
+  // Directory glob, not a hardcoded list: every future research pack is
+  // covered automatically, and an empty result fails loudly below.
+  const names = readdirSync(fixtures).filter((name) => name.startsWith('research-') && name.endsWith('.json')).sort()
+  if (names.length === 0) throw new Error('no research packs found in fixtures')
+  return names
 }
 
 function registry(): ToolRegistry {
