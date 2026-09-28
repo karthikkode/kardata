@@ -111,7 +111,8 @@ non-bypassable. Until then, no agent merges on its own verification alone.
 - [ ] The whole suite ran: `npm run lint`, `npm run typecheck`, `npm test`
   across all workspaces (`npm run pr:verify`), `npm run build -w frontend`,
   plus `npm run test:e2e` when a user path changed. Proof: pasted command
-  output. Mechanical shortcut: `npm run pr:verify` runs lint, typecheck,
+  output. Mechanical shortcut: `npm run pr:verify` builds `@kardata/agents`
+  first (backend tests resolve its `dist` entry), then lint, typecheck,
   and tests (plus state which gates were open); judgment items below stay
   human.
 - [ ] Live-gated suites were run or explicitly skipped with reason:
