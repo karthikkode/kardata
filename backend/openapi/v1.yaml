@@ -557,6 +557,17 @@ paths:
       summary: One sector with its companies and activity timeline.
       parameters:
         - $ref: '#/components/parameters/SectorId'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
       responses:
         '200':
           description: Sector detail.
@@ -811,6 +822,17 @@ paths:
           schema:
             type: string
             maxLength: 200
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
       responses:
         '200':
           description: Company list.
@@ -1264,9 +1286,16 @@ components:
           type: boolean
           const: true
         data:
-          type: array
-          items:
-            $ref: '#/components/schemas/CompanyResearch'
+          type: object
+          required: [companies, total]
+          properties:
+            companies:
+              type: array
+              items:
+                $ref: '#/components/schemas/CompanyResearch'
+            total:
+              type: integer
+              minimum: 0
     SectorActivityEntry:
       type: object
       required: [seq, text]
@@ -1278,7 +1307,7 @@ components:
     SectorDetail:
       type: object
       description: Sector plus its companies and server-derived activity timeline.
-      required: [id, name, topic, companiesFound, state, companies, activity]
+      required: [id, name, topic, companiesFound, state, companies, companiesTotal, activity, activityTotal]
       properties:
         id:
           type: string
@@ -1294,10 +1323,16 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CompanyResearch'
+        companiesTotal:
+          type: integer
+          minimum: 0
         activity:
           type: array
           items:
             $ref: '#/components/schemas/SectorActivityEntry'
+        activityTotal:
+          type: integer
+          minimum: 0
     SectorEnvelope:
       type: object
       required: [ok, data]

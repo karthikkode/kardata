@@ -20,7 +20,8 @@ async function serveApi(page: Page, sent?: Promise<void>, release?: () => void) 
       return
     }
     let data: unknown = []
-    if (url.endsWith('/v1/sessions')) data = [session]
+    if (url.includes('/v1/companies')) data = { companies: [], total: 0 }
+    else if (url.endsWith('/v1/sessions')) data = [session]
     else if (url.endsWith('/v1/sessions/s-1')) data = session
     else if (url.endsWith('/v1/sessions/s-1/threads')) data = [{ key: 's-1', sessionId: 's-1', kind: 'session', status: 'RUNNING', acceptingSteer: true, queueDepth: 0, updatedAt: session.updatedAt }]
     else if (url.includes('/v1/commands/send') && method === 'POST') {

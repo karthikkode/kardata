@@ -14,7 +14,8 @@ async function serveClipsApi(page): Promise<void> {
       return
     }
     let data: unknown = []
-    if (url.includes('/v1/providers')) {
+    if (url.includes('/v1/companies')) data = { companies: [], total: 0 }
+    else if (url.includes('/v1/providers')) {
       data = {
         defaultProvider: 'meta',
         providers: [{ name: 'meta', hasKey: true, defaultModel: 'muse-spark-1.3-contributor', models: [

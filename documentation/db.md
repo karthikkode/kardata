@@ -25,6 +25,19 @@ pretending to be live data.
 - Pool settings (max, timeouts, per-process budgets) live in
   `backend/src/db/pool.ts` and nowhere else.
 
+## Read-path paging (thousand-row rule)
+
+`listCompanies`, `listSectorCompanies`, and `sectorActivity` take an
+optional `paging` window (`limit` 1-500 default 100, `offset` >= 0
+default 0) and return `{ rows, total }` (`{ companies, total }`,
+`{ entries, total }`): the window plus the truthful full count, so no
+caller mistakes a page for the whole table. Invalid windows throw
+`DbContractError` before any SQL. `researchHealth` reads the tail
+window (total first, then the last 200) because health signals come
+from the latest entries. Routes and MCP tools pass `limit`/`offset`
+through and answer totals alongside windows; the frontend filters
+server-side and counts from totals, never window lengths.
+
 ## Pool budgets
 
 - One factory (`createDbPool`), one shared worker pool

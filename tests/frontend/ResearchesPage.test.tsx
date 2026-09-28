@@ -2,16 +2,21 @@
 // rendering: filtering, overflow totals, and tab switches run against the
 // component contract, never a mock origin.
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ResearchList } from '@/components/Dashboard'
 import { ResearchesPage } from '@/components/ResearchesPage'
 import type {
-  CompanyResearch,
   ResearchData,
   SectorResearch,
 } from '@/data/research'
+import type { StagingConfig } from '@/data/staging-api'
 
 const noop = () => {}
+const staging: StagingConfig = { baseUrl: 'https://staging.test', apiKey: 'key' }
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 const SECTORS: SectorResearch[] = [
   { id: 'seed-pet-care', name: 'Pet care', topic: 'D2C pet brands', companiesFound: 2, state: 'running' },
@@ -35,14 +40,36 @@ function overflowSectors(): SectorResearch[] {
 }
 
 function bundle<T>(items: T[]): ResearchData<T> {
-  return { status: 'ready', items, retry: noop }
+  return { status: 'ready', items, total: items.length, retry: noop }
+}
+
+/** Stubbed server for the companies tab: filters like the backend
+ * (query/state params in, {companies, total} out). */
+function stubCompaniesTab(): void {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      const text = String(url)
+      if (text.includes('/v1/companies')) {
+        const query = new URL(text, 'https://stub.test')
+        const needle = (query.searchParams.get('query') ?? '').toLowerCase()
+        const state = query.searchParams.get('state')
+        const filtered = COMPANIES.filter(
+          (row) =>
+            (needle === '' || `${row.name} ${row.sectorName}`.toLowerCase().includes(needle)) &&
+            (state === null || row.state === state),
+        )
+        return { ok: true, status: 200, json: async () => ({ ok: true, data: { companies: filtered, total: filtered.length } }) }
+      }
+      return { ok: false, status: 404, json: async () => ({ ok: false, error: { code: 'not_found', message: 'no' } }) }
+    }),
+  )
 }
 
 function renderPage(
   props: {
     initialTab?: ResearchList
     sectors?: SectorResearch[]
-    companies?: CompanyResearch[]
     onBack?: () => void
     onOpenSector?: (id: string) => void
     onCreateSector?: (name: string, topic: string) => void
@@ -52,7 +79,6 @@ function renderPage(
   const {
     initialTab = 'sectors',
     sectors = SECTORS,
-    companies = COMPANIES,
     onBack = noop,
     onOpenSector = noop,
     onCreateSector = noop,
@@ -62,7 +88,7 @@ function renderPage(
     <ResearchesPage
       initialTab={initialTab}
       sectors={bundle(sectors)}
-      companies={bundle(companies)}
+      staging={staging}
       creating={false}
       createError={createError}
       onBack={onBack}
@@ -81,20 +107,32 @@ describe('ResearchesPage', () => {
     expect(screen.getByText('Overflow sector 60')).toBeInTheDocument()
   })
 
-  it('starts on the requested segment', () => {
+  it('starts on the requested segment', async () => {
+    stubCompaniesTab()
     renderPage({ initialTab: 'companies' })
     expect(
       screen.getByRole('region', { name: 'All company researches' }),
     ).toBeInTheDocument()
-    expect(screen.getByText('West Paw')).toBeInTheDocument()
+    expect(await screen.findByText('West Paw')).toBeInTheDocument()
   })
 
-  it('switches segments', () => {
+  it('switches segments', async () => {
+    stubCompaniesTab()
     renderPage()
     expect(screen.getByText('Pet care')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Companies' }))
-    expect(screen.getByText('West Paw')).toBeInTheDocument()
+    expect(await screen.findByText('West Paw')).toBeInTheDocument()
     expect(screen.queryByText('Pet care', { exact: true })).not.toBeInTheDocument()
+  })
+
+  it('filters companies server-side with a truthful total', async () => {
+    stubCompaniesTab()
+    renderPage({ initialTab: 'companies' })
+    expect(await screen.findByText('West Paw')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Filter researches'), {
+      target: { value: 'no-such-company' },
+    })
+    expect(await screen.findByText(/No researches match these filters/)).toBeInTheDocument()
   })
 
   it('filters by state and clears back to everything', () => {
@@ -159,13 +197,13 @@ describe('ResearchesPage', () => {
   })
 
   it('shows loading and error states from the bundle', () => {
-    const loading: ResearchData<SectorResearch> = { status: 'loading', items: [], retry: noop }
-    const failed: ResearchData<SectorResearch> = { status: 'error', items: [], retry: noop }
+    const loading: ResearchData<SectorResearch> = { status: 'loading', items: [], total: 0, retry: noop }
+    const failed: ResearchData<SectorResearch> = { status: 'error', items: [], total: 0, retry: noop }
     const { rerender } = render(
       <ResearchesPage
         initialTab="sectors"
         sectors={loading}
-        companies={bundle<CompanyResearch>([])}
+        staging={staging}
         creating={false}
         onBack={noop}
         onOpenSector={noop}
@@ -177,7 +215,7 @@ describe('ResearchesPage', () => {
       <ResearchesPage
         initialTab="sectors"
         sectors={failed}
-        companies={bundle<CompanyResearch>([])}
+        staging={staging}
         creating={false}
         onBack={noop}
         onOpenSector={noop}

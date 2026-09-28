@@ -20,7 +20,17 @@ const COMPANIES = [
 const DETAIL = {
   ...SECTORS[0],
   companies: COMPANIES,
+  companiesTotal: COMPANIES.length,
   activity: [{ seq: 1, text: 'Research started for Backend brands.' }],
+  activityTotal: 1,
+}
+
+function companiesPage() {
+  return { status: 200, payload: { ok: true, data: { companies: COMPANIES, total: COMPANIES.length } } }
+}
+
+function emptyCompaniesPage() {
+  return { status: 200, payload: { ok: true, data: { companies: [], total: 0 } } }
 }
 
 function stubFetch(handler: (url: string) => { status: number; payload: unknown }): void {
@@ -48,7 +58,7 @@ describe('staging research surfaces (F-S2)', () => {
   it('renders dashboard lists from the backend', async () => {
     stubFetch((url) => {
       if (url.endsWith('/v1/sectors')) return { status: 200, payload: { ok: true, data: SECTORS } }
-      if (url.endsWith('/v1/companies')) return { status: 200, payload: { ok: true, data: COMPANIES } }
+      if (url.includes('/v1/companies')) return companiesPage()
       return { status: 404, payload: { ok: false, error: { code: 'not_found', message: 'no' } } }
     })
     const { default: App } = await import('@/App')
@@ -62,7 +72,7 @@ describe('staging research surfaces (F-S2)', () => {
   it('opens a server sector with companies and chat', async () => {
     stubFetch((url) => {
       if (url.endsWith('/v1/sectors')) return { status: 200, payload: { ok: true, data: SECTORS } }
-      if (url.endsWith('/v1/companies')) return { status: 200, payload: { ok: true, data: COMPANIES } }
+      if (url.includes('/v1/companies')) return companiesPage()
       if (url.includes('/v1/sectors/')) return { status: 200, payload: { ok: true, data: DETAIL } }
       return { status: 404, payload: { ok: false, error: { code: 'not_found', message: 'no' } } }
     })
@@ -70,7 +80,7 @@ describe('staging research surfaces (F-S2)', () => {
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: 'Open Server Pet' }))
     expect(await screen.findByRole('region', { name: 'Sector chat for Server Pet' })).toBeInTheDocument()
-    expect(screen.getByText('Server West')).toBeInTheDocument()
+    expect(await screen.findByText('Server West')).toBeInTheDocument()
     expect(screen.queryByText('Research started for Backend brands.')).not.toBeInTheDocument()
   })
 
@@ -79,7 +89,7 @@ describe('staging research surfaces (F-S2)', () => {
       if (url.endsWith('/v1/sectors')) {
         return { status: 403, payload: { ok: false, error: { code: 'permission_denied', message: 'no' } } }
       }
-      if (url.endsWith('/v1/companies')) return { status: 200, payload: { ok: true, data: [] } }
+      if (url.includes('/v1/companies')) return emptyCompaniesPage()
       return { status: 404, payload: { ok: false, error: { code: 'not_found', message: 'no' } } }
     })
     const { default: App } = await import('@/App')
@@ -104,7 +114,10 @@ describe('staging research surfaces (F-S2)', () => {
   })
 
   it('shows the empty first-run copy instead of an error for empty lists', async () => {
-    stubFetch(() => ({ status: 200, payload: { ok: true, data: [] } }))
+    stubFetch((url) => {
+      if (url.includes('/v1/companies')) return emptyCompaniesPage()
+      return { status: 200, payload: { ok: true, data: [] } }
+    })
     const { default: App } = await import('@/App')
     render(<App />)
     expect(await screen.findByText(/No sector researches yet\./)).toBeInTheDocument()
@@ -114,7 +127,7 @@ describe('staging research surfaces (F-S2)', () => {
   it('shows the not-found copy instead of an error for a removed sector', async () => {
     stubFetch((url) => {
       if (url.endsWith('/v1/sectors')) return { status: 200, payload: { ok: true, data: SECTORS } }
-      if (url.endsWith('/v1/companies')) return { status: 200, payload: { ok: true, data: COMPANIES } }
+      if (url.includes('/v1/companies')) return companiesPage()
       return { status: 404, payload: { ok: false, error: { code: 'not_found', message: 'no' } } }
     })
     const { default: App } = await import('@/App')

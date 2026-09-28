@@ -48,7 +48,7 @@ const CONTEXT = {
 
 const SECTOR = {
   id: 'sec-polish', name: 'Polish sector', topic: '', state: 'draft',
-  companiesFound: 0, companies: [], activity: [], createdAt: AT, updatedAt: AT,
+  companiesFound: 0, companies: [], companiesTotal: 0, activity: [], activityTotal: 0, createdAt: AT, updatedAt: AT,
 }
 
 async function servePolishApi(page: Page): Promise<void> {
@@ -62,6 +62,7 @@ async function servePolishApi(page: Page): Promise<void> {
     let data: unknown = []
     if (url.endsWith('/v1/sectors') && method === 'GET') data = [SECTOR]
     else if (url.endsWith('/v1/sectors/sec-polish')) data = SECTOR
+    else if (url.includes('/v1/companies')) data = { companies: [], total: 0 }
     else if (url.includes('/v1/sectors/sec-polish/documents')) data = []
     else if (url.includes('/v1/sectors/sec-polish/context')) data = CONTEXT
     else if (url.includes('/v1/runs')) data = []

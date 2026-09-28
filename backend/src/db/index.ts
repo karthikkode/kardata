@@ -99,6 +99,7 @@ export {
   type ActivityEntry,
   type CompanyFilters,
   type CompanyRecord,
+  type Paging,
   type SectorFilters,
   type SectorRecord,
   type SectorTransitionFailure,

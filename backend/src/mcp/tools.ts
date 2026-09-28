@@ -311,10 +311,12 @@ const INVOKERS: Invokers = {
   'db.list_sessions': (ctx, args) => listSessions(ctx.pool, ctx.scope, args.sectorId),
   'db.list_sectors': (ctx, args) => listSectors(ctx.pool, ctx.scope, args),
   'db.get_sector': (ctx, args) => getSector(ctx.pool, args.sectorId, ctx.scope),
-  'db.list_companies': (ctx, args) => listCompanies(ctx.pool, ctx.scope, args),
+  'db.list_companies': (ctx, args) =>
+    listCompanies(ctx.pool, ctx.scope, args, { limit: args.limit, offset: args.offset }),
   'db.list_sector_companies': (ctx, args) =>
-    listSectorCompanies(ctx.pool, args.sectorId, ctx.scope, { state: args.state, query: args.query }),
-  'db.sector_activity': (ctx, args) => sectorActivity(ctx.pool, args.sectorId, ctx.scope),
+    listSectorCompanies(ctx.pool, args.sectorId, ctx.scope, { state: args.state, query: args.query }, { limit: args.limit, offset: args.offset }),
+  'db.sector_activity': (ctx, args) =>
+    sectorActivity(ctx.pool, args.sectorId, ctx.scope, { limit: args.limit, offset: args.offset }),
   'db.create_sector': (ctx, args) =>
     createSector(ctx.pool, {
       name: args.name,

@@ -92,7 +92,14 @@ The client rejects removed provider ids before sending a model PATCH.
 
 ## Lists and detail (revamp wave 2)
 
-- `ResearchesPage` full lists count the filtered set (`Showing X of Y matching`; overflow chip uses the filtered total), so a filter past 50 rows never shows the unfiltered total.
+- Company lists filter and page server-side: `ResearchesPage` companies
+  tab and `SectorDetailPage` company section fetch their own
+  `useStagingCompanies` windows (`state`/`query` params in,
+  `{ companies, total }` out) instead of filtering a loaded array, so
+  counts read the server total and a filter never silently searches a
+  partial window. The Dashboard preview keeps its local first-N window
+  but counts `View all` from the server total and says so when a search
+  runs over a partial window. `ResearchesPage` full lists count the filtered set (`Showing X of Y matching`; overflow chip uses the filtered total), so a filter past 50 rows never shows the unfiltered total.
 - `SectorDetailPage` company sections state their filter outcome the same way with a filtered overflow total. The workspace columns scale with the viewport (`calc(100vh-14rem)`, min 480px) instead of a fixed 760px, and eye toggles carry tooltips naming the file.
 - The context drawer caps open unit lists at `max-h-64` with internal scroll; it stays a docked panel (overlay decision recorded as follow-up, not built). The meter header and add-note composer stick to the scrollport edges so fixed elements stay on scroll; unit islands chain the wheel to the column instead of trapping it; file summaries read `N units · Nk chars` and unit rows cite `filename:ord` with notes numbered by position, so no storage id or content hash reaches the reader. The drawer content is not itself a scroll container (that would trap the sticky pins). Canonical rule in `docs/design-system.md`.
 - `RunsPanel` tones `CANCELLING` as paused (amber), never failed red, and a failed cancel surfaces `Could not cancel run <id>. Try again.` as an alert instead of swallowing the error.

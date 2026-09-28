@@ -256,6 +256,29 @@ export interface SectorFilters {
   query?: string
 }
 
+/** Read-path paging: bounded windows with truthful totals. Defaults keep
+ * existing callers safe (first 100 rows); the cap stops full-table reads
+ * at thousand-row scale. Invalid windows throw before any SQL. */
+export interface Paging {
+  limit?: number
+  offset?: number
+}
+
+export const PAGING_DEFAULT_LIMIT = 100
+export const PAGING_MAX_LIMIT = 500
+
+function parsePaging(paging: Paging = {}): { limit: number; offset: number } {
+  const limit = paging.limit ?? PAGING_DEFAULT_LIMIT
+  const offset = paging.offset ?? 0
+  if (!Number.isInteger(limit) || limit < 1 || limit > PAGING_MAX_LIMIT) {
+    throw new DbContractError(`limit must be an integer 1-${PAGING_MAX_LIMIT}`)
+  }
+  if (!Number.isInteger(offset) || offset < 0) {
+    throw new DbContractError('offset must be a non-negative integer')
+  }
+  return { limit, offset }
+}
+
 function parseFilters(filters: SectorFilters = {}): { state?: SectorState; query?: string } {
   if (filters.state !== undefined && !SectorState.safeParse(filters.state).success) {
     throw new DbContractError('state must be a known research state')
@@ -324,9 +347,10 @@ export async function listSectorCompanies(
   sectorId: string,
   scope?: Scope,
   filters: SectorFilters = {},
-): Promise<CompanyRecord[]> {
+  paging: Paging = {},
+): Promise<{ companies: CompanyRecord[]; total: number }> {
   if (!KeySchema.safeParse(sectorId).success) throw new DbContractError('sectorId must be non-empty')
-  return listCompanies(db, scope, { ...filters, sectorId })
+  return listCompanies(db, scope, { ...filters, sectorId }, paging)
 }
 
 /** Tenant-wide company list with owning sector names. */
@@ -334,8 +358,10 @@ export async function listCompanies(
   db: Db,
   scope?: Scope,
   filters: CompanyFilters = {},
-): Promise<CompanyRecord[]> {
+  paging: Paging = {},
+): Promise<{ companies: CompanyRecord[]; total: number }> {
   const { state, query } = parseFilters(filters)
+  const { limit, offset } = parsePaging(paging)
   if (filters.sectorId !== undefined && !KeySchema.safeParse(filters.sectorId).success) {
     throw new DbContractError('sectorId must be non-empty')
   }
@@ -356,23 +382,33 @@ export async function listCompanies(
     conditions.push(`c.name ILIKE $${params.length}`)
   }
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+  const counted = await db.query<{ total: number | string }>(
+    `SELECT COUNT(*) AS total FROM companies c JOIN sectors s ON s.id = c.sector_id ${where}`,
+    params,
+  )
+  const total = Number(counted.rows[0]?.total ?? 0)
   const { rows } = await db.query<CompanyRow>(
     `SELECT c.id AS id, c.sector_id AS sector_id, s.name AS sector_name, c.name AS name,
        c.stage AS stage, c.state AS state, c.created_at AS created_at, c.updated_at AS updated_at
      FROM companies c JOIN sectors s ON s.id = c.sector_id
-     ${where} ORDER BY c.updated_at DESC`,
-    params,
+     ${where} ORDER BY c.updated_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, limit, offset],
   )
-  return rows.map(toCompanyRecord)
+  return { companies: rows.map(toCompanyRecord), total }
 }
 
 /** Activity timeline derived from the sector's event partition: the state
- * pill and the timeline can never disagree because both read one log. */
+ * pill and the timeline can never disagree because both read one log.
+ * Paged like company reads; the total counts mapped entries, so a window
+ * never passes as the whole timeline. */
 export async function sectorActivity(
   db: Db,
   sectorId: string,
   scope?: Scope,
-): Promise<ActivityEntry[]> {
+  paging: Paging = {},
+): Promise<{ entries: ActivityEntry[]; total: number }> {
+  if (!KeySchema.safeParse(sectorId).success) throw new DbContractError('sectorId must be non-empty')
+  const { limit, offset } = parsePaging(paging)
   const sector = await getSector(db, sectorId, scope)
   if (!sector) throw new DbContractError(`unknown sector ${sectorId}`)
   const events = await readPartition(db, `sector:${sectorId}`)
@@ -407,7 +443,7 @@ export async function sectorActivity(
       }
     }
   }
-  return entries
+  return { entries: entries.slice(offset, offset + limit), total: entries.length }
 }
 
 export async function createSector(

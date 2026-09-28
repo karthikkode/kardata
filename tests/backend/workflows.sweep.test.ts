@@ -126,7 +126,8 @@ describe.skipIf(!ENABLED)('sector sweep workflow (Phase 6)', () => {
       const companies = await listSectorCompanies(pool, sectorId, { tenantId: 'tenant-sweep', projectId: null })
       // Exhaustion, not the cap: the stub repeats the same two companies
       // on every template, so dedupe lands exactly two.
-      expect(companies.map((company) => company.name).sort()).toEqual(['Acme Foods', 'Beta Pantry'])
+      expect(companies.total).toBe(2)
+      expect(companies.companies.map((company) => company.name).sort()).toEqual(['Acme Foods', 'Beta Pantry'])
       const progress = (await handle.query('sweepProgress')) as { status: string; companiesFound: number }
       expect(progress.status).toBe('complete')
       expect(progress.companiesFound).toBe(2)

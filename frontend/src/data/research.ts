@@ -22,6 +22,8 @@ export type ResearchStatus = 'loading' | 'ready' | 'error' | 'denied' | 'offline
 export interface ResearchData<T> {
   status: ResearchStatus
   items: T[]
+  /** Server-side total; equals items.length when unpaged. Absent until loaded. */
+  total: number | undefined
   retry: () => void
 }
 
@@ -80,22 +82,36 @@ export function useStagingSectors(config: StagingConfig | null): ResearchData<Se
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config?.baseUrl, config?.apiKey, attempt])
 
-  return { status, items, retry }
+  return { status, items, total: items.length, retry }
 }
 
-export function useStagingCompanies(config: StagingConfig | null): ResearchData<CompanyResearch> {
+export interface CompanyFilters {
+  state?: string
+  query?: string
+  sectorId?: string
+}
+
+export function useStagingCompanies(
+  config: StagingConfig | null,
+  filters: CompanyFilters = {},
+): ResearchData<CompanyResearch> {
   const [status, setStatus] = useState<ResearchStatus>('loading')
   const [items, setItems] = useState<CompanyResearch[]>([])
+  const [total, setTotal] = useState<number | undefined>(undefined)
   const [attempt, retry] = useRefetch()
+  const state = filters.state ?? ''
+  const needle = filters.query ?? ''
+  const sector = filters.sectorId ?? ''
 
   // Reset during render, never in the fetch effect: when the query
   // changes the previous rows no longer belong to it.
-  const query = config ? `${config.baseUrl} ${config.apiKey} ${attempt}` : null
+  const query = config ? `${config.baseUrl} ${config.apiKey} ${state} ${needle} ${sector} ${attempt}` : null
   const [activeQuery, setActiveQuery] = useState<string | null>(null)
   if (activeQuery !== query) {
     setActiveQuery(query)
     if (query === null) {
       setItems([])
+      setTotal(undefined)
       setStatus('ready')
     } else {
       setStatus('loading')
@@ -105,10 +121,15 @@ export function useStagingCompanies(config: StagingConfig | null): ResearchData<
   useEffect(() => {
     if (!config) return
     let live = true
-    listCompanies(config)
-      .then((rows) => {
+    listCompanies(config, {
+      ...(state === '' || state === 'all' ? {} : { state: state as CompanyResearch['state'] }),
+      ...(needle === '' ? {} : { query: needle }),
+      ...(sector === '' ? {} : { sectorId: sector }),
+    })
+      .then((page) => {
         if (!live) return
-        setItems(rows)
+        setItems(page.companies)
+        setTotal(page.total)
         setStatus('ready')
       })
       .catch((error: unknown) => {
@@ -119,9 +140,9 @@ export function useStagingCompanies(config: StagingConfig | null): ResearchData<
       live = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config?.baseUrl, config?.apiKey, attempt])
+  }, [config?.baseUrl, config?.apiKey, state, needle, sector, attempt])
 
-  return { status, items, retry }
+  return { status, items, total, retry }
 }
 
 export interface SectorDetailData {

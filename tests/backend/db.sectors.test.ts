@@ -58,6 +58,15 @@ describe('sector repos (B-S2)', () => {
       DbContractError,
     )
     await expect(sectorActivity(db, '', undefined)).rejects.toBeInstanceOf(DbContractError)
+    await expect(listCompanies(db, undefined, {}, { limit: 0 })).rejects.toBeInstanceOf(DbContractError)
+    await expect(listCompanies(db, undefined, {}, { limit: 501 })).rejects.toBeInstanceOf(DbContractError)
+    await expect(listCompanies(db, undefined, {}, { offset: -1 })).rejects.toBeInstanceOf(DbContractError)
+    await expect(listSectorCompanies(db, 's', undefined, {}, { limit: 0 })).rejects.toBeInstanceOf(
+      DbContractError,
+    )
+    await expect(sectorActivity(db, 's', undefined, { limit: 501 })).rejects.toBeInstanceOf(
+      DbContractError,
+    )
     expect(wasQueried()).toBe(false)
   })
 
@@ -125,11 +134,12 @@ describe('sector repos (B-S2)', () => {
         researchSessionId: null,
       })
       const companies = await listSectorCompanies(pool, sectorId, SCOPE)
-      expect(companies.map((entry) => entry.name).sort()).toEqual(['Acme Audio', 'West Paw'])
-      const west = companies.find((entry) => entry.id === companyId)
+      expect(companies.total).toBe(2)
+      expect(companies.companies.map((entry) => entry.name).sort()).toEqual(['Acme Audio', 'West Paw'])
+      const west = companies.companies.find((entry) => entry.id === companyId)
       expect(west).toMatchObject({ stage: 'Final validation', state: 'running', sectorName: 'Pet care' })
       // Fresh discovery defaults: Filter stage, running state.
-      expect(companies.find((entry) => entry.id === `t-acme-${STAMP}`)).toMatchObject({
+      expect(companies.companies.find((entry) => entry.id === `t-acme-${STAMP}`)).toMatchObject({
         stage: 'Filter',
         state: 'running',
       })
@@ -149,14 +159,56 @@ describe('sector repos (B-S2)', () => {
         `t-pet-care-${STAMP}`,
       )
       const paused = await listCompanies(pool, SCOPE, { state: 'paused' })
-      expect(paused.map((entry) => entry.id)).toContain(`t-acme-${STAMP}`)
+      expect(paused.companies.map((entry) => entry.id)).toContain(`t-acme-${STAMP}`)
       const deep = await listSectorCompanies(pool, `t-pet-care-${STAMP}`, SCOPE, { query: 'acme' })
-      expect(deep).toHaveLength(1)
-      expect(deep[0]).toMatchObject({ stage: 'Deep research', state: 'paused' })
+      expect(deep.companies).toHaveLength(1)
+      expect(deep.total).toBe(1)
+      expect(deep.companies[0]).toMatchObject({ stage: 'Deep research', state: 'paused' })
       // Other tenants see nothing.
       expect(await listSectors(pool, OTHER)).toEqual([])
-      expect(await listCompanies(pool, OTHER)).toEqual([])
+      expect(await listCompanies(pool, OTHER)).toEqual({ companies: [], total: 0 })
       expect(await getSector(pool, `t-pet-care-${STAMP}`, OTHER)).toBeUndefined()
+    })
+
+    it('pages company and activity reads with truthful totals', async () => {
+      const { sectorId } = await createSector(pool, {
+        name: 'Paging',
+        topic: 'Page windows',
+        scope: SCOPE,
+        sectorId: `t-paging-${STAMP}`,
+        idempotencyKey: `t:sector:paging-${STAMP}`,
+      })
+      await catchUp()
+      for (let i = 0; i < 5; i++) {
+        await markCompanyFound(pool, {
+          sectorId,
+          name: `Page Co ${i}`,
+          scope: SCOPE,
+          companyId: `t-page-${i}-${STAMP}`,
+          idempotencyKey: `t:company:page-${i}-${STAMP}`,
+        })
+      }
+      await catchUp()
+
+      const first = await listSectorCompanies(pool, sectorId, SCOPE, {}, { limit: 2, offset: 0 })
+      expect(first.companies).toHaveLength(2)
+      expect(first.total).toBe(5)
+      const last = await listSectorCompanies(pool, sectorId, SCOPE, {}, { limit: 2, offset: 4 })
+      expect(last.companies).toHaveLength(1)
+      expect(last.total).toBe(5)
+      const past = await listSectorCompanies(pool, sectorId, SCOPE, {}, { limit: 2, offset: 5 })
+      expect(past.companies).toEqual([])
+      expect(past.total).toBe(5)
+      const wide = await listCompanies(pool, SCOPE, { query: 'Page Co' })
+      expect(wide.total).toBeGreaterThanOrEqual(5)
+      expect(wide.companies.length).toBeLessThanOrEqual(100)
+
+      const head = await sectorActivity(pool, sectorId, SCOPE, { limit: 2, offset: 0 })
+      expect(head.entries).toHaveLength(2)
+      expect(head.total).toBeGreaterThanOrEqual(6)
+      const tail = await sectorActivity(pool, sectorId, SCOPE, { limit: 2, offset: head.total })
+      expect(tail.entries).toEqual([])
+      expect(tail.total).toBe(head.total)
     })
 
     it('projects the research session pin from the start event', async () => {
@@ -175,12 +227,12 @@ describe('sector repos (B-S2)', () => {
 
     it('derives the activity timeline from the sector partition', async () => {
       const activity = await sectorActivity(pool, `t-pet-care-${STAMP}`, SCOPE)
-      const texts = activity.map((entry) => entry.text)
+      const texts = activity.entries.map((entry) => entry.text)
       expect(texts[0]).toBe('Research started for D2C pet brands.')
       expect(texts).toContain('West Paw found.')
       expect(texts).toContain('Acme Audio moved to Deep research.')
       expect(texts).toContain('Research running.')
-      const seqs = activity.map((entry) => entry.seq)
+      const seqs = activity.entries.map((entry) => entry.seq)
       expect([...seqs].sort((a, b) => a - b)).toEqual(seqs)
       await expect(sectorActivity(pool, `t-missing-${STAMP}`, SCOPE)).rejects.toBeInstanceOf(DbContractError)
     })

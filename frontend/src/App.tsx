@@ -290,7 +290,7 @@ export default function App() {
                 key={researchTab}
                 initialTab={researchTab}
                 sectors={sectors}
-                companies={companies}
+                staging={staging}
                 creating={creating}
                 createError={createError}
                 onBack={() => setNav({ section: 'Overview', sectorId: null })}

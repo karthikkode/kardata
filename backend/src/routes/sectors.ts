@@ -75,9 +75,16 @@ const ListQuery = z.object({
   query: z.string().max(200).optional(),
 })
 
+const PagedQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+})
+
 const CompanyListQuery = ListQuery.extend({
   sectorId: z.string().min(1).optional(),
-})
+}).extend(PagedQuery.shape)
+
+const DetailQuery = PagedQuery
 
 export function sectorRoutes(app: FastifyInstance): void {
   route(app, 'get', '/v1/sectors', async (request, reply, app) => {
@@ -105,15 +112,26 @@ export function sectorRoutes(app: FastifyInstance): void {
     if (!auth) return undefined
     const params = request.params as { sectorId?: string }
     const sectorId = params.sectorId ?? ''
+    const paging = parseInput(DetailQuery, request.query, reply)
+    if (!paging) return undefined
     await projectNewEvents(pool)
     const sector = await getSector(pool, sectorId, auth.scope).catch((error: unknown) => {
       if (error instanceof DbContractError) return undefined
       throw error
     })
     if (!sector) return sendError(reply, 404, 'not_found', `no such sector ${sectorId}`)
-    const companies = await listSectorCompanies(pool, sectorId, auth.scope)
-    const activity = await sectorActivity(pool, sectorId, auth.scope)
-    return { ok: true, data: { ...sector, companies, activity } }
+    const companies = await listSectorCompanies(pool, sectorId, auth.scope, {}, paging)
+    const activity = await sectorActivity(pool, sectorId, auth.scope, paging)
+    return {
+      ok: true,
+      data: {
+        ...sector,
+        companies: companies.companies,
+        companiesTotal: companies.total,
+        activity: activity.entries,
+        activityTotal: activity.total,
+      },
+    }
   })
 
   route(app, 'get', '/v1/companies', async (request, reply, app) => {
@@ -125,7 +143,9 @@ export function sectorRoutes(app: FastifyInstance): void {
     if (!filters) return undefined
     await projectNewEvents(pool)
     try {
-      return { ok: true, data: await listCompanies(pool, auth.scope, filters) }
+      const { limit, offset, ...companyFilters } = filters
+      const page = await listCompanies(pool, auth.scope, companyFilters, { limit, offset })
+      return { ok: true, data: { companies: page.companies, total: page.total } }
     } catch (error) {
       if (error instanceof DbContractError) {
         return sendError(reply, 400, 'validation_failed', error.message)

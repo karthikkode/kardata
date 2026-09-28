@@ -71,7 +71,11 @@ Rules in force:
 - Tool input schemas live in `backend/src/mcp/schemas.ts`, reusing the
   layer's exported zod schemas (`EventEnvelope`, `SectorState`,
   `CompanyStage`) and mirroring the layer's inline validation
-  elsewhere. Results return as a single JSON text payload; layer
+  elsewhere. List and timeline tools (`db.list_companies`,
+  `db.list_sector_companies`, `db.sector_activity`) take optional
+  `limit` (1-500) and `offset` and answer `{ rows, total }` windows;
+  unpaged calls return the first 100 with the full total, never a
+  silent truncation. Results return as a single JSON text payload; layer
   `DbContractError`s answer `isError` with `validation_failed`, and
   unexpected failures answer `isError` `internal error` without detail.
 - Proven by `tests/backend/mcp.tools.test.ts` (binding-table parity,

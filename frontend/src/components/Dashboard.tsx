@@ -221,6 +221,8 @@ function CompanyPanel({
     )
   }
   const showCount = data.status === 'ready' && (needle || filtered.length > rows.length)
+  const total = data.total ?? data.items.length
+  const windowed = total > data.items.length
   return (
     <section
       aria-label="Company researches"
@@ -229,7 +231,9 @@ function CompanyPanel({
       <h2 className="text-base font-semibold">Company researches</h2>
       {showCount ? (
         <p aria-live="polite" className="mt-0.5 text-xs text-muted-foreground">
-          Showing {rows.length} of {filtered.length} matching
+          {needle && windowed
+            ? `Showing ${rows.length} of ${filtered.length} matching in the loaded ${data.items.length} of ${total}`
+            : `Showing ${rows.length} of ${filtered.length} matching`}
         </p>
       ) : null}
       {body}
@@ -241,7 +245,7 @@ function CompanyPanel({
             size="sm"
             onClick={() => onViewAll('companies')}
           >
-            View all {data.items.length} company researches
+            View all {total} company researches
           </Button>
         </div>
       ) : null}
