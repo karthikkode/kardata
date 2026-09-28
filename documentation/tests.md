@@ -1,0 +1,65 @@
+# Tests
+
+Mirrors the area covered: `tests/frontend/...`, `tests/backend/...`.
+Framework per area doc; frontend uses Vitest + Testing Library (jsdom) for
+components and Playwright for critical flows. Coverage via
+`npm run test:coverage -w frontend` (istanbul provider; thresholds ratchet,
+never drop).
+
+## The one rule
+
+Every behavior change ships with a test that fails without the fix and passes
+with it. No test, no merge : the handoff must name the test file.
+
+## Component tests (Vitest + Testing Library)
+
+- Test how the component is used: render it, interact with `user-event`, assert
+  what the user sees. Per the Testing Library guiding principles, utilities
+  should encourage tests that use components the way they're intended to be used.
+- Query priority: `getByRole` → `getByLabelText` → `getByText`. No class-name
+  or test-id queries unless nothing user-visible identifies the element.
+- Assert states, not internals: rendered text, disabled attributes, dispatched
+  callbacks (`vi.fn()`), accessible names. Never assert props, state, or markup
+  structure. No snapshot tests of rendered HTML.
+- Each async state the component claims (loading, empty, error, denied) gets
+  its own test case.
+- Keep tests with the area they cover: `tests/frontend/<area>/<name>.test.tsx`.
+  Test setup (jsdom, jest-dom) lives in `frontend/src/test/setup.ts`; do not
+  duplicate it.
+
+## Flow tests (Playwright)
+
+- Only critical user paths (sign-in, core create/read flows). Config in
+  `frontend/playwright.config.ts`; specs in `tests/frontend-e2e/`.
+- Flow tests prove reachability and key content, not every state : states belong
+  in component tests.
+- Browser smoke runs Vite on port 5174 with an isolated staging test key and
+  intercepts `/v1/*` responses. It proves browser rendering and interaction,
+  not provider, Temporal, or database connectivity. Live stack checks remain
+  separate and must be stated explicitly when skipped.
+
+## What never counts as verification
+
+- Re-running your own scratch script, or tests that encode the same assumption
+  as the fix. The oracle must be independent: a failing-before/passing-after
+  maintained test, an existing suite, or observed app behavior.
+- A passing suite you never watched fail on the broken code (for bug fixes:
+  observe the failure first when runnable).
+- A count-asserting suite that can reach the network: stub every leg or fail
+  closed without one. A live fallback answering behind a stub silently moves
+  the expected number (observed: sweep e2e counted 14 instead of 2 when
+  empty keyed pages fell through to live keyless search).
+
+## Scale tiers (what "stress tested" means here)
+
+- Unit soak: 100-entity fleet drills on stepped clocks (subagents, claims,
+  appends) with mixed fates — stalled, cancelled, steered — proving
+  detection plus exactly-once behavior. No network; milliseconds.
+- Live-DB contention: twin storms, rate races, pool queues, statement
+  timeouts under `TEST_DATABASE_URL` (`db.concurrency.test.ts`).
+- UI overflow: past-cap lists (50/60/120 rows) assert the true total plus
+  filter reachability, never exact rendered counts (`OverflowList` suites).
+- Live stack (gated, stated when skipped): Temporal workflows under
+  `KARDATA_TEMPORAL_TEST=1`, compose smoke under `KARDATA_COMPOSE=1`,
+  provider probes with keys. These prove wiring; hermetic suites prove
+  logic. Neither substitutes for the other.

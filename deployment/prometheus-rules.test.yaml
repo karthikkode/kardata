@@ -1,0 +1,60 @@
+# Deterministic firing proof for deployment/prometheus-rules.yaml (B5.4).
+# Run: promtool test rules deployment/prometheus-rules.test.yaml
+# The induced backlog (25 RUNNING) and stale heartbeat fire inside their
+# `for` windows; the healthy series stay silent.
+rule_files:
+  - prometheus-rules.yaml
+
+evaluation_interval: 15s
+
+tests:
+  - interval: 15s
+    input_series:
+      - series: 'up{job="backend"}'
+        values: 1+0x40
+      - series: 'http_requests_total{method="GET", route="/healthz", status="200"}'
+        values: 0+100x40
+      - series: 'http_requests_total{method="GET", route="/v1/sessions", status="500"}'
+        values: 0+0x40
+      - series: 'kardata_stale_heartbeats'
+        values: 1+0x40
+      - series: 'kardata_runs_by_state{state="RUNNING"}'
+        values: 25+0x40
+      - series: 'kardata_pg_pool_waiting'
+        values: 1+0x40
+    alert_rule_test:
+      # Backlog induced at t=0 fires ~75 s later: inside 2 minutes.
+      # promtool compares the full annotation set, so all three ship here.
+      - eval_time: 2m
+        alertname: KardataBacklog
+        exp_alerts:
+          - exp_labels:
+              severity: page
+            exp_annotations:
+              summary: 'More than 20 RUNNING runs for over a minute'
+              description: 'Worker backlog: runs pile up faster than turns complete. Queue depth: `kardata_runs_by_state`. Trace a stuck run via its `runState` query, then the stall runbook.'
+              runbook: 'docs/runbook.md#backlog'
+      - eval_time: 5m
+        alertname: KardataStaleHeartbeats
+        exp_alerts:
+          - exp_labels:
+              severity: page
+            exp_annotations:
+              summary: '1 run(s) past their operation heartbeat threshold'
+              description: 'Stalled runs detected by the B5.3 sweeper input. Responses land as `t.stall.response`; inspect: `{container="kardata-backend-1"} |= "stall.sweep"`.'
+              runbook: 'docs/runbook.md#stall'
+      - eval_time: 6m
+        alertname: KardataPoolExhaustion
+        exp_alerts:
+          - exp_labels:
+              severity: page
+            exp_annotations:
+              summary: 'DB clients queued for over 5 minutes'
+              description: 'Requests wait for a pool client: pool max is too small or a query holds clients. Pressure: `kardata_pg_pool_total` vs idle. Slow lines: `{container="kardata-backend-1"} | json | name="db.query" | durationMs > 1000`.'
+              runbook: 'docs/runbook.md#pool-exhaustion'
+      - eval_time: 5m
+        alertname: KardataHighErrorRate
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: KardataBackendDown
+        exp_alerts: []

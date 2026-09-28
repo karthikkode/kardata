@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+
+# builds
+dist/
+build/
+*.tsbuildinfo
+
+# test / tool output
+coverage/
+playwright-report/
+test-results/
+.vitest/
+
+# logs
+*.log
+npm-debug.log*
+
+# env / secrets (never commit)
+.env
+.env.*
+!.env.example
+
+# editor / OS
+.DS_Store
+*.local

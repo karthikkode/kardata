@@ -1,0 +1,14 @@
+{
+  "id": "chatcmpl-cassette-5",
+  "object": "chat.completion",
+  "created": 1790316000,
+  "model": "third-party-model",
+  "choices": [
+    {
+      "index": 0,
+      "message": { "role": "assistant", "content": "All done, no tools needed." },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": { "prompt_tokens": 50, "completion_tokens": 10, "total_tokens": 60 }
+}

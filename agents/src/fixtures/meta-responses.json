@@ -1,0 +1,31 @@
+{
+  "id": "resp_cassette_4",
+  "object": "response",
+  "created_at": 1790316000,
+  "model": "muse-spark-1.3",
+  "output": [
+    {
+      "type": "message",
+      "id": "msg_r1",
+      "role": "assistant",
+      "content": [{ "type": "output_text", "text": "Verifying both." }]
+    },
+    {
+      "type": "function_call",
+      "id": "fc_r1",
+      "call_id": "call_r1",
+      "name": "evidence_capture",
+      "arguments": "{\"url\":\"https://example.com/a\"}",
+      "status": "completed"
+    },
+    {
+      "type": "function_call",
+      "id": "fc_r2",
+      "call_id": "call_r2",
+      "name": "evidence_capture",
+      "arguments": "{\"url\":\"https://example.com/b\"}",
+      "status": "completed"
+    }
+  ],
+  "usage": { "input_tokens": 700, "output_tokens": 90, "total_tokens": 790 }
+}

@@ -1,0 +1,86 @@
+# Kardata staging alerts (B5.4). Every alert carries severity plus a runbook
+# pointer and a log query that lands on the exact lines in one click
+# (trace_id from the failing request/signal, see docs/runbook.md).
+# The `temporal` SDK target is unwired until the fleet lands, so worker
+# health is covered through backend-exported fleet gauges
+# (kardata_runs_by_state, kardata_stale_heartbeats) instead of SDK metrics.
+groups:
+  - name: kardata-backend
+    interval: 15s
+    rules:
+      - alert: KardataBackendDown
+        expr: up{job="backend"} == 0
+        for: 1m
+        labels:
+          severity: page
+        annotations:
+          summary: 'Backend /metrics scrape failing for over a minute'
+          description: 'Prometheus cannot scrape backend:3001. Check `docker compose ps backend` and `{container="kardata-backend-1", level="error"}`.'
+          runbook: 'docs/runbook.md#backend-down'
+
+      - alert: KardataHighErrorRate
+        expr: |
+          sum by (route) (rate(http_requests_total{status=~"5.."}[5m]))
+            /
+          sum by (route) (rate(http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: '5xx rate above 5% on {{ $labels.route }} for 5 minutes'
+          description: 'Failing route {{ $labels.route }}. Pull the trace: `{container="kardata-backend-1"} | json | trace_id="<id from the failing reply header>"`.'
+          runbook: 'docs/runbook.md#error-rate'
+
+      - alert: KardataLatencyP99
+        expr: |
+          histogram_quantile(0.99, sum by (route, le) (rate(http_request_duration_seconds_bucket[5m]))) > 2
+        for: 10m
+        labels:
+          severity: ticket
+        annotations:
+          summary: 'P99 latency above 2s on {{ $labels.route }} for 10 minutes'
+          description: 'Slow route {{ $labels.route }}. Correlate pg spans: `{container="kardata-backend-1"} | json | name="db.query" | durationMs > 1000`.'
+          runbook: 'docs/runbook.md#latency'
+
+      - alert: KardataRateLimitSpike
+        expr: sum(rate(http_requests_total{status="429"}[5m])) > 1
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: 'Sustained 429 rate above 1/s for 5 minutes'
+          description: 'Abuse or a misconfigured client. Offenders: topk by key hash in `{container="kardata-backend-1"} |= "http.rate_limited"`.'
+          runbook: 'docs/runbook.md#rate-limit-spike'
+
+  - name: kardata-fleet
+    interval: 15s
+    rules:
+      - alert: KardataStaleHeartbeats
+        expr: kardata_stale_heartbeats > 0
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: '{{ $value }} run(s) past their operation heartbeat threshold'
+          description: 'Stalled runs detected by the B5.3 sweeper input. Responses land as `t.stall.response`; inspect: `{container="kardata-backend-1"} |= "stall.sweep"`.'
+          runbook: 'docs/runbook.md#stall'
+
+      - alert: KardataBacklog
+        expr: sum(kardata_runs_by_state{state="RUNNING"}) > 20
+        for: 1m
+        labels:
+          severity: page
+        annotations:
+          summary: 'More than 20 RUNNING runs for over a minute'
+          description: 'Worker backlog: runs pile up faster than turns complete. Queue depth: `kardata_runs_by_state`. Trace a stuck run via its `runState` query, then the stall runbook.'
+          runbook: 'docs/runbook.md#backlog'
+
+      - alert: KardataPoolExhaustion
+        expr: kardata_pg_pool_waiting > 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: 'DB clients queued for over 5 minutes'
+          description: 'Requests wait for a pool client: pool max is too small or a query holds clients. Pressure: `kardata_pg_pool_total` vs idle. Slow lines: `{container="kardata-backend-1"} | json | name="db.query" | durationMs > 1000`.'
+          runbook: 'docs/runbook.md#pool-exhaustion'

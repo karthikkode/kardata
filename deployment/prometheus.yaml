@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+
+rule_files:
+  - '/etc/prometheus/rules.yaml'
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+  # Backend /metrics ships in B5.2 (RED pair + process defaults, bounded
+  # labels). The Temporal SDK target stays commented until the worker fleet
+  # wires Runtime.install, so failed scrapes never become background noise.
+  - job_name: backend
+    static_configs:
+      - targets: ['backend:3001']
+  # - job_name: temporal
+  #   static_configs:
+  #     - targets: ['temporal:8077']

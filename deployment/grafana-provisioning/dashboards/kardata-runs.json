@@ -1,0 +1,92 @@
+{
+  "uid": "kardata-runs",
+  "title": "Kardata Runs",
+  "tags": ["kardata", "runs"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "version": 1,
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Runs by state",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "kardata_runs_by_state",
+          "legendFormat": "{{state}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Rate-limited requests",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_requests_total{status=\"429\"}[5m]))"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "logs",
+      "title": "Stall sweeps",
+      "description": "B5.3 sweeper outcomes; every finding carries its recorded response.",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{container=\"kardata-backend-1\"} |= \"stall.sweep\""
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "logs",
+      "title": "Provider calls",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{container=\"kardata-backend-1\"} |= \"provider.chat\""
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "logs",
+      "title": "Tool calls",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{container=\"kardata-backend-1\"} |= \"tool.call\""
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "logs",
+      "title": "Slow pg spans",
+      "description": "OTel db.query spans over 500 ms; trace_id joins the request line.",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{container=\"kardata-backend-1\"} | json | name = \"db.query\" | durationMs > 500"
+        }
+      ]
+    }
+  ]
+}

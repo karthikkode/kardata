@@ -1,0 +1,487 @@
+import { useEffect, useRef, useState } from 'react'
+import { ArrowLeft, Eye, EyeOff, FileImage, FileSpreadsheet, FileText, Loader2, Upload } from 'lucide-react'
+import type { CompanyResearch, ResearchStatus, SectorDetail } from '../data/research'
+import {
+  getSectorContext,
+  patchSectorContext,
+  type ResearchState,
+  type SectorDocumentSummary,
+  type StagingConfig,
+} from '../data/staging-api'
+import {
+  CompanyRow,
+  DeniedNotice,
+  OverflowList,
+  PanelError,
+  SkeletonRows,
+  stateLabel,
+  UnavailableNotice,
+} from './research-parts'
+import { SectorChatPanel } from './SectorChatPanel'
+import { SectorContextDrawer } from './SectorContextDrawer'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+
+const stateFilters = [
+  'draft',
+  'running',
+  'paused',
+  'queued',
+  'failed',
+  'complete',
+] as const satisfies readonly ResearchState[]
+
+type StateFilter = ResearchState | 'all'
+
+// Research runs are agent-started (MCP) and owner-paused from the sector
+// chat; this page keeps discovery output (companies, files, context).
+
+function CompanySection({ companies, sectorName }: { companies: CompanyResearch[]; sectorName: string }) {
+  const [query, setQuery] = useState('')
+  const [active, setActive] = useState<StateFilter>('all')
+  const needle = query.trim().toLowerCase()
+  const rows = companies.filter(
+    (item) =>
+      (!needle ||
+        `${item.name} ${item.sectorName}`.toLowerCase().includes(needle)) &&
+      (active === 'all' || item.state === active),
+  )
+  const filtered = needle || active !== 'all'
+  const showCount = filtered || rows.length > 50
+  return (
+    <section
+      aria-label={`Companies in ${sectorName}`}
+      className="rounded-xl border border-border bg-background px-4 py-3"
+    >
+      <h2 className="text-base font-semibold">Companies</h2>
+      <div className="mt-3 max-w-sm">
+        <label htmlFor="sector-companies-filter" className="mb-1 block text-sm font-medium">
+          Filter companies
+        </label>
+        <Input
+          id="sector-companies-filter"
+          placeholder="Type to filter"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </div>
+      <div role="group" aria-label="Filter by state" className="mt-3 flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant={active === 'all' ? 'default' : 'outline'}
+          size="sm"
+          aria-pressed={active === 'all'}
+          onClick={() => setActive('all')}
+        >
+          All
+        </Button>
+        {stateFilters.map((state) => (
+          <Button
+            key={state}
+            type="button"
+            variant={active === state ? 'default' : 'outline'}
+            size="sm"
+            aria-pressed={active === state}
+            onClick={() => setActive(active === state ? 'all' : state)}
+          >
+            {stateLabel[state]}
+          </Button>
+        ))}
+      </div>
+      <div className="mt-2">
+        {showCount ? (
+          <p aria-live="polite" className="mb-2 text-xs text-muted-foreground">
+            Showing {rows.length} of {companies.length} companies
+          </p>
+        ) : null}
+        {rows.length ? (
+          <OverflowList total={rows.length}>
+            {rows.map((item) => (
+              <CompanyRow key={item.id} research={item} />
+            ))}
+          </OverflowList>
+        ) : (
+          <div className="mt-2 rounded-lg border border-dashed border-border p-4">
+            <p className="text-sm text-muted-foreground">
+              {filtered
+                ? 'No companies match these filters. Clear them to see everything.'
+                : `No companies picked for ${sectorName} yet.`}
+            </p>
+            {filtered ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setQuery('')
+                  setActive('all')
+                }}
+                className="mt-3"
+              >
+                Clear filters
+              </Button>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+export interface AttachResult {
+  filename: string
+  status: 'indexed' | 'needs-ocr'
+  unitCount: number
+  detail?: string
+}
+
+function DocumentsSection({
+  config,
+  sectorId,
+  sectorName,
+  documents,
+  documentsFailed,
+  attaching,
+  attachingName,
+  attachError,
+  attachResult,
+  onAttach,
+}: {
+  config: StagingConfig | null
+  sectorId: string
+  sectorName: string
+  documents: SectorDocumentSummary[]
+  documentsFailed: boolean
+  attaching: boolean
+  attachingName: string | null
+  attachError: string | null
+  attachResult: AttachResult | null
+  onAttach: (file: File) => void
+}) {
+  const filePicker = useRef<HTMLInputElement | null>(null)
+  // Whole-document exclusion lives in the context view (same source the
+  // drawer toggles); absent means included. Unknown until it loads, so
+  // toggles stay hidden rather than guessing.
+  const [excludedIds, setExcludedIds] = useState<Set<string> | null>(null)
+  const [unitCounts, setUnitCounts] = useState<Map<string, number> | null>(null)
+  const [loadedKey, setLoadedKey] = useState<string | null>(null)
+  const [togglingId, setTogglingId] = useState<string | null>(null)
+  const [toggleError, setToggleError] = useState<string | null>(null)
+  const contextKey = config ? `${config.baseUrl} ${sectorId} ${documents.length}` : null
+  useEffect(() => {
+    if (!config || !contextKey || loadedKey === contextKey) return undefined
+    let live = true
+    getSectorContext(config, sectorId).then(
+      (view) => {
+        if (!live) return
+        if (!Array.isArray(view.files)) {
+          setExcludedIds(null)
+          setUnitCounts(null)
+          setLoadedKey(contextKey)
+          return
+        }
+        setExcludedIds(new Set(view.files.filter((file) => file.excluded).map((file) => file.id)))
+        setUnitCounts(
+          new Map(view.files.map((file) => [file.id, file.units.length])),
+        )
+        setToggleError(null)
+        setLoadedKey(contextKey)
+      },
+      () => {
+        if (!live) return
+        setExcludedIds(null)
+        setUnitCounts(null)
+        setLoadedKey(contextKey)
+      },
+    )
+    return () => {
+      live = false
+    }
+  }, [config, contextKey, loadedKey, sectorId, documents.length])
+  const contextKnown = excludedIds !== null && loadedKey === contextKey
+
+  async function toggleDocument(documentId: string, excluded: boolean) {
+    if (!config || togglingId) return
+    setTogglingId(documentId)
+    setToggleError(null)
+    try {
+      const ref = { documentId }
+      const view = await patchSectorContext(config, sectorId, excluded ? { exclude: [ref] } : { include: [ref] })
+      setExcludedIds(new Set(view.files.filter((file) => file.excluded).map((file) => file.id)))
+      setUnitCounts(new Map(view.files.map((file) => [file.id, file.units.length])))
+    } catch (error: unknown) {
+      setToggleError(error instanceof Error ? error.message : 'Could not update context.')
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
+  const showPending = attaching && attachingName
+  return (
+    <section aria-label={`Context documents for ${sectorName}`} className="px-4 py-3">
+      <h2 className="text-base font-semibold">Files</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        The sweep reads these when research runs. The eye toggle adds or removes a file from context.
+      </p>
+      <div className="mt-3">
+        {documentsFailed ? (
+          <p className="text-sm text-muted-foreground">Context documents did not load.</p>
+        ) : documents.length || showPending ? (
+          <ul className="space-y-2">
+            {showPending ? (
+              <li className="flex items-center gap-3 rounded-lg border border-dashed border-border px-3 py-2 text-sm">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
+                  <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium">{attachingName}</span>
+                  <span role="status" className="mt-0.5 block text-xs text-muted-foreground">
+                    Processing…
+                  </span>
+                </span>
+              </li>
+            ) : null}
+            {documents.map((doc) => {
+              const excluded = excludedIds?.has(doc.id) ?? false
+              const known = contextKnown
+              const units = unitCounts?.get(doc.id)
+              const status =
+                doc.status === 'needs-ocr'
+                  ? 'Needs OCR'
+                  : `Indexed${units === undefined ? '' : ` · ${units} ${units === 1 ? 'unit' : 'units'}`}`
+              const meta = `${status} · ${(doc.chars / 1000).toFixed(1)}k chars${excluded ? ' · excluded from context' : ''}`
+              const Icon =
+                doc.mediaType.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(doc.filename)
+                  ? FileImage
+                  : /\.csv$/i.test(doc.filename)
+                    ? FileSpreadsheet
+                    : FileText
+              return (
+                <li
+                  key={doc.id}
+                  className={`flex items-center gap-3 rounded-lg border border-border px-3 py-2 text-sm ${excluded ? 'opacity-60' : ''}`}
+                >
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
+                    <Icon className="size-4 text-muted-foreground" aria-hidden />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{doc.filename}</span>
+                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">{meta}</span>
+                  </span>
+                  {known ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={excluded ? `Include ${doc.filename}` : `Exclude ${doc.filename}`}
+                      title={excluded ? `Include ${doc.filename} in context` : `Exclude ${doc.filename} from context`}
+                      disabled={togglingId === doc.id}
+                      onClick={() => void toggleDocument(doc.id, !excluded)}
+                      className="size-7 shrink-0"
+                    >
+                      {excluded ? (
+                        <Eye className="size-4" aria-hidden />
+                      ) : (
+                        <EyeOff className="size-4" aria-hidden />
+                      )}
+                    </Button>
+                  ) : null}
+                </li>
+              )
+            })}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">No context attached yet.</p>
+        )}
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label="Attach a context file"
+          disabled={attaching}
+          onClick={() => filePicker.current?.click()}
+        >
+          <Upload className="size-4" aria-hidden />
+        </Button>
+        <input
+          ref={filePicker}
+          type="file"
+          className="sr-only"
+          tabIndex={-1}
+          accept=".md,.markdown,.txt,.csv,.json,.pdf,.docx,.png,.jpg,.jpeg,.webp,.gif"
+          disabled={attaching}
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            event.target.value = ''
+            if (!file) return
+            onAttach(file)
+          }}
+        />
+        {toggleError ? (
+          <p role="alert" className="mt-1 text-sm text-muted-foreground">
+            {toggleError}
+          </p>
+        ) : null}
+        {attachError ? (
+          <p role="alert" className="mt-1 text-sm text-muted-foreground">
+            {attachError}
+          </p>
+        ) : null}
+        {attachResult && !attaching && !attachError ? (
+          <p role="status" className="mt-1 text-sm text-muted-foreground">
+            {attachResult.filename} {attachResult.status === 'indexed' ? `indexed · ${attachResult.unitCount} units` : `needs OCR${attachResult.detail ? `: ${attachResult.detail}` : ''}`}
+          </p>
+        ) : null}
+      </div>
+    </section>
+  )
+}
+
+export function SectorDetailPage({
+  detail,
+  status,
+  documents,
+  documentsFailed,
+  attaching,
+  attachingName,
+  attachError,
+  attachResult = null,
+  researchBusy,
+  researchError,
+  staging,
+  onRetry,
+  onPauseResearch,
+  onResumeResearch,
+  onAttach,
+  onBack,
+}: {
+  detail: SectorDetail | undefined
+  status: ResearchStatus
+  documents: SectorDocumentSummary[]
+  documentsFailed: boolean
+  attaching: boolean
+  attachingName: string | null
+  attachError: string | null
+  attachResult?: AttachResult | null
+  researchBusy: boolean
+  researchError: string | null
+  staging: StagingConfig | null
+  onRetry: () => void
+  onPauseResearch: () => Promise<void>
+  onResumeResearch: () => Promise<void>
+  onAttach: (file: File) => void
+  onBack: () => void
+}) {
+  if (!detail && status === 'ready') {
+    return (
+      <div className="space-y-6">
+        <Button type="button" variant="ghost" size="sm" onClick={onBack}>
+          <ArrowLeft className="size-4" aria-hidden />
+          Back to Researches
+        </Button>
+        <p className="rounded-xl border border-dashed border-border bg-background p-4 text-sm text-muted-foreground">
+          Sector research not found. It may have been removed.
+        </p>
+      </div>
+    )
+  }
+  if (status === 'denied') {
+    return (
+      <div className="space-y-6">
+        <Button type="button" variant="ghost" size="sm" onClick={onBack}>
+          <ArrowLeft className="size-4" aria-hidden />
+          Back to Researches
+        </Button>
+        <DeniedNotice heading="This sector research is not shared with this key." />
+      </div>
+    )
+  }
+  if (status === 'loading' || !detail) {
+    return (
+      <div className="space-y-6">
+        <Button type="button" variant="ghost" size="sm" onClick={onBack}>
+          <ArrowLeft className="size-4" aria-hidden />
+          Back to Researches
+        </Button>
+        <SkeletonRows label={`${detail?.name ?? 'Sector research'} is loading`} />
+      </div>
+    )
+  }
+  if (status === 'error') {
+    return (
+      <div className="space-y-6">
+        <Button type="button" variant="ghost" size="sm" onClick={onBack}>
+          <ArrowLeft className="size-4" aria-hidden />
+          Back to Researches
+        </Button>
+        <PanelError
+          heading={`${detail.name} did not load.`}
+          detail="Check your connection and try again."
+          onRetry={onRetry}
+        />
+      </div>
+    )
+  }
+  if (status === 'offline') {
+    return (
+      <div className="space-y-6">
+        <Button type="button" variant="ghost" size="sm" onClick={onBack}>
+          <ArrowLeft className="size-4" aria-hidden />
+          Back to Researches
+        </Button>
+        <UnavailableNotice onRetry={onRetry} />
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-6">
+      <Button type="button" variant="ghost" size="sm" onClick={onBack}>
+        <ArrowLeft className="size-4" aria-hidden />
+        Back to Researches
+      </Button>
+      <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-2">
+        <section
+          aria-label={`Sector chat for ${detail.name}`}
+          className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-background px-4 py-3 md:h-[calc(100vh-14rem)] md:min-h-[480px]"
+        >
+          <h2 className="text-base font-semibold">Sector chat</h2>
+          <div className="mt-3 min-h-0 flex-1">
+            <SectorChatPanel
+              config={staging}
+              sectorId={detail.id}
+              sectorName={detail.name}
+              researchState={detail.state}
+              researchSessionId={detail.researchSessionId ?? null}
+              researchBusy={researchBusy}
+              researchError={researchError}
+              onPauseResearch={onPauseResearch}
+              onResumeResearch={onResumeResearch}
+            />
+          </div>
+        </section>
+        <div className="flex min-h-0 flex-col gap-6 md:h-[calc(100vh-14rem)] md:min-h-[480px]">
+          <div className="scroll-slim min-h-0 flex-1 overflow-y-auto rounded-xl border border-border bg-background">
+            <DocumentsSection
+              config={staging}
+              sectorId={detail.id}
+              sectorName={detail.name}
+              documents={documents}
+              documentsFailed={documentsFailed}
+              attaching={attaching}
+              attachingName={attachingName}
+              attachError={attachError}
+              attachResult={attachResult}
+              onAttach={onAttach}
+            />
+          </div>
+          <div className="scroll-slim min-h-0 flex-1 overflow-y-auto rounded-xl border border-border bg-background">
+            <SectorContextDrawer config={staging} sectorId={detail.id} sectorName={detail.name} />
+          </div>
+        </div>
+      </div>
+      <CompanySection companies={detail.companies} sectorName={detail.name} />
+    </div>
+  )
+}

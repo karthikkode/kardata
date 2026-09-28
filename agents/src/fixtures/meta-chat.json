@@ -1,0 +1,34 @@
+{
+  "id": "chatcmpl-cassette-3",
+  "object": "chat.completion",
+  "created": 1790316000,
+  "model": "muse-spark-1.3",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Two lookups needed.",
+        "tool_calls": [
+          {
+            "id": "call_m1",
+            "type": "function",
+            "function": { "name": "documents_get", "arguments": "{\"id\":\"doc-1\"}" }
+          },
+          {
+            "id": "call_m2",
+            "type": "function",
+            "function": { "name": "documents_get", "arguments": "{\"id\":\"doc-2\"}" }
+          }
+        ]
+      },
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 900,
+    "completion_tokens": 60,
+    "total_tokens": 960,
+    "prompt_tokens_details": { "cached_tokens": 41 }
+  }
+}

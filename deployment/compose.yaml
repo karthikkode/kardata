@@ -1,0 +1,194 @@
+# Kardata local platform. One command: docker compose -f deployment/compose.yaml up -d
+# All images pinned by digest. Dev-only credentials are marked DEV ONLY and
+# must never leave this file.
+name: kardata
+
+services:
+  db:
+    image: postgres@sha256:a3b7f434b2dc57ce85a67e171163eb8ab1a1ebcb39d27484661f26b1dfbe30d6
+    # Explicit ceiling for the connection budget table in
+    # documentation/db.md; slow-query log feeds pool tuning. Dev values.
+    command: ['postgres', '-c', 'max_connections=100', '-c', 'log_min_duration_statement=1000']
+    environment:
+      POSTGRES_DB: kardata
+      POSTGRES_USER: kardata
+      POSTGRES_PASSWORD: kardata-dev # DEV ONLY
+    # Host port is overridable: KARDATA_PG_PORT=5433 when 5432 is taken.
+    ports:
+      - '${KARDATA_PG_PORT:-5432}:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U kardata -d kardata']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  temporal:
+    image: temporalio/auto-setup@sha256:b1edc1e20002d958c8182f2ae08dee877a125083683a627a44917683419ba6a8
+    environment:
+      DB: postgres12_pgx
+      DB_PORT: '5432'
+      POSTGRES_USER: kardata
+      POSTGRES_PWD: kardata-dev # DEV ONLY
+      POSTGRES_SEEDS: db
+      DYNAMIC_CONFIG_PATH: /etc/temporal/dynamicconfig.yaml
+    ports:
+      - '7233:7233'
+    depends_on:
+      db:
+        condition: service_healthy
+
+  temporal-ui:
+    image: temporalio/ui@sha256:ff0943fe532b8e33c46cd28b29e81e0ce0b6f55b9ee50a38ef1b437cc4de3fa5
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+    ports:
+      - '8080:8080'
+    depends_on:
+      - temporal
+
+  # Headless Chromium for the browser tools and the sweep browser leg.
+  # Old headless plus an explicit bind address: newer headless binds the
+  # DevTools server to loopback, which is unreachable from sibling
+  # containers (verified 2026-09-27). No host ports: only the app network
+  # reaches it. App code connects over CDP and never closes the shared
+  # browser — sessions drop only their own context.
+  browser:
+    image: zenika/alpine-chrome@sha256:eb3378c1ed0079f94db054a5fe1aaa790a254ec0d6bbc67eda052420d86a179d
+    command:
+      - --headless
+      - --no-sandbox
+      - --disable-gpu
+      - --remote-debugging-address=0.0.0.0
+      - --remote-debugging-port=9222
+      - about:blank
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O- http://127.0.0.1:9222/json/version']
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  backend:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    # Provider keys live in gitignored agents/.env (same keys the harness
+    # live probes use). Compose reads values only; nothing is committed.
+    env_file:
+      - ../agents/.env
+    environment:
+      DATABASE_URL: postgresql://kardata:kardata-dev@db:5432/kardata # DEV ONLY
+      PORT: '3001'
+      BUILD_SHA: dev-compose
+      TEMPORAL_ADDRESS: temporal:7233
+      KARDATA_PG_SERVER_MAX: '10'
+      KARDATA_PG_WORKER_MAX: '5'
+      KARDATA_PG_STATEMENT_TIMEOUT_MS: '30000'
+      KARDATA_GCS_BUCKET: ${KARDATA_GCS_BUCKET:-}
+      KARDATA_CORS_ORIGINS: ${KARDATA_CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      KARDATA_GCS_PREFIX: ${KARDATA_GCS_PREFIX:-}
+      KARDATA_GCP_PROJECT_ID: ${KARDATA_GCP_PROJECT_ID:-}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/kardata/adc.json
+      KARDATA_ARCHIVE_DIR: /var/kardata/archive
+      KARDATA_CHROME_CDP_URL: http://browser:9222
+    volumes:
+      # Prior-project service-account file, read-only. Unset
+      # KARDATA_GCP_ADC_PATH keeps the /dev/null mount and the filesystem
+      # archive target; no key material ever enters the repo.
+      - ${KARDATA_GCP_ADC_PATH:-/dev/null}:/run/kardata/adc.json:ro
+      - archive-data:/var/kardata/archive
+    ports:
+      - '3001:3001'
+    depends_on:
+      db:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+      browser:
+        condition: service_healthy
+
+  # Turn/sweep worker: session chat turns plus sector discovery run here,
+  # so the laptop never launches Chromium or model-adjacent work. Same
+  # image as backend, worker entrypoint (no migrate — backend owns it).
+  # Needs KARDATA_MCP_TOKEN in agents/.env: the worker calls back into
+  # backend /mcp with an API key, exactly like the local dev worker.
+  worker:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    entrypoint: ['sh', '/worker-entrypoint.sh']
+    env_file:
+      - ../agents/.env
+    environment:
+      DATABASE_URL: postgresql://kardata:kardata-dev@db:5432/kardata # DEV ONLY
+      TEMPORAL_ADDRESS: temporal:7233
+      KARDATA_MCP_URL: http://backend:3001/mcp
+      # No ${} default here: an explicit empty value would shadow the real
+      # token from agents/.env (compose environment wins over env_file),
+      # leaving the worker with a closed MCP client and tool-less turns.
+      KARDATA_CHROME_CDP_URL: http://browser:9222
+      KARDATA_PG_WORKER_MAX: '5'
+    volumes:
+      - ./worker-entrypoint.sh:/worker-entrypoint.sh:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+      backend:
+        condition: service_started
+      browser:
+        condition: service_healthy
+
+  loki:
+    image: grafana/loki@sha256:58a6c186ce78ba04d58bfe2a927eff296ba733a430df09645d56cdc158f3ba08
+    command: ['-config.file=/etc/loki/loki.yaml']
+    volumes:
+      - ./loki.yaml:/etc/loki/loki.yaml:ro
+      - lokidata:/loki
+    ports:
+      - '3100:3100'
+
+  promtail:
+    image: grafana/promtail@sha256:c6e9a987ca086cbfef945b8ebd708eb09f98b5e78bfb659e4e5a8b3bd604d11b
+    command: ['-config.file=/etc/promtail/promtail.yaml']
+    volumes:
+      - ./promtail.yaml:/etc/promtail/promtail.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+
+  prometheus:
+    image: prom/prometheus@sha256:3b9b2a15d376334da8c286d995777d3b9315aa666d2311170ada6059a517b74f
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yaml'
+      - '--storage.tsdb.path=/prometheus'
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - ./prometheus-rules.yaml:/etc/prometheus/rules.yaml:ro
+      - promdata:/prometheus
+    ports:
+      - '9090:9090'
+
+  grafana:
+    image: grafana/grafana@sha256:d8ea37798ccc41061a62ab080f2676dda6bf7815558499f901bdb0f533a456fb
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: kardata-dev # DEV ONLY
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+    volumes:
+      - ./grafana-provisioning:/etc/grafana/provisioning:ro
+      - grafanadata:/var/lib/grafana
+    ports:
+      - '3000:3000'
+    depends_on:
+      - loki
+      - prometheus
+
+volumes:
+  pgdata:
+  lokidata:
+  promdata:
+  grafanadata:
+  archive-data:

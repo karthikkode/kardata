@@ -1,0 +1,1588 @@
+openapi: 3.1.0
+info:
+  version: 1.0.0
+  title: Kardata Staging API
+  description: |
+    Versioned backend contract with StagingApi parity. Every envelope is
+    `{ ok: true, data }` or `{ ok: false, error: { code, message } }`.
+    Breaking changes require a new major version; additive changes stay on v1.
+    Thread semantics follow documentation/frontend-thread-contract.md.
+servers:
+  - url: http://localhost:3001
+tags:
+  - name: sessions
+  - name: threads
+  - name: runs
+  - name: commands
+  - name: providers
+  - name: mcp
+  - name: ops
+paths:
+  /v1/sessions:
+    get:
+      operationId: listSessions
+      tags: [sessions]
+      summary: List sessions, newest first.
+      parameters:
+        - name: sectorId
+          in: query
+          required: false
+          description: Narrow to one sector's chats. Without it only general sessions list; sector chats never appear in Karbot.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionList'
+    post:
+      operationId: createSession
+      tags: [sessions]
+      summary: Create a session (starts its session thread).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                sectorId:
+                  type: string
+                  description: Link a sector chat; the sector must exist.
+      responses:
+        '201':
+          description: Created session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionEnvelope'
+        '409':
+          $ref: '#/components/responses/IdempotencyReplay'
+  /v1/sessions/{sessionId}:
+    get:
+      operationId: getSession
+      tags: [sessions]
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: One session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteSession
+      tags: [sessions]
+      summary: Delete a session (stops its workflow, appends a tombstone; reads hide it, history stays).
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Deleted session id.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    required: [id, deleted]
+                    properties:
+                      id:
+                        type: string
+                      deleted:
+                        type: boolean
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/IdempotencyReplay'
+  /v1/sessions/{sessionId}/rename:
+    post:
+      operationId: renameSession
+      tags: [sessions]
+      summary: Rename a session (appends a rename event; reads resolve the latest title).
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+      responses:
+        '200':
+          description: Renamed session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/IdempotencyReplay'
+  /v1/sessions/{sessionId}/model:
+    patch:
+      operationId: setSessionModel
+      tags: [sessions]
+      summary: Set the session provider+model (appends a model event; GET reads back the latest).
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, model]
+              properties:
+                provider:
+                  type: string
+                  enum: [meta]
+                model:
+                  type: string
+                  minLength: 1
+                reasoning:
+                  type: boolean
+                effort:
+                  type: string
+                  minLength: 1
+                  description: Reasoning depth; must be listed in the model's efforts.
+      responses:
+        '200':
+          description: Stored session model.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionModelEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/IdempotencyReplay'
+  /v1/providers:
+    get:
+      operationId: getProviders
+      tags: [providers]
+      summary: Provider catalog with reasoning flags and key-presence booleans only.
+      responses:
+        '200':
+          description: Provider catalog.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderCatalog'
+  /v1/sessions/{sessionId}/artifacts:
+    get:
+      operationId: listSessionArtifacts
+      tags: [artifacts]
+      summary: Stored/indexed artifact metadata for the session scope.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Artifact metadata list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactList'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/sessions/{sessionId}/threads:
+    get:
+      operationId: listThreads
+      tags: [threads]
+      summary: Session thread plus one thread per subagent.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Thread list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreadList'
+  /v1/threads/{threadKey}:
+    get:
+      operationId: getThread
+      tags: [threads]
+      summary: Thread with live steer availability and queue depth.
+      parameters:
+        - $ref: '#/components/parameters/ThreadKey'
+      responses:
+        '200':
+          description: One thread.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreadEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/threads/{threadKey}/messages:
+    get:
+      operationId: listMessages
+      tags: [threads]
+      parameters:
+        - $ref: '#/components/parameters/ThreadKey'
+        - name: afterSeq
+          in: query
+          description: Return messages after this sequence number.
+          schema:
+            type: integer
+            minimum: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        '200':
+          description: Message page, ascending by seq.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagePage'
+  /v1/threads/{threadKey}/events:
+    get:
+      operationId: streamThread
+      tags: [threads]
+      summary: SSE stream of thread events with resume token.
+      parameters:
+        - $ref: '#/components/parameters/ThreadKey'
+        - name: lastSeq
+          in: query
+          description: Resume token; replays missed events without gap or duplex.
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: text/event-stream of StreamEvent frames.
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/StreamEvent'
+  /v1/runs:
+    get:
+      operationId: listRuns
+      tags: [runs]
+      parameters:
+        - name: sessionId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Run list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunList'
+  /v1/runs/{runId}:
+    get:
+      operationId: getRun
+      tags: [runs, ops]
+      summary: Run detail with stage cursor, findings, and budget ratios.
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+      responses:
+        '200':
+          description: One run.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/skills:
+    get:
+      operationId: listSkills
+      tags: [ops]
+      summary: Registered product skills for the chat slash picker.
+      responses:
+        '200':
+          description: Skill catalogue.
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1/debug/runs/{runId}:
+    get:
+      operationId: inspectRun
+      tags: [ops]
+      summary: Read-only run inspector, events-only (never contacts Temporal).
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 200
+        - name: afterSeq
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Event-derived run state with lastSeq/lastEventAt freshness.
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/commands/send:
+    post:
+      operationId: sendMessage
+      tags: [commands]
+      summary: Send text to a thread. `@name` routes to that subagent thread.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendCommand'
+      responses:
+        '202':
+          description: Accepted command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /v1/commands/steer:
+    post:
+      operationId: steerThread
+      tags: [commands]
+      summary: Steer sends instantly to the addressed thread, even mid-run.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SteerCommand'
+      responses:
+        '202':
+          description: Accepted command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+        '409':
+          description: Thread not accepting steer; caller chooses re-queue or new launch.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/commands/pause:
+    post:
+      operationId: pauseRun
+      tags: [commands]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunRef'
+      responses:
+        '202':
+          description: Accepted command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /v1/commands/resume:
+    post:
+      operationId: resumeRun
+      tags: [commands]
+      summary: Resume from the stage cursor. Never re-runs settled stages.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResumeCommand'
+      responses:
+        '202':
+          description: Accepted command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+        '403':
+          $ref: '#/components/responses/Denied'
+  /v1/commands/cancel:
+    post:
+      operationId: cancelRun
+      tags: [commands]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunRef'
+      responses:
+        '202':
+          description: Accepted command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+  /v1/commands/approve:
+    post:
+      operationId: decideApproval
+      tags: [commands]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovalDecision'
+      responses:
+        '202':
+          description: Accepted command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+        '403':
+          $ref: '#/components/responses/Denied'
+  /v1/sectors:
+    get:
+      operationId: listSectors
+      tags: [sectors]
+      summary: Sector researches with live company counts.
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            enum: [draft, running, paused, queued, failed, complete]
+        - name: query
+          in: query
+          schema:
+            type: string
+            maxLength: 200
+      responses:
+        '200':
+          description: Sector list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectorList'
+        '400':
+          description: Bad filter.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      operationId: createSector
+      tags: [sectors]
+      summary: Create a sector draft (or queued); drafts start explicitly later.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  maxLength: 200
+                topic:
+                  type: string
+                  maxLength: 500
+                state:
+                  type: string
+                  enum: [draft, queued]
+                  default: draft
+      responses:
+        '201':
+          description: Created sector.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectorEnvelope'
+        '400':
+          description: Bad input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/sectors/{sectorId}:
+    get:
+      operationId: getSector
+      tags: [sectors]
+      summary: One sector with its companies and activity timeline.
+      parameters:
+        - $ref: '#/components/parameters/SectorId'
+      responses:
+        '200':
+          description: Sector detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectorEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/sectors/{sectorId}/start:
+    post:
+      operationId: startSector
+      tags: [sectors]
+      summary: 'Explicit start: draft enters the research queue.'
+      parameters:
+        - $ref: '#/components/parameters/SectorId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Started sector.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectorEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Sector is not a draft.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/sectors/{sectorId}/documents:
+    get:
+      operationId: listSectorDocuments
+      tags: [sectors]
+      summary: Context documents attached to a sector.
+      parameters:
+        - $ref: '#/components/parameters/SectorId'
+      responses:
+        '200':
+          description: Document list (metadata; text stays server-side for preload).
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      operationId: attachSectorDocument
+      tags: [sectors]
+      summary: Attach one context document (.md/.txt/.csv/.json/.pdf/.docx, base64).
+      parameters:
+        - $ref: '#/components/parameters/SectorId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filename, contentBase64]
+              properties:
+                filename:
+                  type: string
+                  maxLength: 255
+                contentBase64:
+                  type: string
+      responses:
+        '201':
+          description: Attached document metadata.
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          description: Bad input or unsupported type.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/sectors/{sectorId}/context:
+    get:
+      operationId: getSectorContext
+      tags: [sectors]
+      summary: Exact assembled context for a sector (verbatim segments, estimates, files, notes).
+      parameters:
+        - $ref: '#/components/parameters/SectorId'
+      responses:
+        '200':
+          description: Sector context view backing the Context button.
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: patchSectorContext
+      tags: [sectors]
+      summary: Exclude/include file units and append user context notes.
+      parameters:
+        - $ref: '#/components/parameters/SectorId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                exclude:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [documentId]
+                    properties:
+                      documentId:
+                        type: string
+                      ord:
+                        type: integer
+                        minimum: 0
+                        description: Unit index; absent addresses the whole document.
+                include:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [documentId]
+                    properties:
+                      documentId:
+                        type: string
+                      ord:
+                        type: integer
+                        minimum: 0
+                notes:
+                  type: array
+                  maxItems: 20
+                  items:
+                    type: string
+                    maxLength: 2000
+      responses:
+        '200':
+          description: Updated sector context view.
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          description: Bad input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/sectors/{sectorId}/restart:
+    post:
+      operationId: restartSector
+      tags: [sectors]
+      summary: Restart a failed sector (failed to running).
+      parameters:
+        - $ref: '#/components/parameters/SectorId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Restarted sector.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectorEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Sector is not failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          $ref: '#/components/responses/Denied'
+  /v1/sectors/{sectorId}/pause:
+    post:
+      operationId: pauseSector
+      tags: [sectors]
+      summary: Owner pause from chat (running to paused, state-only).
+      parameters:
+        - $ref: '#/components/parameters/SectorId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Paused sector.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectorEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Sector is not running.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          $ref: '#/components/responses/Denied'
+  /v1/sectors/{sectorId}/resume:
+    post:
+      operationId: resumeSector
+      tags: [sectors]
+      summary: Owner resume from chat (paused to running, state-only).
+      parameters:
+        - $ref: '#/components/parameters/SectorId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Resumed sector.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectorEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Sector is not paused.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          $ref: '#/components/responses/Denied'
+  /v1/companies:
+    get:
+      operationId: listCompanies
+      tags: [sectors]
+      summary: Company researches with owning sector names.
+      parameters:
+        - name: sectorId
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+            enum: [running, paused, queued, failed, complete]
+        - name: query
+          in: query
+          schema:
+            type: string
+            maxLength: 200
+      responses:
+        '200':
+          description: Company list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyList'
+  /v1/artifacts:
+    get:
+      operationId: listTenantArtifacts
+      tags: [artifacts]
+      summary: Tenant-wide file listing for cross-session attach.
+      responses:
+        '200':
+          description: Artifact reference list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactList'
+        '403':
+          $ref: '#/components/responses/Denied'
+  /v1/sessions/{sessionId}/artifacts/references:
+    post:
+      operationId: referenceArtifact
+      tags: [artifacts]
+      summary: Attach an indexed file to a session without copying bytes.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [artifactId, fromScope]
+              properties:
+                artifactId:
+                  type: string
+                fromScope:
+                  type: object
+                  required: [kind, id]
+                  properties:
+                    kind:
+                      type: string
+                      enum: [session, task]
+                    id:
+                      type: string
+      responses:
+        '201':
+          description: Attached reference.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Denied'
+  /v1/sessions/{sessionId}/artifacts/{artifactId}/body:
+    get:
+      operationId: getArtifactBody
+      tags: [artifacts]
+      summary: Indexed bytes plus provenance meta.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - name: artifactId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Artifact body.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactBody'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Stored but not indexed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /mcp:
+    post:
+      operationId: mcpRpc
+      tags: [mcp]
+      summary: MCP Streamable HTTP endpoint (JSON-RPC over POST, JSON responses).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/McpRequest'
+      responses:
+        '200':
+          description: JSON-RPC response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/McpResponse'
+        '403':
+          $ref: '#/components/responses/Denied'
+        '409':
+          $ref: '#/components/responses/IdempotencyReplay'
+components:
+  parameters:
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema:
+        type: string
+    SectorId:
+      name: sectorId
+      in: path
+      required: true
+      schema:
+        type: string
+    ThreadKey:
+      name: threadKey
+      in: path
+      required: true
+      description: Session id for the session thread, `agent:<child-id>` for subagents.
+      schema:
+        type: string
+    RunId:
+      name: runId
+      in: path
+      required: true
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      description: Duplicate POST with the same key replays the first result.
+      schema:
+        type: string
+  responses:
+    NotFound:
+      description: Unknown id.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            ok: false
+            error: { code: not_found, message: 'no such session' }
+    Denied:
+      description: Call lacks the required role.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            ok: false
+            error: { code: permission_denied, message: 'approve role required' }
+    IdempotencyReplay:
+      description: Same key seen before; first result replayed, one effect.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommandEnvelope'
+  schemas:
+    McpRequest:
+      type: object
+      description: JSON-RPC request for POST /mcp (initialize, tools/list, tools/call).
+      required: [jsonrpc, method]
+      properties:
+        jsonrpc:
+          type: string
+        id:
+          type: [string, integer]
+        method:
+          type: string
+        params:
+          type: object
+    McpResponse:
+      type: object
+      description: JSON-RPC response (result or error, never both).
+      required: [jsonrpc]
+      properties:
+        jsonrpc:
+          type: string
+        id:
+          type: [string, integer]
+        result:
+          type: object
+        error:
+          $ref: '#/components/schemas/McpError'
+    McpError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+    Session:
+      type: object
+      description: Counterpart of MockSession; `age` stays a client-side format of timestamps.
+      required: [id, title, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        sectorId:
+          type: string
+          description: Owning sector for sector chats; absent for general sessions.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        model:
+          $ref: '#/components/schemas/SessionModel'
+    SessionModel:
+      type: object
+      description: Per-session provider+model selection; absent until PATCH sets one.
+      required: [provider, model, reasoning]
+      properties:
+        provider:
+          type: string
+          enum: [meta]
+        model:
+          type: string
+        reasoning:
+          type: boolean
+        effort:
+          type: string
+          description: Reasoning depth; only meaningful when the model lists the level.
+      example:
+        provider: meta
+        model: muse-spark-1.3-contributor
+        reasoning: true
+        effort: high
+    SessionModelEnvelope:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          $ref: '#/components/schemas/SessionModel'
+    ProviderCatalog:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          type: object
+          required: [defaultProvider, providers]
+          properties:
+            defaultProvider:
+              type: string
+              enum: [meta]
+            providers:
+              type: array
+              items:
+                $ref: '#/components/schemas/ProviderEntry'
+    ProviderEntry:
+      type: object
+      required: [name, hasKey, defaultModel, models]
+      properties:
+        name:
+          type: string
+          enum: [meta]
+        hasKey:
+          type: boolean
+          description: Key presence only; key material never leaves the server.
+        defaultModel:
+          type: string
+          description: Configured Meta default, muse-spark-1.3-contributor when unset.
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderModel'
+    ProviderModel:
+      type: object
+      required: [provider, model, displayName, reasoning, efforts]
+      properties:
+        provider:
+          type: string
+          enum: [meta]
+        model:
+          type: string
+        displayName:
+          type: string
+        reasoning:
+          type: string
+          enum: [native, none]
+        mode:
+          type: string
+          enum: [chat, responses]
+        efforts:
+          type: array
+          items:
+            type: string
+          description: Selectable reasoning depths (live-verified per model); empty means no depth control.
+      example:
+        provider: meta
+        model: muse-spark-1.3-contributor
+        displayName: muse-spark-1.3-contributor
+        reasoning: native
+        mode: responses
+        efforts: [minimal, low, medium, high, xhigh]
+    SessionEnvelope:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          $ref: '#/components/schemas/Session'
+    ArtifactSummary:
+      type: object
+      description: Counterpart of MockFile; `id` renders from artifactId, `source` from kind.
+      required: [artifactId, indexed]
+      properties:
+        artifactId:
+          type: string
+        name:
+          type: string
+        kind:
+          type: string
+        bytes:
+          type: integer
+        reason:
+          type: string
+        producedBy:
+          type: string
+        referencedFrom:
+          type: object
+        sessionId:
+          type: string
+        sha256:
+          type: string
+        detail:
+          type: string
+        indexed:
+          type: boolean
+    ArtifactList:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArtifactSummary'
+    ArtifactEnvelope:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          $ref: '#/components/schemas/ArtifactSummary'
+    ArtifactBody:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          type: object
+          required: [body, meta]
+          properties:
+            body:
+              type: string
+            meta:
+              type: object
+    ResearchState:
+      type: string
+      enum: [running, paused, queued, failed, complete]
+    SectorResearch:
+      type: object
+      description: Counterpart of MockSectorResearch; `companiesFound` is computed, never stored.
+      required: [id, name, topic, companiesFound, state]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        topic:
+          type: string
+        companiesFound:
+          type: integer
+        state:
+          $ref: '#/components/schemas/ResearchState'
+        researchSessionId:
+          type: string
+          nullable: true
+          description: Chat session that started the research (pinned); null until recorded.
+      example:
+        id: sec-pet-care
+        name: Pet care
+        topic: D2C pet brands
+        companiesFound: 2
+        state: running
+        researchSessionId: null
+    SectorList:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SectorResearch'
+    CompanyResearch:
+      type: object
+      description: Counterpart of MockCompanyResearch; `name` renders from company, `sectorName` from sector.
+      required: [id, sectorId, sectorName, name, stage, state]
+      properties:
+        id:
+          type: string
+        sectorId:
+          type: string
+        sectorName:
+          type: string
+        name:
+          type: string
+        stage:
+          type: string
+          enum: [Filter, Deep research, Problem found, Final validation]
+        state:
+          $ref: '#/components/schemas/ResearchState'
+    CompanyList:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CompanyResearch'
+    SectorActivityEntry:
+      type: object
+      required: [seq, text]
+      properties:
+        seq:
+          type: integer
+        text:
+          type: string
+    SectorDetail:
+      type: object
+      description: Sector plus its companies and server-derived activity timeline.
+      required: [id, name, topic, companiesFound, state, companies, activity]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        topic:
+          type: string
+        companiesFound:
+          type: integer
+        state:
+          $ref: '#/components/schemas/ResearchState'
+        companies:
+          type: array
+          items:
+            $ref: '#/components/schemas/CompanyResearch'
+        activity:
+          type: array
+          items:
+            $ref: '#/components/schemas/SectorActivityEntry'
+    SectorEnvelope:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          $ref: '#/components/schemas/SectorDetail'
+    SessionList:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Session'
+    Thread:
+      type: object
+      required: [key, sessionId, kind, status, acceptingSteer, queueDepth, updatedAt]
+      properties:
+        key:
+          type: string
+        sessionId:
+          type: string
+        kind:
+          type: string
+          enum: [session, subagent]
+        status:
+          $ref: '#/components/schemas/RunState'
+        acceptingSteer:
+          type: boolean
+        queueDepth:
+          type: integer
+          minimum: 0
+        updatedAt:
+          type: string
+          format: date-time
+      example:
+        key: 'agent:a2'
+        sessionId: s-now
+        kind: subagent
+        status: RUNNING
+        acceptingSteer: true
+        queueDepth: 1
+        updatedAt: '2026-09-25T10:00:00Z'
+    ThreadEnvelope:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          $ref: '#/components/schemas/Thread'
+    ThreadList:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Thread'
+    RunState:
+      type: string
+      description: |
+        Agents loop states plus SUSPENDED (A11.4 time-budget breach).
+        Mock AgentStatus maps: running -> RUNNING, done -> FINISHED,
+        failed -> ERROR, stopped -> CANCELLING then FINISHED.
+      enum: [IDLE, RUNNING, PAUSED, SUSPENDED, CANCELLING, FINISHED, ERROR]
+    ThreadMessage:
+      type: object
+      description: Counterpart of ChatPanel ChatMessage (text | tool | approval).
+      required: [seq, kind, at]
+      properties:
+        seq:
+          type: integer
+          minimum: 1
+        kind:
+          type: string
+          enum: [text, tool, approval]
+        at:
+          type: string
+          format: date-time
+        role:
+          type: string
+          enum: [user, agent]
+        text:
+          type: string
+        reasoning:
+          type: string
+          description: Provider thinking trace on agent replies; absent otherwise.
+        failed:
+          type: boolean
+        streaming:
+          type: boolean
+        queued:
+          type: boolean
+        name:
+          type: string
+        detail:
+          type: string
+        state:
+          type: string
+          enum: [running, done, failed]
+        action:
+          type: string
+          enum: [pause, resume, send]
+        title:
+          type: string
+        decision:
+          type: string
+          enum: [pending, approved, denied]
+      example:
+        seq: 7
+        kind: approval
+        at: '2026-09-25T10:01:00Z'
+        action: send
+        title: 'Send shortlist to owner'
+        detail: 'Writes to the shared index.'
+        decision: pending
+    MessagePage:
+      type: object
+      required: [ok, data, nextAfterSeq]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ThreadMessage'
+        nextAfterSeq:
+          type: integer
+          description: Pass as afterSeq for the next page; also the SSE resume token.
+    Run:
+      type: object
+      required: [id, sessionId, threadKey, state, budgetUsedRatio, contextUsedRatio, updatedAt]
+      properties:
+        id:
+          type: string
+        sessionId:
+          type: string
+        threadKey:
+          type: string
+        state:
+          $ref: '#/components/schemas/RunState'
+        stageCursor:
+          type: string
+          description: Research checkpoint cursor; absent for non-research runs.
+        budgetUsedRatio:
+          type: number
+          minimum: 0
+        contextUsedRatio:
+          type: number
+          minimum: 0
+        updatedAt:
+          type: string
+          format: date-time
+    RunEnvelope:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          $ref: '#/components/schemas/Run'
+    RunList:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Run'
+    SendCommand:
+      type: object
+      required: [threadKey, text]
+      properties:
+        threadKey:
+          type: string
+        text:
+          type: string
+          minLength: 1
+    SteerCommand:
+      type: object
+      required: [threadKey, text]
+      properties:
+        threadKey:
+          type: string
+        text:
+          type: string
+          minLength: 1
+    RunRef:
+      type: object
+      required: [runId]
+      properties:
+        runId:
+          type: string
+    ResumeCommand:
+      type: object
+      required: [runId]
+      properties:
+        runId:
+          type: string
+        extendedBudgetMs:
+          type: integer
+          minimum: 1
+          description: Operator-approved extra wall-clock; absent means no extension.
+    ApprovalDecision:
+      type: object
+      required: [approvalId, decision]
+      properties:
+        approvalId:
+          type: string
+        decision:
+          type: string
+          enum: [approved, denied]
+    CommandEnvelope:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          type: object
+          required: [commandId, state]
+          properties:
+            commandId:
+              type: string
+            state:
+              type: string
+              enum: [accepted, missed_steer]
+              description: Sends to finished children land as missed_steer, never relaunch.
+    StreamEvent:
+      type: object
+      required: [seq, threadKey, type, at]
+      properties:
+        seq:
+          type: integer
+          description: Resume token; pass as lastSeq to reconnect without gap or duplex.
+        threadKey:
+          type: string
+        type:
+          type: string
+          enum: [message, state, delta, reasoning, tool, finding, error]
+        at:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          description: ThreadMessage for message events, Thread for state events; ephemeral provider text, reasoning, or tool status for delta, reasoning, or tool events.
+      example:
+        seq: 8
+        threadKey: s-now
+        type: message
+        at: '2026-09-25T10:02:00Z'
+        payload: { seq: 8, kind: text, role: agent, text: 'Shortlist ready.' }
+    ErrorEnvelope:
+      type: object
+      required: [ok, error]
+      properties:
+        ok:
+          type: boolean
+          const: false
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum: [not_found, permission_denied, rate_limited, conflict, validation_failed, overload]
+            message:
+              type: string
+      example:
+        ok: false
+        error: { code: rate_limited, message: 'retry after 30s' }

@@ -1,0 +1,23 @@
+# Pinned donor sources (AGENTS.md: donor projects are source references).
+# Each entry records what was adopted and from which commit, so curated
+# content stays traceable without vendoring donor servers or telemetry.
+pins:
+  - repo: /home/karthik/projects/kardata
+    commit: 3986a436f8f8d2e81726c2be2ec23a043863dc3b
+    license: owner-internal (same operator's repo; no third-party license)
+    why: canonical product knowledge (offer, pricing, ICP, research method)
+    paths:
+      - kardata_final/knowledge/company/
+      - kardata_final/knowledge/research/problem-direction.md
+      - kardata_final/knowledge/research/qualification-policy.md
+      - kardata_final/knowledge/research/sector-direction.md
+      - kardata_final/knowledge/research/evidence-governance.md
+      - kardata_final/knowledge/outreach/email-writing-direction.md
+      - kardata_final/knowledge/outreach/draft-review-policy.md
+      - kardata_final/knowledge/outreach/mailability-and-contacts.md
+      - kardata_final/knowledge/current-truths.yaml
+      - kardata_final/knowledge/terminology.md
+      - documentation/business/offer-and-pricing.md
+      - documentation/business/outbound-economics.md
+      - documentation/archive/business/offer-pricing-history.md
+    adopted_as: knowledge_base/*.md (REWRITE per knowledge_base/_migration_map.md)

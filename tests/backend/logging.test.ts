@@ -1,0 +1,169 @@
+import { Writable } from 'node:stream'
+import Fastify, { type FastifyInstance } from 'fastify'
+import { describe, expect, it } from 'vitest'
+import { childLogger, createLogger, logOp, scrubSecrets } from '../../backend/src/observability/logging.js'
+import { route } from '../../backend/src/routes/http.js'
+import { extractTraceContext, injectTraceparent, newTraceId, tracePlugin } from '../../backend/src/observability/trace.js'
+
+function capture(): { lines: string[]; stream: Writable } {
+  const lines: string[] = []
+  const stream = new Writable({
+    write(chunk, _encoding, callback) {
+      for (const line of String(chunk).split('\n')) {
+        if (line.trim()) lines.push(line)
+      }
+      callback()
+    },
+  })
+  return { lines, stream }
+}
+
+describe('logging contract (B0.5)', () => {
+  it('every line carries the join keys', () => {
+    const { lines, stream } = capture()
+    const log = createLogger(
+      { traceId: 'trace-1', runId: 'run-9', op: 'unit.run', attempt: 2, tenant: 't1' },
+      stream,
+    )
+    log.info({ event: 'test' }, 'hello')
+    childLogger(log, { op: 'tool.call' }).info('nested')
+    expect(lines).toHaveLength(2)
+    for (const line of lines) {
+      const parsed = JSON.parse(line) as Record<string, unknown>
+      expect(parsed['trace_id']).toBe('trace-1')
+      expect(parsed['run_id']).toBe('run-9')
+      expect(parsed['tenant']).toBe('t1')
+      expect(parsed['attempt']).toBe(2)
+    }
+    expect((JSON.parse(lines[1]) as Record<string, unknown>)['op']).toBe('tool.call')
+  })
+
+  it('scrub is fail-closed: listed keys and unlisted variants never leak', () => {
+    const secret = 'sk-probe-secret-value'
+    const scrubbed = scrubSecrets({
+      apiKey: secret,
+      nested: { api_key: secret, deep: [{ authorization: `Bearer ${secret}` }] },
+      providerApiKey: secret, // unlisted long-form variant: still a secret
+      sessionKey: secret,
+      threadKey: 'agent:a2', // identifier, not a secret: stays visible
+      message: 'nothing sensitive here',
+    })
+    const text = JSON.stringify(scrubbed)
+    expect(text).not.toContain(secret)
+    expect(text).toContain('[Redacted]')
+    expect(text).toContain('agent:a2')
+    expect(text).toContain('nothing sensitive here')
+  })
+
+  it('scrub applies at write time through the logger', () => {
+    const { lines, stream } = capture()
+    createLogger({ traceId: 't' }, stream).info({ apiKey: 'sk-probe-secret-value', ok: true })
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).not.toContain('sk-probe-secret-value')
+    expect(lines[0]).toContain('[Redacted]')
+  })
+
+  it('traceparent extracts, injects, and round-trips; garbage mints', () => {
+    const incoming = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
+    const context = extractTraceContext({ traceparent: incoming })
+    expect(context).toEqual({ traceId: '4bf92f3577b34da6a3ce929d0e0e4736', parentSpanId: '00f067aa0ba902b7' })
+    const outgoing = injectTraceparent(context)
+    expect(extractTraceContext({ traceparent: outgoing })).toEqual(context)
+    const minted = extractTraceContext({})
+    expect(minted.traceId).toMatch(/^[0-9a-f]{32}$/)
+    expect(minted.parentSpanId).toBeUndefined()
+    expect(extractTraceContext({ traceparent: 'bogus' }).traceId).not.toBe(context.traceId)
+  })
+
+  it('new trace ids are 32 hex chars', () => {
+    expect(newTraceId()).toMatch(/^[0-9a-f]{32}$/)
+  })
+
+describe('logOp long-operation triple', () => {
+  function parsed(lines: string[]): Array<Record<string, unknown>> {
+    return lines.map((line) => JSON.parse(line) as Record<string, unknown>)
+  }
+
+  it('success emits start then done with outcome ok and latency', async () => {
+    const { lines, stream } = capture()
+    const log = createLogger({ traceId: 'trace-9', runId: 'run-3' }, stream)
+    const result = await logOp(log, 'sector.start', async () => 'done-value', { sectorId: 'sec-1' })
+    expect(result).toBe('done-value')
+    const events = parsed(lines)
+    expect(events).toHaveLength(2)
+    expect(events[0]).toMatchObject({ event: 'sector.start.start', op: 'sector.start', sectorId: 'sec-1' })
+    expect(events[1]).toMatchObject({ event: 'sector.start.done', op: 'sector.start', outcome: 'ok', sectorId: 'sec-1' })
+    expect(typeof events[1]['latencyMs']).toBe('number')
+    for (const event of events) {
+      expect(event['trace_id']).toBe('trace-9')
+      expect(event['run_id']).toBe('run-3')
+    }
+  })
+
+  it('failure emits an error line with the error code and rethrows', async () => {
+    const { lines, stream } = capture()
+    const log = createLogger({ traceId: 'trace-9' }, stream)
+    const failure = await logOp(log, 'tool.call', async () => {
+      throw new TypeError('boom')
+    }).then(
+      () => undefined,
+      (error: unknown) => error,
+    )
+    expect(failure).toBeInstanceOf(TypeError)
+    const events = parsed(lines)
+    expect(events).toHaveLength(2)
+    expect(events[0]).toMatchObject({ event: 'tool.call.start', op: 'tool.call' })
+    expect(events[1]).toMatchObject({ event: 'tool.call.error', op: 'tool.call', outcome: 'error', code: 'TypeError' })
+    expect(typeof events[1]['latencyMs']).toBe('number')
+  })
+
+  it('extra fields are scrubbed like every other log line', async () => {
+    const { lines, stream } = capture()
+    const log = createLogger({}, stream)
+    await logOp(log, 'op', async () => undefined, { apiKey: 'shh-secret-value' })
+    expect(lines.join('\n')).not.toContain('shh-secret-value')
+  })
+})
+
+  it('fastify ingress joins request logs to the incoming trace', async () => {
+    const { lines, stream } = capture()
+    const app = Fastify({ logger: false })
+    await app.register(tracePlugin)
+    app.get('/ping', async (request) => {
+      createLogger({ traceId: request.traceContext.traceId }, stream).info('ping')
+      return { ok: true as const }
+    })
+    const incoming = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
+    const response = await app.inject({ method: 'GET', url: '/ping', headers: { traceparent: incoming } })
+    expect(response.statusCode).toBe(200)
+    expect(response.headers['traceparent']).toMatch(/^00-4bf92f3577b34da6a3ce929d0e0e4736-/)
+    expect(lines).toHaveLength(1)
+    expect((JSON.parse(lines[0]) as Record<string, unknown>)['trace_id']).toBe(
+      '4bf92f3577b34da6a3ce929d0e0e4736',
+    )
+    await app.close()
+  })
+
+  it('route errors log route plus trace join keys beside the envelope', async () => {
+    const { lines, stream } = capture()
+    const app = Fastify({ logger: false })
+    await app.register(tracePlugin)
+    ;(app as FastifyInstance & { kardataLogger?: unknown }).kardataLogger = createLogger({}, stream)
+    route(app, 'get', '/boom', async () => {
+      throw new Error('kaboom')
+    })
+    const incoming = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
+    const response = await app.inject({ method: 'GET', url: '/boom', headers: { traceparent: incoming } })
+    expect(response.statusCode).toBe(500)
+    expect((response.json() as { error: { code: string } }).error.code).toBe('overload')
+    const logged = lines.map((line) => JSON.parse(line) as Record<string, unknown>)
+    expect(logged).toHaveLength(1)
+    expect(logged[0]).toMatchObject({
+      event: 'http.route.error',
+      route: 'GET /boom',
+      trace_id: '4bf92f3577b34da6a3ce929d0e0e4736',
+      code: 'internal',
+    })
+    await app.close()
+  })
+})
