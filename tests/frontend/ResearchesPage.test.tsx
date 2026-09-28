@@ -43,9 +43,10 @@ function bundle<T>(items: T[]): ResearchData<T> {
   return { status: 'ready', items, total: items.length, retry: noop }
 }
 
-/** Stubbed server for the companies tab: filters like the backend
- * (query/state params in, {companies, total} out). */
-function stubCompaniesTab(): void {
+/** Stubbed server for the companies tab: filters + pages like the backend
+ * (query/state/limit/offset params in, {companies, total} out). */
+function stubCompaniesTab(rows: typeof COMPANIES = COMPANIES): void {
+  const all = rows
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => {
@@ -54,12 +55,15 @@ function stubCompaniesTab(): void {
         const query = new URL(text, 'https://stub.test')
         const needle = (query.searchParams.get('query') ?? '').toLowerCase()
         const state = query.searchParams.get('state')
-        const filtered = COMPANIES.filter(
+        const limit = Number(query.searchParams.get('limit') ?? '100')
+        const offset = Number(query.searchParams.get('offset') ?? '0')
+        const filtered = all.filter(
           (row) =>
             (needle === '' || `${row.name} ${row.sectorName}`.toLowerCase().includes(needle)) &&
             (state === null || row.state === state),
         )
-        return { ok: true, status: 200, json: async () => ({ ok: true, data: { companies: filtered, total: filtered.length } }) }
+        const window = filtered.slice(offset, offset + limit)
+        return { ok: true, status: 200, json: async () => ({ ok: true, data: { companies: window, total: filtered.length } }) }
       }
       return { ok: false, status: 404, json: async () => ({ ok: false, error: { code: 'not_found', message: 'no' } }) }
     }),
@@ -133,6 +137,29 @@ describe('ResearchesPage', () => {
       target: { value: 'no-such-company' },
     })
     expect(await screen.findByText(/No researches match these filters/)).toBeInTheDocument()
+  })
+
+  it('pages through windows with Show more until the total is reached', async () => {
+    const bulk = Array.from({ length: 250 }, (_, index) => ({
+      id: `bulk-${index + 1}`,
+      sectorId: 'seed-pet-care',
+      sectorName: 'Pet care',
+      name: `Bulk company ${index + 1}`,
+      stage: 'Filter',
+      state: 'running' as const,
+    }))
+    stubCompaniesTab(bulk)
+    renderPage({ initialTab: 'companies' })
+    expect(await screen.findByText('Bulk company 100')).toBeInTheDocument()
+    expect(screen.queryByText('Bulk company 101')).not.toBeInTheDocument()
+    expect(screen.getByText('Showing 100 of 250 matching')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Show more/ }))
+    expect(await screen.findByText('Bulk company 200')).toBeInTheDocument()
+    expect(screen.getByText('Showing 200 of 250 matching')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Show more/ }))
+    expect(await screen.findByText('Bulk company 250')).toBeInTheDocument()
+    expect(screen.getByText('Showing 250 of 250 matching')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Show more/ })).not.toBeInTheDocument()
   })
 
   it('filters by state and clears back to everything', () => {

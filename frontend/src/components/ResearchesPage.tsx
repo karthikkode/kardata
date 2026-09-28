@@ -242,6 +242,7 @@ function CompaniesFullList({
   const total = data.total ?? rows.length
   const filtered = needle !== '' || active !== 'all'
   const showCount = filtered || rows.length > 50 || total > rows.length
+  const hasMore = rows.length < total
   if (!rows.length) {
     return (
       <div className="mt-2 rounded-lg border border-dashed border-border p-4">
@@ -272,6 +273,19 @@ function CompaniesFullList({
         </p>
       ) : null}
       <OverflowList total={total}>{rows.map((item) => <CompanyRow key={item.id} research={item} />)}</OverflowList>
+      {hasMore ? (
+        <div className="mt-2 flex justify-center">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={data.showMore}
+            disabled={data.loadingMore}
+          >
+            {data.loadingMore ? 'Loading more…' : `Show more (${rows.length} of ${total})`}
+          </Button>
+        </div>
+      ) : null}
     </>
   )
 }

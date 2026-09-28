@@ -1,5 +1,24 @@
 # Implementation status
 
+## Show-more company windows (2026-09-28)
+
+- `useStagingCompanies` appends 100-row windows via `Show more
+  (X of Y)` (id-dedupe by row id, `Loading more…` disabled state,
+  button gone at the total, filter change resets to window one) on
+  both the Researches full list and the sector detail section.
+- Proven failing-first (no button, first window only), then 21/21
+  detail tests and 13/13 Researches tests incl. 250-row three-window
+  walks on both surfaces. Same-change doc: `documentation/frontend.md`
+  window paragraph. One red item caught locally: a sync setState in
+  the append effect tripped the react-compiler lint (moved into the
+  click handler).
+- External flake during the gate (not this diff): the live Meta probe
+  suite intermittently fails with HTTP 503 from the provider (two
+  different probe tests across runs; hermetic agents suite stays
+  183-184 green) and passes on retry in isolation (40 s, same usage
+  shape). No provider code in this change; recorded as external, not
+  product. CI skips live probes (no keys).
+
 ## Fleet load runs: 10/50/100 subagents, real outputs (2026-09-28)
 
 - `tests/backend/workflows.fleet-load.test.ts` (new, live-gated

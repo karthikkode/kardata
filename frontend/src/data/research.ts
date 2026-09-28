@@ -91,17 +91,37 @@ export interface CompanyFilters {
   sectorId?: string
 }
 
+/** Client window size: matches the server default page. */
+export const COMPANY_WINDOW = 100
+
+export interface CompanyData extends ResearchData<CompanyResearch> {
+  /** True while the next window appends; the loaded rows stay visible. */
+  loadingMore: boolean
+  /** Fetch the next window and append it (id-deduped). No-op at the total. */
+  showMore: () => void
+}
+
 export function useStagingCompanies(
   config: StagingConfig | null,
   filters: CompanyFilters = {},
-): ResearchData<CompanyResearch> {
+): CompanyData {
   const [status, setStatus] = useState<ResearchStatus>('loading')
   const [items, setItems] = useState<CompanyResearch[]>([])
   const [total, setTotal] = useState<number | undefined>(undefined)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [attempt, retry] = useRefetch()
+  const [moreNonce, setMoreNonce] = useState(0)
   const state = filters.state ?? ''
   const needle = filters.query ?? ''
   const sector = filters.sectorId ?? ''
+
+  function serverFilters(): { state?: CompanyResearch['state']; query?: string; sectorId?: string } {
+    return {
+      ...(state === '' || state === 'all' ? {} : { state: state as CompanyResearch['state'] }),
+      ...(needle === '' ? {} : { query: needle }),
+      ...(sector === '' ? {} : { sectorId: sector }),
+    }
+  }
 
   // Reset during render, never in the fetch effect: when the query
   // changes the previous rows no longer belong to it.
@@ -112,6 +132,7 @@ export function useStagingCompanies(
     if (query === null) {
       setItems([])
       setTotal(undefined)
+      setLoadingMore(false)
       setStatus('ready')
     } else {
       setStatus('loading')
@@ -121,15 +142,12 @@ export function useStagingCompanies(
   useEffect(() => {
     if (!config) return
     let live = true
-    listCompanies(config, {
-      ...(state === '' || state === 'all' ? {} : { state: state as CompanyResearch['state'] }),
-      ...(needle === '' ? {} : { query: needle }),
-      ...(sector === '' ? {} : { sectorId: sector }),
-    })
+    listCompanies(config, { ...serverFilters(), limit: COMPANY_WINDOW, offset: 0 })
       .then((page) => {
         if (!live) return
         setItems(page.companies)
         setTotal(page.total)
+        setLoadingMore(false)
         setStatus('ready')
       })
       .catch((error: unknown) => {
@@ -142,7 +160,37 @@ export function useStagingCompanies(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config?.baseUrl, config?.apiKey, state, needle, sector, attempt])
 
-  return { status, items, total, retry }
+  useEffect(() => {
+    if (!config || moreNonce === 0) return
+    let live = true
+    listCompanies(config, { ...serverFilters(), limit: COMPANY_WINDOW, offset: items.length })
+      .then((page) => {
+        if (!live) return
+        setItems((current) => {
+          const seen = new Set(current.map((row) => row.id))
+          return [...current, ...page.companies.filter((row) => !seen.has(row.id))]
+        })
+        setTotal(page.total)
+        setLoadingMore(false)
+      })
+      .catch(() => {
+        if (!live) return
+        setLoadingMore(false)
+      })
+    return () => {
+      live = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moreNonce])
+
+  function showMore(): void {
+    if (loadingMore) return
+    if (total !== undefined && items.length >= total) return
+    setLoadingMore(true)
+    setMoreNonce((value) => value + 1)
+  }
+
+  return { status, items, total, loadingMore, showMore, retry }
 }
 
 export interface SectorDetailData {
