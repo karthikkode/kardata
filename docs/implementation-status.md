@@ -1,5 +1,34 @@
 # Implementation status
 
+## First live sector research + recorded pack (2026-09-28)
+
+- Ran the research workflow against the real Meta provider
+  (muse-spark-1.3-contributor, chat wire) over an 8-doc fintech
+  corpus via a scratch runner (deleted after the run, never
+  committed). Three bounded runs: run 1 timed out at 300 s
+  (provider latency was unknown); the single-call probe then
+  measured 33.7 s; run 2 (6 calls, 27-47 s each, 241 s, ~8.9k
+  in / ~1k out tokens) blocked on `research loop` with zero new
+  evidence; run 3 with a lean retrieval-only registry reported
+  in 239 s (5 calls, 2 units, 1 finding).
+- Reported outcome: `reported`, 1 finding (Acme Pay founded
+  2020, doc-1, https://example.com/acme), recorded as
+  `agents/src/fixtures/research-fintech-live.json` via
+  `createResearchPack` + `validateResearchPack`. The per-pack
+  replay loop in `research.pack.test.ts` replays every
+  `research-*.json` hermetically (network cut, byte-identical
+  report); a sabotaged live golden was observed to fail and
+  pass after restore. Suite now 6/6 in that file.
+- Two findings for the owner, no product code changed: (1) live
+  provider latency is 26-85 s per call, so research wall
+  budgets must be sized in minutes, not seconds; (2) the full
+  unit registry (plan/task tools included) lets the model burn
+  its bounded turns on `plan.create` and starve
+  `evidence.capture` (observed tool trace both blocked runs),
+  while the lean retrieval-only registry researches cleanly.
+  Fix direction (lean unit registry, more turns, or prompt
+  change) needs owner sign-off.
+
 ## Research pack cassette foundation (2026-09-28)
 
 - `agents/src/researchPack.ts` (new, barrel-exported):
