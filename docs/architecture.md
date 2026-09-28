@@ -648,7 +648,9 @@ events ──retention──▶ cold archive (GCS) ──replay──┘
   stable, capped at 30): one region's index never stands in for the whole
   market, and non-English results stay out by query construction. Proven by `tests/backend/retrieval.test.ts` (doubles by
   default; live suites behind `KARDATA_BROWSER_TEST=1`) and
-  `tests/backend/sweep.rules.test.ts`.
+  `tests/backend/sweep.rules.test.ts`. Leading TEST scaffolding markers
+  are stripped before shaping (`stripTestMarkers`), so test sectors
+  search clean subjects.
 - Sweep fallback chain (`searchWebPageActivity`): keyed Brave API first,
   keyless engine pool second (`backend/src/retrieval/keyless.ts`:
   DuckDuckGo html/lite plus Mojeek, best-effort — direct HTTP to these

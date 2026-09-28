@@ -25,6 +25,13 @@ describe('buildQueryTemplates', () => {
     expect(templates.length).toBeLessThanOrEqual(30)
     expect(buildQueryTemplates('Speciality foods', 'Artisanal packaged foods')).toEqual(templates)
   })
+
+  it('strips TEST scaffolding markers so test sectors search clean subjects', () => {
+    const templates = buildQueryTemplates('TEST Sweep Proof', 'TEST DATA: keyless sweep proof; D2C specialty foods')
+    expect(templates[0]).not.toMatch(/^TEST\b/i)
+    expect(templates.join('\n')).not.toMatch(/TEST DATA/i)
+    expect(templates).toContain('D2C specialty foods United States')
+  })
 })
 
 describe('extractNewDomains', () => {

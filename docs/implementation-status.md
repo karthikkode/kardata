@@ -1,5 +1,20 @@
 # Implementation status
 
+## Sweep robustness: TEST-marker strip + walled-run findings (2026-09-28)
+
+- `stripTestMarkers` in sweep-rules.ts: leading TEST tokens/clauses go
+  before shaping (the TEST-named proof sector had searched literal
+  sweep-testing companies). Failing-first test + 6/6 rules green.
+- Live re-proof attempt: restarted the proof sweep on the rebuilt
+  worker (EN templates live); 8 min with no new hits past the first 9,
+  paused gracefully via the pause route (200). Two measured facts:
+  (1) the marker fix was not yet in the worker image, so queries were
+  still poisoned; (2) without a search key every template burns ~30 s
+  on the walled browser leg, so keyless-only operation at 30 templates
+  is infeasible at 1000-company scale. Key provisioning is now
+  load-bearing, not optional. Same-change doc: architecture retrieval
+  paragraph.
+
 ## Hound at fullest: palette + EN regions + live-leg proof (2026-09-28)
 
 - Karbot palette gains `web_search`, `web_fetch`, all five `browser_*`;

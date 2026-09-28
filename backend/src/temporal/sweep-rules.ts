@@ -2,8 +2,19 @@
 // by the sectorSweep workflow. No server, no database, no workflow
 // imports — unit-tested directly like the B2.6 guard matrix.
 
-/** Query templates from sector identity. Deterministic: the same sector
- * always sweeps the same template order.
+/** Test scaffolding must never pollute production queries: a leading
+ * TEST marker (bare token on names, `TEST ... ;` clause on topics) is
+ * stripped before shaping. The rest of the identity is kept verbatim —
+ * only the marker goes. */
+const TEST_MARKER_CLAUSE = /^\s*TEST\b[^;]*;\s*/i
+const TEST_MARKER_TOKEN = /^\s*TEST\b[:\s-]*/i
+
+export function stripTestMarkers(value: string): string {
+  return value.replace(TEST_MARKER_CLAUSE, '').replace(TEST_MARKER_TOKEN, '')
+}
+
+/** Query templates from sector identity (TEST markers stripped first).
+ * Deterministic: the same sector always sweeps the same template order.
  *
  * English-speaking regions bound the discovery harness: every base
  * template fans out per region so one region's index can never stand
@@ -24,10 +35,11 @@ export function buildQueryTemplates(
   topic: string,
   regions: readonly string[] = ENGLISH_REGIONS,
 ): string[] {
-  const subject = (topic || name).trim()
+  const subject = (stripTestMarkers(topic) || stripTestMarkers(name)).trim()
+  const cleanName = stripTestMarkers(name).trim() || name.trim()
   const base = [
     subject,
-    `${name} companies`,
+    `${cleanName} companies`,
     `${subject} startups vendors`,
     `${subject} list directory`,
     `best ${subject} companies`,
