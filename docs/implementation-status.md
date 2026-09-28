@@ -1,5 +1,18 @@
 # Implementation status
 
+## Subagent fan-out cap with backpressure (2026-09-28)
+
+- `delegateParent` takes `maxInFlight` (default 50): delegations
+  arriving with that many children running reject as
+  `t.subagent.rejected` (`max in-flight children N reached`) instead
+  of starting; slots free on `parentNoteDone`. No product starter
+  passes it yet, so the default stands unchallenged and the change is
+  purely additive.
+- Proven failing-first on live Temporal (compose server): the new
+  test timed out waiting for a rejection before the fix; 10/10 in
+  `workflows.subagents.test.ts` after. Same-change doc:
+  `documentation/agents-subagents.md` close-guarantees paragraph.
+
 ## Paged company/activity reads with server totals (2026-09-28)
 
 - `listCompanies`, `listSectorCompanies`, `sectorActivity` take
