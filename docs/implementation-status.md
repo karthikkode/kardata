@@ -16,6 +16,17 @@
   now builds `@kardata/agents` first (reproduced locally by deleting
   `agents/dist`, green after rebuild). Checklist wording updated to match.
 
+## Remote live with enforced merge gate (2026-09-28)
+
+- Repo `karthikkode/kardata` created private, checkpoint pushed, then made
+  public per owner instruction (tracked-tree secret scan clean before the
+  flip; only the documented dev-only compose password is visible).
+- PR #1 (`docs/merge-gate-rules`) merged under the new rules: checklist in
+  description, CI green, subagent PASS pasted, squash-merge.
+- `main` branch protection active: strict required checks `verify` + `e2e`,
+  PR required, force-push and deletion blocked, admins included. Direct
+  pushes to `main` are now server-blocked, not just process-blocked.
+
 ## Context citations without ids + drawer pins (2026-09-28)
 
 - Backend: `getSectorContext` cites `filename:ord` (stable `name (2)`
