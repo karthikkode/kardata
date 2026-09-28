@@ -50,6 +50,20 @@ with it. No test, no merge : the handoff must name the test file.
   the expected number (observed: sweep e2e counted 14 instead of 2 when
   empty keyed pages fell through to live keyless search).
 
+## Fleet seed (thousand-company scale runs)
+
+`tests/backend/fleet-seed.ts` generates deterministic TEST rows:
+`generateFleet(seed, companyCount, docCount)` with a seeded PRNG, so
+reruns are free and goldens stay stable. Every name and filename
+carries its TEST label (`TEST ...`, `test-fleet-*.md`, `TEST DATA`
+marker in text); generated rows can never pass as live data, and
+live seeds run in the `test-fleet` tenant scope, never the default
+view. Docs span the 2000-char chunker cap on purpose (small singles
+plus multi-unit files). Proven by `tests/backend/fleet-seed.test.ts`:
+hermetic determinism/label/count/stage checks always run; the live
+case (own database via `ensureTestDb`, projector catch-up exactly
+like the routes) seeds 1000 companies plus 12 documents.
+
 ## Scale tiers (what "stress tested" means here)
 
 - Unit soak: 100-entity fleet drills on stepped clocks (subagents, claims,
