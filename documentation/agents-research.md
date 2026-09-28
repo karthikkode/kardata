@@ -51,8 +51,12 @@ green while any live fallback fails loudly. First pack:
 `research-fintech-acme.json` (2 docs, 2 findings), proven by
 `agents/src/research.pack.test.ts` (replay with `fetch` stubbed to
 throw, round-trip equality, four tamper rejections, secrets scan).
-Packs are test data, never knowledge-base corpus: they never enter
-`knowledge_base/`, and no pack is described as live capability.
+Second pack `research-fintech-live.json` was recorded live against
+the real Meta provider 2026-09-28 (1 finding) and replays in the
+same per-pack loop; a sabotaged golden was observed to fail the
+loop and pass after restore. Packs are test data, never
+knowledge-base corpus: they never enter `knowledge_base/`, and no
+pack is described as live capability.
 
 ## Checkpoints and resume (A11.1-A11.2)
 

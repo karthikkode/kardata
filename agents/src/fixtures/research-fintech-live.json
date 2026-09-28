@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "scope": "Fintech SME-payments sector research",
+  "scopeHash": "691cc388c7d3b867bca809d8ff61747450ce60023c617951e534eb4a43c59c20",
+  "documents": [
+    {
+      "id": "doc-1",
+      "url": "https://example.com/acme",
+      "title": "Acme Pay overview",
+      "body": "Acme Pay was founded in 2020. Headquarters: Austin, Texas. Flagship product: SME invoicing with same-day payouts. Serves 4000 small businesses."
+    }
+  ],
+  "findings": [
+    {
+      "claim": "Acme Pay was founded in 2020.",
+      "docId": "doc-1",
+      "url": "https://example.com/acme",
+      "excerpt": "Acme Pay was founded in 2020.",
+      "contentHash": "d8a7aa8c022a2c723a1f2ab97bf6efd9bfa0721611d34f5976b17c223713f401"
+    }
+  ],
+  "report": "## Findings\n- [Acme Pay was founded in 2020.](https://example.com/acme)\n\n## Sources\n- https://example.com/acme (doc-1)",
+  "capturedAt": "2026-09-28T00:00:00.000Z"
+}
