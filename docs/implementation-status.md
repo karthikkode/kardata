@@ -1,5 +1,16 @@
 # Implementation status
 
+## Merge gate hardened with owner rules (2026-09-28)
+
+- `documentation/pr-checklist.md` now encodes the owner's 8 merge rules
+  as checkable items (scenario + stress tiers, observability triples,
+  db-layer persistence, full suite incl. live-gated suites, frontend
+  shots + clips + in-browser contracts, docs routing, independent
+  subagent verdict) plus agent additions (secrets/safety scan, merge
+  hygiene with rollback note). Enforcement note states the honest
+  ladder: process + subagent verdict now, branch protection + CI once a
+  remote exists. Docs-only change; verified by read-back.
+
 ## Context citations without ids + drawer pins (2026-09-28)
 
 - Backend: `getSectorContext` cites `filename:ord` (stable `name (2)`
