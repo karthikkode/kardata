@@ -20,7 +20,10 @@
 - Red suites root-caused (all test side): skipped projector catch-up
   before seed reads; non-idempotent seed keys doubling rows on rerun
   (fixed with deterministic company ids + keys; DB reset once);
-  array-shape assertions on the new paged returns.
+  array-shape assertions on the new paged returns; and a CI e2e miss
+  where the runs-only stub in `visual.spec.ts` served the old array
+  shape for `/v1/companies`, crashing the client and hanging nav
+  (fixed the stub, proved 33/33 locally before re-push).
 - Correction to the earlier gap analysis: live web search/fetch
   EXISTS (`backend/src/retrieval/web.ts`, MCP `web_search` /
   `web_fetch` with SSRF guards, sweep activity wired) but

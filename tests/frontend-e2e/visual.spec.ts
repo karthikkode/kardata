@@ -171,7 +171,8 @@ test('visual: wave2 runs list with cancelling tone', async ({ page }) => {
   await page.route('**/v1/**', async (route) => {
     const url = route.request().url()
     let data: unknown = []
-    if (url.includes('/v1/runs')) {
+    if (url.includes('/v1/companies')) data = { companies: [], total: 0 }
+    else if (url.includes('/v1/runs')) {
       data = [{ id: 'run-1', sessionId: 's-1', threadKey: 's-1', state: 'CANCELLING', updatedAt: SECTOR.updatedAt }]
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data }) })
