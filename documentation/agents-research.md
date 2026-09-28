@@ -35,6 +35,25 @@ renders inline claim links plus a sources section.
 Zero findings across all units returns `refused` with a stated reason. A run
 with no evidence says so instead of reporting. No donor implements this.
 
+## Pack cassette: record-once, replay-forever (Phase G)
+
+`agents/src/researchPack.ts` freezes one capture as versioned JSON under
+`agents/src/fixtures/`: scope plus its sha256, retriever documents,
+per-claim findings, the assembled report, and a capture timestamp.
+`createResearchPack` re-hashes findings through `captureFinding` and
+assembles the report, so stored hashes are never pasted.
+`validateResearchPack` re-derives scope hash, every content hash, and
+the report byte-identical, and throws on any mismatch instead of
+replaying silently. `CassetteRetriever` serves pack documents through
+the `Retriever` seam and throws `unknown document` on misses: it
+performs no fetch of its own, so replay with the network cut stays
+green while any live fallback fails loudly. First pack:
+`research-fintech-acme.json` (2 docs, 2 findings), proven by
+`agents/src/research.pack.test.ts` (replay with `fetch` stubbed to
+throw, round-trip equality, four tamper rejections, secrets scan).
+Packs are test data, never knowledge-base corpus: they never enter
+`knowledge_base/`, and no pack is described as live capability.
+
 ## Checkpoints and resume (A11.1-A11.2)
 
 A stage is one briefed question-unit through its bounded react loop to
