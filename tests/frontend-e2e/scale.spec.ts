@@ -59,6 +59,7 @@ test('scale: 1000 companies walkable through Show more with truthful totals', as
   for (let shown = 100; shown < 1000; shown += 100) {
     await page.getByRole('button', { name: `Show more (${shown} of 1000)` }).click()
     await expect(page.getByText(`Scale company ${shown + 100}`)).toBeVisible()
+    await expect(page.getByText(`Showing ${shown + 100} of 1000 companies`)).toBeVisible()
   }
   const walkMs = Date.now() - started
   // eslint-disable-next-line no-console
