@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "scope": "fintech acme research",
+  "scopeHash": "74e72e14bab9a3abe18aca29d83a85a62bdf4e169b9a69be020eb0b90c3167d5",
+  "documents": [
+    {
+      "id": "doc-1",
+      "url": "https://example.com/acme",
+      "title": "Acme Pay overview",
+      "body": "Canned body of Acme Pay overview."
+    },
+    {
+      "id": "doc-2",
+      "url": "https://example.com/ledgerly",
+      "title": "Ledgerly report",
+      "body": "Canned body of Ledgerly report."
+    }
+  ],
+  "findings": [
+    {
+      "claim": "founded 2020",
+      "docId": "doc-1",
+      "url": "https://example.com/acme",
+      "excerpt": "founded 2020",
+      "contentHash": "0312db48b14d597ad08386ce626fd687edc9128ada39f65afa99d8ed9829488f"
+    },
+    {
+      "claim": "ledger live",
+      "docId": "doc-2",
+      "url": "https://example.com/ledgerly",
+      "excerpt": "ledger live",
+      "contentHash": "e70f0f86c9e3eeb93920541c27caeabf38aa8dff77d7b9b44dc07ba40e5316bc"
+    }
+  ],
+  "report": "## Findings\n- [founded 2020](https://example.com/acme)\n- [ledger live](https://example.com/ledgerly)\n\n## Sources\n- https://example.com/acme (doc-1)\n- https://example.com/ledgerly (doc-2)",
+  "capturedAt": "2026-09-28T00:00:00.000Z"
+}

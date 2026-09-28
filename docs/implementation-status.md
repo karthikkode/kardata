@@ -1,5 +1,25 @@
 # Implementation status
 
+## Research pack cassette foundation (2026-09-28)
+
+- `agents/src/researchPack.ts` (new, barrel-exported):
+  `createResearchPack` (re-hashes via `captureFinding`, assembles
+  report), `validateResearchPack` (re-derives scope hash, every
+  content hash, report byte-identical; throws on mismatch),
+  `CassetteRetriever` (pack docs through the `Retriever` seam,
+  unknown ids throw, zero network of its own). First pack
+  `agents/src/fixtures/research-fintech-acme.json` (2 docs,
+  2 findings).
+- Proven failing-first by `agents/src/research.pack.test.ts`
+  (failed on missing module before the fix; 4/4 after):
+  replay with `fetch` stubbed to throw, end-to-end workflow
+  report byte-identical to the golden, `createResearchPack`
+  round-trip equality, four tamper rejections, secrets scan.
+- Same-change doc: `documentation/agents-research.md` pack
+  section. Gates: agents lint/typecheck clean, 182 passed;
+  `pr:verify` green (frontend 231/6 skipped, backend 262/174
+  skipped live-gated).
+
 ## Merge gate hardened with owner rules (2026-09-28)
 - `documentation/pr-checklist.md` now encodes the owner's 8 merge rules
   as checkable items (scenario + stress tiers, observability triples,
