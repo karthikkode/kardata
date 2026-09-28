@@ -15,6 +15,16 @@ describe('buildQueryTemplates', () => {
   it('falls back to the name when the topic is empty', () => {
     expect(buildQueryTemplates('Pet care', '')[0]).toBe('Pet care')
   })
+
+  it('qualifies templates with English-speaking regions by default', () => {
+    const templates = buildQueryTemplates('Speciality foods', 'Artisanal packaged foods')
+    for (const region of ['United States', 'United Kingdom', 'Canada', 'Australia']) {
+      expect(templates).toContain(`Artisanal packaged foods ${region}`)
+    }
+    expect(templates[0]).toBe('Artisanal packaged foods')
+    expect(templates.length).toBeLessThanOrEqual(30)
+    expect(buildQueryTemplates('Speciality foods', 'Artisanal packaged foods')).toEqual(templates)
+  })
 })
 
 describe('extractNewDomains', () => {

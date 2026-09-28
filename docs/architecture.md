@@ -643,7 +643,10 @@ events ──retention──▶ cold archive (GCS) ──replay──┘
   a local Chromium (`KARDATA_CHROME_PATH` or system binary) through a
   session registry with idle reap and aria snapshots. Pure rules in
   `backend/src/temporal/sweep-rules.ts` bound effort and temperature per
-  sweep. Proven by `tests/backend/retrieval.test.ts` (doubles by
+  sweep. Templates fan out per English-speaking region by default (US,
+  UK, Canada, Australia; `ENGLISH_REGIONS` in sweep-rules.ts, base order
+  stable, capped at 30): one region's index never stands in for the whole
+  market, and non-English results stay out by query construction. Proven by `tests/backend/retrieval.test.ts` (doubles by
   default; live suites behind `KARDATA_BROWSER_TEST=1`) and
   `tests/backend/sweep.rules.test.ts`.
 - Sweep fallback chain (`searchWebPageActivity`): keyed Brave API first,
@@ -658,7 +661,14 @@ events ──retention──▶ cold archive (GCS) ──replay──┘
   on all legs fails loudly. The MCP `web_search` tool stays keyed and
   fail-closed — the chain lives in the sweep, not the tool contract.
   Proven by `tests/backend/sweep.search.test.ts` (fixture doubles and
-  stub legs, no network).
+  stub legs, no network). Live proof 2026-09-28 from this machine and the
+  worker: keyless DDG-html returns hits, browser sidecar navigates +
+  snapshots + closes, webFetch extracts text; keyed stays fail-closed
+  with no key configured. Karbot's palette carries the full hound set
+  (`web_search`, `web_fetch`, all five `browser_*`); sector chats carry
+  `web_search` + `web_fetch` (web reads, no DB writes) while browser
+  action stays Karbot-only. Proven by `tests/backend/karbot.turn.test.ts`
+  (grant advertisement + stacking order).
 
 ## Research loop and time guards (B2.6)
 
