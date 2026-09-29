@@ -79,6 +79,10 @@ export const TURN_HEARTBEAT_MS = 5_000
  * until the budget runs out. Excluded units never reach this list. */
 export const SECTOR_REFS_CHAR_BUDGET = 24_000
 
+/** Live-turn wall budget: covers measured deep research (160–327 s pilot
+ * turns with live provider rounds plus browser reads). */
+export const RESEARCH_TURN_WALL_MS = 600_000
+
 export interface TurnOutcome {
   reply: string
   /** Provider thinking trace; absent when the provider sends none. */
@@ -308,13 +312,18 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
     // Spend guards for the live turn. Cost stays untracked until a price
     // table lands (no price source exists yet), so maxCost never trips;
     // turns, tool calls, tokens, wall-clock, and stall budgets all do.
+    // Wall clock covers measured deep research (160–327 s pilot turns):
+    // cutting at 5 minutes killed the tail. Empty replies on oversized
+    // briefs stay an open output-budget question (brief discipline —
+    // one company, terse reply — is the proven recipe); this budget
+    // only decides how long a turn may work, not how it writes.
     const budgets = new BudgetTracker(
       {
         maxTurns: 10,
         maxToolCalls: 25,
         maxTokens: 200_000,
         maxCost: Number.POSITIVE_INFINITY,
-        maxWallMs: 300_000,
+        maxWallMs: RESEARCH_TURN_WALL_MS,
         maxStalledTurns: 3,
       },
       systemClock(),

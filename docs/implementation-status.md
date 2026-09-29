@@ -1600,3 +1600,13 @@ scale claims with evidence links.
   fleet-load 10/50/100/1000 green through the cap in the author live
   run 2026-09-30 (paced thousand-scale throughput with scripted
   provider). Raise only with measured provider headroom.
+
+## Research wall clock 300s to 600s
+
+- Pilot evidence: successful research turns ran 160–327 s; the 300 s
+  wall cut the tail. RESEARCH_TURN_WALL_MS (600 s) pinned in
+  `tests/backend/karbot.turn.test.ts`. Empty replies on oversized
+  briefs stay open (brief discipline is the proven recipe); the budget
+  decides run length, not writing.
+- Live proof: second independent Tyro verdict under the new ceiling
+  (agreement datum against the pilot's first).

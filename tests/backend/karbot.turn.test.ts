@@ -7,6 +7,7 @@ import {
   chatHistory,
   KARBOT_SYSTEM_PROMPT,
   productMcpClient,
+  RESEARCH_TURN_WALL_MS,
   sectorMcpClient,
   SECTOR_TOOLS,
   type KarbotTurnDeps,
@@ -459,5 +460,14 @@ describe('sectorMcpClient', () => {
       expect(result.isError !== true, name).toBe(true)
     }
     expect(seen.sort()).toEqual([...SECTOR_TOOLS].sort())
+  })
+})
+
+describe('research turn wall budget', () => {
+  it('allows deep research turns past the old 5-minute cut', () => {
+    // Pilot evidence: successful research turns ran 160–327 s; the 300 s
+    // wall cut the tail. Ten minutes covers measured research with
+    // headroom; interactive turns rarely approach either bound.
+    expect(RESEARCH_TURN_WALL_MS).toBe(600_000)
   })
 })
