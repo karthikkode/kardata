@@ -1646,3 +1646,20 @@ scale claims with evidence links.
   companies filter unchanged (companies never plan).
 - Live proof: draft→planning→planned→approved→queued walk on Postgres
   with projections + state filters; migration down/up round-trip.
+
+## Planning run: route, workflow, artifact, read (P2)
+
+- POST /v1/sectors/:id/plan (operator, idempotent): creates a visible
+  "Research plan" sector chat, moves draft/failed to planning via the
+  planSectorResearch protocol (pin-checked, fail-closed, compensating),
+  starts one sectorPlan workflow per sector. GET /v1/sectors/:id/plan
+  reads the versioned artifact (empty until planned); OpenAPI carries
+  both routes plus PlanVersion/SectorPlan shapes.
+- sectorPlan: sector context, one Karbot turn in the planning chat
+  with the six-heading brief, artifact write (idempotent versions),
+  terminal planned/failed; cancellations propagate without state
+  writes. Research lane serves a research-bundle aggregator (sweep +
+  plan) the same way the turn lane serves its turn-bundle.
+- Evidence: stub-DB protocol tests, brief-shape tests, live Temporal
+  planned + empty-failed branches, live route tests (visible chat,
+  conflict, empty/read/404).

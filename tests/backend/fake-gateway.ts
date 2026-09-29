@@ -54,6 +54,13 @@ export class FakeRunsGateway implements RunsGateway {
     return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
   }
 
+  readonly startedPlans: string[] = []
+
+  async startSectorPlan(sectorId: string): Promise<CommandResult> {
+    this.startedPlans.push(sectorId)
+    return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
+  }
+
   /** Cancelled sweep ids; already-gone runs accept quietly like production. */
   readonly cancelledSweeps: string[] = []
 

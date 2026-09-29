@@ -15,12 +15,14 @@ import {
   setUnitExclusions,
 } from '../db/sector-context.js'
 import { pauseSectorSweep, restartSectorSweep, resumeSectorSweep } from '../db/sector-lifecycle.js'
+import { SectorPlanError, planSectorResearch, readSectorPlan } from '../db/sector-plan.js'
 import { SectorStartError, startSectorResearch } from '../db/sector-start.js'
 import { createModelOcrAdapter } from '../ocr.js'
 import { resolveAdapter } from '../providers/gateway.js'
 import { projectNewEvents } from '../projector.js'
 import {
   createSector,
+  createSession,
   DbContractError,
   getSector,
   ingestSectorDocument,
@@ -208,6 +210,66 @@ export function sectorRoutes(app: FastifyInstance): void {
       const started = await getSector(pool, sectorId, auth.scope)
       return { status: 200, body: { ok: true, data: started } }
     })
+  })
+
+  route(app, 'post', '/v1/sectors/:sectorId/plan', async (request, reply, app) => {
+    const pool = requirePool(app, reply)
+    if (!pool) return undefined
+    const runs = requireRuns(app, reply)
+    if (!runs) return undefined
+    const auth = await authorize(app, request, reply, 'operator')
+    if (!auth) return undefined
+    const params = request.params as { sectorId?: string }
+    const sectorId = params.sectorId ?? ''
+    return withIdempotency(request, reply, pool, auth.keyId, async () => {
+      await projectNewEvents(pool)
+      const header = request.headers['idempotency-key']
+      const key = typeof header === 'string' && header !== '' ? `sector-plan:${sectorId}:${header}` : undefined
+      // The planning chat is visible in the sector pool: owners watch the
+      // plan take shape instead of a silent background run.
+      let sessionId: string
+      try {
+        const session = await createSession(pool, 'Research plan', auth.scope, sectorId)
+        sessionId = session.id
+      } catch (error: unknown) {
+        if (error instanceof DbContractError) {
+          return { status: 400, body: { ok: false, error: { code: 'validation_failed', message: error.message } } }
+        }
+        throw error
+      }
+      try {
+        await planSectorResearch(pool, runs, sectorId, sessionId, auth.scope, key)
+      } catch (error: unknown) {
+        if (error instanceof SectorPlanError) {
+          const status = error.failure === 'not_found' ? 404 : error.failure === 'conflict' ? 409 : 503
+          return { status, body: { ok: false, error: { code: error.failure, message: error.message } } }
+        }
+        throw error
+      }
+      await projectNewEvents(pool).catch(() => undefined)
+      const planning = await getSector(pool, sectorId, auth.scope)
+      return { status: 200, body: { ok: true, data: planning } }
+    })
+  })
+
+  route(app, 'get', '/v1/sectors/:sectorId/plan', async (request, reply, app) => {
+    const pool = requirePool(app, reply)
+    if (!pool) return undefined
+    const auth = await authorize(app, request, reply, 'viewer')
+    if (!auth) return undefined
+    const params = request.params as { sectorId?: string }
+    const sectorId = params.sectorId ?? ''
+    await projectNewEvents(pool)
+    try {
+      const plan = await readSectorPlan(pool, sectorId, auth.scope)
+      if (!plan) return sendError(reply, 404, 'not_found', `no such sector ${sectorId}`)
+      return { ok: true, data: plan }
+    } catch (error) {
+      if (error instanceof DbContractError) {
+        return sendError(reply, 404, 'not_found', error.message)
+      }
+      throw error
+    }
   })
 
   route(app, 'post', '/v1/sectors/:sectorId/documents', async (request, reply, app) => {

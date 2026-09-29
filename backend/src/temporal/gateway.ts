@@ -68,6 +68,9 @@ export interface RunsGateway {
   send(threadKey: string, text: string): Promise<CommandResult>
   sendSkill(threadKey: string, invocation: SkillInvocation): Promise<CommandResult>
   startSectorSweep(sectorId: string, scope?: { tenantId: string; projectId: string | null }): Promise<CommandResult>
+  /** Start the sector planning run: one workflow per sector, idempotent
+   * by workflow id like sweeps. */
+  startSectorPlan(sectorId: string, scope?: { tenantId: string; projectId: string | null }): Promise<CommandResult>
   /** Halt the sector's sweep workflow. An already-closed run accepts
    * quietly (nothing to halt); only an unreachable worker throws. */
   cancelSectorSweep(sectorId: string): Promise<CommandResult>
@@ -388,6 +391,26 @@ export class TemporalRunsGateway implements RunsGateway {
     }
     await client.workflow.getHandle(childId).signal('childMessage', input.goal)
     return { childId, commandId: commandId() }
+  }
+
+  /** Sector plan start: one workflow per sector, idempotent by
+   * workflow id — a planning run for this sector is accepted, not
+   * duplicated. Mirrors startSectorSweep. */
+  async startSectorPlan(sectorId: string, scope?: { tenantId: string; projectId: string | null }): Promise<CommandResult> {
+    const client = await this.client()
+    try {
+      await client.workflow.start('sectorPlan', {
+        workflowId: `sector-plan-${sectorId}`,
+        taskQueue: laneConfig('research').taskQueue,
+        args: [{ sectorId, ...(scope === undefined ? {} : { scope }) }],
+      })
+    } catch (error) {
+      if (error instanceof WorkflowExecutionAlreadyStartedError) {
+        return { commandId: commandId(), state: 'accepted' }
+      }
+      throw error
+    }
+    return { commandId: commandId(), state: 'accepted' }
   }
 
   /** Skill invocation: same targeting as send, but the runSkill signal
