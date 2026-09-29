@@ -1610,3 +1610,14 @@ scale claims with evidence links.
   decides run length, not writing.
 - Live proof: second independent Tyro verdict under the new ceiling
   (agreement datum against the pilot's first).
+
+## Restart policy for app services (sidecar death)
+
+- Pilot: the browser sidecar died (exit 132) and stayed dead — no
+  service in compose had a restart policy. backend, worker, and
+  browser now carry `restart: unless-stopped`; infra (db, temporal,
+  observability) keeps its operator-managed lifecycle.
+- Live proof: SIGTERM to the sidecar init (the pilot's internal-crash
+  shape) restarted it automatically (restarts=1, running). Note:
+  daemon-level `docker kill` cancels the restart manager by design —
+  that path is operator action, not a crash, and stays down.
