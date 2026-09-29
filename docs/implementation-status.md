@@ -1560,3 +1560,18 @@ scale claims with evidence links.
   mechanism-or-cost bar working as designed. Depth tracks readability.
 - Evidence: `tests/evidence/pilot-01/` (journey, companies, run-notes,
   verdicts.md, 20 verdict files, delegate-live proof).
+
+## Relevance gate for sweep precision
+
+- Pilot audit: 100 sweep companies, ~0% precision (gambling spam,
+  blogs, media). Templates were broad and extraction recorded every
+  domain. Now `sectorSignals` derives match vocabulary from the topic
+  (never the name stamp; stopwords/numerics dropped, plurals folded,
+  capped at 12) and `extractNewDomains` keeps only hits evidencing a
+  signal across title, snippet, URL, or domain tokens. Unsignaled
+  extraction stays unfiltered (back-compat); brand-only empties drop
+  (documented recall cost).
+- Evidence: `tests/backend/sweep.rules.test.ts` (signals + keep/drop/
+  back-compat), live Temporal `tests/backend/workflows.sweep.test.ts`
+  (gated sweep still lands 2/2 via snippet matching; off-topic sector
+  records 0 and completes honestly).

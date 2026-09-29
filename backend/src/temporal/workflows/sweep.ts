@@ -15,7 +15,7 @@ import {
   proxyActivities,
   setHandler,
 } from '@temporalio/workflow'
-import { buildQueryTemplates, extractNewDomains, isSweepCancellation } from '../sweep-rules.js'
+import { buildQueryTemplates, extractNewDomains, isSweepCancellation, sectorSignals } from '../sweep-rules.js'
 import { activityOptions } from '../timeouts.js'
 import type * as sweepActivitiesModule from '../activities/sweep.js'
 
@@ -76,13 +76,16 @@ export async function sectorSweep(input: SectorSweepInput): Promise<'complete' |
   }
 
   const seenDomains: string[] = []
+  // Relevance gate: only hits evidencing the sector vocabulary land as
+  // companies. Signals come from the topic (never the name stamp).
+  const signals = sectorSignals(context.name, context.topic)
   try {
     for (let index = 0; index < progress.templates.length; index += 1) {
       progress.templateIndex = index
       const template = progress.templates[index] ?? ''
       for (let page = 0; page < maxPages; page += 1) {
         const hits = await sweep.searchWebPageActivity({ query: template, page })
-        const fresh = extractNewDomains(hits, seenDomains)
+        const fresh = extractNewDomains(hits, seenDomains, signals)
         if (fresh.length === 0) break
         for (const company of fresh) {
           seenDomains.push(company.domain)
