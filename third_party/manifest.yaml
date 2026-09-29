@@ -29,10 +29,10 @@ pins:
     taken:
       - path: skills/research-en/research/SKILL.md
         kind: pattern
-        karbotSpec: documentation/agents-research.md#outline
+        karbotSpec: documentation/agents-research.md#outline-two-phase-adoption
       - path: skills/research-en/research-deep/SKILL.md
         kind: pattern
-        karbotSpec: documentation/agents-research.md#outline
+        karbotSpec: documentation/agents-research.md#outline-two-phase-adoption
       - path: skills/research-en/research/validate_json.py
         kind: pattern
         karbotSpec: documentation/agents-research.md#coverage-gate
@@ -41,6 +41,6 @@ pins:
         karbotSpec: agents/src/research.outline.test.ts
       - path: agents/web-search-agent.md
         kind: pattern
-        karbotSpec: documentation/agents-research.md#direction-shards
+        karbotSpec: documentation/agents-research.md#direction-shards-planned
     why: Two-phase outline→deep with user-confirmed plan, uncertain marking with a never-pass-vacuously coverage gate, and per-domain strategy routing for sharded research.
     changes: Reimplemented in TypeScript against Karbot interfaces (outline schema, finding field/uncertain tags, coverage gate); no verbatim copy. Memory-first outlining, CWD files, and vendor coupling explicitly not adopted (see implementation-status entry).

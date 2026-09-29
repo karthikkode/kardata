@@ -80,4 +80,14 @@ describe('validateFindingsCoverage', () => {
     expect(() => validateFindingsCoverage(missing, fields)).toThrow('problem_mechanism')
     expect(() => validateFindingsCoverage([], fields)).toThrow()
   })
+
+  it('honors explicit required markers as opt-in', () => {
+    const fields: ResearchFieldDef[] = [
+      { name: 'scale_signal', description: 's', detailLevel: 'brief', required: true },
+      { name: 'optional_color', description: 'o', detailLevel: 'brief', required: false },
+    ]
+    const onlyRequired = [captureFinding({ claim: 'scale', docId: 'd', url: 'u', excerpt: 'scale', field: 'scale_signal' })]
+    expect(() => validateFindingsCoverage(onlyRequired, fields)).not.toThrow()
+    expect(() => validateFindingsCoverage([], fields)).toThrow('scale_signal')
+  })
 })
