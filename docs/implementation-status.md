@@ -1539,3 +1539,24 @@ scale claims with evidence links.
   machinery only, with zero-hits as the backstop.
 - Evidence: fixture test (both wrapper variants) + live keylessSearch
   (5 Bing hits in 403ms, real titles and decoded URLs).
+
+## Pilot complete: 20/20 verdicts (2026-09-30)
+
+- Sweep (Bing engine, laptop worker): COMPLETE, 100 companies in ~2
+  min — precision 0% on audit (gambling spam, blogs, media pages).
+  Templates too broad + zero relevance gate. Follow-up: relevance-gate
+  PR + template shaping before any production discovery.
+- Instruction obeyed (10 delegate calls) but 20 children ran: turn
+  re-execution duplicated the fan-out. Follow-up: turn idempotency +
+  timeout analysis with workflow history.
+- Vendor saturation: 20 concurrent research turns -> mass
+  provider_failed; 2/20 succeeded. Recipe that works: one company per
+  child, terse reply, max 6 tools, max 2 concurrent — verdicts land in
+  ~1-2 min. Follow-up: paced fan-out with vendor semaphore.
+- Empty replies on oversized briefs (ok:true, no text); tiny briefs
+  land. Follow-up: research-turn output budget review.
+- Grading: 20/20 form-compliant (7 headings, <150 words, uncertain
+  marked, zero invented facts). Distribution 20 no — the
+  mechanism-or-cost bar working as designed. Depth tracks readability.
+- Evidence: `tests/evidence/pilot-01/` (journey, companies, run-notes,
+  verdicts.md, 20 verdict files, delegate-live proof).
