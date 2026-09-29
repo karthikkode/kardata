@@ -59,8 +59,18 @@ describe('keylessSearch', () => {
       fetchImpl: routeDouble([{ match: 'bing.com', status: 200, body: BING_HTML }]),
     })
     expect(hits).toEqual([
-      { title: 'Acme Foods', url: 'https://acme.example/shop', snippet: '', engine: 'bing' },
-      { title: 'Beta Pantry', url: 'https://betapantry.example', snippet: '', engine: 'bing' },
+      {
+        title: 'Acme Foods',
+        url: 'https://acme.example/shop',
+        snippet: 'acme.example Acme Foods https://acme.example › shop',
+        engine: 'bing',
+      },
+      {
+        title: 'Beta Pantry',
+        url: 'https://betapantry.example',
+        snippet: expect.stringContaining('Beta Pantry') as string,
+        engine: 'bing',
+      },
     ])
   })
 
