@@ -1628,3 +1628,11 @@ scale claims with evidence links.
   `sme` signal admits chambers, ministries, and medical schools.
   Generic tokens now prune when specific signals exist (never to
   empty); `business`/`class` survive the plural fold (`ss` guard).
+
+## Signal pruning A/B: reverted (recall stage wins)
+
+- Pruned gate (`payment`-only) live: 1 company, 0 intent-relevant —
+  starves the funnel. Unpruned gate: workable candidate sets the
+  research verdicts grade precisely (20/20 pilot verdicts, all honest).
+  Sweep stays the recall stage; verdicts are the precision arbiter.
+  Bing block-parse with snippets kept (recall aid that survived).

@@ -60,7 +60,13 @@ export interface CandidateHit {
 /** Sector match signals for the relevance gate: lowercase topic tokens
  * (stopwords, numerics, and short glue dropped; plurals folded), capped
  * so one sector cannot match the whole web. The topic — never the name,
- * which may carry run stamps — is the vocabulary source. */
+ * which may carry run stamps — is the vocabulary source.
+ *
+ * Deliberately unpruned: a live A/B (2026-09-30) showed pruning generic
+ * tokens starves recall (1 company, 0 relevant) while the unpruned gate
+ * keeps a workable candidate set the research verdicts then grade
+ * precisely. The sweep is the recall stage; verdicts are the precision
+ * stage. */
 const SIGNAL_STOPWORDS = new Set([
   'the', 'and', 'for', 'with', 'from', 'into', 'small', 'best', 'top', 'new',
   'all', 'our', 'your', 'plus', 'list',
@@ -71,15 +77,6 @@ function foldPlural(token: string): string {
   return token.slice(0, -1)
 }
 
-/** Generic tokens match far beyond the sector ("sme" admits chambers,
- * ministries, and medical schools): when specific signals exist, the
- * generic ones are pruned. Never prunes to empty — a sector with only
- * generic vocabulary keeps it all rather than matching nothing. */
-const SIGNAL_GENERIC = new Set([
-  'sme', 'small', 'business', 'company', 'service', 'group', 'global',
-  'best', 'top', 'new', 'list',
-])
-
 export function sectorSignals(name: string, topic: string): string[] {
   const source = topic.trim() || name.trim()
   const seen = new Set<string>()
@@ -88,8 +85,7 @@ export function sectorSignals(name: string, topic: string): string[] {
     seen.add(foldPlural(raw))
     if (seen.size >= 12) break
   }
-  const specific = [...seen].filter((signal) => !SIGNAL_GENERIC.has(signal))
-  return specific.length > 0 ? specific : [...seen]
+  return [...seen]
 }
 
 /** A hit is sector-relevant when any signal matches the title, snippet,

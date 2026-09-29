@@ -77,16 +77,14 @@ describe('isSweepCancellation', () => {
 
 describe('sectorSignals', () => {
   it('derives clean match signals from the topic, never the name stamp', () => {
-    // Generic tokens prune when specifics exist: "sme" alone admits
-    // chambers and ministries, so SME payments matches on payment.
-    expect(sectorSignals('Pilot Fintech mumghjr3', 'SME payments')).toEqual(['payment'])
+    expect(sectorSignals('Pilot Fintech mumghjr3', 'SME payments')).toEqual(['sme', 'payment'])
     expect(sectorSignals('Speciality foods sweep', 'Artisanal packaged foods')).toEqual([
       'artisanal',
       'packaged',
       'food',
     ])
-    // ...but never prunes to empty: a generic-only sector keeps it all
-    // (small is a stopword; business survives as the whole vocabulary).
+    // Generic-only sectors keep it all: pruning was measured to starve
+    // recall (live A/B 2026-09-30), so the gate never prunes.
     expect(sectorSignals('X', 'Small business')).toEqual(['business'])
     expect(sectorSignals('X', '')).toEqual([])
   })
