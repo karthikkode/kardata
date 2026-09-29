@@ -88,8 +88,14 @@ function drain(): void {
   }
 }
 
-/** Acquire one browser slot. Waits FIFO until timeoutMs, then overload. */
-export function acquireBrowserSlot(input: { host?: string; caller?: string; timeoutMs?: number }): Promise<BrowserSlot> {
+/** Acquire one browser slot. Waits FIFO until timeoutMs, then overload.
+ * Uniformly async: every failure is a rejection, never a sync throw, so
+ * `await` callers (facade, session registry) handle one shape. */
+export async function acquireBrowserSlot(input: {
+  host?: string
+  caller?: string
+  timeoutMs?: number
+}): Promise<BrowserSlot> {
   const host = (input.host ?? '').trim().toLowerCase()
   const caller = (input.caller ?? '').trim() || 'anon'
   const timeoutMs = input.timeoutMs ?? BROWSER_SLOT_TIMEOUT_MS
