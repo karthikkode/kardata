@@ -8,6 +8,9 @@ import { Button } from './ui/button'
 
 export const stateLabel = {
   draft: 'Draft',
+  planning: 'Planning',
+  planned: 'Planned',
+  approved: 'Approved',
   running: 'In progress',
   paused: 'Paused',
   queued: 'Queued',
@@ -17,6 +20,9 @@ export const stateLabel = {
 
 export const stateTone = {
   draft: 'idle',
+  planning: 'working',
+  planned: 'paused',
+  approved: 'ok',
   running: 'working',
   paused: 'paused',
   queued: 'idle',
