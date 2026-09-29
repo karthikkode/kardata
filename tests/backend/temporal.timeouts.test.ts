@@ -30,8 +30,8 @@ describe('timeout table (B2.3)', () => {
   it('pins exact production values', () => {
     expect(laneTimeouts('turn')).toEqual({
       heartbeatTimeout: '20s',
-      startToCloseTimeout: '60s',
-      scheduleToCloseTimeout: '2m',
+      startToCloseTimeout: '15m',
+      scheduleToCloseTimeout: '20m',
       retry: { maximumAttempts: 3, initialInterval: '1s', backoffCoefficient: 2 },
     })
     expect(laneTimeouts('tool')).toEqual({
