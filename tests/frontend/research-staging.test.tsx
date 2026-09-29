@@ -81,7 +81,8 @@ describe('staging research surfaces (F-S2)', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Open Server Pet' }))
     expect(await screen.findByRole('region', { name: 'Sector chat for Server Pet' })).toBeInTheDocument()
     expect(await screen.findByText('Server West')).toBeInTheDocument()
-    expect(screen.queryByText('Research started for Backend brands.')).not.toBeInTheDocument()
+    // The run console surfaces the sector activity timeline.
+    expect(await screen.findByText('Research started for Backend brands.')).toBeInTheDocument()
   })
 
   it('tells refused keys apart from connection failures', async () => {

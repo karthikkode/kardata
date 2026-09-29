@@ -21,6 +21,7 @@ import {
 import { SectorChatPanel } from './SectorChatPanel'
 import { SectorContextDrawer } from './SectorContextDrawer'
 import { SectorPlanSection } from './SectorPlanSection'
+import { RunConsole } from './RunConsole'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 
@@ -567,6 +568,7 @@ export function SectorDetailPage({
         </div>
       </div>
       <CompanySection staging={staging} sectorId={detail.id} sectorName={detail.name} pollActive={researchLive} />
+      <RunConsole config={staging} sector={detail} activity={detail.activity} activityTotal={detail.activityTotal} />
     </div>
   )
 }

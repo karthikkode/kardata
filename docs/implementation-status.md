@@ -1689,3 +1689,13 @@ scale claims with evidence links.
   approvals + approvedVersion; OpenAPI covers approve + shapes.
 - Evidence: stub-DB update/approve tests, rewritten start tests,
   live route plan→approve→start flow, MCP parity (66 tools).
+
+## Run console + steer composer (P5)
+
+- RunConsole on the detail page: timeline from the followed detail,
+  sector-wide steer targets (every chat pool session plus subagent
+  threads, capped at 20 sessions), Send/Steer composer behind an
+  explicit Review step with missed_steer honesty. Threads failures
+  degrade to inline notes; the timeline always stands.
+- Live proof plan-02: real 265-company timeline, target picker,
+  dispatch accepted, zero console errors, zero failed requests.
