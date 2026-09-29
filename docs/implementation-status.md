@@ -1500,7 +1500,7 @@ scale claims with evidence links.
   (closed runs restart under the same id, live ones accepted, never
   duplicated). Cancelled runs propagate instead of writing failed over
   the pause. Runner-less and worker-down paths fail closed (overload).
-- Evidence: `tests/backend/sector-lifecycle.test.ts` (9 stub-DB order +
+- Evidence: `tests/backend/sector-lifecycle.test.ts` (8 stub-DB order +
   fail-closed tests), `isSweepCancellation` in sweep-rules (+matrix),
   live Temporal cancel test (sector never failed), route lifecycle
   assertions in `tests/backend/api.sectors.test.ts`, MCP pause/resume
