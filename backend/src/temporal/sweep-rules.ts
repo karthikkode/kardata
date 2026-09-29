@@ -67,8 +67,18 @@ const SIGNAL_STOPWORDS = new Set([
 ])
 
 function foldPlural(token: string): string {
-  return token.length > 3 && token.endsWith('s') ? token.slice(0, -1) : token
+  if (token.length <= 3 || !token.endsWith('s') || token.endsWith('ss')) return token
+  return token.slice(0, -1)
 }
+
+/** Generic tokens match far beyond the sector ("sme" admits chambers,
+ * ministries, and medical schools): when specific signals exist, the
+ * generic ones are pruned. Never prunes to empty — a sector with only
+ * generic vocabulary keeps it all rather than matching nothing. */
+const SIGNAL_GENERIC = new Set([
+  'sme', 'small', 'business', 'company', 'service', 'group', 'global',
+  'best', 'top', 'new', 'list',
+])
 
 export function sectorSignals(name: string, topic: string): string[] {
   const source = topic.trim() || name.trim()
@@ -78,7 +88,8 @@ export function sectorSignals(name: string, topic: string): string[] {
     seen.add(foldPlural(raw))
     if (seen.size >= 12) break
   }
-  return [...seen]
+  const specific = [...seen].filter((signal) => !SIGNAL_GENERIC.has(signal))
+  return specific.length > 0 ? specific : [...seen]
 }
 
 /** A hit is sector-relevant when any signal matches the title, snippet,
