@@ -1588,3 +1588,15 @@ scale claims with evidence links.
   the turn lane and cannot be stopped without sudo — live proof turns
   may land on it until it is gone; history attempt-counts tell which
   worker served each turn.
+
+## Vendor pacing: turn activities capped at 4 per worker
+
+- Pilot: 20 concurrent research turns saturated the live provider
+  (mass provider_failed, 60–190 s latencies); 2-way succeeded. Turn
+  lane now runs 4 concurrent activities per worker — queued turns wait
+  inside their schedule-to-close windows instead of storming the
+  vendor. Workflow tasks stay at 50 (cheap orchestration).
+- Evidence: `tests/backend/temporal.vendor-pacing.test.ts` (pin) +
+  fleet-load 10/50/100/1000 green through the cap (paced thousand-scale
+  throughput with scripted provider). Raise only with measured
+  provider headroom.
