@@ -49,6 +49,8 @@ export interface SweepSearchDeps {
 
 /** Search-engine hosts that must never become company candidates. */
 const BROWSER_INTERNAL_HOSTS = [
+  'bing.com',
+  'www.bing.com',
   'duckduckgo.com',
   'lite.duckduckgo.com',
   'mojeek.com',

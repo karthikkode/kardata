@@ -1524,3 +1524,18 @@ scale claims with evidence links.
   provider), live single-child proof via the real tool path
   (`tests/evidence/pilot-01/delegate-live.json`: goal in, 'door live
   ok' out in ~30s on the first poll).
+
+## Bing keyless engine (free discovery unblocked)
+
+- Live probe 2026-09-30: DuckDuckGo times out at network level and
+  Mojeek serves challenge pages from both local networks, but Bing
+  serves full result pages (200, real cites) from both. Google serves
+  a result-less shell to plain fetch. New `bing` engine first in the
+  keyless pool (redirect-wrapper decode with version-prefix tolerance,
+  hostname fallback titles, Bing hosts excluded from candidates).
+- Two live-caught parser bugs fixed in the pass: the challenge regex
+  rejected good pages on ordinary copy ("challenge") and on Bing's own
+  element ids (cf-turnstile-wrapper) — markers now name bot-wall
+  machinery only, with zero-hits as the backstop.
+- Evidence: fixture test (both wrapper variants) + live keylessSearch
+  (5 Bing hits in 403ms, real titles and decoded URLs).

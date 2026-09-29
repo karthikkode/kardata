@@ -668,9 +668,9 @@ events ──retention──▶ cold archive (GCS) ──replay──┘
 - Sweep fallback chain (`searchWebPageActivity` delegating to the facade's
   `pooledSearchWebPage`): keyed Brave API first,
   keyless engine pool second (`backend/src/retrieval/keyless.ts`:
-  DuckDuckGo html/lite plus Mojeek, best-effort — direct HTTP to these
-  endpoints is routinely challenged, so each engine is skipped on any
-  failure), real-Chromium browser leg last (navigates the DDG html
+  Bing plus DuckDuckGo html/lite plus Mojeek, best-effort — direct HTTP
+  to these endpoints is routinely challenged, so each engine is skipped
+  on any failure), real-Chromium browser leg last (navigates the DDG html
   endpoint past the anomaly wall, extracts snapshot links, always closes
   the session; page 0 only so templates terminate). Query pages cache,
   so a cached page serves with zero legs hit; pool saturation

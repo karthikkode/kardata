@@ -29,6 +29,12 @@ const LITE_HTML = `<html><body><table>
 <tr><td><a rel="nofollow" href="https://lite.example">Lite Co</a></td></tr>
 </table></body></html>`
 
+const BING_HTML = `<html><body><ol id="b_results">
+<li class="b_algo"><div><a class="tilk" aria-label="acme.example" href="https://www.bing.com/ck/a?!&amp;&amp;p=abc&amp;u=aHR0cHM6Ly9hY21lLmV4YW1wbGUvc2hvcA&amp;ntb=1"><div class="tptxt"><div class="tptt">acme.example</div></div></a></div><h2 class=""><a href="https://www.bing.com/ck/a?!&amp;&amp;p=abc&amp;u=aHR0cHM6Ly9hY21lLmV4YW1wbGUvc2hvcA&amp;ntb=1">Acme Foods</a></h2><div><cite>https://acme.example › shop</cite></div></li>
+<li class="b_algo"><div><a class="tilk" aria-label="betapantry.example" href="https://www.bing.com/ck/a?!&amp;&amp;p=def&amp;u=aHR0cHM6Ly9iZXRhcGFudHJ5LmV4YW1wbGU&amp;ntb=1"><div class="tptxt"><div class="tptt">betapantry.example</div></div></a></div><h2 class=""><a href="https://www.bing.com/ck/a?!&amp;&amp;p=def&amp;u=a1aHR0cHM6Ly9iZXRhcGFudHJ5LmV4YW1wbGU&amp;ntb=1">Beta Pantry</a></h2></li>
+<li class="b_algo"><div><a href="https://www.bing.com/settings">Settings</a></div></li>
+</ol></body></html>`
+
 function routeDouble(routes: Array<{ match: string; status: number; body: string }>): typeof fetch {
   return (async (url: string) => {
     const route = routes.find((entry) => String(url).includes(entry.match))
@@ -45,6 +51,16 @@ describe('keylessSearch', () => {
     expect(hits).toEqual([
       { title: 'Acme Foods', url: 'https://acme.example/shop', snippet: 'artisanal pantry goods', engine: 'duckduckgo' },
       { title: 'Beta Pantry', url: 'https://betapantry.example', snippet: '', engine: 'duckduckgo' },
+    ])
+  })
+
+  it('parses Bing redirect wrappers, decodes targets, drops internal links', async () => {
+    const hits = await keylessSearch('acme foods', {
+      fetchImpl: routeDouble([{ match: 'bing.com', status: 200, body: BING_HTML }]),
+    })
+    expect(hits).toEqual([
+      { title: 'Acme Foods', url: 'https://acme.example/shop', snippet: '', engine: 'bing' },
+      { title: 'Beta Pantry', url: 'https://betapantry.example', snippet: '', engine: 'bing' },
     ])
   })
 
