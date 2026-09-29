@@ -25,7 +25,13 @@ export const KEYLESS_MAX_BYTES = 512 * 1024
 const BROWSER_UA =
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'
 
-const CHALLENGE = /anomaly-modal|captcha|challenge|cf-chl|enable js/i
+// Challenge markers only: bare words like "challenge" or "captcha" appear
+// in ordinary result copy (observed live on Bing results), and vendor
+// tokens like cf-turnstile appear in unrelated element ids (observed live
+// in Bing furniture as cf-turnstile-wrapper). These markers name actual
+// bot-wall machinery; anything subtler falls through to the zero-hits
+// rule below (a challenge page never parses into results).
+const CHALLENGE = /anomaly-modal|\/sorry\/|unusual traffic|g-recaptcha|data-sitekey|verify you are (a )?human/i
 
 function stripTags(html: string): string {
   return html
@@ -98,7 +104,72 @@ function zipAnchors(
   return links.map((link, index) => ({ ...link, snippet: snippets[index] ?? '' }))
 }
 
+/** Bing result redirect: `bing.com/ck/a?...&u=<payload>` wraps the
+ * target. The payload is base64url of the URL, usually behind a short
+ * version prefix (observed live as `a1`). Both shapes are tried; anything
+ * that does not decode to an http(s) URL is dropped, never guessed. */
+function unwrapBing(href: string): string {
+  const direct = href.startsWith('//') ? `https:${href}` : href
+  let parsed: URL
+  try {
+    parsed = new URL(direct)
+  } catch {
+    return href
+  }
+  const encoded = parsed.searchParams.get('u')
+  if (!encoded) return direct
+  for (const candidate of [encoded, encoded.slice(2)]) {
+    try {
+      const padded = candidate + '='.repeat((4 - (candidate.length % 4)) % 4)
+      const target = Buffer.from(padded.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8')
+      if (target.startsWith('http://') || target.startsWith('https://')) return target
+    } catch {
+      continue
+    }
+  }
+  return direct
+}
+
+/** Bing parse: redirect wrappers decoded in document order, `<h2>` texts
+ * zipped by position (hostname fallback where markup variants carry no
+ * title — the ledger gets a hostname, never an invented title).
+ * Snippets are absent in this variant: discovery needs title plus URL. */
+function parseBing(
+  html: string,
+  internalHosts: string[],
+  limit: number,
+): Array<{ title: string; url: string; snippet: string }> {
+  const text = html.replace(/&amp;/g, '&')
+  const urls: string[] = []
+  for (const match of text.matchAll(/bing\.com\/ck\/a\?[^"'<>\s]*?[?&]u=([A-Za-z0-9_-]+)/g)) {
+    const url = unwrapBing(`https://www.bing.com/ck/a?u=${match[1]}`)
+    if (!url.startsWith('http://') && !url.startsWith('https://')) continue
+    if (internalHosts.some((host) => hostOf(url).endsWith(host))) continue
+    if (urls.includes(url)) continue
+    urls.push(url)
+    if (urls.length >= limit) break
+  }
+  const titles: string[] = []
+  for (const match of text.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/gi)) {
+    titles.push(stripTags(match[1] ?? '').slice(0, 200))
+  }
+  return urls.map((url, index) => {
+    const title = titles[index] ?? ''
+    return { title: title || hostOf(url) || url, url, snippet: '' }
+  })
+}
+
 const ENGINES: Engine[] = [
+  {
+    // Bing answers where DuckDuckGo times out (observed 2026-09-30 from
+    // both local networks): least-defended major engine, tried first.
+    // Any challenged network falls through to the rest like any engine.
+    name: 'bing',
+    internalHosts: ['bing.com', 'www.bing.com', 'microsoft.com', 'go.microsoft.com'],
+    buildUrl: (query, offset) =>
+      `https://www.bing.com/search?q=${encodeURIComponent(query)}${offset > 0 ? `&first=${offset + 1}` : ''}`,
+    parse: (html) => parseBing(html, ['bing.com', 'microsoft.com'], 20),
+  },
   {
     name: 'duckduckgo',
     internalHosts: ['duckduckgo.com'],
@@ -165,7 +236,11 @@ export async function keylessSearch(
       let response: Response
       try {
         response = await fetchImpl(engine.buildUrl(query, offset), {
-          headers: { Accept: 'text/html', 'User-Agent': BROWSER_UA },
+          headers: {
+            Accept: 'text/html',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'User-Agent': BROWSER_UA,
+          },
           signal: controller.signal,
         })
       } finally {
