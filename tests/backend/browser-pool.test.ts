@@ -3,6 +3,7 @@
 // bounds, caching, and progress preservation hold hermetically (no
 // Chromium, no network: stub legs only).
 import { beforeEach, describe, expect, it } from 'vitest'
+import { browserNavigate, browserClose, browserSnapshot } from '../../backend/src/retrieval/browser.js'
 import { RetrievalError } from '../../backend/src/retrieval/web.js'
 import {
   BROWSER_POOL_ABSOLUTE_MAX,
@@ -165,5 +166,27 @@ describe('facade routing (single entry, cached pages)', () => {
       code: 'validation_failed',
     })
     expect(called).toBe(0)
+  })
+})
+
+const LIVE_BROWSER = (process.env['KARDATA_BROWSER_TEST'] ?? '') !== ''
+
+describe.skipIf(!LIVE_BROWSER)('browser pool under real Chromium', () => {
+  it('holds max real sessions and rejects the next with overload, holders keep working', async () => {
+    setBrowserPoolMaxForTests(2)
+    // Distinct hosts: per-host politeness must not serialize these; only
+    // the slot ceiling binds.
+    const a = await browserNavigate('https://example.com', { caller: 'live-a', timeoutMs: 60_000 })
+    const b = await browserNavigate('https://iana.org', { caller: 'live-b', timeoutMs: 60_000 })
+    expect(browserPoolStats().active).toBe(2)
+    await expect(
+      browserNavigate('https://www.iana.org', { caller: 'live-c', timeoutMs: 2_000 }),
+    ).rejects.toMatchObject({ code: 'overload' })
+    // Holders are unaffected by saturation: snapshots still serve.
+    const snap = await browserSnapshot(a.sessionId)
+    expect(snap.url).toContain('example.com')
+    await browserClose(a.sessionId)
+    await browserClose(b.sessionId)
+    expect(browserPoolStats().active).toBe(0)
   })
 })

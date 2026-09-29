@@ -109,7 +109,11 @@ describe('browser sessions', () => {
   it.skipIf(!BROWSER_ENABLED)('navigates, snapshots, acts, and closes a real page', async () => {
     const opened = await browserNavigate('https://example.com')
     expect(opened.url).toContain('example.com')
-    expect(opened.snapshot).toContain('Example')
+    // Structural assertions only: example.com removed its "Example Domain"
+    // heading 2026-09 (observed live drift), so the test pins the stable
+    // link target plus a non-empty snapshot instead of third-party copy.
+    expect(opened.snapshot.length).toBeGreaterThan(0)
+    expect(opened.snapshot).toContain('iana.org')
     const after = await browserAct(opened.sessionId, { kind: 'press', key: 'End' })
     expect(after.url).toContain('example.com')
     const shot = await browserScreenshot(opened.sessionId)

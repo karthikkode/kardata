@@ -1442,3 +1442,21 @@ scale claims with evidence links.
   setup (red-to-green: first-test cache answered later stub tests);
   retrieval + mcp.tools suites green unchanged; backend lint/typecheck
   green. Live browser proof still gated on `KARDATA_BROWSER_TEST=1`.
+
+## Browser pool live proof (2026-09-30)
+
+- Hermetic: `tests/backend/browser-pool.test.ts` 9 tests (stub legs).
+- Live: `KARDATA_BROWSER_TEST=1` retrieval suite caught real drift —
+  example.com dropped its "Example Domain" heading, so the test now
+  pins the structural iana.org link + non-empty snapshot instead of
+  third-party copy (test side fixed, product side correct). New gated
+  test holds 2 real Chromium sessions at max 2, rejects the 3rd with
+  `overload`, serves holder snapshots under saturation, closes back to
+  0 — 10/10 live green.
+- Full live backend (DB + Temporal + compose + browser gates):
+  453 passed, 2 load-flaky (compose Loki /ready, loopguards attempt
+  bound — both green isolated, matching the documented flaky
+  categories), 1 skipped. Agents live probes 3/3 on the real Meta key.
+- Still open: live sweep discovery needs `KARDATA_WEB_SEARCH_KEY`;
+  UI-driven journeys J1–J8 need the monitoring harness (planned, not
+  built).
