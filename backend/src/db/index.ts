@@ -95,6 +95,8 @@ export {
   SECTOR_RESEARCH_STARTED_EVENT,
   SECTOR_STATE_CHANGED_EVENT,
   SectorState,
+  assertSectorTransition,
+  SECTOR_TRANSITIONS,
   SectorTransitionError,
   type ActivityEntry,
   type CompanyFilters,

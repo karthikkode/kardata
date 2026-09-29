@@ -1636,3 +1636,13 @@ scale claims with evidence links.
   research verdicts grade precisely (20/20 pilot verdicts, all honest).
   Sweep stays the recall stage; verdicts are the precision arbiter.
   Bing block-parse with snippets kept (recall aid that survived).
+
+## Plan-mandatory states (P1)
+
+- SectorState gains planning/planned/approved (migration 0013, CHECK
+  round-tripped live); SECTOR_TRANSITIONS pins the full lifecycle with
+  draft→queued kept only as the P4 interim (approval enforcement
+  removes it). Frontend types/labels/tones + OpenAPI enums updated;
+  companies filter unchanged (companies never plan).
+- Live proof: draft→planning→planned→approved→queued walk on Postgres
+  with projections + state filters; migration down/up round-trip.

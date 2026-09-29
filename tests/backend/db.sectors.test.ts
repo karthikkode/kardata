@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto'
 import { Pool } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
+  assertSectorTransition,
   createSector,
   createSession,
   DbContractError,
@@ -168,6 +169,32 @@ describe('sector repos (B-S2)', () => {
       expect(await listSectors(pool, OTHER)).toEqual([])
       expect(await listCompanies(pool, OTHER)).toEqual({ companies: [], total: 0 })
       expect(await getSector(pool, `t-pet-care-${STAMP}`, OTHER)).toBeUndefined()
+    })
+
+    it('walks the plan-mandatory states and filters them', async () => {
+      const { sectorId } = await createSector(pool, {
+        name: 'Planned sector',
+        topic: 'Planned topic',
+        scope: SCOPE,
+        sectorId: `t-planned-${STAMP}`,
+        idempotencyKey: `t:sector:planned-${STAMP}`,
+        initialState: 'draft',
+      })
+      await catchUp()
+      for (const state of ['planning', 'planned', 'approved'] as const) {
+        const current = (await getSector(pool, sectorId, SCOPE))?.state
+        assertSectorTransition(current ?? 'draft', state)
+        await setSectorState(pool, sectorId, state, { scope: SCOPE })
+        await catchUp()
+        expect((await getSector(pool, sectorId, SCOPE))?.state).toBe(state)
+      }
+      expect((await listSectors(pool, SCOPE, { state: 'approved' })).map((entry) => entry.id)).toContain(sectorId)
+      assertSectorTransition('approved', 'queued')
+      await setSectorState(pool, sectorId, 'queued', { scope: SCOPE })
+      await catchUp()
+      expect((await listSectors(pool, SCOPE, { state: 'approved' })).map((entry) => entry.id)).not.toContain(
+        sectorId,
+      )
     })
 
     it('pages company and activity reads with truthful totals', async () => {

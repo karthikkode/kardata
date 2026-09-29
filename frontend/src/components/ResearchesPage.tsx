@@ -20,6 +20,9 @@ import { Input } from './ui/input'
 
 const stateFilters = [
   'draft',
+  'planning',
+  'planned',
+  'approved',
   'running',
   'paused',
   'queued',

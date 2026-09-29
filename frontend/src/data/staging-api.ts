@@ -117,7 +117,16 @@ export interface ArtifactSummary {
   indexed: boolean
 }
 
-export type ResearchState = 'draft' | 'running' | 'paused' | 'queued' | 'failed' | 'complete'
+export type ResearchState =
+  | 'draft'
+  | 'planning'
+  | 'planned'
+  | 'approved'
+  | 'running'
+  | 'paused'
+  | 'queued'
+  | 'failed'
+  | 'complete'
 
 export interface SectorResearch {
   id: string

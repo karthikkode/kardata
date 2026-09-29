@@ -494,7 +494,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [draft, running, paused, queued, failed, complete]
+            enum: [draft, planning, planned, approved, running, paused, queued, failed, complete]
         - name: query
           in: query
           schema:
@@ -1222,7 +1222,7 @@ components:
               type: object
     ResearchState:
       type: string
-      enum: [running, paused, queued, failed, complete]
+      enum: [planning, planned, approved, running, paused, queued, failed, complete]
     SectorResearch:
       type: object
       description: Counterpart of MockSectorResearch; `companiesFound` is computed, never stored.

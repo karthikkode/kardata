@@ -18,10 +18,43 @@ export const COMPANY_STAGE_CHANGED_EVENT = 'company.stage_changed'
 export const COMPANY_STATE_CHANGED_EVENT = 'company.state_changed'
 
 /** Draft is create-first: a sector shaped in chat with context files
- * attached, started explicitly later. Companies never draft (their table
- * check excludes it); the shared enum keeps one state vocabulary. */
-export const SectorState = z.enum(['draft', 'running', 'paused', 'queued', 'failed', 'complete'])
+ * attached, planned and approved explicitly, started only after approval.
+ * Companies never draft (their table check excludes it); the shared enum
+ * keeps one state vocabulary. */
+export const SectorState = z.enum([
+  'draft',
+  'planning',
+  'planned',
+  'approved',
+  'running',
+  'paused',
+  'queued',
+  'failed',
+  'complete',
+])
 export type SectorState = z.infer<typeof SectorState>
+
+/** Legal sector transitions (plan-mandatory lifecycle). draft→queued
+ * stays only as the P4 interim (approval enforcement removes it);
+ * everything else is the contract P2–P5 build against. */
+export const SECTOR_TRANSITIONS: Record<SectorState, readonly SectorState[]> = {
+  draft: ['planning', 'queued'],
+  planning: ['planned', 'failed'],
+  planned: ['approved', 'failed'],
+  approved: ['queued'],
+  queued: ['running', 'failed'],
+  running: ['paused', 'complete', 'failed'],
+  paused: ['running'],
+  failed: ['planning', 'running'],
+  complete: [],
+}
+
+/** Throws unless from→to is a legal sector transition. */
+export function assertSectorTransition(from: SectorState, to: SectorState): void {
+  if (!SECTOR_TRANSITIONS[from].includes(to)) {
+    throw new DbContractError(`not a legal sector transition: ${from} -> ${to}`)
+  }
+}
 
 export const CompanyStage = z.enum(['Filter', 'Deep research', 'Problem found', 'Final validation'])
 export type CompanyStage = z.infer<typeof CompanyStage>
