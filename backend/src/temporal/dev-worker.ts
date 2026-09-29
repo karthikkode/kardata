@@ -21,6 +21,11 @@ import {
   searchWebPageActivity,
   setSweepStateActivity,
 } from './activities/sweep.js'
+import {
+  readSectorPlanActivity,
+  setPlanStateActivity,
+  writePlanArtifactActivity,
+} from './activities/plan.js'
 import { appendEventActivity, checkWorkerMcpAuth, karbotTurnActivity } from './activities/turn.js'
 import { connectWorker, temporalNamespace } from './connection.js'
 import { createLaneWorker } from './worker.js'
@@ -44,12 +49,15 @@ async function main(): Promise<void> {
     lane: 'research',
     connection,
     namespace: temporalNamespace(),
-    workflowsPath: join(workflowsDir, 'sweep.js'),
+    workflowsPath: join(workflowsDir, 'research-bundle.js'),
     activities: {
       loadSweepContextActivity,
       searchWebPageActivity,
       recordSweepCompanyActivity,
       setSweepStateActivity,
+      readSectorPlanActivity,
+      setPlanStateActivity,
+      writePlanArtifactActivity,
     },
   })
   const shutdown = (): void => {

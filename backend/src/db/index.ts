@@ -93,6 +93,7 @@ export {
   CompanyStage,
   SECTOR_CREATED_EVENT,
   SECTOR_RESEARCH_STARTED_EVENT,
+  SECTOR_PLAN_WRITTEN_EVENT,
   SECTOR_STATE_CHANGED_EVENT,
   SectorState,
   assertSectorTransition,
@@ -137,6 +138,16 @@ export {
   listDocumentUnits,
   type DocumentUnit,
 } from './document-units.js'
+export {
+  SectorPlanError,
+  planSectorResearch,
+  readSectorPlan,
+  recordPlanVersion,
+  type SectorPlanFailure,
+  type SectorPlanRunner,
+  type PlanVersion,
+  type SectorPlan,
+} from './sector-plan.js'
 export {
   SectorStartError,
   startSectorResearch,

@@ -600,6 +600,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/sectors/{sectorId}/plan:
+    post:
+      operationId: planSector
+      tags: [sectors]
+      summary: 'Explicit plan: draft/failed enters planning with a visible planning chat.'
+      parameters:
+        - $ref: '#/components/parameters/SectorId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Planning sector.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectorEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Sector is neither draft nor failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    get:
+      operationId: readSectorPlan
+      tags: [sectors]
+      summary: Versioned research plan artifact (empty versions until planned).
+      parameters:
+        - $ref: '#/components/parameters/SectorId'
+      responses:
+        '200':
+          description: Plan artifact.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectorPlan'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /v1/sectors/{sectorId}/documents:
     get:
       operationId: listSectorDocuments
@@ -1260,6 +1298,32 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SectorResearch'
+    PlanVersion:
+      type: object
+      required: [version, markdown, at]
+      properties:
+        version:
+          type: integer
+          minimum: 1
+        markdown:
+          type: string
+        at:
+          type: string
+          format: date-time
+    SectorPlan:
+      type: object
+      required: [sectorId, versions, latest]
+      properties:
+        sectorId:
+          type: string
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanVersion'
+        latest:
+          type: object
+          nullable: true
+          description: Newest version, or null before the first plan lands.
     CompanyResearch:
       type: object
       description: Counterpart of MockCompanyResearch; `name` renders from company, `sectorName` from sector.

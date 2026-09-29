@@ -11,6 +11,7 @@ import { projectNewEvents } from '../../backend/src/projector.js'
 import {
   createSector,
   markCompanyFound,
+  recordPlanVersion,
   setSectorState,
 } from '../../backend/src/db/index.js'
 import { hashKey } from '../../backend/src/auth/keys.js'
@@ -261,6 +262,66 @@ describe.skipIf(!ENABLED)('sector research routes (B-S4)', () => {
     expect((resumed.json() as { data: Record<string, unknown> }).data).toMatchObject({ id: sector, state: 'running' })
     // Resume ensures the run behind the state.
     expect(runsGateway.startedSweeps).toContain(sector)
+  })
+
+  it('plans drafts with a visible planning chat and reads the artifact', async () => {
+    const operator = authHeader(KEYS.operator.presented)
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/sectors',
+      headers: operator,
+      payload: { name: `Plan me ${STAMP}`, topic: 'shaped in chat' },
+    })
+    expect(created.statusCode).toBe(201)
+    const draft = (created.json() as { data: { id: string; state: string } }).data
+    expect(draft.state).toBe('draft')
+
+    const planned = await app.inject({
+      method: 'POST',
+      url: `/v1/sectors/${draft.id}/plan`,
+      headers: { ...operator, 'idempotency-key': `plan-${STAMP}` },
+    })
+    expect(planned.statusCode).toBe(200)
+    expect((planned.json() as { data: Record<string, unknown> }).data).toMatchObject({
+      id: draft.id,
+      state: 'planning',
+    })
+    expect(runsGateway.startedPlans).toContain(draft.id)
+    // The planning chat is visible in the sector pool immediately.
+    const chats = await app.inject({
+      method: 'GET',
+      url: `/v1/sessions?sectorId=${draft.id}`,
+      headers: operator,
+    })
+    expect(chats.statusCode).toBe(200)
+    expect((chats.json() as { data: Array<{ title: string }> }).data.map((entry) => entry.title)).toContain(
+      'Research plan',
+    )
+
+    const conflict = await app.inject({ method: 'POST', url: `/v1/sectors/${sector}/plan`, headers: operator })
+    expect(conflict.statusCode).toBe(409)
+
+    const empty = await app.inject({ method: 'GET', url: `/v1/sectors/${draft.id}/plan`, headers: operator })
+    expect(empty.statusCode).toBe(200)
+    expect((empty.json() as { data: { versions: unknown[]; latest: unknown } }).data).toMatchObject({
+      versions: [],
+      latest: null,
+    })
+
+    await recordPlanVersion(pool, draft.id, '## scope\nFoods.', `plan-test-${STAMP}`, {
+      tenantId: 'tenant-sec',
+      projectId: null,
+    })
+    await projectNewEvents(pool)
+    const read = await app.inject({ method: 'GET', url: `/v1/sectors/${draft.id}/plan`, headers: operator })
+    expect(read.statusCode).toBe(200)
+    const artifact = (read.json() as { data: { versions: Array<{ version: number; markdown: string }>; latest: { version: number } } }).data
+    expect(artifact.versions).toHaveLength(1)
+    expect(artifact.latest.version).toBe(1)
+    expect(artifact.versions[0]?.markdown).toContain('Foods')
+
+    const missing = await app.inject({ method: 'GET', url: '/v1/sectors/sec-missing/plan', headers: operator })
+    expect(missing.statusCode).toBe(404)
   })
 
   it('creates drafts, attaches context, and starts explicitly (never auto-research)', async () => {
