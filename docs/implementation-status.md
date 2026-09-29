@@ -1575,3 +1575,16 @@ scale claims with evidence links.
   back-compat), live Temporal `tests/backend/workflows.sweep.test.ts`
   (gated sweep still lands 2/2 via snippet matching; off-topic sector
   records 0 and completes honestly).
+
+## Turn budgets fit agentic turns (fix for 20-for-10 duplication)
+
+- Workflow history proof: the pilot's 10-delegate turn ran
+  karbotTurnActivity TWICE (60 s start-to-close vs minutes-long fan-out
+  + 26–85 s provider rounds) and each attempt launched 10 children.
+  Turn lane now allows 15 m start-to-close / 20 m schedule-to-close
+  (heartbeat stays 20 s for dead workers). Crash-duplication remains
+  possible but rare; turn-level tool idempotency is the follow-up.
+- Note: a root-owned stale worker (pid 2503187, pre-fix code) squats
+  the turn lane and cannot be stopped without sudo — live proof turns
+  may land on it until it is gone; history attempt-counts tell which
+  worker served each turn.

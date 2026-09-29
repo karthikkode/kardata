@@ -22,16 +22,21 @@ export interface LaneTimeouts {
 }
 
 const TABLE: Record<Lane, LaneTimeouts> = {
-  // Interactive turns: tight windows, fast retry. The heartbeat timeout
-  // must stay far above the activity beat cadence (5 s): with interval ==
-  // timeout the first beat loses to worker-start lag and timer slack, so
-  // every tool-using turn (two provider rounds, 7 s+) spuriously times
-  // out, retries, and wedges the run. 20 s leaves 15 s of slack per beat
-  // while still detecting a dead worker inside the 60 s attempt budget.
+  // Agentic turns: long windows, patient retry. The 60 s attempt budget
+  // fit interactive chat, but a fan-out turn (10 delegations plus live
+  // provider rounds at 26–85 s each) runs minutes: the pilot proved it
+  // when a timed-out turn retried and launched 10 duplicate subagents
+  // (20 children for an "exactly 10" order). Start-to-close now covers a
+  // full research turn; dead workers still surface via the 20 s heartbeat
+  // timeout. Crash-duplication of side-effecting tools remains possible
+  // (rare, not systematic) until turn-level tool idempotency lands.
+  // The heartbeat timeout must stay far above the activity beat cadence
+  // (5 s): with interval == timeout the first beat loses to worker-start
+  // lag and timer slack. 20 s leaves 15 s of slack per beat.
   turn: {
     heartbeatTimeout: '20s',
-    startToCloseTimeout: '60s',
-    scheduleToCloseTimeout: '2m',
+    startToCloseTimeout: '15m',
+    scheduleToCloseTimeout: '20m',
     retry: { maximumAttempts: 3, initialInterval: '1s', backoffCoefficient: 2 },
   },
   // Tool calls (provider-bound): long single attempts, patient retries.

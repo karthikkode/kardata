@@ -127,7 +127,7 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('heartbeat and cancellation poli
     await handle.signal('runSend', 'stall me')
 
     // Attempt 2 (the redelivery) must start on heartbeat timeout, not at
-    // start-to-close (60 s for the turn lane). The floor is already ~20 s
+    // start-to-close (15 m for the turn lane). The floor is already ~20 s
     // (20 s timeout past the last beat), so a real server with scheduling
     // slack needs headroom: 45 s still proves the heartbeat path while
     // staying far inside start-to-close.
