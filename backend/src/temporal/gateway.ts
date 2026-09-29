@@ -20,6 +20,7 @@ import {
   type WorkflowExecutionDescription,
   type Connection,
 } from '@temporalio/client'
+import type { FakeStep } from '@kardata/agents'
 import { connectClient } from './connection.js'
 import { laneConfig } from './lanes.js'
 import { projectNewEvents } from '../projector.js'
@@ -70,6 +71,10 @@ export interface RunsGateway {
   /** Halt the sector's sweep workflow. An already-closed run accepts
    * quietly (nothing to halt); only an unreachable worker throws. */
   cancelSectorSweep(sectorId: string): Promise<CommandResult>
+  /** Launch a leaf subagent researcher under a session's delegation
+   * parent (created on first use). Pilot children run at depth 0 with
+   * maxDepth 0: they research, never delegate further. */
+  delegateSubagent(input: DelegateSubagentInput): Promise<DelegatedChild>
   steer(threadKey: string, text: string): Promise<CommandResult>
   pauseRun(runId: string): Promise<CommandResult>
   resumeRun(runId: string, extendedBudgetMs?: number): Promise<CommandResult>
@@ -77,6 +82,36 @@ export interface RunsGateway {
 }
 
 export const SESSION_PREFIX = 'session-run-'
+
+/** Delegation parent workflow id for a session: one parent per session,
+ * created on first delegation, shared by all its children. */
+export function delegationWorkflowId(sessionId: string): string {
+  return `delegation-${sessionId}`
+}
+
+export interface DelegateSubagentInput {
+  sessionId: string
+  goal: string
+  mode: 'empty' | 'fork'
+  queueCapacity: number
+  /** Test-only scripted fake steps for the child turn. Never set in
+   * production (mirrors the workflow fakeSteps precedent). */
+  fakeSteps?: FakeStep[]
+  /** Test-only task queue override. Production always uses the turn lane;
+   * tests point the door at their isolated queue. */
+  taskQueue?: string
+}
+
+export interface DelegatedChild {
+  childId: string
+  commandId: string
+}
+
+/** Narrow delegation capability for MCP tool contexts: the full gateway
+ * satisfies it structurally, fakes implement just this. */
+export interface SubagentDelegator {
+  delegateSubagent(input: DelegateSubagentInput): Promise<DelegatedChild>
+}
 
 /** Minimal handle surface cancelRun needs: signalling a run. */
 export interface CancelHandle {
@@ -129,6 +164,10 @@ export function buildSessionSignalStart(
 
 function commandId(): string {
   return `cmd-${randomUUID()}`
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 function closeState(statusName: string): RunState {
@@ -296,6 +335,59 @@ export class TemporalRunsGateway implements RunsGateway {
       throw error
     }
     return { commandId: commandId(), state: 'accepted' }
+  }
+
+  /** Delegation door: signal-with-start the session's parent (first
+   * delegation creates it), wait for the child to start, then feed the
+   * goal as its first work item — a launched child with an empty inbox
+   * would idle forever. The child id is caller-generated — workflows
+   * never mint ids — so the caller learns it synchronously for
+   * collect/steer. Depth 0 and maxDepth 0 keep pilot children leaf
+   * researchers. */
+  async delegateSubagent(input: DelegateSubagentInput): Promise<DelegatedChild> {
+    const childId = `child-${randomUUID().slice(0, 8)}`
+    const client = await this.client()
+    await client.workflow.signalWithStart('delegateParent', {
+      workflowId: delegationWorkflowId(input.sessionId),
+      taskQueue: input.taskQueue ?? laneConfig('turn').taskQueue,
+      signal: 'parentDelegate',
+      signalArgs: [
+        {
+          childId,
+          goal: input.goal,
+          depth: 0,
+          mode: input.mode,
+          maxDepth: 0,
+          queueCapacity: input.queueCapacity,
+          ...(input.fakeSteps === undefined ? {} : { fakeSteps: input.fakeSteps }),
+        },
+      ],
+      args: [{ sessionId: input.sessionId }],
+    })
+    // The parent starts the child asynchronously (duplicate ids and a
+    // full fan-out reject instead of starting): poll its state, then feed
+    // the goal. A rejection surfaces here as a timeout, never a silent
+    // idle child.
+    const parent = client.workflow.getHandle(delegationWorkflowId(input.sessionId))
+    const deadline = Date.now() + 30_000
+    for (;;) {
+      try {
+        const state = (await parent.query('parentState')) as {
+          children: Array<{ childId: string }>
+        }
+        if (state.children.some((child) => child.childId === childId)) break
+      } catch {
+        // Parent not yet picked up: keep polling until the deadline.
+      }
+      if (Date.now() > deadline) {
+        throw new Error(
+          `delegation ${childId} not accepted (duplicate id or max in-flight children reached?)`,
+        )
+      }
+      await sleep(500)
+    }
+    await client.workflow.getHandle(childId).signal('childMessage', input.goal)
+    return { childId, commandId: commandId() }
   }
 
   /** Skill invocation: same targeting as send, but the runSkill signal

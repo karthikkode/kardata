@@ -1,0 +1,11 @@
+{
+  "run": "pilot-01-delegate-door",
+  "at": "2026-09-29T08:51:00Z",
+  "path": "MCP db.delegate_subagent -> gateway signalWithStart -> delegateParent -> child turn (live Meta) -> agent:child thread",
+  "sessionId": "c2a9ed4e-631a-4f5b-84e2-b1e0220a6b5b",
+  "childId": "child-0af4ee7f",
+  "goal": "Reply with exactly: door live ok",
+  "observed": "child thread RUNNING with launch notice + agent reply 'door live ok' on first 30s poll",
+  "consoleErrors": "n/a (server-side run)",
+  "notes": "proves worker turn-bundle registration, gateway door, and live child turns; child idles for finish per design (24h parent idle close)"
+}

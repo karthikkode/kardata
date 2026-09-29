@@ -62,6 +62,17 @@ export class FakeRunsGateway implements RunsGateway {
     return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
   }
 
+  /** Delegated children in launch order. */
+  readonly delegated: Array<{ sessionId: string; goal: string; mode: string; queueCapacity: number }> = []
+
+  async delegateSubagent(input: { sessionId: string; goal: string; mode: string; queueCapacity: number }): Promise<{
+    childId: string
+    commandId: string
+  }> {
+    this.delegated.push({ ...input })
+    return { childId: `child-fake-${this.delegated.length}`, commandId: `cmd-${randomUUID()}` }
+  }
+
   async sendSkill(threadKey: string, invocation: SkillInvocation): Promise<CommandResult> {
     const target = await this.resolveTarget(threadKey, invocation.text, 'runSend')
     if (target.workflowId.startsWith('session-run-') && !this.runs.has(target.workflowId)) {

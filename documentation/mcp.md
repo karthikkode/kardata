@@ -47,7 +47,7 @@ Rules in force:
 
 ## Tools
 
-- 64 tools covering the binding table (rows bundle read/write pairs, so
+- 65 tools covering the binding table (rows bundle read/write pairs, so
   tools outnumber rows): `db.append_event`,
   `db.read_partition`, `db.find_event`, `db.read_events_after`,
   `db.create_session`, `db.rename_session` / `db.delete_session`, `db.get_session` / `db.list_sessions`,
@@ -67,7 +67,10 @@ Rules in force:
   `db.complete_idempotency` / `db.release_idempotency`, `db.kb_search`,
   `db.ledger_upsert_company` / `db.ledger_get_company` /
   `db.ledger_list_companies`, `db.ledger_record_problem` /
-  `db.ledger_list_problems`.
+  `db.ledger_list_problems`, plus `db.delegate_subagent` (Karbot-only,
+  operator: launches a leaf subagent researcher under the session's
+  delegation parent; the retrieval seven and the delegate door bind to
+  the retrieval modules and the runs gateway, not the db layer).
 - Tool input schemas live in `backend/src/mcp/schemas.ts`, reusing the
   layer's exported zod schemas (`EventEnvelope`, `SectorState`,
   `CompanyStage`) and mirroring the layer's inline validation

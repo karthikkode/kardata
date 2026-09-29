@@ -62,6 +62,14 @@ the everything-log. Plan: `documentation/plans/2026-09-25-backend-build.md`.
   parent-cancel propagation
   (`tests/backend/workflows.subagents.test.ts`, needs `KARDATA_TEMPORAL_TEST=1`);
   contract notes in `documentation/agents-subagents.md`.
+- Delegation door: `db.delegate_subagent` (Karbot-only, operator)
+  launches leaf researchers through the gateway
+  (`delegation-<sessionId>` parent on the turn lane, goal fed as first
+  work, depth 0 / maxDepth 0); the turn worker loads the turn-bundle
+  aggregator (run.js plus subagents.js — one Worker serves one bundle).
+  Live proof: real child replied through the tool path in ~30s
+  (`tests/evidence/pilot-01/delegate-live.json`). Steering stays
+  approver-gated; launch-to-approver waits on approval cards.
 - B2.5 done: deep-research pipeline workflow
   (`backend/src/temporal/workflows/research.ts`, evidence indexed before
   presentation, refusal branch with logged reason, pause/resume preserves the
