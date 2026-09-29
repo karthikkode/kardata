@@ -1597,6 +1597,6 @@ scale claims with evidence links.
   inside their schedule-to-close windows instead of storming the
   vendor. Workflow tasks stay at 50 (cheap orchestration).
 - Evidence: `tests/backend/temporal.vendor-pacing.test.ts` (pin) +
-  fleet-load 10/50/100/1000 green through the cap (paced thousand-scale
-  throughput with scripted provider). Raise only with measured
-  provider headroom.
+  fleet-load 10/50/100/1000 green through the cap in the author live
+  run 2026-09-30 (paced thousand-scale throughput with scripted
+  provider). Raise only with measured provider headroom.
