@@ -360,6 +360,28 @@ describe.skipIf(!ENABLED)('sector research routes (B-S4)', () => {
       'gemini-dump.md',
     ])
 
+    const refused = await app.inject({ method: 'POST', url: `/v1/sectors/${draft.id}/start`, headers: operator })
+    expect(refused.statusCode).toBe(409)
+
+    // Plan-mandatory flow: plan, approve the version, then start.
+    const planned = await app.inject({ method: 'POST', url: `/v1/sectors/${draft.id}/plan`, headers: operator })
+    expect(planned.statusCode).toBe(200)
+    await recordPlanVersion(pool, draft.id, '## scope\nShaped in chat.', `plan-approved-${STAMP}`, {
+      tenantId: 'tenant-sec',
+      projectId: null,
+    })
+    await projectNewEvents(pool)
+    await setSectorState(pool, draft.id, 'planned', { scope: { tenantId: 'tenant-sec', projectId: null } })
+    await projectNewEvents(pool)
+    const approved = await app.inject({
+      method: 'POST',
+      url: `/v1/sectors/${draft.id}/approve`,
+      headers: operator,
+      payload: { version: 1 },
+    })
+    expect(approved.statusCode).toBe(200)
+    expect(((approved.json() as { data: { state: string } }).data).state).toBe('approved')
+
     const started = await app.inject({ method: 'POST', url: `/v1/sectors/${draft.id}/start`, headers: operator })
     expect(started.statusCode).toBe(200)
     expect(((started.json() as { data: { state: string } }).data).state).toBe('queued')

@@ -581,7 +581,7 @@ paths:
     post:
       operationId: startSector
       tags: [sectors]
-      summary: 'Explicit start: draft enters the research queue.'
+      summary: 'Explicit start: an approved plan enters the research queue.'
       parameters:
         - $ref: '#/components/parameters/SectorId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -638,6 +638,46 @@ paths:
                 $ref: '#/components/schemas/SectorPlan'
         '404':
           $ref: '#/components/responses/NotFound'
+  /v1/sectors/{sectorId}/approve:
+    post:
+      operationId: approveSectorPlan
+      tags: [sectors]
+      summary: 'Owner approval: pins a plan version and moves planned to approved.'
+      parameters:
+        - $ref: '#/components/parameters/SectorId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version]
+              properties:
+                version:
+                  type: integer
+                  minimum: 1
+      responses:
+        '200':
+          description: Approved sector.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectorEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          description: Unknown plan version.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Sector is not planned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/sectors/{sectorId}/documents:
     get:
       operationId: listSectorDocuments
@@ -1324,6 +1364,15 @@ components:
           type: object
           nullable: true
           description: Newest version, or null before the first plan lands.
+        approvals:
+          type: array
+          items:
+            type: integer
+          description: Pinned versions in approval order.
+        approvedVersion:
+          type: integer
+          nullable: true
+          description: Last pinned version, or null before approval.
     CompanyResearch:
       type: object
       description: Counterpart of MockCompanyResearch; `name` renders from company, `sectorName` from sector.

@@ -57,8 +57,8 @@ function stubDb(
 const SCOPE = { tenantId: 't', projectId: null }
 
 describe('startSectorResearch', () => {
-  it('moves draft -> queued and starts the sweep', async () => {
-    const state = { name: 'Optics', topic: 'Lenses', state: 'draft' }
+  it('moves approved -> queued and starts the sweep', async () => {
+    const state = { name: 'Optics', topic: 'Lenses', state: 'approved' }
     const captured: Captured[] = []
     let swept: string | undefined
     const outcome = await startSectorResearch(stubDb(state, captured), {
@@ -70,7 +70,7 @@ describe('startSectorResearch', () => {
   })
 
   it('records the calling session as the research pin', async () => {
-    const state = { name: 'Optics', topic: 'Lenses', state: 'draft' }
+    const state = { name: 'Optics', topic: 'Lenses', state: 'approved' }
     const captured: Captured[] = []
     const outcome = await startSectorResearch(
       stubDb(state, captured, { id: 'sess-1', sector: 'sec-1' }),
@@ -82,7 +82,7 @@ describe('startSectorResearch', () => {
   })
 
   it('404s an unknown calling session without starting', async () => {
-    const state = { name: 'Optics', topic: 'Lenses', state: 'draft' }
+    const state = { name: 'Optics', topic: 'Lenses', state: 'approved' }
     const captured: Captured[] = []
     let swept = false
     await expect(startSectorResearch(
@@ -91,11 +91,11 @@ describe('startSectorResearch', () => {
       'sec-1', SCOPE, 'key-1', 'sess-ghost',
     )).rejects.toMatchObject({ failure: 'not_found' })
     expect(swept).toBe(false)
-    expect(state.state).toBe('draft')
+    expect(state.state).toBe('approved')
   })
 
   it('conflicts a calling session from another sector', async () => {
-    const state = { name: 'Optics', topic: 'Lenses', state: 'draft' }
+    const state = { name: 'Optics', topic: 'Lenses', state: 'approved' }
     const captured: Captured[] = []
     let swept = false
     await expect(startSectorResearch(
@@ -104,10 +104,10 @@ describe('startSectorResearch', () => {
       'sec-1', SCOPE, 'key-1', 'sess-9',
     )).rejects.toMatchObject({ failure: 'conflict' })
     expect(swept).toBe(false)
-    expect(state.state).toBe('draft')
+    expect(state.state).toBe('approved')
   })
 
-  it('conflicts past draft without touching the sweep', async () => {
+  it('conflicts past approved without touching the sweep', async () => {
     const state = { name: 'Optics', topic: 'Lenses', state: 'running' }
     const captured: Captured[] = []
     let swept = false
@@ -118,13 +118,13 @@ describe('startSectorResearch', () => {
     expect(state.state).toBe('running')
   })
 
-  it('compensates to draft when the sweep never starts', async () => {
-    const state = { name: 'Optics', topic: 'Lenses', state: 'draft' }
+  it('compensates to approved when the sweep never starts', async () => {
+    const state = { name: 'Optics', topic: 'Lenses', state: 'approved' }
     const captured: Captured[] = []
     await expect(startSectorResearch(stubDb(state, captured), {
       startSectorSweep: async () => { throw new Error('worker down') }, cancelSectorSweep: async () => ({ ok: true }),
     }, 'sec-1', SCOPE)).rejects.toMatchObject({ failure: 'overload' })
-    expect(state.state).toBe('draft')
+    expect(state.state).toBe('approved')
   })
 
   it('404s unknown sectors', async () => {
@@ -141,7 +141,7 @@ describe('startSectorResearch', () => {
 
 describe('db.start_sector_research MCP tool', () => {
   it('fails closed without a sweep runner', async () => {
-    const state = { name: 'Optics', topic: 'Lenses', state: 'draft' }
+    const state = { name: 'Optics', topic: 'Lenses', state: 'approved' }
     const captured: Captured[] = []
     const failure = await invokeTool(
       'db.start_sector_research',
@@ -153,11 +153,11 @@ describe('db.start_sector_research MCP tool', () => {
     )
     expect(failure).toBeInstanceOf(Error)
     expect(String((failure as Error).message)).toContain('no sweep runner')
-    expect(state.state).toBe('draft')
+    expect(state.state).toBe('approved')
   })
 
   it('starts through the shared sequence when a runner is attached', async () => {
-    const state = { name: 'Optics', topic: 'Lenses', state: 'draft' }
+    const state = { name: 'Optics', topic: 'Lenses', state: 'approved' }
     const captured: Captured[] = []
     const outcome = await invokeTool(
       'db.start_sector_research',

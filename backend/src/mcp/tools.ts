@@ -75,6 +75,7 @@ import {
   type ThreadMessenger,
   type TransactableDb,
   upsertLedgerCompany,
+  updateSectorPlan,
 } from '../db/index.js'
 import { RunNotFound, ThreadNotAccepting, type SubagentDelegator } from '../temporal/gateway.js'
 import { TOOL_NAMES, TOOL_SCHEMAS, type McpToolName } from './schemas.js'
@@ -168,6 +169,7 @@ export const TOOL_LAYER: Record<McpToolName, string> = {
   'db.complete_idempotency': 'completeIdempotency',
   'db.release_idempotency': 'releaseIdempotency',
   'db.kb_search': 'searchKb',
+  'db.update_sector_plan': 'updateSectorPlan',
   'db.delegate_subagent': 'delegateSubagent',
   'web_search': 'webSearch',
   'web_fetch': 'webFetch',
@@ -262,6 +264,10 @@ export const TOOL_META: Record<McpToolName, { description: string; minRole: Role
   'db.complete_idempotency': { description: 'Store a mutation outcome for replay.', minRole: 'approver' },
   'db.release_idempotency': { description: 'Drop an in-progress mutation claim.', minRole: 'approver' },
   'db.kb_search': { description: 'Full-text search over the curated product knowledge corpus (cite source_path).', minRole: 'viewer' },
+  'db.update_sector_plan': {
+    description: 'Append a plan version on a planned sector (brainstorm edits); edits after approval re-open review to planned.',
+    minRole: 'operator',
+  },
   'db.delegate_subagent': {
     description:
       'Launch a leaf subagent researcher on a session goal (Karbot-only, operator). The child researches independently and reports back; collect via session threads. Pilot children never delegate further.',
@@ -486,6 +492,17 @@ const INVOKERS: Invokers = {
   'db.release_idempotency': (ctx, args) =>
     releaseIdempotency(ctx.pool, scopedIdempotencyKey(ctx, args.key)).then(() => ({ ok: true })),
   'db.kb_search': (ctx, args) => searchKb(ctx.pool, args.query, args.limit ?? 5),
+  // Brainstorm edits: versioned, planned-or-approved only, fail-closed
+  // without or outside those states (never a silent overwrite).
+  'db.update_sector_plan': async (ctx, args) => {
+    const key = args.idempotencyKey ? `${ctx.keyId}:${args.idempotencyKey}` : undefined
+    try {
+      return await updateSectorPlan(ctx.pool, args.sectorId, args.markdown, ctx.scope, key)
+    } catch (error: unknown) {
+      if (error instanceof SectorTransitionError) throw new DbContractError(`${error.failure}: ${error.message}`)
+      throw error
+    }
+  },
   // Delegation door: the main agent launches leaf researchers by
   // instruction. Session ownership is verified first (unknown or
   // out-of-scope sessions never launch); without a delegator the call

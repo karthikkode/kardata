@@ -9,7 +9,9 @@ import { DbContractError } from './errors.js'
 import { appendEvent, getSession, readPartition, type Db } from './events.js'
 import {
   getSector,
+  SECTOR_PLAN_APPROVED_EVENT,
   SECTOR_PLAN_WRITTEN_EVENT,
+  SectorTransitionError,
   setSectorState,
 } from './sectors.js'
 
@@ -23,6 +25,9 @@ export interface SectorPlan {
   sectorId: string
   versions: PlanVersion[]
   latest: PlanVersion | null
+  /** Pinned versions in approval order; the last is the approved one. */
+  approvals: number[]
+  approvedVersion: number | null
 }
 
 /** Read the plan artifact: every t.sector.plan_written in partition
@@ -40,13 +45,20 @@ export async function readSectorPlan(
   if (!sector) return undefined
   const events = await readPartition(db, `sector:${sectorId}`)
   const versions: PlanVersion[] = []
+  const approvals: number[] = []
   for (const event of events) {
-    if (event.type !== SECTOR_PLAN_WRITTEN_EVENT) continue
-    const payload = event.payload as { markdown?: unknown }
-    if (typeof payload.markdown !== 'string' || !payload.markdown.trim()) continue
-    versions.push({ version: versions.length + 1, markdown: payload.markdown, at: event.at })
+    if (event.type === SECTOR_PLAN_WRITTEN_EVENT) {
+      const payload = event.payload as { markdown?: unknown }
+      if (typeof payload.markdown !== 'string' || !payload.markdown.trim()) continue
+      versions.push({ version: versions.length + 1, markdown: payload.markdown, at: event.at })
+    } else if (event.type === SECTOR_PLAN_APPROVED_EVENT) {
+      const payload = event.payload as { version?: unknown }
+      if (typeof payload.version === 'number' && Number.isInteger(payload.version) && payload.version >= 1) {
+        approvals.push(payload.version)
+      }
+    }
   }
-  return { sectorId, versions, latest: versions[versions.length - 1] ?? null }
+  return { sectorId, versions, latest: versions[versions.length - 1] ?? null, approvals, approvedVersion: approvals[approvals.length - 1] ?? null }
 }
 
 /** Record one plan version. The version is the next position in the
@@ -72,6 +84,67 @@ export async function recordPlanVersion(
   })
   const updated = await readSectorPlan(db, sectorId, scope)
   return { version: updated?.versions.length ?? 0 }
+}
+
+/** Brainstorm edit: appends a version on planned sectors. On approved
+ * sectors the edit re-opens review (back to planned) — approval always
+ * pins the exact text the owner saw, never a later edit. Anything else
+ * (including running) conflicts: the run's scope is frozen. */
+export async function updateSectorPlan(
+  db: Db,
+  sectorId: string,
+  markdown: string,
+  scope?: Scope,
+  idempotencyKey?: string,
+): Promise<{ version: number; state: string }> {
+  if (!markdown.trim()) throw new DbContractError('plan markdown must be non-empty')
+  const sector = await getSector(db, sectorId, scope).catch((error: unknown) => {
+    if (error instanceof DbContractError) return undefined
+    throw error
+  })
+  if (!sector) throw new SectorTransitionError('not_found', `no such sector ${sectorId}`)
+  if (sector.state !== 'planned' && sector.state !== 'approved') {
+    throw new SectorTransitionError('conflict', `sector ${sectorId} is ${sector.state}, not planned`)
+  }
+  const existing = await readSectorPlan(db, sectorId, scope)
+  if (!existing || existing.versions.length === 0) throw new DbContractError(`no plan to update on ${sectorId}`)
+  const stored = await recordPlanVersion(db, sectorId, markdown, idempotencyKey ?? `edit:${Date.now()}`, scope)
+  if (sector.state === 'approved') {
+    await setSectorState(db, sectorId, 'planned', { scope })
+  }
+  return { version: stored.version, state: sector.state === 'approved' ? 'planned' : sector.state }
+}
+
+/** Owner approval: pins an existing version and moves planned to
+ * approved. Unknown versions and non-planned states fail loudly —
+ * approval never invents a version. */
+export async function approveSectorPlan(
+  db: Db,
+  sectorId: string,
+  version: number,
+  scope?: Scope,
+  idempotencyKey?: string,
+): Promise<{ version: number; state: string }> {
+  const sector = await getSector(db, sectorId, scope).catch((error: unknown) => {
+    if (error instanceof DbContractError) return undefined
+    throw error
+  })
+  if (!sector) throw new SectorTransitionError('not_found', `no such sector ${sectorId}`)
+  if (sector.state !== 'planned') {
+    throw new SectorTransitionError('conflict', `sector ${sectorId} is ${sector.state}, not planned`)
+  }
+  const existing = await readSectorPlan(db, sectorId, scope)
+  if (!existing || !existing.versions.some((entry) => entry.version === version)) {
+    throw new DbContractError(`unknown plan version ${version} on ${sectorId}`)
+  }
+  await appendEvent(db, {
+    idempotencyKey: idempotencyKey ?? `sector-plan-approved:${sectorId}:${version}`,
+    partition: `sector:${sectorId}`,
+    type: SECTOR_PLAN_APPROVED_EVENT,
+    payload: { sectorId, version },
+  })
+  await setSectorState(db, sectorId, 'approved', { scope })
+  return { version, state: 'approved' }
 }
 
 export type SectorPlanFailure = 'not_found' | 'conflict' | 'overload'

@@ -14,6 +14,7 @@ export const SECTOR_CREATED_EVENT = 'sector.created'
 export const SECTOR_STATE_CHANGED_EVENT = 'sector.state_changed'
 export const SECTOR_RESEARCH_STARTED_EVENT = 'sector.research_started'
 export const SECTOR_PLAN_WRITTEN_EVENT = 'sector.plan_written'
+export const SECTOR_PLAN_APPROVED_EVENT = 'sector.plan_approved'
 export const COMPANY_FOUND_EVENT = 'company.found'
 export const COMPANY_STAGE_CHANGED_EVENT = 'company.stage_changed'
 export const COMPANY_STATE_CHANGED_EVENT = 'company.state_changed'
@@ -35,11 +36,11 @@ export const SectorState = z.enum([
 ])
 export type SectorState = z.infer<typeof SectorState>
 
-/** Legal sector transitions (plan-mandatory lifecycle). draft→queued
- * stays only as the P4 interim (approval enforcement removes it);
- * everything else is the contract P2–P5 build against. */
+/** Legal sector transitions (plan-mandatory lifecycle). Drafts plan;
+ * only owner-approved plans queue. Everything else is the contract the
+ * planning, approval, and run surfaces build against. */
 export const SECTOR_TRANSITIONS: Record<SectorState, readonly SectorState[]> = {
-  draft: ['planning', 'queued'],
+  draft: ['planning'],
   planning: ['planned', 'failed'],
   planned: ['approved', 'failed'],
   approved: ['queued'],

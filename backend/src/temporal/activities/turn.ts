@@ -538,6 +538,7 @@ const PRODUCT_TOOLS = new Set([
   'db.attach_sector_document', 'db.list_sector_documents', 'db.read_sector_document',
   'db.list_artifacts', 'db.list_tenant_artifacts', 'db.reference_artifact',
   'db.kb_search',
+  'db.update_sector_plan',
   'db.ledger_upsert_company', 'db.ledger_get_company', 'db.ledger_list_companies',
   'db.ledger_record_problem', 'db.ledger_list_problems',
   // Hound at fullest: live web search (keyed, else keyless pool), page
@@ -585,6 +586,7 @@ export const SECTOR_TOOLS: ReadonlySet<string> = new Set([
   'db.list_artifacts',
   'db.reference_artifact',
   'db.kb_search',
+  'db.update_sector_plan',
   // Web retrieval reads the public web, not our database: search and
   // fetch stay readable in sector scope so sector research skills can
   // discover companies from chat. Browser action stays Karbot-only

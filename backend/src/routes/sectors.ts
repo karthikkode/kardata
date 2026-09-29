@@ -14,6 +14,7 @@ import {
   getSectorContext,
   setUnitExclusions,
 } from '../db/sector-context.js'
+import { approveSectorPlan } from '../db/sector-plan.js'
 import { pauseSectorSweep, restartSectorSweep, resumeSectorSweep } from '../db/sector-lifecycle.js'
 import { SectorPlanError, planSectorResearch, readSectorPlan } from '../db/sector-plan.js'
 import { SectorStartError, startSectorResearch } from '../db/sector-start.js'
@@ -57,6 +58,11 @@ const AttachDocumentBody = z.object({
   filename: z.string().min(1).max(255),
   /** Base64-encoded file bytes (8 MB cap). */
   contentBase64: z.string().min(1),
+})
+
+const ApprovePlanBody = z.object({
+  /** Plan version to pin (must exist on the sector). */
+  version: z.number().int().min(1),
 })
 
 /** Model OCR for document ingest: the vision model over the existing Meta
@@ -463,6 +469,37 @@ export function sectorRoutes(app: FastifyInstance): void {
           const status = error.failure === 'not_found' ? 404 : error.failure === 'overload' ? 503 : 409
           const code = error.failure === 'overload' ? 'overload' : error.failure
           return { status, body: { ok: false, error: { code, message: error.message } } }
+        }
+        throw error
+      }
+    })
+  })
+
+  route(app, 'post', '/v1/sectors/:sectorId/approve', async (request, reply, app) => {
+    const pool = requirePool(app, reply)
+    if (!pool) return undefined
+    const auth = await authorize(app, request, reply, 'operator')
+    if (!auth) return undefined
+    const params = request.params as { sectorId?: string }
+    const sectorId = params.sectorId ?? ''
+    const body = parseInput(ApprovePlanBody, request.body, reply)
+    if (!body) return undefined
+    return withIdempotency(request, reply, pool, auth.keyId, async () => {
+      await projectNewEvents(pool)
+      const header = request.headers['idempotency-key']
+      const key = typeof header === 'string' && header !== '' ? `sector-approve:${sectorId}:${header}` : undefined
+      try {
+        const approved = await approveSectorPlan(pool, sectorId, body.version, auth.scope, key)
+        await projectNewEvents(pool)
+        const sector = await getSector(pool, sectorId, auth.scope)
+        return { status: 200, body: { ok: true, data: { ...sector, approvedVersion: approved.version } } }
+      } catch (error: unknown) {
+        if (error instanceof SectorTransitionError) {
+          const status = error.failure === 'not_found' ? 404 : 409
+          return { status, body: { ok: false, error: { code: error.failure, message: error.message } } }
+        }
+        if (error instanceof DbContractError) {
+          return { status: 400, body: { ok: false, error: { code: 'validation_failed', message: error.message } } }
         }
         throw error
       }

@@ -246,6 +246,11 @@ export const TOOL_SCHEMAS = {
     query: z.string().min(1).max(500),
     limit: z.number().int().min(1).max(20).optional(),
   }),
+  'db.update_sector_plan': z.object({
+    sectorId: NonEmpty,
+    markdown: z.string().min(1).max(8000),
+    idempotencyKey: NonEmpty.optional(),
+  }),
   'db.delegate_subagent': z.object({
     sessionId: NonEmpty,
     goal: z.string().min(1).max(8000),
