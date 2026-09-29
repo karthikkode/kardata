@@ -53,6 +53,54 @@ export function buildQueryTemplates(
 export interface CandidateHit {
   title: string
   url: string
+  /** Snippet when the leg provides one (keyed search); empty otherwise. */
+  snippet?: string
+}
+
+/** Sector match signals for the relevance gate: lowercase topic tokens
+ * (stopwords, numerics, and short glue dropped; plurals folded), capped
+ * so one sector cannot match the whole web. The topic — never the name,
+ * which may carry run stamps — is the vocabulary source. */
+const SIGNAL_STOPWORDS = new Set([
+  'the', 'and', 'for', 'with', 'from', 'into', 'small', 'best', 'top', 'new',
+  'all', 'our', 'your', 'plus', 'list',
+])
+
+function foldPlural(token: string): string {
+  return token.length > 3 && token.endsWith('s') ? token.slice(0, -1) : token
+}
+
+export function sectorSignals(name: string, topic: string): string[] {
+  const source = topic.trim() || name.trim()
+  const seen = new Set<string>()
+  for (const raw of source.toLowerCase().split(/[^a-z0-9]+/)) {
+    if (raw.length < 3 || SIGNAL_STOPWORDS.has(raw) || /^[0-9]+$/.test(raw)) continue
+    seen.add(foldPlural(raw))
+    if (seen.size >= 12) break
+  }
+  return [...seen]
+}
+
+/** A hit is sector-relevant when any signal matches the title, snippet,
+ * URL, or domain tokens — in singular or plural form either side, so
+ * "payments" meets "payment processing" and "food" meets "Acme Foods".
+ * Brand-only hits with empty metadata and no signal drop: documented
+ * recall cost — the sweep keeps evidenced candidates instead of
+ * recording the whole index. */
+function signalVariants(signal: string): string[] {
+  return [...new Set([signal, foldPlural(signal), `${signal}s`])]
+}
+
+function hitMatchesSignals(hit: CandidateHit, signals: readonly string[]): boolean {
+  const haystacks = [hit.title, hit.snippet ?? '', hit.url].map((text) => text.toLowerCase())
+  const host = hostOf(hit.url) ?? ''
+  const domainTokens = host.toLowerCase().split(/[^a-z0-9]+/)
+  return signals.some((signal) =>
+    signalVariants(signal).some(
+      (variant) =>
+        haystacks.some((haystack) => haystack.includes(variant)) || domainTokens.includes(variant),
+    ),
+  )
 }
 
 export interface CandidateCompany {
@@ -72,7 +120,11 @@ function hostOf(rawUrl: string): string | undefined {
   return /^[a-z0-9.-]+\.[a-z]{2,}$/.test(host) ? host : undefined
 }
 
-export function extractNewDomains(hits: CandidateHit[], alreadySeen: string[]): CandidateCompany[] {
+export function extractNewDomains(
+  hits: CandidateHit[],
+  alreadySeen: string[],
+  signals: readonly string[] = [],
+): CandidateCompany[] {
   const seen = new Set(alreadySeen.map((domain) => domain.toLowerCase()))
   const fresh: CandidateCompany[] = []
   for (const hit of hits) {
@@ -92,6 +144,9 @@ export function extractNewDomains(hits: CandidateHit[], alreadySeen: string[]): 
     ) {
       continue
     }
+    // Relevance gate: with signals, only evidenced candidates land.
+    // Without signals the extraction stays unfiltered (back-compat).
+    if (signals.length > 0 && !hitMatchesSignals(hit, signals)) continue
     seen.add(domain)
     fresh.push({ domain, name: hit.title.slice(0, 200) || domain, url: hit.url })
   }

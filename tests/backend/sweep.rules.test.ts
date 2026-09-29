@@ -1,7 +1,7 @@
 // Pure sweep rules (Phase 6). No server, no database: template shaping
 // and domain extraction run identically in the workflow and here.
 import { describe, expect, it } from 'vitest'
-import { buildQueryTemplates, extractNewDomains, isSweepCancellation } from '../../backend/src/temporal/sweep-rules.js'
+import { buildQueryTemplates, extractNewDomains, isSweepCancellation, sectorSignals } from '../../backend/src/temporal/sweep-rules.js'
 
 describe('buildQueryTemplates', () => {
   it('shapes a stable template order from name and topic', () => {
@@ -72,5 +72,47 @@ describe('isSweepCancellation', () => {
     expect(isSweepCancellation(activityOther)).toBe(false)
     expect(isSweepCancellation(undefined)).toBe(false)
     expect(isSweepCancellation('cancelled')).toBe(false)
+  })
+})
+
+describe('sectorSignals', () => {
+  it('derives clean match signals from the topic, never the name stamp', () => {
+    expect(sectorSignals('Pilot Fintech mumghjr3', 'SME payments')).toEqual(['sme', 'payment'])
+    expect(sectorSignals('Speciality foods sweep', 'Artisanal packaged foods')).toEqual([
+      'artisanal',
+      'packaged',
+      'food',
+    ])
+    expect(sectorSignals('X', '')).toEqual([])
+  })
+})
+
+describe('extractNewDomains relevance gate', () => {
+  const signals = ['sme', 'payments']
+  it('keeps signaled candidates across title, snippet, url, and domain tokens', () => {
+    const hits = [
+      { title: '10 Best Payment Processing', url: 'https://connectpay.com/blog/x', snippet: '' },
+      { title: 'Helcim', url: 'https://helcim.com', snippet: 'Helcim offers payment processing' },
+      { title: 'SMEPay', url: 'https://smepay.io', snippet: '' },
+    ]
+    expect(extractNewDomains(hits, [], signals).map((c) => c.domain)).toEqual([
+      'connectpay.com',
+      'helcim.com',
+      'smepay.io',
+    ])
+  })
+
+  it('drops spam with no sector signal anywhere', () => {
+    const hits = [
+      { title: 'DP BOSS - KALYAN SATTA MATKA LIVE RESULT', url: 'https://dpboss.in', snippet: '' },
+      { title: 'Watch Vishwanath Full Movie Online', url: 'https://moviefone.example', snippet: '' },
+      { title: 'Printers - HP Support Community', url: 'https://hp.example/support', snippet: '' },
+    ]
+    expect(extractNewDomains(hits, [], signals)).toEqual([])
+  })
+
+  it('stays unfiltered without signals (back-compat)', () => {
+    const hits = [{ title: 'Anything', url: 'https://anything.example', snippet: '' }]
+    expect(extractNewDomains(hits, [])).toHaveLength(1)
   })
 })

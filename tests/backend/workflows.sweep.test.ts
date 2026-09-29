@@ -62,10 +62,12 @@ describe.skipIf(!ENABLED)('sector sweep workflow (Phase 6)', () => {
     const runTag = Date.now().toString(36)
     searchServer = createServer((_request, response) => {
       // Same results on every page: page 1+ yields zero new domains, so
-      // the workflow breaks per template on dedupe.
+      // the workflow breaks per template on dedupe. Titles and snippets
+      // carry sector signals (the relevance gate keeps them); the social
+      // profile drops on hosts.
       const results = [
         { title: 'Acme Foods', url: `https://www.acmefoods-${runTag}.example/shop`, description: 'artisanal' },
-        { title: 'Beta Pantry', url: `https://betapantry-${runTag}.example`, description: 'pantry' },
+        { title: 'Beta Pantry', url: `https://betapantry-${runTag}.example`, description: 'artisanal pantry staples' },
         { title: 'Acme social', url: 'https://linkedin.com/company/acmefoods', description: 'social' },
       ]
       response.writeHead(200, { 'content-type': 'application/json' })
@@ -160,6 +162,33 @@ describe.skipIf(!ENABLED)('sector sweep workflow (Phase 6)', () => {
       const { getSector } = await import('../../backend/src/db/index.js')
       const sector = await getSector(pool, sectorId, { tenantId: 'tenant-sweep', projectId: null })
       expect(sector?.state).not.toBe('failed')
+    } finally {
+      await pool.end()
+    }
+  }, 180_000)
+
+  it('records nothing the sector vocabulary cannot evidence, and completes', async () => {
+    const pool = new Pool({ connectionString: url })
+    const sectorId = `sec-offtopic-${Date.now()}`
+    try {
+      // The shared stub answers pantry queries: a cryptography sector
+      // shares no vocabulary with any stub hit, so the relevance gate
+      // drops every candidate and the run still completes honestly.
+      await createSector(pool, {
+        name: 'Quantum hardware',
+        topic: 'Quantum cryptography hardware',
+        scope: { tenantId: 'tenant-sweep', projectId: null },
+        sectorId,
+        initialState: 'queued',
+      })
+      const handle = await client.workflow.start('sectorSweep', {
+        taskQueue: (worker.options as { taskQueue: string }).taskQueue,
+        workflowId: `sector-sweep-${sectorId}`,
+        args: [{ sectorId, maxPagesPerTemplate: 1, scope: { tenantId: 'tenant-sweep', projectId: null } }],
+      })
+      expect(await handle.result()).toBe('complete')
+      const companies = await listSectorCompanies(pool, sectorId, { tenantId: 'tenant-sweep', projectId: null })
+      expect(companies.total).toBe(0)
     } finally {
       await pool.end()
     }
