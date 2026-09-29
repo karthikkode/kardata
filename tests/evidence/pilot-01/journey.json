@@ -1,0 +1,25 @@
+{
+  "run": "pilot-01",
+  "at": "2026-09-29T06:37:11.088Z",
+  "sectorName": "Pilot Fintech mumb0en5",
+  "marks": [
+    {
+      "step": "researches-first-paint",
+      "ms": 268
+    },
+    {
+      "step": "create-draft",
+      "ms": 102
+    },
+    {
+      "step": "open-detail",
+      "ms": 38
+    }
+  ],
+  "consoleErrors": [],
+  "failedRequests": [],
+  "observations": {
+    "startButtons": 0,
+    "startCopyDeadEnd": true
+  }
+}

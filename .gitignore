@@ -24,3 +24,7 @@ npm-debug.log*
 # editor / OS
 .DS_Store
 *.local
+
+# pilot evidence binaries stay local + PR-attached; curated text proof commits
+tests/evidence/**/*.png
+tests/evidence/**/*.webm
