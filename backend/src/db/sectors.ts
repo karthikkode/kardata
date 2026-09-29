@@ -36,9 +36,9 @@ export const SectorState = z.enum([
 ])
 export type SectorState = z.infer<typeof SectorState>
 
-/** Legal sector transitions (plan-mandatory lifecycle). draft→queued
- * stays only as the P4 interim (approval enforcement removes it);
- * everything else is the contract P2–P5 build against. */
+/** Legal sector transitions (plan-mandatory lifecycle). Drafts plan;
+ * only owner-approved plans queue. Everything else is the contract the
+ * planning, approval, and run surfaces build against. */
 export const SECTOR_TRANSITIONS: Record<SectorState, readonly SectorState[]> = {
   draft: ['planning'],
   planning: ['planned', 'failed'],
