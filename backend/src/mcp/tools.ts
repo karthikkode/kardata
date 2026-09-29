@@ -79,15 +79,18 @@ import {
 import { RunNotFound, ThreadNotAccepting } from '../temporal/gateway.js'
 import { TOOL_NAMES, TOOL_SCHEMAS, type McpToolName } from './schemas.js'
 import {
-  browserAct,
-  browserClose,
-  browserNavigate,
-  browserScreenshot,
-  browserSnapshot,
-} from '../retrieval/browser.js'
-import { RetrievalError, webFetch, webSearch } from '../retrieval/web.js'
+  pooledBrowserAct,
+  pooledBrowserClose,
+  pooledBrowserNavigate,
+  pooledBrowserScreenshot,
+  pooledBrowserSnapshot,
+  pooledWebFetch,
+  pooledWebSearch,
+} from '../browserPool/facade.js'
+import type { BrowserAct } from '../retrieval/browser.js'
+import { RetrievalError } from '../retrieval/web.js'
 
-type BrowserActArgs = Parameters<typeof browserAct>[1]
+type BrowserActArgs = BrowserAct
 
 export interface McpToolContext {
   pool: TransactableDb
@@ -472,14 +475,18 @@ const INVOKERS: Invokers = {
   'db.release_idempotency': (ctx, args) =>
     releaseIdempotency(ctx.pool, scopedIdempotencyKey(ctx, args.key)).then(() => ({ ok: true })),
   'db.kb_search': (ctx, args) => searchKb(ctx.pool, args.query, args.limit ?? 5),
+  // Retrieval tools route through the browser-pool facade (single entry:
+  // bounded 0-16 slots, query/document caches, tiered fallback). Tool
+  // names, schemas, roles, and error codes are unchanged; TOOL_LAYER
+  // still names the underlying layer functions (parity test intact).
   'web_search': (_ctx, args) =>
-    rethrowRetrieval(webSearch(process.env, args.query, { count: args.count, page: args.page })),
-  'web_fetch': (_ctx, args) => rethrowRetrieval(webFetch(args.url)),
-  'browser_navigate': (_ctx, args) => rethrowRetrieval(browserNavigate(args.url)),
-  'browser_snapshot': (_ctx, args) => rethrowRetrieval(browserSnapshot(args.sessionId)),
+    rethrowRetrieval(pooledWebSearch(process.env, args.query, { count: args.count, page: args.page })),
+  'web_fetch': (_ctx, args) => rethrowRetrieval(pooledWebFetch(args.url)),
+  'browser_navigate': (ctx, args) => rethrowRetrieval(pooledBrowserNavigate(args.url, { caller: ctx.keyId })),
+  'browser_snapshot': (_ctx, args) => rethrowRetrieval(pooledBrowserSnapshot(args.sessionId)),
   'browser_act': (_ctx, args) =>
     rethrowRetrieval(
-      browserAct(args.sessionId, {
+      pooledBrowserAct(args.sessionId, {
         kind: args.kind,
         ...(args.selector === undefined ? {} : { selector: args.selector }),
         ...(args.text === undefined ? {} : { text: args.text }),
@@ -488,8 +495,8 @@ const INVOKERS: Invokers = {
         ...(args.pixels === undefined ? {} : { pixels: args.pixels }),
       } as BrowserActArgs),
     ),
-  'browser_close': (_ctx, args) => rethrowRetrieval(browserClose(args.sessionId)),
-  'browser_screenshot': (_ctx, args) => rethrowRetrieval(browserScreenshot(args.sessionId, { fullPage: args.fullPage })),
+  'browser_close': (_ctx, args) => rethrowRetrieval(pooledBrowserClose(args.sessionId)),
+  'browser_screenshot': (_ctx, args) => rethrowRetrieval(pooledBrowserScreenshot(args.sessionId, { fullPage: args.fullPage })),
   'db.ledger_upsert_company': (ctx, args) => upsertLedgerCompany(ctx.pool, args),
   'db.ledger_get_company': (ctx, args) => getLedgerCompany(ctx.pool, args.companyId),
   'db.ledger_list_companies': (ctx, args) =>
@@ -508,7 +515,7 @@ export class McpToolError extends Error {
 }
 
 /** Retrieval failures become isError text with their own code
- * (unconfigured/blocked/fetch_failed), never a throw. */
+ * (unconfigured/blocked/fetch_failed/overload), never a throw. */
 async function rethrowRetrieval<T>(work: Promise<T>): Promise<T> {
   try {
     return await work

@@ -59,6 +59,14 @@ All workspaces: `npm run lint`, `npm run typecheck`, `npm test`.
   Values never enter tracked files. `KARDATA_BROWSER_TEST=1` gates the
   live browser suite (needs Chromium plus network); it is skipped by
   default like the Temporal suites.
+- Browser-pool budget: `KARDATA_BROWSER_MAX` caps concurrent browser
+  sessions (1–16, default 8; owner ceiling 16). The pool scales from
+  zero: contexts are created on demand and closed on release or the
+  5-minute idle reap, so idle pools hold no browser RAM. Size per
+  context at 250–800 MB (heavier on JS pages): 8 slots fit a 16 GB
+  laptop pool with headroom; 16 is the ceiling, not the target. Chrome
+  also needs shared memory: keep the sidecar's `/dev/shm` large or
+  `--disable-dev-shm-usage`, or tabs crash before RAM matters.
 - Session chat worker (dev): `npm run worker --workspace @kardata/backend`
   serves the turn lane (`kardata-turn-v1`) so `POST /v1/commands/send` starts
   (signal-with-start) and runs session workflows. Needs `DATABASE_URL`,

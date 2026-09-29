@@ -11,6 +11,7 @@ import { get as httpGetRaw } from 'node:http'
 import { get as httpsGetRaw } from 'node:https'
 import { z } from 'zod'
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core'
+import { acquireBrowserSlot, type BrowserSlot } from '../browserPool/pool.js'
 import { RetrievalError } from './web.js'
 
 /** Remote Chromium over CDP (the compose sidecar): heavy lifting stays in
@@ -59,6 +60,9 @@ interface BrowserSession {
   context: BrowserContext
   page: Page
   lastUsedMs: number
+  /** Pool slot held for the session lifetime: released on close or idle
+   * reap, never while the session is active. */
+  slot: BrowserSlot
 }
 
 let counter = 0
@@ -146,6 +150,7 @@ function reapIdle(): void {
   for (const [id, session] of sessions) {
     if (now - session.lastUsedMs > BROWSER_IDLE_TIMEOUT_MS) {
       void discard(session.browser, session.owned, session.context)
+      session.slot.release()
       sessions.delete(id)
     }
   }
@@ -158,26 +163,55 @@ function take(id: string): BrowserSession {
   return session
 }
 
+function hostOfUrl(rawUrl: string): string {
+  try {
+    return new URL(rawUrl).hostname.toLowerCase()
+  } catch {
+    return ''
+  }
+}
+
 /** Open a session on a URL. Returns the session id plus the first
- * accessibility snapshot so the agent can act immediately. */
-export async function browserNavigate(rawUrl: string): Promise<{ sessionId: string; url: string; snapshot: string }> {
+ * accessibility snapshot so the agent can act immediately. Holds one
+ * pool slot for the session lifetime: at saturation new navigations
+ * reject with `overload` instead of evicting live sessions. */
+export async function browserNavigate(
+  rawUrl: string,
+  opts: { caller?: string; timeoutMs?: number } = {},
+): Promise<{ sessionId: string; url: string; snapshot: string }> {
   if (!UrlSchema.safeParse(rawUrl).success) throw new RetrievalError('validation_failed', 'url must be non-empty')
   reapIdle()
-  const { browser, owned } = await launch()
+  const slot = await acquireBrowserSlot({ host: hostOfUrl(rawUrl), caller: opts.caller, timeoutMs: opts.timeoutMs })
+  let browser: Browser
+  let owned: boolean
+  try {
+    ;({ browser, owned } = await launch())
+  } catch (error) {
+    slot.release()
+    throw error
+  }
   // Always a fresh context, never the shared default: two sessions must
   // never land in one context on the sidecar, or closing one strands the
   // other's pages (verified leak 2026-09-27).
-  const context = await browser.newContext()
+  let context: BrowserContext
+  try {
+    context = await browser.newContext()
+  } catch (error) {
+    if (owned) await browser.close().catch(() => undefined)
+    slot.release()
+    throw new RetrievalError('fetch_failed', `browser context failed: ${error instanceof Error ? error.message : 'unknown'}`)
+  }
   const page = await context.newPage()
   try {
     await page.goto(rawUrl, { timeout: BROWSER_NAV_TIMEOUT_MS, waitUntil: 'domcontentloaded' })
   } catch (error) {
     await discard(browser, owned, context)
+    slot.release()
     throw new RetrievalError('fetch_failed', `navigation failed: ${error instanceof Error ? error.message : 'unknown'}`)
   }
   counter += 1
   const id = `browser-${counter}`
-  sessions.set(id, { id, browser, owned, context, page, lastUsedMs: Date.now() })
+  sessions.set(id, { id, browser, owned, context, page, lastUsedMs: Date.now(), slot })
   const snapshot = await page.locator('body').ariaSnapshot()
   return { sessionId: id, url: page.url(), snapshot }
 }
@@ -272,12 +306,13 @@ export async function browserScreenshot(
 }
 
 /** Close a session (sidecar sessions drop only their context).
- * Idempotent: unknown ids are done. */
+ * Idempotent: unknown ids are done. Releases the session's pool slot. */
 export async function browserClose(sessionId: string): Promise<{ ok: true }> {
   const session = sessions.get(sessionId)
   if (session) {
     sessions.delete(sessionId)
     await discard(session.browser, session.owned, session.context)
+    session.slot.release()
   }
   return { ok: true }
 }
