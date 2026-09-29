@@ -1,27 +1,31 @@
 {
   "run": "pilot-01",
-  "at": "2026-09-29T07:28:19.359Z",
-  "sectorName": "Pilot Fintech mumcu1pe",
+  "at": "2026-09-29T08:13:01.921Z",
+  "sectorName": "Pilot Fintech mumee981",
   "marks": [
     {
       "step": "researches-first-paint",
-      "ms": 265
+      "ms": 276
     },
     {
       "step": "create-draft",
-      "ms": 110
+      "ms": 130
     },
     {
       "step": "open-detail",
       "ms": 37
     },
     {
+      "step": "pause-persists-60s",
+      "ms": 60000
+    },
+    {
       "step": "start-research",
-      "ms": 5393
+      "ms": 5402
     },
     {
       "step": "pause-research",
-      "ms": 74
+      "ms": 128
     }
   ],
   "consoleErrors": [],

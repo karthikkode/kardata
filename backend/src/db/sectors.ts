@@ -523,7 +523,7 @@ export async function recordResearchSession(
   })
 }
 
-export type SectorTransitionFailure = 'not_found' | 'conflict'
+export type SectorTransitionFailure = 'not_found' | 'conflict' | 'overload'
 
 export class SectorTransitionError extends Error {
   readonly failure: SectorTransitionFailure
@@ -534,9 +534,10 @@ export class SectorTransitionError extends Error {
   }
 }
 
-/** Owner pause: running -> paused. State-only, like restart: records owner
- * intent in state (drives chat gating and single-active enforcement), not
- * a Temporal signal to the sweep. Anything else is a conflict. */
+/** Owner pause: running -> paused. State transition only — the run
+ * lifecycle (halt before state) lives in db/sector-lifecycle.ts, which
+ * routes and tools must use instead of calling this directly. Anything
+ * else is a conflict. */
 export async function pauseSectorResearch(
   db: Db,
   sectorId: string,

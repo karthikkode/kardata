@@ -62,7 +62,7 @@ describe('startSectorResearch', () => {
     const captured: Captured[] = []
     let swept: string | undefined
     const outcome = await startSectorResearch(stubDb(state, captured), {
-      startSectorSweep: async (sectorId: string) => { swept = sectorId; return { ok: true } },
+      startSectorSweep: async (sectorId: string) => { swept = sectorId; return { ok: true } }, cancelSectorSweep: async () => ({ ok: true }),
     }, 'sec-1', SCOPE, 'key-1')
     expect(outcome).toEqual({ sectorId: 'sec-1', state: 'queued', researchSessionId: null })
     expect(swept).toBe('sec-1')
@@ -74,7 +74,7 @@ describe('startSectorResearch', () => {
     const captured: Captured[] = []
     const outcome = await startSectorResearch(
       stubDb(state, captured, { id: 'sess-1', sector: 'sec-1' }),
-      { startSectorSweep: async () => ({ ok: true }) },
+      { startSectorSweep: async () => ({ ok: true }), cancelSectorSweep: async () => ({ ok: true }) },
       'sec-1', SCOPE, 'key-1', 'sess-1',
     )
     expect(outcome).toEqual({ sectorId: 'sec-1', state: 'queued', researchSessionId: 'sess-1' })
@@ -87,7 +87,7 @@ describe('startSectorResearch', () => {
     let swept = false
     await expect(startSectorResearch(
       stubDb(state, captured),
-      { startSectorSweep: async () => { swept = true; return { ok: true } } },
+      { startSectorSweep: async () => { swept = true; return { ok: true } }, cancelSectorSweep: async () => ({ ok: true }) },
       'sec-1', SCOPE, 'key-1', 'sess-ghost',
     )).rejects.toMatchObject({ failure: 'not_found' })
     expect(swept).toBe(false)
@@ -100,7 +100,7 @@ describe('startSectorResearch', () => {
     let swept = false
     await expect(startSectorResearch(
       stubDb(state, captured, { id: 'sess-9', sector: 'sec-other' }),
-      { startSectorSweep: async () => { swept = true; return { ok: true } } },
+      { startSectorSweep: async () => { swept = true; return { ok: true } }, cancelSectorSweep: async () => ({ ok: true }) },
       'sec-1', SCOPE, 'key-1', 'sess-9',
     )).rejects.toMatchObject({ failure: 'conflict' })
     expect(swept).toBe(false)
@@ -112,7 +112,7 @@ describe('startSectorResearch', () => {
     const captured: Captured[] = []
     let swept = false
     await expect(startSectorResearch(stubDb(state, captured), {
-      startSectorSweep: async () => { swept = true; return { ok: true } },
+      startSectorSweep: async () => { swept = true; return { ok: true } }, cancelSectorSweep: async () => ({ ok: true }),
     }, 'sec-1', SCOPE)).rejects.toMatchObject({ failure: 'conflict' })
     expect(swept).toBe(false)
     expect(state.state).toBe('running')
@@ -122,7 +122,7 @@ describe('startSectorResearch', () => {
     const state = { name: 'Optics', topic: 'Lenses', state: 'draft' }
     const captured: Captured[] = []
     await expect(startSectorResearch(stubDb(state, captured), {
-      startSectorSweep: async () => { throw new Error('worker down') },
+      startSectorSweep: async () => { throw new Error('worker down') }, cancelSectorSweep: async () => ({ ok: true }),
     }, 'sec-1', SCOPE)).rejects.toMatchObject({ failure: 'overload' })
     expect(state.state).toBe('draft')
   })
@@ -134,7 +134,7 @@ describe('startSectorResearch', () => {
       },
     }
     await expect(startSectorResearch(db, {
-      startSectorSweep: async () => ({ ok: true }),
+      startSectorSweep: async () => ({ ok: true }), cancelSectorSweep: async () => ({ ok: true }),
     }, 'sec-nope', SCOPE)).rejects.toBeInstanceOf(SectorStartError)
   })
 })
@@ -166,7 +166,7 @@ describe('db.start_sector_research MCP tool', () => {
         scope: SCOPE,
         role: 'operator',
         keyId: 'k',
-        runs: { startSectorSweep: async () => ({ ok: true }) },
+        runs: { startSectorSweep: async () => ({ ok: true }), cancelSectorSweep: async () => ({ ok: true }) },
       },
       { sectorId: 'sec-1' },
     ) as { sectorId: string; state: string; researchSessionId: string | null }
@@ -176,25 +176,54 @@ describe('db.start_sector_research MCP tool', () => {
 })
 
 describe('pauseSectorResearch / resumeSectorResearch', () => {
-  it('pauses running and resumes paused through MCP tools', async () => {
+  it('pauses running and resumes paused through MCP tools, driving the run', async () => {
     const state = { name: 'Optics', topic: 'Lenses', state: 'running' }
     const captured: Captured[] = []
-    const ctx = { pool: stubDb(state, captured), scope: SCOPE, role: 'operator' as const, keyId: 'k' }
+    const log: string[] = []
+    const runs = {
+      async cancelSectorSweep(sectorId: string): Promise<{ cancelled: boolean }> {
+        log.push(`cancel:${sectorId}`)
+        return { cancelled: true }
+      },
+      async startSectorSweep(sectorId: string): Promise<{ started: boolean }> {
+        log.push(`start:${sectorId}`)
+        return { started: true }
+      },
+    }
+    const ctx = { pool: stubDb(state, captured), scope: SCOPE, role: 'operator' as const, keyId: 'k', runs }
     const paused = (await invokeTool('db.pause_sector_research', ctx, { sectorId: 'sec-1' })) as { state: string }
     expect(paused.state).toBe('paused')
     expect(state.state).toBe('paused')
     const resumed = (await invokeTool('db.resume_sector_research', ctx, { sectorId: 'sec-1' })) as { state: string }
     expect(resumed.state).toBe('running')
     expect(state.state).toBe('running')
+    expect(log).toEqual(['cancel:sec-1', 'start:sec-1'])
+  })
+
+  it('fails closed without a sweep runner instead of relabeling', async () => {
+    const state = { name: 'Optics', topic: 'Lenses', state: 'running' }
+    const ctx = { pool: stubDb(state, []), scope: SCOPE, role: 'operator' as const, keyId: 'k' }
+    await expect(invokeTool('db.pause_sector_research', ctx, { sectorId: 'sec-1' })).rejects.toThrow(
+      /no sweep runner/,
+    )
+    expect(state.state).toBe('running')
   })
 
   it('conflicts pause past running and resume past paused', async () => {
     const draft = { name: 'Optics', topic: 'Lenses', state: 'draft' }
-    const ctx = { pool: stubDb(draft, []), scope: SCOPE, role: 'operator' as const, keyId: 'k' }
+    const runs = {
+      async cancelSectorSweep(): Promise<{ cancelled: boolean }> {
+        return { cancelled: true }
+      },
+      async startSectorSweep(): Promise<{ started: boolean }> {
+        return { started: true }
+      },
+    }
+    const ctx = { pool: stubDb(draft, []), scope: SCOPE, role: 'operator' as const, keyId: 'k', runs }
     await expect(invokeTool('db.pause_sector_research', ctx, { sectorId: 'sec-1' })).rejects.toThrow(/conflict/)
     expect(draft.state).toBe('draft')
     const running = { name: 'Optics', topic: 'Lenses', state: 'running' }
-    const ctx2 = { pool: stubDb(running, []), scope: SCOPE, role: 'operator' as const, keyId: 'k' }
+    const ctx2 = { pool: stubDb(running, []), scope: SCOPE, role: 'operator' as const, keyId: 'k', runs }
     await expect(invokeTool('db.resume_sector_research', ctx2, { sectorId: 'sec-1' })).rejects.toThrow(/conflict/)
     expect(running.state).toBe('running')
   })
@@ -205,7 +234,15 @@ describe('pauseSectorResearch / resumeSectorResearch', () => {
         return { rowCount: 0, rows: [] }
       },
     }
-    const ctx = { pool: db as TransactableDb, scope: SCOPE, role: 'operator' as const, keyId: 'k' }
+    const runs = {
+      async cancelSectorSweep(): Promise<{ cancelled: boolean }> {
+        return { cancelled: true }
+      },
+      async startSectorSweep(): Promise<{ started: boolean }> {
+        return { started: true }
+      },
+    }
+    const ctx = { pool: db as TransactableDb, scope: SCOPE, role: 'operator' as const, keyId: 'k', runs }
     await expect(invokeTool('db.pause_sector_research', ctx, { sectorId: 'sec-nope' })).rejects.toThrow(/not_found/)
   })
 })

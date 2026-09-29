@@ -613,14 +613,18 @@ events ──retention──▶ cold archive (GCS) ──replay──┘
   with rename/delete and the pinned research session first, a sticky-bottom
   single-pill composer with a per-session `ModelToolbar`, and a research
   strip with owner pause/resume; it never links out to the global panel.
-  There is no summary strip, no activity timeline, and no start/restart
-  button: research starts only through the `db.start_sector_research` MCP
-  tool (shared `startSectorResearch` sequence with draft compensation; an
-  optional `sessionId` records the research pin on the sector, and anything
-  past draft conflicts so no second session can start it). Owners pause and
-  resume from the chat strip (`POST /v1/sectors/:id/pause|resume`, state-only
-  like restart) or via `db.pause_sector_research` /
-  `db.resume_sector_research`. Session pools are separate by contract:
+  There is no summary strip and no activity timeline: research starts
+  from the chat strip (Start on drafts, shared `startSectorResearch`
+  sequence with draft compensation; an optional `sessionId` records the
+  research pin on the sector, and anything past draft conflicts so no
+  second session can start it) or through the
+  `db.start_sector_research` MCP tool. Lifecycle honesty holds on every
+  path: pause cancels the sweep workflow before recording paused,
+  resume and restart start it before recording running (see the
+  lifecycle entry in `documentation/backend.md`). Owners drive all four
+  from the chat strip (`POST /v1/sectors/:id/start|pause|resume|restart`)
+  or via `db.pause_sector_research` / `db.resume_sector_research`.
+  Session pools are separate by contract:
   bare `GET /v1/sessions` lists general sessions only, sector chats list
   through `GET /v1/sessions?sectorId=` (same for `db.list_sessions` with an
   optional `sectorId`). Sessions link via `sectorId` on `t.session.created`

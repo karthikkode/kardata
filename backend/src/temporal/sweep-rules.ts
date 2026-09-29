@@ -97,3 +97,20 @@ export function extractNewDomains(hits: CandidateHit[], alreadySeen: string[]): 
   }
   return fresh
 }
+
+/** Cancellation shapes for the sweep workflow (mirrors the two shapes
+ * documented in workflows/run.ts: a bare scope cancellation, or an
+ * activity failure wrapping one). Name-checked instead of instanceof so
+ * the rule stays SDK-free and shared with fast unit tests. A cancelled
+ * sweep must leave sector state alone: the pause route already recorded
+ * `paused`, and a `failed` write would overwrite it. */
+export function isSweepCancellation(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const name = (error as { name?: unknown }).name
+  if (name === 'CancelledFailure') return true
+  if (name === 'ActivityFailure') {
+    const cause = (error as { cause?: unknown }).cause
+    return !!cause && typeof cause === 'object' && (cause as { name?: unknown }).name === 'CancelledFailure'
+  }
+  return false
+}

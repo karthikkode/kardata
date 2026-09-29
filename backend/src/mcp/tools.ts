@@ -54,9 +54,9 @@ import {
   searchKb,
   referenceArtifact,
   releaseIdempotency,
-  pauseSectorResearch,
+  pauseSectorSweep,
   resolveArtifactScope,
-  resumeSectorResearch,
+  resumeSectorSweep,
   cancelThreadRun,
   pauseThreadRun,
   resumeThreadRun,
@@ -133,8 +133,8 @@ export const TOOL_LAYER: Record<McpToolName, string> = {
   'db.read_sector_document': 'readSectorDocument',
   'db.set_sector_state': 'setSectorState',
   'db.start_sector_research': 'startSectorResearch',
-  'db.pause_sector_research': 'pauseSectorResearch',
-  'db.resume_sector_research': 'resumeSectorResearch',
+  'db.pause_sector_research': 'pauseSectorSweep',
+  'db.resume_sector_research': 'resumeSectorSweep',
   'db.mark_company_found': 'markCompanyFound',
   'db.set_company_stage': 'setCompanyStage',
   'db.set_company_state': 'setCompanyState',
@@ -347,7 +347,9 @@ const INVOKERS: Invokers = {
   'db.pause_sector_research': async (ctx, args) => {
     const key = args.idempotencyKey ? `sector-pause:${args.sectorId}:${ctx.keyId}:${args.idempotencyKey}` : undefined
     try {
-      return await pauseSectorResearch(ctx.pool, args.sectorId, { scope: ctx.scope, idempotencyKey: key })
+      // Same lifecycle as the route: halt the run before recording paused.
+      // Without a sweep runner this fails closed instead of relabeling.
+      return await pauseSectorSweep(ctx.pool, ctx.runs, args.sectorId, ctx.scope, key)
     } catch (error: unknown) {
       if (error instanceof SectorTransitionError) throw new DbContractError(`${error.failure}: ${error.message}`)
       throw error
@@ -356,7 +358,7 @@ const INVOKERS: Invokers = {
   'db.resume_sector_research': async (ctx, args) => {
     const key = args.idempotencyKey ? `sector-resume:${args.sectorId}:${ctx.keyId}:${args.idempotencyKey}` : undefined
     try {
-      return await resumeSectorResearch(ctx.pool, args.sectorId, { scope: ctx.scope, idempotencyKey: key })
+      return await resumeSectorSweep(ctx.pool, ctx.runs, args.sectorId, ctx.scope, key)
     } catch (error: unknown) {
       if (error instanceof SectorTransitionError) throw new DbContractError(`${error.failure}: ${error.message}`)
       throw error

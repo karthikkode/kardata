@@ -1,8 +1,11 @@
 // Sector research routes (B-S4). Reads are projection-served (the route
-// projects first, like every read path); restart, pause, and resume are
-// operator mutations that append sector.state_changed and honor
-// Idempotency-Key. UI start/restart buttons are gone: the agent starts via
-// the db.start_sector_research MCP tool, owners pause/resume from chat.
+// projects first, like every read path); start, restart, pause, and resume
+// are operator mutations that honor Idempotency-Key. Lifecycle honesty:
+// pause halts the sweep workflow before recording paused; resume and
+// restart ensure a sweep workflow before recording running — states never
+// describe runs that are not behind them. Owners drive all four from the
+// sector chat strip; the agent starts via the db.start_sector_research
+// MCP tool.
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import type { OcrAdapter } from '../db/index.js'
@@ -11,6 +14,7 @@ import {
   getSectorContext,
   setUnitExclusions,
 } from '../db/sector-context.js'
+import { pauseSectorSweep, restartSectorSweep, resumeSectorSweep } from '../db/sector-lifecycle.js'
 import { SectorStartError, startSectorResearch } from '../db/sector-start.js'
 import { createModelOcrAdapter } from '../ocr.js'
 import { resolveAdapter } from '../providers/gateway.js'
@@ -24,11 +28,8 @@ import {
   listSectorCompanies,
   listSectorDocuments,
   listSectors,
-  pauseSectorResearch,
-  resumeSectorResearch,
   sectorActivity,
   SectorTransitionError,
-  setSectorState,
 } from '../db/index.js'
 import {
   authorize,
@@ -320,34 +321,29 @@ export function sectorRoutes(app: FastifyInstance): void {
   route(app, 'post', '/v1/sectors/:sectorId/restart', async (request, reply, app) => {
     const pool = requirePool(app, reply)
     if (!pool) return undefined
+    const runs = requireRuns(app, reply)
+    if (!runs) return undefined
     const auth = await authorize(app, request, reply, 'operator')
     if (!auth) return undefined
     const params = request.params as { sectorId?: string }
     const sectorId = params.sectorId ?? ''
     return withIdempotency(request, reply, pool, auth.keyId, async () => {
       await projectNewEvents(pool)
-      const sector = await getSector(pool, sectorId, auth.scope).catch((error: unknown) => {
-        if (error instanceof DbContractError) return undefined
-        throw error
-      })
-      if (!sector) {
-        return { status: 404, body: { ok: false, error: { code: 'not_found', message: `no such sector ${sectorId}` } } }
-      }
-      if (sector.state !== 'failed') {
-        return {
-          status: 409,
-          body: {
-            ok: false,
-            error: { code: 'conflict', message: `sector ${sectorId} is ${sector.state}, not failed` },
-          },
-        }
-      }
-      // Inner key binds the transition to the caller's idempotency key when
-      // one is present, so a replayed restart executes exactly once.
       const header = request.headers['idempotency-key']
       const key = typeof header === 'string' && header !== '' ? `sector-restart:${sectorId}:${header}` : undefined
-      await setSectorState(pool, sectorId, 'running', { scope: auth.scope, idempotencyKey: key })
-      await projectNewEvents(pool)
+      try {
+        // Inner key binds the transition to the caller's idempotency key when
+        // one is present, so a replayed restart executes exactly once.
+        await restartSectorSweep(pool, runs, sectorId, auth.scope, key)
+        await projectNewEvents(pool)
+      } catch (error: unknown) {
+        if (error instanceof SectorTransitionError) {
+          const status = error.failure === 'not_found' ? 404 : error.failure === 'overload' ? 503 : 409
+          const code = error.failure === 'overload' ? 'overload' : error.failure
+          return { status, body: { ok: false, error: { code, message: error.message } } }
+        }
+        throw error
+      }
       const restarted = await getSector(pool, sectorId, auth.scope)
       return { status: 200, body: { ok: true, data: restarted } }
     })
@@ -356,6 +352,8 @@ export function sectorRoutes(app: FastifyInstance): void {
   route(app, 'post', '/v1/sectors/:sectorId/pause', async (request, reply, app) => {
     const pool = requirePool(app, reply)
     if (!pool) return undefined
+    const runs = requireRuns(app, reply)
+    if (!runs) return undefined
     const auth = await authorize(app, request, reply, 'operator')
     if (!auth) return undefined
     const params = request.params as { sectorId?: string }
@@ -365,14 +363,15 @@ export function sectorRoutes(app: FastifyInstance): void {
       const header = request.headers['idempotency-key']
       const key = typeof header === 'string' && header !== '' ? `sector-pause:${sectorId}:${header}` : undefined
       try {
-        await pauseSectorResearch(pool, sectorId, { scope: auth.scope, idempotencyKey: key })
+        await pauseSectorSweep(pool, runs, sectorId, auth.scope, key)
         await projectNewEvents(pool)
         const paused = await getSector(pool, sectorId, auth.scope)
         return { status: 200, body: { ok: true, data: paused } }
       } catch (error: unknown) {
         if (error instanceof SectorTransitionError) {
-          const status = error.failure === 'not_found' ? 404 : 409
-          return { status, body: { ok: false, error: { code: error.failure, message: error.message } } }
+          const status = error.failure === 'not_found' ? 404 : error.failure === 'overload' ? 503 : 409
+          const code = error.failure === 'overload' ? 'overload' : error.failure
+          return { status, body: { ok: false, error: { code, message: error.message } } }
         }
         throw error
       }
@@ -382,6 +381,8 @@ export function sectorRoutes(app: FastifyInstance): void {
   route(app, 'post', '/v1/sectors/:sectorId/resume', async (request, reply, app) => {
     const pool = requirePool(app, reply)
     if (!pool) return undefined
+    const runs = requireRuns(app, reply)
+    if (!runs) return undefined
     const auth = await authorize(app, request, reply, 'operator')
     if (!auth) return undefined
     const params = request.params as { sectorId?: string }
@@ -391,14 +392,15 @@ export function sectorRoutes(app: FastifyInstance): void {
       const header = request.headers['idempotency-key']
       const key = typeof header === 'string' && header !== '' ? `sector-resume:${sectorId}:${header}` : undefined
       try {
-        await resumeSectorResearch(pool, sectorId, { scope: auth.scope, idempotencyKey: key })
+        await resumeSectorSweep(pool, runs, sectorId, auth.scope, key)
         await projectNewEvents(pool)
         const running = await getSector(pool, sectorId, auth.scope)
         return { status: 200, body: { ok: true, data: running } }
       } catch (error: unknown) {
         if (error instanceof SectorTransitionError) {
-          const status = error.failure === 'not_found' ? 404 : 409
-          return { status, body: { ok: false, error: { code: error.failure, message: error.message } } }
+          const status = error.failure === 'not_found' ? 404 : error.failure === 'overload' ? 503 : 409
+          const code = error.failure === 'overload' ? 'overload' : error.failure
+          return { status, body: { ok: false, error: { code, message: error.message } } }
         }
         throw error
       }

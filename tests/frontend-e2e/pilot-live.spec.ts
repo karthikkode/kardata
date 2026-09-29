@@ -26,6 +26,9 @@ test.describe('pilot-01 live UI walk', () => {
   test.skip(!LIVE, 'needs KARDATA_LIVE_JOURNEY=1 (live staging stack)')
 
   test('create a sector draft from the UI and read its detail', async ({ page }) => {
+    // The halt proof waits out a full minute: needs headroom over the
+    // default 30s test timeout.
+    test.setTimeout(180000)
     mkdirSync(EVIDENCE, { recursive: true })
     const consoleErrors: string[] = []
     const failedRequests: string[] = []
@@ -93,6 +96,14 @@ test.describe('pilot-01 live UI walk', () => {
       await expect(page.getByLabel('Research state: Paused')).toBeVisible({ timeout: 15000 })
       pauseMs = Date.now() - pauseAt
       await page.screenshot({ path: `${EVIDENCE}/05-research-paused.png` })
+      // Halt proof: the old label-only pause let the run flip to failed
+      // underneath. A truly halted sweep stays paused while the page polls.
+      // (Deterministic proof lives in the Temporal cancel test; this is
+      // the live corroboration.)
+      await expect(page.getByLabel('Research state: Paused')).toBeVisible({ timeout: 5000 })
+      await page.waitForTimeout(60000)
+      await expect(page.getByLabel('Research state: Paused')).toBeVisible({ timeout: 10000 })
+      marks.push({ step: 'pause-persists-60s', ms: 60000 })
     }
     marks.push({ step: 'start-research', ms: startMs })
     marks.push({ step: 'pause-research', ms: pauseMs })
