@@ -1464,8 +1464,8 @@ scale claims with evidence links.
 ## Pilot 01 live UI walk (2026-09-30)
 
 - First live journey on the staging stack (vite 5173 + compose
-  backend, zero interception): Researches paint 258ms, draft create
-  104ms, detail open 36ms; zero console errors, zero failed /v1/*
+  backend, zero interception): Researches paint 268ms, draft create
+  102ms, detail open 38ms; zero console errors, zero failed /v1/*
   requests. Proof: `tests/frontend-e2e/pilot-live.spec.ts` (gated on
   `KARDATA_LIVE_JOURNEY=1`, skips cleanly otherwise) plus
   `tests/evidence/pilot-01/journey.json`; shots stay local per
