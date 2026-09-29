@@ -5,7 +5,7 @@
 // same commands/send + thread-stream path as Karbot (thread key defaults
 // to the session id); only the session pool is scoped.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Check, MessagesSquare, Pause, Pencil, Play, Send, Square, X } from 'lucide-react'
+import { Check, MessagesSquare, Pause, Pencil, Play, RotateCcw, Send, Square, X } from 'lucide-react'
 import { AgentBubble, AgentMark, TimeDivider, UserBubble, splitAfter, useChatStick } from './chat-parts'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -135,6 +135,8 @@ export function SectorChatPanel({
   researchError,
   onPauseResearch,
   onResumeResearch,
+  onStartResearch,
+  onRestartResearch,
 }: {
   config: StagingConfig | null
   sectorId: string
@@ -147,6 +149,8 @@ export function SectorChatPanel({
   researchError: string | null
   onPauseResearch: () => void
   onResumeResearch: () => void
+  onStartResearch: () => void
+  onRestartResearch: () => void
 }) {
   const [sessions, setSessions] = useState<Session[] | undefined>(undefined)
   const [sessionsFailed, setSessionsFailed] = useState(false)
@@ -535,7 +539,7 @@ export function SectorChatPanel({
           />
         ) : null}
       </div>
-      {researchState && researchState !== 'draft' ? (
+      {researchState ? (
         <div
           aria-label={`Research state: ${stateLabel[researchState]}`}
           className="mt-3 flex items-center gap-2 rounded-full border border-border py-1 pr-1 pl-3"
@@ -543,7 +547,29 @@ export function SectorChatPanel({
           <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
             Research {stateLabel[researchState].toLowerCase()}
           </p>
-          {researchState === 'running' ? (
+          {researchState === 'draft' ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Start research"
+              disabled={researchBusy}
+              onClick={onStartResearch}
+            >
+              <Play className="size-4" aria-hidden />
+            </Button>
+          ) : researchState === 'failed' ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Restart research"
+              disabled={researchBusy}
+              onClick={onRestartResearch}
+            >
+              <RotateCcw className="size-4" aria-hidden />
+            </Button>
+          ) : researchState === 'running' ? (
             <Button
               type="button"
               variant="ghost"

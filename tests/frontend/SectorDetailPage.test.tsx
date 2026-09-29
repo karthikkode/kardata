@@ -1,7 +1,7 @@
 // SectorDetailPage proofs. Detail rows are backend-shaped fixtures for
 // rendering only: every behavior under test (states, filters, restart,
 // navigation) runs against the component contract, never a mock origin.
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within, act } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SectorDetailPage } from '@/components/SectorDetailPage'
 import type { ResearchStatus, SectorDetail } from '@/data/research'
@@ -114,6 +114,8 @@ function renderPage(
     onBack?: () => void
     onPauseResearch?: () => Promise<void>
     onResumeResearch?: () => Promise<void>
+    onStartResearch?: () => Promise<void>
+    onRestartResearch?: () => Promise<void>
     onAttach?: (file: File) => void
     onRetry?: () => void
     researchError?: string | null
@@ -128,6 +130,8 @@ function renderPage(
     onBack = noop,
     onPauseResearch = asyncNoop,
     onResumeResearch = asyncNoop,
+    onStartResearch = asyncNoop,
+    onRestartResearch = asyncNoop,
     onAttach = noop,
     onRetry = noop,
     researchError = null,
@@ -158,6 +162,8 @@ function renderPage(
       onRetry={onRetry}
       onPauseResearch={onPauseResearch}
       onResumeResearch={onResumeResearch}
+      onStartResearch={onStartResearch}
+      onRestartResearch={onRestartResearch}
       onAttach={onAttach}
       onBack={onBack}
     />,
@@ -457,5 +463,78 @@ describe('Sector open navigation', () => {
     ).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Back to Researches' }))
     expect(screen.getByRole('heading', { name: 'Researches' })).toHaveFocus()
+  })
+
+  it('follows a running sweep: detail and companies re-read on an interval', async () => {
+    // Fake timers from the start (advancing with real time) so the
+    // component's interval is fake-timer owned and findBy still resolves.
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const onRetry = vi.fn()
+      let companyCalls = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string) => {
+          const text = String(url)
+          if (text.includes('/v1/sessions')) {
+            return { ok: true, status: 200, json: async () => ({ ok: true, data: [] }) }
+          }
+          if (text.includes('/v1/companies')) {
+            companyCalls += 1
+            return { ok: true, status: 200, json: async () => ({ ok: true, data: { companies: [], total: 0 } }) }
+          }
+          return { ok: false, status: 404, json: async () => ({ ok: false, error: { code: 'not_found', message: 'no' } }) }
+        }),
+      )
+      renderPage({
+        detail: { ...petCare, state: 'running' },
+        onRetry,
+        staging: { baseUrl: 'https://staging.test', apiKey: 'key' },
+      })
+      await screen.findByRole('region', { name: 'Sector chat for Pet care' })
+      const base = companyCalls
+      expect(base).toBeGreaterThan(0)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(6000)
+      })
+      expect(onRetry).toHaveBeenCalled()
+      expect(companyCalls).toBeGreaterThan(base)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('stays quiet on terminal states', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const onRetry = vi.fn()
+      let companyCalls = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string) => {
+          const text = String(url)
+          if (text.includes('/v1/sessions')) {
+            return { ok: true, status: 200, json: async () => ({ ok: true, data: [] }) }
+          }
+          if (text.includes('/v1/companies')) {
+            companyCalls += 1
+            return { ok: true, status: 200, json: async () => ({ ok: true, data: { companies: [], total: 0 } }) }
+          }
+          return { ok: false, status: 404, json: async () => ({ ok: false, error: { code: 'not_found', message: 'no' } }) }
+        }),
+      )
+      renderPage({
+        detail: { ...petCare, state: 'complete' },
+        onRetry,
+        staging: { baseUrl: 'https://staging.test', apiKey: 'key' },
+      })
+      await screen.findByRole('region', { name: 'Sector chat for Pet care' })
+      const base = companyCalls
+      await vi.advanceTimersByTimeAsync(30000)
+      expect(onRetry).not.toHaveBeenCalled()
+      expect(companyCalls).toBe(base)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

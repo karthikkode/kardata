@@ -69,6 +69,34 @@ test.describe('pilot-01 live UI walk', () => {
     await page.screenshot({ path: `${EVIDENCE}/03-sector-detail.png` })
     const startButtons = await page.getByRole('button', { name: /start research/i }).count()
 
+    // Touched-surface rigor: the strip in dark theme, then back to light
+    // so the rest of the journey keeps its light baseline.
+    await page.getByRole('button', { name: 'Switch to dark theme' }).click()
+    await page.screenshot({ path: `${EVIDENCE}/03b-sector-detail-dark.png` })
+    await page.getByRole('button', { name: 'Switch to light theme' }).click()
+
+    // The pilot fix under test: a draft can start, go running, and pause
+    // again — all through the UI against the live stack.
+    let startMs = 0
+    let pauseMs = 0
+    const startButton = page.getByRole('button', { name: 'Start research' })
+    if (await startButton.count() > 0) {
+      const startAt = Date.now()
+      await startButton.click()
+      // The worker picks the sweep up within seconds: queued first, then
+      // running with Pause available. The page follows via its poll.
+      await expect(page.getByLabel('Research state: In progress')).toBeVisible({ timeout: 90000 })
+      startMs = Date.now() - startAt
+      await page.screenshot({ path: `${EVIDENCE}/04-research-running.png` })
+      const pauseAt = Date.now()
+      await page.getByRole('button', { name: 'Pause research' }).click()
+      await expect(page.getByLabel('Research state: Paused')).toBeVisible({ timeout: 15000 })
+      pauseMs = Date.now() - pauseAt
+      await page.screenshot({ path: `${EVIDENCE}/05-research-paused.png` })
+    }
+    marks.push({ step: 'start-research', ms: startMs })
+    marks.push({ step: 'pause-research', ms: pauseMs })
+
     writeFileSync(
       `${EVIDENCE}/journey.json`,
       JSON.stringify(

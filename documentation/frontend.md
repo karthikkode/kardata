@@ -72,6 +72,16 @@ The session picker and subagent thread controls use backend-owned records.
 `@` references can address subagents and indexed files. Approval cards have
 no live renderer yet; see `docs/implementation-status.md`.
 
+The sector research strip states every lifecycle case: draft offers Start,
+failed offers Restart, running offers Pause, paused offers Resume, queued
+and complete show the label with no action (the backend cannot pause a
+queued run). Buttons disable with `researchBusy` and failures surface as
+an alert. While a sweep is queued or running, the detail page and the
+company window re-read every 5 seconds so the strip, the state, and new
+arrivals follow the run; terminal and pre-start states stay quiet.
+Proven by `tests/frontend/SectorChatPanel.test.tsx` (strip branches)
+and `tests/frontend/SectorDetailPage.test.tsx` (follow poll).
+
 ## Model selection
 
 The Models tab and chat picker consume only `GET /v1/providers`; the client

@@ -58,8 +58,12 @@ function renderPanel(
   research: {
     researchState?: 'draft' | 'running' | 'paused' | 'queued' | 'failed' | 'complete' | null
     researchSessionId?: string | null
+    researchBusy?: boolean
+    researchError?: string | null
     onPauseResearch?: () => void
     onResumeResearch?: () => void
+    onStartResearch?: () => void
+    onRestartResearch?: () => void
   } = {},
 ) {
   return render(
@@ -69,10 +73,12 @@ function renderPanel(
       sectorName="Speciality Foods"
       researchState={research.researchState ?? null}
       researchSessionId={research.researchSessionId ?? null}
-      researchBusy={false}
-      researchError={null}
+      researchBusy={research.researchBusy ?? false}
+      researchError={research.researchError ?? null}
       onPauseResearch={research.onPauseResearch ?? (() => {})}
       onResumeResearch={research.onResumeResearch ?? (() => {})}
+      onStartResearch={research.onStartResearch ?? (() => {})}
+      onRestartResearch={research.onRestartResearch ?? (() => {})}
     />,
   )
 }
@@ -591,6 +597,43 @@ describe('SectorChatPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Resume research' }))
     expect(onResumeResearch).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('button', { name: 'Pause research' })).not.toBeInTheDocument()
+  })
+
+  it('starts a draft and restarts a failed run from the chat strip', async () => {
+    stubApi((url) => {
+      if (url === 'https://staging.test/v1/sessions?sectorId=sec-foods') {
+        return { status: 200, payload: { ok: true, data: SECTOR_SESSIONS } }
+      }
+      if (url.includes('/messages')) return { status: 200, payload: { ok: true, data: [] } }
+      return { status: 404, payload: { ok: false, error: { code: 'not_found', message: 'nope' } } }
+    })
+    const onStartResearch = vi.fn()
+    const draft = renderPanel({ researchState: 'draft', onStartResearch })
+    expect(await screen.findByLabelText('Research state: Draft')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Start research' }))
+    expect(onStartResearch).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: 'Pause research' })).not.toBeInTheDocument()
+    draft.unmount()
+    const onRestartResearch = vi.fn()
+    renderPanel({ researchState: 'failed', onRestartResearch })
+    expect(await screen.findByLabelText('Research state: Failed')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Restart research' }))
+    expect(onRestartResearch).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: 'Start research' })).not.toBeInTheDocument()
+  })
+
+  it('disables Start while busy and shows research errors', async () => {
+    stubApi((url) => {
+      if (url === 'https://staging.test/v1/sessions?sectorId=sec-foods') {
+        return { status: 200, payload: { ok: true, data: SECTOR_SESSIONS } }
+      }
+      if (url.includes('/messages')) return { status: 200, payload: { ok: true, data: [] } }
+      return { status: 404, payload: { ok: false, error: { code: 'not_found', message: 'nope' } } }
+    })
+    renderPanel({ researchState: 'draft', researchBusy: true, researchError: 'Start failed.' })
+    expect(await screen.findByLabelText('Research state: Draft')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start research' })).toBeDisabled()
+    expect(screen.getByRole('alert')).toHaveTextContent('Start failed.')
   })
 
   it('pins the research session first in Chats', async () => {

@@ -1474,3 +1474,19 @@ scale claims with evidence links.
   starts only when you press Start" but no Start button exists
   anywhere (startSector/restartSector are client-only dead code).
   Fix lands next as Start (draft) + Restart (failed) buttons.
+
+## Pilot start button + follow poll (2026-09-30)
+
+- Dead-end Start closed: the chat strip now offers Start (draft) and
+  Restart (failed) beside Pause/Resume, wired through the previously
+  dead `startSector`/`restartSector` client calls. Obvious issue #2
+  fixed in the same pass: the detail page froze at "queued" because
+  nothing re-read — detail + company window now poll every 5s while
+  queued/running and stay quiet otherwise.
+- Live journey proof: draft → Start → running visible in 5.4s →
+  Pause → paused in 75ms, zero console errors, zero failed requests,
+  light + dark strip shots. Evidence: `tests/evidence/pilot-01/`
+  (journey.json committed, PNGs local per convention).
+- Gates: SectorChatPanel 24/24, SectorDetailPage 23/23 (failing-first
+  both), full frontend 238 passed, lint 0 errors (5 pre-existing
+  warnings), typecheck + build clean.

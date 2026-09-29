@@ -34,17 +34,26 @@ const stateFilters = [
 
 type StateFilter = ResearchState | 'all'
 
-// Research runs are agent-started (MCP) and owner-paused from the sector
-// chat; this page keeps discovery output (companies, files, context).
+// Research runs are owner-started from the sector chat strip; this page
+// keeps discovery output (companies, files, context). While a sweep is
+// active the page re-reads on a quiet interval so the strip, the state,
+// and the company window follow the run instead of freezing.
+
+// Re-read cadence while a sweep is active: prompt enough to watch
+// companies land, quiet enough to stay out of the sweep's way.
+const RESEARCH_POLL_MS = 5000
 
 function CompanySection({
   staging,
   sectorId,
   sectorName,
+  pollActive = false,
 }: {
   staging: StagingConfig | null
   sectorId: string
   sectorName: string
+  /** While a sweep runs, the company window re-reads so arrivals appear. */
+  pollActive?: boolean
 }) {
   const [query, setQuery] = useState('')
   const [active, setActive] = useState<StateFilter>('all')
@@ -56,6 +65,12 @@ function CompanySection({
     ...(active === 'all' ? {} : { state: active }),
     ...(needle === '' ? {} : { query: needle }),
   })
+  const { retry: refetchCompanies } = companies
+  useEffect(() => {
+    if (!pollActive || !staging) return
+    const timer = setInterval(refetchCompanies, RESEARCH_POLL_MS)
+    return () => clearInterval(timer)
+  }, [pollActive, staging, refetchCompanies])
   const filtered = needle !== '' || active !== 'all'
   const total = companies.total
   const rows = companies.items
@@ -395,6 +410,8 @@ export function SectorDetailPage({
   onRetry,
   onPauseResearch,
   onResumeResearch,
+  onStartResearch,
+  onRestartResearch,
   onAttach,
   onBack,
 }: {
@@ -412,9 +429,20 @@ export function SectorDetailPage({
   onRetry: () => void
   onPauseResearch: () => Promise<void>
   onResumeResearch: () => Promise<void>
+  onStartResearch: () => Promise<void>
+  onRestartResearch: () => Promise<void>
   onAttach: (file: File) => void
   onBack: () => void
 }) {
+  // While a sweep runs, the detail (strip, state, embedded companies)
+  // re-reads so the page follows the run. Terminal and pre-start states
+  // stay quiet: no polling on draft, paused, complete, or failed.
+  const researchLive = detail?.state === 'queued' || detail?.state === 'running'
+  useEffect(() => {
+    if (!researchLive || !staging) return
+    const timer = setInterval(onRetry, RESEARCH_POLL_MS)
+    return () => clearInterval(timer)
+  }, [researchLive, staging, onRetry])
   if (!detail && status === 'ready') {
     return (
       <div className="space-y-6">
@@ -499,6 +527,8 @@ export function SectorDetailPage({
               researchError={researchError}
               onPauseResearch={onPauseResearch}
               onResumeResearch={onResumeResearch}
+              onStartResearch={onStartResearch}
+              onRestartResearch={onRestartResearch}
             />
           </div>
         </section>
@@ -522,7 +552,7 @@ export function SectorDetailPage({
           </div>
         </div>
       </div>
-      <CompanySection staging={staging} sectorId={detail.id} sectorName={detail.name} />
+      <CompanySection staging={staging} sectorId={detail.id} sectorName={detail.name} pollActive={researchLive} />
     </div>
   )
 }
