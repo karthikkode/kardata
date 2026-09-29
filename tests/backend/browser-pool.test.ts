@@ -65,6 +65,23 @@ describe('pool bounds (0-16, never evict active)', () => {
     const retry = await acquireBrowserSlot({ host: 'same.example', caller: 'b', timeoutMs: 50 })
     retry.release()
   })
+
+  it('caps slots per caller so one agent cannot hog the pool', async () => {
+    setBrowserPoolMaxForTests(16)
+    const held = []
+    for (let i = 0; i < 4; i += 1) {
+      held.push(await acquireBrowserSlot({ host: `hog-${i}.example`, caller: 'hog', timeoutMs: 50 }))
+    }
+    await expect(acquireBrowserSlot({ host: 'hog-4.example', caller: 'hog', timeoutMs: 20 })).rejects.toMatchObject({
+      code: 'overload',
+    })
+    // Other callers are unaffected by the hog.
+    const other = await acquireBrowserSlot({ host: 'free.example', caller: 'free', timeoutMs: 50 })
+    for (const slot of held) slot.release()
+    other.release()
+    const retry = await acquireBrowserSlot({ host: 'hog-4.example', caller: 'hog', timeoutMs: 50 })
+    retry.release()
+  })
 })
 
 describe('cache (cursors outside slots)', () => {
@@ -121,6 +138,15 @@ describe('facade routing (single entry, cached pages)', () => {
     const cached = await pooledSearchWebPage({ query: 'acme foods', page: 0 }, { keyless: boom, browser: boom })
     expect(cached).toEqual(page0)
     holder.release()
+  })
+
+  it('propagates pool overload from the browser leg instead of a false exhaustive miss', async () => {
+    const overloaded = async (): Promise<never> => {
+      throw new RetrievalError('overload', 'browser pool saturated (16/16)')
+    }
+    await expect(
+      pooledSearchWebPage({ query: 'overload probe', page: 0 }, { keyless: async () => [], browser: overloaded }),
+    ).rejects.toMatchObject({ code: 'overload' })
   })
 
   it('fails loudly when every leg is down, validates before any leg', async () => {
