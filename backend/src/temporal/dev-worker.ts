@@ -1,9 +1,13 @@
-// Dev worker entry: serves the turn lane (session chat) plus the sweep
-// lane (sector discovery) locally. Session workflows (workflows/run.ts)
-// call only the turn activities, so that worker registers exactly
-// appendEventActivity + karbotTurnActivity — never the retired scripted
-// scaffolding. The sweep worker registers the sector-sweep activities and
-// the sectorSweep workflow. Any production fleet is out of scope;
+// Dev worker entry: serves the turn lane (session chat plus subagent
+// delegation) and the sweep lane (sector discovery) locally. Session
+// workflows (workflows/run.ts) call only the turn activities, so that
+// worker registers exactly appendEventActivity + karbotTurnActivity —
+// never the retired scripted scaffolding. The delegation parent and leaf
+// children ride the same turn lane (shared capacity, retune at fleet
+// scale): one Worker serves one bundle, so the turn worker loads the
+// turn-bundle aggregator (run.js plus subagents.js) instead of run.js
+// alone. The sweep worker registers the sector-sweep activities and the
+// sectorSweep workflow. Any production fleet is out of scope;
 // see docs/environments.md.
 //
 // Run: npm run worker --workspace @kardata/backend (needs DATABASE_URL,
@@ -33,7 +37,7 @@ async function main(): Promise<void> {
     lane: 'turn',
     connection,
     namespace: temporalNamespace(),
-    workflowsPath: join(workflowsDir, 'run.js'),
+    workflowsPath: join(workflowsDir, 'turn-bundle.js'),
     activities: { appendEventActivity, karbotTurnActivity },
   })
   const sweepWorker = await createLaneWorker({

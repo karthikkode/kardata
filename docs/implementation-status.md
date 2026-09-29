@@ -1505,3 +1505,22 @@ scale claims with evidence links.
   live Temporal cancel test (sector never failed), route lifecycle
   assertions in `tests/backend/api.sectors.test.ts`, MCP pause/resume
   re-pinned in `tests/backend/sector-start.test.ts`.
+
+## Delegation door (db.delegate_subagent)
+
+- Production could run subagents but nothing could launch one
+  (parentDelegate had zero production signalers; Karbot had no tool).
+  Now the Karbot-only operator tool launches leaf researchers:
+  gateway signal-with-starts the session parent on the turn lane,
+  waits for the child, feeds the goal as first work (an empty inbox
+  idles forever — proved live during development). Depth 0/maxDepth 0:
+  pilot children research, never delegate.
+- Two live-caught issues fixed in the pass: one Worker per task queue
+  per process is illegal — the turn worker loads a turn-bundle
+  aggregator instead of a third worker; worker MCP unreachable at boot
+  was a backend-not-ready race (per-turn resolution is unaffected).
+- Evidence: `tests/backend/subagent-delegate.test.ts` (5 hermetic),
+  `tests/backend/workflows.delegate.test.ts` (live Temporal+DB, fake
+  provider), live single-child proof via the real tool path
+  (`tests/evidence/pilot-01/delegate-live.json`: goal in, 'door live
+  ok' out in ~30s on the first poll).

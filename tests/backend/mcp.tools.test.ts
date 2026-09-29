@@ -14,7 +14,7 @@ import { buildApp } from '../../backend/src/app.js'
 import { createSector, createSession } from '../../backend/src/db/index.js'
 import { createLogger } from '../../backend/src/observability/logging.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
-import { RunNotFound, ThreadNotAccepting } from '../../backend/src/temporal/gateway.js'
+import { RunNotFound, TemporalRunsGateway, ThreadNotAccepting } from '../../backend/src/temporal/gateway.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import type { DbQueryResult } from '../../backend/src/db/index.js'
 import { DbContractError } from '../../backend/src/db/index.js'
@@ -122,6 +122,11 @@ const SAMPLES: Record<McpToolName, { valid: unknown; invalid: unknown; invoke?: 
   'db.complete_idempotency': { valid: { key: 'k', status: 200, body: { a: 1 } }, invalid: { key: 'k', status: 99 } },
   'db.release_idempotency': { valid: { key: 'k' }, invalid: {} },
   'db.kb_search': { valid: { query: 'pricing band', limit: 3 }, invalid: { query: '' } },
+  'db.delegate_subagent': {
+    valid: { sessionId: 's1', goal: 'research acme' },
+    invalid: { sessionId: 's1', goal: '' },
+    invoke: false,
+  },
   'web_search': { valid: { query: 'acme widgets' }, invalid: { query: 'x' }, invoke: false },
   'web_fetch': { valid: { url: 'https://example.com' }, invalid: { url: '' }, invoke: false },
   'browser_navigate': { valid: { url: 'https://example.com' }, invalid: { url: '' }, invoke: false },
@@ -197,6 +202,7 @@ const EXPECTED_TOOLS: McpToolName[] = [
   'db.complete_idempotency',
   'db.release_idempotency',
   'db.kb_search',
+  'db.delegate_subagent',
   'db.ledger_upsert_company',
   'db.ledger_get_company',
   'db.ledger_list_companies',
@@ -220,12 +226,14 @@ describe('mcp tool parity (Phase 2)', () => {
   })
 
   it('every tool names a real layer function; projector-only functions stay unbound', () => {
-    // Phase 6 retrieval tools bind to retrieval-module functions, not the
-    // db layer; both namespaces count as layer functions here.
-    const layers = {
+    // Phase 6 retrieval tools bind to retrieval-module functions and the
+    // delegation door binds to the gateway, not the db layer; all three
+    // namespaces count as layer functions here.
+    const layers: Record<string, unknown> = {
       ...(dbLayer as Record<string, unknown>),
       ...(retrievalWeb as Record<string, unknown>),
       ...(retrievalBrowser as Record<string, unknown>),
+      delegateSubagent: TemporalRunsGateway.prototype.delegateSubagent,
     }
     for (const name of TOOL_NAMES) {
       for (const fn of TOOL_LAYER[name].split('+')) {

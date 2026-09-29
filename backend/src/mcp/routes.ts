@@ -108,10 +108,10 @@ async function serveMcp(
         ...(request.kardataCaller?.tenantId ? { tenant: request.kardataCaller.tenantId } : {}),
       })
     : undefined
-  // The runs gateway satisfies both runner interfaces structurally
-  // (sweep starter, thread messenger); absent runners fail their tools
-  // closed instead of half-acting.
-  const server = createMcpServer({ pool, scope: auth.scope, role: auth.role, keyId: auth.keyId, ...(toolLogger ? { logger: toolLogger } : {}), ...(runs ? { runs, messenger: runs } : {}) }, grant)
+  // The runs gateway satisfies every runner interface structurally
+  // (sweep starter, thread messenger, subagent delegator); absent runners
+  // fail their tools closed instead of half-acting.
+  const server = createMcpServer({ pool, scope: auth.scope, role: auth.role, keyId: auth.keyId, ...(toolLogger ? { logger: toolLogger } : {}), ...(runs ? { runs, messenger: runs, delegator: runs } : {}) }, grant)
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,

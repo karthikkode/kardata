@@ -76,7 +76,7 @@ import {
   type TransactableDb,
   upsertLedgerCompany,
 } from '../db/index.js'
-import { RunNotFound, ThreadNotAccepting } from '../temporal/gateway.js'
+import { RunNotFound, ThreadNotAccepting, type SubagentDelegator } from '../temporal/gateway.js'
 import { TOOL_NAMES, TOOL_SCHEMAS, type McpToolName } from './schemas.js'
 import {
   pooledBrowserAct,
@@ -102,6 +102,9 @@ export interface McpToolContext {
   /** Sweep runner for research-start tools. Absent (tests, minimal embeds):
    * start tools fail closed instead of half-starting a sector. */
   runs?: SectorSweepRunner
+  /** Subagent delegator for the delegation door. Absent: delegate calls
+   * fail closed instead of half-launching a child. */
+  delegator?: SubagentDelegator
   /** Thread messenger (runs gateway) for Karbot steering tools. Absent
    * outside the server: send/steer fail closed instead of half-signaling. */
   messenger?: ThreadMessenger
@@ -165,6 +168,7 @@ export const TOOL_LAYER: Record<McpToolName, string> = {
   'db.complete_idempotency': 'completeIdempotency',
   'db.release_idempotency': 'releaseIdempotency',
   'db.kb_search': 'searchKb',
+  'db.delegate_subagent': 'delegateSubagent',
   'web_search': 'webSearch',
   'web_fetch': 'webFetch',
   'browser_navigate': 'browserNavigate',
@@ -258,6 +262,11 @@ export const TOOL_META: Record<McpToolName, { description: string; minRole: Role
   'db.complete_idempotency': { description: 'Store a mutation outcome for replay.', minRole: 'approver' },
   'db.release_idempotency': { description: 'Drop an in-progress mutation claim.', minRole: 'approver' },
   'db.kb_search': { description: 'Full-text search over the curated product knowledge corpus (cite source_path).', minRole: 'viewer' },
+  'db.delegate_subagent': {
+    description:
+      'Launch a leaf subagent researcher on a session goal (Karbot-only, operator). The child researches independently and reports back; collect via session threads. Pilot children never delegate further.',
+    minRole: 'operator',
+  },
   'web_search': { description: 'Web search (needs KARDATA_WEB_SEARCH_KEY, fails closed without it).', minRole: 'viewer' },
   'web_fetch': { description: 'Fetch a page as text (caps + SSRF guards).', minRole: 'viewer' },
   'browser_navigate': { description: 'Open a Chromium session on a URL (needs local Chromium).', minRole: 'operator' },
@@ -477,6 +486,23 @@ const INVOKERS: Invokers = {
   'db.release_idempotency': (ctx, args) =>
     releaseIdempotency(ctx.pool, scopedIdempotencyKey(ctx, args.key)).then(() => ({ ok: true })),
   'db.kb_search': (ctx, args) => searchKb(ctx.pool, args.query, args.limit ?? 5),
+  // Delegation door: the main agent launches leaf researchers by
+  // instruction. Session ownership is verified first (unknown or
+  // out-of-scope sessions never launch); without a delegator the call
+  // fails closed instead of half-launching a child.
+  'db.delegate_subagent': async (ctx, args) => {
+    if (!ctx.delegator) throw new DbContractError('delegation unavailable: no subagent delegator attached')
+    const goal = args.goal.trim()
+    if (!goal) throw new DbContractError('goal must be a non-empty string')
+    const session = await getSession(ctx.pool, args.sessionId, ctx.scope)
+    if (!session) throw new DbContractError(`unknown session ${args.sessionId}`)
+    return ctx.delegator.delegateSubagent({
+      sessionId: args.sessionId,
+      goal,
+      mode: args.mode ?? 'empty',
+      queueCapacity: args.queueCapacity ?? 8,
+    })
+  },
   // Retrieval tools route through the browser-pool facade (single entry:
   // bounded 0-16 slots, query/document caches, tiered fallback). Tool
   // names, schemas, roles, and error codes are unchanged; TOOL_LAYER

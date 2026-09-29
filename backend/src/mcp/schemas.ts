@@ -246,6 +246,12 @@ export const TOOL_SCHEMAS = {
     query: z.string().min(1).max(500),
     limit: z.number().int().min(1).max(20).optional(),
   }),
+  'db.delegate_subagent': z.object({
+    sessionId: NonEmpty,
+    goal: z.string().min(1).max(8000),
+    mode: z.enum(['empty', 'fork']).optional(),
+    queueCapacity: z.number().int().min(1).max(32).optional(),
+  }),
   'web_search': z.object({
     query: z.string().min(2).max(300),
     count: z.number().int().min(1).max(20).optional(),

@@ -356,7 +356,7 @@ events ──retention──▶ cold archive (GCS) ──replay──┘
 ## MCP tool boundary (Phase 2)
 
 - `POST /mcp` serves the agent tool boundary over Streamable HTTP
-  (`@modelcontextprotocol/server`, stateless, JSON responses: 52 tools
+  (`@modelcontextprotocol/server`, stateless, JSON responses: 65 tools
   covering the MCP binding table in `documentation/db.md` — rows bundle
   read/write pairs, so tools outnumber rows — with projector-only
   `publishOutboxFrame`/`runCheckpointTx` excluded). The seven retrieval
@@ -367,7 +367,10 @@ events ──retention──▶ cold archive (GCS) ──replay──┘
   both namespaces. Reads (`web_search`, `web_fetch`,
   `browser_snapshot`) are viewer-readable; browser verbs
   (`browser_navigate`, `browser_act`, `browser_close`,
-  `browser_screenshot`) need `operator`.
+  `browser_screenshot`) need `operator`. `db.delegate_subagent`
+  (Karbot-only, `operator`) launches a leaf researcher through the runs
+  gateway; steering launched children stays approver-gated
+  (`db.send_message` / `db.steer_thread`).
 - `browser_screenshot` is on-demand pixels for what the aria snapshot
   cannot show (visual layout, canvas, CAPTCHA state): viewport JPEG with
   a 400 KB cap (full pages refused over budget), sha256 receipt for

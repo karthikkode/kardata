@@ -538,6 +538,11 @@ const PRODUCT_TOOLS = new Set([
   // never an empty list pretending to be exhaustive.
   'web_search', 'web_fetch',
   'browser_navigate', 'browser_snapshot', 'browser_act', 'browser_close', 'browser_screenshot',
+  // Delegation door (Karbot-only, operator): the main agent launches leaf
+  // researchers by instruction. Steering launched children stays
+  // approver-gated (send/steer), and pilot children never delegate
+  // further (depth 0, maxDepth 0 at the gateway).
+  'db.delegate_subagent',
 ])
 
 export function productMcpClient(client: TurnRunnerMcpClient): TurnRunnerMcpClient {
