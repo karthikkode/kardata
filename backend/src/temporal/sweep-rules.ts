@@ -60,14 +60,21 @@ export interface CandidateHit {
 /** Sector match signals for the relevance gate: lowercase topic tokens
  * (stopwords, numerics, and short glue dropped; plurals folded), capped
  * so one sector cannot match the whole web. The topic — never the name,
- * which may carry run stamps — is the vocabulary source. */
+ * which may carry run stamps — is the vocabulary source.
+ *
+ * Deliberately unpruned: a live A/B (2026-09-30) showed pruning generic
+ * tokens starves recall (1 company, 0 relevant) while the unpruned gate
+ * keeps a workable candidate set the research verdicts then grade
+ * precisely. The sweep is the recall stage; verdicts are the precision
+ * stage. */
 const SIGNAL_STOPWORDS = new Set([
   'the', 'and', 'for', 'with', 'from', 'into', 'small', 'best', 'top', 'new',
   'all', 'our', 'your', 'plus', 'list',
 ])
 
 function foldPlural(token: string): string {
-  return token.length > 3 && token.endsWith('s') ? token.slice(0, -1) : token
+  if (token.length <= 3 || !token.endsWith('s') || token.endsWith('ss')) return token
+  return token.slice(0, -1)
 }
 
 export function sectorSignals(name: string, topic: string): string[] {

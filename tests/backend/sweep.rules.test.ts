@@ -83,6 +83,9 @@ describe('sectorSignals', () => {
       'packaged',
       'food',
     ])
+    // Generic-only sectors keep it all: pruning was measured to starve
+    // recall (live A/B 2026-09-30), so the gate never prunes.
+    expect(sectorSignals('X', 'Small business')).toEqual(['business'])
     expect(sectorSignals('X', '')).toEqual([])
   })
 })

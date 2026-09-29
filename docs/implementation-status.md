@@ -1621,3 +1621,18 @@ scale claims with evidence links.
   shape) restarted it automatically (restarts=1, running). Note:
   daemon-level `docker kill` cancels the restart manager by design —
   that path is operator action, not a crash, and stays down.
+
+## Signal pruning (precision follow-up)
+
+- Live gate-check sweep: 9 companies, ~1/9 payment-relevant — the
+  `sme` signal admits chambers, ministries, and medical schools.
+  Generic tokens now prune when specific signals exist (never to
+  empty); `business`/`class` survive the plural fold (`ss` guard).
+
+## Signal pruning A/B: reverted (recall stage wins)
+
+- Pruned gate (`payment`-only) live: 1 company, 0 intent-relevant —
+  starves the funnel. Unpruned gate: workable candidate sets the
+  research verdicts grade precisely (20/20 pilot verdicts, all honest).
+  Sweep stays the recall stage; verdicts are the precision arbiter.
+  Bing block-parse with snippets kept (recall aid that survived).

@@ -130,33 +130,35 @@ function unwrapBing(href: string): string {
   return direct
 }
 
-/** Bing parse: redirect wrappers decoded in document order, `<h2>` texts
- * zipped by position (hostname fallback where markup variants carry no
- * title — the ledger gets a hostname, never an invented title).
- * Snippets are absent in this variant: discovery needs title plus URL. */
+/** Bing parse, block-wise: each `<li class="b_algo">` block contributes
+ * its first external redirect target (decoded), its `<h2>` title, and
+ * its full visible text as the snippet (descriptions ride loose text
+ * nodes, not stable classes). Titles fall back to hostnames, never
+ * invented. Snippets are what make brand domains match sector signals. */
 function parseBing(
   html: string,
   internalHosts: string[],
   limit: number,
 ): Array<{ title: string; url: string; snippet: string }> {
   const text = html.replace(/&amp;/g, '&')
-  const urls: string[] = []
-  for (const match of text.matchAll(/bing\.com\/ck\/a\?[^"'<>\s]*?[?&]u=([A-Za-z0-9_-]+)/g)) {
-    const url = unwrapBing(`https://www.bing.com/ck/a?u=${match[1]}`)
+  const hits: Array<{ title: string; url: string; snippet: string }> = []
+  const seen = new Set<string>()
+  for (const block of text.matchAll(/<li[^>]*class="b_algo"[^>]*>([\s\S]*?)<\/li>/gi)) {
+    const body = block[1] ?? ''
+    const link = body.match(/bing\.com\/ck\/a\?[^"'<>\s]*?[?&]u=([A-Za-z0-9_-]+)/)
+    if (!link) continue
+    const url = unwrapBing(`https://www.bing.com/ck/a?u=${link[1]}`)
     if (!url.startsWith('http://') && !url.startsWith('https://')) continue
     if (internalHosts.some((host) => hostOf(url).endsWith(host))) continue
-    if (urls.includes(url)) continue
-    urls.push(url)
-    if (urls.length >= limit) break
+    if (seen.has(url)) continue
+    const titleRaw = body.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i)
+    const title = stripTags(titleRaw?.[1] ?? '').slice(0, 200)
+    const snippet = stripTags(body).replace(/\s+/g, ' ').trim().slice(0, 600)
+    seen.add(url)
+    hits.push({ title: title || hostOf(url) || url, url, snippet })
+    if (hits.length >= limit) break
   }
-  const titles: string[] = []
-  for (const match of text.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/gi)) {
-    titles.push(stripTags(match[1] ?? '').slice(0, 200))
-  }
-  return urls.map((url, index) => {
-    const title = titles[index] ?? ''
-    return { title: title || hostOf(url) || url, url, snippet: '' }
-  })
+  return hits
 }
 
 const ENGINES: Engine[] = [
