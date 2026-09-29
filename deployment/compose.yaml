@@ -56,6 +56,11 @@ services:
   # browser — sessions drop only their own context.
   browser:
     image: zenika/alpine-chrome@sha256:eb3378c1ed0079f94db054a5fe1aaa790a254ec0d6bbc67eda052420d86a179d
+    # The sidecar died mid-pilot (exit 132) and stayed dead: no service
+    # here had a restart policy. Our three services restart unless
+    # explicitly stopped; infra (db, temporal, observability) keeps its
+    # operator-managed lifecycle untouched.
+    restart: unless-stopped
     command:
       - --headless
       - --no-sandbox
@@ -70,6 +75,7 @@ services:
       retries: 6
 
   backend:
+    restart: unless-stopped
     build:
       context: ..
       dockerfile: deployment/Dockerfile
@@ -114,6 +120,7 @@ services:
   # Needs KARDATA_MCP_TOKEN in agents/.env: the worker calls back into
   # backend /mcp with an API key, exactly like the local dev worker.
   worker:
+    restart: unless-stopped
     build:
       context: ..
       dockerfile: deployment/Dockerfile
