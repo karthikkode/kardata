@@ -86,7 +86,11 @@ export class SectorPlanError extends Error {
 }
 
 export interface SectorPlanRunner {
-  startSectorPlan(sectorId: string, scope?: { tenantId: string; projectId: string | null }): Promise<unknown>
+  startSectorPlan(
+    sectorId: string,
+    scope?: { tenantId: string; projectId: string | null },
+    sessionId?: string,
+  ): Promise<unknown>
 }
 
 export async function planSectorResearch(
@@ -118,7 +122,11 @@ export async function planSectorResearch(
   const from = sector.state
   await setSectorState(db, sectorId, 'planning', { scope, idempotencyKey })
   try {
-    await runs.startSectorPlan(sectorId, scope ? { tenantId: scope.tenantId, projectId: scope.projectId } : undefined)
+    await runs.startSectorPlan(
+      sectorId,
+      scope ? { tenantId: scope.tenantId, projectId: scope.projectId } : undefined,
+      sessionId,
+    )
   } catch {
     await setSectorState(db, sectorId, from, { scope }).catch(() => undefined)
     throw new SectorPlanError('overload', 'plan worker unavailable; sector returned')

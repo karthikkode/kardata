@@ -395,14 +395,20 @@ export class TemporalRunsGateway implements RunsGateway {
 
   /** Sector plan start: one workflow per sector, idempotent by
    * workflow id — a planning run for this sector is accepted, not
-   * duplicated. Mirrors startSectorSweep. */
-  async startSectorPlan(sectorId: string, scope?: { tenantId: string; projectId: string | null }): Promise<CommandResult> {
+   * duplicated. The planning chat session rides along: turns run there
+   * visibly. Mirrors startSectorSweep. */
+  async startSectorPlan(
+    sectorId: string,
+    scope?: { tenantId: string; projectId: string | null },
+    sessionId?: string,
+  ): Promise<CommandResult> {
+    if (!sessionId) throw new Error('startSectorPlan needs the planning chat sessionId')
     const client = await this.client()
     try {
       await client.workflow.start('sectorPlan', {
         workflowId: `sector-plan-${sectorId}`,
         taskQueue: laneConfig('research').taskQueue,
-        args: [{ sectorId, ...(scope === undefined ? {} : { scope }) }],
+        args: [{ sectorId, sessionId, ...(scope === undefined ? {} : { scope }) }],
       })
     } catch (error) {
       if (error instanceof WorkflowExecutionAlreadyStartedError) {

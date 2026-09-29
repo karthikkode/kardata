@@ -1,0 +1,60 @@
+// Sector plan client: explicit planning runs and versioned artifact
+// reads. API answers are stubbed; no fixture imports.
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  planSector,
+  readSectorPlan,
+  type StagingConfig,
+} from '@/data/staging-api'
+
+const config: StagingConfig = { baseUrl: 'https://staging.test', apiKey: 'key' }
+
+afterEach(() => vi.unstubAllGlobals())
+
+
+describe('sector plan client', () => {
+  it('starts planning and reads versions back', async () => {
+    const calls: Array<{ url: string; method: string }> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: { method?: string } = {}) => {
+        const method = init.method ?? 'GET'
+        calls.push({ url, method })
+        if (url === 'https://staging.test/v1/sectors/s-1/plan' && method === 'POST') {
+          return { ok: true, status: 200, json: async () => ({ ok: true, data: { id: 's-1', state: 'planning' } }) }
+        }
+        if (url === 'https://staging.test/v1/sectors/s-1/plan' && method === 'GET') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              ok: true,
+              data: {
+                sectorId: 's-1',
+                versions: [{ version: 1, markdown: '## scope\nFoods.', at: '2026-09-30T00:00:00.000Z' }],
+                latest: { version: 1, markdown: '## scope\nFoods.', at: '2026-09-30T00:00:00.000Z' },
+              },
+            }),
+          }
+        }
+        return { ok: false, status: 404, json: async () => ({ ok: false, error: { code: 'not_found', message: 'no' } }) }
+      }),
+    )
+    expect(await planSector(config, 's-1')).toMatchObject({ id: 's-1', state: 'planning' })
+    expect(await readSectorPlan(config, 's-1')).toMatchObject({ sectorId: 's-1', latest: { version: 1 } })
+    expect(calls).toContainEqual({ url: 'https://staging.test/v1/sectors/s-1/plan', method: 'POST' })
+    expect(calls).toContainEqual({ url: 'https://staging.test/v1/sectors/s-1/plan', method: 'GET' })
+  })
+
+  it('surfaces plan conflicts and missing sectors as errors', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 409,
+        json: async () => ({ ok: false, error: { code: 'conflict', message: 'not draft or failed' } }),
+      })),
+    )
+    await expect(planSector(config, 's-1')).rejects.toThrow(/not draft or failed/)
+  })
+})

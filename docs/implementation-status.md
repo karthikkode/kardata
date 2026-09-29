@@ -1663,3 +1663,16 @@ scale claims with evidence links.
 - Evidence: stub-DB protocol tests, brief-shape tests, live Temporal
   planned + empty-failed branches, live route tests (visible chat,
   conflict, empty/read/404).
+
+## Plan panel + strip rewiring (P3)
+
+- Strip is plan-mandatory: draft/failed offer Plan, approved offers
+  Start, planning/planned/queued show labels. Plan panel renders the
+  versioned artifact (loading/empty/error/denied/offline states),
+  re-reads while planning, and offers Plan on drafts/failed.
+- Live journey plan-01: draft → Plan → planning → planned in 85 s
+  with a readable v1 artifact (scope/shards/shapes with uncertain
+  marks), zero console errors, zero failed requests, light + dark.
+- Two live-caught integration gaps closed in the pass: plan turns must
+  route to the turn lane explicitly (research worker has no turn
+  activities), and the gateway must forward the planning sessionId.

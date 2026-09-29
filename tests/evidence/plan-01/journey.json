@@ -1,0 +1,29 @@
+{
+  "run": "plan-01",
+  "at": "2026-09-29T15:42:34.145Z",
+  "sectorName": "Plan Fintech mumufy09",
+  "marks": [
+    {
+      "step": "researches-first-paint",
+      "ms": 286
+    },
+    {
+      "step": "create-draft",
+      "ms": 168
+    },
+    {
+      "step": "open-detail",
+      "ms": 53
+    },
+    {
+      "step": "start-planning",
+      "ms": 178
+    },
+    {
+      "step": "wait-planned",
+      "ms": 84978
+    }
+  ],
+  "consoleErrors": [],
+  "failedRequests": []
+}
