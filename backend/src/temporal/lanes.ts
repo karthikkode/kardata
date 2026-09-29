@@ -14,7 +14,14 @@ export interface LaneConfig {
 }
 
 const CONCURRENCY: Record<Lane, { workflows: number; activities: number }> = {
-  turn: { workflows: 50, activities: 50 },
+  // Vendor pacing: at most 4 concurrent turn activities per worker. The
+  // pilot proved a 20-way concurrent research-turn fan-out saturates the
+  // live provider into mass provider_failed while 2-way succeeds; the cap
+  // keeps provider concurrency storm-safe while queued turns wait inside
+  // their (now generous) schedule-to-close windows. Workflow tasks stay
+  // wide — orchestration is cheap, vendor calls are not. Raise only with
+  // measured provider headroom, never by vibes.
+  turn: { workflows: 50, activities: 4 },
   tool: { workflows: 20, activities: 100 },
   research: { workflows: 10, activities: 20 },
   sweep: { workflows: 5, activities: 10 },
