@@ -54,6 +54,14 @@ export class FakeRunsGateway implements RunsGateway {
     return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
   }
 
+  /** Cancelled sweep ids; already-gone runs accept quietly like production. */
+  readonly cancelledSweeps: string[] = []
+
+  async cancelSectorSweep(sectorId: string): Promise<CommandResult> {
+    this.cancelledSweeps.push(sectorId)
+    return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
+  }
+
   async sendSkill(threadKey: string, invocation: SkillInvocation): Promise<CommandResult> {
     const target = await this.resolveTarget(threadKey, invocation.text, 'runSend')
     if (target.workflowId.startsWith('session-run-') && !this.runs.has(target.workflowId)) {

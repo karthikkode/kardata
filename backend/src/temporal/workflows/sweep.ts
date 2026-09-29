@@ -15,7 +15,7 @@ import {
   proxyActivities,
   setHandler,
 } from '@temporalio/workflow'
-import { buildQueryTemplates, extractNewDomains } from '../sweep-rules.js'
+import { buildQueryTemplates, extractNewDomains, isSweepCancellation } from '../sweep-rules.js'
 import { activityOptions } from '../timeouts.js'
 import type * as sweepActivitiesModule from '../activities/sweep.js'
 
@@ -60,6 +60,9 @@ export async function sectorSweep(input: SectorSweepInput): Promise<'complete' |
   try {
     context = await sweep.loadSweepContextActivity({ sectorId: input.sectorId, scope: input.scope })
   } catch (error) {
+    // Owner pause cancels the scope: the paused state is already recorded
+    // by the route, so a cancellation propagates instead of writing failed.
+    if (isSweepCancellation(error)) throw error
     log.error('sweep context failed', { sectorId: input.sectorId, error })
     return 'failed'
   }
@@ -67,6 +70,7 @@ export async function sectorSweep(input: SectorSweepInput): Promise<'complete' |
   try {
     await sweep.setSweepStateActivity({ sectorId: input.sectorId, state: 'running', scope: input.scope })
   } catch (error) {
+    if (isSweepCancellation(error)) throw error
     log.error('sweep start transition failed', { sectorId: input.sectorId, error })
     return 'failed'
   }
@@ -92,6 +96,7 @@ export async function sectorSweep(input: SectorSweepInput): Promise<'complete' |
       }
     }
   } catch (error) {
+    if (isSweepCancellation(error)) throw error
     log.error('sweep failed', { sectorId: input.sectorId, error })
     progress.status = 'failed'
     await sweep.setSweepStateActivity({ sectorId: input.sectorId, state: 'failed', scope: input.scope })

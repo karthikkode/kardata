@@ -142,6 +142,11 @@ export {
   type SectorSweepRunner,
 } from './sector-start.js'
 export {
+  pauseSectorSweep,
+  restartSectorSweep,
+  resumeSectorSweep,
+} from './sector-lifecycle.js'
+export {
   addContextNotes,
   buildSectorDigest,
   getSectorContext,

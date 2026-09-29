@@ -135,4 +135,33 @@ describe.skipIf(!ENABLED)('sector sweep workflow (Phase 6)', () => {
       await pool.end()
     }
   }, 180_000)
+
+  it('leaves sector state alone when the run is cancelled mid-flight', async () => {
+    const pool = new Pool({ connectionString: url })
+    const sectorId = `sec-cancel-${Date.now()}`
+    try {
+      await createSector(pool, {
+        name: 'Cancelled sweep',
+        topic: 'Interruption proof',
+        scope: { tenantId: 'tenant-sweep', projectId: null },
+        sectorId,
+        initialState: 'queued',
+      })
+      const handle = await client.workflow.start('sectorSweep', {
+        taskQueue: (worker.options as { taskQueue: string }).taskQueue,
+        workflowId: `sector-sweep-${sectorId}`,
+        args: [{ sectorId, maxPagesPerTemplate: 3, scope: { tenantId: 'tenant-sweep', projectId: null } }],
+      })
+      // Cancel immediately: wherever it lands (context load, start
+      // transition, or the template loop), the guards must propagate the
+      // cancellation instead of writing a failed state over the pause.
+      await handle.cancel()
+      await expect(handle.result()).rejects.toThrow(/cancel/i)
+      const { getSector } = await import('../../backend/src/db/index.js')
+      const sector = await getSector(pool, sectorId, { tenantId: 'tenant-sweep', projectId: null })
+      expect(sector?.state).not.toBe('failed')
+    } finally {
+      await pool.end()
+    }
+  }, 180_000)
 })

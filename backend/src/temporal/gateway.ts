@@ -67,6 +67,9 @@ export interface RunsGateway {
   send(threadKey: string, text: string): Promise<CommandResult>
   sendSkill(threadKey: string, invocation: SkillInvocation): Promise<CommandResult>
   startSectorSweep(sectorId: string, scope?: { tenantId: string; projectId: string | null }): Promise<CommandResult>
+  /** Halt the sector's sweep workflow. An already-closed run accepts
+   * quietly (nothing to halt); only an unreachable worker throws. */
+  cancelSectorSweep(sectorId: string): Promise<CommandResult>
   steer(threadKey: string, text: string): Promise<CommandResult>
   pauseRun(runId: string): Promise<CommandResult>
   resumeRun(runId: string, extendedBudgetMs?: number): Promise<CommandResult>
@@ -276,6 +279,20 @@ export class TemporalRunsGateway implements RunsGateway {
       if (error instanceof WorkflowExecutionAlreadyStartedError) {
         return { commandId: commandId(), state: 'accepted' }
       }
+      throw error
+    }
+    return { commandId: commandId(), state: 'accepted' }
+  }
+
+  /** Sector sweep halt: cancelling the workflow stops the run; the pause
+   * route records the state separately, so a gone run is accepted, never
+   * an error. Mirrors signalRunCancel's closed-handle mapping. */
+  async cancelSectorSweep(sectorId: string): Promise<CommandResult> {
+    const client = await this.client()
+    try {
+      await client.workflow.getHandle(`sector-sweep-${sectorId}`).cancel()
+    } catch (error) {
+      if (error instanceof WorkflowNotFoundError) return { commandId: commandId(), state: 'accepted' }
       throw error
     }
     return { commandId: commandId(), state: 'accepted' }

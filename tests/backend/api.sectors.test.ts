@@ -216,6 +216,8 @@ describe.skipIf(!ENABLED)('sector research routes (B-S4)', () => {
       id: failed,
       state: 'running',
     })
+    // Restart ensures a real run behind the state, not a relabel.
+    expect(runsGateway.startedSweeps).toContain(failed)
 
     // Same key replays the stored outcome without a second transition.
     const replayed = await app.inject({
@@ -241,6 +243,8 @@ describe.skipIf(!ENABLED)('sector research routes (B-S4)', () => {
     })
     expect(paused.statusCode).toBe(200)
     expect((paused.json() as { data: Record<string, unknown> }).data).toMatchObject({ id: sector, state: 'paused' })
+    // Pause halts the run before recording the state.
+    expect(runsGateway.cancelledSweeps).toContain(sector)
 
     const repause = await app.inject({ method: 'POST', url: `/v1/sectors/${sector}/pause`, headers: operator })
     expect(repause.statusCode).toBe(409)
@@ -255,6 +259,8 @@ describe.skipIf(!ENABLED)('sector research routes (B-S4)', () => {
     })
     expect(resumed.statusCode).toBe(200)
     expect((resumed.json() as { data: Record<string, unknown> }).data).toMatchObject({ id: sector, state: 'running' })
+    // Resume ensures the run behind the state.
+    expect(runsGateway.startedSweeps).toContain(sector)
   })
 
   it('creates drafts, attaches context, and starts explicitly (never auto-research)', async () => {
@@ -296,8 +302,9 @@ describe.skipIf(!ENABLED)('sector research routes (B-S4)', () => {
     const started = await app.inject({ method: 'POST', url: `/v1/sectors/${draft.id}/start`, headers: operator })
     expect(started.statusCode).toBe(200)
     expect(((started.json() as { data: { state: string } }).data).state).toBe('queued')
-    // Explicit start launches exactly one sweep workflow for the sector.
-    expect(runsGateway.startedSweeps).toEqual([draft.id])
+    // Explicit start launches exactly one sweep workflow for the sector
+    // (other lifecycle tests record their own sectors in the shared fake).
+    expect(runsGateway.startedSweeps.filter((id) => id === draft.id)).toEqual([draft.id])
 
     const again = await app.inject({ method: 'POST', url: `/v1/sectors/${draft.id}/start`, headers: operator })
     expect(again.statusCode).toBe(409)

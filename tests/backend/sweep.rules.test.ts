@@ -1,7 +1,7 @@
 // Pure sweep rules (Phase 6). No server, no database: template shaping
 // and domain extraction run identically in the workflow and here.
 import { describe, expect, it } from 'vitest'
-import { buildQueryTemplates, extractNewDomains } from '../../backend/src/temporal/sweep-rules.js'
+import { buildQueryTemplates, extractNewDomains, isSweepCancellation } from '../../backend/src/temporal/sweep-rules.js'
 
 describe('buildQueryTemplates', () => {
   it('shapes a stable template order from name and topic', () => {
@@ -52,5 +52,25 @@ describe('extractNewDomains', () => {
 
   it('excludes already-seen domains case-insensitively', () => {
     expect(extractNewDomains(hits, ['ACME.EXAMPLE', 'noname.example'])).toEqual([])
+  })
+})
+
+describe('isSweepCancellation', () => {
+  it('recognizes bare and activity-wrapped cancellations, nothing else', () => {
+    const bare = new Error('scope cancelled')
+    bare.name = 'CancelledFailure'
+    expect(isSweepCancellation(bare)).toBe(true)
+    const wrapped = new Error('activity failed')
+    wrapped.name = 'ActivityFailure'
+    ;(wrapped as unknown as { cause: unknown }).cause = bare
+    expect(isSweepCancellation(wrapped)).toBe(true)
+    const plain = new Error('fetch failed')
+    expect(isSweepCancellation(plain)).toBe(false)
+    const activityOther = new Error('activity failed')
+    activityOther.name = 'ActivityFailure'
+    ;(activityOther as unknown as { cause: unknown }).cause = plain
+    expect(isSweepCancellation(activityOther)).toBe(false)
+    expect(isSweepCancellation(undefined)).toBe(false)
+    expect(isSweepCancellation('cancelled')).toBe(false)
   })
 })

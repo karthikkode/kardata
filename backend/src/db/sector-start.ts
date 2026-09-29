@@ -21,6 +21,9 @@ export class SectorStartError extends Error {
 
 export interface SectorSweepRunner {
   startSectorSweep(sectorId: string, scope?: { tenantId: string; projectId: string | null }): Promise<unknown>
+  /** Halt the sector's sweep workflow. Already-gone runs accept quietly;
+   * an unreachable worker throws. */
+  cancelSectorSweep(sectorId: string): Promise<unknown>
 }
 
 export async function startSectorResearch(

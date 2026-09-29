@@ -1490,3 +1490,18 @@ scale claims with evidence links.
 - Gates: SectorChatPanel 24/24, SectorDetailPage 23/23 (failing-first
   both), full frontend 238 passed, lint 0 errors (5 pre-existing
   warnings), typecheck + build clean.
+
+## Sweep lifecycle honesty (pause halts, resume/restart ensure)
+
+- Live pilot finding: Pause only relabeled — the sweep kept running and
+  flipped to failed; Restart relabeled failed→running with no run
+  behind it. Now pause cancels `sector-sweep-{id}` before recording
+  paused, resume/restart start the workflow before recording running
+  (closed runs restart under the same id, live ones accepted, never
+  duplicated). Cancelled runs propagate instead of writing failed over
+  the pause. Runner-less and worker-down paths fail closed (overload).
+- Evidence: `tests/backend/sector-lifecycle.test.ts` (9 stub-DB order +
+  fail-closed tests), `isSweepCancellation` in sweep-rules (+matrix),
+  live Temporal cancel test (sector never failed), route lifecycle
+  assertions in `tests/backend/api.sectors.test.ts`, MCP pause/resume
+  re-pinned in `tests/backend/sector-start.test.ts`.

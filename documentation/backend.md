@@ -163,6 +163,17 @@ the everything-log. Plan: `documentation/plans/2026-09-25-backend-build.md`.
   /v1/companies` (`backend/src/routes/sectors.ts`); ad-hoc research runs
   stay hidden pending B5.5 tenancy. Approval UI binding is B6.1 client
   work. See the gap-closure plan.
+- Sweep lifecycle honesty (`backend/src/db/sector-lifecycle.ts`): pause
+  cancels the sweep workflow before recording paused (cancel-first, so a
+  halt that never lands never relabels); resume and restart start the
+  workflow before recording running (a closed run restarts under the
+  same id, a live one is accepted, never duplicated). Without a runner
+  every path fails closed; worker-down maps to `overload` (503).
+  Cancelled runs propagate instead of writing `failed` over the pause
+  (`isSweepCancellation` in `backend/src/temporal/sweep-rules.ts`).
+  Proven by `tests/backend/sector-lifecycle.test.ts` (stub-DB order +
+  fail-closed), `tests/backend/workflows.sweep.test.ts` (live cancel),
+  and `tests/backend/api.sectors.test.ts` (route lifecycle).
 - Sector context citations are human-readable (`backend/src/db/sector-context.ts`):
   reference units cite `filename:ord` (repeats take a stable `name (2)`
   suffix via `citationLabels`), notes cite `[note:1]` by creation order,
