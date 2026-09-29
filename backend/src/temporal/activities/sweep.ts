@@ -15,9 +15,13 @@ import {
   workerPoolFromEnv,
 } from '../../db/index.js'
 import { projectNewEvents } from '../../projector.js'
-import { browserClose, browserNavigate } from '../../retrieval/browser.js'
-import { keylessSearch, type KeylessHit } from '../../retrieval/keyless.js'
-import { RetrievalError, webSearch, type SearchHit } from '../../retrieval/web.js'
+import {
+  linksFromSnapshot as linksFromSnapshotPool,
+  pooledSearchWebPage,
+  type SweepSearchDeps as PoolSearchDeps,
+  type SweepSearchHit as PoolSearchHit,
+  type SweepSearchVia as PoolSearchVia,
+} from '../../browserPool/facade.js'
 
 const SectorId = z.string().min(1)
 
@@ -51,123 +55,26 @@ export async function loadSweepContextActivity(input: {
   return { sectorId: sector.id, name: sector.name, topic: sector.topic, state: sector.state, docChars: 0, docText }
 }
 
-export type SweepSearchVia = 'keyed' | 'keyless' | 'browser'
+export type SweepSearchVia = PoolSearchVia
 
-export interface SweepSearchHit {
-  title: string
-  url: string
-  snippet: string
-  /** Which fallback leg produced this page; absent means keyed. */
-  via?: SweepSearchVia
-  /** Keyless engine name when via is 'keyless'; absent otherwise. */
-  engine?: string
-}
+export type SweepSearchHit = PoolSearchHit
 
 /** Injectable legs for the fallback chain (tests stub these; the
  * workflow always runs the defaults). */
-export interface SweepSearchDeps {
-  keyed?: (query: string, page: number) => Promise<SearchHit[]>
-  keyless?: (query: string, page: number) => Promise<KeylessHit[]>
-  browser?: (query: string) => Promise<SweepSearchHit[]>
-}
+export type SweepSearchDeps = PoolSearchDeps
 
-/** Search-engine hosts that must never become company candidates. */
-const BROWSER_INTERNAL_HOSTS = [
-  'duckduckgo.com',
-  'lite.duckduckgo.com',
-  'mojeek.com',
-  'www.mojeek.com',
-  'qwant.com',
-  'www.qwant.com',
-]
+/** Candidate URLs out of an aria snapshot (canonical impl lives in the
+ * browser-pool facade; re-exported here so existing import paths hold). */
+export const linksFromSnapshot = linksFromSnapshotPool
 
-/** Candidate URLs out of an aria snapshot: bare links in document order,
- * deduped, engine-internal hosts dropped. Titles are hostnames — the
- * snapshot carries no titles, and inventing them would lie to the
- * ledger. Pure: unit-tested directly. */
-export function linksFromSnapshot(snapshot: string, limit = 10): SweepSearchHit[] {
-  const hits: SweepSearchHit[] = []
-  const seen = new Set<string>()
-  const pattern = /https?:\/\/[^\s"'<>)\]]+/g
-  for (const match of snapshot.matchAll(pattern)) {
-    const url = match[0].replace(/[.,;:!?)]+$/, '')
-    let host = ''
-    try {
-      host = new URL(url).hostname.toLowerCase()
-    } catch {
-      continue
-    }
-    if (BROWSER_INTERNAL_HOSTS.some((internal) => host === internal || host.endsWith(`.${internal}`))) continue
-    if (seen.has(url)) continue
-    seen.add(url)
-    hits.push({ title: host, url, snippet: '', via: 'browser' })
-    if (hits.length >= limit) break
-  }
-  return hits
-}
-
-/** Browser leg: real Chromium on the DDG html endpoint (the page curl
- * cannot reach past the anomaly wall), snapshot links out, session
- * always closed. */
-async function browserSearchLeg(query: string): Promise<SweepSearchHit[]> {
-  const { sessionId, snapshot } = await browserNavigate(
-    `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query.trim())}`,
-  )
-  try {
-    return linksFromSnapshot(snapshot)
-  } finally {
-    await browserClose(sessionId).catch(() => undefined)
-  }
-}
-
-/** One search page for a template: keyed Brave API first, keyless engine
- * pool second, real-Chromium browser leg last (page 0 only — deeper
- * pages return empty so the template terminates instead of re-driving
- * the browser). Exhaustion on every leg fails loudly, never an empty
- * list pretending to be exhaustive. */
+/** One search page for a template: delegates to the browser-pool facade
+ * (keyed first, keyless second, pooled Chromium last with page-0-only
+ * termination), preserving the injectable-leg contract for tests. */
 export async function searchWebPageActivity(
   input: { query: string; page: number },
   deps: SweepSearchDeps = {},
 ): Promise<SweepSearchHit[]> {
-  if (!Number.isInteger(input.page) || input.page < 0) throw new RetrievalError('validation_failed', 'page must be >= 0')
-  if (input.query.trim().length < 2 || input.query.trim().length > 300) {
-    throw new RetrievalError('validation_failed', 'query must be 2-300 characters')
-  }
-  const keyed = deps.keyed ?? ((query, page) => webSearch(process.env, query, { count: 10, page }))
-  const keyless = deps.keyless ?? ((query, page) => keylessSearch(query, { count: 10, page }))
-  const browser = deps.browser ?? browserSearchLeg
-
-  if (process.env['KARDATA_WEB_SEARCH_KEY']?.trim()) {
-    try {
-      const hits = await keyed(input.query, input.page)
-      if (hits.length > 0) return hits.map((hit) => ({ ...hit, via: 'keyed' as const }))
-    } catch (error) {
-      if (!(error instanceof RetrievalError)) throw error
-    }
-  }
-  try {
-    const hits = await keyless(input.query, input.page)
-    if (hits.length > 0) {
-      return hits.map((hit) => ({
-        title: hit.title,
-        url: hit.url,
-        snippet: hit.snippet,
-        via: 'keyless' as const,
-        engine: hit.engine,
-      }))
-    }
-  } catch (error) {
-    if (!(error instanceof RetrievalError)) throw error
-  }
-  if (input.page > 0) return []
-  try {
-    return await browser(input.query)
-  } catch (error) {
-    throw new RetrievalError(
-      'fetch_failed',
-      `sweep search exhausted every leg: ${error instanceof Error ? error.message : 'unknown'}`,
-    )
-  }
+  return pooledSearchWebPage(input, deps)
 }
 
 function domainId(domain: string): string {

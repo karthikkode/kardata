@@ -635,29 +635,40 @@ events ──retention──▶ cold archive (GCS) ──replay──┘
   `tests/backend/sector-start.test.ts`,
   `tests/frontend/SectorChatPanel.test.tsx`, and
   `tests/frontend/SectorDetailPage.test.tsx`.
-- Retrieval (`backend/src/retrieval/`): `web_search` calls the
+- Retrieval (`backend/src/retrieval/` behind `backend/src/browserPool/facade.ts`,
+  the single agent entry): `web_search` calls the
   provider endpoint (`KARDATA_WEB_SEARCH_URL`, default Brave) with
   `KARDATA_WEB_SEARCH_KEY` and fails closed `unconfigured` without a
   key; `web_fetch` enforces an SSRF blocklist (localhost, loopback,
   link-local, cloud metadata) with a 2 MB / 15 s cap; `browser_*` drives
-  a local Chromium (`KARDATA_CHROME_PATH` or system binary) through a
-  session registry with idle reap and aria snapshots. Pure rules in
+  Chromium (`KARDATA_CHROME_PATH` or system binary, sidecar over CDP in
+  compose) through the bounded pool (0–16 slots, `KARDATA_BROWSER_MAX`,
+  per-host politeness, `overload` instead of eviction) with aria
+  snapshots. Pool hits share query pages (5 min) and documents
+  (10 min) plus in-flight dedup, so overlapping agents pay each leg
+  once. Pure rules in
   `backend/src/temporal/sweep-rules.ts` bound effort and temperature per
   sweep. Templates fan out per English-speaking region by default (US,
   UK, Canada, Australia; `ENGLISH_REGIONS` in sweep-rules.ts, base order
   stable, capped at 30): one region's index never stands in for the whole
   market, and non-English results stay out by query construction. Proven by `tests/backend/retrieval.test.ts` (doubles by
-  default; live suites behind `KARDATA_BROWSER_TEST=1`) and
+  default; live suites behind `KARDATA_BROWSER_TEST=1`),
+  `tests/backend/browser-pool.test.ts` (bounds, cache, routing; stub
+  legs, no Chromium), and
   `tests/backend/sweep.rules.test.ts`. Leading TEST scaffolding markers
   are stripped before shaping (`stripTestMarkers`), so test sectors
   search clean subjects.
-- Sweep fallback chain (`searchWebPageActivity`): keyed Brave API first,
+- Sweep fallback chain (`searchWebPageActivity` delegating to the facade's
+  `pooledSearchWebPage`): keyed Brave API first,
   keyless engine pool second (`backend/src/retrieval/keyless.ts`:
   DuckDuckGo html/lite plus Mojeek, best-effort — direct HTTP to these
   endpoints is routinely challenged, so each engine is skipped on any
   failure), real-Chromium browser leg last (navigates the DDG html
   endpoint past the anomaly wall, extracts snapshot links, always closes
-  the session; page 0 only so templates terminate). Every hit carries
+  the session; page 0 only so templates terminate). Query pages cache,
+  so a cached page serves with zero legs hit; pool saturation
+  propagates `overload` (retry later), never a false exhaustive miss.
+  Every hit carries
   `via` (`keyed`/`keyless`/`browser`) plus the keyless engine name, so
   the ledger never mistakes a fallback hit for a keyed one; exhaustion
   on all legs fails loudly. The MCP `web_search` tool stays keyed and

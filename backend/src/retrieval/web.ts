@@ -5,7 +5,7 @@
 // without network.
 import { z } from 'zod'
 
-export type RetrievalCode = 'validation_failed' | 'unconfigured' | 'blocked' | 'fetch_failed'
+export type RetrievalCode = 'validation_failed' | 'unconfigured' | 'blocked' | 'fetch_failed' | 'overload'
 
 /** Retrieval failure: the MCP invoker maps the code into the isError
  * envelope so agents see actionable text, never a throw. */

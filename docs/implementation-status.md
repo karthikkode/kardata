@@ -1424,3 +1424,21 @@ scale claims with evidence links.
 - Boundary: harness-seeded heartbeats/usage; no live Temporal fleet.
   Live-fleet behavior stays covered by
   `tests/backend/temporal.lanes.test.ts`.
+
+## Browser pool (facade, 0-16)
+
+- Single entry for every agent browser request
+  (`backend/src/browserPool/facade.ts`): MCP retrieval tools and the
+  sweep chain route through it; tool names, schemas, roles, and `via`
+  tags unchanged. Bounded slots (0–16, `KARDATA_BROWSER_MAX` default 8,
+  FIFO queue 64, per-caller cap 4, one in-flight per host),
+  saturation rejects `overload` without evicting holders. Query pages
+  (5 min) and documents (10 min) cache with in-flight dedup; cursors
+  live outside slots. Direction source: owner antibot research
+  (tier-escalation, profile/proxy tiers deferred — P1 is Chromium-only
+  on existing legs, no new deps/services).
+- Evidence: `tests/backend/browser-pool.test.ts` (7 tests, stub legs);
+  `tests/backend/sweep.search.test.ts` gains cache/pool isolation in
+  setup (red-to-green: first-test cache answered later stub tests);
+  retrieval + mcp.tools suites green unchanged; backend lint/typecheck
+  green. Live browser proof still gated on `KARDATA_BROWSER_TEST=1`.

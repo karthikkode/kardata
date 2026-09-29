@@ -145,6 +145,17 @@ the everything-log. Plan: `documentation/plans/2026-09-25-backend-build.md`.
   repos, `pg` ban enforced by lint); connection management (pool
   gauges, env budgets, budget table, agent contract) in
   `documentation/db.md`.
+- Browser pool (`backend/src/browserPool/`, facade `facade.ts`): every
+  agent browser request crosses one entry — bounded 0–16 slots (lazy,
+  `KARDATA_BROWSER_MAX` clamped 1–16, default 8), FIFO queue (64),
+  per-caller cap (4), one in-flight request per host, saturation
+  rejects `overload` without evicting holders. Query pages cache 5 min
+  and documents 10 min (500 entries each, in-flight dedup), so cursors
+  live outside slots and page 2 never redoes page 1. Tool names,
+  schemas, roles, and `via` tags unchanged. Proven by
+  `tests/backend/browser-pool.test.ts` (7 tests, stub legs, no
+  Chromium); ops budget in `docs/environments.md`, wire behavior in
+  `docs/architecture.md`.
 - Sector/company backend resources are live: `GET /v1/sectors`,
   `POST /v1/sectors` (draft-first create), `GET /v1/sectors/{sectorId}`,
   `POST .../start` (explicit draft → queued), `POST/GET .../documents`

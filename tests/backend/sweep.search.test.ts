@@ -1,7 +1,9 @@
 // Sweep search fallback (keyed -> keyless -> browser). No open-internet
 // calls: engines answer from fixture doubles, the chain runs on stub
 // legs, and the real browser leg stays behind KARDATA_BROWSER_TEST.
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { clearBrowserCacheForTests } from '../../backend/src/browserPool/cache.js'
+import { resetBrowserPoolForTests } from '../../backend/src/browserPool/pool.js'
 import { RetrievalError } from '../../backend/src/retrieval/web.js'
 import { keylessSearch, type KeylessHit } from '../../backend/src/retrieval/keyless.js'
 import {
@@ -92,6 +94,12 @@ describe('linksFromSnapshot', () => {
 
 describe('searchWebPageActivity fallback chain', () => {
   const savedKey = process.env['KARDATA_WEB_SEARCH_KEY']
+  beforeEach(() => {
+    // The facade caches query pages across calls: stub-leg routing tests
+    // need a cold cache, or one test's legs answer another's query.
+    clearBrowserCacheForTests()
+    resetBrowserPoolForTests()
+  })
   afterEach(() => {
     if (savedKey === undefined) delete process.env['KARDATA_WEB_SEARCH_KEY']
     else process.env['KARDATA_WEB_SEARCH_KEY'] = savedKey
