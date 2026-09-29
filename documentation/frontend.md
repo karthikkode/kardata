@@ -90,6 +90,13 @@ panel itself. It reads its own artifact and re-reads while planning.
 Proven by `tests/frontend/SectorPlanSection.test.tsx` and
 `tests/frontend/plan-api.test.ts`.
 
+The run console (`RunConsole`) renders the sector activity timeline
+(from the followed detail) plus steer targets across every chat in the
+sector pool (capped at 20 sessions) with a Send/Steer composer behind
+an explicit Review step; missed_steer reports honestly. Threads
+failures degrade to inline notes while the timeline stands. Proven by
+`tests/frontend/RunConsole.test.tsx` and the plan-02 live journey.
+
 ## Model selection
 
 The Models tab and chat picker consume only `GET /v1/providers`; the client

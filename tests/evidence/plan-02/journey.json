@@ -1,0 +1,21 @@
+{
+  "run": "plan-02",
+  "at": "2026-09-29T16:34:50.322Z",
+  "sectorId": "sec-01800ad6-f3b9-4df1-a406-e1d7747718ca",
+  "marks": [
+    {
+      "step": "open-detail",
+      "ms": 326
+    },
+    {
+      "step": "console-timeline",
+      "ms": 175
+    },
+    {
+      "step": "steer-dispatch",
+      "ms": 439
+    }
+  ],
+  "consoleErrors": [],
+  "failedRequests": []
+}
