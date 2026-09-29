@@ -28,7 +28,36 @@ the workflow never names one.
 
 `captureFinding` requires claim, doc id, URL, and excerpt, and hashes the
 tuple. Claims without sources throw. `assembleReport` dedupes by hash and
-renders inline claim links plus a sources section.
+renders inline claim links plus a sources section. Findings may carry a
+`field` tag (which outline field the claim covers) and `uncertain` marks
+(unverified aspects): uncertain claims report under `## Uncertain`, never
+silently beside certain ones, and the content hash ignores both tags so
+dedupe and resume stay stable. Proven by `agents/src/research.outline.test.ts`.
+
+## Outline (two-phase adoption)
+
+`buildOutline` freezes the confirmed plan before any provider call:
+versioned topic, named items, field definitions (`brief`/`moderate`/
+`detailed`), and batch bounds. Empty items, bad batch config, and unknown
+shapes throw loudly — an outline can never pass vacuously. The human
+confirms the outline before deep research starts (explicit go-ahead,
+runner pattern). Proven by `agents/src/research.outline.test.ts`.
+
+## Coverage gate
+
+`validateFindingsCoverage` requires every outline field covered by at
+least one tagged finding. Fields may opt in with explicit `required`
+markers; without markers every field is required. Uncertain-tagged
+findings count as coverage (their doubt is flagged, not hidden);
+untagged findings cover nothing; empty input throws. Donor pattern from
+the pinned Deep-Research-skills validator, reimplemented against Karbot
+shapes (see `third_party/manifest.yaml`).
+
+## Direction shards (planned)
+
+Per-shard strategy prompts for disjoint research directions (donor
+module-routing pattern). Not yet built; lands with the sharded fleet
+work. Until then the manifest entry points here as a placeholder spec.
 
 ## Refusal (T8.2)
 

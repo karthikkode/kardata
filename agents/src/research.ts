@@ -53,6 +53,12 @@ export interface Finding {
   url: string
   excerpt: string
   contentHash: string
+  /** Research field this claim covers (outline field name). Absent means
+   * uncovered: coverage validation counts only tagged findings. */
+  field?: string
+  /** Aspects of this claim that stay unverified. Uncertain claims report
+   * under their own section, never silently beside certain ones. */
+  uncertain?: string[]
 }
 
 export function captureFinding(input: {
@@ -60,6 +66,8 @@ export function captureFinding(input: {
   docId: string
   url: string
   excerpt: string
+  field?: string
+  uncertain?: string[]
 }): Finding {
   const claim = input.claim.trim()
   const docId = input.docId.trim()
@@ -68,8 +76,18 @@ export function captureFinding(input: {
   if (!claim || !docId || !url || !excerpt) {
     throw new Error('finding needs claim, docId, url, and excerpt: claims without sources are rejected')
   }
+  const field = input.field?.trim() || undefined
+  const uncertain = (input.uncertain ?? []).map((entry) => entry.trim()).filter((entry) => entry.length > 0)
   const contentHash = createHash('sha256').update(`${docId}\n${url}\n${excerpt}`).digest('hex')
-  return { claim, docId, url, excerpt, contentHash }
+  return {
+    claim,
+    docId,
+    url,
+    excerpt,
+    contentHash,
+    ...(field === undefined ? {} : { field }),
+    ...(uncertain.length === 0 ? {} : { uncertain }),
+  }
 }
 
 export function assembleReport(findings: Finding[]): string {
@@ -82,7 +100,89 @@ export function assembleReport(findings: Finding[]): string {
   for (const finding of unique) lines.push(`- [${finding.claim}](${finding.url})`)
   lines.push('', '## Sources')
   for (const finding of unique) lines.push(`- ${finding.url} (${finding.docId})`)
+  const uncertain = unique.filter((finding) => (finding.uncertain ?? []).length > 0)
+  if (uncertain.length > 0) {
+    lines.push('', '## Uncertain')
+    for (const finding of uncertain) {
+      lines.push(`- [${finding.claim}](${finding.url}) (${(finding.uncertain ?? []).join(', ')})`)
+    }
+  }
   return lines.join('\n')
+}
+
+// Research outline (two-phase adoption): the confirmed plan behind a run.
+// Items name what gets researched, fields name what gets collected per
+// item, batch bounds the fan-out. Built before any provider call; the
+// human confirms it before deep research starts.
+export type ResearchDetailLevel = 'brief' | 'moderate' | 'detailed'
+
+export interface ResearchFieldDef {
+  name: string
+  description: string
+  detailLevel: ResearchDetailLevel
+  /** Opt-in marker: when ANY field carries it, only marked fields are
+   * required. Without markers every field is required, so coverage can
+   * never pass vacuously. */
+  required?: boolean
+}
+
+export interface ResearchOutlineItem {
+  name: string
+  description?: string
+}
+
+export interface ResearchOutline {
+  version: 1
+  topic: string
+  items: ResearchOutlineItem[]
+  fields: ResearchFieldDef[]
+  batch: { batchSize: number; itemsPerAgent: number }
+}
+
+const DETAIL_LEVELS: ResearchDetailLevel[] = ['brief', 'moderate', 'detailed']
+
+export function buildOutline(input: {
+  topic: string
+  items: ResearchOutlineItem[]
+  fields: ResearchFieldDef[]
+  batch: { batchSize: number; itemsPerAgent: number }
+}): ResearchOutline {
+  const topic = input.topic.trim()
+  if (!topic) throw new Error('outline needs a non-empty topic')
+  if (input.items.length === 0) throw new Error('outline needs at least one item')
+  const items = input.items.map((item) => {
+    const name = item.name.trim()
+    if (!name) throw new Error('outline items need non-empty names')
+    const description = item.description?.trim() || undefined
+    return description === undefined ? { name } : { name, description }
+  })
+  if (input.fields.length === 0) throw new Error('outline needs at least one field')
+  const fields = input.fields.map((field) => {
+    const name = field.name.trim()
+    const description = field.description.trim()
+    if (!name || !description) throw new Error('outline fields need non-empty names and descriptions')
+    if (!DETAIL_LEVELS.includes(field.detailLevel)) throw new Error(`unknown detail level '${field.detailLevel}'`)
+    return { name, description, detailLevel: field.detailLevel, ...(field.required === undefined ? {} : { required: field.required }) }
+  })
+  const { batchSize, itemsPerAgent } = input.batch
+  if (!Number.isInteger(batchSize) || batchSize < 1) throw new Error('batchSize must be a positive integer')
+  if (!Number.isInteger(itemsPerAgent) || itemsPerAgent < 1) throw new Error('itemsPerAgent must be a positive integer')
+  return { version: 1, topic, items, fields, batch: { batchSize, itemsPerAgent } }
+}
+
+/** Coverage gate: every required field needs at least one tagged finding.
+ * Uncertain-tagged findings still count as coverage (their doubt is
+ * flagged, not hidden); untagged findings cover nothing. Empty input or
+ * an uncovered field throws naming the field. */
+export function validateFindingsCoverage(findings: Finding[], fields: ResearchFieldDef[]): void {
+  const required = fields.some((field) => field.required !== undefined)
+    ? fields.filter((field) => field.required === true).map((field) => field.name)
+    : fields.map((field) => field.name)
+  const covered = new Set(findings.map((finding) => finding.field).filter((field) => field !== undefined))
+  const missing = required.filter((name) => !covered.has(name))
+  if (missing.length > 0) {
+    throw new Error(`findings miss required fields: ${missing.join(', ')}`)
+  }
 }
 
 export interface ResearchGovernor {

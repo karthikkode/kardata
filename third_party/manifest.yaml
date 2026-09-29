@@ -21,3 +21,26 @@ pins:
       - documentation/business/outbound-economics.md
       - documentation/archive/business/offer-pricing-history.md
     adopted_as: knowledge_base/*.md (REWRITE per knowledge_base/_migration_map.md)
+  - donor: deep-research-skills
+    repo: https://github.com/Weizhena/Deep-Research-skills
+    sha: 6ce38f60e3f8b22502c29873f96503a4e0c5addb
+    license: MIT
+    licensePath: LICENSE
+    taken:
+      - path: skills/research-en/research/SKILL.md
+        kind: pattern
+        karbotSpec: documentation/agents-research.md#outline-two-phase-adoption
+      - path: skills/research-en/research-deep/SKILL.md
+        kind: pattern
+        karbotSpec: documentation/agents-research.md#outline-two-phase-adoption
+      - path: skills/research-en/research/validate_json.py
+        kind: pattern
+        karbotSpec: documentation/agents-research.md#coverage-gate
+      - path: tests/test_validate_json_schemas.py
+        kind: upstream-test
+        karbotSpec: agents/src/research.outline.test.ts
+      - path: agents/web-search-agent.md
+        kind: pattern
+        karbotSpec: documentation/agents-research.md#direction-shards-planned
+    why: Two-phase outline→deep with user-confirmed plan, uncertain marking with a never-pass-vacuously coverage gate, and per-domain strategy routing for sharded research.
+    changes: Reimplemented in TypeScript against Karbot interfaces (outline schema, finding field/uncertain tags, coverage gate); no verbatim copy. Memory-first outlining, CWD files, and vendor coupling explicitly not adopted (see implementation-status entry).
