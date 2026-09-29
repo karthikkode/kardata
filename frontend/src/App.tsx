@@ -17,7 +17,9 @@ import {
   createSector,
   listSectorDocuments,
   pauseSector,
+  restartSector,
   resumeSector,
+  startSector,
   stagingConfig,
   type SectorDocumentSummary,
   type StagingConfig,
@@ -109,6 +111,34 @@ export default function App() {
       detailData.refresh()
     } catch (error: unknown) {
       setResearchError(error instanceof Error ? error.message : 'Resume failed.')
+    } finally {
+      setResearchBusy(false)
+    }
+  }
+
+  async function startCurrentSector() {
+    if (!sectorId || !staging) return
+    setResearchBusy(true)
+    setResearchError(null)
+    try {
+      await startSector(staging, sectorId)
+      detailData.refresh()
+    } catch (error: unknown) {
+      setResearchError(error instanceof Error ? error.message : 'Start failed.')
+    } finally {
+      setResearchBusy(false)
+    }
+  }
+
+  async function restartCurrentSector() {
+    if (!sectorId || !staging) return
+    setResearchBusy(true)
+    setResearchError(null)
+    try {
+      await restartSector(staging, sectorId)
+      detailData.refresh()
+    } catch (error: unknown) {
+      setResearchError(error instanceof Error ? error.message : 'Restart failed.')
     } finally {
       setResearchBusy(false)
     }
@@ -315,6 +345,8 @@ export default function App() {
                 onRetry={detailData.retry}
                 onPauseResearch={pauseCurrentSector}
                 onResumeResearch={resumeCurrentSector}
+                onStartResearch={startCurrentSector}
+                onRestartResearch={restartCurrentSector}
                 onAttach={attachContextFile}
                 onBack={() => setNav({ section: 'Researches', sectorId: null })}
               />
