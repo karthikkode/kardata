@@ -9,6 +9,7 @@
 // directly). Turn work runs on the turn lane; plan writes run on the
 // research lane beside the sweep activities.
 import { defineQuery, log, proxyActivities, setHandler } from '@temporalio/workflow'
+import { laneConfig } from '../lanes.js'
 import { isSweepCancellation } from '../sweep-rules.js'
 import { activityOptions } from '../timeouts.js'
 import type * as planActivitiesModule from '../activities/plan.js'
@@ -17,7 +18,14 @@ import type * as turnActivitiesModule from '../activities/turn.js'
 
 const plan = proxyActivities<typeof planActivitiesModule>(activityOptions('research'))
 const sweep = proxyActivities<typeof sweepActivitiesModule>(activityOptions('research'))
-const turn = proxyActivities<typeof turnActivitiesModule>(activityOptions('turn'))
+// Cross-lane call: the planning turn executes on turn-lane workers (vendor
+// pacing + MCP wiring live there), never on the research worker running
+// this workflow. Without the explicit queue the task lands on the research
+// queue, whose worker has no turn activities (live NotFoundError 2026-09-30).
+const turn = proxyActivities<typeof turnActivitiesModule>({
+  ...activityOptions('turn'),
+  taskQueue: laneConfig('turn').taskQueue,
+})
 
 export interface SectorPlanInput {
   sectorId: string

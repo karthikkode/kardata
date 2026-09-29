@@ -471,6 +471,28 @@ export function restartSector(config: StagingConfig, sectorId: string): Promise<
   return request<SectorResearch>(config, 'POST', `/v1/sectors/${encodeURIComponent(sectorId)}/restart`)
 }
 
+export interface PlanVersionView {
+  version: number
+  markdown: string
+  at: string
+}
+
+export interface SectorPlanView {
+  sectorId: string
+  versions: PlanVersionView[]
+  latest: PlanVersionView | null
+}
+
+/** Explicit plan: draft/failed enters planning with a visible planning chat. */
+export function planSector(config: StagingConfig, sectorId: string): Promise<SectorResearch> {
+  return request<SectorResearch>(config, 'POST', `/v1/sectors/${encodeURIComponent(sectorId)}/plan`)
+}
+
+/** Read the versioned research plan artifact (empty until planned). */
+export function readSectorPlan(config: StagingConfig, sectorId: string): Promise<SectorPlanView> {
+  return request<SectorPlanView>(config, 'GET', `/v1/sectors/${encodeURIComponent(sectorId)}/plan`)
+}
+
 /** Owner pause from the chat window: running -> paused. */
 export function pauseSector(config: StagingConfig, sectorId: string): Promise<SectorResearch> {
   return request<SectorResearch>(config, 'POST', `/v1/sectors/${encodeURIComponent(sectorId)}/pause`)

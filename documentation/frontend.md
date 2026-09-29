@@ -72,15 +72,23 @@ The session picker and subagent thread controls use backend-owned records.
 `@` references can address subagents and indexed files. Approval cards have
 no live renderer yet; see `docs/implementation-status.md`.
 
-The sector research strip states every lifecycle case: draft offers Start,
-failed offers Restart, running offers Pause, paused offers Resume, queued
-and complete show the label with no action (the backend cannot pause a
-queued run). Buttons disable with `researchBusy` and failures surface as
-an alert. While a sweep is queued or running, the detail page and the
-company window re-read every 5 seconds so the strip, the state, and new
-arrivals follow the run; terminal and pre-start states stay quiet.
+The sector research strip states every lifecycle case: draft and failed
+offer Plan, approved offers Start, running offers Pause, paused offers
+Resume, planning/planned/queued/complete show the label with no action
+(the backend cannot pause a queued or planning run). Buttons disable
+with `researchBusy` and failures surface as an alert. While a sweep or
+plan run is away, the detail page and the company window re-read every
+5 seconds so the strip, the state, and new arrivals follow the run;
+terminal and pre-start states stay quiet.
 Proven by `tests/frontend/SectorChatPanel.test.tsx` (strip branches)
 and `tests/frontend/SectorDetailPage.test.tsx` (follow poll).
+
+The research plan panel (`SectorPlanSection`) renders the versioned
+plan artifact with its version tag, or the honest empty/loading/error/
+denied/offline states; drafts and failed sectors offer Plan from the
+panel itself. It reads its own artifact and re-reads while planning.
+Proven by `tests/frontend/SectorPlanSection.test.tsx` and
+`tests/frontend/plan-api.test.ts`.
 
 ## Model selection
 

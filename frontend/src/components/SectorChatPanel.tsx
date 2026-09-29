@@ -5,7 +5,7 @@
 // same commands/send + thread-stream path as Karbot (thread key defaults
 // to the session id); only the session pool is scoped.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Check, MessagesSquare, Pause, Pencil, Play, RotateCcw, Send, Square, X } from 'lucide-react'
+import { Check, ClipboardList, MessagesSquare, Pause, Pencil, Play, RotateCcw, Send, Square, X } from 'lucide-react'
 import { AgentBubble, AgentMark, TimeDivider, UserBubble, splitAfter, useChatStick } from './chat-parts'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -137,6 +137,7 @@ export function SectorChatPanel({
   onResumeResearch,
   onStartResearch,
   onRestartResearch,
+  onPlanResearch,
 }: {
   config: StagingConfig | null
   sectorId: string
@@ -151,6 +152,7 @@ export function SectorChatPanel({
   onResumeResearch: () => void
   onStartResearch: () => void
   onRestartResearch: () => void
+  onPlanResearch: () => void
 }) {
   const [sessions, setSessions] = useState<Session[] | undefined>(undefined)
   const [sessionsFailed, setSessionsFailed] = useState(false)
@@ -552,6 +554,17 @@ export function SectorChatPanel({
               type="button"
               variant="ghost"
               size="icon"
+              aria-label="Plan research"
+              disabled={researchBusy}
+              onClick={onPlanResearch}
+            >
+              <ClipboardList className="size-4" aria-hidden />
+            </Button>
+          ) : researchState === 'approved' ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
               aria-label="Start research"
               disabled={researchBusy}
               onClick={onStartResearch}
@@ -559,16 +572,28 @@ export function SectorChatPanel({
               <Play className="size-4" aria-hidden />
             </Button>
           ) : researchState === 'failed' ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="Restart research"
-              disabled={researchBusy}
-              onClick={onRestartResearch}
-            >
-              <RotateCcw className="size-4" aria-hidden />
-            </Button>
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Plan research"
+                disabled={researchBusy}
+                onClick={onPlanResearch}
+              >
+                <ClipboardList className="size-4" aria-hidden />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Restart research"
+                disabled={researchBusy}
+                onClick={onRestartResearch}
+              >
+                <RotateCcw className="size-4" aria-hidden />
+              </Button>
+            </>
           ) : researchState === 'running' ? (
             <Button
               type="button"

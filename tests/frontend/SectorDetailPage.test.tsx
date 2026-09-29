@@ -116,6 +116,7 @@ function renderPage(
     onResumeResearch?: () => Promise<void>
     onStartResearch?: () => Promise<void>
     onRestartResearch?: () => Promise<void>
+    onPlanResearch?: () => Promise<void>
     onAttach?: (file: File) => void
     onRetry?: () => void
     researchError?: string | null
@@ -132,6 +133,7 @@ function renderPage(
     onResumeResearch = asyncNoop,
     onStartResearch = asyncNoop,
     onRestartResearch = asyncNoop,
+    onPlanResearch = asyncNoop,
     onAttach = noop,
     onRetry = noop,
     researchError = null,
@@ -164,6 +166,7 @@ function renderPage(
       onResumeResearch={onResumeResearch}
       onStartResearch={onStartResearch}
       onRestartResearch={onRestartResearch}
+      onPlanResearch={onPlanResearch}
       onAttach={onAttach}
       onBack={onBack}
     />,

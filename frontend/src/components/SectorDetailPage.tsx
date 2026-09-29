@@ -20,6 +20,7 @@ import {
 } from './research-parts'
 import { SectorChatPanel } from './SectorChatPanel'
 import { SectorContextDrawer } from './SectorContextDrawer'
+import { SectorPlanSection } from './SectorPlanSection'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 
@@ -412,6 +413,7 @@ export function SectorDetailPage({
   onResumeResearch,
   onStartResearch,
   onRestartResearch,
+  onPlanResearch,
   onAttach,
   onBack,
 }: {
@@ -431,13 +433,15 @@ export function SectorDetailPage({
   onResumeResearch: () => Promise<void>
   onStartResearch: () => Promise<void>
   onRestartResearch: () => Promise<void>
+  onPlanResearch: () => Promise<void>
   onAttach: (file: File) => void
   onBack: () => void
 }) {
-  // While a sweep runs, the detail (strip, state, embedded companies)
-  // re-reads so the page follows the run. Terminal and pre-start states
-  // stay quiet: no polling on draft, paused, complete, or failed.
-  const researchLive = detail?.state === 'queued' || detail?.state === 'running'
+  // While a sweep or plan run is away, the detail (strip, state,
+  // embedded companies) re-reads so the page follows the run. Terminal
+  // and pre-start states stay quiet: no polling on draft, paused,
+  // complete, failed, planned, or approved.
+  const researchLive = detail?.state === 'queued' || detail?.state === 'running' || detail?.state === 'planning'
   useEffect(() => {
     if (!researchLive || !staging) return
     const timer = setInterval(onRetry, RESEARCH_POLL_MS)
@@ -510,6 +514,15 @@ export function SectorDetailPage({
         <ArrowLeft className="size-4" aria-hidden />
         Back to Researches
       </Button>
+      <SectorPlanSection
+        config={staging}
+        sectorId={detail.id}
+        sectorName={detail.name}
+        sectorState={detail.state}
+        researchBusy={researchBusy}
+        planError={researchError}
+        onPlan={onPlanResearch}
+      />
       <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-2">
         <section
           aria-label={`Sector chat for ${detail.name}`}
@@ -529,6 +542,7 @@ export function SectorDetailPage({
               onResumeResearch={onResumeResearch}
               onStartResearch={onStartResearch}
               onRestartResearch={onRestartResearch}
+              onPlanResearch={onPlanResearch}
             />
           </div>
         </section>
