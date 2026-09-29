@@ -1,8 +1,9 @@
 // Sector research start protocol: the single sequence behind both
 // POST /v1/sectors/:id/start and the db.start_sector_research MCP tool.
-// Explicit start only (drafts never self-start); anything past draft is a
-// conflict; a sweep that never starts compensates back to draft so a retry
-// stays a start instead of a 409 dead end.
+// Plan-mandatory start only (approved plans start, never drafts);
+// anything past approved is a conflict; a sweep that never starts
+// compensates back to approved so a retry stays a start instead of a
+// 409 dead end.
 import type { Scope } from '../auth/keys.js'
 import { DbContractError } from './errors.js'
 import { getSession, type Db } from './events.js'
@@ -39,8 +40,10 @@ export async function startSectorResearch(
     throw error
   })
   if (!sector) throw new SectorStartError('not_found', `no such sector ${sectorId}`)
-  if (sector.state !== 'draft') {
-    throw new SectorStartError('conflict', `sector ${sectorId} is ${sector.state}, not draft`)
+  // Plan-mandatory: only owner-approved plans start. The P1 interim
+  // (draft starts) is gone.
+  if (sector.state !== 'approved') {
+    throw new SectorStartError('conflict', `sector ${sectorId} is ${sector.state}, not approved`)
   }
   // The calling chat owns the pin: it must exist and belong to this
   // sector, otherwise another session could claim the research.
@@ -58,8 +61,8 @@ export async function startSectorResearch(
   try {
     await runs.startSectorSweep(sectorId, scope ? { tenantId: scope.tenantId, projectId: scope.projectId } : undefined)
   } catch {
-    await setSectorState(db, sectorId, 'draft', { scope }).catch(() => undefined)
-    throw new SectorStartError('overload', 'sweep worker unavailable; sector returned to draft')
+    await setSectorState(db, sectorId, 'approved', { scope }).catch(() => undefined)
+    throw new SectorStartError('overload', 'sweep worker unavailable; sector returned to approved')
   }
   if (sessionId !== undefined) {
     await recordResearchSession(db, sectorId, sessionId, {

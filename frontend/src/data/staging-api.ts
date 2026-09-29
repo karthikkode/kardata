@@ -481,6 +481,8 @@ export interface SectorPlanView {
   sectorId: string
   versions: PlanVersionView[]
   latest: PlanVersionView | null
+  approvals?: number[]
+  approvedVersion?: number | null
 }
 
 /** Explicit plan: draft/failed enters planning with a visible planning chat. */

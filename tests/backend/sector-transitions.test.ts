@@ -27,9 +27,10 @@ describe('SECTOR_TRANSITIONS', () => {
 
   it('rejects jumps that skip approval or resurrect terminals', () => {
     expect(() => assertSectorTransition('draft', 'running')).toThrow(/not a legal sector transition/)
+    expect(() => assertSectorTransition('draft', 'queued')).toThrow(/not a legal sector transition/)
     expect(() => assertSectorTransition('planned', 'running')).toThrow(/not a legal sector transition/)
     expect(() => assertSectorTransition('complete', 'draft')).toThrow(/not a legal sector transition/)
     expect(() => assertSectorTransition('running', 'approved')).toThrow(/not a legal sector transition/)
-    expect(() => assertSectorTransition('draft', 'queued')).not.toThrow()
+    expect(() => assertSectorTransition('approved', 'queued')).not.toThrow()
   })
 })

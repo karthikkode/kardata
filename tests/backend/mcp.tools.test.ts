@@ -122,6 +122,11 @@ const SAMPLES: Record<McpToolName, { valid: unknown; invalid: unknown; invoke?: 
   'db.complete_idempotency': { valid: { key: 'k', status: 200, body: { a: 1 } }, invalid: { key: 'k', status: 99 } },
   'db.release_idempotency': { valid: { key: 'k' }, invalid: {} },
   'db.kb_search': { valid: { query: 'pricing band', limit: 3 }, invalid: { query: '' } },
+  'db.update_sector_plan': {
+    valid: { sectorId: 's1', markdown: '## scope\nFoods.' },
+    invalid: { sectorId: 's1', markdown: '' },
+    invoke: false,
+  },
   'db.delegate_subagent': {
     valid: { sessionId: 's1', goal: 'research acme' },
     invalid: { sessionId: 's1', goal: '' },
@@ -202,6 +207,7 @@ const EXPECTED_TOOLS: McpToolName[] = [
   'db.complete_idempotency',
   'db.release_idempotency',
   'db.kb_search',
+  'db.update_sector_plan',
   'db.delegate_subagent',
   'db.ledger_upsert_company',
   'db.ledger_get_company',

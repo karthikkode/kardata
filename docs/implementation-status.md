@@ -1676,3 +1676,16 @@ scale claims with evidence links.
 - Two live-caught integration gaps closed in the pass: plan turns must
   route to the turn lane explicitly (research worker has no turn
   activities), and the gateway must forward the planning sessionId.
+
+## Plan approval + start enforcement (P4)
+
+- updateSectorPlan (operator tool, both palettes): versions edits on
+  planned sectors; edits after approval re-open review to planned
+  (approval always pins the exact text seen). approveSectorPlan:
+  route-only by design (owner presses in UI) — pins an existing
+  version, planned to approved; unknown versions fail loudly.
+- startSectorResearch now requires approved (P1 interim removed from
+  the map); compensation returns to approved. GET plan carries
+  approvals + approvedVersion; OpenAPI covers approve + shapes.
+- Evidence: stub-DB update/approve tests, rewritten start tests,
+  live route plan→approve→start flow, MCP parity (66 tools).

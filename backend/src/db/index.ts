@@ -94,6 +94,7 @@ export {
   SECTOR_CREATED_EVENT,
   SECTOR_RESEARCH_STARTED_EVENT,
   SECTOR_PLAN_WRITTEN_EVENT,
+  SECTOR_PLAN_APPROVED_EVENT,
   SECTOR_STATE_CHANGED_EVENT,
   SectorState,
   assertSectorTransition,
@@ -140,9 +141,11 @@ export {
 } from './document-units.js'
 export {
   SectorPlanError,
+  approveSectorPlan,
   planSectorResearch,
   readSectorPlan,
   recordPlanVersion,
+  updateSectorPlan,
   type SectorPlanFailure,
   type SectorPlanRunner,
   type PlanVersion,
