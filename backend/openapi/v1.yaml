@@ -1178,7 +1178,7 @@ paths:
         - name: sectorId
           in: path
           required: true
-          schema: &a1
+          schema: &a0
             type: string
         - $ref: "#/components/parameters/IdempotencyKey"
       responses:
@@ -1219,7 +1219,7 @@ paths:
         - name: sectorId
           in: path
           required: true
-          schema: *a1
+          schema: *a0
       responses:
         "200":
           description: Workspace response.
@@ -1257,7 +1257,7 @@ paths:
         - name: sectorId
           in: path
           required: true
-          schema: *a1
+          schema: *a0
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
@@ -1313,7 +1313,7 @@ paths:
         - name: sectorId
           in: path
           required: true
-          schema: *a1
+          schema: *a0
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
@@ -1329,7 +1329,7 @@ paths:
                 baseVersion: *a2
                 sections:
                   $ref: "#/components/schemas/ContextSections"
-                sourceThread: *a1
+                sourceThread: *a0
               additionalProperties: false
       responses:
         "200":
@@ -1369,11 +1369,11 @@ paths:
         - name: sectorId
           in: path
           required: true
-          schema: *a1
+          schema: *a0
         - name: proposalId
           in: path
           required: true
-          schema: *a1
+          schema: *a0
       responses:
         "200":
           description: Workspace response.
@@ -1412,11 +1412,11 @@ paths:
         - name: sectorId
           in: path
           required: true
-          schema: *a1
+          schema: *a0
         - name: proposalId
           in: path
           required: true
-          schema: *a1
+          schema: *a0
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
@@ -1468,7 +1468,7 @@ paths:
         - name: sectorId
           in: path
           required: true
-          schema: *a1
+          schema: *a0
       responses:
         "200":
           description: Workspace response.
@@ -1507,7 +1507,7 @@ paths:
         - name: sectorId
           in: path
           required: true
-          schema: *a1
+          schema: *a0
       responses:
         "200":
           description: Workspace response.
@@ -1548,11 +1548,11 @@ paths:
         - name: sectorId
           in: path
           required: true
-          schema: *a1
+          schema: *a0
         - name: fileId
           in: path
           required: true
-          schema: *a1
+          schema: *a0
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
@@ -1603,11 +1603,11 @@ paths:
         - name: sectorId
           in: path
           required: true
-          schema: *a1
+          schema: *a0
         - name: fileId
           in: path
           required: true
-          schema: *a1
+          schema: *a0
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
@@ -1620,7 +1620,7 @@ paths:
                 - sourceThread
               properties:
                 baseVersion: *a2
-                sourceThread: *a1
+                sourceThread: *a0
                 ords:
                   type: array
                   items: *a2
@@ -1663,7 +1663,7 @@ paths:
         - name: threadKey
           in: path
           required: true
-          schema: *a1
+          schema: *a0
       responses:
         "200":
           description: Workspace response.
@@ -1701,7 +1701,7 @@ paths:
         - name: threadKey
           in: path
           required: true
-          schema: *a1
+          schema: *a0
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
@@ -1714,7 +1714,7 @@ paths:
                 - notes
               properties:
                 version: *a2
-                notes: *a1
+                notes: *a0
               additionalProperties: false
       responses:
         "200":
@@ -1754,7 +1754,7 @@ paths:
         - name: threadKey
           in: path
           required: true
-          schema: *a1
+          schema: *a0
         - $ref: "#/components/parameters/IdempotencyKey"
       responses:
         "200":
@@ -2531,7 +2531,7 @@ components:
         hash: *a1
         ords:
           type: array
-          items: &a2
+          items:
             type: integer
             minimum: 0
       additionalProperties: false
@@ -2635,7 +2635,7 @@ components:
             - failed
         source: *a1
         hash: *a1
-        hidden: &a3
+        hidden:
           type: boolean
         included: *a3
         kind:

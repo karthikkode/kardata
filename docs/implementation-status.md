@@ -1,5 +1,28 @@
 # Implementation status
 
+## Workspace "no route" fix on frontend-revamp (2026-09-30)
+
+- Screenshot showed `no route GET /v1/sectors/:id/global-context` and
+  `.../files` in all three workspace panels. Diagnosis: routes exist in
+  the branch (`backend/src/routes/workspace.ts`, registered in `app.ts`,
+  11 ops specced) but the running image predated them (built Sep 29
+  22:26, routes landed Sep 30). Reproduced the exact 404 against the
+  live backend before touching anything.
+- Added `tests/backend/api.workspace.test.ts` (8 live tests: global
+  read + v0 fallback, layer-404 vs no-route, files list, approver floor,
+  proposal/decision flow, research-session idempotence, thread
+  read/compact no-op, progress). 8/8 green on compose PG.
+- Rebuilt + restarted backend and worker images. Live probe now answers
+  (`permission_denied` without creds, not `no route`); entrypoint
+  migrated compose DB through 0017 (all workspace tables present).
+  Note: recreate once failed on host port 5432 (`finbuddy-db` holds it);
+  reran with `KARDATA_PG_PORT=5433`. No data touched (`kardata_pgdata`
+  intact).
+- Spec hygiene: `v1.yaml` had duplicate `&a1/&a2/&a3` anchors (strict
+  parsers reject the contract). Renamed the param anchor to `&a0`,
+  dropped the two unused component anchors. Strict-parse valid, 48
+  paths, aliases resolve identically, contract suite green.
+
 ## Antigravity + Codex workspace merge on frontend-revamp (2026-09-30)
 
 - Merged stash `antigravity-revamp-wip-1aaed160` (29 files) into
