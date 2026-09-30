@@ -135,10 +135,11 @@ export async function runChildTurnActivity(input: ChildTurnInput): Promise<TurnO
 
 /** Answer the conversation first; tools provide evidence only when needed. */
 export const KARBOT_SYSTEM_PROMPT =
-  'You are Karbot, the Kardata assistant. Answer the user’s actual question using the conversation. Use a tool only when current Kardata data is needed; do not call tools for greetings or general discussion. Explain tool results in plain words, distinguish facts from guesses, and say when the available data cannot answer the question. Do not invent research, activity, or progress. Keep replies concise. ' +
+  'You are Karbot, the Kardata assistant and universal operational driver. Answer the user’s actual question using the conversation. You have full capability to assist operators across the entire Kardata application: creating and managing sessions, managing sectors, starting, pausing, and resuming research sweeps, querying and attaching documents, inspecting and updating research plans, creating session files and artifacts, delegating subagents, searching the web, and recording findings. Use a tool when current Kardata data or actions are needed; do not call tools for greetings or general discussion. Explain tool results in plain words, distinguish facts from guesses, and say when the available data cannot answer the question. Do not invent research, activity, or progress. Keep replies concise. ' +
   'When a tool call fails, that failure is a source gap: say what failed and what remains unknown, retry at most once with a narrower query, and never fill the gap from parametric knowledge. ' +
   'Product knowledge: when asked about what Kardata sells, pricing, the ideal customer, the research method, or outreach, call db.kb_search first and answer from the ranked chunks, citing each fact as [source_path]. Never answer product questions from memory when the corpus has them. ' +
-  'Sector evidence: when asked what a sector contains — files, documents, notes, companies, or state — call db.get_sector or db.list_sector_documents first and answer from the results; when asked to quote or show what is inside a file, call db.read_sector_document for that document id and quote its text. The list carries record metadata only, never file text; the injected digest is the header, never the whole detail. Never invent digest versions, document lists, document text, or counts from memory or prior turns. ' +
+  'Sector evidence: when asked what a sector contains — files, documents, notes, companies, or state — call db.get_sector or db.list_sector_documents first and answer from the results; when asked to inspect or extract sections from a file, prefer calling db.query_document (summary TOC or targeted chunks) to protect context capacity; when asked to quote or show full text, call db.read_sector_document for that document id and quote its text. The list carries record metadata only, never file text; the injected digest is the header, never the whole detail. Never invent digest versions, document lists, document text, or counts from memory or prior turns. ' +
+  'Session files: when requested to write, create, or persist reports, summaries, data tables, or output documents for the operator, call db.create_artifact with the sessionId and filename. The file will immediately be indexed and accessible to the operator in the files menu. ' +
   'Standing facts: Kardata sells a managed data layer; the entry wedge is solving one evidenced problem free, then expanding to the data layer. $3k–$6k/month is an internal targeting band, never a quoted price; the only quotable figure is the one-time diagnostic entry. ' +
   'Research discipline: breadth over fixation (record every evidenced problem, never build whole research around one symptom like out-of-stock ads); a problem counts only with mechanism-or-cost evidence from the company’s own domain; every proposal must survive “would they pay $3–6k/mo to fix this, and what evidence says so?”. ' +
   'Response format: GitHub-flavored Markdown, rendered as rich chat. Short paragraphs; **bold** lead-ins; `-` bullets for lists; `|` tables for two or more counts or comparisons; `` `code` `` for paths, ids, and source citations (citations stay literal bracket text, never links). No raw HTML, no headings in short replies, no invented metrics.'
@@ -197,8 +198,8 @@ export const KarbotTurnInput = z.object({
    * full Karbot palette. */
   toolAllow: z.string().min(1).max(80).array().max(43).optional(),
   /** Turn mode: `brainstorm` adds the open posture, low effort, sampling
-   * temperature, and KB preload. Absent means precise answering. */
-  mode: z.enum(['default', 'brainstorm']).optional(),
+   * temperature, and KB preload; `plan` structures roadmaps before action. Absent means precise answering. */
+  mode: z.enum(['default', 'brainstorm', 'plan']).optional(),
 })
 
 export type KarbotTurnInput = z.infer<typeof KarbotTurnInput>
@@ -324,8 +325,8 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
     }
     const systemPrompt = composeSystemPrompt(KARBOT_SYSTEM_PROMPT, {
       prepend: parsed.systemPrepend,
-      modePrompt: brainstorm ? modePromptFor('brainstorm') : undefined,
-      preload: [...(parsed.preloadChunks ?? []), ...sectorRefs],
+      modePrompt: parsed.mode ? modePromptFor(parsed.mode) : undefined,
+      preload: [...preload, ...(parsed.preloadChunks ?? []), ...sectorRefs],
     })
     // Spend guards for the live turn. Cost stays untracked until a price
     // table lands (no price source exists yet), so maxCost never trips;
@@ -419,7 +420,7 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
         condense: deps.refreshContext ? undefined : {
           maxSize: 30,
           keepFirst: 1,
-          tokenCap: 100_000,
+          tokenCap: 120_000,
           summarizer: 'karbot:compaction',
           summarize: async (forgotten) => {
             const excerpt = forgotten
@@ -588,12 +589,13 @@ function karbotMcpClient(input: {
 export const PRODUCT_TOOLS: ReadonlySet<string> = new Set([
   'db.commit_child_context',
   'db.get_global_context', 'db.propose_global_context', 'db.list_sector_files', 'db.propose_file_context', 'db.get_local_context',
+  'db.create_session',
   'db.list_sessions', 'db.get_session', 'db.get_thread', 'db.send_message', 'db.steer_thread', 'db.research_health',
   'db.pause_run', 'db.resume_run', 'db.cancel_run',
   'db.rename_session', 'db.delete_session',
   'db.list_sectors', 'db.get_sector', 'db.sector_activity',
   'db.list_companies', 'db.list_sector_companies',
-  'db.create_sector', 'db.set_sector_state', 'db.mark_company_found',
+  'db.create_sector', 'db.set_sector_state', 'db.start_sector_research', 'db.pause_sector_research', 'db.resume_sector_research', 'db.mark_company_found',
   'db.set_company_stage', 'db.set_company_state',
   'db.attach_sector_document', 'db.list_sector_documents', 'db.read_sector_document', 'db.query_document',
   'db.list_artifacts', 'db.create_artifact', 'db.list_tenant_artifacts', 'db.reference_artifact',

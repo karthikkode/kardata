@@ -296,6 +296,48 @@ export function listThreads(config: StagingConfig, sessionId: string): Promise<T
   )
 }
 
+export type TurnMode = 'default' | 'brainstorm' | 'plan'
+
+export interface CreateArtifactInput {
+  name: string
+  content: string
+  kind?: 'file' | 'proposal' | 'report'
+  detail?: string
+  reason?: 'subagent_output' | 'user_upload' | 'report' | 'proposal'
+}
+
+export function createArtifact(
+  config: StagingConfig,
+  sessionId: string,
+  input: CreateArtifactInput,
+): Promise<ArtifactSummary> {
+  return request<ArtifactSummary>(
+    config,
+    'POST',
+    `/v1/sessions/${encodeURIComponent(sessionId)}/artifacts`,
+    input,
+  )
+}
+
+export interface CompactSessionResult {
+  sessionId: string
+  compacted: boolean
+  messageCount?: number
+  reason?: string
+  summary?: { summaryText: string }
+}
+
+export function compactSession(
+  config: StagingConfig,
+  sessionId: string,
+): Promise<CompactSessionResult> {
+  return request<CompactSessionResult>(
+    config,
+    'POST',
+    `/v1/sessions/${encodeURIComponent(sessionId)}/compact`,
+  )
+}
+
 export function listSessionArtifacts(config: StagingConfig, sessionId: string): Promise<ArtifactSummary[]> {
   return request<ArtifactSummary[]>(
     config,
@@ -584,6 +626,25 @@ export function patchSectorContext(
   },
 ): Promise<SectorContextView> {
   return request<SectorContextView>(config, 'PATCH', `/v1/sectors/${encodeURIComponent(sectorId)}/context`, input)
+}
+
+export interface CompactSectorContextResult {
+  sectorId: string
+  compacted: boolean
+  priorNotesCount?: number
+  reason?: string
+  note?: { id: string; text: string; createdAt: string }
+}
+
+export function compactSectorContext(
+  config: StagingConfig,
+  sectorId: string,
+): Promise<CompactSectorContextResult> {
+  return request<CompactSectorContextResult>(
+    config,
+    'POST',
+    `/v1/sectors/${encodeURIComponent(sectorId)}/context/compact`,
+  )
 }
 
 /** Create a sector (defaults to draft: attach files, start explicitly). */

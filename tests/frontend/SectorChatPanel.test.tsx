@@ -721,6 +721,52 @@ describe('SectorChatPanel', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Send message' })).toBeInTheDocument())
     release()
   })
+
+  it('proposes and approves a note into global sector context', async () => {
+    const { calls } = stubApi((url, init) => {
+      if (url === 'https://staging.test/v1/sessions?sectorId=sec-foods') {
+        return { status: 200, payload: { ok: true, data: SECTOR_SESSIONS } }
+      }
+      if (url.includes('/messages')) {
+        return {
+          status: 200,
+          payload: {
+            ok: true,
+            data: [
+              { seq: 1, kind: 'text', role: 'user', text: 'focus on organic salads' },
+              { seq: 2, kind: 'text', role: 'agent', text: 'Consider prioritizing companies with USDA organic certification.' },
+            ],
+          },
+        }
+      }
+      if (url === 'https://staging.test/v1/sectors/sec-foods/context' && init.method === 'PATCH') {
+        const body = JSON.parse(init.body ?? '{}') as { notes?: string[] }
+        expect(body.notes).toEqual(['Consider prioritizing companies with USDA organic certification.'])
+        return {
+          status: 200,
+          payload: {
+            ok: true,
+            data: {
+              sectorId: 'sec-foods',
+              digest: { version: '1', text: '' },
+              segments: { system: '', references: [], history: [], tail: [] },
+              usage: { totalEstimatedTokens: 100 },
+              files: [],
+              notes: [{ id: 'n1', text: body.notes![0], createdAt: '2026-09-27T00:00:00Z' }],
+            },
+          },
+        }
+      }
+      return { status: 404, payload: { ok: false, error: { code: 'not_found', message: 'nope' } } }
+    })
+    renderPanel()
+    await waitFor(() => expect(screen.getByText('Consider prioritizing companies with USDA organic certification.')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Add to sector context' }))
+    expect(await screen.findByRole('region', { name: 'Global context proposal' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Approve context update' }))
+    await waitFor(() => expect(screen.getByText('Context updated for ongoing research.')).toBeInTheDocument())
+    expect(calls.some((call) => call.url.includes('/context') && call.method === 'PATCH')).toBe(true)
+  })
 })
 
 describe('SectorChatPanel stuck thinking', () => {

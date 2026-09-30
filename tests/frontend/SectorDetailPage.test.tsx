@@ -465,13 +465,12 @@ describe('Sector open navigation', () => {
     const { default: App } = await import('@/App')
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: 'Open Pet care' }))
-    const heading = await screen.findByRole('heading', { name: 'Pet care' })
-    expect(heading).toHaveFocus()
-    expect(
-      screen.getByRole('region', { name: 'Sector chat for Pet care' }),
-    ).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Back to Researches' }))
-    expect(screen.getByRole('heading', { name: 'Researches' })).toHaveFocus()
+    // The row opens the summary landing; Open enters the chat workspace.
+    expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: 'Open' }))
+    expect(await screen.findByRole('group', { name: 'Session types' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Back to sector summary' }))
+    expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
   })
 
   it('follows a running sweep: detail and companies re-read on an interval', async () => {
@@ -545,5 +544,16 @@ describe('Sector open navigation', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('switches between 4-pillar workbench views', async () => {
+    stubSessions()
+    renderPage({ detail: petCare, staging })
+    expect(screen.getByRole('tab', { name: 'Workbench (All)' })).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(screen.getByRole('tab', { name: 'Sector Chat' }))
+    expect(screen.getByRole('tab', { name: 'Sector Chat' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('region', { name: 'Sector chat for Pet care' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Context Studio' }))
+    expect(screen.getByRole('tab', { name: 'Context Studio' })).toHaveAttribute('aria-selected', 'true')
   })
 })

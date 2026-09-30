@@ -45,7 +45,7 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
     const started = Date.now()
     const timerScope = new CancellationScope({ cancellable: true })
     const timer = timerScope.run(async () => { await sleep(Math.max(1, plan.budgets.maxWallMinutes * 60_000 - spent)); timedOut = true; scope.cancel() }).catch((error: unknown) => { if (!isSweepCancellation(error)) throw error })
-    try { return await work() } catch (error) { if (timedOut) throw new Error('Approved research budget exhausted. Review and extend the plan.'); throw error } finally { timerScope.cancel(); spent += Date.now() - started; await timer }
+    try { return await work() } catch (error) { if (timedOut) throw new Error('Approved research budget exhausted. Review and extend the plan.', { cause: error }); throw error } finally { timerScope.cancel(); spent += Date.now() - started; await timer }
   })
   try {
     await research.researchLifecycleActivity({ ...input, state: 'running' })

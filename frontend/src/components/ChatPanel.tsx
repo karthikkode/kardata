@@ -3,13 +3,41 @@
 // arrive on the thread stream. No fixtures, no simulated replies, no local
 // uploads: every row on screen was served by the backend.
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { ArrowLeft, Bot, Brain, Check, ChevronDown, FileText, History, Lock, Pencil, Pin, Plus, Send, Square, SquarePen, Trash2, Wrench, X } from 'lucide-react'
+import {
+  ArrowLeft,
+  Bot,
+  Brain,
+  Check,
+  ChevronDown,
+  Compass,
+  Download,
+  Eye,
+  FileCode,
+  FileText,
+  FolderOpen,
+  History,
+  ListTree,
+  Lock,
+  Minimize2,
+  Pencil,
+  Pin,
+  Plus,
+  Send,
+  Square,
+  SquarePen,
+  Trash2,
+  Wrench,
+  X,
+} from 'lucide-react'
 import { dockEnter, dockExit, popoverEnter, popoverExit, useExitState } from '@/lib/motion'
 import {
   cancelRun,
+  compactSession,
+  createArtifact,
   createSession,
   deleteSession,
   followThread,
+  getArtifactBody,
   listMessages,
   listRuns,
   listSessionArtifacts,
@@ -18,6 +46,7 @@ import {
   listThreads,
   renameSession,
   sendThreadText,
+  steerThread,
   apiErrorStatus,
   StagingApiError,
   type ArtifactSummary,
@@ -445,18 +474,22 @@ export function ThinkingPlaceholder() {
     return () => window.clearInterval(timer)
   }, [])
   return (
-    <p role="status" aria-label="Agent is replying" className="flex items-center gap-1.5 text-sm text-muted-foreground">
-      <Brain className="size-3.5 shrink-0" aria-hidden />
+    <div
+      role="status"
+      aria-label="Agent is replying"
+      className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs text-primary shadow-2xs"
+    >
+      <Brain className="size-3.5 shrink-0 motion-safe:animate-pulse" aria-hidden />
       <span aria-hidden className="flex gap-1">
         {[0, 1, 2].map((index) => (
           <span
             key={index}
-            className="size-1.5 rounded-full bg-muted-foreground motion-safe:animate-pulse"
+            className="size-1.5 rounded-full bg-primary motion-safe:animate-pulse"
           />
         ))}
       </span>
-      Thinking{elapsed > 0 ? ` · ${elapsed}s` : null}
-    </p>
+      <span className="font-medium">Thinking{elapsed > 0 ? ` · ${elapsed}s` : null}</span>
+    </div>
   )
 }
 
@@ -491,27 +524,42 @@ export function ActivityGroup({ tools, reasoning, live = false }: { tools: ChatT
     return `${Math.max(0, Math.floor((now - tool.seenAt) / 1000))}s`
   }
   return (
-    <div className="mb-1 text-muted-foreground">
+    <div className="mb-2 text-muted-foreground">
       <button
         type="button"
         aria-expanded={open}
         aria-label={`${open ? 'Hide' : 'Show'} ${label}`}
         onClick={() => setOpen((value) => !value)}
-        className="inline-flex cursor-pointer items-center gap-1.5 rounded-md py-1 pr-2 text-left text-xs hover:text-foreground"
+        className="group inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border/70 bg-card/60 px-2.5 py-1 text-left text-xs transition-colors hover:border-border hover:bg-muted/50"
       >
-        {reasoning ? <Brain className="size-3.5 shrink-0" aria-hidden /> : <Wrench className="size-3.5 shrink-0" aria-hidden />}
-        <span>{label}</span>
-        {failed ? <span className="text-xs">Needs attention</span> : null}
+        {reasoning ? <Brain className="size-3.5 shrink-0 text-primary" aria-hidden /> : <Wrench className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
+        <span className="font-medium text-foreground">{label}</span>
+        {tools.length > 0 && !reasoning ? (
+          <span className="rounded-full bg-muted px-1.5 py-0.2 text-[10px] font-mono text-muted-foreground">
+            {tools.length}
+          </span>
+        ) : null}
+        {failed ? <span className="rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive">Needs attention</span> : null}
         <ChevronDown
-          className={`size-3.5 shrink-0 motion-safe:transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`size-3.5 shrink-0 text-muted-foreground motion-safe:transition-transform ${open ? 'rotate-180' : ''}`}
           aria-hidden
         />
       </button>
       {open ? (
-        <div className="ml-1 border-l border-border pl-3">
-          {reasoning ? <p className="scroll-slim max-h-48 overflow-y-auto py-1 text-xs whitespace-pre-wrap">{reasoning}</p> : null}
+        <div className="mt-2 ml-1 space-y-1.5 border-l-2 border-primary/20 pl-3">
+          {reasoning ? (
+            <div className="scroll-slim max-h-60 overflow-y-auto rounded-lg border border-border/60 bg-muted/40 p-3 text-xs leading-relaxed text-foreground/90 whitespace-pre-wrap">
+              {reasoning}
+            </div>
+          ) : null}
           {tools.map((tool) => (
-            <ToolRow key={tool.id} name={toolLabel(tool.name)} detail={tool.detail === `mcp:${tool.name}` ? '' : tool.detail} state={tool.state} elapsed={elapsedFor(tool)} />
+            <ToolRow
+              key={tool.id}
+              name={toolLabel(tool.name)}
+              detail={tool.detail === `mcp:${tool.name}` ? '' : tool.detail}
+              state={tool.state}
+              elapsed={elapsedFor(tool)}
+            />
           ))}
         </div>
       ) : null}
@@ -545,6 +593,252 @@ function MessageBubble({ message, files, live = false }: { message: ChatText; fi
           ) : null}
         </AgentBubble> : null}
       </div>
+    </div>
+  )
+}
+
+export function SessionFilesView({
+  config,
+  sessionId,
+  files,
+  onRefresh,
+}: {
+  config: StagingConfig | null
+  sessionId: string
+  files: ChatFile[]
+  onRefresh: () => void
+}) {
+  const [selectedFile, setSelectedFile] = useState<ChatFile | null>(null)
+  const [fileBody, setFileBody] = useState<string | null>(null)
+  const [loadingBody, setLoadingBody] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [newFileName, setNewFileName] = useState('')
+  const [newFileContent, setNewFileContent] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+
+  function openPreview(file: ChatFile) {
+    setSelectedFile(file)
+    setFileBody(null)
+    if (!config) return
+    setLoadingBody(true)
+    getArtifactBody(config, sessionId, file.id)
+      .then((res) => {
+        setFileBody(res.body)
+      })
+      .catch(() => {
+        setFileBody('Could not load artifact body.')
+      })
+      .finally(() => {
+        setLoadingBody(false)
+      })
+  }
+
+  function downloadFile(file: ChatFile) {
+    if (!config) return
+    getArtifactBody(config, sessionId, file.id)
+      .then((res) => {
+        const blob = new Blob([res.body], { type: 'text/plain;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = file.name
+        a.click()
+        URL.revokeObjectURL(url)
+      })
+      .catch(() => undefined)
+  }
+
+  async function handleCreateFile() {
+    if (!config || !newFileName.trim()) return
+    setCreating(true)
+    setCreateError(null)
+    try {
+      await createArtifact(config, sessionId, {
+        name: newFileName.trim(),
+        content: newFileContent,
+        kind: 'file',
+        reason: 'user_upload',
+      })
+      setNewFileName('')
+      setNewFileContent('')
+      setCreateOpen(false)
+      onRefresh()
+    } catch (err: unknown) {
+      setCreateError(err instanceof Error ? err.message : 'Could not create file.')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  return (
+    <div className="flex h-full flex-col p-4">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h2 className="text-sm font-semibold">Session Files</h2>
+          <p className="text-xs text-muted-foreground">
+            {files.length} {files.length === 1 ? 'file' : 'files'} generated in this session
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setCreateOpen(true)}
+          className="gap-1.5 text-xs"
+        >
+          <Plus className="size-3.5" aria-hidden />
+          Create file
+        </Button>
+      </div>
+
+      {createOpen ? (
+        <div className="mb-4 rounded-xl border border-border bg-card p-3 shadow-2xs">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-semibold">New File</span>
+            <button
+              type="button"
+              onClick={() => setCreateOpen(false)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <X className="size-3.5" aria-hidden />
+            </button>
+          </div>
+          <div className="space-y-2">
+            <Input
+              placeholder="filename.md or data.csv"
+              value={newFileName}
+              onChange={(e) => setNewFileName(e.target.value)}
+              className="h-8 text-xs font-mono"
+            />
+            <textarea
+              placeholder="Enter file contents..."
+              value={newFileContent}
+              onChange={(e) => setNewFileContent(e.target.value)}
+              className="scroll-slim min-h-[80px] w-full rounded-md border border-border bg-background p-2 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            {createError ? <p className="text-xs text-destructive">{createError}</p> : null}
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setCreateOpen(false)}
+                className="h-7 text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="default"
+                size="sm"
+                disabled={creating || !newFileName.trim()}
+                onClick={() => void handleCreateFile()}
+                className="h-7 text-xs"
+              >
+                {creating ? 'Saving...' : 'Save File'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="scroll-slim min-h-0 flex-1 space-y-2 overflow-y-auto">
+        {files.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            <FolderOpen className="mx-auto mb-2 size-8 opacity-40" aria-hidden />
+            <p className="font-medium">No files created yet</p>
+            <p className="mt-1 text-xs">
+              Every document, report, or export created by Karbot or subagents appears here.
+            </p>
+          </div>
+        ) : (
+          files.map((file) => (
+            <div
+              key={file.id}
+              className="flex items-center justify-between rounded-lg border border-border/80 bg-card p-2.5 transition-colors hover:border-border"
+            >
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                  <FileText className="size-4" aria-hidden />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-medium font-mono text-foreground">{file.name}</p>
+                  <p className="truncate text-[10px] text-muted-foreground">
+                    {file.source} {file.detail ? `· ${file.detail}` : ''}
+                  </p>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Preview ${file.name}`}
+                  onClick={() => openPreview(file)}
+                  className="size-7"
+                >
+                  <Eye className="size-3.5" aria-hidden />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Download ${file.name}`}
+                  onClick={() => downloadFile(file)}
+                  className="size-7"
+                >
+                  <Download className="size-3.5" aria-hidden />
+                </Button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {selectedFile ? (
+        <div className="mt-3 rounded-xl border border-border bg-card p-3 shadow-lg">
+          <div className="mb-2 flex items-center justify-between border-b border-border pb-2">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <FileCode className="size-3.5 text-primary" aria-hidden />
+              <span className="truncate text-xs font-mono font-medium">{selectedFile.name}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Download open file"
+                onClick={() => downloadFile(selectedFile)}
+                className="size-6"
+              >
+                <Download className="size-3" aria-hidden />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Close file preview"
+                onClick={() => setSelectedFile(null)}
+                className="size-6"
+              >
+                <X className="size-3" aria-hidden />
+              </Button>
+            </div>
+          </div>
+          <div className="scroll-slim max-h-56 overflow-y-auto">
+            {loadingBody ? (
+              <p className="py-4 text-center text-xs text-muted-foreground">Loading file...</p>
+            ) : fileBody ? (
+              <div className="text-xs">
+                <Markdown text={fileBody} />
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Empty file.</p>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -598,6 +892,10 @@ export function ChatPanel({
   const [echo, setEcho] = useState<{ text: string; basis: number } | null>(null)
   const [runs, setRuns] = useState<Array<{ id: string; threadKey: string }>>([])
   const [files, setFiles] = useState<ChatFile[]>([])
+  const [activeTab, setActiveTab] = useState<'conversation' | 'files'>('conversation')
+  const [planMode, setPlanMode] = useState(false)
+  const [compacting, setCompacting] = useState(false)
+  const [compactStatus, setCompactStatus] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [renaming, setRenaming] = useState(false)
   const [renameDraft, setRenameDraft] = useState('')
@@ -1067,6 +1365,42 @@ export function ChatPanel({
     inputRef.current?.focus()
   }
 
+  async function handleCompactSession() {
+    if (!config || !activeSessionId || compacting) return
+    setCompacting(true)
+    setCompactStatus(null)
+    try {
+      const res = await compactSession(config, activeSessionId)
+      if (res.compacted) {
+        setCompactStatus('Session context compacted: history condensed, token budget restored.')
+      } else {
+        setCompactStatus('Context already optimal. No compaction needed.')
+      }
+    } catch {
+      setCompactStatus('Compaction failed. Check connection.')
+    } finally {
+      setCompacting(false)
+    }
+  }
+
+  function steerRunningAgent(text: string) {
+    const trimmed = text.trim()
+    if (!trimmed || !config) return
+    const key = threadKeyRef.current
+    if (!key) return
+    setDraft('')
+    setSendError(null)
+    steerThread(config, key, trimmed)
+      .then((result) => {
+        if (result.state === 'missed_steer') {
+          setSendError('Steer arrived after the run moved on: shown, not relaunched.')
+        }
+      })
+      .catch(() => {
+        setSendError('Failed to steer running agent. Try again.')
+      })
+  }
+
   // Echo the user's text until the server confirms it; keep a separate
   // reply state through the provider's first token and terminal message.
   // Start-on-send: with no session (all deleted or none yet) the composer
@@ -1080,6 +1414,7 @@ export function ChatPanel({
       setSendError('No connection. Try again.')
       return
     }
+    const payloadText = planMode && !trimmed.startsWith('/') ? `/plan ${trimmed}` : trimmed
     const key = threadKeyRef.current
     if (!key) {
       setWorking(true)
@@ -1091,7 +1426,7 @@ export function ChatPanel({
           setActiveSessionId(session.id)
           setOpenThreadKey(null)
           resetScroll()
-          postToThread(session.id, trimmed)
+          postToThread(session.id, payloadText)
         })
         .catch(() => {
           setWorking(false)
@@ -1099,7 +1434,7 @@ export function ChatPanel({
         })
       return
     }
-    postToThread(key, trimmed)
+    postToThread(key, payloadText)
   }
 
   function postToThread(key: string, trimmed: string) {
@@ -1384,6 +1719,49 @@ export function ChatPanel({
                 Context
               </button>
             ) : null}
+            <div
+              role="tablist"
+              aria-label="Chat panel views"
+              className="flex items-center gap-0.5 rounded-lg border border-border/80 bg-muted/50 p-0.5"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'conversation'}
+                onClick={() => setActiveTab('conversation')}
+                className={`rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
+                  activeTab === 'conversation'
+                    ? 'bg-background text-foreground shadow-2xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Chat
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'files'}
+                onClick={() => setActiveTab('files')}
+                className={`rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
+                  activeTab === 'files'
+                    ? 'bg-background text-foreground shadow-2xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Files {files.length > 0 ? `(${files.length})` : ''}
+              </button>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Compact session context"
+              title="Compact session context to free tokens"
+              disabled={compacting || !activeSessionId}
+              onClick={() => void handleCompactSession()}
+            >
+              <Minimize2 className={`size-4 ${compacting ? 'animate-spin' : ''}`} aria-hidden />
+            </Button>
             <Button
               type="button"
               variant="ghost"
@@ -1476,6 +1854,14 @@ export function ChatPanel({
           </>
           ) : null}
       </div>
+      {compactStatus ? (
+        <div role="status" className="flex items-center justify-between border-b border-border bg-muted/40 px-4 py-1.5 text-xs text-muted-foreground">
+          <span>{compactStatus}</span>
+          <button type="button" onClick={() => setCompactStatus(null)} className="hover:text-foreground">
+            <X className="size-3" aria-hidden />
+          </button>
+        </div>
+      ) : null}
       {renameError ? (
         <p role="alert" className="border-b border-border px-4 py-2 text-sm text-muted-foreground">
           {renameError}
@@ -1518,6 +1904,13 @@ export function ChatPanel({
         <div className="p-4">
           <UnavailableNotice onRetry={retryOffline} />
         </div>
+      ) : activeTab === 'files' ? (
+        <SessionFilesView
+          config={config}
+          sessionId={activeSessionId ?? ''}
+          files={files}
+          onRefresh={() => setThreadsAttempt((a) => a + 1)}
+        />
       ) : (
         <>
           <div className="flex min-h-0 flex-1 flex-col">
@@ -1770,17 +2163,46 @@ export function ChatPanel({
                 sessionId={activeSessionId}
               />
             ) : null}
+            <Button
+              type="button"
+              variant={planMode ? 'default' : 'ghost'}
+              size="sm"
+              aria-label="Toggle plan mode"
+              aria-pressed={planMode}
+              onClick={() => setPlanMode((val) => !val)}
+              className={`h-7 gap-1 rounded-full px-2 text-xs ${
+                planMode ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <ListTree className="size-3.5" aria-hidden />
+              <span>Plan</span>
+            </Button>
             {replying ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                aria-label="Stop reply"
-                onClick={stopReply}
-                className="shrink-0 rounded-full"
-              >
-                <Square className="size-4" aria-hidden />
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  aria-label="Steer agent"
+                  title="Steer running agent mid-run"
+                  disabled={!draft.trim()}
+                  onClick={() => steerRunningAgent(draft)}
+                  className="h-8 gap-1 rounded-full px-2.5 text-xs text-primary hover:bg-primary/10"
+                >
+                  <Compass className="size-3.5" aria-hidden />
+                  Steer
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Stop reply"
+                  onClick={stopReply}
+                  className="shrink-0 rounded-full"
+                >
+                  <Square className="size-4" aria-hidden />
+                </Button>
+              </div>
             ) : (
               <Button type="submit" variant="default" size="icon" aria-label="Send message" className="shrink-0 rounded-full">
                 <Send className="size-4" aria-hidden />

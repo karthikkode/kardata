@@ -1,5 +1,63 @@
 # Implementation status
 
+## Antigravity + Codex workspace merge on frontend-revamp (2026-09-30)
+
+- Merged stash `antigravity-revamp-wip-1aaed160` (29 files) into
+  `frontend-revamp` (codex `01a0f17a`) via `git apply --3way`: 17 files
+  clean, 12 conflicted. Codex P0 throughout; Antigravity's older
+  query/create/compact variants dropped where PR #34 or Codex superseded
+  them (deterministic compact keys, `includes` 404 mapping, `owningSectorId`
+  visibility, exact-optional invokers all kept).
+- Kept from Antigravity: `TurnMode 'plan'` + `plan` skill
+  (`agents/src/prompt.ts`, `skills.ts` + test), Karbot universal-driver /
+  query-document / session-files prompt paragraphs, `tokenCap` 120k,
+  generic `modePromptFor(parsed.mode)`, `db.create_session` +
+  start/pause/resume research in `PRODUCT_TOOLS`, approval-cards UI +
+  Context Studio + 4-pillar copy (`SectorChatPanel`, `SectorContextDrawer`,
+  `ChatPanel` files hub, `research-parts`, `frontend.md`), attach/query
+  binding row (previously undocumented).
+- Added in this merge (Codex gaps): `db.md` binding rows + repo-map row +
+  schema entries for the 6 workspace/context tools and 0014–0017 tables.
+- Red-suite findings fixed test-side (product behavior is the P0 arbiter):
+  migration file pins extended to 0014–0017; `sector-context` stub answers
+  `workspace_files` (hiding is live behavior); `sector-start` stub serves an
+  approved executable plan (layer now requires one); 5 App journey tests
+  rewritten for landing → Open → workspace (old suite expected direct chat
+  regions). One-line `cause` fix for the `preserve-caught-error` lint error
+  in `coordinator.ts`.
+- Follow-ups (not this merge): sector activity timeline has no renderer in
+  the workspace UX (dropped one assertion; coverage stays in
+  `RunConsole.test.tsx`); `SectorDetailPage` workbench graft lives in a
+  file the App shell no longer routes (shared `CompanySection` still used
+  by the landing); 0009–0013 tables predate the repo map.
+- Gates on the merged tree: backend lint/typecheck clean, agents
+  lint/typecheck + 195 tests green, backend 323 passed (56 files, live
+  suites skip), frontend 276 passed (33 files), live migration up +
+  down/up round-trip green incl. 0014–0017. Full live-stack + e2e left for
+  the PR gate.
+
+## Frontend & Agent Engine Revamp: Universal Karbot, 4-Pillar Workbench, and Swarm Visibility (2026-09-30)
+
+- Universal Karbot Driver & Session Files Hub:
+  - Added Session Files view in `ChatPanel.tsx` with live artifact listing, in-app body preview (`getArtifactBody`), download action, and file creation dialog (`createArtifact`).
+  - Added Plan Mode toggle in composer (`/plan` prefixed turns) and mid-run Steer button (`steerThread`) for real-time steering of running agents and subagents.
+  - Hermes-grade thinking placeholder pill with animated pulse and live elapsed clock (`Thinking · Xs`), plus tool cards with duration badges and expandable inputs/outputs.
+- Sector Chat Thought Partner & Global Context Approval Cards:
+  - `SectorChatPanel.tsx` updated with Global Context Update Approval Cards (`patchSectorContext`), allowing operators to approve or dismiss proposed sector notes before syncing to the global sector context.
+  - Added mid-run steer action in sector chat composer.
+- Context Studio & 60% Compaction Limit:
+  - `SectorContextDrawer.tsx` updated with a 60% compaction limit indicator on `MeterBar`, raw verbatim context digest inspector with copy action, and `compactSectorContext` trigger.
+- 4-Pillar Sector Detail Workbench:
+  - `SectorDetailPage.tsx` updated with Linear-grade Command Header and 4-pillar view switcher (`Workbench (All)`, `Research Activity`, `Sector Chat`, `Context Studio`, `Files Hub`), keeping 100% test compatibility.
+- Backend & Agent Grants:
+  - Added `TurnMode = 'default' | 'brainstorm' | 'plan'`, `createArtifact`, `querySectorDocument`, `compactSectorContext`, `POST /v1/sessions/:sessionId/artifacts`, `POST /v1/sessions/:sessionId/compact`, `POST /v1/sectors/:sectorId/context/compact`.
+  - Pinned auto-compaction cap at 60% window (120k tokens).
+- Verification:
+  - All 31 frontend test files passed (260/260 tests passed).
+  - All 54 backend test files passed (315/315 tests passed).
+  - All 31 agents test files passed (189/189 tests passed).
+  - Typecheck, ESLint, no-em-dashes, and production build 100% green.
+
 ## Sweep robustness: TEST-marker strip + walled-run findings (2026-09-28)
 
 - `stripTestMarkers` in sweep-rules.ts: leading TEST tokens/clauses go

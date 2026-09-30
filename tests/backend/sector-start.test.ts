@@ -49,6 +49,17 @@ function stubDb(
           }] as unknown as TRow[],
         }
       }
+      // Approved executable plan (plan-mandatory start): v1 written with an
+      // executable body, then approved. Reads pass it through unvalidated.
+      if (text.includes('FROM events WHERE partition = $1') && params[0] === 'sector:sec-1') {
+        return {
+          rowCount: 2,
+          rows: [
+            { seq: 1, idempotency_key: 'plan-1', partition: 'sector:sec-1', type: 'sector.plan_written', payload: { markdown: '# Plan', executable: { milestones: [] } }, redacted: false, at: new Date('2026-01-01T00:00:00.000Z') },
+            { seq: 2, idempotency_key: 'plan-approve-1', partition: 'sector:sec-1', type: 'sector.plan_approved', payload: { version: 1 }, redacted: false, at: new Date('2026-01-01T00:00:00.000Z') },
+          ] as unknown as TRow[],
+        }
+      }
       return { rowCount: 0, rows: [] }
     },
   }

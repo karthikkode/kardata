@@ -26,10 +26,11 @@ describe('composeSystemPrompt', () => {
     expect(composed).toBe('base')
   })
 
-  it('resolves mode prompts: default empty, brainstorm open', () => {
+  it('resolves mode prompts: default empty, brainstorm open, plan strategist', () => {
     expect(modePromptFor('default')).toBe('')
     expect(modePromptFor('brainstorm')).toContain('thought partner')
-    const composed = composeSystemPrompt('base', { modePrompt: modePromptFor('brainstorm') })
-    expect(composed.indexOf('base')).toBeLessThan(composed.indexOf('thought partner'))
+    expect(modePromptFor('plan')).toContain('Planning posture')
+    const composed = composeSystemPrompt('base', { modePrompt: modePromptFor('plan') })
+    expect(composed.indexOf('base')).toBeLessThan(composed.indexOf('Planning posture'))
   })
 })
