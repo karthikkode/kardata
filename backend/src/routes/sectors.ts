@@ -14,7 +14,7 @@ import {
   getSectorContext,
   setUnitExclusions,
 } from '../db/sector-context.js'
-import { approveSectorPlan } from '../db/sector-plan.js'
+import { approveSectorPlan, updateSectorPlan } from '../db/sector-plan.js'
 import { pauseSectorSweep, restartSectorSweep, resumeSectorSweep } from '../db/sector-lifecycle.js'
 import { SectorPlanError, planSectorResearch, readSectorPlan } from '../db/sector-plan.js'
 import { SectorStartError, startSectorResearch } from '../db/sector-start.js'
@@ -255,6 +255,37 @@ export function sectorRoutes(app: FastifyInstance): void {
       await projectNewEvents(pool).catch(() => undefined)
       const planning = await getSector(pool, sectorId, auth.scope)
       return { status: 200, body: { ok: true, data: planning } }
+    })
+  })
+
+  route(app, 'patch', '/v1/sectors/:sectorId/plan', async (request, reply, app) => {
+    const pool = requirePool(app, reply)
+    if (!pool) return undefined
+    const auth = await authorize(app, request, reply, 'operator')
+    if (!auth) return undefined
+    const params = request.params as { sectorId?: string }
+    const sectorId = params.sectorId ?? ''
+    const PatchPlanBody = z.object({ markdown: z.string().min(1).max(8000) })
+    const body = parseInput(PatchPlanBody, request.body, reply)
+    if (!body) return undefined
+    return withIdempotency(request, reply, pool, auth.keyId, async () => {
+      await projectNewEvents(pool)
+      const header = request.headers['idempotency-key']
+      const key = typeof header === 'string' && header !== '' ? `sector-plan-edit:${sectorId}:${header}` : undefined
+      try {
+        const stored = await updateSectorPlan(pool, sectorId, body.markdown, auth.scope, key)
+        await projectNewEvents(pool)
+        return { status: 200, body: { ok: true, data: stored } }
+      } catch (error: unknown) {
+        if (error instanceof SectorTransitionError) {
+          const status = error.failure === 'not_found' ? 404 : 409
+          return { status, body: { ok: false, error: { code: error.failure, message: error.message } } }
+        }
+        if (error instanceof DbContractError) {
+          return { status: 400, body: { ok: false, error: { code: 'validation_failed', message: error.message } } }
+        }
+        throw error
+      }
     })
   })
 

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   planSector,
   readSectorPlan,
+  updateSectorPlan,
   type StagingConfig,
 } from '@/data/staging-api'
 
@@ -56,5 +57,20 @@ describe('sector plan client', () => {
       })),
     )
     await expect(planSector(config, 's-1')).rejects.toThrow(/not draft or failed/)
+  })
+})
+
+describe('sector plan edits', () => {
+  it('appends versions through PATCH', async () => {
+    const calls: Array<{ url: string; method: string }> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: { method?: string } = {}) => {
+        calls.push({ url, method: init.method ?? 'GET' })
+        return { ok: true, status: 200, json: async () => ({ ok: true, data: { version: 2 } }) }
+      }),
+    )
+    expect(await updateSectorPlan(config, 's-1', '## scope\nEdited.')).toEqual({ version: 2 })
+    expect(calls).toEqual([{ url: 'https://staging.test/v1/sectors/s-1/plan', method: 'PATCH' }])
   })
 })

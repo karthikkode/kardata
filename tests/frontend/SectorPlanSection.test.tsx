@@ -26,6 +26,8 @@ function renderSection(
     researchBusy?: boolean
     planError?: string | null
     onPlan?: () => Promise<void>
+    onApprove?: (version: number) => Promise<void>
+    onEdit?: (markdown: string) => Promise<void>
   } = {},
 ) {
   return render(
@@ -37,6 +39,8 @@ function renderSection(
       researchBusy={props.researchBusy ?? false}
       planError={props.planError ?? null}
       onPlan={props.onPlan ?? (async () => undefined)}
+      onApprove={props.onApprove ?? (async () => undefined)}
+      onEdit={props.onEdit ?? (async () => undefined)}
     />,
   )
 }
@@ -55,7 +59,7 @@ describe('SectorPlanSection', () => {
     renderSection()
     expect(await screen.findByText('Research plan')).toBeInTheDocument()
     expect(screen.getByText('v1')).toBeInTheDocument()
-    expect(screen.getByText(/Foods/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Edit plan')).toHaveValue('## scope\nFoods.')
   })
 
   it('invites planning on drafts without a plan', async () => {
@@ -82,5 +86,42 @@ describe('SectorPlanSection', () => {
     stubPlan({ ok: false, error: { code: 'permission_denied', message: 'no' } }, 403)
     renderSection()
     expect(await screen.findByText(/not shared with this key/)).toBeInTheDocument()
+  })
+})
+
+describe('SectorPlanSection approval', () => {
+  it('approves the latest version from the panel', async () => {
+    stubPlan({ ok: true, data: PLAN })
+    const onApprove = vi.fn(async () => undefined)
+    renderSection({ sectorState: 'planned', onApprove })
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve v1' }))
+    await waitFor(() => expect(onApprove).toHaveBeenCalledWith(1))
+  })
+
+  it('edits the plan text and saves a new version', async () => {
+    stubPlan({ ok: true, data: PLAN })
+    const onEdit = vi.fn(async () => undefined)
+    renderSection({ sectorState: 'planned', onEdit })
+    fireEvent.change(await screen.findByLabelText('Edit plan'), { target: { value: '## scope\nEdited.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save plan edit' }))
+    await waitFor(() => expect(onEdit).toHaveBeenCalledWith('## scope\nEdited.'))
+  })
+
+  it('edits after approval (re-opens review) and hides both once running', async () => {
+    stubPlan({ ok: true, data: PLAN })
+    const onEdit = vi.fn(async () => undefined)
+    const approved = renderSection({ sectorState: 'approved', onEdit })
+    expect(await approved.findByText('Research plan')).toBeInTheDocument()
+    expect(approved.queryByRole('button', { name: /Approve/ })).not.toBeInTheDocument()
+    fireEvent.change(approved.getByLabelText('Edit plan'), { target: { value: '## scope\nEdited.' } })
+    fireEvent.click(approved.getByRole('button', { name: 'Save plan edit' }))
+    await waitFor(() => expect(onEdit).toHaveBeenCalledWith('## scope\nEdited.'))
+    approved.unmount()
+    stubPlan({ ok: true, data: PLAN })
+    const running = renderSection({ sectorState: 'running' })
+    expect(await running.findByText('Research plan')).toBeInTheDocument()
+    expect(running.queryByRole('button', { name: /Approve/ })).not.toBeInTheDocument()
+    expect(running.queryByLabelText('Edit plan')).not.toBeInTheDocument()
+    running.unmount()
   })
 })

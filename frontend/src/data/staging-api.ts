@@ -495,6 +495,18 @@ export function readSectorPlan(config: StagingConfig, sectorId: string): Promise
   return request<SectorPlanView>(config, 'GET', `/v1/sectors/${encodeURIComponent(sectorId)}/plan`)
 }
 
+/** Owner approval: pins a plan version (planned to approved). */
+export function approveSectorPlan(config: StagingConfig, sectorId: string, version: number): Promise<SectorResearch> {
+  return request<SectorResearch>(config, 'POST', `/v1/sectors/${encodeURIComponent(sectorId)}/approve`, { version })
+}
+
+/** Brainstorm edit: appends a plan version (re-opens review when approved). */
+export function updateSectorPlan(config: StagingConfig, sectorId: string, markdown: string): Promise<{ version: number }> {
+  return request<{ version: number }>(config, 'PATCH', `/v1/sectors/${encodeURIComponent(sectorId)}/plan`, {
+    markdown,
+  })
+}
+
 /** Owner pause from the chat window: running -> paused. */
 export function pauseSector(config: StagingConfig, sectorId: string): Promise<SectorResearch> {
   return request<SectorResearch>(config, 'POST', `/v1/sectors/${encodeURIComponent(sectorId)}/pause`)

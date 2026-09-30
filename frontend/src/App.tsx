@@ -13,6 +13,7 @@ import {
   useStagingSectors,
 } from './data/research'
 import {
+  approveSectorPlan,
   attachSectorDocument,
   createSector,
   listSectorDocuments,
@@ -21,6 +22,7 @@ import {
   restartSector,
   resumeSector,
   startSector,
+  updateSectorPlan,
   stagingConfig,
   type SectorDocumentSummary,
   type StagingConfig,
@@ -154,6 +156,34 @@ export default function App() {
       detailData.refresh()
     } catch (error: unknown) {
       setResearchError(error instanceof Error ? error.message : 'Plan failed.')
+    } finally {
+      setResearchBusy(false)
+    }
+  }
+
+  async function approveCurrentSector(version: number) {
+    if (!sectorId || !staging) return
+    setResearchBusy(true)
+    setResearchError(null)
+    try {
+      await approveSectorPlan(staging, sectorId, version)
+      detailData.refresh()
+    } catch (error: unknown) {
+      setResearchError(error instanceof Error ? error.message : 'Approve failed.')
+    } finally {
+      setResearchBusy(false)
+    }
+  }
+
+  async function editCurrentSectorPlan(markdown: string) {
+    if (!sectorId || !staging) return
+    setResearchBusy(true)
+    setResearchError(null)
+    try {
+      await updateSectorPlan(staging, sectorId, markdown)
+      detailData.refresh()
+    } catch (error: unknown) {
+      setResearchError(error instanceof Error ? error.message : 'Plan edit failed.')
     } finally {
       setResearchBusy(false)
     }
@@ -363,6 +393,8 @@ export default function App() {
                 onStartResearch={startCurrentSector}
                 onRestartResearch={restartCurrentSector}
                 onPlanResearch={planCurrentSector}
+                onApproveResearch={approveCurrentSector}
+                onEditResearchPlan={editCurrentSectorPlan}
                 onAttach={attachContextFile}
                 onBack={() => setNav({ section: 'Researches', sectorId: null })}
               />
