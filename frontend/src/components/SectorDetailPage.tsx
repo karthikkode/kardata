@@ -45,7 +45,7 @@ type StateFilter = ResearchState | 'all'
 // companies land, quiet enough to stay out of the sweep's way.
 const RESEARCH_POLL_MS = 5000
 
-function CompanySection({
+export function CompanySection({
   staging,
   sectorId,
   sectorName,
@@ -442,6 +442,9 @@ export function SectorDetailPage({
   onAttach: (file: File) => void
   onBack: () => void
 }) {
+  type PillarTab = 'all' | 'research' | 'chat' | 'context' | 'files'
+  const [activePillar, setActivePillar] = useState<PillarTab>('all')
+
   // While a sweep or plan run is away, the detail (strip, state,
   // embedded companies) re-reads so the page follows the run. Terminal
   // and pre-start states stay quiet: no polling on draft, paused,
@@ -515,25 +518,144 @@ export function SectorDetailPage({
   }
   return (
     <div className="space-y-6">
-      <Button type="button" variant="ghost" size="sm" onClick={onBack}>
-        <ArrowLeft className="size-4" aria-hidden />
-        Back to Researches
-      </Button>
-      <SectorPlanSection
-        config={staging}
-        sectorId={detail.id}
-        sectorName={detail.name}
-        sectorState={detail.state}
-        researchBusy={researchBusy}
-        planError={researchError}
-        onPlan={onPlanResearch}
-        onApprove={onApproveResearch}
-        onEdit={onEditResearchPlan}
-      />
-      <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-2">
+      <div className="flex flex-col gap-4 border-b border-border pb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Button type="button" variant="ghost" size="sm" onClick={onBack} className="-ml-2 gap-1.5 text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="size-4" aria-hidden />
+            <span>Back to Researches</span>
+          </Button>
+          <div className="flex items-center gap-2">
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${
+                detail.state === 'running'
+                  ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                  : detail.state === 'paused'
+                    ? 'border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                    : detail.state === 'failed'
+                      ? 'border-destructive/20 bg-destructive/10 text-destructive'
+                      : detail.state === 'complete'
+                        ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                        : 'border-border bg-muted text-muted-foreground'
+              }`}
+            >
+              {detail.state === 'running' ? (
+                <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" aria-hidden />
+              ) : null}
+              {stateLabel[detail.state]}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-lg font-bold tracking-tight text-foreground sm:text-xl">{detail.name}</p>
+            {detail.topic ? (
+              <p className="text-xs text-muted-foreground sm:text-sm">{detail.topic}</p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 pt-2 sm:pt-0">
+            <div role="tablist" aria-label="Sector view modes" className="inline-flex rounded-lg border border-border bg-muted/60 p-1 text-xs">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activePillar === 'all'}
+                onClick={() => setActivePillar('all')}
+                className={`rounded-md px-2.5 py-1 font-medium transition-colors ${
+                  activePillar === 'all'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Workbench (All)
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activePillar === 'research'}
+                onClick={() => setActivePillar('research')}
+                className={`rounded-md px-2.5 py-1 font-medium transition-colors ${
+                  activePillar === 'research'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Research Activity
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activePillar === 'chat'}
+                onClick={() => setActivePillar('chat')}
+                className={`rounded-md px-2.5 py-1 font-medium transition-colors ${
+                  activePillar === 'chat'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Sector Chat
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activePillar === 'context'}
+                onClick={() => setActivePillar('context')}
+                className={`rounded-md px-2.5 py-1 font-medium transition-colors ${
+                  activePillar === 'context'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Context Studio
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activePillar === 'files'}
+                onClick={() => setActivePillar('files')}
+                className={`rounded-md px-2.5 py-1 font-medium transition-colors ${
+                  activePillar === 'files'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Files Hub
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className={activePillar === 'all' || activePillar === 'research' ? 'block' : 'hidden'}>
+        <SectorPlanSection
+          config={staging}
+          sectorId={detail.id}
+          sectorName={detail.name}
+          sectorState={detail.state}
+          researchBusy={researchBusy}
+          planError={researchError}
+          onPlan={onPlanResearch}
+          onApprove={onApproveResearch}
+          onEdit={onEditResearchPlan}
+        />
+      </div>
+
+      <div
+        className={
+          activePillar === 'all'
+            ? 'grid grid-cols-1 items-start gap-6 md:grid-cols-2'
+            : 'space-y-6'
+        }
+      >
         <section
           aria-label={`Sector chat for ${detail.name}`}
-          className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-background px-4 py-3 md:h-[calc(100vh-14rem)] md:min-h-[480px]"
+          className={`flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-background px-4 py-3 ${
+            activePillar === 'all'
+              ? 'md:h-[calc(100vh-14rem)] md:min-h-[480px]'
+              : activePillar === 'chat'
+                ? 'block h-[calc(100vh-16rem)] min-h-[540px]'
+                : 'hidden'
+          }`}
         >
           <h2 className="text-base font-semibold">Sector chat</h2>
           <div className="mt-3 min-h-0 flex-1">
@@ -553,8 +675,21 @@ export function SectorDetailPage({
             />
           </div>
         </section>
-        <div className="flex min-h-0 flex-col gap-6 md:h-[calc(100vh-14rem)] md:min-h-[480px]">
-          <div className="scroll-slim min-h-0 flex-1 overflow-y-auto rounded-xl border border-border bg-background">
+
+        <div
+          className={`flex min-h-0 flex-col gap-6 ${
+            activePillar === 'all'
+              ? 'md:h-[calc(100vh-14rem)] md:min-h-[480px]'
+              : activePillar === 'context' || activePillar === 'files'
+                ? 'block'
+                : 'hidden'
+          }`}
+        >
+          <div
+            className={`scroll-slim min-h-0 flex-1 overflow-y-auto rounded-xl border border-border bg-background ${
+              activePillar === 'all' || activePillar === 'files' ? 'block' : 'hidden'
+            }`}
+          >
             <DocumentsSection
               config={staging}
               sectorId={detail.id}
@@ -568,13 +703,20 @@ export function SectorDetailPage({
               onAttach={onAttach}
             />
           </div>
-          <div className="scroll-slim min-h-0 flex-1 overflow-y-auto rounded-xl border border-border bg-background">
+          <div
+            className={`scroll-slim min-h-0 flex-1 overflow-y-auto rounded-xl border border-border bg-background ${
+              activePillar === 'all' || activePillar === 'context' ? 'block' : 'hidden'
+            }`}
+          >
             <SectorContextDrawer config={staging} sectorId={detail.id} sectorName={detail.name} />
           </div>
         </div>
       </div>
-      <CompanySection staging={staging} sectorId={detail.id} sectorName={detail.name} pollActive={researchLive} />
-      <RunConsole config={staging} sector={detail} activity={detail.activity} activityTotal={detail.activityTotal} />
+
+      <div className={activePillar === 'all' || activePillar === 'research' ? 'space-y-6' : 'hidden'}>
+        <CompanySection staging={staging} sectorId={detail.id} sectorName={detail.name} pollActive={researchLive} />
+        <RunConsole config={staging} sector={detail} activity={detail.activity} activityTotal={detail.activityTotal} />
+      </div>
     </div>
   )
 }

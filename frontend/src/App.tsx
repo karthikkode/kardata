@@ -4,7 +4,11 @@ import { Dashboard, type ResearchList } from './components/Dashboard'
 import { ModelsPanel } from './components/ModelsPanel'
 import { ResearchesPage } from './components/ResearchesPage'
 import { RunsPanel } from './components/RunsPanel'
-import { SectorDetailPage, type AttachResult } from './components/SectorDetailPage'
+import { SectorLanding } from './components/SectorLanding'
+import { SectorWorkspace } from './components/SectorWorkspace'
+import { useSectorWorkspace } from './data/sector-workspace'
+import { useWorkspaceResource } from './data/useWorkspace'
+import { getResearchProgress } from './data/workspace-api'
 import { Sidebar } from './components/Sidebar'
 import { TopBar } from './components/TopBar'
 import {
@@ -14,17 +18,13 @@ import {
 } from './data/research'
 import {
   approveSectorPlan,
-  attachSectorDocument,
   createSector,
-  listSectorDocuments,
   pauseSector,
   planSector,
-  restartSector,
   resumeSector,
   startSector,
   updateSectorPlan,
   stagingConfig,
-  type SectorDocumentSummary,
   type StagingConfig,
 } from './data/staging-api'
 import { useExitState } from './lib/motion'
@@ -38,10 +38,10 @@ export default function App() {
   const { researchTab } = nav
   // Removed sections (Settings) fall back to home instead of rendering a
   // stranger's panel.
-  const section = nav.section === 'Researches' || nav.section === 'SectorDetail' || nav.section === 'Agents' || nav.section === 'Models' || nav.section === 'Emails'
+  const section = nav.section === 'Researches' || nav.section === 'SectorDetail' || nav.section === 'SectorChat' || nav.section === 'Agents' || nav.section === 'Models' || nav.section === 'Emails'
     ? nav.section
     : 'Overview'
-  const sectorId = section === 'SectorDetail' ? nav.sectorId : null
+  const sectorId = section === 'SectorDetail' || section === 'SectorChat' ? nav.sectorId : null
   const [query, setQuery] = useState('')
   const [dark, setDark] = useState(false)
   const [chatScope, setChatScope] = useState<ChatScope>(null)
@@ -49,12 +49,6 @@ export default function App() {
   const [researchError, setResearchError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
-  const [documents, setDocuments] = useState<SectorDocumentSummary[]>([])
-  const [documentsFailed, setDocumentsFailed] = useState(false)
-  const [attaching, setAttaching] = useState(false)
-  const [attachingName, setAttachingName] = useState<string | null>(null)
-  const [attachError, setAttachError] = useState<string | null>(null)
-  const [attachResult, setAttachResult] = useState<AttachResult | null>(null)
   const chatDock = useExitState(false)
   const chatOpen = chatDock.open
   const chatClosing = chatDock.closing
@@ -90,6 +84,15 @@ export default function App() {
   const sectors = useStagingSectors(staging)
   const companies = useStagingCompanies(staging)
   const detailData = useStagingSectorDetail(staging, sectorId)
+  const workspace = useSectorWorkspace(section === 'SectorChat' ? staging : null, section === 'SectorChat' ? sectorId : null, nav.sessionId ?? null, nav.threadKey ?? null, (sessionId, threadKey) => setNav({ sessionId, threadKey }))
+  const progress = useWorkspaceResource(staging, sectorId ? `progress:${sectorId}` : null, (config) => getResearchProgress(config, sectorId ?? ''), detailData.detail?.state === 'running' || detailData.detail?.state === 'planning' || detailData.detail?.state === 'queued')
+  const followResearch = detailData.detail?.state === 'running' || detailData.detail?.state === 'planning' || detailData.detail?.state === 'queued'
+  const retryDetail = detailData.retry
+  useEffect(() => {
+    if (!followResearch || !sectorId) return
+    const timer = setInterval(retryDetail, 5000)
+    return () => clearInterval(timer)
+  }, [followResearch, sectorId, retryDetail])
 
   async function pauseCurrentSector() {
     if (!sectorId || !staging) return
@@ -128,20 +131,6 @@ export default function App() {
       detailData.refresh()
     } catch (error: unknown) {
       setResearchError(error instanceof Error ? error.message : 'Start failed.')
-    } finally {
-      setResearchBusy(false)
-    }
-  }
-
-  async function restartCurrentSector() {
-    if (!sectorId || !staging) return
-    setResearchBusy(true)
-    setResearchError(null)
-    try {
-      await restartSector(staging, sectorId)
-      detailData.refresh()
-    } catch (error: unknown) {
-      setResearchError(error instanceof Error ? error.message : 'Restart failed.')
     } finally {
       setResearchBusy(false)
     }
@@ -204,67 +193,6 @@ export default function App() {
     }
   }
 
-  // Context documents follow the open sector; resets happen during render
-  // (ChatPanel sessionQuery pattern) so the effect only fetches. A failed
-  // list keeps the section visible with an error instead of hiding attach.
-  const documentsKey = staging && sectorId ? `${sectorId} ${detailData.detail?.updatedAt ?? ''}` : null
-  const [activeDocumentsKey, setActiveDocumentsKey] = useState<string | null>(null)
-  if (activeDocumentsKey !== documentsKey) {
-    setActiveDocumentsKey(documentsKey)
-    setDocuments([])
-    setDocumentsFailed(false)
-  }
-  useEffect(() => {
-    if (!staging || !sectorId) {
-      return
-    }
-    let live = true
-    listSectorDocuments(staging, sectorId).then(
-      (rows) => {
-        if (!live) return
-        setDocuments(rows)
-        setDocumentsFailed(false)
-      },
-      () => {
-        if (!live) return
-        setDocumentsFailed(true)
-      },
-    )
-    return () => {
-      live = false
-    }
-  }, [staging, sectorId, detailData.detail?.updatedAt])
-
-  async function attachContextFile(file: File) {
-    if (!staging || !sectorId || attaching) return
-    setAttaching(true)
-    setAttachingName(file.name)
-    setAttachError(null)
-    setAttachResult(null)
-    try {
-      const contentBase64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(String(reader.result ?? '').split(',')[1] ?? '')
-        reader.onerror = () => reject(new Error('could not read file'))
-        reader.readAsDataURL(file)
-      })
-      const attached = await attachSectorDocument(staging, sectorId, { filename: file.name, contentBase64 })
-      setAttachResult({
-        filename: attached.filename,
-        status: attached.status,
-        unitCount: attached.unitCount ?? 0,
-        ...(attached.detail ? { detail: attached.detail } : {}),
-      })
-      setDocuments(await listSectorDocuments(staging, sectorId))
-      setDocumentsFailed(false)
-    } catch (error: unknown) {
-      setAttachError(error instanceof Error ? error.message : 'Attach failed.')
-    } finally {
-      setAttaching(false)
-      setAttachingName(null)
-    }
-  }
-
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark)
   }, [dark])
@@ -303,6 +231,9 @@ export default function App() {
         ]
       : []
 
+  if (section === 'SectorChat' && detailData.detail && staging && detailData.status !== 'denied') {
+    return <SectorWorkspace sector={detailData.detail} model={workspace} config={staging} dark={dark} onTheme={() => setDark((value) => !value)} onBack={() => setNav({ section: 'SectorDetail', sessionId: null, threadKey: null })} actions={{ busy: researchBusy, error: researchError, plan: () => void planCurrentSector(), approve: (version) => void approveCurrentSector(version), start: () => void startCurrentSector(), pause: () => void pauseCurrentSector(), resume: () => void resumeCurrentSector(), edit: (markdown) => void editCurrentSectorPlan(markdown) }} />
+  }
   return (
     <div className="flex min-h-screen bg-muted/40 text-foreground">
       <Sidebar active={section} onSelect={(next) => setNav({ section: next, sectorId: null })} />
@@ -373,29 +304,15 @@ export default function App() {
                 onOpenSector={goSector}
                 onCreateSector={createDraftSector}
               />
-            ) : section === 'SectorDetail' ? (
-              <SectorDetailPage
+            ) : section === 'SectorDetail' || section === 'SectorChat' ? (
+              <SectorLanding
                 key={sectorId}
-                detail={detailData.detail}
+                sector={detailData.detail}
                 status={detailData.status}
-                documents={documents}
-                documentsFailed={documentsFailed}
-                attaching={attaching}
-                attachingName={attachingName}
-                attachError={attachError}
-                attachResult={attachResult}
-                researchBusy={researchBusy}
-                researchError={researchError}
-                staging={staging}
+                config={staging}
+                progress={progress}
+                onOpen={() => setNav({ section: 'SectorChat', sessionId: null, threadKey: null })}
                 onRetry={detailData.retry}
-                onPauseResearch={pauseCurrentSector}
-                onResumeResearch={resumeCurrentSector}
-                onStartResearch={startCurrentSector}
-                onRestartResearch={restartCurrentSector}
-                onPlanResearch={planCurrentSector}
-                onApproveResearch={approveCurrentSector}
-                onEditResearchPlan={editCurrentSectorPlan}
-                onAttach={attachContextFile}
                 onBack={() => setNav({ section: 'Researches', sectorId: null })}
               />
             ) : section === 'Agents' ? (

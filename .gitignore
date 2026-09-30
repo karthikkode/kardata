@@ -28,3 +28,7 @@ npm-debug.log*
 # pilot evidence binaries stay local + PR-attached; curated text proof commits
 tests/evidence/**/*.png
 tests/evidence/**/*.webm
+
+# runtime archive bytes (dev FilesystemTarget default var/archive) and
+# other local runtime output: never commit data the server writes at runtime
+var/

@@ -29,6 +29,7 @@ import {
 import { appendEventActivity, checkWorkerMcpAuth, karbotTurnActivity } from './activities/turn.js'
 import { connectWorker, temporalNamespace } from './connection.js'
 import { createLaneWorker } from './worker.js'
+import * as coordinatorActivities from './activities/coordinator.js'
 
 async function main(): Promise<void> {
   // Credential self-check first: a rotated-but-not-recreated token fails
@@ -51,6 +52,7 @@ async function main(): Promise<void> {
     namespace: temporalNamespace(),
     workflowsPath: join(workflowsDir, 'research-bundle.js'),
     activities: {
+      ...coordinatorActivities,
       loadSweepContextActivity,
       searchWebPageActivity,
       recordSweepCompanyActivity,

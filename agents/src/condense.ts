@@ -6,6 +6,7 @@ import type { ChatMessage, Usage } from './providers.js'
 export type CondenseReason = 'events' | 'tokens' | 'request'
 
 export interface SummaryArtifact {
+  coveredSeq?: number
   forgetStart: number
   forgetEnd: number
   summaryText: string
@@ -83,15 +84,17 @@ export async function condense(options: CondenseOptions): Promise<CondenseResult
   }
   const forgotten = messages.slice(forgetStart, forgetEnd)
   const summaryText = await options.summarize(forgotten)
+  const coveredSeq = Math.max(0, ...forgotten.map((message) => message.contextSeq ?? 0))
   const view: ChatMessage[] = [
     ...messages.slice(0, forgetStart),
-    { role: 'assistant', text: `Context summary (${forgotten.length} messages condensed): ${summaryText}` },
+    { role: 'assistant', text: `Context summary (${forgotten.length} messages condensed): ${summaryText}`, ...(coveredSeq ? { contextSeq: coveredSeq } : {}) },
     ...messages.slice(forgetEnd),
   ]
   return {
     needed: true,
     view,
     summary: {
+      ...(coveredSeq ? { coveredSeq } : {}),
       forgetStart,
       forgetEnd,
       summaryText,

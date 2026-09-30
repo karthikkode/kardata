@@ -148,6 +148,7 @@ async function post(
   config: ChatTransportConfig,
   path: string,
   body: unknown,
+  signal?: AbortSignal,
 ): Promise<Response> {
   const fetchFn = config.fetchFn ?? fetch
   let response: Response
@@ -159,6 +160,7 @@ async function post(
         authorization: `Bearer ${config.apiKey}`,
       },
       body: JSON.stringify(body),
+      signal,
     })
   } catch (error) {
     throw new ProviderError(`Transport failure: ${String(error)}`, true)
@@ -191,7 +193,9 @@ export async function chatCompletions(
       tool_choice: toWireToolChoice(request.toolChoice),
       ...(request.reasoningEffort === undefined ? {} : { reasoning_effort: request.reasoningEffort }),
       ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
+      ...(request.maxOutputTokens === undefined ? {} : { max_completion_tokens: request.maxOutputTokens }),
     },
+    request.signal,
   )
   const body: unknown = await response.json()
   if (!isRecord(body)) throw new ProviderError('Malformed chat response envelope', false)
@@ -250,7 +254,9 @@ export async function* chatCompletionsStream(
       tool_choice: toWireToolChoice(request.toolChoice),
       ...(request.reasoningEffort === undefined ? {} : { reasoning_effort: request.reasoningEffort }),
       ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
+      ...(request.maxOutputTokens === undefined ? {} : { max_completion_tokens: request.maxOutputTokens }),
     },
+    request.signal,
   )
   const pending = new Map<number, { id: string; name: string; argsText: string; started: boolean }>()
   let usage = emptyUsage()

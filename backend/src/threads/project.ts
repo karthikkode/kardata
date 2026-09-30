@@ -94,6 +94,7 @@ export function routeSend(sessionThreadKey: string, text: string, children: Chil
 }
 
 export interface ThreadView {
+  name?: string
   key: string
   sessionId: string
   kind: 'session' | 'subagent'
@@ -104,4 +105,3 @@ export interface ThreadView {
   messages: Array<{ seq: number; kind: string; payload: unknown; at: string }>
 
 }
-

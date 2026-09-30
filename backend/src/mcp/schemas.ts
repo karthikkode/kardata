@@ -8,6 +8,7 @@
 import { z } from 'zod'
 import {
   CompanyStage,
+  ContextSections,
   EventEnvelope,
   LedgerQualification,
   RecordProblemInput,
@@ -39,6 +40,12 @@ const ArtifactScope = z.object({
 })
 
 export const TOOL_SCHEMAS = {
+  'db.commit_child_context': z.object({ proposalId: NonEmpty }).strict(),
+  'db.get_global_context': z.object({}).strict(),
+  'db.propose_global_context': z.object({ baseVersion: z.number().int().nonnegative(), sections: ContextSections, idempotencyKey: NonEmpty }).strict(),
+  'db.list_sector_files': z.object({}).strict(),
+  'db.propose_file_context': z.object({ fileId: NonEmpty, baseVersion: z.number().int().nonnegative(), ords: z.array(z.number().int().nonnegative()).optional() }).strict(),
+  'db.get_local_context': z.object({}).strict(),
   'db.append_event': EventEnvelope,
   'db.read_partition': z.object({
     partition: NonEmpty,

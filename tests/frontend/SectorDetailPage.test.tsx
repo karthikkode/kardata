@@ -2,6 +2,7 @@
 // rendering only: every behavior under test (states, filters, restart,
 // navigation) runs against the component contract, never a mock origin.
 import { fireEvent, render, screen, waitFor, within, act } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SectorDetailPage } from '@/components/SectorDetailPage'
 import type { ResearchStatus, SectorDetail } from '@/data/research'
@@ -462,16 +463,16 @@ describe('Sector open navigation', () => {
   })
 
   it('opens a sector row from the landing', async () => {
+    const user = userEvent.setup()
     const { default: App } = await import('@/App')
     render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Open Pet care' }))
-    const heading = await screen.findByRole('heading', { name: 'Pet care' })
-    expect(heading).toHaveFocus()
-    expect(
-      screen.getByRole('region', { name: 'Sector chat for Pet care' }),
-    ).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Back to Researches' }))
-    expect(screen.getByRole('heading', { name: 'Researches' })).toHaveFocus()
+    await user.click(await screen.findByRole('button', { name: 'Open Pet care' }))
+    // The row opens the summary landing; Open enters the chat workspace.
+    expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: 'Open' }))
+    expect(await screen.findByRole('group', { name: 'Session types' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Back to sector summary' }))
+    expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
   })
 
   it('follows a running sweep: detail and companies re-read on an interval', async () => {
@@ -545,5 +546,16 @@ describe('Sector open navigation', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('switches between 4-pillar workbench views', async () => {
+    stubSessions()
+    renderPage({ detail: petCare, staging })
+    expect(screen.getByRole('tab', { name: 'Workbench (All)' })).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(screen.getByRole('tab', { name: 'Sector Chat' }))
+    expect(screen.getByRole('tab', { name: 'Sector Chat' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('region', { name: 'Sector chat for Pet care' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Context Studio' }))
+    expect(screen.getByRole('tab', { name: 'Context Studio' })).toHaveAttribute('aria-selected', 'true')
   })
 })

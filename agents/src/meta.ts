@@ -4,7 +4,7 @@
 // request shape is the whole client story. cached_tokens (including the
 // prompt_tokens_details nesting) maps to cacheReadTokens in transport.ts.
 import { chatCompletions, chatCompletionsStream, type ChatTransportConfig } from './transport.js'
-import { responsesCall, responsesStream, type ResponsesTransportConfig } from './responses.js'
+import { responsesCall, responsesInputTokens, responsesStream, type ResponsesTransportConfig } from './responses.js'
 import type {
   ProviderAdapter,
   ProviderRequest,
@@ -25,6 +25,7 @@ export interface MetaConfig {
 const DEFAULT_BASE_URL = 'https://api.meta.ai/v1'
 
 export class MetaAdapter implements ProviderAdapter {
+  readonly countInputTokens?: (request: ProviderRequest) => Promise<number>
   readonly providerName = 'meta'
   readonly mode: MetaMode
   private readonly chatTransport: ChatTransportConfig
@@ -40,6 +41,7 @@ export class MetaAdapter implements ProviderAdapter {
     }
     this.chatTransport = shared
     this.responsesTransport = shared
+    if (this.mode === 'responses') this.countInputTokens = (request) => responsesInputTokens(this.responsesTransport, request)
   }
 
   chat(request: ProviderRequest): Promise<ProviderResponse> {

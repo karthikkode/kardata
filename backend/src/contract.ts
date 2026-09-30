@@ -41,6 +41,13 @@ export const PARITY: ParityEntry[] = [
   { sourceFile: 'frontend/src/components/ChatPanel.tsx', mockType: 'ChatMessage', kind: 'counterpart', specPointer: '#/components/schemas/ThreadMessage', note: 'the text|tool union' },
   { sourceFile: 'frontend/src/components/ChatPanel.tsx', mockType: 'ChatFile', kind: 'counterpart', specPointer: '#/components/schemas/ArtifactSummary', note: 'file menu rows render from artifacts' },
   { sourceFile: 'frontend/src/components/ChatPanel.tsx', mockType: 'MessageSegment', kind: 'counterpart', specPointer: '#/components/schemas/ThreadMessage', note: 'presentational fold of text|tool rows; not a wire shape' },
+  { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'Sections', kind: 'counterpart', specPointer: '#/components/schemas/ContextSections', note: 'global context four-section body' },
+  { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'GlobalContext', kind: 'counterpart', specPointer: '#/components/schemas/GlobalContext', note: 'versioned shared context with pending changes' },
+  { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'ContextChange', kind: 'counterpart', specPointer: '#/components/schemas/ContextChange', note: 'proposal states through the approval flow' },
+  { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'ContextPreview', kind: 'counterpart', specPointer: '#/components/schemas/ContextPreview', note: 'proposal plus exact file units' },
+  { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'LibraryFile', kind: 'counterpart', specPointer: '#/components/schemas/LibraryFile', note: 'sector file rows with hidden/included flags' },
+  { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'LocalContext', kind: 'counterpart', specPointer: '#/components/schemas/LocalContext', note: 'per-thread working memory' },
+  { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'ResearchProgress', kind: 'counterpart', specPointer: '#/components/schemas/ResearchProgress', note: 'plan versions, work items, estimate' },
 ]
 
 export function loadSpec(): unknown {
@@ -100,4 +107,11 @@ export const EXPECTED_TYPES: Array<{ sourceFile: string; mockType: string }> = [
   { sourceFile: 'frontend/src/components/ChatPanel.tsx', mockType: 'ChatMessage' },
   { sourceFile: 'frontend/src/components/ChatPanel.tsx', mockType: 'ChatFile' },
   { sourceFile: 'frontend/src/components/ChatPanel.tsx', mockType: 'MessageSegment' },
+  { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'Sections' },
+  { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'GlobalContext' },
+  { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'ContextChange' },
+  { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'ContextPreview' },
+  { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'LibraryFile' },
+  { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'LocalContext' },
+  { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'ResearchProgress' },
 ]

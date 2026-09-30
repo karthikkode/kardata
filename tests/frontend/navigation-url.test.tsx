@@ -2,7 +2,8 @@
 // cold load (refresh, deep link) restores the view and Back/Forward moves
 // through views instead of dropping to home. Staging stubs: the app reads
 // the backend, so navigation runs against stubbed API rows.
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { parseNavigation } from '@/lib/useNavigation'
 
@@ -75,21 +76,30 @@ describe('parseNavigation', () => {
 })
 
 describe('app navigation sync', () => {
-  it('cold-loads a sector detail from the URL without clicking', async () => {
+  it('cold-loads a sector landing from the URL without clicking', async () => {
     setUrl('?section=SectorDetail&sector=seed-pet-care')
     const { default: App } = await import('@/App')
     render(<App />)
-    expect(await screen.findByRole('region', { name: 'Sector chat for Pet care' })).toBeInTheDocument()
+    // The sector route lands on the summary page; chat lives one Open deeper.
+    expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
   })
 
   it('writes navigation clicks into the URL', async () => {
+    const user = userEvent.setup()
     const { default: App } = await import('@/App')
     render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Open Pet care' }))
-    expect(await screen.findByRole('region', { name: 'Sector chat for Pet care' })).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: 'Open Pet care' }))
+    expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
     expect(window.location.search).toContain('section=SectorDetail')
     expect(window.location.search).toContain('sector=seed-pet-care')
-    fireEvent.click(screen.getByRole('button', { name: 'Back to Researches' }))
+    // Open enters the chat workspace; the summary back button is scoped by
+    // its region because the sidebar carries its own Researches entry.
+    await user.click(await screen.findByRole('button', { name: 'Open' }))
+    expect(await screen.findByRole('group', { name: 'Session types' })).toBeInTheDocument()
+    expect(window.location.search).toContain('section=SectorChat')
+    await user.click(screen.getByRole('button', { name: 'Back to sector summary' }))
+    expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
+    await user.click(within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('button', { name: 'Researches' }))
     expect(await screen.findByRole('region', { name: 'All sector researches' })).toBeInTheDocument()
     expect(window.location.search).toContain('section=Researches')
     expect(window.location.search).not.toContain('sector=')
@@ -105,11 +115,14 @@ describe('app navigation sync', () => {
   })
 
   it('restores the previous view on Back', async () => {
+    const user = userEvent.setup()
     const { default: App } = await import('@/App')
     render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Open Pet care' }))
-    expect(await screen.findByRole('region', { name: 'Sector chat for Pet care' })).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: 'Open Pet care' }))
+    expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: 'Open' }))
+    expect(await screen.findByRole('group', { name: 'Session types' })).toBeInTheDocument()
     window.history.back()
-    expect(await screen.findByRole('heading', { name: 'Overview' })).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
   })
 })

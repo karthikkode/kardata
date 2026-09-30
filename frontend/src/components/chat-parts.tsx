@@ -42,7 +42,7 @@ export function UserBubble({ children }: { children: ReactNode }) {
 /** Left-aligned agent bubble. Same wrap guarantee as the user side. */
 export function AgentBubble({ children }: { children: ReactNode }) {
   return (
-    <div className="max-w-[95%] rounded-2xl rounded-bl-md bg-muted px-3.5 py-2 text-sm [overflow-wrap:anywhere]">
+    <div className="min-w-0 max-w-full px-1 py-1 text-sm leading-relaxed [overflow-wrap:anywhere]">
       {children}
     </div>
   )

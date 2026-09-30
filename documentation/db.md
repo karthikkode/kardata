@@ -99,6 +99,7 @@ Enforced by the `pg` lint ban plus the factory caching contract test.
 | `outbox.ts` | `outbox` |
 | `keys.ts` | `api_keys` |
 | `quotas.ts` | `rate_windows`, `idempotency_records` |
+| `workspace.ts` | `sector_workspace`, `workspace_changes`, `workspace_files`, `thread_context`, `research_work`, `thread_instructions` (sector workspace: shared global context with approvals, per-thread local memory, steering, file library) |
 | `checkpoints.ts` | `projection_checkpoints` |
 
 (`schema_migrations` stays migrator-only.)
@@ -123,13 +124,17 @@ adds auth, transport, and tool schemas, never SQL.
 | `db.list_companies` / `db.list_sector_companies` | `listCompanies` / `listSectorCompanies` | scope-filtered reads |
 | `db.sector_activity` | `sectorActivity` | timeline derived from the sector partition |
 | `db.create_sector` | `createSector` | appends sector.created; id server-generated |
+| `db.attach_sector_document` / `db.list_sector_documents` / `db.read_sector_document` / `db.query_document` | `ingestSectorDocument` / `listSectorDocuments` / `readSectorDocument` / `querySectorDocument` | context file attach, list, full-text read, and dual-mode TOC summary / targeted chunk query; visibility passes through the owning sector |
+| `db.get_global_context` / `db.propose_global_context` | `readGlobalContext` / `proposeGlobalContext` | versioned shared sector context read + proposed edits (normal chats need owner approval; research writes via parent commit) |
+| `db.commit_child_context` | `commitChildContext` | research parent commits a child finding or open question (scope/decisions/file inclusion need owner approval) |
+| `db.list_sector_files` / `db.propose_file_context` | `listSectorLibrary` / `proposeFileContext` | visible indexed sector files; owner approval to include exact file units in global context |
+| `db.get_local_context` | `readThreadContext` | per-thread working memory (summary + covered seq + notes) |
 | `db.set_sector_state` | `setSectorState` | appends sector.state_changed |
 | `db.start_sector_research` | `startSectorResearch` | draft → queued + sweep start; compensates to draft on failure; optional `sessionId` records the research pin |
 | `db.pause_sector_research` / `db.resume_sector_research` | `pauseSectorResearch` / `resumeSectorResearch` | running ↔ paused owner transitions (state-only) |
 | `db.mark_company_found` | `markCompanyFound` | appends company.found |
 | `db.set_company_stage` / `db.set_company_state` | `setCompanyStage` / `setCompanyState` | appends stage/state transitions |
 | `db.list_artifacts` / `db.create_artifact` | `listArtifacts` / `createArtifact` | session files menu (own + referenced); create stores bytes, indexes, and serves immediately (unknown sessions fail before any write) |
-| `db.query_document` | `querySectorDocument` | dual-mode context file query: TOC summary by default, targeted unit search/slice on demand; visibility passes through the owning sector |
 | `db.reference_artifact` | `referenceArtifact` | cross-session attach, indexed-only |
 | `db.resolve_artifact_scope` | `resolveArtifactScope` | owning scope for serve |
 | `db.list_tenant_artifacts` | `listTenantArtifacts` | tenant attach discovery |
@@ -149,7 +154,13 @@ adds auth, transport, and tool schemas, never SQL.
 | `db.ledger_upsert_company` / `db.ledger_get_company` / `db.ledger_list_companies` | `upsertLedgerCompany` / `getLedgerCompany` / `listLedgerCompanies` | master-ledger company record |
 | `db.ledger_record_problem` / `db.ledger_list_problems` | `recordLedgerProblem` / `listLedgerProblems` | one row per researched problem |
 
-## Current schema (0001–0008)
+## Current schema (0001–0017)
+
+- 0009–0013: sector drafts, document units index, context selection
+  (notes + unit exclusions), research session pin, planning states.
+- 0014–0017: sector workspace (`sector_workspace` + `workspace_changes`
+  approvals, `workspace_files` library, `thread_context` local memory,
+  `research_work`, `thread_instructions` steering). Repo map row above.
 
 - 0008: `kb_documents` / `kb_chunks` (versioned product corpus, GIN FTS),
   `ledger_companies` / `ledger_problems` (cross-run master ledger).

@@ -8,7 +8,7 @@
 // parses markdown, or touches the DB (pure helpers below are unit-tested
 // directly). Turn work runs on the turn lane; plan writes run on the
 // research lane beside the sweep activities.
-import { defineQuery, log, proxyActivities, setHandler } from '@temporalio/workflow'
+import { defineQuery, log, patched, proxyActivities, setHandler, workflowInfo } from '@temporalio/workflow'
 import { laneConfig } from '../lanes.js'
 import { isSweepCancellation } from '../sweep-rules.js'
 import { activityOptions } from '../timeouts.js'
@@ -53,10 +53,13 @@ export function planningBrief(name: string, topic: string): string {
     'Return a plan with exactly these headings: scope, direction shards, query shapes, budgets, risks, open questions.',
     'Every claim needs evidence or an explicit uncertain mark — never invent.',
     'Write the plan as the reply. If you cannot evidence a section, say so under its heading.',
+    'Append a research-plan fenced JSON block with exactly: discovery (array of {id,title,queries:string[],maxPages:1..10}), companyBrief (instructions to investigate all worthy problems and report evidence), budgets ({maxCompanies:1..1000,maxWallMinutes:1..1440,concurrency:2}), acceptance (nonempty string[]). This is the executable specification the owner will approve. Use real sector queries, bounded budgets and evidence-based completion requirements.',
   ].join('\n')
 }
 
 export async function sectorPlan(input: SectorPlanInput): Promise<'planned' | 'failed'> {
+  const modern = patched('plan-version-run-v2')
+  const versionKey = modern ? workflowInfo().runId : input.sectorId
   const progress: PlanProgress = { sectorId: input.sectorId, status: 'planning' }
   setHandler(planProgressQuery, () => ({ ...progress }))
   let context: Awaited<ReturnType<typeof sweep.loadSweepContextActivity>>
@@ -73,7 +76,7 @@ export async function sectorPlan(input: SectorPlanInput): Promise<'planned' | 'f
     const outcome = await turn.karbotTurnActivity({
       sessionId: input.sessionId,
       threadKey: input.sessionId,
-      runKey: `plan:${input.sectorId}`,
+      runKey: modern ? `plan:${input.sectorId}:${versionKey}` : `plan:${input.sectorId}`,
       text: planningBrief(context.name, context.topic),
       ...(input.fakeSteps === undefined ? {} : { fakeSteps: input.fakeSteps }),
     })
@@ -93,7 +96,7 @@ export async function sectorPlan(input: SectorPlanInput): Promise<'planned' | 'f
     await plan.writePlanArtifactActivity({
       sectorId: input.sectorId,
       markdown: reply,
-      idempotencyKey: `run:${input.sectorId}`,
+      idempotencyKey: `run:${versionKey}`,
       scope: input.scope,
     })
   } catch (error) {

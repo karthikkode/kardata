@@ -3,8 +3,9 @@
 // token meter, per-file units with include/exclude toggles, user notes with
 // add, and deliberate loading/empty/error/denied states.
 import { useEffect, useState } from 'react'
-import { Eye, EyeOff, Plus } from 'lucide-react'
+import { Check, Copy, Eye, EyeOff, FileText, Minimize2, Plus } from 'lucide-react'
 import {
+  compactSectorContext,
   getSectorContext,
   patchSectorContext,
   type ContextFileView,
@@ -49,24 +50,35 @@ function MeterBar({ view }: { view: SectorContextView }) {
   ]
   return (
     <div>
-      <div
-        role="img"
-        aria-label={`Context meter: ${total} of ${WINDOW_TOKENS} estimated tokens (${percent} percent of context)`}
-        className="flex h-2.5 w-full overflow-hidden rounded-full border border-border"
-      >
-        {parts.map((part) => (
-          <span
-            key={part.label}
-            title={`${part.label}: ${part.tokens} tokens`}
-            className="h-full bg-muted-foreground/60 first:bg-foreground"
-            style={{ width: `${(part.tokens / Math.max(1, WINDOW_TOKENS)) * 100}%` }}
-          />
-        ))}
+      <div className="relative">
+        <div
+          role="img"
+          aria-label={`Context meter: ${total} of ${WINDOW_TOKENS} estimated tokens (${percent} percent of context)`}
+          className="flex h-2.5 w-full overflow-hidden rounded-full border border-border"
+        >
+          {parts.map((part) => (
+            <span
+              key={part.label}
+              title={`${part.label}: ${part.tokens} tokens`}
+              className="h-full bg-muted-foreground/60 first:bg-foreground"
+              style={{ width: `${(part.tokens / Math.max(1, WINDOW_TOKENS)) * 100}%` }}
+            />
+          ))}
+        </div>
+        <div
+          className="pointer-events-none absolute inset-y-0 w-0.5 bg-amber-500/80"
+          style={{ left: '60%' }}
+          title="60% compaction threshold"
+          aria-hidden
+        />
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">
-        {total.toLocaleString()} / {WINDOW_TOKENS.toLocaleString()} tokens · {percent}% of context · digest{' '}
-        {view.digest.version} · {view.segments.references.length} references
-      </p>
+      <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+        <p>
+          {total.toLocaleString()} / {WINDOW_TOKENS.toLocaleString()} tokens · {percent}% of context · digest{' '}
+          {view.digest.version} · {view.segments.references.length} references
+        </p>
+        <span className="text-[11px] text-amber-500 dark:text-amber-400">60% compact threshold</span>
+      </div>
     </div>
   )
 }
@@ -158,6 +170,10 @@ export function SectorContextDrawer({
   const [savingNote, setSavingNote] = useState(false)
   const [patchError, setPatchError] = useState<string | null>(null)
   const [reloadAttempt, setReloadAttempt] = useState(0)
+  const [compacting, setCompacting] = useState(false)
+  const [compactResult, setCompactResult] = useState<string | null>(null)
+  const [showRaw, setShowRaw] = useState(false)
+  const [copiedRaw, setCopiedRaw] = useState(false)
 
   function fail(error: unknown): void {
     const kind = errorKind(error)
@@ -200,6 +216,29 @@ export function SectorContextDrawer({
     setReloadAttempt((attempt) => attempt + 1)
   }
 
+  async function handleCompact() {
+    if (!config || state.status !== 'ready' || compacting) return
+    setCompacting(true)
+    setPatchError(null)
+    setCompactResult(null)
+    try {
+      const result = await compactSectorContext(config, sectorId)
+      if (result.compacted) {
+        setCompactResult(`Compacted: consolidated ${result.priorNotesCount ?? 'multiple'} notes into a synthesis note.`)
+      } else {
+        setCompactResult(result.reason ?? 'Context notes are already compact.')
+      }
+      const fresh = await getSectorContext(config, sectorId)
+      if (isSectorContextView(fresh)) {
+        setState({ status: 'ready', view: fresh })
+      }
+    } catch (err: unknown) {
+      setPatchError(err instanceof Error ? err.message : 'Compaction failed.')
+    } finally {
+      setCompacting(false)
+    }
+  }
+
   async function toggleUnit(documentId: string, ord: number | undefined, excluded: boolean) {
     if (!config || state.status !== 'ready') return
     const key = `${documentId}:${ord ?? 'doc'}`
@@ -238,7 +277,47 @@ export function SectorContextDrawer({
     <div role="region" aria-label={`Context for ${sectorName}`} className="flex min-h-0 flex-col px-4 py-3">
       <div className="flex items-center gap-2">
         <h2 className="flex-1 text-base font-semibold">Context</h2>
+        {state.status === 'ready' ? (
+          <div className="flex items-center gap-1.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label="Toggle raw context view"
+              onClick={() => setShowRaw((prev) => !prev)}
+              className="h-7 gap-1 px-2 text-xs"
+            >
+              <FileText className="size-3.5" aria-hidden />
+              <span>{showRaw ? 'Structured' : 'Raw Text'}</span>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-label="Compact context"
+              disabled={compacting}
+              onClick={() => void handleCompact()}
+              className="h-7 gap-1 px-2 text-xs text-primary"
+            >
+              <Minimize2 className="size-3.5" aria-hidden />
+              <span>{compacting ? 'Compacting…' : 'Compact Context'}</span>
+            </Button>
+          </div>
+        ) : null}
       </div>
+      {compactResult ? (
+        <div className="mt-2 flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs text-primary">
+          <span>{compactResult}</span>
+          <button
+            type="button"
+            aria-label="Dismiss compact result"
+            onClick={() => setCompactResult(null)}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
       {state.status === 'loading' ? <p className="mt-2 text-sm text-muted-foreground">Loading context…</p> : null}
       {state.status === 'error' ? (
         <div className="mt-2">
@@ -256,96 +335,139 @@ export function SectorContextDrawer({
           <div className="sticky top-0 z-10 border-b border-border bg-background/95 py-2 backdrop-blur">
             <MeterBar view={state.view} />
           </div>
-          <section aria-label="System prompt">
-            <h3 className="text-sm font-medium">System</h3>
-            <p className="mt-1 whitespace-pre-wrap text-sm">{state.view.segments.system}</p>
-          </section>
-          <section aria-label="Pinned references">
-            <h3 className="text-sm font-medium">References</h3>
-            {state.view.segments.references.length ? (
-              <ul className="mt-2 space-y-1">
-                {state.view.segments.references.map((text, index) => (
-                  <li key={index} className="whitespace-pre-wrap text-sm">
-                    <span className="font-mono text-xs text-muted-foreground">[ref:{index}] </span>
-                    {text}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-1 text-sm text-muted-foreground">No pinned reference texts.</p>
-            )}
-            {state.view.files.length ? (
-              <ul className="mt-2 space-y-2">
-                {state.view.files.map((file) => (
-                  <FileBlock key={file.id} file={file} onToggleUnit={toggleUnit} toggling={toggling} />
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-1 text-sm text-muted-foreground">No files attached. References grow here as files attach.</p>
-            )}
-            {state.view.notes.length ? (
-              <ul className="mt-2 space-y-1">
-                {state.view.notes.map((item, index) => (
-                  <li key={item.id} className="text-sm">
-                    <span className="font-mono text-xs text-muted-foreground">[note:{index + 1}] </span>
-                    {item.text}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </section>
-          <section aria-label="Conversation history">
-            <h3 className="text-sm font-medium">History</h3>
-            {state.view.segments.history.length ? (
-              <ul className="mt-2 space-y-1">
-                {state.view.segments.history.map((text, index) => (
-                  <li key={index} className="whitespace-pre-wrap text-sm">
-                    <span className="font-mono text-xs text-muted-foreground">[history:{index}] </span>
-                    {text}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-1 text-sm text-muted-foreground">No history pinned.</p>
-            )}
-          </section>
-          <section aria-label="Context tail">
-            <h3 className="text-sm font-medium">Tail</h3>
-            {state.view.segments.tail.length ? (
-              <ul className="mt-2 space-y-1">
-                {state.view.segments.tail.map((text, index) => (
-                  <li key={index} className="whitespace-pre-wrap text-sm">
-                    <span className="font-mono text-xs text-muted-foreground">[tail:{index}] </span>
-                    {text}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-1 text-sm text-muted-foreground">No tail pinned.</p>
-            )}
-          </section>
-          <section aria-label="Add a context note" className="sticky bottom-0 z-10 border-t border-border bg-background/95 py-2 backdrop-blur">
-            <h3 className="text-sm font-medium">Add note</h3>
-            <div className="mt-1 flex gap-2">
-              <Input
-                aria-label="Context note"
-                placeholder="Focus on pricing evidence."
-                className="ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2"
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') void addNote()
-                }}
-              />
-              <Button type="button" variant="outline" size="sm" disabled={savingNote || !note.trim()} onClick={() => void addNote()}>
-                <Plus className="size-4" aria-hidden />
-                Add
-              </Button>
+          {showRaw ? (
+            <div className="min-h-0 space-y-2">
+              <div className="flex items-center justify-between border-b border-border pb-2">
+                <span className="text-xs font-medium text-muted-foreground">Verbatim Context Digest</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Copy raw context"
+                  onClick={() => {
+                    const raw = [
+                      `# System\n${state.view.segments.system}`,
+                      `# References\n${state.view.segments.references.join('\n\n')}`,
+                      state.view.segments.history.length ? `# History\n${state.view.segments.history.join('\n\n')}` : '',
+                      state.view.segments.tail.length ? `# Tail\n${state.view.segments.tail.join('\n\n')}` : '',
+                    ]
+                      .filter(Boolean)
+                      .join('\n\n')
+                    void navigator.clipboard.writeText(raw)
+                    setCopiedRaw(true)
+                    setTimeout(() => setCopiedRaw(false), 2000)
+                  }}
+                  className="h-7 gap-1 text-xs"
+                >
+                  {copiedRaw ? <Check className="size-3.5 text-emerald-500" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
+                  <span>{copiedRaw ? 'Copied' : 'Copy'}</span>
+                </Button>
+              </div>
+              <pre className="max-h-[calc(100vh-260px)] overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-muted p-3 font-mono text-xs text-foreground scroll-slim">
+                {[
+                  `# System\n${state.view.segments.system}`,
+                  `# References\n${state.view.segments.references.join('\n\n')}`,
+                  state.view.segments.history.length ? `# History\n${state.view.segments.history.join('\n\n')}` : '',
+                  state.view.segments.tail.length ? `# Tail\n${state.view.segments.tail.join('\n\n')}` : '',
+                ]
+                  .filter(Boolean)
+                  .join('\n\n')}
+              </pre>
             </div>
-          </section>
-          {patchError ? (
-            <p role="alert" className="text-sm text-muted-foreground">{patchError}</p>
-          ) : null}
+          ) : (
+            <>
+              <section aria-label="System prompt">
+                <h3 className="text-sm font-medium">System</h3>
+                <p className="mt-1 whitespace-pre-wrap text-sm">{state.view.segments.system}</p>
+              </section>
+              <section aria-label="Pinned references">
+                <h3 className="text-sm font-medium">References</h3>
+                {state.view.segments.references.length ? (
+                  <ul className="mt-2 space-y-1">
+                    {state.view.segments.references.map((text, index) => (
+                      <li key={index} className="whitespace-pre-wrap text-sm">
+                        <span className="font-mono text-xs text-muted-foreground">[ref:{index}] </span>
+                        {text}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-1 text-sm text-muted-foreground">No pinned reference texts.</p>
+                )}
+                {state.view.files.length ? (
+                  <ul className="mt-2 space-y-2">
+                    {state.view.files.map((file) => (
+                      <FileBlock key={file.id} file={file} onToggleUnit={toggleUnit} toggling={toggling} />
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-1 text-sm text-muted-foreground">No files attached. References grow here as files attach.</p>
+                )}
+                {state.view.notes.length ? (
+                  <ul className="mt-2 space-y-1">
+                    {state.view.notes.map((item, index) => (
+                      <li key={item.id} className="text-sm">
+                        <span className="font-mono text-xs text-muted-foreground">[note:{index + 1}] </span>
+                        {item.text}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </section>
+              <section aria-label="Conversation history">
+                <h3 className="text-sm font-medium">History</h3>
+                {state.view.segments.history.length ? (
+                  <ul className="mt-2 space-y-1">
+                    {state.view.segments.history.map((text, index) => (
+                      <li key={index} className="whitespace-pre-wrap text-sm">
+                        <span className="font-mono text-xs text-muted-foreground">[history:{index}] </span>
+                        {text}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-1 text-sm text-muted-foreground">No history pinned.</p>
+                )}
+              </section>
+              <section aria-label="Context tail">
+                <h3 className="text-sm font-medium">Tail</h3>
+                {state.view.segments.tail.length ? (
+                  <ul className="mt-2 space-y-1">
+                    {state.view.segments.tail.map((text, index) => (
+                      <li key={index} className="whitespace-pre-wrap text-sm">
+                        <span className="font-mono text-xs text-muted-foreground">[tail:{index}] </span>
+                        {text}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-1 text-sm text-muted-foreground">No tail pinned.</p>
+                )}
+              </section>
+              <section aria-label="Add a context note" className="sticky bottom-0 z-10 border-t border-border bg-background/95 py-2 backdrop-blur">
+                <h3 className="text-sm font-medium">Add note</h3>
+                <div className="mt-1 flex gap-2">
+                  <Input
+                    aria-label="Context note"
+                    placeholder="Focus on pricing evidence."
+                    className="ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2"
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') void addNote()
+                    }}
+                  />
+                  <Button type="button" variant="outline" size="sm" disabled={savingNote || !note.trim()} onClick={() => void addNote()}>
+                    <Plus className="size-4" aria-hidden />
+                    Add
+                  </Button>
+                </div>
+              </section>
+              {patchError ? (
+                <p role="alert" className="text-sm text-muted-foreground">{patchError}</p>
+              ) : null}
+            </>
+          )}
         </div>
       ) : null}
     </div>

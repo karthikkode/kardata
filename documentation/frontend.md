@@ -69,8 +69,17 @@ messages take its place when they arrive; the stream carries no tool
 arguments or result content.
 
 The session picker and subagent thread controls use backend-owned records.
-`@` references can address subagents and indexed files. Approval cards have
-no live renderer yet; see `docs/implementation-status.md`.
+`@` references can address subagents and indexed files.
+Karbot includes a Session Files tab with in-app artifact preview, download,
+and file creation, a Plan Mode toggle for milestone planning (`/plan`), and
+a live mid-run Steer action to guide agents and subagents on the fly.
+Sector chat provides Global Context Update Approval Cards to push agent insights
+into the global sector context upon operator confirmation.
+The Context Studio (`SectorContextDrawer`) features a 60% compaction threshold
+marker, raw verbatim digest inspector, and `compactSectorContext` trigger.
+The Sector Detail Page presents a 4-Pillar Workbench (`Workbench (All)`,
+`Research Activity`, `Sector Chat`, `Context Studio`, `Files Hub`) with a
+Linear-grade command header.
 
 The sector research strip states every lifecycle case: draft and failed
 offer Plan, approved offers Start, running offers Pause, paused offers
@@ -107,8 +116,30 @@ high effort. A stored per-session choice remains visible until changed.
 The client rejects removed provider ids before sending a model PATCH.
 (Owned primitives inventory: see `docs/design-system.md`.)
 
-## Shell and lists (revamp wave 1)
+## Sector workspace (landing → Open → chat)
 
+- The sector route lands on the summary page (`SectorLanding`): a
+  `Research status` region (state copy, progress estimate, `View
+  progress` dialog, `Open` button) plus the shared `CompanySection`
+  (server-paged companies, or status-specific empty copy). `Open`
+  enters the chat workspace; the landing back button returns to the
+  sector list.
+- The workspace (`SectorWorkspace`) keeps three rails: session rail
+  left (`Session types` group toggling Research / Chats), conversation
+  center with Chat / Plan (`Research views`) tabs for research
+  sessions, files plus global-context rail right. Below 1280px the
+  right rail becomes a drawer (`Open files and global context`); below
+  768px the session rail does too (`Open sessions`).
+- Dialogs and panels compose `WorkspaceOverlay` (`workspace-parts`):
+  title plus close, never a bespoke modal. Every async resource renders
+  through `ResourceNotice` (loading / error with retry / denied) plus
+  an explicit empty state where the resource can be empty.
+- Proven by `tests/frontend/sector-workspace.test.tsx` (landing,
+  editor, files, local context) and the landing-to-workspace journey
+  tests in `navigation-url`, `SectorDetailPage`, and
+  `research-staging` (all interaction via `user-event`).
+
+## Shell and lists (revamp wave 1)
 - The chat dock exit runs through the shared `useExitState` (`frontend/src/lib/motion.ts`): open, close, and reopen-cancel behave like every other popover. `App.tsx` keeps no bespoke exit timer. Focus returns to the chat toggle on close.
 - The app column caps at `max-w-6xl` and the sidebar sticks (`sticky top-0 h-screen`) with a desktop collapse toggle (`Collapse sidebar` / `Expand sidebar`, `aria-expanded`). collapsed keeps the icon rail with accessible names.
 - `Emails` has no backend and stays a disabled coming-soon entry (`Emails (coming soon)`, no navigation) instead of a dead placeholder route.

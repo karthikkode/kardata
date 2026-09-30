@@ -107,10 +107,11 @@ test('visual: sector detail with context drawer content', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
   await page.getByRole('button', { name: 'Open Speciality Foods' }).click()
+  // The summary landing carries status plus companies; the drawer-era
+  // detail/chat headings moved into the workspace (workspace.spec.ts).
   await shot(page, 'sector-detail', [
-    page.getByRole('heading', { name: 'Speciality Foods' }),
-    page.getByRole('heading', { name: 'Sector chat' }),
-    page.getByText('First fact.'),
+    page.getByRole('region', { name: 'Research status' }),
+    page.getByText('Company research has not started yet.'),
   ])
 })
 
@@ -162,8 +163,8 @@ test('visual: wave2 mobile sector detail stacked', async ({ page }) => {
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
   await page.getByRole('button', { name: 'Open Speciality Foods' }).click()
   await shot(page, 'wave2-mobile-detail', [
-    page.getByRole('heading', { name: 'Speciality Foods' }),
-    page.getByRole('heading', { name: 'Sector chat' }),
+    page.getByRole('region', { name: 'Research status' }),
+    page.getByRole('button', { name: 'Open', exact: true }),
   ])
 })
 

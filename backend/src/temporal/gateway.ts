@@ -10,7 +10,9 @@
 // addressed by child id (`agent:<childId>` threads).
 import { randomUUID } from 'node:crypto'
 import {
-  findLaunchParentWorkflowId,
+  enqueueSteering,
+  readSectorPlan,
+  appendEvent,
   type TransactableDb,
 } from '../db/index.js'
 import {
@@ -211,11 +213,16 @@ export class TemporalRunsGateway implements RunsGateway {
     const executions = client.workflow.list({ pageSize: 100 })
     for await (const execution of executions) {
       const type = execution.type
-      if (type !== 'sessionRun' && type !== 'researchRun' && type !== 'guardedResearchRun') continue
+      if (type !== 'sessionRun' && type !== 'researchRun' && type !== 'guardedResearchRun' && type !== 'companyResearch' && type !== 'subagentRun') continue
       let info: RunInfo
       try {
         const description = await client.workflow.getHandle(execution.workflowId).describe()
         info = this.describeRun(execution.workflowId, type, description)
+        if (type === 'companyResearch' || type === 'subagentRun') {
+          const child = await getThread(this.pool, `agent:${execution.workflowId}`)
+          if (!child) continue
+          info = { ...info, sessionId: child.sessionId, threadKey: child.key, state: child.status === 'PAUSED' ? 'PAUSED' : info.state }
+        }
       } catch (error) {
         if (error instanceof WorkflowNotFoundError) continue
         throw error
@@ -239,6 +246,11 @@ export class TemporalRunsGateway implements RunsGateway {
       throw error
     }
     const type = description.type
+    if (type === 'companyResearch' || type === 'subagentRun') {
+      const thread = await getThread(this.pool, `agent:${runId}`)
+      if (!thread) return null
+      return { id: runId, sessionId: thread.sessionId, threadKey: thread.key, state: description.status.name === 'RUNNING' ? 'RUNNING' : closeState(description.status.name), budgetUsedRatio: 0, contextUsedRatio: 0, updatedAt: thread.updatedAt }
+    }
     if (description.status.name === 'RUNNING') {
       try {
         if (type === 'sessionRun') {
@@ -301,6 +313,10 @@ export class TemporalRunsGateway implements RunsGateway {
 
   async send(threadKey: string, text: string): Promise<CommandResult> {
     const target = await this.resolveTarget(threadKey, text, 'runSend')
+    if (!target.sessionId) {
+      const child = await getThread(this.pool, `agent:${target.workflowId}`)
+      if (child?.status === 'FINISHED' || child?.status === 'ERROR') return this.recordMissedSteer(child.key, text)
+    }
     await this.signalTarget(target)
     return { commandId: commandId(), state: 'accepted' }
   }
@@ -311,14 +327,18 @@ export class TemporalRunsGateway implements RunsGateway {
    * event log; this only owns the workflow lifecycle. */
   async startSectorSweep(sectorId: string, scope?: { tenantId: string; projectId: string | null }): Promise<CommandResult> {
     const client = await this.client()
+    const plan = await readSectorPlan(this.pool, sectorId, scope)
+    const approved = plan?.versions.find((entry) => entry.version === plan.approvedVersion)
     try {
-      await client.workflow.start('sectorSweep', {
+      await client.workflow.start(approved?.executable ? 'sectorCoordinator' : 'sectorSweep', {
         workflowId: `sector-sweep-${sectorId}`,
         taskQueue: laneConfig('research').taskQueue,
         args: [{ sectorId, ...(scope === undefined ? {} : { scope }) }],
       })
     } catch (error) {
       if (error instanceof WorkflowExecutionAlreadyStartedError) {
+        const handle = client.workflow.getHandle(`sector-sweep-${sectorId}`)
+        if ((await handle.describe()).type === 'sectorCoordinator') await handle.signal('coordinatorResume')
         return { commandId: commandId(), state: 'accepted' }
       }
       throw error
@@ -332,7 +352,9 @@ export class TemporalRunsGateway implements RunsGateway {
   async cancelSectorSweep(sectorId: string): Promise<CommandResult> {
     const client = await this.client()
     try {
-      await client.workflow.getHandle(`sector-sweep-${sectorId}`).cancel()
+      const handle = client.workflow.getHandle(`sector-sweep-${sectorId}`)
+      if ((await handle.describe()).type === 'sectorCoordinator') await handle.signal('coordinatorPause')
+      else await handle.cancel()
     } catch (error) {
       if (error instanceof WorkflowNotFoundError) return { commandId: commandId(), state: 'accepted' }
       throw error
@@ -463,9 +485,9 @@ export class TemporalRunsGateway implements RunsGateway {
       }
       throw new ThreadNotAccepting(`thread ${threadKey} is not accepting steer`)
     }
-    const target = await this.resolveTarget(threadKey, text, 'runSteer')
-    await this.signalTarget(target)
-    return { commandId: commandId(), state: 'accepted' }
+    const id = commandId()
+    const instruction = await enqueueSteering(this.pool, threadKey, text, id)
+    return { commandId: id, state: instruction.state === 'missed' ? 'missed_steer' : 'accepted' }
   }
 
   async pauseRun(runId: string): Promise<CommandResult> {
@@ -478,19 +500,23 @@ export class TemporalRunsGateway implements RunsGateway {
   }
 
   async resumeRun(runId: string, extendedBudgetMs?: number): Promise<CommandResult> {
-    const type = await this.requireType(runId, ['sessionRun', 'researchRun', 'guardedResearchRun'])
+    const type = await this.requireType(runId, ['sessionRun', 'researchRun', 'guardedResearchRun', 'companyResearch', 'subagentRun'])
     const client = await this.client()
     const handle = client.workflow.getHandle(runId)
     if (type === 'sessionRun') await handle.signal('runResume')
     else if (type === 'researchRun') await handle.signal('researchResume')
+    else if (type === 'companyResearch' || type === 'subagentRun') await handle.signal('childResume')
     else await handle.signal('guardResume', { approved: true, extendRunMs: extendedBudgetMs })
     return { commandId: commandId(), state: 'accepted' }
   }
 
   async cancelRun(runId: string): Promise<CommandResult> {
-    await this.requireType(runId, ['sessionRun'])
+    const type = await this.requireType(runId, ['sessionRun','subagentRun','companyResearch'])
     const client = await this.client()
-    await signalRunCancel(client.workflow.getHandle(runId), runId)
+    const handle = client.workflow.getHandle(runId)
+    if (type === 'companyResearch') await handle.cancel()
+    else if (type === 'subagentRun') { await handle.signal('childCancel'); await handle.signal('childFinish') }
+    else await signalRunCancel(handle, runId)
     return { commandId: commandId(), state: 'accepted' }
   }
 
@@ -603,16 +629,13 @@ export class TemporalRunsGateway implements RunsGateway {
    * through the launch isolation record) and reports missed_steer. */
   private async recordMissedSteer(threadKey: string, text: string): Promise<CommandResult> {
     const childId = threadKey.replace(/^agent:/, '')
-    const parentWorkflowId = await findLaunchParentWorkflowId(this.pool, childId)
-    if (!parentWorkflowId) throw new RunNotFound(`no addressable run for ${threadKey}`)
-    const client = await this.client()
-    try {
-      await client.workflow.getHandle(parentWorkflowId).signal('parentSteer', { childId, text })
-    } catch (error) {
-      if (error instanceof WorkflowNotFoundError) throw new RunNotFound(`no such run ${parentWorkflowId}`)
-      throw error
-    }
-    return { commandId: commandId(), state: 'missed_steer' }
+    const thread = await getThread(this.pool, threadKey)
+    if (!thread) throw new RunNotFound(`no such thread ${threadKey}`)
+    const id = commandId()
+    await appendEvent(this.pool, { idempotencyKey: `missed:${id}`, partition: `session:${thread.sessionId}`, type: 't.subagent.missed_steer', payload: { childId, text } })
+    await projectNewEvents(this.pool)
+    return { commandId: id, state: 'missed_steer' }
+
   }
 }
 

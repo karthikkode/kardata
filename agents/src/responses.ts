@@ -61,6 +61,17 @@ function toInputItems(systemPrompt: string, request: ProviderRequest): unknown[]
   }
   return out
 }
+export async function responsesInputTokens(config: ResponsesTransportConfig, request: ProviderRequest): Promise<number> {
+  const response = await (config.fetchFn ?? fetch)(`${config.baseUrl}/responses/input_tokens`, {
+    method: 'POST', headers: { authorization: `Bearer ${config.apiKey}`, 'content-type': 'application/json' },
+    signal: request.signal ? AbortSignal.any([request.signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000),
+    body: JSON.stringify({ model: config.model, input: toInputItems(request.systemPrompt, request), tools: request.tools.map((tool) => ({ type: 'function', name: tool.name, description: tool.description, parameters: tool.parameters })) }),
+  })
+  if (!response.ok) throw new ProviderError(`Input token count failed with HTTP ${response.status}`, response.status >= 500)
+  const body: unknown = await response.json()
+  if (!isRecord(body) || typeof body['input_tokens'] !== 'number' || !Number.isInteger(body['input_tokens']) || body['input_tokens'] < 0) throw new ProviderError('Invalid input token count', false)
+  return body['input_tokens']
+}
 
 function toToolChoice(choice: ToolChoice): unknown {
   switch (choice.mode) {
@@ -90,6 +101,9 @@ function parseUsage(raw: unknown): Usage {
   if (!isRecord(raw)) return usage
   if (typeof raw['input_tokens'] === 'number') usage.inputTokens = raw['input_tokens']
   if (typeof raw['output_tokens'] === 'number') usage.outputTokens = raw['output_tokens']
+  const details = raw['input_tokens_details']
+  if (isRecord(details) && typeof details['cached_tokens'] === 'number') { usage.cacheReadTokens = details['cached_tokens']; usage.cacheHitTokens = details['cached_tokens'] }
+  if (isRecord(details) && typeof details['cached_tokens'] === 'number') usage.cacheMissTokens = Math.max(0, usage.inputTokens - usage.cacheReadTokens)
   return usage
 }
 
@@ -127,6 +141,7 @@ function parseOutputItems(output: unknown): { text: string; reasoning: string; t
 async function post(
   config: ResponsesTransportConfig,
   body: unknown,
+  signal?: AbortSignal,
 ): Promise<Response> {
   const fetchFn = config.fetchFn ?? fetch
   let response: Response
@@ -138,6 +153,7 @@ async function post(
         authorization: `Bearer ${config.apiKey}`,
       },
       body: JSON.stringify(body),
+      signal,
     })
   } catch (error) {
     throw new ProviderError(`Transport failure: ${String(error)}`, true)
@@ -164,7 +180,8 @@ export async function responsesCall(
     })),
     tool_choice: toToolChoice(request.toolChoice),
     ...(request.reasoningEffort === undefined ? {} : { reasoning: { effort: request.reasoningEffort, summary: 'auto' } }),
-  })
+    ...(request.maxOutputTokens === undefined ? {} : { max_output_tokens: request.maxOutputTokens }),
+  }, request.signal)
   const body: unknown = await response.json()
   if (!isRecord(body)) throw new ProviderError('Malformed responses envelope', false)
   const { text, reasoning, toolCalls } = parseOutputItems(body['output'])
@@ -189,7 +206,8 @@ export async function* responsesStream(
     })),
     tool_choice: toToolChoice(request.toolChoice),
     ...(request.reasoningEffort === undefined ? {} : { reasoning: { effort: request.reasoningEffort, summary: 'auto' } }),
-  })
+    ...(request.maxOutputTokens === undefined ? {} : { max_output_tokens: request.maxOutputTokens }),
+  }, request.signal)
   const pending = new Map<number, { callId: string; name: string; argsText: string; started: boolean }>()
   const summaryDeltaIndexes = new Set<string>()
   let usage = emptyUsage()

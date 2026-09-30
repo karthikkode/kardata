@@ -35,6 +35,9 @@ function stubDb(state: StubState): Db {
         }
         if (text.includes('FROM sector_context_selection')) return state.exclusions
         if (text.includes('FROM sector_context_notes')) return state.notes
+        // Workspace file library: nothing hidden in these fixtures, so the
+        // visibility join is a no-op and all assertions keep their shape.
+        if (text.includes('FROM workspace_files')) return []
         throw new Error(`unexpected query: ${text.slice(0, 80)}`)
       })()
       return { rowCount: rows.length, rows: rows as TRow[] }

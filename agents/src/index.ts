@@ -2,6 +2,7 @@
 export * from './budgets.js'
 export * from './clock.js'
 export * from './condense.js'
+export * from './compaction.js'
 export * from './config.js'
 export * from './context.js'
 export * from './epochs.js'

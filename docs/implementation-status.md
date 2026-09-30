@@ -1,5 +1,125 @@
 # Implementation status
 
+## Deep-check round on frontend-revamp (2026-09-30)
+
+- Four independent audit subagents (contract/parity, deep-check
+  conventions, migrations/DB, frontend rigor): deep-check PASS clean;
+  contract PASS with 5 WARNs (3 pre-existing state-enum drifts left
+  untouched, workspace wire shapes now pinned in PARITY/EXPECTED_TYPES);
+  frontend + DB FAILs below all remediated on the branch.
+- Frontend (auditor BLOCKERs): journey tests use `user-event`
+  (navigation-url, research-staging, SectorDetailPage); new
+  `documentation/frontend.md` sector-workspace section (landing → Open
+  → chat, rails, WorkspaceOverlay, ResourceNotice).
+- DB layer: scope now threads through `workspaceReferences` (route path;
+  worker calls stay job-scoped like the surrounding reads),
+  `indexSectorArtifact`, `notifyWorkspace`, `proposeFileContext`
+  validate up front, propose/commit are idempotent replays
+  (`ON CONFLICT` + winner-select; `parent-commit:` short-circuit), raw
+  `Error`s became `WorkspaceError`. Proven by
+  `db.workspace-idempotency.test.ts` (4/4 fail-before, pass-after).
+- Schema: new `0018_workspace_hardening` (3 lookup indexes + 4 CHECKs;
+  FKs deliberately omitted — thread local memory is authoritative, must
+  survive `rebuildFromEvents` truncation and session-delete projection,
+  orphans cleaned in `t.session.deleted`). `0015:down` now removes its
+  legacy rows (down never ran outside empty test DBs; stated here).
+  Live migration round-trip incl. 0018 green.
+- E2E: 11 obsolete drawer-era specs rewritten to workspace equivalents
+  (matrix landing shots, workspace pins/hover/dark, rail thinness,
+  landing visuals); scroll-chaining test retired (no nested scroller
+  pair in the new UX). Suite: 40 passed, 4 skipped, exit 0.
+- Live-battery incident: first full parallel run wedged 33 throwaway
+  DBs (0015 columns present, version unrecorded — migrator cannot heal
+  that state). Dropped all `kardata_test_*` DBs, re-ran bounded
+  (maxWorkers=4): 78 files / 480 tests green, exit 0. Lesson: drop (never
+  repair) wedged throwaway DBs; keep live batteries bounded. Open
+  follow-up: `db.migrations.test.ts` runs DOWN against the shared base
+  URL instead of `ensureTestDb` — a parallel-run footgun.
+- Gates on the merged tree: `npm run pr:verify` exit 0, e2e exit 0,
+  backend live battery exit 0, frontend 276 + agents 195 green.
+  Screenshots/clips + pilot journey remain PR-gate items.
+
+## Workspace "no route" fix on frontend-revamp (2026-09-30)
+
+- Screenshot showed `no route GET /v1/sectors/:id/global-context` and
+  `.../files` in all three workspace panels. Diagnosis: routes exist in
+  the branch (`backend/src/routes/workspace.ts`, registered in `app.ts`,
+  11 ops specced) but the running image predated them (built Sep 29
+  22:26, routes landed Sep 30). Reproduced the exact 404 against the
+  live backend before touching anything.
+- Added `tests/backend/api.workspace.test.ts` (8 live tests: global
+  read + v0 fallback, layer-404 vs no-route, files list, approver floor,
+  proposal/decision flow, research-session idempotence, thread
+  read/compact no-op, progress). 8/8 green on compose PG.
+- Rebuilt + restarted backend and worker images. Live probe now answers
+  (`permission_denied` without creds, not `no route`); entrypoint
+  migrated compose DB through 0017 (all workspace tables present).
+  Note: recreate once failed on host port 5432 (`finbuddy-db` holds it);
+  reran with `KARDATA_PG_PORT=5433`. No data touched (`kardata_pgdata`
+  intact).
+- Spec hygiene: `v1.yaml` had duplicate `&a1/&a2/&a3` anchors (strict
+  parsers reject the contract). Renamed the param anchor to `&a0`,
+  dropped the two unused component anchors. Strict-parse valid, 48
+  paths, aliases resolve identically, contract suite green.
+
+## Antigravity + Codex workspace merge on frontend-revamp (2026-09-30)
+
+- Merged stash `antigravity-revamp-wip-1aaed160` (29 files) into
+  `frontend-revamp` (codex `01a0f17a`) via `git apply --3way`: 17 files
+  clean, 12 conflicted. Codex P0 throughout; Antigravity's older
+  query/create/compact variants dropped where PR #34 or Codex superseded
+  them (deterministic compact keys, `includes` 404 mapping, `owningSectorId`
+  visibility, exact-optional invokers all kept).
+- Kept from Antigravity: `TurnMode 'plan'` + `plan` skill
+  (`agents/src/prompt.ts`, `skills.ts` + test), Karbot universal-driver /
+  query-document / session-files prompt paragraphs, `tokenCap` 120k,
+  generic `modePromptFor(parsed.mode)`, `db.create_session` +
+  start/pause/resume research in `PRODUCT_TOOLS`, approval-cards UI +
+  Context Studio + 4-pillar copy (`SectorChatPanel`, `SectorContextDrawer`,
+  `ChatPanel` files hub, `research-parts`, `frontend.md`), attach/query
+  binding row (previously undocumented).
+- Added in this merge (Codex gaps): `db.md` binding rows + repo-map row +
+  schema entries for the 6 workspace/context tools and 0014–0017 tables.
+- Red-suite findings fixed test-side (product behavior is the P0 arbiter):
+  migration file pins extended to 0014–0017; `sector-context` stub answers
+  `workspace_files` (hiding is live behavior); `sector-start` stub serves an
+  approved executable plan (layer now requires one); 5 App journey tests
+  rewritten for landing → Open → workspace (old suite expected direct chat
+  regions). One-line `cause` fix for the `preserve-caught-error` lint error
+  in `coordinator.ts`.
+- Follow-ups (not this merge): sector activity timeline has no renderer in
+  the workspace UX (dropped one assertion; coverage stays in
+  `RunConsole.test.tsx`); `SectorDetailPage` workbench graft lives in a
+  file the App shell no longer routes (shared `CompanySection` still used
+  by the landing); 0009–0013 tables predate the repo map.
+- Gates on the merged tree: backend lint/typecheck clean, agents
+  lint/typecheck + 195 tests green, backend 323 passed (56 files, live
+  suites skip), frontend 276 passed (33 files), live migration up +
+  down/up round-trip green incl. 0014–0017. Full live-stack + e2e left for
+  the PR gate.
+
+## Frontend & Agent Engine Revamp: Universal Karbot, 4-Pillar Workbench, and Swarm Visibility (2026-09-30)
+
+- Universal Karbot Driver & Session Files Hub:
+  - Added Session Files view in `ChatPanel.tsx` with live artifact listing, in-app body preview (`getArtifactBody`), download action, and file creation dialog (`createArtifact`).
+  - Added Plan Mode toggle in composer (`/plan` prefixed turns) and mid-run Steer button (`steerThread`) for real-time steering of running agents and subagents.
+  - Hermes-grade thinking placeholder pill with animated pulse and live elapsed clock (`Thinking · Xs`), plus tool cards with duration badges and expandable inputs/outputs.
+- Sector Chat Thought Partner & Global Context Approval Cards:
+  - `SectorChatPanel.tsx` updated with Global Context Update Approval Cards (`patchSectorContext`), allowing operators to approve or dismiss proposed sector notes before syncing to the global sector context.
+  - Added mid-run steer action in sector chat composer.
+- Context Studio & 60% Compaction Limit:
+  - `SectorContextDrawer.tsx` updated with a 60% compaction limit indicator on `MeterBar`, raw verbatim context digest inspector with copy action, and `compactSectorContext` trigger.
+- 4-Pillar Sector Detail Workbench:
+  - `SectorDetailPage.tsx` updated with Linear-grade Command Header and 4-pillar view switcher (`Workbench (All)`, `Research Activity`, `Sector Chat`, `Context Studio`, `Files Hub`), keeping 100% test compatibility.
+- Backend & Agent Grants:
+  - Added `TurnMode = 'default' | 'brainstorm' | 'plan'`, `createArtifact`, `querySectorDocument`, `compactSectorContext`, `POST /v1/sessions/:sessionId/artifacts`, `POST /v1/sessions/:sessionId/compact`, `POST /v1/sectors/:sectorId/context/compact`.
+  - Pinned auto-compaction cap at 60% window (120k tokens).
+- Verification:
+  - All 31 frontend test files passed (260/260 tests passed).
+  - All 54 backend test files passed (315/315 tests passed).
+  - All 31 agents test files passed (189/189 tests passed).
+  - Typecheck, ESLint, no-em-dashes, and production build 100% green.
+
 ## Sweep robustness: TEST-marker strip + walled-run findings (2026-09-28)
 
 - `stripTestMarkers` in sweep-rules.ts: leading TEST tokens/clauses go

@@ -2,6 +2,7 @@
 // access: product code imports from '../db/index.js' (or './index.js'),
 // never deep into repos and never 'pg' directly (enforced by eslint
 // no-restricted-imports). Repositories land here slice by slice.
+export * from './workspace.js'
 export { DbContractError } from './errors.js'
 export {
   type AppendedEvent,
@@ -132,6 +133,7 @@ export {
   listSectorDocuments,
   querySectorDocument,
   readSectorDocument,
+  readOriginalSectorDocument,
   sha256Hex,
   type DocumentChunksResult,
   type DocumentSummaryResult,

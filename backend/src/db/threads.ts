@@ -145,8 +145,12 @@ async function applyEvent(db: Db, event: StoredEvent): Promise<boolean> {
     case 't.session.deleted': {
       // Tombstone projects the session thread away: sends, steers, and
       // thread reads 404 from here on, while the event log keeps history.
+      // Local memory and steering rows follow the thread (no hard FK: they
+      // must survive rebuildFromEvents, which truncates threads).
       const payload = SessionDeleted.parse(event.payload)
       await db.query(`DELETE FROM threads WHERE key = $1`, [payload.sessionId])
+      await db.query(`DELETE FROM thread_context WHERE thread_key = $1`, [payload.sessionId])
+      await db.query(`DELETE FROM thread_instructions WHERE thread_key = $1`, [payload.sessionId])
       return true
     }
     case 't.subagent.launched': {
@@ -329,7 +333,9 @@ export async function projectBatch(db: Db, events: StoredEvent[]): Promise<Proje
  * rebuild on the foreign keys. */
 export async function rebuildFromEvents(db: Db, events: StoredEvent[]): Promise<ProjectionResult> {
   if (!Array.isArray(events)) throw new DbContractError('events must be an array')
-  await db.query('TRUNCATE thread_messages, threads, companies, sectors, sector_documents, sector_document_units')
+  // Sector source files and workspace state are authoritative owner data,
+  // not disposable projections. Replay upserts sector identity in place.
+  await db.query('TRUNCATE thread_messages, threads, companies')
   return projectBatch(db, events)
 }
 
@@ -344,7 +350,10 @@ export async function getThread(db: Db, threadKey: string): Promise<ThreadView |
     'SELECT seq, kind, payload, at FROM thread_messages WHERE thread_key = $1 ORDER BY seq ASC',
     [threadKey],
   )
+  const launch = messages.map((row) => row.payload).find((payload) => typeof payload === 'object' && payload !== null && 'launched' in payload)
+  const name = typeof launch === 'object' && launch !== null && 'name' in launch && typeof launch.name === 'string' ? launch.name : undefined
   return {
+    ...(name ? { name } : {}),
     key: thread.key,
     sessionId: thread.session_id,
     kind: thread.kind,

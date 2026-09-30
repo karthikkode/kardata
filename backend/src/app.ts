@@ -23,6 +23,7 @@ import { sectorRoutes } from './routes/sectors.js'
 import { sessionRoutes } from './routes/sessions.js'
 import { skillRoutes } from './routes/skills.js'
 import { threadRoutes } from './routes/threads.js'
+import { workspaceRoutes } from './routes/workspace.js'
 
 export interface HealthData {
   status: 'ok'
@@ -60,7 +61,9 @@ export interface AppOptions {
 }
 
 export function buildApp(options: AppOptions = {}): FastifyInstance {
-  const app = Fastify({ logger: false })
+  // Eight-MiB uploads grow to ~10.7 MiB as base64 JSON. Per-file extraction
+  // keeps its own eight-MiB limit; this transport ceiling includes metadata.
+  const app = Fastify({ logger: false, bodyLimit: 12 * 1024 * 1024 })
   const startedAt = Date.now()
   const buildSha = options.buildSha ?? process.env['BUILD_SHA'] ?? 'dev'
   const withDeps = app as FastifyInstance & {
@@ -109,6 +112,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   sectorRoutes(app)
   artifactRoutes(app)
   threadRoutes(app)
+  workspaceRoutes(app)
   runRoutes(app)
   commandRoutes(app)
   inspectorRoutes(app)

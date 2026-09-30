@@ -8,6 +8,7 @@ import type { Scope } from '../auth/keys.js'
 import { DbContractError } from './errors.js'
 import { getSession, type Db } from './events.js'
 import { getSector, recordResearchSession, setSectorState } from './sectors.js'
+import { readSectorPlan } from './sector-plan.js'
 
 export type SectorStartFailure = 'not_found' | 'conflict' | 'overload'
 
@@ -44,6 +45,10 @@ export async function startSectorResearch(
   // (draft starts) is gone.
   if (sector.state !== 'approved') {
     throw new SectorStartError('conflict', `sector ${sectorId} is ${sector.state}, not approved`)
+  }
+  const plan = await readSectorPlan(db, sectorId, scope)
+  if (!plan?.versions.find((entry) => entry.version === plan.approvedVersion)?.executable) {
+    throw new SectorStartError('conflict', 'Create and approve an executable plan before starting research.')
   }
   // The calling chat owns the pin: it must exist and belong to this
   // sector, otherwise another session could claim the research.

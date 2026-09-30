@@ -8,6 +8,7 @@ import type { FastifyInstance } from 'fastify'
 import type { Db } from '../db/index.js'
 import type { Scope } from '../auth/keys.js'
 import type { RunInfo } from '../temporal/gateway.js'
+import { getThread } from '../db/index.js'
 import { authorize, requirePool, requireRuns, route, sendError, sessionVisible } from './http.js'
 
 function toApiRun(run: RunInfo): Record<string, unknown> {
@@ -27,7 +28,10 @@ function toApiRun(run: RunInfo): Record<string, unknown> {
 /** Session runs are tenant-scoped; anything else has no tenant binding. */
 export async function runVisible(pool: Db, run: RunInfo, scope: Scope | undefined): Promise<boolean> {
   if (!scope) return true
-  if (!run.id.startsWith('session-run-')) return false
+  if (!run.id.startsWith('session-run-')) {
+    const thread = await getThread(pool, `agent:${run.id}`)
+    return thread ? sessionVisible(pool, thread.sessionId, scope) : false
+  }
   return sessionVisible(pool, run.sessionId, scope)
 }
 

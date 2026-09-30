@@ -53,13 +53,13 @@ export async function readOutboxBacklog(
 export async function publishOutboxFrame(
   db: Db,
   threadKey: string,
-  type: 'message' | 'state' | 'delta' | 'reasoning' | 'tool',
+  type: 'message' | 'state' | 'delta' | 'reasoning' | 'tool' | 'context-version' | 'approval' | 'work-progress' | 'compaction' | 'steering-consumption',
   payload: unknown,
 ): Promise<number> {
   if (!ThreadKeySchema.safeParse(threadKey).success) {
     throw new DbContractError('threadKey must be a non-empty string')
   }
-  if (type !== 'message' && type !== 'state' && type !== 'delta' && type !== 'reasoning' && type !== 'tool') {
+  if (!['message', 'state', 'delta', 'reasoning', 'tool', 'context-version', 'approval', 'work-progress', 'compaction', 'steering-consumption'].includes(type)) {
     throw new DbContractError("type must be 'message', 'state', 'delta', 'reasoning', or 'tool'")
   }
   const { rows } = await db.query<{ seq: number | string }>(

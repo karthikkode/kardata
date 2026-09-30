@@ -33,7 +33,7 @@ import {
  * speaks MCP over an injected endpoint+token; tests inject a memory double. */
 export interface TurnRunnerMcpClient {
   listTools(): Promise<ToolDefinition[]>
-  callTool(name: string, args: Record<string, unknown>): Promise<{ content: string; isError?: boolean }>
+  callTool(name: string, args: Record<string, unknown>, operationId?: string): Promise<{ content: string; isError?: boolean }>
 }
 
 /** Delta sink: one call per streamed text delta, in stream order. The
@@ -50,6 +50,12 @@ export interface TurnRunnerSink {
 }
 
 export interface KarbotTurnOptions {
+  operationKey?: string
+  maxOutputTokens?: number
+  signal?: AbortSignal
+  beforeRound?(round: number, context: { systemPrompt: string; messages: ChatMessage[]; tools: ToolDefinition[] }): Promise<{ systemPrompt?: string; messages?: ChatMessage[] }>
+  onCheckpoint?(messages: ChatMessage[], round: number, usage: Usage, toolCalls: number): Promise<void>
+  resume?: { round: number; usage: Usage; toolCalls: number }
   provider: ProviderAdapter
   mcp: TurnRunnerMcpClient
   sink: TurnRunnerSink
@@ -105,6 +111,7 @@ export interface KarbotHarness {
 }
 
 export interface KarbotTurnResult {
+  toolOutcomes: Array<{ id: string; name: string; state: 'done' | 'failed' }>
   text: string
   /** Provider thinking trace, empty when the provider sends none. */
   reasoning: string
@@ -160,10 +167,12 @@ function addUsage(total: Usage, part: Usage): void {
 export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotTurnResult> {
   const { maxTurns, timeoutMs } = checkedOptions(options)
   let history: ChatMessage[] = [...options.messages]
+  let systemPrompt = options.systemPrompt
   const tools = await options.mcp.listTools()
   const toolChoice = options.toolChoice ?? { mode: 'auto' }
-  const usage = emptyUsage()
+  const usage = options.resume ? { ...options.resume.usage } : emptyUsage()
   const executed: ToolCallRequest[] = []
+  const toolOutcomes: KarbotTurnResult['toolOutcomes'] = []
   const condensed: SummaryArtifact[] = []
   const harness = options.harness
   let text = ''
@@ -172,9 +181,33 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
   let parentHash: string | undefined
   let budgetTripped: TrippedBudget[] | undefined
   let repetitionHalt: KarbotTurnResult['repetitionHalt']
+  let completed = false
 
-  for (let turn = 1; turn <= maxTurns; turn += 1) {
+  if (options.resume && harness?.budgets) {
+    for (let index = 0; index < options.resume.round; index++) harness.budgets.noteTurn(true)
+    for (let index = 0; index < options.resume.toolCalls; index++) harness.budgets.noteToolCall()
+    harness.budgets.noteTokens(usage.inputTokens + usage.outputTokens)
+  }
+  const pending = history.at(-1)
+  const previousToolCalls = Math.max(0, (options.resume?.toolCalls ?? 0) - (pending?.role === 'assistant' ? pending.toolCalls?.length ?? 0 : 0))
+  if (pending?.role === 'assistant' && pending.toolCalls?.length) {
+    for (const call of pending.toolCalls) {
+      options.signal?.throwIfAborted()
+      await options.sink.onTool?.(call.id, call.name, 'running', options.resume?.round ?? 0)
+      const result = await options.mcp.callTool(call.name, call.args, options.operationKey ? `${options.operationKey}:${call.id}` : undefined)
+      history.push({ role: 'tool', toolResult: { toolCallId: call.id, toolName: call.name, content: result.content, isError: result.isError ?? false } })
+      executed.push(call)
+      toolOutcomes.push({ id: call.id, name: call.name, state: result.isError ? 'failed' : 'done' })
+      await options.sink.onTool?.(call.id, call.name, result.isError ? 'failed' : 'done', options.resume?.round ?? 0)
+    }
+    await options.onCheckpoint?.(history, options.resume?.round ?? 0, usage, previousToolCalls + executed.length)
+  }
+  for (let turn = (options.resume?.round ?? 0) + 1; turn <= maxTurns; turn += 1) {
+    options.signal?.throwIfAborted()
     turns = turn
+    const refreshed = await options.beforeRound?.(turn, { systemPrompt, messages: history, tools })
+    if (refreshed?.systemPrompt !== undefined) systemPrompt = refreshed.systemPrompt
+    if (refreshed?.messages !== undefined) history = refreshed.messages
     // Budget gate: a tripped budget halts before any provider call, so a
     // runaway turn cannot spend one more token.
     if (harness?.budgets) {
@@ -193,13 +226,13 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
       const tokenCap = spec.tokenCap
       const overTokens =
         tokenCap !== undefined &&
-        estimateTokens(options.systemPrompt) + estimateMessagesTokens(history) > tokenCap
+        estimateTokens(systemPrompt) + estimateMessagesTokens(history) > tokenCap
       if (history.length > spec.maxSize || overTokens) {
         const outcome = await condense({
           messages: history,
           keepFirst: spec.keepFirst,
           maxSize: spec.maxSize,
-          tokenCount: estimateTokens(options.systemPrompt) + estimateMessagesTokens(history),
+          tokenCount: estimateTokens(systemPrompt) + estimateMessagesTokens(history),
           tokenCap,
           summarize: spec.summarize,
           summarizer: spec.summarizer,
@@ -215,7 +248,7 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
     // hash-chained to the previous round for lineage and rehydration.
     if (harness?.versions && harness.onSnapshot) {
       const request = assembleContext({
-        system: [options.systemPrompt],
+        system: [systemPrompt],
         tools,
         references: [],
         history,
@@ -238,12 +271,14 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
           const calls = new DeltaAccumulator()
           let turnUsage: Usage = emptyUsage()
           for await (const event of options.provider.chatStream({
-            systemPrompt: options.systemPrompt,
+            systemPrompt,
             // Freeze this request's view: the mutable turn history grows
             // after the stream ends, and adapters may retain the request.
             messages: [...history],
             tools,
             toolChoice,
+            signal: options.signal,
+            ...(options.maxOutputTokens === undefined ? {} : { maxOutputTokens: options.maxOutputTokens }),
             ...(options.reasoningEffort === undefined
               ? {}
               : { reasoningEffort: options.reasoningEffort }),
@@ -298,16 +333,18 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
           harness.budgets.noteCost(cost)
         }
       }
-      if (streamed.toolCalls.length === 0) break
+      if (streamed.toolCalls.length === 0) { completed = true; break }
+      await options.onCheckpoint?.(history, turn, usage, previousToolCalls + executed.length + streamed.toolCalls.length)
       // Independent calls in one round dispatch together: rounds cost a
       // full provider latency each, so serial MCP calls directly extend
       // time-to-answer. History order stays deterministic (call order);
       // completion frames fire as each call lands.
       const outcomes = await Promise.all(
         streamed.toolCalls.map(async (call) => {
+          options.signal?.throwIfAborted()
           let outcome: { content: string; isError?: boolean }
           try {
-            outcome = await options.mcp.callTool(call.name, call.args)
+            outcome = await options.mcp.callTool(call.name, call.args, options.operationKey ? `${options.operationKey}:${call.id}` : undefined)
           } catch (error) {
             outcome = {
               content: error instanceof Error ? error.message.slice(0, 500) : 'mcp tool call failed',
@@ -321,6 +358,7 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
       for (const [index, call] of streamed.toolCalls.entries()) {
         const outcome = outcomes[index] as { content: string; isError?: boolean }
         executed.push(call)
+        toolOutcomes.push({ id: call.id, name: call.name, state: outcome.isError ? 'failed' : 'done' })
         history.push({
           role: 'tool',
           toolResult: {
@@ -331,6 +369,7 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
           },
         })
       }
+      await options.onCheckpoint?.(history, turn, usage, previousToolCalls + executed.length)
       // Post-round repetition screen: repeated tool actions escalate
       // warn → replan → blocked. A replan/blocked verdict stops the loop:
       // the model is looping, and another round only spends more.
@@ -349,7 +388,9 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
       if (timer !== undefined) clearTimeout(timer)
     }
   }
+  if (!completed && budgetTripped === undefined && repetitionHalt === undefined) budgetTripped = ['turns']
   return {
+    toolOutcomes,
     text,
     reasoning,
     toolCalls: executed,
@@ -367,6 +408,7 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
 // unit-provable without network.
 
 export interface StreamableMcpClientOptions {
+  execution?: { threadKey: string; signature: string }
   endpoint: string
   token: string
   fetchFn?: McpFetchFn
@@ -429,6 +471,7 @@ export class StreamableMcpClient implements TurnRunnerMcpClient {
   private readonly token: string
   private readonly fetchFn: McpFetchFn
   private readonly grant: readonly string[] | undefined
+  private readonly execution: StreamableMcpClientOptions['execution']
   private initialized = false
   private nextId = 1
 
@@ -442,20 +485,23 @@ export class StreamableMcpClient implements TurnRunnerMcpClient {
     this.endpoint = options.endpoint
     this.token = options.token
     this.fetchFn = options.fetchFn ?? defaultFetchFn
+    this.execution = options.execution
     const grant = (options.grant ?? []).map((name) => name.trim()).filter((name) => name.length > 0)
     this.grant = grant.length > 0 ? grant : undefined
   }
 
-  private async rpc(method: string, params: Record<string, unknown>): Promise<unknown> {
+  private async rpc(method: string, params: Record<string, unknown>, operationId?: string): Promise<unknown> {
     const response = await this.fetchFn(this.endpoint, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
         accept: 'application/json, text/event-stream',
         authorization: `Bearer ${this.token}`,
+        ...(operationId ? { 'idempotency-key': operationId } : {}),
+        ...(this.execution ? { 'x-kardata-thread': this.execution.threadKey, 'x-kardata-execution': this.execution.signature } : {}),
         ...(this.grant ? { [MCP_TOOL_GRANT_HEADER]: this.grant.join(',') } : {}),
       },
-      body: JSON.stringify({ jsonrpc: '2.0', id: this.nextId++, method, params }),
+      body: JSON.stringify({ jsonrpc: '2.0', id: operationId ?? this.nextId++, method, params }),
     })
     // Token stays out of errors: status only, never headers or body echoes.
     if (!response.ok) throw new Error(`mcp request '${method}' failed with HTTP ${response.status}`)
@@ -494,11 +540,11 @@ export class StreamableMcpClient implements TurnRunnerMcpClient {
       .filter((entry): entry is ToolDefinition => entry !== undefined)
   }
 
-  async callTool(name: string, args: Record<string, unknown>): Promise<{ content: string; isError?: boolean }> {
+  async callTool(name: string, args: Record<string, unknown>, operationId?: string): Promise<{ content: string; isError?: boolean }> {
     await this.ensureInitialized()
     let result: unknown
     try {
-      result = await this.rpc('tools/call', { name, arguments: args })
+      result = await this.rpc('tools/call', { name, arguments: args }, operationId)
     } catch (error) {
       return { content: error instanceof Error ? error.message : 'mcp tool call failed', isError: true }
     }

@@ -4,3 +4,4 @@
 // stay in run.ts, delegation in subagents.ts; the bundler follows both.
 export * from './run.js'
 export * from './subagents.js'
+export { companyResearch } from './coordinator.js'

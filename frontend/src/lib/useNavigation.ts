@@ -9,6 +9,8 @@ export interface Navigation {
   section: string
   sectorId: string | null
   researchTab: ResearchList
+  sessionId?: string | null
+  threadKey?: string | null
 }
 
 const DEFAULT_NAVIGATION: Navigation = {
@@ -28,10 +30,10 @@ export function parseNavigation(search: string): Navigation {
   const params = new URLSearchParams(search)
   const section = params.get('section')?.trim() || DEFAULT_NAVIGATION.section
   const sectorId = params.get('sector')?.trim() || null
-  if (section === 'SectorDetail' && !sectorId) {
+  if ((section === 'SectorDetail' || section === 'SectorChat') && !sectorId) {
     return { section: 'Researches', sectorId: null, researchTab: pickTab(params.get('tab')) }
   }
-  return { section, sectorId, researchTab: pickTab(params.get('tab')) }
+  return { section, sectorId, researchTab: pickTab(params.get('tab')), ...(params.has('session') ? { sessionId: params.get('session') } : {}), ...(params.has('thread') ? { threadKey: params.get('thread') } : {}) }
 }
 
 function serialize(nav: Navigation): string {
@@ -40,6 +42,10 @@ function serialize(nav: Navigation): string {
   else params.set('section', nav.section)
   if (nav.sectorId) params.set('sector', nav.sectorId)
   else params.delete('sector')
+  if (nav.sessionId && nav.section === 'SectorChat') params.set('session', nav.sessionId)
+  else params.delete('session')
+  if (nav.threadKey && nav.section === 'SectorChat') params.set('thread', nav.threadKey)
+  else params.delete('thread')
   if (nav.researchTab === DEFAULT_NAVIGATION.researchTab) params.delete('tab')
   else params.set('tab', nav.researchTab)
   const query = params.toString()

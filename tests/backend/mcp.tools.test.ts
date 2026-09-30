@@ -59,6 +59,12 @@ const SCOPE = { tenantId: 'tenant-a', projectId: null }
  * layer validation (reaching the fake DB or succeeding without one);
  * invalid args must fail the tool schema before any query runs. */
 const SAMPLES: Record<McpToolName, { valid: unknown; invalid: unknown; invoke?: boolean }> = {
+  'db.commit_child_context': { valid: { proposalId: 'child-update' }, invalid: {}, invoke: false },
+  'db.get_global_context': { valid: {}, invalid: { unexpected: true }, invoke: false },
+  'db.propose_global_context': { valid: { baseVersion: 0, sections: {}, idempotencyKey: 'change' }, invalid: { baseVersion: -1 }, invoke: false },
+  'db.list_sector_files': { valid: {}, invalid: { unexpected: true }, invoke: false },
+  'db.propose_file_context': { valid: { fileId: 'file', baseVersion: 0 }, invalid: {}, invoke: false },
+  'db.get_local_context': { valid: {}, invalid: { unexpected: true }, invoke: false },
   'db.append_event': {
     valid: { idempotencyKey: 'k1', partition: 'p', type: 't', payload: {} },
     invalid: { partition: 'p', type: 't' },
@@ -166,6 +172,8 @@ const SAMPLES: Record<McpToolName, { valid: unknown; invalid: unknown; invoke?: 
 }
 
 const EXPECTED_TOOLS: McpToolName[] = [
+  'db.commit_child_context',
+  'db.get_global_context', 'db.propose_global_context', 'db.list_sector_files', 'db.propose_file_context', 'db.get_local_context',
   'db.append_event',
   'db.read_partition',
   'db.find_event',

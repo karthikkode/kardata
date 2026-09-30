@@ -39,6 +39,24 @@ const SKILLS: Skill[] = [
     mode: 'brainstorm',
   },
   {
+    name: 'plan',
+    description: 'Structure a roadmap and checklist before taking action.',
+    prompt:
+      'Plan mode: break down complex tasks into numbered milestones and clear checklists. ' +
+      'Identify requirements, open questions, dependencies, and risk factors. ' +
+      'Do not execute destructive mutations without operator sign-off.',
+    tools: [
+      'db.list_sectors',
+      'db.get_sector',
+      'db.list_companies',
+      'db.ledger_list_companies',
+      'db.kb_search',
+      'db.query_document',
+      'db.create_artifact',
+    ],
+    mode: 'plan',
+  },
+  {
     name: 'sector-draft',
     description: 'Draft a new sector for later research (never auto-starts).',
     prompt:
