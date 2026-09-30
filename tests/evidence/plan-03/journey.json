@@ -1,0 +1,57 @@
+{
+  "run": "plan-03",
+  "at": "2026-09-29T17:27:13.149Z",
+  "sectorName": "Journey Fintech mumy6df9",
+  "marks": [
+    {
+      "step": "researches-first-paint",
+      "ms": 267
+    },
+    {
+      "step": "create-draft",
+      "ms": 172
+    },
+    {
+      "step": "open-detail",
+      "ms": 68
+    },
+    {
+      "step": "start-planning",
+      "ms": 79
+    },
+    {
+      "step": "wait-planned",
+      "ms": 75492
+    },
+    {
+      "step": "edit-plan",
+      "ms": 155
+    },
+    {
+      "step": "approve-plan",
+      "ms": 64
+    },
+    {
+      "step": "start-research",
+      "ms": 5398
+    },
+    {
+      "step": "steer-run",
+      "ms": 447
+    },
+    {
+      "step": "pause-research",
+      "ms": 80
+    },
+    {
+      "step": "resume-research",
+      "ms": 118
+    },
+    {
+      "step": "wait-complete",
+      "ms": 10421
+    }
+  ],
+  "consoleErrors": [],
+  "failedRequests": []
+}

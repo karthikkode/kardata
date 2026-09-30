@@ -415,6 +415,8 @@ export function SectorDetailPage({
   onStartResearch,
   onRestartResearch,
   onPlanResearch,
+  onApproveResearch,
+  onEditResearchPlan,
   onAttach,
   onBack,
 }: {
@@ -435,6 +437,8 @@ export function SectorDetailPage({
   onStartResearch: () => Promise<void>
   onRestartResearch: () => Promise<void>
   onPlanResearch: () => Promise<void>
+  onApproveResearch: (version: number) => Promise<void>
+  onEditResearchPlan: (markdown: string) => Promise<void>
   onAttach: (file: File) => void
   onBack: () => void
 }) {
@@ -523,6 +527,8 @@ export function SectorDetailPage({
         researchBusy={researchBusy}
         planError={researchError}
         onPlan={onPlanResearch}
+        onApprove={onApproveResearch}
+        onEdit={onEditResearchPlan}
       />
       <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-2">
         <section

@@ -638,6 +638,48 @@ paths:
                 $ref: '#/components/schemas/SectorPlan'
         '404':
           $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: editSectorPlan
+      tags: [sectors]
+      summary: 'Brainstorm edit: appends a plan version (re-opens review when approved).'
+      parameters:
+        - $ref: '#/components/parameters/SectorId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [markdown]
+              properties:
+                markdown:
+                  type: string
+      responses:
+        '200':
+          description: New plan version.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [version]
+                properties:
+                  version:
+                    type: integer
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          description: No plan to update.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Sector is neither planned nor approved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/sectors/{sectorId}/approve:
     post:
       operationId: approveSectorPlan

@@ -324,6 +324,43 @@ describe.skipIf(!ENABLED)('sector research routes (B-S4)', () => {
     expect(missing.statusCode).toBe(404)
   })
 
+  it('edits plan versions through PATCH and re-opens approved review', async () => {
+    const operator = authHeader(KEYS.operator.presented)
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/sectors',
+      headers: operator,
+      payload: { name: `Edit me ${STAMP}`, topic: 'edits' },
+    })
+    expect(created.statusCode).toBe(201)
+    const draft = (created.json() as { data: { id: string } }).data
+    await setSectorState(pool, draft.id, 'planned', { scope: { tenantId: 'tenant-sec', projectId: null } })
+    await recordPlanVersion(pool, draft.id, '## scope\nOne.', `plan-edit-${STAMP}`, {
+      tenantId: 'tenant-sec',
+      projectId: null,
+    })
+    await projectNewEvents(pool)
+    const edited = await app.inject({
+      method: 'PATCH',
+      url: `/v1/sectors/${draft.id}/plan`,
+      headers: operator,
+      payload: { markdown: '## scope\nTwo.' },
+    })
+    expect(edited.statusCode).toBe(200)
+    expect((edited.json() as { data: { version: number } }).data).toMatchObject({ version: 2 })
+    const read = await app.inject({ method: 'GET', url: `/v1/sectors/${draft.id}/plan`, headers: operator })
+    expect(
+      ((read.json() as { data: { versions: Array<{ version: number }> } }).data).versions.map((entry) => entry.version),
+    ).toEqual([1, 2])
+    const empty = await app.inject({
+      method: 'PATCH',
+      url: `/v1/sectors/${draft.id}/plan`,
+      headers: operator,
+      payload: { markdown: '' },
+    })
+    expect(empty.statusCode).toBe(400)
+  })
+
   it('creates drafts, attaches context, and starts explicitly (never auto-research)', async () => {
     const operator = authHeader(KEYS.operator.presented)
     const viewer = authHeader(KEYS.viewer.presented)

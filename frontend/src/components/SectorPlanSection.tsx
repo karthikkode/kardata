@@ -32,6 +32,8 @@ export function SectorPlanSection({
   researchBusy,
   planError,
   onPlan,
+  onApprove,
+  onEdit,
 }: {
   config: StagingConfig | null
   sectorId: string
@@ -40,6 +42,8 @@ export function SectorPlanSection({
   researchBusy: boolean
   planError: string | null
   onPlan: () => Promise<void>
+  onApprove: (version: number) => Promise<void>
+  onEdit: (markdown: string) => Promise<void>
 }) {
   const [state, setState] = useState<PlanState>({ status: 'closed' })
   const [attempt, setAttempt] = useState(0)
@@ -49,6 +53,9 @@ export function SectorPlanSection({
     setActivePanelKey(panelKey)
     setState(panelKey ? { status: 'loading' } : { status: 'closed' })
   }
+  // Re-read on every state transition (artifact writes land with
+  // transitions) and on demand; plus a quiet poll while planned, when
+  // brainstorm collaborators may version underneath an open panel.
   useEffect(() => {
     if (!config) return
     let live = true
@@ -67,10 +74,9 @@ export function SectorPlanSection({
     return () => {
       live = false
     }
-  }, [config, sectorId, attempt])
-  // While a plan run is away, the artifact re-reads so versions land.
+  }, [config, sectorId, attempt, sectorState])
   useEffect(() => {
-    if (sectorState !== 'planning' || !config) return
+    if (sectorState !== 'planned' || !config) return
     const timer = setInterval(() => setAttempt((value) => value + 1), PLAN_POLL_MS)
     return () => clearInterval(timer)
   }, [sectorState, config])
@@ -127,8 +133,66 @@ export function SectorPlanSection({
               {researchBusy ? 'Planning…' : 'Plan research'}
             </Button>
           ) : null}
+          {sectorState === 'planned' && state.plan.latest ? (
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              className="mt-3"
+              disabled={researchBusy}
+              onClick={() => void onApprove(state.plan.latest?.version ?? 0)}
+            >
+              Approve v{state.plan.latest.version}
+            </Button>
+          ) : null}
+          {sectorState === 'planned' || sectorState === 'approved' ? (
+            <PlanEdit
+              key={state.plan.latest?.version ?? 0}
+              initial={state.plan.latest?.markdown ?? ''}
+              disabled={researchBusy}
+              onSave={(markdown) => {
+                void onEdit(markdown).then(() => setAttempt((value) => value + 1))
+              }}
+            />
+          ) : null}
         </div>
       )}
     </section>
+  )
+}
+
+function PlanEdit({
+  initial,
+  disabled,
+  onSave,
+}: {
+  initial: string
+  disabled: boolean
+  onSave: (markdown: string) => void
+}) {
+  const [draft, setDraft] = useState(initial)
+  return (
+    <div className="mt-3 grid max-w-md gap-2">
+      <label htmlFor="sector-plan-edit" className="mb-1 block text-sm font-medium">
+        Edit plan
+      </label>
+      <textarea
+        id="sector-plan-edit"
+        rows={6}
+        className="rounded-md border border-border bg-background px-2 py-1 text-sm"
+        value={draft}
+        disabled={disabled}
+        onChange={(event) => setDraft(event.target.value)}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={disabled || !draft.trim()}
+        onClick={() => onSave(draft)}
+      >
+        Save plan edit
+      </Button>
+    </div>
   )
 }

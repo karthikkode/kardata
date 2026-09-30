@@ -1708,3 +1708,13 @@ scale claims with evidence links.
   slowness under windowed loads, not the console (which adds only
   sessions/threads reads and degrades inline). No product change;
   recorded per the red-suite rule.
+
+## Plan approval UI + full lifecycle journey (P6)
+
+- Panel Approve (planned, per version) and edit box (planned/approved,
+  re-opens review); App approve/edit handlers; strip unchanged.
+  PATCH /v1/sectors/:id/plan route + OpenAPI for owner edits.
+- Live journey plan-03: create → plan (75 s) → edit to v2 → approve
+  → start (5 s) → steer dispatch → pause → resume → complete
+  (10 s sweep), zero console errors, zero failed requests, shots at
+  every state. Evidence: tests/evidence/plan-03/.
