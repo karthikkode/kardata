@@ -59,7 +59,7 @@ export interface SkillInvocation {
   prompt: string
   tools: string[]
   text: string
-  mode?: 'default' | 'brainstorm'
+  mode?: 'default' | 'brainstorm' | 'plan'
 }
 
 export interface RunsGateway {

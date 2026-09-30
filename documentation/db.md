@@ -123,12 +123,13 @@ adds auth, transport, and tool schemas, never SQL.
 | `db.list_companies` / `db.list_sector_companies` | `listCompanies` / `listSectorCompanies` | scope-filtered reads |
 | `db.sector_activity` | `sectorActivity` | timeline derived from the sector partition |
 | `db.create_sector` | `createSector` | appends sector.created; id server-generated |
+| `db.attach_sector_document` / `db.list_sector_documents` / `db.read_sector_document` / `db.query_document` | `ingestSectorDocument` / `listSectorDocuments` / `readSectorDocument` / `querySectorDocument` | context file attach, list, read text, and dual-mode summary/chunk query |
 | `db.set_sector_state` | `setSectorState` | appends sector.state_changed |
 | `db.start_sector_research` | `startSectorResearch` | draft → queued + sweep start; compensates to draft on failure; optional `sessionId` records the research pin |
 | `db.pause_sector_research` / `db.resume_sector_research` | `pauseSectorResearch` / `resumeSectorResearch` | running ↔ paused owner transitions (state-only) |
 | `db.mark_company_found` | `markCompanyFound` | appends company.found |
 | `db.set_company_stage` / `db.set_company_state` | `setCompanyStage` / `setCompanyState` | appends stage/state transitions |
-| `db.list_artifacts` | `listArtifacts` | session files menu (own + referenced) |
+| `db.list_artifacts` / `db.create_artifact` | `listArtifacts` / `createArtifact` | session files menu (own + referenced); create writes & indexes file/report bodies |
 | `db.reference_artifact` | `referenceArtifact` | cross-session attach, indexed-only |
 | `db.resolve_artifact_scope` | `resolveArtifactScope` | owning scope for serve |
 | `db.list_tenant_artifacts` | `listTenantArtifacts` | tenant attach discovery |

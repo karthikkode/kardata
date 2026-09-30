@@ -7,7 +7,7 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import type { Scope } from '../auth/keys.js'
-import { countDocumentUnits, insertDocumentUnits } from './document-units.js'
+import { countDocumentUnits, insertDocumentUnits, listDocumentUnits } from './document-units.js'
 import { DbContractError } from './errors.js'
 import type { Db } from './events.js'
 import {
@@ -195,5 +195,129 @@ export async function readSectorDocument(
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
     status: (row.status === 'needs-ocr' ? 'needs-ocr' : 'indexed') as ExtractionStatus,
     text: row.text,
+  }
+}
+
+export interface QuerySectorDocumentInput {
+  documentId: string
+  sectorId?: string
+  mode?: 'summary' | 'chunks'
+  query?: string
+  ords?: number[]
+  scope?: Scope
+}
+
+export interface DocumentTocEntry {
+  ord: number
+  kind: string
+  preview: string
+  uncertain: boolean
+}
+
+export interface DocumentSummaryResult {
+  documentId: string
+  filename: string
+  status: ExtractionStatus
+  mediaType: string
+  chars: number
+  totalUnits: number
+  toc: DocumentTocEntry[]
+}
+
+export interface DocumentChunksResult {
+  documentId: string
+  filename: string
+  status: ExtractionStatus
+  units: Array<{ ord: number; kind: string; text: string; uncertain: boolean }>
+}
+
+export type QuerySectorDocumentResult = DocumentSummaryResult | DocumentChunksResult
+
+/** Dual-mode context file querying: high-level TOC summary by default, or
+ * targeted unit search/slice when requested. Prevents dumping whole files
+ * into the model context window. */
+export async function querySectorDocument(
+  db: Db,
+  input: QuerySectorDocumentInput,
+): Promise<QuerySectorDocumentResult> {
+  if (!z.string().min(1).safeParse(input.documentId).success) {
+    throw new DbContractError('documentId must be a non-empty string')
+  }
+  let docRow: { id: string; filename: string; media_type: string; chars: number; status: string } | undefined
+  if (input.sectorId) {
+    const sector = await getSector(db, input.sectorId, input.scope)
+    if (!sector) throw new DbContractError(`unknown sector ${input.sectorId}`)
+    const { rows } = await db.query<{ id: string; filename: string; media_type: string; text: string; status: string }>(
+      'SELECT id, filename, media_type, text, status FROM sector_documents WHERE sector_id = $1 AND id = $2',
+      [input.sectorId, input.documentId],
+    )
+    if (rows[0]) {
+      docRow = { ...rows[0], chars: rows[0].text.length }
+    }
+  } else {
+    const { rows } = await db.query<{ id: string; filename: string; media_type: string; text: string; status: string }>(
+      'SELECT id, filename, media_type, text, status FROM sector_documents WHERE id = $1',
+      [input.documentId],
+    )
+    if (rows[0]) {
+      docRow = { ...rows[0], chars: rows[0].text.length }
+    }
+  }
+  if (!docRow) {
+    throw new DbContractError(`unknown document ${input.documentId}`)
+  }
+
+  const mode = input.mode ?? (input.query || (input.ords && input.ords.length > 0) ? 'chunks' : 'summary')
+
+  if (mode === 'chunks') {
+    if (input.ords && input.ords.length > 0) {
+      const { rows: unitRows } = await db.query<{ ord: number; kind: string; text: string; uncertain: boolean }>(
+        'SELECT ord, kind, text, uncertain FROM sector_document_units WHERE document_id = $1 AND ord = ANY($2::int[]) ORDER BY ord ASC',
+        [input.documentId, input.ords],
+      )
+      return {
+        documentId: docRow.id,
+        filename: docRow.filename,
+        status: docRow.status as ExtractionStatus,
+        units: unitRows,
+      }
+    }
+    if (input.query && input.query.trim().length > 0) {
+      const { rows: unitRows } = await db.query<{ ord: number; kind: string; text: string; uncertain: boolean }>(
+        'SELECT ord, kind, text, uncertain FROM sector_document_units WHERE document_id = $1 AND text ILIKE $2 ORDER BY ord ASC LIMIT 10',
+        [input.documentId, `%${input.query.trim()}%`],
+      )
+      return {
+        documentId: docRow.id,
+        filename: docRow.filename,
+        status: docRow.status as ExtractionStatus,
+        units: unitRows,
+      }
+    }
+    const units = await listDocumentUnits(db, input.documentId)
+    return {
+      documentId: docRow.id,
+      filename: docRow.filename,
+      status: docRow.status as ExtractionStatus,
+      units: units.slice(0, 20).map((u) => ({ ord: u.ord, kind: u.kind, text: u.text, uncertain: u.uncertain })),
+    }
+  }
+
+  // mode === 'summary'
+  const units = await listDocumentUnits(db, input.documentId)
+  const toc: DocumentTocEntry[] = units.map((u) => ({
+    ord: u.ord,
+    kind: u.kind,
+    preview: u.text.slice(0, 150).replace(/\s+/g, ' ').trim(),
+    uncertain: u.uncertain,
+  }))
+  return {
+    documentId: docRow.id,
+    filename: docRow.filename,
+    status: docRow.status as ExtractionStatus,
+    mediaType: docRow.media_type,
+    chars: docRow.chars,
+    totalUnits: units.length,
+    toc,
   }
 }

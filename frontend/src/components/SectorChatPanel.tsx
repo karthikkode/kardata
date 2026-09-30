@@ -5,7 +5,7 @@
 // same commands/send + thread-stream path as Karbot (thread key defaults
 // to the session id); only the session pool is scoped.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Check, ClipboardList, MessagesSquare, Pause, Pencil, Play, RotateCcw, Send, Square, X } from 'lucide-react'
+import { Check, ClipboardList, Compass, Globe, MessagesSquare, Pause, Pencil, Play, RotateCcw, Send, Square, X } from 'lucide-react'
 import { AgentBubble, AgentMark, TimeDivider, UserBubble, splitAfter, useChatStick } from './chat-parts'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -30,8 +30,10 @@ import {
   listMessages,
   listRuns,
   listSessions,
+  patchSectorContext,
   renameSession,
   sendThreadText,
+  steerThread,
   type LiveThread,
   type ResearchState,
   type Session,
@@ -73,17 +75,30 @@ function segmentStamp(segment: MessageSegment): string | undefined {
 }
 
 /** One message row: user right in primary, agent left in muted, both wrapping. */
-function segmentRow(segment: MessageSegment, live: boolean): ReactNode {
+function segmentRow(segment: MessageSegment, live: boolean, onProposeContext?: (text: string) => void): ReactNode {
   if ('tools' in segment) {
     return (
-      <div key={segment.key}>
+      <div key={segment.key} className="group/agent-msg">
         <ActivityGroup tools={segment.tools} reasoning={segment.reply?.reasoning} live={live} />
         {segment.reply ? (
           <AgentBubble>
             <Markdown text={segment.reply.text} />
-            {segment.reply.at ? (
-              <time className="mt-1 block text-xs text-muted-foreground">{sessionAge(segment.reply.at)}</time>
-            ) : null}
+            <div className="mt-1 flex items-center justify-between gap-2">
+              {segment.reply.at ? (
+                <time className="block text-xs text-muted-foreground">{sessionAge(segment.reply.at)}</time>
+              ) : <span />}
+              {onProposeContext && segment.reply.text ? (
+                <button
+                  type="button"
+                  aria-label="Add to sector context"
+                  onClick={() => onProposeContext(segment.reply?.text ?? '')}
+                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground opacity-60 transition-opacity hover:opacity-100 hover:text-foreground"
+                >
+                  <Globe className="size-3" aria-hidden />
+                  <span>+ Context</span>
+                </button>
+              ) : null}
+            </div>
           </AgentBubble>
         ) : null}
       </div>
@@ -92,15 +107,16 @@ function segmentRow(segment: MessageSegment, live: boolean): ReactNode {
   if (segment.message.kind !== 'text') return null
   // A thinking trace with no tool calls still gets its disclosure row;
   // tool-backed replies carry it inside their activity group instead.
+  const msgText = segment.message.text
   const loneReasoning =
     segment.message.role === 'agent' && segment.message.reasoning ? (
       <ActivityGroup tools={[]} reasoning={segment.message.reasoning} />
     ) : null
   const body =
     segment.message.role === 'user' ? (
-      segment.message.text
+      msgText
     ) : (
-      <Markdown text={segment.message.text} />
+      <Markdown text={msgText} />
     )
   const stamped = segment.message.at ? (
     <time
@@ -115,11 +131,24 @@ function segmentRow(segment: MessageSegment, live: boolean): ReactNode {
       {stamped}
     </UserBubble>
   ) : (
-    <div key={segment.message.id}>
+    <div key={segment.message.id} className="group/agent-msg">
       {loneReasoning}
       <AgentBubble>
         {body}
-        {stamped}
+        <div className="mt-1 flex items-center justify-between gap-2">
+          {stamped ?? <span />}
+          {onProposeContext && msgText ? (
+            <button
+              type="button"
+              aria-label="Add to sector context"
+              onClick={() => onProposeContext(msgText)}
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground opacity-60 transition-opacity hover:opacity-100 hover:text-foreground"
+            >
+              <Globe className="size-3" aria-hidden />
+              <span>+ Context</span>
+            </button>
+          ) : null}
+        </div>
       </AgentBubble>
     </div>
   )
@@ -175,6 +204,10 @@ export function SectorChatPanel({
   const [echo, setEcho] = useState<string | null>(null)
   // First-seen stamps for live tool rows (elapsed age); cleared per turn.
   const [toolSeenAt, setToolSeenAt] = useState<Record<string, number>>({})
+  const [proposedNote, setProposedNote] = useState<string | null>(null)
+  const [contextUpdating, setContextUpdating] = useState(false)
+  const [contextUpdateResult, setContextUpdateResult] = useState<string | null>(null)
+  const [contextError, setContextError] = useState<string | null>(null)
 
   // Scoped session pool reset during render (ChatPanel sessionQuery
   // pattern): selecting a sector never shows general chats, and effects
@@ -411,6 +444,33 @@ export function SectorChatPanel({
     if (lastUser && lastUser.kind === 'text') void sendText(lastUser.text)
   }
 
+  async function steer(text: string) {
+    if (!config || !activeId || !text.trim()) return
+    const trimmed = text.trim()
+    setDraft('')
+    setFailure(null)
+    try {
+      await steerThread(config, activeId, trimmed)
+    } catch (error: unknown) {
+      setFailure(errorText(error, 'Steer failed.'))
+    }
+  }
+
+  async function handleApproveContextUpdate(noteText: string) {
+    if (!config || !noteText.trim() || contextUpdating) return
+    setContextUpdating(true)
+    setContextError(null)
+    try {
+      await patchSectorContext(config, sectorId, { notes: [noteText.trim()] })
+      setContextUpdateResult('Context updated for ongoing research.')
+      setProposedNote(null)
+    } catch (err: unknown) {
+      setContextError(errorText(err, 'Failed to update sector context.'))
+    } finally {
+      setContextUpdating(false)
+    }
+  }
+
   const merged = mergeChatMessages(persisted, toChatMessages(live?.messages ?? []))
   const segments = groupMessageSegments(merged)
   const active = sessions?.find((row) => row.id === activeId) ?? null
@@ -425,7 +485,7 @@ export function SectorChatPanel({
       flow.push(<TimeDivider key={`divider-${segment.key}`} at={stamp} />)
     }
     if (stamp) lastStamp = stamp
-    flow.push(segmentRow(segment, busy))
+    flow.push(segmentRow(segment, busy, (text) => setProposedNote(text)))
   }
   // The pin key grows with every visible change, so fresh frames pin the
   // list only while the reader is already at the bottom.
@@ -693,6 +753,69 @@ export function SectorChatPanel({
           </Button>
         </div>
       ) : null}
+      {contextUpdateResult ? (
+        <div className="mt-2 flex items-center justify-between rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+          <span>{contextUpdateResult}</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Dismiss update notification"
+            className="size-5"
+            onClick={() => setContextUpdateResult(null)}
+          >
+            <X className="size-3" aria-hidden />
+          </Button>
+        </div>
+      ) : null}
+      {proposedNote ? (
+        <div
+          role="region"
+          aria-label="Global context proposal"
+          className="mt-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm shadow-sm"
+        >
+          <div className="flex items-center gap-2 font-medium text-foreground">
+            <Globe className="size-4 text-primary" aria-hidden />
+            <span>Global Context Proposal</span>
+            <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary">Requires Approval</span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Approved notes are synced to the global sector context and available to ongoing research sweeps.
+          </p>
+          <div className="mt-2 max-h-24 overflow-y-auto rounded-lg border border-border bg-background p-2.5 font-mono text-xs text-foreground scroll-slim">
+            {proposedNote}
+          </div>
+          {contextError ? (
+            <p role="alert" className="mt-2 text-xs text-destructive">
+              {contextError}
+            </p>
+          ) : null}
+          <div className="mt-2.5 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label="Dismiss context proposal"
+              disabled={contextUpdating}
+              onClick={() => setProposedNote(null)}
+            >
+              Dismiss
+            </Button>
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              aria-label="Approve context update"
+              disabled={contextUpdating}
+              onClick={() => void handleApproveContextUpdate(proposedNote)}
+              className="gap-1.5"
+            >
+              <Check className="size-3.5" aria-hidden />
+              <span>{contextUpdating ? 'Updating…' : 'Approve and Update Context'}</span>
+            </Button>
+          </div>
+        </div>
+      ) : null}
       <form
         className="shrink-0 bg-background pt-3 pb-2"
         onSubmit={(event) => {
@@ -726,9 +849,24 @@ export function SectorChatPanel({
             sessionId={activeId}
           />
           {busy ? (
-            <Button type="submit" variant="outline" size="icon" aria-label="Stop reply" className="shrink-0 rounded-full">
-              <Square className="size-4" aria-hidden />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-label="Steer sector chat"
+                title="Steer running agent mid-run"
+                disabled={!draft.trim()}
+                onClick={() => void steer(draft)}
+                className="h-8 gap-1 rounded-full px-2.5 text-xs text-primary hover:bg-primary/10"
+              >
+                <Compass className="size-3.5" aria-hidden />
+                <span>Steer</span>
+              </Button>
+              <Button type="submit" variant="outline" size="icon" aria-label="Stop reply" className="shrink-0 rounded-full">
+                <Square className="size-4" aria-hidden />
+              </Button>
+            </div>
           ) : (
             <Button type="submit" variant="default" size="icon" aria-label="Send message" disabled={!active || !draft.trim()} className="shrink-0 rounded-full">
               <Send className="size-4" aria-hidden />

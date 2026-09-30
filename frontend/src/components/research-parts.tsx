@@ -158,37 +158,53 @@ export function ToolRow({
         ? { tone: 'ok', label: 'Done' }
         : { tone: 'failed', label: 'Failed' }
   const StatusIcon = state === 'running' ? LoaderCircle : state === 'done' ? Check : X
+  const badgeTint =
+    state === 'running'
+      ? 'bg-primary/10 text-primary border-primary/20'
+      : state === 'done'
+        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+        : 'bg-destructive/10 text-destructive border-destructive/20'
+
   return (
-    <div>
-      <div className="flex items-center gap-2 py-1">
-        <Wrench className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-        <p className="min-w-0 flex-1 truncate text-sm">{name}</p>
-        <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+    <div className="my-1 rounded-lg border border-border/70 bg-card/60 px-2.5 py-1.5 shadow-2xs transition-colors hover:border-border">
+      <div className="flex items-center gap-2">
+        <span className="flex size-5 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
+          <Wrench className="size-3" aria-hidden />
+        </span>
+        <p className="min-w-0 flex-1 truncate text-xs font-medium font-mono text-foreground">{name}</p>
+        <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${badgeTint}`}>
           <StatusIcon
             aria-hidden
-            className={`size-3.5 ${state === 'running' ? 'motion-safe:animate-spin' : ''}`}
+            className={`size-3 ${state === 'running' ? 'motion-safe:animate-spin' : ''}`}
           />
           {status.label}
           {state === 'running' && elapsed ? <span aria-hidden>· {elapsed}</span> : null}
         </span>
-        {hasDetail ? <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label={open ? `Hide ${name} detail` : `Show ${name} detail`}
-          aria-expanded={open}
-          onClick={() => setOpen((value) => !value)}
-        >
-          <ChevronDown
-            className={`size-4 motion-safe:transition-transform ${open ? 'rotate-180' : ''}`}
-            aria-hidden
-          />
-        </Button> : null}
+        {hasDetail ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={open ? `Hide ${name} detail` : `Show ${name} detail`}
+            aria-expanded={open}
+            onClick={() => setOpen((value) => !value)}
+            className="size-6 shrink-0 rounded"
+          >
+            <ChevronDown
+              className={`size-3.5 motion-safe:transition-transform ${open ? 'rotate-180' : ''}`}
+              aria-hidden
+            />
+          </Button>
+        ) : null}
       </div>
-      {open && hasDetail ? <p className="pb-1 pl-5 text-sm text-muted-foreground">{detail}</p> : null}
+      {open && hasDetail ? (
+        <pre className="scroll-slim mt-2 overflow-x-auto rounded bg-muted/70 p-2 font-mono text-xs text-muted-foreground whitespace-pre-wrap">
+          {detail}
+        </pre>
+      ) : null}
       {state === 'failed' && onRetry ? (
-        <div className="pb-1 pl-5">
-          <Button type="button" variant="ghost" size="sm" onClick={onRetry}>
+        <div className="mt-1.5">
+          <Button type="button" variant="ghost" size="sm" onClick={onRetry} className="h-6 text-xs">
             Retry tool
           </Button>
         </div>

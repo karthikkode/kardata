@@ -69,8 +69,17 @@ messages take its place when they arrive; the stream carries no tool
 arguments or result content.
 
 The session picker and subagent thread controls use backend-owned records.
-`@` references can address subagents and indexed files. Approval cards have
-no live renderer yet; see `docs/implementation-status.md`.
+`@` references can address subagents and indexed files.
+Karbot includes a Session Files tab with in-app artifact preview, download,
+and file creation, a Plan Mode toggle for milestone planning (`/plan`), and
+a live mid-run Steer action to guide agents and subagents on the fly.
+Sector chat provides Global Context Update Approval Cards to push agent insights
+into the global sector context upon operator confirmation.
+The Context Studio (`SectorContextDrawer`) features a 60% compaction threshold
+marker, raw verbatim digest inspector, and `compactSectorContext` trigger.
+The Sector Detail Page presents a 4-Pillar Workbench (`Workbench (All)`,
+`Research Activity`, `Sector Chat`, `Context Studio`, `Files Hub`) with a
+Linear-grade command header.
 
 The sector research strip states every lifecycle case: draft and failed
 offer Plan, approved offers Start, running offers Pause, paused offers

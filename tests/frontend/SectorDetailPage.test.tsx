@@ -546,4 +546,15 @@ describe('Sector open navigation', () => {
       vi.useRealTimers()
     }
   })
+
+  it('switches between 4-pillar workbench views', async () => {
+    stubSessions()
+    renderPage({ detail: petCare, staging })
+    expect(screen.getByRole('tab', { name: 'Workbench (All)' })).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(screen.getByRole('tab', { name: 'Sector Chat' }))
+    expect(screen.getByRole('tab', { name: 'Sector Chat' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('region', { name: 'Sector chat for Pet care' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Context Studio' }))
+    expect(screen.getByRole('tab', { name: 'Context Studio' })).toHaveAttribute('aria-selected', 'true')
+  })
 })

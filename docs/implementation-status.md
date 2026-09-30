@@ -1,5 +1,27 @@
 # Implementation status
 
+## Frontend & Agent Engine Revamp: Universal Karbot, 4-Pillar Workbench, and Swarm Visibility (2026-09-30)
+
+- Universal Karbot Driver & Session Files Hub:
+  - Added Session Files view in `ChatPanel.tsx` with live artifact listing, in-app body preview (`getArtifactBody`), download action, and file creation dialog (`createArtifact`).
+  - Added Plan Mode toggle in composer (`/plan` prefixed turns) and mid-run Steer button (`steerThread`) for real-time steering of running agents and subagents.
+  - Hermes-grade thinking placeholder pill with animated pulse and live elapsed clock (`Thinking · Xs`), plus tool cards with duration badges and expandable inputs/outputs.
+- Sector Chat Thought Partner & Global Context Approval Cards:
+  - `SectorChatPanel.tsx` updated with Global Context Update Approval Cards (`patchSectorContext`), allowing operators to approve or dismiss proposed sector notes before syncing to the global sector context.
+  - Added mid-run steer action in sector chat composer.
+- Context Studio & 60% Compaction Limit:
+  - `SectorContextDrawer.tsx` updated with a 60% compaction limit indicator on `MeterBar`, raw verbatim context digest inspector with copy action, and `compactSectorContext` trigger.
+- 4-Pillar Sector Detail Workbench:
+  - `SectorDetailPage.tsx` updated with Linear-grade Command Header and 4-pillar view switcher (`Workbench (All)`, `Research Activity`, `Sector Chat`, `Context Studio`, `Files Hub`), keeping 100% test compatibility.
+- Backend & Agent Grants:
+  - Added `TurnMode = 'default' | 'brainstorm' | 'plan'`, `createArtifact`, `querySectorDocument`, `compactSectorContext`, `POST /v1/sessions/:sessionId/artifacts`, `POST /v1/sessions/:sessionId/compact`, `POST /v1/sectors/:sectorId/context/compact`.
+  - Pinned auto-compaction cap at 60% window (120k tokens).
+- Verification:
+  - All 31 frontend test files passed (260/260 tests passed).
+  - All 54 backend test files passed (315/315 tests passed).
+  - All 31 agents test files passed (189/189 tests passed).
+  - Typecheck, ESLint, no-em-dashes, and production build 100% green.
+
 ## Sweep robustness: TEST-marker strip + walled-run findings (2026-09-28)
 
 - `stripTestMarkers` in sweep-rules.ts: leading TEST tokens/clauses go

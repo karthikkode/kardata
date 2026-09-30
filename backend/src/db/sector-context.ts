@@ -212,3 +212,53 @@ export async function getSectorContext(db: Db, sectorId: string, scope?: Scope):
   const usage = describeSegments({ system: [system], tools: [], references, history: [], tail: [] })
   return { sectorId, digest, segments, usage, files, notes }
 }
+
+export interface CompactContextResult {
+  sectorId: string
+  compacted: boolean
+  beforeCount: number
+  afterCount: number
+  digest: SectorDigest
+  notes: ContextNoteView[]
+  usage: ContextUsage
+}
+
+/** Consolidates multiple context notes into a synthesized summary note
+ * to reduce token burden while preserving research memory. */
+export async function compactSectorContext(
+  db: Db,
+  sectorId: string,
+  scope?: Scope,
+): Promise<CompactContextResult> {
+  const current = await getSectorContext(db, sectorId, scope)
+  if (current.notes.length <= 1) {
+    return {
+      sectorId,
+      compacted: false,
+      beforeCount: current.notes.length,
+      afterCount: current.notes.length,
+      digest: current.digest,
+      notes: current.notes,
+      usage: current.usage,
+    }
+  }
+
+  const consolidatedText =
+    `Consolidated summary (${current.notes.length} notes):\n` +
+    current.notes.map((n, i) => `[${i + 1}] ${n.text}`).join('\n')
+  const boundedText = consolidatedText.length > 2000 ? consolidatedText.slice(0, 1995) + '...' : consolidatedText
+
+  await db.query('DELETE FROM sector_context_notes WHERE sector_id = $1', [sectorId])
+  await addContextNotes(db, sectorId, [boundedText])
+
+  const updated = await getSectorContext(db, sectorId, scope)
+  return {
+    sectorId,
+    compacted: true,
+    beforeCount: current.notes.length,
+    afterCount: updated.notes.length,
+    digest: updated.digest,
+    notes: updated.notes,
+    usage: updated.usage,
+  }
+}

@@ -3,17 +3,23 @@
 // t.session.created, which starts the session thread in projection.
 // B3.4: create honors Idempotency-Key (replay the session, 409 on key
 // reuse for a different title).
+import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
+import { condense } from '@kardata/agents'
 import {
+  appendEvent,
   createSession,
   deleteSession,
   getSector,
   getSession,
+  getThread,
   listSessions,
   renameSession,
   setSessionModel,
 } from '../db/index.js'
+import { projectNewEvents } from '../projector.js'
+import { chatHistory } from '../temporal/activities/turn.js'
 import { RunNotFound, SESSION_PREFIX } from '../temporal/gateway.js'
 import type { ModelCatalog } from '../providers/catalog.js'
 import { DEFAULT_EFFORT } from '../providers/registry.js'
@@ -169,6 +175,72 @@ export function sessionRoutes(app: FastifyInstance, catalog: ModelCatalog): void
         }
       }
       return { status: 200, body: { ok: true, data: session } }
+    })
+  })
+
+  route(app, 'post', '/v1/sessions/:sessionId/compact', async (request, reply, app) => {
+    const pool = requirePool(app, reply)
+    if (!pool) return undefined
+    const auth = await authorize(app, request, reply, 'operator')
+    if (!auth) return undefined
+    const params = request.params as { sessionId: string }
+    const session = await getSession(pool, params.sessionId, auth.scope)
+    if (!session) return sendError(reply, 404, 'not_found', `no such session ${params.sessionId}`)
+    return withIdempotency(request, reply, pool, auth.keyId, async () => {
+      const thread = await getThread(pool, params.sessionId)
+      const messages = thread?.messages ?? []
+      if (messages.length < 4) {
+        return {
+          status: 200,
+          body: {
+            ok: true,
+            data: { sessionId: params.sessionId, compacted: false, messageCount: messages.length, reason: 'history below compaction threshold' },
+          },
+        }
+      }
+      const textTurns = chatHistory(messages, '')
+      const outcome = await condense({
+        messages: textTurns,
+        keepFirst: 1,
+        maxSize: 6,
+        force: true,
+        summarizer: 'session:compaction',
+        summarize: async (forgotten) => {
+          const bullets = forgotten
+            .slice(0, 8)
+            .map((m) => `${m.role}: ${(m.text ?? '').slice(0, 80).replace(/\s+/g, ' ')}`)
+            .join('; ')
+          return `Condensed ${forgotten.length} historical turns (${bullets}). Key decisions and state preserved.`
+        },
+      })
+      if (outcome.needed) {
+        await appendEvent(pool, {
+          idempotencyKey: `session:${params.sessionId}:compact:${randomUUID()}`,
+          partition: `session:${params.sessionId}`,
+          type: 't.message.appended',
+          payload: {
+            threadKey: params.sessionId,
+            kind: 'text',
+            message: {
+              role: 'assistant',
+              text: `[Context Compaction] ${outcome.summary.summaryText}`,
+              compacted: true,
+            },
+          },
+        })
+        await projectNewEvents(pool)
+      }
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          data: {
+            sessionId: params.sessionId,
+            compacted: outcome.needed,
+            ...(outcome.needed ? { summary: outcome.summary } : {}),
+          },
+        },
+      }
     })
   })
 }

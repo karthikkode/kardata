@@ -113,6 +113,13 @@ export const TOOL_SCHEMAS = {
     sectorId: NonEmpty,
     documentId: NonEmpty,
   }),
+  'db.query_document': z.object({
+    documentId: NonEmpty,
+    sectorId: NonEmpty.optional(),
+    mode: z.enum(['summary', 'chunks']).optional(),
+    query: z.string().max(500).optional(),
+    ords: z.number().int().min(0).array().max(50).optional(),
+  }),
   'db.set_sector_state': z.object({
     sectorId: NonEmpty,
     state: SectorState,
@@ -153,6 +160,14 @@ export const TOOL_SCHEMAS = {
   }),
   'db.list_artifacts': z.object({
     sessionId: NonEmpty,
+  }),
+  'db.create_artifact': z.object({
+    sessionId: NonEmpty,
+    name: NonEmpty,
+    content: z.string().min(1),
+    kind: z.enum(['file', 'report', 'proposal']).optional(),
+    detail: z.string().max(1000).optional(),
+    reason: z.enum(['subagent_output', 'user_upload', 'report', 'proposal']).optional(),
   }),
   'db.reference_artifact': z.object({
     artifactId: NonEmpty,

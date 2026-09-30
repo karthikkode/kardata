@@ -13,6 +13,7 @@ import {
 import {
   DbContractError,
   appendEvent,
+  createArtifact,
   findEventByKey,
   listArtifacts,
   listTenantArtifacts,
@@ -30,6 +31,14 @@ import {
   withIdempotency,
 } from './http.js'
 
+const CreateArtifactBody = z.object({
+  name: z.string().min(1),
+  content: z.string(),
+  kind: z.enum(['file', 'proposal', 'report']).optional(),
+  detail: z.string().optional(),
+  reason: z.enum(['subagent_output', 'user_upload', 'report', 'proposal']).optional(),
+})
+
 const ReferenceBody = z.object({
   artifactId: z.string().min(1),
   fromScope: z.object({
@@ -39,6 +48,35 @@ const ReferenceBody = z.object({
 })
 
 export function artifactRoutes(app: FastifyInstance): void {
+  route(app, 'post', '/v1/sessions/:sessionId/artifacts', async (request, reply, app) => {
+    const pool = requirePool(app, reply)
+    if (!pool) return undefined
+    const target = requireArchive(app, reply)
+    if (!target) return undefined
+    const auth = await authorize(app, request, reply, 'operator')
+    if (!auth) return undefined
+    const params = request.params as { sessionId?: string }
+    const sessionId = params.sessionId ?? ''
+    if (!(await requireSessionScope(pool, sessionId, auth.scope, reply))) return undefined
+    const body = parseInput(CreateArtifactBody, request.body, reply)
+    if (!body) return undefined
+    return withIdempotency(request, reply, pool, auth.keyId, async () => {
+      const summary = await createArtifact(
+        pool,
+        {
+          sessionId,
+          name: body.name,
+          content: body.content,
+          kind: body.kind,
+          detail: body.detail,
+          reason: body.reason,
+        },
+        target,
+      )
+      return { status: 201, body: { ok: true, data: summary } }
+    })
+  })
+
   route(app, 'get', '/v1/sessions/:sessionId/artifacts', async (request, reply, app) => {
     const pool = requirePool(app, reply)
     if (!pool) return undefined

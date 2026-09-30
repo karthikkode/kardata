@@ -16,8 +16,9 @@ function clean(parts: string[] | undefined): string[] {
 }
 
 /** Turn modes. `default` is the precise assistant; `brainstorm` is the
- * open thought partner for sectors, companies, and strategy. */
-export type TurnMode = 'default' | 'brainstorm'
+ * open thought partner for sectors, companies, and strategy; `plan` is
+ * the architect posture structuring roadmaps before mutating state. */
+export type TurnMode = 'default' | 'brainstorm' | 'plan'
 
 export const BRAINSTORM_MODE_PROMPT =
   'Brainstorming posture: think out loud like a creative thought partner. ' +
@@ -25,9 +26,17 @@ export const BRAINSTORM_MODE_PROMPT =
   'and prefer a lively specific reply over a safe generic one. Stay grounded: product claims ' +
   'cite the reference material, and anything unknowable is labeled a guess, never a fact.'
 
+export const PLAN_MODE_PROMPT =
+  'Planning posture: act as an architect and strategist before mutating state. ' +
+  'Structure clear roadmaps, identify unknowns, propose step-by-step execution plans, ' +
+  'and surface explicit decision points or open questions for the operator. ' +
+  'Do not execute destructive or irreversible tool actions until the plan is reviewed or approved.'
+
 /** Mode prompt text, empty for the default posture. */
 export function modePromptFor(mode: TurnMode): string {
-  return mode === 'brainstorm' ? BRAINSTORM_MODE_PROMPT : ''
+  if (mode === 'brainstorm') return BRAINSTORM_MODE_PROMPT
+  if (mode === 'plan') return PLAN_MODE_PROMPT
+  return ''
 }
 
 /** Compose the full system prompt. Order is the contract: base facts,

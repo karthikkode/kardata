@@ -150,4 +150,39 @@ describe('SectorContextDrawer', () => {
     ).not.toHaveLength(0)
     expect(screen.queryByText(/snote-9/)).not.toBeInTheDocument()
   })
+
+  it('compacts context notes through POST and refreshes view', async () => {
+    const { calls } = stubApi((url, init) => {
+      if (url.endsWith('/context/compact') && init.method === 'POST') {
+        return {
+          status: 200,
+          payload: envelope({
+            sectorId: 'sec-1',
+            compacted: true,
+            priorNotesCount: 3,
+            note: { id: 'snote-syn', text: 'Synthesized scope: focus on lenses and pricing.', createdAt: 't' },
+          }),
+        }
+      }
+      return { status: 200, payload: envelope(VIEW) }
+    })
+    render(<SectorContextDrawer config={config} sectorId="sec-1" sectorName="Optics" />)
+    await waitFor(() => expect(screen.getByText('Sector Optics: Lenses')).toBeInTheDocument())
+    const compactBtn = screen.getByRole('button', { name: 'Compact context' })
+    fireEvent.click(compactBtn)
+    await waitFor(() =>
+      expect(screen.getByText(/Compacted: consolidated 3 notes into a synthesis note/)).toBeInTheDocument(),
+    )
+    expect(calls.some((c) => c.url.endsWith('/context/compact') && c.method === 'POST')).toBe(true)
+  })
+
+  it('toggles raw text view with verbatim digest and copy action', async () => {
+    stubApi(() => ({ status: 200, payload: envelope(VIEW) }))
+    render(<SectorContextDrawer config={config} sectorId="sec-1" sectorName="Optics" />)
+    await waitFor(() => expect(screen.getByText('Sector Optics: Lenses')).toBeInTheDocument())
+    const toggleBtn = screen.getByRole('button', { name: 'Toggle raw context view' })
+    fireEvent.click(toggleBtn)
+    expect(await screen.findByText('Verbatim Context Digest')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy raw context' })).toBeInTheDocument()
+  })
 })
