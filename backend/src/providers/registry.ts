@@ -6,6 +6,8 @@ export type RegistryProvider = 'meta'
 export type ReasoningCapability = 'native' | 'none'
 
 export interface ModelEntry {
+  /** Verified against https://dev.meta.ai/docs/models, 2026-09-30. */
+  contextWindow?: number
   provider: RegistryProvider
   /** Model id as sent on the wire (and as stored on the session). */
   model: string
@@ -110,7 +112,7 @@ export function findModel(
   _env: RegistryEnv = process.env,
 ): ModelEntry | undefined {
   const direct = CATALOG.find((entry) => entry.provider === provider && entry.model === model)
-  if (direct) return { ...direct }
+  if (direct) return { ...direct, contextWindow: 1_048_576 }
   return undefined
 }
 

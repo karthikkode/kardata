@@ -12,6 +12,7 @@ import { z } from 'zod'
 import { resolveCaller, roleAtLeast, type Role, type Scope } from '../auth/keys.js'
 import {
   checkRate,
+  WorkspaceError,
   claimIdempotency,
   completeIdempotency,
   releaseIdempotency,
@@ -211,6 +212,7 @@ export async function requireSessionScope(
 }
 
 export function mapRouteError(reply: FastifyReply, error: unknown): unknown {
+  if (error instanceof WorkspaceError) return sendError(reply, { not_found: 404, permission_denied: 403, conflict: 409, validation_failed: 400 }[error.code], error.code, error.message)
   if (error instanceof RunNotFound) return sendError(reply, 404, 'not_found', error.message)
   if (error instanceof ThreadNotAccepting) return sendError(reply, 409, 'conflict', error.message)
   return sendError(reply, 500, 'overload', 'internal error')
@@ -243,7 +245,7 @@ export function route(
         op: 'http.route',
         route: `${method.toUpperCase()} ${url}`,
         ...(request.traceContext ? { trace_id: request.traceContext.traceId } : {}),
-        code: error instanceof RunNotFound ? 'not_found' : error instanceof ThreadNotAccepting ? 'conflict' : 'internal',
+        code: error instanceof WorkspaceError ? error.code : error instanceof RunNotFound ? 'not_found' : error instanceof ThreadNotAccepting ? 'conflict' : 'internal',
         message: error instanceof Error ? error.message.slice(0, 300) : 'unknown route error',
       })
       return mapRouteError(reply, error)

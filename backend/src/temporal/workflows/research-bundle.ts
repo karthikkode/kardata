@@ -4,3 +4,4 @@
 // in sweep.js, planning in plan.js; the bundler follows both.
 export * from './sweep.js'
 export * from './plan.js'
+export * from './coordinator.js'

@@ -1169,6 +1169,622 @@ paths:
           $ref: '#/components/responses/Denied'
         '409':
           $ref: '#/components/responses/IdempotencyReplay'
+  /v1/sectors/{sectorId}/research-session:
+    post:
+      operationId: ensureSectorResearchSession
+      tags:
+        - sectors
+      parameters:
+        - name: sectorId
+          in: path
+          required: true
+          schema: &a1
+            type: string
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Workspace response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - ok
+                  - data
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: "#/components/schemas/Session"
+                additionalProperties: false
+        "403":
+          description: Permission denied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: Version conflict or action unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /v1/sectors/{sectorId}/global-context:
+    get:
+      operationId: getGlobalContext
+      tags:
+        - sectors
+      parameters:
+        - name: sectorId
+          in: path
+          required: true
+          schema: *a1
+      responses:
+        "200":
+          description: Workspace response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - ok
+                  - data
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: "#/components/schemas/GlobalContext"
+                additionalProperties: false
+        "403":
+          description: Permission denied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: Version conflict or action unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    patch:
+      operationId: editGlobalContext
+      tags:
+        - sectors
+      parameters:
+        - name: sectorId
+          in: path
+          required: true
+          schema: *a1
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - baseVersion
+                - sections
+              properties:
+                baseVersion: &a2
+                  type: integer
+                  minimum: 0
+                sections:
+                  $ref: "#/components/schemas/ContextSections"
+              additionalProperties: false
+      responses:
+        "200":
+          description: Workspace response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - ok
+                  - data
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: "#/components/schemas/ContextChange"
+                additionalProperties: false
+        "403":
+          description: Permission denied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: Version conflict or action unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /v1/sectors/{sectorId}/global-context/proposals:
+    post:
+      operationId: proposeGlobalContext
+      tags:
+        - sectors
+      parameters:
+        - name: sectorId
+          in: path
+          required: true
+          schema: *a1
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - baseVersion
+                - sections
+                - sourceThread
+              properties:
+                baseVersion: *a2
+                sections:
+                  $ref: "#/components/schemas/ContextSections"
+                sourceThread: *a1
+              additionalProperties: false
+      responses:
+        "200":
+          description: Workspace response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - ok
+                  - data
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: "#/components/schemas/ContextChange"
+                additionalProperties: false
+        "403":
+          description: Permission denied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: Version conflict or action unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /v1/sectors/{sectorId}/global-context/proposals/{proposalId}:
+    get:
+      operationId: previewContextProposal
+      tags:
+        - sectors
+      parameters:
+        - name: sectorId
+          in: path
+          required: true
+          schema: *a1
+        - name: proposalId
+          in: path
+          required: true
+          schema: *a1
+      responses:
+        "200":
+          description: Workspace response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - ok
+                  - data
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: "#/components/schemas/ContextPreview"
+                additionalProperties: false
+        "403":
+          description: Permission denied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: Version conflict or action unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /v1/sectors/{sectorId}/global-context/proposals/{proposalId}/decision:
+    post:
+      operationId: decideContextProposal
+      tags:
+        - sectors
+      parameters:
+        - name: sectorId
+          in: path
+          required: true
+          schema: *a1
+        - name: proposalId
+          in: path
+          required: true
+          schema: *a1
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - approve
+              properties:
+                approve: &a3
+                  type: boolean
+              additionalProperties: false
+      responses:
+        "200":
+          description: Workspace response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - ok
+                  - data
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: "#/components/schemas/ContextChange"
+                additionalProperties: false
+        "403":
+          description: Permission denied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: Version conflict or action unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /v1/sectors/{sectorId}/progress:
+    get:
+      operationId: getResearchProgress
+      tags:
+        - sectors
+      parameters:
+        - name: sectorId
+          in: path
+          required: true
+          schema: *a1
+      responses:
+        "200":
+          description: Workspace response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - ok
+                  - data
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: "#/components/schemas/ResearchProgress"
+                additionalProperties: false
+        "403":
+          description: Permission denied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: Version conflict or action unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /v1/sectors/{sectorId}/files:
+    get:
+      operationId: listSectorFiles
+      tags:
+        - sectors
+      parameters:
+        - name: sectorId
+          in: path
+          required: true
+          schema: *a1
+      responses:
+        "200":
+          description: Workspace response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - ok
+                  - data
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/LibraryFile"
+                additionalProperties: false
+        "403":
+          description: Permission denied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: Version conflict or action unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /v1/sectors/{sectorId}/files/{fileId}:
+    patch:
+      operationId: setSectorFileVisibility
+      tags:
+        - sectors
+      parameters:
+        - name: sectorId
+          in: path
+          required: true
+          schema: *a1
+        - name: fileId
+          in: path
+          required: true
+          schema: *a1
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - hidden
+              properties:
+                hidden: *a3
+              additionalProperties: false
+      responses:
+        "200":
+          description: Workspace response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - ok
+                  - data
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: "#/components/schemas/LibraryFile"
+                additionalProperties: false
+        "403":
+          description: Permission denied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: Version conflict or action unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /v1/sectors/{sectorId}/files/{fileId}/context:
+    post:
+      operationId: requestFileContext
+      tags:
+        - sectors
+      parameters:
+        - name: sectorId
+          in: path
+          required: true
+          schema: *a1
+        - name: fileId
+          in: path
+          required: true
+          schema: *a1
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - baseVersion
+                - sourceThread
+              properties:
+                baseVersion: *a2
+                sourceThread: *a1
+                ords:
+                  type: array
+                  items: *a2
+              additionalProperties: false
+      responses:
+        "200":
+          description: Workspace response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - ok
+                  - data
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: "#/components/schemas/ContextChange"
+                additionalProperties: false
+        "403":
+          description: Permission denied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: Version conflict or action unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /v1/threads/{threadKey}/context:
+    get:
+      operationId: getLocalContext
+      tags:
+        - sectors
+      parameters:
+        - name: threadKey
+          in: path
+          required: true
+          schema: *a1
+      responses:
+        "200":
+          description: Workspace response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - ok
+                  - data
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: "#/components/schemas/LocalContext"
+                additionalProperties: false
+        "403":
+          description: Permission denied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: Version conflict or action unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    patch:
+      operationId: editLocalContext
+      tags:
+        - sectors
+      parameters:
+        - name: threadKey
+          in: path
+          required: true
+          schema: *a1
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - version
+                - notes
+              properties:
+                version: *a2
+                notes: *a1
+              additionalProperties: false
+      responses:
+        "200":
+          description: Workspace response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - ok
+                  - data
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: "#/components/schemas/LocalContext"
+                additionalProperties: false
+        "403":
+          description: Permission denied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: Version conflict or action unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /v1/threads/{threadKey}/context/compact:
+    post:
+      operationId: compactLocalContext
+      tags:
+        - sectors
+      parameters:
+        - name: threadKey
+          in: path
+          required: true
+          schema: *a1
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Workspace response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - ok
+                  - data
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: "#/components/schemas/CompactionResult"
+                additionalProperties: false
+        "403":
+          description: Permission denied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: Version conflict or action unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
 components:
   parameters:
     SessionId:
@@ -1267,6 +1883,9 @@ components:
       description: Counterpart of MockSession; `age` stays a client-side format of timestamps.
       required: [id, title, createdAt, updatedAt]
       properties:
+        kind:
+          type: string
+          enum: [research, normal]
         id:
           type: string
         title:
@@ -1490,6 +2109,8 @@ components:
       type: object
       required: [version, markdown, at]
       properties:
+        executable:
+          $ref: '#/components/schemas/ExecutablePlan'
         version:
           type: integer
           minimum: 1
@@ -1850,7 +2471,7 @@ components:
           type: string
         type:
           type: string
-          enum: [message, state, delta, reasoning, tool, finding, error]
+          enum: [message, state, delta, reasoning, tool, finding, error, context-version, approval, work-progress, compaction, steering-consumption]
         at:
           type: string
           format: date-time
@@ -1882,3 +2503,315 @@ components:
       example:
         ok: false
         error: { code: rate_limited, message: 'retry after 30s' }
+
+    ContextSections:
+      type: object
+      required:
+        - scope
+        - decisions
+        - findings
+        - questions
+      properties:
+        scope: &a1
+          type: string
+        decisions: *a1
+        findings: *a1
+        questions: *a1
+      additionalProperties: false
+    ContextFileReference:
+      type: object
+      required:
+        - fileId
+        - filename
+        - hash
+        - ords
+      properties:
+        fileId: *a1
+        filename: *a1
+        hash: *a1
+        ords:
+          type: array
+          items: &a2
+            type: integer
+            minimum: 0
+      additionalProperties: false
+    ContextChange:
+      type: object
+      required:
+        - id
+        - baseVersion
+        - sections
+        - sourceThread
+        - author
+        - state
+        - version
+        - at
+        - fileRef
+      properties:
+        id: *a1
+        baseVersion: *a2
+        sections:
+          $ref: "#/components/schemas/ContextSections"
+        sourceThread: *a1
+        author: *a1
+        state:
+          type: string
+          enum:
+            - pending
+            - parent-review
+            - approved
+            - denied
+        version:
+          anyOf:
+            - *a2
+            - type: "null"
+        at:
+          type: string
+          format: date-time
+        fileRef:
+          anyOf:
+            - $ref: "#/components/schemas/ContextFileReference"
+            - type: "null"
+      additionalProperties: false
+    GlobalContext:
+      type: object
+      required:
+        - sectorId
+        - version
+        - sections
+        - markdown
+        - researchSessionId
+        - changes
+      properties:
+        sectorId: *a1
+        version: *a2
+        sections:
+          $ref: "#/components/schemas/ContextSections"
+        markdown: *a1
+        researchSessionId:
+          anyOf:
+            - *a1
+            - type: "null"
+        changes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextChange"
+      additionalProperties: false
+    LocalContext:
+      type: object
+      required:
+        - threadKey
+        - notes
+        - summary
+        - coveredSeq
+        - version
+      properties:
+        threadKey: *a1
+        notes: *a1
+        summary: *a1
+        coveredSeq: *a2
+        version: *a2
+      additionalProperties: false
+    LibraryFile:
+      type: object
+      required:
+        - id
+        - filename
+        - status
+        - source
+        - hash
+        - hidden
+        - included
+        - kind
+      properties:
+        id: *a1
+        filename: *a1
+        status:
+          type: string
+          enum:
+            - indexed
+            - processing
+            - needs-ocr
+            - failed
+        source: *a1
+        hash: *a1
+        hidden: &a3
+          type: boolean
+        included: *a3
+        kind:
+          type: string
+          enum:
+            - document
+            - artifact
+        sessionId: *a1
+        documentId: *a1
+      additionalProperties: false
+    ResearchWork:
+      type: object
+      required:
+        - id
+        - kind
+        - title
+        - state
+        - attempts
+        - childId
+        - evidence
+        - detail
+      properties:
+        id: *a1
+        kind:
+          type: string
+          enum:
+            - discovery
+            - company
+        title: *a1
+        state:
+          type: string
+          enum:
+            - pending
+            - running
+            - complete
+            - blocked
+            - failed
+        attempts: *a2
+        childId:
+          anyOf:
+            - *a1
+            - type: "null"
+        evidence:
+          type: array
+          items: *a1
+        detail: *a1
+        cursor:
+          type: object
+          required:
+            - queryIndex
+            - page
+            - seenDomains
+          properties:
+            queryIndex: *a2
+            page: *a2
+            seenDomains:
+              type: array
+              items: *a1
+          additionalProperties: false
+      additionalProperties: false
+    ResearchProgress:
+      type: object
+      required:
+        - sectorId
+        - state
+        - planVersion
+        - plan
+        - items
+        - completed
+        - total
+        - unresolved
+        - discoveryClosed
+        - estimatedPercent
+      properties:
+        sectorId: *a1
+        state: *a1
+        planVersion: *a2
+        plan:
+          $ref: "#/components/schemas/SectorPlan"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResearchWork"
+        completed: *a2
+        total: *a2
+        unresolved: *a2
+        discoveryClosed: *a3
+        estimatedPercent:
+          anyOf:
+            - type: integer
+              minimum: 0
+              maximum: 100
+            - type: "null"
+      additionalProperties: false
+    ContextPreview:
+      type: object
+      required:
+        - change
+        - units
+      properties:
+        change:
+          $ref: "#/components/schemas/ContextChange"
+        units:
+          type: array
+          items:
+            type: object
+            required:
+              - ord
+              - text
+              - uncertain
+            properties:
+              ord: *a2
+              text: *a1
+              uncertain: *a3
+            additionalProperties: false
+      additionalProperties: false
+    CompactionResult:
+      type: object
+      required:
+        - compacted
+        - context
+      properties:
+        compacted: *a3
+        context:
+          $ref: "#/components/schemas/LocalContext"
+        reason: *a1
+      additionalProperties: false
+    ExecutablePlan:
+      type: object
+      required:
+        - discovery
+        - companyBrief
+        - budgets
+        - acceptance
+      properties:
+        discovery:
+          type: array
+          items:
+            type: object
+            required:
+              - id
+              - title
+              - queries
+              - maxPages
+            properties:
+              id: *a1
+              title: *a1
+              queries:
+                type: array
+                items: *a1
+              maxPages:
+                type: integer
+                minimum: 1
+                maximum: 10
+            additionalProperties: false
+        companyBrief: *a1
+        budgets:
+          type: object
+          required:
+            - maxCompanies
+            - maxWallMinutes
+            - concurrency
+          properties:
+            maxCompanies:
+              type: integer
+              minimum: 1
+              maximum: 1000
+            maxWallMinutes:
+              type: integer
+              minimum: 1
+              maximum: 1440
+            concurrency:
+              type: integer
+              const: 2
+          additionalProperties: false
+        acceptance:
+          type: array
+          items: *a1
+      additionalProperties: false

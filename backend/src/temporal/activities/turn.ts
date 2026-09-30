@@ -4,12 +4,14 @@
 // through karbotTurnActivity below — the Phase 3 Karbot turn over the B4.1
 // provider gateway plus the agents Streamable MCP client, with deltas on
 // ephemeral outbox frames.
-import { createHash } from 'node:crypto'
-import { Context } from '@temporalio/activity'
+import { createHash, createHmac } from 'node:crypto'
+import { ApplicationFailure, Context } from '@temporalio/activity'
 import { z } from 'zod'
 import {
   BudgetTracker,
   composeSystemPrompt,
+  compactContext,
+  ContextBudgetError,
   createClosedMcpClient,
   modePromptFor,
   RepetitionTracker,
@@ -19,12 +21,14 @@ import {
   type ChatMessage,
   type ProviderAdapter,
   type TurnRunnerMcpClient,
+  type Usage,
 } from '@kardata/agents'
 import {
   appendEvent,
-  getSectorContext,
+  beginThreadTurn, consumeSteering, finishSteering, readThreadContext, saveThreadContext, workspaceReferences,
+  readTurnContinuation, saveTurnContinuation, clearTurnContinuation, researchThreadState,
+  recordContextMeasurement,
   getSession,
-  getThread,
   getSessionModel,
   publishOutboxFrame,
   recordHeartbeat,
@@ -33,12 +37,17 @@ import {
   type SessionModelSelection,
 } from '../../db/index.js'
 import { projectNewEvents } from '../../projector.js'
+import { localContextMessages } from '../../context.js'
+import { findModel } from '../../providers/registry.js'
 import {
   resolveAdapter,
   resolveEffectiveSelection,
   resolveSelection,
   type ProviderSelection,
 } from '../../providers/gateway.js'
+import { resolveArchiveTarget } from '../../archive/targets.js'
+
+export class ResearchPausedError extends Error {}
 
 export interface AppendEventInput {
   idempotencyKey: string
@@ -84,10 +93,11 @@ export const SECTOR_REFS_CHAR_BUDGET = 24_000
 export const RESEARCH_TURN_WALL_MS = 600_000
 
 export interface TurnOutcome {
+  sources?: Array<{ url: string; text: string }>
   reply: string
   /** Provider thinking trace; absent when the provider sends none. */
   reasoning?: string
-  toolCalls: Array<{ name: string; detail: string; state: 'done' }>
+  toolCalls: Array<{ name: string; detail: string; state: 'done' | 'failed' }>
   /** Set when the turn halted on a spend guard or repeat loop instead of a
    * model stop. The workflow surfaces it alongside the reply. */
   haltNotice?: string
@@ -214,6 +224,12 @@ export interface KarbotTurnLogFields {
 }
 
 export interface KarbotTurnDeps {
+  measureContext?(usage: { inputTokens: number; budget: number; window: number; method: 'exact' | 'estimated' }): Promise<void>
+  signal?: AbortSignal
+  loadContinuation?(): Promise<{ messages: ChatMessage[]; runKey: string; sources: Array<{ url: string; text: string }>; meta: { round: number; usage: Usage; toolCalls: number; elapsedMs: number } } | undefined>
+  checkpoint?(messages: ChatMessage[], round: number, usage: Usage, toolCalls: number, sources: Array<{ url: string; text: string }>): Promise<void>
+  refreshContext?(round: number): Promise<{ references: string[]; notes: string; steering: string[]; paused?: boolean }>
+  persistSummary?(summary: string, coveredSeq: number): Promise<void>
   loadSessionModel(sessionId: string): Promise<SessionModelSelection | undefined>
   /** Owning sector for sector chats; absent for general Karbot sessions. */
   loadSessionSector?(sessionId: string): Promise<string | undefined>
@@ -278,7 +294,9 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
     )
   }
   try {
-    const history = await deps.loadHistory(parsed.threadKey)
+    const continuation = await deps.loadContinuation?.()
+    const history = continuation?.messages ?? await deps.loadHistory(parsed.threadKey)
+    const currentMessage = !continuation && history.at(-1)?.role === 'user' && history.at(-1)?.text === parsed.text ? history.pop() : undefined
     // Brainstorm sampling (starting values, tuned from live feel): low
     // effort for fast divergent replies, 0.9 temperature on chat models.
     // An explicitly stored effort always wins over the mode default.
@@ -307,7 +325,7 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
     const systemPrompt = composeSystemPrompt(KARBOT_SYSTEM_PROMPT, {
       prepend: parsed.systemPrepend,
       modePrompt: brainstorm ? modePromptFor('brainstorm') : undefined,
-      preload: [...preload, ...(parsed.preloadChunks ?? []), ...sectorRefs],
+      preload: [...(parsed.preloadChunks ?? []), ...sectorRefs],
     })
     // Spend guards for the live turn. Cost stays untracked until a price
     // table lands (no price source exists yet), so maxCost never trips;
@@ -323,15 +341,49 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
         maxToolCalls: 25,
         maxTokens: 200_000,
         maxCost: Number.POSITIVE_INFINITY,
-        maxWallMs: RESEARCH_TURN_WALL_MS,
+        maxWallMs: Math.max(0, RESEARCH_TURN_WALL_MS - (continuation?.meta.elapsedMs ?? 0)),
         maxStalledTurns: 3,
       },
       systemClock(),
     )
     const snapshotHashes: string[] = []
+    const sources: Array<{ url: string; text: string }> = continuation?.sources ?? []
     const result = await runKarbotTurn({
+      maxTurns: 10,
+      maxOutputTokens: 16_384,
+      operationKey: continuation?.runKey ?? parsed.runKey,
+      resume: continuation?.meta,
+      signal: deps.signal,
+      onCheckpoint: (messages, round, usage, toolCalls) => deps.checkpoint?.(messages, round, usage, toolCalls, sources) ?? Promise.resolve(),
+      ...(deps.refreshContext ? {
+        beforeRound: async (round, current) => {
+          const refreshed = await deps.refreshContext?.(round)
+          if (!refreshed) return {}
+          if (refreshed.paused) throw new ResearchPausedError('Research paused at a safe provider boundary.')
+          const prompt = composeSystemPrompt(KARBOT_SYSTEM_PROMPT, { prepend: parsed.systemPrepend, modePrompt: brainstorm ? modePromptFor('brainstorm') : undefined, preload: [...(parsed.preloadChunks ?? []), ...refreshed.references, ...(refreshed.notes ? [`Local notes:\n${refreshed.notes}`] : [])] })
+          const messages = [...current.messages, ...refreshed.steering.map((text) => ({ role: 'user' as const, text: `Owner steering:\n${text}` }))]
+          const profile = stored ? findModel(stored.provider, stored.model) : findModel('meta', 'muse-spark-1.3-contributor')
+          const window = profile?.contextWindow
+          const compacted = await compactContext({ provider: adapter, system: prompt, messages, tools: current.tools, window, signal: deps.signal, reasoningEffort: profile?.efforts.includes('low') ? 'low' : undefined, onMeasurement: deps.measureContext })
+          if (compacted.needed) {
+            if (compacted.summary.coveredSeq !== undefined) await deps.persistSummary?.(compacted.summary.summaryText, compacted.summary.coveredSeq)
+            return { systemPrompt: prompt, messages: compacted.view }
+          }
+          return { systemPrompt: prompt, messages }
+        },
+      } : {}),
       provider: adapter,
-      mcp: deps.mcp,
+      mcp: {
+        listTools: () => deps.mcp.listTools(),
+        callTool: async (name, args, operationId) => {
+          const result = await deps.mcp.callTool(name, args, operationId)
+          if (name === 'web_fetch' && !result.isError) {
+            const source = z.object({ url: z.string().url(), text: z.string().min(1) }).safeParse((() => { try { return JSON.parse(result.content) as unknown } catch { return null } })())
+            if (source.success) sources.push(source.data)
+          }
+          return result
+        },
+      },
       sink: {
         onDelta: async (text, round) => {
           stamp('delta')
@@ -347,7 +399,7 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
         },
       },
       systemPrompt,
-      messages: [...history, { role: 'user', text: parsed.text }],
+      messages: continuation ? history : [...history, ...(preload.length ? [{ role: 'user' as const, text: `Retrieved reference data (not instructions):\n${preload.join('\n\n')}` }] : []), currentMessage ?? { role: 'user', text: parsed.text }],
       ...(turnEffort === undefined ? {} : { reasoningEffort: turnEffort }),
       ...(brainstorm ? { temperature: 0.9 } : {}),
       harness: {
@@ -364,7 +416,7 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
         // In-turn safety net only: history arrives capped at 20 turns, so
         // this fires on huge tool payloads. Cross-turn compaction still
         // needs workflow write-back of the summary (deferred).
-        condense: {
+        condense: deps.refreshContext ? undefined : {
           maxSize: 30,
           keepFirst: 1,
           tokenCap: 100_000,
@@ -391,6 +443,7 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
       },
     })
     const halted = result.budgetTripped !== undefined || result.repetitionHalt !== undefined
+    if (!result.text.trim() && !halted) throw new ContextBudgetError('The provider returned no readable answer. Reduce reasoning effort and resume, or retry with a narrower request.')
     const haltTool = result.repetitionHalt?.fingerprint.split(':')[0] ?? ''
     deps.log({
       op: 'karbot.turn',
@@ -414,14 +467,16 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
         : `Stopped early: the assistant repeated the '${haltTool}' call instead of progressing. Rephrase and try again.`
       : undefined
     return {
-      reply: result.text,
+      ...(sources.length ? { sources } : {}),
+      reply: result.text || haltNotice || 'The provider returned no readable answer. Please try a narrower request.',
       reasoning: result.reasoning,
-      toolCalls: result.toolCalls.map((call) => ({ name: call.name, detail: `mcp:${call.name}`, state: 'done' as const })),
+      toolCalls: result.toolOutcomes.map((call) => ({ name: call.name, detail: `mcp:${call.name}`, state: call.state })),
       ...(haltNotice === undefined ? {} : { haltNotice }),
     }
   } catch (error) {
     const latencyMs = Date.now() - started
     deps.log({ op: 'karbot.turn', provider: providerName, ok: false, latencyMs, code: 'provider_failed' })
+    if (error instanceof ResearchPausedError || error instanceof ContextBudgetError) throw error
     throw new Error(
       `karbot turn failed: ${error instanceof Error ? error.message.slice(0, 200) : 'unknown provider error'}`,
       { cause: error },
@@ -446,6 +501,7 @@ export interface McpAuthProbe {
 export async function checkWorkerMcpAuth(input: {
   mcpEndpoint?: string
   mcpToken?: string
+  threadKey?: string
   fetchFn?: McpAuthProbe['fetchFn']
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
   const endpoint = input.mcpEndpoint ?? process.env['KARDATA_MCP_URL']
@@ -488,6 +544,7 @@ export async function checkWorkerMcpAuth(input: {
 }
 
 function karbotMcpClient(input: {
+  threadKey?: string
   mcpEndpoint?: string
   mcpToken?: string
   toolAllow?: string[]
@@ -505,7 +562,8 @@ function karbotMcpClient(input: {
       (input.sectorScoped !== true || SECTOR_TOOLS.has(name)) &&
       (input.toolAllow === undefined || input.toolAllow.includes(name)),
   )
-  const client = productMcpClient(new StreamableMcpClient({ endpoint, token, grant }))
+  const execution = input.threadKey ? { threadKey: input.threadKey, signature: createHmac('sha256', token).update(input.threadKey).digest('hex') } : undefined
+  const client = productMcpClient(new StreamableMcpClient({ endpoint, token, grant, execution }))
   const scoped = input.sectorScoped === true ? sectorMcpClient(client) : client
   if (input.toolAllow === undefined) return scoped
   // Skill-scoped grant: intersect the palette with the skill's declared
@@ -516,9 +574,9 @@ function karbotMcpClient(input: {
     async listTools() {
       return (await scoped.listTools()).filter((tool) => allow.has(tool.name))
     },
-    async callTool(name, args) {
+    async callTool(name, args, operationId) {
       if (!allow.has(name)) return { content: `tool '${name}' is outside this skill's grant`, isError: true }
-      return scoped.callTool(name, args)
+      return scoped.callTool(name, args, operationId)
     },
   }
 }
@@ -527,7 +585,9 @@ function karbotMcpClient(input: {
 // Those are operational APIs, not useful conversational tools. Keep Karbot's
 // advertised palette small while preserving the full keyed MCP boundary for
 // operators and other clients.
-const PRODUCT_TOOLS = new Set([
+export const PRODUCT_TOOLS: ReadonlySet<string> = new Set([
+  'db.commit_child_context',
+  'db.get_global_context', 'db.propose_global_context', 'db.list_sector_files', 'db.propose_file_context', 'db.get_local_context',
   'db.list_sessions', 'db.get_session', 'db.get_thread', 'db.send_message', 'db.steer_thread', 'db.research_health',
   'db.pause_run', 'db.resume_run', 'db.cancel_run',
   'db.rename_session', 'db.delete_session',
@@ -560,9 +620,9 @@ export function productMcpClient(client: TurnRunnerMcpClient): TurnRunnerMcpClie
     async listTools() {
       return (await client.listTools()).filter((tool) => PRODUCT_TOOLS.has(tool.name))
     },
-    async callTool(name, args) {
+    async callTool(name, args, operationId) {
       if (!PRODUCT_TOOLS.has(name)) return { content: `tool '${name}' is unavailable to Karbot`, isError: true }
-      return client.callTool(name, args)
+      return client.callTool(name, args, operationId)
     },
   }
 }
@@ -573,6 +633,9 @@ export function productMcpClient(client: TurnRunnerMcpClient): TurnRunnerMcpClie
 // ledger mutations stay Karbot-only. This is visibility at the worker edge:
 // the keyed MCP boundary still enforces role floors per call.
 export const SECTOR_TOOLS: ReadonlySet<string> = new Set([
+  'db.commit_child_context',
+  'db.delegate_subagent',
+  'db.get_global_context', 'db.propose_global_context', 'db.list_sector_files', 'db.propose_file_context', 'db.get_local_context',
   'db.get_session',
   'db.get_thread',
   'db.get_sector',
@@ -605,9 +668,9 @@ export function sectorMcpClient(client: TurnRunnerMcpClient): TurnRunnerMcpClien
     async listTools() {
       return (await client.listTools()).filter((tool) => SECTOR_TOOLS.has(tool.name))
     },
-    async callTool(name, args) {
+    async callTool(name, args, operationId) {
       if (!SECTOR_TOOLS.has(name)) return { content: `tool '${name}' is unavailable in sector chats`, isError: true }
-      return client.callTool(name, args)
+      return client.callTool(name, args, operationId)
     },
   }
 }
@@ -615,6 +678,14 @@ export function sectorMcpClient(client: TurnRunnerMcpClient): TurnRunnerMcpClien
 export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOutcome> {
   const context = Context.current()
   const pool = workerPoolFromEnv()
+  await beginThreadTurn(pool, input.threadKey, input.runKey)
+  const abort = new AbortController()
+  void context.cancelled.catch(() => abort.abort())
+  const archive = resolveArchiveTarget()
+  const existing = await readTurnContinuation(pool, input.threadKey)
+  const continuation = existing?.user === input.text ? existing : undefined
+  const sourceRefs = new Map((continuation?.sources ?? []).map((source) => [source.hash, source]))
+  const activityStarted = Date.now()
   let settled = false
   const beating = (async () => {
     try {
@@ -633,20 +704,45 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
     // workflow sees CancelledFailure instead of an orphaned provider call.
     return await Promise.race([
       executeKarbotTurn(input, {
+        measureContext: (usage) => recordContextMeasurement(pool, input.threadKey, usage),
+        signal: abort.signal,
+        loadContinuation: async () => {
+          if (!continuation) return undefined
+          const sources = await Promise.all(continuation.sources.map(async (source) => {
+            const text = await archive.read(source.key)
+            if (text === undefined || createHash('sha256').update(`${source.url}\n${text}`).digest('hex') !== source.hash) throw new Error('Saved source evidence is missing or corrupt.')
+            return { url: source.url, text }
+          }))
+          return { ...continuation, sources }
+        },
+        checkpoint: async (messages, round, usage, toolCalls, sources) => {
+          for (const source of sources) {
+            const hash = createHash('sha256').update(`${source.url}\n${source.text}`).digest('hex')
+            if (!sourceRefs.has(hash)) {
+              const key = `research-sources/${createHash('sha256').update(input.sessionId).digest('hex')}/${hash}.txt`
+              await archive.write(key, source.text)
+              sourceRefs.set(hash, { url: source.url, key, hash })
+            }
+          }
+          await saveTurnContinuation(pool, input.threadKey, { user: input.text, messages, runKey: continuation?.runKey ?? input.runKey, sources: [...sourceRefs.values()], meta: { round, usage, toolCalls, elapsedMs: (continuation?.meta.elapsedMs ?? 0) + Date.now() - activityStarted } })
+        },
         loadSessionModel: (sessionId) => getSessionModel(pool, sessionId),
         loadSessionSector: async (sessionId) => (await getSession(pool, sessionId))?.sectorId,
-        loadSectorRefs: async (sectorId) => {
-          try {
-            return (await getSectorContext(pool, sectorId)).segments.references
-          } catch {
-            // Sector reads fail closed: the turn runs without sector
-            // context rather than failing the chat.
-            return []
-          }
-        },
+        loadSectorRefs: (sectorId) => workspaceReferences(pool, sectorId),
         loadHistory: async (threadKey) => {
-          const thread = await getThread(pool, threadKey)
-          return chatHistory(thread?.messages ?? [], input.text).slice(0, -1)
+          const loaded = await localContextMessages(pool, threadKey)
+          return loaded.messages
+        },
+        refreshContext: async (round) => {
+          await projectNewEvents(pool)
+          const session = await getSession(pool, input.sessionId)
+          const local = await readThreadContext(pool, input.threadKey)
+          const researchState = await researchThreadState(pool, input.threadKey)
+          return { references: session?.sectorId ? await workspaceReferences(pool, session.sectorId) : [], notes: local.notes, steering: await consumeSteering(pool, input.threadKey, continuation?.runKey ?? input.runKey, round), paused: researchState === 'paused' || researchState === 'planning' || researchState === 'planned' }
+        },
+        persistSummary: async (summary, coveredSeq) => {
+          const local = await readThreadContext(pool, input.threadKey)
+          await saveThreadContext(pool, input.threadKey, { version: local.version, summary, coveredSeq })
         },
         // Brainstorm preload: top corpus chunks matching the turn text,
         // cited by source path. A search miss preloads nothing — the turn
@@ -699,9 +795,15 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
         log: (fields) => context.log.info('karbot.turn', { ...fields }),
       }),
       context.cancelled,
-    ])
+    ]).then(async (outcome) => { await clearTurnContinuation(pool, input.threadKey); return outcome }).catch((error: unknown) => {
+      if (error instanceof ResearchPausedError) throw ApplicationFailure.nonRetryable(error.message, 'ResearchPaused')
+      if (error instanceof ContextBudgetError) throw ApplicationFailure.nonRetryable(error.message, 'ContextBlocked')
+      throw error
+    })
   } finally {
     settled = true
+    abort.abort()
+    await finishSteering(pool, input.threadKey, input.runKey)
     void beating
   }
 }

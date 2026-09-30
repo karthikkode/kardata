@@ -6,6 +6,7 @@
 // retry stays a plan instead of a 409 dead end.
 import type { Scope } from '../auth/keys.js'
 import { DbContractError } from './errors.js'
+import { parseExecutablePlan, visiblePlan, type ExecutablePlan } from '../temporal/research-plan.js'
 import { appendEvent, getSession, readPartition, type Db } from './events.js'
 import {
   getSector,
@@ -19,6 +20,7 @@ export interface PlanVersion {
   version: number
   markdown: string
   at: string
+  executable?: ExecutablePlan
 }
 
 export interface SectorPlan {
@@ -48,9 +50,9 @@ export async function readSectorPlan(
   const approvals: number[] = []
   for (const event of events) {
     if (event.type === SECTOR_PLAN_WRITTEN_EVENT) {
-      const payload = event.payload as { markdown?: unknown }
+      const payload = event.payload as { markdown?: unknown; executable?: ExecutablePlan }
       if (typeof payload.markdown !== 'string' || !payload.markdown.trim()) continue
-      versions.push({ version: versions.length + 1, markdown: payload.markdown, at: event.at })
+      versions.push({ version: versions.length + 1, markdown: payload.markdown, at: event.at, ...(payload.executable ? { executable: payload.executable } : {}) })
     } else if (event.type === SECTOR_PLAN_APPROVED_EVENT) {
       const payload = event.payload as { version?: unknown }
       if (typeof payload.version === 'number' && Number.isInteger(payload.version) && payload.version >= 1) {
@@ -80,7 +82,7 @@ export async function recordPlanVersion(
     idempotencyKey: `sector-plan:${sectorId}:${idempotencyKey}`,
     partition: `sector:${sectorId}`,
     type: SECTOR_PLAN_WRITTEN_EVENT,
-    payload: { sectorId, markdown },
+    payload: { sectorId, markdown: visiblePlan(markdown), ...(parseExecutablePlan(markdown) ? { executable: parseExecutablePlan(markdown) } : {}) },
   })
   const updated = await readSectorPlan(db, sectorId, scope)
   return { version: updated?.versions.length ?? 0 }

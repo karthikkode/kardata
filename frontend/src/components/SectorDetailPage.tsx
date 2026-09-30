@@ -45,7 +45,7 @@ type StateFilter = ResearchState | 'all'
 // companies land, quiet enough to stay out of the sweep's way.
 const RESEARCH_POLL_MS = 5000
 
-function CompanySection({
+export function CompanySection({
   staging,
   sectorId,
   sectorName,

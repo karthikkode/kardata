@@ -9,6 +9,8 @@ import { z } from 'zod'
 import type { Scope } from '../auth/keys.js'
 import { countDocumentUnits, insertDocumentUnits, listDocumentUnits } from './document-units.js'
 import { DbContractError } from './errors.js'
+import { assertFileVisible, hiddenFileIds } from './workspace.js'
+import type { ArchiveTarget } from '../archive/targets.js'
 import type { Db } from './events.js'
 import {
   documentExtension,
@@ -59,7 +61,7 @@ const ContentSchema = z.string().min(1)
  * ingest is idempotent on content hash. */
 export async function ingestSectorDocument(
   db: Db,
-  input: { sectorId: string; filename: string; contentBase64: string; scope?: Scope; ocr?: OcrAdapter },
+  input: { sectorId: string; filename: string; contentBase64: string; scope?: Scope; ocr?: OcrAdapter; archive?: ArchiveTarget },
 ): Promise<IngestedDocument> {
   if (!FilenameSchema.safeParse(input.filename).success) throw new DbContractError('filename must be 1-255 characters')
   if (!ContentSchema.safeParse(input.contentBase64).success) throw new DbContractError('contentBase64 must be non-empty')
@@ -92,6 +94,12 @@ export async function ingestSectorDocument(
     )
   const found = duplicate.rows[0]
   if (found) {
+    if (input.archive) {
+      const originalHash = sha256Hex(bytes.toString('base64'))
+      const key = `sector-uploads/${sha256Hex(input.sectorId)}/${originalHash}.base64`
+      await input.archive.write(key, bytes.toString('base64'))
+      await db.query('UPDATE sector_documents SET archive_key=$2,original_hash=$3 WHERE id=$1 AND archive_key IS NULL', [found.id, key, originalHash])
+    }
     return {
       id: found.id,
       sectorId: input.sectorId,
@@ -106,12 +114,16 @@ export async function ingestSectorDocument(
     }
   }
   const id = `sdoc-${randomUUID()}`
+  const originalHash = sha256Hex(bytes.toString('base64'))
+  const archiveKey = `sector-uploads/${sha256Hex(input.sectorId)}/${originalHash}.base64`
+  if (input.archive) await input.archive.write(archiveKey, bytes.toString('base64'))
   const { rows } = await db.query<{ created_at: Date | string }>(
     `INSERT INTO sector_documents (id, sector_id, filename, media_type, text, sha256, status, tenant_id, project_id)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING created_at`,
     [id, input.sectorId, input.filename, extraction.mediaType, text, sha256, extraction.status, input.scope?.tenantId ?? null, input.scope?.projectId ?? null],
   )
   await insertDocumentUnits(db, id, extraction.units)
+  if (input.archive) await db.query('UPDATE sector_documents SET archive_key=$2,original_hash=$3 WHERE id=$1', [id, archiveKey, originalHash])
   const created = rows[0]?.created_at
   return {
     id,
@@ -129,7 +141,7 @@ export async function ingestSectorDocument(
 
 /** Context documents for one sector, newest last. Scope-filtered like
  * every other sector read. */
-export async function listSectorDocuments(db: Db, sectorId: string, scope?: Scope): Promise<SectorDocument[]> {
+export async function listSectorDocuments(db: Db, sectorId: string, scope?: Scope, includeHidden = false): Promise<SectorDocument[]> {
   const sector = await getSector(db, sectorId, scope)
   if (!sector) throw new DbContractError(`unknown sector ${sectorId}`)
   const { rows } = await db.query<{
@@ -146,7 +158,8 @@ export async function listSectorDocuments(db: Db, sectorId: string, scope?: Scop
      FROM sector_documents WHERE sector_id = $1 ORDER BY created_at ASC`,
     [sectorId],
   )
-  return rows.map((row) => ({
+  const hidden = includeHidden ? new Set<string>() : await hiddenFileIds(db, sectorId)
+  return rows.filter((row) => !hidden.has(row.id)).map((row) => ({
     id: row.id,
     sectorId: row.sector_id,
     filename: row.filename,
@@ -170,6 +183,7 @@ export async function readSectorDocument(
 ): Promise<SectorDocument & { text: string }> {
   const sector = await getSector(db, sectorId, scope)
   if (!sector) throw new DbContractError(`unknown sector ${sectorId}`)
+  await assertFileVisible(db, sectorId, documentId)
   const { rows } = await db.query<{
     id: string
     filename: string
@@ -205,6 +219,15 @@ export interface QuerySectorDocumentInput {
   query?: string
   ords?: number[]
   scope?: Scope
+}
+export async function readOriginalSectorDocument(db: Db, sectorId: string, documentId: string, archive: ArchiveTarget, scope?: Scope) {
+  const doc = await readSectorDocument(db, sectorId, documentId, scope)
+  const { rows } = await db.query<{ archive_key: string | null; original_hash: string | null }>('SELECT archive_key,original_hash FROM sector_documents WHERE id=$1', [documentId])
+  const stored = rows[0]
+  if (!stored?.archive_key) return { filename: doc.filename, mediaType: doc.mediaType, text: doc.text, originalAvailable: false }
+  const contentBase64 = await archive.read(stored.archive_key)
+  if (contentBase64 === undefined || sha256Hex(contentBase64) !== stored.original_hash) throw new DbContractError('Original file is missing or corrupt')
+  return { filename: doc.filename, mediaType: doc.mediaType, text: doc.text, contentBase64, originalAvailable: true }
 }
 
 export interface DocumentTocEntry {
@@ -249,6 +272,7 @@ export async function querySectorDocument(
   const sectorId = input.sectorId ?? (await owningSectorId(db, input.documentId))
   const sector = await getSector(db, sectorId, input.scope)
   if (!sector) throw new DbContractError(`unknown sector ${sectorId}`)
+  await assertFileVisible(db, sectorId, input.documentId)
   const { rows } = await db.query<{
     id: string
     filename: string

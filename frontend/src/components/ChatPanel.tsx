@@ -34,6 +34,7 @@ import { SubagentsPanel } from './SubagentsPanel'
 import { PanelError, SkeletonRows, ToolRow, UnavailableNotice } from './research-parts'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
+import { AgentBubble, UserBubble } from './chat-parts'
 
 export type ChatScope = { id: string; name: string } | null
 
@@ -64,7 +65,7 @@ export type ChatTool = {
 
 export type ChatMessage = ChatText | ChatTool
 
-function messageSeq(message: ChatMessage): number {
+export function messageSeq(message: ChatMessage): number {
   return Number(message.id.slice(2)) || 0
 }
 
@@ -522,9 +523,9 @@ function MessageBubble({ message, files, live = false }: { message: ChatText; fi
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
-        <p className="max-w-[85%] rounded-2xl rounded-br-md bg-primary/10 px-3 py-2 text-sm [overflow-wrap:anywhere]">
+        <UserBubble>
           {renderMentionChips(message.text, files)}
-        </p>
+        </UserBubble>
       </div>
     )
   }
@@ -532,7 +533,7 @@ function MessageBubble({ message, files, live = false }: { message: ChatText; fi
     <div className="min-w-0">
       <div>
         {message.reasoning ? <ActivityGroup tools={[]} reasoning={message.reasoning} live={live} /> : null}
-        {message.text ? <div className="text-sm">
+        {message.text ? <AgentBubble>
           <Markdown text={message.text} />
           {message.failed ? (
             <span className="mt-1 block text-xs text-muted-foreground">This reply failed.</span>
@@ -542,7 +543,7 @@ function MessageBubble({ message, files, live = false }: { message: ChatText; fi
               Sent after the run moved on: shown, not relaunched.
             </span>
           ) : null}
-        </div> : null}
+        </AgentBubble> : null}
       </div>
     </div>
   )

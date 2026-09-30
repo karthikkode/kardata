@@ -210,7 +210,7 @@ export function useStagingSectorDetail(
 
   // Reset during render, never in the fetch effect: when the query
   // changes the previous detail no longer belongs to it.
-  const query = config && sectorId ? `${config.baseUrl} ${config.apiKey} ${sectorId} ${attempt}` : null
+  const query = config && sectorId ? `${config.baseUrl} ${config.apiKey} ${sectorId}` : null
   const [activeQuery, setActiveQuery] = useState<string | null>(null)
   if (activeQuery !== query) {
     setActiveQuery(query)
@@ -218,6 +218,7 @@ export function useStagingSectorDetail(
       setDetail(undefined)
       setStatus('ready')
     } else {
+      setDetail(undefined)
       setStatus('loading')
     }
   }
@@ -240,7 +241,9 @@ export function useStagingSectorDetail(
           setStatus('ready')
           return
         }
-        setStatus(stagingStatus(error))
+        const next = stagingStatus(error)
+        if (next === 'denied') setDetail(undefined)
+        setStatus(next)
       })
     return () => {
       live = false

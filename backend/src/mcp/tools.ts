@@ -12,6 +12,7 @@ import { childLogger, logOp } from '../observability/logging.js'
 /** Role ladder lives in auth/keys.ts (viewer < operator < approver). */
 import {
   appendEvent,
+  readGlobalContext, proposeGlobalContext, readThreadContext, listSectorLibrary, proposeFileContext, requireThread, WorkspaceError, commitChildContext,
   checkRate,
   claimIdempotency,
   completeIdempotency,
@@ -97,6 +98,7 @@ import type { ArchiveTarget } from '../archive/targets.js'
 type BrowserActArgs = BrowserAct
 
 export interface McpToolContext {
+  executionThread?: string
   pool: TransactableDb
   scope: Scope | undefined
   role: Role
@@ -123,6 +125,12 @@ export interface McpToolContext {
 
 /** Layer function behind each tool; the parity test pins this table. */
 export const TOOL_LAYER: Record<McpToolName, string> = {
+  'db.commit_child_context': 'commitChildContext',
+  'db.get_global_context': 'readGlobalContext',
+  'db.propose_global_context': 'proposeGlobalContext',
+  'db.list_sector_files': 'listSectorLibrary',
+  'db.propose_file_context': 'proposeFileContext',
+  'db.get_local_context': 'readThreadContext',
   'db.append_event': 'appendEvent',
   'db.read_partition': 'readPartition',
   'db.find_event': 'findEventByKey',
@@ -220,6 +228,12 @@ export function toolCapability(name: McpToolName): ToolCapability {
 }
 
 export const TOOL_META: Record<McpToolName, { description: string; minRole: Role }> = {
+  'db.commit_child_context': { description: 'Research parent: commit a child finding or open question. Scope, decisions and file inclusion require owner approval.', minRole: 'operator' },
+  'db.get_global_context': { description: 'Read this sector shared context and pending updates.', minRole: 'viewer' },
+  'db.propose_global_context': { description: 'Propose a versioned shared-context edit. Normal chats require owner approval; research children report to their parent.', minRole: 'operator' },
+  'db.list_sector_files': { description: 'List visible indexed files shared by this sector.', minRole: 'viewer' },
+  'db.propose_file_context': { description: 'Request owner approval to include exact file units in global context.', minRole: 'operator' },
+  'db.get_local_context': { description: 'Read your own conversation working memory.', minRole: 'viewer' },
   'db.append_event': { description: 'Append an event (idempotent write; returns seq + duplicate flag).', minRole: 'operator' },
   'db.read_partition': { description: 'Read one partition paginated by afterSeq.', minRole: 'viewer' },
   'db.find_event': { description: 'Exactly-once event lookup by idempotency key.', minRole: 'viewer' },
@@ -312,7 +326,38 @@ function scopedIdempotencyKey(ctx: McpToolContext, key: string): string {
   return `${ctx.keyId}:${key}`
 }
 
+async function workspaceIdentity(ctx: McpToolContext) {
+  if (!ctx.executionThread) throw new McpToolError('permission_denied', 'Verified execution context is required.')
+  const identity = await requireThread(ctx.pool, ctx.executionThread, ctx.scope)
+  if (!identity.session.sectorId) throw new McpToolError('permission_denied', 'A sector conversation is required.')
+  return { sectorId: identity.session.sectorId, threadKey: ctx.executionThread }
+}
+
 const INVOKERS: Invokers = {
+  'db.commit_child_context': async (ctx, args) => { const identity = await workspaceIdentity(ctx); return commitChildContext(ctx.pool, identity.threadKey, args.proposalId, ctx.scope) },
+  'db.get_global_context': async (ctx) => {
+    const identity = await workspaceIdentity(ctx)
+    const context = await readGlobalContext(ctx.pool, identity.sectorId, ctx.scope)
+    const actor = await requireThread(ctx.pool, identity.threadKey, ctx.scope)
+    const parent = actor.thread.kind === 'session' && actor.session.id === context.researchSessionId
+    return { ...context, changes: context.changes.filter((change) => change.sourceThread === identity.threadKey || (parent && change.state === 'parent-review')) }
+  },
+  'db.propose_global_context': async (ctx, args) => {
+    const identity = await workspaceIdentity(ctx)
+    return proposeGlobalContext(ctx.pool, { ...args, sectorId: identity.sectorId, sourceThread: identity.threadKey, owner: false, trustedResearch: true, scope: ctx.scope, id: scopedIdempotencyKey(ctx, args.idempotencyKey) })
+  },
+  'db.list_sector_files': async (ctx) => {
+    const identity = await workspaceIdentity(ctx)
+    return (await listSectorLibrary(ctx.pool, identity.sectorId, ctx.scope)).filter((file) => !file.hidden)
+  },
+  'db.propose_file_context': async (ctx, args) => {
+    const identity = await workspaceIdentity(ctx)
+    return proposeFileContext(ctx.pool, { ...args, sectorId: identity.sectorId, sourceThread: identity.threadKey, scope: ctx.scope })
+  },
+  'db.get_local_context': async (ctx) => {
+    const identity = await workspaceIdentity(ctx)
+    return readThreadContext(ctx.pool, identity.threadKey, ctx.scope)
+  },
   // Approval verdicts flow only through POST /v1/commands/approve (approver
   // floor): an operator caller must not forge t.approval.* events here.
   'db.append_event': (ctx, args) => {
@@ -337,7 +382,12 @@ const INVOKERS: Invokers = {
   },
   'db.get_session': (ctx, args) => getSession(ctx.pool, args.sessionId, ctx.scope),
   'db.list_sessions': (ctx, args) => listSessions(ctx.pool, ctx.scope, args.sectorId),
-  'db.list_sectors': (ctx, args) => listSectors(ctx.pool, ctx.scope, args),
+  'db.list_sectors': async (ctx, args) => {
+    const rows = await listSectors(ctx.pool, ctx.scope, args)
+    if (!ctx.executionThread) return rows
+    const actor = await requireThread(ctx.pool, ctx.executionThread, ctx.scope)
+    return actor.session.sectorId ? rows.filter((sector) => sector.id === actor.session.sectorId) : rows
+  },
   'db.get_sector': (ctx, args) => getSector(ctx.pool, args.sectorId, ctx.scope),
   'db.list_companies': (ctx, args) =>
     listCompanies(ctx.pool, ctx.scope, args, { limit: args.limit, offset: args.offset }),
@@ -355,7 +405,7 @@ const INVOKERS: Invokers = {
       scope: ctx.scope,
     }),
   'db.attach_sector_document': (ctx, args) =>
-    ingestSectorDocument(ctx.pool, { sectorId: args.sectorId, filename: args.filename, contentBase64: args.contentBase64, scope: ctx.scope }),
+    ingestSectorDocument(ctx.pool, { sectorId: args.sectorId, filename: args.filename, contentBase64: args.contentBase64, scope: ctx.scope, archive: ctx.archive }),
   'db.list_sector_documents': (ctx, args) => listSectorDocuments(ctx.pool, args.sectorId, ctx.scope),
   'db.read_sector_document': (ctx, args) => readSectorDocument(ctx.pool, args.sectorId, args.documentId, ctx.scope),
   'db.query_document': (ctx, args) =>
@@ -440,7 +490,16 @@ const INVOKERS: Invokers = {
     return listTenantArtifacts(ctx.pool, scope)
   },
   'db.find_launch_parent': (ctx, args) => findLaunchParentWorkflowId(ctx.pool, args.childId),
-  'db.get_thread': (ctx, args) => getThread(ctx.pool, args.threadKey),
+  'db.get_thread': async (ctx, args) => {
+    const target = await getThread(ctx.pool, args.threadKey)
+    if (!target || !ctx.executionThread || args.threadKey === ctx.executionThread) return target
+    const actor = await requireThread(ctx.pool, ctx.executionThread, ctx.scope)
+    if (actor.session.sectorId && target.kind === 'subagent') {
+      const reply = [...target.messages].reverse().find((message) => typeof message.payload === 'object' && message.payload !== null && 'role' in message.payload && message.payload.role === 'agent')
+      return { ...target, messages: reply && target.status === 'FINISHED' ? [reply] : [] }
+    }
+    return target
+  },
   'db.list_threads': (ctx, args) => listThreads(ctx.pool, args.sessionId),
   'db.send_message': async (ctx, args) => {
     try {
@@ -621,25 +680,45 @@ export async function invokeTool(
   args: unknown,
   grant: ToolGrant = {},
 ): Promise<unknown> {
-  const meta = TOOL_META[name]
-  if (!roleLevelAtLeast(ctx.role, meta.minRole)) {
-    throw new McpToolError('permission_denied', `role ${ctx.role} cannot call ${name} (needs ${meta.minRole})`)
+  const work = async () => {
+    const meta = TOOL_META[name]
+    if (!roleLevelAtLeast(ctx.role, meta.minRole)) {
+      throw new McpToolError('permission_denied', `role ${ctx.role} cannot call ${name} (needs ${meta.minRole})`)
+    }
+    if (grant.allow !== undefined && !grant.allow.has(name)) {
+      throw new McpToolError('permission_denied', `tool ${name} is outside this skill's grant`)
+    }
+    const schema = TOOL_SCHEMAS[name] as z.ZodType
+    const parsed = schema.safeParse(args)
+    if (!parsed.success) {
+      const first = parsed.error.issues[0]
+      const where = first ? [...first.path.map(String), first.message].join(': ') : 'invalid input'
+      throw new McpToolError('validation_failed', `${name}: ${where}`)
+    }
+    if (ctx.executionThread) {
+      const actor = await requireThread(ctx.pool, ctx.executionThread, ctx.scope)
+      const sectorId = actor.session.sectorId
+      if (sectorId && typeof parsed.data === 'object' && parsed.data !== null) {
+        const args = parsed.data as Record<string, unknown>
+        if (typeof args['sectorId'] === 'string' && args['sectorId'] !== sectorId) throw new McpToolError('permission_denied', 'This execution is bound to another sector.')
+        for (const field of ['sessionId', 'toSessionId']) {
+          if (typeof args[field] !== 'string') continue
+          const target = await getSession(ctx.pool, args[field], ctx.scope)
+          if (!target || target.sectorId !== sectorId) throw new McpToolError('permission_denied', 'Conversation is outside this sector.')
+        }
+        if (typeof args['threadKey'] === 'string') {
+          const target = await requireThread(ctx.pool, args['threadKey'], ctx.scope)
+          if (target.session.sectorId !== sectorId) throw new McpToolError('permission_denied', 'Thread is outside this sector.')
+          if (target.session.id !== actor.session.id || (actor.thread.kind === 'subagent' && target.thread.key !== actor.thread.key)) throw new McpToolError('permission_denied', 'Local conversations are isolated. Use shared context to communicate.')
+        }
+        if (['db.list_sessions','db.list_companies','db.research_health','db.query_document'].includes(name)) args['sectorId'] = sectorId
+        if (name === 'db.create_artifact') args['producedBy'] = ctx.executionThread
+      }
+    }
+    const invoker = INVOKERS[name] as (ctx: McpToolContext, args: unknown) => Promise<unknown>
+    return invoker(ctx, parsed.data)
   }
-  if (grant.allow !== undefined && !grant.allow.has(name)) {
-    throw new McpToolError('permission_denied', `tool ${name} is outside this skill's grant`)
-  }
-  const schema = TOOL_SCHEMAS[name] as z.ZodType
-  const parsed = schema.safeParse(args)
-  if (!parsed.success) {
-    const first = parsed.error.issues[0]
-    const where = first ? [...first.path.map(String), first.message].join(': ') : 'invalid input'
-    throw new McpToolError('validation_failed', `${name}: ${where}`)
-  }
-  const invoker = INVOKERS[name] as (ctx: McpToolContext, args: unknown) => Promise<unknown>
-  if (!ctx.logger) return invoker(ctx, parsed.data)
-  return logOp(childLogger(ctx.logger, { op: 'tool.call' }), 'tool.call', () => invoker(ctx, parsed.data), {
-    tool: name,
-  })
+  return ctx.logger ? logOp(childLogger(ctx.logger, { op: 'tool.call' }), 'tool.call', work, { tool: name }) : work()
 }
 
 function toTextResult(value: unknown): string {
@@ -666,7 +745,7 @@ export function createMcpServer(ctx: McpToolContext, grant: ToolGrant = {}): Mcp
           return { content: [{ type: 'text' as const, text: toTextResult(result) }] }
         } catch (error) {
           const message = error instanceof Error ? error.message : 'internal error'
-          const code = error instanceof McpToolError ? error.code : error instanceof DbContractError ? 'validation_failed' : 'internal'
+          const code = error instanceof McpToolError ? error.code : error instanceof WorkspaceError ? error.code : error instanceof DbContractError ? 'validation_failed' : 'internal'
           // Evidence failures carry the no-guess directive: the model reads
           // this text mid-research, and a bare code is what it used to
           // paper over with parametric knowledge.

@@ -4,6 +4,7 @@
 // layer. POST /mcp answers JSON (enableJsonResponse) and honors
 // Idempotency-Key like every other mutation.
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/server'
+import { verifyExecution } from '../auth/execution.js'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import type { Logger } from 'pino'
 import { resolveCaller, roleAtLeast, type Role, type Scope } from '../auth/keys.js'
@@ -113,7 +114,14 @@ async function serveMcp(
   // The runs gateway satisfies every runner interface structurally
   // (sweep starter, thread messenger, subagent delegator); absent runners
   // fail their tools closed instead of half-acting.
-  const server = createMcpServer({ pool, scope: auth.scope, role: auth.role, keyId: auth.keyId, ...(toolLogger ? { logger: toolLogger } : {}), ...(runs ? { runs, messenger: runs, delegator: runs } : {}), ...(archive ? { archive } : {}) }, grant)
+  const threadKey = header(request, 'x-kardata-thread')
+  const signature = header(request, 'x-kardata-execution')
+  const workerToken = process.env['KARDATA_MCP_TOKEN']
+  let executionThread: string | undefined
+  if (threadKey && signature && workerToken) {
+    if (verifyExecution(threadKey, signature, workerToken)) executionThread = threadKey
+  }
+  const server = createMcpServer({ pool, scope: auth.scope, role: auth.role, keyId: auth.keyId, executionThread, ...(toolLogger ? { logger: toolLogger } : {}), ...(runs ? { runs, messenger: runs, delegator: runs } : {}), ...(archive ? { archive } : {}) }, grant)
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,

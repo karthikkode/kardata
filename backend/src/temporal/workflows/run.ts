@@ -218,7 +218,7 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
           return await turn.karbotTurnActivity({
             sessionId: input.sessionId,
             threadKey: input.sessionId,
-            runKey: `karbot:${input.sessionId}:${nonce}`,
+            runKey: patched('turn-runkey-v2') ? `karbot:${input.sessionId}:${runTag}:${nonce}` : `karbot:${input.sessionId}:${nonce}`,
             text: item.text,
             fakeSteps: input.fakeSteps,
             // Skill invocations ride the prompt seam with their declared

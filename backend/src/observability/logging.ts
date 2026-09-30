@@ -78,7 +78,7 @@ export async function logOp<T>(
     logger.info({ event: `${op}.done`, op, outcome: 'ok', latencyMs: Date.now() - start, ...extra })
     return result
   } catch (error) {
-    const code = error instanceof Error ? error.constructor.name : 'unknown'
+    const code = error instanceof Error && 'code' in error && typeof error.code === 'string' ? error.code : error instanceof Error ? error.constructor.name : 'unknown'
     logger.error({
       event: `${op}.error`,
       op,

@@ -19,6 +19,7 @@ import { resolveArchiveTarget, type ArchiveTarget } from '../archive/targets.js'
 import type { Scope } from '../auth/keys.js'
 import { scrubSecrets } from '../observability/logging.js'
 import { DbContractError } from './errors.js'
+import { assertFileVisible, hiddenFileIds, indexSectorArtifact, sessionKind, WorkspaceError } from './workspace.js'
 
 export const EventEnvelope = z.object({
   idempotencyKey: z.string().min(1),
@@ -373,7 +374,7 @@ const ArtifactSummaryPayload = z
 /** Artifact listing for a session scope: joins stored + indexed event
  * records from the artifact partition. Files-menu reads; body serving
  * stays in the pipeline (needs the archive target). */
-export async function listArtifacts(db: Db, sessionId: string): Promise<ArtifactSummary[]> {
+export async function listArtifacts(db: Db, sessionId: string, includeHidden = false): Promise<ArtifactSummary[]> {
   if (!z.string().min(1).safeParse(sessionId).success) {
     throw new DbContractError('sessionId must be a non-empty string')
   }
@@ -406,7 +407,9 @@ export async function listArtifacts(db: Db, sessionId: string): Promise<Artifact
       entry.referencedFrom = parsed.data.fromScope
     }
   }
-  return [...byId.values()]
+  const session = await getSession(db, sessionId)
+  const hidden = !includeHidden && session?.sectorId ? await hiddenFileIds(db, session.sectorId) : new Set<string>()
+  return [...byId.values()].filter((file) => !hidden.has(file.artifactId))
 }
 
 /** Attach an existing file to another session without copying bytes. The
@@ -475,6 +478,8 @@ export async function resolveArtifactScope(
     throw new DbContractError('sessionId and artifactId must be non-empty strings')
   }
   const own: ArtifactScope = { kind: 'session', id: sessionId }
+  const session = await getSession(db, sessionId)
+  if (session?.sectorId) await assertFileVisible(db, session.sectorId, artifactId)
   const stored = await findEventByKey(db, storedEventKey(own, artifactId))
   if (stored && stored.type === 't.artifact.stored') return { scope: own, referenced: false }
   const events = await readPartition(db, `artifact:session:${sessionId}`)
@@ -483,6 +488,10 @@ export async function resolveArtifactScope(
     const parsed = ArtifactSummaryPayload.safeParse(event.payload)
     if (!parsed.success || parsed.data.artifactId !== artifactId) continue
     if (!parsed.data.fromScope) continue
+    if (parsed.data.fromScope.kind === 'session') {
+      const owner = await getSession(db, parsed.data.fromScope.id)
+      if (owner?.sectorId) await assertFileVisible(db, owner.sectorId, artifactId)
+    }
     return { scope: parsed.data.fromScope, referenced: true }
   }
   return undefined
@@ -620,6 +629,7 @@ export async function deleteSession(
   }
   const current = await getSession(db, sessionId, scope)
   if (!current) return false
+  if (await sessionKind(db, sessionId) === 'research') throw new WorkspaceError('conflict', 'The research conversation is retained for this sector. Pause research instead.')
   await appendEvent(db, {
     idempotencyKey: `session:${sessionId}:deleted:${randomUUID()}`,
     partition: `session:${sessionId}`,
@@ -685,6 +695,7 @@ export async function setSessionModel(
 }
 
 export interface CreateArtifactInput {
+  artifactId?: string
   sessionId: string
   name: string
   content: string
@@ -726,6 +737,7 @@ export async function createArtifact(
       body: input.content,
       reason: input.reason ?? 'report',
       producedBy: input.producedBy ?? input.sessionId,
+      artifactId: input.artifactId,
     },
     {
       log: () => undefined,
@@ -733,6 +745,7 @@ export async function createArtifact(
       record: (event) => appendEvent(db, event).then(() => undefined),
     },
   )
+  if (session.sectorId) await indexSectorArtifact(db, session.sectorId, indexed.artifactId, indexed.name, input.content)
   return {
     artifactId: indexed.artifactId,
     name: indexed.name,

@@ -31,7 +31,7 @@ const ALLOWED_ELEMENTS = [
 
 function safeUrl(url: string): string {
   try {
-    const parsed = new URL(url, 'https://chat.local')
+    const parsed = new URL(url)
     if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return url
   } catch {
     // Fall through to the inert anchor below.
@@ -41,9 +41,9 @@ function safeUrl(url: string): string {
 
 const components: Components = {
   p: ({ children }) => <p className="my-1.5 text-sm leading-relaxed first:mt-0 last:mb-0">{children}</p>,
-  h1: ({ children }) => <h1 className="my-2 text-base font-semibold tracking-tight first:mt-0 last:mb-0">{children}</h1>,
-  h2: ({ children }) => <h2 className="my-2 text-sm font-semibold tracking-tight first:mt-0 last:mb-0">{children}</h2>,
-  h3: ({ children }) => <h3 className="my-1.5 text-sm font-semibold first:mt-0 last:mb-0">{children}</h3>,
+  h1: ({ children }) => <h1 className="mt-6 mb-3 text-lg font-semibold tracking-tight first:mt-0 last:mb-0">{children}</h1>,
+  h2: ({ children }) => <h2 className="mt-5 mb-2 text-base font-semibold tracking-tight first:mt-0 last:mb-0">{children}</h2>,
+  h3: ({ children }) => <h3 className="mt-4 mb-2 text-sm font-semibold first:mt-0 last:mb-0">{children}</h3>,
   h4: ({ children }) => <h4 className="my-1.5 text-xs font-semibold tracking-wide text-muted-foreground first:mt-0 last:mb-0">{children}</h4>,
   ul: ({ children }) => <ul className="my-1.5 list-disc space-y-1 pl-5 text-sm marker:text-muted-foreground first:mt-0 last:mb-0">{children}</ul>,
   ol: ({ children }) => <ol className="my-1.5 list-decimal space-y-1 pl-5 text-sm marker:text-muted-foreground first:mt-0 last:mb-0">{children}</ol>,
@@ -52,7 +52,7 @@ const components: Components = {
     <code className="rounded border border-border/70 bg-muted px-1 py-0.5 font-mono text-[0.85em] break-all">{children}</code>
   ),
   pre: ({ children }) => (
-    <pre className="scroll-slim my-2 overflow-x-auto rounded-lg border border-border/70 bg-muted p-2.5 font-mono text-xs first:mt-0 last:mb-0">{children}</pre>
+    <pre className="scroll-slim my-3 overflow-x-auto rounded-lg border border-border/70 bg-muted p-3 font-mono text-xs first:mt-0 last:mb-0 [&_code]:border-0 [&_code]:bg-transparent [&_code]:p-0 [&_code]:break-normal">{children}</pre>
   ),
   table: ({ children }) => (
     <div className="scroll-slim my-2 overflow-x-auto rounded-lg border border-border first:mt-0 last:mb-0">
@@ -84,6 +84,7 @@ const components: Components = {
 
 export function Markdown({ text }: { text: string }) {
   return (
+    <div className="min-w-0 [overflow-wrap:anywhere]">
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       allowedElements={ALLOWED_ELEMENTS}
@@ -94,5 +95,6 @@ export function Markdown({ text }: { text: string }) {
     >
       {text}
     </ReactMarkdown>
+    </div>
   )
 }

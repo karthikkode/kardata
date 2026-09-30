@@ -87,6 +87,7 @@ export const SetSessionModelInput = z.object({
 export type SetSessionModelInput = z.infer<typeof SetSessionModelInput>
 
 export interface Session {
+  kind?: 'research' | 'normal'
   id: string
   title: string
   createdAt: string
@@ -98,6 +99,7 @@ export interface Session {
 }
 
 export interface ThreadView {
+  name?: string
   key: string
   sessionId: string
   kind: string
@@ -226,7 +228,7 @@ export function apiErrorStatus(error: unknown): 'offline' | 'denied' | 'error' {
   return 'error'
 }
 
-async function request<T>(config: StagingConfig, method: string, path: string, body?: unknown): Promise<T> {
+export async function request<T>(config: StagingConfig, method: string, path: string, body?: unknown): Promise<T> {
   const response = await fetch(`${config.baseUrl}${path}`, {
     method,
     headers: {

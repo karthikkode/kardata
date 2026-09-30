@@ -21,7 +21,7 @@ import { toApiMessage, toApiThread } from '../threads/views.js'
 
 export const SNAPSHOT_THRESHOLD = 200
 
-export type StreamFrameType = 'message' | 'state' | 'delta' | 'reasoning' | 'tool' | 'finding' | 'error'
+export type StreamFrameType = 'message' | 'state' | 'delta' | 'reasoning' | 'tool' | 'finding' | 'error' | 'context-version' | 'approval' | 'work-progress' | 'compaction' | 'steering-consumption'
 
 export interface StreamFrame {
   seq: number
@@ -69,6 +69,9 @@ function frameFromRow(row: OutboxRow): StreamFrame | undefined {
     if (typeof payload?.runKey !== 'string' || typeof payload.id !== 'string' || typeof payload.name !== 'string') return undefined
     if (payload.state !== 'running' && payload.state !== 'done' && payload.state !== 'failed') return undefined
     return { seq, threadKey: row.thread_key, type: 'tool', at, payload: { runKey: payload.runKey, id: payload.id, name: payload.name, state: payload.state } }
+  }
+  if (['context-version', 'approval', 'work-progress', 'compaction', 'steering-consumption'].includes(row.type)) {
+    return { seq, threadKey: row.thread_key, type: row.type as StreamFrame['type'], at, payload: row.payload }
   }
   return undefined
 }

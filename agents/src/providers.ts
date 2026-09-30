@@ -44,6 +44,8 @@ export interface ChatImage {
 }
 
 export interface ChatMessage {
+  /** Internal durable transcript provenance; adapters never send this field. */
+  contextSeq?: number
   role: MessageRole
   text?: string
   toolCalls?: ToolCallRequest[]
@@ -58,6 +60,8 @@ export type ToolChoice =
   | { mode: 'named'; name: string }
 
 export interface ProviderRequest {
+  signal?: AbortSignal
+  maxOutputTokens?: number
   systemPrompt: string
   messages: ChatMessage[]
   tools: ToolDefinition[]
@@ -112,6 +116,7 @@ export type StreamEvent =
   | { kind: 'done'; usage: Usage }
 
 export interface ProviderAdapter {
+  countInputTokens?(request: ProviderRequest): Promise<number>
   readonly providerName: string
   chat(request: ProviderRequest): Promise<ProviderResponse>
   chatStream(request: ProviderRequest): AsyncIterable<StreamEvent>

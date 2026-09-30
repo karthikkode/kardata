@@ -3,6 +3,7 @@
 import type { ThreadView } from './project.js'
 
 export interface ApiThread {
+  name?: string
   key: string
   sessionId: string
   kind: 'session' | 'subagent'
@@ -14,6 +15,7 @@ export interface ApiThread {
 
 export function toApiThread(view: ThreadView): ApiThread {
   return {
+    ...(view.name ? { name: view.name } : {}),
     key: view.key,
     sessionId: view.sessionId,
     kind: view.kind,

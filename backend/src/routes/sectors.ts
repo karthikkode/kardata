@@ -24,7 +24,7 @@ import { resolveAdapter } from '../providers/gateway.js'
 import { projectNewEvents } from '../projector.js'
 import {
   createSector,
-  createSession,
+  ensureResearchSession,
   DbContractError,
   getSector,
   ingestSectorDocument,
@@ -236,7 +236,7 @@ export function sectorRoutes(app: FastifyInstance): void {
       // plan take shape instead of a silent background run.
       let sessionId: string
       try {
-        const session = await createSession(pool, 'Research plan', auth.scope, sectorId)
+        const session = await ensureResearchSession(pool, sectorId, auth.scope)
         sessionId = session.id
       } catch (error: unknown) {
         if (error instanceof DbContractError) {
@@ -328,6 +328,7 @@ export function sectorRoutes(app: FastifyInstance): void {
           contentBase64: body.contentBase64,
           scope: auth.scope,
           ocr: resolveOcrAdapter(),
+          archive: (app as FastifyInstance & { kardataArchive?: import('../archive/targets.js').ArchiveTarget }).kardataArchive,
         })
         return { status: 201, body: { ok: true, data: document } }
       } catch (error) {
