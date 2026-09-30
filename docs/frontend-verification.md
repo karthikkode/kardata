@@ -180,3 +180,28 @@ asserts the next hundred plus its count line, the tenth asserts
 `Showing 1000 of 1000 companies` with no Show-more button left.
 Stubbed, hermetic, no backend: `thousandWalkMs=1405` on the run that
 proved it. Verdict: pass, counts truthful at every window.
+
+## Wave 7 (sector workspace: landing + chat workspace, 2026-09-30)
+
+Shots from `workspace.spec.ts` (landing dialog + workspace light/dark
+1440/390, resources drawer), `matrix.spec.ts` (landing light/dark
+1440/390), `polish.spec.ts` (workspace pins/hover/dark),
+`scrollbars.spec.ts` (workspace rail thin), `visual.spec.ts` (landing,
+mobile landing). All anchors asserted before capture, animations frozen.
+
+| component | scenario | seed | shots on disk | automated test | verdict |
+|---|---|---|---|---|---|
+| SectorLanding | summary light 1440 | matrix draft/0cos | `matrix-light-1440-detail.png` | `matrix: light desktop 1440` | pass: status card (Draft + guidance + View progress + Open), Companies empty copy, no spill |
+| SectorLanding | summary dark/mobile | matrix draft/0cos | `matrix-dark-1440-detail.png`, `matrix-light-390-detail.png`, `matrix-dark-390-detail.png`, `wave2-mobile-detail.png`, `sector-detail.png` | matrix dark/mobile, `wave2 mobile sector detail stacked`, `sector detail with context drawer content` | pass: stacks clean at 390, icon rail, cards full-width, dark coherent |
+| SectorWorkspace | 3-rail chat light 1440 | workspace long+30 files | `workspace-1440-light.png`, `workspace-resources-1440-light.png` | `workspace visual 1440 light` | pass: session rail (Research/Chats + Approved state), subagent strip, markdown (h/table/quote/code), files + 4-section context rails |
+| SectorWorkspace | 3-rail chat dark 1440 | workspace long+30 files | `workspace-1440-dark.png`, `workspace-resources-1440-dark.png` | `workspace visual 1440 dark` | pass: dark pairs legible, table/quote/code tinted, rails separated |
+| SectorWorkspace | mobile + resources drawer | workspace long+30 files | `workspace-390-light.png`, `workspace-390-dark.png`, `workspace-resources-390-light/dark.png` | workspace 390 light/dark | pass: rails become drawers (Open sessions / Open files and global context), no sideways spill |
+| Workspace pins | header+composer stay on scroll | long messages | `polish-workspace-sticky.png`, `polish-workspace-dark.png` | polish pins + dark pins | pass: header/composer intersect viewport at scrollTop 600, dark same |
+| Workspace rows | hover/focus containment | research+2 chats | `polish-workspace-hover-focus.png` | polish hover/focus | pass: row hover visible, composer focusable, spill <= 1px |
+| Workspace rails | thin scrollbars | 60 chats | `scroll-workspace-rail.png` | rail thin under overflow | pass: scroll-slim + computed thin on rail and conversation log |
+| Progress dialog | plan + estimate | approved plan v1 | covered by workspace.spec dialog test (no PNG) | `sector summary opens the shared plan/progress dialog` | pass: dialog opens, Esc returns focus to View progress |
+
+Gates (Wave 7): frontend lint 0 errors, typecheck clean, `npm test`
+276 passed / 6 skipped, `npm run build` clean, `npm run test:e2e`
+40 passed / 4 skipped exit 0. Backend live battery 78 files /
+480 tests exit 0 (bounded workers; see status entry on the DB wedge).
