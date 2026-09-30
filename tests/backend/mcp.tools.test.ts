@@ -83,6 +83,10 @@ const SAMPLES: Record<McpToolName, { valid: unknown; invalid: unknown; invoke?: 
   },
   'db.list_sector_documents': { valid: { sectorId: 's' }, invalid: {} },
   'db.read_sector_document': { valid: { sectorId: 's', documentId: 'd' }, invalid: { sectorId: 's' } },
+  'db.query_document': {
+    valid: { documentId: 'd', sectorId: 's', mode: 'chunks', query: 'pricing' },
+    invalid: { documentId: 'd', mode: 'nope' },
+  },
   'db.set_sector_state': { valid: { sectorId: 's', state: 'paused' }, invalid: { sectorId: 's', state: 'nope' } },
   'db.start_sector_research': { valid: { sectorId: 's' }, invalid: { sectorId: '' } },
   'db.pause_sector_research': { valid: { sectorId: 's' }, invalid: { sectorId: '' } },
@@ -91,6 +95,13 @@ const SAMPLES: Record<McpToolName, { valid: unknown; invalid: unknown; invoke?: 
   'db.set_company_stage': { valid: { companyId: 'c', stage: 'Filter' }, invalid: { companyId: 'c', stage: 'nope' } },
   'db.set_company_state': { valid: { companyId: 'c', state: 'running' }, invalid: { companyId: '', state: 'running' } },
   'db.list_artifacts': { valid: { sessionId: 's' }, invalid: {} },
+  'db.create_artifact': {
+    valid: { sessionId: 's', name: 'report.md', content: '# findings' },
+    invalid: { sessionId: 's', name: 'report.md', content: '' },
+    // Invoke needs an archive target + session row: proven by the
+    // dedicated layer and route tests, never the fake pool.
+    invoke: false,
+  },
   'db.reference_artifact': {
     valid: { artifactId: 'a', fromScope: { kind: 'session', id: 's' }, toSessionId: 't' },
     invalid: { artifactId: 'a', fromScope: { kind: 'bogus', id: 's' }, toSessionId: 't' },
@@ -173,6 +184,7 @@ const EXPECTED_TOOLS: McpToolName[] = [
   'db.attach_sector_document',
   'db.list_sector_documents',
   'db.read_sector_document',
+  'db.query_document',
   'db.set_sector_state',
   'db.start_sector_research',
   'db.pause_sector_research',
@@ -181,6 +193,7 @@ const EXPECTED_TOOLS: McpToolName[] = [
   'db.set_company_stage',
   'db.set_company_state',
   'db.list_artifacts',
+  'db.create_artifact',
   'db.reference_artifact',
   'db.resolve_artifact_scope',
   'db.list_tenant_artifacts',

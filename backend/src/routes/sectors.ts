@@ -11,6 +11,7 @@ import { z } from 'zod'
 import type { OcrAdapter } from '../db/index.js'
 import {
   addContextNotes,
+  compactSectorContext,
   getSectorContext,
   setUnitExclusions,
 } from '../db/sector-context.js'
@@ -409,6 +410,30 @@ export function sectorRoutes(app: FastifyInstance): void {
       } catch (error) {
         if (error instanceof DbContractError) {
           const status = error.message.startsWith('unknown sector') ? 404 : 400
+          const code = status === 404 ? 'not_found' : 'validation_failed'
+          return { status, body: { ok: false, error: { code, message: error.message } } }
+        }
+        throw error
+      }
+    })
+  })
+
+  route(app, 'post', '/v1/sectors/:sectorId/context/compact', async (request, reply, app) => {
+    const pool = requirePool(app, reply)
+    if (!pool) return undefined
+    const auth = await authorize(app, request, reply, 'operator')
+    if (!auth) return undefined
+    const params = request.params as { sectorId?: string }
+    const sectorId = params.sectorId ?? ''
+    return withIdempotency(request, reply, pool, auth.keyId, async () => {
+      await projectNewEvents(pool)
+      try {
+        const result = await compactSectorContext(pool, sectorId, auth.scope)
+        return { status: 200, body: { ok: true, data: result } }
+      } catch (error) {
+        if (error instanceof DbContractError) {
+          // Layer messages carry the `db contract:` prefix; match inside.
+          const status = error.message.includes('unknown sector') ? 404 : 400
           const code = status === 404 ? 'not_found' : 'validation_failed'
           return { status, body: { ok: false, error: { code, message: error.message } } }
         }

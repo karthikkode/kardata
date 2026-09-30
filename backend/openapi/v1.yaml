@@ -111,6 +111,37 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/IdempotencyReplay'
+  /v1/sessions/{sessionId}/compact:
+    post:
+      operationId: compactSession
+      tags: [sessions]
+      summary: Extractive compaction marker for long histories; short histories report honestly.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Compaction outcome.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    required: [sessionId, compacted, messageCount]
+                    properties:
+                      sessionId:
+                        type: string
+                      compacted:
+                        type: boolean
+                      messageCount:
+                        type: integer
+        '404':
+          $ref: '#/components/responses/NotFound'
   /v1/sessions/{sessionId}/rename:
     post:
       operationId: renameSession
@@ -193,6 +224,48 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProviderCatalog'
   /v1/sessions/{sessionId}/artifacts:
+    post:
+      operationId: createSessionArtifact
+      tags: [artifacts]
+      summary: Create and index a session file or report.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, content]
+              properties:
+                name:
+                  type: string
+                content:
+                  type: string
+                kind:
+                  type: string
+                  enum: [file, proposal, report]
+                detail:
+                  type: string
+                reason:
+                  type: string
+                  enum: [subagent_output, user_upload, report, proposal]
+      responses:
+        '201':
+          description: Created artifact summary.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactSummary'
+        '400':
+          description: Invalid artifact input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
     get:
       operationId: listSessionArtifacts
       tags: [artifacts]
@@ -769,6 +842,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/sectors/{sectorId}/context/compact:
+    post:
+      operationId: compactSectorContext
+      tags: [sectors]
+      summary: Consolidate multiple context notes into one summary; fewer than two notes is an honest no-op.
+      parameters:
+        - $ref: '#/components/parameters/SectorId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Compaction outcome.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    required: [sectorId, compacted, beforeCount, afterCount]
+                    properties:
+                      sectorId:
+                        type: string
+                      compacted:
+                        type: boolean
+                      beforeCount:
+                        type: integer
+                      afterCount:
+                        type: integer
         '404':
           $ref: '#/components/responses/NotFound'
   /v1/sectors/{sectorId}/context:

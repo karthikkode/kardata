@@ -1718,3 +1718,31 @@ scale claims with evidence links.
   → start (5 s) → steer dispatch → pause → resume → complete
   (10 s sweep), zero console errors, zero failed requests, shots at
   every state. Evidence: tests/evidence/plan-03/.
+
+## Session files + document query + compaction (backend slice of antigravity revamp)
+
+- `querySectorDocument` layer + `db.query_document` (viewer, both
+  palettes): TOC summary default, query/ords chunk slicing; visibility
+  always passes through the owning sector (unscoped ids resolve the
+  owner first). Proven by stub-DB tests + MCP parity samples.
+- `createArtifact` layer + `db.create_artifact` (operator, both
+  palettes) + `POST /v1/sessions/:id/artifacts` (201, idempotent):
+  unknown sessions fail before any byte lands. Archive target plumbs
+  through `kardataArchive` into the MCP server. Proven by hermetic
+  layer tests + live route tests incl. serve round-trip.
+- `compactSectorContext` + `POST /v1/sectors/:id/context/compact`
+  (operator, idempotent): multi-note merge into one bounded summary
+  (truncation marked); single-note reruns report compacted:false.
+  `POST /v1/sessions/:id/compact`: extractive marker over condense
+  with a deterministic key (retries replay, never duplicate); short
+  histories report honestly.
+- Spec: three POST ops with ids + idempotency keys (contract suite
+  green). Docs: binding rows + this entry in the same change.
+- Finding (pre-existing, not this change): PATCH context maps unknown
+  sectors with `startsWith('unknown sector')` but layer messages carry
+  the `db contract:` prefix, so it answers 400 instead of 404. The new
+  compact route matches with `includes`. PATCH fix is a follow-up.
+- Deferred to the agents pass: `TurnMode 'plan'` prompt/skill text
+  (gateway union widened already), tokenCap retune, frontend
+  surfaces (Files tab, Plan mode, approval cards, pillar tabs stay in
+  the stashed revamp tree).

@@ -219,6 +219,43 @@ describe.skipIf(!ENABLED)('session artifacts (files menu)', () => {
     expect(cross.statusCode).toBe(404)
   })
 
+  it('creates session files for operators, never viewers', async () => {
+    const denied = await app.inject({
+      method: 'POST',
+      url: `/v1/sessions/${sessionA}/artifacts`,
+      headers: authHeader(KEYS.viewer.presented),
+      payload: { name: 'report.md', content: '# findings' },
+    })
+    expect(denied.statusCode).toBe(403)
+
+    const created = await app.inject({
+      method: 'POST',
+      url: `/v1/sessions/${sessionA}/artifacts`,
+      headers: authHeader(KEYS.operator.presented),
+      payload: { name: 'report.md', content: '# findings', kind: 'report', reason: 'report' },
+    })
+    expect(created.statusCode).toBe(201)
+    const summary = (created.json() as { data: { artifactId: string; name: string } }).data
+    expect(summary.name).toBe('report.md')
+
+    // The file is immediately servable through the body route.
+    const served = await app.inject({
+      method: 'GET',
+      url: `/v1/sessions/${sessionA}/artifacts/${summary.artifactId}/body`,
+      headers: authHeader(KEYS.viewer.presented),
+    })
+    expect(served.statusCode).toBe(200)
+    expect((served.json() as { data: { body: string } }).data.body).toBe('# findings')
+
+    const missing = await app.inject({
+      method: 'POST',
+      url: '/v1/sessions/s-nope/artifacts',
+      headers: authHeader(KEYS.operator.presented),
+      payload: { name: 'r.md', content: 'x' },
+    })
+    expect(missing.statusCode).toBe(404)
+  })
+
   it('attaches files across sessions for operators, never viewers', async () => {
     const created = await app.inject({
       method: 'POST',

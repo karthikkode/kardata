@@ -4,17 +4,23 @@
 // B3.4: create honors Idempotency-Key (replay the session, 409 on key
 // reuse for a different title).
 import type { FastifyInstance } from 'fastify'
+import { createHash } from 'node:crypto'
 import { z } from 'zod'
+import { condense } from '@kardata/agents'
 import {
+  appendEvent,
   createSession,
   deleteSession,
   getSector,
   getSession,
+  getThread,
   listSessions,
   renameSession,
   setSessionModel,
 } from '../db/index.js'
 import { RunNotFound, SESSION_PREFIX } from '../temporal/gateway.js'
+import { projectNewEvents } from '../projector.js'
+import { chatHistory } from '../temporal/activities/turn.js'
 import type { ModelCatalog } from '../providers/catalog.js'
 import { DEFAULT_EFFORT } from '../providers/registry.js'
 import { authorize, parseInput, requirePool, requireRuns, route, sendError, withIdempotency } from './http.js'
@@ -169,6 +175,67 @@ export function sessionRoutes(app: FastifyInstance, catalog: ModelCatalog): void
         }
       }
       return { status: 200, body: { ok: true, data: session } }
+    })
+  })
+
+  route(app, 'post', '/v1/sessions/:sessionId/compact', async (request, reply, app) => {
+    const pool = requirePool(app, reply)
+    if (!pool) return undefined
+    const auth = await authorize(app, request, reply, 'operator')
+    if (!auth) return undefined
+    const params = request.params as { sessionId?: string }
+    const sessionId = params.sessionId ?? ''
+    const session = await getSession(pool, sessionId, auth.scope)
+    if (!session) return sendError(reply, 404, 'not_found', `no such session ${sessionId}`)
+    return withIdempotency(request, reply, pool, auth.keyId, async () => {
+      const thread = await getThread(pool, sessionId)
+      // chatHistory appends the in-flight user turn; drop that trailing
+      // empty turn so the count reflects persisted history only.
+      const turns = chatHistory(thread?.messages ?? [], '').slice(0, -1)
+      if (turns.length < 4) {
+        return {
+          status: 200,
+          body: {
+            ok: true,
+            data: { sessionId, compacted: false, messageCount: turns.length, reason: 'history below compaction threshold' },
+          },
+        }
+      }
+      // Extractive marker: the summary names what was seen, history rows
+      // stay untouched. A model rewrite is a later phase, not this route.
+      const outcome = await condense({
+        messages: turns,
+        keepFirst: 1,
+        maxSize: 6,
+        force: true,
+        summarizer: 'session:compaction',
+        summarize: async (forgotten) => {
+          const bullets = forgotten
+            .slice(0, 8)
+            .map((turn) => `${turn.role}: ${(turn.text ?? '').slice(0, 80).replace(/\s+/g, ' ')}`)
+            .join('; ')
+          return `Condensed ${forgotten.length} historical turns (${bullets}).`
+        },
+      })
+      if (!outcome.needed) {
+        return {
+          status: 200,
+          body: { ok: true, data: { sessionId, compacted: false, messageCount: turns.length, reason: 'nothing to condense' } },
+        }
+      }
+      const summaryText = `[Context Compaction] ${outcome.summary.summaryText}`
+      const key = `session-compact:${sessionId}:${turns.length}:${createHash('sha256').update(summaryText).digest('hex').slice(0, 16)}`
+      await appendEvent(pool, {
+        idempotencyKey: key,
+        partition: `session:${sessionId}`,
+        type: 't.message.appended',
+        payload: { threadKey: sessionId, kind: 'text', message: { role: 'assistant', text: summaryText, compacted: true } },
+      })
+      await projectNewEvents(pool)
+      return {
+        status: 200,
+        body: { ok: true, data: { sessionId, compacted: true, messageCount: turns.length, summary: outcome.summary } },
+      }
     })
   })
 }

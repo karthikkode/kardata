@@ -128,7 +128,8 @@ adds auth, transport, and tool schemas, never SQL.
 | `db.pause_sector_research` / `db.resume_sector_research` | `pauseSectorResearch` / `resumeSectorResearch` | running ↔ paused owner transitions (state-only) |
 | `db.mark_company_found` | `markCompanyFound` | appends company.found |
 | `db.set_company_stage` / `db.set_company_state` | `setCompanyStage` / `setCompanyState` | appends stage/state transitions |
-| `db.list_artifacts` | `listArtifacts` | session files menu (own + referenced) |
+| `db.list_artifacts` / `db.create_artifact` | `listArtifacts` / `createArtifact` | session files menu (own + referenced); create stores bytes, indexes, and serves immediately (unknown sessions fail before any write) |
+| `db.query_document` | `querySectorDocument` | dual-mode context file query: TOC summary by default, targeted unit search/slice on demand; visibility passes through the owning sector |
 | `db.reference_artifact` | `referenceArtifact` | cross-session attach, indexed-only |
 | `db.resolve_artifact_scope` | `resolveArtifactScope` | owning scope for serve |
 | `db.list_tenant_artifacts` | `listTenantArtifacts` | tenant attach discovery |
