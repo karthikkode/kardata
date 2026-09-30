@@ -7,7 +7,7 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import type { Scope } from '../auth/keys.js'
-import { countDocumentUnits, insertDocumentUnits } from './document-units.js'
+import { countDocumentUnits, insertDocumentUnits, listDocumentUnits } from './document-units.js'
 import { DbContractError } from './errors.js'
 import type { Db } from './events.js'
 import {
@@ -196,4 +196,121 @@ export async function readSectorDocument(
     status: (row.status === 'needs-ocr' ? 'needs-ocr' : 'indexed') as ExtractionStatus,
     text: row.text,
   }
+}
+
+export interface QuerySectorDocumentInput {
+  documentId: string
+  sectorId?: string
+  mode?: 'summary' | 'chunks'
+  query?: string
+  ords?: number[]
+  scope?: Scope
+}
+
+export interface DocumentTocEntry {
+  ord: number
+  kind: string
+  preview: string
+  uncertain: boolean
+}
+
+export interface DocumentSummaryResult {
+  documentId: string
+  filename: string
+  status: ExtractionStatus
+  mediaType: string
+  chars: number
+  totalUnits: number
+  toc: DocumentTocEntry[]
+}
+
+export interface DocumentChunksResult {
+  documentId: string
+  filename: string
+  status: ExtractionStatus
+  units: Array<{ ord: number; kind: string; text: string; uncertain: boolean }>
+}
+
+export type QuerySectorDocumentResult = DocumentSummaryResult | DocumentChunksResult
+
+/** Dual-mode document query: a TOC summary by default, targeted unit
+ * search/slice on demand — turns cite units instead of dumping whole
+ * files into context. Visibility always passes through the owning
+ * sector: without a sectorId the owner is resolved from the document
+ * row first, so an id alone never crosses tenants. Previews are capped
+ * slices; only explicit chunk reads return full unit text. */
+export async function querySectorDocument(
+  db: Db,
+  input: QuerySectorDocumentInput,
+): Promise<QuerySectorDocumentResult> {
+  if (!z.string().min(1).safeParse(input.documentId).success) {
+    throw new DbContractError('documentId must be a non-empty string')
+  }
+  const sectorId = input.sectorId ?? (await owningSectorId(db, input.documentId))
+  const sector = await getSector(db, sectorId, input.scope)
+  if (!sector) throw new DbContractError(`unknown sector ${sectorId}`)
+  const { rows } = await db.query<{
+    id: string
+    filename: string
+    media_type: string
+    text: string
+    status: string
+  }>(
+    `SELECT id, filename, media_type, text, status
+     FROM sector_documents WHERE sector_id = $1 AND id = $2`,
+    [sectorId, input.documentId],
+  )
+  const doc = rows[0]
+  if (!doc) throw new DbContractError(`unknown document ${input.documentId} in sector ${sectorId}`)
+  const status = (doc.status === 'needs-ocr' ? 'needs-ocr' : 'indexed') as ExtractionStatus
+  const base = { documentId: doc.id, filename: doc.filename, status }
+  const mode = input.mode ?? (input.query || (input.ords && input.ords.length > 0) ? 'chunks' : 'summary')
+  if (mode === 'chunks') {
+    if (input.ords && input.ords.length > 0) {
+      const { rows: slices } = await db.query<{ ord: number; kind: string; text: string; uncertain: boolean }>(
+        `SELECT ord, kind, text, uncertain FROM sector_document_units
+         WHERE document_id = $1 AND ord = ANY($2::int[]) ORDER BY ord ASC`,
+        [input.documentId, input.ords],
+      )
+      return { ...base, units: slices }
+    }
+    if (input.query && input.query.trim().length > 0) {
+      const { rows: matches } = await db.query<{ ord: number; kind: string; text: string; uncertain: boolean }>(
+        `SELECT ord, kind, text, uncertain FROM sector_document_units
+         WHERE document_id = $1 AND text ILIKE $2 ORDER BY ord ASC LIMIT 10`,
+        [input.documentId, `%${input.query.trim()}%`],
+      )
+      return { ...base, units: matches }
+    }
+    const units = await listDocumentUnits(db, input.documentId)
+    return {
+      ...base,
+      units: units.slice(0, 20).map((unit) => ({ ord: unit.ord, kind: unit.kind, text: unit.text, uncertain: unit.uncertain })),
+    }
+  }
+  const units = await listDocumentUnits(db, input.documentId)
+  return {
+    ...base,
+    mediaType: doc.media_type,
+    chars: doc.text.length,
+    totalUnits: units.length,
+    toc: units.map((unit) => ({
+      ord: unit.ord,
+      kind: unit.kind,
+      preview: unit.text.slice(0, 150).replace(/\s+/g, ' ').trim(),
+      uncertain: unit.uncertain,
+    })),
+  }
+}
+
+/** Owning sector for a document id; unknown ids fail before any sector
+ * read so enumeration learns nothing. */
+async function owningSectorId(db: Db, documentId: string): Promise<string> {
+  const { rows } = await db.query<{ sector_id: string }>(
+    'SELECT sector_id FROM sector_documents WHERE id = $1',
+    [documentId],
+  )
+  const owner = rows[0]?.sector_id
+  if (!owner) throw new DbContractError(`unknown document ${documentId}`)
+  return owner
 }

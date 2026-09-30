@@ -15,6 +15,7 @@ import {
   checkRate,
   claimIdempotency,
   completeIdempotency,
+  createArtifact,
   createSector,
   createSession,
   DbContractError,
@@ -42,6 +43,7 @@ import {
   markCompanyFound,
   projectBatch,
   projectUsage,
+  querySectorDocument,
   readEventsAfter,
   readOutboxBacklog,
   readPartition,
@@ -90,6 +92,7 @@ import {
 } from '../browserPool/facade.js'
 import type { BrowserAct } from '../retrieval/browser.js'
 import { RetrievalError } from '../retrieval/web.js'
+import type { ArchiveTarget } from '../archive/targets.js'
 
 type BrowserActArgs = BrowserAct
 
@@ -109,6 +112,9 @@ export interface McpToolContext {
   /** Thread messenger (runs gateway) for Karbot steering tools. Absent
    * outside the server: send/steer fail closed instead of half-signaling. */
   messenger?: ThreadMessenger
+  /** Archive target for file body storage. Absent: the layer resolves its
+   * default (filesystem dev target, GCS when configured). */
+  archive?: ArchiveTarget
   /** Optional join-key logger. When present every tool execution emits the
    * start/done/error triple (op tool.call, tool name, latencyMs, outcome)
    * so cross-module calls always leave evidence. Absent in unit tests. */
@@ -135,6 +141,7 @@ export const TOOL_LAYER: Record<McpToolName, string> = {
   'db.attach_sector_document': 'ingestSectorDocument',
   'db.list_sector_documents': 'listSectorDocuments',
   'db.read_sector_document': 'readSectorDocument',
+  'db.query_document': 'querySectorDocument',
   'db.set_sector_state': 'setSectorState',
   'db.start_sector_research': 'startSectorResearch',
   'db.pause_sector_research': 'pauseSectorSweep',
@@ -143,6 +150,7 @@ export const TOOL_LAYER: Record<McpToolName, string> = {
   'db.set_company_stage': 'setCompanyStage',
   'db.set_company_state': 'setCompanyState',
   'db.list_artifacts': 'listArtifacts',
+  'db.create_artifact': 'createArtifact',
   'db.reference_artifact': 'referenceArtifact',
   'db.resolve_artifact_scope': 'resolveArtifactScope',
   'db.list_tenant_artifacts': 'listTenantArtifacts',
@@ -230,6 +238,7 @@ export const TOOL_META: Record<McpToolName, { description: string; minRole: Role
   'db.attach_sector_document': { description: 'Attach a context document to a sector (.md/.txt/.csv/.json/.pdf/.docx/.png/.jpg/.webp). Images and scanned PDFs index via OCR when configured, else attach as needs-ocr.', minRole: 'operator' },
   'db.list_sector_documents': { description: 'List context documents for a sector.', minRole: 'viewer' },
   'db.read_sector_document': { description: 'Read one context document with its full extracted text, for quoting a file back. needs-ocr rows carry empty text.', minRole: 'viewer' },
+  'db.query_document': { description: 'Query a context document: TOC summary by default, targeted unit search/slice on demand. Cite units, never dump whole files.', minRole: 'viewer' },
   'db.set_sector_state': { description: 'Transition a sector (appends sector.state_changed).', minRole: 'operator' },
   'db.start_sector_research': { description: 'Start research on a draft sector: draft -> queued, then the sweep starts. Explicit only; already-started sectors conflict; a failed sweep start compensates back to draft. Pass sessionId (your calling chat) so the chat pins this research; pass idempotencyKey for safe retries.', minRole: 'operator' },
   'db.pause_sector_research': { description: 'Pause a running sector: running -> paused (owner intent in state). Only running sectors pause.', minRole: 'operator' },
@@ -238,6 +247,7 @@ export const TOOL_META: Record<McpToolName, { description: string; minRole: Role
   'db.set_company_stage': { description: 'Transition a company stage.', minRole: 'operator' },
   'db.set_company_state': { description: 'Transition a company state.', minRole: 'operator' },
   'db.list_artifacts': { description: 'Session files menu (own + referenced).', minRole: 'viewer' },
+  'db.create_artifact': { description: 'Create and index a session file or report (visible in the session files menu).', minRole: 'operator' },
   'db.reference_artifact': { description: 'Cross-session artifact attach (indexed only).', minRole: 'operator' },
   'db.resolve_artifact_scope': { description: 'Owning scope for artifact serve.', minRole: 'viewer' },
   'db.list_tenant_artifacts': { description: 'Tenant attach discovery across sessions.', minRole: 'viewer' },
@@ -348,6 +358,15 @@ const INVOKERS: Invokers = {
     ingestSectorDocument(ctx.pool, { sectorId: args.sectorId, filename: args.filename, contentBase64: args.contentBase64, scope: ctx.scope }),
   'db.list_sector_documents': (ctx, args) => listSectorDocuments(ctx.pool, args.sectorId, ctx.scope),
   'db.read_sector_document': (ctx, args) => readSectorDocument(ctx.pool, args.sectorId, args.documentId, ctx.scope),
+  'db.query_document': (ctx, args) =>
+    querySectorDocument(ctx.pool, {
+      documentId: args.documentId,
+      ...(args.sectorId === undefined ? {} : { sectorId: args.sectorId }),
+      ...(args.mode === undefined ? {} : { mode: args.mode }),
+      ...(args.query === undefined ? {} : { query: args.query }),
+      ...(args.ords === undefined ? {} : { ords: args.ords }),
+      scope: ctx.scope,
+    }),
   'db.set_sector_state': (ctx, args) =>
     setSectorState(ctx.pool, args.sectorId, args.state, { scope: ctx.scope, idempotencyKey: args.idempotencyKey }).then(() => ({ ok: true })),
   'db.start_sector_research': async (ctx, args) => {
@@ -394,6 +413,22 @@ const INVOKERS: Invokers = {
   'db.set_company_state': (ctx, args) =>
     setCompanyState(ctx.pool, args.companyId, args.state, { scope: ctx.scope, idempotencyKey: args.idempotencyKey }).then(() => ({ ok: true })),
   'db.list_artifacts': (ctx, args) => listArtifacts(ctx.pool, args.sessionId),
+  // Session files: bytes land in the request archive target when the
+  // server provides one, else the layer's resolved default.
+  'db.create_artifact': (ctx, args) =>
+    createArtifact(
+      ctx.pool,
+      {
+        sessionId: args.sessionId,
+        name: args.name,
+        content: args.content,
+        ...(args.kind === undefined ? {} : { kind: args.kind }),
+        ...(args.detail === undefined ? {} : { detail: args.detail }),
+        ...(args.reason === undefined ? {} : { reason: args.reason }),
+        scope: ctx.scope,
+      },
+      ctx.archive,
+    ),
   'db.reference_artifact': (ctx, args) =>
     referenceArtifact(ctx.pool, { artifactId: args.artifactId, fromScope: args.fromScope, toSessionId: args.toSessionId, scope: ctx.scope }),
   'db.resolve_artifact_scope': (ctx, args) => resolveArtifactScope(ctx.pool, args.sessionId, args.artifactId),

@@ -9,6 +9,7 @@ import type { Logger } from 'pino'
 import { resolveCaller, roleAtLeast, type Role, type Scope } from '../auth/keys.js'
 import type { TransactableDb } from '../db/index.js'
 import type { RunsGateway } from '../temporal/gateway.js'
+import type { ArchiveTarget } from '../archive/targets.js'
 import { childLogger } from '../observability/logging.js'
 import { TOOL_NAMES, type McpToolName } from './schemas.js'
 import { createMcpServer, type ToolGrant } from './tools.js'
@@ -56,7 +57,7 @@ export function mcpRoutes(app: FastifyInstance): void {
     // response text, so the content type is fixed up front for both paths.
     reply.header('content-type', 'application/json')
     return withIdempotency(request, reply, pool, auth.keyId, async () => {
-      const deps = app as FastifyInstance & { kardataRuns?: RunsGateway; kardataLogger?: Logger }
+      const deps = app as FastifyInstance & { kardataRuns?: RunsGateway; kardataLogger?: Logger; kardataArchive?: ArchiveTarget }
       const runs = deps.kardataRuns
       // Worker-narrowed tool grant (x-kardata-tool-grant): the worker sends
       // its effective palette (product ∩ sector ∩ skill) so the server
@@ -80,9 +81,9 @@ export function mcpRoutes(app: FastifyInstance): void {
           }
         }
         const grant: ToolGrant = { allow: new Set(names as McpToolName[]) }
-        return serveMcp(request, reply, pool, auth, runs, deps.kardataLogger, body, grant)
+        return serveMcp(request, reply, pool, auth, runs, deps.kardataLogger, deps.kardataArchive, body, grant)
       }
-      return serveMcp(request, reply, pool, auth, runs, deps.kardataLogger, body, {})
+      return serveMcp(request, reply, pool, auth, runs, deps.kardataLogger, deps.kardataArchive, body, {})
     })
   })
 }
@@ -96,6 +97,7 @@ async function serveMcp(
   auth: { scope: Scope | undefined; role: Role; keyId: string },
   runs: RunsGateway | undefined,
   logger: Logger | undefined,
+  archive: ArchiveTarget | undefined,
   body: unknown,
   grant: ToolGrant,
 ): Promise<{ status: number; body: string }> {
@@ -111,7 +113,7 @@ async function serveMcp(
   // The runs gateway satisfies every runner interface structurally
   // (sweep starter, thread messenger, subagent delegator); absent runners
   // fail their tools closed instead of half-acting.
-  const server = createMcpServer({ pool, scope: auth.scope, role: auth.role, keyId: auth.keyId, ...(toolLogger ? { logger: toolLogger } : {}), ...(runs ? { runs, messenger: runs, delegator: runs } : {}) }, grant)
+  const server = createMcpServer({ pool, scope: auth.scope, role: auth.role, keyId: auth.keyId, ...(toolLogger ? { logger: toolLogger } : {}), ...(runs ? { runs, messenger: runs, delegator: runs } : {}), ...(archive ? { archive } : {}) }, grant)
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,

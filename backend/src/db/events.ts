@@ -9,9 +9,13 @@ import { z } from 'zod'
 import {
   indexedEventKey,
   referencedEventKey,
+  storeAndIndex,
   storedEventKey,
+  type ArtifactKind,
+  type ArtifactReason,
   type ArtifactScope,
 } from '../artifacts/pipeline.js'
+import { resolveArchiveTarget, type ArchiveTarget } from '../archive/targets.js'
 import type { Scope } from '../auth/keys.js'
 import { scrubSecrets } from '../observability/logging.js'
 import { DbContractError } from './errors.js'
@@ -678,4 +682,66 @@ export async function setSessionModel(
   const stored = await getSessionModel(db, sessionId)
   if (!stored) throw new Error('setSessionModel: model missing after append')
   return stored
+}
+
+export interface CreateArtifactInput {
+  sessionId: string
+  name: string
+  content: string
+  kind?: ArtifactKind
+  detail?: string
+  reason?: ArtifactReason
+  producedBy?: string
+  scope?: Scope
+}
+
+/** Creates, writes, and indexes a file or report artifact for a session.
+ * Bytes land in the archive target; stored and indexed events append to
+ * the session partition so the file is immediately discoverable and
+ * servable. Unknown sessions fail before any byte is written. */
+export async function createArtifact(
+  db: Db,
+  input: CreateArtifactInput,
+  archive?: ArchiveTarget,
+): Promise<ArtifactSummary> {
+  if (!KeySchema.safeParse(input.sessionId).success) {
+    throw new DbContractError('sessionId must be a non-empty string')
+  }
+  if (!KeySchema.safeParse(input.name).success) {
+    throw new DbContractError('name must be a non-empty string')
+  }
+  if (typeof input.content !== 'string' || input.content.length === 0) {
+    throw new DbContractError('content must be a non-empty string')
+  }
+  const session = await getSession(db, input.sessionId, input.scope)
+  if (!session) throw new DbContractError(`unknown session ${input.sessionId}`)
+  const target = archive ?? resolveArchiveTarget()
+  const indexed = await storeAndIndex(
+    target,
+    {
+      scope: { kind: 'session', id: input.sessionId },
+      kind: input.kind ?? 'file',
+      name: input.name,
+      detail: input.detail,
+      body: input.content,
+      reason: input.reason ?? 'report',
+      producedBy: input.producedBy ?? input.sessionId,
+    },
+    {
+      log: () => undefined,
+      findEvent: (key) => findEventByKey(db, key),
+      record: (event) => appendEvent(db, event).then(() => undefined),
+    },
+  )
+  return {
+    artifactId: indexed.artifactId,
+    name: indexed.name,
+    kind: indexed.kind,
+    bytes: indexed.bytes,
+    sha256: indexed.sha256,
+    detail: indexed.detail,
+    reason: indexed.reason,
+    producedBy: indexed.producedBy,
+    indexed: true,
+  }
 }

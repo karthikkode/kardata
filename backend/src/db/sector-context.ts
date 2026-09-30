@@ -212,3 +212,57 @@ export async function getSectorContext(db: Db, sectorId: string, scope?: Scope):
   const usage = describeSegments({ system: [system], tools: [], references, history: [], tail: [] })
   return { sectorId, digest, segments, usage, files, notes }
 }
+
+export interface CompactContextResult {
+  sectorId: string
+  compacted: boolean
+  beforeCount: number
+  afterCount: number
+  digest: SectorDigest
+  notes: ContextNoteView[]
+  usage: ContextUsage
+}
+
+/** Consolidate multiple context notes into one bounded summary note.
+ * Visibility passes through getSectorContext (unknown/invisible sectors
+ * fail before any write). Below two notes there is nothing to merge and
+ * the call reports compacted:false — a retry after success is an honest
+ * no-op, never a duplicate. The consolidated text carries every source
+ * note verbatim (bounded at 2000 chars like note writes); truncation is
+ * reported, never silent. */
+export async function compactSectorContext(
+  db: Db,
+  sectorId: string,
+  scope?: Scope,
+): Promise<CompactContextResult> {
+  const current = await getSectorContext(db, sectorId, scope)
+  if (current.notes.length <= 1) {
+    return {
+      sectorId,
+      compacted: false,
+      beforeCount: current.notes.length,
+      afterCount: current.notes.length,
+      digest: current.digest,
+      notes: current.notes,
+      usage: current.usage,
+    }
+  }
+  const joined = current.notes.map((note, index) => `[${index + 1}] ${note.text}`).join('\n')
+  const header = `Consolidated summary (${current.notes.length} notes):\n`
+  const truncated = header.length + joined.length > 2000
+  const consolidated = truncated
+    ? `${header}${joined.slice(0, 2000 - header.length - 15)}...(truncated)`
+    : `${header}${joined}`
+  await db.query('DELETE FROM sector_context_notes WHERE sector_id = $1', [sectorId])
+  await addContextNotes(db, sectorId, [consolidated])
+  const updated = await getSectorContext(db, sectorId, scope)
+  return {
+    sectorId,
+    compacted: true,
+    beforeCount: current.notes.length,
+    afterCount: updated.notes.length,
+    digest: updated.digest,
+    notes: updated.notes,
+    usage: updated.usage,
+  }
+}
