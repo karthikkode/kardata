@@ -745,7 +745,7 @@ export async function createArtifact(
       record: (event) => appendEvent(db, event).then(() => undefined),
     },
   )
-  if (session.sectorId) await indexSectorArtifact(db, session.sectorId, indexed.artifactId, indexed.name, input.content)
+  if (session.sectorId) await indexSectorArtifact(db, session.sectorId, indexed.artifactId, indexed.name, input.content, input.scope)
   return {
     artifactId: indexed.artifactId,
     name: indexed.name,

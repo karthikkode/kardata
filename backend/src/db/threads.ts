@@ -145,8 +145,12 @@ async function applyEvent(db: Db, event: StoredEvent): Promise<boolean> {
     case 't.session.deleted': {
       // Tombstone projects the session thread away: sends, steers, and
       // thread reads 404 from here on, while the event log keeps history.
+      // Local memory and steering rows follow the thread (no hard FK: they
+      // must survive rebuildFromEvents, which truncates threads).
       const payload = SessionDeleted.parse(event.payload)
       await db.query(`DELETE FROM threads WHERE key = $1`, [payload.sessionId])
+      await db.query(`DELETE FROM thread_context WHERE thread_key = $1`, [payload.sessionId])
+      await db.query(`DELETE FROM thread_instructions WHERE thread_key = $1`, [payload.sessionId])
       return true
     }
     case 't.subagent.launched': {

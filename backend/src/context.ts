@@ -47,6 +47,6 @@ export async function compactOwnerThread(db: TransactableDb, threadKey: string, 
     // exact registry schema for counting, rather than reducing its fields.
     return { name, description: TOOL_META[key].description, parameters: schema as unknown as ToolDefinition['parameters'] }
   })
-  const system = composeSystemPrompt(KARBOT_SYSTEM_PROMPT, { preload: session.sectorId ? await workspaceReferences(db, session.sectorId) : [] })
+  const system = composeSystemPrompt(KARBOT_SYSTEM_PROMPT, { preload: session.sectorId ? await workspaceReferences(db, session.sectorId, scope) : [] })
   return compactThread(db, threadKey, resolveAdapter(selected.provider, { model: selected.model }), true, scope, { system, tools, window: model.contextWindow })
 }

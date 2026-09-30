@@ -287,7 +287,8 @@ describe.skipIf(!ENABLED)('sector research routes (B-S4)', () => {
       state: 'planning',
     })
     expect(runsGateway.startedPlans).toContain(draft.id)
-    // The planning chat is visible in the sector pool immediately.
+    // The research session is visible in the sector pool immediately
+    // (one session per sector; planning happens inside it).
     const chats = await app.inject({
       method: 'GET',
       url: `/v1/sessions?sectorId=${draft.id}`,
@@ -295,7 +296,7 @@ describe.skipIf(!ENABLED)('sector research routes (B-S4)', () => {
     })
     expect(chats.statusCode).toBe(200)
     expect((chats.json() as { data: Array<{ title: string }> }).data.map((entry) => entry.title)).toContain(
-      'Research plan',
+      'Research',
     )
 
     const conflict = await app.inject({ method: 'POST', url: `/v1/sectors/${sector}/plan`, headers: operator })
@@ -400,10 +401,17 @@ describe.skipIf(!ENABLED)('sector research routes (B-S4)', () => {
     const refused = await app.inject({ method: 'POST', url: `/v1/sectors/${draft.id}/start`, headers: operator })
     expect(refused.statusCode).toBe(409)
 
-    // Plan-mandatory flow: plan, approve the version, then start.
+    // Plan-mandatory flow: plan, approve the version, then start. Start
+    // requires an approved *executable* plan (```research-plan block).
     const planned = await app.inject({ method: 'POST', url: `/v1/sectors/${draft.id}/plan`, headers: operator })
     expect(planned.statusCode).toBe(200)
-    await recordPlanVersion(pool, draft.id, '## scope\nShaped in chat.', `plan-approved-${STAMP}`, {
+    const executable = JSON.stringify({
+      discovery: [{ id: 'd1', title: 'Seed discovery', queries: ['seed'], maxPages: 1 }],
+      companyBrief: 'Seed brief.',
+      budgets: { maxCompanies: 10, maxWallMinutes: 60, concurrency: 2 },
+      acceptance: ['Seed acceptance.'],
+    })
+    await recordPlanVersion(pool, draft.id, `## scope\nShaped in chat.\n\n\`\`\`research-plan\n${executable}\n\`\`\``, `plan-approved-${STAMP}`, {
       tenantId: 'tenant-sec',
       projectId: null,
     })

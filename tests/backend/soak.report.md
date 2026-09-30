@@ -13,9 +13,9 @@ no retune needed at synthetic scale.
 
 ## Detection latency
 
-- sweep batch p50/p99 over 11 runs: 1ms / 1ms (budget 10000ms) — PASS
-- finding record path (120 findings): 158ms
-- end-to-end pipeline (list + sweep + record): 175ms (budget 30000ms) — PASS
+- sweep batch p50/p99 over 11 runs: 1ms / 2ms (budget 10000ms) — PASS
+- finding record path (120 findings): 155ms
+- end-to-end pipeline (list + sweep + record): 170ms (budget 30000ms) — PASS
 - stale beats at sweep time: 80 (expected 80)
 
 ## Alert precision

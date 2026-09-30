@@ -2,6 +2,7 @@
 // rendering only: every behavior under test (states, filters, restart,
 // navigation) runs against the component contract, never a mock origin.
 import { fireEvent, render, screen, waitFor, within, act } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SectorDetailPage } from '@/components/SectorDetailPage'
 import type { ResearchStatus, SectorDetail } from '@/data/research'
@@ -462,14 +463,15 @@ describe('Sector open navigation', () => {
   })
 
   it('opens a sector row from the landing', async () => {
+    const user = userEvent.setup()
     const { default: App } = await import('@/App')
     render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Open Pet care' }))
+    await user.click(await screen.findByRole('button', { name: 'Open Pet care' }))
     // The row opens the summary landing; Open enters the chat workspace.
     expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
-    fireEvent.click(await screen.findByRole('button', { name: 'Open' }))
+    await user.click(await screen.findByRole('button', { name: 'Open' }))
     expect(await screen.findByRole('group', { name: 'Session types' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Back to sector summary' }))
+    await user.click(screen.getByRole('button', { name: 'Back to sector summary' }))
     expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
   })
 

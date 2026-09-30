@@ -107,7 +107,7 @@ async function workspaceRow(db: Db, sectorId: string): Promise<WorkspaceRow> {
   const { rows } = await db.query<WorkspaceRow>('SELECT * FROM sector_workspace WHERE sector_id=$1', [sectorId])
   return rows[0] ?? { context_version: 0, sections: {}, research_session_id: null, protected_decisions: '' }
 }
-interface ChangeRow { id: string; base_version: number; sections: unknown; source_thread: string; author: string; state: ContextChange['state']; version: number | null; at: Date | string; file_ref: ContextChange['fileRef'] }
+interface ChangeRow { id: string; sector_id: string; base_version: number; sections: unknown; source_thread: string; author: string; state: ContextChange['state']; version: number | null; at: Date | string; file_ref: ContextChange['fileRef'] }
 function changeView(row: ChangeRow): ContextChange {
   return { id: row.id, baseVersion: row.base_version, sections: checked(ContextSections, row.sections), sourceThread: row.source_thread, author: row.author, state: row.state, version: row.version, at: new Date(row.at).toISOString(), fileRef: row.file_ref }
 }
@@ -120,6 +120,8 @@ export async function readGlobalContext(db: Db, sectorId: string, scope?: Scope)
   return { sectorId, version: row.context_version, sections, markdown: formatGlobalContext(sections), researchSessionId: row.research_session_id, changes: changes.rows.map(changeView) }
 }
 export async function notifyWorkspace(db: Db, sectorId: string, type: 'context-version' | 'approval' | 'work-progress', payload: unknown): Promise<void> {
+  checked(Id, sectorId)
+  checked(z.enum(['context-version', 'approval', 'work-progress']), type)
   const sessions = await listSessions(db, undefined, sectorId)
   for (const session of sessions) {
     for (const thread of await listThreads(db, session.id)) await publishOutboxFrame(db, thread.key, type, payload)
@@ -132,6 +134,8 @@ export async function proposeGlobalContext(db: TransactableDb, input: {
 }): Promise<ContextChange> {
   const sections = checked(ContextSections, input.sections)
   checked(z.number().int().nonnegative(), input.baseVersion)
+  checked(Id, input.sectorId)
+  checked(Id, input.sourceThread)
   await requireSector(db, input.sectorId, input.scope)
   const identity = input.owner ? undefined : await requireThread(db, input.sourceThread, input.scope)
   if (identity && identity.session.sectorId !== input.sectorId) throw new WorkspaceError('permission_denied', 'Conversation belongs to another sector.')
@@ -152,13 +156,23 @@ export async function proposeGlobalContext(db: TransactableDb, input: {
     }
     const version = state === 'approved' ? row.context_version + 1 : null
     const author = input.owner ? 'owner' : researchParent ? 'research' : 'session'
+    // Idempotent replay: same id replays the first row (appendEvent idiom).
+    // Callers needing retry-safety must pass stable ids; without one a
+    // retry is a new proposal by definition.
     const result = await tx.query<ChangeRow>(`INSERT INTO workspace_changes(id,sector_id,base_version,sections,source_thread,author,state,version,file_ref)
-      VALUES($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9::jsonb) RETURNING *`, [id, input.sectorId, input.baseVersion, JSON.stringify(sections), input.sourceThread, author, state, version, JSON.stringify(input.fileRef ?? null)])
+      VALUES($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9::jsonb) ON CONFLICT(id) DO NOTHING RETURNING *`, [id, input.sectorId, input.baseVersion, JSON.stringify(sections), input.sourceThread, author, state, version, JSON.stringify(input.fileRef ?? null)])
+    const inserted = result.rows[0]
+    if (!inserted) {
+      // Lost race after the pre-SELECT: another writer claimed this id.
+      // Replay the winner when it belongs to this sector; a stray cross-
+      // sector collision fails loudly instead of merging contexts.
+      const winner = (await tx.query<ChangeRow>('SELECT * FROM workspace_changes WHERE id=$1', [id])).rows[0]
+      if (!winner || winner.sector_id !== input.sectorId) throw new WorkspaceError('conflict', 'context change id collision')
+      return changeView(winner)
+    }
     if (state === 'approved') await tx.query('UPDATE sector_workspace SET context_version=$2, sections=$3::jsonb, protected_decisions=CASE WHEN $4 THEN $5 ELSE protected_decisions END WHERE sector_id=$1', [input.sectorId, version, JSON.stringify(sections), input.owner, sections.decisions])
     await appendEvent(tx, { idempotencyKey: `workspace-change:${id}`, partition: `sector:${input.sectorId}`, type: 'sector.context.changed', payload: { changeId: id, state, version, sourceThread: input.sourceThread } })
     await notifyWorkspace(tx, input.sectorId, state === 'approved' ? 'context-version' : 'approval', { sectorId: input.sectorId, id, state, version })
-    const inserted = result.rows[0]
-    if (!inserted) throw new Error('context change missing')
     return changeView(inserted)
   })
 }
@@ -186,7 +200,7 @@ export async function decideContextChange(db: TransactableDb, input: { sectorId:
     await appendEvent(tx, { idempotencyKey: `workspace-decision:${input.id}`, partition: `sector:${input.sectorId}`, type: 'sector.context.decided', payload: { changeId: input.id, state, version } })
     await notifyWorkspace(tx, input.sectorId, 'context-version', { sectorId: input.sectorId, state, version })
     const row = updated.rows[0]
-    if (!row) throw new Error('context decision missing')
+    if (!row) throw new WorkspaceError('conflict', 'context decision missing')
     return changeView(row)
   })
 }
@@ -292,6 +306,10 @@ export async function hiddenFileIds(db: Db, sectorId: string): Promise<Set<strin
   return new Set(rows.flatMap((row) => row.document_id ? [row.file_id, row.document_id] : [row.file_id]))
 }
 export async function proposeFileContext(db: TransactableDb, input: { sectorId: string; fileId: string; baseVersion: number; sourceThread: string; scope?: Scope; ords?: number[] }) {
+  checked(Id, input.sectorId)
+  checked(Id, input.fileId)
+  checked(z.number().int().nonnegative(), input.baseVersion)
+  checked(Id, input.sourceThread)
   const file = (await listSectorLibrary(db, input.sectorId, input.scope)).find((item) => item.id === input.fileId)
   if (!file || file.hidden || file.status !== 'indexed') throw new WorkspaceError('conflict', 'Only visible indexed files can be included.')
   const documentId = file.documentId ?? (file.kind === 'document' ? file.id : undefined)
@@ -303,7 +321,12 @@ export async function proposeFileContext(db: TransactableDb, input: { sectorId: 
   const current = await readGlobalContext(db, input.sectorId, input.scope)
   return proposeGlobalContext(db, { ...input, owner: false, sections: current.sections, fileRef: { fileId: file.id, hash: file.hash, filename: file.filename, ords } })
 }
-export async function indexSectorArtifact(db: Db, sectorId: string, artifactId: string, name: string, body: string): Promise<void> {
+export async function indexSectorArtifact(db: Db, sectorId: string, artifactId: string, name: string, body: string, scope?: Scope): Promise<void> {
+  checked(Id, sectorId)
+  checked(Id, artifactId)
+  if (typeof name !== 'string' || !name) throw new DbContractError('name must be a non-empty string')
+  if (typeof body !== 'string' || !body) throw new DbContractError('body must be a non-empty string')
+  await requireSector(db, sectorId, scope)
   const filename = /\.(md|txt|csv|json)$/i.test(name) ? name : `${name}.txt`
   const doc = await ingestSectorDocument(db, { sectorId, filename, contentBase64: Buffer.from(body).toString('base64') })
   await db.query('INSERT INTO workspace_files(sector_id,file_id,document_id) VALUES($1,$2,$3) ON CONFLICT(sector_id,file_id) DO UPDATE SET document_id=$3', [sectorId, artifactId, doc.id])
@@ -322,8 +345,14 @@ export async function previewContextChange(db: Db, sectorId: string, id: string,
   return { change, units: units.map((unit) => ({ ord: unit.ord, text: unit.text, uncertain: unit.uncertain })) }
 }
 export async function commitChildContext(db: TransactableDb, threadKey: string, id: string, scope?: Scope) {
+  checked(Id, threadKey)
+  checked(Id, id)
   const { thread, session } = await requireThread(db, threadKey, scope)
   if (!session.sectorId || thread.kind !== 'session' || await sessionKind(db, session.id) !== 'research') throw new WorkspaceError('permission_denied', 'Only the research parent can commit a child update.')
+  // Retry-safe: a replayed commit returns the first result instead of
+  // re-entering the parent-review guard on the now-approved child row.
+  const committed = await db.query<ChangeRow>(`SELECT * FROM workspace_changes WHERE id=$1 AND sector_id=$2`, [`parent-commit:${id}`, session.sectorId])
+  if (committed.rows[0]) return changeView(committed.rows[0])
   const preview = await previewContextChange(db, session.sectorId, id, scope)
   if (preview.change.state !== 'parent-review' || preview.change.fileRef) throw new WorkspaceError('permission_denied', 'This update requires owner approval.')
   const result = await proposeGlobalContext(db, { sectorId: session.sectorId, baseVersion: preview.change.baseVersion, sections: preview.change.sections, sourceThread: threadKey, owner: false, trustedResearch: true, scope, id: `parent-commit:${id}` })
@@ -355,10 +384,11 @@ export async function closeDiscovery(db: Db, sectorId: string): Promise<void> {
   await db.query('UPDATE sector_workspace SET discovery_closed=true WHERE sector_id=$1', [sectorId])
   await notifyWorkspace(db, sectorId, 'work-progress', { sectorId, discoveryClosed: true })
 }
-export async function workspaceReferences(db: Db, sectorId: string): Promise<string[]> {
-  const context = await readGlobalContext(db, sectorId)
+export async function workspaceReferences(db: Db, sectorId: string, scope?: Scope): Promise<string[]> {
+  checked(Id, sectorId)
+  const context = await readGlobalContext(db, sectorId, scope)
   const references = context.markdown ? [context.markdown] : []
-  for (const file of await listSectorLibrary(db, sectorId)) {
+  for (const file of await listSectorLibrary(db, sectorId, scope)) {
     if (!file.included || file.hidden || (file.kind !== 'document' && !file.documentId)) continue
     const approved = await db.query<ChangeRow>('SELECT c.* FROM workspace_changes c JOIN workspace_files f ON f.approval_id=c.id WHERE f.sector_id=$1 AND f.file_id=$2', [sectorId, file.id])
     const approval = approved.rows[0]?.file_ref

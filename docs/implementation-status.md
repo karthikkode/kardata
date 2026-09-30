@@ -1,5 +1,44 @@
 # Implementation status
 
+## Deep-check round on frontend-revamp (2026-09-30)
+
+- Four independent audit subagents (contract/parity, deep-check
+  conventions, migrations/DB, frontend rigor): deep-check PASS clean;
+  contract PASS with 5 WARNs (3 pre-existing state-enum drifts left
+  untouched, workspace wire shapes now pinned in PARITY/EXPECTED_TYPES);
+  frontend + DB FAILs below all remediated on the branch.
+- Frontend (auditor BLOCKERs): journey tests use `user-event`
+  (navigation-url, research-staging, SectorDetailPage); new
+  `documentation/frontend.md` sector-workspace section (landing → Open
+  → chat, rails, WorkspaceOverlay, ResourceNotice).
+- DB layer: scope now threads through `workspaceReferences` (route path;
+  worker calls stay job-scoped like the surrounding reads),
+  `indexSectorArtifact`, `notifyWorkspace`, `proposeFileContext`
+  validate up front, propose/commit are idempotent replays
+  (`ON CONFLICT` + winner-select; `parent-commit:` short-circuit), raw
+  `Error`s became `WorkspaceError`. Proven by
+  `db.workspace-idempotency.test.ts` (4/4 fail-before, pass-after).
+- Schema: new `0018_workspace_hardening` (3 lookup indexes + 4 CHECKs;
+  FKs deliberately omitted — thread local memory is authoritative, must
+  survive `rebuildFromEvents` truncation and session-delete projection,
+  orphans cleaned in `t.session.deleted`). `0015:down` now removes its
+  legacy rows (down never ran outside empty test DBs; stated here).
+  Live migration round-trip incl. 0018 green.
+- E2E: 11 obsolete drawer-era specs rewritten to workspace equivalents
+  (matrix landing shots, workspace pins/hover/dark, rail thinness,
+  landing visuals); scroll-chaining test retired (no nested scroller
+  pair in the new UX). Suite: 40 passed, 4 skipped, exit 0.
+- Live-battery incident: first full parallel run wedged 33 throwaway
+  DBs (0015 columns present, version unrecorded — migrator cannot heal
+  that state). Dropped all `kardata_test_*` DBs, re-ran bounded
+  (maxWorkers=4): 78 files / 480 tests green, exit 0. Lesson: drop (never
+  repair) wedged throwaway DBs; keep live batteries bounded. Open
+  follow-up: `db.migrations.test.ts` runs DOWN against the shared base
+  URL instead of `ensureTestDb` — a parallel-run footgun.
+- Gates on the merged tree: `npm run pr:verify` exit 0, e2e exit 0,
+  backend live battery exit 0, frontend 276 + agents 195 green.
+  Screenshots/clips + pilot journey remain PR-gate items.
+
 ## Workspace "no route" fix on frontend-revamp (2026-09-30)
 
 - Screenshot showed `no route GET /v1/sectors/:id/global-context` and

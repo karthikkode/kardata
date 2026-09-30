@@ -27,6 +27,7 @@ FROM sector_documents d JOIN sector_workspace w ON w.sector_id=d.sector_id
 WHERE d.status='indexed' AND NOT EXISTS(SELECT 1 FROM sector_context_selection x WHERE x.sector_id=d.sector_id AND x.document_id=d.id AND x.unit_ord=-1 AND x.excluded) ON CONFLICT(id) DO NOTHING;
 
 -- migrate:down
+DELETE FROM workspace_changes WHERE id LIKE 'legacy-context-%' OR id LIKE 'legacy-file-%';
 ALTER TABLE sector_documents DROP COLUMN original_hash;
 ALTER TABLE sector_documents DROP COLUMN archive_key;
 ALTER TABLE research_work DROP COLUMN cursor;

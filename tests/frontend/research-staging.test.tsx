@@ -2,6 +2,7 @@
 // credentials set, App renders sectors, companies, and sector detail from
 // the backend instead of mocks; loading and error states come from fetch.
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const SECTORS = [
@@ -78,11 +79,12 @@ describe('staging research surfaces (F-S2)', () => {
     })
     const { default: App } = await import('@/App')
     render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Open Server Pet' }))
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Open Server Pet' }))
     // Companies render on the summary landing; chat lives in the workspace.
     expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
     expect(await screen.findByText('Server West')).toBeInTheDocument()
-    fireEvent.click(await screen.findByRole('button', { name: 'Open' }))
+    await user.click(await screen.findByRole('button', { name: 'Open' }))
     expect(await screen.findByRole('group', { name: 'Session types' })).toBeInTheDocument()
     // The sector activity timeline has no renderer in the workspace UX yet;
     // coverage for it lives in RunConsole.test.tsx until it is surfaced.

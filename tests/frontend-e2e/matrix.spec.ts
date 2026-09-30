@@ -85,9 +85,11 @@ async function captureSuite(page: Page, tag: string, dark = false): Promise<void
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
   await shot(page, `${tag}-researches`, [page.getByText('Speciality Foods')])
   await page.getByRole('button', { name: 'Open Speciality Foods' }).click()
+  // The sector route lands on the summary page; chat lives one Open deeper
+  // (covered with session/thread/plan detail in workspace.spec.ts).
   await shot(page, `${tag}-detail`, [
-    page.getByRole('heading', { name: 'Speciality Foods' }),
-    page.getByRole('heading', { name: 'Sector chat' }),
+    page.getByRole('region', { name: 'Research status' }),
+    page.getByRole('button', { name: 'Open', exact: true }),
   ])
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Agents' }).click()
   await shot(page, `${tag}-agents`, [

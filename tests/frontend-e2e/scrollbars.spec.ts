@@ -181,17 +181,46 @@ test('scrollbars: model menu list scrolls without detaching', async ({ page }) =
   await shot(page, 'scroll-model-menu', [menu.getByText('scroll-model-20')])
 })
 
-test('scrollbars: sector detail columns and drawer units stay thin', async ({ page }) => {
+const WS_AT = '2026-09-30T00:00:00.000Z'
+const WS_SECTOR = { id: 'sec-overflow-ws', name: 'Overflow workspace', topic: 'Bulk rows', state: 'running', companiesFound: 0, companies: [], companiesTotal: 0, activity: [], activityTotal: 0, createdAt: WS_AT, updatedAt: WS_AT }
+const WS_RESEARCH = { id: 'ws-research', title: 'Overflow research', kind: 'research', sectorId: WS_SECTOR.id, createdAt: WS_AT, updatedAt: WS_AT }
+const WS_NORMALS = Array.from({ length: 60 }, (_, i) => ({ id: `ws-chat-${i + 1}`, title: `Overflow chat ${i + 1}`, kind: 'normal', sectorId: WS_SECTOR.id, createdAt: WS_AT, updatedAt: WS_AT }))
+const WS_SECTIONS = { scope: 'Overflow scope.', decisions: '', findings: '', questions: '' }
+
+async function serveWorkspaceApi(page: Page): Promise<void> {
+  await page.route('**/v1/**', async (route) => {
+    const request = route.request(), url = new URL(request.url()), path = url.pathname
+    if (path.endsWith('/events')) { await route.fulfill({ status: 200, contentType: 'text/event-stream', body: '' }); return }
+    let data: unknown = []
+    if (path === '/v1/sectors') data = [WS_SECTOR]
+    else if (path === `/v1/sectors/${WS_SECTOR.id}`) data = WS_SECTOR
+    else if (path === '/v1/companies') data = { companies: [], total: 0 }
+    else if (path.endsWith('/research-session')) data = WS_RESEARCH
+    else if (path === '/v1/sessions') data = url.searchParams.has('sectorId') ? [WS_RESEARCH, ...WS_NORMALS] : []
+    else if (path.endsWith('/global-context')) data = { sectorId: WS_SECTOR.id, version: 0, sections: WS_SECTIONS, markdown: '## Scope\n\nOverflow scope.', researchSessionId: WS_RESEARCH.id, changes: [] }
+    else if (path.endsWith('/progress')) data = { sectorId: WS_SECTOR.id, state: WS_SECTOR.state, planVersion: 0, items: [], completed: 0, total: 0, unresolved: 0, discoveryClosed: false, estimatedPercent: null }
+    else if (path.endsWith('/files')) data = []
+    else if (path.endsWith('/threads')) data = [{ key: WS_RESEARCH.id, sessionId: WS_RESEARCH.id, kind: 'session', status: 'RUNNING', acceptingSteer: true, queueDepth: 0, updatedAt: WS_AT }]
+    else if (path.endsWith('/messages')) data = []
+    else if (path.endsWith('/context')) data = { threadKey: WS_RESEARCH.id, notes: '', summary: '', coveredSeq: 0, version: 0 }
+    else if (path === '/v1/providers') data = { defaultProvider: 'meta', providers: [] }
+    else if (path.startsWith('/v1/sessions/')) data = WS_RESEARCH
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data }) })
+  })
+}
+
+test('scrollbars: workspace session rail stays thin under overflow', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
-  await serveScrollbarApi(page)
-  await page.goto('/')
-  await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
-  await page.getByRole('button', { name: 'Open Overflow sector 1', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Overflow sector 1', exact: true })).toBeVisible()
-  const columns = page.locator('.scroll-slim.min-h-0.flex-1.overflow-y-auto.rounded-xl')
-  await expect(columns.first()).toBeVisible()
-  await thinScrollbar(page, columns.first())
-  await shot(page, 'scroll-detail', [page.getByRole('heading', { name: 'Overflow sector 1', exact: true })])
+  await serveWorkspaceApi(page)
+  await page.goto(`/?section=SectorChat&sector=${WS_SECTOR.id}&session=${WS_RESEARCH.id}&thread=${WS_RESEARCH.id}`)
+  // Sixty chats overflow the rail list (windowed at fifty with Show more).
+  await page.getByRole('button', { name: 'Chats', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Show more (50 of 60)' })).toBeVisible()
+  const rail = page.getByRole('complementary', { name: 'Sector sessions' }).locator('.scroll-slim.min-h-0.flex-1.space-y-1.overflow-y-auto')
+  await expect(rail).toBeVisible()
+  await thinScrollbar(page, rail)
+  await thinScrollbar(page, page.getByRole('log', { name: 'Conversation messages' }))
+  await shot(page, 'scroll-workspace-rail', [page.getByRole('group', { name: 'Session types' })])
 })
 
 test('scrollbars: dark chat keeps the same thin treatment', async ({ page }) => {
