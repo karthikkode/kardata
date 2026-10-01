@@ -3,7 +3,7 @@
   "files": [
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "679215414b98dc8271367e4dda6a4cb521b26c935cc9481c10844e1c2654dcaf",
+      "sha256": "494ae6402d3de0036965755336260d22dab65c23ed39c15033112fb2a247f47e",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -1170,7 +1170,7 @@
     },
     {
       "path": "backend/src/db/sector-documents.ts",
-      "sha256": "37817273371b0a8223376f676be5e6bfe4f65f5d8953f8c8d385601835e341c4",
+      "sha256": "d02e143f8dd3049f261e978043def861631b7ef88443c979a4567f4d152f98db",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2693,7 +2693,7 @@
     },
     {
       "path": "frontend/src/data/sector-workspace.ts",
-      "sha256": "588b236234f6d8fc1413163b2f2a5cce8dc420fe1aa0af5436e7a15a4d3a33e9",
+      "sha256": "75582788c3fe1c71ae511c3e17d03ef848b4c7e20cf189c3da86b2ce28ef1560",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3110,6 +3110,13 @@
     {
       "path": "tests/backend/db.discovery-integrity.test.ts",
       "sha256": "658e4fb88cc0b56f04b89f544ce7d08196c78fb2ee995b95e2b28e17944958ea",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.document-ingest-recovery.test.ts",
+      "sha256": "0c12d63d6548f7c7f715295b19ba1dafad9677d9bfe11f6839e4e94900d47223",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -3903,6 +3910,13 @@
       "sha256": "386a390e65b7127635aa85e1720cb1c8b5aaa89e168c991b6f69ca387f7634a4",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/files-db.spec.ts",
+      "sha256": "60eb4e420423cdcb7cda10478722254633b4d6e546f2ed0d1d53f76112593a2c",
+      "review": "pending",
       "tests": [],
       "exports": []
     },

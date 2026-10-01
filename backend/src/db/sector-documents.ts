@@ -4,14 +4,15 @@
 // a configured OCR endpoint) and every file is indexed into units: turns
 // include units, never raw bytes. Pure extraction is unit-tested without a
 // database.
-import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import type { Scope } from '../auth/keys.js'
-import { countDocumentUnits, insertDocumentUnits, listDocumentUnits } from './document-units.js'
+import { listDocumentUnits } from './document-units.js'
 import { DbContractError } from './errors.js'
 import { assertFileVisible, hiddenFileIds } from './workspace.js'
 import type { ArchiveTarget } from '../archive/targets.js'
 import type { Db } from './events.js'
+import { createLogger, logOp } from '../observability/logging.js'
+
 import {
   documentExtension,
   extractFileUnits,
@@ -21,6 +22,8 @@ import {
   type OcrAdapter,
 } from './file-pipeline.js'
 import { getSector } from './sectors.js'
+
+const documentLogger = createLogger({ op: 'file.ingest' })
 
 export { documentExtension, SECTOR_DOCUMENT_MAX_BYTES, sha256Hex }
 
@@ -63,74 +66,70 @@ export async function ingestSectorDocument(
   db: Db,
   input: { sectorId: string; filename: string; contentBase64: string; scope?: Scope; ocr?: OcrAdapter; archive?: ArchiveTarget; source?: 'artifact' },
 ): Promise<IngestedDocument> {
-  if (!FilenameSchema.safeParse(input.filename).success) throw new DbContractError('filename must be 1-255 characters')
-  if (!ContentSchema.safeParse(input.contentBase64).success) throw new DbContractError('contentBase64 must be non-empty')
-  // Existence + scope read the projection; the insert reuses the
-  // validated scope for tenant binding.
-  if (!(await getSector(db, input.sectorId, input.scope))) throw new DbContractError(`unknown sector ${input.sectorId}`)
-  let bytes: Buffer
-  try {
-    bytes = Buffer.from(input.contentBase64, 'base64')
-  } catch {
-    throw new DbContractError('contentBase64 is not valid base64')
-  }
-  if (bytes.length === 0) throw new DbContractError('document is empty')
-  const extraction = await extractFileUnits(input.filename, bytes, input.ocr)
-  if (extraction.status === 'failed') throw new DbContractError(extraction.detail ?? 'could not extract document text')
-  const text = extraction.units.map((unit) => unit.text).join('\n\n')
-  // Version identity includes bytes and extraction. Distinct scans cannot
-  // alias by filename/empty OCR; generated files retain separate provenance.
-  const sha256 = sha256Hex(JSON.stringify({ v: 2, source: input.source ?? 'upload', original: bytes.toString('base64'), units: extraction.units }))
-  const duplicate = await db.query<{ id: string; filename: string; media_type: string; sha256: string; created_at: Date | string; status: string }>(
-      `SELECT id, filename, media_type, sha256, created_at, status FROM sector_documents
-       WHERE sector_id = $1 AND sha256 = $2 ORDER BY created_at ASC LIMIT 1`,
-      [input.sectorId, sha256],
+  return logOp(documentLogger, 'file.ingest', async () => {
+    if (!FilenameSchema.safeParse(input.filename).success) throw new DbContractError('filename must be 1-255 characters')
+    if (!ContentSchema.safeParse(input.contentBase64).success) throw new DbContractError('contentBase64 must be non-empty')
+    // Existence + scope read the projection; the insert reuses the
+    // validated scope for tenant binding.
+    if (!(await getSector(db, input.sectorId, input.scope))) throw new DbContractError(`unknown sector ${input.sectorId}`)
+    let bytes: Buffer
+    try {
+      bytes = Buffer.from(input.contentBase64, 'base64')
+    } catch {
+      throw new DbContractError('contentBase64 is not valid base64')
+    }
+    if (bytes.length === 0) throw new DbContractError('document is empty')
+    const extraction = await extractFileUnits(input.filename, bytes, input.ocr)
+    if (extraction.status === 'failed') throw new DbContractError(extraction.detail ?? 'could not extract document text')
+    const text = extraction.units.map((unit) => unit.text).join('\n\n')
+    // Version identity includes bytes and extraction. Distinct scans cannot
+    // alias by filename/empty OCR; generated files retain separate provenance.
+    const sha256 = sha256Hex(JSON.stringify({ v: 2, source: input.source ?? 'upload', original: bytes.toString('base64'), units: extraction.units }))
+    const duplicate = await db.query<{ id: string; filename: string; media_type: string; sha256: string; created_at: Date | string; status: string }>(
+        `SELECT id, filename, media_type, sha256, created_at, status FROM sector_documents
+         WHERE sector_id = $1 AND sha256 = $2 ORDER BY created_at ASC LIMIT 1`,
+        [input.sectorId, sha256],
+      )
+    const id = duplicate.rows[0]?.id ?? `sdoc-${sha256Hex(`${input.sectorId}:${sha256}`).slice(0, 48)}`
+    const originalHash = sha256Hex(bytes.toString('base64'))
+    const archiveKey = `sector-uploads/${sha256Hex(input.sectorId)}/${originalHash}.base64`
+    if (input.archive) await input.archive.write(archiveKey, bytes.toString('base64'))
+    // One statement owns publication: an index failure rolls back the row and
+    // its byte reference too. Content identity coalesces concurrent uploads via
+    // the existing document primary key, while adopting legacy matching IDs.
+    const { rows } = await db.query<{ id: string; filename: string; media_type: string; text: string; sha256: string; created_at: Date | string; status: ExtractionStatus }>(
+      `WITH document AS (
+         INSERT INTO sector_documents (id, sector_id, filename, media_type, text, sha256, status, tenant_id, project_id, archive_key, original_hash)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         ON CONFLICT(id) DO UPDATE SET
+           archive_key=COALESCE(sector_documents.archive_key,EXCLUDED.archive_key),
+           original_hash=COALESCE(sector_documents.original_hash,EXCLUDED.original_hash)
+         WHERE sector_documents.sector_id=EXCLUDED.sector_id AND sector_documents.sha256=EXCLUDED.sha256
+         RETURNING id,filename,media_type,text,sha256,created_at,status
+       ), indexed AS (
+         INSERT INTO sector_document_units (document_id,ord,kind,text,confidence,uncertain,sha256)
+         SELECT document.id,u.ord,u.kind,u.text,u.confidence,u.uncertain,u.sha256
+         FROM document CROSS JOIN jsonb_to_recordset($12::jsonb)
+           AS u(ord integer,kind text,text text,confidence double precision,uncertain boolean,sha256 text)
+         ON CONFLICT(document_id,ord) DO UPDATE SET kind=EXCLUDED.kind,text=EXCLUDED.text,
+           confidence=EXCLUDED.confidence,uncertain=EXCLUDED.uncertain,sha256=EXCLUDED.sha256
+         RETURNING ord
+       ) SELECT document.* FROM document`,
+      [id, input.sectorId, input.filename, extraction.mediaType, text, sha256, extraction.status,
+        input.scope?.tenantId ?? null, input.scope?.projectId ?? null, input.archive ? archiveKey : null,
+        input.archive ? originalHash : null,
+        JSON.stringify(extraction.units.map((unit) => ({ ...unit, confidence: unit.confidence ?? null, sha256: sha256Hex(unit.text) })))],
     )
-  const found = duplicate.rows[0]
-  if (found) {
-    if (input.archive) {
-      const originalHash = sha256Hex(bytes.toString('base64'))
-      const key = `sector-uploads/${sha256Hex(input.sectorId)}/${originalHash}.base64`
-      await input.archive.write(key, bytes.toString('base64'))
-      await db.query('UPDATE sector_documents SET archive_key=$2,original_hash=$3 WHERE id=$1 AND archive_key IS NULL', [found.id, key, originalHash])
-    }
+    const stored = rows[0]
+    if (!stored) throw new DbContractError('document publication did not return a stored row')
     return {
-      id: found.id,
-      sectorId: input.sectorId,
-      filename: found.filename,
-      mediaType: found.media_type,
-      chars: text.length,
-      sha256: found.sha256,
-      createdAt: found.created_at instanceof Date ? found.created_at.toISOString() : String(found.created_at ?? ''),
-      status: found.status === 'needs-ocr' ? 'needs-ocr' : 'indexed',
-      ...(extraction.detail ? { detail: extraction.detail } : {}),
-      unitCount: await countDocumentUnits(db, found.id),
+      id: stored.id, sectorId: input.sectorId, filename: stored.filename, mediaType: stored.media_type,
+      chars: stored.text.length, sha256: stored.sha256,
+      createdAt: stored.created_at instanceof Date ? stored.created_at.toISOString() : String(stored.created_at),
+      status: stored.status, ...(extraction.detail ? { detail: extraction.detail } : {}),
+      unitCount: extraction.units.length,
     }
-  }
-  const id = `sdoc-${randomUUID()}`
-  const originalHash = sha256Hex(bytes.toString('base64'))
-  const archiveKey = `sector-uploads/${sha256Hex(input.sectorId)}/${originalHash}.base64`
-  if (input.archive) await input.archive.write(archiveKey, bytes.toString('base64'))
-  const { rows } = await db.query<{ created_at: Date | string }>(
-    `INSERT INTO sector_documents (id, sector_id, filename, media_type, text, sha256, status, tenant_id, project_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING created_at`,
-    [id, input.sectorId, input.filename, extraction.mediaType, text, sha256, extraction.status, input.scope?.tenantId ?? null, input.scope?.projectId ?? null],
-  )
-  await insertDocumentUnits(db, id, extraction.units)
-  if (input.archive) await db.query('UPDATE sector_documents SET archive_key=$2,original_hash=$3 WHERE id=$1', [id, archiveKey, originalHash])
-  const created = rows[0]?.created_at
-  return {
-    id,
-    sectorId: input.sectorId,
-    filename: input.filename,
-    mediaType: extraction.mediaType,
-    chars: text.length,
-    sha256,
-    createdAt: created instanceof Date ? created.toISOString() : String(created ?? ''),
-    status: extraction.status,
-    ...(extraction.detail ? { detail: extraction.detail } : {}),
-    unitCount: extraction.units.length,
-  }
+  }, { sectorId: input.sectorId })
 }
 
 /** Context documents for one sector, newest last. Scope-filtered like

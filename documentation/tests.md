@@ -107,3 +107,11 @@ release gates. Browser outputs are uploaded even on failure. The single local
 mechanical entrypoint remains `npm run pr:verify`; live database tests use
 `TEST_DATABASE_URL=... npm test -w @kardata/backend`, Temporal tests additionally
 set `KARDATA_TEMPORAL_TEST=1`. Never run migration tests against a shared DB.
+
+The isolated file-browser journey uses the existing backend on an ephemeral
+loopback port with a fresh test database and filesystem archive. It runs upload
+failure, retry, preview, exact-byte download and duplicate upload through browser
+controls. Only chat SSE is stubbed; provider/Temporal/authority coverage is not
+claimed by this open-mode file test. Run with `TEST_DATABASE_URL` and
+`npm run test:e2e -w frontend -- files-db.spec.ts`; the integration CI job runs it
+with its existing isolated Postgres service and uploads the visual artifacts.

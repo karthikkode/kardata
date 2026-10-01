@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { apiErrorStatus, attachSectorDocument, cancelRun, createSession, deleteSession, listSessions, listThreads, readSectorPlan, renameSession, resumeRun, type StagingConfig } from './staging-api'
+import { apiErrorStatus, attachSectorDocument, cancelRun, createSession, deleteSession, listSessions, listThreads, readSectorPlan, renameSession, resumeRun, StagingApiError, type StagingConfig } from './staging-api'
 import { compactLocalContext, decideGlobalContext, ensureResearchSession, getContextPreview, getGlobalContext, getLocalContext, getResearchProgress, getSectorFileBody, getSectorFiles, hideSectorFile, includeSectorFile, saveGlobalContext, saveLocalContext, type Sections } from './workspace-api'
 import { useWorkspaceConversation, useWorkspaceResource } from './useWorkspace'
 
@@ -8,17 +8,17 @@ export function useSectorWorkspace(config: StagingConfig | null, sectorId: strin
   const [error, setError] = useState<string | null>(null)
   const [proposalId, setProposalId] = useState<string | null>(null)
   const [previewFileId, setPreviewFileId] = useState<string | null>(null)
-  const initialized = useRef(new Set<string>())
+  const deniedInitialization = useRef(new Set<string>())
   const operationLock = useRef(false)
   const sessions = useWorkspaceResource(config, sectorId ? `sessions:${sectorId}` : null, async (cfg) => {
     const rows = await listSessions(cfg, sectorId ?? '')
     const context = await getGlobalContext(cfg, sectorId ?? '')
     let research = rows.find((row) => row.id === context.researchSessionId)
     const key = `${cfg.baseUrl}:${cfg.apiKey}:${sectorId}`
-    if (!research && !initialized.current.has(key)) {
-      initialized.current.add(key)
+    if (!research && !deniedInitialization.current.has(key)) {
       try { research = await ensureResearchSession(cfg, sectorId ?? '') } catch (error) {
-        if (apiErrorStatus(error) !== 'denied') { initialized.current.delete(key); throw error }
+        if (apiErrorStatus(error) === 'denied') deniedInitialization.current.add(key)
+        else throw error
       }
     }
     return [...(research ? [{ ...research, kind: 'research' as const }] : []), ...rows.filter((row) => row.id !== research?.id).map((row) => ({ ...row, kind: 'normal' as const }))]
@@ -39,7 +39,7 @@ export function useSectorWorkspace(config: StagingConfig | null, sectorId: strin
     if (!config || operationLock.current) return false
     operationLock.current = true
     setOperation(name); setError(null)
-    try { await work(config); return true } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not finish. Try again.'); return false } finally { operationLock.current = false; setOperation(null) }
+    try { await work(config); return true } catch (failure) { setError(name === 'upload' && failure instanceof StagingApiError && failure.status >= 500 ? 'The upload did not finish. Choose the file again to retry. Existing files are kept.' : failure instanceof Error ? failure.message : 'Could not finish. Try again.'); return false } finally { operationLock.current = false; setOperation(null) }
   }
   return {
     sessions, selected, activeThread, threads, child, global, files, progress, plan, local, chat, operation, preview, reviewProposal: setProposalId, fileBody, previewFileId, previewFile: setPreviewFileId,

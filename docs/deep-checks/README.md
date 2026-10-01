@@ -116,3 +116,20 @@ and bundle-size warning remain. Curated local UI proof (ignored binary conventio
 `tests/evidence/hardening-2026-10-01/` (nine files, 750,267 bytes); generated full
 matrix artifacts remain ignored. Historical examples in status docs are dated;
 only this section states the current slice's gate results.
+
+
+### Atomic file-publication follow-up
+
+The file-ingestion follow-up passed `pr:verify` (876/253 gated skips), the full
+isolated Postgres battery (559/59 skips), and the browser matrix (53/4 live skips).
+The real-HTTP file journey uploads through browser controls, observes indexing
+failure, retries, previews, downloads exact bytes, and reuploads without a second
+row. It uses a fresh DB and filesystem archive; FakeRunsGateway/chat SSE do not
+prove Temporal/provider behavior. CI integration adds that same maintained gate.
+
+The unchanged synthetic soak setup timed out under concurrent DB/browser/build
+runs; the sequential DB rerun passed. Do not hide that failure or relax timeouts:
+run live DB verification sequentially on this host. Independent mechanical gates
+and eight ingestion/context DB cases passed. Local curated proof now also includes
+`files-db-upload-failure.png`, `files-db-upload-recovered.png`, and
+`files-db-upload-recovery.webm` under the existing ignored evidence directory.

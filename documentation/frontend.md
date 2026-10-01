@@ -191,3 +191,11 @@ Regression: `tests/frontend/follow-resume.test.ts`.
 
 A caller-owned resume cursor survives graceful EOF follower replacement, so
 reconnecting the workspace does not replay old reasoning or tool frames.
+
+First-load research-session initialization caches only confirmed permission
+failures. A discarded/remounted request cannot mark initialization complete
+before its result is delivered. Concurrent ensures rely on the backend's
+persistent one-session binding; denied viewer requests are not repeatedly sent.
+
+Server upload failures show a concrete retry instruction and confirm existing
+files are retained. Internal failure codes stay in correlated backend logs.

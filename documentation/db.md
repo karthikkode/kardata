@@ -219,3 +219,16 @@ source visibility before recording a destination reference.
 
 Artifact creation emits the shared start/done/error boundary logs and pipeline
 operation records; operational output includes identities/counts, never bodies.
+
+### Document ingestion atomicity
+
+Archive acceptance precedes DB publication. A document row, its extracted units,
+and its original-byte reference publish in one SQL statement, or not at all.
+New uploads derive their document ID from a 48-hex-character sector/version
+hash prefix (53 characters including `sdoc-`, within the existing 64-character
+unit-reference contract); the full stored version hash guards collisions.
+concurrent identical uploads coalesce through the existing primary key. Existing
+matching IDs are adopted to retain old links. No legacy rows or bytes are removed.
+A successful archive write followed by DB failure may retain unreferenced bytes;
+it never publishes a pointer implying a complete index. Retrying repairs the full
+index for the same version. No new table, index, or transaction service is added.

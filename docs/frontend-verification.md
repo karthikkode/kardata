@@ -249,3 +249,21 @@ verdict. Remaining UI matrices and real-provider journeys stay acceptance gaps.
 Curated reviewed captures and the consumed/missed steering transition clips are
 retained in `tests/evidence/hardening-2026-10-01/` for PR review. They are labeled
 TEST fixture journeys; no production or real-provider claim is implied.
+
+
+## Isolated real-HTTP file recovery
+
+`files-db.spec.ts` passed its production-route journey with isolated Postgres and
+filesystem archive: failed indexing shows an alert and no file; retry shows the
+file; preview renders its extracted heading; downloaded bytes exactly equal the
+chosen upload. Captures: `files-db-upload-failure.png` and
+`files-db-upload-recovered.png`. Chat SSE alone is stubbed. The open-mode test
+proves file behavior, while separate keyed HTTP suites prove authority. The
+existing production deployment and Meta pilot are not involved.
+
+The stricter Research-heading guard reproduced the remount initialization race
+before its fix and now passes before file actions. The upload-error copy guard
+likewise failed on the generic internal-error banner and now passes on its retry
+instruction. Latest full matrix with isolated DB enabled: 53 passed/4 live-provider
+skips. File recovery video remains local at
+`tests/evidence/hardening-2026-10-01/files-db-upload-recovery.webm`.

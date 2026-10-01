@@ -200,3 +200,8 @@ reload retains the previous stream token so the snapshot is retried. Snapshot
 capture reads the outbox token before the thread view to keep concurrent commits
 in the tail. Transient reasoning/tool frames are cleared on hydration; durable
 messages decide completion. Large transcript rendering remains a separate gate.
+
+Most API contract tests still use Fastify inject. The isolated file-browser
+integration binds the existing backend to an ephemeral loopback port so browser
+file actions cross real HTTP, Postgres, and the filesystem archive. It creates
+no new product service and makes no provider or Temporal claim.

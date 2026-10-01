@@ -2002,3 +2002,47 @@ scale claims with evidence links.
   This is an explicit unfinished acceptance requirement, not a weakened gate.
   Curated UI binaries remain local under the existing ignore convention; remote
   PR binary attachments remain outstanding.
+
+
+## Document publication recovery (next slice, 2026-10-01)
+
+- Real Postgres fault injection reproduced a visible document and partial units
+  after the second unit failed. Twenty concurrent identical uploads produced 13
+  separate IDs. Both tests failed before the fix; archive-offline denial passed.
+- Document row, units, and archive reference now publish atomically in one SQL
+  statement. New IDs derive from sector/version identity; legacy matching IDs
+  are adopted without deleting duplicates or history. No new index/schema.
+- The focused live battery passed 19 cases and typecheck passed. The new DB
+  trigger tests use only their fresh isolated database and retain archive bytes.
+  UI upload/retry verification and wider gates remain required for this slice.
+
+- The full battery caught a compatibility error in the first atomic-ingest draft:
+  a 69-character derived ID exceeded the existing 64-character unit-reference
+  contract. IDs now use a 48-hex-character prefix (53 total), with the full hash
+  checked on conflicts. The existing context include/exclude route test remains
+  unchanged as the independent contract oracle.
+
+- The stricter real-HTTP browser gate caught first-load initialization being
+  marked complete by an abandoned React request. Only confirmed denied ensures
+  are cached now; idempotent concurrent ensures can both return their binding.
+  The same browser heading guard that failed before now passes before upload.
+- Legacy random-ID/partial-index repair regression passed, preserving the exact
+  old ID and filename while completing its units and original-byte reference.
+- The original draft commit's cloud verify, e2e and isolated integration jobs
+  all passed. The additional file-browser CI step is not claimed green until
+  its next remote run completes. Deployment/provider/release gaps remain open.
+
+- The concurrent full-DB run hit the unchanged 10-second synthetic soak setup
+  deadline while browser/build gates competed for host resources. Sequential
+  live DB verification then passed 559/59 gated skips in 15.80 seconds. No test
+  deadline or assertion was weakened. Run live DB gates sequentially on this
+  development host; the contention failure remains recorded.
+- Latest browser matrix passed 53/4 live-provider skips; pr:verify passed 876
+  deterministic cases/253 gated skips. Independent review repeated mechanical
+  gates and eight isolated ingestion/context cases successfully.
+
+- Screenshot review exposed a generic "internal error" upload banner. The exact
+  recovery-copy browser assertion failed before the UI fix; server upload errors
+  now explain choosing the file again and retaining existing files. Technical
+  failure codes remain in backend logs. The file state is still checked against
+  real HTTP status, Postgres rows, and downloaded bytes.
