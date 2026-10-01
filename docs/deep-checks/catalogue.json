@@ -1104,7 +1104,7 @@
     },
     {
       "path": "backend/src/db/outbox.ts",
-      "sha256": "9dbebc58b10099e1fd1a27551ec66d2224bb1adf734401e8204ced0da420eb6f",
+      "sha256": "7c9d6e6fc080f9b307fb1cc975113ee006310adc0c0715e336c938e8846cec42",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1376,7 +1376,7 @@
     },
     {
       "path": "backend/src/mcp/tools.ts",
-      "sha256": "cc4578219cac7ff8bb9adebd67d3c5c353831afc9eac9bf5526e6a62d8c6acb6",
+      "sha256": "d07cdc2f23944a2e8c8c462513c704f46528359a09f7194ec8fb8cc6c23831e9",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1696,7 +1696,7 @@
     },
     {
       "path": "backend/src/streams/outbox.ts",
-      "sha256": "0bbb70ed5f4182e2bd4e75452d8c50b75a7b5d3e66b96c3aba01ba5079b7c0e1",
+      "sha256": "d21ad3b8673e0d4f5b3c45f8059944a87b3c50aa1170c16173b31a46ba500d9c",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2410,7 +2410,7 @@
     },
     {
       "path": "frontend/src/components/ChatPanel.tsx",
-      "sha256": "7cf3178599bcb4ccb725a7b1ed0fb36e4c2b25a5fc30d09d33d46e3d658aca60",
+      "sha256": "80fbb76c11314f1eab31a0a31190637ed74080a1f4b179aeae0d2cc829b07ac0",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2711,7 +2711,7 @@
     },
     {
       "path": "frontend/src/data/staging-api.ts",
-      "sha256": "607c9719c30a49eff33226748cbab95837bc507c7fbdc4a52c890b648dc30ef1",
+      "sha256": "ea97866e655470dd3a09f4cd86a866af971e5f10e0d9bbbe5d6b89b0cc663269",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3138,6 +3138,20 @@
     {
       "path": "tests/backend/db.migrations.test.ts",
       "sha256": "18cac9c1baf2cf1260bdaef7ddbbd8a82178beeececa93db9bf1a308fa4dc4ef",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.outbox-disconnect.test.ts",
+      "sha256": "8d9687203eb9b6222263e404f92e32173a2869b19c3f055fe74ca247dc3af536",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.outbox-subscription.test.ts",
+      "sha256": "bab4ee80b5af0fd81f0565df9e9715728452fd5cc3171dbc80a2f8db4acead57",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -3936,7 +3950,7 @@
     },
     {
       "path": "tests/frontend-e2e/agent-context-db.spec.ts",
-      "sha256": "42742a68f48b576cf5fba491249656d4e5984a299c4387551ced689cb4f3ab04",
+      "sha256": "7f73a2c08b8b14f1e7b531bc60a0e840e20305b11a02a74065fdaceee0b7643d",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4174,7 +4188,7 @@
     },
     {
       "path": "tests/frontend/follow-resume.test.ts",
-      "sha256": "b066e4104654b9c3b6f3202387218989cf8a10edfea31f07d9ef8dac49a40a27",
+      "sha256": "94648b31b790a76befed27e26a188dfcdfb093bc8adb3546476b8be26686b31b",
       "review": "pending",
       "tests": [],
       "exports": []

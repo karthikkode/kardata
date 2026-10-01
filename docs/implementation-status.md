@@ -2147,3 +2147,49 @@ scale claims with evidence links.
   passed 55 cases. Full audit, legacy-history/cache compatibility, uncertain-operation
   reconciliation/UI, scale failure envelope, telemetry activation and Meta pilot
   remain open. No merge/deployment or complete-release claim is made.
+
+### Outbox resource lifecycle follow-up (2026-10-01)
+
+- Maintained regressions reproduced three defects: failed LISTEN leaked a leased
+  client, duplicate callbacks delivered twice while leaving an untracked handler,
+  and failed UNLISTEN silently returned a subscribed client to the pool. Repeated
+  close also had no single-release guard. The four-case lifecycle suite now passes
+  with setup/cleanup failure destruction, idempotent registration/close, and
+  preserved cleanup errors. No shared database or data was changed by these tests.
+- This is not stream scalability acceptance: each subscription still consumes one
+  server-pool lease. Real PostgreSQL SSE verification, higher concurrency capacity,
+  and independent review remain required before release.
+- Independent review found a further P1 in the same surface: a leased pg client
+  lacked an error handler, so socket failure could crash the HTTP process. The
+  event-emitter regression failed first; supervision now destroys once and wakes
+  SSE/MCP consumers. An isolated real-Postgres drill terminated only its captured
+  LISTEN PID; the waiter rejected, the lease returned to zero active clients, and
+  a subsequent query succeeded. Latest focused live battery: 14 passed. This is
+  backend recovery evidence, not a browser or deployed-service claim.
+- Follow-up independent review found a failure-wake race during an awaited
+  backlog read. A maintained test held that query, disconnected the listener,
+  then completed the query; the stream stalled before the fix and now rejects
+  before entering its idle wait. A test typecheck also exposed pg's overloaded
+  connect ReturnType resolving to void; the fixture now uses explicit PoolClient.
+  Neither deadline nor assertion was weakened.
+- The UI disconnect drill initially failed: Karbot's persistent background tail
+  silently ended on graceful EOF despite backend recovery. A shared-follower
+  regression also failed first. Karbot now opts into EOF reconnection with its
+  last accepted token. Browser journey passed through real HTTP/Temporal/MCP/DB
+  with scripted provider; draft and one terminal reply survived reconnect.
+- Applying persistent-tail semantics to the legacy one-shot sector send broke its
+  pinned post-EOF settling test. That flow retains its existing terminal refetch;
+  only Karbot's persistent tail opts in. The assertion was not weakened.
+- Independent frontend verification exposed cross-test stream interference. The
+  root cause was concrete: cancellation during reconnect delay still dispatched
+  one more fetch, allowing a stale follower to touch the replacement transport.
+  A maintained cancellation regression observed two fetches instead of one before
+  the fix. The follower now checks abort before dispatch and its delay responds
+  immediately to abort. No assertion or deadline was relaxed.
+- Final watched gates for this follow-up: pr:verify passed (frontend303/6 gated
+  skips, agents202, backend381/264 gated skips; lint/typecheck/frontend build),
+  isolated Postgres578/65 gated skips, full browser54/4 Meta-gated skips, backend
+  build and standalone browser typecheck passed. Independent DB/stream16 and
+  frontend69 plus both typechecks passed. Existing lint/bundle warnings remain.
+  No merge or worker deployment; full release audit, compatibility, reconciliation,
+  scale envelope and UI Meta pilot remain open.

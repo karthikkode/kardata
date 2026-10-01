@@ -199,3 +199,16 @@ persistent one-session binding; denied viewer requests are not repeatedly sent.
 
 Server upload failures show a concrete retry instruction and confirm existing
 files are retained. Internal failure codes stay in correlated backend logs.
+
+Persistent Karbot background tails opt into graceful-EOF reconnection in the
+shared follower, preserving the accepted sequence and accumulated messages. EOF
+emits a recoverable connection error and uses the existing bounded failure policy;
+a closed transport never means research completed. One-shot legacy send flows
+retain terminal refetch/settling behavior; the sector workspace owns its existing
+cursor and reconnect loop. A real browser regression disconnects only its isolated
+DB listener, observes a fresh stream request, and verifies retained draft, one
+terminal reply, and restored Send control. No surrounding layout changes.
+
+Reconnect waits are abort-aware. Closing/switching a conversation cancels a pending
+wait, and the follower checks abort again before dispatching any stream request;
+old followers cannot reopen transport after cancellation.

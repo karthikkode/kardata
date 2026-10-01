@@ -134,3 +134,8 @@ Only server-typed missing-runner preconditions are marked retry-safe before
 an effect. Those failures release their replay guard so the same operation can
 recover after configuration returns. Ordinary/uncertain mutation errors remain
 recorded and are not blindly re-executed. Children cannot rename parent sessions.
+
+The internal outbox subscription tool rejects a supervised connection failure
+instead of returning a healthy timeout. Its wait timer is cleared on failure;
+lease cleanup shares the subscription's single close result. It remains excluded
+from scoped product palettes; no new agent authority is granted.

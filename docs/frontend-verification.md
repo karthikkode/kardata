@@ -282,3 +282,18 @@ The full matrix initially failed before the composer appeared because a session
 run directory scanned the whole accumulated Temporal fleet. Session reads now
 use their recorded graph. The same unchanged 10-second interaction deadline now
 passes: latest full matrix **54 passed / 4 Meta-gated skips**.
+
+### Real stream disconnect recovery (2026-10-01)
+
+`agent-context-db.spec.ts` now completes its scripted tool-backed UI turn, retains
+an unsent draft, inventories the sole idle LISTEN connection in its UUID-isolated
+DB, terminates that exact PID, observes a new browser stream request/DB listener,
+and asserts one terminal reply, unchanged draft, Send visible and Stop absent.
+The initial browser run failed because Karbot did not reconnect on graceful EOF;
+the same deadline now passes. Screenshot visually reviewed: completed tool group,
+terminal answer, draft retained in the composer, no Thinking/Stop residue. This
+is real HTTP/Temporal/MCP/DB with scripted provider, not Meta or a deployment.
+Local retained evidence: `tests/evidence/hardening-2026-10-01/agent-context-db-reconnected.png`
+and `agent-context-db-reconnected.webm`. The existing CI browser-agent artifact
+includes the generated still/video. No research records or owner workflows were
+modified; disruptive drill is isolated.

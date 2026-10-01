@@ -46,6 +46,36 @@ async function drain<T>(gen: AsyncGenerator<T>): Promise<T[]> {
 }
 
 describe('followThread resume', () => {
+  it('reconnects a cleanly closed persistent tail without losing the last token', async () => {
+    const urls: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      urls.push(url)
+      return streamOf([frame({ seq: urls.length, type: 'message', payload: {
+        seq: urls.length, kind: 'text', role: 'agent', text: `TEST reply ${urls.length}`,
+      } })])
+    }))
+    let latest: number[] = []
+    for await (const snapshot of followThread(config, 'persistent', undefined, { reconnectOnEOF: true })) {
+      latest = snapshot.messages.map((message) => message.seq as number)
+      if (latest.includes(2)) break
+    }
+    expect(latest).toEqual([1, 2])
+    expect(urls).toEqual([
+      'https://staging.test/v1/threads/persistent/events?lastSeq=0',
+      'https://staging.test/v1/threads/persistent/events?lastSeq=1',
+    ])
+  })
+
+  it('does not reopen a persistent tail aborted during its reconnect delay', async () => {
+    const fetch = vi.fn(async () => streamOf([]))
+    vi.stubGlobal('fetch', fetch)
+    const controller = new AbortController()
+    for await (const snapshot of followThread(config, 'aborted-tail', controller.signal, { reconnectOnEOF: true })) {
+      if (snapshot.error) controller.abort()
+    }
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
   it('resumes from the last token after socket death without loss or duplication', async () => {
     const urls: string[] = []
     let attempt = 0

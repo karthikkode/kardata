@@ -48,6 +48,8 @@ performance reports.
 | PLAN.edit | Displayed-text edits discarded executable work | live api.sectors.test, failure observed before fix |
 | UI.plan-edit | Failed saves closed the editor and lost its draft | research-plan-editor.test and browser conflict journey |
 | UI.workspace-stream | Prior answer settled queued send; EOF ended following; failure overwrote new draft | workspace-conversation.test, three failures observed before fixes |
+| DB.outbox-lifecycle | Leaked LISTEN leases, duplicate handlers/releases, unhandled disconnect and missed failure wake during backlog read | db.outbox-subscription.test, isolated db.outbox-disconnect.test; setup/cleanup/socket/race failures reproduced |
+| UI.karbot-stream-recovery | Graceful EOF silently ended Karbot's persistent tail | follow-resume.test and real HTTP/Temporal/MCP/DB agent-context-db.spec browser disconnect/reconnect with retained draft and terminal reply |
 | FILE.sector-preview | Missing preview/download surface | live api.workspace.test, sector-file-preview.test, browser download journey |
 
 These entries prove slices, not whole modules. Remaining source review,
@@ -168,3 +170,12 @@ an automatic reconciler is claimed complete. Old cache records without authority
 identity remain a rollout gap. Six sampled old session/child histories replayed,
 but four declared types lacked retained pre-baseline histories. Do not merge or
 deploy the worker on mechanical-green results alone.
+
+### Outbox and UI disconnect follow-up
+
+Watched verification: `npm run pr:verify` passed886 cases with270 declared gated
+skips; isolated Postgres578 passed/65 gated skips; full browser54 passed/4 Meta
+skips; backend build and standalone browser typecheck passed. Independent focused
+DB/stream16 and frontend69 plus typechecks passed. Evidence and failures caught
+are recorded in implementation-status and frontend-verification. These results
+cover this recovery slice, not the remaining release audit/pilot requirements.

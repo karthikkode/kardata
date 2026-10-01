@@ -218,3 +218,8 @@ completion recording throws with an uncertain outcome. Response headers label
 Only explicitly proven pre-effect results release the guard. Uncertain records
 require reconciliation and never permit automatic repeat effects. Recovery UI
 and bounded uncertain-operation reconciliation remain release requirements.
+
+Outbox socket failure wakes the waiting stream and closes its response for client
+reconnect; it cannot leave an idle leased client with an unhandled error. The
+connection is destroyed once. This uses the existing resume/history contract;
+stream-pool capacity and browser disconnect drills remain separate release gates.

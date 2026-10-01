@@ -34,6 +34,10 @@ test('general Karbot reads own local and authorized sector context through real 
   })
   let owned: ReturnType<typeof client.workflow.getHandle> | undefined
   const httpStatus: Array<{ path: string; status: number }> = []
+  let streamRequests = 0
+  page.on('request', (request) => {
+    if (/\/v1\/threads\/[^/]+\/events$/.test(new URL(request.url()).pathname)) streamRequests += 1
+  })
   page.on('response', (response) => { const path = new URL(response.url()).pathname; if (path.startsWith('/v1/')) httpStatus.push({ path, status: response.status() }) })
   try {
     await pool.query('INSERT INTO api_keys(key_id,key_hash,tenant_id,roles) VALUES($1,$2,$3,$4)', ['TEST browser agent', hashKey(token), scope.tenantId, 'operator'])
@@ -80,6 +84,26 @@ test('general Karbot reads own local and authorized sector context through real 
     expect(JSON.stringify(toolReturns)).toContain('TEST approved public scope')
     await expect(chat.getByRole('button', { name: 'Send message', exact: true })).toBeVisible()
     await page.screenshot({ path: 'test-results/visual/agent-context-real-tools.png', animations: 'disabled' })
+
+    // Disrupt only the inventoried LISTEN lease in this UUID-isolated DB.
+    // No workflow/provider/data is killed, and the browser drives reconnect.
+    await chat.getByRole('textbox', { name: 'Message the agent' }).fill('TEST unsent draft survives connection recovery')
+    const listeners = await pool.query<{ pid: number }>(
+      "SELECT pid FROM pg_stat_activity WHERE datname = current_database() AND query = 'LISTEN kardata_outbox' AND state = 'idle' AND pid <> pg_backend_pid()",
+    )
+    expect(listeners.rows).toHaveLength(1)
+    const requestsBeforeDisconnect = streamRequests
+    const terminated = await pool.query<{ stopped: boolean }>('SELECT pg_terminate_backend($1) AS stopped', [listeners.rows[0]?.pid])
+    expect(terminated.rows[0]?.stopped).toBe(true)
+    await expect.poll(() => streamRequests, { timeout: 10_000 }).toBeGreaterThan(requestsBeforeDisconnect)
+    await expect.poll(async () => (await pool.query<{ count: string }>(
+      "SELECT count(*) AS count FROM pg_stat_activity WHERE datname = current_database() AND query = 'LISTEN kardata_outbox' AND state = 'idle'",
+    )).rows[0]?.count).toBe('1')
+    await expect(chat.getByRole('textbox', { name: 'Message the agent' })).toHaveValue('TEST unsent draft survives connection recovery')
+    await expect(chat.getByText('TEST context tools completed successfully', { exact: true })).toHaveCount(1)
+    await expect(chat.getByRole('button', { name: 'Send message', exact: true })).toBeVisible()
+    await expect(chat.getByRole('button', { name: 'Stop reply', exact: true })).toHaveCount(0)
+    await page.screenshot({ path: 'test-results/visual/agent-context-db-reconnected.png', animations: 'disabled' })
   } catch (error) {
     console.error(JSON.stringify({ testHttpStatus: httpStatus }))
     if (!page.isClosed()) await page.screenshot({ path: 'test-results/visual/agent-context-failure.png', animations: 'disabled' })

@@ -115,11 +115,17 @@ export async function* openThreadStream(
   try {
     const pending: string[] = []
     let wake: (() => void) | undefined
+    let subscriptionError: Error | undefined
+    subscription.onError((error) => {
+      subscriptionError = error
+      wake?.()
+    })
     subscription.onNotification((payload) => {
       if (payload !== undefined) pending.push(payload)
       wake?.()
     })
     for (;;) {
+        if (subscriptionError) throw subscriptionError
         if (signal?.aborted) return
         // Re-select on every wake (and once up front): notifications carry
         // only a seq, so the table is the source of truth and missed wakes
@@ -133,6 +139,7 @@ export async function* openThreadStream(
           yield frame
         }
         if (signal?.aborted) return
+        if (subscriptionError) throw subscriptionError
         // A notify that landed mid-drain is already queued: loop instead of
         // waiting, or the stream stalls until the next event.
         if (pending.length > 0) continue

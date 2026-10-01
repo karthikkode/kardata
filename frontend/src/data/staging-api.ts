@@ -795,6 +795,8 @@ export interface LiveThread {
 export const STREAM_IDLE_TIMEOUT_MS = 30_000
 
 export interface FollowThreadOptions {
+  /** Persistent UI tails retry graceful EOF with their last accepted token. */
+  reconnectOnEOF?: boolean
   /** Per-test override for the idle watchdog; production uses the default. */
   idleTimeoutMs?: number
   /** Caller-owned token survives graceful EOF followed by a new follower. */
@@ -823,6 +825,7 @@ export async function* followThread(
   const steering = new Map<string, 'consumed' | 'missed'>((previous?.steering ?? []).map(({ id, state }) => [id, state]))
   let lastSeq = options?.cursor?.seq ?? 0
   for (;;) {
+    if (signal?.aborted) return
     try {
       for await (const frame of openThreadStream(
         config,
@@ -898,7 +901,8 @@ export async function* followThread(
         if (options?.cursor) { options.cursor.seq = lastSeq; options.cursor.live = live }
         yield live
       }
-      return
+      if (signal?.aborted || !options?.reconnectOnEOF) return
+      throw new StagingApiError(0, 'unknown', 'Conversation connection closed. Reconnecting.')
     } catch (error) {
       if (signal?.aborted) return
       // Resume from the last good token: the server replays persisted
@@ -916,7 +920,16 @@ export async function* followThread(
             ? error
             : new StagingApiError(0, 'unknown', 'thread stream failed'),
       }
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      await new Promise<void>((resolve) => {
+        const finish = (): void => {
+          clearTimeout(timer)
+          signal?.removeEventListener('abort', finish)
+          resolve()
+        }
+        const timer = setTimeout(finish, 1000)
+        if (signal?.aborted) finish()
+        else signal?.addEventListener('abort', finish, { once: true })
+      })
     }
   }
 }

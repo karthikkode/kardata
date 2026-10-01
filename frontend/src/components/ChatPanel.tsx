@@ -1148,7 +1148,7 @@ export function ChatPanel({
     let streamDead = false
     void (async () => {
       try {
-        for await (const snapshot of followThread(config, key, controller.signal)) {
+        for await (const snapshot of followThread(config, key, controller.signal, { reconnectOnEOF: true })) {
           if (!live || controller.signal.aborted) return
           if (snapshot.error) {
             deadErrors += 1

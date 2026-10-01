@@ -136,3 +136,9 @@ behavior. Run with `KARDATA_TEMPORAL_TEST=1 TEST_DATABASE_URL` and
 `npm run test:e2e -w frontend -- agent-context-db.spec.ts`. Provider request/result
 persistence remains a separate release requirement; the visible transcript's tool
 summary is not described as an exact stored provider response.
+
+The scripted real-agent browser journey also drills graceful stream disconnect:
+only its captured idle LISTEN PID in the isolated DB is terminated. It asserts a
+new browser request/DB listener, retained draft, one terminal answer, and cleared
+Stop control. Database cleanup failures and disconnect-during-backlog races have
+focused maintained regressions; the existing independent review remains required.

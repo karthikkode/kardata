@@ -576,8 +576,12 @@ const INVOKERS: Invokers = {
     const timeoutMs = args.timeoutMs ?? 1000
     const subscription = await subscribeOutbox(ctx.pool)
     try {
-      const payload = await new Promise<string | undefined>((resolve) => {
+      const payload = await new Promise<string | undefined>((resolve, reject) => {
         const timer = setTimeout(() => resolve(undefined), timeoutMs)
+        subscription.onError((error) => {
+          clearTimeout(timer)
+          reject(error)
+        })
         subscription.onNotification((next) => {
           clearTimeout(timer)
           resolve(next)

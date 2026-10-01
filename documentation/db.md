@@ -232,3 +232,22 @@ matching IDs are adopted to retain old links. No legacy rows or bytes are remove
 A successful archive write followed by DB failure may retain unreferenced bytes;
 it never publishes a pointer implying a complete index. Retrying repairs the full
 index for the same version. No new table, index, or transaction service is added.
+
+### Outbox subscription cleanup
+
+A subscription owns one pooled LISTEN client. Failed LISTEN setup destroys that
+lease and rethrows the original error. Callback registration is idempotent;
+registration after close is ignored. Concurrent/repeated close shares one cleanup
+result, removes every handler, and releases the client exactly once. Failed
+UNLISTEN destroys the client rather than returning residual subscription state to
+the pool; the failure is logged and propagated. Subscribe/unsubscribe emit the
+shared start/done/error operation triple. This fixes lifecycle safety, not pool
+capacity: one held client per stream remains a measured scalability requirement.
+
+A leased client has an explicit error supervisor before LISTEN begins. A socket
+failure destroys its lease once and notifies consumers, including a consumer
+registered after the failure. SSE waiters wake and fail; MCP waits reject rather
+than report a healthy timeout. Operational logs record connection failures without
+connection strings or payloads. An isolated DB drill terminates only its own
+inventoried listener PID and asserts stream rejection, pool recovery, and a healthy
+subsequent query.
