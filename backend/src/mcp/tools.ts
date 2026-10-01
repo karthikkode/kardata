@@ -643,7 +643,7 @@ const INVOKERS: Invokers = {
   'web_search': (_ctx, args) =>
     rethrowRetrieval(pooledWebSearch(process.env, args.query, { count: args.count, page: args.page })),
   'web_fetch': (_ctx, args) => rethrowRetrieval(pooledWebFetch(args.url)),
-  'browser_navigate': (ctx, args) => rethrowRetrieval(pooledBrowserNavigate(args.url, { caller: browserCaller(ctx) })),
+  'browser_navigate': (ctx, args) => rethrowRetrieval(pooledBrowserNavigate(args.url, { caller: browserCaller(ctx), logger: ctx.logger })),
   'browser_snapshot': (ctx, args) => rethrowRetrieval(pooledBrowserSnapshot(args.sessionId, browserCaller(ctx))),
   'browser_act': (ctx, args) =>
     rethrowRetrieval(

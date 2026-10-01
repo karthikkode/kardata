@@ -186,3 +186,14 @@ failures. It does not establish live TLS, real DNS or Chromium network behavior.
 Opt-in KARDATA_RETRIEVAL_TEST=1 runs the maintained real HTTPS source check in
 retrieval.test.ts. It establishes DNS/TLS/body wiring for one public source, not
 Chromium isolation, company qualification or the Meta UI pilot.
+
+Browser network suites: browser.proxy.test exercises the existing HTTP listener,
+admission/auth/expiry/overload/limits, late DNS and raw CONNECT socket supervision.
+browser.proxy-auth.test pins exact-origin proxy-only auth. browser.network.test
+requires KARDATA_BROWSER_TEST=1 and launches owned isolated Chromium, source HTTP
+fixtures and the existing backend listener. Only test transports map admitted
+public fixtures into owned loopback peers; this is not a private-address admission
+exception. It checks private redirect/fetch/image/frame/popup/TURN-TCP denial,
+site-auth capability secrecy, and independent CDP-client survival. Additional
+KARDATA_RETRIEVAL_TEST=1 exercises a real public HTTPS source through production
+DNS/CONNECT and Chromium TLS. No owner sidecar/research data is disrupted.

@@ -51,9 +51,9 @@ export function registerRequestLogging(app: FastifyInstance, deps: RequestObserv
 
   app.addHook('onResponse', (request: FastifyRequest, reply: FastifyReply, done: () => void) => {
     const status = reply.statusCode
-    const route = request.routeOptions?.url ?? request.url.split('?')[0]
+    const route = request.kardataBrowserProxy ? 'browser.proxy' : request.routeOptions?.url ?? request.url.split('?')[0]
     // Metric labels stay bounded: unmatched paths collapse to one bucket.
-    const metricRoute = request.routeOptions?.url ?? '*unmatched*'
+    const metricRoute = request.kardataBrowserProxy ? 'browser.proxy' : request.routeOptions?.url ?? '*unmatched*'
     const latencyMs = Math.round(reply.elapsedTime)
     const tenant = request.kardataCaller?.tenantId
 

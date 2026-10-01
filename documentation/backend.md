@@ -308,3 +308,47 @@ Gzip/deflate/Brotli decoding is streamed; both encoded and decoded bodies are
 bounded, and decoding failure propagates. Injected test fetches are not available
 as MCP arguments. This does not protect Chromium subresources, clicks or popups;
 those remain mandatory preflight work.
+
+### Browser network guard contract
+
+Agent browser contexts use an authenticated HTTP proxy on the existing backend
+listener. This is an internal execution transport, not a product REST tool, new
+service or raw DB surface. Credentials are short-lived, domain-separated HMAC
+capabilities derived by trusted execution code; they grant only bounded public-web
+transport and cannot authenticate /v1 or approve anything. No model arguments
+select a proxy, secret or execution owner. Ordinary /v1, /mcp and health routes
+retain their existing authority.
+
+Every plain HTTP request and HTTPS/WebSocket CONNECT target must use port80/443,
+pass shared literal policy, and resolve entirely to admitted public addresses.
+Connections pin a checked address; redirects/new destinations pass the proxy
+again. Proxy credentials never reach destination headers or logs. Default bounds:
+128 total connections,16 per capability,15-second connection deadline,60-second
+idle timeout,120-second total lifetime,2-MiB request/response byte ceiling.
+Cancellation and backend shutdown close owned sockets and release capacity once.
+
+Contexts remove Chromium's implicit loopback bypass and use service-worker blocking.
+Owned and CDP browsers must demonstrate required no-QUIC/no-unproxied-UDP flags
+before navigation; missing configuration fails closed. Existing browser tools keep
+their schemas, ownership and lifecycle. HTTP proxy verification, real Chromium
+redirect/subresource/popup/WebSocket/private-address denial and two-client survival
+are distinct required tests. Private/CDP/proxy control endpoints are trusted
+configuration, never untrusted page destinations.
+
+Browser proxy capability issuance logs its hash on the trusted MCP logger;
+transport logs carry the same hash for request/workflow correlation. Access logs
+normalize proxy traffic to browser.proxy, never a raw credential-bearing URI.
+Proxy sockets retain quota until their actual close receipt, including rejected
+CONNECT peers that leave a write half open. Accepted socket errors are supervised;
+backend shutdown cancels owned sockets. Teardown has a one-second flush bound.
+
+Playwright's generic proxy-password option also supplies unscoped site HTTP auth.
+The guard therefore uses a page CDP auth interceptor: only a Proxy challenge from
+the exact configured control origin receives the capability. Site challenges and
+repeated/foreign challenges are cancelled. No proxy password is installed as site
+credentials. Idle contexts expire independently after five minutes, with a
+30-minute absolute lifetime; uncertain cleanup retains capacity.
+
+Trusted CDP discovery also has a full-response deadline and64-KiB response cap.
+Response/request errors clear timers and destroy owned requests; websocket origin,
+port and transport derive from configured control origin, not advertised hosts.

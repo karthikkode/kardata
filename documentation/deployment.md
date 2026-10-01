@@ -31,3 +31,15 @@ connection. SDK metrics bind port 9464 by default; Prometheus uses the worker
 target, not the Temporal server. Deploy its matching scrape configuration with
 the worker. The hardening PR remains a draft until live deployment, replay and
 release acceptance evidence are complete.
+
+Browser network guard uses the existing backend port, configured as
+KARDATA_BROWSER_PROXY_URL in backend/worker. The existing KARDATA_MCP_TOKEN signs
+domain-separated short-lived public-browser transport capabilities; no new secret
+is published or service added. Sidecar launch includes runtime-verifiable
+enable-automation, disable-quic and disable-non-proxied-UDP policy flags. Old
+browsers without the required flags fail closed on new guarded execution.
+
+New contexts require verified launch flags before page navigation. Local execution
+uses the same critical flags as the existing sidecar; no unsafe certificate/web
+security bypass is accepted. Updating this source/configuration does not roll the
+existing shared workers/browser. Compatibility/replay checks still precede rollout.

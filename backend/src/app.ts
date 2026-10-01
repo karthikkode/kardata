@@ -23,6 +23,7 @@ import { sectorRoutes } from './routes/sectors.js'
 import { sessionRoutes } from './routes/sessions.js'
 import { skillRoutes } from './routes/skills.js'
 import { threadRoutes } from './routes/threads.js'
+import { registerBrowserProxy } from './retrieval/proxy.js'
 import { workspaceRoutes } from './routes/workspace.js'
 
 export interface HealthData {
@@ -87,6 +88,8 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       uptimeSecs: Math.floor((Date.now() - startedAt) / 1000),
     },
   }))
+
+  registerBrowserProxy(app)
 
   // Trace first: every later hook and route reads request.traceContext.
   void app.register(tracePlugin)

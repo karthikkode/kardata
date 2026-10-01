@@ -24,7 +24,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "3de5edb842448727e9c6945af58a9345c33ec67dc8487871803b82cc51e9f31a",
+      "sha256": "30dc6da12cbc49af687e998419b2227ab890caa65afe7716d2215f0b60a22b99",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -934,7 +934,7 @@
     },
     {
       "path": "backend/src/app.ts",
-      "sha256": "b160c9436e63f5556b709af281769f565880e0e127adb39d61fabc53ae6b1fb5",
+      "sha256": "91aa67d6457e479b5f910051a020a3eaf511b9d07cfdc6fbe6ef297daff6d312",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1050,7 +1050,7 @@
     },
     {
       "path": "backend/src/browserPool/facade.ts",
-      "sha256": "e5b2661aeb602e95597e64910f2ee0de9bad9a06592687287cf48ad2feb34872",
+      "sha256": "b3d3fc387c8ee665027a43506c1ce9d124e8815cf489947feb6a1570ffaefaba",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1899,7 +1899,7 @@
     },
     {
       "path": "backend/src/mcp/tools.ts",
-      "sha256": "b4a61bebc9928252b377d7a5b39a0d9a07d31f0fc0bfc49370dbdea3172d20f7",
+      "sha256": "18f583623ab8fd426b65e5dace3d01b539587586d2b7c0429466a94b71ec7d89",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1948,7 +1948,7 @@
     },
     {
       "path": "backend/src/observability/requestLog.ts",
-      "sha256": "5fb0fc48495c84a579cb45ab6acf87fd85c041adbca8dea2dc79d6103078f99c",
+      "sha256": "67897ebb7eaa5363f3843b53489444dfacb6f94966dc088af8bfd62c64ec5805",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2081,12 +2081,13 @@
     },
     {
       "path": "backend/src/retrieval/browser.ts",
-      "sha256": "7426328ea571ecf5b388627b31f1e4ca8b155ce421cf06d5f6c5989d5dd7f363",
+      "sha256": "3e4724c7e1e9e44b4dcf23e8f9ed10484783beceed9bd7f73cb1671d9b917130",
       "review": "pending",
       "tests": [],
       "exports": [
         "BROWSER_IDLE_TIMEOUT_MS",
         "BROWSER_NAV_TIMEOUT_MS",
+        "BROWSER_NETWORK_FLAGS",
         "BROWSER_SCREENSHOT_MAX_BYTES",
         "BrowserAct",
         "browserAct",
@@ -2117,8 +2118,22 @@
       ]
     },
     {
+      "path": "backend/src/retrieval/proxy.ts",
+      "sha256": "637eec5f3708e990e441e79592f28a8923c1965e282c5667f487e9a6c0a73a8d",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "BROWSER_PROXY_LIFETIME_MS",
+        "BrowserProxyOptions",
+        "ProxyEnvironment",
+        "browserProxyCredentials",
+        "configureBrowserProxyContext",
+        "registerBrowserProxy"
+      ]
+    },
+    {
       "path": "backend/src/retrieval/web.ts",
-      "sha256": "4f187b8aa5078fd54913fe32c7915e0a9cbe91a7762735c2a540893f8c9ac837",
+      "sha256": "2e570074a4bc490dadbf1d1e4dbbcd8f088be177485c064db2ebd63a74a85356",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2131,6 +2146,7 @@
         "WEB_FETCH_MAX_BYTES",
         "WEB_FETCH_TIMEOUT_MS",
         "publicSourceUrl",
+        "resolvePublicSource",
         "webFetch",
         "webSearch"
       ]
@@ -2924,7 +2940,7 @@
     },
     {
       "path": "deployment/compose.yaml",
-      "sha256": "8f4b9a5f8d689ae341b9afd04db2ec3038f7e0a31d40fb6180ca545eb02489a5",
+      "sha256": "714cdd7b2bbcb6409dfc5dd73dd1991a84bba6c6cce9ec0e29fd8a3b3f38b962",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -3779,7 +3795,28 @@
     },
     {
       "path": "tests/backend/browser.isolation.test.ts",
-      "sha256": "b41c0577ba0f00f93b6738376a43364e3babf81de0b2c1832eff911126dc916d",
+      "sha256": "65081f1c3ac672742c98222cb2179bd7f5b2c186507db1d07a474b4d80c2b689",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/browser.network.test.ts",
+      "sha256": "2b96327780e3e643b8d406fba0e3cf1b58f8f2bd20922ded6294837a21b66e28",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/browser.proxy-auth.test.ts",
+      "sha256": "08445133d3ac105dded608528adc67ea18a50a3aedfa4e7c3c6a020864af54b5",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/browser.proxy.test.ts",
+      "sha256": "2aac84293251eca52b73ce063d0c1e50894a61914e3cd95ff7a8bf8a024df2d4",
       "review": "pending",
       "tests": [],
       "exports": []

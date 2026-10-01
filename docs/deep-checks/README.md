@@ -123,7 +123,7 @@ only this section states the current slice's gate results.
 ### Atomic file-publication follow-up
 
 The file-ingestion follow-up passed `pr:verify` (876/253 gated skips), the full
-isolated Postgres battery (559/59 skips), and the browser matrix (53/4 live skips).
+isolated Postgres battery (559/59 skips), and the browser matrix (53/ 4 live skips).
 The real-HTTP file journey uploads through browser controls, observes indexing
 failure, retries, previews, downloads exact bytes, and reuploads without a second
 row. It uses a fresh DB and filesystem archive; FakeRunsGateway/chat SSE do not
@@ -174,7 +174,7 @@ deploy the worker on mechanical-green results alone.
 ### Outbox and UI disconnect follow-up
 
 Watched verification: `npm run pr:verify` passed886 cases with270 declared gated
-skips; isolated Postgres578 passed/65 gated skips; full browser54 passed/4 Meta
+skips; isolated Postgres578 passed/65 gated skips; full browser54 passed/ 4 Meta
 skips; backend build and standalone browser typecheck passed. Independent focused
 DB/stream16 and frontend69 plus typechecks passed. Evidence and failures caught
 are recorded in implementation-status and frontend-verification. These results
@@ -218,3 +218,22 @@ checks on Node 22; no further concrete defect found in covered DI paths. Real
 Chromium/second-client survival, DNS/network admission, Meta, full stress and
 historical replay remain unverified for this slice. PR remains draft and no
 backend/worker rollout or pilot launch has occurred.
+
+## Browser network preflight continuation
+
+The public browser transport is guarded on the existing backend listener. Run
+`KARDATA_BROWSER_TEST=1 KARDATA_RETRIEVAL_TEST=1 npm test -w @kardata/backend --
+browser.network.test.ts` with Node 22 and installed repo Chromium. Owned fixtures
+and browser processes are isolated; no shared sidecar or research data is touched.
+HTTP proxy/admission, auth-source isolation and lifecycle unit commands use
+browser.proxy.test.ts, browser.proxy-auth.test.ts and browser.isolation.test.ts.
+
+Watched mechanical gate: 989 passed / 281 gated skips; separate 48-case isolated
+HTTP/DB authority battery passed. Real owned Chromium 5-case gate passed including
+public HTTPS and 2-client CDP disposal. These are not Meta/UI campaign evidence.
+Source-based business intake, legacy compatibility, uncertain-operation recovery
+and complete functionality/file acceptance remain unfinished release requirements.
+
+Latest browser matrix: 54 passed / 4 Meta-gated skips. Independent light verification:
+35 proxy/auth/isolation cases, types and diff passed on Node 22.23.3. No shared
+backend/worker/browser rollout has occurred; required compatibility still precedes it.

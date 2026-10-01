@@ -7,12 +7,14 @@
 // chrome); sidecar sessions are unowned — close drops the context, never
 // the shared browser process. The CDP client transport is disposed after
 // confirmed context close. Without either, every call fails closed.
+import type { Logger } from 'pino'
 import { createHash, randomUUID } from 'node:crypto'
 import { get as httpGetRaw } from 'node:http'
 import { get as httpsGetRaw } from 'node:https'
 import { z } from 'zod'
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core'
 import { acquireBrowserSlot, type BrowserSlot } from '../browserPool/pool.js'
+import { browserProxyCredentials, configureBrowserProxyContext, BROWSER_PROXY_LIFETIME_MS } from './proxy.js'
 import { RetrievalError, publicSourceUrl } from './web.js'
 import { createLogger, logOp } from '../observability/logging.js'
 
@@ -45,6 +47,8 @@ function cdpUrl(): string | undefined {
 }
 
 const UrlSchema = z.string().trim().min(1).max(2000)
+export const BROWSER_NETWORK_FLAGS = ['--enable-automation', '--disable-background-networking', '--disable-quic', '--force-webrtc-ip-handling-policy=disable_non_proxied_udp'] as const
+
 const RefSchema = z.string().trim().min(1).max(120)
 
 /** Idle sessions die here: browser tabs are task-scoped, never pooled
@@ -65,6 +69,8 @@ interface BrowserSession {
   context: BrowserContext
   page: Page
   lastUsedMs: number
+  createdMs: number
+  idleTimer?: ReturnType<typeof setTimeout>
   /** Pool slot held for the session lifetime: released on close or idle
    * reap, never while the session is active. */
   slot: BrowserSlot
@@ -90,19 +96,20 @@ async function connectSidecar(cdp: string): Promise<Browser> {
   const hostHeader = `127.0.0.1:${endpoint.port || defaultPort}`
   const raw = await new Promise<{ status?: number; data: string }>((resolve, reject) => {
     const request = getRaw(`${endpoint.origin}/json/version`, { headers: { Host: hostHeader } }, (response) => {
-      let data = ''
-      response.on('data', (chunk) => {
-        data += chunk
+      const chunks: Buffer[] = []
+      let bytes = 0
+      response.on('data', (chunk: Buffer) => {
+        bytes += chunk.length
+        if (bytes > 64 * 1024) { request.destroy(new RetrievalError('unconfigured', 'Browser discovery response exceeds limit')); return }
+        chunks.push(chunk)
       })
-      response.on('end', () => resolve({ status: response.statusCode, data }))
+      response.on('error', (error) => { clearTimeout(timer); request.destroy(); reject(error) })
+      response.on('end', () => { clearTimeout(timer); resolve({ status: response.statusCode, data: Buffer.concat(chunks).toString('utf8') }) })
     })
-    request.on('error', reject)
-    request.setTimeout(BROWSER_NAV_TIMEOUT_MS, () => request.destroy(new Error('sidecar discovery timed out')))
-  }).catch((error: unknown) => {
-    throw new RetrievalError(
-      'unconfigured',
-      `browser sidecar unreachable at ${cdp}: ${error instanceof Error ? error.message : 'unknown'}`,
-    )
+    const timer = setTimeout(() => request.destroy(new RetrievalError('unconfigured', 'Browser discovery deadline exceeded')), BROWSER_NAV_TIMEOUT_MS)
+    request.on('error', (error) => { clearTimeout(timer); reject(error) })
+  }).catch(() => {
+    throw new RetrievalError('unconfigured', 'Browser sidecar discovery failed')
   })
   if (raw.status !== 200) {
     throw new RetrievalError('unconfigured', `browser sidecar discovery answered HTTP ${raw.status ?? 'unknown'}`)
@@ -116,15 +123,16 @@ async function connectSidecar(cdp: string): Promise<Browser> {
   if (typeof wsRaw !== 'string' || !wsRaw.startsWith('ws')) {
     throw new RetrievalError('unconfigured', 'browser sidecar discovery held no websocket URL')
   }
-  const ws = new URL(wsRaw)
+  let ws: URL
+  try { ws = new URL(wsRaw) } catch { throw new RetrievalError('unconfigured', 'Browser discovery websocket invalid') }
+  if (!['ws:', 'wss:'].includes(ws.protocol) || ws.username || ws.password || ws.search || ws.hash) throw new RetrievalError('unconfigured', 'Browser discovery websocket invalid')
   ws.hostname = endpoint.hostname
+  ws.port = endpoint.port
+  ws.protocol = endpoint.protocol === 'https:' ? 'wss:' : 'ws:'
   try {
     return await chromium.connectOverCDP(ws.toString(), { timeout: BROWSER_NAV_TIMEOUT_MS })
-  } catch (error) {
-    throw new RetrievalError(
-      'unconfigured',
-      `browser sidecar unreachable at ${cdp}: ${error instanceof Error ? error.message : 'unknown'}`,
-    )
+  } catch {
+    throw new RetrievalError('unconfigured', 'Browser sidecar connection failed')
   }
 }
 
@@ -132,7 +140,7 @@ async function launch(): Promise<{ browser: Browser; owned: boolean }> {
   const cdp = cdpUrl()
   if (cdp) return { browser: await connectSidecar(cdp), owned: false }
   try {
-    const browser = await chromium.launch({ ...chromeTarget(), headless: true })
+    const browser = await chromium.launch({ ...chromeTarget(), headless: true, args: [...BROWSER_NETWORK_FLAGS] })
     return { browser, owned: true }
   } catch (error) {
     throw new RetrievalError(
@@ -193,10 +201,24 @@ async function discard(browser: Browser, owned: boolean, context?: BrowserContex
   })
 }
 
+function armBrowserExpiry(session: BrowserSession): void {
+  clearTimeout(session.idleTimer)
+  const now = Date.now()
+  const wait = Math.min(BROWSER_IDLE_TIMEOUT_MS - (now - session.lastUsedMs), BROWSER_PROXY_LIFETIME_MS - (now - session.createdMs))
+  session.idleTimer = setTimeout(() => {
+    session.cleanupPending = true
+    void discard(session.browser, session.owned, session.context, () => { sessions.delete(session.id); session.slot.release() }).catch(() => {
+      browserLogger.error({ event: 'retrieval.browser.quarantined', code: 'expiry_cleanup_uncertain' })
+    })
+  }, Math.max(1, wait))
+  session.idleTimer.unref?.()
+}
+
 async function reapIdle(): Promise<void> {
   const now = Date.now()
   for (const [id, session] of sessions) {
-    if (now - session.lastUsedMs > BROWSER_IDLE_TIMEOUT_MS) {
+    if (now - session.lastUsedMs > BROWSER_IDLE_TIMEOUT_MS || now - session.createdMs >= BROWSER_PROXY_LIFETIME_MS) {
+      clearTimeout(session.idleTimer)
       session.cleanupPending = true
       await discard(session.browser, session.owned, session.context, () => { sessions.delete(id); session.slot.release() })
     }
@@ -210,6 +232,7 @@ function take(id: string, caller?: string): BrowserSession {
   if (session.cleanupPending) throw new RetrievalError('fetch_failed', 'Browser cleanup pending; retry Close')
   if (session.actionPending) throw new RetrievalError('fetch_failed', 'Browser action completion pending; inspect after it settles or Close')
   session.lastUsedMs = Date.now()
+  armBrowserExpiry(session)
   return session
 }
 
@@ -227,10 +250,12 @@ function hostOfUrl(rawUrl: string): string {
  * reject with `overload` instead of evicting live sessions. */
 export async function browserNavigate(
   rawUrl: string,
-  opts: { caller?: string; timeoutMs?: number } = {},
+  opts: { caller?: string; timeoutMs?: number; logger?: Logger } = {},
 ): Promise<{ sessionId: string; url: string; snapshot: string }> {
   if (!UrlSchema.safeParse(rawUrl).success) throw new RetrievalError('validation_failed', 'url must be non-empty')
   rawUrl = publicSourceUrl(rawUrl).toString()
+  cdpUrl() // Validate trusted CDP configuration before acquiring resources.
+  const proxy = browserProxyCredentials(opts.caller, process.env, opts.logger ?? browserLogger)
   await reapIdle()
   const slot = await acquireBrowserSlot({ host: hostOfUrl(rawUrl), caller: opts.caller, timeoutMs: opts.timeoutMs })
   let browser: Browser
@@ -241,12 +266,26 @@ export async function browserNavigate(
     slot.release()
     throw error
   }
+  try {
+    const protocol = await boundedBrowserWork(browser.newBrowserCDPSession())
+    try {
+      const command = await boundedBrowserWork(protocol.send('Browser.getBrowserCommandLine'))
+      const unsafe = ['--disable-web-security', '--allow-file-access-from-files', '--ignore-certificate-errors', '--no-proxy-server']
+      if (unsafe.some((flag) => command.arguments.some((arg) => arg === flag || arg.startsWith(flag + '=')))) throw new RetrievalError('unconfigured', 'Unsafe browser network policy flags')
+      if (BROWSER_NETWORK_FLAGS.some((flag) => !command.arguments.includes(flag))) throw new RetrievalError('unconfigured', 'Browser network policy flags missing')
+    } finally { await boundedBrowserWork(protocol.detach()) }
+  } catch (error) {
+    // This handle belongs to this launch/connection, never another caller.
+    await boundedBrowserWork(browser.close().then(() => slot.release()))
+    if (error instanceof RetrievalError) throw error
+    throw new RetrievalError('unconfigured', 'Browser network policy could not be verified')
+  }
   // Always a fresh context, never the shared default: two sessions must
   // never land in one context on the sidecar, or closing one strands the
   // other's pages (verified leak 2026-09-27).
   let context: BrowserContext
   try {
-    const pendingContext = browser.newContext().then((created) => {
+    const pendingContext = browser.newContext({ proxy: { server: proxy.server, bypass: proxy.bypass }, serviceWorkers: 'block' }).then((created) => {
       if (!owned) trackCdpContext(browser, created)
       return created
     })
@@ -266,11 +305,15 @@ export async function browserNavigate(
     throw new RetrievalError('fetch_failed', `browser context failed: ${error instanceof Error ? error.message : 'unknown'}`)
   }
   try {
+    const authenticate = configureBrowserProxyContext(context, proxy)
     const page = await boundedBrowserWork(context.newPage())
+    await boundedBrowserWork(authenticate(page))
     await page.goto(rawUrl, { timeout: BROWSER_NAV_TIMEOUT_MS, waitUntil: 'domcontentloaded' })
     const snapshot = await page.locator('body').ariaSnapshot({ timeout: BROWSER_NAV_TIMEOUT_MS })
     const id = `browser-${randomUUID()}`
-    sessions.set(id, { id, caller: opts.caller, browser, owned, context, page, lastUsedMs: Date.now(), slot })
+    const session: BrowserSession = { id, caller: opts.caller, browser, owned, context, page, lastUsedMs: Date.now(), createdMs: Date.now(), slot }
+    sessions.set(id, session)
+    armBrowserExpiry(session)
     return { sessionId: id, url: page.url(), snapshot }
   } catch {
     await discard(browser, owned, context, () => slot.release())
@@ -384,6 +427,7 @@ export async function browserClose(sessionId: string, caller?: string): Promise<
   if (session) {
     if (session.caller !== caller) throw new RetrievalError('blocked', 'Browser session belongs to another execution')
     session.cleanupPending = true
+    clearTimeout(session.idleTimer)
     await discard(session.browser, session.owned, session.context, () => { sessions.delete(sessionId); session.slot.release() })
   }
   return { ok: true }

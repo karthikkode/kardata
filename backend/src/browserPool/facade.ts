@@ -6,6 +6,7 @@
 // the query cache (query + count + page), never in a worker slot.
 // Tool names, schemas, roles, and `via` tags are unchanged: the pool and
 // caches sit underneath the existing contract.
+import type { Logger } from 'pino'
 import {
   browserAct,
   browserClose,
@@ -216,7 +217,7 @@ export async function pooledWebSearch(
 // (acquire on navigate, release on close/idle-reap). These pass-throughs
 // exist so every agent browser call crosses the facade — the one place a
 // future tier router can intercept without touching callers.
-export function pooledBrowserNavigate(url: string, opts?: { caller?: string; timeoutMs?: number }) {
+export function pooledBrowserNavigate(url: string, opts?: { caller?: string; timeoutMs?: number; logger?: Logger }) {
   return browserNavigate(url, opts)
 }
 

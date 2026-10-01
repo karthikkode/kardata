@@ -106,3 +106,7 @@ See `docs/deep-checks/README.md` for commands and acceptance gaps.
 Public-source transport has a separate opt-in real DNS/TLS check, documented in
 `documentation/tests.md` (`KARDATA_RETRIEVAL_TEST`). It is not browser-network
 isolation or evidence of the Meta UI pilot.
+
+Agent browser network protection is an execution-only transport on the existing
+backend listener, specified in `documentation/backend.md`; deployment wiring
+remains in `documentation/deployment.md`. It adds no product service or framework.

@@ -8262,6 +8262,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/retrieval/browser.ts#BROWSER_NETWORK_FLAGS",
+      "source": "backend/src/retrieval/browser.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/retrieval/browser.ts#BROWSER_SCREENSHOT_MAX_BYTES",
       "source": "backend/src/retrieval/browser.ts",
       "kind": "export",
@@ -8339,6 +8346,48 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/retrieval/proxy.ts#BROWSER_PROXY_LIFETIME_MS",
+      "source": "backend/src/retrieval/proxy.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/retrieval/proxy.ts#browserProxyCredentials",
+      "source": "backend/src/retrieval/proxy.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/retrieval/proxy.ts#BrowserProxyOptions",
+      "source": "backend/src/retrieval/proxy.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/retrieval/proxy.ts#configureBrowserProxyContext",
+      "source": "backend/src/retrieval/proxy.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/retrieval/proxy.ts#ProxyEnvironment",
+      "source": "backend/src/retrieval/proxy.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/retrieval/proxy.ts#registerBrowserProxy",
+      "source": "backend/src/retrieval/proxy.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/retrieval/web.ts#FetchImpl",
       "source": "backend/src/retrieval/web.ts",
       "kind": "export",
@@ -8354,6 +8403,13 @@
     },
     {
       "id": "backend/src/retrieval/web.ts#publicSourceUrl",
+      "source": "backend/src/retrieval/web.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/retrieval/web.ts#resolvePublicSource",
       "source": "backend/src/retrieval/web.ts",
       "kind": "export",
       "features": [],

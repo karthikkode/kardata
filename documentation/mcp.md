@@ -164,3 +164,9 @@ Production web_fetch now pins each HTTP(S) connection to an admitted DNS address
 rejecting mixed/private/empty resolutions before transport. Redirects resolve and
 validate independently. Source cancellation, byte caps and decoding retain the
 existing tool surface. Browser-network requests remain a separate unfinished gate.
+
+Browser proxy credentials derive from validated execution code and never appear
+in tool arguments/results. They authorize public-web transport only, not product
+API operations. Browser contexts fail closed without an authenticated configured
+proxy or required Chromium flags. Existing role/thread/sector grants still govern
+tools. Internal proxy transport is not an advertised MCP capability.

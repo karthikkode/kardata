@@ -93,11 +93,9 @@ function discardBody(response: Response): void {
   if (response.body) void response.body.cancel().catch(() => fetchLogger.warn({ event: 'retrieval.fetch.cleanup.error', code: 'body_cancel_failed' }))
 }
 
-/** Resolve once and pin the connection, retaining the original Host/TLS name.
- * Merely checking DNS before ordinary fetch would permit a second lookup to
- * return a private address. Every redirect invokes this transport afresh. */
-const sourceFetch: FetchImpl = async (input, init) => {
-  const url = publicSourceUrl(typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url)
+/** Shared DNS admission; only backend transports call this, never model args. */
+export async function resolvePublicSource(url: URL): Promise<Array<{ address: string; family: number }>> {
+  publicSourceUrl(url.toString())
   const host = url.hostname.replace(/^\[|\]$/g, '')
   const family = isIP(host)
   const addresses = family ? [{ address: host, family }] : await lookup(host, { all: true, verbatim: true })
@@ -106,6 +104,15 @@ const sourceFetch: FetchImpl = async (input, init) => {
     if (![4, 6].includes(entry.family) || isIP(entry.address) !== entry.family) throw new RetrievalError('blocked', 'Invalid source DNS destination')
     publicSourceUrl(`http://${entry.family === 6 ? `[${entry.address}]` : entry.address}/`)
   }
+  return addresses
+}
+
+/** Resolve once and pin the connection, retaining the original Host/TLS name.
+ * Merely checking DNS before ordinary fetch would permit a second lookup to
+ * return a private address. Every redirect invokes this transport afresh. */
+const sourceFetch: FetchImpl = async (input, init) => {
+  const url = publicSourceUrl(typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url)
+  const addresses = await resolvePublicSource(url)
   if (init?.signal?.aborted) throw new RetrievalError('fetch_failed', 'Source fetch cancelled before connection')
   const selected = addresses[0]!
   const pinnedLookup: LookupFunction = (_hostname, options, callback) => {

@@ -116,7 +116,7 @@ until the wider live gates and release catalogue are complete.
   validate up front, propose/commit are idempotent replays
   (`ON CONFLICT` + winner-select; `parent-commit:` short-circuit), raw
   `Error`s became `WorkspaceError`. Proven by
-  `db.workspace-idempotency.test.ts` (4/4 fail-before, pass-after).
+  `db.workspace-idempotency.test.ts` (4/ 4 fail-before, pass-after).
 - Schema: new `0018_workspace_hardening` (3 lookup indexes + 4 CHECKs;
   FKs deliberately omitted — thread local memory is authoritative, must
   survive `rebuildFromEvents` truncation and session-delete projection,
@@ -414,7 +414,7 @@ until the wider live gates and release catalogue are complete.
   `agents/src/fixtures/research-fintech-acme.json` (2 docs,
   2 findings).
 - Proven failing-first by `agents/src/research.pack.test.ts`
-  (failed on missing module before the fix; 4/4 after):
+  (failed on missing module before the fix; 4/ 4 after):
   replay with `fetch` stubbed to throw, end-to-end workflow
   report byte-identical to the golden, `createResearchPack`
   round-trip equality, four tamper rejections, secrets scan.
@@ -463,7 +463,7 @@ until the wider live gates and release catalogue are complete.
   unit islands (containment removed), filename unit labels, units-count
   summaries, indexed notes, offset single ring on the composer.
 - Proven by stub-DB sector-context tests (4 failed before, pass after),
-  live sector-context 4/4 on 5433, drawer unit tests 7/7, polish e2e 4/4
+  live sector-context 4/ 4 on 5433, drawer unit tests 7/7, polish e2e 4/ 4
   with `polish-drawer-*` shots reviewed light + dark. Chaining test
   verified to fail with the trap restored.
 - Open decision: AI-generated display names for uploads (provider,
@@ -1021,7 +1021,7 @@ entries below; open owner proposals live in the Phase 7 entry.
   `db.list_sessions` without `sectorId`) lists general sessions only;
   sector chats list through `?sectorId=`.
 - Evidence (live-db where gated): `tests/backend/api.sectors.test.ts`
-  (pause/resume 403/404/409/200), `tests/backend/db.sectors.test.ts`
+  (pause/resume 403/ 404/ 409/200), `tests/backend/db.sectors.test.ts`
   (pin projection), `tests/backend/sector-start.test.ts` (pin record,
   unknown/foreign session, pause/resume tools),
   `tests/backend/api.session-sector.test.ts` (bare list excludes sector
@@ -1881,7 +1881,7 @@ scale claims with evidence links.
   plan) the same way the turn lane serves its turn-bundle.
 - Evidence: stub-DB protocol tests, brief-shape tests, live Temporal
   planned + empty-failed branches, live route tests (visible chat,
-  conflict, empty/read/404).
+  conflict, empty/read/ 404).
 
 ## Plan panel + strip rewiring (P3)
 
@@ -1993,7 +1993,7 @@ scale claims with evidence links.
 
 - Latest complete local gates: pr:verify frontend 301/6 skipped, agents 202,
   backend 373/243 skipped; Postgres battery 555/59 skipped; selected real
-  Temporal recovery/planning 28 passed; browser matrix 52/4 live-gated skips.
+  Temporal recovery/planning 28 passed; browser matrix 52/ 4 live-gated skips.
   Backend build passed separately. Independent reviewer verified 13 isolated
   DB/HTTP cases and cleared both stream findings after fresh recovery tests.
   No deployment, merge, complete audit, or Meta pilot is claimed.
@@ -2037,7 +2037,7 @@ scale claims with evidence links.
   live DB verification then passed 559/59 gated skips in 15.80 seconds. No test
   deadline or assertion was weakened. Run live DB gates sequentially on this
   development host; the contention failure remains recorded.
-- Latest browser matrix passed 53/4 live-provider skips; pr:verify passed 876
+- Latest browser matrix passed 53/ 4 live-provider skips; pr:verify passed 876
   deterministic cases/253 gated skips. Independent review repeated mechanical
   gates and eight isolated ingestion/context cases successfully.
 
@@ -2099,7 +2099,7 @@ scale claims with evidence links.
 
 - Scoped run-directory regressions passed two cases without network dependencies:
   no unrelated fleet enumeration and preserved explicit legacy research identity.
-  The full browser matrix then passed 54/4 Meta-gated skips within the unchanged
+  The full browser matrix then passed 54/ 4 Meta-gated skips within the unchanged
   interaction deadline. Unfiltered fleet enumeration remains an operating-limit
   gap; no whole-system scalability claim is made.
 
@@ -2141,7 +2141,7 @@ scale claims with evidence links.
   acceptance gaps; an in-progress guard is not claimed to be an active worker.
 
 - Final watched follow-up gates: deterministic 878/269 gated skips; Postgres
-  571/65 skips; browser 54/4 Meta skips; backend build and contract 18 passed.
+  571/65 skips; browser 54/ 4 Meta skips; backend build and contract 18 passed.
   The matching OpenAPI now describes semantic MCP replay, fresh reads, uncertainty
   headers and the actual 409 error envelope. Independent focused guard review
   passed 55 cases. Full audit, legacy-history/cache compatibility, uncertain-operation
@@ -2188,7 +2188,7 @@ scale claims with evidence links.
   immediately to abort. No assertion or deadline was relaxed.
 - Final watched gates for this follow-up: pr:verify passed (frontend 303/6 gated
   skips, agents 202, backend381/264 gated skips; lint/typecheck/frontend build),
-  isolated Postgres578/65 gated skips, full browser54/4 Meta-gated skips, backend
+  isolated Postgres578/65 gated skips, full browser54/ 4 Meta-gated skips, backend
   build and standalone browser typecheck passed. Independent DB/stream16 and
   frontend69 plus both typechecks passed. Existing lint/bundle warnings remain.
   No merge or worker deployment; full release audit, compatibility, reconciliation,
@@ -2273,7 +2273,7 @@ scale claims with evidence links.
   Unicode content failed first; offset-preserving ASCII tag folding repaired it.
   The near-cap isolated CPU test remains green. No deadline/assertion was weakened.
 - Final watched retrieval gates: pr:verify905 passed / 275 declared gated skips,
-  backend build, browser54 passed/4 Meta-gated skips. Independent19 focused cases,
+  backend build, browser54 passed/ 4 Meta-gated skips. Independent19 focused cases,
   backend types and whitespace passed; no further concrete defect in this slice.
   Public-network/DNS/browser controls and actual basic intake/pilot remain required.
 
@@ -2382,3 +2382,50 @@ compressed-byte coverage finding now has a 12th case using valid gzip metadata
 with tiny decoded output; removing the raw guard makes that maintained test fail,
 and restoring it passes. This added test is focused proof, not a new full-battery
 count. The entire preflight and real UI pilot are still incomplete.
+
+## Browser network guard preflight (in progress)
+
+Network admission now lives on the existing backend HTTP listener, with ephemeral
+HMAC capabilities, literal/DNS admission and pinned connections. No extra service
+or dependency was added. Browser contexts use verified QUIC/WebRTC policy flags,
+service-worker blocking and removal of loopback proxy bypass. Installed Playwright
+inspection exposed that generic proxy credentials also authorize site HTTP auth;
+custom exact-origin/proxy-only CDP auth avoids that leak. Real isolated Chromium
+checks pass for private page traffic/redirects/popup/TURN-TCP and malicious site
+auth. A controlled shared test browser proves one client's disposal preserves the
+other and leaves zero task contexts after both close. A real public HTTPS source
+also passes through authenticated CONNECT, DNS and Chromium TLS.
+
+Independent review found raw CONNECT half-open peers escaping cleanup and accepted
+socket errors that could crash Node. Close-receipt accounting, bounded flush,
+shutdown tracking and accepted/late error supervision now have maintained tests.
+The first half-open test incorrectly waited for the client to close its own write
+half; the corrected oracle asserts the SERVER socket close before test-peer cleanup.
+A missing enable-automation flag prevented runtime inspection and failed closed;
+local/sidecar flags now match. Type/lint errors in typed CDP parameters, HTTP spy
+overloads and an unnecessary assignment were fixed without relaxing gates.
+
+Focused proxy/auth/expiry/DNS suites passed; full repository and browser matrices,
+new independent review, intake validation and legacy/recovery gates are still
+pending. These are real isolated browser/network checks, not the UI Meta pilot.
+Existing shared backend/worker/browser images remain unchanged; no pilot launched.
+
+CDP control-discovery truncation now clears its deadline and releases its slot;
+maintained headers-plus-partial-JSON peer-close regression passes. The broader
+gate caught a prefer-const error in the new control timer; fixed without lowering
+lint. Actual Chromium checks now total5: private page/redirect/popup/TURN-TCP and
+site-auth secrecy, isolated2-client CDP survival, and real public HTTPS viaCONNECT.
+These are separate from the unstarted UI Meta campaign.
+
+Final watched Node 22 transport gates: pr:verify 989 passed / 281 explicit gated
+skips (frontend 303, agents 202, backend 484), lint/types and both builds; four
+isolated-Postgres HTTP/MCP authority suites: 48 passed. Owned Chromium network
+suite: 5 passed, including production DNS/CONNECT to a public HTTPS peer.
+Browser matrix and latest independent control-discovery verification pending.
+No shared rollout, pilot company population, main merge or data purge occurred.
+
+Browser matrix passed 54 cases / 4 explicitly Meta-gated skips with real isolated
+HTTP/DB/Temporal file/context journeys enabled. Independent reviewer passed 35
+proxy/auth/isolation cases, backend types and diff on Node 22.23.3; control timer
+finding resolved, no new concrete defect found in reviewed paths. Its checks do
+not independently rerun the author's live browser, DB or full-suite results.

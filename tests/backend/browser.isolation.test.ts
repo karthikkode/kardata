@@ -1,16 +1,17 @@
 import { createServer, type Server } from 'node:http'
 import { once } from 'node:events'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const fake = vi.hoisted(() => {
   const page = { goto: vi.fn().mockResolvedValue(undefined), url: () => 'https://example.com/', locator: () => ({ ariaSnapshot: vi.fn().mockResolvedValue('Public page') }), screenshot: vi.fn().mockResolvedValue(Buffer.from('image')), keyboard: { press: vi.fn() }, mouse: { wheel: vi.fn() } }
   const context = { newPage: vi.fn().mockResolvedValue(page), close: vi.fn().mockResolvedValue(undefined) }
   const makeContext = () => {
     const listeners: Array<() => void> = []
     const emitClose = () => { for (const listener of listeners.splice(0)) listener() }
-    return { newPage: context.newPage, close: () => context.close().then(emitClose), once: (_event: string, listener: () => void) => { listeners.push(listener) }, emitClose }
+    return { on: vi.fn(), newCDPSession: vi.fn().mockResolvedValue({ on: vi.fn(), send: vi.fn().mockResolvedValue({}) }), newPage: context.newPage, close: () => context.close().then(emitClose), once: (_event: string, listener: () => void) => { listeners.push(listener) }, emitClose }
   }
-  const browser = { newContext: vi.fn().mockImplementation(async () => makeContext()), close: vi.fn().mockResolvedValue(undefined) }
-  return { page, context, browser, makeContext }
+  const protocol = { send: vi.fn().mockResolvedValue({ arguments: ['--enable-automation', '--disable-background-networking', '--disable-quic', '--force-webrtc-ip-handling-policy=disable_non_proxied_udp'] }), detach: vi.fn().mockResolvedValue(undefined) }
+  const browser = { newBrowserCDPSession: vi.fn().mockResolvedValue(protocol), newContext: vi.fn().mockImplementation(async () => makeContext()), close: vi.fn().mockResolvedValue(undefined) }
+  return { page, context, browser, makeContext, protocol }
 })
 vi.mock('playwright-core', () => ({ chromium: { launch: vi.fn().mockResolvedValue(fake.browser), connectOverCDP: vi.fn().mockResolvedValue(fake.browser) } }))
 import { browserNavigate, browserSnapshot, browserAct, browserScreenshot, browserClose } from '../../backend/src/retrieval/browser.js'
@@ -18,6 +19,7 @@ import { invokeTool, type McpToolContext } from '../../backend/src/mcp/tools.js'
 import { browserPoolStats } from '../../backend/src/browserPool/pool.js'
 let sidecar: Server | undefined
 const opened: Array<{ id: string; owner: string }> = []
+beforeEach(() => { vi.stubEnv('KARDATA_MCP_TOKEN', 'TEST_BROWSER_PROXY_SECRET_NOT_A_REAL_KEY'); vi.stubEnv('KARDATA_BROWSER_PROXY_URL', 'http://127.0.0.1:9999') })
 afterEach(async () => {
   for (const item of opened.splice(0)) await browserClose(item.id, item.owner)
   vi.useRealTimers()
@@ -26,6 +28,18 @@ afterEach(async () => {
   vi.restoreAllMocks()
 })
 describe('browser owner isolation and failed-open recovery', () => {
+  it('automatically expires an idle published session without another navigation', async () => {
+    const before = browserPoolStats().active
+    const result = await browserNavigate('https://example.com', { caller: 'idle-owner' })
+    opened.push({ id: result.sessionId, owner: 'idle-owner' })
+    // The timer must be created under the stepped clock for deterministic expiry.
+    vi.useFakeTimers()
+    await browserSnapshot(result.sessionId, 'idle-owner')
+    await vi.advanceTimersByTimeAsync(5 * 60_000 + 1)
+    expect(browserPoolStats().active).toBe(before)
+    await expect(browserSnapshot(result.sessionId, 'idle-owner')).rejects.toMatchObject({ code: 'validation_failed' })
+    vi.useRealTimers()
+  })
   it('denies another execution and missing ownership on every session operation', async () => {
     const result = await browserNavigate('https://example.com', { caller: 'parent' })
     opened.push({ id: result.sessionId, owner: 'parent' })
@@ -111,6 +125,28 @@ describe('browser owner isolation and failed-open recovery', () => {
     await failure
     expect(browserPoolStats().active).toBe(before)
     vi.useRealTimers()
+  })
+  it('clears the discovery deadline and slot after headers plus a truncated JSON response', async () => {
+    sidecar = createServer((_request, response) => {
+      response.writeHead(200, { 'content-type': 'application/json', 'content-length': '1000' })
+      response.flushHeaders(); response.write('{"TEST":')
+      setTimeout(() => response.socket?.destroy(), 20)
+    }).listen(0, '127.0.0.1')
+    await once(sidecar, 'listening')
+    const port = (sidecar.address() as { port: number }).port
+    vi.stubEnv('KARDATA_CHROME_CDP_URL', `http://127.0.0.1:${port}`)
+    const timers = new Set<ReturnType<typeof setTimeout>>()
+    const nativeSet = globalThis.setTimeout, nativeClear = globalThis.clearTimeout
+    vi.spyOn(globalThis, 'setTimeout').mockImplementation((callback, delay, ...args) => {
+      const timer = nativeSet(callback, delay, ...args)
+      if (delay === 30_000) timers.add(timer)
+      return timer
+    })
+    vi.spyOn(globalThis, 'clearTimeout').mockImplementation((timer) => { timers.delete(timer as ReturnType<typeof setTimeout>); nativeClear(timer) })
+    const before = browserPoolStats().active
+    await expect(browserNavigate('https://example.com', { caller: 'truncated-discovery' })).rejects.toMatchObject({ code: 'unconfigured' })
+    expect(browserPoolStats().active).toBe(before)
+    expect(timers.size).toBe(0)
   })
   async function fakeSidecar() {
     sidecar = createServer((_request, response) => {
