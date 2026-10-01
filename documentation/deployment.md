@@ -43,3 +43,9 @@ New contexts require verified launch flags before page navigation. Local executi
 uses the same critical flags as the existing sidecar; no unsafe certificate/web
 security bypass is accepted. Updating this source/configuration does not roll the
 existing shared workers/browser. Compatibility/replay checks still precede rollout.
+
+Migration19 is additive attempt state. Apply it before starting matching hardening
+workers. Do not mix unfenced older workers with new active attempts; preserve
+older histories through replay and the explicit pause/review/start transition.
+Rollback requires quiescing active attempts before returning to old workers;
+source archive paths/hashes remain backward-readable and research data is retained.

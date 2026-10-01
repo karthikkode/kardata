@@ -45,7 +45,7 @@ import {
   resolveSelection,
   type ProviderSelection,
 } from '../../providers/gateway.js'
-import { resolveArchiveTarget } from '../../archive/targets.js'
+import { archiveResearchOutcome, hydrateResearchSources, persistResearchSource, resolveArchiveTarget, type ArchivedResearchSource } from '../../archive/targets.js'
 
 export class ResearchPausedError extends Error {}
 
@@ -92,6 +92,7 @@ export const TURN_HEARTBEAT_MS = 5_000
 export const RESEARCH_TURN_WALL_MS = 600_000
 
 export interface TurnOutcome {
+  sourceRefs?: ArchivedResearchSource[]
   sources?: Array<{ url: string; text: string }>
   reply: string
   /** Provider thinking trace; absent when the provider sends none. */
@@ -102,8 +103,13 @@ export interface TurnOutcome {
   haltNotice?: string
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const done = () => { clearTimeout(timer); signal?.removeEventListener('abort', done); resolve() }
+    const timer = setTimeout(done, ms)
+    if (signal?.aborted) done()
+    else signal?.addEventListener('abort', done, { once: true })
+  })
 }
 
 export interface ChildTurnInput {
@@ -649,7 +655,7 @@ export function selectTurnContinuation(saved: Awaited<ReturnType<typeof readTurn
 export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOutcome> {
   const context = Context.current()
   const pool = workerPoolFromEnv()
-  await beginThreadTurn(pool, input.threadKey, input.runKey)
+  const lease = await beginThreadTurn(pool, input.threadKey, input.runKey)
   const abort = new AbortController()
   void context.cancelled.catch(() => abort.abort())
   const activityStarted = Date.now()
@@ -657,7 +663,7 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
   const beating = (async () => {
     try {
       while (!settled) {
-        await Promise.race([sleep(TURN_HEARTBEAT_MS), context.cancelled])
+        await Promise.race([sleep(TURN_HEARTBEAT_MS, abort.signal), context.cancelled])
         if (settled) break
         context.heartbeat({ sessionId: input.sessionId, at: Date.now() })
         await recordHeartbeat(pool, context.info.workflowExecution?.workflowId ?? input.runKey, 'karbot.turn', true)
@@ -679,28 +685,25 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
         const continuation = selectTurnContinuation(existing, input)
         const sourceRefs = new Map((continuation?.sources ?? []).map((source) => [source.hash, source]))
         abort.signal.throwIfAborted()
-        return executeKarbotTurn(input, {
+        const outcome = await executeKarbotTurn(input, {
           measureContext: (usage) => recordContextMeasurement(pool, input.threadKey, usage),
           signal: abort.signal,
           loadContinuation: async () => {
             if (!continuation) return undefined
-            const sources = await Promise.all(continuation.sources.map(async (source) => {
-              const text = await archive.read(source.key)
-              if (text === undefined || createHash('sha256').update(`${source.url}\n${text}`).digest('hex') !== source.hash) throw new Error('Saved source evidence is missing or corrupt.')
-              return { url: source.url, text }
-            }))
-            return { ...continuation, sources }
+            const hydrated = await hydrateResearchSources(archive, input.sessionId, { sourceRefs: continuation.sources }, abort.signal)
+            return { ...continuation, sources: hydrated.sources }
           },
           checkpoint: async (messages, round, usage, toolCalls, sources) => {
             for (const source of sources) {
               const hash = createHash('sha256').update(`${source.url}\n${source.text}`).digest('hex')
+              abort.signal.throwIfAborted()
               if (!sourceRefs.has(hash)) {
-                const key = `research-sources/${createHash('sha256').update(input.sessionId).digest('hex')}/${hash}.txt`
-                await archive.write(key, source.text)
-                sourceRefs.set(hash, { url: source.url, key, hash })
+                sourceRefs.set(hash, await persistResearchSource(archive, input.sessionId, source, abort.signal))
+                abort.signal.throwIfAborted()
               }
             }
-            await saveTurnContinuation(pool, input.threadKey, { user: input.text, messages, runKey: continuation?.runKey ?? input.runKey, sources: [...sourceRefs.values()], meta: { round, usage, toolCalls, elapsedMs: (continuation?.meta.elapsedMs ?? 0) + Date.now() - activityStarted } })
+            abort.signal.throwIfAborted()
+            await saveTurnContinuation(pool, input.threadKey, { user: input.text, messages, runKey: continuation?.runKey ?? input.runKey, sources: [...sourceRefs.values()], meta: { round, usage, toolCalls, elapsedMs: (continuation?.meta.elapsedMs ?? 0) + Date.now() - activityStarted } }, lease)
           },
           loadSessionModel: (sessionId) => getSessionModel(pool, sessionId),
           loadSessionSector: async (sessionId) => (await getSession(pool, sessionId))?.sectorId,
@@ -714,11 +717,13 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
             const session = await getSession(pool, input.sessionId)
             const local = await readThreadContext(pool, input.threadKey)
             const researchState = await researchThreadState(pool, input.threadKey)
-            return { references: session?.sectorId ? await workspaceReferences(pool, session.sectorId) : [], notes: local.notes, steering: await consumeSteering(pool, input.threadKey, continuation?.runKey ?? input.runKey, round), paused: researchState === 'paused' || researchState === 'planning' || researchState === 'planned' }
+            return { references: session?.sectorId ? await workspaceReferences(pool, session.sectorId) : [], notes: local.notes, steering: await consumeSteering(pool, input.threadKey, continuation?.runKey ?? input.runKey, round, lease), paused: researchState === 'paused' || researchState === 'planning' || researchState === 'planned' }
           },
           persistSummary: async (summary, coveredSeq) => {
+            abort.signal.throwIfAborted()
             const local = await readThreadContext(pool, input.threadKey)
-            await saveThreadContext(pool, input.threadKey, { version: local.version, summary, coveredSeq })
+            abort.signal.throwIfAborted()
+            await saveThreadContext(pool, input.threadKey, { version: local.version, summary, coveredSeq }, undefined, lease)
           },
           // Brainstorm preload: top corpus chunks matching the turn text,
           // cited by source path. A search miss preloads nothing — the turn
@@ -769,10 +774,17 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
         // reply text, or token material.
         log: (fields) => context.log.info('karbot.turn', { ...fields }),
       })
+      abort.signal.throwIfAborted()
+      const archived = await archiveResearchOutcome(archive, input.sessionId, outcome, abort.signal)
+      abort.signal.throwIfAborted()
+      await appendEvent(pool, { idempotencyKey: `turn-sources:${input.runKey}:${lease}`, partition: input.threadKey.startsWith('agent:') ? `child:${input.threadKey.slice(6)}` : `session:${input.sessionId}`, type: 't.turn.sources_archived', payload: { sessionId: input.sessionId, threadKey: input.threadKey, runKey: input.runKey, attemptLease: lease, attempt: context.info.attempt, activityId: context.info.activityId, workflowRunId: context.info.workflowExecution?.runId, sources: archived.sourceRefs } })
+      abort.signal.throwIfAborted()
+      await clearTurnContinuation(pool, input.threadKey, lease)
+      return archived
       })(),
       context.cancelled,
       beating.then(() => new Promise<never>(() => undefined)),
-    ]).then(async (outcome) => { await clearTurnContinuation(pool, input.threadKey); return outcome }).catch((error: unknown) => {
+    ]).catch((error: unknown) => {
       if (error instanceof ResearchPausedError) throw ApplicationFailure.nonRetryable(error.message, 'ResearchPaused')
       if (error instanceof ContextBudgetError) throw ApplicationFailure.nonRetryable(error.message, 'ContextBlocked')
       throw error
@@ -780,7 +792,7 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
   } finally {
     settled = true
     abort.abort()
-    await finishSteering(pool, input.threadKey, input.runKey)
+    await finishSteering(pool, input.threadKey, input.runKey, lease)
     void beating
   }
 }

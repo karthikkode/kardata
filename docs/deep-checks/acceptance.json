@@ -3355,6 +3355,20 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/archive/targets.ts#ArchivedResearchSource",
+      "source": "backend/src/archive/targets.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/archive/targets.ts#archiveResearchOutcome",
+      "source": "backend/src/archive/targets.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/archive/targets.ts#ArchiveTarget",
       "source": "backend/src/archive/targets.ts",
       "kind": "export",
@@ -3404,7 +3418,35 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/archive/targets.ts#hydrateResearchSources",
+      "source": "backend/src/archive/targets.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/archive/targets.ts#persistResearchSource",
+      "source": "backend/src/archive/targets.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/archive/targets.ts#ResearchSourceError",
+      "source": "backend/src/archive/targets.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/archive/targets.ts#resolveArchiveTarget",
+      "source": "backend/src/archive/targets.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/archive/targets.ts#SourceOutcome",
       "source": "backend/src/archive/targets.ts",
       "kind": "export",
       "features": [],

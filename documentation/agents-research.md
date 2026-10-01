@@ -144,3 +144,11 @@ pipeline above. The parent validates each independent evidence field and owns
 publication. See `documentation/backend.md` for the exact receipt, persistence,
 replay and approval contract. Children expose their own conversation; parked
 children report `paused` through their status query rather than `running`.
+
+New company/discovery-child histories pin `company-child-steering-v1`: followup
+turns retain the explicit parent assignment and the last completed steered outcome
+is what the parent validates. A superseded initial answer cannot publish after a
+later correction. Terminal status reports failures honestly and message counts
+include followups. Existing histories retain their original contract via the
+workflow marker. Source outcomes use archive refs on production activities; the
+parent validates hydrated bytes, not model-authored citation claims alone.

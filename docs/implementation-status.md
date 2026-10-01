@@ -2495,3 +2495,59 @@ The cutoff correction passed18 focused validator/replay/guard cases and a fresh
 full mechanical gate:1001 passed /300 explicitly gated skips, lint/types and
 frontend build. No test was disabled to obtain these results. Historical proof
 retains the fixed cutoff and origin distinctions; no release waiver is implied.
+
+### 2026-10-01 — durable source/attempt/steering preflight continuation
+
+Production turn results now return verified source archive refs rather than
+multi-megabyte pages through Temporal. Source and review receipts persist in
+Postgres before continuation cleanup; original text is verified under the source
+session namespace. Source exchanges have60s deadlines, byte caps, cancellable
+filesystem/GCS I/O and coded integrity/scope/limit errors. Existing URL-plus-text
+hashes/paths remain readable. No additional service, framework or dependency.
+
+Migration19 adds per-attempt leases. Late same-operation checkpoints, summaries,
+steering and cleanup cannot overwrite or clear a replacement. Archival remains
+inside cancellation/heartbeat supervision; source validation activities keep
+heartbeats separate from semantic completion. New child histories preserve their
+assignment on followup and return the latest steered outcome, not a superseded
+initial answer. Terminal failure/count reporting is versioned for legacy replay.
+
+Independent review found and corrected: unbounded/unscoped continuation hydration,
+unfenced automatic summaries and detached acceptance/verdict publication after
+cancellation. Final acceptance now checks committed pause/approved scope under
+transaction and resumes saved reviews; final lifecycle cannot overwrite pause.
+Watched Node22 checks so far:23 archive cases; isolated migration/initial lease9;
+latest real Temporal/PG31 (25 coordinator +6 compaction/lease cases). Scripted
+retrieval/provider bodies remain fixture evidence, not the Meta pilot.
+
+Two source-ref fixture errors were corrected without weakening assertions: the
+competing publisher changed citation URLs without minting matching archive refs;
+the no-inline-body assertion treated its short quote as the entire source body.
+The fixture now uses verified ref identities and distinct body/quote content.
+The pause-state test waited only for signal receipt before reading projection;
+it now waits for applied state, preserving the intentional pre-projection guard.
+All subsequent heavy regression cases passed. Full current gates and replay are
+still being run; no shared migration/worker rollout, pilot population or merge.
+
+Broad verification findings: the activity-lifecycle double returned no lease;
+it now supplies and asserts the actual cleanup attempt token. Concurrent catalogue
+and matrix refresh raced the matrix's import-time inventory read; refreshes now
+run sequentially as documented. Full DB battery710 passed /95 gated skips with
+one migration5s timeout under default high file fan-out. Test infrastructure now
+bounds DB file workers to2 within the existing connection budget; all stress
+fan-out, migrator races, timeouts and assertions stay intact. A full rerun follows.
+
+Current source slice final evidence: bounded full Postgres battery711 passed /95
+explicit gated skips; exact production activity→scripted HTTP MCP→real Postgres /
+filesystem source journal passed1 case and retained refs after terminal cleanup.
+Independent re-review confirmed scoped/deadlined continuation hydration, summary
+lease CAS and post-archive publication cancellation guards;23 focused archive
+cases, types and diff checks passed independently. Retained historical/controlled
+replay10 cases and report recovery1 passed. No Meta/provider/pilot claim follows.
+
+Final watched mechanical source gate:1012 passed /308 explicitly gated skips;
+lint/typechecks/frontend build and separate backend build passed on Node22.23.3.
+The new production activity fixture's SDK generic result required an explicit
+TurnOutcome type; typecheck caught and fixed that test declaration. No gate was
+weakened. Browser/full-stress/Meta campaign evidence remains a separate release
+requirement; uncertain operation and legacy cache recovery is next preflight work.

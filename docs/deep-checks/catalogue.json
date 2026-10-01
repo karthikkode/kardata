@@ -959,17 +959,23 @@
     },
     {
       "path": "backend/src/archive/targets.ts",
-      "sha256": "d6b4cda5087e2add3266fdcaf750232895fb65cc8275e04d38639cad35811fbf",
+      "sha256": "2bbc4be27bf4f86676654c21cf2108d76a44fac8d2b07819696f65d6b523c8e9",
       "review": "pending",
       "tests": [],
       "exports": [
         "ArchiveTarget",
+        "ArchivedResearchSource",
         "FilesystemTarget",
         "GcsBucketHandle",
         "GcsFileHandle",
         "GcsListedFile",
         "GcsTarget",
+        "ResearchSourceError",
+        "SourceOutcome",
+        "archiveResearchOutcome",
         "assertArchiveKey",
+        "hydrateResearchSources",
+        "persistResearchSource",
         "resolveArchiveTarget"
       ]
     },
@@ -1791,7 +1797,7 @@
     },
     {
       "path": "backend/src/db/workspace.ts",
-      "sha256": "ce3844a6fdf909948cf69a707ccaa8d91c7b2fb56600700ec306edaa6bcc7b21",
+      "sha256": "efc01b6d47404741733c52b894fbff898aa84e419b7ade44e4bf923e7848837e",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2301,7 +2307,7 @@
     },
     {
       "path": "backend/src/temporal/activities/coordinator.ts",
-      "sha256": "e43b11b5411bb73233476e2dbe1a30b4fbbd9da58b1e663f33dee2996d62bff3",
+      "sha256": "7af37c132abd9254479f83d28215f6cbd53d38ca8501c17b8dbd14edaecaaa56",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2426,7 +2432,7 @@
     },
     {
       "path": "backend/src/temporal/activities/turn.ts",
-      "sha256": "82e1345c49cd7fdb7ac1c51df9a3a3806336bb02903de640ac082a59237433e4",
+      "sha256": "4996b4cf9a8937840930e1bfdc536af4414954671af7f1920617796a958a9e4e",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2599,7 +2605,7 @@
     },
     {
       "path": "backend/src/temporal/workflows/coordinator.ts",
-      "sha256": "4dd9a592aecdc7dacd3325d22128cb4324a0a1ab81eb7631e8d7f85b7ee874d1",
+      "sha256": "4ce25e0a65670d36c6c372f574d99494324a28688c0fd29aaf1e22a58c3f298f",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2803,7 +2809,7 @@
     },
     {
       "path": "backend/vitest.config.ts",
-      "sha256": "d50ece0829d7aafaa4727d897da7300105306723b2d167ad0d5c110f0b306b5f",
+      "sha256": "d36587bc453096a570b782bb18ffdda307176628175d41c63b1777ef3e9e8f77",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2932,6 +2938,13 @@
     {
       "path": "db/migrations/0018_workspace_hardening.sql",
       "sha256": "73771ccdb28563d54c3f56ce1788c119cf9017977d1262784519e5a0703ef524",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0019_turn_attempt_leases.sql",
+      "sha256": "717f083e64e98ce3b98f08d7fc2f7f00db92e9b0852e25fa536ad4574802ee13",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -3786,7 +3799,7 @@
     },
     {
       "path": "tests/backend/archive.targets.test.ts",
-      "sha256": "6b3672c8af5fc412af0c12cc204b182123b434fcd13fd0f95dd7ab8e4259d7c2",
+      "sha256": "98e1c8b4399809d1de3484be5627c76325f6abf33f675a96b0b118d47ced2a7e",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -3842,7 +3855,7 @@
     },
     {
       "path": "tests/backend/context.compaction-recovery.test.ts",
-      "sha256": "a8f59ba31738cca797b41c90ebc0d1010a63b3a246c514471e18c8b997ca7d00",
+      "sha256": "f4725f5fec3687a42cb6b1a02005c67d61c34c5bf87ff57eeda4c0152b5729fd",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -3944,7 +3957,7 @@
     },
     {
       "path": "tests/backend/db.migrations.test.ts",
-      "sha256": "18cac9c1baf2cf1260bdaef7ddbbd8a82178beeececa93db9bf1a308fa4dc4ef",
+      "sha256": "ed30e4eb4dd9b70244dae114e3dfa197f5e03c46f6edaa2bf0e278bb0a6abde0",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4260,7 +4273,7 @@
     },
     {
       "path": "tests/backend/research.report-recovery.test.ts",
-      "sha256": "039b50a74da84c23be97d44bab60add58d3d7d7fe57e6d9ed487618ad1c605c6",
+      "sha256": "b81beb462052cbd04ab2914ad29c18851ed7f73c96bcbf60b86020a17bb4706f",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4494,7 +4507,14 @@
     },
     {
       "path": "tests/backend/turn.activity-lifecycle.test.ts",
-      "sha256": "1cfd1ad7d8bc88f3abc8555605157f4818a82d1c82e1f5e79faf52bf6aed2158",
+      "sha256": "cf0df7967cdb004737ba3409471120605a59720668978259f242257f45c30c21",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/turn.sources.integration.test.ts",
+      "sha256": "7e7c128e78c9697e423c8e61a63bfa93b9cba072fc48e051173a0be4d28c646d",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4508,7 +4528,7 @@
     },
     {
       "path": "tests/backend/workflows.coordinator.test.ts",
-      "sha256": "8bdbd326c8b860cd08b47df68f1fe46a95f7bd0dc1e10335725370ba61ed5c52",
+      "sha256": "0a84832b496ff96c4535d9a01f8ba4cd10d4fc2351b18d8799e933adc70a6a36",
       "review": "pending",
       "tests": [],
       "exports": []

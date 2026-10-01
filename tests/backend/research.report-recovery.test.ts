@@ -36,6 +36,7 @@ describe.skipIf(!TEST_DATABASE_URL)('research report attempt recovery', () => {
     await recordPlanVersion(pool, sectorId, `# TEST plan\n\n\`\`\`research-plan\n${JSON.stringify(plan)}\n\`\`\``, 'test-plan', scope)
     await setSectorState(pool, sectorId, 'planned', { scope }); await projectNewEvents(pool)
     await approveSectorPlan(pool, sectorId, 1, scope); await projectNewEvents(pool)
+    await setSectorState(pool, sectorId, 'running', { scope }); await projectNewEvents(pool)
     await recordResearchWork(pool, { sectorId, scope, planVersion: 1, item: { id: 'TEST company', kind: 'company', title: 'TEST company', sourceUrl: 'https://test.example.test/', state: 'complete', attempts: 1, childId: null, evidence: [], detail: 'TEST discovery' } })
   })
   afterAll(async () => { await pool?.end(); vi.unstubAllEnvs() })

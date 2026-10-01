@@ -180,13 +180,15 @@ adds auth, transport, and tool schemas, never SQL.
 | `db.ledger_upsert_company` / `db.ledger_get_company` / `db.ledger_list_companies` | `upsertLedgerCompany` / `getLedgerCompany` / `listLedgerCompanies` | master-ledger company record |
 | `db.ledger_record_problem` / `db.ledger_list_problems` | `recordLedgerProblem` / `listLedgerProblems` | one row per researched problem |
 
-## Current schema (0001–0017)
+## Current schema (0001–0019)
 
 - 0009–0013: sector drafts, document units index, context selection
   (notes + unit exclusions), research session pin, planning states.
 - 0014–0017: sector workspace (`sector_workspace` + `workspace_changes`
   approvals, `workspace_files` library, `thread_context` local memory,
   `research_work`, `thread_instructions` steering). Repo map row above.
+
+- 0018–0019: workspace lookup/value guards and active-attempt lease fencing.
 
 - 0008: `kb_documents` / `kb_chunks` (versioned product corpus, GIN FTS),
   `ledger_companies` / `ledger_problems` (cross-run master ledger).
@@ -268,3 +270,25 @@ latest committed sector-state event rather than assuming the projection is up
 to date. Intake publication calls it within the existing durable transaction
 lock, after archive work. A committed owner pause therefore blocks publication
 even when the projector is lagging; no projector runs inside that transaction.
+
+Discovery review events persist validated decisions and verified content-addressed
+source references before publication. They remain in the sector event partition
+when a terminal turn clears its working continuation. Exact source text lives in
+the established archive; event refs carry hashes/session provenance rather than
+large bodies. Publication still has its independent approved-plan/lifecycle/cap
+transaction. A durable review receipt does not imply its candidate was accepted.
+
+### Active attempt fencing
+
+Each production turn receives an independent DB attempt lease. Checkpoint writes,
+steering consumption, terminal checkpoint cleanup and active-state release must
+match that lease. A cancelled or expired attempt cannot overwrite or clear a
+replacement attempt, even when both carry the same logical operation ID. The
+lease is additive transient state; durable summaries/transcripts/continuations
+remain intact. Internal manual context repair remains separately version-checked.
+
+Attempt fencing also applies to automatic summary persistence inside its existing
+transaction. Reading a newer context version does not let an older attempt
+replace that summary. Manual owner edits retain the version-checked API. All
+production continuation hydration uses verified session-scoped, cancellable,
+bounded archive reads, including restart checkpoints.

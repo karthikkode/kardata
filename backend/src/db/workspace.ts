@@ -219,10 +219,11 @@ export async function readThreadContext(db: Db, threadKey: string, scope?: Scope
   const row = rows[0]
   return { threadKey, notes: row?.notes ?? '', summary: row?.summary ?? '', coveredSeq: Number(row?.covered_seq ?? 0), version: row?.version ?? 0, ...(row?.usage ? { usage: row.usage } : {}) }
 }
-export async function saveThreadContext(db: TransactableDb, threadKey: string, input: { version: number; notes?: string; summary?: string; coveredSeq?: number }, scope?: Scope): Promise<ThreadContext> {
+export async function saveThreadContext(db: TransactableDb, threadKey: string, input: { version: number; notes?: string; summary?: string; coveredSeq?: number }, scope?: Scope, lease?: string): Promise<ThreadContext> {
   checked(z.object({ version: z.number().int().nonnegative(), notes: z.string().max(24000).optional(), summary: z.string().max(48000).optional(), coveredSeq: z.number().int().nonnegative().optional() }).strict(), input)
   await requireThread(db, threadKey, scope)
   return workspaceTransaction(db, threadKey, async (tx) => {
+    if (lease && !(await tx.query('SELECT thread_key FROM thread_context WHERE thread_key=$1 AND active_lease=$2', [threadKey, lease])).rows.length) throw new WorkspaceError('conflict', 'This attempt no longer owns its summary.')
     const current = await readThreadContext(tx, threadKey, scope)
     if (current.version !== input.version) throw new WorkspaceError('conflict', 'Local context changed. Try again.')
     if ((input.coveredSeq ?? current.coveredSeq) < current.coveredSeq) throw new WorkspaceError('conflict', 'Summary coverage cannot move backwards.')
@@ -252,15 +253,18 @@ export async function readSteeringReceiptsPage(db: Db, threadKey: string, afterI
   return { items, nextAfterId: rows.length > limit ? items.at(-1)!.id : null }
 }
 
-export async function beginThreadTurn(db: TransactableDb, threadKey: string, runKey: string): Promise<void> {
+export async function beginThreadTurn(db: TransactableDb, threadKey: string, runKey: string): Promise<string> {
   checked(Id, threadKey); checked(Id, runKey)
+  const lease = randomUUID()
   await workspaceTransaction(db, threadKey, async (tx) => {
-    await tx.query('INSERT INTO thread_context(thread_key,active_run) VALUES($1,$2) ON CONFLICT(thread_key) DO UPDATE SET active_run=$2', [threadKey, runKey])
+    await tx.query('INSERT INTO thread_context(thread_key,active_run,active_lease) VALUES($1,$2,$3) ON CONFLICT(thread_key) DO UPDATE SET active_run=$2,active_lease=$3', [threadKey, runKey, lease])
   })
+  return lease
 }
-export async function consumeSteering(db: TransactableDb, threadKey: string, runKey: string, round: number): Promise<string[]> {
+export async function consumeSteering(db: TransactableDb, threadKey: string, runKey: string, round: number, lease?: string): Promise<string[]> {
   checked(Id, threadKey); checked(Id, runKey); checked(z.number().int().positive(), round)
   return workspaceTransaction(db, threadKey, async (tx) => {
+    if (lease && !(await tx.query('SELECT thread_key FROM thread_context WHERE thread_key=$1 AND active_run=$2 AND active_lease=$3', [threadKey, runKey, lease])).rows.length) throw new WorkspaceError('conflict', 'This turn attempt no longer owns its context.')
     const { rows } = await tx.query<{ id: string }>(`UPDATE thread_instructions SET state='consumed',run_key=$2,round=$3
       WHERE thread_key=$1 AND state='pending' RETURNING id`, [threadKey, runKey, round])
     const replay = await tx.query<{ text: string }>('SELECT text FROM thread_instructions WHERE thread_key=$1 AND run_key=$2 AND round=$3 ORDER BY at,id', [threadKey, runKey, round])
@@ -268,13 +272,13 @@ export async function consumeSteering(db: TransactableDb, threadKey: string, run
     return replay.rows.map((row) => row.text)
   })
 }
-export async function finishSteering(db: TransactableDb, threadKey: string, runKey: string): Promise<void> {
+export async function finishSteering(db: TransactableDb, threadKey: string, runKey: string, lease?: string): Promise<void> {
   checked(Id, threadKey); checked(Id, runKey)
   await workspaceTransaction(db, threadKey, async (tx) => {
-    const active = await tx.query('SELECT active_run FROM thread_context WHERE thread_key=$1 AND active_run=$2', [threadKey, runKey])
+    const active = await tx.query('SELECT active_run FROM thread_context WHERE thread_key=$1 AND active_run=$2 AND ($3::text IS NULL OR active_lease=$3)', [threadKey, runKey, lease ?? null])
     if (!active.rows.length) return
     const { rows } = await tx.query<{ id: string }>("UPDATE thread_instructions SET state='missed' WHERE thread_key=$1 AND state='pending' RETURNING id", [threadKey])
-    await tx.query('UPDATE thread_context SET active_run=NULL WHERE thread_key=$1 AND active_run=$2', [threadKey, runKey])
+    await tx.query('UPDATE thread_context SET active_run=NULL,active_lease=NULL WHERE thread_key=$1 AND active_run=$2 AND ($3::text IS NULL OR active_lease=$3)', [threadKey, runKey, lease ?? null])
     if (rows.length) await publishOutboxFrame(tx, threadKey, 'steering-consumption', { ids: rows.map((row) => row.id), state: 'missed' })
   })
 }
@@ -473,16 +477,19 @@ export async function readTurnContinuation(db: Db, threadKey: string): Promise<T
   const row = rows[0]
   return row?.working_user && row.working_messages && row.working_run && row.working_meta ? { user: row.working_user, messages: row.working_messages, runKey: row.working_run, sources: row.working_sources, meta: row.working_meta } : undefined
 }
-export async function saveTurnContinuation(db: Db, threadKey: string, continuation: TurnContinuation): Promise<void> {
+export async function saveTurnContinuation(db: Db, threadKey: string, continuation: TurnContinuation, lease?: string): Promise<void> {
   checked(Id, threadKey); checked(Id, continuation.runKey)
   checked(z.string().min(1), continuation.user)
   if (!Array.isArray(continuation.messages) || continuation.messages.some((message) => !['user','assistant','tool','system'].includes(message.role))) throw new DbContractError('Invalid continuation messages')
-  await db.query(`INSERT INTO thread_context(thread_key,working_user,working_messages,working_run,working_sources,working_meta) VALUES($1,$2,$3::jsonb,$4,$5::jsonb,$6::jsonb)
-    ON CONFLICT(thread_key) DO UPDATE SET working_user=$2,working_messages=$3::jsonb,working_run=$4,working_sources=$5::jsonb,working_meta=$6::jsonb`, [threadKey, continuation.user, JSON.stringify(continuation.messages), continuation.runKey, JSON.stringify(continuation.sources), JSON.stringify(continuation.meta)])
+  const saved = await db.query(`INSERT INTO thread_context(thread_key,working_user,working_messages,working_run,working_sources,working_meta) SELECT $1,$2,$3::jsonb,$4,$5::jsonb,$6::jsonb
+    WHERE $7::text IS NULL OR EXISTS(SELECT 1 FROM thread_context WHERE thread_key=$1 AND active_run=$4 AND active_lease=$7)
+    ON CONFLICT(thread_key) DO UPDATE SET working_user=$2,working_messages=$3::jsonb,working_run=$4,working_sources=$5::jsonb,working_meta=$6::jsonb
+    WHERE $7::text IS NULL OR (thread_context.active_run=$4 AND thread_context.active_lease=$7)`, [threadKey, continuation.user, JSON.stringify(continuation.messages), continuation.runKey, JSON.stringify(continuation.sources), JSON.stringify(continuation.meta), lease ?? null])
+  if (!saved.rowCount) throw new WorkspaceError('conflict', 'This turn attempt no longer owns its checkpoint.')
 }
-export async function clearTurnContinuation(db: Db, threadKey: string): Promise<void> {
+export async function clearTurnContinuation(db: Db, threadKey: string, lease?: string): Promise<void> {
   checked(Id, threadKey)
-  await db.query('UPDATE thread_context SET working_user=NULL,working_messages=NULL,working_run=NULL,working_meta=NULL,working_sources=\'[]\'::jsonb WHERE thread_key=$1', [threadKey])
+  await db.query('UPDATE thread_context SET working_user=NULL,working_messages=NULL,working_run=NULL,working_meta=NULL,working_sources=\'[]\'::jsonb WHERE thread_key=$1 AND ($2::text IS NULL OR active_lease=$2)', [threadKey, lease ?? null])
 }
 /** Atomically repair durable history and the parked working view. A
  * running activity or changed checkpoint prevents stale replacement. */

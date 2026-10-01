@@ -9,6 +9,7 @@ afterEach(() => { vi.useRealTimers(); vi.clearAllMocks() })
 describe('production activity setup supervision', () => {
   it('supervises heartbeat failure during delayed setup and releases the active turn', async () => {
     vi.useFakeTimers()
+    db.begin.mockResolvedValueOnce('TEST attempt')
     let release: () => void = () => undefined
     db.read.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve(undefined) }))
     const failure = new Error('TEST heartbeat store disconnected')
@@ -24,7 +25,7 @@ describe('production activity setup supervision', () => {
       const rejected = expect(result).rejects.toBe(failure)
       await vi.advanceTimersByTimeAsync(TURN_HEARTBEAT_MS + 1)
       await rejected
-      expect(db.finish).toHaveBeenCalledWith(db.pool, 'TEST thread', 'TEST run')
+      expect(db.finish).toHaveBeenCalledWith(db.pool, 'TEST thread', 'TEST run', 'TEST attempt')
       expect(errorLog).toHaveBeenCalledWith('karbot.heartbeat.error', expect.objectContaining({ code: 'heartbeat_failed' }))
       release()
       await vi.advanceTimersByTimeAsync(1)

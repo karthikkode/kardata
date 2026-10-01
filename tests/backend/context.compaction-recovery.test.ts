@@ -1,7 +1,7 @@
 import { Pool } from 'pg'
 import { FakeProvider, emptyUsage, type ChatMessage } from '@kardata/agents'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { beginThreadTurn, commitThreadCompaction, createSession, getThread, readTurnContinuation, saveTurnContinuation } from '../../backend/src/db/index.js'
+import { beginThreadTurn, clearTurnContinuation, consumeSteering, finishSteering, commitThreadCompaction, createSession, getThread, readThreadContext, readTurnContinuation, saveThreadContext, saveTurnContinuation } from '../../backend/src/db/index.js'
 import { compactThread } from '../../backend/src/context.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
@@ -46,4 +46,47 @@ describe.skipIf(!TEST_DATABASE_URL)('parked context compaction recovery', () => 
     await beginThreadTurn(pool, session.id, 'active-turn')
     await expect(commitThreadCompaction(pool, session.id, { version: 0, summary: 'Summary', coveredSeq: 1 })).rejects.toMatchObject({ code: 'conflict' })
   })
+  it('fences late checkpoints and cleanup from a replaced attempt of the same operation', async () => {
+    const session = await createSession(pool, 'TEST attempt fencing')
+    await projectNewEvents(pool)
+    const old = await beginThreadTurn(pool, session.id, 'same-operation')
+    const continuation = { user: 'Task', runKey: 'same-operation', messages: [{ role: 'user' as const, text: 'Original checkpoint' }], sources: [], meta: { round: 1, usage, toolCalls: 0, elapsedMs: 10 } }
+    await saveTurnContinuation(pool, session.id, continuation, old)
+    const fresh = await beginThreadTurn(pool, session.id, 'same-operation')
+    expect(fresh).not.toBe(old)
+    const newer = { ...continuation, messages: [{ role: 'user' as const, text: 'Replacement checkpoint' }], meta: { ...continuation.meta, round: 2 } }
+    await saveTurnContinuation(pool, session.id, newer, fresh)
+    await expect(saveTurnContinuation(pool, session.id, continuation, old)).rejects.toMatchObject({ code: 'conflict' })
+    await expect(consumeSteering(pool, session.id, 'same-operation', 3, old)).rejects.toMatchObject({ code: 'conflict' })
+    await clearTurnContinuation(pool, session.id, old)
+    await finishSteering(pool, session.id, 'same-operation', old)
+    expect((await readTurnContinuation(pool, session.id))?.messages).toEqual(newer.messages)
+    await expect(commitThreadCompaction(pool, session.id, { version: 0, summary: 'Must remain active', coveredSeq: 1 })).rejects.toMatchObject({ code: 'conflict' })
+    await clearTurnContinuation(pool, session.id, fresh)
+    await finishSteering(pool, session.id, 'same-operation', fresh)
+    expect(await readTurnContinuation(pool, session.id)).toBeUndefined()
+  })
+
+  it('denies a late write after its owner attempt has finished', async () => {
+    const session = await createSession(pool, 'TEST finished attempt fence')
+    await projectNewEvents(pool)
+    const lease = await beginThreadTurn(pool, session.id, 'finished-operation')
+    await finishSteering(pool, session.id, 'finished-operation', lease)
+    const continuation = { user: 'Task', runKey: 'finished-operation', messages: [{ role: 'user' as const, text: 'Late callback' }], sources: [], meta: { round: 1, usage, toolCalls: 0, elapsedMs: 10 } }
+    await expect(saveTurnContinuation(pool, session.id, continuation, lease)).rejects.toMatchObject({ code: 'conflict' })
+    expect(await readTurnContinuation(pool, session.id)).toBeUndefined()
+  })
+
+  it('denies an old automatic summary even when it reads the replacement current version', async () => {
+    const session = await createSession(pool, 'TEST summary attempt fence')
+    await projectNewEvents(pool)
+    const old = await beginThreadTurn(pool, session.id, 'summary-operation')
+    const fresh = await beginThreadTurn(pool, session.id, 'summary-operation')
+    const current = await readThreadContext(pool, session.id)
+    await saveThreadContext(pool, session.id, { version: current.version, summary: 'Replacement summary', coveredSeq: 3 }, undefined, fresh)
+    const replacement = await readThreadContext(pool, session.id)
+    await expect(saveThreadContext(pool, session.id, { version: replacement.version, summary: 'Late old summary', coveredSeq: 3 }, undefined, old)).rejects.toMatchObject({ code: 'conflict' })
+    expect((await readThreadContext(pool, session.id)).summary).toBe('Replacement summary')
+  })
+
 })

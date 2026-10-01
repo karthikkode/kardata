@@ -226,3 +226,17 @@ coverage without this explicit verified fallback still fails.
 
 Historical cutoff overrides must resolve to the exact pinned baseline instant.
 Earlier dates cannot hide available user histories behind controlled fixtures.
+
+Archive source gates: `archive.targets.test.ts` covers multi-megabyte outcome
+serialization, exact hydration, missing/corrupt/foreign refs, URL/session/version
+identity, uncertain writes, byte limits and bounded filesystem/GCS reads.
+The isolated coordinator suite now transports archive refs through actual
+Temporal and validates hydrated quotes in production parent activities. Its
+retrieval/provider bodies remain explicitly scripted fixtures.
+
+Live-DB backend suites run at two file workers against the established local
+100-connection budget. Databases remain independent. Within-file concurrent
+migrators, transaction contention and explicit stress tiers retain their original
+fan-out; no timeout/test assertion is relaxed. Unit-only file scheduling is
+unchanged. Refresh the catalogue first, then the dependent acceptance matrix in
+separate invocations; loading both refreshes concurrently can read old inventory.

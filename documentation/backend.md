@@ -388,3 +388,46 @@ the approved ceiling. Excess interrupted work stays blocked for owner review.
 Screened domains include earlier rejected/uncertain receipts across completed
 query directions. Search pages are not truncated by accepted-company capacity
 before basic screening; a rejected candidate does not hide the next valid hit.
+
+### Durable fetched-source receipts
+
+Fetched evidence is retained as exact text in the existing archive, addressed by
+SHA-256 of URL plus text under the source session's hashed namespace. Shared
+source persistence verifies archive content before returning a durable reference;
+missing or corrupt content cannot become a successful DB pointer. The same
+implementation serves turn checkpoints and discovery intake. Archive failure
+parks publication without deleting transcripts, earlier receipts or source bytes.
+Intake review events retain the exact validated decision, source references,
+plan version, source thread and timestamp, independently of terminal continuation
+cleanup. Operational logs contain hashes/counts, not source bodies or secrets.
+This source receipt is distinct from full provider request/response inspection,
+which remains a separate acceptance requirement.
+
+Production turn activity results transport source references, not full fetched
+pages, to stay within Temporal payload limits. The parent hydrates verified
+session-scoped source text in its validation activity; legacy inline outcomes
+remain readable for replay and explicit fixtures. Turn source-receipt events
+persist before continuation cleanup. Corrupt/missing/foreign archive references
+fail validation and cannot publish a company or successful evidence verdict.
+
+Source archive reads use optional byte limits: filesystem reads stop at cap+1
+before full buffering; GCS reads request a bounded byte range and verify the
+returned length. Source text is capped at the existing retrieval2 MiB limit.
+Integrity/scope/limit failures have explicit codes; operational read/write
+boundaries emit start/done/error without bodies. Exact existing sources are
+adopted rather than overwritten, including a write whose acknowledgement was
+lost. Source references retain the established URL-plus-text hash convention.
+
+Source storage exchanges have a60-second deadline and honor activity cancellation.
+Production filesystem and GCS source paths abort owned I/O; late injected-target
+completion cannot produce a reference or DB checkpoint. Terminal source archival
+remains inside the activity's cancellation/heartbeat supervision. Checkpoint,
+steering and cleanup mutations carry the independent attempt lease (migration19)
+so cancelled same-operation attempts cannot corrupt a replacement continuation.
+
+Acceptance and company-verdict publication check cancellation after archive work
+and again inside the serialized DB boundary. Final acceptance also rechecks the
+approved plan/scope and committed lifecycle. Pause defers publication using saved
+review outcomes; resume does not repeat reviewers. Terminal lifecycle writes do
+not override a committed owner pause. Previously completed same-plan acceptance
+can be reused after an explicit restart; a revised scope still needs reapproval.
