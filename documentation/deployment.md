@@ -25,7 +25,11 @@ Postgres reserves a1-GiB `/dev/shm` mount for parallel query dynamic shared
 memory. Docker's64-MiB default exhausted under the two-worker DB battery and the
 pinned runtime crashed/recovered. Connection and per-process pool budgets stay
 unchanged; more shared memory does not authorize unbounded query concurrency.
-`deployment.capacity.test.ts` pins configuration. The original two-worker battery
+`deployment.capacity.test.ts` pins configuration. The existing CI integration
+Postgres service uses the same1-GiB shared-memory
+budget; the maintained regression parses both configurations. CI's service option
+does not change the shared running database or authorize a deployment.
+The original two-worker battery
 must also pass on an isolated matching runtime. Updating source does not resize
 the existing container: apply through a planned, backed-up rollout preserving
 the existing data volume, never a volume reset. Measurements and commands belong

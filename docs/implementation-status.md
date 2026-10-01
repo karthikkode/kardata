@@ -3115,3 +3115,19 @@ Exact proof/hashes, visual-review scope and skipped gates are in
 the2000 genuine-company campaign,50-company validation, shared rollout and full
 file/functionality acceptance remain separate pending release gates. No merge,
 deployment or release certification follows from the browser result.
+
+### CI Postgres shared-memory parity (2026-10-01)
+
+Packaging review found the existing GitHub integration Postgres service still
+used Docker's64-MiB default despite the observed local parallel-query crash and
+verified1-GiB owned-runtime correction above. The maintained capacity regression
+now parses the CI configuration as well as Compose. It failed1/2 before the
+CI service option was added; capacity plus archive-configuration checks then
+passed4/4 on Node22.23.3. Logs: /tmp/kardata-ci-capacity-before.log and
+/tmp/kardata-ci-capacity-after.log. The existing CI service now declares
+--shm-size=1g; image, connection budgets, services and dependencies are unchanged.
+
+This closes source configuration parity, not deployment activation or a new
+cloud-green claim. The shared running Postgres remains64MiB. The new latest-head
+cloud run must be watched separately; full release/pilot/acceptance gates remain
+pending. No shared service, database or research data was changed.

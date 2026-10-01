@@ -49,7 +49,7 @@ jobs:
           POSTGRES_PASSWORD: kardata-ci
           POSTGRES_DB: kardata_test
         ports: ['5432:5432']
-        options: --health-cmd "pg_isready -U kardata" --health-interval 5s --health-timeout 3s --health-retries 12
+        options: --shm-size=1g --health-cmd "pg_isready -U kardata" --health-interval 5s --health-timeout 3s --health-retries 12
       temporal:
         image: temporalio/auto-setup@sha256:b1edc1e20002d958c8182f2ae08dee877a125083683a627a44917683419ba6a8
         env:

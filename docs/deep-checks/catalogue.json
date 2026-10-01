@@ -3,7 +3,7 @@
   "files": [
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "f77c535e67ba85251f5cce04ead93736005c261ba8e1ef19104dcf1dd84580a6",
+      "sha256": "33e83d28af557553b8639e1fb04e0aa3250466b456e615dc33feca5d12052eda",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4284,7 +4284,7 @@
     },
     {
       "path": "tests/backend/deployment.capacity.test.ts",
-      "sha256": "de0887c8436128163ff3e6f732e8e96d84814da4f401d17bb5726948228c666b",
+      "sha256": "483eb52ef25f30926cfcbbe723bdb618c051ea459dc06513d8e7f4fda36d289b",
       "review": "pending",
       "tests": [],
       "exports": []
