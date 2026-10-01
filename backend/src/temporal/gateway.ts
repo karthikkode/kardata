@@ -29,7 +29,7 @@ import { connectClient } from './connection.js'
 import { laneConfig } from './lanes.js'
 import { createLogger, logOp } from '../observability/logging.js'
 import { projectNewEvents } from '../projector.js'
-import { getThread, listThreads } from '../db/index.js'
+import { getThread, listThreads, listThreadHeaders } from '../db/index.js'
 
 export type RunState = 'IDLE' | 'RUNNING' | 'PAUSED' | 'SUSPENDED' | 'CANCELLING' | 'FINISHED' | 'ERROR'
 
@@ -240,6 +240,27 @@ export class TemporalRunsGateway implements RunsGateway {
   async listRuns(sessionId?: string): Promise<RunInfo[]> {
     const client = await this.client()
     const runs: RunInfo[] = []
+    if (sessionId !== undefined) {
+      // A session directory is bounded by its own recorded graph. Describing
+      // unrelated histories makes chat loading scale with the entire fleet.
+      const headers = await listThreadHeaders(this.pool, sessionId)
+      const children = new Map(headers.filter((thread) => thread.kind === 'subagent').map((thread) => [thread.key.replace(/^agent:/, ''), thread]))
+      const candidates = new Set([`${SESSION_PREFIX}${sessionId}`, sessionId, ...children.keys()])
+      for (const id of candidates) {
+        try {
+          const description = await client.workflow.getHandle(id).describe()
+          if (!['sessionRun', 'researchRun', 'guardedResearchRun', 'companyResearch', 'subagentRun'].includes(description.type)) continue
+          let info = this.describeRun(id, description.type, description)
+          if (description.type === 'companyResearch' || description.type === 'subagentRun') {
+            const child = children.get(id)
+            if (!child) continue
+            info = { ...info, sessionId: child.sessionId, threadKey: child.key, state: child.status === 'PAUSED' ? 'PAUSED' : info.state }
+          }
+          runs.push(info)
+        } catch (error) { if (!(error instanceof WorkflowNotFoundError)) throw error }
+      }
+      return runs
+    }
     // Summary-level on purpose: state comes from describe only, no per-run
     // queries. Detail (cursor, precise pause/suspend) is getRun's job.
     const executions = client.workflow.list({ pageSize: 100 })

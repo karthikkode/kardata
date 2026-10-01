@@ -7,14 +7,14 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { verifyExecution } from '../auth/execution.js'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import type { Logger } from 'pino'
-import { resolveCaller, roleAtLeast, type Role, type Scope } from '../auth/keys.js'
+import { resolveCaller, roleAtLeast, roleLevelAtLeast, type Role, type Scope } from '../auth/keys.js'
 import type { TransactableDb } from '../db/index.js'
-import { WorkspaceError } from '../db/index.js'
+import { WorkspaceError, requireThread } from '../db/index.js'
 import type { RunsGateway } from '../temporal/gateway.js'
 import type { ArchiveTarget } from '../archive/targets.js'
 import { childLogger } from '../observability/logging.js'
 import { TOOL_NAMES, type McpToolName } from './schemas.js'
-import { createMcpServer, type ToolGrant } from './tools.js'
+import { createMcpServer, toolCapability, TOOL_META, type ToolGrant } from './tools.js'
 import { requirePool, route, sendError, withIdempotency, header } from '../routes/http.js'
 
 /** API-key gate mirroring authorize(): open mode skips auth with full local
@@ -55,37 +55,47 @@ export function mcpRoutes(app: FastifyInstance): void {
       return sendError(reply, 400, 'validation_failed', 'missing JSON-RPC body')
     }
     const body = request.body
-    // Raw JSON-RPC passthrough: the idempotency wrapper replays the exact
-    // response text, so the content type is fixed up front for both paths.
     reply.header('content-type', 'application/json')
-    return withIdempotency(request, reply, pool, auth.keyId, async () => {
-      const deps = app as FastifyInstance & { kardataRuns?: RunsGateway; kardataLogger?: Logger; kardataArchive?: ArchiveTarget }
-      const runs = deps.kardataRuns
-      // Worker-narrowed tool grant (x-kardata-tool-grant): the worker sends
-      // its effective palette (product ∩ sector ∩ skill) so the server
-      // enforces the same boundary the turn prompt was shaped with. Unknown
-      // names fail the request loudly; known names still face role floors
-      // per call, so a grant narrows but never widens.
-      const grantRaw = header(request, 'x-kardata-tool-grant')
-      if (grantRaw !== undefined) {
-        const names = grantRaw.split(',').map((name) => name.trim()).filter((name) => name.length > 0)
-        const known = new Set<string>(TOOL_NAMES)
-        const unknown = names.filter((name) => !known.has(name))
-        if (unknown.length > 0) {
-          // Envelope returned directly (not sendError): the idempotency
-          // wrapper owns the reply for this callback shape.
-          return {
-            status: 400,
-            body: {
-              ok: false,
-              error: { code: 'validation_failed', message: `unknown tools in grant: ${unknown.slice(0, 5).join(', ')}` },
-            },
-          }
-        }
-        const grant: ToolGrant = { allow: new Set(names as McpToolName[]) }
-        return serveMcp(request, reply, pool, auth, runs, deps.kardataLogger, deps.kardataArchive, body, grant)
-      }
-      return serveMcp(request, reply, pool, auth, runs, deps.kardataLogger, deps.kardataArchive, body, {})
+    const deps = app as FastifyInstance & { kardataRuns?: RunsGateway; kardataLogger?: Logger; kardataArchive?: ArchiveTarget }
+    const threadKey = header(request, 'x-kardata-thread')
+    const signature = header(request, 'x-kardata-execution')
+    const workerToken = process.env['KARDATA_MCP_TOKEN']
+    let executionThread: string | undefined
+    if (threadKey || signature) {
+      if (!threadKey || !signature || !workerToken || !verifyExecution(threadKey, signature, workerToken)) throw new WorkspaceError('permission_denied', 'Invalid execution binding.')
+      executionThread = threadKey
+      await requireThread(pool, executionThread, auth.scope)
+    }
+    const grantRaw = header(request, 'x-kardata-tool-grant')
+    const grant: ToolGrant = {}
+    if (grantRaw !== undefined) {
+      const names = grantRaw.split(',').map((name) => name.trim()).filter(Boolean)
+      const unknown = names.filter((name) => !(TOOL_NAMES as readonly string[]).includes(name))
+      if (unknown.length) return sendError(reply, 400, 'validation_failed', `unknown tools in grant: ${unknown.slice(0, 5).join(', ')}`)
+      grant.allow = new Set(names as McpToolName[])
+    }
+    const execute = () => serveMcp(request, reply, pool, auth, deps.kardataRuns, deps.kardataLogger, deps.kardataArchive, body, grant, executionThread)
+    const rpc = typeof body === 'object' && body !== null && !Array.isArray(body) ? body as Record<string, unknown> : undefined
+    const params = typeof rpc?.['params'] === 'object' && rpc['params'] !== null ? rpc['params'] as Record<string, unknown> : undefined
+    const name = params?.['name']
+    const toolName = rpc?.['method'] === 'tools/call' && typeof name === 'string' && (TOOL_NAMES as readonly string[]).includes(name) ? name as McpToolName : undefined
+    const cacheable = toolName !== undefined && toolCapability(toolName) !== 'read'
+      && roleLevelAtLeast(auth.role, TOOL_META[toolName].minRole)
+      && (grant.allow === undefined || grant.allow.has(toolName))
+    // Reads and denied calls recheck current visibility/authority, not old replies.
+    if (!rpc || !cacheable) {
+      const result = await execute()
+      return reply.code(result.status).send(result.body)
+    }
+    const requestId = rpc['id']
+    const semantic = Object.fromEntries(Object.entries(rpc).filter(([key]) => key !== 'id'))
+    return withIdempotency(request, reply, pool, auth.keyId, execute, {
+      fingerprintBody: { version: 2, request: semantic, authority: { role: auth.role, scope: auth.scope, executionThread, grant: grant.allow ? [...grant.allow].sort() : null } },
+      responseBody: (stored) => {
+        if (typeof stored !== 'string' || !stored || (typeof requestId !== 'string' && typeof requestId !== 'number')) return stored
+        const response = JSON.parse(stored) as Record<string, unknown>
+        return JSON.stringify({ ...response, id: requestId })
+      },
     })
   })
 }
@@ -102,7 +112,8 @@ async function serveMcp(
   archive: ArchiveTarget | undefined,
   body: unknown,
   grant: ToolGrant,
-): Promise<{ status: number; body: string }> {
+  executionThread?: string,
+): Promise<{ status: number; body: string; retrySafeBeforeEffect?: boolean }> {
   // Request-scoped tool logger carrying the ingress trace and tenant
   // join keys. Without a configured logger tools still run, but nothing
   // is recorded — the request never fails for observability's sake.
@@ -115,14 +126,6 @@ async function serveMcp(
   // The runs gateway satisfies every runner interface structurally
   // (sweep starter, thread messenger, subagent delegator); absent runners
   // fail their tools closed instead of half-acting.
-  const threadKey = header(request, 'x-kardata-thread')
-  const signature = header(request, 'x-kardata-execution')
-  const workerToken = process.env['KARDATA_MCP_TOKEN']
-  let executionThread: string | undefined
-  if (threadKey || signature) {
-    if (!threadKey || !signature || !workerToken || !verifyExecution(threadKey, signature, workerToken)) throw new WorkspaceError('permission_denied', 'Invalid execution binding.')
-    executionThread = threadKey
-  }
   const server = createMcpServer({ pool, scope: auth.scope, role: auth.role, keyId: auth.keyId, executionThread, ...(toolLogger ? { logger: toolLogger } : {}), ...(runs ? { runs, messenger: runs, delegator: runs, runReader: runs } : {}), ...(archive ? { archive } : {}) }, grant)
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
@@ -135,7 +138,10 @@ async function serveMcp(
     headers.set('accept', 'application/json, text/event-stream')
     const webRequest = new Request('https://kardata.internal/mcp', { method: 'POST', headers })
     const response = await transport.handleRequest(webRequest, { parsedBody: body })
-    return { status: response.status, body: await response.text() }
+    const text = await response.text()
+    const result = text ? JSON.parse(text) as { result?: { isError?: boolean; _meta?: Record<string, unknown> } } : undefined
+    const retrySafeBeforeEffect = result?.result?.isError === true && result.result._meta?.['kardata/retry-safe-before-effect'] === true
+    return { status: response.status, body: text, ...(retrySafeBeforeEffect ? { retrySafeBeforeEffect: true } : {}) }
   } finally {
     await server.close()
   }

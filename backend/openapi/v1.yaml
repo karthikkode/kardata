@@ -1187,6 +1187,7 @@ paths:
       operationId: mcpRpc
       tags: [mcp]
       summary: MCP Streamable HTTP endpoint (JSON-RPC over POST, JSON responses).
+      description: Execution bindings and grants are checked before replay. Reads are fresh. Mutations use semantic input and authority identity; RPC response IDs follow each retry. Proven pre-effect failures may retry; uncertain mutation outcomes retain their guards.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -1206,6 +1207,15 @@ paths:
           $ref: '#/components/responses/Denied'
         '409':
           $ref: '#/components/responses/IdempotencyReplay'
+        '500':
+          description: Handler or completion-store failure; an uncertain guarded mutation must not be blindly repeated.
+          headers:
+            x-kardata-operation-state:
+              schema: { type: string, enum: [uncertain] }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/sectors/{sectorId}/research-session:
     post:
       operationId: ensureSectorResearchSession
@@ -1885,9 +1895,11 @@ components:
     IdempotencyKey:
       name: Idempotency-Key
       in: header
-      description: Duplicate POST with the same key replays the first result.
+      description: Duplicate authorized mutation with unchanged semantic input replays its outcome. Uncertain operations conflict until reconciled; MCP reads are fresh.
       schema:
         type: string
+        minLength: 1
+        maxLength: 128
   responses:
     NotFound:
       description: Unknown id.
@@ -1908,11 +1920,11 @@ components:
             ok: false
             error: { code: permission_denied, message: 'approve role required' }
     IdempotencyReplay:
-      description: Same key seen before; first result replayed, one effect.
+      description: Operation key conflicts with different semantic input/authority or an unresolved guarded operation.
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/CommandEnvelope'
+            $ref: '#/components/schemas/ErrorEnvelope'
   schemas:
     McpRequest:
       type: object

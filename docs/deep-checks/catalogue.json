@@ -3,7 +3,7 @@
   "files": [
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "494ae6402d3de0036965755336260d22dab65c23ed39c15033112fb2a247f47e",
+      "sha256": "f77c535e67ba85251f5cce04ead93736005c261ba8e1ef19104dcf1dd84580a6",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -751,7 +751,7 @@
     },
     {
       "path": "backend/openapi/v1.yaml",
-      "sha256": "73ff15876989699850fa04c03d6e2b8e531b9b62893891ffd37dbe370436fdcd",
+      "sha256": "4930d4d5ed6330aab2fc0c88a27b06bb610afd8caa076926f79b12a05f1b610a",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -1357,7 +1357,7 @@
     },
     {
       "path": "backend/src/mcp/routes.ts",
-      "sha256": "a5ded28e37e50ab5f5c655c4a194707c6e3381a2fa5afffc271e39394885e0f2",
+      "sha256": "bb707e8497316f746cbbd249068ea73e4ea7ce36450329e1c485be8d3c3434e7",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1366,7 +1366,7 @@
     },
     {
       "path": "backend/src/mcp/schemas.ts",
-      "sha256": "3fb99854e0ea0e3b1b9de303638a1379381837f09e48b4052298d84a67ad189d",
+      "sha256": "e93a2b3b5ce3e2cc384f15216410e952750086256f4dd78473917ead0e1b3c9a",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1376,7 +1376,7 @@
     },
     {
       "path": "backend/src/mcp/tools.ts",
-      "sha256": "d1edd5ce2ba86756a70733b745318576d5f13ae0c8871273aa0b861475c94779",
+      "sha256": "cc4578219cac7ff8bb9adebd67d3c5c353831afc9eac9bf5526e6a62d8c6acb6",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1585,7 +1585,7 @@
     },
     {
       "path": "backend/src/routes/http.ts",
-      "sha256": "f6e6171f5fb4144d771ec67286afe89d575f8134eeed9762d3feed5e528badd6",
+      "sha256": "7eeb7d6a7f5fe922c5eb6e94f838b5ad0c2038df358281ac7f65849746b14bee",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1861,7 +1861,7 @@
     },
     {
       "path": "backend/src/temporal/gateway.ts",
-      "sha256": "e1bbdeb0262cdd3371162f2aa7b3a12b4aee278364257cd7bd150053b1c8f3ba",
+      "sha256": "5530a9dc24b913f8ede63c489affbcfa36aab2fd3ce6abce92417ee4773a99b0",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3259,6 +3259,13 @@
       "exports": []
     },
     {
+      "path": "tests/backend/http.idempotency-recovery.test.ts",
+      "sha256": "fece39ad4d1028a0847914869a19b4d07dfe4b41c18706dfc8454a1c67a47464",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/backend/karbot.turn.test.ts",
       "sha256": "b5ae6b0c478d71008fb04385cbca277e29ef1697c686abfea4a74ac9d13884d0",
       "review": "pending",
@@ -3295,7 +3302,7 @@
     },
     {
       "path": "tests/backend/mcp.authority.test.ts",
-      "sha256": "87ab4ad14a163063b45dcc445c66dd503ad37a60c99912a008051228f1ee9334",
+      "sha256": "d5ad00b3d5e7fd444261bc7c2a7a45ad396d4a12b8b48e0d2d2138046c55075c",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -3309,7 +3316,7 @@
     },
     {
       "path": "tests/backend/mcp.tools.test.ts",
-      "sha256": "b4f26e01a02cd6e036bb3945b8148cdf778578d39c701ddfed38870ab821a665",
+      "sha256": "d1e679b0b81723e2761ba974a773419f2faeebb5d8726a513861582bafdd6a34",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -3546,8 +3553,22 @@
       "exports": []
     },
     {
+      "path": "tests/backend/temporal.legacy-replay.test.ts",
+      "sha256": "fe195038c7f73ea2e969ab077d4a9172c4afeb227b3ffde81f4361a765883912",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/backend/temporal.research-transition.test.ts",
       "sha256": "83c5918da402b0f76ea24f06f26523d310a0ae88c29692856fffcdedfdebcfeb",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/temporal.session-runs.test.ts",
+      "sha256": "e5c87c66ca77a4647b4ca1f970d8c0c09a144760fdf36e783ba0047e310d64e2",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -3910,6 +3931,13 @@
       "sha256": "386a390e65b7127635aa85e1720cb1c8b5aaa89e168c991b6f69ca387f7634a4",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/agent-context-db.spec.ts",
+      "sha256": "42742a68f48b576cf5fba491249656d4e5984a299c4387551ced689cb4f3ab04",
+      "review": "pending",
       "tests": [],
       "exports": []
     },

@@ -267,3 +267,18 @@ likewise failed on the generic internal-error banner and now passes on its retry
 instruction. Latest full matrix with isolated DB enabled: 53 passed/4 live-provider
 skips. File recovery video remains local at
 `tests/evidence/hardening-2026-10-01/files-db-upload-recovery.webm`.
+
+
+## General Karbot context tools over real execution
+
+`agent-context-db.spec.ts` drives the existing chat UI over real HTTP, Temporal,
+MCP and Postgres with a scripted provider. Captured real tool replies include the
+owned local notes and explicitly selected authorized sector scope. The visible
+activity group has two done tools; Send returns after the durable terminal answer
+without waiting for stream EOF. Screenshot/video: `agent-context-real-tools.png`
+and its labeled Playwright clip. No Meta or first-send creation claim is made.
+
+The full matrix initially failed before the composer appeared because a session
+run directory scanned the whole accumulated Temporal fleet. Session reads now
+use their recorded graph. The same unchanged 10-second interaction deadline now
+passes: latest full matrix **54 passed / 4 Meta-gated skips**.

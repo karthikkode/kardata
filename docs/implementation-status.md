@@ -2046,3 +2046,104 @@ scale claims with evidence links.
   now explain choosing the file again and retaining existing files. Technical
   failure codes remain in backend logs. The file state is still checked against
   real HTTP status, Postgres rows, and downloaded bytes.
+
+
+## Read-only historical replay availability (2026-10-01)
+
+- Added a maintained read-only SDK replay gate pinned to main baseline e454d44's
+  timestamp (2026-09-30T16:44:46Z). It never starts workflows or activities.
+- Initial harness path incorrectly doubled backend/ under npm workspace cwd;
+  fixed to resolve the repository from the test module, not process.cwd().
+- Three pre-baseline sessionRun and three subagentRun histories replayed with
+  current code. They are historical test runs, not owner Meta-pilot evidence.
+- companyResearch, sectorPlan, sectorSweep and sectorCoordinator had no retained
+  pre-baseline histories in the queried namespace. Four checks fail explicitly
+  on this unavailable evidence; no compatibility pass or worker rollout is
+  claimed. The cutoff was not relaxed to collect newer hardening-test histories.
+- The file-ingestion follow-up's cloud verify, e2e and integration jobs passed,
+  including standalone browser typecheck and production HTTP/DB/archive journey.
+  CI browser artifacts are linked from PR36; the full release remains blocked.
+
+
+## Karbot context-read parity (next slice, 2026-10-01)
+
+- Two real MCP/HTTP regressions failed before fixes: general Karbot could not
+  read its own local context and the global-context tool accepted no sector
+  selector for general chats. Local reads now use validated own-thread identity;
+  explicit sector selection reads approved scoped context only. Sector actors
+  cannot select another sector; pending proposals remain source/parent-private.
+- No approval, owner decision, or research authority is gained from arguments.
+  Focused gates and UI-driven agent verification remain required for this slice.
+
+- The MCP text-only SQL guard flagged the English verb "select" in the new
+  description. The description now says "provide sectorId"; no SQL boundary or
+  test was weakened. All production reads continue through the DB layer.
+
+- Context-tool MCP/HTTP battery passed 40 cases; backend typecheck passed.
+- The real chat UI journey passed over HTTP/Temporal/MCP/Postgres with a scripted
+  provider. Both real tool responses contain the expected scoped context, and
+  both durable tool summaries are done. Send returns only after the terminal
+  message, while the server stream remains open. It is not a Meta journey.
+- Harness failures were root-caused: wrong Open-chat button label, closed-page
+  teardown aborting resource cleanup, and checking DB projection before terminal
+  commit/catch-up. Cleanup is now nested and projection catches up before reads.
+  One exact inventoried test-owned orphan (isolated queue, UUID/run ID verified)
+  was terminated after the failed teardown; no shared workflow or data was deleted.
+
+- The full agent browser matrix exposed a slow composer bootstrap. Inspection
+  showed session-filtered run reads enumerated/described the entire Temporal
+  namespace, including thousands of unrelated stress-test histories. A bounded
+  directory regression failed on that enumeration before the gateway fix. Session
+  reads now describe their recorded graph and retain legacy self-scoped research
+  compatibility. Full browser and gateway gates are being rerun.
+
+- Scoped run-directory regressions passed two cases without network dependencies:
+  no unrelated fleet enumeration and preserved explicit legacy research identity.
+  The full browser matrix then passed 54/4 Meta-gated skips within the unchanged
+  interaction deadline. Unfiltered fleet enumeration remains an operating-limit
+  gap; no whole-system scalability claim is made.
+
+
+## MCP replay and general-child authority (2026-10-01)
+
+- Two transport regressions failed before fixes: a cached read returned private
+  context despite an invalid execution signature, and a retry of a completed
+  mutation conflicted solely because its JSON-RPC ID changed.
+- Bindings/grants are checked before replay lookup; reads are fresh, mutations
+  use semantic request plus authority identity, and reply IDs are rebound. A
+  repeated hidden-file read after UI hide is denied. Legacy records lacking
+  authority identity are not silently replayed; reconciliation/rollout remains
+  an explicit gap before worker deployment.
+- A general-chat child could read its parent transcript because isolation only
+  applied to sector-bound parents. The maintained test failed before the fix;
+  own-thread/parent-session checks now also apply without a sector binding.
+- Focused HTTP/DB/transport/gateway battery: 53 passed. Fixtures were corrected
+  to use a real mutation for replay (reads intentionally re-evaluate visibility)
+  and to parse the existing string RPC builder rather than spreading its bytes.
+  No test authority/visibility rule was weakened.
+
+- Independent review found parent renaming still allowed for general children
+  and missing-runner failures cached permanently. Both regressions failed before
+  fixes. Child naming is now owner/parent-only. Only explicit server-typed
+  pre-dispatch dependency failures release replay guards; ordinary uncertain
+  mutation errors remain recorded and do not execute again. Existing DB-contract
+  error compatibility is retained while the wire marks the retry-safe condition.
+
+- Independent review found completion-record failure could release a guard after
+  a real committed mutation. Two fault-injection regressions failed before the
+  fix (completion-store loss and handler error after commit). Unknown outcomes
+  now retain guards, emit correlated uncertain-operation logs, and return an
+  uncertainty header; the same operation does not run again. Explicit typed
+  pre-effect failures still recover safely. Focused six-file battery: 70 passed.
+- The wider battery caught a changed missing-runner phrase; restored the pinned
+  "no sweep runner" wording without weakening its fail-closed assertions.
+  Uncertain-operation reconciliation/UI and legacy replay migration remain
+  acceptance gaps; an in-progress guard is not claimed to be an active worker.
+
+- Final watched follow-up gates: deterministic 878/269 gated skips; Postgres
+  571/65 skips; browser 54/4 Meta skips; backend build and contract 18 passed.
+  The matching OpenAPI now describes semantic MCP replay, fresh reads, uncertainty
+  headers and the actual 409 error envelope. Independent focused guard review
+  passed 55 cases. Full audit, legacy-history/cache compatibility, uncertain-operation
+  reconciliation/UI, scale failure envelope, telemetry activation and Meta pilot
+  remain open. No merge/deployment or complete-release claim is made.

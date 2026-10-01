@@ -105,3 +105,32 @@ bindings remain internal test/embedding interfaces; they are not product
 capabilities. Product monitoring uses authorized semantic health/read tools.
 Artifact imports validate both source and destination scope; unattributed task
 files fail closed for scoped callers.
+
+General Karbot executions read their own local context without a sector binding;
+`db.get_local_context` still accepts no caller-selected thread and requires
+validated execution context. `db.get_global_context` accepts optional `sectorId`:
+a general chat/keyed human selects an authorized sector explicitly, while sector
+executions remain pinned to their binding. Approved sections are readable;
+proposal visibility remains source-thread/research-parent-only. Cross-tenant reads
+remain denied and no owner approval or research authority is granted by arguments.
+
+### MCP operation replay authority
+
+Execution bindings and tool grants are validated before any replay lookup.
+Read tools execute afresh so revoked visibility and current context are checked.
+Mutation identity excludes the transient JSON-RPC ID and includes caller role,
+scope, validated execution thread and grant. A replay preserves the completed
+mutation but responds with the current RPC ID. Authority changes conflict rather
+than replaying a privileged result. Old records without this authority identity
+are not silently trusted; their conflicts require reconciliation before retrying
+an uncertain mutation. This remains a rollout compatibility gate.
+
+General-chat children also retain own-thread/parent-session isolation. They
+cannot read or control a parent conversation merely because the parent has no
+sector binding. Human UI inspection and general Karbot parent monitoring remain
+separate authorized paths.
+
+Only server-typed missing-runner preconditions are marked retry-safe before
+an effect. Those failures release their replay guard so the same operation can
+recover after configuration returns. Ordinary/uncertain mutation errors remain
+recorded and are not blindly re-executed. Children cannot rename parent sessions.

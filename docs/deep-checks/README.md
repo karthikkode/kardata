@@ -133,3 +133,38 @@ run live DB verification sequentially on this host. Independent mechanical gates
 and eight ingestion/context DB cases passed. Local curated proof now also includes
 `files-db-upload-failure.png`, `files-db-upload-recovered.png`, and
 `files-db-upload-recovery.webm` under the existing ignored evidence directory.
+
+
+Historical replay gate: `KARDATA_LEGACY_REPLAY=1 npm test -w @kardata/backend --
+temporal.legacy-replay.test.ts`. The dated pre-main-baseline sample replayed six
+session/child test histories. Four other declared types lacked pre-baseline
+history and fail explicitly, remaining an acceptance gap. The ignored report
+records per-type availability and history hashes without payload copies.
+The cloud follow-up run at
+[36807811844](https://github.com/karthikkode/kardata/actions/runs/36807811844)
+passed verify, browser and integration jobs, with browser-review and
+browser-files-integration artifacts. It is additional proof, not release approval.
+
+
+### Context authority and guarded mutation replay follow-up
+
+Latest watched gates: `pr:verify` 878 passed/269 gated skips; isolated Postgres
+571 passed/65 skips; real-HTTP/Temporal/MCP/DB scripted browser matrix 54 passed/
+4 Meta-gated skips; backend build and 18 contract checks passed. Independent
+review rechecked the guarded-mutation slice (55 focused live cases) and found no
+remaining concrete defect there. This is not full release acceptance.
+
+Maintained regressions cover general-chat own-context access, explicitly selected
+approved sector context, source/parent proposal privacy, general-child transcript,
+run-control and rename isolation, invalid execution bindings on repeated keys,
+RPC-ID-independent mutation replay, hidden-file read freshness, missing-runner
+recovery, and uncertain handler/completion-store failures without duplicate effects.
+Session run directories describe their recorded graph rather than unrelated
+namespace histories; the same full browser interaction deadline now passes.
+
+Only typed pre-dispatch dependency failures release replay guards. Uncertain
+claims stay guarded and require reconciliation; neither their recovery UI nor
+an automatic reconciler is claimed complete. Old cache records without authority
+identity remain a rollout gap. Six sampled old session/child histories replayed,
+but four declared types lacked retained pre-baseline histories. Do not merge or
+deploy the worker on mechanical-green results alone.

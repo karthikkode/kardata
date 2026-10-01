@@ -84,3 +84,13 @@ jobs:
         with:
           name: browser-files-integration
           path: frontend/test-results/
+
+      - run: npx tsc --noEmit --strict --skipLibCheck --target es2022 --module nodenext --moduleResolution nodenext --types node tests/frontend-e2e/agent-context-db.spec.ts
+      - run: npm run test:e2e -w frontend -- agent-context-db.spec.ts
+        env:
+          KARDATA_TEMPORAL_TEST: '1'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-agent-context-integration
+          path: frontend/test-results/

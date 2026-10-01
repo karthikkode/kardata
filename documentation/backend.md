@@ -205,3 +205,16 @@ Most API contract tests still use Fastify inject. The isolated file-browser
 integration binds the existing backend to an ephemeral loopback port so browser
 file actions cross real HTTP, Postgres, and the filesystem archive. It creates
 no new product service and makes no provider or Temporal claim.
+
+A session-filtered run directory describes only its recorded parent/child IDs,
+plus its explicitly requested legacy self-scoped research ID. It does not scan
+unrelated Temporal histories. Missing SDK histories remain absent; child pause
+state remains authoritative from its thread header. The unfiltered fleet directory
+is a separate performance/coverage requirement.
+
+Mutation handlers retain their idempotency guard when handler execution or
+completion recording throws with an uncertain outcome. Response headers label
+`x-kardata-operation-state: uncertain`; correlated logs carry an operation hash.
+Only explicitly proven pre-effect results release the guard. Uncertain records
+require reconciliation and never permit automatic repeat effects. Recovery UI
+and bounded uncertain-operation reconciliation remain release requirements.

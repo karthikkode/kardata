@@ -275,7 +275,7 @@ describe('mcp tool parity (Phase 2)', () => {
   it('valid args pass tool schema and layer validation; invalid args fail before any query', async () => {
     for (const name of TOOL_NAMES) {
       const { db, state } = makeFake()
-      const ctx = { pool: db, scope: SCOPE, role: 'approver' as const, keyId: 'test-key' }
+      const ctx = { pool: db, scope: SCOPE, role: 'approver' as const, keyId: 'test-key', runs: { async startSectorSweep() { throw new Error('Runner must not execute before DB validation') }, async cancelSectorSweep() { throw new Error('Runner must not execute before DB validation') } } }
       const sample = SAMPLES[name]
       // Retrieval tools touch the network/browser: their valid path is
       // proven by dedicated tests with injected doubles, never here.
@@ -563,7 +563,7 @@ describe('mcp transport (Phase 2)', () => {
     }
   })
 
-  it('replays idempotent POSTs and conflicts on key reuse', async () => {
+  it('replays mutations across RPC ids and conflicts on changed semantic input', async () => {
     const stored = new Map<string, { fingerprint: string; status: number; body: unknown }>()
     const { db } = makeFake(async (text, params) => {
       if (/FROM idempotency_records/.test(text)) {
@@ -585,6 +585,7 @@ describe('mcp transport (Phase 2)', () => {
         }
         return { rowCount: 1, rows: [] as never }
       }
+      if (/INSERT INTO heartbeats/.test(text)) return { rowCount: 1, rows: [] as never }
       if (/FROM heartbeats|FROM events/.test(text)) {
         return { rowCount: 0, rows: [] as never }
       }
@@ -593,7 +594,7 @@ describe('mcp transport (Phase 2)', () => {
     const app = buildApp({ pool: db })
     try {
       await initialize(app)
-      const body = rpc('tools/call', { name: 'db.list_heartbeats', arguments: {} }, 7)
+      const body = rpc('tools/call', { name: 'db.record_heartbeat', arguments: { runId: 'TEST replay run', op: 'turn', busy: false } }, 7)
       const first = await app.inject({
         method: 'POST',
         url: '/mcp',
@@ -605,15 +606,17 @@ describe('mcp transport (Phase 2)', () => {
         method: 'POST',
         url: '/mcp',
         headers: { ...MCP_HEADERS, 'idempotency-key': 'idem-1' },
-        payload: body,
+        payload: JSON.stringify({ ...JSON.parse(body), id: 8 }),
       })
       expect(second.statusCode).toBe(200)
-      expect(second.body).toBe(first.body)
+      expect(second.json().id).toBe(8)
+      expect(second.json().result).toEqual(first.json().result)
+      expect(stored.size).toBe(1)
       const conflict = await app.inject({
         method: 'POST',
         url: '/mcp',
         headers: { ...MCP_HEADERS, 'idempotency-key': 'idem-1' },
-        payload: rpc('tools/call', { name: 'db.list_heartbeats', arguments: {} }, 8),
+        payload: rpc('tools/call', { name: 'db.record_heartbeat', arguments: { runId: 'TEST replay run', op: 'other', busy: false } }, 9),
       })
       expect(conflict.statusCode).toBe(409)
     } finally {

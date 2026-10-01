@@ -115,3 +115,24 @@ controls. Only chat SSE is stubbed; provider/Temporal/authority coverage is not
 claimed by this open-mode file test. Run with `TEST_DATABASE_URL` and
 `npm run test:e2e -w frontend -- files-db.spec.ts`; the integration CI job runs it
 with its existing isolated Postgres service and uploads the visual artifacts.
+
+Historical replay is a read-only separate gate: `KARDATA_LEGACY_REPLAY=1 npm test
+-w @kardata/backend -- temporal.legacy-replay.test.ts`. It fetches up to three
+histories per declared workflow type before the main-baseline cutoff and replays
+current bundles without starting activities/workflows. Optional
+`KARDATA_REPLAY_CUTOFF` declares another dated baseline; do not shift it merely to
+obtain green results. Missing histories fail explicitly. Counts, IDs and hashes
+are retained in ignored `backend/test-results/legacy-replay.report.json`; payloads
+are not copied into reports. Controlled baseline fixtures or archived histories
+remain necessary where retained server history is unavailable.
+
+The general-chat context browser gate (`agent-context-db.spec.ts`) uses real HTTP,
+Temporal, MCP, Postgres and the production turn activity with a scripted provider.
+It prestarts only its own UUID session on an isolated task queue, then sends via
+UI controls, captures actual tool responses, waits for the durable terminal reply
+and cleared Stop control, and cancels only that owned workflow in cleanup. It
+proves existing-session interaction, not first-send workflow creation or Meta
+behavior. Run with `KARDATA_TEMPORAL_TEST=1 TEST_DATABASE_URL` and
+`npm run test:e2e -w frontend -- agent-context-db.spec.ts`. Provider request/result
+persistence remains a separate release requirement; the visible transcript's tool
+summary is not described as an exact stored provider response.

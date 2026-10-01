@@ -239,7 +239,7 @@ export function toolCapability(name: McpToolName): ToolCapability {
 
 export const TOOL_META: Record<McpToolName, { description: string; minRole: Role }> = {
   'db.commit_child_context': { description: 'Research parent: commit a child finding or open question. Scope, decisions and file inclusion require owner approval.', minRole: 'operator' },
-  'db.get_global_context': { description: 'Read this sector shared context and pending updates.', minRole: 'viewer' },
+  'db.get_global_context': { description: 'Read approved sector shared context. Sector chats use their binding; general Karbot must provide sectorId. Pending updates remain private to their source/research parent.', minRole: 'viewer' },
   'db.propose_global_context': { description: 'Propose a versioned shared-context edit. Normal chats require owner approval; research children report to their parent.', minRole: 'operator' },
   'db.list_sector_files': { description: 'List visible indexed files shared by this sector.', minRole: 'viewer' },
   'db.propose_file_context': { description: 'Request owner approval to include exact file units in global context.', minRole: 'operator' },
@@ -345,12 +345,14 @@ async function workspaceIdentity(ctx: McpToolContext) {
 
 const INVOKERS: Invokers = {
   'db.commit_child_context': async (ctx, args) => { const identity = await workspaceIdentity(ctx); return commitChildContext(ctx.pool, identity.threadKey, args.proposalId, ctx.scope) },
-  'db.get_global_context': async (ctx) => {
-    const identity = await workspaceIdentity(ctx)
-    const context = await readGlobalContext(ctx.pool, identity.sectorId, ctx.scope)
-    const actor = await requireThread(ctx.pool, identity.threadKey, ctx.scope)
-    const parent = actor.thread.kind === 'session' && actor.session.id === context.researchSessionId
-    return { ...context, changes: context.changes.filter((change) => change.sourceThread === identity.threadKey || (parent && change.state === 'parent-review')) }
+  'db.get_global_context': async (ctx, args) => {
+    const actor = ctx.executionThread ? await requireThread(ctx.pool, ctx.executionThread, ctx.scope) : undefined
+    const sectorId = actor?.session.sectorId ?? args.sectorId
+    if (!sectorId) throw new McpToolError('validation_failed', 'Specify sectorId outside a sector conversation.')
+    if (actor?.session.sectorId && args.sectorId && args.sectorId !== actor.session.sectorId) throw new McpToolError('permission_denied', 'This execution is bound to another sector.')
+    const context = await readGlobalContext(ctx.pool, sectorId, ctx.scope)
+    const parent = actor?.thread.kind === 'session' && actor.session.id === context.researchSessionId
+    return { ...context, changes: context.changes.filter((change) => actor && (change.sourceThread === ctx.executionThread || (parent && change.state === 'parent-review'))) }
   },
   'db.propose_global_context': async (ctx, args) => {
     const identity = await workspaceIdentity(ctx)
@@ -365,8 +367,8 @@ const INVOKERS: Invokers = {
     return proposeFileContext(ctx.pool, { ...args, sectorId: identity.sectorId, sourceThread: identity.threadKey, scope: ctx.scope })
   },
   'db.get_local_context': async (ctx) => {
-    const identity = await workspaceIdentity(ctx)
-    return readThreadContext(ctx.pool, identity.threadKey, ctx.scope)
+    if (!ctx.executionThread) throw new McpToolError('permission_denied', 'Verified execution context is required.')
+    return readThreadContext(ctx.pool, ctx.executionThread, ctx.scope)
   },
   // Approval verdicts flow only through POST /v1/commands/approve (approver
   // floor): an operator caller must not forge t.approval.* events here.
@@ -613,7 +615,7 @@ const INVOKERS: Invokers = {
   // out-of-scope sessions never launch); without a delegator the call
   // fails closed instead of half-launching a child.
   'db.delegate_subagent': async (ctx, args) => {
-    if (!ctx.delegator) throw new DbContractError('delegation unavailable: no subagent delegator attached')
+    if (!ctx.delegator) throw new McpPreconditionError('Delegation is unavailable: no subagent delegator attached.')
     const goal = args.goal.trim()
     if (!goal) throw new DbContractError('goal must be a non-empty string')
     const session = await getSession(ctx.pool, args.sessionId, ctx.scope)
@@ -662,6 +664,11 @@ export class McpToolError extends Error {
     super(message)
     this.code = code
   }
+}
+
+/** Only explicit pre-dispatch failures may release a mutation replay guard. */
+class McpPreconditionError extends DbContractError {
+  readonly wireCode = 'unconfigured'
 }
 
 /** Retrieval failures become isError text with their own code
@@ -718,9 +725,17 @@ export async function invokeTool(
     if (ctx.executionThread) {
       const actor = await requireThread(ctx.pool, ctx.executionThread, ctx.scope)
       if (name === 'db.delegate_subagent' && actor.thread.kind === 'subagent') throw new McpToolError('permission_denied', 'Leaf subagents cannot delegate further.')
+      if (name === 'db.rename_session' && actor.thread.kind === 'subagent') throw new McpToolError('permission_denied', 'Conversation naming belongs to the parent or owner.')
       if (name === 'db.delete_session') throw new McpToolError('permission_denied', 'Conversation deletion requires owner confirmation in the UI.')
       if (name === 'db.set_sector_state') throw new McpToolError('permission_denied', 'Use the approved research lifecycle operations.')
       if (name === 'db.resume_run' && typeof parsed.data === 'object' && parsed.data !== null && 'extendedBudgetMs' in parsed.data && parsed.data.extendedBudgetMs !== undefined) throw new McpToolError('permission_denied', 'Budget changes require owner approval in the UI.')
+      if (actor.thread.kind === 'subagent' && typeof parsed.data === 'object' && parsed.data !== null) {
+        const args = parsed.data as Record<string, unknown>
+        if (typeof args['threadKey'] === 'string' && args['threadKey'] !== actor.thread.key) throw new McpToolError('permission_denied', 'Child conversations are isolated. Use the assigned parent brief.')
+        for (const field of ['sessionId', 'toSessionId']) {
+          if (typeof args[field] === 'string' && args[field] !== actor.session.id) throw new McpToolError('permission_denied', 'This child is bound to its parent session.')
+        }
+      }
       const sectorId = actor.session.sectorId
       if (sectorId && typeof parsed.data === 'object' && parsed.data !== null) {
         const args = parsed.data as Record<string, unknown>
@@ -739,14 +754,16 @@ export async function invokeTool(
         if (name === 'db.create_artifact') args['producedBy'] = ctx.executionThread
       }
     }
+    if (['db.send_message', 'db.steer_thread', 'db.pause_run', 'db.resume_run', 'db.cancel_run'].includes(name) && !ctx.messenger) throw new McpPreconditionError('Thread control is unavailable: no messenger attached.')
+    if (['db.start_sector_research', 'db.pause_sector_research', 'db.resume_sector_research'].includes(name) && !ctx.runs) throw new McpPreconditionError('Research control is unavailable: no sweep runner attached.')
     if (['db.pause_run', 'db.resume_run', 'db.cancel_run'].includes(name) && (ctx.scope || ctx.executionThread)) {
-      if (!ctx.runReader) throw new DbContractError('A scoped run reader is required.')
+      if (!ctx.runReader) throw new McpPreconditionError('A scoped run reader is required.')
       const run = await ctx.runReader.getRun((parsed.data as { runId: string }).runId)
       const target = run ? await getSession(ctx.pool, run.sessionId, ctx.scope) : undefined
       if (!run || !target) throw new McpToolError('permission_denied', 'Run is outside the authorized scope.')
       if (ctx.executionThread) {
         const actor = await requireThread(ctx.pool, ctx.executionThread, ctx.scope)
-        if (actor.session.sectorId && (target.sectorId !== actor.session.sectorId || target.id !== actor.session.id || (actor.thread.kind === 'subagent' && run.threadKey !== actor.thread.key))) throw new McpToolError('permission_denied', 'Run is outside this conversation.')
+        if ((actor.thread.kind === 'subagent' && run.threadKey !== actor.thread.key) || (actor.session.sectorId && (target.sectorId !== actor.session.sectorId || target.id !== actor.session.id || (actor.thread.kind === 'subagent' && run.threadKey !== actor.thread.key)))) throw new McpToolError('permission_denied', 'Run is outside this conversation.')
       }
     }
     const invoker = INVOKERS[name] as (ctx: McpToolContext, args: unknown) => Promise<unknown>
@@ -779,7 +796,7 @@ export function createMcpServer(ctx: McpToolContext, grant: ToolGrant = {}): Mcp
           return { content: [{ type: 'text' as const, text: toTextResult(result) }] }
         } catch (error) {
           const message = error instanceof Error ? error.message : 'internal error'
-          const code = error instanceof McpToolError ? error.code : error instanceof WorkspaceError ? error.code : error instanceof DbContractError ? 'validation_failed' : 'internal'
+          const code = error instanceof McpPreconditionError ? error.wireCode : error instanceof McpToolError ? error.code : error instanceof WorkspaceError ? error.code : error instanceof DbContractError ? 'validation_failed' : 'internal'
           // Evidence failures carry the no-guess directive: the model reads
           // this text mid-research, and a bare code is what it used to
           // paper over with parametric knowledge.
@@ -788,7 +805,7 @@ export function createMcpServer(ctx: McpToolContext, grant: ToolGrant = {}): Mcp
               ? ' Do not fill this gap from memory: report what you could not verify, or retry once with a narrower query.'
               : ''
           const text = code === 'internal' ? `${name}: internal error` : `${code}: ${message}${directive}`
-          return { content: [{ type: 'text' as const, text }], isError: true }
+          return { content: [{ type: 'text' as const, text }], isError: true, ...(error instanceof McpPreconditionError ? { _meta: { 'kardata/retry-safe-before-effect': true } } : {}) }
         }
       },
     )
