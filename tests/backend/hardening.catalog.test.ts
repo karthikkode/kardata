@@ -17,12 +17,21 @@ function maintainedFiles(): string[] {
 function exportsOf(path: string, text: string): string[] {
   if (!/\.[cm]?[jt]sx?$/.test(path)) return []
   const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true)
+  const namesOf = (name: ts.BindingName): string[] => ts.isIdentifier(name) ? [name.text] : name.elements.flatMap((entry) => ts.isBindingElement(entry) ? namesOf(entry.name) : [])
   return source.statements.flatMap((node) => {
+    if (ts.isExportAssignment(node)) return [node.isExportEquals ? 'export=' : 'default']
+    if (ts.isExportDeclaration(node)) {
+      if (node.exportClause && ts.isNamedExports(node.exportClause)) return node.exportClause.elements.map((entry) => entry.name.text)
+      if (node.exportClause && ts.isNamespaceExport(node.exportClause)) return [node.exportClause.name.text]
+      return node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier) ? [`*:${node.moduleSpecifier.text}`] : []
+    }
     if (!ts.canHaveModifiers(node) || !ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)) return []
+    if (ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword)) return ['default']
     if (ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node)) return node.name ? [node.name.text] : []
-    if (ts.isVariableStatement(node)) return node.declarationList.declarations.flatMap((declaration) => ts.isIdentifier(declaration.name) ? [declaration.name.text] : [])
+    if (ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node) || ts.isEnumDeclaration(node) || ts.isModuleDeclaration(node)) return [node.name.text]
+    if (ts.isVariableStatement(node)) return node.declarationList.declarations.flatMap((declaration) => namesOf(declaration.name))
     return []
-  }).sort()
+  }).filter((name, index, names) => names.indexOf(name) === index).sort()
 }
 function scan(previous?: Catalogue): Catalogue {
   const old = new Map(previous?.files.map((file) => [file.path, file]) ?? [])
@@ -46,6 +55,17 @@ if (process.env['UPDATE_HARDENING_CATALOG'] === '1') {
 const catalogue = JSON.parse(readFileSync(cataloguePath, 'utf8')) as Catalogue
 
 describe('maintained functionality catalogue', () => {
+  it('enumerates type, interface, re-export, namespace and anonymous default surfaces', () => {
+    expect(exportsOf('example.ts', `
+      export interface Context { version: number }
+      export type Decision = string;
+      export { local as publicAlias } from './local';
+      export * from './tools';
+      export * as namespace from './types';
+      export default function() {}
+      export const { first, nested: { second } } = value;
+    `)).toEqual(['*:./tools', 'Context', 'Decision', 'default', 'first', 'namespace', 'publicAlias', 'second'].sort())
+  })
   it('records every maintained file exactly once, including migrations, configs and tests', () => {
     expect(catalogue.version).toBe(1)
     expect(catalogue.files.map((file) => file.path)).toEqual(maintainedFiles())

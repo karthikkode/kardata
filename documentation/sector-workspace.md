@@ -105,3 +105,15 @@ owning session scope. It returns only consumed/missed instruction IDs and states
 in ascending ID pages of at most 200, with `nextAfterId` (null at the end).
 Overflow hydration reads these durable receipts before accepting the snapshot
 token. It never relies on retained outbox frames for an instruction's outcome.
+
+### Basic discovery filtering contract
+
+Basic filtering is required for the final discovery campaign; advanced company
+qualification and deep research remain future features. Search metadata must not
+publish obvious directories, ranked lists, articles, job listings, social/search
+profiles or invalid/non-HTTP URLs as companies merely because sector words match.
+Brand/service pages remain eligible for further sector/geography/source checks.
+New coordinated executions opt into the strengthened gate through a workflow
+patch; old histories keep their recorded extraction contract until explicit
+pause/review/start adoption. This metadata gate alone does not establish company
+identity/geography; fetched-source validation remains an acceptance requirement.

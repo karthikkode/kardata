@@ -45,6 +45,10 @@ Repo-wide hardening is in progress on a separate branch. Approved contract:
 `documentation/plans/2026-09-30-repo-hardening.md`; operational file/feature
 inventory and runnable acceptance gate: `docs/deep-checks/README.md`. Pending
 reviews and live-pilot gaps are explicit and do not count as completed capability.
+The final UI-driven campaign and basic-filtering contract are in
+`documentation/plans/2026-10-01-final-acceptance.md`; its functionality/scenario
+matrix is `docs/deep-checks/acceptance.json`. The final audit command runs both
+file-review and functionality-acceptance gates.
 
 Frontend harness built: Vite + React + TypeScript, Tailwind tokens, owned
 primitives, Vitest + Playwright gates : all green from a clean install.

@@ -19,6 +19,7 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
   const activeClock = () => Date.now() - pausedMs - (pauseStarted === null ? 0 : Date.now() - pauseStarted)
   const children = new Map<string, ChildWorkflowHandle<typeof companyResearch>>()
   const orderedPause = patched('research-pause-intent-v1')
+  const basicFiltering = patched('research-basic-filter-v1')
   const lifecycle = (state: 'running' | 'paused' | 'failed' | 'complete') => research.researchLifecycleActivity({ ...input, state, ...(orderedPause && currentPlanVersion ? { planVersion: currentPlanVersion } : {}) })
   let desiredPaused = false, intentGeneration = 0, synchronizing = false
   const synchronizeLifecycle = async () => {
@@ -132,7 +133,7 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
             await research.researchCheckpointActivity({ ...input, version, item })
             throw new Error(item.detail)
           }
-          const result = await bounded(() => research.researchSearchActivity({ ...input, version, query, page, seen: known, remaining: plan.budgets.maxCompanies - known.length }))
+          const result = await bounded(() => research.researchSearchActivity({ ...input, version, query, page, seen: known, remaining: plan.budgets.maxCompanies - known.length, ...(basicFiltering ? { basicFiltering: true } : {}) }))
           // Cached activity results in earlier Temporal histories are arrays.
           const fresh = Array.isArray(result) ? result as string[] : result.domains
           known = [...new Set([...known, ...fresh])]

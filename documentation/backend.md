@@ -223,3 +223,15 @@ Outbox socket failure wakes the waiting stream and closes its response for clien
 reconnect; it cannot leave an idle leased client with an unhandled error. The
 connection is destroyed once. This uses the existing resume/history contract;
 stream-pool capacity and browser disconnect drills remain separate release gates.
+
+New coordinator histories select basic company-result metadata screening through
+`research-basic-filter-v1`. Its activity flag is internal, not a product request
+argument. Old histories omit the flag and retain the recorded extraction contract.
+Junk-result pages still permit search pagination; only empty raw pages exhaust.
+This gate alone is not fetched-source/geography verification.
+
+The final acceptance audit found public-web fetch still clears its timeout after
+headers and checks byte size only after full buffering. Fetched-source intake
+must not adopt that path as verified until full-body deadlines/streaming byte caps,
+redirect/network-destination protection and source provenance are exercised.
+These remain explicit acceptance gaps, not silently accepted operating limits.

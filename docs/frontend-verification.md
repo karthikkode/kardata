@@ -297,3 +297,16 @@ Local retained evidence: `tests/evidence/hardening-2026-10-01/agent-context-db-r
 and `agent-context-db-reconnected.webm`. The existing CI browser-agent artifact
 includes the generated still/video. No research records or owner workflows were
 modified; disruptive drill is isolated.
+
+### Live UI preflight, not campaign completion (2026-10-01)
+
+The actual app Models screen loaded Meta, five available choices, the default
+muse-spark-1.3-contributor at high effort, and key-configured status after the
+owner-authorized test credential setup. No session selection/model binding was
+changed. Read-only Overview also showed historical government/news/guide entries
+among company candidates, reinforcing that source/identity/geography screening
+must precede the new campaign's accepted count. Existing records were not altered.
+Local JPEG proof: `tests/evidence/hardening-2026-10-01/meta-models-preflight.jpg`.
+This is real-app catalogue readiness, not a Meta research turn, current-worker
+rollout proof, or the2000-company pilot. CUA exports JPEG; JPG/JPEG evidence is now
+ignored alongside PNG/WebM. The browser tab is retained for later UI pilot work.

@@ -218,7 +218,7 @@ export {
   workerPoolBudget,
   workerPoolFromEnv,
 } from './pool.js'
-export { findKeyByHash, type KeyRecord } from './keys.js'
+export { findKeyByHash, registerApiKey, type KeyRecord } from './keys.js'
 export {
   checkRate,
   claimIdempotency,

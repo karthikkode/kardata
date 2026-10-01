@@ -290,3 +290,14 @@ the scrape target in the same deployment. The worker installs its redacting
 logger before its SDK connection. The current local UI credential has operator
 role, so the approver-only real pilot remains blocked until the owner configures
 an existing approver credential; no key was upgraded by the agent.
+
+On2026-10-01 the owner explicitly authorized a dedicated test approver. The prior
+UI operator record remains unchanged. Local raw material is in ignored
+`frontend/.env.pilot-key`, original UI configuration in ignored
+`frontend/.env.pilot-backup`, and active configuration in `frontend/.env`; permissions
+are0600. Do not print/commit these files. Owner-authorized provisioning now uses
+`registerApiKey` inside backend/src/db, validates hash/scope/role, coalesces exact
+repeats and rejects conflicting identities. It is not an HTTP/MCP tool. Restore
+local UI configuration from the backup if returning to the operator; do not delete
+pilot records or credentials without separate scoped owner instruction. The earlier
+operator-only blockade above is historical; compatibility and rollout gates remain.

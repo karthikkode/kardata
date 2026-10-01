@@ -21,7 +21,7 @@ UPDATE_HARDENING_CATALOG=1 npm test -w @kardata/backend -- hardening.catalog.tes
 Ordinary tests only read the catalogue. The final audit gate is:
 
 ```sh
-KARDATA_HARDENING_ACCEPTANCE=1 npm test -w @kardata/backend -- hardening.catalog.test.ts
+KARDATA_HARDENING_ACCEPTANCE=1 npm test -w @kardata/backend -- hardening.catalog.test.ts hardening.acceptance.test.ts
 ```
 
 That release gate currently **fails** because the complete file audit is not
@@ -96,7 +96,7 @@ warnings and the approximately 694-kB JS bundle warning remain visible.
 | Browser state/transition matrix | `npm run test:e2e -w frontend` | 52 passed, 4 live-journey skips |
 | Independent live recovery slice | `TEST_DATABASE_URL=<local-test-base> npm test -w @kardata/backend -- api.workspace.test.ts research.report-recovery.test.ts outbox.snapshot.test.ts` | independent reviewer: 13 passed |
 | Scripted fleet measurements | `KARDATA_TEMPORAL_TEST=1 TEST_DATABASE_URL=<local-test-base> npm test -w @kardata/backend -- workflows.fleet-load.test.ts` | measured 10/50/100/1,000 children; see table above |
-| Release catalogue | `KARDATA_HARDENING_ACCEPTANCE=1 npm test -w @kardata/backend -- hardening.catalog.test.ts` | intentionally blocked by pending reviews |
+| Release catalogue | `KARDATA_HARDENING_ACCEPTANCE=1 npm test -w @kardata/backend -- hardening.catalog.test.ts hardening.acceptance.test.ts` | intentionally blocked by pending reviews |
 
 Configure local test connection variables without publishing credentials. The
 DB helper allocates fresh UUID-suffixed databases and never drops shared data.
@@ -179,3 +179,17 @@ skips; backend build and standalone browser typecheck passed. Independent focuse
 DB/stream16 and frontend69 plus typechecks passed. Evidence and failures caught
 are recorded in implementation-status and frontend-verification. These results
 cover this recovery slice, not the remaining release audit/pilot requirements.
+
+## Final acceptance matrix
+
+Approved final campaign contract: [final acceptance](../../documentation/plans/2026-10-01-final-acceptance.md). `acceptance.json` inventories named/default/type/interface/barrel exports, OpenAPI operation IDs, MCP names and UI component surfaces. Component/export enumeration is a starting point: every reachable interaction/state still requires manual functionality mapping and scenarios. No enumeration counts as reviewed behavior.
+
+Explicit refresh (after refreshing the file catalogue):
+
+```sh
+UPDATE_ACCEPTANCE_SURFACES=1 npm test -w @kardata/backend -- hardening.acceptance.test.ts
+```
+
+Ordinary gates validate structure/coverage enumeration only. The canonical final audit command above runs **both** release assertions: file reviews plus functionality/surface/scenario acceptance. Pending mappings block release. Verified scenarios require maintained test links and structured evidence with tested commit, environment, timestamp, tier, artifact hash and source/test hashes. The enabled release gate resolves local retained artifacts, checks their bytes, and checks that the tested commit contains the same sources/tests. Each scenario declares required tiers; release rejects unit-only proof where browser, stress or live-provider evidence is required. Evidence labels/integrity do not replace independent review of what the tests proved.
+
+Initial cross-module criteria cover basic discovery filtering, plans/progress, global approvals and mid-run changes, local isolation, cache/compaction, steering/delegation, DB durability/pool/migrations, files, HTTP/MCP, recovery/telemetry, historical rollout, frontend states and infrastructure. Export/tool/route/UI mappings and all criteria remain pending until reviewed and observed; no full-coverage claim is made.

@@ -142,3 +142,12 @@ only its captured idle LISTEN PID in the isolated DB is terminated. It asserts a
 new browser request/DB listener, retained draft, one terminal answer, and cleared
 Stop control. Database cleanup failures and disconnect-during-backlog races have
 focused maintained regressions; the existing independent review remains required.
+
+Final acceptance uses both maintained hardening suites. Export enumeration includes
+interfaces/types/defaults/barrels as declarations; wildcard entries identify their
+source module rather than inventing resolved runtime capability. The functionality
+matrix also records OpenAPI/MCP/UI surfaces. Explicit maintenance regenerates only
+the pending enumeration; ordinary tests never rewrite records or declare coverage.
+Enabled release checks require reviewed mappings and verified/excluded scenarios,
+with resolvable structured artifact and tested-source hashes. Independent evidence
+review remains mandatory. See docs/deep-checks/README.md for the complete command.

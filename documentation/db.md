@@ -251,3 +251,14 @@ than report a healthy timeout. Operational logs record connection failures witho
 connection strings or payloads. An isolated DB drill terminates only its own
 inventoried listener PID and asserts stream rejection, pool recovery, and a healthy
 subsequent query.
+
+### Owner-authorized key provisioning
+
+`registerApiKey` is an administrative DB-layer operation, not an HTTP or MCP
+capability. It accepts a key ID, SHA-256 hash, tenant/project scope and a validated
+role. Raw credentials never reach Postgres. Exact repeats are idempotent; a
+conflicting ID/hash/scope/role cannot overwrite an existing credential. Provision
+only under explicit owner instruction; model execution cannot invoke this door.
+The owner authorized a dedicated approver credential for the final UI test on
+2026-10-01. Keep the prior operator key unchanged and store raw new material only
+in ignored local configuration. Boundaries log outcomes without hashes/tokens.

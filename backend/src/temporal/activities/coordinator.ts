@@ -31,7 +31,7 @@ export async function researchCheckpointActivity(input: CoordinatorInput & { ver
 export async function researchBudgetActivity(input: CoordinatorInput & { runId: string; spentMs: number; checkpoint: number }) {
   return logOp(logger, 'research.budget.checkpoint', () => recordResearchBudget(workerPoolFromEnv(), input))
 }
-export async function researchSearchActivity(input: CoordinatorInput & { version: number; query: string; page: number; seen: string[]; remaining: number }) {
+export async function researchSearchActivity(input: CoordinatorInput & { version: number; query: string; page: number; seen: string[]; remaining: number; basicFiltering?: boolean }) {
   return logOp(logger, 'research.discovery', async () => {
     const db = workerPoolFromEnv()
     await projectNewEvents(db)
@@ -40,7 +40,7 @@ export async function researchSearchActivity(input: CoordinatorInput & { version
     const plan = await readSectorPlan(db, input.sectorId, input.scope)
     const depth = plan?.versions.find((version) => version.version === input.version)?.executable?.researchDepth
     const hits = await searchWebPageActivity({ query: input.query, page: input.page })
-    const candidates = extractNewDomains(hits, input.seen, sectorSignals(sector.name, sector.topic)).slice(0, input.remaining)
+    const candidates = extractNewDomains(hits, input.seen, sectorSignals(sector.name, sector.topic), input.basicFiltering).slice(0, input.remaining)
     for (const company of candidates) {
       Context.current().heartbeat({ op: 'research.discovery', sectorId: input.sectorId })
       const { companyId } = await recordSweepCompanyActivity({ sectorId: input.sectorId, scope: input.scope, company: { ...company, sectorName: sector.name } })

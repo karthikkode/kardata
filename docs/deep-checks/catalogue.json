@@ -10,7 +10,7 @@
     },
     {
       "path": ".gitignore",
-      "sha256": "326418decf83f4a2e31df46a87e879c49c39f29b75fb4019cc69446276548d98",
+      "sha256": "647b907f1357b830df15667bedc4030ec30ab687612ecd80488a6633dc27efaf",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -24,7 +24,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "27701f507569ca3e63dc620eb74828fb20899113594bea82470f0b8b946c2cfc",
+      "sha256": "7543b907d0f7d99115c02027be9d53118abdda8313caa3f9d06f1f13353ad3a5",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -48,7 +48,9 @@
       "sha256": "ff655ce4abc6d885e7f3afb0e0f1092d60f3af2155c12bb3f8c4741155c4ebb2",
       "review": "pending",
       "tests": [],
-      "exports": []
+      "exports": [
+        "default"
+      ]
     },
     {
       "path": "agents/package.json",
@@ -77,8 +79,11 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "BudgetLimits",
         "BudgetTracker",
+        "RepeatVerdict",
         "RepetitionTracker",
+        "TrippedBudget",
         "fingerprintAction"
       ]
     },
@@ -102,6 +107,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "Clock",
         "frozenClock",
         "seededRng",
         "systemClock"
@@ -134,7 +140,12 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "CondenseOptions",
+        "CondenseReason",
+        "CondenseResult",
+        "SummaryArtifact",
         "UnitLedger",
+        "UnitTotals",
         "condense"
       ]
     },
@@ -144,6 +155,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "LiveProviderConfig",
         "applyDotEnv",
         "parseDotEnv",
         "readLiveConfig"
@@ -162,7 +174,14 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "AssembleInput",
+        "CachePolicy",
+        "CacheProvider",
+        "ContextSegmentUsage",
+        "ContextSnapshot",
+        "ContextUsage",
         "IMAGE_ESTIMATE_TOKENS",
+        "ReferenceEntry",
         "TOKEN_ESTIMATE_CHARS_PER_TOKEN",
         "assembleContext",
         "assembleReferences",
@@ -190,7 +209,11 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "CompanySummary",
         "DOCUMENT_FIXTURES",
+        "DocumentSummary",
+        "EvidenceItem",
+        "SectorSummary",
         "domainTools"
       ]
     },
@@ -227,6 +250,7 @@
       "tests": [],
       "exports": [
         "FakeProvider",
+        "FakeStep",
         "isFakeError"
       ]
     },
@@ -283,6 +307,10 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "GateInput",
+        "RubricResult",
+        "RubricVerdict",
+        "SubmitterScope",
         "TripwireError",
         "assertNoTripwire",
         "checkBudgetsClear",
@@ -305,7 +333,43 @@
       "sha256": "9f20512d3ada7386b2bc2271ee32c8a780a8e8dd3ac60d1129ba9419520bb198",
       "review": "pending",
       "tests": [],
-      "exports": []
+      "exports": [
+        "*:./budgets.js",
+        "*:./clock.js",
+        "*:./compaction.js",
+        "*:./condense.js",
+        "*:./config.js",
+        "*:./context.js",
+        "*:./domain.js",
+        "*:./epochs.js",
+        "*:./fake.js",
+        "*:./gates.js",
+        "*:./loop.js",
+        "*:./manifest.js",
+        "*:./meta.js",
+        "*:./metrics.js",
+        "*:./openai-compat.js",
+        "*:./planning.js",
+        "*:./preflight.js",
+        "*:./prompt.js",
+        "*:./providers.js",
+        "*:./queue.js",
+        "*:./replay.js",
+        "*:./research.js",
+        "*:./researchPack.js",
+        "*:./responses.js",
+        "*:./router.js",
+        "*:./skills.js",
+        "*:./stub.js",
+        "*:./subagents.js",
+        "*:./supervision.js",
+        "*:./tasks.js",
+        "*:./tools.js",
+        "*:./transcript.js",
+        "*:./transport.js",
+        "*:./turn.js",
+        "*:./turnRunner.js"
+      ]
     },
     {
       "path": "agents/src/loop.test.ts",
@@ -322,6 +386,8 @@
       "exports": [
         "IllegalTransitionError",
         "RUN_STATES",
+        "Run",
+        "RunState",
         "createRun",
         "isLegalTransition",
         "transition"
@@ -340,6 +406,9 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "Manifest",
+        "ManifestPin",
+        "ManifestTaken",
         "validateManifest"
       ]
     },
@@ -349,7 +418,9 @@
       "review": "pending",
       "tests": [],
       "exports": [
-        "MetaAdapter"
+        "MetaAdapter",
+        "MetaConfig",
+        "MetaMode"
       ]
     },
     {
@@ -358,7 +429,11 @@
       "review": "pending",
       "tests": [],
       "exports": [
-        "MetricsBoard"
+        "FleetSnapshot",
+        "MetricsBoard",
+        "ProviderObservation",
+        "QueueSnapshot",
+        "RunSnapshot"
       ]
     },
     {
@@ -367,7 +442,8 @@
       "review": "pending",
       "tests": [],
       "exports": [
-        "OpenAICompatAdapter"
+        "OpenAICompatAdapter",
+        "OpenAICompatConfig"
       ]
     },
     {
@@ -384,7 +460,11 @@
       "tests": [],
       "exports": [
         "PLAN_WRITE_TOOLS",
+        "PlanResult",
+        "PlanSnapshot",
         "PlanStore",
+        "Todo",
+        "TodoStatus",
         "planTools",
         "suppressDuplicatePlanWrites"
       ]
@@ -395,6 +475,9 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "PreflightInput",
+        "PreflightReceipt",
+        "PreflightResult",
         "freezeBrief",
         "runPreflight"
       ]
@@ -421,6 +504,8 @@
       "exports": [
         "BRAINSTORM_MODE_PROMPT",
         "PLAN_MODE_PROMPT",
+        "PromptParts",
+        "TurnMode",
         "composeSystemPrompt",
         "modePromptFor"
       ]
@@ -431,8 +516,22 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ChatImage",
+        "ChatMessage",
         "DeltaAccumulator",
+        "JsonSchema",
+        "JsonSchemaProperty",
+        "MessageRole",
+        "ProviderAdapter",
         "ProviderError",
+        "ProviderRequest",
+        "ProviderResponse",
+        "StreamEvent",
+        "ToolCallRequest",
+        "ToolChoice",
+        "ToolDefinition",
+        "ToolResult",
+        "Usage",
         "emptyUsage"
       ]
     },
@@ -442,7 +541,8 @@
       "review": "pending",
       "tests": [],
       "exports": [
-        "BoundedQueue"
+        "BoundedQueue",
+        "EnqueueResult"
       ]
     },
     {
@@ -451,6 +551,9 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "GoldenCall",
+        "LearningCandidate",
+        "LearningStatus",
         "LearningStore",
         "assertReplayMatches",
         "extractCalls"
@@ -504,6 +607,18 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "Finding",
+        "ResearchCheckpoint",
+        "ResearchDetailLevel",
+        "ResearchFieldDef",
+        "ResearchGovernor",
+        "ResearchInput",
+        "ResearchOutcome",
+        "ResearchOutline",
+        "ResearchOutlineItem",
+        "ResearchStageCheckpoint",
+        "RetrievedDoc",
+        "Retriever",
         "StageMonitor",
         "StubRetriever",
         "assembleReport",
@@ -520,6 +635,8 @@
       "tests": [],
       "exports": [
         "CassetteRetriever",
+        "ResearchPack",
+        "ResearchPackDoc",
         "createResearchPack",
         "hashScope",
         "validateResearchPack"
@@ -531,6 +648,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ResponsesTransportConfig",
         "responsesCall",
         "responsesInputTokens",
         "responsesStream"
@@ -549,9 +667,13 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ModelCapabilities",
         "NoSatisfyingRouteError",
+        "ProviderRoute",
         "RateLimiter",
-        "Router"
+        "Router",
+        "RouterConfig",
+        "UnitRequirement"
       ]
     },
     {
@@ -567,6 +689,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "Skill",
         "getSkill",
         "isValidSkillName",
         "listSkills"
@@ -592,6 +715,8 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "StubEndpoint",
+        "StubScenario",
         "startStubEndpoint"
       ]
     },
@@ -615,7 +740,14 @@
       "review": "pending",
       "tests": [],
       "exports": [
-        "SubagentManager"
+        "ChildSnapshot",
+        "ChildStatus",
+        "ChildSummary",
+        "ContextMode",
+        "MessageVerdict",
+        "SubagentLimits",
+        "SubagentManager",
+        "SubagentOptions"
       ]
     },
     {
@@ -632,7 +764,14 @@
       "tests": [],
       "exports": [
         "AuditLog",
+        "FindingKind",
         "HeartbeatMonitor",
+        "HeartbeatThresholds",
+        "RunStats",
+        "SupervisorDecision",
+        "SupervisorFinding",
+        "SupervisorResponse",
+        "SweepThresholds",
         "decide",
         "sweep"
       ]
@@ -643,6 +782,11 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "BlockerRecord",
+        "CheckpointRecord",
+        "ClarificationRecord",
+        "FailureRecord",
+        "SubmissionRecord",
         "TaskLedger",
         "taskTools"
       ]
@@ -660,6 +804,12 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ApprovalGate",
+        "ApprovalVerdict",
+        "DispatchOptions",
+        "ToolContext",
+        "ToolHandler",
+        "ToolRegistration",
         "ToolRegistry",
         "dispatch",
         "validateArgs"
@@ -679,6 +829,8 @@
       "tests": [],
       "exports": [
         "TRANSCRIPT_VERSION",
+        "TranscriptKind",
+        "TranscriptLine",
         "TranscriptWriter"
       ]
     },
@@ -688,6 +840,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ChatTransportConfig",
         "chatCompletions",
         "chatCompletionsStream",
         "readSseData"
@@ -699,6 +852,8 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "TurnContext",
+        "TurnOutcome",
         "runTurn"
       ]
     },
@@ -715,8 +870,18 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "CondenseHarness",
+        "KarbotHarness",
+        "KarbotTurnOptions",
+        "KarbotTurnResult",
         "MCP_TOOL_GRANT_HEADER",
+        "McpFetchFn",
+        "McpHttpResponse",
         "StreamableMcpClient",
+        "StreamableMcpClientOptions",
+        "TurnRunnerMcpClient",
+        "TurnRunnerSink",
+        "TurnSnapshotVersions",
         "createClosedMcpClient",
         "runKarbotTurn"
       ]
@@ -740,14 +905,18 @@
       "sha256": "7b1006536a51eea2dbaf17f67e09b836948bc83c0aa6fa8b90a8fe8b10a06007",
       "review": "pending",
       "tests": [],
-      "exports": []
+      "exports": [
+        "default"
+      ]
     },
     {
       "path": "backend/eslint.config.js",
       "sha256": "7fa6b03ce3b22a30b4a69b900094f9e20a6f363ef2a208713e957d196f4b6a79",
       "review": "pending",
       "tests": [],
-      "exports": []
+      "exports": [
+        "default"
+      ]
     },
     {
       "path": "backend/openapi/v1.yaml",
@@ -769,6 +938,9 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ApiResponse",
+        "AppOptions",
+        "HealthData",
         "buildApp"
       ]
     },
@@ -778,6 +950,8 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "RetentionOptions",
+        "RetentionResult",
         "archiveKey",
         "readArchive",
         "runRetention"
@@ -789,7 +963,11 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ArchiveTarget",
         "FilesystemTarget",
+        "GcsBucketHandle",
+        "GcsFileHandle",
+        "GcsListedFile",
         "GcsTarget",
         "assertArchiveKey",
         "resolveArchiveTarget"
@@ -805,8 +983,16 @@
         "ARTIFACT_MAX_BYTES",
         "ARTIFACT_STORED_EVENT",
         "ArtifactConflictError",
+        "ArtifactDeps",
+        "ArtifactKind",
+        "ArtifactReason",
+        "ArtifactScope",
         "ArtifactValidationError",
         "CorruptArtifactError",
+        "IndexedArtifact",
+        "ServedArtifact",
+        "StoreInput",
+        "StoredArtifact",
         "UnindexedArtifactError",
         "bodyKey",
         "indexArtifact",
@@ -833,6 +1019,9 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "Caller",
+        "Role",
+        "Scope",
         "hashKey",
         "resolveCaller",
         "roleAtLeast",
@@ -847,6 +1036,8 @@
       "exports": [
         "BROWSER_DOC_TTL_MS",
         "BROWSER_QUERY_TTL_MS",
+        "CachedDoc",
+        "CachedSearchHit",
         "clearBrowserCacheForTests",
         "dedupInflight",
         "getCachedDoc",
@@ -863,6 +1054,10 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "SweepSearchDeps",
+        "SweepSearchHit",
+        "SweepSearchVia",
+        "browserPoolStats",
         "linksFromSnapshot",
         "pooledBrowserAct",
         "pooledBrowserClose",
@@ -879,7 +1074,42 @@
       "sha256": "8025fe0b457ccaa07d70bd15c2fb2aab7f9ee6bceb237a67a1822a59db968766",
       "review": "pending",
       "tests": [],
-      "exports": []
+      "exports": [
+        "BROWSER_DOC_TTL_MS",
+        "BROWSER_POOL_ABSOLUTE_MAX",
+        "BROWSER_POOL_DEFAULT_MAX",
+        "BROWSER_QUERY_TTL_MS",
+        "BROWSER_SLOT_TIMEOUT_MS",
+        "BrowserSlot",
+        "CachedDoc",
+        "CachedSearchHit",
+        "SweepSearchDeps",
+        "SweepSearchHit",
+        "SweepSearchVia",
+        "acquireBrowserSlot",
+        "browserPoolMax",
+        "browserPoolStats",
+        "clearBrowserCacheForTests",
+        "dedupInflight",
+        "facadePoolStats",
+        "getCachedDoc",
+        "getCachedQuery",
+        "linksFromSnapshot",
+        "normalizeBrowserUrl",
+        "pooledBrowserAct",
+        "pooledBrowserClose",
+        "pooledBrowserNavigate",
+        "pooledBrowserScreenshot",
+        "pooledBrowserSnapshot",
+        "pooledSearchWebPage",
+        "pooledWebFetch",
+        "pooledWebSearch",
+        "queryCacheKey",
+        "resetBrowserPoolForTests",
+        "setBrowserPoolMaxForTests",
+        "setCachedDoc",
+        "setCachedQuery"
+      ]
     },
     {
       "path": "backend/src/browserPool/pool.ts",
@@ -890,6 +1120,7 @@
         "BROWSER_POOL_ABSOLUTE_MAX",
         "BROWSER_POOL_DEFAULT_MAX",
         "BROWSER_SLOT_TIMEOUT_MS",
+        "BrowserSlot",
         "acquireBrowserSlot",
         "browserPoolMax",
         "browserPoolStats",
@@ -916,6 +1147,8 @@
       "exports": [
         "EXPECTED_TYPES",
         "PARITY",
+        "ParityEntry",
+        "ParityKind",
         "checkParity",
         "loadSpec"
       ]
@@ -926,7 +1159,9 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "CheckpointTx",
         "DURABLE_STREAM_LOCK_SQL",
+        "TransactableDb",
         "runCheckpointTx"
       ]
     },
@@ -943,6 +1178,8 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "LedgerCompany",
+        "LedgerProblem",
         "LedgerQualification",
         "ProblemStatus",
         "RecordProblemInput",
@@ -961,6 +1198,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "DocumentUnit",
         "countDocumentUnits",
         "insertDocumentUnits",
         "listDocumentUnits"
@@ -982,10 +1220,17 @@
       "tests": [],
       "exports": [
         "ARTIFACT_REFERENCED_EVENT",
+        "AppendedEvent",
+        "ArtifactSummary",
+        "CreateArtifactInput",
+        "Db",
+        "DbQueryResult",
         "EventEnvelope",
         "SESSION_DELETED_EVENT",
         "SESSION_MODEL_EVENT",
         "SessionModelSelection",
+        "SessionRecord",
+        "StoredEvent",
         "appendEvent",
         "createArtifact",
         "createSession",
@@ -1013,11 +1258,20 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ClassifiedFile",
+        "ExtractedUnit",
+        "ExtractionStatus",
+        "FileExtraction",
+        "FileKind",
+        "HttpOcrConfig",
         "MAX_OCR_IMAGES",
         "OCR_CONFIDENCE_MIN",
+        "OcrAdapter",
+        "OcrResult",
         "SECTOR_DOCUMENT_MAX_BYTES",
         "ScriptedOcrAdapter",
         "UNIT_MAX_CHARS",
+        "UnitKind",
         "chunkTextUnits",
         "classifyUpload",
         "createHttpOcrAdapter",
@@ -1033,6 +1287,7 @@
       "tests": [],
       "exports": [
         "HEARTBEAT_WRITE_MS",
+        "StoredHeartbeat",
         "heartbeatThrottleKey",
         "listHeartbeats",
         "pruneHeartbeats",
@@ -1041,10 +1296,219 @@
     },
     {
       "path": "backend/src/db/index.ts",
-      "sha256": "7d01fd99ce087fb2d0fafbc3c83376a790ff46310c36c06a672d48677d6ac018",
+      "sha256": "fda33b7eeffd7ee36b40ab272928b3e651f0ea011fd9de2a5fab7887dae53e68",
       "review": "pending",
       "tests": [],
-      "exports": []
+      "exports": [
+        "*:./workspace.js",
+        "ARTIFACT_REFERENCED_EVENT",
+        "ActivityEntry",
+        "AppendedEvent",
+        "ArtifactSummary",
+        "COMPANY_FOUND_EVENT",
+        "COMPANY_STAGE_CHANGED_EVENT",
+        "COMPANY_STATE_CHANGED_EVENT",
+        "CheckpointTx",
+        "ClassifiedFile",
+        "CompactContextResult",
+        "CompanyFilters",
+        "CompanyRecord",
+        "CompanyStage",
+        "ConnectableDb",
+        "ContextFileView",
+        "ContextNoteView",
+        "ContextUnitView",
+        "CreateArtifactInput",
+        "DEFAULT_POOL_BUDGET",
+        "Db",
+        "DbContractError",
+        "DbQueryResult",
+        "DocumentChunksResult",
+        "DocumentSummaryResult",
+        "DocumentTocEntry",
+        "DocumentUnit",
+        "EventEnvelope",
+        "ExtractedUnit",
+        "ExtractionStatus",
+        "FileExtraction",
+        "HEARTBEAT_WRITE_MS",
+        "IdempotencyOutcome",
+        "IngestedDocument",
+        "KbChunkInput",
+        "KbDocumentInput",
+        "KbSearchHit",
+        "KeyRecord",
+        "LedgerCompany",
+        "LedgerProblem",
+        "LedgerQualification",
+        "LedgerResult",
+        "OCR_CONFIDENCE_MIN",
+        "OcrAdapter",
+        "OcrResult",
+        "OutboxRow",
+        "OutboxSubscription",
+        "Paging",
+        "PlanVersion",
+        "PoolBudget",
+        "PoolStat",
+        "ProblemStatus",
+        "ProjectionResult",
+        "QuerySectorDocumentInput",
+        "QuerySectorDocumentResult",
+        "RateDecision",
+        "RecordProblemInput",
+        "ResearchHealth",
+        "ResearchSessionHealth",
+        "ResearchThreadHealth",
+        "SECTOR_CREATED_EVENT",
+        "SECTOR_DOCUMENT_MAX_BYTES",
+        "SECTOR_PLAN_APPROVED_EVENT",
+        "SECTOR_PLAN_WRITTEN_EVENT",
+        "SECTOR_RESEARCH_STARTED_EVENT",
+        "SECTOR_STATE_CHANGED_EVENT",
+        "SECTOR_TRANSITIONS",
+        "SERVER_POOL_BUDGET",
+        "SESSION_DELETED_EVENT",
+        "SESSION_MODEL_EVENT",
+        "ScriptedOcrAdapter",
+        "SectorContextView",
+        "SectorDigest",
+        "SectorDocument",
+        "SectorFilters",
+        "SectorPlan",
+        "SectorPlanError",
+        "SectorPlanFailure",
+        "SectorPlanRunner",
+        "SectorRecord",
+        "SectorStartError",
+        "SectorStartFailure",
+        "SectorState",
+        "SectorSweepRunner",
+        "SectorTransitionError",
+        "SectorTransitionFailure",
+        "SessionModelSelection",
+        "SessionRecord",
+        "StoredEvent",
+        "StoredHeartbeat",
+        "ThreadMessenger",
+        "TransactableDb",
+        "UNIT_MAX_CHARS",
+        "UnitRef",
+        "UpsertCompanyInput",
+        "UsageTotals",
+        "WORKER_POOL_BUDGET",
+        "addContextNotes",
+        "appendEvent",
+        "approveSectorPlan",
+        "assertSectorTransition",
+        "buildSectorDigest",
+        "cancelThreadRun",
+        "checkRate",
+        "chunkTextUnits",
+        "claimIdempotency",
+        "classifyUpload",
+        "compactSectorContext",
+        "completeIdempotency",
+        "countDocumentUnits",
+        "createArtifact",
+        "createDbPool",
+        "createHttpOcrAdapter",
+        "createSector",
+        "createSession",
+        "deleteEventsBySeq",
+        "deleteSession",
+        "documentExtension",
+        "extractDocumentText",
+        "extractFileUnits",
+        "findEventByKey",
+        "findKeyByHash",
+        "findLaunchParentWorkflowId",
+        "fleetTotals",
+        "getLedgerCompany",
+        "getSector",
+        "getSectorContext",
+        "getSession",
+        "getSessionModel",
+        "getThread",
+        "getThreadHeader",
+        "heartbeatThrottleKey",
+        "ingestSectorDocument",
+        "insertDocumentUnits",
+        "latestOutboxSeq",
+        "listArtifacts",
+        "listCompanies",
+        "listContextNotes",
+        "listDocumentUnits",
+        "listHeartbeats",
+        "listLedgerCompanies",
+        "listLedgerProblems",
+        "listSectorCompanies",
+        "listSectorDocuments",
+        "listSectors",
+        "listSessions",
+        "listTenantArtifacts",
+        "listThreadHeaders",
+        "listThreads",
+        "markCompanyFound",
+        "pauseSectorResearch",
+        "pauseSectorSweep",
+        "pauseThreadRun",
+        "planSectorResearch",
+        "poolStats",
+        "projectBatch",
+        "projectSectorEvent",
+        "projectUsage",
+        "pruneHeartbeats",
+        "pruneOutbox",
+        "publishOutboxFrame",
+        "querySectorDocument",
+        "readEventsAfter",
+        "readEventsOlderThan",
+        "readOriginalSectorDocument",
+        "readOutboxBacklog",
+        "readPartition",
+        "readSectorDocument",
+        "readSectorPlan",
+        "rebuildFromEvents",
+        "rebuildLedger",
+        "recordHeartbeat",
+        "recordKbBatch",
+        "recordLedgerProblem",
+        "recordPlanVersion",
+        "recordResearchSession",
+        "referenceArtifact",
+        "registerApiKey",
+        "registerLedgerCandidate",
+        "registerSectorDiscovery",
+        "releaseIdempotency",
+        "renameSession",
+        "researchHealth",
+        "resolveArtifactScope",
+        "restartSectorSweep",
+        "resumeSectorResearch",
+        "resumeSectorSweep",
+        "resumeThreadRun",
+        "runCheckpointTx",
+        "runTotals",
+        "searchKb",
+        "sectorActivity",
+        "sendThreadMessage",
+        "serverPoolBudget",
+        "setCompanyStage",
+        "setCompanyState",
+        "setSectorState",
+        "setSessionModel",
+        "setUnitExclusions",
+        "sha256Hex",
+        "startSectorResearch",
+        "steerThread",
+        "subscribeOutbox",
+        "sweepIdempotency",
+        "updateSectorPlan",
+        "upsertLedgerCompany",
+        "workerPoolBudget",
+        "workerPoolFromEnv"
+      ]
     },
     {
       "path": "backend/src/db/kb-ingest.ts",
@@ -1052,6 +1516,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ParsedKbDoc",
         "collectKbDocs",
         "parseKbFile",
         "provenanceSha",
@@ -1061,11 +1526,13 @@
     },
     {
       "path": "backend/src/db/keys.ts",
-      "sha256": "c95283730e3804b6020e4e9af6d62aee32bebe1144dadd8cc0544cc79d133baf",
+      "sha256": "8439d3240e5fee5abb44a1cb786da0c74a1f37439690c6ed95ab9ea9ef0a5bda",
       "review": "pending",
       "tests": [],
       "exports": [
-        "findKeyByHash"
+        "KeyRecord",
+        "findKeyByHash",
+        "registerApiKey"
       ]
     },
     {
@@ -1076,6 +1543,7 @@
       "exports": [
         "KbChunkInput",
         "KbDocumentInput",
+        "KbSearchHit",
         "recordKbBatch",
         "searchKb"
       ]
@@ -1086,6 +1554,8 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "LedgerResult",
+        "UsageTotals",
         "fleetTotals",
         "projectUsage",
         "rebuildLedger",
@@ -1098,6 +1568,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "Direction",
         "migrate",
         "migrationFiles"
       ]
@@ -1108,6 +1579,9 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ConnectableDb",
+        "OutboxRow",
+        "OutboxSubscription",
         "latestOutboxSeq",
         "pruneOutbox",
         "publishOutboxFrame",
@@ -1122,6 +1596,8 @@
       "tests": [],
       "exports": [
         "DEFAULT_POOL_BUDGET",
+        "PoolBudget",
+        "PoolStat",
         "SERVER_POOL_BUDGET",
         "WORKER_POOL_BUDGET",
         "createDbPool",
@@ -1137,6 +1613,8 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "IdempotencyOutcome",
+        "RateDecision",
         "checkRate",
         "claimIdempotency",
         "completeIdempotency",
@@ -1150,6 +1628,9 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ResearchHealth",
+        "ResearchSessionHealth",
+        "ResearchThreadHealth",
         "researchHealth"
       ]
     },
@@ -1159,6 +1640,13 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "CompactContextResult",
+        "ContextFileView",
+        "ContextNoteView",
+        "ContextUnitView",
+        "SectorContextView",
+        "SectorDigest",
+        "UnitRef",
         "addContextNotes",
         "buildSectorDigest",
         "citationLabels",
@@ -1174,12 +1662,22 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "DocumentChunksResult",
+        "DocumentSummaryResult",
+        "DocumentTocEntry",
+        "IngestedDocument",
+        "QuerySectorDocumentInput",
+        "QuerySectorDocumentResult",
+        "SECTOR_DOCUMENT_MAX_BYTES",
+        "SectorDocument",
+        "documentExtension",
         "extractDocumentText",
         "ingestSectorDocument",
         "listSectorDocuments",
         "querySectorDocument",
         "readOriginalSectorDocument",
-        "readSectorDocument"
+        "readSectorDocument",
+        "sha256Hex"
       ]
     },
     {
@@ -1199,7 +1697,11 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "PlanVersion",
+        "SectorPlan",
         "SectorPlanError",
+        "SectorPlanFailure",
+        "SectorPlanRunner",
         "approveSectorPlan",
         "planSectorResearch",
         "readSectorPlan",
@@ -1214,6 +1716,8 @@
       "tests": [],
       "exports": [
         "SectorStartError",
+        "SectorStartFailure",
+        "SectorSweepRunner",
         "startSectorResearch"
       ]
     },
@@ -1223,20 +1727,27 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ActivityEntry",
         "COMPANY_FOUND_EVENT",
         "COMPANY_STAGE_CHANGED_EVENT",
         "COMPANY_STATE_CHANGED_EVENT",
+        "CompanyFilters",
+        "CompanyRecord",
         "CompanyStage",
         "PAGING_DEFAULT_LIMIT",
         "PAGING_MAX_LIMIT",
+        "Paging",
         "SECTOR_CREATED_EVENT",
         "SECTOR_PLAN_APPROVED_EVENT",
         "SECTOR_PLAN_WRITTEN_EVENT",
         "SECTOR_RESEARCH_STARTED_EVENT",
         "SECTOR_STATE_CHANGED_EVENT",
         "SECTOR_TRANSITIONS",
+        "SectorFilters",
+        "SectorRecord",
         "SectorState",
         "SectorTransitionError",
+        "SectorTransitionFailure",
         "assertSectorTransition",
         "createSector",
         "getSector",
@@ -1261,6 +1772,8 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ProjectionResult",
+        "ThreadMessenger",
         "cancelThreadRun",
         "getThread",
         "getThreadHeader",
@@ -1280,7 +1793,12 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ContextChange",
         "ContextSections",
+        "GlobalContext",
+        "LibraryFile",
+        "ThreadContext",
+        "TurnContinuation",
         "WorkspaceError",
         "assertFileVisible",
         "beginThreadTurn",
@@ -1330,6 +1848,7 @@
       "tests": [],
       "exports": [
         "DEFAULT_CORS_ORIGINS",
+        "OriginCarrier",
         "corsHeadersFor",
         "parseCorsOrigins",
         "registerCors"
@@ -1341,6 +1860,9 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "IdempotencyOutcome",
+        "RateDecision",
+        "hashKey",
         "mutationFingerprint",
         "rateBucket"
       ]
@@ -1370,6 +1892,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "McpToolName",
         "TOOL_NAMES",
         "TOOL_SCHEMAS"
       ]
@@ -1380,10 +1903,13 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "McpToolContext",
         "McpToolError",
         "PLATFORM_INTERNAL_TOOLS",
         "TOOL_LAYER",
         "TOOL_META",
+        "ToolCapability",
+        "ToolGrant",
         "createMcpServer",
         "invokeTool",
         "toolCapability"
@@ -1395,6 +1921,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "LogContext",
         "childLogger",
         "createLogger",
         "createWorkerLogger",
@@ -1409,7 +1936,9 @@
       "tests": [],
       "exports": [
         "CARDINALITY_BUDGET",
+        "HttpMetrics",
         "METRIC_LABEL_ALLOW",
+        "TelemetryOptions",
         "createHttpMetrics",
         "enforceLabelAllowlist",
         "refreshFleetGauges",
@@ -1423,6 +1952,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "RequestObservability",
         "registerRequestLogging"
       ]
     },
@@ -1433,6 +1963,12 @@
       "tests": [],
       "exports": [
         "DEFAULT_STALL_THRESHOLDS",
+        "HeartbeatRow",
+        "LoopEvidence",
+        "RunObservation",
+        "StallOutcome",
+        "StallSweepInput",
+        "StallThresholds",
         "stalledTurnsFor",
         "sweepStalls"
       ]
@@ -1443,6 +1979,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "TraceContext",
         "extractTraceContext",
         "injectTraceparent",
         "newSpanId",
@@ -1456,6 +1993,8 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "SpanLine",
+        "StartSpanOptions",
         "TRACER_NAME",
         "clearSpanContext",
         "currentSpanContext",
@@ -1483,6 +2022,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ProjectorResult",
         "projectNewEvents"
       ]
     },
@@ -1492,6 +2032,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ModelCatalog",
         "ModelCatalogUnavailable",
         "fetchMetaModels"
       ]
@@ -1502,7 +2043,15 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ChatLogFields",
+        "ChatOutcome",
+        "EffectiveSelection",
+        "MessageSelection",
+        "ProviderFailureCode",
         "ProviderGatewayError",
+        "ProviderSelection",
+        "ResolveOptions",
+        "StreamChatOptions",
         "chatOnce",
         "probeProvider",
         "resolveAdapter",
@@ -1518,6 +2067,10 @@
       "tests": [],
       "exports": [
         "DEFAULT_EFFORT",
+        "ModelEntry",
+        "ReasoningCapability",
+        "RegistryEnv",
+        "RegistryProvider",
         "defaultModelFor",
         "findModel",
         "isKnownEffort",
@@ -1535,6 +2088,7 @@
         "BROWSER_IDLE_TIMEOUT_MS",
         "BROWSER_NAV_TIMEOUT_MS",
         "BROWSER_SCREENSHOT_MAX_BYTES",
+        "BrowserAct",
         "browserAct",
         "browserClose",
         "browserNavigate",
@@ -1549,6 +2103,7 @@
       "tests": [],
       "exports": [
         "KEYLESS_MAX_BYTES",
+        "KeylessHit",
         "keylessSearch"
       ]
     },
@@ -1558,7 +2113,12 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "FetchImpl",
+        "FetchResult",
+        "RetrievalCode",
         "RetrievalError",
+        "SearchEnv",
+        "SearchHit",
         "WEB_FETCH_MAX_BYTES",
         "WEB_FETCH_TIMEOUT_MS",
         "webFetch",
@@ -1589,6 +2149,10 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ErrorCode",
+        "IdempotentOutcome",
+        "RouteDeps",
+        "RouteHandler",
         "authorize",
         "header",
         "mapRouteError",
@@ -1690,6 +2254,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "SlashCommand",
         "parseSlashCommand",
         "resolveSlashCommand"
       ]
@@ -1701,15 +2266,18 @@
       "tests": [],
       "exports": [
         "SNAPSHOT_THRESHOLD",
+        "StreamFrame",
+        "StreamFrameType",
         "openThreadStream"
       ]
     },
     {
       "path": "backend/src/temporal/activities/coordinator.ts",
-      "sha256": "22ce248e8da3398c0f556a59e90f03453fcce17b8cf71e2f23e6d6734216565f",
+      "sha256": "d6283c0c631db536e603a211036de69af467f2025f0d556d63ed587f288fc055",
       "review": "pending",
       "tests": [],
       "exports": [
+        "CoordinatorInput",
         "evidenceVerdict",
         "loadCoordinatorActivity",
         "researchBudgetActivity",
@@ -1727,6 +2295,9 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "DetectLoopInput",
+        "GuardedStageInput",
+        "GuardedStageResult",
         "detectLoopActivity",
         "runGuardedStageActivity"
       ]
@@ -1737,6 +2308,8 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "PlanVersion",
+        "SectorPlan",
         "readSectorPlanActivity",
         "setPlanStateActivity",
         "writePlanArtifactActivity"
@@ -1749,6 +2322,8 @@
       "tests": [],
       "exports": [
         "PROVIDER_ERROR_EVENT",
+        "ProviderChatDeps",
+        "ProviderChatInput",
         "executeProviderChat",
         "providerChatActivity"
       ]
@@ -1759,6 +2334,9 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "HeartbeatSink",
+        "ResearchStageInput",
+        "ResearchStageResult",
         "STAGE_MS",
         "runResearchStageActivity",
         "scriptedFindings",
@@ -1772,6 +2350,7 @@
       "tests": [],
       "exports": [
         "STALL_RESPONSE_EVENT",
+        "StallSweepInput",
         "stallResponseEvent",
         "stallSweepActivity"
       ]
@@ -1782,6 +2361,11 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "SweepCompany",
+        "SweepContext",
+        "SweepSearchDeps",
+        "SweepSearchHit",
+        "SweepSearchVia",
         "linksFromSnapshot",
         "loadSweepContextActivity",
         "recordSweepCompanyActivity",
@@ -1795,11 +2379,17 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ApprovalInput",
         "DEFAULT_TOOL_TIMEOUT_MS",
+        "RecordedToolCall",
         "SENSITIVE_TOOLS",
         "TOOL_APPROVAL_EVENT",
         "TOOL_EXECUTED_EVENT",
         "TOOL_TIMEOUT_EVENT",
+        "TaskSnapshot",
+        "ToolCallDeps",
+        "ToolCallInput",
+        "ToolCallResult",
         "emptyTaskSnapshot",
         "executeToolCall",
         "toolCallActivity"
@@ -1811,13 +2401,20 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "AppendEventInput",
+        "ChildTurnInput",
         "KARBOT_SYSTEM_PROMPT",
+        "KarbotTurnDeps",
         "KarbotTurnInput",
+        "KarbotTurnLogFields",
+        "McpAuthProbe",
         "PRODUCT_TOOLS",
         "RESEARCH_TURN_WALL_MS",
         "ResearchPausedError",
         "SECTOR_TOOLS",
         "TURN_HEARTBEAT_MS",
+        "TurnInput",
+        "TurnOutcome",
         "appendEventActivity",
         "chatHistory",
         "checkWorkerMcpAuth",
@@ -1865,9 +2462,20 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ApprovedCoordinatorHandle",
+        "CancelHandle",
+        "CommandResult",
+        "DelegateSubagentInput",
+        "DelegatedChild",
+        "RunInfo",
         "RunNotFound",
+        "RunState",
+        "RunsGateway",
         "SESSION_PREFIX",
         "SESSION_WORKFLOW_TYPE",
+        "SessionSignalStart",
+        "SkillInvocation",
+        "SubagentDelegator",
         "TemporalRunsGateway",
         "ThreadNotAccepting",
         "buildSessionSignalStart",
@@ -1882,6 +2490,8 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "GuardVisit",
+        "LoopVerdict",
         "decideLoop"
       ]
     },
@@ -1892,6 +2502,8 @@
       "tests": [],
       "exports": [
         "LANES",
+        "Lane",
+        "LaneConfig",
         "allLaneConfigs",
         "laneConfig"
       ]
@@ -1903,6 +2515,7 @@
       "tests": [],
       "exports": [
         "ExecutablePlan",
+        "WorkItem",
         "parseExecutablePlan",
         "progressSummary",
         "visiblePlan"
@@ -1910,10 +2523,12 @@
     },
     {
       "path": "backend/src/temporal/sweep-rules.ts",
-      "sha256": "599fba4233532540f608e9e8f26b9aa0d0bfdae52bd754e1e606e4dfd3c964fe",
+      "sha256": "cf91b151bf64bb96b497bbf467f06efb60cc09cbf82861592691c28dc929fadb",
       "review": "pending",
       "tests": [],
       "exports": [
+        "CandidateCompany",
+        "CandidateHit",
         "ENGLISH_REGIONS",
         "buildQueryTemplates",
         "extractNewDomains",
@@ -1928,6 +2543,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "LaneTimeouts",
         "activityOptions",
         "laneTimeouts"
       ]
@@ -1938,12 +2554,14 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ActivityFunction",
+        "LaneWorkerOptions",
         "createLaneWorker"
       ]
     },
     {
       "path": "backend/src/temporal/workflows/coordinator.ts",
-      "sha256": "c5848dd0ee1c30eae5603c14e62d6c57893be8af51bbafc93fec3ebacf4a735a",
+      "sha256": "4d23aefa6fd97bcdd1d529b0abb2bf073ddc0fe6b1a6a599d9f3e10214cf02a9",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1961,6 +2579,11 @@
       "tests": [],
       "exports": [
         "DEFAULT_SUSPEND_TIMEOUT_MS",
+        "GuardResume",
+        "GuardedRunInput",
+        "GuardedRunState",
+        "GuardedRunStatus",
+        "SuspendKind",
         "guardResumeSignal",
         "guardStateQuery",
         "guardedResearchRun"
@@ -1972,6 +2595,8 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "PlanProgress",
+        "SectorPlanInput",
         "planProgressQuery",
         "planningBrief",
         "sectorPlan"
@@ -1982,7 +2607,11 @@
       "sha256": "7cb8e2ed3637f1077f41d63c1962dc8040f3f0ac2f24b7b4b2a290eebb70bdeb",
       "review": "pending",
       "tests": [],
-      "exports": []
+      "exports": [
+        "*:./coordinator.js",
+        "*:./plan.js",
+        "*:./sweep.js"
+      ]
     },
     {
       "path": "backend/src/temporal/workflows/research.ts",
@@ -1990,6 +2619,9 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ResearchRunInput",
+        "ResearchRunState",
+        "ResearchRunStatus",
         "assembleFindingsReport",
         "researchPauseSignal",
         "researchResumeSignal",
@@ -2013,6 +2645,9 @@
       "tests": [],
       "exports": [
         "DEFAULT_IDLE_TIMEOUT_MS",
+        "SessionRunInput",
+        "SessionRunState",
+        "SkillSignalArgs",
         "cancelSignal",
         "pauseSignal",
         "resumeSignal",
@@ -2032,6 +2667,13 @@
         "DEFAULT_CHILD_FINISH_TIMEOUT_MS",
         "DEFAULT_MAX_IN_FLIGHT_CHILDREN",
         "DEFAULT_PARENT_IDLE_TIMEOUT_MS",
+        "DelegateParentInput",
+        "DelegateRequest",
+        "NoteDoneRequest",
+        "ParentState",
+        "RedirectRequest",
+        "SteerRequest",
+        "SubagentChildInput",
         "childCanDelegateQuery",
         "childCancelSignal",
         "childFinishSignal",
@@ -2055,6 +2697,8 @@
       "tests": [],
       "exports": [
         "DEFAULT_MAX_PAGES_PER_TEMPLATE",
+        "SectorSweepInput",
+        "SweepProgress",
         "sectorSweep",
         "sweepProgressQuery"
       ]
@@ -2064,7 +2708,11 @@
       "sha256": "3e9e7d53b637c13e0f32595d6bf62049ee3eb72c2dba384ae23c96ff6ecef463",
       "review": "pending",
       "tests": [],
-      "exports": []
+      "exports": [
+        "*:./run.js",
+        "*:./subagents.js",
+        "companyResearch"
+      ]
     },
     {
       "path": "backend/src/threads/project.ts",
@@ -2072,6 +2720,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ChildRef",
         "MessageAppended",
         "MessageKind",
         "QueueEnqueued",
@@ -2085,6 +2734,7 @@
         "SubagentMissedSteer",
         "ThreadFinished",
         "ThreadState",
+        "ThreadView",
         "routeSend"
       ]
     },
@@ -2094,6 +2744,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ApiThread",
         "toApiMessage",
         "toApiThread"
       ]
@@ -2117,7 +2768,9 @@
       "sha256": "d50ece0829d7aafaa4727d897da7300105306723b2d167ad0d5c110f0b306b5f",
       "review": "pending",
       "tests": [],
-      "exports": []
+      "exports": [
+        "default"
+      ]
     },
     {
       "path": "db/migrations/0001_init.sql",
@@ -2362,7 +3015,9 @@
       "sha256": "cad80f95c03e872d8eee394b815f2c98edcd8c3aad419a0d40c212a3353152c9",
       "review": "pending",
       "tests": [],
-      "exports": []
+      "exports": [
+        "default"
+      ]
     },
     {
       "path": "frontend/index.html",
@@ -2383,7 +3038,9 @@
       "sha256": "6a0128bb2aeb588fc6904c5fc0abb90a2ae5f956d01bc57ae736350ea02436ff",
       "review": "pending",
       "tests": [],
-      "exports": []
+      "exports": [
+        "default"
+      ]
     },
     {
       "path": "frontend/public/favicon.svg",
@@ -2405,7 +3062,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
-        "App"
+        "default"
       ]
     },
     {
@@ -2415,8 +3072,14 @@
       "tests": [],
       "exports": [
         "ActivityGroup",
+        "ChatFile",
+        "ChatMessage",
         "ChatPanel",
+        "ChatScope",
+        "ChatText",
+        "ChatTool",
         "FilesMenu",
+        "MessageSegment",
         "SessionFilesView",
         "SessionsPanel",
         "ThinkingPlaceholder",
@@ -2435,7 +3098,8 @@
       "review": "pending",
       "tests": [],
       "exports": [
-        "Dashboard"
+        "Dashboard",
+        "ResearchList"
       ]
     },
     {
@@ -2528,6 +3192,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "AttachResult",
         "CompanySection",
         "SectorDetailPage"
       ]
@@ -2565,6 +3230,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ResearchActions",
         "SectorWorkspace"
       ]
     },
@@ -2584,6 +3250,7 @@
       "tests": [],
       "exports": [
         "StatusPill",
+        "StatusTone",
         "toneDot"
       ]
     },
@@ -2645,14 +3312,19 @@
       "sha256": "448bfe8061a1b03f6790e53daeed1d15854544635fa655208cfabf0cf2c18008",
       "review": "pending",
       "tests": [],
-      "exports": []
+      "exports": [
+        "Button",
+        "buttonVariants"
+      ]
     },
     {
       "path": "frontend/src/components/ui/input.tsx",
       "sha256": "dab990dfefa0ba78854ab6602ad074270dba9d7d1262184d9bfbb62bd990903b",
       "review": "pending",
       "tests": [],
-      "exports": []
+      "exports": [
+        "Input"
+      ]
     },
     {
       "path": "frontend/src/components/workspace-parts.tsx",
@@ -2686,6 +3358,15 @@
       "tests": [],
       "exports": [
         "COMPANY_WINDOW",
+        "CompanyData",
+        "CompanyFilters",
+        "CompanyResearch",
+        "ResearchData",
+        "ResearchStatus",
+        "SectorActivityEntry",
+        "SectorDetail",
+        "SectorDetailData",
+        "SectorResearch",
         "useStagingCompanies",
         "useStagingSectorDetail",
         "useStagingSectors"
@@ -2697,6 +3378,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "SectorWorkspaceModel",
         "useSectorWorkspace"
       ]
     },
@@ -2706,6 +3388,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ResearchStage",
         "researchStages"
       ]
     },
@@ -2715,13 +3398,51 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ArtifactBody",
+        "ArtifactReference",
+        "ArtifactSummary",
+        "AttachedDocument",
+        "CommandAccepted",
+        "CompactSectorContextResult",
+        "CompactSessionResult",
+        "CompanyPage",
+        "CompanyResearch",
+        "ContextFileView",
+        "ContextNoteView",
+        "ContextUnitView",
+        "CreateArtifactInput",
+        "DeltaPayload",
+        "FollowThreadOptions",
+        "LiveMessage",
+        "LiveThread",
+        "PlanVersionView",
+        "ProviderCatalog",
         "ProviderCatalogSchema",
+        "ProviderEntry",
         "ProviderEntrySchema",
+        "ProviderModel",
         "ProviderModelSchema",
+        "ResearchState",
+        "RunState",
+        "RunSummary",
         "STREAM_IDLE_TIMEOUT_MS",
+        "SectorActivityEntry",
+        "SectorContextView",
+        "SectorDetail",
+        "SectorDocumentSummary",
+        "SectorFilters",
+        "SectorPlanView",
+        "SectorResearch",
+        "Session",
         "SessionModelSelection",
         "SetSessionModelInput",
+        "SkillSummary",
         "StagingApiError",
+        "StagingConfig",
+        "StreamFrame",
+        "ThreadView",
+        "ToolPayload",
+        "TurnMode",
         "apiErrorStatus",
         "approveSectorPlan",
         "attachSectorDocument",
@@ -2775,6 +3496,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "Resource",
         "useWorkspaceConversation",
         "useWorkspaceResource"
       ]
@@ -2785,7 +3507,14 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "ContextChange",
+        "ContextPreview",
+        "GlobalContext",
+        "LibraryFile",
+        "LocalContext",
+        "ResearchProgress",
         "Sections",
+        "SectorFileBody",
         "compactLocalContext",
         "decideGlobalContext",
         "ensureResearchSession",
@@ -2839,6 +3568,7 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "Navigation",
         "parseNavigation",
         "useNavigation"
       ]
@@ -2848,7 +3578,9 @@
       "sha256": "14300d758170c270c75b057f38fedb3793a5920ea872f0477e29fb131185e8a7",
       "review": "pending",
       "tests": [],
-      "exports": []
+      "exports": [
+        "cn"
+      ]
     },
     {
       "path": "frontend/src/main.tsx",
@@ -2890,7 +3622,9 @@
       "sha256": "6acfc6e05e1495e342f4db9313a52085473f5c3a5d21081836ceb495abc51adb",
       "review": "pending",
       "tests": [],
-      "exports": []
+      "exports": [
+        "default"
+      ]
     },
     {
       "path": "package-lock.json",
@@ -3129,6 +3863,13 @@
       "exports": []
     },
     {
+      "path": "tests/backend/db.key-provisioning.test.ts",
+      "sha256": "767719a1fde1dd6f103f331d70fb1c4b30fa412362602a3ed1cf66863e734780",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/backend/db.knowledge.test.ts",
       "sha256": "2cedf74712e5f1aa4aa620de0383ae64dd84aee1bbc7301d0ca55dafa57e34be",
       "review": "pending",
@@ -3210,7 +3951,9 @@
       "sha256": "083f9455846c6aef81cb072255d7cdfc0d1f29ca08aa287fab6c6069b5f1b333",
       "review": "pending",
       "tests": [],
-      "exports": []
+      "exports": [
+        "default"
+      ]
     },
     {
       "path": "tests/backend/events.append.test.ts",
@@ -3248,12 +3991,21 @@
       "review": "pending",
       "tests": [],
       "exports": [
+        "FleetCompany",
+        "FleetDoc",
         "generateFleet"
       ]
     },
     {
+      "path": "tests/backend/hardening.acceptance.test.ts",
+      "sha256": "acdfb4ce8672668261ec6604baaebe398a0e19b8d7d570bf29b5903a345ee5a2",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/backend/hardening.catalog.test.ts",
-      "sha256": "b3cb301ab83ca110b48ebad96746ec46bd1c423a417887e60624882db292dc67",
+      "sha256": "048376a3700e96f4b94ecf1f03e017499989bbd58f67df7884e38018aa344ce8",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -3533,7 +4285,7 @@
     },
     {
       "path": "tests/backend/sweep.rules.test.ts",
-      "sha256": "b7893276d4f12a4ec831a17994825b85709b8468200367ff317028b807e37334",
+      "sha256": "a40990ee2dcc67bdb259b52e73b0923b9ff611d5d04b1026f01e70019f0abfad",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -3648,7 +4400,7 @@
     },
     {
       "path": "tests/backend/workflows.coordinator.test.ts",
-      "sha256": "56454f92495bb6d35e57ca3db121d9dcb2bc136e707c44d1555fee303b4d0d9e",
+      "sha256": "59822f6e367c7977f86943c244bc7b9d3c499aaf1381c088dcb1e59bf52ab1e2",
       "review": "pending",
       "tests": [],
       "exports": []

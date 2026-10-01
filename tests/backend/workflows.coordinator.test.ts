@@ -70,6 +70,10 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
     search.mockImplementation(async ({ query, page }: { query: string; page: number }) => {
       pages.push(page)
       if (query === 'TEST empty') return []
+      if (query === 'TEST metadata-junk' && page === 0) return [
+        { title: 'Top 20 Australian widgets companies', snippet: 'Australian manufacturing widgets directory', url: 'https://widget-directory.example.test/' },
+        { title: 'Australian widgets manufacturing jobs', snippet: 'Manufacturing widgets', url: 'https://widget-jobs.example.test/jobs/australia' },
+      ]
       if (query === 'TEST duplicate-page' && page === 0) return [{ title: 'TEST rejected directory', snippet: 'unrelated directory', url: 'https://unrelated.example.test/' }]
       if (page === 1 || (query === 'TEST partial' && page === 0)) return [{ title: 'TEST Australian Widgets company', snippet: 'Australian manufacturing widgets supplier', url: 'https://widgets.example.test/' }]
       return []
@@ -114,6 +118,18 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
     expect(progress.state).toBe('complete')
     expect(progress.estimatedPercent).toBe(100)
     expect(progress.items.find((item) => item.title === 'Validate discovery acceptance')?.evidence).toEqual(['https://widgets.example.test/'])
+  }, 60000)
+
+  it('filters keyword-matching junk before persistence and continues to a company page', async () => {
+    pages.length = 0
+    const run = await start('TEST metadata-junk', 1)
+    expect(await run.handle.result()).toBe('complete')
+    expect(pages).toContain(1)
+    const progress = await readResearchProgress(pool, run.sectorId, scope)
+    const companies = progress.items.filter((item) => item.kind === 'company')
+    expect(companies).toHaveLength(1)
+    expect(companies[0]?.sourceUrl).toBe('https://widgets.example.test/')
+    expect(companies[0]?.title).not.toMatch(/directory|jobs/i)
   }, 60000)
 
   it('uses fresh reviewer operation identities when a child workflow id is reused', async () => {

@@ -2193,3 +2193,55 @@ scale claims with evidence links.
   frontend69 plus both typechecks passed. Existing lint/bundle warnings remain.
   No merge or worker deployment; full release audit, compatibility, reconciliation,
   scale envelope and UI Meta pilot remain open.
+
+### Final acceptance preparation and basic metadata screening (2026-10-01)
+
+- Owner approved a UI-only Australian electrical/plumbing/HVAC discovery campaign,
+  target2000, basic filtering retained and deep research/advanced qualification
+  deferred. Final design contract and pending acceptance matrix are recorded.
+- Initial keyword-only extraction admitted articles/directories/jobs; three new
+  maintained regressions failed before strengthened opt-in metadata screening.
+  New coordinator histories select the gate through a patch; legacy activity
+  arguments remain unchanged. One path regex initially classified a brand host
+  as a job path; the unchanged positive case caught it and path-only matching
+  repaired it. Rules15 passed; real Temporal/isolatedDB coordinator9 passed,
+  including a keyword-junk page followed by a legitimate company page.
+  Geography/fetched-source proof, rejection inspection and the live pilot remain
+  open; this is not a full basic-quality acceptance claim.
+- Independent review caught inventory gate gaps: exported interfaces/types/defaults/
+  barrels were omitted, evidence could be placeholder strings, and the documented
+  release command omitted scenario acceptance. A failing export-form regression
+  reproduced omission. Enumeration now includes those forms, proof is structured
+  and artifact/commit/source/test hashes are validated at release, and the canonical
+  command runs both gates. All pending surfaces/scenarios intentionally block it.
+- Owner explicitly authorized creating test approval keys. Dedicated approver was
+  provisioned through the DB layer in the prior UI tenant/project, with raw material
+  only in ignored local files and old operator untouched. No model/HTTP/MCP key-
+  creation tool was added. A10-twin provisioning test exposed a separate-unique-
+  index race; conflict-safe insertion plus exact subsequent identity read fixed it.
+  Three isolatedDB key tests passed. Config roles were verified without displaying
+  keys; health200 and Meta catalog200 with5 available models were read-only checks,
+  not deployed-branch or provider-research proof. Running backend identifies itself
+  as dev-compose; final compatibility/rollout preflight remains required.
+- Final matrix now has22 pending functionality groups/82 scenarios and1653 pending
+  declared surfaces (1494 exports,60 HTTP,74 MCP,25 UI). Required evidence tiers
+  are explicit per scenario, so unit-only evidence cannot fulfill browser/stress/
+  live-provider requirements. Independent initial review6 structural checks and
+  administrative key3 live cases passed; release remains intentionally blocked.
+- Watched preparation checks: pr:verify894 passed/275 gated skips; full isolatedDB
+  589 passed/67 gated skips; coordinator9 passed. The combined enabled release
+  command fails both file and functionality gates as expected on pending reviews.
+  Retrieval inspection found the header-only timeout and post-buffer byte cap;
+  source/geography intake must remain unverified until those paths are hardened.
+- Live UI Models screen confirmed five Meta choices and the unchanged contributor/
+  high-effort default. Screenshot retained locally; no session/model mutation.
+  Historical Overview candidates include government/news/guide pages. They were
+  not deleted or counted toward a new campaign. Product browser navigation also
+  lacks a public-network admission check; record this with fetch body/deadline,
+  network-destination and ownership hardening before the live pilot.
+- Final independent preparation review passed24 cases, backend types and diff
+  whitespace. Critical required tiers are pinned independently of status entries;
+  verified surface mappings must include their actual source file. Final mechanical
+  gate repeated894 passed/275 declared gated skips. No source/network intake,
+  historical rollout, full audit, Meta inference campaign or2000-company outcome
+  is claimed by this slice. PR remains draft/unmerged.
