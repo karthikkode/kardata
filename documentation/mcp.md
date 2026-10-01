@@ -139,3 +139,11 @@ The internal outbox subscription tool rejects a supervised connection failure
 instead of returning a healthy timeout. Its wait timer is cleared on failure;
 lease cleanup shares the subscription's single close result. It remains excluded
 from scoped product palettes; no new agent authority is granted.
+
+`web_fetch` now shares its existing15-second deadline across headers, redirect hops
+and streamed body consumption. It rejects above2 MiB before buffering the rest,
+cancels blocked/error/late bodies, and returns the actual final fetched URL.
+Redirects are manual (maximum five) with URL checks before each request. Operational
+fetch logs contain operation/code/latency, not body or credential-bearing URLs.
+This is full-response resource protection; resolved-DNS destination protection and
+product browser admission/ownership remain separate unverified release gates.

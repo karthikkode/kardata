@@ -235,3 +235,19 @@ headers and checks byte size only after full buffering. Fetched-source intake
 must not adopt that path as verified until full-body deadlines/streaming byte caps,
 redirect/network-destination protection and source provenance are exercised.
 These remain explicit acceptance gaps, not silently accepted operating limits.
+
+### Full-response source-fetch bounds
+
+Public source fetch keeps its15-second deadline through headers, redirects and
+body reads, cancels above the2-MiB streaming cap, and follows at most five redirects
+with URL checks before each hop. Final provenance names the final fetched URL.
+Blocked/non-text/error bodies are cancelled. Body/header failures are logged by
+code and rethrown; this does not claim resolved-DNS pinning or browser network
+admission, which remain separate mandatory gates before the pilot.
+
+HTML text extraction uses the shared linear scanner in retrieval/html.ts. It
+ignores script/style/comment content, respects quoted attribute delimiters and
+omits unterminated markup/content. An isolated time/memory-bounded child regression
+covers malformed bodies near the fetch cap, so parsing cannot monopolize the
+shared HTTP process through repeated regex backtracking. It is text extraction,
+not DOM execution or a claim of advanced company qualification.

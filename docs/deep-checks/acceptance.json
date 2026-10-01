@@ -8311,6 +8311,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/retrieval/html.ts#sourceHtmlText",
+      "source": "backend/src/retrieval/html.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/retrieval/keyless.ts#KEYLESS_MAX_BYTES",
       "source": "backend/src/retrieval/keyless.ts",
       "kind": "export",

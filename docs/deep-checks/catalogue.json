@@ -2097,6 +2097,15 @@
       ]
     },
     {
+      "path": "backend/src/retrieval/html.ts",
+      "sha256": "5ce1c13664102c114739aa98dba88c2ca2009433f066de9ab2cce4824863a463",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "sourceHtmlText"
+      ]
+    },
+    {
       "path": "backend/src/retrieval/keyless.ts",
       "sha256": "c362b7eabbb1afb700bf3df2eff76cb4faaa0529e03e70b00ca96550ee1f11d0",
       "review": "pending",
@@ -2109,7 +2118,7 @@
     },
     {
       "path": "backend/src/retrieval/web.ts",
-      "sha256": "7f5ce43b526375cc93a1650f4def0275cd911942030558ee16a280516255150d",
+      "sha256": "ab3701ffcfe34adf64ed6e0deaae2dfc2749c2679b75bfa7f3c750c93bdf2a32",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4195,6 +4204,20 @@
     {
       "path": "tests/backend/retention.test.ts",
       "sha256": "6328cfbc902033a64a50d810f4ac74e9ca22d807936de01e5e49d69b267676aa",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/retrieval.fetch-bounds.test.ts",
+      "sha256": "05df23d657ef5d56d310b3408cd03567b801143672c95d1b7fbc5abc4ba02ff4",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/retrieval.html.test.ts",
+      "sha256": "a8540b0d64bb0abd9970d97b0c5057ca7a399636e42b9cbb39530278eea86f27",
       "review": "pending",
       "tests": [],
       "exports": []

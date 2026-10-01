@@ -2245,3 +2245,34 @@ scale claims with evidence links.
   gate repeated894 passed/275 declared gated skips. No source/network intake,
   historical rollout, full audit, Meta inference campaign or2000-company outcome
   is claimed by this slice. PR remains draft/unmerged.
+
+### Full-response retrieval bounds follow-up (2026-10-01)
+
+- Three maintained regressions failed on the original implementation: a body
+  stalled indefinitely after headers, size rejection happened only after reading
+  all bytes, and redirect destinations were not inspected before network access.
+  Fetch now holds one15-second deadline through headers/redirects/body, cancels at
+  the2-MiB streamed cap and validates each of at most five redirects. Final URL is
+  actual fetched provenance. Late header responses are cancelled even when an
+  injected transport ignores abort. Raw bodies/URLs do not enter operational logs.
+- Focused retrieval/pool suite24 passed/2 real-browser gated skips, including a
+  controlled real-HTTP body that never finishes (15-second cancellation). Loopback
+  routing is explicit test transport injection, not DNS-admission proof. Private-
+  CIDR/DNS pinning, browser ownership/admission, basic source/geography publication
+  and full live campaign remain open. No company records were populated.
+- Independent review found the old HTML regexes were quadratic on malformed
+  script/style/tag openings. A source-evidence regression failed before repair;
+  quote-aware linear extraction now drops ignored/unterminated content and hidden
+  attributes/comments. An isolated child test processes nearly2MiB malformed HTML
+  with64MiB heap and2-second process bound. The real HTTP regression now observes
+  its socket close before forced teardown; it cannot pass merely through cleanup.
+  Focused four-file battery27 passed/2 browser-gated skips. DNS/private networks,
+  browser scope/admission, source intake and full campaign remain unverified.
+- Further independent parser review found Unicode lowercasing could expand string
+  length and corrupt closing-tag offsets. Mixed-case script/style with expanding
+  Unicode content failed first; offset-preserving ASCII tag folding repaired it.
+  The near-cap isolated CPU test remains green. No deadline/assertion was weakened.
+- Final watched retrieval gates: pr:verify905 passed/275 declared gated skips,
+  backend build, browser54 passed/4 Meta-gated skips. Independent19 focused cases,
+  backend types and whitespace passed; no further concrete defect in this slice.
+  Public-network/DNS/browser controls and actual basic intake/pilot remain required.

@@ -4,6 +4,8 @@
 // Chromium. Pure validation plus injectable fetch keep this unit-tested
 // without network.
 import { z } from 'zod'
+import { createLogger, logOp } from '../observability/logging.js'
+import { sourceHtmlText } from './html.js'
 
 export type RetrievalCode = 'validation_failed' | 'unconfigured' | 'blocked' | 'fetch_failed' | 'overload'
 
@@ -53,25 +55,13 @@ function validatedUrl(raw: string): URL {
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw new RetrievalError('blocked', `only http(s) fetch, not ${parsed.protocol}`)
   }
+  if (parsed.username || parsed.password) throw new RetrievalError('blocked', 'credential-bearing URLs are not public source requests')
   if (BLOCKED_HOSTS.has(parsed.hostname.toLowerCase())) {
     throw new RetrievalError('blocked', `refusing to fetch ${parsed.hostname}`)
   }
   return parsed
 }
 
-function stripHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim()
-}
 
 export interface FetchResult {
   url: string
@@ -83,30 +73,79 @@ export interface FetchResult {
 
 /** Real HTTP fetch with caps and guards. fetchImpl is injectable so tests
  * run against a local server-shaped double, never the open internet. */
+const fetchLogger = createLogger({ op: 'retrieval.fetch' })
+function discardBody(response: Response): void {
+  if (response.body) void response.body.cancel().catch(() => fetchLogger.warn({ event: 'retrieval.fetch.cleanup.error', code: 'body_cancel_failed' }))
+}
+
+/** Headers, redirect chain and streaming body share one deadline/byte budget. */
 export async function webFetch(rawUrl: string, fetchImpl: FetchImpl = fetch): Promise<FetchResult> {
-  const parsed = validatedUrl(rawUrl)
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), WEB_FETCH_TIMEOUT_MS)
-  let response: Response
-  try {
-    response = await fetchImpl(parsed.toString(), { redirect: 'follow', signal: controller.signal })
-  } catch (error) {
-    throw new RetrievalError('fetch_failed', `fetch failed for ${parsed.hostname}: ${error instanceof Error ? error.message : 'unknown'}`)
-  } finally {
-    clearTimeout(timer)
-  }
-  if (!response.ok) throw new RetrievalError('fetch_failed', `fetch ${response.status} for ${parsed.toString()}`)
-  const contentType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() ?? ''
-  if (contentType && !contentType.startsWith('text/') && contentType !== 'application/xhtml+xml' && contentType !== 'application/xml') {
-    throw new RetrievalError('blocked', `refusing non-text content: ${contentType || 'unknown'}`)
-  }
-  const buffer = new Uint8Array(await response.arrayBuffer())
-  if (buffer.length > WEB_FETCH_MAX_BYTES) {
-    throw new RetrievalError('fetch_failed', `page exceeds ${WEB_FETCH_MAX_BYTES} bytes`)
-  }
-  const body = new TextDecoder().decode(buffer)
-  const text = contentType.includes('html') || contentType === '' ? stripHtml(body) : body.trim()
-  return { url: parsed.toString(), status: response.status, contentType: contentType || 'text/plain', text, truncated: false }
+  return logOp(fetchLogger, 'retrieval.fetch', async () => {
+    let current = validatedUrl(rawUrl)
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), WEB_FETCH_TIMEOUT_MS)
+    let rejectAbort: (() => void) | undefined
+    const aborted = new Promise<never>((_resolve, reject) => {
+      rejectAbort = () => reject(new RetrievalError('fetch_failed', 'Public source fetch deadline exceeded'))
+      controller.signal.addEventListener('abort', rejectAbort, { once: true })
+    })
+    try {
+      for (let redirects = 0; redirects <= 5; redirects++) {
+        const headers = fetchImpl(current.toString(), { redirect: 'manual', signal: controller.signal }).then((response) => {
+          if (controller.signal.aborted) discardBody(response)
+          return response
+        })
+        const response = await Promise.race([headers, aborted])
+        if ([301,302,303,307,308].includes(response.status)) {
+          discardBody(response)
+          if (redirects === 5) throw new RetrievalError('fetch_failed', 'Source redirect limit exceeded')
+          const location = response.headers.get('location')
+          if (!location) throw new RetrievalError('fetch_failed', 'Source redirect missing destination')
+          current = validatedUrl(new URL(location, current).toString())
+          continue
+        }
+        if (!response.ok) { discardBody(response); throw new RetrievalError('fetch_failed', `Source returned HTTP ${response.status}`) }
+        const contentType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() ?? ''
+        if (contentType && !contentType.startsWith('text/') && contentType !== 'application/xhtml+xml' && contentType !== 'application/xml') {
+          discardBody(response)
+          throw new RetrievalError('blocked', 'Source is not text content')
+        }
+        const declaredBytes = Number(response.headers.get('content-length') ?? 0)
+        if (declaredBytes > WEB_FETCH_MAX_BYTES) { discardBody(response); throw new RetrievalError('fetch_failed', 'Source exceeds byte limit') }
+        const reader = response.body?.getReader()
+        const chunks: Uint8Array[] = []
+        let bytes = 0
+        if (reader) {
+          try {
+            for (;;) {
+              const chunk = await Promise.race([reader.read(), aborted])
+              if (chunk.done) break
+              bytes += chunk.value.byteLength
+              if (bytes > WEB_FETCH_MAX_BYTES) throw new RetrievalError('fetch_failed', 'Source exceeds byte limit')
+              chunks.push(chunk.value)
+            }
+          } catch (error) {
+            void reader.cancel().catch(() => fetchLogger.warn({ event: 'retrieval.fetch.cleanup.error', code: 'body_cancel_failed' }))
+            throw error
+          } finally { reader.releaseLock() }
+        }
+        const buffer = new Uint8Array(bytes)
+        let offset = 0
+        for (const chunk of chunks) { buffer.set(chunk, offset); offset += chunk.byteLength }
+        const body = new TextDecoder().decode(buffer)
+        const text = contentType.includes('html') || contentType === '' ? sourceHtmlText(body) : body.trim()
+        return { url: current.toString(), status: response.status, contentType: contentType || 'text/plain', text, truncated: false }
+      }
+      throw new RetrievalError('fetch_failed', 'Source redirect limit exceeded')
+    } catch (error) {
+      if (error instanceof RetrievalError) throw error
+      throw new RetrievalError('fetch_failed', 'Public source fetch failed')
+    } finally {
+      clearTimeout(timer)
+      if (rejectAbort) controller.signal.removeEventListener('abort', rejectAbort)
+      controller.abort()
+    }
+  })
 }
 
 export interface SearchEnv {
