@@ -82,7 +82,7 @@ lifecycle writes, conflicting artifact bytes, cross-tenant source imports, unsaf
 archive keys, and scoped global-MCP plumbing. The UI pilot needs an existing
 approver credential; the configured operator key was not upgraded.
 
-## Current verification commands and outcomes (2026-10-01)
+## Earlier verification checkpoint (2026-10-01)
 
 Mechanical entrypoint: `npm run pr:verify`. It passed frontend 301 cases (6
 live-gated skips), agents 202, backend 373 (243 live-gated skips), lint/typecheck,
@@ -103,7 +103,7 @@ DB helper allocates fresh UUID-suffixed databases and never drops shared data.
 The four skipped browser cases are plan-live, plan-full, pilot-live and
 plan-console, each explicitly requiring `KARDATA_LIVE_JOURNEY=1`. The required
 2,000-company Meta UI campaign is not established by these fixture journeys.
-The configured local UI remains operator-only; owner approval is not bypassed.
+At that checkpoint the configured UI was operator-only. A later owner-authorized dedicated local test approver is now configured; the original operator record was not upgraded.
 
 Next release gaps: full file/functionality review; durable per-round evaluation
 and inspection; live reconciliation/scrape activation; historical workflow replay;
@@ -193,3 +193,28 @@ UPDATE_ACCEPTANCE_SURFACES=1 npm test -w @kardata/backend -- hardening.acceptanc
 Ordinary gates validate structure/coverage enumeration only. The canonical final audit command above runs **both** release assertions: file reviews plus functionality/surface/scenario acceptance. Pending mappings block release. Verified scenarios require maintained test links and structured evidence with tested commit, environment, timestamp, tier, artifact hash and source/test hashes. The enabled release gate resolves local retained artifacts, checks their bytes, and checks that the tested commit contains the same sources/tests. Each scenario declares required tiers; release rejects unit-only proof where browser, stress or live-provider evidence is required. Evidence labels/integrity do not replace independent review of what the tests proved.
 
 Initial cross-module criteria cover basic discovery filtering, plans/progress, global approvals and mid-run changes, local isolation, cache/compaction, steering/delegation, DB durability/pool/migrations, files, HTTP/MCP, recovery/telemetry, historical rollout, frontend states and infrastructure. Export/tool/route/UI mappings and all criteria remain pending until reviewed and observed; no full-coverage claim is made.
+
+## Browser preflight slice verification
+
+Mechanical entrypoint passed: frontend 303, agents 202, backend 454 tests; 275
+live-gated skips remain explicit. Lint/types / frontend build and separate backend
+build passed. Focused retrieval/browser/MCP checks: 100 passed,3 gated skips.
+Isolated Postgres HTTP authority checks: 16 passed. Existing Hooks warnings, jsdom
+scrollTo diagnostics and bundle-size warning remain visible. No real browser,
+Meta campaign, full stress or historical replay claim follows from this slice.
+
+Ownership, namespace, failed-open, hung-action and cleanup receipt regressions are
+maintained in browser.isolation.test.ts; literal admission in
+retrieval.destinations.test.ts. Source-network DNS pinning/subresources, fetched-
+source basic intake, legacy replay/cache rollout and recoverable uncertain
+operations remain pilot preflight gaps. PR #36 remains draft/unmerged. The app's
+backend/worker images have not been rolled onto this branch.
+
+Final browser preflight-slice checks on Node 22.23.3 passed: pr:verify
+(frontend 303, agents 202, backend 455; 960 passed / 275 explicitly gated skips),
+separate backend build and 16 isolated Postgres HTTP authority cases. Independent
+review /root/independent_review passed 18 focused cases, backend types and diff
+checks on Node 22; no further concrete defect found in covered DI paths. Real
+Chromium/second-client survival, DNS/network admission, Meta, full stress and
+historical replay remain unverified for this slice. PR remains draft and no
+backend/worker rollout or pilot launch has occurred.

@@ -151,3 +151,29 @@ the pending enumeration; ordinary tests never rewrite records or declare coverag
 Enabled release checks require reviewed mappings and verified/excluded scenarios,
 with resolvable structured artifact and tested-source hashes. Independent evidence
 review remains mandatory. See docs/deep-checks/README.md for the complete command.
+
+`browser.isolation.test.ts` exercises all foreign-owner browser operations, scoped
+MCP key/tenant isolation, UUID session identities, and page/snapshot/close failure
+cleanup. It uses a mocked Chromium transport and the real tool bindings/pool; it
+does not prove public-network admission or live browser behavior. The real browser
+suite retains its separate `KARDATA_BROWSER_TEST` gate.
+
+Browser isolation additionally covers general/sector parent/child tool operations,
+hung page creation, hung cleanup with late confirmation, and quarantine/Close retry.
+`retrieval.destinations.test.ts` denies private/reserved/numeric/IPv6/userinfo/scheme
+literal destinations and private redirect hops before transport. Both transports
+are mocked: no denied destination is actually contacted. No DNS-rebinding/browser
+subresource claim follows from those tests.
+
+Hung keyboard/wheel regressions assert bounded failure, denial of an overlapping
+action, and restoration after actual late completion, rather than assuming timeout
+means cancellation. A hung owned-context regression checks confirmed cleanup.
+
+CDP-path tests use an owned loopback discovery HTTP fixture and mocked Chromium.
+They cover late context creation, context-close failure, preservation of the shared
+browser, and a repeated close no-op that cannot release capacity without the actual
+close receipt. They are not real CDP/Chromium lifecycle proof.
+
+The gated live pool test asserts a second independent browser client still
+snapshots after closing the first. Mock-path tests prove disposal ordering and
+accounting; they do not substitute for live shared-browser survival.

@@ -183,10 +183,12 @@ describe.skipIf(!LIVE_BROWSER)('browser pool under real Chromium', () => {
       browserNavigate('https://www.iana.org', { caller: 'live-c', timeoutMs: 2_000 }),
     ).rejects.toMatchObject({ code: 'overload' })
     // Holders are unaffected by saturation: snapshots still serve.
-    const snap = await browserSnapshot(a.sessionId)
+    const snap = await browserSnapshot(a.sessionId, 'live-a')
     expect(snap.url).toContain('example.com')
-    await browserClose(a.sessionId)
-    await browserClose(b.sessionId)
+    await browserClose(a.sessionId, 'live-a')
+    // Closing one CDP client must leave the other isolated client alive.
+    expect((await browserSnapshot(b.sessionId, 'live-b')).snapshot.length).toBeGreaterThan(0)
+    await browserClose(b.sessionId, 'live-b')
     expect(browserPoolStats().active).toBe(0)
   })
 })

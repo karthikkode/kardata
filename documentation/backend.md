@@ -251,3 +251,48 @@ omits unterminated markup/content. An isolated time/memory-bounded child regress
 covers malformed bodies near the fetch cap, so parsing cannot monopolize the
 shared HTTP process through repeated regex backtracking. It is text extraction,
 not DOM execution or a claim of advanced company qualification.
+
+### Browser execution ownership
+
+Browser sessions have opaque UUID identities and retain the trusted caller identity
+for their lifetime. MCP derives that identity from tenant/project, key ID and the
+validated execution thread; model arguments cannot select an owner. Snapshot, act,
+screenshot and close check that identity before touching Chromium. A caller cannot
+close another execution's session. Internal retrieval callers must pass the same
+caller on close as on navigation; anonymous internal sessions stay anonymous.
+
+Opening publishes a session only after page creation, navigation and the initial
+bounded snapshot succeed. Failures close the owned browser or sidecar context and
+release the pool slot only after confirmed cleanup. Close/idle cleanup logs
+start/done/error and propagates failures. Context/page creation and cleanup have
+30-second caller deadlines. Uncertain cleanup retains capacity, denies further
+use, and permits owner-matched Close retry; late confirmation releases the slot; this does not establish restart orphan recovery or
+network/DNS destination admission, which remain preflight requirements.
+
+Source fetch and initial browser navigation share literal URL admission: http(s),
+no userinfo, no localhost (including trailing-dot/subdomains), private/reserved IPv4,
+IPv6 local/mapped/documentation/transition ranges. WHATWG URL normalization precedes
+IP classification, so integer/hex IPv4 cannot bypass it. Node's built-in BlockList
+handles subnet classification; no dependency is added. This is not resolved-DNS
+pinning or subresource/popup/redirect/browser network isolation. Those remain
+mandatory preflight work.
+
+Browser actions also have a 30-second outer deadline, including keyboard/wheel
+operations. An uncertain action blocks further operations until it settles; Close
+remains available. Completion is not inferred from elapsed time or timeout.
+
+For CDP contexts, cleanup confirmation is the actual context `close` event. The
+first cleanup receipt is retained across deadlines/errors; repeated Close observes
+that receipt instead of invoking a Playwright close method that may return a no-op
+while closing. A late event releases retained capacity. No event means uncertain
+capacity remains retained, even if a repeated SDK method could resolve.
+
+After a real CDP context-close receipt, dispose its client connection with
+Playwright browser.close, then release capacity. The pinned CDP adapter closes
+the transport (not the shared Chromium process); live independent-client survival
+is still required to establish deployed behavior. A hung/failed disposal retains
+capacity and its original receipt.
+
+CDP close receipts are registered as soon as context acquisition resolves,
+including late acquisitions, so an earlier navigation failure/external close
+cannot make cleanup miss an already emitted close event.

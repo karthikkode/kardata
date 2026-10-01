@@ -4,6 +4,7 @@
 // Chromium. Pure validation plus injectable fetch keep this unit-tested
 // without network.
 import { z } from 'zod'
+import { BlockList, isIP } from 'node:net'
 import { createLogger, logOp } from '../observability/logging.js'
 import { sourceHtmlText } from './html.js'
 
@@ -35,29 +36,38 @@ export const WEB_FETCH_MAX_BYTES = 2 * 1024 * 1024
 /** Per-fetch deadline: slow hosts fail fast, the sweep moves on. */
 export const WEB_FETCH_TIMEOUT_MS = 15_000
 
-const BLOCKED_HOSTS = new Set([
-  'localhost',
-  '127.0.0.1',
-  '0.0.0.0',
-  '::1',
-  '169.254.169.254',
-  'metadata.google.internal',
-])
+// Built-in IP parsing covers IPv6 and normalized numeric IPv4 forms without
+// another dependency. This is literal admission, not DNS/rebinding protection.
+const nonPublicV4 = new BlockList()
+for (const [address, prefix] of [
+  ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8],
+  ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24],
+  ['192.0.2.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15],
+  ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4],
+] as const) nonPublicV4.addSubnet(address, prefix)
+const globalV6 = new BlockList()
+globalV6.addSubnet('2000::', 3, 'ipv6')
+const nonPublicV6 = new BlockList()
+nonPublicV6.addSubnet('2001::', 23, 'ipv6')
+nonPublicV6.addSubnet('2001:db8::', 32, 'ipv6')
+nonPublicV6.addSubnet('2002::', 16, 'ipv6')
 
-function validatedUrl(raw: string): URL {
+/** Shared syntactic/literal policy for source fetch and browser navigation. */
+export function publicSourceUrl(raw: string): URL {
   if (!UrlSchema.safeParse(raw).success) throw new RetrievalError('validation_failed', 'url must be non-empty')
   let parsed: URL
-  try {
-    parsed = new URL(raw)
-  } catch {
-    throw new RetrievalError('validation_failed', `not a URL: ${raw}`)
-  }
+  try { parsed = new URL(raw) }
+  catch { throw new RetrievalError('validation_failed', 'Source URL is invalid') }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new RetrievalError('blocked', `only http(s) fetch, not ${parsed.protocol}`)
+    throw new RetrievalError('blocked', 'Only public http(s) sources are allowed')
   }
-  if (parsed.username || parsed.password) throw new RetrievalError('blocked', 'credential-bearing URLs are not public source requests')
-  if (BLOCKED_HOSTS.has(parsed.hostname.toLowerCase())) {
-    throw new RetrievalError('blocked', `refusing to fetch ${parsed.hostname}`)
+  if (parsed.username || parsed.password) throw new RetrievalError('blocked', 'Credential-bearing source URL denied')
+  const hostname = parsed.hostname.toLowerCase().replace(/\.$/, '').replace(/^\[|\]$/g, '')
+  const family = isIP(hostname)
+  if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname === 'metadata.google.internal' ||
+      (family === 4 && nonPublicV4.check(hostname)) ||
+      (family === 6 && (!globalV6.check(hostname, 'ipv6') || nonPublicV6.check(hostname, 'ipv6')))) {
+    throw new RetrievalError('blocked', 'Non-public source destination denied')
   }
   return parsed
 }
@@ -81,7 +91,7 @@ function discardBody(response: Response): void {
 /** Headers, redirect chain and streaming body share one deadline/byte budget. */
 export async function webFetch(rawUrl: string, fetchImpl: FetchImpl = fetch): Promise<FetchResult> {
   return logOp(fetchLogger, 'retrieval.fetch', async () => {
-    let current = validatedUrl(rawUrl)
+    let current = publicSourceUrl(rawUrl)
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), WEB_FETCH_TIMEOUT_MS)
     let rejectAbort: (() => void) | undefined
@@ -101,7 +111,7 @@ export async function webFetch(rawUrl: string, fetchImpl: FetchImpl = fetch): Pr
           if (redirects === 5) throw new RetrievalError('fetch_failed', 'Source redirect limit exceeded')
           const location = response.headers.get('location')
           if (!location) throw new RetrievalError('fetch_failed', 'Source redirect missing destination')
-          current = validatedUrl(new URL(location, current).toString())
+          current = publicSourceUrl(new URL(location, current).toString())
           continue
         }
         if (!response.ok) { discardBody(response); throw new RetrievalError('fetch_failed', `Source returned HTTP ${response.status}`) }

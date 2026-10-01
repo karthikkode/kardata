@@ -5,14 +5,16 @@
 // snapshots cannot show. Chromium comes from the compose sidecar over CDP
 // (KARDATA_CHROME_CDP_URL) or a local launch (KARDATA_CHROME_PATH or system
 // chrome); sidecar sessions are unowned — close drops the context, never
-// the shared browser. Without either, every call fails closed.
-import { createHash } from 'node:crypto'
+// the shared browser process. The CDP client transport is disposed after
+// confirmed context close. Without either, every call fails closed.
+import { createHash, randomUUID } from 'node:crypto'
 import { get as httpGetRaw } from 'node:http'
 import { get as httpsGetRaw } from 'node:https'
 import { z } from 'zod'
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core'
 import { acquireBrowserSlot, type BrowserSlot } from '../browserPool/pool.js'
-import { RetrievalError } from './web.js'
+import { RetrievalError, publicSourceUrl } from './web.js'
+import { createLogger, logOp } from '../observability/logging.js'
 
 /** Remote Chromium over CDP (the compose sidecar): heavy lifting stays in
  * containers, never the laptop. Local launch is the dev fallback. */
@@ -53,9 +55,12 @@ export const BROWSER_NAV_TIMEOUT_MS = 30_000
 
 interface BrowserSession {
   id: string
+  caller: string | undefined
+  cleanupPending?: boolean
+  actionPending?: boolean
   browser: Browser
   /** False for sidecar sessions: closing the browser would kill the
-   * shared container, so only the context closes. */
+   * shared container; close disposes the task context and its CDP client transport. */
   owned: boolean
   context: BrowserContext
   page: Page
@@ -65,7 +70,6 @@ interface BrowserSession {
   slot: BrowserSlot
 }
 
-let counter = 0
 const sessions = new Map<string, BrowserSession>()
 
 function chromeTarget(): { executablePath?: string; channel?: 'chrome' } {
@@ -139,26 +143,72 @@ async function launch(): Promise<{ browser: Browser; owned: boolean }> {
 }
 
 /** Release a session: owned browsers close whole, sidecar sessions drop
- * only their context so the shared container survives. */
-async function discard(browser: Browser, owned: boolean, context: BrowserContext): Promise<void> {
-  if (owned) await browser.close().catch(() => undefined)
-  else await context.close().catch(() => undefined)
+ * their task context and client transport so the shared container survives. */
+const browserLogger = createLogger({ op: 'retrieval.browser' })
+/** Time out the caller without pretending an unresolved remote operation ended. */
+async function boundedBrowserWork<T>(work: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([work, new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => reject(new RetrievalError('fetch_failed', 'Browser operation deadline exceeded; cleanup may be pending')), BROWSER_NAV_TIMEOUT_MS)
+    })])
+  } finally { if (timer) clearTimeout(timer) }
 }
 
-function reapIdle(): void {
+const contextCloseAttempts = new WeakSet<BrowserContext>()
+const contextClosures = new WeakMap<BrowserContext, { receipt: Promise<void> }>()
+
+function trackCdpContext(browser: Browser, context: BrowserContext): void {
+  if (contextClosures.has(context)) return
+  // Register at acquisition, not cleanup: a navigation/snapshot failure or
+  // external closure may already have emitted the event before Close is called.
+  const contextClosed = new Promise<void>((resolve) => context.once('close', () => resolve()))
+  const receipt = contextClosed.then(() => browser.close())
+  contextClosures.set(context, { receipt })
+  void receipt.catch(() => browserLogger.error({ event: 'retrieval.browser.quarantined', code: 'client_disposal_uncertain' }))
+}
+
+async function discard(browser: Browser, owned: boolean, context?: BrowserContext, confirmed?: () => void): Promise<void> {
+  await logOp(browserLogger, 'retrieval.browser.close', async () => {
+    try {
+      if (owned) {
+        await boundedBrowserWork(browser.close().then(() => confirmed?.()))
+      } else if (context) {
+        const tracked = contextClosures.has(context)
+        trackCdpContext(browser, context)
+        const state = contextClosures.get(context)!
+        // close() is invoked once; retries wait for the retained receipt.
+        const attempt = contextCloseAttempts.has(context) ? undefined : context.close()
+        if (!tracked) browserLogger.warn({ event: 'retrieval.browser.cleanup', code: 'late_receipt_registration' })
+        contextCloseAttempts.add(context)
+        // Repeated Playwright close() can resolve as a no-op while closing.
+        // Only the original actual context close event confirms release.
+        void state.receipt.then(() => confirmed?.(), () => undefined)
+        await boundedBrowserWork(attempt ? Promise.race([attempt.then(() => state.receipt), state.receipt]) : state.receipt)
+      } else throw new RetrievalError('fetch_failed', 'Missing browser context')
+    } catch {
+      browserLogger.error({ event: 'retrieval.browser.quarantined', code: 'cleanup_uncertain' })
+      throw new RetrievalError('fetch_failed', 'Browser cleanup uncertain; capacity retained')
+    }
+  })
+}
+
+async function reapIdle(): Promise<void> {
   const now = Date.now()
   for (const [id, session] of sessions) {
     if (now - session.lastUsedMs > BROWSER_IDLE_TIMEOUT_MS) {
-      void discard(session.browser, session.owned, session.context)
-      session.slot.release()
-      sessions.delete(id)
+      session.cleanupPending = true
+      await discard(session.browser, session.owned, session.context, () => { sessions.delete(id); session.slot.release() })
     }
   }
 }
 
-function take(id: string): BrowserSession {
+function take(id: string, caller?: string): BrowserSession {
   const session = sessions.get(id)
   if (!session) throw new RetrievalError('validation_failed', `unknown browser session ${id}`)
+  if (session.caller !== caller) throw new RetrievalError('blocked', 'Browser session belongs to another execution')
+  if (session.cleanupPending) throw new RetrievalError('fetch_failed', 'Browser cleanup pending; retry Close')
+  if (session.actionPending) throw new RetrievalError('fetch_failed', 'Browser action completion pending; inspect after it settles or Close')
   session.lastUsedMs = Date.now()
   return session
 }
@@ -180,7 +230,8 @@ export async function browserNavigate(
   opts: { caller?: string; timeoutMs?: number } = {},
 ): Promise<{ sessionId: string; url: string; snapshot: string }> {
   if (!UrlSchema.safeParse(rawUrl).success) throw new RetrievalError('validation_failed', 'url must be non-empty')
-  reapIdle()
+  rawUrl = publicSourceUrl(rawUrl).toString()
+  await reapIdle()
   const slot = await acquireBrowserSlot({ host: hostOfUrl(rawUrl), caller: opts.caller, timeoutMs: opts.timeoutMs })
   let browser: Browser
   let owned: boolean
@@ -195,31 +246,42 @@ export async function browserNavigate(
   // other's pages (verified leak 2026-09-27).
   let context: BrowserContext
   try {
-    context = await browser.newContext()
+    const pendingContext = browser.newContext().then((created) => {
+      if (!owned) trackCdpContext(browser, created)
+      return created
+    })
+    try { context = await boundedBrowserWork(pendingContext) }
+    catch (error) {
+      if (!owned) {
+        // CDP cannot close the shared browser. Retain the slot until a late
+        // context arrives and its own close is confirmed.
+        void pendingContext.then((late) => discard(browser, false, late, () => slot.release())).catch(() => {
+          browserLogger.error({ event: 'retrieval.browser.quarantined', code: 'context_cleanup_uncertain' })
+        })
+      }
+      throw error
+    }
   } catch (error) {
-    if (owned) await browser.close().catch(() => undefined)
-    slot.release()
+    if (owned) await discard(browser, owned, undefined, () => slot.release())
     throw new RetrievalError('fetch_failed', `browser context failed: ${error instanceof Error ? error.message : 'unknown'}`)
   }
-  const page = await context.newPage()
   try {
+    const page = await boundedBrowserWork(context.newPage())
     await page.goto(rawUrl, { timeout: BROWSER_NAV_TIMEOUT_MS, waitUntil: 'domcontentloaded' })
-  } catch (error) {
-    await discard(browser, owned, context)
-    slot.release()
-    throw new RetrievalError('fetch_failed', `navigation failed: ${error instanceof Error ? error.message : 'unknown'}`)
+    const snapshot = await page.locator('body').ariaSnapshot({ timeout: BROWSER_NAV_TIMEOUT_MS })
+    const id = `browser-${randomUUID()}`
+    sessions.set(id, { id, caller: opts.caller, browser, owned, context, page, lastUsedMs: Date.now(), slot })
+    return { sessionId: id, url: page.url(), snapshot }
+  } catch {
+    await discard(browser, owned, context, () => slot.release())
+    throw new RetrievalError('fetch_failed', 'Browser open failed')
   }
-  counter += 1
-  const id = `browser-${counter}`
-  sessions.set(id, { id, browser, owned, context, page, lastUsedMs: Date.now(), slot })
-  const snapshot = await page.locator('body').ariaSnapshot()
-  return { sessionId: id, url: page.url(), snapshot }
 }
 
 /** Accessibility-tree snapshot with ref ids for click/type targets. */
-export async function browserSnapshot(sessionId: string): Promise<{ url: string; snapshot: string }> {
-  const session = take(sessionId)
-  const snapshot = await session.page.locator('body').ariaSnapshot()
+export async function browserSnapshot(sessionId: string, caller?: string): Promise<{ url: string; snapshot: string }> {
+  const session = take(sessionId, caller)
+  const snapshot = await session.page.locator('body').ariaSnapshot({ timeout: BROWSER_NAV_TIMEOUT_MS })
   return { url: session.page.url(), snapshot }
 }
 
@@ -235,30 +297,39 @@ export type BrowserAct =
 export async function browserAct(
   sessionId: string,
   act: BrowserAct,
+  caller?: string,
 ): Promise<{ url: string; snapshot: string }> {
-  const session = take(sessionId)
-  try {
-    if (act.kind === 'click' || act.kind === 'fill') {
-      if (!RefSchema.safeParse(act.selector).success) {
-        throw new RetrievalError('validation_failed', `${act.kind} needs a selector`)
+  const session = take(sessionId, caller)
+  session.actionPending = true
+  const work = (async () => {
+    try {
+      if (act.kind === 'click' || act.kind === 'fill') {
+        if (!RefSchema.safeParse(act.selector).success) {
+          throw new RetrievalError('validation_failed', `${act.kind} needs a selector`)
+        }
+        const locator = session.page.locator(act.selector).first()
+        if (act.kind === 'click') await locator.click({ timeout: BROWSER_NAV_TIMEOUT_MS })
+        else {
+          if (!act.text.trim()) throw new RetrievalError('validation_failed', 'fill needs text')
+          await locator.fill(act.text, { timeout: BROWSER_NAV_TIMEOUT_MS })
+        }
+      } else if (act.kind === 'press') {
+        await session.page.keyboard.press(act.key, { delay: 0 })
+      } else {
+        await session.page.mouse.wheel(0, act.direction === 'up' ? -(act.pixels ?? 600) : (act.pixels ?? 600))
       }
-      const locator = session.page.locator(act.selector).first()
-      if (act.kind === 'click') await locator.click({ timeout: BROWSER_NAV_TIMEOUT_MS })
-      else {
-        if (!act.text.trim()) throw new RetrievalError('validation_failed', 'fill needs text')
-        await locator.fill(act.text, { timeout: BROWSER_NAV_TIMEOUT_MS })
-      }
-    } else if (act.kind === 'press') {
-      await session.page.keyboard.press(act.key, { delay: 0 })
-    } else {
-      await session.page.mouse.wheel(0, act.direction === 'up' ? -(act.pixels ?? 600) : (act.pixels ?? 600))
+    } catch (error) {
+      if (error instanceof RetrievalError) throw error
+      throw new RetrievalError('fetch_failed', `browser act failed: ${error instanceof Error ? error.message : 'unknown'}`)
     }
-  } catch (error) {
-    if (error instanceof RetrievalError) throw error
-    throw new RetrievalError('fetch_failed', `browser act failed: ${error instanceof Error ? error.message : 'unknown'}`)
+    const snapshot = await session.page.locator('body').ariaSnapshot({ timeout: BROWSER_NAV_TIMEOUT_MS })
+    return { url: session.page.url(), snapshot }
+  })().finally(() => { session.actionPending = false })
+  try { return await boundedBrowserWork(work) }
+  catch (error) {
+    if (session.actionPending) browserLogger.error({ event: 'retrieval.browser.quarantined', code: 'action_completion_uncertain' })
+    throw error
   }
-  const snapshot = await session.page.locator('body').ariaSnapshot()
-  return { url: session.page.url(), snapshot }
 }
 
 /** Largest screenshot: viewport JPEGs stay small; full pages balloon. */
@@ -274,8 +345,9 @@ export const BROWSER_SCREENSHOT_MAX_BYTES = 400 * 1024
 export async function browserScreenshot(
   sessionId: string,
   options: { fullPage?: boolean } = {},
+  caller?: string,
 ): Promise<{ url: string; mimeType: 'image/jpeg'; bytes: number; sha256: string; dataBase64: string }> {
-  const session = take(sessionId)
+  const session = take(sessionId, caller)
   let buffer: Buffer
   try {
     buffer = await session.page.screenshot({
@@ -305,14 +377,14 @@ export async function browserScreenshot(
   }
 }
 
-/** Close a session (sidecar sessions drop only their context).
+/** Close a session (CDP sessions dispose their context and client transport).
  * Idempotent: unknown ids are done. Releases the session's pool slot. */
-export async function browserClose(sessionId: string): Promise<{ ok: true }> {
+export async function browserClose(sessionId: string, caller?: string): Promise<{ ok: true }> {
   const session = sessions.get(sessionId)
   if (session) {
-    sessions.delete(sessionId)
-    await discard(session.browser, session.owned, session.context)
-    session.slot.release()
+    if (session.caller !== caller) throw new RetrievalError('blocked', 'Browser session belongs to another execution')
+    session.cleanupPending = true
+    await discard(session.browser, session.owned, session.context, () => { sessions.delete(sessionId); session.slot.release() })
   }
   return { ok: true }
 }

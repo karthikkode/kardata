@@ -96,7 +96,7 @@ async function defaultBrowserLeg(query: string): Promise<SweepSearchHit[]> {
   try {
     return linksFromSnapshot(snapshot)
   } finally {
-    await browserClose(sessionId).catch(() => undefined)
+    await browserClose(sessionId, 'sweep').catch(() => undefined)
   }
 }
 
@@ -220,20 +220,20 @@ export function pooledBrowserNavigate(url: string, opts?: { caller?: string; tim
   return browserNavigate(url, opts)
 }
 
-export function pooledBrowserSnapshot(sessionId: string) {
-  return browserSnapshot(sessionId)
+export function pooledBrowserSnapshot(sessionId: string, caller?: string) {
+  return browserSnapshot(sessionId, caller)
 }
 
-export function pooledBrowserAct(sessionId: string, act: BrowserAct) {
-  return browserAct(sessionId, act)
+export function pooledBrowserAct(sessionId: string, act: BrowserAct, caller?: string) {
+  return browserAct(sessionId, act, caller)
 }
 
-export function pooledBrowserClose(sessionId: string) {
-  return browserClose(sessionId)
+export function pooledBrowserClose(sessionId: string, caller?: string) {
+  return browserClose(sessionId, caller)
 }
 
-export function pooledBrowserScreenshot(sessionId: string, options: { fullPage?: boolean } = {}) {
-  return browserScreenshot(sessionId, options)
+export function pooledBrowserScreenshot(sessionId: string, options: { fullPage?: boolean } = {}, caller?: string) {
+  return browserScreenshot(sessionId, options, caller)
 }
 
 export { browserPoolStats } from './pool.js'

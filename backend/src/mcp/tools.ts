@@ -124,6 +124,11 @@ export interface McpToolContext {
   logger?: Logger
 }
 
+/** Ownership is derived only from validated server context, never tool arguments. */
+function browserCaller(ctx: McpToolContext): string {
+  return JSON.stringify([ctx.scope?.tenantId ?? null, ctx.scope?.projectId ?? null, ctx.keyId, ctx.executionThread ?? null])
+}
+
 /** Layer function behind each tool; the parity test pins this table. */
 export const TOOL_LAYER: Record<McpToolName, string> = {
   'db.commit_child_context': 'commitChildContext',
@@ -638,9 +643,9 @@ const INVOKERS: Invokers = {
   'web_search': (_ctx, args) =>
     rethrowRetrieval(pooledWebSearch(process.env, args.query, { count: args.count, page: args.page })),
   'web_fetch': (_ctx, args) => rethrowRetrieval(pooledWebFetch(args.url)),
-  'browser_navigate': (ctx, args) => rethrowRetrieval(pooledBrowserNavigate(args.url, { caller: ctx.keyId })),
-  'browser_snapshot': (_ctx, args) => rethrowRetrieval(pooledBrowserSnapshot(args.sessionId)),
-  'browser_act': (_ctx, args) =>
+  'browser_navigate': (ctx, args) => rethrowRetrieval(pooledBrowserNavigate(args.url, { caller: browserCaller(ctx) })),
+  'browser_snapshot': (ctx, args) => rethrowRetrieval(pooledBrowserSnapshot(args.sessionId, browserCaller(ctx))),
+  'browser_act': (ctx, args) =>
     rethrowRetrieval(
       pooledBrowserAct(args.sessionId, {
         kind: args.kind,
@@ -649,10 +654,10 @@ const INVOKERS: Invokers = {
         ...(args.key === undefined ? {} : { key: args.key }),
         ...(args.direction === undefined ? {} : { direction: args.direction }),
         ...(args.pixels === undefined ? {} : { pixels: args.pixels }),
-      } as BrowserActArgs),
+      } as BrowserActArgs, browserCaller(ctx)),
     ),
-  'browser_close': (_ctx, args) => rethrowRetrieval(pooledBrowserClose(args.sessionId)),
-  'browser_screenshot': (_ctx, args) => rethrowRetrieval(pooledBrowserScreenshot(args.sessionId, { fullPage: args.fullPage })),
+  'browser_close': (ctx, args) => rethrowRetrieval(pooledBrowserClose(args.sessionId, browserCaller(ctx))),
+  'browser_screenshot': (ctx, args) => rethrowRetrieval(pooledBrowserScreenshot(args.sessionId, { fullPage: args.fullPage }, browserCaller(ctx))),
   'db.ledger_upsert_company': (ctx, args) => upsertLedgerCompany(ctx.pool, args),
   'db.ledger_get_company': (ctx, args) => getLedgerCompany(ctx.pool, args.companyId),
   'db.ledger_list_companies': (ctx, args) =>
@@ -736,7 +741,7 @@ export async function invokeTool(
       if (actor.thread.kind === 'subagent' && typeof parsed.data === 'object' && parsed.data !== null) {
         const args = parsed.data as Record<string, unknown>
         if (typeof args['threadKey'] === 'string' && args['threadKey'] !== actor.thread.key) throw new McpToolError('permission_denied', 'Child conversations are isolated. Use the assigned parent brief.')
-        for (const field of ['sessionId', 'toSessionId']) {
+        for (const field of (name.startsWith('db.') ? ['sessionId', 'toSessionId'] : [])) {
           if (typeof args[field] === 'string' && args[field] !== actor.session.id) throw new McpToolError('permission_denied', 'This child is bound to its parent session.')
         }
       }
@@ -744,7 +749,7 @@ export async function invokeTool(
       if (sectorId && typeof parsed.data === 'object' && parsed.data !== null) {
         const args = parsed.data as Record<string, unknown>
         if (typeof args['sectorId'] === 'string' && args['sectorId'] !== sectorId) throw new McpToolError('permission_denied', 'This execution is bound to another sector.')
-        for (const field of ['sessionId', 'toSessionId']) {
+        for (const field of (name.startsWith('db.') ? ['sessionId', 'toSessionId'] : [])) {
           if (typeof args[field] !== 'string') continue
           const target = await getSession(ctx.pool, args[field], ctx.scope)
           if (!target || target.sectorId !== sectorId) throw new McpToolError('permission_denied', 'Conversation is outside this sector.')

@@ -147,3 +147,15 @@ Redirects are manual (maximum five) with URL checks before each request. Operati
 fetch logs contain operation/code/latency, not body or credential-bearing URLs.
 This is full-response resource protection; resolved-DNS destination protection and
 product browser admission/ownership remain separate unverified release gates.
+
+Browser tool ownership is server-derived from scope, key and validated execution
+thread. All five browser tools carry that identity through the pool facade; session
+IDs are opaque UUIDs, not authority. Foreign-owner operations fail with `blocked`
+before browser access, including close. The existing tool schemas and role floors
+are unchanged. Private-network/DNS protection is a separate pending preflight gate.
+
+Conversation `sessionId` guards apply only to DB product tools. Browser tools use
+their own session namespace and execution-derived ownership, so a validated child
+or sector parent can operate its own browser without treating its ID as a product
+conversation. Initial browser navigation shares the fetch literal-address policy;
+DNS rebinding and requests after navigation remain unverified.

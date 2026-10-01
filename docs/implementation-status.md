@@ -2062,7 +2062,7 @@ scale claims with evidence links.
   claimed. The cutoff was not relaxed to collect newer hardening-test histories.
 - The file-ingestion follow-up's cloud verify, e2e and integration jobs passed,
   including standalone browser typecheck and production HTTP/DB/archive journey.
-  CI browser artifacts are linked from PR36; the full release remains blocked.
+  CI browser artifacts are linked from PR #36; the full release remains blocked.
 
 
 ## Karbot context-read parity (next slice, 2026-10-01)
@@ -2186,8 +2186,8 @@ scale claims with evidence links.
   A maintained cancellation regression observed two fetches instead of one before
   the fix. The follower now checks abort before dispatch and its delay responds
   immediately to abort. No assertion or deadline was relaxed.
-- Final watched gates for this follow-up: pr:verify passed (frontend303/6 gated
-  skips, agents202, backend381/264 gated skips; lint/typecheck/frontend build),
+- Final watched gates for this follow-up: pr:verify passed (frontend 303/6 gated
+  skips, agents 202, backend381/264 gated skips; lint/typecheck/frontend build),
   isolated Postgres578/65 gated skips, full browser54/4 Meta-gated skips, backend
   build and standalone browser typecheck passed. Independent DB/stream16 and
   frontend69 plus both typechecks passed. Existing lint/bundle warnings remain.
@@ -2223,12 +2223,12 @@ scale claims with evidence links.
   keys; health200 and Meta catalog200 with5 available models were read-only checks,
   not deployed-branch or provider-research proof. Running backend identifies itself
   as dev-compose; final compatibility/rollout preflight remains required.
-- Final matrix now has22 pending functionality groups/82 scenarios and1653 pending
+- Final matrix now has22 pending functionality groups/82 scenarios and 1653 pending
   declared surfaces (1494 exports,60 HTTP,74 MCP,25 UI). Required evidence tiers
   are explicit per scenario, so unit-only evidence cannot fulfill browser/stress/
   live-provider requirements. Independent initial review6 structural checks and
   administrative key3 live cases passed; release remains intentionally blocked.
-- Watched preparation checks: pr:verify894 passed/275 gated skips; full isolatedDB
+- Watched preparation checks: pr:verify894 passed / 275 gated skips; full isolatedDB
   589 passed/67 gated skips; coordinator9 passed. The combined enabled release
   command fails both file and functionality gates as expected on pending reviews.
   Retrieval inspection found the header-only timeout and post-buffer byte cap;
@@ -2242,7 +2242,7 @@ scale claims with evidence links.
 - Final independent preparation review passed24 cases, backend types and diff
   whitespace. Critical required tiers are pinned independently of status entries;
   verified surface mappings must include their actual source file. Final mechanical
-  gate repeated894 passed/275 declared gated skips. No source/network intake,
+  gate repeated894 passed / 275 declared gated skips. No source/network intake,
   historical rollout, full audit, Meta inference campaign or2000-company outcome
   is claimed by this slice. PR remains draft/unmerged.
 
@@ -2272,7 +2272,86 @@ scale claims with evidence links.
   length and corrupt closing-tag offsets. Mixed-case script/style with expanding
   Unicode content failed first; offset-preserving ASCII tag folding repaired it.
   The near-cap isolated CPU test remains green. No deadline/assertion was weakened.
-- Final watched retrieval gates: pr:verify905 passed/275 declared gated skips,
+- Final watched retrieval gates: pr:verify905 passed / 275 declared gated skips,
   backend build, browser54 passed/4 Meta-gated skips. Independent19 focused cases,
   backend types and whitespace passed; no further concrete defect in this slice.
   Public-network/DNS/browser controls and actual basic intake/pilot remain required.
+
+## 2026-10-01 browser ownership preflight
+
+The audit found predictable process-local browser IDs and no ownership check on
+snapshot/action/screenshot/close. Failed page creation leaked a host slot; a failed
+initial snapshot could publish a session without returning its ID. Three maintained
+regressions failed before the fix (the leaked slot also caused the following same-
+host open to time out). Ownership is now scope/key/validated-thread derived at MCP,
+checked by all session operations, and IDs use UUIDs. Publication follows successful
+initial snapshot; confirmed cleanup releases slots and cleanup is logged/rethrown; uncertain cleanup retains capacity.
+Focused four-file tests: 51 passed, 3 explicitly gated skips. These are mocked
+Chromium/tool-boundary checks, not live browser or DNS/network validation.
+Remaining preflight includes network admission, source-backed basic intake, legacy
+replay/cache compatibility and recoverable uncertain operations; pilot not started.
+
+Independent review caught a namespace collision: child guards treated a browser ID
+as a parent conversation ID. Two maintained child tests failed before the DB-only
+namespace fix; general/sector parent/child own-operation tests now pass. Review
+also found Playwright creation/cleanup had no deadline: caller waits are now bounded
+at 30 seconds. Uncertain cleanup retains physical-capacity accounting, rejects
+further use, and accepts an owner-matched Close retry or late confirmation. Open
+context cleanup uncertainty is logged, not mislabeled successful resource release.
+
+Literal-destination regressions exposed private/reserved/numeric IPv4, IPv6 and
+non-http browser admission; 32 cases failed before the shared literal policy.
+Chromium and fetch are mocked in this denial suite. An initial browser test run
+was interrupted and replaced with an explicit fail-closed Chromium mock; it is not
+verification evidence. DNS pinning, browser redirects/subresources and orphan
+reconciliation remain acceptance gaps. The first mechanical gate caught an unused
+catch binding in the new open handler; it was removed without weakening lint.
+
+The full gate also caught the staging-literal scanner's two obsolete blocklist
+exceptions after the denial policy changed shape. Its exceptions now match only
+the exact localhost-denial expressions; the environment/default scanner remains
+enforced for every other occurrence. This is a guard-fixture update, not permission
+to introduce localhost service defaults.
+
+Independent review found keyboard/wheel SDK operations also use unbounded waits.
+The action wrapper now bounds the full action and blocks overlaps while completion
+is uncertain. Maintained press/wheel late-completion tests and hung-context tests
+pass alongside ownership/cleanup tests (14 focused cases). CDP late-context cleanup
+and restart-orphan recovery remain separately unverified.
+
+CDP mock-path checks now exercise late-context cleanup and close failure without
+closing the shared browser. Independent review then found that repeated Playwright
+context.close can resolve without completing physical cleanup. The maintained
+no-op-close regression fails when the receipt fix is removed and passes with it:
+release now observes the original context close event; retry never treats a no-op
+as confirmation. The fixture serves real owned loopback discovery HTTP and mocks
+Chromium; actual CDP/browser/network recovery remains a live verification gap.
+
+Final watched browser-slice gates: pr:verify: 959 passed / 275 live-gated skips
+(frontend 303, agents 202, backend 454), backend build, and 16 isolated-Postgres
+HTTP authority cases passed. Focused 100 passed / 3 gated skips. No new frontend
+layout was changed, so no new visual/browser matrix is claimed; real Chromium,
+Meta, full stress and historical replay remain unrun for this slice.
+
+Independent installed-SDK review found context-only cleanup leaked one CDP client
+connection per navigation. Cleanup now chains client transport disposal after the
+actual context-close receipt and releases only after both complete. The pinned
+Playwright CDP implementation disposes its transport rather than sending Chromium
+Browser.close. The live pool test now checks the second client survives closing
+the first; it remains explicitly gated/unrun, so no shared-browser safety proof
+is claimed from mock tests or SDK inspection alone.
+
+A further receipt timing gap was repaired: listeners now register at context
+acquisition, rather than first cleanup. The early-close regression confirms an
+already observed close releases on owner Close. The mock now models async context
+creation, matching Playwright; an interrupted synchronous-mock run is not proof.
+The18 browser cases pass; latest receipt/disposal changes require fresh full gates.
+
+Final browser preflight-slice checks on Node 22.23.3 passed: pr:verify
+(frontend 303, agents 202, backend 455; 960 passed / 275 explicitly gated skips),
+separate backend build and 16 isolated Postgres HTTP authority cases. Independent
+review /root/independent_review passed 18 focused cases, backend types and diff
+checks on Node 22; no further concrete defect found in covered DI paths. Real
+Chromium/second-client survival, DNS/network admission, Meta, full stress and
+historical replay remain unverified for this slice. PR remains draft and no
+backend/worker rollout or pilot launch has occurred.

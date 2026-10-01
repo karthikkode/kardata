@@ -1050,7 +1050,7 @@
     },
     {
       "path": "backend/src/browserPool/facade.ts",
-      "sha256": "798313eeae6f0442f41bbe5554953ba08479227af95e66f5d02b15dd54b79c0e",
+      "sha256": "e5b2661aeb602e95597e64910f2ee0de9bad9a06592687287cf48ad2feb34872",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1899,7 +1899,7 @@
     },
     {
       "path": "backend/src/mcp/tools.ts",
-      "sha256": "d07cdc2f23944a2e8c8c462513c704f46528359a09f7194ec8fb8cc6c23831e9",
+      "sha256": "b4a61bebc9928252b377d7a5b39a0d9a07d31f0fc0bfc49370dbdea3172d20f7",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2081,7 +2081,7 @@
     },
     {
       "path": "backend/src/retrieval/browser.ts",
-      "sha256": "a81dffdd00f8b48c335b30ee028de2ef82edd65a8bfa2e18e9c8441199864a0a",
+      "sha256": "7426328ea571ecf5b388627b31f1e4ca8b155ce421cf06d5f6c5989d5dd7f363",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2118,7 +2118,7 @@
     },
     {
       "path": "backend/src/retrieval/web.ts",
-      "sha256": "ab3701ffcfe34adf64ed6e0deaae2dfc2749c2679b75bfa7f3c750c93bdf2a32",
+      "sha256": "4e7e4a4017048d291bd7956abdf1825aace8ef915d0868c117cde33c352a2da9",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2130,6 +2130,7 @@
         "SearchHit",
         "WEB_FETCH_MAX_BYTES",
         "WEB_FETCH_TIMEOUT_MS",
+        "publicSourceUrl",
         "webFetch",
         "webSearch"
       ]
@@ -3771,7 +3772,14 @@
     },
     {
       "path": "tests/backend/browser-pool.test.ts",
-      "sha256": "bbef01c38d5664ce3bde3e7d9ebcecd9b2397f5d06121da070ae5102d590e7f0",
+      "sha256": "cc2b337fc7a18cb0fc0fd545e2decf4c74e0f1410b9ab51a0e9807bd60519284",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/browser.isolation.test.ts",
+      "sha256": "b41c0577ba0f00f93b6738376a43364e3babf81de0b2c1832eff911126dc916d",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4098,7 +4106,7 @@
     },
     {
       "path": "tests/backend/no-hardcoded-staging.test.ts",
-      "sha256": "693a9c1fa81fc1fb380c70abe8da444fbee05185a8704a0bafec219cbd6d48b7",
+      "sha256": "5203d69dc70a02ac200be4fa0bf8df7e20f8f5509f8d752ed5df78e191eb0690",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4204,6 +4212,13 @@
     {
       "path": "tests/backend/retention.test.ts",
       "sha256": "6328cfbc902033a64a50d810f4ac74e9ca22d807936de01e5e49d69b267676aa",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/retrieval.destinations.test.ts",
+      "sha256": "c34772edbc43a95c8e770bc5e9019e1b08f76b395fdd2acb2bf7de8318e4c024",
       "review": "pending",
       "tests": [],
       "exports": []
