@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { SectorLanding } from '@/components/SectorLanding'
-import { GlobalContextPanel, LocalContextEditor, ResourceNotice, WorkspaceFiles } from '@/components/workspace-parts'
+import { GlobalContextPanel, LocalContextEditor, PlanProgress, ResourceNotice, WorkspaceFiles } from '@/components/workspace-parts'
 import type { SectorDetail } from '@/data/staging-api'
 import type { GlobalContext, ResearchProgress } from '@/data/workspace-api'
 import type { Resource } from '@/data/useWorkspace'
@@ -10,6 +10,17 @@ import type { Resource } from '@/data/useWorkspace'
 const sector: SectorDetail = { id: 'test-sector', name: 'TEST sector', topic: 'Topic', state: 'draft', companiesFound: 0, companies: [], companiesTotal: 0, activity: [], activityTotal: 0, researchSessionId: null, createdAt: '2026-09-30', updatedAt: '2026-09-30' }
 const progress: Resource<ResearchProgress> = { status: 'ready', refresh: vi.fn(), data: { sectorId: sector.id, state: 'draft', planVersion: 0, items: [], completed: 0, total: 0, unresolved: 0, discoveryClosed: false, estimatedPercent: null } }
 const global: GlobalContext = { sectorId: sector.id, version: 1, researchSessionId: 'research', sections: { scope: 'Scope text', decisions: 'Owner decision', findings: '', questions: '' }, markdown: '## Scope\nScope text', changes: [] }
+it('shows recorded research time without treating it as completion', () => {
+  render(<PlanProgress resource={{ ...progress, data: { ...progress.data!, budgetUsedMs: 90_000 } }} />)
+  expect(screen.getByText('1.5 active minutes recorded across research runs')).toBeInTheDocument()
+  expect(screen.getByText('Estimate pending')).toBeInTheDocument()
+})
+it.each(['complete', 'failed'] as const)('does not present an empty %s ledger as future work', (state) => {
+  render(<PlanProgress resource={{ ...progress, data: { ...progress.data!, state } }} />)
+  expect(screen.getByText('No work-item ledger was recorded for this run. Saved companies and conversations remain available.')).toBeInTheDocument()
+  expect(screen.queryByText('Work items appear when the approved research starts.')).not.toBeInTheDocument()
+  expect(screen.queryByText(/estimate becomes available/)).not.toBeInTheDocument()
+})
 describe('sector landing', () => {
   it.each([
     ['draft','Company research has not started yet.'], ['planning','Company research has not started yet.'], ['planned','Company research has not started yet.'], ['approved','Company research has not started yet.'],
@@ -32,6 +43,20 @@ describe('sector landing', () => {
   })
 })
 describe('workspace state and resource interactions', () => {
+  it('keeps thousand-item progress reachable through search and bounded windows with source links', async () => {
+    const user = userEvent.setup()
+    const items = Array.from({ length: 1000 }, (_, i) => ({ id: `work-${i}`, title: `TEST company ${i}`, kind: 'company' as const, state: 'complete' as const, attempts: 1, childId: null, evidence: [], detail: 'Discovered from source', sourceUrl: `https://company-${i}.example.test/` }))
+    render(<PlanProgress resource={{ ...progress, data: { ...progress.data!, items, completed: 1000, total: 1000 } }} />)
+    expect(screen.getByText('Showing 50 of 1000 work items')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Show more work items' }))
+    expect(screen.getByText('Showing 100 of 1000 work items')).toBeInTheDocument()
+    await user.type(screen.getByRole('textbox', { name: 'Search research work' }), 'TEST company 999')
+    expect(screen.getByText('Showing 1 of 1 work items')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Company source' })).toHaveAttribute('href', 'https://company-999.example.test/')
+    await user.clear(screen.getByRole('textbox', { name: 'Search research work' }))
+    await user.type(screen.getByRole('textbox', { name: 'Search research work' }), 'No matching company')
+    expect(screen.getByText('No matching work items.')).toBeInTheDocument()
+  })
   it.each(['loading','error','denied','offline'] as const)('shows %s as its own state with a retry where possible', (status) => {
     render(<ResourceNotice resource={{ status, refresh: vi.fn() }} label="Files" />)
     if (status === 'loading') expect(screen.getByRole('status', { name: 'Files is loading' })).toBeInTheDocument()

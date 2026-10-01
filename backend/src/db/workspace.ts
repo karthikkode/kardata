@@ -1,17 +1,22 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
+import { serveArtifact } from '../artifacts/pipeline.js'
+import type { ArchiveTarget } from '../archive/targets.js'
 import type { Scope } from '../auth/keys.js'
-import { appendEvent, createSession, getSession, listArtifacts, listSessions, readPartition, type Db } from './events.js'
+import { appendEvent, createSession, findEventByKey, getSession, listArtifacts, listSessions, readPartition, resolveArtifactScope, type Db } from './events.js'
 import { getSector } from './sectors.js'
-import { getThread, listThreads } from './threads.js'
-import type { TransactableDb } from './checkpoints.js'
+import { getThreadHeader, listThreadHeaders } from './threads.js'
+import { DURABLE_STREAM_LOCK_SQL, type TransactableDb } from './checkpoints.js'
 import { DbContractError } from './errors.js'
 import { publishOutboxFrame } from './outbox.js'
-import { ingestSectorDocument, listSectorDocuments } from './sector-documents.js'
+import { ingestSectorDocument, listSectorDocuments, readOriginalSectorDocument } from './sector-documents.js'
 import { listDocumentUnits } from './document-units.js'
 import { progressSummary, type WorkItem } from '../temporal/research-plan.js'
 import { readSectorPlan } from './sector-plan.js'
 import type { ChatMessage, Usage } from '@kardata/agents'
+import { createLogger, logOp } from '../observability/logging.js'
+
+const workspaceLogger = createLogger({ op: 'workspace' })
 
 export class WorkspaceError extends Error {
   constructor(readonly code: 'not_found' | 'conflict' | 'permission_denied' | 'validation_failed', message: string) { super(message) }
@@ -42,6 +47,7 @@ export async function workspaceTransaction<T>(db: TransactableDb, key: string, f
   const client = await db.connect()
   try {
     await client.query('BEGIN')
+    await client.query(DURABLE_STREAM_LOCK_SQL)
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`workspace:${key}`])
     const tx: Db = { query: async <R>(text: string, params?: unknown[]) => {
       const result = await client.query(text, params)
@@ -60,7 +66,7 @@ export async function requireSector(db: Db, sectorId: string, scope?: Scope) {
 }
 export async function requireThread(db: Db, threadKey: string, scope?: Scope) {
   checked(Id, threadKey)
-  const thread = await getThread(db, threadKey)
+  const thread = await getThreadHeader(db, threadKey)
   const session = thread ? await getSession(db, thread.sessionId, scope) : undefined
   if (!thread || !session) throw new WorkspaceError('not_found', 'Conversation not found.')
   return { thread, session }
@@ -72,7 +78,7 @@ export async function ensureResearchSession(db: TransactableDb, sectorId: string
     await tx.query('INSERT INTO sector_workspace(sector_id) VALUES ($1) ON CONFLICT DO NOTHING', [sectorId])
     const current = await tx.query<{ research_session_id: string | null }>('SELECT research_session_id FROM sector_workspace WHERE sector_id=$1', [sectorId])
     let sessionId = current.rows[0]?.research_session_id ?? sector.researchSessionId
-    if (sessionId && !(await getSession(tx, sessionId, scope))) sessionId = null
+    if (sessionId && (await getSession(tx, sessionId, scope))?.sectorId !== sectorId) sessionId = null
     if (!sessionId) {
       const events = await readPartition(tx, `sector:${sectorId}`)
       const planning = [...events].reverse().map((event) => ({ type: event.type, payload: z.object({ sessionId: z.string() }).safeParse(event.payload) })).find((event) => event.payload.success && event.type === 'sector.plan_started')
@@ -124,7 +130,7 @@ export async function notifyWorkspace(db: Db, sectorId: string, type: 'context-v
   checked(z.enum(['context-version', 'approval', 'work-progress']), type)
   const sessions = await listSessions(db, undefined, sectorId)
   for (const session of sessions) {
-    for (const thread of await listThreads(db, session.id)) await publishOutboxFrame(db, thread.key, type, payload)
+    for (const thread of await listThreadHeaders(db, session.id)) await publishOutboxFrame(db, thread.key, type, payload)
   }
 }
 export async function proposeGlobalContext(db: TransactableDb, input: {
@@ -183,7 +189,10 @@ export async function decideContextChange(db: TransactableDb, input: { sectorId:
     const found = await tx.query<ChangeRow>('SELECT * FROM workspace_changes WHERE id=$1 AND sector_id=$2', [input.id, input.sectorId])
     const proposal = found.rows[0]
     if (!proposal) throw new WorkspaceError('not_found', 'Proposal not found.')
-    if (proposal.state === 'approved' || proposal.state === 'denied') return changeView(proposal)
+    if (proposal.state === 'approved' || proposal.state === 'denied') {
+      if ((proposal.state === 'approved') !== input.approve) throw new WorkspaceError('conflict', 'This proposal already has a different decision.')
+      return changeView(proposal)
+    }
     const current = await workspaceRow(tx, input.sectorId)
     if (input.approve && current.context_version !== proposal.base_version) throw new WorkspaceError('conflict', 'Proposal is stale. Submit it against the current context.')
     const state = input.approve ? 'approved' : 'denied'
@@ -233,6 +242,16 @@ export async function enqueueSteering(db: TransactableDb, threadKey: string, tex
     return { id, state: rows[0]?.state ?? 'missed' }
   })
 }
+export async function readSteeringReceiptsPage(db: Db, threadKey: string, afterId = '', limit = 200, scope?: Scope): Promise<{ items: Array<{ id: string; state: 'consumed' | 'missed' }>; nextAfterId: string | null }> {
+  await requireThread(db, threadKey, scope)
+  checked(z.string().max(255), afterId); checked(z.number().int().min(1).max(200), limit)
+  const { rows } = await db.query<{ id: string; state: 'consumed' | 'missed' }>(
+    "SELECT id,state FROM thread_instructions WHERE thread_key=$1 AND state IN ('consumed','missed') AND id>$2 ORDER BY id LIMIT $3",
+    [threadKey, afterId, limit + 1])
+  const items = rows.slice(0, limit)
+  return { items, nextAfterId: rows.length > limit ? items.at(-1)!.id : null }
+}
+
 export async function beginThreadTurn(db: TransactableDb, threadKey: string, runKey: string): Promise<void> {
   checked(Id, threadKey); checked(Id, runKey)
   await workspaceTransaction(db, threadKey, async (tx) => {
@@ -263,6 +282,25 @@ export async function finishSteering(db: TransactableDb, threadKey: string, runK
 export interface LibraryFile {
   id: string; filename: string; status: string; source: string; hash: string
   hidden: boolean; included: boolean; kind: 'document' | 'artifact'; sessionId?: string; documentId?: string
+}
+export async function readSectorLibraryFile(db: Db, sectorId: string, fileId: string, archive: ArchiveTarget, scope?: Scope) {
+  return logOp(workspaceLogger, 'workspace.file.read', () => readLibraryFile(db, sectorId, fileId, archive, scope), { sectorId, fileId })
+}
+async function readLibraryFile(db: Db, sectorId: string, fileId: string, archive: ArchiveTarget, scope?: Scope) {
+  checked(Id, fileId)
+  const file = (await listSectorLibrary(db, sectorId, scope)).find((entry) => entry.id === fileId)
+  if (!file) throw new WorkspaceError('not_found', 'File not found in this sector.')
+  await assertFileVisible(db, sectorId, fileId)
+  if (file.kind === 'document') return readOriginalSectorDocument(db, sectorId, fileId, archive, scope)
+  if (!file.sessionId) throw new WorkspaceError('conflict', 'File origin is unavailable.')
+  const origin = await resolveArtifactScope(db, file.sessionId, fileId)
+  if (!origin) throw new WorkspaceError('not_found', 'File origin is unavailable.')
+  const result = await serveArtifact(archive, origin.scope, fileId, {
+    log: (fields) => workspaceLogger.info(fields),
+    findEvent: (key) => findEventByKey(db, key),
+    record: async (event) => { await appendEvent(db, event) },
+  })
+  return { filename: file.filename, mediaType: 'text/plain', text: result.body, contentBase64: Buffer.from(result.body, 'utf8').toString('base64'), originalAvailable: true }
 }
 export async function listSectorLibrary(db: Db, sectorId: string, scope?: Scope): Promise<LibraryFile[]> {
   await requireSector(db, sectorId, scope)
@@ -328,7 +366,7 @@ export async function indexSectorArtifact(db: Db, sectorId: string, artifactId: 
   if (typeof body !== 'string' || !body) throw new DbContractError('body must be a non-empty string')
   await requireSector(db, sectorId, scope)
   const filename = /\.(md|txt|csv|json)$/i.test(name) ? name : `${name}.txt`
-  const doc = await ingestSectorDocument(db, { sectorId, filename, contentBase64: Buffer.from(body).toString('base64') })
+  const doc = await ingestSectorDocument(db, { sectorId, filename, contentBase64: Buffer.from(body).toString('base64'), source: 'artifact', scope })
   await db.query('INSERT INTO workspace_files(sector_id,file_id,document_id) VALUES($1,$2,$3) ON CONFLICT(sector_id,file_id) DO UPDATE SET document_id=$3', [sectorId, artifactId, doc.id])
 }
 export async function previewContextChange(db: Db, sectorId: string, id: string, scope?: Scope) {
@@ -360,14 +398,44 @@ export async function commitChildContext(db: TransactableDb, threadKey: string, 
   return result
 }
 
+const ResearchBudget = z.object({ runId: Id, spentMs: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER) }).strict()
+export async function readResearchBudget(db: Db, sectorId: string, scope?: Scope): Promise<number> {
+  await requireSector(db, sectorId, scope)
+  const { rows } = await db.query<{ payload: unknown }>("SELECT payload FROM events WHERE partition=$1 AND type='sector.research.budget_recorded' ORDER BY seq", [`sector:${sectorId}`])
+  const runs = new Map<string, number>()
+  for (const row of rows) {
+    const budget = checked(ResearchBudget, row.payload)
+    runs.set(budget.runId, Math.max(runs.get(budget.runId) ?? 0, budget.spentMs))
+  }
+  const total = [...runs.values()].reduce((sum, spent) => sum + spent, 0)
+  if (!Number.isSafeInteger(total)) throw new WorkspaceError('validation_failed', 'Research budget usage exceeds its supported range.')
+  return total
+}
+export async function recordResearchBudget(db: TransactableDb, input: { sectorId: string; runId: string; spentMs: number; checkpoint: number; scope?: Scope }): Promise<void> {
+  checked(ResearchBudget, { runId: input.runId, spentMs: input.spentMs })
+  checked(z.number().int().positive(), input.checkpoint)
+  await workspaceTransaction(db, input.sectorId, async (tx) => {
+    await requireSector(tx, input.sectorId, input.scope)
+    const idempotencyKey = `research-budget:${input.sectorId}:${input.runId}:${input.checkpoint}`
+    const existing = await findEventByKey(tx, idempotencyKey)
+    if (existing) {
+      if (ResearchBudget.parse(existing.payload).spentMs !== input.spentMs) throw new WorkspaceError('conflict', 'Research budget checkpoint changed on replay.')
+      return
+    }
+    await appendEvent(tx, { idempotencyKey, partition: `sector:${input.sectorId}`, type: 'sector.research.budget_recorded', payload: { runId: input.runId, spentMs: input.spentMs } })
+  })
+}
 export async function readResearchProgress(db: Db, sectorId: string, scope?: Scope) {
   const sector = await requireSector(db, sectorId, scope)
   const plan = await readSectorPlan(db, sectorId, scope)
-  const version = plan?.approvedVersion ?? plan?.latest?.version ?? 0
+  const version = ['planning', 'planned'].includes(sector.state) ? plan?.latest?.version ?? 0 : plan?.approvedVersion ?? plan?.latest?.version ?? 0
   const { rows } = await db.query<{ id: string; kind: WorkItem['kind']; title: string; state: WorkItem['state']; attempts: number; child_id: string | null; evidence: string[]; detail: string; cursor: WorkItem['cursor']; source_url: string | null }>('SELECT * FROM research_work WHERE sector_id=$1 AND plan_version=$2 ORDER BY at,id', [sectorId, version])
   const items: WorkItem[] = rows.map((row) => ({ id: row.id, kind: row.kind, title: row.title, state: row.state, attempts: row.attempts, childId: row.child_id, evidence: row.evidence, detail: row.detail, ...(row.source_url ? { sourceUrl: row.source_url } : {}), ...(row.cursor ? { cursor: row.cursor } : {}) }))
   const workspace = await db.query<{ discovery_closed: boolean }>('SELECT discovery_closed FROM sector_workspace WHERE sector_id=$1', [sectorId])
-  return { sectorId, state: sector.state, planVersion: version, plan, items, ...progressSummary(items, (workspace.rows[0]?.discovery_closed ?? false) && items.some((item) => item.kind === 'discovery') && items.filter((item) => item.kind === 'discovery').every((item) => item.state === 'complete'), sector.state === 'complete') }
+  const approved = plan?.versions.find((entry) => entry.version === version)?.executable
+  const expected = approved?.discovery.map((direction) => `${sectorId}:v${version}:discovery:${direction.id}`) ?? []
+  const closed = (workspace.rows[0]?.discovery_closed ?? false) && expected.length > 0 && expected.every((id) => items.some((item) => item.id === id && item.state === 'complete'))
+  return { sectorId, state: sector.state, planVersion: version, plan, items, budgetUsedMs: await readResearchBudget(db, sectorId, scope), ...progressSummary(items, closed, sector.state === 'complete') }
 }
 export async function recordResearchWork(db: Db, input: { sectorId: string; planVersion: number; item: WorkItem; scope?: Scope }) {
   await requireSector(db, input.sectorId, input.scope)
@@ -388,7 +456,7 @@ export async function workspaceReferences(db: Db, sectorId: string, scope?: Scop
   checked(Id, sectorId)
   const context = await readGlobalContext(db, sectorId, scope)
   const references = context.markdown ? [context.markdown] : []
-  for (const file of await listSectorLibrary(db, sectorId, scope)) {
+  for (const file of (await listSectorLibrary(db, sectorId, scope)).sort((a, b) => a.id.localeCompare(b.id))) {
     if (!file.included || file.hidden || (file.kind !== 'document' && !file.documentId)) continue
     const approved = await db.query<ChangeRow>('SELECT c.* FROM workspace_changes c JOIN workspace_files f ON f.approval_id=c.id WHERE f.sector_id=$1 AND f.file_id=$2', [sectorId, file.id])
     const approval = approved.rows[0]?.file_ref
@@ -415,6 +483,25 @@ export async function saveTurnContinuation(db: Db, threadKey: string, continuati
 export async function clearTurnContinuation(db: Db, threadKey: string): Promise<void> {
   checked(Id, threadKey)
   await db.query('UPDATE thread_context SET working_user=NULL,working_messages=NULL,working_run=NULL,working_meta=NULL,working_sources=\'[]\'::jsonb WHERE thread_key=$1', [threadKey])
+}
+/** Atomically repair durable history and the parked working view. A
+ * running activity or changed checkpoint prevents stale replacement. */
+export async function commitThreadCompaction(db: TransactableDb, threadKey: string, input: { version: number; summary: string; coveredSeq: number; continuation?: { previous: TurnContinuation; messages: ChatMessage[] } }, scope?: Scope): Promise<ThreadContext> {
+  await requireThread(db, threadKey, scope)
+  checked(z.number().int().nonnegative(), input.version)
+  checked(z.number().int().nonnegative(), input.coveredSeq)
+  checked(z.string().trim().min(1).max(96000), input.summary)
+  return workspaceTransaction(db, threadKey, async (tx) => {
+    await tx.query('INSERT INTO thread_context(thread_key) VALUES($1) ON CONFLICT DO NOTHING', [threadKey])
+    const changed = await tx.query(`UPDATE thread_context SET summary=$2,covered_seq=$3,version=version+1,
+      working_messages=CASE WHEN $4::text IS NOT NULL THEN $5::jsonb ELSE working_messages END
+      WHERE thread_key=$1 AND version=$6 AND active_run IS NULL AND covered_seq <= $3
+      AND ($4::text IS NULL OR (working_run=$4 AND working_messages=$7::jsonb)) RETURNING thread_key`,
+      [threadKey, input.summary, input.coveredSeq, input.continuation?.previous.runKey ?? null, JSON.stringify(input.continuation?.messages ?? null), input.version, JSON.stringify(input.continuation?.previous.messages ?? null)])
+    if (!changed.rows.length) throw new WorkspaceError('conflict', 'Context is running or changed during compaction. Pause and review the latest context before retrying.')
+    await publishOutboxFrame(tx, threadKey, 'compaction', { coveredSeq: input.coveredSeq, version: input.version + 1 })
+    return readThreadContext(tx, threadKey, scope)
+  })
 }
 export async function researchThreadState(db: Db, threadKey: string): Promise<string | null> {
   checked(Id, threadKey)

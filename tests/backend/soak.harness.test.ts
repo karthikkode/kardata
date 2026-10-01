@@ -3,8 +3,8 @@
 // DB heartbeats, real event recording, ledger projection, Prometheus
 // gauges). No Temporal fleet: heartbeats and usage are seeded, so every
 // number below is harness-measured at 1000-agent scale, not production
-// telemetry. The last test publishes tests/backend/soak.report.md.
-import { writeFileSync } from 'node:fs'
+// telemetry. Generated evidence stays in ignored backend/test-results.
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Pool } from 'pg'
@@ -44,7 +44,7 @@ const MICRO_PER_OUTPUT_TOKEN = 3
 const PIPELINE_BUDGET_MS = 30_000
 const SWEEP_P99_BUDGET_MS = 10_000
 
-const REPORT_PATH = join(dirname(fileURLToPath(import.meta.url)), 'soak.report.md')
+const REPORT_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'backend', 'test-results', 'soak.report.md')
 
 interface SoakAgent {
   id: string
@@ -416,6 +416,7 @@ describe.skipIf(!ENABLED)('1000-agent soak (B5.6)', () => {
       '- Production token tariffs replace the synthetic ruler above.',
       '',
     ]
+    mkdirSync(dirname(REPORT_PATH), { recursive: true })
     writeFileSync(REPORT_PATH, `${lines.join('\n')}\n`)
     expect(measured['missed']).toBe(0)
     expect(measured['falsePositives']).toBe(0)

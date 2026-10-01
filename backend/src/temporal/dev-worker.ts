@@ -15,6 +15,9 @@
 // KARDATA_WEB_SEARCH_KEY for live sweeps in env).
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { Runtime } from '@temporalio/worker'
+import { createLogger, createWorkerLogger } from '../observability/logging.js'
+import { workerTelemetryOptions } from '../observability/metrics.js'
 import {
   loadSweepContextActivity,
   recordSweepCompanyActivity,
@@ -32,6 +35,7 @@ import { createLaneWorker } from './worker.js'
 import * as coordinatorActivities from './activities/coordinator.js'
 
 async function main(): Promise<void> {
+  Runtime.install({ logger: createWorkerLogger(), telemetryOptions: { metrics: workerTelemetryOptions(Number(process.env['KARDATA_TEMPORAL_METRICS_PORT'] ?? 9464)) } })
   // Credential self-check first: a rotated-but-not-recreated token fails
   // loudly here instead of as cryptic per-turn 403s. Polling continues on
   // a negative result so digest-answerable turns keep working.
@@ -70,10 +74,10 @@ async function main(): Promise<void> {
   process.on('SIGINT', shutdown)
   console.log(`turn worker polling ${turnWorker.options.taskQueue}`)
   console.log(`sweep worker polling ${sweepWorker.options.taskQueue}`)
-  await Promise.all([turnWorker.run(), sweepWorker.run()])
+  try { await Promise.all([turnWorker.run(), sweepWorker.run()]) } finally { await connection.close() }
 }
 
 void main().catch((error: unknown) => {
-  console.error(error)
+  createLogger({ op: 'worker.startup' }).error({ error }, 'Worker startup failed')
   process.exitCode = 1
 })

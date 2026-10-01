@@ -1,13 +1,15 @@
 import { useRef, useState } from 'react'
-import { apiErrorStatus, attachSectorDocument, cancelRun, createSession, deleteSession, listSessions, listThreads, readSectorPlan, renameSession, type StagingConfig } from './staging-api'
-import { compactLocalContext, decideGlobalContext, ensureResearchSession, getContextPreview, getGlobalContext, getLocalContext, getResearchProgress, getSectorFiles, hideSectorFile, includeSectorFile, saveGlobalContext, saveLocalContext, type Sections } from './workspace-api'
+import { apiErrorStatus, attachSectorDocument, cancelRun, createSession, deleteSession, listSessions, listThreads, readSectorPlan, renameSession, resumeRun, type StagingConfig } from './staging-api'
+import { compactLocalContext, decideGlobalContext, ensureResearchSession, getContextPreview, getGlobalContext, getLocalContext, getResearchProgress, getSectorFileBody, getSectorFiles, hideSectorFile, includeSectorFile, saveGlobalContext, saveLocalContext, type Sections } from './workspace-api'
 import { useWorkspaceConversation, useWorkspaceResource } from './useWorkspace'
 
 export function useSectorWorkspace(config: StagingConfig | null, sectorId: string | null, sessionId: string | null, requestedThread: string | null, onNavigate: (session: string, thread: string) => void) {
   const [operation, setOperation] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [proposalId, setProposalId] = useState<string | null>(null)
+  const [previewFileId, setPreviewFileId] = useState<string | null>(null)
   const initialized = useRef(new Set<string>())
+  const operationLock = useRef(false)
   const sessions = useWorkspaceResource(config, sectorId ? `sessions:${sectorId}` : null, async (cfg) => {
     const rows = await listSessions(cfg, sectorId ?? '')
     const context = await getGlobalContext(cfg, sectorId ?? '')
@@ -32,13 +34,15 @@ export function useSectorWorkspace(config: StagingConfig | null, sectorId: strin
   const local = useWorkspaceResource(config, activeThread, (cfg) => getLocalContext(cfg, activeThread ?? ''), true)
   const preview = useWorkspaceResource(config, proposalId && sectorId ? `proposal:${sectorId}:${proposalId}` : null, (cfg) => getContextPreview(cfg, sectorId ?? '', proposalId ?? ''))
   const chat = useWorkspaceConversation(config, activeThread)
+  const fileBody = useWorkspaceResource(config, previewFileId && sectorId ? `file-body:${sectorId}:${previewFileId}` : null, (cfg) => getSectorFileBody(cfg, sectorId ?? '', previewFileId ?? ''))
   async function act(name: string, work: (cfg: StagingConfig) => Promise<unknown>) {
-    if (!config || operation) return false
+    if (!config || operationLock.current) return false
+    operationLock.current = true
     setOperation(name); setError(null)
-    try { await work(config); return true } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not finish. Try again.'); return false } finally { setOperation(null) }
+    try { await work(config); return true } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not finish. Try again.'); return false } finally { operationLock.current = false; setOperation(null) }
   }
   return {
-    sessions, selected, activeThread, threads, child, global, files, progress, plan, local, chat, operation, preview, reviewProposal: setProposalId,
+    sessions, selected, activeThread, threads, child, global, files, progress, plan, local, chat, operation, preview, reviewProposal: setProposalId, fileBody, previewFileId, previewFile: setPreviewFileId,
     error: error ?? (sessionId && sessions.status === 'ready' && !selected ? 'This conversation is not available in this sector.' : requestedThread && threads.status === 'ready' && !activeThread ? 'This subagent does not belong to this conversation.' : null),
     openSession: (id: string) => onNavigate(id, id),
     openThread: (key: string) => { if (selected) onNavigate(selected.id, key) },
@@ -46,6 +50,7 @@ export function useSectorWorkspace(config: StagingConfig | null, sectorId: strin
     renameChat: (title: string) => act('rename', async (cfg) => { if (selected) await renameSession(cfg, selected.id, title); sessions.refresh() }),
     deleteChat: () => act('delete', async (cfg) => { if (!selected || selected.kind === 'research') return; await deleteSession(cfg, selected.id); sessions.refresh(); const research = sessions.data?.find((session) => session.kind === 'research'); if (research) onNavigate(research.id, research.id) }),
     stop: () => act('stop', async (cfg) => { if (activeThread) await cancelRun(cfg, child ? child.key.replace(/^agent:/, '') : `session-run-${selected?.id}`); chat.stopped() }),
+    resume: () => act('resume', async (cfg) => { if (activeThread) await resumeRun(cfg, child ? child.key.replace(/^agent:/, '') : `session-run-${selected?.id}`); threads.refresh(); local.refresh() }),
     saveGlobal: (sections: Sections, baseVersion: number) => act('global', async (cfg) => { if (!sectorId) return; await saveGlobalContext(cfg, sectorId, baseVersion, sections); global.refresh() }),
     decide: (id: string, approve: boolean) => act('approval', async (cfg) => { if (!sectorId) return; await decideGlobalContext(cfg, sectorId, id, approve); global.refresh(); files.refresh() }),
     hideFile: (id: string, hidden: boolean) => act('file', async (cfg) => { if (!sectorId) return; await hideSectorFile(cfg, sectorId, id, hidden); files.refresh() }),

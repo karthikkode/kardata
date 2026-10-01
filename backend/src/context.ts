@@ -1,7 +1,7 @@
 import { compactContext, composeSystemPrompt, type ChatMessage, type ProviderAdapter, type ToolDefinition } from '@kardata/agents'
 import { z } from 'zod'
 import type { Scope } from './auth/keys.js'
-import { getSessionModel, getThread, readThreadContext, requireThread, saveThreadContext, workspaceReferences, type TransactableDb } from './db/index.js'
+import { commitThreadCompaction, getSessionModel, getThread, readThreadContext, readTurnContinuation, requireThread, workspaceReferences, type TransactableDb } from './db/index.js'
 import { resolveAdapter, resolveEffectiveSelection } from './providers/gateway.js'
 import { findModel } from './providers/registry.js'
 import { KARBOT_SYSTEM_PROMPT, PRODUCT_TOOLS, SECTOR_TOOLS } from './temporal/activities/turn.js'
@@ -24,17 +24,20 @@ export async function localContextMessages(db: TransactableDb, threadKey: string
 }
 export async function compactThread(db: TransactableDb, threadKey: string, provider: ProviderAdapter, force: boolean, scope?: Scope, request?: { system: string; tools: ToolDefinition[]; window: number }) {
   const context = await localContextMessages(db, threadKey, scope)
-  if (context.messages.length < 4) return { compacted: false, reason: 'History below compaction threshold', context: context.local }
-  const result = await compactContext({ provider, messages: context.messages, system: `${request?.system ?? ''}\n${context.local.notes}`, tools: request?.tools ?? [], window: request?.window, force })
+  const continuation = await readTurnContinuation(db, threadKey)
+  const messages = continuation?.messages ?? context.messages
+  if (messages.length < 4) return { compacted: false, reason: 'History below compaction threshold', context: context.local }
+  const result = await compactContext({ provider, messages, system: `${request?.system ?? ''}\n${context.local.notes}`, tools: request?.tools ?? [], window: request?.window, force })
   if (!result.needed) return { compacted: false, reason: 'Context is within budget', context: context.local }
   const covered = result.summary.coveredSeq
   if (covered === undefined) throw new Error('Compaction coverage did not match the transcript')
-  const saved = await saveThreadContext(db, threadKey, { version: context.local.version, summary: result.summary.summaryText, coveredSeq: covered }, scope)
+  const saved = await commitThreadCompaction(db, threadKey, { version: context.local.version, summary: result.summary.summaryText, coveredSeq: covered, ...(continuation ? { continuation: { previous: continuation, messages: result.view } } : {}) }, scope)
   return { compacted: true, context: saved }
 }
 export async function compactOwnerThread(db: TransactableDb, threadKey: string, scope?: Scope) {
   const loaded = await localContextMessages(db, threadKey, scope)
-  if (loaded.messages.length < 4) return { compacted: false, reason: 'History below compaction threshold', context: loaded.local }
+  const continuation = await readTurnContinuation(db, threadKey)
+  if ((continuation?.messages ?? loaded.messages).length < 4) return { compacted: false, reason: 'History below compaction threshold', context: loaded.local }
   const { session } = await requireThread(db, threadKey, scope)
   const selected = resolveEffectiveSelection((await getSessionModel(db, session.id)) ?? {})
   const model = findModel(selected.provider, selected.model ?? '')

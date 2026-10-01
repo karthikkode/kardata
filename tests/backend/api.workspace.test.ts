@@ -6,10 +6,10 @@
 import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import { Pool } from 'pg'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../backend/src/app.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
-import { createSector } from '../../backend/src/db/index.js'
+import { beginThreadTurn, consumeSteering, enqueueSteering, finishSteering, createSector } from '../../backend/src/db/index.js'
 import { hashKey } from '../../backend/src/auth/keys.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import { FakeRunsGateway } from './fake-gateway.js'
@@ -38,6 +38,7 @@ describe.skipIf(!ENABLED)('workspace routes', () => {
   const sector = `sec-workspace-${STAMP}`
   const scope = { tenantId: 'tenant-ws', projectId: null }
   let sessionId = ''
+  const archived = new Map<string, string>()
 
   beforeAll(async () => {
     const url = await ensureTestDb('kardata_test_workspace')
@@ -51,7 +52,11 @@ describe.skipIf(!ENABLED)('workspace routes', () => {
         [keyId, hashKey(key.presented), key.tenant, key.project, key.role],
       )
     }
-    app = buildApp({ pool, runs: new FakeRunsGateway(pool), auth: true })
+    app = buildApp({ pool, runs: new FakeRunsGateway(pool), auth: true, archiveTarget: {
+      async write(key, body) { archived.set(key, body) },
+      async read(key) { return archived.get(key) },
+      async list(prefix) { return [...archived.keys()].filter((key) => key.startsWith(prefix)) },
+    } })
     await createSector(pool, { name: 'Workspace sector', topic: 'Widgets', scope, sectorId: sector })
     await projectNewEvents(pool)
     const created = await app.inject({
@@ -63,6 +68,25 @@ describe.skipIf(!ENABLED)('workspace routes', () => {
     expect(created.statusCode).toBe(201)
     sessionId = (created.json() as { data: { id: string } }).data.id
     await projectNewEvents(pool)
+  })
+
+  it('reads durable steering outcomes in bounded pages with owning-thread authority', async () => {
+    await beginThreadTurn(pool, sessionId, 'TEST receipt operation')
+    await enqueueSteering(pool, sessionId, 'TEST consumed instruction', 'TEST-receipt-a', scope)
+    await consumeSteering(pool, sessionId, 'TEST receipt operation', 1)
+    await enqueueSteering(pool, sessionId, 'TEST missed instruction', 'TEST-receipt-b', scope)
+    await finishSteering(pool, sessionId, 'TEST receipt operation')
+    const url = `/v1/threads/${sessionId}/steering-receipts`
+    const first = await app.inject({ method: 'GET', url: `${url}?limit=1`, headers: authHeader(KEYS.viewer.presented) })
+    expect(first.statusCode).toBe(200)
+    expect(first.json().data).toEqual({ items: [{ id: 'TEST-receipt-a', state: 'consumed' }], nextAfterId: 'TEST-receipt-a' })
+    const next = await app.inject({ method: 'GET', url: `${url}?limit=1&afterId=TEST-receipt-a`, headers: authHeader(KEYS.viewer.presented) })
+    expect(next.json().data).toEqual({ items: [{ id: 'TEST-receipt-b', state: 'missed' }], nextAfterId: null })
+    expect((await app.inject({ method: 'GET', url: `${url}?limit=201`, headers: authHeader(KEYS.viewer.presented) })).statusCode).toBe(400)
+    expect((await app.inject({ method: 'GET', url })).statusCode).toBe(403)
+    // A foreign scope is checked at the DB authority boundary as well as HTTP.
+    const { readSteeringReceiptsPage } = await import('../../backend/src/db/index.js')
+    await expect(readSteeringReceiptsPage(pool, sessionId, '', 200, { tenantId: 'TEST foreign', projectId: null })).rejects.toMatchObject({ code: 'not_found' })
   })
 
   afterAll(async () => {
@@ -102,6 +126,44 @@ describe.skipIf(!ENABLED)('workspace routes', () => {
     expect(response.statusCode).toBe(200)
     notNoRoute(response.json())
     expect(response.json<{ data: unknown[] }>().data).toEqual([])
+  })
+
+  it('serves exact uploaded bytes and extracted text, denies hidden reads, then reveals the same version', async () => {
+    const headers = authHeader(KEYS.approver.presented)
+    const original = '# TEST evidence\nA real indexed unit for a synthetic test.'
+    const upload = await app.inject({ method: 'POST', url: `/v1/sectors/${sector}/documents`, headers, payload: { filename: 'test-evidence.md', contentBase64: Buffer.from(original).toString('base64') } })
+    expect(upload.statusCode).toBe(201)
+    const fileId = upload.json<{ data: { id: string } }>().data.id
+    const path = `/v1/sectors/${sector}/files/${fileId}`
+    const read = await app.inject({ method: 'GET', url: `${path}/body`, headers })
+    expect(read.statusCode).toBe(200)
+    expect(read.json<{ data: { text: string; contentBase64: string; originalAvailable: boolean } }>().data).toMatchObject({ text: original, contentBase64: Buffer.from(original).toString('base64'), originalAvailable: true })
+    expect((await app.inject({ method: 'PATCH', url: path, headers, payload: { hidden: true } })).statusCode).toBe(200)
+    expect((await app.inject({ method: 'GET', url: `${path}/body`, headers })).statusCode).toBe(403)
+    expect((await app.inject({ method: 'PATCH', url: path, headers, payload: { hidden: false } })).statusCode).toBe(200)
+    expect((await app.inject({ method: 'GET', url: `${path}/body`, headers })).statusCode).toBe(200)
+    expect((await app.inject({ method: 'GET', url: `/v1/sectors/another-sector/files/${fileId}/body`, headers })).statusCode).toBe(404)
+  })
+  it('retains different original uploads with the same filename when OCR is unavailable', async () => {
+    vi.stubEnv('KARDATA_OCR_DISABLED', '1')
+    try {
+      const headers = authHeader(KEYS.approver.presented)
+      const originals = [Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), Buffer.from('TEST image version one')]), Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), Buffer.from('TEST image version two')])]
+      const ids: string[] = []
+      for (const original of originals) {
+        const uploaded = await app.inject({ method: 'POST', url: `/v1/sectors/${sector}/documents`, headers, payload: { filename: 'test-scan.png', contentBase64: Buffer.from(original).toString('base64') } })
+        expect(uploaded.statusCode).toBe(201)
+        const data = uploaded.json<{ data: { id: string; status: string } }>().data
+        expect(data.status).toBe('needs-ocr')
+        ids.push(data.id)
+      }
+      expect(new Set(ids).size).toBe(2)
+      for (let index = 0; index < ids.length; index++) {
+        const read = await app.inject({ method: 'GET', url: `/v1/sectors/${sector}/files/${ids[index]}/body`, headers })
+        expect(read.statusCode).toBe(200)
+        expect(read.json<{ data: { contentBase64: string } }>().data.contentBase64).toBe(Buffer.from(originals[index]!).toString('base64'))
+      }
+    } finally { vi.unstubAllEnvs() }
   })
 
   it('gates global-context writes on the approver floor', async () => {

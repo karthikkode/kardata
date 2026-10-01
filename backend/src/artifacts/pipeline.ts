@@ -43,6 +43,11 @@ export class ArtifactValidationError extends Error {
   }
 }
 
+export class ArtifactConflictError extends ArtifactValidationError {
+  readonly code = 'conflict'
+  constructor() { super('Artifact identity conflicts with an existing version. Create a new artifact version.'); this.name = 'ArtifactConflictError' }
+}
+
 /** Thrown when serve (or index) runs ahead of its prerequisite event.
 // The body may exist; without the index row it is still unservable. */
 export class UnindexedArtifactError extends Error {
@@ -162,6 +167,19 @@ function payloadOf(event: StoredEvent): Record<string, unknown> {
   return payload as Record<string, unknown>
 }
 
+function artifactBodyKey(scope: ArtifactScope, artifactId: string, meta: Record<string, unknown>): string {
+  const legacy = bodyKey(scope, artifactId)
+  const key = meta['key']
+  if (key === undefined || key === legacy) return legacy
+  if (typeof key !== 'string' || !key.startsWith(`${legacy}/`) || !/^[a-f0-9]{64}$/.test(key.slice(legacy.length + 1))) throw new CorruptArtifactError('Artifact archive reference is outside its recorded scope.')
+  if (typeof meta['sha256'] === 'string' && key.slice(legacy.length + 1) !== meta['sha256']) throw new CorruptArtifactError('Artifact archive reference does not match its recorded hash.')
+  return key
+}
+
+function matchesStore(meta: Record<string, unknown>, input: StoreInput, kind: ArtifactKind): boolean {
+  return meta['name'] === input.name && meta['kind'] === kind && meta['reason'] === input.reason && meta['producedBy'] === input.producedBy && meta['detail'] === input.detail && meta['source'] === input.source
+}
+
 export async function storeArtifact(
   target: ArchiveTarget,
   input: StoreInput,
@@ -182,7 +200,20 @@ export async function storeArtifact(
   }
   const artifactId = input.artifactId ?? `art-${randomUUID()}`
   const kind = input.kind ?? 'file'
-  const key = bodyKey(input.scope, artifactId)
+  const sha256 = createHash('sha256').update(input.body, 'utf8').digest('hex')
+  const existing = await deps.findEvent(storedKey(input.scope, artifactId))
+  if (existing) {
+    const meta = payloadOf(existing)
+    const oldKey = artifactBodyKey(input.scope, artifactId, meta)
+    const body = await target.read(oldKey)
+    if (body === undefined) throw new CorruptArtifactError('Stored artifact bytes are missing; restore its recorded version before retrying.')
+    if (body !== input.body || !matchesStore(meta, input, kind)) throw new ArtifactConflictError()
+    deps.log({ op: 'artifact.store', scope: scopeLabel(input.scope), artifactId, ok: true, bytes })
+    return { artifactId, scope: input.scope, kind, name: input.name, key: oldKey, bytes }
+  }
+  // Content addresses keep conflicting concurrent writes in separate objects.
+  // The durable first-writer record determines the one referenced version.
+  const key = `${bodyKey(input.scope, artifactId)}/${sha256}`
   await target.write(key, input.body)
   await deps.record({
     idempotencyKey: storedKey(input.scope, artifactId),
@@ -198,9 +229,13 @@ export async function storeArtifact(
       reason: input.reason,
       producedBy: input.producedBy,
       key,
+      sha256,
       bytes,
     },
   })
+  const winner = await deps.findEvent(storedKey(input.scope, artifactId))
+  if (!winner) throw new UnindexedArtifactError('Artifact bytes were written but the durable record is unavailable.')
+  if (payloadOf(winner)['sha256'] !== sha256 || !matchesStore(payloadOf(winner), input, kind)) throw new ArtifactConflictError()
   deps.log({ op: 'artifact.store', scope: scopeLabel(input.scope), artifactId, ok: true, bytes })
   return { artifactId, scope: input.scope, kind, name: input.name, key, bytes }
 }
@@ -217,12 +252,15 @@ export async function indexArtifact(
     throw new UnindexedArtifactError(`artifact ${artifactId} was never stored`)
   }
   const meta = payloadOf(stored)
-  const key = bodyKey(scope, artifactId)
+  const key = artifactBodyKey(scope, artifactId, meta)
   const body = await target.read(key)
   if (body === undefined) {
     throw new CorruptArtifactError(`stored artifact ${artifactId} has no bytes at ${key}`)
   }
   const sha256 = createHash('sha256').update(body, 'utf8').digest('hex')
+  if (typeof meta['sha256'] === 'string' && meta['sha256'] !== sha256) throw new CorruptArtifactError('Stored artifact bytes fail their recorded hash.')
+  const previousIndex = await deps.findEvent(indexKey(scope, artifactId))
+  if (previousIndex && payloadOf(previousIndex)['sha256'] !== sha256) throw new CorruptArtifactError('Artifact bytes conflict with their existing index; restore the recorded version.')
   const reason = meta['reason']
   if (typeof reason !== 'string' || !ARTIFACT_REASONS.has(reason)) {
     throw new CorruptArtifactError(`stored artifact ${artifactId} carries no known reason`)
@@ -280,7 +318,9 @@ export async function serveArtifact(
     throw new UnindexedArtifactError(`artifact ${artifactId} is not indexed`)
   }
   const meta = payloadOf(indexed) as unknown as IndexedArtifact
-  const body = await target.read(bodyKey(scope, artifactId))
+  const stored = await deps.findEvent(storedKey(scope, artifactId))
+  if (stored && typeof payloadOf(stored)['sha256'] === 'string' && payloadOf(stored)['sha256'] !== meta.sha256) throw new CorruptArtifactError('Artifact index conflicts with its stored version.')
+  const body = await target.read(artifactBodyKey(scope, artifactId, payloadOf(indexed)))
   if (body === undefined) {
     throw new CorruptArtifactError(`indexed artifact ${artifactId} has no bytes`)
   }

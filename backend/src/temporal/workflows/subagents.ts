@@ -23,12 +23,14 @@ import {
   defineSignal,
   log,
   ParentClosePolicy,
+  patched,
   proxyActivities,
   setHandler,
   startChild,
   workflowInfo,
   type ChildWorkflowHandle,
 } from '@temporalio/workflow'
+import { resumableTurn } from './resumable-turn.js'
 import type {
   ChildSnapshot,
   ChildStatus,
@@ -324,6 +326,8 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
   let nonce = 0
   let threadLength = 0
   let acceptingSteer = true
+  let contextPaused = false
+  const eventKey = patched('child-event-run-v2') ? `${childPartition}:${workflowInfo().runId}` : childPartition
   let finishRequested = false
   let cancelRunningTurn: (() => void) | undefined
 
@@ -346,6 +350,11 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
       missedSteer.push(text)
     }
     log.info('signal received', { signal: 'childMessage', pending: inbox.length })
+  })
+  setHandler(defineSignal('childResume'), () => {
+    contextPaused = false
+    acceptingSteer = currentStatus() === 'running'
+    log.info('signal received', { signal: 'childResume', status: currentStatus() })
   })
   setHandler(childRedirectSignal, (newGoal: string) => {
     // Mirror redirect: empty goals reject with the goal untouched.
@@ -388,7 +397,7 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
   const appendCompletion = async (): Promise<void> => {
     nonce += 1
     await childActivities.appendEventActivity({
-      idempotencyKey: idempotencyKey(input.parentPartition, `completed-${input.childId}`, nonce),
+      idempotencyKey: idempotencyKey(patched('child-event-run-v2') ? eventKey : input.parentPartition, `completed-${input.childId}`, nonce),
       partition: input.parentPartition,
       type: 't.subagent.completed',
       payload: { summary: summary() },
@@ -398,7 +407,7 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
   try {
     nonce += 1
     await childActivities.appendEventActivity({
-      idempotencyKey: idempotencyKey(input.parentPartition, `launched-${input.childId}`, nonce),
+      idempotencyKey: idempotencyKey(patched('child-event-run-v2') ? eventKey : input.parentPartition, `launched-${input.childId}`, nonce),
       partition: input.parentPartition,
       type: 't.subagent.launched',
       payload: {
@@ -432,6 +441,11 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
         continue
       }
       try {
+        if (patched('child-user-before-turn-v1')) {
+          nonce += 1
+          await childActivities.appendEventActivity({ idempotencyKey: idempotencyKey(eventKey, 'user', nonce), partition: childPartition, type: 't.message.appended', payload: { threadKey, kind: 'text', message: { role: 'user', text: next } } })
+          threadLength += 1
+        }
         const outcome = await CancellationScope.cancellable(async () => {
           const scope = CancellationScope.current()
           cancelRunningTurn = () => scope.cancel()
@@ -439,12 +453,25 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
             // Phase 3 Karbot turn in the child's own partition: the parent
             // session's model applies (children carry no model of their
             // own), deltas keyed by the child runKey.
-            return await childActivities.karbotTurnActivity({
+            const runKey = `karbot:${eventKey}:${nonce}`
+            return await resumableTurn(() => childActivities.karbotTurnActivity({
               sessionId: input.parentSessionId,
               threadKey,
-              runKey: `karbot:${input.childId}:${nonce}`,
+              runKey: patched('child-runkey-v2') ? runKey : `karbot:${input.childId}:${nonce}`,
               text: next,
               fakeSteps: input.fakeSteps,
+            }), async (reason) => {
+              contextPaused = true
+              acceptingSteer = false
+              nonce += 1
+              await childActivities.appendEventActivity({ idempotencyKey: idempotencyKey(eventKey, 'context-paused', nonce), partition: childPartition, type: 't.thread.state', payload: { threadKey, status: 'PAUSED', acceptingSteer: false } })
+              nonce += 1
+              await childActivities.appendEventActivity({ idempotencyKey: idempotencyKey(eventKey, 'context-error', nonce), partition: childPartition, type: 't.message.appended', payload: { threadKey, kind: 'tool', message: { id: `context-${nonce}`, name: 'context.compaction', state: 'failed', detail: reason } } })
+            }, async () => {
+              await condition(() => !contextPaused || currentStatus() === 'cancelled' || finishRequested)
+              if (currentStatus() === 'cancelled' || finishRequested) throw new CancelledFailure('Child stopped while context was paused')
+              nonce += 1
+              await childActivities.appendEventActivity({ idempotencyKey: idempotencyKey(eventKey, 'context-resumed', nonce), partition: childPartition, type: 't.thread.state', payload: { threadKey, status: 'RUNNING', acceptingSteer: true } })
             })
           } finally {
             cancelRunningTurn = undefined
@@ -455,7 +482,7 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
         if (currentStatus() === 'cancelled') continue
         nonce += 1
         await childActivities.appendEventActivity({
-          idempotencyKey: idempotencyKey(childPartition, 'reply', nonce),
+          idempotencyKey: idempotencyKey(eventKey, 'reply', nonce),
           partition: childPartition,
           type: 't.message.appended',
           payload: { threadKey, kind: 'text', message: { text: outcome.reply, role: 'agent' } },

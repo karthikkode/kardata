@@ -118,4 +118,84 @@ describe('followThread resume', () => {
     expect(last?.messages.map((message) => message.seq)).toEqual([1])
     expect(last?.error).toBeNull()
   })
+  it('hydrates overflow snapshots past hidden-only pages and clears obsolete thinking', async () => {
+    const urls: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      urls.push(url)
+      if (url.includes('/steering-receipts?afterId=')) {
+        return Response.json({ ok: true, data: url.includes('afterId=receipt-page') ? { items: [{ id: 'TEST missed', state: 'missed' }], nextAfterId: null } : { items: [{ id: 'TEST consumed', state: 'consumed' }], nextAfterId: 'receipt-page' } })
+      }
+      if (url.includes('/messages?afterSeq=0')) return Response.json({ ok: true, data: [], nextAfterSeq: 200 })
+      if (url.includes('/messages?afterSeq=200')) return Response.json({ ok: true, data: [
+        { seq: 201, kind: 'text', role: 'user', text: 'Question' },
+        { seq: 202, kind: 'text', role: 'agent', text: 'Completed answer' },
+      ], nextAfterSeq: 202 })
+      if (url.includes('/messages?afterSeq=202')) return Response.json({ ok: true, data: [], nextAfterSeq: 202 })
+      return streamOf([
+        frame({ seq: 1, type: 'reasoning', payload: { runKey: 'old-run', text: 'Still thinking' } }),
+        frame({ seq: 300, type: 'state', payload: { status: 'RUNNING', historyRefresh: true } }),
+      ])
+    }))
+    const snapshots = await drain(followThread(config, 'overflow'))
+    expect(snapshots.at(-1)).toMatchObject({ pendingReasoning: null, pendingTools: [], error: null })
+    expect(snapshots.at(-1)?.messages.map((message) => message.seq)).toEqual([201, 202])
+    expect(snapshots.at(-1)?.steering).toEqual([{ id: 'TEST consumed', state: 'consumed' }, { id: 'TEST missed', state: 'missed' }])
+    expect(urls.filter((url) => url.includes('/messages')).map((url) => new URL(url).searchParams.get('afterSeq'))).toEqual(['0', '200', '202'])
+  })
+
+  it('retries hydration from the prior stream token when history cannot be read', async () => {
+    let streams = 0, reads = 0
+    const urls: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      urls.push(url)
+      if (url.includes('/steering-receipts')) return Response.json({ ok: true, data: { items: [], nextAfterId: null } })
+      if (url.includes('/messages')) {
+        reads += 1
+        if (reads === 1) return Response.json({ ok: false, error: { code: 'unavailable' } }, { status: 503 })
+        return Response.json({ ok: true, data: [{ seq: 1, kind: 'text', role: 'agent', text: 'Recovered answer' }] })
+      }
+      streams += 1
+      return streamOf([frame({ seq: 300, type: 'state', payload: { status: 'FINISHED', historyRefresh: true } })])
+    }))
+    const snapshots = await drain(followThread(config, 'overflow-retry'))
+    expect(streams).toBe(2)
+    expect(urls.filter((url) => url.includes('/events'))).toEqual([
+      'https://staging.test/v1/threads/overflow-retry/events?lastSeq=0',
+      'https://staging.test/v1/threads/overflow-retry/events?lastSeq=0',
+    ])
+    expect(snapshots.at(-1)?.messages[0]?.text).toBe('Recovered answer')
+  })
+
+  it('keeps a caller-owned cursor across graceful EOF follower replacement', async () => {
+    const urls: string[] = [], cursor = { seq: 0 }
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      urls.push(url)
+      return streamOf(url.endsWith('lastSeq=0') ? [frame({ seq: 9, type: 'message', payload: { seq: 1, kind: 'text', role: 'agent', text: 'Done' } })] : [])
+    }))
+    await drain(followThread(config, 'eof', undefined, { cursor }))
+    await drain(followThread(config, 'eof', undefined, { cursor }))
+    expect(cursor.seq).toBe(9)
+    expect(urls.map((url) => new URL(url).searchParams.get('lastSeq'))).toEqual(['0', '9'])
+  })
+
+  it('retains consumed steering and streamed prefixes across graceful EOF', async () => {
+    const cursor = { seq: 0 }
+    let attempt = 0
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      attempt += 1
+      return streamOf(attempt === 1 ? [
+        frame({ seq: 1, type: 'steering-consumption', payload: { ids: ['TEST steer'], state: 'consumed' } }),
+        frame({ seq: 2, type: 'delta', payload: { runKey: 'TEST run', text: 'Saved prefix ' } }),
+      ] : [
+        frame({ seq: 3, type: 'delta', payload: { runKey: 'TEST run', text: 'and suffix' } }),
+        frame({ seq: 4, type: 'message', payload: { seq: 1, kind: 'text', role: 'agent', text: 'Final answer' } }),
+      ])
+    }))
+    await drain(followThread(config, 'retained', undefined, { cursor }))
+    const recovered = await drain(followThread(config, 'retained', undefined, { cursor }))
+    expect(recovered[0]?.pendingText).toBe('Saved prefix and suffix')
+    expect(recovered.at(-1)?.steering).toEqual([{ id: 'TEST steer', state: 'consumed' }])
+    expect(recovered.at(-1)?.pendingText).toBeNull()
+  })
+
 })

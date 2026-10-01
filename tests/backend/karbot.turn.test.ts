@@ -380,7 +380,7 @@ describe('executeKarbotTurn', () => {
       new FakeProvider([{ text: 'earlier summary' }, { text: 'done' }]),
     )
     world.deps.loadHistory = async () =>
-      Array.from({ length: 35 }, (_, index) => ({ role: 'user' as const, text: `m${index}` }))
+      Array.from({ length: 35 }, (_, index) => ({ role: 'user' as const, text: `m${index} ${'source evidence '.repeat(700)}` }))
     const outcome = await executeKarbotTurn(input(), world.deps)
     expect(outcome.reply).toBe('done')
     // One summarizer chat plus one condensed turn stream.

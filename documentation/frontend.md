@@ -73,13 +73,12 @@ The session picker and subagent thread controls use backend-owned records.
 Karbot includes a Session Files tab with in-app artifact preview, download,
 and file creation, a Plan Mode toggle for milestone planning (`/plan`), and
 a live mid-run Steer action to guide agents and subagents on the fly.
-Sector chat provides Global Context Update Approval Cards to push agent insights
-into the global sector context upon operator confirmation.
-The Context Studio (`SectorContextDrawer`) features a 60% compaction threshold
-marker, raw verbatim digest inspector, and `compactSectorContext` trigger.
-The Sector Detail Page presents a 4-Pillar Workbench (`Workbench (All)`,
-`Research Activity`, `Sector Chat`, `Context Studio`, `Files Hub`) with a
-Linear-grade command header.
+The active sector surface is the landing/workspace described below, including
+versioned global-context approval and durable thread compaction. The older
+`SectorChatPanel`, `SectorContextDrawer` and `SectorDetailPage` workbench remain
+legacy components; App does not route their full layouts. Only CompanySection
+is shared with the active landing. Their old 60% context meter and note-approval
+cards do not define the product's current context/approval contract.
 
 The sector research strip states every lifecycle case: draft and failed
 offer Plan, approved offers Start, running offers Pause, paused offers
@@ -117,6 +116,14 @@ The client rejects removed provider ids before sending a model PATCH.
 (Owned primitives inventory: see `docs/design-system.md`.)
 
 ## Sector workspace (landing → Open → chat)
+
+Hardening additions: `ResearchPlanEditor` presents executable query/limit/target
+controls and retains drafts on failed saves. `ExecutablePlanDetails` is shared
+by Plan and progress dialog. `SectorFilePreview` displays retained extracts and
+uses shared `downloadBlob` for original/extracted downloads. The data hooks own
+all fetching. Queued, reconnecting and paused chat states are explicit; missed
+steering remains visible. Work-item lists are searchable and windowed, with
+source links and truthful counts. Tests are linked in the hardening catalogue.
 
 - The sector route lands on the summary page (`SectorLanding`): a
   `Research status` region (state copy, progress estimate, `View
@@ -172,3 +179,15 @@ The client rejects removed provider ids before sending a model PATCH.
 - Accent: `primary` is a restrained indigo (`--primary`, light and dark pairs in `frontend/src/index.css`) with a matching `ring`; charts are categorical hues instead of gray. Surfaces stay neutral; color lands on actions (buttons, active states, links, quote rules, switches, progress) only.
 - Agent markdown (`Markdown.tsx`): tables size to content (`w-max min-w-full`) inside a bordered scroll frame with a tinted head and scoped headers, so long filenames and ids scroll instead of breaking mid-token; blockquotes are tinted panels with an accent rule; inline code carries a hairline border; links use the accent; lists breathe (`space-y-1`, muted markers).
 - Scrollbars: every scroll container carries `scroll-slim` over the global thin token-matched base (canonical rule in `docs/design-system.md`): chat lists, popovers, mention/skill menus, model flyout, research overflow lists, detail columns, drawer unit lists, `pre` and table wrappers.
+
+Company polling retains and refreshes the window the user has loaded. A filter
+or credential change resets it; a poll does not. Next-page failures retain rows
+and display a recoverable alert. Offline company reads show a connection state.
+
+Overflow stream snapshots rehydrate message history through bounded REST pages,
+including hidden-only pages, before advancing the resume token. Failure retries
+that same snapshot; stale transient thinking is cleared after durable hydration.
+Regression: `tests/frontend/follow-resume.test.ts`.
+
+A caller-owned resume cursor survives graceful EOF follower replacement, so
+reconnecting the workspace does not replay old reasoning or tool frames.

@@ -9,6 +9,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import type { Logger } from 'pino'
 import { resolveCaller, roleAtLeast, type Role, type Scope } from '../auth/keys.js'
 import type { TransactableDb } from '../db/index.js'
+import { WorkspaceError } from '../db/index.js'
 import type { RunsGateway } from '../temporal/gateway.js'
 import type { ArchiveTarget } from '../archive/targets.js'
 import { childLogger } from '../observability/logging.js'
@@ -118,10 +119,11 @@ async function serveMcp(
   const signature = header(request, 'x-kardata-execution')
   const workerToken = process.env['KARDATA_MCP_TOKEN']
   let executionThread: string | undefined
-  if (threadKey && signature && workerToken) {
-    if (verifyExecution(threadKey, signature, workerToken)) executionThread = threadKey
+  if (threadKey || signature) {
+    if (!threadKey || !signature || !workerToken || !verifyExecution(threadKey, signature, workerToken)) throw new WorkspaceError('permission_denied', 'Invalid execution binding.')
+    executionThread = threadKey
   }
-  const server = createMcpServer({ pool, scope: auth.scope, role: auth.role, keyId: auth.keyId, executionThread, ...(toolLogger ? { logger: toolLogger } : {}), ...(runs ? { runs, messenger: runs, delegator: runs } : {}), ...(archive ? { archive } : {}) }, grant)
+  const server = createMcpServer({ pool, scope: auth.scope, role: auth.role, keyId: auth.keyId, executionThread, ...(toolLogger ? { logger: toolLogger } : {}), ...(runs ? { runs, messenger: runs, delegator: runs, runReader: runs } : {}), ...(archive ? { archive } : {}) }, grant)
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,

@@ -13,6 +13,7 @@ import {
   type SectorPlan,
 } from '../../db/index.js'
 import { projectNewEvents } from '../../projector.js'
+import { parseExecutablePlan } from '../research-plan.js'
 
 const SectorId = z.string().min(1)
 
@@ -35,9 +36,11 @@ export async function writePlanArtifactActivity(input: {
   markdown: string
   idempotencyKey: string
   scope?: Scope
+  requireExecutable?: boolean
 }): Promise<{ version: number }> {
   if (!SectorId.safeParse(input.sectorId).success) throw new DbContractError('sectorId must be non-empty')
   const pool = workerPoolFromEnv()
+  if (input.requireExecutable && !parseExecutablePlan(input.markdown)) throw new DbContractError('Planning returned no executable specification. Retry planning before approval.')
   const stored = await recordPlanVersion(pool, input.sectorId, input.markdown, input.idempotencyKey, input.scope)
   await projectNewEvents(pool)
   return stored

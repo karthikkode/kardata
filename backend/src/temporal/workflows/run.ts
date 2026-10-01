@@ -25,6 +25,7 @@ import { isLegalTransition, type RunState } from '@kardata/agents/loop'
 import type { FakeStep } from '@kardata/agents'
 import { activityOptions } from '../timeouts.js'
 import type * as activities from '../activities/turn.js'
+import { resumableTurn } from './resumable-turn.js'
 
 export interface SessionRunInput {
   sessionId: string
@@ -215,10 +216,11 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
           // the activity, deltas on ephemeral outbox frames keyed by runKey.
           // runKey reuses the pre-turn nonce: deterministic across replays
           // and unique per turn because the nonce only grows.
-          return await turn.karbotTurnActivity({
+          const runKey = patched('turn-runkey-v2') ? `karbot:${input.sessionId}:${runTag}:${nonce}` : `karbot:${input.sessionId}:${nonce}`
+          return await resumableTurn(() => turn.karbotTurnActivity({
             sessionId: input.sessionId,
             threadKey: input.sessionId,
-            runKey: patched('turn-runkey-v2') ? `karbot:${input.sessionId}:${runTag}:${nonce}` : `karbot:${input.sessionId}:${nonce}`,
+            runKey,
             text: item.text,
             fakeSteps: input.fakeSteps,
             // Skill invocations ride the prompt seam with their declared
@@ -230,6 +232,17 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
                   toolAllow: item.skill.tools,
                   ...(item.skill.mode === 'default' ? {} : { mode: item.skill.mode }),
                 }),
+          }), async (reason) => {
+            if (currentState() === 'RUNNING') setState('PAUSED')
+            nonce += 1
+            await turn.appendEventActivity({ idempotencyKey: idempotencyKey(input.sessionId, runTag, 'context-paused', nonce), partition, type: 't.thread.state', payload: { threadKey: input.sessionId, status: 'PAUSED', acceptingSteer: false } })
+            nonce += 1
+            await turn.appendEventActivity({ idempotencyKey: idempotencyKey(input.sessionId, runTag, 'context-error', nonce), partition, type: 't.message.appended', payload: { threadKey: input.sessionId, kind: 'tool', message: { id: `context-${nonce}`, name: 'context.compaction', state: 'failed', detail: reason } } })
+          }, async () => {
+            await condition(() => currentState() !== 'PAUSED')
+            if (currentState() === 'CANCELLING') throw new CancelledFailure('Cancelled while context was paused')
+            nonce += 1
+            await turn.appendEventActivity({ idempotencyKey: idempotencyKey(input.sessionId, runTag, 'context-resumed', nonce), partition, type: 't.thread.state', payload: { threadKey: input.sessionId, status: 'RUNNING', acceptingSteer: true } })
           })
         } finally {
           cancelRunningTurn = undefined

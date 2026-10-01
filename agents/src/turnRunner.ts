@@ -131,7 +131,7 @@ const MAX_MAX_TURNS = 10
 const DEFAULT_TIMEOUT_MS = 60_000
 
 /** Timeout-race sentinel: identity-compared, never a real error. */
-const TURN_TIMEOUT: unique symbol = Symbol('kardata.turn.timeout')
+const TURN_TIMEOUT_MESSAGE = 'Provider round timed out; the request was cancelled.'
 
 function checkedOptions(options: KarbotTurnOptions): Required<Pick<KarbotTurnOptions, 'maxTurns' | 'timeoutMs'>> {
   const maxTurns = options.maxTurns ?? DEFAULT_MAX_TURNS
@@ -188,17 +188,29 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
     for (let index = 0; index < options.resume.toolCalls; index++) harness.budgets.noteToolCall()
     harness.budgets.noteTokens(usage.inputTokens + usage.outputTokens)
   }
+  const dispatchTool = async (call: ToolCallRequest, round: number) => {
+    options.signal?.throwIfAborted()
+    let outcome: { content: string; isError?: boolean }
+    try {
+      outcome = await options.mcp.callTool(call.name, call.args, options.operationKey ? `${options.operationKey}:${call.id}` : undefined)
+    } catch (error) {
+      options.signal?.throwIfAborted()
+      outcome = { content: error instanceof Error ? error.message.slice(0, 500) : 'mcp tool call failed', isError: true }
+    }
+    options.signal?.throwIfAborted()
+    await options.sink.onTool?.(call.id, call.name, outcome.isError ? 'failed' : 'done', round)
+    return outcome
+  }
   const pending = history.at(-1)
   const previousToolCalls = Math.max(0, (options.resume?.toolCalls ?? 0) - (pending?.role === 'assistant' ? pending.toolCalls?.length ?? 0 : 0))
   if (pending?.role === 'assistant' && pending.toolCalls?.length) {
     for (const call of pending.toolCalls) {
       options.signal?.throwIfAborted()
       await options.sink.onTool?.(call.id, call.name, 'running', options.resume?.round ?? 0)
-      const result = await options.mcp.callTool(call.name, call.args, options.operationKey ? `${options.operationKey}:${call.id}` : undefined)
+      const result = await dispatchTool(call, options.resume?.round ?? 0)
       history.push({ role: 'tool', toolResult: { toolCallId: call.id, toolName: call.name, content: result.content, isError: result.isError ?? false } })
       executed.push(call)
       toolOutcomes.push({ id: call.id, name: call.name, state: result.isError ? 'failed' : 'done' })
-      await options.sink.onTool?.(call.id, call.name, result.isError ? 'failed' : 'done', options.resume?.round ?? 0)
     }
     await options.onCheckpoint?.(history, options.resume?.round ?? 0, usage, previousToolCalls + executed.length)
   }
@@ -263,6 +275,10 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
       await harness.onSnapshot(snapshot)
     }
     let timer: ReturnType<typeof setTimeout> | undefined
+    const roundController = new AbortController()
+    const roundSignal = options.signal ? AbortSignal.any([options.signal, roundController.signal]) : roundController.signal
+    let streamClosed = false
+    let onAbort: (() => void) | undefined
     try {
       const streamed = await Promise.race([
         (async () => {
@@ -277,13 +293,14 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
             messages: [...history],
             tools,
             toolChoice,
-            signal: options.signal,
+            signal: roundSignal,
             ...(options.maxOutputTokens === undefined ? {} : { maxOutputTokens: options.maxOutputTokens }),
             ...(options.reasoningEffort === undefined
               ? {}
               : { reasoningEffort: options.reasoningEffort }),
             ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
           })) {
+            if (streamClosed || roundSignal.aborted) break
             if (event.kind === 'text_delta') {
               replyText += event.text
               await options.sink.onDelta(event.text, turn)
@@ -305,9 +322,18 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
           return { replyText, reasoningText, toolCalls: calls.calls(), turnUsage }
         })(),
         new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(TURN_TIMEOUT), timeoutMs)
+          onAbort = () => reject(roundSignal.reason)
+          roundSignal.addEventListener('abort', onAbort, { once: true })
+          timer = setTimeout(() => {
+            const failure = new Error(TURN_TIMEOUT_MESSAGE)
+            streamClosed = true
+            roundController.abort(failure)
+            reject(failure)
+          }, timeoutMs)
         }),
       ])
+      streamClosed = true
+      if (timer !== undefined) clearTimeout(timer)
       text = streamed.replyText
       reasoning += streamed.reasoningText
       addUsage(usage, streamed.turnUsage)
@@ -339,22 +365,8 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
       // full provider latency each, so serial MCP calls directly extend
       // time-to-answer. History order stays deterministic (call order);
       // completion frames fire as each call lands.
-      const outcomes = await Promise.all(
-        streamed.toolCalls.map(async (call) => {
-          options.signal?.throwIfAborted()
-          let outcome: { content: string; isError?: boolean }
-          try {
-            outcome = await options.mcp.callTool(call.name, call.args, options.operationKey ? `${options.operationKey}:${call.id}` : undefined)
-          } catch (error) {
-            outcome = {
-              content: error instanceof Error ? error.message.slice(0, 500) : 'mcp tool call failed',
-              isError: true,
-            }
-          }
-          await options.sink.onTool?.(call.id, call.name, outcome.isError ? 'failed' : 'done', turn)
-          return outcome
-        }),
-      )
+      const outcomes = await Promise.all(streamed.toolCalls.map((call) => dispatchTool(call, turn)))
+      options.signal?.throwIfAborted()
       for (const [index, call] of streamed.toolCalls.entries()) {
         const outcome = outcomes[index] as { content: string; isError?: boolean }
         executed.push(call)
@@ -385,7 +397,10 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
         if (repetitionHalt) break
       }
     } finally {
+      streamClosed = true
       if (timer !== undefined) clearTimeout(timer)
+      if (onAbort) roundSignal.removeEventListener('abort', onAbort)
+      roundController.abort()
     }
   }
   if (!completed && budgetTripped === undefined && repetitionHalt === undefined) budgetTripped = ['turns']
@@ -408,6 +423,9 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
 // unit-provable without network.
 
 export interface StreamableMcpClientOptions {
+  signal?: AbortSignal
+  /** Bounds both response headers and body; defaults to 60 seconds. */
+  timeoutMs?: number
   execution?: { threadKey: string; signature: string }
   endpoint: string
   token: string
@@ -429,10 +447,10 @@ export interface McpHttpResponse {
 
 export type McpFetchFn = (
   url: string,
-  init: { method: string; headers: Record<string, string>; body: string },
+  init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal },
 ) => Promise<McpHttpResponse>
 
-function defaultFetchFn(url: string, init: { method: string; headers: Record<string, string>; body: string }): Promise<McpHttpResponse> {
+function defaultFetchFn(url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }): Promise<McpHttpResponse> {
   return fetch(url, init)
 }
 
@@ -472,6 +490,8 @@ export class StreamableMcpClient implements TurnRunnerMcpClient {
   private readonly fetchFn: McpFetchFn
   private readonly grant: readonly string[] | undefined
   private readonly execution: StreamableMcpClientOptions['execution']
+  private readonly signal: AbortSignal | undefined
+  private readonly timeoutMs: number
   private initialized = false
   private nextId = 1
 
@@ -486,12 +506,28 @@ export class StreamableMcpClient implements TurnRunnerMcpClient {
     this.token = options.token
     this.fetchFn = options.fetchFn ?? defaultFetchFn
     this.execution = options.execution
+    this.signal = options.signal
+    this.timeoutMs = options.timeoutMs ?? 60_000
+    if (!Number.isFinite(this.timeoutMs) || this.timeoutMs <= 0) throw new TypeError('timeoutMs must be positive and finite')
     const grant = (options.grant ?? []).map((name) => name.trim()).filter((name) => name.length > 0)
     this.grant = grant.length > 0 ? grant : undefined
   }
 
   private async rpc(method: string, params: Record<string, unknown>, operationId?: string): Promise<unknown> {
+    const controller = new AbortController()
+    const signal = this.signal ? AbortSignal.any([this.signal, controller.signal]) : controller.signal
+    let rejectAbort: (() => void) | undefined
+    const timer = setTimeout(() => controller.abort(new Error('MCP request deadline exceeded')), this.timeoutMs)
+    try {
+      const aborted = new Promise<never>((_, reject) => {
+        rejectAbort = () => reject(new Error(`mcp request '${method}' aborted or exceeded its deadline`))
+        if (signal.aborted) rejectAbort()
+        else signal.addEventListener('abort', rejectAbort, { once: true })
+      })
+      return await Promise.race([aborted, (async () => {
+        if (signal.aborted) throw new Error('MCP request cancelled before dispatch')
     const response = await this.fetchFn(this.endpoint, {
+      signal,
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -513,6 +549,12 @@ export class StreamableMcpClient implements TurnRunnerMcpClient {
       throw new Error(`mcp request '${method}' failed: ${message.slice(0, 300)}`)
     }
     return payload['result']
+      })()])
+    } finally {
+      clearTimeout(timer)
+      if (rejectAbort) signal.removeEventListener('abort', rejectAbort)
+      controller.abort()
+    }
   }
 
   private async ensureInitialized(): Promise<void> {
@@ -546,6 +588,7 @@ export class StreamableMcpClient implements TurnRunnerMcpClient {
     try {
       result = await this.rpc('tools/call', { name, arguments: args }, operationId)
     } catch (error) {
+      this.signal?.throwIfAborted()
       return { content: error instanceof Error ? error.message : 'mcp tool call failed', isError: true }
     }
     if (!isRecord(result)) return { content: `tool '${name}' returned a malformed result`, isError: true }

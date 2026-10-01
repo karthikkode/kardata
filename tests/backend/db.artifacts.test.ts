@@ -26,6 +26,7 @@ import {
   resolveArtifactScope,
 } from '../../backend/src/db/index.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
+import { projectNewEvents } from '../../backend/src/projector.js'
 
 const ENABLED = TEST_DATABASE_URL !== undefined && TEST_DATABASE_URL !== ''
 const SCOPE = { tenantId: 'tenant-ref', projectId: null }
@@ -100,6 +101,13 @@ describe.skipIf(!ENABLED)('artifact references (B-F3)', () => {
       artifactId: fileId,
       referencedFrom: { kind: 'session', id: sessionA },
     })
+  })
+  it('does not let an authorized destination import a foreign tenant file', async () => {
+    const foreignScope = { tenantId: 'test-foreign-artifact-tenant', projectId: null }
+    const destination = await createSession(pool, 'TEST foreign destination', foreignScope)
+    await projectNewEvents(pool)
+    await expect(referenceArtifact(pool, { artifactId: fileId, fromScope: { kind: 'session', id: sessionA }, toSessionId: destination.id, scope: foreignScope })).rejects.toThrow(/authorized|unknown|outside/i)
+    expect(await listArtifacts(pool, destination.id)).toEqual([])
   })
 
   it('resolves owning scopes for own and referenced files', async () => {

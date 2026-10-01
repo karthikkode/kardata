@@ -41,6 +41,6 @@ describe.skipIf(!TEST_DATABASE_URL)('outbox snapshot overflow', () => {
     }
     expect(seen).toHaveLength(1)
     expect(seen[0]?.type).toBe('state')
-    expect(seen[0]?.payload).toMatchObject({ key: session.id })
+    expect(seen[0]?.payload).toMatchObject({ key: session.id, historyRefresh: true })
   }, 120_000)
 })

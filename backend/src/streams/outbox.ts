@@ -89,15 +89,17 @@ export async function* openThreadStream(
   if (backlog.length > SNAPSHOT_THRESHOLD) {
     // Snapshot-overflow: one state frame with the live thread and the
     // latest token; history is skipped, the tail continues below.
-    const view = await getThread(pool, threadKey)
+    // Capture the token before the view: concurrent commits after this token
+    // must remain in the tail even if they arrive while reading the snapshot.
     cursor = await latestOutboxSeq(pool, threadKey)
+    const view = await getThread(pool, threadKey)
     if (view) {
       yield {
         seq: cursor,
         threadKey,
         type: 'state',
         at: new Date().toISOString(),
-        payload: toApiThread(view),
+        payload: { ...toApiThread(view), historyRefresh: true },
       }
     }
   } else {

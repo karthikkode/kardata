@@ -25,3 +25,9 @@ Boot, probe, migrate, and teardown commands live in `docs/environments.md`.
 Prod topology is self-hosted; connection budget math lives in
 `documentation/db.md` (process × max vs `max_connections`). Compose is
 dev/staging, not prod; its Postgres flags are dev values.
+
+The existing worker now initializes Temporal SDK logging/metrics before its
+connection. SDK metrics bind port 9464 by default; Prometheus uses the worker
+target, not the Temporal server. Deploy its matching scrape configuration with
+the worker. The hardening PR remains a draft until live deployment, replay and
+release acceptance evidence are complete.

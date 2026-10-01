@@ -17,8 +17,9 @@ import {
 } from '../artifacts/pipeline.js'
 import { resolveArchiveTarget, type ArchiveTarget } from '../archive/targets.js'
 import type { Scope } from '../auth/keys.js'
-import { scrubSecrets } from '../observability/logging.js'
+import { scrubSecrets, createLogger, logOp } from '../observability/logging.js'
 import { DbContractError } from './errors.js'
+import { DURABLE_STREAM_LOCK_SQL } from './checkpoints.js'
 import { assertFileVisible, hiddenFileIds, indexSectorArtifact, sessionKind, WorkspaceError } from './workspace.js'
 
 export const EventEnvelope = z.object({
@@ -63,8 +64,9 @@ export async function appendEvent(db: Db, input: unknown): Promise<AppendedEvent
   const event = parsed.data
   const payload = event.redacted ? scrubSecrets(event.payload) : event.payload
   const inserted = await db.query<EventRow>(
-    `INSERT INTO events (idempotency_key, partition, type, payload, redacted)
-     VALUES ($1, $2, $3, $4::jsonb, $5)
+    `WITH durable_order AS MATERIALIZED (${DURABLE_STREAM_LOCK_SQL})
+     INSERT INTO events (idempotency_key, partition, type, payload, redacted)
+     SELECT $1, $2, $3, $4::jsonb, $5 FROM durable_order
      ON CONFLICT (idempotency_key) DO NOTHING
      RETURNING seq`,
     [event.idempotencyKey, event.partition, event.type, JSON.stringify(payload), event.redacted],
@@ -431,6 +433,12 @@ export async function referenceArtifact(
   if (!scopeParsed.success) throw new DbContractError('fromScope must be a session or task scope')
   const toSession = await getSession(db, input.toSessionId, input.scope)
   if (!toSession) throw new DbContractError(`unknown session ${input.toSessionId}`)
+  if (input.scope) {
+    if (scopeParsed.data.kind !== 'session') throw new WorkspaceError('permission_denied', 'Source task ownership is not established for this import.')
+    const source = await getSession(db, scopeParsed.data.id, input.scope)
+    if (!source) throw new WorkspaceError('permission_denied', 'Source file is outside the authorized scope.')
+    if (source.sectorId) await assertFileVisible(db, source.sectorId, input.artifactId)
+  }
   const stored = await findEventByKey(db, storedEventKey(scopeParsed.data, input.artifactId))
   if (!stored || stored.type !== 't.artifact.stored') {
     throw new DbContractError(`artifact ${input.artifactId} was never stored`)
@@ -710,51 +718,55 @@ export interface CreateArtifactInput {
  * Bytes land in the archive target; stored and indexed events append to
  * the session partition so the file is immediately discoverable and
  * servable. Unknown sessions fail before any byte is written. */
+const artifactLogger = createLogger({ op: 'artifact.create' })
+
 export async function createArtifact(
   db: Db,
   input: CreateArtifactInput,
   archive?: ArchiveTarget,
 ): Promise<ArtifactSummary> {
-  if (!KeySchema.safeParse(input.sessionId).success) {
-    throw new DbContractError('sessionId must be a non-empty string')
-  }
-  if (!KeySchema.safeParse(input.name).success) {
-    throw new DbContractError('name must be a non-empty string')
-  }
-  if (typeof input.content !== 'string' || input.content.length === 0) {
-    throw new DbContractError('content must be a non-empty string')
-  }
-  const session = await getSession(db, input.sessionId, input.scope)
-  if (!session) throw new DbContractError(`unknown session ${input.sessionId}`)
-  const target = archive ?? resolveArchiveTarget()
-  const indexed = await storeAndIndex(
-    target,
-    {
-      scope: { kind: 'session', id: input.sessionId },
-      kind: input.kind ?? 'file',
-      name: input.name,
-      detail: input.detail,
-      body: input.content,
-      reason: input.reason ?? 'report',
-      producedBy: input.producedBy ?? input.sessionId,
-      artifactId: input.artifactId,
-    },
-    {
-      log: () => undefined,
-      findEvent: (key) => findEventByKey(db, key),
-      record: (event) => appendEvent(db, event).then(() => undefined),
-    },
-  )
-  if (session.sectorId) await indexSectorArtifact(db, session.sectorId, indexed.artifactId, indexed.name, input.content, input.scope)
-  return {
-    artifactId: indexed.artifactId,
-    name: indexed.name,
-    kind: indexed.kind,
-    bytes: indexed.bytes,
-    sha256: indexed.sha256,
-    detail: indexed.detail,
-    reason: indexed.reason,
-    producedBy: indexed.producedBy,
-    indexed: true,
-  }
+  return logOp(artifactLogger, 'artifact.create', async () => {
+    if (!KeySchema.safeParse(input.sessionId).success) {
+      throw new DbContractError('sessionId must be a non-empty string')
+    }
+    if (!KeySchema.safeParse(input.name).success) {
+      throw new DbContractError('name must be a non-empty string')
+    }
+    if (typeof input.content !== 'string' || input.content.length === 0) {
+      throw new DbContractError('content must be a non-empty string')
+    }
+    const session = await getSession(db, input.sessionId, input.scope)
+    if (!session) throw new DbContractError(`unknown session ${input.sessionId}`)
+    const target = archive ?? resolveArchiveTarget()
+    const indexed = await storeAndIndex(
+      target,
+      {
+        scope: { kind: 'session', id: input.sessionId },
+        kind: input.kind ?? 'file',
+        name: input.name,
+        detail: input.detail,
+        body: input.content,
+        reason: input.reason ?? 'report',
+        producedBy: input.producedBy ?? input.sessionId,
+        artifactId: input.artifactId,
+      },
+      {
+        log: (fields) => artifactLogger.info(fields),
+        findEvent: (key) => findEventByKey(db, key),
+        record: (event) => appendEvent(db, event).then(() => undefined),
+      },
+    )
+    if (session.sectorId) await indexSectorArtifact(db, session.sectorId, indexed.artifactId, indexed.name, input.content, input.scope)
+    return {
+      artifactId: indexed.artifactId,
+      name: indexed.name,
+      kind: indexed.kind,
+      bytes: indexed.bytes,
+      sha256: indexed.sha256,
+      detail: indexed.detail,
+      reason: indexed.reason,
+      producedBy: indexed.producedBy,
+      indexed: true,
+    }
+  }, { sessionId: input.sessionId, artifactId: input.artifactId })
 }

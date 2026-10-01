@@ -11,6 +11,21 @@ never drop).
 Every behavior change ships with a test that fails without the fix and passes
 with it. No test, no merge : the handoff must name the test file.
 
+## Isolation for deep checks
+
+`ensureTestDb` validates a `kardata_test_<suite>` name and creates a fresh
+UUID-suffixed database per invocation. The configured `TEST_DATABASE_URL`
+is a connection template only, never the target of migration down-tests.
+Do not reuse databases from interrupted tests or automatically purge them.
+Migration round-trips own isolated databases just like other live suites.
+Routine tests write evidence to ignored test-results directories. Catalogue
+refresh is an explicit maintenance command, never an ordinary test side effect.
+The operational feature/review map and release gate are described in
+[the hardening catalogue](../docs/deep-checks/README.md).
+Destructive recovery drills must use isolated test resources; the UI-driven
+Meta pilot preserves its research records. The approved hardening contract
+is [the repo-hardening plan](plans/2026-09-30-repo-hardening.md).
+
 ## Component tests (Vitest + Testing Library)
 
 - Test how the component is used: render it, interact with `user-event`, assert
@@ -84,3 +99,11 @@ like the routes) seeds 1000 companies plus 12 documents.
   execution, so completions mean DB rows. Child ids derive from the
   run-unique session: reruns never collide with still-running children
   from an aborted run (which correctly reject as duplicates).
+
+CI runs a separate pinned Postgres/Temporal integration job. Its databases are
+UUID-suffixed isolated resources; it runs the live DB suite then session, child,
+planning and coordinator workflows. Paid Meta and full stress remain separate
+release gates. Browser outputs are uploaded even on failure. The single local
+mechanical entrypoint remains `npm run pr:verify`; live database tests use
+`TEST_DATABASE_URL=... npm test -w @kardata/backend`, Temporal tests additionally
+set `KARDATA_TEMPORAL_TEST=1`. Never run migration tests against a shared DB.

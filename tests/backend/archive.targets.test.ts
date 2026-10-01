@@ -2,7 +2,7 @@
 // GCS iff KARDATA_GCS_BUCKET is set, else the filesystem target with no
 // credentials; the GCS target round-trips over an in-memory fake bucket
 // (the pattern targets.ts documents), honoring the key prefix.
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -65,6 +65,13 @@ describe('resolveArchiveTarget', () => {
 })
 
 describe('GcsTarget over a fake bucket', () => {
+  it.each(['../escape', '/absolute', 'folder/../escape', 'folder\\escape', 'folder//escape', 'folder/./escape'])('rejects unsafe archive key %s before calling storage', async (key) => {
+    const bucket = new FakeBucket(), target = new GcsTarget(bucket, 'staging')
+    await expect(target.write(key, 'TEST data')).rejects.toThrow(/archive key/i)
+    await expect(target.read(key)).rejects.toThrow(/archive key/i)
+    await expect(target.list(key)).rejects.toThrow(/archive key/i)
+    expect(bucket.bodies.size).toBe(0)
+  })
   it('round-trips write/read/list with a prefix', async () => {
     const bucket = new FakeBucket()
     const target = new GcsTarget(bucket, 'staging')
@@ -84,5 +91,14 @@ describe('GcsTarget over a fake bucket', () => {
       'staging',
     )
     expect(target).toBeInstanceOf(GcsTarget)
+  })
+})
+
+describe('filesystem archive failures', () => {
+  it('does not turn a misconfigured archive path into a successful empty listing', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'kardata-archive-fault-'))
+    const path = join(root, 'file-not-directory')
+    writeFileSync(path, 'TEST archive misconfiguration')
+    await expect(new FilesystemTarget(path).list('')).rejects.toThrow()
   })
 })

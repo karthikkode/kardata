@@ -4,6 +4,9 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { Client } from 'pg'
+import { createLogger, logOp } from '../observability/logging.js'
+
+const logger = createLogger({ op: 'db.migrate' })
 
 export type Direction = 'up' | 'down'
 
@@ -26,10 +29,17 @@ export function migrationFiles(dir: string): string[] {
 }
 
 export async function migrate(connectionString: string, dir: string, direction: Direction): Promise<string[]> {
+  return logOp(logger, 'db.migrate', () => executeMigrations(connectionString, dir, direction), { direction })
+}
+async function executeMigrations(connectionString: string, dir: string, direction: Direction): Promise<string[]> {
   const applied: string[] = []
-  const client = new Client({ connectionString })
+  const client = new Client({ connectionString, connectionTimeoutMillis: 10000, statement_timeout: 300000 })
   await client.connect()
   try {
+    await client.query("SET lock_timeout = '30s'")
+    // Session lock covers schema creation and every migration transaction.
+    // Closing this dedicated client releases it on success or any failure.
+    await client.query("SELECT pg_advisory_lock(hashtext('kardata:schema-migrations'))")
     await client.query(
       'CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())',
     )

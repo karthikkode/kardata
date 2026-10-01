@@ -19,6 +19,22 @@ function capture(): { lines: string[]; stream: Writable } {
 }
 
 describe('logging contract (B0.5)', () => {
+  it('keeps error identities while excluding sensitive error bodies and stacks', () => {
+    const { lines, stream } = capture()
+    const error = new Error('SECRET provider response body')
+    createLogger({}, stream).error({ error, taskToken: 'SECRET activity token' }, 'Operation failed')
+    expect(lines[0]).not.toContain('SECRET')
+    expect(JSON.parse(lines[0]!)).toMatchObject({ error: { name: 'Error' }, taskToken: '[Redacted]' })
+  })
+  it('keeps verified numeric token counters observable while redacting token credentials', () => {
+    expect(scrubSecrets({ inputTokens: 42, outputTokens: 7, cacheReadTokens: 20, accessToken: 'secret', input_tokens: 'secret-disguised-as-count' })).toEqual({ inputTokens: 42, outputTokens: 7, cacheReadTokens: 20, accessToken: '[Redacted]', input_tokens: '[Redacted]' })
+  })
+  it('handles cyclic metadata without recursion failure or secret leakage', () => {
+    const metadata: Record<string, unknown> = { trace_id: 'trace-cycle', apiKey: 'cyclic-secret' }
+    metadata['self'] = metadata
+    expect(() => JSON.stringify(scrubSecrets(metadata))).not.toThrow()
+    expect(JSON.stringify(scrubSecrets(metadata))).not.toContain('cyclic-secret')
+  })
   it('every line carries the join keys', () => {
     const { lines, stream } = capture()
     const log = createLogger(

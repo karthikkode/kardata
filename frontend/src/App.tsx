@@ -165,14 +165,17 @@ export default function App() {
   }
 
   async function editCurrentSectorPlan(markdown: string) {
-    if (!sectorId || !staging) return
+    if (!sectorId || !staging) return false
     setResearchBusy(true)
     setResearchError(null)
     try {
       await updateSectorPlan(staging, sectorId, markdown)
       detailData.refresh()
+      workspace.plan.refresh()
+      return true
     } catch (error: unknown) {
       setResearchError(error instanceof Error ? error.message : 'Plan edit failed.')
+      return false
     } finally {
       setResearchBusy(false)
     }
@@ -232,7 +235,7 @@ export default function App() {
       : []
 
   if (section === 'SectorChat' && detailData.detail && staging && detailData.status !== 'denied') {
-    return <SectorWorkspace sector={detailData.detail} model={workspace} config={staging} dark={dark} onTheme={() => setDark((value) => !value)} onBack={() => setNav({ section: 'SectorDetail', sessionId: null, threadKey: null })} actions={{ busy: researchBusy, error: researchError, plan: () => void planCurrentSector(), approve: (version) => void approveCurrentSector(version), start: () => void startCurrentSector(), pause: () => void pauseCurrentSector(), resume: () => void resumeCurrentSector(), edit: (markdown) => void editCurrentSectorPlan(markdown) }} />
+    return <SectorWorkspace sector={detailData.detail} model={workspace} config={staging} dark={dark} onTheme={() => setDark((value) => !value)} onBack={() => setNav({ section: 'SectorDetail', sessionId: null, threadKey: null })} actions={{ busy: researchBusy, error: researchError, plan: () => void planCurrentSector(), approve: (version) => void approveCurrentSector(version), start: () => void startCurrentSector(), pause: () => void pauseCurrentSector(), resume: () => void resumeCurrentSector(), edit: editCurrentSectorPlan }} />
   }
   return (
     <div className="flex min-h-screen bg-muted/40 text-foreground">

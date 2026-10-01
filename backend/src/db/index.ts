@@ -39,7 +39,9 @@ export {
 } from './events.js'
 export {
   getThread,
+  getThreadHeader,
   listThreads,
+  listThreadHeaders,
   projectBatch,
   type ProjectionResult,
   rebuildFromEvents,
@@ -88,6 +90,7 @@ export {
   RecordProblemInput,
   UpsertCompanyInput,
   upsertLedgerCompany,
+  registerLedgerCandidate,
 } from './company-ledger.js'
 export {
   COMPANY_FOUND_EVENT,
@@ -116,6 +119,7 @@ export {
   listSectorCompanies,
   listSectors,
   markCompanyFound,
+  registerSectorDiscovery,
   pauseSectorResearch,
   projectSectorEvent,
   recordResearchSession,

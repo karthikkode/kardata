@@ -45,6 +45,7 @@ export const PARITY: ParityEntry[] = [
   { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'GlobalContext', kind: 'counterpart', specPointer: '#/components/schemas/GlobalContext', note: 'versioned shared context with pending changes' },
   { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'ContextChange', kind: 'counterpart', specPointer: '#/components/schemas/ContextChange', note: 'proposal states through the approval flow' },
   { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'ContextPreview', kind: 'counterpart', specPointer: '#/components/schemas/ContextPreview', note: 'proposal plus exact file units' },
+  { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'SectorFileBody', kind: 'counterpart', specPointer: '#/components/schemas/SectorFileBody', note: 'sector file preview and original download' },
   { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'LibraryFile', kind: 'counterpart', specPointer: '#/components/schemas/LibraryFile', note: 'sector file rows with hidden/included flags' },
   { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'LocalContext', kind: 'counterpart', specPointer: '#/components/schemas/LocalContext', note: 'per-thread working memory' },
   { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'ResearchProgress', kind: 'counterpart', specPointer: '#/components/schemas/ResearchProgress', note: 'plan versions, work items, estimate' },
@@ -112,6 +113,7 @@ export const EXPECTED_TYPES: Array<{ sourceFile: string; mockType: string }> = [
   { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'ContextChange' },
   { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'ContextPreview' },
   { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'LibraryFile' },
+  { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'SectorFileBody' },
   { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'LocalContext' },
   { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'ResearchProgress' },
 ]

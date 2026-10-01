@@ -162,7 +162,8 @@ async function applyEvent(db: Db, event: StoredEvent): Promise<boolean> {
       await db.query(
         `INSERT INTO threads (key, session_id, kind, status, updated_at)
          VALUES ($1, $2, 'subagent', 'RUNNING', $3::timestamptz)
-         ON CONFLICT (key) DO NOTHING`,
+         ON CONFLICT (key) DO UPDATE SET status='RUNNING', accepting_steer=true, updated_at=EXCLUDED.updated_at
+         WHERE threads.session_id=EXCLUDED.session_id`,
         [threadKey, sessionId, at],
       )
       // Launch notice doubles as the name record for @mention routing.
@@ -370,6 +371,13 @@ export async function getThread(db: Db, threadKey: string): Promise<ThreadView |
   }
 }
 
+export async function getThreadHeader(db: Db, threadKey: string): Promise<ThreadView | undefined> {
+  if (!ThreadKeySchema.safeParse(threadKey).success) throw new DbContractError('threadKey must be non-empty')
+  const { rows } = await db.query<ThreadRow>('SELECT * FROM threads WHERE key = $1', [threadKey])
+  const thread = rows[0]
+  return thread ? { key: thread.key, sessionId: thread.session_id, kind: thread.kind, status: thread.status, acceptingSteer: thread.accepting_steer, queueDepth: Number(thread.queue_depth), updatedAt: thread.updated_at.toISOString(), messages: [] } : undefined
+}
+
 export async function listThreads(db: Db, sessionId: string): Promise<ThreadView[]> {
   if (!SessionIdSchema.safeParse(sessionId).success) {
     throw new DbContractError('sessionId must be a non-empty string')
@@ -384,6 +392,15 @@ export async function listThreads(db: Db, sessionId: string): Promise<ThreadView
     if (view) views.push(view)
   }
   return views
+}
+/** Metadata lists never hydrate each child's complete transcript. */
+export async function listThreadHeaders(db: Db, sessionId: string): Promise<ThreadView[]> {
+  if (!SessionIdSchema.safeParse(sessionId).success) throw new DbContractError('sessionId must be non-empty')
+  const { rows } = await db.query<ThreadRow & { name: string | null }>(`SELECT t.*,
+    CASE WHEN t.kind='subagent' THEN (SELECT m.payload->>'name' FROM thread_messages m
+      WHERE m.thread_key=t.key AND m.payload->>'launched'='true' ORDER BY m.seq ASC LIMIT 1) END AS name
+    FROM threads t WHERE t.session_id=$1 ORDER BY t.key`, [sessionId])
+  return rows.map((thread) => ({ key: thread.key, sessionId: thread.session_id, kind: thread.kind, status: thread.status, acceptingSteer: thread.accepting_steer, queueDepth: Number(thread.queue_depth), updatedAt: thread.updated_at.toISOString(), ...(thread.name ? { name: thread.name } : {}), messages: [] }))
 }
 
 /** Outbound thread messaging for Karbot steering. The messenger is the

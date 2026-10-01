@@ -3,9 +3,10 @@ import { fileURLToPath } from 'node:url'
 import { Client } from 'pg'
 import { describe, expect, it } from 'vitest'
 import { migrate, migrationFiles } from '../../backend/src/db/migrate.js'
+import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
 const DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'db', 'migrations')
-const DB = process.env['TEST_DATABASE_URL']
+const DB = TEST_DATABASE_URL
 
 async function tables(client: Client): Promise<string[]> {
   const { rows } = await client.query<{ tablename: string }>(
@@ -20,8 +21,17 @@ describe('migrations (B0.3)', () => {
   })
 
   describe.skipIf(!DB)('against Postgres', () => {
+    it('serializes simultaneous migrators on one isolated database', async () => {
+      const connectionString = await ensureTestDb('kardata_test_migration_race')
+      await migrate(connectionString, DIR, 'down')
+      const results = await Promise.all(Array.from({ length: 3 }, () => migrate(connectionString, DIR, 'up')))
+      const applied = results.flat()
+      expect(applied).toHaveLength(migrationFiles(DIR).length)
+      expect(new Set(applied).size).toBe(applied.length)
+      expect(await migrate(connectionString, DIR, 'up')).toEqual([])
+    })
     it('up creates the schema, duplicate idempotency rejects, up is idempotent', async () => {
-      const connectionString = DB as string
+      const connectionString = await ensureTestDb('kardata_test_migrations_up')
       await migrate(connectionString, DIR, 'down')
       const applied = await migrate(connectionString, DIR, 'up')
       expect(applied).toEqual(['up:0001_init', 'up:0002_ledger_event_seq', 'up:0003_projection_checkpoints', 'up:0004_outbox_notify', 'up:0005_api_keys', 'up:0006_rate_idempotency', 'up:0007_sector_domain', 'up:0008_knowledge_ledger', 'up:0009_sector_drafts', 'up:0010_sector_document_units', 'up:0011_sector_context_selection', 'up:0012_sector_research_session', 'up:0013_sector_planning_states', 'up:0014_sector_workspace', 'up:0015_workspace_file_index', 'up:0016_turn_continuations', 'up:0017_workspace_measurements', 'up:0018_workspace_hardening'])
@@ -46,7 +56,7 @@ describe('migrations (B0.3)', () => {
     })
 
     it('down then up round-trips on an empty database', async () => {
-      const connectionString = DB as string
+      const connectionString = await ensureTestDb('kardata_test_migrations_roundtrip')
       await migrate(connectionString, DIR, 'down')
       await migrate(connectionString, DIR, 'up')
       expect(await migrate(connectionString, DIR, 'down')).toEqual([

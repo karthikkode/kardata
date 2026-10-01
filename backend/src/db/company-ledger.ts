@@ -88,6 +88,15 @@ const COMPANY_COLUMNS = `c.id AS id, c.domain AS domain, c.name AS name, c.secto
 
 /** Idempotent upsert on domain: sector runs re-report the same company. */
 export async function upsertLedgerCompany(db: Db, input: z.input<typeof UpsertCompanyInput>): Promise<LedgerCompany> {
+  return writeLedgerCompany(db, input, true)
+}
+
+/** Discovery cannot reset an existing researched verdict or owner data. */
+export async function registerLedgerCandidate(db: Db, input: z.input<typeof UpsertCompanyInput>): Promise<LedgerCompany> {
+  return writeLedgerCompany(db, input, false)
+}
+
+async function writeLedgerCompany(db: Db, input: z.input<typeof UpsertCompanyInput>, replaceExisting: boolean): Promise<LedgerCompany> {
   const parsed = UpsertCompanyInput.safeParse(input)
   if (!parsed.success) throw new DbContractError(`invalid ledger company: ${parsed.error.message}`)
   const row = parsed.data
@@ -95,18 +104,18 @@ export async function upsertLedgerCompany(db: Db, input: z.input<typeof UpsertCo
     `INSERT INTO ledger_companies
        (id, domain, name, sector, qualification, qualification_reason, scale_signal, mailable, contact_ref)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-     ON CONFLICT (domain) DO UPDATE SET
+     ON CONFLICT (domain) ${replaceExisting ? `DO UPDATE SET
        name = EXCLUDED.name, sector = EXCLUDED.sector,
        qualification = EXCLUDED.qualification,
        qualification_reason = EXCLUDED.qualification_reason,
        scale_signal = EXCLUDED.scale_signal, mailable = EXCLUDED.mailable,
        contact_ref = EXCLUDED.contact_ref, updated_at = now(),
-       researched_at = CASE WHEN EXCLUDED.qualification <> 'unresearched' THEN now() ELSE ledger_companies.researched_at END
+       researched_at = CASE WHEN EXCLUDED.qualification <> 'unresearched' THEN now() ELSE ledger_companies.researched_at END` : 'DO NOTHING'}
      RETURNING id, domain, name, sector, qualification, qualification_reason,
        scale_signal, mailable, contact_ref, 0 AS problem_count`,
     [randomUUID(), row.domain, row.name, row.sector, row.qualification, row.qualificationReason, row.scaleSignal, row.mailable, row.contactRef],
   )
-  const first = rows[0]
+  const first = rows[0] ?? (!replaceExisting ? (await db.query<LedgerCompanyRow>(`SELECT ${COMPANY_COLUMNS} FROM ledger_companies c WHERE c.domain=$1`, [row.domain])).rows[0] : undefined)
   if (!first) throw new DbContractError('ledger upsert returned no row')
   const company = toCompany(first)
   const counted = await db.query<{ count: string }>('SELECT COUNT(*) AS count FROM ledger_problems WHERE company_id = $1', [

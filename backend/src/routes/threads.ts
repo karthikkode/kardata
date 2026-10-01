@@ -6,7 +6,7 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { projectNewEvents } from '../projector.js'
 import { openThreadStream } from '../streams/outbox.js'
-import { getThread, listThreads } from '../db/index.js'
+import { getThread, listThreadHeaders, readSteeringReceiptsPage } from '../db/index.js'
 import { toApiMessage, toApiThread } from '../threads/views.js'
 import { authorize, parseInput, requirePool, requireSessionScope, route, sendError } from './http.js'
 import { corsHeadersFor, parseCorsOrigins } from '../http/cors.js'
@@ -29,7 +29,7 @@ export function threadRoutes(app: FastifyInstance): void {
     await projectNewEvents(pool)
     const params = request.params as { sessionId: string }
     if (!(await requireSessionScope(pool, params.sessionId, auth.scope, reply))) return undefined
-    const threads = await listThreads(pool, params.sessionId)
+    const threads = await listThreadHeaders(pool, params.sessionId)
     return { ok: true, data: threads.map(toApiThread) }
   })
 
@@ -63,6 +63,18 @@ export function threadRoutes(app: FastifyInstance): void {
     const data = page.map(toApiMessage).filter((message) => message !== undefined)
     const last = page[page.length - 1]
     return { ok: true, data, nextAfterSeq: last ? last.seq : query.afterSeq }
+  })
+
+  route(app, 'get', '/v1/threads/:threadKey/steering-receipts', async (request, reply, app) => {
+    const pool = requirePool(app, reply)
+    if (!pool) return undefined
+    const auth = await authorize(app, request, reply, 'viewer')
+    if (!auth) return undefined
+    const query = parseInput(z.object({ afterId: z.string().max(255).default(''), limit: z.coerce.number().int().min(1).max(200).default(200) }), request.query, reply)
+    if (!query) return undefined
+    await projectNewEvents(pool)
+    const { threadKey } = request.params as { threadKey: string }
+    return { ok: true, data: await readSteeringReceiptsPage(pool, threadKey, query.afterId, query.limit, auth.scope) }
   })
 
   // SSE thread stream (B3.2). Validation/404 use envelopes before the

@@ -1,9 +1,17 @@
 // Cold-archive targets. B1.4. GCS is the real target on staging and prod;
 // the filesystem target exists for unit tests and offline dev only. Both
 // speak the same interface so retention and replay never branch on backend.
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { Storage } from '@google-cloud/storage'
+
+export function assertArchiveKey(key: string, prefix = false): void {
+  if (typeof key !== 'string') throw new TypeError('Archive key must be a string.')
+  const parts = key.split('/')
+  if (prefix && parts.at(-1) === '') parts.pop()
+  if (typeof key !== 'string' || Buffer.byteLength(key) > 1024 || (key.includes('\\') || [...key].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)) || key.startsWith('/') || (!prefix && !key) || parts.some((part) => part === '.' || part === '..' || part === '')) throw new TypeError('Archive key must be a relative scoped path without traversal.')
+}
 
 export interface ArchiveTarget {
   write(key: string, body: string): Promise<void>
@@ -14,14 +22,17 @@ export interface ArchiveTarget {
 export class FilesystemTarget implements ArchiveTarget {
   constructor(private readonly dir: string) {}
 
-  private path(key: string): string {
+  private path(key: string, prefix = false): string {
+    assertArchiveKey(key, prefix)
     return join(this.dir, key)
   }
 
   async write(key: string, body: string): Promise<void> {
     const path = this.path(key)
     await mkdir(join(path, '..'), { recursive: true })
-    await writeFile(path, body, 'utf8')
+    const temporary = `${path}.tmp-${randomUUID()}`
+    try { await writeFile(temporary, body, 'utf8'); await rename(temporary, path) }
+    finally { await unlink(temporary).catch((error: unknown) => { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }) }
   }
 
   async read(key: string): Promise<string | undefined> {
@@ -34,9 +45,13 @@ export class FilesystemTarget implements ArchiveTarget {
   }
 
   async list(prefix: string): Promise<string[]> {
+    assertArchiveKey(prefix, true)
     const out: string[] = []
     const walk = async (relative: string): Promise<void> => {
-      const entries = await readdir(this.path(relative), { withFileTypes: true }).catch(() => [])
+      const entries = await readdir(this.path(relative, true), { withFileTypes: true }).catch((error: unknown) => {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
+        throw error
+      })
       for (const entry of entries) {
         const key = relative === '' ? entry.name : `${relative}/${entry.name}`
         if (entry.isDirectory()) await walk(key)
@@ -78,7 +93,8 @@ export class GcsTarget implements ArchiveTarget {
     return new GcsTarget(storage.bucket(bucketName), prefix)
   }
 
-  private key(name: string): string {
+  private key(name: string, prefix = false): string {
+    assertArchiveKey(name, prefix)
     return this.prefix === '' ? name : `${this.prefix}/${name}`
   }
 
@@ -95,7 +111,7 @@ export class GcsTarget implements ArchiveTarget {
   }
 
   async list(prefix: string): Promise<string[]> {
-    const [files] = await this.bucket.getFiles({ prefix: this.key(prefix) })
+    const [files] = await this.bucket.getFiles({ prefix: this.key(prefix, true) })
     const base = this.prefix === '' ? '' : `${this.prefix}/`
     return files
       .map((file) => (file.name.startsWith(base) ? file.name.slice(base.length) : file.name))

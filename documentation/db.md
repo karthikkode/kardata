@@ -25,6 +25,32 @@ pretending to be live data.
 - Pool settings (max, timeouts, per-process budgets) live in
   `backend/src/db/pool.ts` and nowhere else.
 
+## Hardening contracts (2026-10-01)
+
+- Event and outbox sequence allocation uses the shared transaction-scoped
+  durable-stream advisory lock. Sequence order must match commit order or
+  projector/SSE cursors can skip a delayed transaction. Workspace transactions
+  acquire this lock before aggregate locks. Never hold a transaction across
+  provider/archive IO or call the projector from inside a workspace transaction.
+  Proved by `db.commit-order.test.ts` (both original failures reproduced).
+- Migrations serialize across processes with a dedicated session lock before
+  schema bookkeeping. Connect timeout: 10 seconds; lock wait: 30 seconds;
+  statement timeout: five minutes. Client close releases the lock. Concurrent
+  migrators are tested on fresh isolated databases, never the shared base URL.
+- Sector discovery ids include sector and normalized domain. Legacy ids are
+  adopted only in their owning sector. Discovery registers ledger candidates
+  without overwriting researched verdicts; intentional research updates remain
+  the separate upsert operation.
+- New file version digests include original bytes, extraction units
+  and upload/artifact provenance. Different scans with the same filename cannot
+  alias through empty OCR text. Historical hashes and approvals stay unchanged.
+- `commitThreadCompaction` atomically updates the summary and parked working
+  view using context-version/checkpoint comparison. Active or changed work
+  rejects stale replacement. Visible transcript rows remain immutable.
+- Thread directory reads use `listThreadHeaders`; authority reads use
+  `getThreadHeader`. Neither loads entire child transcripts. Full history reads
+  remain explicit operations.
+
 ## Read-path paging (thousand-row rule)
 
 `listCompanies`, `listSectorCompanies`, and `sectorActivity` take an
@@ -182,3 +208,14 @@ Reserved, currently unwritten by product code: `heartbeats.attempt`
 (future per-op attempt counting) and `outbox.delivered_at` (future
 publisher claiming). Kept intentionally; removal is one migration if
 they stay unused.
+
+Plan-write retries return their original event-derived version even after later
+plan writes. A concurrent newer plan never changes an earlier operation result.
+
+New artifact bodies use content-addressed archive references. Conflicting ID
+replays cannot overwrite winning bytes or re-index altered content. Legacy flat
+references remain readable. Imports check source tenant/project ownership and
+source visibility before recording a destination reference.
+
+Artifact creation emits the shared start/done/error boundary logs and pipeline
+operation records; operational output includes identities/counts, never bodies.

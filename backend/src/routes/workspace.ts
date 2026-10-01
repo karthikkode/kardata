@@ -4,12 +4,13 @@ import type { Scope, Role } from '../auth/keys.js'
 import {
   ContextSections, WorkspaceError, decideContextChange, ensureResearchSession,
   previewContextChange,
+  readSectorLibraryFile,
   listSectorLibrary, proposeFileContext, proposeGlobalContext, readGlobalContext, readResearchProgress,
   readThreadContext, saveThreadContext, setFileVisibility, type TransactableDb,
 } from '../db/index.js'
 import { compactOwnerThread } from '../context.js'
 import { projectNewEvents } from '../projector.js'
-import { authorize, requirePool, route, sendError, withIdempotency } from './http.js'
+import { authorize, requireArchive, requirePool, route, sendError, withIdempotency } from './http.js'
 
 interface Input { pool: TransactableDb; scope?: Scope; params: Record<string, string>; body: unknown }
 export function workspaceRoutes(app: FastifyInstance): void {
@@ -40,6 +41,15 @@ export function workspaceRoutes(app: FastifyInstance): void {
   const thread = (input: Input) => input.params['threadKey'] ?? ''
   register('post', '/v1/sectors/:sectorId/research-session', 'operator', ({ pool, scope, ...input }) => ensureResearchSession(pool, sector({ pool, scope, ...input }), scope))
   register('get', '/v1/sectors/:sectorId/global-context', 'viewer', (input) => readGlobalContext(input.pool, sector(input), input.scope))
+  route(app, 'get', '/v1/sectors/:sectorId/files/:fileId/body', async (request, reply, app) => {
+    const pool = requirePool(app, reply), archive = requireArchive(app, reply)
+    if (!pool || !archive) return undefined
+    const auth = await authorize(app, request, reply, 'viewer')
+    if (!auth) return undefined
+    await projectNewEvents(pool)
+    const params = request.params as { sectorId: string; fileId: string }
+    return { ok: true, data: await readSectorLibraryFile(pool, params.sectorId, params.fileId, archive, auth.scope) }
+  })
   register('patch', '/v1/sectors/:sectorId/global-context', 'approver', (input) => {
     const body = z.object({ baseVersion: z.number().int().nonnegative(), sections: ContextSections }).strict().parse(input.body)
     return proposeGlobalContext(input.pool, { ...body, sectorId: sector(input), sourceThread: 'owner', owner: true, scope: input.scope })

@@ -6,6 +6,7 @@ import type { PoolClient } from 'pg'
 import { z } from 'zod'
 import { DbContractError } from './errors.js'
 import type { Db } from './events.js'
+import { DURABLE_STREAM_LOCK_SQL } from './checkpoints.js'
 
 /** A Db that can also hand out a dedicated LISTEN client. pg Pool
  * satisfies this structurally; callers pass the pool through opaquely. */
@@ -63,7 +64,8 @@ export async function publishOutboxFrame(
     throw new DbContractError("type must be 'message', 'state', 'delta', 'reasoning', or 'tool'")
   }
   const { rows } = await db.query<{ seq: number | string }>(
-    'INSERT INTO outbox (thread_key, type, payload) VALUES ($1, $2, $3::jsonb) RETURNING seq',
+    `WITH durable_order AS MATERIALIZED (${DURABLE_STREAM_LOCK_SQL})
+     INSERT INTO outbox (thread_key, type, payload) SELECT $1, $2, $3::jsonb FROM durable_order RETURNING seq`,
     [threadKey, type, JSON.stringify(payload)],
   )
   const row = rows[0]

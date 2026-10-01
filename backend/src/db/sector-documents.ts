@@ -61,7 +61,7 @@ const ContentSchema = z.string().min(1)
  * ingest is idempotent on content hash. */
 export async function ingestSectorDocument(
   db: Db,
-  input: { sectorId: string; filename: string; contentBase64: string; scope?: Scope; ocr?: OcrAdapter; archive?: ArchiveTarget },
+  input: { sectorId: string; filename: string; contentBase64: string; scope?: Scope; ocr?: OcrAdapter; archive?: ArchiveTarget; source?: 'artifact' },
 ): Promise<IngestedDocument> {
   if (!FilenameSchema.safeParse(input.filename).success) throw new DbContractError('filename must be 1-255 characters')
   if (!ContentSchema.safeParse(input.contentBase64).success) throw new DbContractError('contentBase64 must be non-empty')
@@ -78,19 +78,13 @@ export async function ingestSectorDocument(
   const extraction = await extractFileUnits(input.filename, bytes, input.ocr)
   if (extraction.status === 'failed') throw new DbContractError(extraction.detail ?? 'could not extract document text')
   const text = extraction.units.map((unit) => unit.text).join('\n\n')
-  const sha256 = sha256Hex(text)
-  // needs-ocr rows all hash the empty string: dedup those on filename so
-  // two different unscanned images never alias each other.
-  const duplicate = extraction.status === 'indexed'
-    ? await db.query<{ id: string; filename: string; media_type: string; sha256: string; created_at: Date | string; status: string }>(
+  // Version identity includes bytes and extraction. Distinct scans cannot
+  // alias by filename/empty OCR; generated files retain separate provenance.
+  const sha256 = sha256Hex(JSON.stringify({ v: 2, source: input.source ?? 'upload', original: bytes.toString('base64'), units: extraction.units }))
+  const duplicate = await db.query<{ id: string; filename: string; media_type: string; sha256: string; created_at: Date | string; status: string }>(
       `SELECT id, filename, media_type, sha256, created_at, status FROM sector_documents
        WHERE sector_id = $1 AND sha256 = $2 ORDER BY created_at ASC LIMIT 1`,
       [input.sectorId, sha256],
-    )
-    : await db.query<{ id: string; filename: string; media_type: string; sha256: string; created_at: Date | string; status: string }>(
-      `SELECT id, filename, media_type, sha256, created_at, status FROM sector_documents
-       WHERE sector_id = $1 AND filename = $2 AND status = 'needs-ocr' ORDER BY created_at ASC LIMIT 1`,
-      [input.sectorId, input.filename],
     )
   const found = duplicate.rows[0]
   if (found) {

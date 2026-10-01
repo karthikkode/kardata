@@ -283,3 +283,10 @@ Three host values, all optional in dev:
   compose with `KARDATA_WEB_SEARCH_KEY` set. Not yet run — no search
   provider key or pilot sector provisioned.
 - Skipped verification is recorded explicitly per run, never silently.
+
+Hardening worker telemetry: `KARDATA_TEMPORAL_METRICS_PORT` defaults to 9464,
+and the existing Prometheus worker job uses that port. A port change must update
+the scrape target in the same deployment. The worker installs its redacting
+logger before its SDK connection. The current local UI credential has operator
+role, so the approver-only real pilot remains blocked until the owner configures
+an existing approver credential; no key was upgraded by the agent.

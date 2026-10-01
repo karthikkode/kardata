@@ -190,3 +190,13 @@ the everything-log. Plan: `documentation/plans/2026-09-25-backend-build.md`.
   `sdoc-*`/`snote-*` ids; only model-visible prose changed. Proven by
   `tests/backend/sector-context.test.ts` (stub-DB) and
   `tests/backend/api.sector-context.test.ts` (live).
+
+## Overflow recovery hardening
+
+Overflow state frames carry `historyRefresh: true`. The client reloads durable
+messages through bounded 200-row REST pages before accepting the snapshot token;
+hidden launch notices advance the REST cursor even when a page is empty. A failed
+reload retains the previous stream token so the snapshot is retried. Snapshot
+capture reads the outbox token before the thread view to keep concurrent commits
+in the tail. Transient reasoning/tool frames are cleared on hydration; durable
+messages decide completion. Large transcript rendering remains a separate gate.

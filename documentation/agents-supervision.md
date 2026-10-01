@@ -39,7 +39,7 @@ suspends for checkpointed resume.
 
 Backend additions on top of the agents contract:
 
-- `heartbeats` table (`backend/src/observability/heartbeats.ts`): one row
+- `heartbeats` table (`backend/src/db/heartbeats.ts`): one row
   per (run, op), upserted on every operation heartbeat (turn, provider.chat,
   tool.call, research.stage) with a 5 s in-process write throttle. Run ids
   are workflow ids (`session-run-<session>` for session-scoped activities).
@@ -51,3 +51,11 @@ Backend additions on top of the agents contract:
   per-run message cursors and loop evidence. Starting thresholds (60 s
   idle, 120 s in-tool, 0.8 near-ratio) sit above the lane heartbeat
   timeouts; B5.6 tunes them.
+
+The worker entrypoint now installs the shared Pino logger before connecting
+Temporal and exposes SDK metrics at the configured port (9464 by default).
+Prometheus scrapes `worker:9464`; this is the worker SDK, not Temporal server
+metrics. Error bodies/stacks and activity task tokens stay out of operational
+logs. Turn heartbeats attribute to the actual owning workflow, including children.
+The reconciliation schedule described above is still not activated; pure sweep
+tests do not establish live orphan recovery.

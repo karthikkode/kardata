@@ -115,7 +115,7 @@ paths:
     post:
       operationId: compactSession
       tags: [sessions]
-      summary: Extractive compaction marker for long histories; short histories report honestly.
+      summary: Compact durable working context; preserve the visible transcript and park on failure.
       parameters:
         - $ref: '#/components/parameters/SessionId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -337,6 +337,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MessagePage'
+  /v1/threads/{threadKey}/steering-receipts:
+    get:
+      operationId: listSteeringReceipts
+      tags: [threads]
+      description: Scoped durable consumed/missed instruction outcomes, including receipts skipped by stream overflow.
+      parameters:
+        - $ref: '#/components/parameters/ThreadKey'
+        - name: afterId
+          in: query
+          schema: { type: string, maxLength: 255, default: '' }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 200 }
+      responses:
+        '200':
+          description: Ascending ID page, with null nextAfterId at the end.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok: { const: true }
+                  data:
+                    type: object
+                    required: [items, nextAfterId]
+                    properties:
+                      nextAfterId: { type: [string, 'null'] }
+                      items:
+                        type: array
+                        maxItems: 200
+                        items:
+                          type: object
+                          required: [id, state]
+                          properties:
+                            id: { type: string }
+                            state: { type: string, enum: [consumed, missed] }
   /v1/threads/{threadKey}/events:
     get:
       operationId: streamThread
@@ -1785,6 +1822,39 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+  /v1/sectors/{sectorId}/files/{fileId}/body:
+    get:
+      operationId: getSectorFileBody
+      summary: Read a visible sector file with retained original bytes and extracted text
+      parameters:
+        - name: sectorId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: fileId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Scoped file preview
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/SectorFileBody' }
+        '403':
+          description: Access denied or file hidden
+        '404':
+          description: File or sector not visible
+        '409':
+          description: File not indexed
+        '500':
+          description: Stored file failed its integrity check
+
 components:
   parameters:
     SessionId:
@@ -2123,6 +2193,16 @@ components:
       type: object
       required: [sectorId, versions, latest]
       properties:
+        approvedContext:
+          type: object
+          required: [version, scope]
+          properties:
+            version:
+              type: integer
+              minimum: 0
+            scope:
+              type: string
+          additionalProperties: false
         sectorId:
           type: string
         versions:
@@ -2477,7 +2557,7 @@ components:
           format: date-time
         payload:
           type: object
-          description: ThreadMessage for message events, Thread for state events; ephemeral provider text, reasoning, or tool status for delta, reasoning, or tool events.
+          description: ThreadMessage for message events, Thread for state events (overflow adds historyRefresh=true; reload bounded message pages before accepting its token); ephemeral provider text, reasoning, or tool status for delta, reasoning, or tool events.
       example:
         seq: 8
         threadKey: s-now
@@ -2658,6 +2738,9 @@ components:
         - evidence
         - detail
       properties:
+        sourceUrl:
+          type: string
+          format: uri
         id: *a1
         kind:
           type: string
@@ -2710,6 +2793,10 @@ components:
         - discoveryClosed
         - estimatedPercent
       properties:
+        budgetUsedMs:
+          type: integer
+          minimum: 0
+          description: Recorded active-operation milliseconds across coordinator runs.
         sectorId: *a1
         state: *a1
         planVersion: *a2
@@ -2771,6 +2858,15 @@ components:
         - budgets
         - acceptance
       properties:
+        discoveryTarget:
+          type: integer
+          minimum: 1
+          maximum: 2000
+          description: Minimum distinct-company count required before discovery acceptance.
+        researchDepth:
+          type: string
+          enum: [discovery, company]
+          description: Omission retains the legacy company-research execution contract.
         discovery:
           type: array
           items:
@@ -2802,7 +2898,7 @@ components:
             maxCompanies:
               type: integer
               minimum: 1
-              maximum: 1000
+              maximum: 2000
             maxWallMinutes:
               type: integer
               minimum: 1
@@ -2814,4 +2910,15 @@ components:
         acceptance:
           type: array
           items: *a1
+      additionalProperties: false
+
+    SectorFileBody:
+      type: object
+      required: [filename, mediaType, text, originalAvailable]
+      properties:
+        filename: { type: string }
+        mediaType: { type: string }
+        text: { type: string }
+        originalAvailable: { type: boolean }
+        contentBase64: { type: string, contentEncoding: base64 }
       additionalProperties: false

@@ -2,16 +2,15 @@
 // workflow orchestrates. Each activity owns its pool from env like the
 // turn activities; every write is idempotent (deterministic keys), so
 // retries and re-sweeps replay instead of duplicating.
-import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import type { Scope } from '../../auth/keys.js'
 import {
   DbContractError,
   getSector,
   listSectorDocuments,
-  markCompanyFound,
+  registerSectorDiscovery,
   setSectorState,
-  upsertLedgerCompany,
+  registerLedgerCandidate,
   workerPoolFromEnv,
 } from '../../db/index.js'
 import { projectNewEvents } from '../../projector.js'
@@ -77,9 +76,6 @@ export async function searchWebPageActivity(
   return pooledSearchWebPage(input, deps)
 }
 
-function domainId(domain: string): string {
-  return `com-${createHash('sha256').update(domain, 'utf8').digest('hex').slice(0, 12)}`
-}
 
 export interface SweepCompany {
   domain: string
@@ -98,19 +94,16 @@ export async function recordSweepCompanyActivity(input: {
 }): Promise<{ companyId: string }> {
   const pool = workerPoolFromEnv()
   await projectNewEvents(pool)
-  await upsertLedgerCompany(pool, {
+  await registerLedgerCandidate(pool, {
     domain: input.company.domain,
     name: input.company.name,
     sector: input.company.sectorName,
     qualificationReason: `sector sweep: ${input.company.url}`,
   })
-  const { companyId } = await markCompanyFound(pool, {
+  const { companyId } = await registerSectorDiscovery(pool, {
     sectorId: input.sectorId,
     name: input.company.name,
-    stage: 'Filter',
-    state: 'running',
-    companyId: domainId(input.company.domain),
-    idempotencyKey: `sweep-found:${input.sectorId}:${input.company.domain}`,
+    domain: input.company.domain,
     scope: input.scope,
   })
   await projectNewEvents(pool)

@@ -41,6 +41,11 @@ everything below hangs off it).
 
 ## Status
 
+Repo-wide hardening is in progress on a separate branch. Approved contract:
+`documentation/plans/2026-09-30-repo-hardening.md`; operational file/feature
+inventory and runnable acceptance gate: `docs/deep-checks/README.md`. Pending
+reviews and live-pilot gaps are explicit and do not count as completed capability.
+
 Frontend harness built: Vite + React + TypeScript, Tailwind tokens, owned
 primitives, Vitest + Playwright gates : all green from a clean install.
 Karbot agents layer built (`agents/`, `third_party/` policy, area docs under
@@ -89,3 +94,7 @@ Run from the repo root (Node 22): `npm run dev` (app), `npm test` (all
 workspaces), `npm run test:e2e` (browser smoke), `npm run lint`,
 `npm run typecheck`, `npm run build`. Live probes:
 `npm run test:live --workspace=@kardata/agents` (needs keys, skips without).
+
+Curated hardening UI evidence is retained locally (ignored binaries) under
+`tests/evidence/hardening-2026-10-01/`; generated browser runs remain ignored.
+See `docs/deep-checks/README.md` for commands and acceptance gaps.

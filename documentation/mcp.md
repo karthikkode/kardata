@@ -32,6 +32,16 @@ Rules in force:
 
 ## Auth
 
+Hardening (2026-10-01): any supplied execution binding must validate fully;
+invalid/partial bindings never downgrade to unbound access. Thread reads,
+messages, file metadata and run controls validate scoped ownership. Run controls
+require a run-reader capability on scoped contexts. Bound leaf agents cannot
+delegate; raw sector-state writes cannot bypass the approved lifecycle;
+conversation deletion and budget extensions require owner UI confirmation.
+Unattributed fleet notifications are denied to scoped callers. Generated files
+record their verified source thread. The HTTP/DB authority matrix is maintained
+in `tests/backend/mcp.authority.test.ts`.
+
 - Keyed mode resolves the caller with the shared `resolveCaller` gate
   (absent/unknown/under-viewer callers 403 `permission_denied`) and
   binds the tenant/project scope plus role into every tool call. Open
@@ -84,3 +94,14 @@ Rules in force:
 - Proven by `tests/backend/mcp.tools.test.ts` (binding-table parity,
   schema/layer validation parity per tool, role floors, transport auth,
   idempotent replay; fake/di doubles only, no live keys).
+
+Thread-directory MCP reads return metadata and empty message arrays. A directory
+lookup never hydrates parent, sibling or child local transcripts; conversation
+reads retain their independent execution-scope authorization.
+
+Authenticated scoped callers cannot invoke global event-log, projection, key,
+quota, heartbeat or exactly-once plumbing, even with the approver role. Those
+bindings remain internal test/embedding interfaces; they are not product
+capabilities. Product monitoring uses authorized semantic health/read tools.
+Artifact imports validate both source and destination scope; unattributed task
+files fail closed for scoped callers.

@@ -1,4 +1,5 @@
 import { Client as WorkflowClient } from '@temporalio/client'
+import { ApplicationFailure } from '@temporalio/activity'
 import type { NativeConnection, Worker } from '@temporalio/worker'
 import { Pool } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -48,6 +49,7 @@ describe.skipIf(!ENABLED)('session-run workflow (B2.2)', () => {
   let url = ''
   let worker: Worker
   let run: Promise<void>
+  const blocked = new Set<string>()
 
   beforeAll(async () => {
     process.env['TEMPORAL_ADDRESS'] = ADDRESS
@@ -63,7 +65,13 @@ describe.skipIf(!ENABLED)('session-run workflow (B2.2)', () => {
       connection,
       namespace: temporalNamespace(),
       workflowsPath: WORKFLOWS_PATH,
-      activities: { karbotTurnActivity, appendEventActivity },
+      activities: { karbotTurnActivity: async (input: Parameters<typeof karbotTurnActivity>[0]) => {
+        if (input.text === 'context-blocked-turn' && !blocked.has(input.sessionId)) {
+          blocked.add(input.sessionId)
+          throw ApplicationFailure.nonRetryable('Compaction unavailable; context was preserved.', 'ContextBlocked')
+        }
+        return karbotTurnActivity(input)
+      }, appendEventActivity },
       taskQueue: `kardata-test-run-${Date.now()}`,
     })
     run = worker.run()
@@ -81,6 +89,23 @@ describe.skipIf(!ENABLED)('session-run workflow (B2.2)', () => {
   function db(): Pool {
     return new Pool({ connectionString: url })
   }
+
+  it('parks a context failure and resumes the original turn without repeating its user message', async () => {
+    const sessionId = `context-${Date.now()}`
+    const handle = await client.workflow.start('sessionRun', { taskQueue: (worker.options as { taskQueue: string }).taskQueue, workflowId: `session-run-${sessionId}`, args: [{ sessionId, fakeSteps: [{ text: 'Recovered answer' }] }] })
+    try {
+      await handle.signal('runSend', 'context-blocked-turn')
+      await waitFor(async () => await queryState(handle) === 'PAUSED', 30000, 'context pause')
+      const pool = db()
+      try {
+        await projectNewEvents(pool)
+        expect((await getThread(pool, sessionId))?.status).toBe('PAUSED')
+      } finally { await pool.end() }
+      await handle.signal('runResume')
+      await waitFor(async () => (await texts(sessionId)).includes('Recovered answer'), 30000, 'context recovery')
+      expect((await texts(sessionId)).filter((text) => text === 'context-blocked-turn')).toHaveLength(1)
+    } finally { await handle.signal('runCancel'); await handle.result() }
+  }, 90000)
 
   async function texts(sessionId: string): Promise<string[]> {
     const pool = db()

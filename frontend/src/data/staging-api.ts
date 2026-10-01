@@ -10,6 +10,7 @@
 // server should never send throws StagingApiError with code
 // invalid_response instead of reaching the UI.
 import { z } from 'zod'
+import { SectorPlanResponse, type ExecutableResearchPlan } from './research-plan'
 
 export interface StagingConfig {
   baseUrl: string
@@ -228,9 +229,10 @@ export function apiErrorStatus(error: unknown): 'offline' | 'denied' | 'error' {
   return 'error'
 }
 
-export async function request<T>(config: StagingConfig, method: string, path: string, body?: unknown): Promise<T> {
+async function requestEnvelope<T>(config: StagingConfig, method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<{ data: T; nextAfterSeq?: number }> {
   const response = await fetch(`${config.baseUrl}${path}`, {
     method,
+    signal,
     headers: {
       authorization: `Bearer ${config.apiKey}`,
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
@@ -240,6 +242,7 @@ export async function request<T>(config: StagingConfig, method: string, path: st
   const parsed = (await response.json()) as {
     ok: boolean
     data?: T
+    nextAfterSeq?: number
     error?: { code?: string; message?: string }
   }
   if (!response.ok || !parsed.ok) {
@@ -249,7 +252,11 @@ export async function request<T>(config: StagingConfig, method: string, path: st
       parsed.error?.message ?? `request failed: ${method} ${path}`,
     )
   }
-  return parsed.data as T
+  return { data: parsed.data as T, nextAfterSeq: parsed.nextAfterSeq }
+}
+
+export async function request<T>(config: StagingConfig, method: string, path: string, body?: unknown): Promise<T> {
+  return (await requestEnvelope<T>(config, method, path, body)).data
 }
 
 export function listSessions(config: StagingConfig, sectorId?: string): Promise<Session[]> {
@@ -346,16 +353,40 @@ export function listSessionArtifacts(config: StagingConfig, sessionId: string): 
   )
 }
 
-export function listMessages(
+/** Drain bounded REST pages, including pages containing only hidden launch notices.
+ * Cursor metadata is authoritative; message count is not a paging boundary. */
+export async function listMessages(
   config: StagingConfig,
   threadKey: string,
   afterSeq = 0,
+  signal?: AbortSignal,
 ): Promise<unknown[]> {
-  return request(
-    config,
-    'GET',
-    `/v1/threads/${encodeURIComponent(threadKey)}/messages?afterSeq=${afterSeq}`,
-  )
+  const messages: unknown[] = []
+  let cursor = afterSeq
+  for (;;) {
+    const page = await requestEnvelope<unknown[]>(config, 'GET',
+      `/v1/threads/${encodeURIComponent(threadKey)}/messages?afterSeq=${cursor}&limit=200`, undefined, signal)
+    messages.push(...page.data)
+    if (page.nextAfterSeq === undefined || page.nextAfterSeq === cursor) return messages
+    if (!Number.isSafeInteger(page.nextAfterSeq) || page.nextAfterSeq < cursor) {
+      throw new StagingApiError(200, 'invalid_response', 'Message cursor did not advance safely.')
+    }
+    cursor = page.nextAfterSeq
+  }
+}
+
+const SteeringReceiptPage = z.object({ items: z.array(z.object({ id: z.string(), state: z.enum(['consumed', 'missed']) })), nextAfterId: z.string().nullable() })
+async function readSteeringReceipts(config: StagingConfig, threadKey: string, signal?: AbortSignal) {
+  const items: Array<{ id: string; state: 'consumed' | 'missed' }> = []
+  let afterId = ''
+  for (;;) {
+    const { data } = await requestEnvelope<unknown>(config, 'GET', `/v1/threads/${encodeURIComponent(threadKey)}/steering-receipts?afterId=${encodeURIComponent(afterId)}&limit=200`, undefined, signal)
+    const page = SteeringReceiptPage.parse(data)
+    items.push(...page.items)
+    if (page.nextAfterId === null) return items
+    if (page.nextAfterId <= afterId) throw new StagingApiError(200, 'invalid_response', 'Steering receipt cursor did not advance.')
+    afterId = page.nextAfterId
+  }
 }
 
 /** Rename a session (operator+). Reads resolve the latest title, so the
@@ -442,6 +473,9 @@ export function steerThread(
 export function cancelRun(config: StagingConfig, runId: string): Promise<CommandAccepted> {
   return request(config, 'POST', '/v1/commands/cancel', { runId })
 }
+export function resumeRun(config: StagingConfig, runId: string): Promise<CommandAccepted> {
+  return request(config, 'POST', '/v1/commands/resume', { runId })
+}
 
 export type RunState =
   | 'IDLE'
@@ -519,6 +553,7 @@ export interface PlanVersionView {
   version: number
   markdown: string
   at: string
+  executable?: ExecutableResearchPlan
 }
 
 export interface SectorPlanView {
@@ -535,8 +570,10 @@ export function planSector(config: StagingConfig, sectorId: string): Promise<Sec
 }
 
 /** Read the versioned research plan artifact (empty until planned). */
-export function readSectorPlan(config: StagingConfig, sectorId: string): Promise<SectorPlanView> {
-  return request<SectorPlanView>(config, 'GET', `/v1/sectors/${encodeURIComponent(sectorId)}/plan`)
+export async function readSectorPlan(config: StagingConfig, sectorId: string): Promise<SectorPlanView> {
+  const result = SectorPlanResponse.safeParse(await request<unknown>(config, 'GET', `/v1/sectors/${encodeURIComponent(sectorId)}/plan`))
+  if (!result.success) throw new StagingApiError(502, 'invalid_response', 'The research plan response could not be validated.')
+  return result.data
 }
 
 /** Owner approval: pins a plan version (planned to approved). */
@@ -737,6 +774,9 @@ export interface LiveMessage {
 }
 
 export interface LiveThread {
+  pendingRunKey?: string | null
+  threadStatus?: string
+  steering?: Array<{ id: string; state: 'consumed' | 'missed' }>
   messages: LiveMessage[]
   /** In-flight token text for the latest run; null when idle. Cleared the
    * moment the terminal message frame arrives (the message supersedes). */
@@ -757,6 +797,8 @@ export const STREAM_IDLE_TIMEOUT_MS = 30_000
 export interface FollowThreadOptions {
   /** Per-test override for the idle watchdog; production uses the default. */
   idleTimeoutMs?: number
+  /** Caller-owned token survives graceful EOF followed by a new follower. */
+  cursor?: { seq: number; live?: LiveThread }
 }
 
 /** Live thread follower (F-S3). Tails message frames into a list and
@@ -771,12 +813,15 @@ export async function* followThread(
   signal?: AbortSignal,
   options?: FollowThreadOptions,
 ): AsyncGenerator<LiveThread> {
-  const messages: LiveMessage[] = []
-  let pendingText: string | null = null
-  let pendingReasoning: string | null = null
-  let pendingTools: ToolPayload[] = []
-  let pendingRunKey: string | null = null
-  let lastSeq = 0
+  const previous = options?.cursor?.live
+  const messages: LiveMessage[] = [...(previous?.messages ?? [])]
+  let pendingText: string | null = previous?.pendingText ?? null
+  let pendingReasoning: string | null = previous?.pendingReasoning ?? null
+  let pendingTools: ToolPayload[] = [...(previous?.pendingTools ?? [])]
+  let pendingRunKey: string | null = options?.cursor?.live?.pendingRunKey ?? null
+  let threadStatus: string | undefined = previous?.threadStatus
+  const steering = new Map<string, 'consumed' | 'missed'>((previous?.steering ?? []).map(({ id, state }) => [id, state]))
+  let lastSeq = options?.cursor?.seq ?? 0
   for (;;) {
     try {
       for await (const frame of openThreadStream(
@@ -786,7 +831,6 @@ export async function* followThread(
         signal,
         options?.idleTimeoutMs ?? STREAM_IDLE_TIMEOUT_MS,
       )) {
-        lastSeq = frame.seq
         if (frame.type === 'delta') {
           const payload = frame.payload as Partial<DeltaPayload>
           if (typeof payload.text === 'string' && typeof payload.runKey === 'string') {
@@ -820,6 +864,26 @@ export async function* followThread(
             // activity row becomes the in-flight surface until the answer.
             if (tool.state === 'running') pendingText = null
           }
+        } else if (frame.type === 'steering-consumption') {
+          const payload = frame.payload as { ids?: unknown; state?: unknown }
+          if (Array.isArray(payload?.ids)) {
+            for (const id of payload.ids) if (typeof id === 'string') steering.set(id, payload.state === 'missed' ? 'missed' : 'consumed')
+          }
+        } else if (frame.type === 'state') {
+          const payload = frame.payload as { status?: unknown; historyRefresh?: unknown }
+          if (payload?.historyRefresh === true) {
+            const recovered = await listMessages(config, threadKey, Math.max(0, ...messages.map((message) => message.seq ?? 0)), signal) as LiveMessage[]
+            const receipts = await readSteeringReceipts(config, threadKey, signal)
+            for (const receipt of receipts) steering.set(receipt.id, receipt.state)
+            for (const message of recovered) if (!messages.some((entry) => entry.seq === message.seq)) messages.push(message)
+            pendingText = null; pendingReasoning = null; pendingTools = []; pendingRunKey = null
+          }
+          if (typeof payload?.status === 'string') {
+            threadStatus = payload.status
+            if (['PAUSED', 'FINISHED', 'ERROR', 'CANCELLING'].includes(threadStatus)) {
+              pendingText = null; pendingReasoning = null; pendingTools = []; pendingRunKey = null
+            }
+          }
         } else if (frame.type === 'message') {
           const message = frame.payload as LiveMessage
           const seq = typeof message.seq === 'number' ? message.seq : frame.seq
@@ -829,7 +893,10 @@ export async function* followThread(
           pendingRunKey = null
           if (message.kind === 'tool' || message.role === 'agent') pendingTools = []
         }
-        yield { messages: [...messages], pendingText, pendingReasoning, pendingTools: [...pendingTools], error: null }
+        lastSeq = frame.seq
+        const live = { messages: [...messages], pendingText, pendingReasoning, pendingRunKey, pendingTools: [...pendingTools], threadStatus, steering: [...steering].map(([id, state]) => ({ id, state })), error: null }
+        if (options?.cursor) { options.cursor.seq = lastSeq; options.cursor.live = live }
+        yield live
       }
       return
     } catch (error) {
@@ -842,6 +909,8 @@ export async function* followThread(
         pendingText,
         pendingReasoning,
         pendingTools: [...pendingTools],
+        threadStatus,
+        steering: [...steering].map(([id, state]) => ({ id, state })),
         error:
           error instanceof StagingApiError
             ? error

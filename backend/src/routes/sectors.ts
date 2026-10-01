@@ -535,7 +535,7 @@ export function sectorRoutes(app: FastifyInstance): void {
   route(app, 'post', '/v1/sectors/:sectorId/approve', async (request, reply, app) => {
     const pool = requirePool(app, reply)
     if (!pool) return undefined
-    const auth = await authorize(app, request, reply, 'operator')
+    const auth = await authorize(app, request, reply, 'approver')
     if (!auth) return undefined
     const params = request.params as { sectorId?: string }
     const sectorId = params.sectorId ?? ''

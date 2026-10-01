@@ -29,6 +29,7 @@ import {
   Wrench,
   X,
 } from 'lucide-react'
+import { downloadBlob } from '../lib/download'
 import { dockEnter, dockExit, popoverEnter, popoverExit, useExitState } from '@/lib/motion'
 import {
   cancelRun,
@@ -639,12 +640,7 @@ export function SessionFilesView({
     getArtifactBody(config, sessionId, file.id)
       .then((res) => {
         const blob = new Blob([res.body], { type: 'text/plain;charset=utf-8' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = file.name
-        a.click()
-        URL.revokeObjectURL(url)
+        downloadBlob(blob, file.name)
       })
       .catch(() => undefined)
   }

@@ -205,3 +205,47 @@ Gates (Wave 7): frontend lint 0 errors, typecheck clean, `npm test`
 276 passed / 6 skipped, `npm run build` clean, `npm run test:e2e`
 40 passed / 4 skipped exit 0. Backend live battery 78 files /
 480 tests exit 0 (bounded workers; see status entry on the DB wedge).
+
+## Hardening slice: plan editing and file preview
+
+Fixture browser journeys passed at 1440×960 and 390×960 in light/dark.
+Reviewed editor stills `hardening-editor-{1440,390}-{light,dark}.png`: pinned
+Save/Cancel, contained scrolling, readable fields, no sideways spill. Reviewed
+preview stills `hardening-preview-1440-light.png` and
+`hardening-preview-390-dark.png`: original-file action and markdown remain
+inside the dialog; mobile resources stay behind the preview. These are fixture
+results, not the Meta pilot. The four maintained `hardening surfaces` journeys
+assert anchors, Save bounds, Escape/focus return and contain no network data.
+Their videos are `frontend/test-results/workspace-hardening-surfaces-<width>-<theme>-chromium/video.webm`.
+
+A read-only walkthrough of an existing completed run exposed misleading future
+work copy in its empty ledger. The complete/failed regression failed before the
+fix; terminal runs now say no ledger was recorded and retain saved results.
+
+## Stream and company-list hardening (2026-10-01)
+
+Maintained browser matrix: 50 passed / 4 live-gated skips before the durable
+receipt extension. Company polling preserves a loaded 200-row window, and the
+1,000-row list remains navigable. The overflow journey hydrates 200 history rows
+plus the terminal answer and captures `hardening-overflow-recovery.png`.
+The two new receipt journeys capture `hardening-overflow-steering-consumed.png`
+and `hardening-overflow-steering-missed.png`; their results are recorded after
+verification, not inferred from fixtures. All these journeys use declared TEST
+fixtures and do not establish live-provider or deployment readiness.
+
+Latest full matrix: **52 passed / 4 live-gated skips**, exit 0. Inspected the
+consumed/missed steering stills: terminal answer stays visible, Stop clears,
+missed instructions return to the draft with a plain explanation and recovery
+control. No horizontal spill in either inspected desktop capture. Fixture EOF
+intentionally leaves the reconnect notice visible. Transition videos are:
+
+- `frontend/test-results/workspace-overflow-recover-70c20-consumed-steering-in-the-UI-chromium/video.webm`
+- `frontend/test-results/workspace-overflow-recover-8d4f1-s-missed-steering-in-the-UI-chromium/video.webm`
+
+The independent reviewer reran 13 frontend recovery cases and 13 isolated live
+DB/HTTP cases; this is additional verification of the slice, not a full release
+verdict. Remaining UI matrices and real-provider journeys stay acceptance gaps.
+
+Curated reviewed captures and the consumed/missed steering transition clips are
+retained in `tests/evidence/hardening-2026-10-01/` for PR review. They are labeled
+TEST fixture journeys; no production or real-provider claim is implied.

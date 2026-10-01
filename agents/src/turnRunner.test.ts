@@ -42,6 +42,46 @@ function memorySink(): { deltas: string[]; sink: { onDelta(text: string): void }
 }
 
 describe('runKarbotTurn', () => {
+  it.each([false, true])('does not publish a late tool completion or checkpoint after owner cancellation (resumed=%s)', async (resumed) => {
+    const abort = new AbortController()
+    let release: (value: { content: string }) => void = () => undefined
+    let entered: () => void = () => undefined
+    const called = new Promise<void>((resolve) => { entered = resolve })
+    const completions: string[] = []
+    const checkpoint = vi.fn()
+    const pending = runKarbotTurn({ systemPrompt: 'TEST instructions', messages: [{ role: 'user', text: 'TEST tool' }, ...(resumed ? [{ role: 'assistant' as const, toolCalls: [{ id: 'c1', name: 'db.list_sessions', args: {} }] }] : [])], signal: abort.signal,
+      ...(resumed ? { resume: { round: 1, usage: emptyUsage(), toolCalls: 1 } } : {}),
+      provider: new FakeProvider([{ text: '', toolCalls: [{ id: 'c1', name: 'db.list_sessions', args: {} }] }]),
+      mcp: { listTools: async () => [sessionTool()], callTool: async () => { entered(); return new Promise((resolve) => { release = resolve }) } },
+      sink: { onDelta: () => undefined, onTool: (_id, _name, state) => { completions.push(state) } }, onCheckpoint: checkpoint,
+    })
+    await called
+    const checkpointsBeforeCancellation = checkpoint.mock.calls.length
+    abort.abort(new Error('TEST owner cancelled'))
+    release({ content: 'Late result' })
+    await expect(pending).rejects.toThrow('TEST owner cancelled')
+    expect(completions).not.toContain('done')
+    expect(completions).not.toContain('failed')
+    expect(checkpoint).toHaveBeenCalledTimes(checkpointsBeforeCancellation)
+  })
+  it('aborts a timed-out provider and suppresses late frames even if it ignores cancellation', async () => {
+    let release: () => void = () => undefined
+    let finish: () => void = () => undefined
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const ended = new Promise<void>((resolve) => { finish = resolve })
+    let signal: AbortSignal | undefined
+    const provider: ProviderAdapter = {
+      providerName: 'timeout-test', chat: async () => { throw new Error('unused') },
+      async *chatStream(request) { signal = request.signal; await gate; try { yield { kind: 'text_delta', text: 'TEST late reply' }; yield { kind: 'done', usage: emptyUsage() } } finally { finish() } },
+    }
+    const { sink, deltas } = memorySink()
+    const turn = runKarbotTurn({ provider, mcp: memoryMcp(), sink, systemPrompt: 'sys', messages: [], timeoutMs: 5 })
+    const failure = await turn.then(() => null, (error: unknown) => error)
+    release(); await ended
+    expect(failure).not.toBeNull()
+    expect(signal?.aborted).toBe(true)
+    expect(deltas).toEqual([])
+  })
   it('shows a tool as soon as its provider stream starts', async () => {
     let release: () => void = () => undefined
     let announce: () => void = () => undefined
@@ -422,6 +462,25 @@ describe('runKarbotTurn harness', () => {
 })
 
 describe('StreamableMcpClient', () => {
+  it.each(['headers', 'body'])('bounds a hung %s response and aborts transport', async (stage) => {
+    let transportSignal: AbortSignal | undefined
+    const client = new StreamableMcpClient({ endpoint: 'https://mcp.internal/mcp', token: 'test-token', timeoutMs: 10,
+      fetchFn: async (_url, init) => {
+        transportSignal = init.signal
+        if (stage === 'headers') return new Promise(() => undefined)
+        return { ok: true, status: 200, text: () => new Promise(() => undefined) }
+      },
+    })
+    await expect(client.listTools()).rejects.toThrow(/deadline/)
+    expect(transportSignal?.aborted).toBe(true)
+  })
+  it('does not dispatch after the owning activity was cancelled', async () => {
+    const abort = new AbortController(); abort.abort()
+    const fetchFn = vi.fn()
+    const client = new StreamableMcpClient({ endpoint: 'https://mcp.internal/mcp', token: 'test-token', signal: abort.signal, fetchFn })
+    await expect(client.listTools()).rejects.toThrow(/aborted|cancelled/)
+    expect(fetchFn).not.toHaveBeenCalled()
+  })
   it('posts JSON-RPC with the injected endpoint and bearer token', async () => {
     const seen: Array<{ url: string; headers: Record<string, string>; body: string }> = []
     const client = new StreamableMcpClient({

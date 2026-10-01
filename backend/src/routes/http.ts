@@ -246,7 +246,7 @@ export function route(
         route: `${method.toUpperCase()} ${url}`,
         ...(request.traceContext ? { trace_id: request.traceContext.traceId } : {}),
         code: error instanceof WorkspaceError ? error.code : error instanceof RunNotFound ? 'not_found' : error instanceof ThreadNotAccepting ? 'conflict' : 'internal',
-        message: error instanceof Error ? error.message.slice(0, 300) : 'unknown route error',
+        errorType: error instanceof Error ? error.constructor.name : 'unknown',
       })
       return mapRouteError(reply, error)
     }

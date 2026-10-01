@@ -126,7 +126,9 @@ export function wrapPool<T extends Db>(db: T): T {
     } catch (error) {
       span.setStatus({
         code: SpanStatusCode.ERROR,
-        message: error instanceof Error ? error.message.slice(0, 200) : 'query failed',
+        // PG errors can echo private bound values. The original error
+        // remains available to the caller, never copied into public spans.
+        message: 'query failed',
       })
       throw error
     } finally {

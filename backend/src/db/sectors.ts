@@ -3,10 +3,10 @@
 // projector upsert, exactly like sessions/threads. Every read is
 // scope-filtered: with a scope, only the caller's tenant (and selected
 // project) is visible.
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import type { Scope } from '../auth/keys.js'
-import { appendEvent, readPartition } from './events.js'
+import { appendEvent, findEventByKey, readPartition } from './events.js'
 import { DbContractError } from './errors.js'
 import type { Db } from './events.js'
 
@@ -46,7 +46,7 @@ export const SECTOR_TRANSITIONS: Record<SectorState, readonly SectorState[]> = {
   approved: ['queued'],
   queued: ['running', 'failed'],
   running: ['paused', 'complete', 'failed'],
-  paused: ['running'],
+  paused: ['running', 'planned'],
   failed: ['planning', 'running'],
   complete: [],
 }
@@ -640,6 +640,21 @@ export async function markCompanyFound(
     },
   })
   return { companyId }
+}
+
+/** Sector-local discovery identity; adopt legacy ids only for their owner. */
+export async function registerSectorDiscovery(db: Db, input: { sectorId: string; domain: string; name: string; scope?: Scope }): Promise<{ companyId: string }> {
+  await requireSector(db, input.sectorId, input.scope)
+  if (!z.string().trim().min(1).max(253).safeParse(input.domain).success) throw new DbContractError('domain must be non-empty and at most 253 characters')
+  const domain = input.domain.toLowerCase().replace(/^www\./, '')
+  const legacy = await findEventByKey(db, `sweep-found:${input.sectorId}:${domain}`)
+  const payload = legacy ? CompanyFoundPayload.safeParse(legacy.payload) : undefined
+  if (payload?.success) {
+    const owner = await db.query<{ sector_id: string }>('SELECT sector_id FROM companies WHERE id=$1', [payload.data.companyId])
+    if (owner.rows[0]?.sector_id === input.sectorId) return { companyId: payload.data.companyId }
+  }
+  const companyId = `com-${createHash('sha256').update(JSON.stringify([input.sectorId, domain])).digest('hex').slice(0, 24)}`
+  return markCompanyFound(db, { sectorId: input.sectorId, name: input.name, companyId, idempotencyKey: `discovery-found:${input.sectorId}:${domain}`, scope: input.scope })
 }
 
 async function requireCompany(

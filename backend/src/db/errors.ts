@@ -6,8 +6,8 @@
 export class DbContractError extends Error {
   readonly code = 'db_contract'
 
-  constructor(message: string) {
-    super(`db contract: ${message}`)
+  constructor(message: string, options?: ErrorOptions) {
+    super(`db contract: ${message}`, options)
     this.name = 'DbContractError'
   }
 }

@@ -17,6 +17,8 @@ import {
 } from '../db/index.js'
 import {
   Client,
+  CancelledFailure,
+  WorkflowFailedError,
   WorkflowExecutionAlreadyStartedError,
   WorkflowNotFoundError,
   type WorkflowExecutionDescription,
@@ -25,6 +27,7 @@ import {
 import type { FakeStep } from '@kardata/agents'
 import { connectClient } from './connection.js'
 import { laneConfig } from './lanes.js'
+import { createLogger, logOp } from '../observability/logging.js'
 import { projectNewEvents } from '../projector.js'
 import { getThread, listThreads } from '../db/index.js'
 
@@ -87,6 +90,35 @@ export interface RunsGateway {
 }
 
 export const SESSION_PREFIX = 'session-run-'
+
+const researchGatewayLogger = createLogger({ op: 'research.execution.transition' })
+export interface ApprovedCoordinatorHandle {
+  workflowId: string
+  query(name: 'coordinatorState'): Promise<{ paused: boolean; planVersion?: number }>
+  signal(name: 'coordinatorResume'): Promise<void>
+  cancel(): Promise<unknown>
+  result(): Promise<unknown>
+}
+/** Only a confirmed paused, superseded execution may be replaced. */
+export async function ensureApprovedCoordinator(handle: ApprovedCoordinatorHandle, version: number, start: () => Promise<unknown>, closeTimeoutMs = 60_000): Promise<void> {
+  if (!Number.isInteger(version) || version < 1 || !Number.isFinite(closeTimeoutMs) || closeTimeoutMs <= 0) throw new TypeError('Invalid research transition limits')
+  return logOp(researchGatewayLogger, 'research.execution.transition', async () => {
+    const current = await handle.query('coordinatorState')
+    if (!current.planVersion || current.planVersion === version) { await handle.signal('coordinatorResume'); return }
+    if (!current.paused) throw new Error('Previous research is still stopping. Retry Start after it is paused.')
+    await handle.cancel()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      await Promise.race([
+        handle.result().catch((error: unknown) => {
+          if (!(error instanceof WorkflowFailedError && error.cause instanceof CancelledFailure)) throw error
+        }),
+        new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Previous research has not stopped. Retry Start after recovery.')), closeTimeoutMs) }),
+      ])
+    } finally { if (timer) clearTimeout(timer) }
+    await start()
+  }, { workflowId: handle.workflowId, planVersion: version })
+}
 
 /** Delegation parent workflow id for a session: one parent per session,
  * created on first delegation, shared by all its children. */
@@ -329,16 +361,17 @@ export class TemporalRunsGateway implements RunsGateway {
     const client = await this.client()
     const plan = await readSectorPlan(this.pool, sectorId, scope)
     const approved = plan?.versions.find((entry) => entry.version === plan.approvedVersion)
-    try {
-      await client.workflow.start(approved?.executable ? 'sectorCoordinator' : 'sectorSweep', {
+    const start = () => client.workflow.start(approved?.executable ? 'sectorCoordinator' : 'sectorSweep', {
         workflowId: `sector-sweep-${sectorId}`,
         taskQueue: laneConfig('research').taskQueue,
         args: [{ sectorId, ...(scope === undefined ? {} : { scope }) }],
       })
+    try {
+      await start()
     } catch (error) {
       if (error instanceof WorkflowExecutionAlreadyStartedError) {
         const handle = client.workflow.getHandle(`sector-sweep-${sectorId}`)
-        if ((await handle.describe()).type === 'sectorCoordinator') await handle.signal('coordinatorResume')
+        if ((await handle.describe()).type === 'sectorCoordinator' && approved) await ensureApprovedCoordinator(handle, approved.version, start)
         return { commandId: commandId(), state: 'accepted' }
       }
       throw error

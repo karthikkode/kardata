@@ -1,9 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { FakeProvider } from './fake.js'
-import { assembledTokens, compactContext, contextInputBudget } from './compaction.js'
+import { assembledTokens, compactContext, contextInputBudget, ContextBudgetError } from './compaction.js'
 import type { ChatMessage, ProviderAdapter } from './providers.js'
 
 describe('independent compaction', () => {
+  it('parks summarizer and post-summary measurement failures without losing their cause', async () => {
+    const failure = new Error('provider unavailable')
+    const messages: ChatMessage[] = Array.from({ length: 8 }, (_, i) => ({ role: 'user', text: `objective ${i}` }))
+    const fake = new FakeProvider([{ text: 'Durable summary' }])
+    const summarizeFailure: ProviderAdapter = { providerName: 'test', chat: async () => { throw failure }, chatStream: (request) => fake.chatStream(request) }
+    await expect(compactContext({ provider: summarizeFailure, system: '', messages, tools: [], force: true })).rejects.toMatchObject({ constructor: ContextBudgetError, cause: failure })
+    let counts = 0
+    const countFailure: ProviderAdapter = { providerName: 'test', chat: (request) => fake.chat(request), chatStream: (request) => fake.chatStream(request), countInputTokens: async () => { if (++counts === 2) throw failure; return 90000 } }
+    await expect(compactContext({ provider: countFailure, system: '', messages, tools: [], force: true })).rejects.toMatchObject({ constructor: ContextBudgetError, cause: failure })
+  })
   it('counts system, history and complete tool schemas together', () => {
     const messages: ChatMessage[] = [{ role: 'user', text: 'task' }]
     const plain = assembledTokens('instructions', messages, [])

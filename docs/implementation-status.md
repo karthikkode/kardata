@@ -1,5 +1,104 @@
 # Implementation status
 
+The full browser matrix exposed a company pagination bug: its five-second poll
+replaced 600 loaded rows with the first 100. Polling now reloads the requested
+window, while query changes reset it. A named browser journey crosses the poll
+and checks refreshed rows plus retained totals; pagination failures are visible
+instead of swallowed. This is a product fix, not a timing exemption.
+
+Worker startup now activates the existing redacting logger and SDK metrics;
+Prometheus configuration targets worker:9464. Structured errors omit private
+bodies/stacks, and SDK task tokens are redacted. This wiring still needs its
+local deployment/scrape gate; no live activation is claimed from unit checks.
+The live UI pilot is waiting on an owner-configured approver credential: the
+current UI key is operator and was not granted new permissions.
+
+Archive regressions reproduced conflicting-ID overwrite, concurrent corruption,
+unsafe keys and swallowed listing errors. Content-addressed references now keep
+winning bytes immutable and validate stored/index hashes; legacy flat records
+stay readable. Cross-tenant source imports and scoped MCP event plumbing were
+also reproduced and denied. Former unit fixtures claiming scoped platform
+access now explicitly test internal unscoped bindings; HTTP scope-denial
+regressions remain the product authority gate.
+
+Fresh reviewer recovery findings now have maintained regressions: delayed setup
+is raced immediately against heartbeat failure/cancellation, and tool dispatch
+checks owning cancellation before completion frames or further checkpoints.
+Cumulative coordinator active-operation time now has durable sector checkpoints
+and appears in progress; the real Temporal suite verifies pause exclusion and
+revised-plan replacement (28 combined recovery/planning cases passed).
+
+Plan-write replay returned the newest version rather than the original result
+when later edits existed. The live `api.sectors` regression failed before the
+fix; version results now count plan events through the stored operation seq.
+Terminal empty-ledger copy likewise has failing-before/passing-after UI proof.
+
+The isolated fleet test passed 10/50/100/1,000 logical child tiers in 536.79s
+using scripted providers with real HTTP MCP, Temporal, Postgres and indexed
+artifacts. This is not a provider-capacity benchmark; the later measured run and explicit
+limits are recorded in `deep-checks/README.md`. MCP transport now bounds headers/body
+and propagates activity cancellation. Reviewer operations include workflow run
+identity; live reused-reviewer regression passed.
+
+Independent hardening review identified blank-quotation acceptance and transcript
+hydration through the MCP thread directory. Both now have regressions: normalized
+blank quotes are rejected and directory reads return headers only. Acceptance
+reports explicitly qualify sampled evidence. Review remains changes-required
+until the wider live gates and release catalogue are complete.
+
+## Repo hardening: initial correctness/recovery slices (2026-10-01, ongoing)
+
+- Working branch remains `codex/deep-checks-sector-hardening`; no merge or
+  deployment/pilot completion is claimed. File catalogue release gate still
+  refuses pending reviews. Primary-source comparisons are in
+  `deep-checks/opensource-comparison.md`.
+- Reproduced/fixed: executable plan loss on text edits; workspace queued-send,
+  EOF and draft races; failed heartbeat throttling; cyclic scrub/token-counter
+  redaction; provider timeout late frames; SQL error values in trace export;
+  concurrent migrator races; projector/outbox cursors overtaking uncommitted
+  sequence numbers; scan filename aliasing when OCR was unavailable.
+- Real DB authority tests now cover invalid execution signatures, cross-tenant
+  thread/run access, denied leaf delegation, protected deletion before cancel,
+  normal proposal approval, parent autonomy and child proposal routing.
+- Independent reviewer found child lifecycle key reuse, missed steering,
+  queued-request loss during reconnect, oversized-continuation repair, false
+  discovery completion and pagination exhaustion defects. Follow-up fixes and
+  maintained regressions added; fresh final review remains required.
+- Real Temporal checks passed for context park/resume, reused child identities,
+  planning transcript/terminal output, and discovery acceptance. Discovery
+  reviewers use ten-entry cohorts (at most two active) because a 50-fetch turn
+  cannot fit the existing 25-tool budget. Acceptance report is indexed only
+  after fetched-source/criteria/sample validation.
+- Red test root causes: initial discovery/replay tests used wrong helper
+  signatures; corrected to the repository contracts. Planning test created
+  then read a sector without projector catch-up; now projects and creates a
+  genuine research session, with isolated turn/research queues. OCR-version
+  fixture initially lacked image magic; corrected synthetic image fixture,
+  then observed the maintained test fail on original alias logic and pass on
+  the fix. Reviewer fixture included an unsupported name field; corrected to
+  strict result shape. Browser heading query matched both Discovery and
+  Australian discovery; exact accessible heading now pins its intended anchor.
+- Generated soak output moved to ignored backend/test-results rather than
+  rewriting a tracked report. No shared database cleanup was performed.
+- Whole-file audit, durable per-round inspection/evaluation, production
+  reconciliation, full stress envelope, live-provider UI pilot and PR checklist
+  remain acceptance gaps. Current successes are recorded slice by slice.
+
+## Repo hardening: database test isolation (in progress, 2026-09-30)
+
+- Branch: `codex/deep-checks-sector-hardening`; approved contract in
+  `../documentation/plans/2026-09-30-repo-hardening.md`.
+- Root cause: migration round-trips used `TEST_DATABASE_URL` directly,
+  dropping the shared base schema. Other suites reused fixed database names,
+  including potentially half-migrated leftovers after interrupted runs.
+- Fix: validated test-only names, fresh UUID-suffixed database per harness
+  invocation, round-trips on their own databases. No automatic cleanup or
+  shared database mutation. Six unsafe-name regressions failed before the
+  fix and pass after it. Hermetic harness/migration suite: 8 passed, 2
+  live-gated skipped. Live proof is still pending.
+- The overall hardening, catalogue, UI evidence, recovery/scale gates and
+  Meta pilot remain unfinished. This entry records one slice only.
+
 ## Deep-check round on frontend-revamp (2026-09-30)
 
 - Four independent audit subagents (contract/parity, deep-check
@@ -1866,3 +1965,40 @@ scale claims with evidence links.
   (gateway union widened already), tokenCap retune, frontend
   surfaces (Files tab, Plan mode, approval cards, pillar tabs stay in
   the stashed revamp tree).
+
+## Hardening regressions: report attempts and stream overflow (2026-10-01)
+
+- Immutable report IDs now include the owning workflow run, so a new acceptance
+  attempt after an archive-success/checkpoint-failure window preserves the earlier
+  report instead of conflicting with its bytes. The isolated real-DB activity
+  recovery regression passed; this proof does not exercise a live Meta provider.
+- Company polling retains loaded windows and de-duplicates overlapping IDs while
+  paging by raw row offset. Three hook regressions and the browser polling
+  regression passed.
+- Overflow snapshots previously skipped terminal messages while advancing the
+  stream token. Recovery now drains 200-row REST pages, including hidden-only
+  pages, and advances the token only after hydration. The stream recovery battery
+  passed 21 cases. UI evidence is captured by the
+  maintained workspace overflow scenario; The full browser matrix passed 50 cases with 4 explicitly live-gated skips;
+  release-wide verification remains open.
+- The gate caught two ref writes during render in company-window reset. Resets
+  now run in a query-identity effect; all three window regressions pass.
+
+- Independent review found cursor-only EOF recovery lost steering receipts and
+  streamed prefixes. The resumed follower now retains the full accumulator.
+  Review also found overflow skipped receipts: a scope-checked durable receipt
+  page endpoint now restores consumed/missed outcomes before snapshot acceptance.
+  Focused frontend recovery tests passed 13; scoped HTTP/contract battery passed
+  29 against isolated Postgres. Full gates are rerun after these changes.
+
+- Latest complete local gates: pr:verify frontend 301/6 skipped, agents 202,
+  backend 373/243 skipped; Postgres battery 555/59 skipped; selected real
+  Temporal recovery/planning 28 passed; browser matrix 52/4 live-gated skips.
+  Backend build passed separately. Independent reviewer verified 13 isolated
+  DB/HTTP cases and cleared both stream findings after fresh recovery tests.
+  No deployment, merge, complete audit, or Meta pilot is claimed.
+
+- The release catalogue gate was watched fail on 431 pending file reviews.
+  This is an explicit unfinished acceptance requirement, not a weakened gate.
+  Curated UI binaries remain local under the existing ignore convention; remote
+  PR binary attachments remain outstanding.

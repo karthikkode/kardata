@@ -10,7 +10,8 @@ import { Pool } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { readPartition } from '../../backend/src/db/index.js'
+import { getThread, readPartition } from '../../backend/src/db/index.js'
+import { projectNewEvents } from '../../backend/src/projector.js'
 import { connectClient, connectWorker, temporalNamespace } from '../../backend/src/temporal/connection.js'
 import { createLaneWorker } from '../../backend/src/temporal/worker.js'
 import { appendEventActivity, karbotTurnActivity } from '../../backend/src/temporal/activities/turn.js'
@@ -152,6 +153,26 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4)', () => {
   async function childSummary(childId: string): Promise<Summary> {
     return (await client.workflow.getHandle(childId).query('childSummary')) as Summary
   }
+
+  it('keeps fresh lifecycle and reply events when a closed child identity is reused', async () => {
+    const sessionId = `reuse-${Date.now()}`, childId = `reuse-child-${Date.now()}`
+    for (const label of ['first', 'second']) {
+      const parent = await startParent(sessionId)
+      try {
+        await parent.handle.signal('parentDelegate', delegate(childId, `TEST ${label} goal`, { fakeSteps: [{ text: `${label} reply` }] }))
+        const child = client.workflow.getHandle(childId)
+        await waitFor(async () => (await events(`session:${sessionId}`)).filter((event) => event.type === 't.subagent.launched' && event.payload['childId'] === childId).length === (label === 'first' ? 1 : 2), 30000, 'fresh child launch')
+        const pool = new Pool({ connectionString: url })
+        try { await projectNewEvents(pool); expect((await getThread(pool, `agent:${childId}`))?.status).toBe('RUNNING') } finally { await pool.end() }
+        await child.signal('childMessage', `${label} request`)
+        await waitFor(async () => (await events(`child:${childId}`)).some((event) => (event.payload['message'] as { text?: string } | undefined)?.text === `${label} reply`), 30000, 'fresh child reply')
+        await child.signal('childFinish')
+        expect(await child.result()).toBe('finished')
+      } finally { await parent.handle.cancel(); await parent.handle.result().catch(() => undefined) }
+    }
+    const rows = await events(`session:${sessionId}`)
+    expect(rows.filter((event) => event.type === 't.subagent.completed' && (event.payload['summary'] as { id?: string } | undefined)?.id === childId)).toHaveLength(2)
+  }, 120000)
 
   it('launches a child with a full isolation record', async () => {
     const sessionId = `iso-${Date.now()}`

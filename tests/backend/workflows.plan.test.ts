@@ -9,7 +9,8 @@ import { Pool } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createSector, listSectorCompanies } from '../../backend/src/db/index.js'
+import { createSector, ensureResearchSession, getThread, listSectorCompanies } from '../../backend/src/db/index.js'
+import { projectNewEvents } from '../../backend/src/projector.js'
 import { connectClient, connectWorker, temporalNamespace } from '../../backend/src/temporal/connection.js'
 import { createLaneWorker } from '../../backend/src/temporal/worker.js'
 import { loadSweepContextActivity } from '../../backend/src/temporal/activities/sweep.js'
@@ -18,7 +19,7 @@ import {
   setPlanStateActivity,
   writePlanArtifactActivity,
 } from '../../backend/src/temporal/activities/plan.js'
-import { karbotTurnActivity } from '../../backend/src/temporal/activities/turn.js'
+import { appendEventActivity, karbotTurnActivity } from '../../backend/src/temporal/activities/turn.js'
 import { ensureTestDb } from './db-helper.js'
 
 const ENABLED = process.env['KARDATA_TEMPORAL_TEST'] === '1'
@@ -39,6 +40,8 @@ describe.skipIf(!ENABLED)('sector plan workflow (P2)', () => {
   let client: WorkflowClient
   let url = ''
   let worker: Worker
+  let turnWorker: Worker
+  let turnRun: Promise<void>
   let run: Promise<void>
 
   beforeAll(async () => {
@@ -58,17 +61,19 @@ describe.skipIf(!ENABLED)('sector plan workflow (P2)', () => {
         readSectorPlanActivity,
         setPlanStateActivity,
         writePlanArtifactActivity,
-        karbotTurnActivity,
       },
       taskQueue: `kardata-test-plan-${Date.now()}`,
     })
     run = worker.run()
     run.catch(() => undefined)
+    turnWorker = await createLaneWorker({ lane: 'turn', connection, namespace: temporalNamespace(), workflowsPath: WORKFLOWS_PATH, taskQueue: `${(worker.options as { taskQueue: string }).taskQueue}-turn`, activities: { appendEventActivity, karbotTurnActivity } })
+    turnRun = turnWorker.run()
   }, 120_000)
 
   afterAll(async () => {
     worker.shutdown()
-    await run
+    turnWorker.shutdown()
+    await Promise.all([run, turnRun])
     await connection.close()
     delete process.env['DATABASE_URL']
     delete process.env['KARDATA_PROVIDER']
@@ -89,14 +94,16 @@ describe.skipIf(!ENABLED)('sector plan workflow (P2)', () => {
         sectorId,
         initialState: 'planning',
       })
+      await projectNewEvents(pool)
       const handle = await client.workflow.start('sectorPlan', {
         taskQueue: taskQueue(),
         workflowId: `sector-plan-${sectorId}`,
         args: [{
           sectorId,
-          sessionId: `plan-chat-${sectorId}`,
+          sessionId: (await ensureResearchSession(pool, sectorId, { tenantId: 'tenant-plan', projectId: null })).id,
+          turnTaskQueue: `${taskQueue()}-turn`,
           scope: { tenantId: 'tenant-plan', projectId: null },
-          fakeSteps: [{ text: '## scope\nFoods.\n## direction shards\nTwo.\n## query shapes\nSome.\n## budgets\nLow.\n## risks\nFew.\n## open questions\nNone.' }],
+          fakeSteps: [{ text: `## scope\nTEST Foods.\n## direction shards\nTwo.\n## query shapes\nSome.\n## budgets\nLow.\n## risks\nFew.\n## open questions\nNone.\n\n\`\`\`research-plan\n${JSON.stringify({ researchDepth: 'discovery', discoveryTarget: 1, discovery: [{ id: 'foods', title: 'TEST Foods', queries: ['Australian food manufacturers'], maxPages: 1 }], companyBrief: 'Verify company identities', budgets: { maxCompanies: 10, maxWallMinutes: 5, concurrency: 2 }, acceptance: ['Evidence-backed identities'] })}\n\`\`\`` }],
         }],
       })
       expect(await handle.result()).toBe('planned')
@@ -104,6 +111,12 @@ describe.skipIf(!ENABLED)('sector plan workflow (P2)', () => {
       expect(plan?.versions).toHaveLength(1)
       expect(plan?.latest?.markdown).toContain('direction shards')
       expect(plan?.latest?.version).toBe(1)
+      const session = await ensureResearchSession(pool, sectorId, { tenantId: 'tenant-plan', projectId: null })
+      await projectNewEvents(pool)
+      const history = (await getThread(pool, session.id))?.messages.map((message) => (message.payload as { text?: string }).text)
+      expect(history?.some((text) => text?.includes('Prepare the research plan'))).toBe(true)
+      expect(history?.some((text) => text?.includes('TEST Foods.'))).toBe(true)
+      expect(history?.some((text) => text?.includes('```research-plan'))).toBe(false)
       const companies = await listSectorCompanies(pool, sectorId, { tenantId: 'tenant-plan', projectId: null })
       expect(companies.total).toBe(0)
     } finally {
@@ -122,12 +135,14 @@ describe.skipIf(!ENABLED)('sector plan workflow (P2)', () => {
         sectorId,
         initialState: 'planning',
       })
+      await projectNewEvents(pool)
       const handle = await client.workflow.start('sectorPlan', {
         taskQueue: taskQueue(),
         workflowId: `sector-plan-${sectorId}`,
         args: [{
           sectorId,
-          sessionId: `plan-chat-${sectorId}`,
+          sessionId: (await ensureResearchSession(pool, sectorId, { tenantId: 'tenant-plan', projectId: null })).id,
+          turnTaskQueue: `${taskQueue()}-turn`,
           scope: { tenantId: 'tenant-plan', projectId: null },
           fakeSteps: [{ text: '   ' }],
         }],

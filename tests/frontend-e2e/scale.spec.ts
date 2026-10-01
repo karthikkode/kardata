@@ -32,7 +32,8 @@ const DETAIL = {
   activityTotal: 0,
 }
 
-async function serveScaleApi(page: Page): Promise<void> {
+async function serveScaleApi(page: Page, refreshNames = false): Promise<() => void> {
+  let refreshed = false
   await page.route('**/v1/**', async (route) => {
     const url = new URL(route.request().url())
     let data: unknown = []
@@ -41,10 +42,12 @@ async function serveScaleApi(page: Page): Promise<void> {
     else if (url.pathname === '/v1/companies') {
       const limit = Number(url.searchParams.get('limit') ?? '100')
       const offset = Number(url.searchParams.get('offset') ?? '0')
-      data = { companies: COMPANIES.slice(offset, offset + limit), total: COMPANIES.length }
+      const companies = COMPANIES.slice(offset, offset + limit).map((company) => refreshNames && refreshed ? { ...company, name: company.name.replace('Scale', 'Refreshed') } : company)
+      data = { companies, total: COMPANIES.length }
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data }) })
   })
+  return () => { refreshed = true }
 }
 
 test('scale: 1000 companies walkable through Show more with truthful totals', async ({ page }) => {
@@ -66,4 +69,16 @@ test('scale: 1000 companies walkable through Show more with truthful totals', as
   console.log(`[scale-e2e] thousandWalkMs=${walkMs}`)
   await expect(page.getByText('Showing 1000 of 1000 companies')).toBeVisible()
   await expect(page.getByRole('button', { name: /Show more/ })).toHaveCount(0)
+})
+
+test('scale: polling updates loaded company rows without collapsing the window', async ({ page }) => {
+  const refresh = await serveScaleApi(page, true)
+  await page.goto('/?section=SectorDetail&sector=sec-scale-1')
+  await expect(page.getByText('Scale company 100')).toBeVisible()
+  await page.getByRole('button', { name: 'Show more (100 of 1000)' }).click()
+  await expect(page.getByText('Showing 200 of 1000 companies')).toBeVisible()
+  refresh()
+  await expect(page.getByText('Refreshed company 200')).toBeVisible({ timeout: 10000 })
+  await expect(page.getByText('Showing 200 of 1000 companies')).toBeVisible()
+  await page.screenshot({ path: 'test-results/visual/hardening-company-window-poll.png', animations: 'disabled' })
 })

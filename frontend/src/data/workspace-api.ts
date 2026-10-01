@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ResearchPlanVersion } from './research-plan'
 import { request, StagingApiError, type Session, type StagingConfig } from './staging-api'
 
 export const Sections = z.object({ scope: z.string(), decisions: z.string(), findings: z.string(), questions: z.string() })
@@ -12,11 +13,13 @@ export type ContextPreview = z.infer<typeof Preview>
 export const getContextPreview = (config: StagingConfig, id: string, proposal: string) => read(config, 'GET', `${sectorPath(id)}/global-context/proposals/${encodeURIComponent(proposal)}`, Preview)
 const File = z.object({ id: z.string(), filename: z.string(), status: z.string(), source: z.string(), hash: z.string(), hidden: z.boolean(), included: z.boolean(), kind: z.enum(['document','artifact']), sessionId: z.string().optional() })
 export type LibraryFile = z.infer<typeof File>
+const FileBody = z.object({ filename: z.string(), mediaType: z.string(), text: z.string(), originalAvailable: z.boolean(), contentBase64: z.string().optional() })
+export type SectorFileBody = z.infer<typeof FileBody>
 const Local = z.object({ threadKey: z.string(), notes: z.string(), summary: z.string(), coveredSeq: z.number(), version: z.number(), usage: z.object({ inputTokens: z.number(), budget: z.number(), window: z.number(), method: z.enum(['exact','estimated']) }).optional() })
 export type LocalContext = z.infer<typeof Local>
-const WorkItem = z.object({ id: z.string(), kind: z.enum(['discovery','company']), title: z.string(), state: z.enum(['pending','running','complete','blocked','failed']), attempts: z.number(), childId: z.string().nullable(), evidence: z.array(z.string()), detail: z.string() })
-const PlanVersion = z.object({ version: z.number(), markdown: z.string(), at: z.string() }).passthrough()
-const Progress = z.object({ sectorId: z.string(), state: z.string(), planVersion: z.number(), plan: z.object({ latest: PlanVersion.nullable(), versions: z.array(PlanVersion), approvals: z.array(z.number()), approvedVersion: z.number().nullable() }).optional(), items: z.array(WorkItem), completed: z.number(), total: z.number(), unresolved: z.number(), discoveryClosed: z.boolean(), estimatedPercent: z.number().nullable() })
+const WorkItem = z.object({ id: z.string(), kind: z.enum(['discovery','company']), title: z.string(), state: z.enum(['pending','running','complete','blocked','failed']), attempts: z.number(), childId: z.string().nullable(), evidence: z.array(z.string()), detail: z.string(), sourceUrl: z.string().url().optional() })
+const PlanVersion = ResearchPlanVersion
+const Progress = z.object({ budgetUsedMs: z.number().int().nonnegative().optional(), sectorId: z.string(), state: z.string(), planVersion: z.number(), plan: z.object({ latest: PlanVersion.nullable(), versions: z.array(PlanVersion), approvals: z.array(z.number()), approvedVersion: z.number().nullable() }).optional(), items: z.array(WorkItem), completed: z.number(), total: z.number(), unresolved: z.number(), discoveryClosed: z.boolean(), estimatedPercent: z.number().nullable() })
 export type ResearchProgress = z.infer<typeof Progress>
 const sectorPath = (id: string) => `/v1/sectors/${encodeURIComponent(id)}`
 const threadPath = (id: string) => `/v1/threads/${encodeURIComponent(id)}/context`
@@ -30,6 +33,7 @@ export const saveGlobalContext = (config: StagingConfig, id: string, baseVersion
 export const proposeGlobalContext = (config: StagingConfig, id: string, baseVersion: number, sections: Sections, sourceThread: string) => read(config, 'POST', `${sectorPath(id)}/global-context/proposals`, Change, { baseVersion, sections, sourceThread })
 export const decideGlobalContext = (config: StagingConfig, id: string, proposalId: string, approve: boolean) => read(config, 'POST', `${sectorPath(id)}/global-context/proposals/${encodeURIComponent(proposalId)}/decision`, Change, { approve })
 export const getSectorFiles = (config: StagingConfig, id: string) => read(config, 'GET', `${sectorPath(id)}/files`, z.array(File))
+export const getSectorFileBody = (config: StagingConfig, id: string, fileId: string) => read(config, 'GET', `${sectorPath(id)}/files/${encodeURIComponent(fileId)}/body`, FileBody)
 export const hideSectorFile = (config: StagingConfig, id: string, fileId: string, hidden: boolean) => read(config, 'PATCH', `${sectorPath(id)}/files/${encodeURIComponent(fileId)}`, File, { hidden })
 export const includeSectorFile = (config: StagingConfig, id: string, fileId: string, baseVersion: number, sourceThread: string) => read(config, 'POST', `${sectorPath(id)}/files/${encodeURIComponent(fileId)}/context`, Change, { baseVersion, sourceThread })
 export const getLocalContext = (config: StagingConfig, thread: string) => read(config, 'GET', threadPath(thread), Local)

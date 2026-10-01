@@ -40,7 +40,7 @@ import {
   listSectors,
   listSessions,
   listTenantArtifacts,
-  listThreads,
+  listThreadHeaders,
   markCompanyFound,
   projectBatch,
   projectUsage,
@@ -98,6 +98,7 @@ import type { ArchiveTarget } from '../archive/targets.js'
 type BrowserActArgs = BrowserAct
 
 export interface McpToolContext {
+  runReader?: { getRun(runId: string): Promise<{ sessionId: string; threadKey: string } | null> }
   executionThread?: string
   pool: TransactableDb
   scope: Scope | undefined
@@ -164,7 +165,7 @@ export const TOOL_LAYER: Record<McpToolName, string> = {
   'db.list_tenant_artifacts': 'listTenantArtifacts',
   'db.find_launch_parent': 'findLaunchParentWorkflowId',
   'db.get_thread': 'getThread',
-  'db.list_threads': 'listThreads',
+  'db.list_threads': 'listThreadHeaders',
   'db.send_message': 'sendThreadMessage',
   'db.steer_thread': 'steerThread',
   'db.pause_run': 'pauseThreadRun',
@@ -205,6 +206,15 @@ export const TOOL_LAYER: Record<McpToolName, string> = {
  * plus, in Karbot flows, explicit user confirmation). Sensitive covers key
  * material, raw projection writes, and the exactly-once primitives. */
 export type ToolCapability = 'read' | 'write' | 'sensitive'
+
+/** Platform plumbing has no tenant/thread attribution and is never a
+ * product capability for an authenticated scoped caller. */
+export const PLATFORM_INTERNAL_TOOLS: ReadonlySet<McpToolName> = new Set([
+  'db.append_event', 'db.read_partition', 'db.find_event', 'db.read_events_after',
+  'db.project_batch', 'db.record_heartbeat', 'db.list_heartbeats', 'db.subscribe_outbox',
+  'db.project_usage', 'db.fleet_totals', 'db.find_key', 'db.check_rate',
+  'db.claim_idempotency', 'db.complete_idempotency', 'db.release_idempotency',
+])
 
 const SENSITIVE_TOOLS: ReadonlySet<McpToolName> = new Set([
   'db.find_key',
@@ -476,6 +486,7 @@ const INVOKERS: Invokers = {
         ...(args.detail === undefined ? {} : { detail: args.detail }),
         ...(args.reason === undefined ? {} : { reason: args.reason }),
         scope: ctx.scope,
+        producedBy: ctx.executionThread,
       },
       ctx.archive,
     ),
@@ -500,7 +511,7 @@ const INVOKERS: Invokers = {
     }
     return target
   },
-  'db.list_threads': (ctx, args) => listThreads(ctx.pool, args.sessionId),
+  'db.list_threads': (ctx, args) => listThreadHeaders(ctx.pool, args.sessionId),
   'db.send_message': async (ctx, args) => {
     try {
       return await sendThreadMessage(ctx.messenger, args.threadKey, args.text)
@@ -685,6 +696,7 @@ export async function invokeTool(
     if (!roleLevelAtLeast(ctx.role, meta.minRole)) {
       throw new McpToolError('permission_denied', `role ${ctx.role} cannot call ${name} (needs ${meta.minRole})`)
     }
+    if ((ctx.scope || ctx.executionThread) && PLATFORM_INTERNAL_TOOLS.has(name)) throw new McpToolError('permission_denied', 'Platform internals are unavailable to scoped callers. Use authorized product tools.')
     if (grant.allow !== undefined && !grant.allow.has(name)) {
       throw new McpToolError('permission_denied', `tool ${name} is outside this skill's grant`)
     }
@@ -695,8 +707,20 @@ export async function invokeTool(
       const where = first ? [...first.path.map(String), first.message].join(': ') : 'invalid input'
       throw new McpToolError('validation_failed', `${name}: ${where}`)
     }
+    if (ctx.scope && ['db.get_thread', 'db.send_message', 'db.steer_thread', 'db.read_outbox'].includes(name)) {
+      await requireThread(ctx.pool, (parsed.data as { threadKey: string }).threadKey, ctx.scope)
+    }
+    if (ctx.scope && name === 'db.subscribe_outbox') throw new McpToolError('permission_denied', 'Unattributed fleet notifications are unavailable to scoped callers.')
+    if (ctx.scope && ['db.list_threads', 'db.list_artifacts', 'db.resolve_artifact_scope'].includes(name)) {
+      const target = await getSession(ctx.pool, (parsed.data as { sessionId: string }).sessionId, ctx.scope)
+      if (!target) throw new McpToolError('permission_denied', 'Conversation is outside the authorized scope.')
+    }
     if (ctx.executionThread) {
       const actor = await requireThread(ctx.pool, ctx.executionThread, ctx.scope)
+      if (name === 'db.delegate_subagent' && actor.thread.kind === 'subagent') throw new McpToolError('permission_denied', 'Leaf subagents cannot delegate further.')
+      if (name === 'db.delete_session') throw new McpToolError('permission_denied', 'Conversation deletion requires owner confirmation in the UI.')
+      if (name === 'db.set_sector_state') throw new McpToolError('permission_denied', 'Use the approved research lifecycle operations.')
+      if (name === 'db.resume_run' && typeof parsed.data === 'object' && parsed.data !== null && 'extendedBudgetMs' in parsed.data && parsed.data.extendedBudgetMs !== undefined) throw new McpToolError('permission_denied', 'Budget changes require owner approval in the UI.')
       const sectorId = actor.session.sectorId
       if (sectorId && typeof parsed.data === 'object' && parsed.data !== null) {
         const args = parsed.data as Record<string, unknown>
@@ -713,6 +737,16 @@ export async function invokeTool(
         }
         if (['db.list_sessions','db.list_companies','db.research_health','db.query_document'].includes(name)) args['sectorId'] = sectorId
         if (name === 'db.create_artifact') args['producedBy'] = ctx.executionThread
+      }
+    }
+    if (['db.pause_run', 'db.resume_run', 'db.cancel_run'].includes(name) && (ctx.scope || ctx.executionThread)) {
+      if (!ctx.runReader) throw new DbContractError('A scoped run reader is required.')
+      const run = await ctx.runReader.getRun((parsed.data as { runId: string }).runId)
+      const target = run ? await getSession(ctx.pool, run.sessionId, ctx.scope) : undefined
+      if (!run || !target) throw new McpToolError('permission_denied', 'Run is outside the authorized scope.')
+      if (ctx.executionThread) {
+        const actor = await requireThread(ctx.pool, ctx.executionThread, ctx.scope)
+        if (actor.session.sectorId && (target.sectorId !== actor.session.sectorId || target.id !== actor.session.id || (actor.thread.kind === 'subagent' && run.threadKey !== actor.thread.key))) throw new McpToolError('permission_denied', 'Run is outside this conversation.')
       }
     }
     const invoker = INVOKERS[name] as (ctx: McpToolContext, args: unknown) => Promise<unknown>

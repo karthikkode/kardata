@@ -8,6 +8,7 @@ import type { Scope } from '../auth/keys.js'
 import { DbContractError } from './errors.js'
 import { getSession, type Db } from './events.js'
 import { getSector, recordResearchSession, setSectorState } from './sectors.js'
+import { readGlobalContext } from './workspace.js'
 import { readSectorPlan } from './sector-plan.js'
 
 export type SectorStartFailure = 'not_found' | 'conflict' | 'overload'
@@ -49,6 +50,9 @@ export async function startSectorResearch(
   const plan = await readSectorPlan(db, sectorId, scope)
   if (!plan?.versions.find((entry) => entry.version === plan.approvedVersion)?.executable) {
     throw new SectorStartError('conflict', 'Create and approve an executable plan before starting research.')
+  }
+  if (plan.approvedContext && (await readGlobalContext(db, sectorId, scope)).sections.scope !== plan.approvedContext.scope) {
+    throw new SectorStartError('conflict', 'Shared scope changed. Revise and approve the plan before starting.')
   }
   // The calling chat owns the pin: it must exist and belong to this
   // sector, otherwise another session could claim the research.

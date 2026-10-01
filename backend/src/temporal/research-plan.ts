@@ -1,14 +1,21 @@
 import { z } from 'zod'
 
 export const ExecutablePlan = z.object({
-  discovery: z.array(z.object({ id: z.string().min(1), title: z.string().min(1), queries: z.array(z.string().min(1)).min(1).max(30), maxPages: z.number().int().min(1).max(10) }).strict()).min(1).max(30),
+  researchDepth: z.enum(['discovery', 'company']).optional(),
+  discoveryTarget: z.number().int().min(1).max(2000).optional(),
+  discovery: z.array(z.object({ id: z.string().min(1), title: z.string().min(1), queries: z.array(z.string().trim().min(1).max(300)).min(1).max(30), maxPages: z.number().int().min(1).max(10) }).strict()).min(1).max(30),
   companyBrief: z.string().min(1).max(12000),
-  budgets: z.object({ maxCompanies: z.number().int().min(1).max(1000), maxWallMinutes: z.number().int().min(1).max(1440), concurrency: z.literal(2) }).strict(),
+  budgets: z.object({ maxCompanies: z.number().int().min(1).max(2000), maxWallMinutes: z.number().int().min(1).max(1440), concurrency: z.literal(2) }).strict(),
   acceptance: z.array(z.string().min(1)).min(1).max(20),
-}).strict()
+}).strict().superRefine((plan, ctx) => {
+  if (new Set(plan.discovery.map((direction) => direction.id)).size !== plan.discovery.length) ctx.addIssue({ code: 'custom', path: ['discovery'], message: 'Discovery direction ids must be unique.' })
+  if ((plan.discoveryTarget ?? 1) > plan.budgets.maxCompanies) ctx.addIssue({ code: 'custom', path: ['discoveryTarget'], message: 'Discovery target must not exceed the company limit.' })
+})
 export type ExecutablePlan = z.infer<typeof ExecutablePlan>
 export function parseExecutablePlan(markdown: string): ExecutablePlan | undefined {
-  const block = markdown.match(/```research-plan\s*\n([\s\S]*?)```/)
+  const blocks = [...markdown.matchAll(/```research-plan\s*\n([\s\S]*?)```/g)]
+  if (blocks.length > 1) throw new Error('A plan must contain exactly one executable research-plan block.')
+  const block = blocks[0]
   if (!block?.[1]) return undefined
   return ExecutablePlan.parse(JSON.parse(block[1]))
 }

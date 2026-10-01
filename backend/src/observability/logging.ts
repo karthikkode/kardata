@@ -19,17 +19,26 @@ export interface LogContext {
 // legitimate log content.
 const SENSITIVE_KEY = /api[_-]?key|secret|passwd|password|token|auth|bearer|credential|private[_-]?key|session[_-]?key/i
 const REDACTED = '[Redacted]'
+const TOKEN_COUNTER = /^(input_?tokens|output_?tokens|cache_?read_?tokens|cache_?write_?tokens|cache_?hit_?tokens|cache_?miss_?tokens|cached_?tokens|total_?tokens|token_?budget|token_?cap)$/i
 
 export function scrubSecrets<T>(value: T): T {
-  if (Array.isArray(value)) return value.map((entry) => scrubSecrets(entry)) as T
-  if (typeof value === 'object' && value !== null) {
-    const out: Record<string, unknown> = {}
-    for (const [field, entry] of Object.entries(value)) {
-      out[field] = SENSITIVE_KEY.test(field) ? REDACTED : scrubSecrets(entry)
-    }
-    return out as T
+  const ancestors = new WeakSet<object>()
+  const scrub = (entry: unknown): unknown => {
+    if (typeof entry !== 'object' || entry === null) return entry
+    if (entry instanceof Error) return { name: entry.name, ...('code' in entry && typeof entry.code === 'string' ? { code: entry.code } : {}) }
+    if (ancestors.has(entry)) return '[Circular]'
+    ancestors.add(entry)
+    try {
+      if (Array.isArray(entry)) return entry.map(scrub)
+      const out: Record<string, unknown> = Object.create(null) as Record<string, unknown>
+      for (const [field, child] of Object.entries(entry)) {
+        const counter = TOKEN_COUNTER.test(field) && typeof child === 'number' && Number.isSafeInteger(child) && child >= 0
+        out[field] = SENSITIVE_KEY.test(field) && !counter ? REDACTED : scrub(child)
+      }
+      return out
+    } finally { ancestors.delete(entry) }
   }
-  return value
+  return scrub(value) as T
 }
 
 export function createLogger(context: LogContext = {}, destination?: pino.DestinationStream): Logger {
