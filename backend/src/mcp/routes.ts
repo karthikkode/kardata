@@ -16,6 +16,7 @@ import { childLogger } from '../observability/logging.js'
 import { TOOL_NAMES, type McpToolName } from './schemas.js'
 import { createMcpServer, toolCapability, TOOL_META, type ToolGrant } from './tools.js'
 import { requirePool, route, sendError, withIdempotency, header } from '../routes/http.js'
+import { inspectOperationReceipt, recordOperationIntent, recordOperationResult, recoverOperationResult } from '../db/operation-receipts.js'
 
 /** API-key gate mirroring authorize(): open mode skips auth with full local
  * role; keyed mode denies absent/unknown/under-viewer callers with 403
@@ -46,6 +47,15 @@ async function authorizeMcp(
 }
 
 export function mcpRoutes(app: FastifyInstance): void {
+  route(app, 'get', '/v1/threads/:threadKey/operations/:operationId', async (request, reply, app) => {
+    const pool = requirePool(app, reply)
+    if (!pool) return undefined
+    const auth = await authorizeMcp(app, request, reply)
+    if (!auth) return undefined
+    const params = request.params as { threadKey: string; operationId: string }
+    if (!params.operationId || params.operationId.length > 128) return sendError(reply, 400, 'validation_failed', 'Invalid operation identity.')
+    return { ok: true, data: await inspectOperationReceipt(pool, params.threadKey, params.operationId, auth.scope) }
+  })
   route(app, 'post', '/mcp', async (request, reply, app) => {
     const pool = requirePool(app, reply)
     if (!pool) return undefined
@@ -89,7 +99,17 @@ export function mcpRoutes(app: FastifyInstance): void {
     }
     const requestId = rpc['id']
     const semantic = Object.fromEntries(Object.entries(rpc).filter(([key]) => key !== 'id'))
+    const operationId = header(request, 'idempotency-key')
+    const receipt = executionThread && operationId ? { keyId: auth.keyId, operationId, threadKey: executionThread, toolName } : undefined
     return withIdempotency(request, reply, pool, auth.keyId, execute, {
+      ...(receipt ? {
+        beforeExecute: (fingerprint: string) => recordOperationIntent(pool, { ...receipt, fingerprint }),
+        recover: (fingerprint: string) => recoverOperationResult(pool, { ...receipt, fingerprint }),
+        afterExecute: async (fingerprint: string, result: { status: number; body: unknown }) => {
+          const parsed = typeof result.body === 'string' ? JSON.parse(result.body) as { result?: { isError?: boolean }; error?: unknown } : undefined
+          if (result.status >= 200 && result.status < 300 && parsed?.result && !parsed.result.isError && !parsed.error) await recordOperationResult(pool, { ...receipt, fingerprint }, result.status, result.body)
+        },
+      } : {}),
       fingerprintBody: { version: 2, request: semantic, authority: { role: auth.role, scope: auth.scope, executionThread, grant: grant.allow ? [...grant.allow].sort() : null } },
       responseBody: (stored) => {
         if (typeof stored !== 'string' || !stored || (typeof requestId !== 'string' && typeof requestId !== 'number')) return stored

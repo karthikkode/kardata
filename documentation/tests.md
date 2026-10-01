@@ -1,5 +1,12 @@
 # Tests
 
+Durable supervision gates:
+
+- `npm test -w @kardata/backend -- observability.reconciliation.test.ts heartbeat-recovery.test.ts observability.stall.test.ts observability.stall-activity.test.ts` runs policy/throttle/correlated-log checks; live repository/projector cases explicitly skip without `TEST_DATABASE_URL`.
+- With `TEST_DATABASE_URL`, that command creates UUID-isolated databases and tests newer-attempt races, unchanged ownership/continuation, UI notice projection, scoped health, unavailable owners and heartbeat/progress separation.
+- `KARDATA_TEMPORAL_TEST=1 TEST_DATABASE_URL=... npm test -w @kardata/backend -- temporal.reconciliation.test.ts` uses owned queues/workflow IDs and isolated Postgres to test actual owner descriptions and recovery after three exhausted page retries. The next 30-second pass must retain its cursor and succeed; no timeout is weakened. It cancels only its owned supervisor. No provider, pilot discovery or shared worker rollout is claimed.
+- `KARDATA_TEMPORAL_TEST=1 TEST_DATABASE_URL=... npm test -w @kardata/backend -- execution-epochs.test.ts temporal.execution-epochs.test.ts` covers canonical signal adoption, concurrent unknown starts, exact terminal parking, manual-pause protection, same-ID restart before event/lease, actual continue-as-new, and server-proven child launch rejection. These use UUID-isolated DBs/namespaces and scripted provider work. Unknown launch stays guarded; fixture task-failure cleanup targets only its owned workflow.
+
 Mirrors the area covered: `tests/frontend/...`, `tests/backend/...`.
 Framework per area doc; frontend uses Vitest + Testing Library (jsdom) for
 components and Playwright for critical flows. Coverage via
@@ -18,6 +25,9 @@ UUID-suffixed database per invocation. The configured `TEST_DATABASE_URL`
 is a connection template only, never the target of migration down-tests.
 Do not reuse databases from interrupted tests or automatically purge them.
 Migration round-trips own isolated databases just like other live suites.
+Workflow queries and persisted thread state are separate observation boundaries:
+recovery tests wait for both within their existing deadline before sending Resume.
+Projector catch-up alone cannot prove that an in-flight event activity committed.
 Routine tests write evidence to ignored test-results directories. Catalogue
 refresh is an explicit maintenance command, never an ordinary test side effect.
 The operational feature/review map and release gate are described in
@@ -240,3 +250,79 @@ migrators, transaction contention and explicit stress tiers retain their origina
 fan-out; no timeout/test assertion is relaxed. Unit-only file scheduling is
 unchanged. Refresh the catalogue first, then the dependent acceptance matrix in
 separate invocations; loading both refreshes concurrently can read old inventory.
+
+`TEST_DATABASE_URL=... npm test -w @kardata/backend -- mcp.operation-receipts.test.ts`
+uses an isolated database and actual HTTP/MCP dispatch to fail response-cache
+completion after a real session mutation. It verifies exact-result repair without
+repeat effects, changed-argument conflict, scoped inspection, absent-proof parking
+and changed-authority denial. The provider is not involved; this is not Meta pilot
+or live business discovery evidence.
+
+`npm run test:e2e -w frontend -- files-scale.spec.ts` is maintained synthetic-HTTP
+browser evidence for 2,005 uploaded/generated metadata records. It checks bounded
+file windows, full-library search, keyboard preview and focus return, hidden-file
+reveal, long filenames, mobile/desktop light/dark and reduced motion, plus loading,
+empty, error, denied and offline/retry states. It records screenshots, traces and
+videos in the selected Playwright output directory. It does not prove a live file
+server, indexing, DB, Temporal or provider capability. The component regression
+is `tests/frontend/workspace-files-scale.test.tsx`.
+
+`archive.storage-config.test.ts` verifies backend/worker target and volume parity
+from the maintained Compose configuration. It fails on disposable worker evidence
+storage; passing it is configuration proof, not a deployed container restart or
+actual GCS credential/network verification. Runtime archive integrity and isolated
+HTTP/activity round trips remain separate suites.
+
+`KARDATA_ARCHIVE_CONTAINER_TEST=1 npm test -w @kardata/backend -- archive.container.test.ts`
+uses the existing runtime image and current compiled backend on an owned retained
+fixture volume. After its writer is removed, separate server and replacement-worker
+containers verify exact normalized execution JSON and fetched-source text through
+the production archive APIs. Only owned ephemeral containers are removed; the
+volume remains. This proves isolated filesystem persistence across those container
+roles, not matching shared deployment, GCS, genuine fetched content or the Meta UI
+pilot. Build the backend first; no stale compiled fallback is accepted.
+
+Owner inspection gates: `execution.inspection.test.ts` exercises real keyed HTTP,
+isolated Postgres and filesystem refs for authority, keyset paging and integrity.
+`execution-inspection.test.tsx` covers client validation, UI states, paging,
+observed-version labels and bounded long JSON. `execution-inspection.spec.ts` is
+synthetic-HTTP browser proof for mobile/desktop themes, keyboard/focus, retained
+drafts, complete downloads, long escaped input and resource recovery. Captures
+include source hashes and explicitly do not certify a live provider or archive.
+
+`TEST_DATABASE_URL=... npm test -w @kardata/backend -- turn.paid-response-recovery.test.ts`
+checks actual HTTP/MCP, activity, Postgres and filesystem paths using a scripted
+provider. Storage faults cover lost archive acknowledgement, tool-result recording
+after a multi-argument mutation, and repeated late finalizer failures. Assertions
+pin one paid provider response/effect, original wire arguments, usage and producer
+metadata, and stable archive identity. These are isolated fixtures, not Meta pilot
+evidence.
+
+`KARDATA_TEMPORAL_TEST=1 TEST_DATABASE_URL=... npm test -w @kardata/backend -- temporal.owner-resume.test.ts`
+tests approver Resume of confirmed-terminal session and delegated-child turns
+through real HTTP, Temporal, Postgres and archive storage. A scripted provider
+and late-finalizer fault pin one provider response, user message and final reply;
+operator denial and checkpoint clearing remain explicit assertions. This is not
+a browser or live Meta gate. `turn-recovery-contract.test.ts` covers exact
+scheduled-contract authority, repeated recovery, bounded history and checkpoint
+fences in isolated Postgres. `recovery.palette.test.ts` verifies the frozen tool
+ceiling and unchanged transport authority independently.
+
+Owner intake review gates: `work.review.test.ts` uses a UUID-isolated Postgres
+and real keyed loopback HTTP for authority, exact receipt/plan fences, conflicting
+owner decisions and immutable exclusion against a late checkpoint. Its companies
+and evidence are explicitly TEST fixtures. `work-review.test.tsx` covers exact
+review content, draft retention, denied/stale state and explicit latest review.
+`work-review.spec.ts` is synthetic HTTP browser proof on both shared entry points
+at390/1440px, light/dark and reduced motion; captures include screenshots, traces
+and videos. None establishes live Meta discovery or genuine company evidence.
+
+`workspace.spec.ts` also pins the exact767/768px session-rail and1279/1280px
+resource-rail boundaries in both themes. Each case asserts the correct visible
+rail/drawer controls, keyboard Enter/Escape and restored trigger focus, reachable
+composer and absence of document horizontal overflow, with screenshots/video/trace.
+These are synthetic HTTP fixtures, not live research. The isolated file journey
+stops its owned page and waits for routed reads before closing its owned backend
+and pool; late UI polling must not race fixture disposal. Cleanup still runs when
+page navigation fails. Browser closure evidence is in
+`docs/deep-checks/browser-closure.md`.

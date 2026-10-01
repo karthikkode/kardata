@@ -17,7 +17,7 @@ export function assertArchiveKey(key: string, prefix = false): void {
 }
 
 export class ResearchSourceError extends Error {
-  constructor(readonly code: 'source_integrity' | 'source_scope' | 'source_limit' | 'source_timeout', message: string) {
+  constructor(readonly code: 'source_integrity' | 'source_scope' | 'source_limit' | 'source_timeout' | 'execution_limit' | 'execution_integrity' | 'execution_scope', message: string) {
     super(message)
     this.name = 'ResearchSourceError'
   }
@@ -195,6 +195,37 @@ function checkReadLimit(maxBytes: number): void {
 }
 
 export interface ArchivedResearchSource { url: string; key: string; hash: string }
+export interface ArchivedExecutionRecord { key: string; hash: string; bytes: number }
+const EXECUTION_BYTES = 16 * 1024 * 1024
+/** Exact normalized execution content lives in the existing archive, not logs.
+ * A verified reference is published only after read-back matches the write. */
+export async function persistExecutionRecord(archive: ArchiveTarget, sessionId: string, record: unknown, signal?: AbortSignal): Promise<ArchivedExecutionRecord> {
+  return logOp(sourceLogger, 'archive.execution.write', async () => {
+    if (!sessionId || sessionId.length > 255) throw new TypeError('Invalid execution session identity.')
+    const body = JSON.stringify(record)
+    if (body === undefined) throw new TypeError('Execution record must be JSON.')
+    const bytes = Buffer.byteLength(body)
+    if (bytes > EXECUTION_BYTES) throw new ResearchSourceError('execution_limit', 'Execution record exceeds its byte limit.')
+    const hash = createHash('sha256').update(body).digest('hex')
+    const key = `execution-records/${createHash('sha256').update(sessionId).digest('hex')}/${hash}.json`
+    let saved = await sourceIO((ioSignal) => archive.read(key, EXECUTION_BYTES, ioSignal), signal)
+    if (saved === undefined) {
+      await sourceIO((ioSignal) => archive.write(key, body, ioSignal), signal)
+      saved = await sourceIO((ioSignal) => archive.read(key, EXECUTION_BYTES, ioSignal), signal)
+    }
+    if (saved !== body) throw new ResearchSourceError('execution_integrity', 'Execution archive is missing or corrupt.')
+    return { key, hash, bytes }
+  }, { sessionHash: createHash('sha256').update(sessionId).digest('hex') })
+}
+export async function readExecutionRecord(archive: ArchiveTarget, sessionId: string, reference: ArchivedExecutionRecord, signal?: AbortSignal): Promise<unknown> {
+  return logOp(sourceLogger, 'archive.execution.read', async () => {
+    const prefix = `execution-records/${createHash('sha256').update(sessionId).digest('hex')}/`
+    if (!/^[a-f0-9]{64}$/.test(reference.hash) || reference.key !== `${prefix}${reference.hash}.json` || !Number.isSafeInteger(reference.bytes) || reference.bytes < 1 || reference.bytes > EXECUTION_BYTES) throw new ResearchSourceError('execution_scope', 'Execution reference is outside its session.')
+    const body = await sourceIO((ioSignal) => archive.read(reference.key, EXECUTION_BYTES, ioSignal), signal)
+    if (body === undefined || Buffer.byteLength(body) !== reference.bytes || createHash('sha256').update(body).digest('hex') !== reference.hash) throw new ResearchSourceError('execution_integrity', 'Execution archive is missing or corrupt.')
+    return JSON.parse(body) as unknown
+  }, { sessionHash: createHash('sha256').update(sessionId).digest('hex') })
+}
 const SOURCE_BYTES = 2 * 1024 * 1024
 const sourceLogger = createLogger({ op: 'archive.source' })
 /** A reference is returned only after exact archived bytes are verified. Existing

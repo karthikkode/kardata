@@ -16,7 +16,7 @@
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Runtime } from '@temporalio/worker'
-import { createLogger, createWorkerLogger } from '../observability/logging.js'
+import { createLogger, createWorkerLogger,workerLoggingOptions } from '../observability/logging.js'
 import { workerTelemetryOptions } from '../observability/metrics.js'
 import {
   loadSweepContextActivity,
@@ -33,9 +33,12 @@ import { appendEventActivity, checkWorkerMcpAuth, karbotTurnActivity } from './a
 import { connectWorker, temporalNamespace } from './connection.js'
 import { createLaneWorker } from './worker.js'
 import * as coordinatorActivities from './activities/coordinator.js'
+import { reconciliationPageActivity } from './activities/reconciliation.js'
+import { ensureExecutionReconciliation } from './reconciliation-start.js'
+import { prepareExecutionIntentActivity,settlePreparedExecutionIntentActivity,originalRecoveryReadyActivity } from './activities/execution-epochs.js'
 
 async function main(): Promise<void> {
-  Runtime.install({ logger: createWorkerLogger(), telemetryOptions: { metrics: workerTelemetryOptions(Number(process.env['KARDATA_TEMPORAL_METRICS_PORT'] ?? 9464)) } })
+  Runtime.install({ logger: createWorkerLogger(), telemetryOptions: { logging: workerLoggingOptions(),metrics: workerTelemetryOptions(Number(process.env['KARDATA_TEMPORAL_METRICS_PORT'] ?? 9464)) } })
   // Credential self-check first: a rotated-but-not-recreated token fails
   // loudly here instead of as cryptic per-turn 403s. Polling continues on
   // a negative result so digest-answerable turns keep working.
@@ -48,7 +51,7 @@ async function main(): Promise<void> {
     connection,
     namespace: temporalNamespace(),
     workflowsPath: join(workflowsDir, 'turn-bundle.js'),
-    activities: { appendEventActivity, karbotTurnActivity },
+    activities: { appendEventActivity, karbotTurnActivity,prepareExecutionIntentActivity,settlePreparedExecutionIntentActivity,originalRecoveryReadyActivity },
   })
   const sweepWorker = await createLaneWorker({
     lane: 'research',
@@ -57,6 +60,9 @@ async function main(): Promise<void> {
     workflowsPath: join(workflowsDir, 'research-bundle.js'),
     activities: {
       ...coordinatorActivities,
+      reconciliationPageActivity,
+      prepareExecutionIntentActivity,
+      settlePreparedExecutionIntentActivity,
       loadSweepContextActivity,
       searchWebPageActivity,
       recordSweepCompanyActivity,
@@ -74,7 +80,10 @@ async function main(): Promise<void> {
   process.on('SIGINT', shutdown)
   console.log(`turn worker polling ${turnWorker.options.taskQueue}`)
   console.log(`sweep worker polling ${sweepWorker.options.taskQueue}`)
-  try { await Promise.all([turnWorker.run(), sweepWorker.run()]) } finally { await connection.close() }
+  try {
+    await ensureExecutionReconciliation()
+    await Promise.all([turnWorker.run(), sweepWorker.run()])
+  } finally { await connection.close() }
 }
 
 void main().catch((error: unknown) => {

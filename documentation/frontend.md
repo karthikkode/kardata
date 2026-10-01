@@ -223,3 +223,54 @@ While context is loading, denied or unavailable, approval is unavailable; stale
 context conflicts remain visible with the plan editable. Retained completed work
 shows its source version and original source link through shared progress, without
 claiming a percentage while the revised discovery queue can still expand.
+
+Pending-operation cards offer **Inspect receipt** in local context. The workspace
+loads its scoped receipt through the data layer and displays confirmed versus
+unresolved effects and the exact recovery explanation. The original identity is
+retained; inspection does not release guards or mark an effect successful. Notes
+and drafts remain editable and loading/errors use the shared resource notice.
+
+File-derived context proposals render exact file hashes and included units before
+approval. Source previews render fifty units at a time. Local context shows a
+source-recovery notice and preserves its stored summary; failed dependencies never
+produce a blank working-memory display. The safe-rebuild review presents original
+task, stored summary, dependency identities, an independent replacement preview
+and explicit owner confirmation. It keeps typed text on request failure, rejects
+stale versions, and does not automatically resume work.
+
+The sector Files panel renders fifty matching metadata records initially and adds
+fifty with the existing Show more button. Its footer stays reachable outside the
+independently scrolling list and states the displayed and filtered totals. Search
+still covers the entire loaded library; changing search or hidden-file visibility
+resets the display window. Metadata refresh preserves an expanded window. Upload,
+generated-file preview, hide/reveal and context inclusion retain their existing
+permissions and processing/error/OCR states.
+
+Nonindexed file states use readable Processing, Failed and Needs OCR labels,
+including the legacy underscore OCR spelling.
+
+Local context has a compact Execution records entry. The owner inspector reads
+twenty metadata boundaries per page; next/previous controls stay in the modal
+footer. Selecting one loads its verified normalized JSON. Display initially caps
+at64,000 characters, explicitly states partial display, and offers additional text
+and complete JSON download. Provider/model and observed global/shared-plan/local
+versions appear separately from expandable actual execution identity. History
+inspection preserves local-note drafts and returns focus on close. Loading,
+empty, denied, offline and metadata/body failures remain distinct. This UI does
+not assert that a stored provider response is automatically recovered after a
+post-provider storage failure; that durable recovery has its own acceptance gate.
+
+### Basic intake review
+
+Shared PlanProgress on the landing progress dialog and workspace Plan tab offers
+Review intake for blocked/failed candidates. A dialog shows the exact saved source,
+evidence, reason, attempts and plan version, and collects an explicit owner reason
+for Retry or Exclude. Data hooks own requests. Loading, denied/offline/errors and
+stale receipt conflicts preserve the open review and reason draft; review latest
+refreshes the displayed receipt before another decision. Controls require a paused
+or failed sector. Excluded candidates remain visible and never count completed.
+
+Intake decisions carry a request idempotency key. The data hook retains it while
+an exact reviewed work/version/decision/reason submission has failed, allowing a
+lost reply to recover the original HTTP receipt. Changing any submitted decision
+field generates a fresh key; success clears the pending submission identity.

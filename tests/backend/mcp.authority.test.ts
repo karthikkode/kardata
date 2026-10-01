@@ -194,23 +194,38 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP execution and resource authority over H
       expect(send).toHaveBeenCalledTimes(1)
     } finally { send.mockRestore() }
   })
+  async function freshContextAuthority() {
+    const sector = (await createSector(pool, { name: 'TEST independent context authority', topic: 'Widgets', scope })).sectorId
+    await projectNewEvents(pool)
+    const normalSession = (await createSession(pool, 'TEST independent normal', scope, sector)).id
+    const researchSession = (await ensureResearchSession(pool, sector, scope)).id
+    await projectNewEvents(pool)
+    return { sector, normalSession, researchSession }
+  }
   it('keeps normal proposals pending while the research parent commits permitted findings autonomously', async () => {
-    const normalResult = await call('db.propose_global_context', { baseVersion: 0, sections: sections('TEST normal insight'), idempotencyKey: 'normal-insight' }, normal)
+    const { sector, normalSession, researchSession } = await freshContextAuthority()
+    const normalResult = await call('db.propose_global_context', { baseVersion: 0, sections: sections('TEST normal insight'), idempotencyKey: 'normal-insight' }, normalSession)
     expect(normalResult.error).not.toBe(true)
-    expect(JSON.parse(normalResult.text)).toMatchObject({ state: 'pending', sourceThread: normal })
-    const researchResult = await call('db.propose_global_context', { baseVersion: 0, sections: sections('TEST research evidence'), idempotencyKey: 'research-insight' }, research)
+    expect(JSON.parse(normalResult.text)).toMatchObject({ state: 'pending', sourceThread: normalSession })
+    const researchResult = await call('db.propose_global_context', { baseVersion: 0, sections: sections('TEST research evidence'), idempotencyKey: 'research-insight' }, researchSession)
     expect(JSON.parse(researchResult.text)).toMatchObject({ state: 'approved', version: 1 })
-    expect((await readGlobalContext(pool, sectorId, scope)).sections.findings).toBe('TEST research evidence')
+    expect((await readGlobalContext(pool, sector, scope)).sections.findings).toBe('TEST research evidence')
   })
   it('routes research-child updates to the actual parent and rejects protected-decision overrides', async () => {
-    const proposal = await call('db.propose_global_context', { baseVersion: 1, sections: sections('TEST child evidence'), idempotencyKey: 'child-insight' }, 'agent:research-child')
+    const { sector, normalSession, researchSession } = await freshContextAuthority()
+    const seed = await call('db.propose_global_context', { baseVersion: 0, sections: sections('TEST initial approved findings'), idempotencyKey: 'TEST independent seed' }, researchSession)
+    expect(JSON.parse(seed.text)).toMatchObject({ state: 'approved', version: 1 })
+    const childId = `TEST-context-child-${++nonce}`
+    await appendEvent(pool, { idempotencyKey: childId, partition: `session:${researchSession}`, type: 't.subagent.launched', payload: { sessionId: researchSession, parentSessionId: researchSession, childId, name: 'TEST independent research child', canDelegate: false } })
+    await projectNewEvents(pool)
+    const proposal = await call('db.propose_global_context', { baseVersion: 1, sections: sections('TEST child evidence'), idempotencyKey: 'child-insight' }, `agent:${childId}`)
     const data = JSON.parse(proposal.text) as { id: string; state: string }
     expect(data.state).toBe('parent-review')
-    expect((await call('db.commit_child_context', { proposalId: data.id }, normal)).error).toBe(true)
-    expect(JSON.parse((await call('db.commit_child_context', { proposalId: data.id }, research)).text)).toMatchObject({ state: 'approved' })
-    const context = await readGlobalContext(pool, sectorId, scope)
-    const override = await call('db.propose_global_context', { baseVersion: context.version, sections: { ...context.sections, decisions: 'TEST unauthorized replacement' }, idempotencyKey: 'protected-decision' }, research)
+    expect((await call('db.commit_child_context', { proposalId: data.id }, normalSession)).error).toBe(true)
+    expect(JSON.parse((await call('db.commit_child_context', { proposalId: data.id }, researchSession)).text)).toMatchObject({ state: 'approved' })
+    const context = await readGlobalContext(pool, sector, scope)
+    const override = await call('db.propose_global_context', { baseVersion: context.version, sections: { ...context.sections, decisions: 'TEST unauthorized replacement' }, idempotencyKey: 'protected-decision' }, researchSession)
     expect(JSON.parse(override.text)).toMatchObject({ state: 'pending' })
-    expect((await readGlobalContext(pool, sectorId, scope)).sections.decisions).toBe('')
+    expect((await readGlobalContext(pool, sector, scope)).sections.decisions).toBe('')
   })
 })

@@ -23,15 +23,17 @@ export function visiblePlan(markdown: string): string {
   return markdown.replace(/```research-plan\s*\n[\s\S]*?```/g, '').trim()
 }
 export interface WorkItem {
+  receiptVersion?: string
   sourceUrl?: string
   cursor?: { queryIndex: number; page: number; seenDomains: string[] }
-  id: string; kind: 'discovery' | 'company'; title: string; state: 'pending' | 'running' | 'complete' | 'blocked' | 'failed'
+  id: string; kind: 'discovery' | 'company'; title: string; state: 'pending' | 'running' | 'complete' | 'blocked' | 'failed' | 'excluded'
   attempts: number; childId: string | null; evidence: string[]; detail: string
 }
 export function progressSummary(items: WorkItem[], discoveryClosed: boolean, acceptanceMet: boolean) {
   const completed = items.filter((item) => item.state === 'complete').length
   const unresolved = items.filter((item) => item.state === 'blocked' || item.state === 'failed').length
-  return { completed, total: items.length, unresolved, discoveryClosed,
-    estimatedPercent: !discoveryClosed || !items.length ? null : Math.min(acceptanceMet ? 100 : 99, Math.floor(100 * completed / items.length)),
+  const total = items.filter((item) => item.state !== 'excluded').length
+  return { completed, total, unresolved, discoveryClosed,
+    estimatedPercent: !discoveryClosed || !items.length ? null : Math.min(acceptanceMet ? 100 : 99, Math.floor(100 * completed / Math.max(1, total))),
   }
 }

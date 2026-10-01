@@ -1,9 +1,10 @@
+import { readResearchWorkReviewSequence } from '../../db/work-review.js'
 import { createHash } from 'node:crypto'
 import { hydrateResearchSources, persistResearchSource, resolveArchiveTarget } from '../../archive/targets.js'
 import { ApplicationFailure, Context } from '@temporalio/activity'
 import { z } from 'zod'
 import type { Scope } from '../../auth/keys.js'
-import { appendEvent, closeDiscovery, createArtifact, ensureResearchSession, getSector, getSession, sessionKind, readGlobalContext, readResearchProgress, recordResearchBudget, readSectorPlan, recordLedgerProblem, registerSectorDiscovery, registerLedgerCandidate, readSectorExecutionState, recordResearchWork, setCompanyStage, setCompanyState, setSectorState, upsertLedgerCompany, workerPoolFromEnv, workspaceTransaction, type PlanVersion } from '../../db/index.js'
+import { appendEvent, closeDiscovery, createArtifact, ensureResearchSession, getSector, getSession, sessionKind, readGlobalContext, readResearchProgress, readDiscoveryPublicationState, readResearchCoordinatorProgress, readResearchWorkItem, researchIntakeReceipts, readResearchBudget, recordResearchBudget, readSectorPlan, recordLedgerProblem, registerSectorDiscovery, registerLedgerCandidate, readSectorExecutionState, recordResearchWork, setCompanyStage, setCompanyState, setSectorState, upsertLedgerCompany, workerPoolFromEnv, workspaceTransaction, type PlanVersion } from '../../db/index.js'
 import { projectNewEvents } from '../../projector.js'
 import { createLogger, logOp } from '../../observability/logging.js'
 import { extractNewDomains, sectorSignals } from '../sweep-rules.js'
@@ -14,7 +15,7 @@ import { validateDiscoveryIntake } from '../discovery-intake.js'
 import type { CandidateCompany } from '../sweep-rules.js'
 import { discoverySample, validateDiscoveryAcceptance } from '../discovery-acceptance.js'
 
-export interface CoordinatorInput { sectorId: string; scope?: Scope; /** Isolated harness queue override; never accepted by product APIs. */ turnTaskQueue?: string }
+export interface CoordinatorInput { sectorId: string; scope?: Scope; /** Isolated harness queue override; never accepted by product APIs. */ turnTaskQueue?: string; /** Internal versioned transport; never accepted by product APIs. */ compactState?: boolean; statusOnly?: boolean; recoveryAfter?: string; recoveryDone?: boolean; pinnedVersion?: number; /** Harness-only history boundary override. */ historyEventLimit?: number }
 const logger = createLogger({ op: 'research.coordinator' })
 /** Keep archive/validation work supervised without reporting heartbeats as
  * semantic completion. Cancellation stops publication at the next await boundary. */
@@ -43,12 +44,29 @@ export async function loadCoordinatorActivity(input: CoordinatorInput) {
     const approved = plan?.versions.find((version) => version.version === plan.approvedVersion)
     if (!sector || !approved?.executable) throw new Error('Review an executable research plan before starting.')
     const session = await ensureResearchSession(db, input.sectorId, input.scope)
-    const context = await readGlobalContext(db, input.sectorId, input.scope)
-    return { sector, plan: approved as PlanVersion & { executable: NonNullable<PlanVersion['executable']> }, sessionId: session.id, approvedScope: plan?.approvedContext?.scope, context, progress: await readResearchProgress(db, input.sectorId, input.scope) }
+    const compact = input.compactState === true && approved.executable.researchDepth === 'discovery'
+    if (compact) sector.state = await readSectorExecutionState(db, input.sectorId, input.scope)
+    const context = await readGlobalContext(db, input.sectorId, input.scope, !compact)
+    type Progress = Awaited<ReturnType<typeof readResearchProgress>> & { companyCount?: number; knownDomains?: string[]; unresolvedIntakeCount?: number; retryNextId?: string }
+    const progress: Progress = compact ? input.statusOnly ? { sectorId: input.sectorId, state: sector.state, planVersion: approved.version, plan: undefined, items: [], budgetUsedMs: await readResearchBudget(db, input.sectorId, input.scope), completed: 0, total: 0, unresolved: 0, discoveryClosed: false, estimatedPercent: null } : await readResearchCoordinatorProgress(db, input.sectorId, approved.version, input.scope, input.recoveryAfter) : await readResearchProgress(db, input.sectorId, input.scope)
+    const reviewSequence = compact ? await readResearchWorkReviewSequence(db, input.sectorId, approved.version, input.scope) : undefined
+    const loaded = { ...(reviewSequence === undefined ? {} : { reviewSequence }), sector, plan: approved as PlanVersion & { executable: NonNullable<PlanVersion['executable']> }, sessionId: session.id, approvedScope: plan?.approvedContext?.scope, context: compact ? { ...context, sections: { scope: context.sections.scope, decisions: '', findings: '', questions: '' }, markdown: '', changes: [] } : context, progress }
+    if (compact && Buffer.byteLength(JSON.stringify(loaded)) > 1_500_000) throw ApplicationFailure.nonRetryable('Coordinator state exceeds its safe transport budget. Review the queued work.', 'CoordinatorStateBlocked')
+    return loaded
   })
 }
+export async function researchWorkItemActivity(input: CoordinatorInput & { version: number; id: string }) {
+  return logOp(logger, 'research.work.read', async () => { const item = await readResearchWorkItem(workerPoolFromEnv(), input.sectorId, input.version, input.id, input.scope); if (Buffer.byteLength(JSON.stringify(item)) > 1_500_000) throw ApplicationFailure.nonRetryable('Work details exceed the safe transport budget. Owner review is required.', 'CoordinatorStateBlocked'); return item }, { sectorId: input.sectorId, planVersion: input.version })
+}
+
 export async function researchCheckpointActivity(input: CoordinatorInput & { version: number; item: WorkItem }) {
-  return logOp(logger, 'research.checkpoint', () => recordResearchWork(workerPoolFromEnv(), { ...input, planVersion: input.version }))
+  return logOp(logger, 'research.checkpoint', () => workspaceTransaction(workerPoolFromEnv(), input.sectorId, async (tx) => {
+    let existing: WorkItem | undefined
+    try { existing = await readResearchWorkItem(tx, input.sectorId, input.version, input.item.id, input.scope) } catch (error) { if (!(error instanceof Error && 'code' in error && error.code === 'not_found')) throw error }
+    if (existing && (existing.state === 'excluded' || (input.item.id.includes(':intake:') && input.item.receiptVersion && input.item.receiptVersion !== existing.receiptVersion))) return existing
+    await recordResearchWork(tx, { ...input, planVersion: input.version })
+    return readResearchWorkItem(tx, input.sectorId, input.version, input.item.id, input.scope)
+  }))
 }
 export async function researchBudgetActivity(input: CoordinatorInput & { runId: string; spentMs: number; checkpoint: number }) {
   return logOp(logger, 'research.budget.checkpoint', () => recordResearchBudget(workerPoolFromEnv(), input))
@@ -64,7 +82,11 @@ export async function researchSearchActivity(input: CoordinatorInput & { version
     const hits = await searchWebPageActivity({ query: input.query, page: input.page })
     const screened = extractNewDomains(hits, input.seen, sectorSignals(sector.name, sector.topic), input.basicFiltering)
     const candidates = input.sourceIntake ? screened : screened.slice(0, input.remaining)
-    if (input.sourceIntake) return { domains: [], candidates: candidates.map((candidate) => ({ ...candidate, intakeKey: createHash('sha256').update(candidate.domain).digest('hex') })), exhausted: hits.length === 0 }
+    if (input.sourceIntake) {
+      const keyed = candidates.map((candidate) => ({ ...candidate, intakeKey: createHash('sha256').update(candidate.domain).digest('hex') }))
+      const ids = input.compactState ? await researchIntakeReceipts(db, input.sectorId, input.version, keyed.map((candidate) => `${input.sectorId}:v${input.version}:intake:${candidate.intakeKey}`), input.scope) : []
+      return { domains: [], candidates: keyed.filter((candidate) => !ids.includes(`${input.sectorId}:v${input.version}:intake:${candidate.intakeKey}`)), exhausted: hits.length === 0 }
+    }
     for (const company of candidates) {
       Context.current().heartbeat({ op: 'research.discovery', sectorId: input.sectorId })
       const { companyId } = await recordSweepCompanyActivity({ sectorId: input.sectorId, scope: input.scope, company: { ...company, sectorName: sector.name } })
@@ -92,6 +114,10 @@ export async function researchIntakeActivity(input: CoordinatorInput & { version
     signal.throwIfAborted()
     return workspaceTransaction(db, input.sectorId, async (tx) => {
       signal.throwIfAborted()
+      const currentWork = await readResearchWorkItem(tx, input.sectorId, input.version, input.item.id, input.scope)
+      if (currentWork.state === 'excluded') return { accepted: false, deferred: false, limited: false, decision: 'reject' as const, excluded: true }
+      if (currentWork.state === 'complete') return { accepted: currentWork.detail.startsWith('accept:'), deferred: false, limited: false, decision: currentWork.detail.startsWith('accept:') ? 'accept' as const : 'reject' as const }
+      if (currentWork.attempts !== input.item.attempts || currentWork.state !== 'running' || (input.item.receiptVersion && input.item.receiptVersion !== currentWork.receiptVersion)) throw ApplicationFailure.nonRetryable('This intake attempt was superseded; no company was published.', 'DiscoveryIntakeStale')
       const plan = await readSectorPlan(tx, input.sectorId, input.scope)
       if (plan?.latest?.version !== input.version || plan.approvedVersion !== input.version) throw new Error('Intake plan changed; publication requires renewed review.')
       const sector = await getSector(tx, input.sectorId, input.scope)
@@ -101,11 +127,10 @@ export async function researchIntakeActivity(input: CoordinatorInput & { version
       if (executionState === 'paused') return { accepted: false, deferred: true, limited: false, decision: result.decision }
       if (executionState !== 'running') throw new Error('Research is not running.')
       if (result.decision === 'accept') {
-        const progress = await readResearchProgress(tx, input.sectorId, input.scope)
-        const companies = progress.items.filter((entry) => entry.kind === 'company')
-        const existing = companies.some((entry) => entry.sourceUrl && new URL(entry.sourceUrl).hostname.replace(/^www\./, '') === input.candidate.domain)
+        const publication = await readDiscoveryPublicationState(tx, input.sectorId, input.version, input.item.id, input.scope)
+        const existing = publication.accepted
         const limit = plan.latest.executable?.budgets.maxCompanies
-        if (!limit || (!existing && companies.length >= limit)) {
+        if (!limit || (!existing && publication.companyCount >= limit)) {
           await recordResearchWork(tx, { sectorId: input.sectorId, planVersion: input.version, scope: input.scope, item: { ...input.item, state: 'blocked', detail: 'Approved company limit reached. Owner review and a revised limit are required.' } })
           return { accepted: false, deferred: false, limited: true, decision: result.decision }
         }
@@ -218,3 +243,6 @@ export async function researchVerdictActivity(input: CoordinatorInput & { versio
     return { detail: verdict.reason, evidence: verdict.findings.map((finding) => finding.url) }
   })
 }
+
+// Same existing research lane; versioned workflows prepare child ownership before start.
+export { prepareExecutionIntentActivity, settlePreparedExecutionIntentActivity, prepareResearchTurnRecoveryActivity } from './execution-epochs.js'

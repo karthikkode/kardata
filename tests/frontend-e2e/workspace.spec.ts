@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
+test.use({ video: 'on', trace: 'on' })
+
 const stamp = '2026-09-30T00:00:00.000Z'
 const sector = { id: 'test-sector', name: 'TEST Specialty foods', topic: 'Packaged foods', state: 'approved', companiesFound: 0, companies: [], companiesTotal: 0, activity: [], activityTotal: 0, createdAt: stamp, updatedAt: stamp }
 const research = { id: 'test-research', title: 'Research', kind: 'research', sectorId: sector.id, createdAt: stamp, updatedAt: stamp }
@@ -56,6 +58,59 @@ test('sector summary opens the shared plan/progress dialog and dedicated workspa
   await expect(page.getByRole('tabpanel', { name: 'Research plan' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Discovery', exact: true })).toBeVisible()
 })
+test.describe('exact workspace drawer boundaries', () => {
+  for (const width of [767, 768, 1279, 1280]) for (const dark of [false, true]) {
+    test(`workspace boundary ${width}px ${dark ? 'dark' : 'light'}`, async ({ page }, info) => {
+      await page.setViewportSize({ width, height: 960 })
+      await fixtures(page, { long: true, files: 30 })
+      await page.goto(`/?section=SectorChat&sector=${sector.id}`)
+      await expect(page.getByRole('heading', { name: 'Research', exact: true })).toBeVisible()
+      const sessions = page.getByRole('complementary', { name: 'Sector sessions', includeHidden: true })
+      const resources = page.getByRole('complementary', { name: 'Sector resources', includeHidden: true })
+      const openSessions = page.getByRole('button', { name: 'Open sessions', includeHidden: true })
+      const openResources = page.getByRole('button', { name: 'Open files and global context', includeHidden: true })
+      if (width < 768) {
+        await expect(sessions).toBeHidden()
+        await expect(openSessions).toBeVisible()
+        await openSessions.focus()
+        await page.keyboard.press('Enter')
+        const drawer = page.getByRole('dialog', { name: 'Sessions', exact: true })
+        await expect(drawer.getByRole('group', { name: 'Session types' })).toBeVisible()
+        if (dark) await drawer.getByRole('button', { name: 'Use dark theme' }).click()
+        await drawer.screenshot({ path: info.outputPath('sessions-drawer.png'), animations: 'disabled' })
+        await page.keyboard.press('Escape')
+        await expect(drawer).toHaveCount(0)
+        await expect(openSessions).toBeFocused()
+      } else {
+        await expect(sessions).toBeVisible()
+        await expect(openSessions).toBeHidden()
+        if (dark) await sessions.getByRole('button', { name: 'Use dark theme' }).click()
+      }
+      if (width < 1280) {
+        await expect(resources).toBeHidden()
+        await expect(openResources).toBeVisible()
+        await openResources.focus()
+        await page.keyboard.press('Enter')
+        const drawer = page.getByRole('dialog', { name: 'Files and global context', exact: true })
+        await expect(drawer.getByRole('heading', { name: 'Files', exact: true })).toBeVisible()
+        await expect(drawer.getByRole('heading', { name: 'Global context', exact: true })).toBeVisible()
+        await drawer.screenshot({ path: info.outputPath('resources-drawer.png'), animations: 'disabled' })
+        await page.keyboard.press('Escape')
+        await expect(drawer).toHaveCount(0)
+        await expect(openResources).toBeFocused()
+      } else {
+        await expect(resources).toBeVisible()
+        await expect(openResources).toBeHidden()
+        await expect(resources.getByRole('heading', { name: 'Files', exact: true })).toBeVisible()
+        await expect(resources.getByRole('heading', { name: 'Global context', exact: true })).toBeVisible()
+      }
+      await expect(page.getByRole('textbox', { name: 'Message this conversation' })).toBeVisible()
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+      await page.screenshot({ path: info.outputPath('workspace-boundary.png'), animations: 'disabled' })
+    })
+  }
+})
+
 for (const width of [1440, 390]) for (const dark of [false, true]) {
   test(`workspace visual ${width} ${dark ? 'dark' : 'light'}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 960 })

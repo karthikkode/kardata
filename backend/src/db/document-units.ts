@@ -1,3 +1,5 @@
+import { z } from 'zod'
+import { DbContractError } from './errors.js'
 // Per-file extraction index: a document's context is its units. Turns
 // include units (cited document_id:ord), never raw file bytes. Pure SQL
 // helpers; extraction itself lives in file-pipeline.ts.
@@ -61,4 +63,11 @@ export async function countDocumentUnits(db: Db, documentId: string): Promise<nu
     [documentId],
   )
   return Number(rows[0]?.count ?? 0)
+}
+
+/** Dependency validation needs unit identities, not repeated extracted bodies. */
+export async function listDocumentUnitOrdinals(db: Db, documentId: string): Promise<number[]> {
+  if (!z.string().min(1).safeParse(documentId).success) throw new DbContractError('documentId must be non-empty')
+  const { rows } = await db.query<{ ord: number }>('SELECT ord FROM sector_document_units WHERE document_id=$1 ORDER BY ord', [documentId])
+  return rows.map((row) => Number(row.ord))
 }

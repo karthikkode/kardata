@@ -6,6 +6,9 @@ name: kardata
 services:
   db:
     image: postgres@sha256:a3b7f434b2dc57ce85a67e171163eb8ab1a1ebcb39d27484661f26b1dfbe30d6
+    # Parallel query DSM exceeds Docker's 64-MiB default under the verified
+    # test fan-out. Connection/pool budgets remain unchanged.
+    shm_size: 1gb
     # Explicit ceiling for the connection budget table in
     # documentation/db.md; slow-query log feeds pool tuning. Dev values.
     command: ['postgres', '-c', 'max_connections=100', '-c', 'log_min_duration_statement=1000']
@@ -142,8 +145,15 @@ services:
       KARDATA_CHROME_CDP_URL: http://browser:9222
       KARDATA_BROWSER_PROXY_URL: http://backend:3001
       KARDATA_PG_WORKER_MAX: '5'
+      KARDATA_GCS_BUCKET: ${KARDATA_GCS_BUCKET:-}
+      KARDATA_GCS_PREFIX: ${KARDATA_GCS_PREFIX:-}
+      KARDATA_GCP_PROJECT_ID: ${KARDATA_GCP_PROJECT_ID:-}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/kardata/adc.json
+      KARDATA_ARCHIVE_DIR: /var/kardata/archive
     volumes:
       - ./worker-entrypoint.sh:/worker-entrypoint.sh:ro
+      - ${KARDATA_GCP_ADC_PATH:-/dev/null}:/run/kardata/adc.json:ro
+      - archive-data:/var/kardata/archive
     depends_on:
       db:
         condition: service_healthy

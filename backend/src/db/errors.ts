@@ -11,3 +11,12 @@ export class DbContractError extends Error {
     this.name = 'DbContractError'
   }
 }
+
+export class WorkspaceError extends Error {
+  constructor(readonly code: 'not_found' | 'conflict' | 'permission_denied' | 'validation_failed', message: string) { super(message) }
+}
+
+export class ArtifactImportTimeout extends Error {
+  readonly code = 'artifact_import_timeout'
+  constructor() { super('Artifact import deadline exceeded; retained partial records require verification before reuse.') }
+}

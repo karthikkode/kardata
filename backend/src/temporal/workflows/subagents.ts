@@ -31,6 +31,9 @@ import {
   type ChildWorkflowHandle,
 } from '@temporalio/workflow'
 import { resumableTurn } from './resumable-turn.js'
+import { withPreparedExecution } from './epoch-start.js'
+import { WorkflowExecutionAlreadyStartedError } from '@temporalio/common'
+import type { OriginalTurnRecovery } from '../turn-recovery.js'
 import type {
   ChildSnapshot,
   ChildStatus,
@@ -40,10 +43,13 @@ import type {
 } from '@kardata/agents'
 import { activityOptions } from '../timeouts.js'
 import type * as activities from '../activities/turn.js'
+import type * as epochActivities from '../activities/execution-epochs.js'
 
 const childActivities = proxyActivities<typeof activities>(activityOptions('turn'))
+const execution = proxyActivities<typeof epochActivities>(activityOptions('turn'))
 
 export interface DelegateRequest {
+  recovery?: OriginalTurnRecovery
   childId: string
   goal: string
   depth: number
@@ -59,6 +65,7 @@ export interface DelegateRequest {
 }
 
 export interface SubagentChildInput extends DelegateRequest {
+  ownerEpoch?: string
   parentSessionId: string
   parentPartition: string
   /** Finish close: a cancelled child with no finish signal for this long
@@ -96,6 +103,7 @@ export const parentSteerSignal = defineSignal<[SteerRequest]>('parentSteer')
 // noteDone leaves a stale 'running' entry and later relaunches of that id
 // reject as duplicates instead of starting.
 export const parentNoteDoneSignal = defineSignal<[NoteDoneRequest]>('parentNoteDone')
+export const parentRecoverSignal = defineSignal<[DelegateRequest]>('parentRecover')
 export const parentFinishSignal = defineSignal('parentFinish')
 export const parentStateQuery = defineQuery<ParentState>('parentState')
 
@@ -121,6 +129,7 @@ function isCancellation(error: unknown): boolean {
 }
 
 export interface DelegateParentInput {
+  ownerEpochProtocol?: boolean
   sessionId: string
   /** Idle close: no delegation, steer, or finish for this long cancels any
    * running children and completes the parent instead of wedging it open.
@@ -150,6 +159,11 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
   setHandler(parentDelegateSignal, (request: DelegateRequest) => {
     delegations.push(request)
     log.info('signal received', { signal: 'parentDelegate', pending: delegations.length })
+  })
+  setHandler(parentRecoverSignal,(request: DelegateRequest) => {
+    if (!request.recovery) { log.warn('recovery signal rejected',{ code: 'recovery_proof_missing' }); return }
+    delegations.push(request)
+    log.info('signal received',{ signal: 'parentRecover',pending: delegations.length })
   })
   setHandler(parentSteerSignal, (request: SteerRequest) => {
     steers.push(request)
@@ -235,7 +249,11 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
       continue
     }
     const existing = children.get(request.childId)
-    if (existing?.status === 'running') {
+    if (request.recovery) {
+      if (!(await execution.originalRecoveryReadyActivity({ threadKey: `agent:${request.childId}`,sessionId: input.sessionId,checkpointHash: request.recovery.checkpointHash }))) continue
+      children.delete(request.childId)
+    }
+    if (existing?.status === 'running' && !request.recovery) {
       // A duplicate workflowId would throw inside startChild and fail the
       // parent: reject the duplicate as an event and keep the running child.
       // Finished children may relaunch under the same id (server reuses the
@@ -300,7 +318,9 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
     // cooperatively cancels the running child — mirroring agents cancel()
     // propagation — so the child still records its completion entry instead
     // of dying silent.
-    const handle = await startChild(subagentRun, {
+    const ownerEpoch = input.ownerEpochProtocol && patched('execution-epoch-v1') ? await execution.prepareExecutionIntentActivity({ workflowId: request.childId,threadKey: `agent:${request.childId}`,sessionId: input.sessionId,requestKey: `child:${request.childId}:${nonce}` }) : undefined
+    let handle: ChildWorkflowHandle<typeof subagentRun>
+    try { handle = await withPreparedExecution(ownerEpoch,() => startChild(subagentRun, {
       workflowId: request.childId,
       parentClosePolicy: ParentClosePolicy.PARENT_CLOSE_POLICY_REQUEST_CANCEL,
       args: [
@@ -308,9 +328,16 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
           ...request,
           parentSessionId: input.sessionId,
           parentPartition: partition,
+          ...(ownerEpoch ? { ownerEpoch } : {}),
         },
       ],
-    })
+    })) } catch (error) {
+      if (request.recovery && error instanceof WorkflowExecutionAlreadyStartedError) {
+        if (existing) children.set(request.childId,existing)
+        continue
+      }
+      throw error
+    }
     children.set(request.childId, { status: 'running', handle })
   }
 }
@@ -320,7 +347,8 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
   const threadKey = `agent:${input.childId}`
   const box: { status: ChildStatus } = { status: 'running' }
   const goalBox: { goal: string } = { goal: input.goal }
-  const inbox: string[] = []
+  const inbox: string[] = input.recovery ? [input.recovery.text] : []
+  let recovering=input.recovery
   const missedSteer: string[] = []
   const currentStatus = (): ChildStatus => box.status
   let nonce = 0
@@ -441,7 +469,7 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
         continue
       }
       try {
-        if (patched('child-user-before-turn-v1')) {
+        if (patched('child-user-before-turn-v1') && !recovering) {
           nonce += 1
           await childActivities.appendEventActivity({ idempotencyKey: idempotencyKey(eventKey, 'user', nonce), partition: childPartition, type: 't.message.appended', payload: { threadKey, kind: 'text', message: { role: 'user', text: next } } })
           threadLength += 1
@@ -457,7 +485,9 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
             return await resumableTurn(() => childActivities.karbotTurnActivity({
               sessionId: input.parentSessionId,
               threadKey,
-              runKey: patched('child-runkey-v2') ? runKey : `karbot:${input.childId}:${nonce}`,
+              runKey: recovering?.runKey ?? (patched('child-runkey-v2') ? runKey : `karbot:${input.childId}:${nonce}`),
+              ...(recovering ? { recovery: recovering } : {}),
+              ...(input.ownerEpoch ? { ownerEpoch: input.ownerEpoch,ownerFirstExecutionId: workflowInfo().firstExecutionRunId,ownerContinuedFromExecutionId: workflowInfo().continuedFromExecutionRunId } : {}),
               text: next,
               fakeSteps: input.fakeSteps,
             }), async (reason, kind) => {
@@ -488,6 +518,7 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
           payload: { threadKey, kind: 'text', message: { text: outcome.reply, role: 'agent' } },
         })
         threadLength += 1
+        recovering=undefined
       } catch (error) {
         if (isCancellation(error)) continue
         throw error

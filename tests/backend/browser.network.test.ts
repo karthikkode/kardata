@@ -2,6 +2,7 @@
 // admitted public fixtures to owned loopback peers; literal/private admission
 // remains production code. No shared sidecar or research data is touched.
 import Fastify from 'fastify'
+import { spawn } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { chromium } from 'playwright-core'
@@ -125,5 +126,43 @@ describe.skipIf(!enabled)('isolated Chromium public-network boundary', () => {
     expect(result.snapshot.length).toBeGreaterThan(0)
     await browserClose(result.sessionId, 'TEST network')
   }, 40_000)
+
+  it('disposes an isolated CDP context when its owning process dies, preserving the shared browser', async () => {
+    const shared = await chromium.launch({ executablePath: chromium.executablePath(), headless: true, args: [...BROWSER_NETWORK_FLAGS, '--remote-debugging-port=0'] })
+    let owner: ReturnType<typeof spawn> | undefined
+    try {
+      const protocol = await shared.newBrowserCDPSession()
+      const args = (await protocol.send('Browser.getBrowserCommandLine')).arguments
+      const profile = args.find((arg) => arg.startsWith('--user-data-dir='))?.slice('--user-data-dir='.length)
+      if (!profile) throw new Error('TEST owned Chromium profile missing')
+      const port = (await readFile(join(profile, 'DevToolsActivePort'), 'utf8')).split('\n')[0]
+      const program = `import {chromium} from 'playwright-core'; const browser=await chromium.connectOverCDP(${JSON.stringify(`http://127.0.0.1:${port}`)}); const context=await browser.newContext(); await context.newPage(); console.log('TEST_OWNER_READY'); setInterval(()=>{},1000);`
+      owner = spawn(process.execPath, ['--input-type=module','-e',program], { stdio: ['ignore','pipe','pipe'] })
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('TEST owning process startup deadline')), 15000)
+        owner!.once('error', (error) => { clearTimeout(timer); reject(error) })
+        owner!.once('exit', () => { clearTimeout(timer); reject(new Error('TEST owning process exited before readiness')) })
+        owner!.stdout!.on('data', (data: Buffer) => { if (data.toString().includes('TEST_OWNER_READY')) { clearTimeout(timer); resolve() } })
+      })
+      // Inventory identifies exactly the isolated owner and one context before
+      // the disruptive drill. No shared app/sidecar process is terminated.
+      expect(owner.pid).toBeGreaterThan(0)
+      expect((await protocol.send('Target.getBrowserContexts')).browserContextIds).toHaveLength(1)
+      const exited = once(owner, 'exit')
+      owner.kill('SIGKILL')
+      await exited
+      const deadline = Date.now() + 10000
+      while ((await protocol.send('Target.getBrowserContexts')).browserContextIds.length && Date.now() < deadline) await new Promise<void>((resolve) => setTimeout(resolve, 50))
+      expect((await protocol.send('Target.getBrowserContexts')).browserContextIds).toHaveLength(0)
+      expect(shared.isConnected()).toBe(true)
+      const next = await shared.newContext()
+      await next.newPage()
+      await next.close()
+      await protocol.detach()
+    } finally {
+      if (owner && owner.exitCode === null && owner.signalCode === null) { const exited = once(owner, 'exit'); owner.kill('SIGKILL'); await exited }
+      await shared.close()
+    }
+  }, 40000)
 
 })

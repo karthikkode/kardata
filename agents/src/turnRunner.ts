@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util'
 import { createHash } from 'node:crypto'
 // Karbot turn runner (Phase 3). Library only: no credentials, no database,
 // no environment reads. The caller injects a provider adapter, an MCP tool
@@ -31,7 +32,13 @@ import {
 } from './providers.js'
 
 export interface McpToolOutcome { content: string; isError?: boolean; recovery?: { operationId: string; reason: string; authorityId?: string } }
-export interface RecoveryOperation { authorityId?: string; operationId: string; call: ToolCallRequest; reason: string }
+export interface RecoveryOperation {
+  serializedCall?: string
+  authorityId?: string
+  operationId: string
+  call: ToolCallRequest
+  reason: string
+}
 export class OperationRecoveryError extends Error {
   readonly code = 'operation_uncertain'
   constructor(readonly operations: RecoveryOperation[]) {
@@ -65,13 +72,25 @@ export interface TurnRunnerSink {
   onTool?(id: string, name: string, state: 'running' | 'done' | 'failed', round: number): void | Promise<void>
 }
 
+export interface PendingProviderResponse {
+  round: number
+  response: { text: string; reasoning: string; toolCalls: ToolCallRequest[]; usage: Usage }
+  metadata?: Record<string, unknown>
+}
+
 export interface KarbotTurnOptions {
   operationKey?: string
   maxOutputTokens?: number
   signal?: AbortSignal
+  /** Persistence boundaries: inputs contain no transport credentials/signals.
+   * Request persistence settles before provider execution; response persistence
+   * settles before tool dispatch or another round. */
+  onProviderRequest?(round: number, request: Omit<ProviderRequest, 'signal'>): Promise<void>
+  onProviderResponse?(round: number, response: PendingProviderResponse['response'], metadata?: Record<string, unknown>): Promise<void>
+  onToolResult?(round: number, call: ToolCallRequest, outcome: McpToolOutcome, operationId?: string): Promise<void>
   beforeRound?(round: number, context: { systemPrompt: string; messages: ChatMessage[]; tools: ToolDefinition[] }): Promise<{ systemPrompt?: string; messages?: ChatMessage[] }>
-  onCheckpoint?(messages: ChatMessage[], round: number, usage: Usage, toolCalls: number, blockedOperations?: RecoveryOperation[]): Promise<void>
-  resume?: { round: number; usage: Usage; toolCalls: number; blockedOperations?: RecoveryOperation[] }
+  onCheckpoint?(messages: ChatMessage[], round: number, usage: Usage, toolCalls: number, blockedOperations?: RecoveryOperation[], pendingResponse?: PendingProviderResponse): Promise<void>
+  resume?: { round: number; usage: Usage; toolCalls: number; blockedOperations?: RecoveryOperation[]; pendingResponse?: PendingProviderResponse }
   provider: ProviderAdapter
   mcp: TurnRunnerMcpClient
   sink: TurnRunnerSink
@@ -206,7 +225,7 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
     for (let index = 0; index < options.resume.toolCalls; index++) harness.budgets.noteToolCall()
     harness.budgets.noteTokens(usage.inputTokens + usage.outputTokens)
   }
-  const preparedOperations = (calls: ToolCallRequest[]): RecoveryOperation[] => options.operationKey ? calls.map((call) => ({ authorityId: options.mcp.authorityId, operationId: toolOperationId(options.operationKey!, call.id), call, reason: 'Execution was prepared; its result has not yet been durably confirmed.' })) : []
+  const preparedOperations = (calls: ToolCallRequest[]): RecoveryOperation[] => options.operationKey ? calls.map((call) => ({ authorityId: options.mcp.authorityId, operationId: toolOperationId(options.operationKey!, call.id), call, serializedCall: JSON.stringify(call), reason: 'Execution was prepared; its result has not yet been durably confirmed.' })) : []
   const dispatchTool = async (call: ToolCallRequest, round: number, replayId?: string) => {
     options.signal?.throwIfAborted()
     let outcome: McpToolOutcome
@@ -218,12 +237,30 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
       outcome = { content: error instanceof Error ? error.message.slice(0, 500) : 'mcp tool call failed', isError: true, ...(operationId ? { recovery: { operationId, authorityId: options.mcp.authorityId, reason: 'The tool client failed without confirming whether the operation took effect.' } } : {}) }
     }
     options.signal?.throwIfAborted()
+    await options.onToolResult?.(round, call, outcome, replayId ?? (options.operationKey ? toolOperationId(options.operationKey, call.id) : undefined))
     await options.sink.onTool?.(call.id, call.name, outcome.isError ? 'failed' : 'done', round)
     return outcome
   }
+  if (options.resume?.pendingResponse) {
+    const pending = options.resume.pendingResponse
+    await options.onProviderResponse?.(pending.round, structuredClone(pending.response), pending.metadata)
+    text = pending.response.text
+    reasoning = pending.response.reasoning
+    turns = pending.round
+    if (!history.some((message) => message.role === 'assistant' && message.text === text && JSON.stringify(message.toolCalls ?? []) === JSON.stringify(pending.response.toolCalls))) history.push({ role: 'assistant', text, ...(pending.response.toolCalls.length ? { toolCalls: pending.response.toolCalls } : {}) })
+    if (pending.response.toolCalls.length) await options.onCheckpoint?.(history, pending.round, usage, options.resume.toolCalls, options.resume.blockedOperations)
+    if (!pending.response.toolCalls.length) completed = true
+  }
   // Recovery is durable metadata, independent of history compaction. Retry only
   // the original call/id before allowing the model to issue another operation.
-  for (const operation of options.resume?.blockedOperations ?? []) {
+  for (const original of options.resume?.blockedOperations ?? []) {
+    let operation = original
+    if (original.serializedCall !== undefined) {
+      let restored: ToolCallRequest
+      try { restored = JSON.parse(original.serializedCall) as ToolCallRequest } catch { recoveryHalt.push({ ...original, reason: 'The original serialized tool call is invalid. Owner review is required.' }); continue }
+      if (!isDeepStrictEqual(restored, original.call)) { recoveryHalt.push({ ...original, reason: 'The original tool-call receipt conflicts with its preserved arguments. Owner review is required.' }); continue }
+      operation = { ...original, call: restored }
+    }
     if (options.mcp.authorityId !== undefined && operation.authorityId !== options.mcp.authorityId) { recoveryHalt.push({ ...operation, reason: 'The original execution authority is unavailable or changed.' }); continue }
     await options.sink.onTool?.(operation.call.id, operation.call.name, 'running', options.resume?.round ?? 0)
     const result = await dispatchTool(operation.call, options.resume?.round ?? 0, operation.operationId)
@@ -245,12 +282,12 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
       const result = await dispatchTool(call, options.resume?.round ?? 0)
       history.push({ role: 'tool', toolResult: { toolCallId: call.id, toolName: call.name, content: result.content, isError: result.isError ?? false } })
       executed.push(call)
-      if (result.recovery) recoveryHalt.push({ authorityId: result.recovery.authorityId, operationId: result.recovery.operationId, call, reason: result.recovery.reason })
+      if (result.recovery) recoveryHalt.push({ authorityId: result.recovery.authorityId, operationId: result.recovery.operationId, call, serializedCall: JSON.stringify(call), reason: result.recovery.reason })
       toolOutcomes.push({ id: call.id, name: call.name, state: result.isError ? 'failed' : 'done' })
     }
     await options.onCheckpoint?.(history, options.resume?.round ?? 0, usage, previousToolCalls + executed.length, recoveryHalt)
   }
-  for (let turn = (options.resume?.round ?? 0) + 1; turn <= maxTurns && recoveryHalt.length === 0; turn += 1) {
+  for (let turn = (options.resume?.round ?? 0) + 1; turn <= maxTurns && recoveryHalt.length === 0 && !completed; turn += 1) {
     options.signal?.throwIfAborted()
     turns = turn
     const refreshed = await options.beforeRound?.(turn, { systemPrompt, messages: history, tools })
@@ -311,6 +348,14 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
       await harness.onSnapshot(snapshot)
     }
     let timer: ReturnType<typeof setTimeout> | undefined
+    const providerRequest: Omit<ProviderRequest, 'signal'> = {
+      systemPrompt, messages: structuredClone(history), tools: structuredClone(tools), toolChoice,
+      ...(options.maxOutputTokens === undefined ? {} : { maxOutputTokens: options.maxOutputTokens }),
+      ...(options.reasoningEffort === undefined ? {} : { reasoningEffort: options.reasoningEffort }),
+      ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
+    }
+    await options.onProviderRequest?.(turn, structuredClone(providerRequest))
+    options.signal?.throwIfAborted()
     const roundController = new AbortController()
     const roundSignal = options.signal ? AbortSignal.any([options.signal, roundController.signal]) : roundController.signal
     let streamClosed = false
@@ -323,18 +368,8 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
           const calls = new DeltaAccumulator()
           let turnUsage: Usage = emptyUsage()
           for await (const event of options.provider.chatStream({
-            systemPrompt,
-            // Freeze this request's view: the mutable turn history grows
-            // after the stream ends, and adapters may retain the request.
-            messages: [...history],
-            tools,
-            toolChoice,
+            ...providerRequest,
             signal: roundSignal,
-            ...(options.maxOutputTokens === undefined ? {} : { maxOutputTokens: options.maxOutputTokens }),
-            ...(options.reasoningEffort === undefined
-              ? {}
-              : { reasoningEffort: options.reasoningEffort }),
-            ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
           })) {
             if (streamClosed || roundSignal.aborted) break
             if (event.kind === 'text_delta') {
@@ -395,6 +430,11 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
           harness.budgets.noteCost(cost)
         }
       }
+      const pendingResponse: PendingProviderResponse = { round: turn, response: { text: streamed.replyText, reasoning: streamed.reasoningText, toolCalls: structuredClone(streamed.toolCalls), usage: { ...streamed.turnUsage } } }
+      if (options.onProviderResponse) {
+        await options.onCheckpoint?.(history, turn, usage, previousToolCalls + executed.length + streamed.toolCalls.length, preparedOperations(streamed.toolCalls), pendingResponse)
+        await options.onProviderResponse(turn, pendingResponse.response)
+      }
       if (streamed.toolCalls.length === 0) { completed = true; break }
       await options.onCheckpoint?.(history, turn, usage, previousToolCalls + executed.length + streamed.toolCalls.length, preparedOperations(streamed.toolCalls))
       // Independent calls in one round dispatch together: rounds cost a
@@ -405,7 +445,7 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
       options.signal?.throwIfAborted()
       for (const [index, call] of streamed.toolCalls.entries()) {
         const outcome = outcomes[index] as McpToolOutcome
-        if (outcome.recovery) recoveryHalt.push({ authorityId: outcome.recovery.authorityId, operationId: outcome.recovery.operationId, call, reason: outcome.recovery.reason })
+        if (outcome.recovery) recoveryHalt.push({ authorityId: outcome.recovery.authorityId, operationId: outcome.recovery.operationId, call, serializedCall: JSON.stringify(call), reason: outcome.recovery.reason })
         executed.push(call)
         toolOutcomes.push({ id: call.id, name: call.name, state: outcome.isError ? 'failed' : 'done' })
         history.push({

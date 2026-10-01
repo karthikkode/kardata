@@ -50,7 +50,7 @@ export async function readSectorPlan(
     throw error
   })
   if (!sector) return undefined
-  const events = await readPartition(db, `sector:${sectorId}`)
+  const events = await readPartition(db, `sector:${sectorId}`, 0, [SECTOR_PLAN_WRITTEN_EVENT, SECTOR_PLAN_APPROVED_EVENT])
   const versions: PlanVersion[] = []
   const approvals: number[] = []
   let approvedContext: SectorPlan['approvedContext']

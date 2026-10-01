@@ -52,7 +52,7 @@ export async function checkRate(
 export type IdempotencyOutcome =
   | { kind: 'proceed' }
   | { kind: 'replay'; status: number; body: unknown }
-  | { kind: 'conflict'; reason: string }
+  | { kind: 'conflict'; reason: string; sameRequest?: boolean }
 
 /**
  * Claim an idempotency key before executing a mutation. Returns `proceed`
@@ -88,7 +88,7 @@ export async function claimIdempotency(
         reason: 'idempotency key was already used for a different request',
       }
     }
-    return { kind: 'conflict', reason: 'request with this idempotency key is already in progress' }
+    return { kind: 'conflict', reason: 'request with this idempotency key is already in progress', sameRequest: row.fingerprint === fingerprint }
   }
   const claimed = await db.query(
     `INSERT INTO idempotency_records (key, fingerprint, state)
@@ -109,13 +109,16 @@ export async function completeIdempotency(
   key: string,
   status: number,
   body: unknown,
-): Promise<void> {
+  fingerprint?: string,
+): Promise<boolean> {
   if (!KeySchema.safeParse(key).success) reject('key must be a non-empty string')
   if (!StatusSchema.safeParse(status).success) reject('status must be an HTTP status code')
-  await db.query(
-    `UPDATE idempotency_records SET state = 'completed', status = $2, response = $3 WHERE key = $1`,
-    [key, status, JSON.stringify(body ?? null)],
+  if (fingerprint !== undefined && !FingerprintSchema.safeParse(fingerprint).success) reject('fingerprint must be a non-empty string')
+  const result = await db.query(
+    `UPDATE idempotency_records SET state = 'completed', status = $2, response = $3 WHERE key = $1 ${fingerprint === undefined ? '' : "AND fingerprint=$4 AND state='in_progress'"}`,
+    fingerprint === undefined ? [key, status, JSON.stringify(body ?? null)] : [key, status, JSON.stringify(body ?? null), fingerprint],
   )
+  return (result.rowCount ?? 0) > 0
 }
 
 /** Retention sweeper (the B6 sweeper migration 0006 promises): age out
@@ -134,7 +137,8 @@ export async function sweepIdempotency(db: Db, olderThan: Date): Promise<number>
 }
 
 /** Drop an in-progress claim so a failed mutation can be retried. */
-export async function releaseIdempotency(db: Db, key: string): Promise<void> {
+export async function releaseIdempotency(db: Db, key: string, fingerprint?: string): Promise<void> {
   if (!KeySchema.safeParse(key).success) reject('key must be a non-empty string')
-  await db.query(`DELETE FROM idempotency_records WHERE key = $1 AND state = 'in_progress'`, [key])
+  if (fingerprint !== undefined && !FingerprintSchema.safeParse(fingerprint).success) reject('fingerprint must be a non-empty string')
+  await db.query(`DELETE FROM idempotency_records WHERE key = $1 AND state = 'in_progress' ${fingerprint === undefined ? '' : 'AND fingerprint=$2'}`, fingerprint === undefined ? [key] : [key, fingerprint])
 }

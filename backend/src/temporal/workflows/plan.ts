@@ -27,6 +27,7 @@ const sweep = proxyActivities<typeof sweepActivitiesModule>(activityOptions('res
 export interface SectorPlanInput {
   sectorId: string
   sessionId: string
+  ownerEpoch?: string
   /** Isolated harness override; product routes never accept this field. */
   turnTaskQueue?: string
   /** Tenant binding: the artifact and transitions carry this scope. */
@@ -85,6 +86,7 @@ export async function sectorPlan(input: SectorPlanInput): Promise<'planned' | 'f
       sessionId: input.sessionId,
       threadKey: input.sessionId,
       runKey: modern ? `plan:${input.sectorId}:${versionKey}` : `plan:${input.sectorId}`,
+      ...(input.ownerEpoch ? { ownerEpoch: input.ownerEpoch,ownerFirstExecutionId: workflowInfo().firstExecutionRunId,ownerContinuedFromExecutionId: workflowInfo().continuedFromExecutionRunId } : {}),
       text: planningBrief(context.name, context.topic),
       ...(input.fakeSteps === undefined ? {} : { fakeSteps: input.fakeSteps }),
     })

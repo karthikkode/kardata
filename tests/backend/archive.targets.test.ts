@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import {
-  archiveResearchOutcome, hydrateResearchSources, persistResearchSource,
+  archiveResearchOutcome, hydrateResearchSources, persistResearchSource, persistExecutionRecord, readExecutionRecord,
   FilesystemTarget,
   GcsTarget,
   resolveArchiveTarget,
@@ -210,5 +210,36 @@ describe('source archive cancellation and deadlines', () => {
     await expect(pending).rejects.toThrow('cancelled source read')
     expect(source?.destroyed).toBe(true)
     expect(download).not.toHaveBeenCalled()
+  })
+})
+
+
+describe('exact normalized execution archives', () => {
+  it('round trips large exact payloads and deduplicates only identical bytes', async () => {
+    const bucket = new FakeBucket(), target = new GcsTarget(bucket)
+    const record = { systemPrompt: 'TEST instructions', messages: [{ text: 'TEST '+ 'ü'.repeat(1_100_000) }], tools: [{ name: 'TEST tool' }], usage: { cacheReadTokens: 42 } }
+    const ref = await persistExecutionRecord(target, 'TEST session', record)
+    expect(ref.bytes).toBeGreaterThan(2_000_000)
+    expect(await readExecutionRecord(target, 'TEST session', ref)).toEqual(record)
+    expect(await persistExecutionRecord(target, 'TEST session', record)).toEqual(ref)
+    expect(bucket.bodies.size).toBe(1)
+    const changed = await persistExecutionRecord(target, 'TEST session', { ...record, systemPrompt: 'TEST new version' })
+    expect(changed.hash).not.toBe(ref.hash)
+  })
+  it('denies foreign, missing, corrupt and false-size references', async () => {
+    const bucket = new FakeBucket(), target = new GcsTarget(bucket)
+    const ref = await persistExecutionRecord(target, 'TEST session', { text: 'TEST exact' })
+    await expect(readExecutionRecord(target, 'TEST other session', ref)).rejects.toMatchObject({ code: 'execution_scope' })
+    await expect(readExecutionRecord(target, 'TEST session', { ...ref, bytes: ref.bytes+1 })).rejects.toMatchObject({ code: 'execution_integrity' })
+    bucket.bodies.set(ref.key, 'TEST corrupt')
+    await expect(readExecutionRecord(target, 'TEST session', ref)).rejects.toMatchObject({ code: 'execution_integrity' })
+    await expect(persistExecutionRecord(target, 'TEST session', { text: 'TEST exact' })).rejects.toMatchObject({ code: 'execution_integrity' })
+    bucket.bodies.delete(ref.key)
+    await expect(readExecutionRecord(target, 'TEST session', ref)).rejects.toMatchObject({ code: 'execution_integrity' })
+  })
+  it('never certifies an unconfirmed archive write', async () => {
+    const target = { read: async () => undefined, write: async () => undefined, list: async () => [] }
+    await expect(persistExecutionRecord(target, 'TEST session', { text: 'TEST' })).rejects.toMatchObject({ code: 'execution_integrity' })
+    await expect(persistExecutionRecord(target, 'TEST session', { text: 'x'.repeat(16*1024*1024) })).rejects.toMatchObject({ code: 'execution_limit' })
   })
 })

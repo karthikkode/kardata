@@ -11,7 +11,7 @@ import type { Db } from './events.js'
 /** Minimum milliseconds between table writes for one (run, op). */
 export const HEARTBEAT_WRITE_MS = 5_000
 
-const lastWrites = new WeakMap<Db, Map<string, number>>()
+const lastWrites = new WeakMap<Db, Map<string, { at: number; busy: boolean }>>()
 
 export function heartbeatThrottleKey(runId: string, op: string): string {
   return JSON.stringify([runId, op])
@@ -39,7 +39,7 @@ export async function recordHeartbeat(
   let lastWrite = lastWrites.get(db)
   if (!lastWrite) { lastWrite = new Map(); lastWrites.set(db, lastWrite) }
   const last = lastWrite.get(key)
-  if (last !== undefined && nowMs - last < HEARTBEAT_WRITE_MS) return
+  if (last !== undefined && last.busy === busy && nowMs - last.at >= 0 && nowMs - last.at < HEARTBEAT_WRITE_MS) return
   await db.query(
     `INSERT INTO heartbeats (run_id, op, at, busy)
      VALUES ($1, $2, now(), $3)
@@ -48,9 +48,9 @@ export async function recordHeartbeat(
     [runId, op, busy],
   )
   // Failed writes must never appear as persisted beats. Cache only success.
-  lastWrite.set(key, nowMs)
+  lastWrite.set(key, { at: nowMs, busy })
   if (lastWrite.size > 1000) {
-    for (const [entry, at] of lastWrite) if (nowMs - at >= HEARTBEAT_WRITE_MS) lastWrite.delete(entry)
+    for (const [entry, value] of lastWrite) if (nowMs - value.at >= HEARTBEAT_WRITE_MS) lastWrite.delete(entry)
   }
 }
 

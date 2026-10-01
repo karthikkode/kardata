@@ -25,6 +25,7 @@ import { skillRoutes } from './routes/skills.js'
 import { threadRoutes } from './routes/threads.js'
 import { registerBrowserProxy } from './retrieval/proxy.js'
 import { workspaceRoutes } from './routes/workspace.js'
+import { executionRecordRoutes } from './routes/execution-records.js'
 
 export interface HealthData {
   status: 'ok'
@@ -116,6 +117,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   artifactRoutes(app)
   threadRoutes(app)
   workspaceRoutes(app)
+  executionRecordRoutes(app)
   runRoutes(app)
   commandRoutes(app)
   inspectorRoutes(app)

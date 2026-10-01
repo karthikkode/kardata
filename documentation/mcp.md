@@ -191,3 +191,30 @@ Owner inspection/reconciliation is scoped and cannot grant agent approval,
 release an uncertain effect blindly or expose another thread/sector's records.
 Legacy records are reconciled only with exact request/result and current authority
 proof; otherwise explicit parking is the compatible outcome, not silent trust.
+
+Bound mutation calls record an intent and a successful transport result in the
+existing event log under the validated execution thread. Receipts bind caller
+key, request fingerprint and operation identity. The result is recorded before
+the response-cache completion, so an identical authorized retry can repair that
+specific failure window without re-running the tool. Tool errors, absent results
+and legacy claims never prove success. A viewer can inspect receipts only through
+the owning thread; inspection omits arguments and reply bodies. Inspection does
+not release claims. Unproven effects remain explicitly blocked for investigation.
+
+Receipt-based cache repair accepts only the same-fingerprint in-progress claim;
+different-request conflicts remain409. Completion and pre-dispatch release use
+fingerprint/state compare-and-swap. Retained receipts therefore cannot overwrite
+a newer request's guard after response-cache retention.
+
+File read/query and indexed artifact reads record exposure receipts before returning
+content to a bound agent. Derived global edits require owner review of exact
+file/version/unit dependencies, even when the research parent omits fileRef.
+Owner review renders these dependencies and source units. Hidden/version-changed
+sources are denied again on approval and on all subsequent agent context reads;
+owner historical inspection retains its stored evidence.
+
+An owner safe rebuild preserves original operation metadata but deliberately
+excludes covered historical messages and pre-rebuild outbox frames from subsequent
+agent reads. Owner transcript/history APIs remain immutable. Hidden-source tool
+arguments in unresolved operations prevent rebuild until their original effects
+or sources can be safely reconciled; rebuild never removes their authority guard.

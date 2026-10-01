@@ -1,7 +1,7 @@
 import { Writable } from 'node:stream'
 import Fastify, { type FastifyInstance } from 'fastify'
 import { describe, expect, it } from 'vitest'
-import { childLogger, createLogger, logOp, scrubSecrets } from '../../backend/src/observability/logging.js'
+import { childLogger, createLogger,createWorkerLogger,workerLoggingOptions, logOp, scrubSecrets } from '../../backend/src/observability/logging.js'
 import { route } from '../../backend/src/routes/http.js'
 import { extractTraceContext, injectTraceparent, newTraceId, tracePlugin } from '../../backend/src/observability/trace.js'
 
@@ -19,6 +19,18 @@ function capture(): { lines: string[]; stream: Writable } {
 }
 
 describe('logging contract (B0.5)', () => {
+  it('forwards native diagnostics with correlation but without raw failure strings, entries, spans or message bodies',() => {
+    const { lines,stream }=capture()
+    const privateText='TEST private execution body and api_key=synthetic-secret'
+    createWorkerLogger('INFO',stream).warn(`Failing workflow task ${privateText}`,{ sdkComponent: 'core',target: 'temporalio_sdk_core::worker::workflow',run_id: 'TEST-run',workflow_id: 'TEST-workflow',namespace: 'TEST-isolated',failure: `Failure { message: ${privateText}, stack_trace: ${privateText} }`,entry: privateText,spanContexts: [{ user: privateText }],taskToken: privateText })
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).not.toContain(privateText)
+    expect(JSON.parse(lines[0]!)).toMatchObject({ event: 'temporal.native',sdkComponent: 'core',target: 'temporalio_sdk_core::worker::workflow',run_id: 'TEST-run',workflow_id: 'TEST-workflow',namespace: 'TEST-isolated',messageHash: expect.stringMatching(/^[a-f0-9]{64}$/),msg: 'Temporal native diagnostic' })
+    expect(workerLoggingOptions()).toEqual({ filter: { core: 'WARN',other: 'ERROR' },forward: {} })
+    createWorkerLogger('INFO',stream).error(`Error converting native log entry: ${privateText}`,{ error: new Error(privateText),entry: privateText })
+    expect(lines[1]).not.toContain(privateText)
+    expect(JSON.parse(lines[1]!)).toMatchObject({ event: 'temporal.native',msg: 'Temporal native diagnostic' })
+  })
   it('keeps error identities while excluding sensitive error bodies and stacks', () => {
     const { lines, stream } = capture()
     const error = new Error('SECRET provider response body')

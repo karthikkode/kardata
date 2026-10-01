@@ -1,18 +1,21 @@
 // Real Temporal and DB; retrieval/reviewer fixtures fail closed off-network.
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Pool } from 'pg'
 import { ApplicationFailure } from '@temporalio/common'
+import { Context } from '@temporalio/activity'
+import { MockActivityEnvironment } from '@temporalio/testing'
 import { Client as WorkflowClient } from '@temporalio/client'
 import type { NativeConnection, Worker } from '@temporalio/worker'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { approveSectorPlan, createSector, ensureResearchSession, listArtifacts, listSectorCompanies, readPartition, readResearchProgress, recordPlanVersion, setSectorState, updateSectorPlan } from '../../backend/src/db/index.js'
+import { approveSectorPlan, beginThreadTurn, finishSteering, createSector, ensureResearchSession, listArtifacts, listSectorCompanies, readPartition, readResearchProgress, recordPlanVersion, setSectorState, updateSectorPlan } from '../../backend/src/db/index.js'
+import { reviewResearchWork } from '../../backend/src/db/work-review.js'
 import { ensureApprovedCoordinator } from '../../backend/src/temporal/gateway.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { archiveResearchOutcome, hydrateResearchSources, resolveArchiveTarget } from '../../backend/src/archive/targets.js'
-import { appendEventActivity, type TurnOutcome } from '../../backend/src/temporal/activities/turn.js'
+import { appendEventActivity, type KarbotTurnInput, type TurnOutcome } from '../../backend/src/temporal/activities/turn.js'
 import * as activities from '../../backend/src/temporal/activities/coordinator.js'
 import { connectClient, connectWorker, temporalNamespace } from '../../backend/src/temporal/connection.js'
 import { createLaneWorker } from '../../backend/src/temporal/worker.js'
@@ -20,10 +23,10 @@ import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
 const search = vi.hoisted(() => vi.fn())
 vi.mock('../../backend/src/temporal/activities/sweep.js', async (importOriginal) => ({ ...await importOriginal<typeof import('../../backend/src/temporal/activities/sweep.js')>(), searchWebPageActivity: search }))
-const receiptFault = vi.hoisted(() => ({ fail: false, revision: 1, pause: false, acceptancePause: false, holdAcceptance: null as null | { entered(): void; ready: Promise<void> } }))
+const receiptFault = vi.hoisted(() => ({ fail: false, revision: 1, pause: false, acceptancePause: false, lookupIds: [] as string[], holdAcceptance: null as null | { entered(): void; ready: Promise<void> } }))
 vi.mock('../../backend/src/db/index.js', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../backend/src/db/index.js')>()
-  return { ...original, createArtifact: async (...args: Parameters<typeof original.createArtifact>) => {
+  return { ...original, researchIntakeReceipts: async (...args: Parameters<typeof original.researchIntakeReceipts>) => { receiptFault.lookupIds.push(...args[3]); return original.researchIntakeReceipts(...args) }, createArtifact: async (...args: Parameters<typeof original.createArtifact>) => {
     const result = await original.createArtifact(...args)
     if (receiptFault.fail && args[1].name.endsWith(' intake.md')) {
       receiptFault.fail = false
@@ -60,6 +63,8 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
   let intakeHold: Hold | null = null
   let intakeTransient = false
   const transientDomains = new Set<string>()
+  const correctedDomains = new Set<string>()
+  let reviewHold: Hold | null = null
   let failPageCheckpoint = false
   let failSecondDirection = false
   const searchSeen: string[][] = []
@@ -68,8 +73,9 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
   let acceptanceRejected = 0
   let racePublication = false
   type Hold = { entered(): void; ready: Promise<void>; completed?(): void; skip?: number }
-  let loadHold: Hold | null = null, resumeHold: Hold | null = null
+  let loadHold: Hold | null = null, resumeHold: Hold | null = null, rotationPause: Hold | null = null
   const handles: Array<ReturnType<WorkflowClient['workflow']['getHandle']>> = []
+  let lastIntake: Parameters<typeof activities.researchIntakeActivity>[0] | undefined
   beforeAll(async () => {
     const url = await ensureTestDb('kardata_test_coordinator')
     vi.stubEnv('DATABASE_URL', url)
@@ -88,13 +94,18 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
         } catch (error) { acceptanceRejected++; throw error }
       },
       researchIntakeActivity: async (input: Parameters<typeof activities.researchIntakeActivity>[0]) => {
+        lastIntake = input
         if (racePublication) {
           racePublication = false
           const url = 'https://racing-company.example.test/'
           const hydrated = await hydrateResearchSources(resolveArchiveTarget(), input.sessionId, input.outcome)
           const racerOutcome = await archiveResearchOutcome(resolveArchiveTarget(), input.sessionId, { ...input.outcome, sourceRefs: undefined, reply: input.outcome.reply.replaceAll(input.candidate.url, url), sources: hydrated.sources.map((source) => ({ ...source, url })) })
           const racer = { ...input, item: { ...input.item, id: `${input.item.id}:racer`, childId: `${input.item.childId}:racer`, sourceUrl: url }, candidate: { ...input.candidate, domain: 'racing-company.example.test', url }, outcome: racerOutcome }
-          const [result] = await Promise.all([activities.researchIntakeActivity(input), activities.researchIntakeActivity(racer)])
+          // A legitimate concurrent publisher owns a separately checkpointed
+          // intake; borrowing the first candidate's receipt is not authority.
+          racer.item.receiptVersion = undefined
+          const preparedRacer = { ...racer, item: await activities.researchCheckpointActivity(racer) }
+          const [result] = await Promise.all([activities.researchIntakeActivity(input), activities.researchIntakeActivity(preparedRacer)])
           return result
         }
         const result = await activities.researchIntakeActivity(input)
@@ -102,6 +113,7 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
         return result
       },
       researchSearchActivity: async (input: Parameters<typeof activities.researchSearchActivity>[0]) => {
+        if (reviewHold && input.query === 'TEST owner-review-hold') { const hold = reviewHold; reviewHold = null; hold.entered(); await hold.ready }
         searchSeen.push(input.seen)
         if (failSecondDirection && input.query === 'TEST intake-cap') { failSecondDirection = false; throw ApplicationFailure.nonRetryable('TEST stopped before next direction', 'TestDirectionInterrupted') }
         return activities.researchSearchActivity(input)
@@ -114,6 +126,7 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
         return activities.researchCheckpointActivity(input)
       },
       loadCoordinatorActivity: async (input: activities.CoordinatorInput) => {
+        if (rotationPause && input.pinnedVersion !== undefined && !input.statusOnly) { const hold = rotationPause; rotationPause = null; await setSectorState(pool, input.sectorId, 'paused', { scope }); hold.entered(); await hold.ready }
         const loaded = await activities.loadCoordinatorActivity(input)
         const hold = loadHold
         if (hold?.skip) hold.skip--
@@ -130,7 +143,9 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
     } })
     turnWorker = await createLaneWorker({ lane: 'turn', connection, namespace: temporalNamespace(), workflowsPath: path, taskQueue: `${queue}-turn`, activities: {
       appendEventActivity,
-      karbotTurnActivity: async (input: { sessionId: string; text: string; runKey: string; toolAllow?: string[] }) => {
+      karbotTurnActivity: async (input: KarbotTurnInput) => {
+        const actual = Context.current().info.workflowExecution!
+        const lease = await beginThreadTurn(pool, input.threadKey, input.runKey, input.ownerEpoch ? { epoch: input.ownerEpoch, workflowId: actual.workflowId, executionId: actual.runId, firstExecutionId: input.ownerFirstExecutionId!, threadKey: input.threadKey, sessionId: input.sessionId } : undefined)
         const evaluate = async (): Promise<TurnOutcome> => {
         reviewerOperations.push(input.runKey)
         const candidateLine = input.text.split('\n').find((line) => line.startsWith('Candidate: '))
@@ -141,7 +156,7 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
           if (transientDomains.delete(new URL(candidate.url).hostname)) return { reply: '', toolCalls: [], haltNotice: 'TEST temporary source failure' }
           if (intakeTransient) { intakeTransient = false; return { reply: '', toolCalls: [], haltNotice: 'TEST transient provider interruption' } }
           if (intakeHold) { const hold = intakeHold; intakeHold = null; hold.entered(); await hold.ready }
-          if (/rejected|uncertain/.test(candidate.url)) return { reply: JSON.stringify({ decision: candidate.url.includes('rejected') ? 'reject' : 'uncertain', name: 'Unknown', reason: 'TEST basic intake did not establish fit' }), toolCalls: [], sources: [] }
+          if (/rejected|uncertain/.test(candidate.url) && !correctedDomains.has(new URL(candidate.url).hostname)) return { reply: JSON.stringify({ decision: candidate.url.includes('rejected') ? 'reject' : 'uncertain', name: 'Unknown', reason: 'TEST basic intake did not establish fit' }), toolCalls: [], sources: [] }
           const name = 'TEST Australian Widgets company'
           const excerpt = `${name} is an Australian manufacturing widgets supplier. Evidence revision ${receiptFault.revision}.`
           const evidence = { url: candidate.url, excerpt }
@@ -153,15 +168,19 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
         const entries = sample.map((item) => ({ id: item.id, url: item.url, excerpt: 'TEST Australian manufacturing company', isCompany: true, inGeography: true, inSector: true }))
         return { reply: `TEST evidence review\n\n\`\`\`discovery-result\n${JSON.stringify({ checks: [{ criterion: 'Verified Australian companies', met: true, evidence: sample.map((item) => item.url) }], sample: entries })}\n\`\`\``, toolCalls: [], sources: sample.map((item) => ({ url: item.url, text: 'TEST Australian manufacturing company with source evidence.' })) }
         }
-        return archiveResearchOutcome(resolveArchiveTarget(), input.sessionId, await evaluate())
+        try { return await archiveResearchOutcome(resolveArchiveTarget(), input.sessionId, await evaluate()) } finally { await finishSteering(pool, input.threadKey, input.runKey, lease) }
       },
     } })
     researchRun = researchWorker.run(); turnRun = turnWorker.run()
     search.mockImplementation(async ({ query, page }: { query: string; page: number }) => {
       pages.push(page)
       if (query === 'TEST empty' || (['TEST source-rejected', 'TEST source-uncertain'].includes(query) && page > 0)) return []
+      if (query === 'TEST owner-review-hold') return []
+      if (query === 'TEST review-mixed') return page === 0 ? ['uncertain','widgets'].map((domain) => ({ title: 'TEST Australian widgets company', snippet: 'Australian manufacturing widgets', url: `https://${domain}.example.test/` })) : []
       if (['TEST source-rejected', 'TEST source-uncertain'].includes(query) && page === 0) return [{ title: 'TEST Australian widgets business', snippet: 'Australian manufacturing widgets', url: `https://${query.includes('rejected') ? 'rejected' : 'uncertain'}.example.test/` }]
       if (query === 'TEST cap-recovery') return page === 0 ? ['failed-a', 'failed-b', 'widgets'].map((domain) => ({ title: 'TEST Australian widgets company', snippet: 'Australian manufacturing widgets', url: `https://${domain}.example.test/` })) : []
+      if (query === 'TEST empty-first-query') return page === 0 ? [] : [{ title: 'TEST forbidden next page', snippet: 'Australian manufacturing widgets', url: 'https://must-not-dispatch.example.test/' }]
+      if (query === 'TEST rotation') return page < 3 ? [{ title: 'TEST Australian widgets company', snippet: 'Australian manufacturing widgets', url: `https://rotation-${page}.example.test/` }] : []
       if (query === 'TEST mixed-retention') return page === 0 ? [{ title: 'TEST Australian widgets business', snippet: 'Australian manufacturing widgets', url: 'https://widgets.example.test/' }, { title: 'TEST uncertain Australian business', snippet: 'Australian manufacturing widgets', url: 'https://uncertain.example.test/' }] : []
       if (query === 'TEST intake-cap') return page === 0 ? [
         { title: 'TEST Australian widgets business', snippet: 'Australian manufacturing widgets', url: 'https://rejected.example.test/' },
@@ -184,7 +203,7 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
     researchWorker?.shutdown(); turnWorker?.shutdown(); await Promise.all([researchRun, turnRun]); await connection?.close(); await pool?.end(); vi.unstubAllEnvs()
   }, 60000)
 
-  async function start(query: string, target: number, maxCompanies = 10, secondQuery?: string) {
+  async function start(query: string, target: number, maxCompanies = 10, secondQuery?: string, historyEventLimit?: number, prepare?: (sectorId: string) => Promise<void>) {
     const sector = await createSector(pool, { name: 'TEST Australian widgets', topic: 'Australian manufacturing widgets', initialState: 'draft', scope })
     await projectNewEvents(pool)
     const session = await ensureResearchSession(pool, sector.sectorId, scope)
@@ -192,7 +211,8 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
     await setSectorState(pool, sector.sectorId, 'planned', { scope }); await projectNewEvents(pool)
     await approveSectorPlan(pool, sector.sectorId, 1, scope); await projectNewEvents(pool)
     await setSectorState(pool, sector.sectorId, 'queued', { scope }); await projectNewEvents(pool)
-    const handle = await client.workflow.start('sectorCoordinator', { taskQueue: queue, workflowId: `test-discovery-${sector.sectorId}`, args: [{ sectorId: sector.sectorId, scope, turnTaskQueue: `${queue}-turn` }] })
+    await prepare?.(sector.sectorId)
+    const handle = await client.workflow.start('sectorCoordinator', { taskQueue: queue, workflowId: `test-discovery-${sector.sectorId}`, args: [{ sectorId: sector.sectorId, scope, turnTaskQueue: `${queue}-turn`, ...(historyEventLimit === undefined ? {} : { historyEventLimit }) }] })
     handles.push(handle)
     return { handle, sectorId: sector.sectorId, sessionId: session.id }
   }
@@ -297,7 +317,8 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
     const restarted = await client.workflow.start('sectorCoordinator', { taskQueue: queue, workflowId: run.handle.workflowId, args: [{ sectorId: run.sectorId, scope, turnTaskQueue: `${queue}-turn` }] })
     handles.push(restarted)
     expect(await restarted.result()).toBe('complete')
-    expect(searchSeen[0]).toContain('rejected.example.test')
+    expect(searchSeen[0]).toEqual([])
+    expect(receiptFault.lookupIds).toContain(`${run.sectorId}:v1:intake:${createHash('sha256').update('rejected.example.test').digest('hex')}`)
     expect((await readResearchProgress(pool, run.sectorId, scope)).items.filter((item) => item.kind === 'company')).toHaveLength(1)
   }, 60000)
 
@@ -312,7 +333,8 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
     handles.push(restarted)
     expect(await restarted.result()).toBe('complete')
     expect(reviewerOperations.filter((key) => key.startsWith(`intake-${run.sectorId}`))).toHaveLength(operations + 1)
-    expect(searchSeen[0]).toContain('widgets.example.test')
+    expect(searchSeen[0]).toEqual([])
+    expect(receiptFault.lookupIds).toContain(`${run.sectorId}:v1:intake:${createHash('sha256').update('widgets.example.test').digest('hex')}`)
     expect((await readResearchProgress(pool, run.sectorId, scope)).items.filter((item) => item.kind === 'company')).toHaveLength(1)
   }, 60000)
 
@@ -577,6 +599,134 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
     expect(after.items.some((item) => item.state === 'blocked' && item.detail.startsWith('uncertain:'))).toBe(true)
     expect(after.estimatedPercent).not.toBe(100)
     expect(after.budgetUsedMs).toBeGreaterThanOrEqual(before.budgetUsedMs)
+  }, 60000)
+
+  it('rotates history after checkpoints without repeating completed discovery or resetting budget', async () => {
+    const run = await start('TEST rotation', 3, 3, undefined, 1)
+    expect(await run.handle.result()).toBe('complete')
+    const progress = await readResearchProgress(pool, run.sectorId, scope)
+    expect(progress.items.filter((item) => item.kind === 'company')).toHaveLength(3)
+    expect(progress.items.filter((item) => item.id.includes(':intake:'))).toHaveLength(3)
+    expect(progress.estimatedPercent).toBe(100)
+    const budgetEvents = (await readPartition(pool, `sector:${run.sectorId}`)).filter((event) => event.type === 'sector.research.budget_recorded')
+    expect(new Set(budgetEvents.map((event) => (event.payload as { runId: string }).runId)).size).toBeGreaterThan(1)
+    expect(progress.budgetUsedMs).toBeGreaterThan(0)
+    const turns = reviewerOperations.filter((key) => key.startsWith(`intake-${run.sectorId}`))
+    expect(turns).toHaveLength(3)
+    expect(new Set(turns).size).toBe(3)
+  }, 60000)
+
+  it('restores a committed pause in the continued run until explicit resume', async () => {
+    let entered: () => void = () => undefined, release: () => void = () => undefined
+    const called = new Promise<void>((resolve) => { entered = resolve })
+    rotationPause = { entered, ready: new Promise<void>((resolve) => { release = resolve }) }
+    const run = await start('TEST rotation', 3, 3, undefined, 1)
+    try {
+      await called
+      const queriesBefore = pages.length
+      release()
+      await vi.waitFor(async () => { expect(await run.handle.query('coordinatorState')).toMatchObject({ paused: true }) }, { timeout: 5000 })
+      const budgetBefore = (await readResearchProgress(pool, run.sectorId, scope)).budgetUsedMs
+      await new Promise((resolve) => setTimeout(resolve, 600))
+      expect(pages).toHaveLength(queriesBefore)
+      expect((await readResearchProgress(pool, run.sectorId, scope)).budgetUsedMs).toBe(budgetBefore)
+      await run.handle.signal('coordinatorResume')
+      expect(await run.handle.result()).toBe('complete')
+    } finally { release(); rotationPause = null }
+  }, 60000)
+  it('preserves exhaustion across rotation instead of requesting the next raw page', async () => {
+    pages.length = 0
+    const run = await start('TEST empty-first-query', 1, 1, 'TEST partial', 1)
+    expect(await run.handle.result()).toBe('complete')
+    expect(pages.every((page) => page === 0)).toBe(true)
+    const progress = await readResearchProgress(pool, run.sectorId, scope)
+    expect(progress.items.filter((item) => item.kind === 'company')).toHaveLength(1)
+    expect(progress.items.find((item) => item.kind === 'company')?.sourceUrl).toBe('https://widgets.example.test/')
+  }, 60000)
+  it('increments attempts and preserves source identity past the first retry page', async () => {
+    const run = await start('TEST empty', 1, 2000, undefined, undefined, async (sectorId) => {
+      await pool.query(`INSERT INTO research_work(id,sector_id,plan_version,kind,title,state,attempts,evidence,detail,source_url)
+        SELECT $1||':v1:intake:'||md5(g::text),$1,1,'discovery','Screen TEST Australian widgets company','blocked',5,'[]'::jsonb,'TEST interrupted source check','https://recovery-'||g||'.example.test/' FROM generate_series(1,101) g`, [sectorId])
+    })
+    expect(await run.handle.result()).toBe('complete')
+    const progress = await readResearchProgress(pool, run.sectorId, scope)
+    const intakes = progress.items.filter((item) => item.id.includes(':intake:'))
+    expect(intakes).toHaveLength(101)
+    expect(intakes.every((item) => item.attempts === 6 && item.state === 'complete' && item.sourceUrl?.startsWith('https://recovery-'))).toBe(true)
+    expect(progress.items.filter((item) => item.kind === 'company')).toHaveLength(101)
+  }, 120000)
+
+  it('retries an owner-reviewed uncertain candidate without dropping its original reason or attempts', async () => {
+    const run = await start('TEST source-uncertain', 1)
+    expect(await run.handle.result()).toBe('failed')
+    const item = (await readResearchProgress(pool, run.sectorId, scope)).items.find((entry) => entry.id.includes(':intake:'))!
+    expect(item.detail).toMatch(/^uncertain:/)
+    await reviewResearchWork(pool, { sectorId: run.sectorId, workId: item.id, planVersion: 1, receiptVersion: item.receiptVersion!, decision: 'retry', reason: 'TEST source is now verifiable', author: 'TEST approver', scope })
+    correctedDomains.add('uncertain.example.test')
+    try {
+      const restarted = await client.workflow.start('sectorCoordinator', { taskQueue: queue, workflowId: run.handle.workflowId, args: [{ sectorId: run.sectorId, scope, turnTaskQueue: `${queue}-turn` }] })
+      handles.push(restarted)
+      expect(await restarted.result()).toBe('complete')
+      const current = (await readResearchProgress(pool, run.sectorId, scope)).items.find((entry) => entry.id === item.id)!
+      expect(current.attempts).toBe(item.attempts + 1)
+      expect(current.state).toBe('complete')
+      expect((await readPartition(pool, `sector:${run.sectorId}`)).find((entry) => entry.type === 'sector.research.work_reviewed')?.payload).toMatchObject({ before: { detail: item.detail, attempts: item.attempts } })
+    } finally { correctedDomains.delete('uncertain.example.test') }
+  }, 60000)
+
+  it('keeps owner exclusions out of company publication and resolves only their candidate blocker', async () => {
+    const run = await start('TEST review-mixed', 1, 1)
+    expect(await run.handle.result()).toBe('failed')
+    const item = (await readResearchProgress(pool, run.sectorId, scope)).items.find((entry) => entry.detail.startsWith('uncertain:'))!
+    await reviewResearchWork(pool, { sectorId: run.sectorId, workId: item.id, planVersion: 1, receiptVersion: item.receiptVersion!, decision: 'exclude', reason: 'TEST identity not established; never publish it', author: 'TEST approver', scope })
+    const before = reviewerOperations.filter((key) => key.startsWith(`intake-${run.sectorId}`)).length
+    const restarted = await client.workflow.start('sectorCoordinator', { taskQueue: queue, workflowId: run.handle.workflowId, args: [{ sectorId: run.sectorId, scope, turnTaskQueue: `${queue}-turn` }] })
+    handles.push(restarted)
+    expect(await restarted.result()).toBe('complete')
+    expect(reviewerOperations.filter((key) => key.startsWith(`intake-${run.sectorId}`))).toHaveLength(before)
+    const progress = await readResearchProgress(pool, run.sectorId, scope)
+    expect(progress.items.find((entry) => entry.id === item.id)?.state).toBe('excluded')
+    expect(progress.completed).toBe(progress.total)
+    expect(progress.estimatedPercent).toBe(100)
+    expect((await listSectorCompanies(pool, run.sectorId, scope)).companies).toHaveLength(1)
+  }, 60000)
+
+  it('reloads a paused owner retry at a safe boundary instead of leaving it pending', async () => {
+    let entered!: () => void, release!: () => void
+    const ready = new Promise<void>((resolve) => { release = resolve })
+    const observed = new Promise<void>((resolve) => { entered = resolve })
+    reviewHold = { entered, ready }
+    const run = await start('TEST source-uncertain', 1, 1, 'TEST owner-review-hold')
+    try {
+      await observed
+      await run.handle.signal('coordinatorPause')
+      await vi.waitFor(async () => { await projectNewEvents(pool); expect((await readResearchProgress(pool, run.sectorId, scope)).state).toBe('paused') }, { timeout: 5000 })
+      const item = (await readResearchProgress(pool, run.sectorId, scope)).items.find((entry) => entry.detail.startsWith('uncertain:'))!
+      await reviewResearchWork(pool, { sectorId: run.sectorId, workId: item.id, planVersion: 1, receiptVersion: item.receiptVersion!, decision: 'retry', reason: 'TEST explicit retry during pause', author: 'TEST approver', scope })
+      correctedDomains.add('uncertain.example.test')
+      release()
+      await run.handle.signal('coordinatorResume')
+      expect(await run.handle.result()).toBe('complete')
+      const settled = (await readResearchProgress(pool, run.sectorId, scope)).items.find((entry) => entry.id === item.id)!
+      expect(settled.state).toBe('complete'); expect(settled.attempts).toBe(item.attempts + 1)
+    } finally { release(); correctedDomains.delete('uncertain.example.test'); reviewHold = null }
+  }, 60000)
+
+  it('refuses a late accepted outcome after an owner excluded the candidate', async () => {
+    const run = await start('TEST source-uncertain', 1)
+    expect(await run.handle.result()).toBe('failed')
+    const original = lastIntake!
+    const item = (await readResearchProgress(pool, run.sectorId, scope)).items.find((entry) => entry.id === original.item.id)!
+    await reviewResearchWork(pool, { sectorId: run.sectorId, workId: item.id, planVersion: 1, receiptVersion: item.receiptVersion!, decision: 'exclude', reason: 'TEST definitive owner exclusion', author: 'TEST approver', scope })
+    await setSectorState(pool, run.sectorId, 'running', { scope }); await projectNewEvents(pool)
+    const name = 'TEST Australian Widgets company', excerpt = `${name} is an Australian manufacturing widgets supplier.`
+    const evidence = { url: original.candidate.url, excerpt }
+    const outcome: TurnOutcome = { reply: JSON.stringify({ decision: 'accept', name, reason: 'TEST late prior assessment', identity: evidence, geography: evidence, sector: evidence }), toolCalls: [], sources: [{ url: evidence.url, text: excerpt }] }
+    const environment = new MockActivityEnvironment()
+    const result = await environment.run(activities.researchIntakeActivity, { ...original, outcome })
+    expect(result).toMatchObject({ accepted: false, excluded: true })
+    expect((await listSectorCompanies(pool, run.sectorId, scope)).companies).toHaveLength(0)
+    expect((await readResearchProgress(pool, run.sectorId, scope)).items.find((entry) => entry.id === item.id)?.state).toBe('excluded')
   }, 60000)
 
 })

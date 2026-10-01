@@ -65,5 +65,15 @@ test('UI upload failure publishes nothing; retry previews and downloads exact by
     await page.keyboard.press('Escape'); await expect(file).toBeFocused()
     expect((await upload()).status()).toBe(201); await expect(file).toHaveCount(1)
     expect((await pool.query('SELECT id FROM sector_documents WHERE sector_id=$1', [sectorId])).rows).toHaveLength(1)
-  } finally { await app.close(); await pool.end() }
+  } finally {
+    // Stop resource polling and settle routed reads before disposing their server.
+    try {
+      if (!page.isClosed()) {
+        await page.goto('about:blank')
+        await page.unrouteAll({ behavior: 'wait' })
+      }
+    } finally {
+      try { await app.close() } finally { await pool.end() }
+    }
+  }
 })

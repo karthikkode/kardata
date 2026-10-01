@@ -77,7 +77,7 @@ describe.skipIf(!ENABLED)('artifact references (B-F3)', () => {
       fromScope: { kind: 'session', id: sessionA },
       toSessionId: sessionB,
       scope: SCOPE,
-    })
+    }, target)
     expect(summary).toMatchObject({
       artifactId: fileId,
       indexed: true,
@@ -92,7 +92,7 @@ describe.skipIf(!ENABLED)('artifact references (B-F3)', () => {
       fromScope: { kind: 'session', id: sessionA },
       toSessionId: sessionB,
       scope: SCOPE,
-    })
+    }, target)
     expect(again).toEqual(summary)
 
     const listed = await listArtifacts(pool, sessionB)

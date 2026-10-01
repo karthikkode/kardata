@@ -82,7 +82,7 @@ describe('workspace state and resource interactions', () => {
       { id: 'ocr', filename: 'TEST scan.pdf', status: 'needs-ocr', source: 'Uploaded', hash: 'hash3', hidden: false, included: false, kind: 'document' },
     ] }} busy={false} onUpload={vi.fn()} onHide={onHide} onInclude={vi.fn()} />)
     expect(screen.queryByText('TEST hidden.md')).not.toBeInTheDocument()
-    expect(screen.getByText('needs-ocr')).toBeInTheDocument()
+    expect(screen.getByText('Needs OCR')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Show hidden files' }))
     await user.click(screen.getByRole('button', { name: 'Reveal TEST hidden.md' }))
     expect(onHide).toHaveBeenCalledWith('hidden', false)
@@ -111,4 +111,57 @@ it('shows pending operation recovery independently of compaction without exposin
   await user.click(screen.getByText('Operation identity'))
   expect(screen.getByText(identity)).toBeVisible()
   expect(screen.getByRole('button', { name: 'Compact context' })).toBeEnabled()
+})
+
+it.each(['confirmed', 'unresolved'] as const)('inspects an original operation with an honest %s result', async (state) => {
+  const user = userEvent.setup()
+  const onInspect = vi.fn()
+  const operationId = 'op:TEST exact identity'
+  render(<LocalContextEditor resource={{ status: 'ready', refresh: vi.fn(), data: { threadKey: 'TEST thread', notes: 'TEST draft notes', summary: '', coveredSeq: 0, version: 1, pendingOperations: [{ operationId, callId: 'TEST call', toolName: 'db.create_session', reason: 'TEST reply uncertain' }] } }} busy={false} onSave={vi.fn()} onCompact={vi.fn()} onInspectOperation={onInspect} inspection={{ status: 'ready', refresh: vi.fn(), data: { operationId, state, reason: 'TEST exact receipt explanation' } }} />)
+  await user.click(screen.getByRole('button', { name: 'Inspect receipt' }))
+  expect(onInspect).toHaveBeenCalledWith(operationId)
+  expect(screen.getByText(state === 'confirmed' ? 'Result confirmed' : 'Effect unresolved')).toBeVisible()
+  expect(screen.getByText('TEST exact receipt explanation')).toBeVisible()
+  expect(screen.getByLabelText('Local notes')).toHaveValue('TEST draft notes')
+  expect(screen.queryByRole('button', { name: /mark.*successful|release.*claim/i })).not.toBeInTheDocument()
+})
+
+it('requires source preview before approving file-derived context and renders bounded exact units', async () => {
+  const user = userEvent.setup(), onDecision = vi.fn(async () => true)
+  const ref = { fileId: 'TEST source file', filename: 'TEST exact source.md', hash: 'a'.repeat(64), ords: Array.from({ length: 100 }, (_, i) => i) }
+  const change = { id: 'TEST derived proposal', baseVersion: 1, sections: { ...global.sections, findings: 'TEST file-derived finding' }, sourceThread: 'research', author: 'research', state: 'pending' as const, version: null, at: '2026-10-01', fileRef: null, sourceRefs: [ref] }
+  const props = { resource: { status: 'ready' as const, refresh: vi.fn(), data: { ...global, changes: [change] } }, preview: { status: 'loading' as const, refresh: vi.fn() }, busy: false, onReview: vi.fn(), onSave: vi.fn(async () => true), onDecision }
+  const { rerender } = render(<GlobalContextPanel {...props} />)
+  await user.click(screen.getByRole('button', { name: 'File-derived context update Review' }))
+  expect(screen.getByRole('button', { name: 'Approve', exact: true })).toBeDisabled()
+  const units = ref.ords.map((ord) => ({ ord, text: `TEST exact source unit ${ord}`, uncertain: false }))
+  rerender(<GlobalContextPanel {...props} preview={{ status: 'ready', refresh: vi.fn(), data: { change, units: [], sources: [{ ref, units }] } }} />)
+  expect(screen.getByRole('button', { name: 'Approve', exact: true })).toBeEnabled()
+  expect(screen.queryByText('TEST exact source unit 99')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Show more source units' }))
+  expect(screen.getByText('TEST exact source unit 99')).toBeVisible()
+  await user.click(screen.getByText('TEST exact source.md · 100 units'))
+  expect(screen.getByText(ref.hash)).toBeVisible()
+  await user.click(screen.getByRole('button', { name: 'Approve', exact: true }))
+  expect(onDecision).toHaveBeenCalledWith(change.id, true)
+})
+
+it('preserves a safe-rebuild draft on failure and requires explicit independent-context confirmation', async () => {
+  const user = userEvent.setup(), onRebuild = vi.fn(async () => false)
+  const data = { threadKey: 'TEST context', notes: 'TEST notes stay', summary: 'TEST stored historical summary', task: 'TEST original objective', coveredSeq: 4, version: 2, contextBlocked: 'TEST hidden source blocks new assembly', sourceRefs: [{ fileId: 'TEST file', hash: 'b'.repeat(64), filename: 'TEST hidden source.md', ords: [0] }] }
+  const props = { resource: { status: 'ready' as const, refresh: vi.fn(), data }, busy: false, onSave: vi.fn(), onCompact: vi.fn(), onRebuild }
+  const { rerender } = render(<LocalContextEditor {...props} />)
+  expect(screen.getByText(data.summary)).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Compact context' })).toBeDisabled()
+  await user.click(screen.getByRole('button', { name: 'Review safe rebuild' }))
+  expect(screen.getByRole('button', { name: 'Confirm safe rebuild' })).toBeDisabled()
+  await user.type(screen.getByRole('textbox', { name: 'Independent replacement' }), 'TEST reviewed objectives, completed work and open questions')
+  expect(screen.getByRole('region', { name: 'Replacement preview' })).toBeVisible()
+  await user.click(screen.getByRole('checkbox'))
+  await user.click(screen.getByRole('button', { name: 'Confirm safe rebuild' }))
+  expect(onRebuild).toHaveBeenCalledWith('TEST reviewed objectives, completed work and open questions', 2)
+  expect(screen.getByRole('textbox', { name: 'Independent replacement' })).toHaveValue('TEST reviewed objectives, completed work and open questions')
+  rerender(<LocalContextEditor {...props} resource={{ ...props.resource, data: { ...data, version: 3 } }} error="Context changed" />)
+  expect(screen.getByRole('button', { name: 'Confirm safe rebuild' })).toBeDisabled()
+  expect(screen.getByRole('textbox', { name: 'Independent replacement' })).toHaveValue('TEST reviewed objectives, completed work and open questions')
 })

@@ -471,3 +471,25 @@ describe('research turn wall budget', () => {
     expect(RESEARCH_TURN_WALL_MS).toBe(600_000)
   })
 })
+
+
+describe('durable normalized execution records', () => {
+  it('records the exact refreshed input and source context versions each round', async () => {
+    const world = memoryWorld(new FakeProvider([{ text: 'TEST stored answer' }]))
+    const records: Array<{ round: number; kind: string; record: Record<string, unknown> }> = []
+    world.deps.refreshContext = async () => ({ references: ['TEST reviewed findings'], notes: 'TEST local notes', steering: ['TEST steer'], contextVersion: 7, planVersion: 3, localVersion: 11 })
+    world.deps.persistExecution = async (round, kind, record) => { records.push({ round, kind, record }) }
+    await executeKarbotTurn(input(), world.deps)
+    expect(records.map((entry) => entry.kind)).toEqual(['request','response'])
+    expect(records[0]?.record).toMatchObject({ version: 1, provider: 'fake', model: null, round: 1, boundary: { contextVersion: 7, planVersion: 3, localVersion: 11 } })
+    const { signal: _signal, ...request } = world.adapter.calls[0]!
+    expect(records[0]?.record['data']).toEqual(request)
+    expect(JSON.stringify(records)).not.toContain('mcpToken')
+  })
+  it('parks storage failure before provider execution with a recoverable context error', async () => {
+    const world = memoryWorld(new FakeProvider([{ text: 'TEST must not run' }]))
+    world.deps.persistExecution = async () => { throw new Error('TEST archive failed') }
+    await expect(executeKarbotTurn(input(), world.deps)).rejects.toThrow('Execution content could not be durably recorded')
+    expect(world.adapter.calls).toHaveLength(0)
+  })
+})

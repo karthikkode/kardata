@@ -8,7 +8,7 @@ const Result = z.object({
 }).strict()
 
 /** Stable hashed company ids make this reproducible across resumes. */
-export function discoverySample(items: WorkItem[], count = 50): WorkItem[] {
+export function discoverySample<T extends Pick<WorkItem, 'id' | 'kind'>>(items: T[], count = 50): T[] {
   return items.filter((item) => item.kind === 'company').sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0).slice(0, count)
 }
 export function validateDiscoveryAcceptance(outcome: TurnOutcome, expected: WorkItem[], criteria: string[]) {

@@ -27,3 +27,14 @@ below prove Kardata changes, not upstream performance claims.
   deletion and run-control authority are exercised over HTTP and real Postgres.
 - Browser download, failed-plan-save and paused-context journeys have anchored
   screenshots. Real-provider campaign evidence is not yet available.
+
+The supervision slice also inspected Temporal's [continue-as-new sample](https://github.com/temporalio/samples-typescript/blob/8907f2950c1d12936306667fca933c600a61cf7b/continue-as-new/src/workflows.ts)
+and LICENSE at that same frozen MIT commit. It retains the already installed SDK
+and transfers only its supported API pattern: pass the durable cursor into the
+next execution, rather than grow an indefinite single history. No donor source
+or tests were copied. A new cron service and process-local timers were rejected
+because worker death loses their scheduling state. The owned Temporal regression
+measures recovery after three failed page attempts and the next 30-second pass;
+updated-source results remain in implementation-status. This is failure recovery
+evidence, not a claim of throughput improvement or completed 100-page history
+rotation/large-fleet stress verification.

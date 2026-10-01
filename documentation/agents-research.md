@@ -187,3 +187,48 @@ Compatible retention also carries unresolved intake identities, states and attem
 They remain blockers; retaining a completed direction never hides its uncertain or
 failed candidates. The coordinator must still resolve or explicitly review them
 before acceptance. Old receipts remain immutable alongside the new version.
+
+## Bounded coordinator transport
+
+New discovery histories use a versioned compact-state contract. Status checks read
+only committed scope/version/budget; they do not transport the complete work ledger
+or context revision history. Initial/final snapshots use company counts/domains,
+the deterministic50-company sample, direction checkpoints and bounded retry pages.
+Full work details remain in Postgres and individual work reads are sector/version
+scoped. Candidate receipt lookups use existing work identities rather than passing
+all rejected domains through each workflow command. Cursor pages retain query/page
+positions; the DB receipts are the authoritative dedup set.
+
+History rotates only at checkpointed boundaries with no active children or signal
+handlers. It preserves the approved version, recovery cursor, cumulative budget
+and persistent research session; old histories retain their original contract via
+Temporal patching. Oversized state fails recoverably rather than raising server
+limits or pretending the missing work completed. The transport regression budget
+is1.5MB, below Temporal's default2MB per-event limit. Reference:
+[Temporal server limits](https://github.com/temporalio/temporal/blob/main/common/dynamicconfig/constants.go).
+
+## Owner review of unresolved basic intake
+
+Only the owner through an approver-keyed HTTP/UI decision can retry or exclude a
+blocked/failed `:intake:` discovery candidate. Review is fenced by the displayed
+latest approved plan version and a digest of the exact work receipt. A paused or
+failed sector and no executing/unresolved-start candidate child are required.
+Normal/model sessions have no exclusion tool or authority. Scope, acceptance,
+objectives and budgets still require plan revision/reapproval.
+
+Exclusion uses a distinct `excluded` state: it resolves that candidate blocker,
+never publishes a company or completes a direction, acceptance or company work.
+Retry changes only the state to pending under the same identity, preserving
+attempts, source, evidence and reason; dispatch increments cumulative attempts.
+Both journal the authenticated key, exact old receipt and explicit owner reason.
+Completed and excluded receipts are immutable to late checkpoints. Parent intake
+publication serializes against owner review and rejects excluded/stale attempts.
+
+An owner retry remains pending until Resume/Restart. A live paused parent detects\nthe scoped review-journal sequence advancing, then reloads at a safe boundary\nwithout active children or signal handlers. A new execution loads the pending\nidentity; history rotation preserves cursors, attempts and cumulative budgets.\nNo elapsed time or normal session message authorizes a retry or exclusion.
+
+New review-aware coordinator histories observe a scoped review sequence. After
+Resume, a changed sequence rotates only at a checkpointed boundary with no live
+children/handlers, then reloads pending retries. Query cursors and cumulative
+budgets stay durable. Pending owner retries remain eligible even when their
+original reason begins uncertain; the reason/history are preserved. Exclusion
+and exact attempt/receipt fences also apply inside publication transactions.

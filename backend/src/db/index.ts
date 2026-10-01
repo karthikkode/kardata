@@ -3,6 +3,8 @@
 // never deep into repos and never 'pg' directly (enforced by eslint
 // no-restricted-imports). Repositories land here slice by slice.
 export * from './workspace.js'
+export * from './reconciliation.js'
+export * from './execution-epochs.js'
 export { DbContractError } from './errors.js'
 export {
   type AppendedEvent,
@@ -247,3 +249,6 @@ export {
   readOutboxBacklog,
   subscribeOutbox,
 } from './outbox.js'
+
+export { recordTurnExecution, listThreadExecutionRecords, readThreadExecutionReference, readRecoveryRequestReference, type ExecutionRecordMetadata } from './execution-records.js'
+export { workspaceReferenceSnapshot } from './workspace.js'

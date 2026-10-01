@@ -17,6 +17,16 @@ everything below hangs off it).
 | `agents/` | Karbot agent harness (own turn loop, providers, tools, subagents, context). No donor servers, persistence, auth, or telemetry. | `documentation/agents.md` |
 | `third_party/` | Pinned donor references (manifest, licenses, patches, upstream tests). Reference only: never imported at runtime. | `third_party/README.md` |
 
+Owner execution inspection lives in `backend/src/routes/execution-records.ts`
+over scoped journal reads in `backend/src/db/execution-records.ts`, with the
+Local context entry and `frontend/src/components/ExecutionInspector.tsx` view.
+Its contracts remain in the backend, DB and frontend area docs below.
+
+Owner review of unresolved basic-intake candidates shares PlanProgress on the
+landing dialog and workspace Plan tab, through `backend/src/db/work-review.ts`
+and the approver-only workspace route. Its contract is in the research/backend/DB
+and frontend area docs; pilot acceptance remains a separate pending gate.
+
 ## Conventions
 
 - Every top-level directory has exactly one mirror doc in `documentation/`, named

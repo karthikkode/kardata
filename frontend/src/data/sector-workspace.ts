@@ -1,12 +1,15 @@
 import { useRef, useState } from 'react'
 import { apiErrorStatus, attachSectorDocument, cancelRun, createSession, deleteSession, listSessions, listThreads, readSectorPlan, renameSession, resumeRun, StagingApiError, type StagingConfig } from './staging-api'
-import { compactLocalContext, decideGlobalContext, ensureResearchSession, getContextPreview, getGlobalContext, getLocalContext, getResearchProgress, getSectorFileBody, getSectorFiles, hideSectorFile, includeSectorFile, saveGlobalContext, saveLocalContext, type Sections } from './workspace-api'
+import { rebuildLocalContext, inspectThreadOperation, compactLocalContext, decideGlobalContext, ensureResearchSession, getContextPreview, getGlobalContext, getLocalContext, getResearchProgress, getSectorFileBody, getSectorFiles, hideSectorFile, includeSectorFile, saveGlobalContext, saveLocalContext, type Sections } from './workspace-api'
 import { useWorkspaceConversation, useWorkspaceResource } from './useWorkspace'
+import { getExecutionRecord, listExecutionRecords } from './workspace-api'
 
 export function useSectorWorkspace(config: StagingConfig | null, sectorId: string | null, sessionId: string | null, requestedThread: string | null, onNavigate: (session: string, thread: string) => void) {
+  const [execution, setExecution] = useState<{ thread: string; afterSeq: number; previous: number[]; seq: number | null } | null>(null)
   const [operation, setOperation] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [proposalId, setProposalId] = useState<string | null>(null)
+  const [inspection, setInspection] = useState<{ thread: string; operationId: string } | null>(null)
   const [previewFileId, setPreviewFileId] = useState<string | null>(null)
   const deniedInitialization = useRef(new Set<string>())
   const operationLock = useRef(false)
@@ -33,7 +36,11 @@ export function useSectorWorkspace(config: StagingConfig | null, sectorId: strin
   const plan = useWorkspaceResource(config, sectorId ? `plan:${sectorId}` : null, (cfg) => readSectorPlan(cfg, sectorId ?? ''), true)
   const local = useWorkspaceResource(config, activeThread, (cfg) => getLocalContext(cfg, activeThread ?? ''), true)
   const preview = useWorkspaceResource(config, proposalId && sectorId ? `proposal:${sectorId}:${proposalId}` : null, (cfg) => getContextPreview(cfg, sectorId ?? '', proposalId ?? ''))
+  const operationReceipt = useWorkspaceResource(config, inspection?.thread === activeThread ? `operation:${activeThread}:${inspection.operationId}` : null, (cfg) => inspectThreadOperation(cfg, activeThread ?? '', inspection?.operationId ?? ''))
   const chat = useWorkspaceConversation(config, activeThread)
+  const currentExecution = execution?.thread === activeThread ? execution : null
+  const executionPage = useWorkspaceResource(config, currentExecution ? `execution-page:${activeThread}:${currentExecution.afterSeq}` : null, (cfg) => listExecutionRecords(cfg, activeThread ?? '', currentExecution?.afterSeq ?? 0))
+  const executionBody = useWorkspaceResource(config, currentExecution?.seq ? `execution-record:${activeThread}:${currentExecution.seq}` : null, (cfg) => getExecutionRecord(cfg, activeThread ?? '', currentExecution?.seq ?? 0))
   const fileBody = useWorkspaceResource(config, previewFileId && sectorId ? `file-body:${sectorId}:${previewFileId}` : null, (cfg) => getSectorFileBody(cfg, sectorId ?? '', previewFileId ?? ''))
   async function act(name: string, work: (cfg: StagingConfig) => Promise<unknown>) {
     if (!config || operationLock.current) return false
@@ -42,7 +49,12 @@ export function useSectorWorkspace(config: StagingConfig | null, sectorId: strin
     try { await work(config); return true } catch (failure) { setError(name === 'upload' && failure instanceof StagingApiError && failure.status >= 500 ? 'The upload did not finish. Choose the file again to retry. Existing files are kept.' : failure instanceof Error ? failure.message : 'Could not finish. Try again.'); return false } finally { operationLock.current = false; setOperation(null) }
   }
   return {
-    sessions, selected, activeThread, threads, child, global, files, progress, plan, local, chat, operation, preview, reviewProposal: setProposalId, fileBody, previewFileId, previewFile: setPreviewFileId,
+    executionPage, executionBody, executionOpen: Boolean(currentExecution), executionSeq: currentExecution?.seq ?? null, executionHasPrevious: Boolean(currentExecution?.previous.length),
+    inspectExecution: () => { if (activeThread) setExecution({ thread: activeThread, afterSeq: 0, previous: [], seq: null }) },
+    closeExecution: () => setExecution(null), selectExecution: (seq: number) => setExecution((current) => current ? { ...current, seq } : null),
+    nextExecutionPage: () => setExecution((current) => current && executionPage.data?.nextAfterSeq ? { ...current, afterSeq: executionPage.data.nextAfterSeq, previous: [...current.previous, current.afterSeq], seq: null } : current),
+    previousExecutionPage: () => setExecution((current) => current?.previous.length ? { ...current, afterSeq: current.previous.at(-1)!, previous: current.previous.slice(0, -1), seq: null } : current),
+    operationReceipt: inspection?.thread === activeThread ? operationReceipt : undefined, inspectOperation: (operationId: string) => { if (activeThread) { if (inspection?.thread === activeThread && inspection.operationId === operationId) operationReceipt.refresh(); else setInspection({ thread: activeThread, operationId }) } }, sessions, selected, activeThread, threads, child, global, files, progress, plan, local, chat, operation, preview, reviewProposal: setProposalId, fileBody, previewFileId, previewFile: setPreviewFileId,
     error: error ?? (sessionId && sessions.status === 'ready' && !selected ? 'This conversation is not available in this sector.' : requestedThread && threads.status === 'ready' && !activeThread ? 'This subagent does not belong to this conversation.' : null),
     openSession: (id: string) => onNavigate(id, id),
     openThread: (key: string) => { if (selected) onNavigate(selected.id, key) },
@@ -64,6 +76,7 @@ export function useSectorWorkspace(config: StagingConfig | null, sectorId: strin
       await attachSectorDocument(cfg, sectorId, { filename: file.name, contentBase64: btoa(text) }); files.refresh()
     }),
     saveLocal: (notes: string, version: number) => act('local', async (cfg) => { if (!activeThread) return; await saveLocalContext(cfg, activeThread, version, notes); local.refresh() }),
+    rebuildLocal: (summary: string, version: number) => act('rebuild', async (cfg) => { if (!activeThread) return; try { await rebuildLocalContext(cfg, activeThread, version, summary) } finally { local.refresh() } }),
     compact: () => act('compact', async (cfg) => { if (!activeThread) return; await compactLocalContext(cfg, activeThread); local.refresh() }),
   }
 }

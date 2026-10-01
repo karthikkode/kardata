@@ -603,7 +603,7 @@ describe('uncertain mutation recovery', () => {
     const checkpoints: Array<{ messages: import('./providers.js').ChatMessage[]; blocked?: RecoveryOperation[] }> = []
     const result = await runKarbotTurn({ provider, operationKey: 'TEST operation', systemPrompt: 'TEST', messages: [{ role: 'user', text: 'TEST create' }], sink: { onDelta: () => undefined }, mcp: { listTools: async () => [sessionTool()], callTool: async (_name, _args, operationId) => ({ content: 'TEST lost reply', isError: true, recovery: { operationId: operationId!, reason: 'TEST uncertain effect' } }) }, onCheckpoint: async (messages, _round, _usage, _tools, blocked) => { checkpoints.push({ messages: structuredClone(messages), blocked }) } })
     expect(provider.calls).toHaveLength(1)
-    expect(result.recoveryHalt).toEqual([{ operationId: 'TEST operation:mutation-1', call, reason: 'TEST uncertain effect' }])
+    expect(result.recoveryHalt).toEqual([{ operationId: 'TEST operation:mutation-1', call, serializedCall: JSON.stringify(call), reason: 'TEST uncertain effect' }])
     expect(result.budgetTripped).toBeUndefined()
     expect(checkpoints.at(-1)?.blocked).toEqual(result.recoveryHalt)
     expect(checkpoints.at(-1)?.messages.at(-1)?.toolResult?.toolCallId).toBe(call.id)
@@ -697,7 +697,7 @@ it('records original operations before dispatch when the result checkpoint fails
     saved = structuredClone(blocked)
   } })).rejects.toThrow('TEST result persistence unavailable')
   expect(callTool).toHaveBeenCalledTimes(1)
-  expect(saved).toEqual([{ authorityId: 'TEST authority', operationId: 'TEST checkpoint run:TEST checkpoint call', call, reason: expect.any(String) }])
+  expect(saved).toEqual([{ authorityId: 'TEST authority', operationId: 'TEST checkpoint run:TEST checkpoint call', call, serializedCall: JSON.stringify(call), reason: expect.any(String) }])
 })
 it('parks thrown client errors under the original identity before another provider round', async () => {
   const call = { id: 'TEST thrown call', name: 'db.create_session', args: {} }
@@ -738,4 +738,76 @@ it.each(['TEST unicode Ω', 'TEST newline\n', 'TEST trailing '])('normalizes hea
   expect(id).toMatch(/^op:[a-f0-9]{64}$/)
   expect(id).toBe(toolOperationId('TEST run', callId))
   expect(id).not.toBe(toolOperationId('TEST run', `${callId}different`))
+})
+
+
+describe('provider execution persistence boundaries', () => {
+  it('stores refreshed exact requests and results before tool dispatch and the next round', async () => {
+    const call = { id: 'TEST record call', name: 'db.list_sessions', args: { nested: { value: 'TEST argument' } } }
+    const provider = new FakeProvider([{ text: '', toolCalls: [call] }, { text: 'TEST final' }])
+    const order: string[] = [], requests: unknown[] = [], responses: unknown[] = [], results: unknown[] = []
+    await runKarbotTurn({ provider, operationKey: 'TEST record run', systemPrompt: 'TEST stable', messages: [{ role: 'user', text: 'TEST initial' }], sink: { onDelta: () => undefined },
+      mcp: { listTools: async () => [sessionTool()], callTool: async () => { order.push('dispatch'); return { content: 'TEST exact tool result' } } },
+      beforeRound: async (round, current) => ({ systemPrompt: `TEST context version ${round}`, messages: current.messages }),
+      onProviderRequest: async (round, request) => { order.push(`request${round}`); requests.push(request) },
+      onProviderResponse: async (round, response) => { order.push(`response${round}`); responses.push(response) },
+      onToolResult: async (_round, original, outcome, operationId) => { order.push('result'); results.push({ original, outcome, operationId }) },
+    })
+    expect(order).toEqual(['request1', 'response1', 'dispatch', 'result', 'request2', 'response2'])
+    expect(requests).toEqual(provider.calls.map(({ signal: _signal, ...request }) => request))
+    expect(requests[0]).not.toHaveProperty('signal')
+    expect(responses).toEqual([{ text: '', reasoning: '', toolCalls: [call], usage: emptyUsage() }, { text: 'TEST final', reasoning: '', toolCalls: [], usage: emptyUsage() }])
+    expect(results).toEqual([{ original: call, outcome: { content: 'TEST exact tool result' }, operationId: 'TEST record run:TEST record call' }])
+  })
+  it('does not execute the provider when request persistence fails', async () => {
+    const provider = new FakeProvider([{ text: 'TEST must not run' }])
+    await expect(runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [], mcp: memoryMcp(), sink: memorySink().sink, onProviderRequest: async () => { throw new Error('TEST storage unavailable') } })).rejects.toThrow('TEST storage unavailable')
+    expect(provider.calls).toHaveLength(0)
+  })
+  it('does not dispatch tools when provider response persistence fails', async () => {
+    const mcp = memoryMcp()
+    await expect(runKarbotTurn({ provider: new FakeProvider([{ text: '', toolCalls: [{ id: 'TEST call', name: 'db.list_sessions', args: {} }] }]), systemPrompt: 'TEST', messages: [], mcp, sink: memorySink().sink, onProviderResponse: async () => { throw new Error('TEST response storage unavailable') } })).rejects.toThrow('TEST response storage unavailable')
+    expect(mcp.calls).toHaveLength(0)
+  })
+})
+
+it('retains a paid final response and usage through recording failure without calling the provider again', async () => {
+  const actualUsage = { ...emptyUsage(), inputTokens: 121, outputTokens: 17, cacheReadTokens: 40 }
+  const provider = new FakeProvider([])
+  provider.chatStream = async function* () { yield { kind: 'text_delta', text: 'TEST original paid response' }; yield { kind: 'done', usage: actualUsage } }
+  const calls = vi.spyOn(provider, 'chatStream')
+  let saved: { messages: Parameters<NonNullable<import('./turnRunner.js').KarbotTurnOptions['onCheckpoint']>>[0]; meta: NonNullable<import('./turnRunner.js').KarbotTurnOptions['resume']> } | undefined
+  const archive = vi.fn(async () => { throw new Error('TEST archive unavailable') })
+  const base = { provider, operationKey: 'TEST paid operation', systemPrompt: 'TEST stable instructions', messages: [], mcp: memoryMcp(), sink: memorySink().sink, onCheckpoint: async (messages: Parameters<NonNullable<import('./turnRunner.js').KarbotTurnOptions['onCheckpoint']>>[0], round: number, usage: typeof actualUsage, toolCalls: number, blockedOperations?: RecoveryOperation[], pendingResponse?: import('./turnRunner.js').PendingProviderResponse) => { saved = structuredClone({ messages, meta: { round, usage, toolCalls, blockedOperations, pendingResponse } }) } }
+  await expect(runKarbotTurn({ ...base, onProviderResponse: archive })).rejects.toThrow('TEST archive unavailable')
+  expect(saved?.meta.usage).toEqual(actualUsage)
+  expect(saved?.meta.pendingResponse?.response.text).toBe('TEST original paid response')
+  const persisted = vi.fn(async () => undefined)
+  const result = await runKarbotTurn({ ...base, messages: saved!.messages, resume: saved!.meta, onProviderResponse: persisted })
+  expect(calls).toHaveBeenCalledTimes(1)
+  expect(persisted).toHaveBeenCalledWith(1, expect.objectContaining({ text: 'TEST original paid response', usage: actualUsage }), undefined)
+  expect(result.text).toBe('TEST original paid response'); expect(result.usage).toEqual(actualUsage)
+  expect(saved?.meta.pendingResponse?.response.text).toBe('TEST original paid response')
+})
+
+it('records a pending paid tool response before dispatching any recovered operation', async () => {
+  const call = { id: 'TEST paid call', name: 'db.list_sessions', args: {} }
+  const mcp = memoryMcp(), order: string[] = []
+  const request = mcp.callTool
+  mcp.callTool = async (name, args) => { order.push('tool'); return request(name, args) }
+  const pendingResponse = { round: 1, metadata: { contextVersion: 7, planVersion: 3 }, response: { text: '', reasoning: 'TEST retained reasoning', toolCalls: [call], usage: emptyUsage() } }
+  const result = await runKarbotTurn({ operationKey: 'TEST paid tool operation', provider: new FakeProvider([{ text: 'TEST final after recovered tool' }]), systemPrompt: 'TEST', messages: [{ role: 'assistant', text: '', toolCalls: [call] }], resume: { round: 1, usage: emptyUsage(), toolCalls: 1, pendingResponse }, mcp, sink: memorySink().sink, onProviderResponse: async (round, _response, original) => { if (round === 1) expect(original).toEqual(pendingResponse.metadata); order.push('archive') } })
+  expect(order.slice(0, 2)).toEqual(['archive', 'tool'])
+  expect(result.text).toBe('TEST final after recovered tool')
+})
+
+it.each([false, true])('restores original nested argument order but rejects changed serialized arguments (changed=%s)', async (changed) => {
+  const call = { id: 'TEST ordered call', name: 'db.list_sessions', args: { zOuter: { longerProperty: 'TEST retained', a: 1 }, aOuter: true } }
+  const storedCall = { ...call, args: { aOuter: true, zOuter: { a: 1, longerProperty: changed ? 'TEST tampered' : 'TEST retained' } } }
+  const operation: RecoveryOperation = { authorityId: 'TEST authority', operationId: 'TEST original operation', call: storedCall, serializedCall: JSON.stringify(call), reason: 'TEST unknown reply' }
+  const seen: string[] = []
+  const provider = new FakeProvider([{ text: 'TEST finished' }])
+  const result = await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [], resume: { round: 1, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] }, mcp: { authorityId: 'TEST authority', listTools: async () => [sessionTool()], callTool: async (_name, args, id) => { seen.push(JSON.stringify(args)); expect(id).toBe(operation.operationId); return { content: 'TEST recorded reply' } } }, sink: memorySink().sink })
+  if (changed) { expect(seen).toEqual([]); expect(provider.calls).toHaveLength(0); expect(result.recoveryHalt).toHaveLength(1) }
+  else { expect(seen).toEqual([JSON.stringify(call.args)]); expect(result.text).toBe('TEST finished') }
 })

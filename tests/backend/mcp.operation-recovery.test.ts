@@ -9,6 +9,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../backend/src/app.js'
 import { hashKey } from '../../backend/src/auth/keys.js'
 import { commitThreadCompaction, createSession, listSessions, readThreadContext, readTurnContinuation, registerApiKey } from '../../backend/src/db/index.js'
+import { readPartition } from '../../backend/src/db/events.js'
+import { readExecutionRecord, resolveArchiveTarget, type ArchivedExecutionRecord } from '../../backend/src/archive/targets.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { karbotTurnActivity, type KarbotTurnInput, type TurnOutcome } from '../../backend/src/temporal/activities/turn.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
@@ -42,6 +44,25 @@ describe.skipIf(!TEST_DATABASE_URL)('uncertain mutation recovery over real HTTP'
     endpoint = await app.listen({ host: '127.0.0.1', port: 0 })
   })
   afterAll(async () => { await app?.close(); await pool?.end(); vi.unstubAllEnvs() })
+  it('retains exact request, provider reply and MCP result records after the production turn clears its continuation', async () => {
+    const session = await createSession(pool, 'TEST execution archive caller', scope)
+    await projectNewEvents(pool)
+    const environment = new MockActivityEnvironment()
+    const outcome = await environment.run<[KarbotTurnInput], TurnOutcome, typeof karbotTurnActivity>(karbotTurnActivity, {
+      sessionId: session.id, threadKey: session.id, runKey: 'TEST archived execution', text: 'TEST inspect own session', mcpEndpoint: `${endpoint}/mcp`, mcpToken: credential, toolAllow: ['db.get_session'],
+      fakeSteps: [{ text: '', toolCalls: [{ id: 'TEST archived read', name: 'db.get_session', args: { sessionId: session.id } }] }, { text: 'TEST archived final answer' }],
+    })
+    expect(outcome.reply).toBe('TEST archived final answer')
+    expect(await readTurnContinuation(pool, session.id)).toBeUndefined()
+    const entries = (await readPartition(pool, `session:${session.id}`)).filter((entry) => entry.type === 't.execution.recorded')
+    expect(entries.map((entry) => (entry.payload as { kind: string }).kind)).toEqual(['request','response','tool-result','request','response'])
+    const contents = await Promise.all(entries.map((entry) => readExecutionRecord(resolveArchiveTarget(), session.id, (entry.payload as { ref: ArchivedExecutionRecord }).ref)))
+    expect(contents[0]).toMatchObject({ version: 1, provider: 'fake', round: 1, data: { messages: [{ role: 'user', text: 'TEST inspect own session' }] } })
+    expect(contents[2]).toMatchObject({ data: { call: { id: 'TEST archived read', name: 'db.get_session' }, operationId: 'TEST archived execution:TEST archived read', outcome: { isError: false } } })
+    expect(contents[4]).toMatchObject({ round: 2, data: { text: outcome.reply } })
+    expect(JSON.stringify(contents)).not.toContain(credential)
+    expect(JSON.stringify(entries)).not.toContain(outcome.reply)
+  }, 20000)
   it('parks a lost reply, exposes its original identity, and replays one created session on resume', async () => {
     const session = await createSession(pool, 'TEST caller session', scope)
     await projectNewEvents(pool)

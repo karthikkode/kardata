@@ -2,16 +2,29 @@ import { MockActivityEnvironment } from '@temporalio/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { karbotTurnActivity, selectTurnContinuation, TURN_HEARTBEAT_MS } from '../../backend/src/temporal/activities/turn.js'
 
-const db = vi.hoisted(() => ({ begin: vi.fn(), finish: vi.fn(), read: vi.fn(), beat: vi.fn(), pool: {} }))
-vi.mock('../../backend/src/db/index.js', async (original) => ({ ...await original<typeof import('../../backend/src/db/index.js')>(), workerPoolFromEnv: () => db.pool, beginThreadTurn: db.begin, finishSteering: db.finish, readTurnContinuation: db.read, recordHeartbeat: db.beat }))
+const db = vi.hoisted(() => ({ begin: vi.fn(), identity: vi.fn(), project: vi.fn(), inherit: vi.fn(), finish: vi.fn(), read: vi.fn(), beat: vi.fn(), pool: {} }))
+vi.mock('../../backend/src/db/index.js', async (original) => ({ ...await original<typeof import('../../backend/src/db/index.js')>(), workerPoolFromEnv: () => db.pool, beginThreadTurn: db.begin, readActiveExecutionIdentity: db.identity, finishSteering: db.finish, readTurnContinuation: db.read, recordHeartbeat: db.beat }))
+vi.mock('../../backend/src/projector.js', () => ({ projectNewEvents: db.project }))
+vi.mock('../../backend/src/db/context-files.js', async (original) => ({ ...await original<typeof import('../../backend/src/db/context-files.js')>(), inheritThreadFileRefs: db.inherit }))
 afterEach(() => { vi.useRealTimers(); vi.clearAllMocks() })
 
 describe('production activity setup supervision', () => {
+  it('releases the claimed attempt when producer identity setup fails before provider work', async () => {
+    const lease = '00000000-0000-4000-8000-000000000002'
+    const failure = new Error('TEST identity read disconnected')
+    db.begin.mockResolvedValueOnce(lease)
+    db.identity.mockRejectedValueOnce(failure)
+    await expect(new MockActivityEnvironment().run(karbotTurnActivity, { sessionId: 'TEST session', threadKey: 'TEST thread', runKey: 'TEST run', text: 'TEST prompt' })).rejects.toBe(failure)
+    expect(db.finish).toHaveBeenCalledWith(db.pool, 'TEST thread', 'TEST run', lease)
+    expect(db.project).not.toHaveBeenCalled()
+  })
   it('supervises heartbeat failure during delayed setup and releases the active turn', async () => {
     vi.useFakeTimers()
-    db.begin.mockResolvedValueOnce('TEST attempt')
+    const lease = '00000000-0000-4000-8000-000000000001'
+    db.begin.mockResolvedValueOnce(lease)
+    db.identity.mockResolvedValueOnce({ workflowId: null, executionId: null, ownerEpoch: null })
     let release: () => void = () => undefined
-    db.read.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve(undefined) }))
+    db.project.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve(undefined) }))
     const failure = new Error('TEST heartbeat store disconnected')
     db.beat.mockRejectedValueOnce(failure)
     const errorLog = vi.fn()
@@ -25,10 +38,11 @@ describe('production activity setup supervision', () => {
       const rejected = expect(result).rejects.toBe(failure)
       await vi.advanceTimersByTimeAsync(TURN_HEARTBEAT_MS + 1)
       await rejected
-      expect(db.finish).toHaveBeenCalledWith(db.pool, 'TEST thread', 'TEST run', 'TEST attempt')
+      expect(db.finish).toHaveBeenCalledWith(db.pool, 'TEST thread', 'TEST run', lease)
       expect(errorLog).toHaveBeenCalledWith('karbot.heartbeat.error', expect.objectContaining({ code: 'heartbeat_failed' }))
       release()
       await vi.advanceTimersByTimeAsync(1)
+      expect(db.inherit).not.toHaveBeenCalled()
       expect(unhandled).toEqual([])
     } finally { release(); process.off('unhandledRejection', observe) }
   })

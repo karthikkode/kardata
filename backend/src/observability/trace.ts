@@ -46,7 +46,7 @@ export const tracePlugin = fp(async (app: FastifyInstance): Promise<void> => {
   // reply.header is synchronous: never await it, because Reply is thenable
   // and awaiting the reply deadlocks the hook.
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
-    request.traceContext = extractTraceContext(request.headers as Record<string, string | string[] | undefined>)
+    request.traceContext ??= extractTraceContext(request.headers as Record<string, string | string[] | undefined>)
     reply.header('traceparent', injectTraceparent(request.traceContext))
   })
 })

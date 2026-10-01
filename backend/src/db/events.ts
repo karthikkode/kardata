@@ -7,8 +7,10 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import {
+  ARTIFACT_MAX_BYTES,
   indexedEventKey,
   referencedEventKey,
+  serveArtifact,
   storeAndIndex,
   storedEventKey,
   type ArtifactKind,
@@ -18,7 +20,7 @@ import {
 import { resolveArchiveTarget, type ArchiveTarget } from '../archive/targets.js'
 import type { Scope } from '../auth/keys.js'
 import { scrubSecrets, createLogger, logOp } from '../observability/logging.js'
-import { DbContractError } from './errors.js'
+import { ArtifactImportTimeout, DbContractError } from './errors.js'
 import { DURABLE_STREAM_LOCK_SQL } from './checkpoints.js'
 import { assertFileVisible, hiddenFileIds, indexSectorArtifact, sessionKind, WorkspaceError } from './workspace.js'
 
@@ -127,13 +129,14 @@ export async function findEventByKey(db: Db, idempotencyKey: string): Promise<St
   }
 }
 
-export async function readPartition(db: Db, partition: string, afterSeq = 0): Promise<StoredEvent[]> {
+export async function readPartition(db: Db, partition: string, afterSeq = 0, types?: string[]): Promise<StoredEvent[]> {
   if (!PartitionSchema.safeParse(partition).success) {
     throw new DbContractError('partition must be a non-empty string')
   }
   if (!AfterSeqSchema.safeParse(afterSeq).success) {
     throw new DbContractError('afterSeq must be a non-negative integer')
   }
+  if (types !== undefined && !z.array(z.string().min(1)).min(1).max(20).safeParse(types).success) throw new DbContractError('Event types must contain1-20 non-empty strings')
   const { rows } = await db.query<{
     seq: number
     idempotency_key: string
@@ -144,8 +147,8 @@ export async function readPartition(db: Db, partition: string, afterSeq = 0): Pr
     at: Date
   }>(
     `SELECT seq, idempotency_key, partition, type, payload, redacted, at
-     FROM events WHERE partition = $1 AND seq > $2 ORDER BY seq ASC`,
-    [partition, afterSeq],
+     FROM events WHERE partition = $1 AND seq > $2 ${types === undefined ? '' : 'AND type=ANY($3::text[])'} ORDER BY seq ASC`,
+    types === undefined ? [partition, afterSeq] : [partition, afterSeq, types],
   )
   return rows.map((row) => ({
     seq: Number(row.seq),
@@ -370,6 +373,7 @@ const ArtifactSummaryPayload = z
     reason: z.string().optional(),
     producedBy: z.string().optional(),
     fromScope: ArtifactScopePayload.optional(),
+    sourceIndexed: z.boolean().optional(),
   })
   .passthrough()
 
@@ -407,6 +411,8 @@ export async function listArtifacts(db: Db, sessionId: string, includeHidden = f
     if (event.type === 't.artifact.indexed') entry.indexed = true
     if (event.type === ARTIFACT_REFERENCED_EVENT && parsed.data.fromScope !== undefined) {
       entry.referencedFrom = parsed.data.fromScope
+      const proof = parsed.data.sourceIndexed === true ? undefined : await findEventByKey(db, indexedEventKey(parsed.data.fromScope, parsed.data.artifactId))
+      if (parsed.data.sourceIndexed === true || proof?.type === 't.artifact.indexed') entry.indexed = true
     }
   }
   const session = await getSession(db, sessionId)
@@ -417,7 +423,19 @@ export async function listArtifacts(db: Db, sessionId: string, includeHidden = f
 /** Attach an existing file to another session without copying bytes. The
  * referenced event snapshots display fields and the owning scope; serve
  * still resolves bytes through the owner's index gate. */
-export async function referenceArtifact(
+export async function referenceArtifact(db: Db, input: { artifactId: string; fromScope: ArtifactScope; toSessionId: string; scope?: Scope }, archive?: ArchiveTarget, timeoutMs = 60_000): Promise<ArtifactSummary> {
+  if (!Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > 60_000) throw new DbContractError('Import timeout must be between 1 and 60000 milliseconds')
+  return logOp(artifactLogger, 'artifact.import', async () => {
+    const abort = new AbortController()
+    const timer = setTimeout(() => abort.abort(new ArtifactImportTimeout()), timeoutMs)
+    let rejectAbort: () => void = () => undefined
+    const cancelled = new Promise<never>((_resolve, reject) => { rejectAbort = () => reject(abort.signal.reason); abort.signal.addEventListener('abort', rejectAbort, { once: true }) })
+    try { return await Promise.race([referenceArtifactImpl(db, input, archive, abort.signal), cancelled]) }
+    finally { clearTimeout(timer); abort.signal.removeEventListener('abort', rejectAbort) }
+  }, { artifactId: input.artifactId, destinationSession: input.toSessionId })
+}
+
+async function referenceArtifactImpl(
   db: Db,
   input: {
     artifactId: string
@@ -425,6 +443,8 @@ export async function referenceArtifact(
     toSessionId: string
     scope?: Scope
   },
+  archive?: ArchiveTarget,
+  signal?: AbortSignal,
 ): Promise<ArtifactSummary> {
   if (!KeySchema.safeParse(input.artifactId).success) {
     throw new DbContractError('artifactId must be a non-empty string')
@@ -451,6 +471,7 @@ export async function referenceArtifact(
   const payload: Record<string, unknown> = {
     artifactId: input.artifactId,
     fromScope: scopeParsed.data,
+    sourceIndexed: true,
     ...(meta.success && typeof meta.data.name === 'string' ? { name: meta.data.name } : {}),
     ...(meta.success && typeof meta.data.kind === 'string' ? { kind: meta.data.kind } : {}),
     ...(meta.success && typeof meta.data.detail === 'string' ? { detail: meta.data.detail } : {}),
@@ -459,6 +480,16 @@ export async function referenceArtifact(
       ? { producedBy: meta.data.producedBy }
       : {}),
   }
+  const original = archive ?? resolveArchiveTarget()
+  const target: ArchiveTarget = { list: (prefix) => original.list(prefix), read: (key) => { signal?.throwIfAborted(); return original.read(key, ARTIFACT_MAX_BYTES, signal) }, write: (key, body) => { signal?.throwIfAborted(); return original.write(key, body, signal) } }
+  const artifactDeps = { log: (fields: unknown) => artifactLogger.info(fields), findEvent: (key: string) => findEventByKey(db, key), record: async (event: unknown) => { signal?.throwIfAborted(); await appendEvent(db, event); signal?.throwIfAborted() } }
+  const served = await serveArtifact(target, scopeParsed.data, input.artifactId, artifactDeps)
+  if (toSession.sectorId) {
+    const copied = await storeAndIndex(target, { scope: { kind: 'session', id: input.toSessionId }, artifactId: input.artifactId, name: served.meta.name, body: served.body, reason: served.meta.reason, producedBy: served.meta.producedBy, kind: served.meta.kind, detail: served.meta.detail }, artifactDeps)
+    await indexSectorArtifact(db, toSession.sectorId, copied.artifactId, copied.name, served.body, input.scope)
+    payload['bytes'] = copied.bytes; payload['sha256'] = copied.sha256
+  }
+  signal?.throwIfAborted()
   await appendEvent(db, {
     idempotencyKey: referencedEventKey(input.toSessionId, input.artifactId),
     partition: `artifact:session:${input.toSessionId}`,

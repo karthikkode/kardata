@@ -3264,6 +3264,13 @@
       "status": "pending"
     },
     {
+      "id": "agents/src/turnRunner.ts#PendingProviderResponse",
+      "source": "agents/src/turnRunner.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "agents/src/turnRunner.ts#RecoveryOperation",
       "source": "agents/src/turnRunner.ts",
       "kind": "export",
@@ -3383,6 +3390,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/archive/targets.ts#ArchivedExecutionRecord",
+      "source": "backend/src/archive/targets.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/archive/targets.ts#ArchivedResearchSource",
       "source": "backend/src/archive/targets.ts",
       "kind": "export",
@@ -3453,7 +3467,21 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/archive/targets.ts#persistExecutionRecord",
+      "source": "backend/src/archive/targets.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/archive/targets.ts#persistResearchSource",
+      "source": "backend/src/archive/targets.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/archive/targets.ts#readExecutionRecord",
       "source": "backend/src/archive/targets.ts",
       "kind": "export",
       "features": [],
@@ -4349,6 +4377,69 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/context-files.ts#agentHistoryBoundary",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/context-files.ts#assertThreadFileContext",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/context-files.ts#ContextFileBlocked",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/context-files.ts#ContextFileRef",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/context-files.ts#inheritThreadFileRefs",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/context-files.ts#mergeFileRefs",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/context-files.ts#recordThreadFileExposure",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/context-files.ts#threadFileRefs",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/context-files.ts#validateFileRefs",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/document-units.ts#countDocumentUnits",
       "source": "backend/src/db/document-units.ts",
       "kind": "export",
@@ -4370,6 +4461,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/document-units.ts#listDocumentUnitOrdinals",
+      "source": "backend/src/db/document-units.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/document-units.ts#listDocumentUnits",
       "source": "backend/src/db/document-units.ts",
       "kind": "export",
@@ -4377,7 +4475,21 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/errors.ts#ArtifactImportTimeout",
+      "source": "backend/src/db/errors.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/errors.ts#DbContractError",
+      "source": "backend/src/db/errors.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/errors.ts#WorkspaceError",
       "source": "backend/src/db/errors.ts",
       "kind": "export",
       "features": [],
@@ -4601,6 +4713,104 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/execution-epochs.ts#bindExecutionEpoch",
+      "source": "backend/src/db/execution-epochs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/execution-epochs.ts#confirmExecutionIntent",
+      "source": "backend/src/db/execution-epochs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/execution-epochs.ts#EpochOwnership",
+      "source": "backend/src/db/execution-epochs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/execution-epochs.ts#ExecutionIntentInput",
+      "source": "backend/src/db/execution-epochs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/execution-epochs.ts#markExecutionIntent",
+      "source": "backend/src/db/execution-epochs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/execution-epochs.ts#readActiveExecutionIdentity",
+      "source": "backend/src/db/execution-epochs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/execution-epochs.ts#recoveryCheckpointHash",
+      "source": "backend/src/db/execution-epochs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/execution-epochs.ts#reserveExecutionIntent",
+      "source": "backend/src/db/execution-epochs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/execution-epochs.ts#verifyOriginalExecutionEpoch",
+      "source": "backend/src/db/execution-epochs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/execution-records.ts#ExecutionRecordMetadata",
+      "source": "backend/src/db/execution-records.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/execution-records.ts#listThreadExecutionRecords",
+      "source": "backend/src/db/execution-records.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/execution-records.ts#readRecoveryRequestReference",
+      "source": "backend/src/db/execution-records.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/execution-records.ts#readThreadExecutionReference",
+      "source": "backend/src/db/execution-records.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/execution-records.ts#recordTurnExecution",
+      "source": "backend/src/db/execution-records.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/file-pipeline.ts#chunkTextUnits",
       "source": "backend/src/db/file-pipeline.ts",
       "kind": "export",
@@ -4778,6 +4988,20 @@
     {
       "id": "backend/src/db/heartbeats.ts#StoredHeartbeat",
       "source": "backend/src/db/heartbeats.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/index.ts#*:./execution-epochs.js",
+      "source": "backend/src/db/index.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/index.ts#*:./reconciliation.js",
+      "source": "backend/src/db/index.ts",
       "kind": "export",
       "features": [],
       "status": "pending"
@@ -5126,6 +5350,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/index.ts#ExecutionRecordMetadata",
+      "source": "backend/src/db/index.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/index.ts#extractDocumentText",
       "source": "backend/src/db/index.ts",
       "kind": "export",
@@ -5427,6 +5658,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/index.ts#listThreadExecutionRecords",
+      "source": "backend/src/db/index.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/index.ts#listThreadHeaders",
       "source": "backend/src/db/index.ts",
       "kind": "export",
@@ -5665,6 +5903,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/index.ts#readRecoveryRequestReference",
+      "source": "backend/src/db/index.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/index.ts#readSectorDocument",
       "source": "backend/src/db/index.ts",
       "kind": "export",
@@ -5680,6 +5925,13 @@
     },
     {
       "id": "backend/src/db/index.ts#readSectorPlan",
+      "source": "backend/src/db/index.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/index.ts#readThreadExecutionReference",
       "source": "backend/src/db/index.ts",
       "kind": "export",
       "features": [],
@@ -5736,6 +5988,13 @@
     },
     {
       "id": "backend/src/db/index.ts#recordResearchSession",
+      "source": "backend/src/db/index.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/index.ts#recordTurnExecution",
       "source": "backend/src/db/index.ts",
       "kind": "export",
       "features": [],
@@ -6246,6 +6505,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/index.ts#workspaceReferenceSnapshot",
+      "source": "backend/src/db/index.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/kb-ingest.ts#collectKbDocs",
       "source": "backend/src/db/kb-ingest.ts",
       "kind": "export",
@@ -6402,6 +6668,41 @@
     {
       "id": "backend/src/db/migrate.ts#migrationFiles",
       "source": "backend/src/db/migrate.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/operation-receipts.ts#inspectOperationReceipt",
+      "source": "backend/src/db/operation-receipts.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/operation-receipts.ts#OperationReceiptIdentity",
+      "source": "backend/src/db/operation-receipts.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/operation-receipts.ts#recordOperationIntent",
+      "source": "backend/src/db/operation-receipts.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/operation-receipts.ts#recordOperationResult",
+      "source": "backend/src/db/operation-receipts.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/operation-receipts.ts#recoverOperationResult",
+      "source": "backend/src/db/operation-receipts.ts",
       "kind": "export",
       "features": [],
       "status": "pending"
@@ -6577,6 +6878,34 @@
     {
       "id": "backend/src/db/quotas.ts#sweepIdempotency",
       "source": "backend/src/db/quotas.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/reconciliation.ts#listReconciliationCandidates",
+      "source": "backend/src/db/reconciliation.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/reconciliation.ts#ReconciliationCandidate",
+      "source": "backend/src/db/reconciliation.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/reconciliation.ts#ReconciliationFinding",
+      "source": "backend/src/db/reconciliation.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/reconciliation.ts#recordReconciliation",
+      "source": "backend/src/db/reconciliation.ts",
       "kind": "export",
       "features": [],
       "status": "pending"
@@ -7296,7 +7625,35 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/work-review.ts#readResearchWorkReviewSequence",
+      "source": "backend/src/db/work-review.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/work-review.ts#reviewResearchWork",
+      "source": "backend/src/db/work-review.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/work-review.ts#WorkReviewDecision",
+      "source": "backend/src/db/work-review.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/workspace.ts#assertFileVisible",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/workspace.ts#assertGlobalFileContext",
       "source": "backend/src/db/workspace.ts",
       "kind": "export",
       "features": [],
@@ -7457,6 +7814,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/workspace.ts#readDiscoveryPublicationState",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/workspace.ts#readGlobalContext",
       "source": "backend/src/db/workspace.ts",
       "kind": "export",
@@ -7471,7 +7835,21 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/workspace.ts#readResearchCoordinatorProgress",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/workspace.ts#readResearchProgress",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/workspace.ts#readResearchWorkItem",
       "source": "backend/src/db/workspace.ts",
       "kind": "export",
       "features": [],
@@ -7500,6 +7878,13 @@
     },
     {
       "id": "backend/src/db/workspace.ts#readTurnContinuation",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/workspace.ts#rebuildThreadContext",
       "source": "backend/src/db/workspace.ts",
       "kind": "export",
       "features": [],
@@ -7535,6 +7920,13 @@
     },
     {
       "id": "backend/src/db/workspace.ts#requireThread",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/workspace.ts#researchIntakeReceipts",
       "source": "backend/src/db/workspace.ts",
       "kind": "export",
       "features": [],
@@ -7612,6 +8004,13 @@
     },
     {
       "id": "backend/src/db/workspace.ts#workspaceReferences",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/workspace.ts#workspaceReferenceSnapshot",
       "source": "backend/src/db/workspace.ts",
       "kind": "export",
       "features": [],
@@ -7849,6 +8248,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/observability/logging.ts#workerLoggingOptions",
+      "source": "backend/src/observability/logging.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/observability/metrics.ts#CARDINALITY_BUDGET",
       "source": "backend/src/observability/metrics.ts",
       "kind": "export",
@@ -7907,6 +8313,27 @@
     {
       "id": "backend/src/observability/metrics.ts#workerTelemetryOptions",
       "source": "backend/src/observability/metrics.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/observability/reconciliation.ts#OwnerObservation",
+      "source": "backend/src/observability/reconciliation.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/observability/reconciliation.ts#reconcileObservation",
+      "source": "backend/src/observability/reconciliation.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/observability/reconciliation.ts#RECONCILIATION_LIMITS",
+      "source": "backend/src/observability/reconciliation.ts",
       "kind": "export",
       "features": [],
       "status": "pending"
@@ -8591,6 +9018,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/routes/execution-records.ts#executionRecordRoutes",
+      "source": "backend/src/routes/execution-records.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/routes/http.ts#authorize",
       "source": "backend/src/routes/http.ts",
       "kind": "export",
@@ -8843,6 +9277,20 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/temporal/activities/coordinator.ts#prepareExecutionIntentActivity",
+      "source": "backend/src/temporal/activities/coordinator.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/coordinator.ts#prepareResearchTurnRecoveryActivity",
+      "source": "backend/src/temporal/activities/coordinator.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/temporal/activities/coordinator.ts#researchBudgetActivity",
       "source": "backend/src/temporal/activities/coordinator.ts",
       "kind": "export",
@@ -8894,6 +9342,48 @@
     {
       "id": "backend/src/temporal/activities/coordinator.ts#researchVerdictActivity",
       "source": "backend/src/temporal/activities/coordinator.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/coordinator.ts#researchWorkItemActivity",
+      "source": "backend/src/temporal/activities/coordinator.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/coordinator.ts#settlePreparedExecutionIntentActivity",
+      "source": "backend/src/temporal/activities/coordinator.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/execution-epochs.ts#originalRecoveryReadyActivity",
+      "source": "backend/src/temporal/activities/execution-epochs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/execution-epochs.ts#prepareExecutionIntentActivity",
+      "source": "backend/src/temporal/activities/execution-epochs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/execution-epochs.ts#prepareResearchTurnRecoveryActivity",
+      "source": "backend/src/temporal/activities/execution-epochs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/execution-epochs.ts#settlePreparedExecutionIntentActivity",
+      "source": "backend/src/temporal/activities/execution-epochs.ts",
       "kind": "export",
       "features": [],
       "status": "pending"
@@ -8999,6 +9489,34 @@
     {
       "id": "backend/src/temporal/activities/providers.ts#ProviderChatInput",
       "source": "backend/src/temporal/activities/providers.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/reconciliation.ts#inspectWorkflowOwner",
+      "source": "backend/src/temporal/activities/reconciliation.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/reconciliation.ts#reconcilePage",
+      "source": "backend/src/temporal/activities/reconciliation.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/reconciliation.ts#ReconciliationPage",
+      "source": "backend/src/temporal/activities/reconciliation.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/reconciliation.ts#reconciliationPageActivity",
+      "source": "backend/src/temporal/activities/reconciliation.ts",
       "kind": "export",
       "features": [],
       "status": "pending"
@@ -9285,6 +9803,13 @@
     },
     {
       "id": "backend/src/temporal/activities/turn.ts#executeKarbotTurn",
+      "source": "backend/src/temporal/activities/turn.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/turn.ts#freezeOriginalPalette",
       "source": "backend/src/temporal/activities/turn.ts",
       "kind": "export",
       "features": [],
@@ -9662,6 +10187,20 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/temporal/reconciliation-start.ts#ensureExecutionReconciliation",
+      "source": "backend/src/temporal/reconciliation-start.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/reconciliation-start.ts#RECONCILIATION_WORKFLOW_ID",
+      "source": "backend/src/temporal/reconciliation-start.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/temporal/research-plan.ts#ExecutablePlan",
       "source": "backend/src/temporal/research-plan.ts",
       "kind": "export",
@@ -9774,6 +10313,20 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/temporal/turn-recovery.ts#loadOriginalTurnRecovery",
+      "source": "backend/src/temporal/turn-recovery.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/turn-recovery.ts#OriginalTurnRecovery",
+      "source": "backend/src/temporal/turn-recovery.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/temporal/worker.ts#ActivityFunction",
       "source": "backend/src/temporal/worker.ts",
       "kind": "export",
@@ -9825,6 +10378,13 @@
     {
       "id": "backend/src/temporal/workflows/coordinator.ts#sectorCoordinator",
       "source": "backend/src/temporal/workflows/coordinator.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/workflows/epoch-start.ts#withPreparedExecution",
+      "source": "backend/src/temporal/workflows/epoch-start.ts",
       "kind": "export",
       "features": [],
       "status": "pending"
@@ -9928,6 +10488,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/temporal/workflows/reconciliation.ts#executionReconciliation",
+      "source": "backend/src/temporal/workflows/reconciliation.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/temporal/workflows/research-bundle.ts#*:./coordinator.js",
       "source": "backend/src/temporal/workflows/research-bundle.ts",
       "kind": "export",
@@ -9936,6 +10503,13 @@
     },
     {
       "id": "backend/src/temporal/workflows/research-bundle.ts#*:./plan.js",
+      "source": "backend/src/temporal/workflows/research-bundle.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/workflows/research-bundle.ts#*:./reconciliation.js",
       "source": "backend/src/temporal/workflows/research-bundle.ts",
       "kind": "export",
       "features": [],
@@ -10209,6 +10783,13 @@
     },
     {
       "id": "backend/src/temporal/workflows/subagents.ts#parentNoteDoneSignal",
+      "source": "backend/src/temporal/workflows/subagents.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/workflows/subagents.ts#parentRecoverSignal",
       "source": "backend/src/temporal/workflows/subagents.ts",
       "kind": "export",
       "features": [],
@@ -10651,6 +11232,13 @@
     {
       "id": "frontend/src/components/Dashboard.tsx#ResearchList",
       "source": "frontend/src/components/Dashboard.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ExecutionInspector.tsx#ExecutionInspector",
+      "source": "frontend/src/components/ExecutionInspector.tsx",
       "kind": "export",
       "features": [],
       "status": "pending"
@@ -11755,6 +12343,13 @@
       "status": "pending"
     },
     {
+      "id": "frontend/src/data/useWorkReview.ts#useWorkReview",
+      "source": "frontend/src/data/useWorkReview.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "frontend/src/data/useWorkspace.ts#Resource",
       "source": "frontend/src/data/useWorkspace.ts",
       "kind": "export",
@@ -11811,7 +12406,35 @@
       "status": "pending"
     },
     {
+      "id": "frontend/src/data/workspace-api.ts#ExecutionRecordBody",
+      "source": "frontend/src/data/workspace-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/data/workspace-api.ts#ExecutionRecordMetadata",
+      "source": "frontend/src/data/workspace-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/data/workspace-api.ts#ExecutionRecordPage",
+      "source": "frontend/src/data/workspace-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "frontend/src/data/workspace-api.ts#getContextPreview",
+      "source": "frontend/src/data/workspace-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/data/workspace-api.ts#getExecutionRecord",
       "source": "frontend/src/data/workspace-api.ts",
       "kind": "export",
       "features": [],
@@ -11874,7 +12497,21 @@
       "status": "pending"
     },
     {
+      "id": "frontend/src/data/workspace-api.ts#inspectThreadOperation",
+      "source": "frontend/src/data/workspace-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "frontend/src/data/workspace-api.ts#LibraryFile",
+      "source": "frontend/src/data/workspace-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/data/workspace-api.ts#listExecutionRecords",
       "source": "frontend/src/data/workspace-api.ts",
       "kind": "export",
       "features": [],
@@ -11888,6 +12525,13 @@
       "status": "pending"
     },
     {
+      "id": "frontend/src/data/workspace-api.ts#OperationReceipt",
+      "source": "frontend/src/data/workspace-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "frontend/src/data/workspace-api.ts#proposeGlobalContext",
       "source": "frontend/src/data/workspace-api.ts",
       "kind": "export",
@@ -11895,7 +12539,21 @@
       "status": "pending"
     },
     {
+      "id": "frontend/src/data/workspace-api.ts#rebuildLocalContext",
+      "source": "frontend/src/data/workspace-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "frontend/src/data/workspace-api.ts#ResearchProgress",
+      "source": "frontend/src/data/workspace-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/data/workspace-api.ts#reviewResearchWork",
       "source": "frontend/src/data/workspace-api.ts",
       "kind": "export",
       "features": [],
@@ -12133,6 +12791,13 @@
       "status": "pending"
     },
     {
+      "id": "http:getExecutionRecord",
+      "source": "backend/openapi/v1.yaml",
+      "kind": "http",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "http:getGlobalContext",
       "source": "backend/openapi/v1.yaml",
       "kind": "http",
@@ -12210,7 +12875,21 @@
       "status": "pending"
     },
     {
+      "id": "http:inspectThreadOperation",
+      "source": "backend/openapi/v1.yaml",
+      "kind": "http",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "http:listCompanies",
+      "source": "backend/openapi/v1.yaml",
+      "kind": "http",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "http:listExecutionRecords",
       "source": "backend/openapi/v1.yaml",
       "kind": "http",
       "features": [],
@@ -12350,6 +13029,13 @@
       "status": "pending"
     },
     {
+      "id": "http:rebuildLocalContext",
+      "source": "backend/openapi/v1.yaml",
+      "kind": "http",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "http:referenceArtifact",
       "source": "backend/openapi/v1.yaml",
       "kind": "http",
@@ -12386,6 +13072,13 @@
     },
     {
       "id": "http:resumeSector",
+      "source": "backend/openapi/v1.yaml",
+      "kind": "http",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "http:reviewResearchWork",
       "source": "backend/openapi/v1.yaml",
       "kind": "http",
       "features": [],
@@ -12968,6 +13661,13 @@
     {
       "id": "ui:frontend/src/components/Dashboard.tsx",
       "source": "frontend/src/components/Dashboard.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "ui:frontend/src/components/ExecutionInspector.tsx",
+      "source": "frontend/src/components/ExecutionInspector.tsx",
       "kind": "ui",
       "features": [],
       "status": "pending"

@@ -10,6 +10,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import type { Logger } from 'pino'
 import type { Span } from '@opentelemetry/api'
 import type { HttpMetrics } from './metrics.js'
+import { extractTraceContext } from './trace.js'
 import {
   TRACER_NAME,
   clearSpanContext,
@@ -33,6 +34,10 @@ export interface RequestObservability {
 
 export function registerRequestLogging(app: FastifyInstance, deps: RequestObservability): void {
   app.addHook('onRequest', (request: FastifyRequest, _reply: FastifyReply, done: () => void) => {
+    // Fastify plugin registration can complete after root hooks attach.
+    // Mint once here; the trace plugin preserves it when it runs later.
+    request.traceContext ??= extractTraceContext(request.headers as Record<string,string|string[]|undefined>)
+    deps.logger?.info({ event: 'http.request.start',op: 'http.request.start',method: request.method,route: request.kardataBrowserProxy ? 'browser.proxy' : request.routeOptions?.url ?? '*unmatched*',trace_id: request.traceContext.traceId })
     const tracer = trace.getTracer(TRACER_NAME)
     const traceId = request.traceContext?.traceId
     // Adopt the ingress trace (or the minted one): the span always carries
@@ -49,9 +54,15 @@ export function registerRequestLogging(app: FastifyInstance, deps: RequestObserv
     done()
   })
 
+  app.addHook('onError',(request, _reply,error,done) => {
+    const code='code' in error && typeof error.code==='string' ? error.code : error.name
+    deps.logger?.error({ event: 'http.request.error',op: 'http.request.error',method: request.method,route: request.kardataBrowserProxy ? 'browser.proxy' : request.routeOptions?.url ?? '*unmatched*',trace_id: request.traceContext?.traceId,code })
+    done()
+  })
+
   app.addHook('onResponse', (request: FastifyRequest, reply: FastifyReply, done: () => void) => {
     const status = reply.statusCode
-    const route = request.kardataBrowserProxy ? 'browser.proxy' : request.routeOptions?.url ?? request.url.split('?')[0]
+    const route = request.kardataBrowserProxy ? 'browser.proxy' : request.routeOptions?.url ?? '*unmatched*'
     // Metric labels stay bounded: unmatched paths collapse to one bucket.
     const metricRoute = request.kardataBrowserProxy ? 'browser.proxy' : request.routeOptions?.url ?? '*unmatched*'
     const latencyMs = Math.round(reply.elapsedTime)

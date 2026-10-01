@@ -21,6 +21,16 @@ Compose files, Dockerfiles, environment templates. No secrets: ever
 
 ## Operations
 
+Postgres reserves a1-GiB `/dev/shm` mount for parallel query dynamic shared
+memory. Docker's64-MiB default exhausted under the two-worker DB battery and the
+pinned runtime crashed/recovered. Connection and per-process pool budgets stay
+unchanged; more shared memory does not authorize unbounded query concurrency.
+`deployment.capacity.test.ts` pins configuration. The original two-worker battery
+must also pass on an isolated matching runtime. Updating source does not resize
+the existing container: apply through a planned, backed-up rollout preserving
+the existing data volume, never a volume reset. Measurements and commands belong
+in operations documentation.
+
 Boot, probe, migrate, and teardown commands live in `docs/environments.md`.
 Prod topology is self-hosted; connection budget math lives in
 `documentation/db.md` (process × max vs `max_connections`). Compose is
@@ -49,3 +59,13 @@ workers. Do not mix unfenced older workers with new active attempts; preserve
 older histories through replay and the explicit pause/review/start transition.
 Rollback requires quiescing active attempts before returning to old workers;
 source archive paths/hashes remain backward-readable and research data is retained.
+
+Backend and worker must use the same archive target. Filesystem mode mounts the
+existing `archive-data` volume at `/var/kardata/archive` in both roles; GCS mode
+uses identical bucket/prefix/project settings and the same read-only ADC mount.
+Worker evidence cannot live in its disposable container layer or a different
+bucket from the owner-facing server. Configuration regression:
+`tests/backend/archive.storage-config.test.ts`. Actual deployed round-trip and
+restart verification remain separate gates. Before replacing an older worker,
+inventory and preserve any legacy container-local archive bytes; never discard
+them by treating a new shared mount as automatic migration.

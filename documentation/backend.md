@@ -465,3 +465,90 @@ context conflicts before mutation. Approval receipts additionally pin protected
 Decisions text, with legacy reads remaining supported. Exact-compatible completed
 work is retained transactionally; scope/decision changes require eligibility
 review. Current provenance is readable in the shared progress response.
+
+Worker startup now ensures a bounded recurring `executionReconciliation`
+workflow on the existing research queue. It records scoped durable observations
+and conversation notices. Provider-owning starts reserve a durable epoch before
+Temporal admission, including versioned child launches; attempt ownership binds
+the exact execution. Exact terminal/head/lease matches with no unresolved start
+can be parked for owner review, retaining context and instructions. Legacy and
+missing-heartbeat/progress/queue findings remain advisory; matching an old token
+alone never permits lifecycle changes. Unknown/expired start outcomes stay guarded.
+Contract and thresholds: [agents supervision](agents-supervision.md). Matching
+deployed activation and outbound alert delivery require separate live evidence.
+
+HTTP observability emits a sanitized ingress `http.request.start`, a coded
+`http.request.error` for framework exceptions, and the existing terminal
+`op=http.request` access record. Hung handlers leave ingress evidence. Hooks
+share one minted/validated trace ID despite plugin registration order; unmatched
+routes collapse to `*unmatched*`. URLs, query strings, headers, request bodies and
+exception bodies/stacks are excluded. Existing metrics keep bounded route labels.
+
+New discovery coordinators use the compact-state Temporal patch. Status checks
+carry scope/version/budget only; snapshots carry bounded retry references and a
+validation sample, with a1.5MB serialized guard. Full records are read through
+scoped DB helpers. Completed/rejected intake IDs are checked server-side; cursor
+commands carry query/page positions instead of growing rejected-domain lists.
+History continuation waits for checkpointed work, no active children and finished
+signal handlers. Approved version, recovery cursor and cumulative budget survive.
+Legacy histories take their original branch and remain replayable.
+
+Sector library metadata combines uploaded documents and generated/imported
+artifacts by newest arrival timestamp, with file ID as a deterministic tie-break.
+It uses document creation times and the first stored/referenced/indexed event in
+the sector's bound sessions; imports therefore use their local library arrival.
+Timestamp bookkeeping stays internal and does not add wire fields. Existing
+hidden/indexing flags and generated-document alias handling remain authoritative.
+Context reference assembly keeps its existing stable ID sort.
+
+### Normalized provider execution inspection
+
+Production turns archive exact normalized adapter requests after refresh and
+compaction, and replies before tool dispatch. Tool results retain original call
+and operation identities. Each DB receipt binds the owning session/thread, turn,
+attempt lease, round and verified archive hash/size. Operational logs contain
+identity/latency/code only. These are not raw vendor HTTP payloads or credentials.
+Archive failures park a recoverable context operation before further execution.
+Archive IO precedes the DB transaction; failed commits may retain orphan bytes,
+but never publish a success pointer to missing content.
+
+Boundary metadata records the shared context version, observed approved plan
+version and local context version used to assemble the input. Context/plan reads
+around reference assembly must match; three unsuccessful attempts park rather
+than label mixed content with an unrelated version. An observed approved plan
+version is distinct from a child assignment's original executable-plan identity.
+Existing source receipts and immutable transcripts retain their separate roles.
+Owner inspection and full integration evidence are tracked as separate gates.
+
+### Owner execution inspection
+
+`GET /v1/threads/{threadKey}/execution-records?afterSeq=0&limit=20` returns scoped
+chronological metadata and a nullable next cursor (limit1–100). Metadata includes
+sequence/time, logical turn, attempt lease, round/kind, optional actual workflow,
+execution and canonical owner epoch, and archive hash/byte count. It omits archive
+keys and record bodies. `GET .../execution-records/{seq}` resolves the immutable
+scoped journal, then verifies the session namespace, exact bytes and archive hash
+before returning `{record: JSON object}`. Missing/corrupt content is an explicit
+recoverable conflict; a foreign conversation/sequence is not found.
+
+Both routes always require a registered approver key, including local open mode.
+There is no agent MCP surface. Owners can inspect historical content seen before
+a file was hidden. These are normalized adapter snapshots. Observed shared-plan
+metadata describes the reference snapshot and does not change assignment scope.
+
+### Owner intake review
+
+`POST /v1/sectors/{sectorId}/work/{workId}/review` requires approver authority
+and exact `{planVersion, receiptVersion, decision: retry|exclude, reason}`.
+A receiptVersion digest is supplied on progress work records. Missing scope is
+404; stale versions, executing candidate children, non-paused/non-failed sectors
+and settled/non-candidate work are 409. The existing mutation idempotency and
+boundary logging apply. No MCP/model exclusion route exists. Exact prior receipts
+and authenticated owner decisions remain in the sector event journal.
+
+The intake-review mutation declares the shared optional IdempotencyKey header in
+OpenAPI and uses the existing per-key request-fingerprint guard. Repeating one
+exact owner decision with its original key replays the recorded receipt without
+another work transition/journal event; changed arguments under that key conflict.
+The review client keeps the key for an exact failed submission and supplies it on
+retry; editing the reviewed work, decision or owner reason creates a new request.

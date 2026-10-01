@@ -45,6 +45,15 @@ visible. Tests and remaining release gaps are catalogued in
 
 ## Snapshots (T5.1)
 
+The turn runner exposes awaited request, response and tool-result persistence
+boundaries. Request records use the exact normalized adapter input after context
+refresh/compaction, including tools, selection and generation options; they omit
+transport signals and credentials. Responses preserve text, reasoning, calls and
+actual normalized usage before tool execution. These are adapter-level records,
+not a claim to retain raw vendor HTTP bytes. Failed persistence blocks further
+execution; operational logs must contain references rather than these bodies.
+Production archive/DB wiring and owner inspection need separate verification.
+
 `createSnapshot` runs before every provider call: sha256 over canonical
 bytes plus message/tool counts, tool versions, prompt and policy versions,
 and optional parent hash. The product rehydrates durable working messages and
@@ -93,3 +102,42 @@ The production turn's source-collection MCP wrapper must preserve authorityId,
 as do palette/grant wrappers. Credential rotation cannot bypass recovery merely
 because an intermediate wrapper records fetched evidence. The HTTP/activity/DB
 regression exercises rotation under a new API-key identity and proves one effect.
+
+## File dependency policy
+
+The backend records the exact versions and units actually exposed to each
+validated execution thread. File dependencies are server-derived; missing model
+`fileRef` arguments cannot permit a research parent to promote file-derived text.
+Proposals retain dependency receipts through owner approval. Changed sections,
+working checkpoints and summaries retain their dependencies independently of
+visible history. Child assignments conservatively inherit parent exposures.
+
+Hidden or changed file versions block subsequent agent context/summary/history
+assembly with recoverable ContextBlocked. Stored transcript and owner revision
+history remain intact. No empty replacement summary silently drops objectives.
+Reveal the exact file version, or perform an explicit safe context rebuild before
+resuming. Existing summaries/checkpoints with unknown legacy provenance remain
+blocked rather than being certified file-free.
+
+Owner safe rebuild is approver-only and version-fenced. The owner reviews stored
+context/source dependencies, supplies a nonempty independent replacement, and
+explicitly confirms it preserves required objectives without hidden-source
+content. Active leases are rejected. The visible transcript, original run/task,
+source archive references, cumulative usage/budget and steering remain intact.
+Unresolved operation receipts are preserved; rebuild is denied when their original
+arguments may depend on blocked sources. Agents have no self-rebuild tool.
+
+A completed provider response is checkpointed with exact per-round response,
+paid usage and original execution/context metadata before archive publication.
+Archive/journal failure parks the operation. Resume records that original pending
+response before any tool dispatch or further provider call; it never pays for the
+same provider response again. The checkpoint retains cumulative counters and
+source fences. Owner rebuild cannot discard a pending paid response or its source
+lineage; restore storage/source availability and resume the original turn first.
+
+Prepared and uncertain tool receipts retain the original serialized call. Resume
+checks semantic equality before restoring wire argument order, so Postgres JSONB
+key ordering cannot turn an identical retry into a request-fingerprint conflict.
+Changed arguments and changed execution authority remain blocked. Terminal paid
+responses remain staged until final continuation clearing succeeds; repeated
+finalizer failures preserve original producer lease/context/usage and archive hash.

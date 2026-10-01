@@ -95,10 +95,15 @@ describe.skipIf(!ENABLED)('session-run workflow (B2.2)', () => {
     const handle = await client.workflow.start('sessionRun', { taskQueue: (worker.options as { taskQueue: string }).taskQueue, workflowId: `session-run-${sessionId}`, args: [{ sessionId, fakeSteps: [{ text: 'Recovered answer' }] }] })
     try {
       await handle.signal('runSend', request)
-      await waitFor(async () => await queryState(handle) === 'PAUSED', 30000, 'context pause')
       const pool = db()
       try {
-        await projectNewEvents(pool)
+        // Workflow queries can observe PAUSED before its event-writing activity
+        // settles. Wait for both authorities; projector catch-up cannot project
+        // an event that has not committed yet.
+        await waitFor(async () => {
+          await projectNewEvents(pool)
+          return await queryState(handle) === 'PAUSED' && (await getThread(pool, sessionId))?.status === 'PAUSED'
+        }, 30000, 'durable context pause')
         expect((await getThread(pool, sessionId))?.status).toBe('PAUSED')
       } finally { await pool.end() }
       await handle.signal('runResume')

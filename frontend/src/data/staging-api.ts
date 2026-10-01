@@ -229,12 +229,13 @@ export function apiErrorStatus(error: unknown): 'offline' | 'denied' | 'error' {
   return 'error'
 }
 
-async function requestEnvelope<T>(config: StagingConfig, method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<{ data: T; nextAfterSeq?: number }> {
+async function requestEnvelope<T>(config: StagingConfig, method: string, path: string, body?: unknown, signal?: AbortSignal, idempotencyKey?: string): Promise<{ data: T; nextAfterSeq?: number }> {
   const response = await fetch(`${config.baseUrl}${path}`, {
     method,
     signal,
     headers: {
       authorization: `Bearer ${config.apiKey}`,
+      ...(idempotencyKey ? { 'idempotency-key': idempotencyKey } : {}),
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -255,8 +256,8 @@ async function requestEnvelope<T>(config: StagingConfig, method: string, path: s
   return { data: parsed.data as T, nextAfterSeq: parsed.nextAfterSeq }
 }
 
-export async function request<T>(config: StagingConfig, method: string, path: string, body?: unknown): Promise<T> {
-  return (await requestEnvelope<T>(config, method, path, body)).data
+export async function request<T>(config: StagingConfig, method: string, path: string, body?: unknown, idempotencyKey?: string): Promise<T> {
+  return (await requestEnvelope<T>(config, method, path, body, undefined, idempotencyKey)).data
 }
 
 export function listSessions(config: StagingConfig, sectorId?: string): Promise<Session[]> {

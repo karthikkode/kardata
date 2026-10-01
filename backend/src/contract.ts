@@ -22,6 +22,10 @@ export interface ParityEntry {
 }
 
 export const PARITY: ParityEntry[] = [
+  { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'ExecutionRecordMetadata', kind: 'counterpart', specPointer: '#/components/schemas/ExecutionRecordMetadata', note: 'approver-only scoped journal metadata without archive keys' },
+  { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'ExecutionRecordPage', kind: 'counterpart', specPointer: '#/components/schemas/ExecutionRecordPage', note: 'chronological bounded execution inspection pages' },
+  { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'ExecutionRecordBody', kind: 'counterpart', specPointer: '#/components/schemas/ExecutionRecordBody', note: 'verified archived normalized adapter JSON object' },
+  { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'OperationReceipt', kind: 'counterpart', specPointer: '#/paths/~1v1~1threads~1{threadKey}~1operations~1{operationId}/get/responses/200/content/application~1json/schema/properties/data', note: 'scoped durable operation inspection' },
   { sourceFile: 'frontend/src/data/staging-api.ts', mockType: 'Session', kind: 'counterpart', specPointer: '#/components/schemas/Session', note: 'session rows render titles; age stays a client-side format of createdAt/updatedAt' },
   { sourceFile: 'frontend/src/data/staging-api.ts', mockType: 'ThreadView', kind: 'counterpart', specPointer: '#/components/schemas/Thread', note: 'session thread plus one thread per subagent' },
   { sourceFile: 'frontend/src/data/staging-api.ts', mockType: 'ThreadMessage', kind: 'counterpart', specPointer: '#/components/schemas/ThreadMessage', note: 'text/tool rows with role, name/detail/state' },

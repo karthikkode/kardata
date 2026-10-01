@@ -166,7 +166,7 @@ export async function withIdempotency(
   pool: Db | undefined,
   keyId: string,
   execute: () => Promise<IdempotentOutcome>,
-  options: { fingerprintBody?: unknown; responseBody?(body: unknown): unknown } = {},
+  options: { fingerprintBody?: unknown; responseBody?(body: unknown): unknown; recover?(fingerprint: string): Promise<IdempotentOutcome | undefined>; beforeExecute?(fingerprint: string): Promise<void>; afterExecute?(fingerprint: string, result: IdempotentOutcome): Promise<void> } = {},
 ): Promise<unknown> {
   const raw = header(request, 'idempotency-key')
   if (raw === undefined || pool === undefined) {
@@ -180,13 +180,35 @@ export async function withIdempotency(
   const fingerprint = mutationFingerprint(request.method, request.url, options.fingerprintBody ?? request.body)
   const claim = await claimIdempotency(pool, recordKey, fingerprint)
   if (claim.kind === 'replay') return reply.code(claim.status).send(options.responseBody ? options.responseBody(claim.body) : claim.body)
-  if (claim.kind === 'conflict') return sendError(reply, 409, 'conflict', claim.reason)
+  if (claim.kind === 'conflict') {
+    const recovered = claim.sameRequest ? await options.recover?.(fingerprint) : undefined
+    if (recovered) {
+      if (!await completeIdempotency(pool, recordKey, recovered.status, recovered.body, fingerprint)) return sendError(reply, 409, 'conflict', 'The operation guard changed during recovery.')
+      return reply.code(recovered.status).send(options.responseBody ? options.responseBody(recovered.body) : recovered.body)
+    }
+    return sendError(reply, 409, 'conflict', claim.reason)
+  }
+  let handlerStarted = false
   try {
+    const recovered = await options.recover?.(fingerprint)
+    if (recovered) {
+      if (!await completeIdempotency(pool, recordKey, recovered.status, recovered.body, fingerprint)) return sendError(reply, 409, 'conflict', 'The operation guard changed during recovery.')
+      return reply.code(recovered.status).send(options.responseBody ? options.responseBody(recovered.body) : recovered.body)
+    }
+    await options.beforeExecute?.(fingerprint)
+    handlerStarted = true
     const result = await execute()
-    if (result.retrySafeBeforeEffect) await releaseIdempotency(pool, recordKey)
-    else await completeIdempotency(pool, recordKey, result.status, result.body)
+    await options.afterExecute?.(fingerprint, result)
+    if (result.retrySafeBeforeEffect) await releaseIdempotency(pool, recordKey, fingerprint)
+    else if (!await completeIdempotency(pool, recordKey, result.status, result.body, fingerprint)) throw new WorkspaceError('conflict', 'The operation guard changed before completion.')
     return reply.code(result.status).send(options.responseBody ? options.responseBody(result.body) : result.body)
   } catch (error) {
+    if (!handlerStarted) {
+      // Intent/receipt I/O failed before this handler could produce an effect.
+      // A failed release still preserves the guard and propagates the failure.
+      await releaseIdempotency(pool, recordKey, fingerprint)
+      throw error
+    }
     const logger = (request.server as FastifyInstance & { kardataLogger?: Logger }).kardataLogger
     logger?.error({ event: 'http.idempotency.uncertain', op: 'http.idempotency', route: request.routeOptions.url,
       operationHash: mutationFingerprint('operation', request.url, recordKey), code: 'mutation_outcome_uncertain',

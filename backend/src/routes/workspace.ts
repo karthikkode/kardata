@@ -1,3 +1,5 @@
+import { WorkReviewDecision, reviewResearchWork } from '../db/work-review.js'
+import { rebuildThreadContext } from '../db/workspace.js'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import type { Scope, Role } from '../auth/keys.js'
@@ -12,7 +14,7 @@ import { compactOwnerThread } from '../context.js'
 import { projectNewEvents } from '../projector.js'
 import { authorize, requireArchive, requirePool, route, sendError, withIdempotency } from './http.js'
 
-interface Input { pool: TransactableDb; scope?: Scope; params: Record<string, string>; body: unknown }
+interface Input { keyId: string; pool: TransactableDb; scope?: Scope; params: Record<string, string>; body: unknown }
 export function workspaceRoutes(app: FastifyInstance): void {
   function register(method: 'get' | 'post' | 'patch', path: string, role: Role, handler: (input: Input) => Promise<unknown>) {
     route(app, method, path, async (request, reply, app) => {
@@ -23,7 +25,7 @@ export function workspaceRoutes(app: FastifyInstance): void {
       const work = async () => {
         await projectNewEvents(pool)
         try {
-          const data = await handler({ pool, scope: auth.scope, params: request.params as Record<string, string>, body: request.body })
+          const data = await handler({ keyId: auth.keyId, pool, scope: auth.scope, params: request.params as Record<string, string>, body: request.body })
           return { status: 200, body: { ok: true, data } }
         } catch (error) {
           if (error instanceof WorkspaceError) return { status: { not_found: 404, conflict: 409, permission_denied: 403, validation_failed: 400 }[error.code], body: { ok: false, error: { code: error.code, message: error.message } } }
@@ -64,6 +66,7 @@ export function workspaceRoutes(app: FastifyInstance): void {
     return decideContextChange(input.pool, { ...body, sectorId: sector(input), id: input.params['proposalId'] ?? '', scope: input.scope })
   })
   register('get', '/v1/sectors/:sectorId/global-context/proposals/:proposalId', 'viewer', (input) => previewContextChange(input.pool, sector(input), input.params['proposalId'] ?? '', input.scope))
+  register('post', '/v1/sectors/:sectorId/work/:workId/review', 'approver', (input) => reviewResearchWork(input.pool, { ...WorkReviewDecision.parse(input.body), sectorId: sector(input), workId: input.params['workId'] ?? '', author: input.keyId, scope: input.scope }))
   register('get', '/v1/sectors/:sectorId/progress', 'viewer', (input) => readResearchProgress(input.pool, sector(input), input.scope))
   register('get', '/v1/sectors/:sectorId/files', 'viewer', (input) => listSectorLibrary(input.pool, sector(input), input.scope))
   register('patch', '/v1/sectors/:sectorId/files/:fileId', 'operator', (input) => {
@@ -78,6 +81,10 @@ export function workspaceRoutes(app: FastifyInstance): void {
   register('patch', '/v1/threads/:threadKey/context', 'operator', (input) => {
     const body = z.object({ version: z.number().int().nonnegative(), notes: z.string().max(24000) }).strict().parse(input.body)
     return saveThreadContext(input.pool, thread(input), body, input.scope)
+  })
+  register('post', '/v1/threads/:threadKey/context/rebuild', 'approver', async (input) => {
+    const body = z.object({ version: z.number().int().nonnegative(), summary: z.string().trim().min(1).max(48000), independent: z.literal(true) }).strict().parse(input.body)
+    return rebuildThreadContext(input.pool, thread(input), { ...body, author: input.keyId }, input.scope)
   })
   register('post', '/v1/threads/:threadKey/context/compact', 'operator', async (input) => {
     return compactOwnerThread(input.pool, thread(input), input.scope)

@@ -13,6 +13,7 @@ import {
   enqueueSteering,
   readSectorPlan,
   appendEvent,
+  reserveExecutionIntent,confirmExecutionIntent,markExecutionIntent,
   type TransactableDb,
 } from '../db/index.js'
 import {
@@ -25,10 +26,12 @@ import {
   type Connection,
 } from '@temporalio/client'
 import type { FakeStep } from '@kardata/agents'
-import { connectClient } from './connection.js'
+import { connectClient,temporalNamespace } from './connection.js'
 import { laneConfig } from './lanes.js'
 import { createLogger, logOp } from '../observability/logging.js'
 import { projectNewEvents } from '../projector.js'
+import { loadOriginalTurnRecovery } from './turn-recovery.js'
+import { defaultPayloadConverter } from '@temporalio/common'
 import { getThread, listThreads, listThreadHeaders } from '../db/index.js'
 
 export type RunState = 'IDLE' | 'RUNNING' | 'PAUSED' | 'SUSPENDED' | 'CANCELLING' | 'FINISHED' | 'ERROR'
@@ -231,7 +234,7 @@ export class TemporalRunsGateway implements RunsGateway {
     if (!this.clientPromise) {
       this.clientPromise = (async () => {
         const connection = this.connection ?? (await connectClient())
-        return new Client({ connection })
+        return new Client({ connection,namespace: temporalNamespace() })
       })()
     }
     return this.clientPromise
@@ -385,7 +388,7 @@ export class TemporalRunsGateway implements RunsGateway {
     const start = () => client.workflow.start(approved?.executable ? 'sectorCoordinator' : 'sectorSweep', {
         workflowId: `sector-sweep-${sectorId}`,
         taskQueue: laneConfig('research').taskQueue,
-        args: [{ sectorId, ...(scope === undefined ? {} : { scope }) }],
+        args: [{ sectorId,ownerEpochProtocol: true, ...(scope === undefined ? {} : { scope }) }],
       })
     try {
       await start()
@@ -424,7 +427,7 @@ export class TemporalRunsGateway implements RunsGateway {
    * collect/steer. Depth 0 and maxDepth 0 keep pilot children leaf
    * researchers. */
   async delegateSubagent(input: DelegateSubagentInput): Promise<DelegatedChild> {
-    const childId = `child-${randomUUID().slice(0, 8)}`
+    const childId = `child-${randomUUID()}`
     const client = await this.client()
     await client.workflow.signalWithStart('delegateParent', {
       workflowId: delegationWorkflowId(input.sessionId),
@@ -441,7 +444,7 @@ export class TemporalRunsGateway implements RunsGateway {
           ...(input.fakeSteps === undefined ? {} : { fakeSteps: input.fakeSteps }),
         },
       ],
-      args: [{ sessionId: input.sessionId }],
+      args: [{ sessionId: input.sessionId,ownerEpochProtocol: true }],
     })
     // The parent starts the child asynchronously (duplicate ids and a
     // full fan-out reject instead of starting): poll its state, then feed
@@ -480,18 +483,19 @@ export class TemporalRunsGateway implements RunsGateway {
   ): Promise<CommandResult> {
     if (!sessionId) throw new Error('startSectorPlan needs the planning chat sessionId')
     const client = await this.client()
-    try {
-      await client.workflow.start('sectorPlan', {
+    await this.startWithEpoch(sessionId,sessionId,`sector-plan-${sectorId}`,async (ownerEpoch) => {
+      try { return await client.workflow.start('sectorPlan', {
         workflowId: `sector-plan-${sectorId}`,
         taskQueue: laneConfig('research').taskQueue,
-        args: [{ sectorId, sessionId, ...(scope === undefined ? {} : { scope }) }],
+        args: [{ sectorId, sessionId,ownerEpoch, ...(scope === undefined ? {} : { scope }) }],
       })
-    } catch (error) {
+      } catch (error) {
       if (error instanceof WorkflowExecutionAlreadyStartedError) {
-        return { commandId: commandId(), state: 'accepted' }
+        return client.workflow.getHandle(`sector-plan-${sectorId}`)
       }
       throw error
-    }
+      }
+    })
     return { commandId: commandId(), state: 'accepted' }
   }
 
@@ -513,13 +517,13 @@ export class TemporalRunsGateway implements RunsGateway {
       },
     ]
     try {
-      await client.workflow.signalWithStart(SESSION_WORKFLOW_TYPE, {
+      await this.startWithEpoch(target.sessionId,target.sessionId,`${SESSION_PREFIX}${target.sessionId}`,(ownerEpoch) => client.workflow.signalWithStart(SESSION_WORKFLOW_TYPE, {
         workflowId: `${SESSION_PREFIX}${target.sessionId}`,
         taskQueue: laneConfig('turn').taskQueue,
         signal: 'runSkill',
         signalArgs,
-        args: [{ sessionId: target.sessionId }],
-      })
+        args: [{ sessionId: target.sessionId,ownerEpoch }],
+      }))
     } catch (error) {
       if (error instanceof WorkflowNotFoundError) throw new RunNotFound(`no such run ${threadKey}`)
       throw error
@@ -557,6 +561,30 @@ export class TemporalRunsGateway implements RunsGateway {
     const type = await this.requireType(runId, ['sessionRun', 'researchRun', 'guardedResearchRun', 'companyResearch', 'subagentRun'])
     const client = await this.client()
     const handle = client.workflow.getHandle(runId)
+    const description=await handle.describe()
+    if (description.status.name!=='RUNNING') {
+      if (type==='sessionRun') {
+        const sessionId=runId.slice(SESSION_PREFIX.length)
+        const recovery=await loadOriginalTurnRecovery(this.pool,client,sessionId)
+        await this.startWithEpoch(sessionId,sessionId,runId,(ownerEpoch) => client.workflow.start('sessionRun',{ workflowId: runId,taskQueue: laneConfig('turn').taskQueue,args: [{ sessionId,ownerEpoch,recovery }] }))
+        return { commandId: commandId(),state: 'accepted' }
+      }
+      if (type==='subagentRun') {
+        const thread=await getThread(this.pool,`agent:${runId}`)
+        if (!thread) throw new RunNotFound('The stopped child has no scoped conversation.')
+        const recovery=await loadOriginalTurnRecovery(this.pool,client,thread.key)
+        const started=await client.connection.withDeadline(Date.now()+5_000,() => client.connection.workflowService.getWorkflowExecutionHistory({ namespace: client.options.namespace,execution: { workflowId: runId,runId: description.runId },maximumPageSize: 1 }))
+        if (Buffer.byteLength(JSON.stringify(started.history))>1024*1024) throw new ThreadNotAccepting('The original child contract exceeds the recovery limit.')
+        const attrs=started.history?.events?.[0]?.workflowExecutionStartedEventAttributes
+        const payload=attrs?.input?.payloads?.[0]
+        const original=payload ? defaultPayloadConverter.fromPayload<Record<string,unknown>>(payload) : undefined
+        if (!original || original['childId']!==runId || original['parentSessionId']!==thread.sessionId || attrs?.parentWorkflowExecution?.workflowId!==delegationWorkflowId(thread.sessionId)) throw new ThreadNotAccepting('The child lacks a validated parent contract. Review its parent before restarting.')
+        await client.workflow.signalWithStart('delegateParent',{ workflowId: delegationWorkflowId(thread.sessionId),taskQueue: laneConfig('turn').taskQueue,signal: 'parentRecover',signalArgs: [{ ...original,recovery }],args: [{ sessionId: thread.sessionId,ownerEpochProtocol: true }] })
+        return { commandId: commandId(),state: 'accepted' }
+      }
+      if (type==='companyResearch') throw new ThreadNotAccepting('Resume the approved sector research to retry this stopped child with its original checkpoint. Its evidence is retained.')
+      throw new ThreadNotAccepting('This legacy stopped workflow has no verified original-turn recovery contract. Review its retained work before restarting.')
+    }
     if (type === 'sessionRun') await handle.signal('runResume')
     else if (type === 'researchRun') await handle.signal('researchResume')
     else if (type === 'companyResearch' || type === 'subagentRun') await handle.signal('childResume')
@@ -662,19 +690,40 @@ export class TemporalRunsGateway implements RunsGateway {
     // targets keep the strict signal — their parent must already exist.
     if (target.sessionId && (target.signal === 'runSend' || target.signal === 'runSteer')) {
       const start = buildSessionSignalStart(target.sessionId, target.args[0] ?? '', target.signal)
-      await client.workflow.signalWithStart(start.workflowType, {
+      await this.startWithEpoch(target.sessionId,target.sessionId,start.workflowId,(ownerEpoch) => client.workflow.signalWithStart(start.workflowType, {
         workflowId: start.workflowId,
         taskQueue: start.taskQueue,
         signal: start.signal,
         signalArgs: start.signalArgs,
-        args: start.args,
-      })
+        args: [{ ...start.args[0],ownerEpoch }],
+      }))
       return
     }
     try {
       await client.workflow.getHandle(target.workflowId).signal(target.signal, ...target.args)
     } catch (error) {
       if (error instanceof WorkflowNotFoundError) throw new RunNotFound(`no such run ${target.workflowId}`)
+      throw error
+    }
+  }
+
+  private async startWithEpoch(sessionId: string, threadKey: string, workflowId: string, launch: (epoch: string) => Promise<{ firstExecutionRunId?: string; describe(): Promise<WorkflowExecutionDescription> }>): Promise<void> {
+    const epoch = await reserveExecutionIntent(this.pool,{ sessionId,threadKey,workflowId,requestKey: `gateway:${commandId()}` })
+    const logger = createLogger({ runId: workflowId })
+    try {
+      await logOp(logger,'execution.start',async () => {
+        const client = await this.client()
+        const { handle,description } = await client.connection.withDeadline(Date.now()+5_000,async () => {
+          const handle = await launch(epoch)
+          return { handle,description: await handle.describe() }
+        })
+        const firstExecutionId = description.raw.workflowExecutionInfo?.firstRunId ?? handle.firstExecutionRunId
+        if (!firstExecutionId) throw new Error('Temporal did not confirm the execution chain')
+        await confirmExecutionIntent(this.pool,{ epoch,sessionId,threadKey,workflowId,executionId: description.runId,firstExecutionId })
+      },{ epoch,threadKey,rpcDeadlineMs: 5_000 })
+    } catch (error) {
+      await markExecutionIntent(this.pool,epoch)
+      await projectNewEvents(this.pool)
       throw error
     }
   }

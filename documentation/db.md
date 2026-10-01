@@ -1,5 +1,14 @@
 # DB
 
+Durable supervision uses `backend/src/db/reconciliation.ts` for bounded keyset
+thread reads and matched-state observation recording inside existing workspace/
+durable transaction locks. Migration0021 adds retained execution intents, a
+per-thread epoch head and private active epoch/workflow/execution lease fields.
+Only exact terminal execution proof with unchanged head/lease and no unresolved
+starts permits recovery parking; legacy/unknown ownership remains advisory.
+No research content or execution history is deleted. Sector health limits reads to that sector's
+persisted session/thread IDs. See [supervision](agents-supervision.md).
+
 Postgres schema, migrations, and the single access layer. No seeds
 pretending to be live data.
 
@@ -83,6 +92,13 @@ server-side and counts from totals, never window lengths.
   (`log_min_duration_statement = 1000` in compose).
 
 ## Connection budget
+
+Parallel query dynamic shared memory has a separate deployment budget: the
+matching Compose runtime provides1GiB rather than Docker's64MiB default.
+Pool/connection ceilings below still apply. Shared-memory exhaustion is an
+infrastructure failure, never a reason to weaken contention tests or classify
+healthy queued agents as dead. See the deployment authority and recorded
+isolated concurrency evidence before selecting a supported operating envelope.
 
 Every pool max below must sum under the compose Postgres
 `max_connections = 100` (explicit in `deployment/compose.yaml`).
@@ -304,3 +320,86 @@ Compatible discovery retention uses a single bulk insert, preserves original row
 and journals source/destination versions plus prefixes/count in the same approval
 transaction. Lower limits and changed scope/criteria cannot silently discard or
 bless prior work. Retention never converts blocked/failed receipts to completion.
+
+Bound MCP mutation intents and successful replies use the existing event log via
+`operation-receipts.ts`. Receipt keys hash caller/operation identity; the payload
+retains the validated thread, semantic authority fingerprint and exact successful
+reply. Recording precedes response-cache completion. An exact authorized retry
+can reconstruct that cache from the durable reply, including after completed-cache
+retention. Intent-only, conflicting and legacy-unproven records retain their guard.
+Scoped inspection returns status/reason only, never arguments or response content.
+
+HTTP replay completion/release passes the request fingerprint to the quota
+repository. These paths compare both fingerprint and in-progress state before
+changing a claim. A changed guard remains intact and the route reports conflict;
+legacy DB-tool adapters keep their existing optional-argument contract.
+
+Migration0020 records file exposures and independent parent/child dependency
+snapshots in thread context, exact source references in proposals, and dependencies
+for changed global sections, summaries and working checkpoints. File lineage is
+validated by hash/unit identity through indexed sector-library ownership; unit
+validation reads ordinal metadata instead of repeatedly loading extracted text.
+Null legacy receipts do not certify old context as file-free. Owner histories stay
+stored; agent assembly parks on hidden, changed or unknown dependencies.
+
+Approver-only safe rebuild fences version and active leases, preserves original
+operation/budget/steering/archive records, journals the replaced summary, and
+covers old transcript/outbox ranges without deleting them. It cannot erase source
+lineage beneath unresolved mutation arguments. Agents cannot invoke this operation.
+
+The migration marks pre-existing conversations' historical provenance unknown,
+including those without an earlier thread_context row. An empty new dependency
+array is not evidence that their old transcript was file-free. Explicit owner
+rebuild establishes a safe current context and fences historical agent reads.
+
+Coordinator transport reads bounded state rather than full ledger bodies: scoped
+counts/domains, the existing deterministic50-company sample, exact individual
+work records and100-reference retry pages. Work details remain unchanged in DB.
+Candidate receipt lookup uses existing primary-key work identities in batches20;
+no additional index or custom cache. Publication cap checks read counts/accepted
+identity under the existing workspace lock. Plan reads filter event types before
+fetching payloads; raw partition/history APIs retain their original complete data.
+
+General-session references keep their existing alias behavior. A sector import
+copies the verified indexed artifact through the existing target archive/index
+pipeline, then indexes extraction units in the destination sector before returning
+indexed success. The original source reference remains recorded as provenance.
+Destination copies have independent library visibility. Partial archive/unit
+failures remain processing and retries reuse the same file identity; missing or
+corrupt source bytes never produce a successful import reference.
+
+Execution inspection records use the existing immutable event journal plus verified
+content-addressed archive references. Each record binds session/thread, logical
+turn, attempt lease, round and kind. The journal transaction validates the session
+binding and current lease; stale attempts cannot publish current execution records.
+Archive IO occurs before that transaction. Unreferenced bytes after a failed commit
+are retained for reconciliation; no DB pointer certifies unverified content.
+Records describe normalized adapter inputs/results, not raw vendor HTTP payloads.
+Production callbacks, keyed owner inspection and UI proof are pending separately.
+
+`listSectorLibrary` orders uploaded and generated metadata together by arrival,
+descending, then file ID. A single scoped aggregate reads artifact arrival times
+from existing events; document timestamps come from the existing document rows.
+No new column or API property is introduced. The keyed HTTP regression in
+`files.library-order.test.ts` places a new generated report before 2,000 older
+upload metadata rows and verifies stable ordering for tied timestamps.
+
+Execution journal writes reject a ref outside
+`execution-records/<sha256(sessionId)>/<hash>.json` before publication. The matching
+active lease row supplies actual workflow/execution IDs and canonical epoch;
+conflicting supplied workflow/execution metadata is rejected. Trusted SDK values
+are a legacy fallback only when those DB columns are null. These immutable IDs
+survive active-lease cleanup. Scoped keyset reads cap metadata pages at100 and
+keep private archive references inside the backend read layer.
+
+### Intake owner decisions
+
+`reviewResearchWork` is an approver-route-only scoped repository operation. It
+locks the sector workspace and selected work receipt, compares a SHA-256 receipt
+digest and latest approved plan version, and rejects live candidate leases or
+unresolved execution starts. Migration0022 admits `excluded` without rewriting
+old rows; rollback requires no excluded rows. Only unresolved discovery intake
+receipts are eligible. The event `sector.research.work_reviewed` stores exact
+previous work, plan version, decision, owner key and reason. Retry retains the
+receipt fields and counters; exclusion preserves them too. Work updates cannot
+overwrite completed/excluded receipts. No company publication occurs here.
