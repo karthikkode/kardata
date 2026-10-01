@@ -12,6 +12,8 @@ import {
   composeSystemPrompt,
   compactContext,
   ContextBudgetError,
+  OperationRecoveryError,
+  type RecoveryOperation,
   createClosedMcpClient,
   modePromptFor,
   RepetitionTracker,
@@ -215,7 +217,7 @@ export interface KarbotTurnLogFields {
   ok: boolean
   latencyMs: number
   turns?: number
-  code?: 'provider_failed' | 'provider_unconfigured' | 'budget_tripped' | 'repetition_halt'
+  code?: 'provider_failed' | 'provider_unconfigured' | 'budget_tripped' | 'repetition_halt' | 'operation_uncertain'
   /** First-frame timings (ms since turn start): the streaming TTFT budget
    * (send→accept lives in the route; these cover accept→first paint). */
   firstToolMs?: number
@@ -232,8 +234,8 @@ export interface KarbotTurnLogFields {
 export interface KarbotTurnDeps {
   measureContext?(usage: { inputTokens: number; budget: number; window: number; method: 'exact' | 'estimated' }): Promise<void>
   signal?: AbortSignal
-  loadContinuation?(): Promise<{ messages: ChatMessage[]; runKey: string; sources: Array<{ url: string; text: string }>; meta: { round: number; usage: Usage; toolCalls: number; elapsedMs: number } } | undefined>
-  checkpoint?(messages: ChatMessage[], round: number, usage: Usage, toolCalls: number, sources: Array<{ url: string; text: string }>): Promise<void>
+  loadContinuation?(): Promise<{ messages: ChatMessage[]; runKey: string; sources: Array<{ url: string; text: string }>; meta: { round: number; usage: Usage; toolCalls: number; elapsedMs: number; blockedOperations?: RecoveryOperation[] } } | undefined>
+  checkpoint?(messages: ChatMessage[], round: number, usage: Usage, toolCalls: number, sources: Array<{ url: string; text: string }>, blockedOperations?: RecoveryOperation[]): Promise<void>
   refreshContext?(round: number): Promise<{ references: string[]; notes: string; steering: string[]; paused?: boolean }>
   persistSummary?(summary: string, coveredSeq: number): Promise<void>
   loadSessionModel(sessionId: string): Promise<SessionModelSelection | undefined>
@@ -353,7 +355,7 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
       operationKey: continuation?.runKey ?? parsed.runKey,
       resume: continuation?.meta,
       signal: deps.signal,
-      onCheckpoint: (messages, round, usage, toolCalls) => deps.checkpoint?.(messages, round, usage, toolCalls, sources) ?? Promise.resolve(),
+      onCheckpoint: (messages, round, usage, toolCalls, blockedOperations) => deps.checkpoint?.(messages, round, usage, toolCalls, sources, blockedOperations) ?? Promise.resolve(),
       beforeRound: async (round, current) => {
         const refreshed = await deps.refreshContext?.(round)
         if (refreshed?.paused) throw new ResearchPausedError('Research paused at a safe provider boundary.')
@@ -412,6 +414,7 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
 
       },
     })
+    if (result.recoveryHalt?.length) throw new OperationRecoveryError(result.recoveryHalt)
     const halted = result.budgetTripped !== undefined || result.repetitionHalt !== undefined
     if (!result.text.trim() && !halted) throw new ContextBudgetError('The provider returned no readable answer. Reduce reasoning effort and resume, or retry with a narrower request.')
     const haltTool = result.repetitionHalt?.fingerprint.split(':')[0] ?? ''
@@ -445,8 +448,8 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
     }
   } catch (error) {
     const latencyMs = Date.now() - started
-    deps.log({ op: 'karbot.turn', provider: providerName, ok: false, latencyMs, code: 'provider_failed' })
-    if (error instanceof ResearchPausedError || error instanceof ContextBudgetError) throw error
+    deps.log({ op: 'karbot.turn', provider: providerName, ok: false, latencyMs, code: error instanceof OperationRecoveryError ? 'operation_uncertain' : 'provider_failed' })
+    if (error instanceof ResearchPausedError || error instanceof ContextBudgetError || error instanceof OperationRecoveryError) throw error
     throw new Error(
       `karbot turn failed: ${error instanceof Error ? error.message.slice(0, 200) : 'unknown provider error'}`,
       { cause: error },
@@ -542,6 +545,7 @@ function karbotMcpClient(input: {
   // local filter shapes the prompt while the boundary holds server-side.
   const allow = new Set(input.toolAllow)
   return {
+    authorityId: scoped.authorityId,
     async listTools() {
       return (await scoped.listTools()).filter((tool) => allow.has(tool.name))
     },
@@ -589,6 +593,7 @@ export const PRODUCT_TOOLS: ReadonlySet<string> = new Set([
 
 export function productMcpClient(client: TurnRunnerMcpClient): TurnRunnerMcpClient {
   return {
+    authorityId: client.authorityId,
     async listTools() {
       return (await client.listTools()).filter((tool) => PRODUCT_TOOLS.has(tool.name))
     },
@@ -637,6 +642,7 @@ export const SECTOR_TOOLS: ReadonlySet<string> = new Set([
 
 export function sectorMcpClient(client: TurnRunnerMcpClient): TurnRunnerMcpClient {
   return {
+    authorityId: client.authorityId,
     async listTools() {
       return (await client.listTools()).filter((tool) => SECTOR_TOOLS.has(tool.name))
     },
@@ -682,6 +688,7 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
       (async () => {
         const archive = resolveArchiveTarget()
         const existing = await readTurnContinuation(pool, input.threadKey)
+        if (existing?.meta.blockedOperations?.length && (existing.runKey !== input.runKey || existing.user !== input.text)) throw new OperationRecoveryError(existing.meta.blockedOperations)
         const continuation = selectTurnContinuation(existing, input)
         const sourceRefs = new Map((continuation?.sources ?? []).map((source) => [source.hash, source]))
         abort.signal.throwIfAborted()
@@ -693,7 +700,7 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
             const hydrated = await hydrateResearchSources(archive, input.sessionId, { sourceRefs: continuation.sources }, abort.signal)
             return { ...continuation, sources: hydrated.sources }
           },
-          checkpoint: async (messages, round, usage, toolCalls, sources) => {
+          checkpoint: async (messages, round, usage, toolCalls, sources, blockedOperations) => {
             for (const source of sources) {
               const hash = createHash('sha256').update(`${source.url}\n${source.text}`).digest('hex')
               abort.signal.throwIfAborted()
@@ -703,7 +710,7 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
               }
             }
             abort.signal.throwIfAborted()
-            await saveTurnContinuation(pool, input.threadKey, { user: input.text, messages, runKey: continuation?.runKey ?? input.runKey, sources: [...sourceRefs.values()], meta: { round, usage, toolCalls, elapsedMs: (continuation?.meta.elapsedMs ?? 0) + Date.now() - activityStarted } }, lease)
+            await saveTurnContinuation(pool, input.threadKey, { user: input.text, messages, runKey: continuation?.runKey ?? input.runKey, sources: [...sourceRefs.values()], meta: { round, usage, toolCalls, elapsedMs: (continuation?.meta.elapsedMs ?? 0) + Date.now() - activityStarted, ...(blockedOperations?.length ? { blockedOperations } : {}) } }, lease)
           },
           loadSessionModel: (sessionId) => getSessionModel(pool, sessionId),
           loadSessionSector: async (sessionId) => (await getSession(pool, sessionId))?.sectorId,
@@ -786,6 +793,7 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
       beating.then(() => new Promise<never>(() => undefined)),
     ]).catch((error: unknown) => {
       if (error instanceof ResearchPausedError) throw ApplicationFailure.nonRetryable(error.message, 'ResearchPaused')
+      if (error instanceof OperationRecoveryError) throw ApplicationFailure.nonRetryable(error.message, 'OperationBlocked', error.operations)
       if (error instanceof ContextBudgetError) throw ApplicationFailure.nonRetryable(error.message, 'ContextBlocked')
       throw error
     })

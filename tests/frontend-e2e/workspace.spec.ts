@@ -10,7 +10,7 @@ const plan = { sectorId: sector.id, versions: [{ version: 1, markdown: '## Scope
 plan.latest = plan.versions[0]
 const progress = { sectorId: sector.id, state: sector.state, planVersion: 1, plan, items: [], completed: 0, total: 0, unresolved: 0, discoveryClosed: false, estimatedPercent: null }
 
-async function fixtures(page: Page, options: { state?: string; denied?: boolean; files?: number; long?: boolean; saveError?: boolean; paused?: boolean } = {}) {
+async function fixtures(page: Page, options: { state?: string; denied?: boolean; files?: number; long?: boolean; saveError?: boolean; paused?: boolean; pending?: boolean } = {}) {
   await page.route('**/v1/**', async (route) => {
     const request = route.request(), url = new URL(request.url()), path = url.pathname
     if (request.method() === 'OPTIONS') { await route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' } }); return }
@@ -32,7 +32,7 @@ async function fixtures(page: Page, options: { state?: string; denied?: boolean;
       const sessionId = path.includes(normal.id) ? normal.id : research.id
       data = [{ key: sessionId, sessionId, kind: 'session', status: options.paused ? 'PAUSED' : 'RUNNING', acceptingSteer: !options.paused, queueDepth: 0, updatedAt: stamp }, ...Array.from({ length: 6 }, (_, index) => ({ key: `agent:test-child-${index}`, name: ['Source review','Pricing analysis','Problem discovery','Market signals','Evidence check','Company review'][index], sessionId, kind: 'subagent', status: index < 2 ? 'RUNNING' : 'FINISHED', acceptingSteer: index < 2, queueDepth: 0, updatedAt: stamp }))]
     } else if (path.endsWith('/messages')) data = options.long ? [{ seq: 1, role: 'user', kind: 'text', text: 'What should we look for in this sector?', at: stamp }, { seq: 2, role: 'agent', kind: 'text', text: '## A focused research direction\n\nLook for companies with meaningful operational friction and capacity to invest.\n\n### Evidence to gather\n\n- Revenue and scale signals from reliable sources.\n- Repeated manual work across systems.\n- Cost or time impact, with explicit uncertainty.\n\n| Area | Signal | Next step |\n| --- | --- | --- |\n| Operations | Fragmented reporting | Verify the actual workflow |\n| Inventory | Manual reconciliation | Find a cost or time signal |\n\n> Keep the research broad. One symptom should not define the whole investigation.\n\nUse `company_id` only when working with tools; explain findings in plain language.', at: stamp }] : []
-    else if (path.endsWith('/context')) data = { threadKey: path.split('/')[3], notes: 'Stay broad and keep sources.', summary: '', coveredSeq: 0, version: 1 }
+    else if (path.endsWith('/context')) data = { threadKey: path.split('/')[3], notes: 'Stay broad and keep sources.', summary: '', coveredSeq: 0, version: 1, ...(options.pending ? { pendingOperations: [{ operationId: 'TEST durable identity '.repeat(100), callId: 'TEST call', toolName: 'db.create_session', reason: 'The tool reply was lost; its committed effect remains unconfirmed.' }] } : {}) }
     else if (path === '/v1/providers') data = { defaultProvider: 'meta', providers: [{ name: 'meta', hasKey: true, defaultModel: 'muse-spark-1.3-contributor', models: [{ provider: 'meta', model: 'muse-spark-1.3-contributor', displayName: 'muse-spark-1.3-contributor', reasoning: 'native', mode: 'responses', efforts: ['low','high'] }] }] }
     else if (path.startsWith('/v1/sessions/')) data = path.includes(normal.id) ? normal : research
     const denied = options.denied && (path.endsWith('/files') || path.endsWith('/global-context'))
@@ -234,3 +234,32 @@ for (const outcome of ['consumed', 'missed'] as const) test(`overflow recovery r
   }
   await page.screenshot({ path: `test-results/visual/hardening-overflow-steering-${outcome}.png`, animations: 'disabled' })
 })
+
+for (const width of [1440, 390]) for (const dark of [false, true]) {
+  test(`operation recovery ${width} ${dark ? 'dark' : 'light'}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 960 })
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await fixtures(page, { paused: true, pending: true })
+    await page.goto(`/?section=SectorChat&sector=${sector.id}`)
+    await expect(page.getByRole('button', { name: 'Resume conversation' })).toBeVisible()
+    if (width < 768) await page.getByRole('button', { name: 'Open sessions' }).click()
+    if (dark) await page.getByRole('button', { name: 'Use dark theme' }).click()
+    if (width < 768) await page.getByRole('button', { name: 'Close Sessions' }).click()
+    await page.getByRole('button', { name: 'Local context', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Local context' })
+    const recovery = dialog.getByRole('region', { name: 'Pending operation recovery' })
+    await expect(recovery.getByRole('heading', { name: 'Operation needs review' })).toBeVisible()
+    await expect(recovery.getByText('db.create_session', { exact: true })).toBeVisible()
+    await recovery.getByText('Operation identity', { exact: true }).click()
+    await expect(recovery.locator('code')).toBeVisible()
+    expect(await recovery.locator('code').evaluate((element) => element.clientHeight <= 128 && element.scrollHeight > element.clientHeight)).toBe(true)
+    await recovery.locator('code').focus()
+    await expect(recovery.locator('code')).toBeFocused()
+    expect(await recovery.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `test-results/visual/operation-recovery-${width}-${dark ? 'dark' : 'light'}.png`, animations: 'disabled' })
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('button', { name: 'Local context', exact: true })).toBeFocused()
+    await expect(page.getByText(/Thinking/)).toHaveCount(0)
+  })
+}

@@ -232,12 +232,12 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
                   toolAllow: item.skill.tools,
                   ...(item.skill.mode === 'default' ? {} : { mode: item.skill.mode }),
                 }),
-          }), async (reason) => {
+          }), async (reason, kind) => {
             if (currentState() === 'RUNNING') setState('PAUSED')
             nonce += 1
             await turn.appendEventActivity({ idempotencyKey: idempotencyKey(input.sessionId, runTag, 'context-paused', nonce), partition, type: 't.thread.state', payload: { threadKey: input.sessionId, status: 'PAUSED', acceptingSteer: false } })
             nonce += 1
-            await turn.appendEventActivity({ idempotencyKey: idempotencyKey(input.sessionId, runTag, 'context-error', nonce), partition, type: 't.message.appended', payload: { threadKey: input.sessionId, kind: 'tool', message: { id: `context-${nonce}`, name: 'context.compaction', state: 'failed', detail: reason } } })
+            await turn.appendEventActivity({ idempotencyKey: idempotencyKey(input.sessionId, runTag, 'context-error', nonce), partition, type: 't.message.appended', payload: { threadKey: input.sessionId, kind: 'tool', message: { id: `context-${nonce}`, name: kind === 'operation' ? 'operation.recovery' : 'context.compaction', state: 'failed', detail: reason } } })
           }, async () => {
             await condition(() => currentState() !== 'PAUSED')
             if (currentState() === 'CANCELLING') throw new CancelledFailure('Cancelled while context was paused')

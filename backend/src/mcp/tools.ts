@@ -698,6 +698,8 @@ export interface ToolGrant {
   allow?: ReadonlySet<McpToolName>
 }
 
+const preDispatchFailures = new WeakSet<object>()
+
 /** Validates args against the tool schema, enforces the tool role floor
  * plus the optional skill grant, and dispatches to the bound layer
  * function. */
@@ -707,6 +709,7 @@ export async function invokeTool(
   args: unknown,
   grant: ToolGrant = {},
 ): Promise<unknown> {
+  let dispatched = false
   const work = async () => {
     const meta = TOOL_META[name]
     if (!roleLevelAtLeast(ctx.role, meta.minRole)) {
@@ -776,9 +779,13 @@ export async function invokeTool(
       }
     }
     const invoker = INVOKERS[name] as (ctx: McpToolContext, args: unknown) => Promise<unknown>
+    dispatched = true
     return invoker(ctx, parsed.data)
   }
-  return ctx.logger ? logOp(childLogger(ctx.logger, { op: 'tool.call' }), 'tool.call', work, { tool: name }) : work()
+  try { return await (ctx.logger ? logOp(childLogger(ctx.logger, { op: 'tool.call' }), 'tool.call', work, { tool: name }) : work()) } catch (error) {
+    if (!dispatched && typeof error === 'object' && error !== null) preDispatchFailures.add(error)
+    throw error
+  }
 }
 
 function toTextResult(value: unknown): string {
@@ -798,7 +805,7 @@ export function createMcpServer(ctx: McpToolContext, grant: ToolGrant = {}): Mcp
     const meta = TOOL_META[name]
     server.registerTool(
       name,
-      { description: meta.description, inputSchema: TOOL_SCHEMAS[name] },
+      { description: meta.description, inputSchema: TOOL_SCHEMAS[name], annotations: { readOnlyHint: toolCapability(name) === 'read' } },
       async (args: Record<string, unknown>) => {
         try {
           const result = await invokeTool(name, ctx, args, grant)
@@ -814,7 +821,8 @@ export function createMcpServer(ctx: McpToolContext, grant: ToolGrant = {}): Mcp
               ? ' Do not fill this gap from memory: report what you could not verify, or retry once with a narrower query.'
               : ''
           const text = code === 'internal' ? `${name}: internal error` : `${code}: ${message}${directive}`
-          return { content: [{ type: 'text' as const, text }], isError: true, ...(error instanceof McpPreconditionError ? { _meta: { 'kardata/retry-safe-before-effect': true } } : {}) }
+          const beforeEffect = error instanceof McpPreconditionError || (typeof error === 'object' && error !== null && preDispatchFailures.has(error))
+          return { content: [{ type: 'text' as const, text }], isError: true, ...(beforeEffect ? { _meta: { 'kardata/retry-safe-before-effect': true } } : toolCapability(name) !== 'read' ? { _meta: { 'kardata/operation-uncertain': true } } : {}) }
         }
       },
     )

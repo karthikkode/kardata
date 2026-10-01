@@ -212,3 +212,8 @@ terminal reply, and restored Send control. No surrounding layout changes.
 Reconnect waits are abort-aware. Closing/switching a conversation cancels a pending
 wait, and the follower checks abort again before dispatching any stream request;
 old followers cannot reopen transport after cancellation.
+
+The local-context view displays durable pending-operation recovery separately
+from context compaction. It shows the tool/reason and keeps long operation IDs
+behind a keyboard-accessible disclosure. Resume checks that original identity;
+compaction retains it. No control silently issues a replacement mutation.

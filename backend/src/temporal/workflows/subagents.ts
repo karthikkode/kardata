@@ -460,13 +460,13 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
               runKey: patched('child-runkey-v2') ? runKey : `karbot:${input.childId}:${nonce}`,
               text: next,
               fakeSteps: input.fakeSteps,
-            }), async (reason) => {
+            }), async (reason, kind) => {
               contextPaused = true
               acceptingSteer = false
               nonce += 1
               await childActivities.appendEventActivity({ idempotencyKey: idempotencyKey(eventKey, 'context-paused', nonce), partition: childPartition, type: 't.thread.state', payload: { threadKey, status: 'PAUSED', acceptingSteer: false } })
               nonce += 1
-              await childActivities.appendEventActivity({ idempotencyKey: idempotencyKey(eventKey, 'context-error', nonce), partition: childPartition, type: 't.message.appended', payload: { threadKey, kind: 'tool', message: { id: `context-${nonce}`, name: 'context.compaction', state: 'failed', detail: reason } } })
+              await childActivities.appendEventActivity({ idempotencyKey: idempotencyKey(eventKey, 'context-error', nonce), partition: childPartition, type: 't.message.appended', payload: { threadKey, kind: 'tool', message: { id: `context-${nonce}`, name: kind === 'operation' ? 'operation.recovery' : 'context.compaction', state: 'failed', detail: reason } } })
             }, async () => {
               await condition(() => !contextPaused || currentStatus() === 'cancelled' || finishRequested)
               if (currentStatus() === 'cancelled' || finishRequested) throw new CancelledFailure('Child stopped while context was paused')

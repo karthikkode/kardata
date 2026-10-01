@@ -75,3 +75,16 @@ bounded. Turn setup failures release the active-run/steering state.
 Continuation recovery requires both the same durable operation ID and assignment
 text. Identical text in a later turn cannot resurrect a cancelled operation's
 history, sources, or cumulative budgets. Same-operation retries retain them.
+
+Uncertain side effects stop the turn before a further provider round. Persist the
+original operation/tool-call/arguments outside the summarized history as well as
+the paired tool result. Resume checks that operation first; compaction cannot
+turn uncertainty into permission to issue a new mutation identity. Operation
+recovery is distinct from context-budget recovery in visible receipts/events.
+
+Before tool dispatch, the working checkpoint records the original operation
+identities, arguments and execution-authority fingerprint. A worker cancellation
+or failed result checkpoint therefore cannot allow a replacement task to bypass
+unconfirmed effects. Successful confirmed results clear these provisional
+receipts; thrown client failures preserve them. Recovery uses the same identities
+before another provider round, including after compaction.

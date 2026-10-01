@@ -248,3 +248,25 @@ in the existing sector library. Scripted reviewer evidence establishes contracts
 not the live 2,000-company campaign. Current exact-source/reference durability,
 legacy replay/cache compatibility and uncertain-operation recovery remain required
 before the shared pilot rollout.
+
+## Unconfirmed operation regressions
+
+`agents/src/turnRunner.test.ts` exercises pre-dispatch receipts, result-checkpoint
+failure, authority changes, denied retries, compaction and exact-ID replay.
+`tests/backend/mcp.operation-recovery.test.ts` uses the production activity and
+HTTP MCP with isolated Postgres: a post-commit lost reply creates exactly one
+session and remains recoverable. It is scripted provider evidence.
+`tests/backend/research.work-authority.test.ts` proves atomic cross-sector/plan
+identity protection and immutable completion.
+
+Browser recovery evidence is reproducible with:
+
+```sh
+npm run test:e2e -w frontend -- workspace.spec.ts --grep 'operation recovery' --workers=2
+```
+
+Four routed scenarios retain screenshots and videos under frontend/test-results:
+1440/390px, light/dark, reduced motion, long identities and keyboard focus.
+Visual inspection found the expanded identity displaced the remaining editor;
+a bounded, keyboard-focusable scroll region now contains it. Fixture evidence
+does not substitute for the UI-driven Meta pilot.

@@ -292,3 +292,8 @@ transaction. Reading a newer context version does not let an older attempt
 replace that summary. Manual owner edits retain the version-checked API. All
 production continuation hydration uses verified session-scoped, cancellable,
 bounded archive reads, including restart checkpoints.
+
+Research work upserts fence conflict updates by sector and plan version. Reusing
+an identity from another sector is denied; reusing it under another version
+conflicts. Completed receipts are immutable and replay emits no false state
+notification. The conflict predicate is atomic, including competing inserts.

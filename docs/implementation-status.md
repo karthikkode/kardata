@@ -2551,3 +2551,78 @@ The new production activity fixture's SDK generic result required an explicit
 TurnOutcome type; typecheck caught and fixed that test declaration. No gate was
 weakened. Browser/full-stress/Meta campaign evidence remains a separate release
 requirement; uncertain operation and legacy cache recovery is next preflight work.
+
+### 2026-10-01 — uncertain-operation recovery preflight
+
+The agent now parks an unconfirmed mutation rather than treating a lost reply as
+ordinary model feedback. Working checkpoints retain original tool arguments,
+operation identity and an execution-authority fingerprint outside compactable
+history. Resume checks the original operation before another provider round;
+changed credentials/grants/thread binding cannot replay it under fresh authority.
+Denied retries retain the original uncertainty. New tasks cannot overwrite an
+unresolved checkpoint. Prepared identities persist before dispatch, covering
+worker cancellation and failed result-checkpoint writes. No blind guard deletion,
+new operation ID or automatic assumption of success is used.
+
+Local context exposes readable pending-operation status and expandable identity;
+OpenAPI and client validation include the same additive fields. Temporal recovery
+is versioned; operation and compaction failures have distinct messages. Completed
+cached replies replay safely; genuinely unprovable in-progress/legacy receipts
+remain parked. Automated proof of an unjournaled historical effect is not claimed.
+
+Watched focused checks:40 runner cases; real HTTP/MCP/Postgres activity test1
+(lost post-commit reply, role revocation/restoration, new-task denial, compaction,
+exactly one created session);8 real Temporal workflow cases;21 workspace component
+cases;4 browser cases desktop/mobile/light/dark with reduced motion, long identity,
+focus restoration and screenshots/videos. The first prepared-receipt HTTP run
+used the stale agents build and failed the pre-dispatch assertion; rebuilding the
+workspace package made the exact same assertion pass. Browser evidence uses
+explicit routed fixtures, not Meta or a populated live campaign.
+
+Work-item upserts now fence conflicts atomically by sector and plan version.
+Foreign-sector identity reuse is denied, another version conflicts, and completed
+replay publishes no false state notification. Three isolated Postgres cases prove
+cross-scope denial, immutable completion and a competing two-sector claim.
+
+The initial broad mechanical run correctly failed stale catalogue surfaces;
+sequential inventory refresh corrected the evidence without promoting reviews.
+Subsequent mechanical gate passed1027 tests /310 explicit gated skips with lint,
+types and frontend build. This count preceded the final work-authority addition;
+current full DB, replay and final mechanical gates are being rerun. No shared
+rollout, pilot or merge occurred. Unresolved release requirements remain explicit.
+
+Latest mechanical gate after work-authority/browser additions:1027 passed /313
+explicit skips; lint/typechecks/frontend build passed. The full DB run failed a
+stale inventory load (new test added before refresh) and the1000-agent usage
+projection exceeded its unchanged5s test deadline during overlapping gates.
+The isolated soak rerun passed4 cases with the original deadline; full isolated
+DB rerun is sequential. This is an unresolved measurement until that rerun passes,
+not a timeout waiver. Browser re-review bounded the long ID;4 rerun cases passed.
+
+Sequential full DB rerun passed716 /96 explicit gated skips with unchanged test
+limits. Independent review then reproduced a prepared-checkpoint authority bypass
+and duplicate assistant tool calls on successful prepared recovery. Both are
+fixed with exact checkpoint regressions: changed authority dispatches zero tools
+and provider requests; one/three recovered calls preserve one original assistant
+block with exactly one result per call. Runner43 cases pass. These were missed by
+the earlier lost-reply-only checkpoint shape and are now maintained regressions.
+
+Independent final runner recheck passed43 cases and confirmed both prepared
+checkpoint fixes; no further concrete defect found in this bounded review.
+Historical/controlled replay passed10 cases (all six workflow types plus cutoff
+contract guards). Controlled fixtures remain labeled separately from historical
+production runs. Fresh mechanical/workflow gates follow the final review fixes.
+
+Current workflow battery33 passed (25 discovery coordinator +8 session recovery),
+full routed workspace browser suite22 passed, retained legacy replay10 passed.
+Operation IDs now hash header-unsafe Unicode/control/edge-whitespace values while
+preserving valid short legacy identities;46 focused runner cases passed. Current
+backend build passed. Remaining preflight includes bounded search bodies/deadlines,
+version-retained eligible discovery and unprovable legacy operation reconciliation;
+complete release audit/stress/provider evidence and matched rollout remain open.
+
+Sealed recovery mechanical gate on Node22.23.3:1033 passed /313 explicit gated
+skips, lint/typechecks/frontend build. Source files remained fixed throughout
+that run. Existing five hook lint warnings and bundle-size warning stay visible.
+This verified recovery slice is reviewable separately; it is not full preflight
+or release completion and the PR remains draft.

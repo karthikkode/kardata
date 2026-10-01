@@ -1,3 +1,4 @@
+import type { RecoveryOperation } from '@kardata/agents'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { serveArtifact } from '../artifacts/pipeline.js'
@@ -35,7 +36,7 @@ export interface ContextChange {
   author: string; state: 'pending' | 'parent-review' | 'approved' | 'denied'; version: number | null; at: string
   fileRef: { fileId: string; hash: string; filename: string; ords: number[] } | null
 }
-export interface ThreadContext { threadKey: string; notes: string; summary: string; coveredSeq: number; version: number; usage?: { inputTokens: number; budget: number; window: number; method: 'exact' | 'estimated' } }
+export interface ThreadContext { pendingOperations?: Array<{ operationId: string; toolName: string; callId: string; reason: string }>; threadKey: string; notes: string; summary: string; coveredSeq: number; version: number; usage?: { inputTokens: number; budget: number; window: number; method: 'exact' | 'estimated' } }
 const Id = z.string().min(1).max(255)
 function checked<T>(schema: z.ZodType<T>, value: unknown): T {
   const result = schema.safeParse(value)
@@ -215,9 +216,9 @@ export async function decideContextChange(db: TransactableDb, input: { sectorId:
 }
 export async function readThreadContext(db: Db, threadKey: string, scope?: Scope): Promise<ThreadContext> {
   await requireThread(db, threadKey, scope)
-  const { rows } = await db.query<{ notes: string; summary: string; covered_seq: number | string; version: number; usage: ThreadContext['usage'] }>('SELECT * FROM thread_context WHERE thread_key=$1', [threadKey])
+  const { rows } = await db.query<{ notes: string; summary: string; covered_seq: number | string; version: number; usage: ThreadContext['usage']; working_meta: TurnContinuation['meta'] | null }>('SELECT * FROM thread_context WHERE thread_key=$1', [threadKey])
   const row = rows[0]
-  return { threadKey, notes: row?.notes ?? '', summary: row?.summary ?? '', coveredSeq: Number(row?.covered_seq ?? 0), version: row?.version ?? 0, ...(row?.usage ? { usage: row.usage } : {}) }
+  return { threadKey, notes: row?.notes ?? '', summary: row?.summary ?? '', coveredSeq: Number(row?.covered_seq ?? 0), version: row?.version ?? 0, ...(row?.usage ? { usage: row.usage } : {}), ...(row?.working_meta?.blockedOperations?.length ? { pendingOperations: row.working_meta.blockedOperations.map((operation) => ({ operationId: operation.operationId, toolName: operation.call.name, callId: operation.call.id, reason: operation.reason })) } : {}) }
 }
 export async function saveThreadContext(db: TransactableDb, threadKey: string, input: { version: number; notes?: string; summary?: string; coveredSeq?: number }, scope?: Scope, lease?: string): Promise<ThreadContext> {
   checked(z.object({ version: z.number().int().nonnegative(), notes: z.string().max(24000).optional(), summary: z.string().max(48000).optional(), coveredSeq: z.number().int().nonnegative().optional() }).strict(), input)
@@ -446,9 +447,16 @@ export async function recordResearchWork(db: Db, input: { sectorId: string; plan
   checked(z.number().int().positive(), input.planVersion)
   checked(z.object({ id: Id, kind: z.enum(['discovery','company']), title: z.string().min(1), state: z.enum(['pending','running','complete','blocked','failed']), attempts: z.number().int().nonnegative(), childId: z.string().nullable(), evidence: z.array(z.string()), detail: z.string(), sourceUrl: z.string().url().optional(), cursor: z.object({ queryIndex: z.number().int().nonnegative(), page: z.number().int().nonnegative(), seenDomains: z.array(z.string()) }).optional() }).strict(), input.item)
   const item = input.item
-  await db.query(`INSERT INTO research_work(id,sector_id,plan_version,kind,title,state,attempts,child_id,evidence,detail,cursor,source_url)
+  const written = await db.query(`INSERT INTO research_work(id,sector_id,plan_version,kind,title,state,attempts,child_id,evidence,detail,cursor,source_url)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11::jsonb,$12) ON CONFLICT(id) DO UPDATE SET state=$6,attempts=GREATEST(research_work.attempts,$7),child_id=$8,evidence=$9::jsonb,detail=$10,cursor=$11::jsonb,source_url=COALESCE(research_work.source_url,$12)
-    WHERE research_work.state <> 'complete'`, [item.id, input.sectorId, input.planVersion, item.kind, item.title, item.state, item.attempts, item.childId, JSON.stringify(item.evidence), item.detail, JSON.stringify(item.cursor ?? null), item.sourceUrl ?? null])
+    WHERE research_work.state <> 'complete' AND research_work.sector_id=EXCLUDED.sector_id AND research_work.plan_version=EXCLUDED.plan_version`, [item.id, input.sectorId, input.planVersion, item.kind, item.title, item.state, item.attempts, item.childId, JSON.stringify(item.evidence), item.detail, JSON.stringify(item.cursor ?? null), item.sourceUrl ?? null])
+  if (!written.rowCount) {
+    const existing = await db.query<{ sector_id: string; plan_version: number; state: WorkItem['state'] }>('SELECT sector_id,plan_version,state FROM research_work WHERE id=$1', [item.id])
+    const row = existing.rows[0]
+    if (!row || row.sector_id !== input.sectorId) throw new WorkspaceError('permission_denied', 'Work identity belongs to another sector.')
+    if (row.plan_version !== input.planVersion) throw new WorkspaceError('conflict', 'Work identity belongs to another plan version.')
+    return // A completed receipt is immutable; do not emit a false new state.
+  }
   await notifyWorkspace(db, input.sectorId, 'work-progress', { sectorId: input.sectorId, id: item.id, state: item.state })
 }
 export async function closeDiscovery(db: Db, sectorId: string): Promise<void> {
@@ -470,7 +478,7 @@ export async function workspaceReferences(db: Db, sectorId: string, scope?: Scop
   }
   return references
 }
-export interface TurnContinuation { user: string; messages: ChatMessage[]; runKey: string; sources: Array<{ url: string; key: string; hash: string }>; meta: { round: number; usage: Usage; toolCalls: number; elapsedMs: number } }
+export interface TurnContinuation { user: string; messages: ChatMessage[]; runKey: string; sources: Array<{ url: string; key: string; hash: string }>; meta: { round: number; usage: Usage; toolCalls: number; elapsedMs: number; blockedOperations?: RecoveryOperation[] } }
 export async function readTurnContinuation(db: Db, threadKey: string): Promise<TurnContinuation | undefined> {
   checked(Id, threadKey)
   const { rows } = await db.query<{ working_user: string | null; working_messages: ChatMessage[] | null; working_run: string | null; working_sources: TurnContinuation['sources']; working_meta: TurnContinuation['meta'] }>('SELECT working_user,working_messages,working_run,working_sources,working_meta FROM thread_context WHERE thread_key=$1', [threadKey])

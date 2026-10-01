@@ -310,3 +310,17 @@ Local JPEG proof: `tests/evidence/hardening-2026-10-01/meta-models-preflight.jpg
 This is real-app catalogue readiness, not a Meta research turn, current-worker
 rollout proof, or the2000-company pilot. CUA exports JPEG; JPG/JPEG evidence is now
 ignored alongside PNG/WebM. The browser tab is retained for later UI pilot work.
+
+### Unconfirmed tool operation recovery (2026-10-01)
+
+`workspace.spec.ts --grep 'operation recovery'` passed four routed browser
+scenarios at1440/390px in light/dark with reduced motion. Each asserts a paused
+conversation without Thinking, the readable pending-operation card, expandable
+original identity, keyboard focus and Escape focus return. Screenshots/videos
+are retained under frontend/test-results. This is fixture UI evidence, not Meta.
+Visual review of the mobile dark screenshot caught an expanded long ID consuming
+the editor viewport. The fix bounds that code region to128px, allows keyboard
+scrolling and preserves the full ID; the same four cases passed after correction.
+The final mobile still shows recovery status, local notes and both actions within
+the dialog, without horizontal overflow. Other themes/sizes have matching layout
+assertions and retained stills for review.

@@ -3250,6 +3250,27 @@
       "status": "pending"
     },
     {
+      "id": "agents/src/turnRunner.ts#McpToolOutcome",
+      "source": "agents/src/turnRunner.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "agents/src/turnRunner.ts#OperationRecoveryError",
+      "source": "agents/src/turnRunner.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "agents/src/turnRunner.ts#RecoveryOperation",
+      "source": "agents/src/turnRunner.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "agents/src/turnRunner.ts#runKarbotTurn",
       "source": "agents/src/turnRunner.ts",
       "kind": "export",
@@ -3265,6 +3286,13 @@
     },
     {
       "id": "agents/src/turnRunner.ts#StreamableMcpClientOptions",
+      "source": "agents/src/turnRunner.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "agents/src/turnRunner.ts#toolOperationId",
       "source": "agents/src/turnRunner.ts",
       "kind": "export",
       "features": [],

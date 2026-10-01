@@ -2703,6 +2703,26 @@ components:
         summary: *a1
         coveredSeq: *a2
         version: *a2
+        pendingOperations:
+          type: array
+          items:
+            type: object
+            required: [operationId, toolName, callId, reason]
+            properties:
+              operationId: { type: string }
+              toolName: { type: string }
+              callId: { type: string }
+              reason: { type: string }
+            additionalProperties: false
+        usage:
+          type: object
+          required: [inputTokens, budget, window, method]
+          properties:
+            inputTokens: { type: integer, minimum: 0 }
+            budget: { type: integer, minimum: 1 }
+            window: { type: integer, minimum: 1 }
+            method: { type: string, enum: [exact, estimated] }
+          additionalProperties: false
       additionalProperties: false
     LibraryFile:
       type: object

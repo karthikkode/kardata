@@ -216,8 +216,12 @@ Mutation handlers retain their idempotency guard when handler execution or
 completion recording throws with an uncertain outcome. Response headers label
 `x-kardata-operation-state: uncertain`; correlated logs carry an operation hash.
 Only explicitly proven pre-effect results release the guard. Uncertain records
-require reconciliation and never permit automatic repeat effects. Recovery UI
-and bounded uncertain-operation reconciliation remain release requirements.
+require reconciliation and never permit automatic repeat effects. The agent
+checkpoints original operation identities before dispatch, parks unconfirmed
+results and exposes pending status through the scoped local-context endpoint.
+Resume rechecks the original receipt under the same execution authority before
+allowing another provider round. Genuinely unprovable in-progress/legacy effects
+remain parked; automated repair of those effects is still a release requirement.
 
 Outbox socket failure wakes the waiting stream and closes its response for client
 reconnect; it cannot leave an idle leased client with an unhandled error. The

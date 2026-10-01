@@ -348,11 +348,11 @@ export async function companyResearch(input: CompanyInput): Promise<TurnOutcome>
   const runTurn = async (text: string, runKey: string): Promise<TurnOutcome> => {
     for (;;) {
       try { return await turn.karbotTurnActivity({ sessionId: input.sessionId, threadKey, runKey, text, ...(input.toolAllow ? { toolAllow: input.toolAllow } : {}) }) } catch (error) {
-        if (!(error instanceof ActivityFailure && error.cause instanceof ApplicationFailure && ['ResearchPaused','ContextBlocked'].includes(error.cause.type ?? ''))) throw error
+        if (!(error instanceof ActivityFailure && error.cause instanceof ApplicationFailure && (['ResearchPaused','ContextBlocked'].includes(error.cause.type ?? '') || (error.cause.type === 'OperationBlocked' && patched('company-operation-recovery-v1'))))) throw error
         parked = true
         parkCount++
         await append(`park:${parkCount}`, 't.thread.state', { threadKey, status: 'PAUSED', acceptingSteer: false })
-        if (error.cause.type === 'ContextBlocked') await append(`context-blocked:${parkCount}`, 't.message.appended', { threadKey, kind: 'text', message: { role: 'agent', text: `Context paused: ${error.cause.message}` } })
+        if (error.cause.type === 'ContextBlocked' || error.cause.type === 'OperationBlocked') await append(`context-blocked:${parkCount}`, 't.message.appended', { threadKey, kind: 'text', message: { role: 'agent', text: `${error.cause.type === 'ContextBlocked' ? 'Context' : 'Operation'} paused: ${error.cause.message}` } })
         await condition(() => !parked)
         await append(`resume:${parkCount}`, 't.thread.state', { threadKey, status: 'RUNNING', acceptingSteer: true })
       }

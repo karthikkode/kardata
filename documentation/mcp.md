@@ -174,3 +174,20 @@ in tool arguments/results. They authorize public-web transport only, not product
 API operations. Browser contexts fail closed without an authenticated configured
 proxy or required Chromium flags. Existing role/thread/sector grants still govern
 tools. Internal proxy transport is not an advertised MCP capability.
+
+### Uncertain operation recovery contract
+
+Advertised read-only annotations derive from the server capability registry, not
+model arguments. A server-proven pre-dispatch failure is retry-safe; an uncertain
+mutation result/transport failure parks the original operation before another
+provider round. Recovery retries retain the same logical tool call identity and
+arguments; they never create a fresh operation to bypass its guard. Long internal
+identities are deterministically hashed to the existing128-character header cap.
+
+Unresolved operations remain durable independently of compaction. Resume retries
+the original operation and can reuse its verified completed reply; pending,
+authority-conflicting or legacy-unprovable effects remain parked for owner review.
+Owner inspection/reconciliation is scoped and cannot grant agent approval,
+release an uncertain effect blindly or expose another thread/sector's records.
+Legacy records are reconciled only with exact request/result and current authority
+proof; otherwise explicit parking is the compatible outcome, not silent trust.

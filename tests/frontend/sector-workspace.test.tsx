@@ -99,3 +99,16 @@ describe('workspace state and resource interactions', () => {
     expect(onSave).toHaveBeenCalledWith('Keep evidence and broaden', 1)
   })
 })
+
+
+it('shows pending operation recovery independently of compaction without exposing arguments', async () => {
+  const user = userEvent.setup()
+  const identity = 'op:'.concat('a'.repeat(64))
+  render(<LocalContextEditor resource={{ status: 'ready', refresh: vi.fn(), data: { threadKey: 'TEST child', notes: '', summary: '', coveredSeq: 0, version: 1, pendingOperations: [{ operationId: identity, callId: 'TEST call', toolName: 'db.create_session', reason: 'The reply was lost.' }] } }} busy={false} onSave={vi.fn()} onCompact={vi.fn()} />)
+  expect(screen.getByRole('region', { name: 'Pending operation recovery' })).toBeInTheDocument()
+  expect(screen.getByText('Operation needs review')).toBeVisible()
+  expect(screen.getByText(identity)).not.toBeVisible()
+  await user.click(screen.getByText('Operation identity'))
+  expect(screen.getByText(identity)).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Compact context' })).toBeEnabled()
+})

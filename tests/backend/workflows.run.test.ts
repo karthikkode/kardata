@@ -66,9 +66,9 @@ describe.skipIf(!ENABLED)('session-run workflow (B2.2)', () => {
       namespace: temporalNamespace(),
       workflowsPath: WORKFLOWS_PATH,
       activities: { karbotTurnActivity: async (input: Parameters<typeof karbotTurnActivity>[0]) => {
-        if (input.text === 'context-blocked-turn' && !blocked.has(input.sessionId)) {
+        if (['context-blocked-turn','operation-blocked-turn'].includes(input.text) && !blocked.has(input.sessionId)) {
           blocked.add(input.sessionId)
-          throw ApplicationFailure.nonRetryable('Compaction unavailable; context was preserved.', 'ContextBlocked')
+          throw ApplicationFailure.nonRetryable('Original operation was preserved.', input.text === 'operation-blocked-turn' ? 'OperationBlocked' : 'ContextBlocked')
         }
         return karbotTurnActivity(input)
       }, appendEventActivity },
@@ -90,11 +90,11 @@ describe.skipIf(!ENABLED)('session-run workflow (B2.2)', () => {
     return new Pool({ connectionString: url })
   }
 
-  it('parks a context failure and resumes the original turn without repeating its user message', async () => {
-    const sessionId = `context-${Date.now()}`
+  it.each(['context-blocked-turn','operation-blocked-turn'])('parks %s and resumes the original turn without repeating its user message', async (request) => {
+    const sessionId = `${request}-${Date.now()}`
     const handle = await client.workflow.start('sessionRun', { taskQueue: (worker.options as { taskQueue: string }).taskQueue, workflowId: `session-run-${sessionId}`, args: [{ sessionId, fakeSteps: [{ text: 'Recovered answer' }] }] })
     try {
-      await handle.signal('runSend', 'context-blocked-turn')
+      await handle.signal('runSend', request)
       await waitFor(async () => await queryState(handle) === 'PAUSED', 30000, 'context pause')
       const pool = db()
       try {
@@ -103,7 +103,7 @@ describe.skipIf(!ENABLED)('session-run workflow (B2.2)', () => {
       } finally { await pool.end() }
       await handle.signal('runResume')
       await waitFor(async () => (await texts(sessionId)).includes('Recovered answer'), 30000, 'context recovery')
-      expect((await texts(sessionId)).filter((text) => text === 'context-blocked-turn')).toHaveLength(1)
+      expect((await texts(sessionId)).filter((text) => text === request)).toHaveLength(1)
     } finally { await handle.signal('runCancel'); await handle.result() }
   }, 90000)
 

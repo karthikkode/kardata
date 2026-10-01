@@ -859,14 +859,14 @@
     },
     {
       "path": "agents/src/turnRunner.test.ts",
-      "sha256": "6bc9ea2da8107c11c96ce55200ed697d914ff64e8692ce38597dd8957501c564",
+      "sha256": "e6a4bca6f503af1d8b2a0e5b7435feebaa927d1dec95c4b6420dbff13cffd4eb",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "agents/src/turnRunner.ts",
-      "sha256": "9861fc3a09c329ac68cb40093c8d6389b1a24c9948c0343843fdf0c857806fe7",
+      "sha256": "8e724f39b683c263ff1b9954bc28a6dfc122c87313b13d9a1d9d5ef66e1f8b1e",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -877,13 +877,17 @@
         "MCP_TOOL_GRANT_HEADER",
         "McpFetchFn",
         "McpHttpResponse",
+        "McpToolOutcome",
+        "OperationRecoveryError",
+        "RecoveryOperation",
         "StreamableMcpClient",
         "StreamableMcpClientOptions",
         "TurnRunnerMcpClient",
         "TurnRunnerSink",
         "TurnSnapshotVersions",
         "createClosedMcpClient",
-        "runKarbotTurn"
+        "runKarbotTurn",
+        "toolOperationId"
       ]
     },
     {
@@ -920,7 +924,7 @@
     },
     {
       "path": "backend/openapi/v1.yaml",
-      "sha256": "4930d4d5ed6330aab2fc0c88a27b06bb610afd8caa076926f79b12a05f1b610a",
+      "sha256": "3d1f5856367049ffb547fe2c80377bb6f0cca530aecbdbe24299117d693d298e",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -1797,7 +1801,7 @@
     },
     {
       "path": "backend/src/db/workspace.ts",
-      "sha256": "efc01b6d47404741733c52b894fbff898aa84e419b7ade44e4bf923e7848837e",
+      "sha256": "32542fbbedd661f37699db1b4a9c353c2084745604d560262dc6e56792fbf38f",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1907,7 +1911,7 @@
     },
     {
       "path": "backend/src/mcp/tools.ts",
-      "sha256": "18f583623ab8fd426b65e5dace3d01b539587586d2b7c0429466a94b71ec7d89",
+      "sha256": "c304438d432f47f6f46879a613ebc553b5c5652d215a812daa05bbef8f0296e1",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2432,7 +2436,7 @@
     },
     {
       "path": "backend/src/temporal/activities/turn.ts",
-      "sha256": "4996b4cf9a8937840930e1bfdc536af4414954671af7f1920617796a958a9e4e",
+      "sha256": "4b1bf1d95c8fd823d5035079d0625db3d0f8dc790e2b082654e2b8bfa7e8d75d",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2605,7 +2609,7 @@
     },
     {
       "path": "backend/src/temporal/workflows/coordinator.ts",
-      "sha256": "4ce25e0a65670d36c6c372f574d99494324a28688c0fd29aaf1e22a58c3f298f",
+      "sha256": "2f701014dd267f19720452a4aa75965deeba6b1913063ee1a48af3eb76cde2ff",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2675,7 +2679,7 @@
     },
     {
       "path": "backend/src/temporal/workflows/resumable-turn.ts",
-      "sha256": "7e5fc1ec460b8f35f4d82aa43a83d962889ec1f066708be90efaa4451c1f8c3f",
+      "sha256": "add0105d2a23143dd5f87315c6dd6551a4a0d0f66404d0367b80040687d0c561",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2684,7 +2688,7 @@
     },
     {
       "path": "backend/src/temporal/workflows/run.ts",
-      "sha256": "ec95cfde955c407cc7ce74b751096c62a1884304395f62ef3e7581e88f48647a",
+      "sha256": "46a903a3ea1d4939ea878eac259e91d7d8dd4b800f3ecd1c84592969af7bcccd",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2704,7 +2708,7 @@
     },
     {
       "path": "backend/src/temporal/workflows/subagents.ts",
-      "sha256": "dd0d17a1843b06f8f5221ad036c9875c7c4a18cccb9b1ae1b5c634fb263d1bd1",
+      "sha256": "14ee9e3639dda8e4a8f79bb332a089c9c29ce8545558e612bbb5ce4e13c102b5",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3379,7 +3383,7 @@
     },
     {
       "path": "frontend/src/components/workspace-parts.tsx",
-      "sha256": "4a6b542bbb240ed29f94a0b568ce632451000b950176bd220abb95a6a7d1a506",
+      "sha256": "498ba8fedbb4c71593bdc6c960feeba566e62329809accde375258818d5b0a8e",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3554,7 +3558,7 @@
     },
     {
       "path": "frontend/src/data/workspace-api.ts",
-      "sha256": "1c70eaa4d755169d41a09b3326460697d0f2d9df30aa1a938dee7f45d085b9d3",
+      "sha256": "2051f1bf3d6ac4c9614a9e3a7b402ffe0bd90327db1d90c39fd6d74abd3777d0",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4160,6 +4164,13 @@
       "exports": []
     },
     {
+      "path": "tests/backend/mcp.operation-recovery.test.ts",
+      "sha256": "9a288540060b055a50dbf56df4e9edd9a0be2e8d10a3b25ef88961c1412cf208",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/backend/mcp.read-document.test.ts",
       "sha256": "73d537787182839a05c205a34c6364d5e3932a9394395fe258135cf2735f5754",
       "review": "pending",
@@ -4274,6 +4285,13 @@
     {
       "path": "tests/backend/research.report-recovery.test.ts",
       "sha256": "b81beb462052cbd04ab2914ad29c18851ed7f73c96bcbf60b86020a17bb4706f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/research.work-authority.test.ts",
+      "sha256": "6a511b22d28b01eb0bd04dbee5d21f4242e3139520e4479b0d7147a5b4479c8a",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4577,7 +4595,7 @@
     },
     {
       "path": "tests/backend/workflows.run.test.ts",
-      "sha256": "6d722c335f047245a2fb781a4ca91cb87acdcf1129bbba7d0cbe93e4fea48736",
+      "sha256": "5e70a25f8c0fac0d5df8090fc591de4ab04faf86b2c00c5f2bc907a64634f2e8",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4928,7 +4946,7 @@
     },
     {
       "path": "tests/frontend-e2e/workspace.spec.ts",
-      "sha256": "17bb79dd7441d111e05693673352af9c03d810057a8b2cb7e11677b04ad72287",
+      "sha256": "2bc7defcf315ab5839395013f934d2b8d3e63ba3de718f4eeb1c37362d890aea",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5159,7 +5177,7 @@
     },
     {
       "path": "tests/frontend/sector-workspace.test.tsx",
-      "sha256": "2d270e221ab2c3aada123a69b8e3519a6670f5bd0ccb873cb20aea9430440800",
+      "sha256": "d557a5dc5984f7b2aea2657cc4d7cc8f189d70c709d7bf730b374a5e59c0487b",
       "review": "pending",
       "tests": [],
       "exports": []
