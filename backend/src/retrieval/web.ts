@@ -123,7 +123,7 @@ const sourceFetch: FetchImpl = async (input, init) => {
     const request = (url.protocol === 'https:' ? httpsRequest : httpRequest)(url, {
       method: 'GET', agent: false, lookup: pinnedLookup,
       ...(init?.signal ? { signal: init.signal } : {}),
-      headers: { Accept: 'text/html,text/plain,application/xhtml+xml', 'Accept-Encoding': 'identity' },
+      headers: { Accept: 'text/html,text/plain,application/xhtml+xml', ...Object.fromEntries(new Headers(init?.headers).entries()), 'Accept-Encoding': 'identity' },
     }, (incoming) => {
       const status = incoming.statusCode ?? 0
       const encoding = incoming.headers['content-encoding']?.toLowerCase()
@@ -233,6 +233,62 @@ export async function webFetch(rawUrl: string, fetchImpl: FetchImpl = sourceFetc
   })
 }
 
+/** Server-selected search endpoints use the same DNS-pinned transport as sources.
+ * The deadline covers headers, redirects and body reads; caps apply before parsing.
+ * Credentialed requests never follow redirects. */
+export async function requestSearchPage(rawUrl: string, options: { headers: Record<string, string>; maxBytes: number; followRedirects: boolean; fetchImpl?: FetchImpl }): Promise<{ text: string; contentType: string }> {
+  return logOp(fetchLogger, 'retrieval.search.page', async () => {
+    let current = publicSourceUrl(rawUrl)
+    const controller = new AbortController()
+    let onAbort: (() => void) | undefined
+    const expired = new Promise<never>((_resolve, reject) => { onAbort = () => reject(new RetrievalError('fetch_failed', 'Search request deadline exceeded')); controller.signal.addEventListener('abort', onAbort, { once: true }) })
+    const timer = setTimeout(() => controller.abort(), WEB_FETCH_TIMEOUT_MS)
+    try {
+      for (let hop = 0; hop <= 5; hop++) {
+        const response = await Promise.race([(options.fetchImpl ?? sourceFetch)(current.toString(), { headers: options.headers, redirect: 'manual', signal: controller.signal }).then((reply) => { if (controller.signal.aborted) discardBody(reply); return reply }), expired])
+        if ([301, 302, 303, 307, 308].includes(response.status)) {
+          discardBody(response)
+          if (!options.followRedirects || hop === 5) throw new RetrievalError('blocked', 'Search redirect denied')
+          const location = response.headers.get('location')
+          if (!location) throw new RetrievalError('fetch_failed', 'Search redirect missing destination')
+          current = publicSourceUrl(new URL(location, current).toString())
+          continue
+        }
+        if (!response.ok) { discardBody(response); throw new RetrievalError('fetch_failed', `Search returned HTTP ${response.status}`) }
+        if (Number(response.headers.get('content-length') ?? 0) > options.maxBytes) { discardBody(response); throw new RetrievalError('fetch_failed', 'Search response exceeds byte limit') }
+        const reader = response.body?.getReader()
+        const chunks: Uint8Array[] = []
+        let bytes = 0
+        if (reader) {
+          try {
+            for (;;) {
+              const chunk = await Promise.race([reader.read(), expired])
+              if (chunk.done) break
+              bytes += chunk.value.byteLength
+              if (bytes > options.maxBytes) throw new RetrievalError('fetch_failed', 'Search response exceeds byte limit')
+              chunks.push(chunk.value)
+            }
+          } catch (error) { void reader.cancel().catch(() => fetchLogger.warn({ event: 'retrieval.search.cleanup.error', code: 'body_cancel_failed' })); throw error }
+          finally { reader.releaseLock() }
+        }
+        const buffer = new Uint8Array(bytes)
+        let offset = 0
+        for (const chunk of chunks) { buffer.set(chunk, offset); offset += chunk.byteLength }
+        return { text: new TextDecoder().decode(buffer), contentType: response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() ?? '' }
+      }
+      throw new RetrievalError('fetch_failed', 'Search redirect limit exceeded')
+    } catch (error) { if (error instanceof RetrievalError) throw error; throw new RetrievalError('fetch_failed', 'Search request failed') }
+    finally { clearTimeout(timer); if (onAbort) controller.signal.removeEventListener('abort', onAbort); controller.abort() }
+  })
+}
+
+/** Match the product tool's bounded pagination contract for every search leg. */
+export function searchPagination(options: { count?: number; page?: number }): { count: number; page: number; offset: number } {
+  const parsed = z.object({ count: z.number().int().min(1).max(20).default(10), page: z.number().int().min(0).max(100).default(0) }).safeParse({ count: options.count, page: options.page })
+  if (!parsed.success) throw new RetrievalError('validation_failed', 'Search count must be an integer from 1 to 20; page must be an integer from 0 to 100.')
+  return { count: parsed.data.count, page: parsed.data.page, offset: parsed.data.page * parsed.data.count }
+}
+
 export interface SearchEnv {
   KARDATA_WEB_SEARCH_KEY?: string
   KARDATA_WEB_SEARCH_URL?: string
@@ -252,27 +308,15 @@ export async function webSearch(
   const key = env.KARDATA_WEB_SEARCH_KEY?.trim()
   if (!key) throw new RetrievalError('unconfigured', 'web search unconfigured: set KARDATA_WEB_SEARCH_KEY')
   const endpoint = env.KARDATA_WEB_SEARCH_URL?.trim() || 'https://api.search.brave.com/res/v1/web/search'
-  const count = Math.min(Math.max(options.count ?? 10, 1), 20)
-  const offset = (options.page ?? 0) * count
-  const url = `${endpoint}?q=${encodeURIComponent(query.trim())}&count=${count}&offset=${offset}`
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), WEB_FETCH_TIMEOUT_MS)
-  let response: Response
-  try {
-    response = await (options.fetchImpl ?? fetch)(url, {
-      headers: { Accept: 'application/json', 'X-Subscription-Token': key },
-      signal: controller.signal,
-    })
-  } catch (error) {
-    throw new RetrievalError('fetch_failed', `search failed: ${error instanceof Error ? error.message : 'unknown'}`)
-  } finally {
-    clearTimeout(timer)
-  }
-  if (!response.ok) throw new RetrievalError('fetch_failed', `search answered ${response.status}`)
-  const body = (await response.json()) as {
-    web?: { results?: Array<{ title?: string; url?: string; description?: string }> }
-  }
-  return (body.web?.results ?? []).flatMap((result) => {
+  const { count, page } = searchPagination(options)
+  if (page > 9) throw new RetrievalError('blocked', 'Keyed search supports pages 0 through 9; use the configured discovery fallback for deeper pages.')
+  const url = `${endpoint}?q=${encodeURIComponent(query.trim())}&count=${count}&offset=${page}`
+  const response = await requestSearchPage(url, { headers: { Accept: 'application/json', 'X-Subscription-Token': key }, maxBytes: 1024 * 1024, followRedirects: false, fetchImpl: options.fetchImpl })
+  let body: { web?: { results: Array<{ title: string; url: string; description?: string | null }> } | null; query?: { more_results_available?: boolean } }
+  try { body = z.object({ web: z.object({ results: z.array(z.object({ title: z.string(), url: z.string(), description: z.string().nullish() })) }).nullish(), query: z.object({ more_results_available: z.boolean().optional() }).optional() }).parse(JSON.parse(response.text)) }
+  catch { throw new RetrievalError('fetch_failed', 'Search response is not valid result data') }
+  if (!body.web && body.query?.more_results_available !== false) throw new RetrievalError('fetch_failed', 'Search response is not valid result data')
+  return (body.web?.results ?? []).slice(0, count).flatMap((result) => {
     if (!result.url || !result.title) return []
     return [{ title: result.title, url: result.url, snippet: result.description ?? '' }]
   })

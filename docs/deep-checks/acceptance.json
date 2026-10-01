@@ -8493,6 +8493,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/retrieval/web.ts#requestSearchPage",
+      "source": "backend/src/retrieval/web.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/retrieval/web.ts#resolvePublicSource",
       "source": "backend/src/retrieval/web.ts",
       "kind": "export",
@@ -8522,6 +8529,13 @@
     },
     {
       "id": "backend/src/retrieval/web.ts#SearchHit",
+      "source": "backend/src/retrieval/web.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/retrieval/web.ts#searchPagination",
       "source": "backend/src/retrieval/web.ts",
       "kind": "export",
       "features": [],

@@ -435,3 +435,25 @@ approved plan/scope and committed lifecycle. Pause defers publication using save
 review outcomes; resume does not repeat reviewers. Terminal lifecycle writes do
 not override a committed owner pause. Previously completed same-plan acceptance
 can be reused after an explicit restart; a revised scope still needs reapproval.
+
+Search HTTP now shares the existing DNS-pinned public-source transport. Each
+search page has a15s deadline through headers, redirect handling and streamed
+body consumption. Keyed JSON is capped at1MiB and keyless HTML at512KiB before
+parsing; encoded native-transport limits remain in force. Credentialed search
+rejects redirects so subscription headers cannot reach another destination.
+Keyless redirects are bounded to five and revalidate every destination. Rejected,
+late and oversized bodies are cancelled. Operational triples record coded errors
+without queries, subscription keys or body contents. Malformed keyed results fail
+closed rather than pretending discovery exhausted successfully.
+
+All search legs validate the existing MCP pagination contract before networking:
+count1-20, page0-100, both integers; defaults10/0. Invalid numbers never produce
+a remote request or an apparently successful empty page.
+
+Brave pagination uses page offsets0-9, not result-row offsets. Keyed requests
+send the requested page directly and fail before networking above9; the existing
+sector discovery fallback may then use keyless/browser search. Keyless engines
+retain row offsets. Nullable descriptions yield an empty snippet; absent/null
+web content counts as exhausted only with explicit more_results_available=false.
+Contract authority: [Brave pagination](https://api-dashboard.search.brave.com/app/documentation/web-search/codes)
+and [response schema](https://api-dashboard.search.brave.com/api-reference/web/search/post).

@@ -2626,3 +2626,51 @@ skips, lint/typechecks/frontend build. Source files remained fixed throughout
 that run. Existing five hook lint warnings and bundle-size warning stay visible.
 This verified recovery slice is reviewable separately; it is not full preflight
 or release completion and the PR remains draft.
+
+### 2026-10-01 — bounded search transport continuation
+
+Keyed/keyless search formerly cleared its deadline at headers, then read entire
+bodies before applying caps. Both now use one bounded search-page helper over
+DNS-pinned public transport:15s whole-page deadline,1MiB keyed/512KiB keyless,
+five public-checked keyless redirects, no credentialed redirects, late/error body
+cancellation and coded operational triples. Shared pagination validates the
+existing count1-20/page0-100 contract before networking.
+
+Primary Brave docs exposed a faulty existing assumption: offset is a page0-9,
+not page multiplied by count. Corrected the production parameter and regression;
+keyed pages past9 fail explicitly for discovery fallback. Provider-null snippets
+remain empty; missing/null web data needs an explicit exhausted flag rather than
+silently claiming no companies. Source: official pagination and response-schema
+links in documentation/backend.md. No provider/service/dependency was added.
+
+Focused bounds/DNS/compatibility cases pass; a test spy initially omitted its
+fetch signature and typecheck caught tuple indexing, corrected with typeof fetch.
+Independent bounded review found no concrete transport defect:30 cases passed,
+2 browser-gated skips, backend types and diff check. Later pagination/schema
+changes are undergoing recheck. No live keyed-search or Meta-pilot claim yet.
+
+Updated focused search battery51 passed /2 explicit browser skips; backend lint
+and types passed. Real public HTTPS source retrieval passed under DNS-pinned
+transport (9 cases/1 browser skip in that command). Independent pagination/schema
+recheck42 passed /2 browser skips; no concrete defect found in its bounded pass.
+A maintained opt-in keyless availability journey now queries actual public
+engines without storing candidates or creating company records. Its results are
+separate from source-backed intake and the Meta/UI pilot.
+
+Production recovery follow-up: source collection wrapped the MCP client without
+forwarding its authority fingerprint. Corrected the wrapper and extended actual
+HTTP/MCP/Postgres regression with a newly registered API-key identity plus worker
+credential rotation, retained original hash, blocked replay and exactly one effect
+on restored authority.26 activity/unit cases pass. Independent read-only review
+confirmed propagation and the regression oracle; no new defect found. This fixes
+a gap missed by the earlier runner-only authority tests, not an owner waiver.
+
+Live keyless availability passed10 cases including actual candidate retrieval,
+without storing results. Basic source-backed intake and the UI/Meta2000-company
+campaign remain separate requirements. No junk candidate was accepted into the DB.
+
+Sealed search mechanical gate passed1055 cases /314 explicit gated skips with
+lint/typechecks/frontend build; separate backend build passed. Search contracts
+and native DNS regressions ran on the production paths with deterministic doubles;
+public source and keyless availability were additionally exercised live. No
+acceptance record was promoted wholesale and no matching shared rollout occurred.

@@ -2120,7 +2120,7 @@
     },
     {
       "path": "backend/src/retrieval/keyless.ts",
-      "sha256": "c362b7eabbb1afb700bf3df2eff76cb4faaa0529e03e70b00ca96550ee1f11d0",
+      "sha256": "481cbe11724896707303f95f5fbe4396ee31c6573e60ffce7391f2223f28eaaa",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2145,7 +2145,7 @@
     },
     {
       "path": "backend/src/retrieval/web.ts",
-      "sha256": "2e570074a4bc490dadbf1d1e4dbbcd8f088be177485c064db2ebd63a74a85356",
+      "sha256": "2f5ee92df624356684d5ea9d763b52e0907d3c5987ceffafe1df7391774d3f75",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2158,7 +2158,9 @@
         "WEB_FETCH_MAX_BYTES",
         "WEB_FETCH_TIMEOUT_MS",
         "publicSourceUrl",
+        "requestSearchPage",
         "resolvePublicSource",
+        "searchPagination",
         "webFetch",
         "webSearch"
       ]
@@ -2436,7 +2438,7 @@
     },
     {
       "path": "backend/src/temporal/activities/turn.ts",
-      "sha256": "4b1bf1d95c8fd823d5035079d0625db3d0f8dc790e2b082654e2b8bfa7e8d75d",
+      "sha256": "30d1e98eeb8074f950242c21c442a2fd36596062225ab447e8c93ce40c4b223a",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4165,7 +4167,7 @@
     },
     {
       "path": "tests/backend/mcp.operation-recovery.test.ts",
-      "sha256": "9a288540060b055a50dbf56df4e9edd9a0be2e8d10a3b25ef88961c1412cf208",
+      "sha256": "545ea3a85625e6897ce7de65cbe7fa9cf4579ce51f57935f5432ba876e05b4b5",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4312,7 +4314,7 @@
     },
     {
       "path": "tests/backend/retrieval.dns.test.ts",
-      "sha256": "ae8fa6bc91465dd2696ef49e4aba0e23e9a492079c05cf15a52fac06745395cc",
+      "sha256": "2cdb9a9e2ba58231d007d2d98689580776645960eeaddecfd0b30f325c8a9110",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4332,8 +4334,15 @@
       "exports": []
     },
     {
+      "path": "tests/backend/retrieval.search-bounds.test.ts",
+      "sha256": "f1ba82f297b78bfaf987b54c6d802185eb23d5016955f8c2d4b782193c9b99a8",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/backend/retrieval.test.ts",
-      "sha256": "bc50e1f3e5e7f8be8fc0e5556f43842822dca6cdba44ed207bc96183b0b763cc",
+      "sha256": "f19a4f26934fcdb410b998c52e8250234054c770ac9ce5bf182c0070f5dc73f7",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4424,7 +4433,7 @@
     },
     {
       "path": "tests/backend/sweep.search.test.ts",
-      "sha256": "c4b259cc838a9abeeaab0e163512c4740559b547090b7ec7e8fd3bcaeab10058",
+      "sha256": "405438da2d8fe08c184cb6b5b3b0f31037f94b45e507865a2d5cae5557daf8c4",
       "review": "pending",
       "tests": [],
       "exports": []

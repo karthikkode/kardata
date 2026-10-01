@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 const dns = vi.hoisted(() => ({ lookup: vi.fn(), request: vi.fn() }))
 vi.mock('node:dns/promises', () => ({ lookup: dns.lookup }))
 vi.mock('node:https', async (original) => ({ ...await original<typeof import('node:https')>(), request: dns.request }))
-import { webFetch, WEB_FETCH_MAX_BYTES, WEB_FETCH_TIMEOUT_MS } from '../../backend/src/retrieval/web.js'
+import { webFetch, webSearch, WEB_FETCH_MAX_BYTES, WEB_FETCH_TIMEOUT_MS } from '../../backend/src/retrieval/web.js'
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); dns.lookup.mockReset(); dns.request.mockReset() })
 function respond(body: Buffer, headers: Record<string, string> = { 'content-type': 'text/plain' }, statusCode = 200) {
   dns.request.mockImplementation((_url: URL, _options: RequestOptions, callback: (response: IncomingMessage) => void) => {
@@ -88,4 +88,21 @@ describe('production source DNS admission', () => {
     await expect(webFetch('https://source.example/')).rejects.toMatchObject({ code: 'fetch_failed', message: 'Encoded source exceeds byte limit' })
   })
 
+})
+
+describe('production search DNS transport', () => {
+  it('denies private keyed-search DNS before transmitting a subscription key', async () => {
+    dns.lookup.mockResolvedValue([{ address: '10.0.0.1', family: 4 }])
+    await expect(webSearch({ KARDATA_WEB_SEARCH_KEY: 'TEST subscription', KARDATA_WEB_SEARCH_URL: 'https://search.example.test/' }, 'TEST sector')).rejects.toMatchObject({ code: 'blocked' })
+    expect(dns.request).not.toHaveBeenCalled()
+  })
+  it('uses checked public DNS and sends the key only to the original endpoint', async () => {
+    dns.lookup.mockResolvedValue([{ address: '93.184.215.14', family: 4 }])
+    respond(Buffer.from('{"web":{"results":[]}}'), { 'content-type': 'application/json' })
+    expect(await webSearch({ KARDATA_WEB_SEARCH_KEY: 'TEST subscription', KARDATA_WEB_SEARCH_URL: 'https://search.example.test/' }, 'TEST sector')).toEqual([])
+    const [, options] = dns.request.mock.calls[0]! as [URL, RequestOptions]
+    expect(options.headers).toMatchObject({ 'x-subscription-token': 'TEST subscription' })
+    expect(dns.lookup).toHaveBeenCalledOnce()
+    expect(dns.request).toHaveBeenCalledOnce()
+  })
 })

@@ -86,7 +86,7 @@ describe('webSearch', () => {
     const hits = await webSearch({ KARDATA_WEB_SEARCH_KEY: 'k' }, 'acme', { count: 5, page: 2, fetchImpl: endpoint })
     expect(hits).toEqual([{ title: 'Acme', url: 'https://acme.example', snippet: 'widgets' }])
     expect(seen[0]).toContain('count=5')
-    expect(seen[0]).toContain('offset=10')
+    expect(seen[0]).toContain('offset=2')
   })
 })
 
