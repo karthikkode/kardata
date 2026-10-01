@@ -3657,7 +3657,7 @@
     },
     {
       "path": "frontend/src/data/sector-workspace.ts",
-      "sha256": "0b0cf6bac40d778b98e28dbe4c070c62cd1d9bd6e4bfdb1cac028f8d902fdac8",
+      "sha256": "4adb1d2fd9ade43afe6b736ccb8ce5873928766530b8784de6cb241143817852",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3784,7 +3784,7 @@
     },
     {
       "path": "frontend/src/data/useWorkspace.ts",
-      "sha256": "49ed744e11356b740bd5b0a457e4cb904e4f11345eb7f6c95717a09662feacc8",
+      "sha256": "4d6ed4d37418bca34d42d6ec65cdba21ce03e1f25ac6de20c452cc82ea904b8f",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -5343,6 +5343,13 @@
       "exports": []
     },
     {
+      "path": "tests/frontend-e2e/runtime-preflight.spec.ts",
+      "sha256": "f3df2ce49b3308de6402521477aa9bf6d44f150e767ac20bc903358d01d231be",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/frontend-e2e/scale.spec.ts",
       "sha256": "457ce8fb2200b8272a99a78b4ca96d0826f6c3d9fe936bdfcc4a38b89319f063",
       "review": "pending",
@@ -5674,6 +5681,13 @@
     {
       "path": "tests/frontend/workspace-files-scale.test.tsx",
       "sha256": "95fb64e4265ed55e44337f32f5ef318948e8434c91062ad65ab22be3f5a62327",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/workspace-session-creation.test.tsx",
+      "sha256": "e90797d80e3dafdc10d2bc7a5edc376a2055f3d1213229846e0651a102b74e10",
       "review": "pending",
       "tests": [],
       "exports": []

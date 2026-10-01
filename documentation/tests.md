@@ -326,3 +326,7 @@ stops its owned page and waits for routed reads before closing its owned backend
 and pool; late UI polling must not race fixture disposal. Cleanup still runs when
 page navigation fails. Browser closure evidence is in
 `docs/deep-checks/browser-closure.md`.
+
+## Matching isolated deployment UI gate
+
+`KARDATA_RUNTIME_PREFLIGHT_URL=http://127.0.0.1:15173 npm run test:e2e -w frontend -- runtime-preflight.spec.ts` operates an already running, owner-isolated production stack. The UI must already carry its dedicated local test credential. It creates only labeled test sectors/chats/context/files through UI controls, verifies exact downloaded bytes and retained drafts, and leaves records intact for inspection. It never intercepts routes, starts research, calls Meta or populates companies. The gate explicitly skips without its target and denies the ordinary shared UI port5173. Do not use it against pilot data. Retained deployment details: [runtime proof](../docs/deep-checks/runtime-preflight.md).

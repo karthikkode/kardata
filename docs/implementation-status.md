@@ -3131,3 +3131,22 @@ This closes source configuration parity, not deployment activation or a new
 cloud-green claim. The shared running Postgres remains64MiB. The new latest-head
 cloud run must be watched separately; full release/pilot/acceptance gates remain
 pending. No shared service, database or research data was changed.
+
+
+### Isolated production runtime and new-conversation race (2026-10-01)
+
+Current PR4415b709 production image cold-started on a fresh UUID Compose project,
+with isolated Postgres/Temporal/archive/browser and dedicated test credentials.
+Exact health SHA, production MCP74tools, guarded HTTPS browser navigation, active
+reconciliation supervisor and worker SDKmetrics verified. The owner-facing UI
+created retained test records; the maintained no-interception runtime browser
+gate passed1 case, including exact download bytes, context reload and draft
+switching. No shared rollout or Meta company pilot occurred.
+
+A new conversation briefly showed a false unavailable state because navigation
+preceded refreshed session-list data. The workspace now adopts the acknowledged
+POST result before navigation; obsolete-scope acknowledgements cannot publish
+or navigate. Four maintained regressions and frontend lint/typecheck/build/full
+tests passed (337tests/6explicit skips). Details and limits:
+[isolated runtime proof](deep-checks/runtime-preflight.md). Full repository audit,
+stress envelope, alert delivery and genuine2000-company campaign remain open.

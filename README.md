@@ -1,7 +1,6 @@
 # Kardata
 
-Rebuild home. Product vision lives in `documentation/vision.md` (write it first :
-everything below hangs off it).
+Rebuild home. Product vision lives in `documentation/vision.md`; area docs govern its implementation.
 
 ## Map
 
@@ -106,7 +105,7 @@ House markdown: GFM replies through a safe renderer (`Markdown.tsx`,
 no raw HTML, http(s)-only links), format contracted in the system prompt.
 Checkpoint hardening: `npm run test:coverage` (istanbul) at 76% lines,
 offline/SSE-resume regression tests, dead `ui/dialog` removed.
-`documentation/vision.md` is still the first product doc to write.
+`documentation/vision.md` defines the product scope and commercial guardrails.
 
 Run from the repo root (Node 22): `npm run dev` (app), `npm test` (all
 workspaces), `npm run test:e2e` (browser smoke), `npm run lint`,

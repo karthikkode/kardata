@@ -58,7 +58,7 @@ export function useSectorWorkspace(config: StagingConfig | null, sectorId: strin
     error: error ?? (sessionId && sessions.status === 'ready' && !selected ? 'This conversation is not available in this sector.' : requestedThread && threads.status === 'ready' && !activeThread ? 'This subagent does not belong to this conversation.' : null),
     openSession: (id: string) => onNavigate(id, id),
     openThread: (key: string) => { if (selected) onNavigate(selected.id, key) },
-    createChat: () => act('create', async (cfg) => { const session = await createSession(cfg, 'New conversation', sectorId ?? undefined); sessions.refresh(); onNavigate(session.id, session.id) }),
+    createChat: () => act('create', async (cfg) => { const session = await createSession(cfg, 'New conversation', sectorId ?? undefined); if (sessions.acknowledge([...(sessions.data ?? []), { ...session, kind: 'normal' as const }])) onNavigate(session.id, session.id) }),
     renameChat: (title: string) => act('rename', async (cfg) => { if (selected) await renameSession(cfg, selected.id, title); sessions.refresh() }),
     deleteChat: () => act('delete', async (cfg) => { if (!selected || selected.kind === 'research') return; await deleteSession(cfg, selected.id); sessions.refresh(); const research = sessions.data?.find((session) => session.kind === 'research'); if (research) onNavigate(research.id, research.id) }),
     stop: () => act('stop', async (cfg) => { if (activeThread) await cancelRun(cfg, child ? child.key.replace(/^agent:/, '') : `session-run-${selected?.id}`); chat.stopped() }),

@@ -141,6 +141,12 @@ source links and truthful counts. Tests are linked in the hardening catalogue.
   title plus close, never a bespoke modal. Every async resource renders
   through `ResourceNotice` (loading / error with retry / denied) plus
   an explicit empty state where the resource can be empty.
+- Successful conversation creation publishes the server-acknowledged session
+  into its scoped list before changing the URL. The following list refresh must
+  not flash a foreign-session denial or disable the new composer. Resource
+  acknowledgements from an earlier credential/sector scope are ignored; genuinely
+  missing sessions still receive the scoped unavailable state. Regression:
+  `tests/frontend/workspace-session-creation.test.tsx`.
 - Proven by `tests/frontend/sector-workspace.test.tsx` (landing,
   editor, files, local context) and the landing-to-workspace journey
   tests in `navigation-url`, `SectorDetailPage`, and
