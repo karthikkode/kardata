@@ -2674,3 +2674,57 @@ lint/typechecks/frontend build; separate backend build passed. Search contracts
 and native DNS regressions ran on the production paths with deterministic doubles;
 public source and keyless availability were additionally exercised live. No
 acceptance record was promoted wholesale and no matching shared rollout occurred.
+
+### 2026-10-01 — plan revision consistency work
+
+Approval previously allowed an older stored version despite a newer edit; edit
+and approval also checked only projected lifecycle and did not serialize shared
+scope decisions. Both mutations now share the workspace transaction and committed
+state seam. Stale approvals conflict; one concurrent approver wins.
+
+Exact-compatible discovery revisions copy completed source-backed company and
+settled intake receipts with original evidence/child provenance. Identical query
+completion is retained only without company-capacity/target changes, avoiding
+false exhaustion after expanding the queue. Changed scope/acceptance/brief is not
+silently deemed compatible. Lower limits below retained companies roll back the
+whole approval. Cumulative budget remains sector-owned. Explicit owner-reviewed
+retention across a changed scope is still a separate preflight requirement.
+
+The transaction change exposed incomplete unit doubles (connect returned no
+query/release; lifecycle SELECT received plan payloads). Doubles now implement
+transaction query/release and distinguish committed state reads; the original
+assertions pass. Real isolated DB tests verify retained evidence/child IDs,
+capacity expansion, changed criteria/scope, stale/twin approval and rollback.
+No test timeouts were increased and no pilot data was mutated.
+
+Independent review found that copied completed directions could hide unresolved
+intakes if only settled receipts were retained. Fixed by carrying intake identities
+and states/attempts, not upgrading them. Real Temporal/PG regression1 passed:
+one accepted and one uncertain candidate; compatible v2 still fails acceptance,
+keeps the uncertain blocker and never displays100%, while cumulative budget stays.
+Protected Decisions are now pinned in additive approval metadata and must match
+for automatic retention; legacy unknown decisions are not guessed. Current
+workspace pins displayed contextVersion; stale context conflicts before mutation.
+
+Browser tests initially assumed denied context still exposed the research Plan
+tab and assumed an invented generic503 banner. Actual denial hides the conversation,
+and the503 banner carries the server's message. Assertions now check unavailable
+approval in the real denied state and disabled approval after fresh context fails.
+The error transition passed with the unchanged5s poll and10s assertion deadline.
+Routed fixture evidence is not a live-user approval or Meta campaign.
+
+Sealed compatible-retention checks: full DB747 passed /98 explicit gated skips;
+real coordinator26 passed (including the unresolved-revision regression); full
+workspace browser29 passed; mechanical1056 passed /324 explicit gated skips,
+lint/types/frontend build. Measured2000 synthetic receipt approval/retention:
+47.66ms,158,531,584 bytes runner RSS at end, zero pool waiters at end on Node22,
+16 logical CPUs and98,794,881,024 bytes host memory. Raw hashes/measurement remain
+in backend/test-results/retention.load.json. No real companies were created by
+that measurement. Independent lightweight recheck13 passed; no remaining concrete
+defect found in its bounded retention review. Shared rollout and pilot remain open.
+
+Next identified scale check: coordinator checkpoints currently return full work
+and context history repeatedly. Temporal's documented per-event blob limit and
+history growth require bounded transport/state reads before the2000-company pilot;
+small fixtures do not establish this capability. Explicit owner eligibility
+selection across changed scope and unresolved-operation reconciliation also remain.

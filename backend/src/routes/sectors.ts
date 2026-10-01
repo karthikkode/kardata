@@ -64,6 +64,7 @@ const AttachDocumentBody = z.object({
 const ApprovePlanBody = z.object({
   /** Plan version to pin (must exist on the sector). */
   version: z.number().int().min(1),
+  contextVersion: z.number().int().min(0).optional(),
 })
 
 /** Model OCR for document ingest: the vision model over the existing Meta
@@ -546,7 +547,7 @@ export function sectorRoutes(app: FastifyInstance): void {
       const header = request.headers['idempotency-key']
       const key = typeof header === 'string' && header !== '' ? `sector-approve:${sectorId}:${header}` : undefined
       try {
-        const approved = await approveSectorPlan(pool, sectorId, body.version, auth.scope, key)
+        const approved = await approveSectorPlan(pool, sectorId, body.version, auth.scope, key, body.contextVersion)
         await projectNewEvents(pool)
         const sector = await getSector(pool, sectorId, auth.scope)
         return { status: 200, body: { ok: true, data: { ...sector, approvedVersion: approved.version } } }

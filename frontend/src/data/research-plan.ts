@@ -19,4 +19,4 @@ export const ExecutableResearchPlan = z.object({
 })
 export type ExecutableResearchPlan = z.infer<typeof ExecutableResearchPlan>
 export const ResearchPlanVersion = z.object({ version: z.number().int().min(1), markdown: z.string(), at: z.string(), executable: ExecutableResearchPlan.optional() })
-export const SectorPlanResponse = z.object({ approvedContext: z.object({ version: z.number().int().nonnegative(), scope: z.string() }).optional(), sectorId: z.string(), versions: z.array(ResearchPlanVersion), latest: ResearchPlanVersion.nullable(), approvals: z.array(z.number().int().min(1)).optional(), approvedVersion: z.number().int().min(1).nullable().optional() })
+export const SectorPlanResponse = z.object({ approvedContext: z.object({ version: z.number().int().nonnegative(), scope: z.string(), decisions: z.string().optional() }).optional(), sectorId: z.string(), versions: z.array(ResearchPlanVersion), latest: ResearchPlanVersion.nullable(), approvals: z.array(z.number().int().min(1)).optional(), approvedVersion: z.number().int().min(1).nullable().optional() })

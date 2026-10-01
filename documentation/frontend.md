@@ -217,3 +217,9 @@ The local-context view displays durable pending-operation recovery separately
 from context compaction. It shows the tool/reason and keeps long operation IDs
 behind a keyboard-accessible disclosure. Resume checks that original identity;
 compaction retains it. No control silently issues a replacement mutation.
+
+Workspace plan approval includes the global-context version currently shown.
+While context is loading, denied or unavailable, approval is unavailable; stale
+context conflicts remain visible with the plan editable. Retained completed work
+shows its source version and original source link through shared progress, without
+claiming a percentage while the revised discovery queue can still expand.

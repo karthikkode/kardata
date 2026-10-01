@@ -152,3 +152,38 @@ later correction. Terminal status reports failures honestly and message counts
 include followups. Existing histories retain their original contract via the
 workflow marker. Source outcomes use archive refs on production activities; the
 parent validates hydrated bytes, not model-authored citation claims alone.
+
+## Compatible revision retention
+
+Plan edit/approval serializes with sector workspace decisions and checks committed
+lifecycle state. Approval rejects a stale version even if it exists in history.
+For discovery-only revisions, completed source-backed companies and settled intake
+receipts remain eligible automatically only when the approved scope, company brief
+and acceptance criteria are exactly unchanged. Direction completion also requires
+an identical direction and unchanged company limit/target: raising capacity cannot
+mistake a previously capacity-stopped query for exhausted discovery. Incomplete,
+failed and uncertain work never becomes complete through retention.
+
+Retention creates version-owned receipts linked by readable provenance to their
+original version; source evidence, child conversations and files are preserved.
+The approval transaction records retained identities and refuses a company limit
+below the retained count. Budget usage remains sector-cumulative. Scope changes
+require explicit owner review of eligibility; textual similarity never establishes
+permission or compatibility. No automatic inference of a scope expansion.
+
+New plan approvals also pin the protected Decisions text in approvedContext.
+Readers accept legacy approvals without that optional field, but automatic
+retention cannot assume their decisions were unchanged. Findings/clarifications
+may advance the document version without invalidating an exact Scope/Decisions
+match. This is an additive approval receipt, not authority granted to agents.
+
+The workspace approval action sends the context version currently displayed and
+is unavailable while global context has not loaded. The approval transaction
+rejects a stale context version before copying work or pinning the plan. The API
+field is optional for legacy clients; omitting it does not relax latest-plan,
+role or sector checks. The current workspace always supplies it.
+
+Compatible retention also carries unresolved intake identities, states and attempts.
+They remain blockers; retaining a completed direction never hides its uncertain or
+failed candidates. The coordinator must still resolve or explicitly review them
+before acceptance. Old receipts remain immutable alongside the new version.

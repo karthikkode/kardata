@@ -457,3 +457,11 @@ retain row offsets. Nullable descriptions yield an empty snippet; absent/null
 web content counts as exhausted only with explicit more_results_available=false.
 Contract authority: [Brave pagination](https://api-dashboard.search.brave.com/app/documentation/web-search/codes)
 and [response schema](https://api-dashboard.search.brave.com/api-reference/web/search/post).
+
+Plan edit/approval serialize through the workspace transaction and committed
+lifecycle, rejecting older versions. POST sector approve optionally accepts
+contextVersion; the workspace always passes the displayed version and stale
+context conflicts before mutation. Approval receipts additionally pin protected
+Decisions text, with legacy reads remaining supported. Exact-compatible completed
+work is retained transactionally; scope/decision changes require eligibility
+review. Current provenance is readable in the shared progress response.

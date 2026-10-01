@@ -297,3 +297,10 @@ Research work upserts fence conflict updates by sector and plan version. Reusing
 an identity from another sector is denied; reusing it under another version
 conflicts. Completed receipts are immutable and replay emits no false state
 notification. The conflict predicate is atomic, including competing inserts.
+
+Plan edit and approval use the workspace transaction/durable-stream lock and the
+committed lifecycle seam. Stale approvals fail; concurrent twin approvals pin once.
+Compatible discovery retention uses a single bulk insert, preserves original rows
+and journals source/destination versions plus prefixes/count in the same approval
+transaction. Lower limits and changed scope/criteria cannot silently discard or
+bless prior work. Retention never converts blocked/failed receipts to completion.

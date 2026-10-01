@@ -324,3 +324,15 @@ scrolling and preserves the full ID; the same four cases passed after correction
 The final mobile still shows recovery status, local notes and both actions within
 the dialog, without horizontal overflow. Other themes/sizes have matching layout
 assertions and retained stills for review.
+
+### Revision approval basis and retained work (2026-10-01)
+
+Full routed workspace suite29 passed. Four plan-context conflict scenarios at
+1440/390px light/dark assert the POST pins version/contextVersion, keep conflict
+visible and leave the plan editable. Retained discovery provenance and original
+source stay readable while percentage is pending. Context denial removes approval;
+fresh503 context failure disables approval after the existing poll. Desktop/mobile
+stills and transition videos are retained under frontend/test-results. The mobile
+dark conflict still was visually inspected: visible banner, readable executable
+limits, both plan actions and bounded scroll; no horizontal overflow. These are
+explicit fixtures, not approvals performed on live pilot research.

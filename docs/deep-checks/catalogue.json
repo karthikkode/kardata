@@ -924,7 +924,7 @@
     },
     {
       "path": "backend/openapi/v1.yaml",
-      "sha256": "3d1f5856367049ffb547fe2c80377bb6f0cca530aecbdbe24299117d693d298e",
+      "sha256": "12a4b888976d2ac61f86ddfab8a6bb1d02753ff233869e74dbdf21b70df42825",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -1704,7 +1704,7 @@
     },
     {
       "path": "backend/src/db/sector-plan.ts",
-      "sha256": "f4b447ab92778e313d48ded768af91e30034a083e3379e4f84c36d1ebff53cca",
+      "sha256": "3c4ced266028aef66b0a75944c89b76066a7e3ebdf2128241d7d71d0a7efb543",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1801,7 +1801,7 @@
     },
     {
       "path": "backend/src/db/workspace.ts",
-      "sha256": "32542fbbedd661f37699db1b4a9c353c2084745604d560262dc6e56792fbf38f",
+      "sha256": "679da60599e5fd0e1e368518e6de1bcfb0d014c590d22ad13e956f1379da1e7d",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1845,6 +1845,7 @@
         "requireThread",
         "researchSessionBinding",
         "researchThreadState",
+        "retainCompatibleDiscovery",
         "saveThreadContext",
         "saveTurnContinuation",
         "sessionKind",
@@ -2238,7 +2239,7 @@
     },
     {
       "path": "backend/src/routes/sectors.ts",
-      "sha256": "985ee6f5886589e56f252dad4866c52851d4a3e4b5d39876c5b3c8148875c6f3",
+      "sha256": "0c717e3e232821f5b571555a10211ba7ab39bca40de6f3ad507635e798ad8e4d",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3115,7 +3116,7 @@
     },
     {
       "path": "frontend/src/App.tsx",
-      "sha256": "d8267855993f7ffc8ea47145937adf5176ff9cead24a2b981221920aea7885c2",
+      "sha256": "fdb0cf188469fc3fcc2940fcae4675ae4af0c6f66f4598e835594aafadb79484",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3283,7 +3284,7 @@
     },
     {
       "path": "frontend/src/components/SectorWorkspace.tsx",
-      "sha256": "629bb2ce09ce16a9b7ff8e42b7269418ed6e1da6aac1c2ff5e442e5146c85026",
+      "sha256": "670afef6ced925b0092043ec59f429f3f1133072d42c6ca3e6e64f33b4dafabb",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3399,7 +3400,7 @@
     },
     {
       "path": "frontend/src/data/research-plan.ts",
-      "sha256": "1a9bdea6e42dc5d80ae3a844478a46d2e2861f9f26879dac1c3e15e23db6d01c",
+      "sha256": "92fd1c0fea083a9e681c0549ce39244c070bd045d70a3953b69a808d99a6cf23",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3451,7 +3452,7 @@
     },
     {
       "path": "frontend/src/data/staging-api.ts",
-      "sha256": "ea97866e655470dd3a09f4cd86a866af971e5f10e0d9bbbe5d6b89b0cc663269",
+      "sha256": "cae5c305f2b541746387248273a3b1d8e05286dd01cd3af17b0933b0f77455ee",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4285,6 +4286,13 @@
       "exports": []
     },
     {
+      "path": "tests/backend/research.plan-retention.test.ts",
+      "sha256": "66d6a6db514044eb00f54209d4a44e8911946f210ff1c0591439256694d34407",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/backend/research.report-recovery.test.ts",
       "sha256": "b81beb462052cbd04ab2914ad29c18851ed7f73c96bcbf60b86020a17bb4706f",
       "review": "pending",
@@ -4349,7 +4357,7 @@
     },
     {
       "path": "tests/backend/sector-approval.test.ts",
-      "sha256": "44b530c828c3f055b7509ff29b2039b5b49a5fb1c4eca691e7541fa0ae1fe3d8",
+      "sha256": "cf4c3106006cf305bc2e1a52bff46bb8f385d34515ad8af5dd06e71e47bdd623",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4555,7 +4563,7 @@
     },
     {
       "path": "tests/backend/workflows.coordinator.test.ts",
-      "sha256": "0a84832b496ff96c4535d9a01f8ba4cd10d4fc2351b18d8799e933adc70a6a36",
+      "sha256": "fe7c51fe99618138a18cba370de2d1fe8004b6c788577fbef7a01b4b89beac27",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4955,7 +4963,7 @@
     },
     {
       "path": "tests/frontend-e2e/workspace.spec.ts",
-      "sha256": "2bc7defcf315ab5839395013f934d2b8d3e63ba3de718f4eeb1c37362d890aea",
+      "sha256": "46ce031d335ee7b2ea080e18b17f23158d4dc720004d75c15b1f7a046b6175c1",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5144,7 +5152,7 @@
     },
     {
       "path": "tests/frontend/plan-api.test.ts",
-      "sha256": "c2bb53e2a29a0fe45ba73a95daf3be5e6cd91a7ceb96d2cc963fb0ff5db2cadc",
+      "sha256": "18f85d25dee85b25ddb00e52cb6e282a2bede9de1697471f9c1533793c777747",
       "review": "pending",
       "tests": [],
       "exports": []

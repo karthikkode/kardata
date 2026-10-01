@@ -577,8 +577,8 @@ export async function readSectorPlan(config: StagingConfig, sectorId: string): P
 }
 
 /** Owner approval: pins a plan version (planned to approved). */
-export function approveSectorPlan(config: StagingConfig, sectorId: string, version: number): Promise<SectorResearch> {
-  return request<SectorResearch>(config, 'POST', `/v1/sectors/${encodeURIComponent(sectorId)}/approve`, { version })
+export function approveSectorPlan(config: StagingConfig, sectorId: string, version: number, contextVersion?: number): Promise<SectorResearch> {
+  return request<SectorResearch>(config, 'POST', `/v1/sectors/${encodeURIComponent(sectorId)}/approve`, { version, ...(contextVersion === undefined ? {} : { contextVersion }) })
 }
 
 /** Brainstorm edit: appends a plan version (re-opens review when approved). */

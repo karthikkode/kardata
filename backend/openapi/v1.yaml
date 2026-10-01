@@ -809,6 +809,9 @@ paths:
                 version:
                   type: integer
                   minimum: 1
+                contextVersion:
+                  type: integer
+                  minimum: 0
       responses:
         '200':
           description: Approved sector.
@@ -2213,6 +2216,8 @@ components:
               type: integer
               minimum: 0
             scope:
+              type: string
+            decisions:
               type: string
           additionalProperties: false
         sectorId:

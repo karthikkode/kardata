@@ -10,11 +10,12 @@ const plan = { sectorId: sector.id, versions: [{ version: 1, markdown: '## Scope
 plan.latest = plan.versions[0]
 const progress = { sectorId: sector.id, state: sector.state, planVersion: 1, plan, items: [], completed: 0, total: 0, unresolved: 0, discoveryClosed: false, estimatedPercent: null }
 
-async function fixtures(page: Page, options: { state?: string; denied?: boolean; files?: number; long?: boolean; saveError?: boolean; paused?: boolean; pending?: boolean } = {}) {
+async function fixtures(page: Page, options: { state?: string; denied?: boolean; files?: number; long?: boolean; saveError?: boolean; paused?: boolean; pending?: boolean; approvalConflict?: boolean; retained?: boolean } = {}) {
   await page.route('**/v1/**', async (route) => {
     const request = route.request(), url = new URL(request.url()), path = url.pathname
     if (request.method() === 'OPTIONS') { await route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' } }); return }
     if (path.endsWith('/events')) { await route.fulfill({ status: 200, contentType: 'text/event-stream', body: ': fixture\n\n' }); return }
+    if (path.endsWith('/approve') && options.approvalConflict) { await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ ok: false, error: { code: 'conflict', message: 'TEST global context changed. Review it before approving the plan.' } }) }); return }
     if (path.endsWith('/plan') && request.method() === 'PATCH' && options.saveError) { await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ ok: false, error: { code: 'conflict', message: 'TEST plan save conflict. Review the latest version.' } }) }); return }
     let data: unknown = []
     if (path === '/v1/sectors') data = [{ ...sector, state: options.state ?? sector.state }]
@@ -24,8 +25,8 @@ async function fixtures(page: Page, options: { state?: string; denied?: boolean;
     else if (path === '/v1/companies') data = { companies: [], total: 0 }
     else if (path === '/v1/sessions') data = url.searchParams.has('sectorId') ? [research, normal] : []
     else if (path.endsWith('/global-context')) data = { sectorId: sector.id, version: 1, sections, markdown: Object.entries(sections).map(([key, text]) => `## ${key === 'questions' ? 'Open questions' : key}\n\n${text}`).join('\n\n'), researchSessionId: research.id, changes: [] }
-    else if (path.endsWith('/progress')) data = progress
-    else if (path.endsWith('/plan')) data = plan
+    else if (path.endsWith('/progress')) data = options.retained ? { ...progress, planVersion: 2, completed: 1, total: 1, items: [{ id: 'TEST v2 retained', kind: 'company', title: 'TEST retained Australian company', state: 'complete', attempts: 1, childId: null, evidence: ['https://company.example.test/'], sourceUrl: 'https://company.example.test/', detail: 'Source-backed basic intake passed. Retained from approved plan v1; scope and acceptance unchanged.' }] } : progress
+    else if (path.endsWith('/plan')) data = options.retained ? { ...plan, versions: [plan.versions[0], { ...plan.versions[0], version: 2 }], latest: { ...plan.versions[0], version: 2 }, approvals: [1, 2], approvedVersion: 2 } : plan
     else if (path.endsWith('/files/test-file-0/body')) data = { filename: 'TEST Market research and industry landscape.md', mediaType: 'text/markdown', text: '# TEST retained source\n\nOriginal indexed evidence.', originalAvailable: true, contentBase64: Buffer.from('# TEST retained source\n\nOriginal indexed evidence.').toString('base64') }
     else if (path.endsWith('/files')) data = Array.from({ length: options.files ?? 3 }, (_, index) => ({ id: `test-file-${index}`, filename: index === 0 ? 'TEST Market research and industry landscape.md' : `TEST source-${index}.pdf`, status: index === 2 ? 'needs-ocr' : 'indexed', source: index === 1 ? 'Research agent' : 'Uploaded', hash: 'fixture-hash', hidden: false, included: index === 0, kind: 'document' }))
     else if (path.endsWith('/threads')) {
@@ -263,3 +264,48 @@ for (const width of [1440, 390]) for (const dark of [false, true]) {
     await expect(page.getByText(/Thinking/)).toHaveCount(0)
   })
 }
+
+for (const width of [1440, 390]) for (const dark of [false, true]) {
+  test(`plan approval context conflict ${width} ${dark ? 'dark' : 'light'}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 960 })
+    await fixtures(page, { state: 'planned', approvalConflict: true })
+    await page.goto(`/?section=SectorChat&sector=${sector.id}`)
+    if (width < 768) await page.getByRole('button', { name: 'Open sessions' }).click()
+    if (dark) await page.getByRole('button', { name: 'Use dark theme' }).click()
+    if (width < 768) await page.getByRole('button', { name: 'Close Sessions' }).click()
+    await page.getByRole('tab', { name: 'Plan', exact: true }).click()
+    const request = page.waitForRequest((request) => request.method() === 'POST' && request.url().endsWith('/approve'))
+    await page.getByRole('button', { name: 'Approve plan', exact: true }).click()
+    expect((await request).postDataJSON()).toEqual({ version: 1, contextVersion: 1 })
+    await expect(page.getByRole('alert').filter({ hasText: 'TEST global context changed' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Edit plan' })).toBeEnabled()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `test-results/visual/plan-context-conflict-${width}-${dark ? 'dark' : 'light'}.png`, animations: 'disabled' })
+  })
+}
+test('retained discovery provenance remains visible in progress without a false percentage', async ({ page }) => {
+  await fixtures(page, { retained: true })
+  await page.goto(`/?section=SectorChat&sector=${sector.id}`)
+  await page.getByRole('tab', { name: 'Plan', exact: true }).click()
+  const progress = page.getByRole('region', { name: 'Research progress' })
+  await expect(progress.getByText('TEST retained Australian company', { exact: true })).toBeVisible()
+  await expect(progress.getByText(/Retained from approved plan v1/)).toBeVisible()
+  await expect(progress.getByText('Estimate pending', { exact: true })).toBeVisible()
+  await expect(progress.getByRole('link', { name: 'Company source' })).toHaveAttribute('href', 'https://company.example.test/')
+})
+test('plan approval is unavailable when context authority is denied', async ({ page }) => {
+  await fixtures(page, { state: 'planned', denied: true })
+  await page.goto(`/?section=SectorChat&sector=${sector.id}`)
+  await expect(page.getByText('Global context is not shared with this key.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Approve plan', exact: true })).toHaveCount(0)
+})
+
+test('plan approval stops when fresh global context becomes unavailable', async ({ page }) => {
+  await fixtures(page, { state: 'planned' })
+  await page.goto(`/?section=SectorChat&sector=${sector.id}`)
+  await page.getByRole('tab', { name: 'Plan', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Approve plan', exact: true })).toBeEnabled()
+  await page.route(`**/v1/sectors/${sector.id}/global-context`, (route) => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ ok: false, error: { code: 'overload', message: 'TEST context unavailable' } }) }))
+  await expect(page.getByRole('alert').filter({ hasText: 'TEST context unavailable' }).first()).toBeVisible({ timeout: 10000 })
+  await expect(page.getByRole('button', { name: 'Approve plan', exact: true })).toBeDisabled()
+})

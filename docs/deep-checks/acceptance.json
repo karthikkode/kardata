@@ -7555,6 +7555,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/workspace.ts#retainCompatibleDiscovery",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/workspace.ts#saveThreadContext",
       "source": "backend/src/db/workspace.ts",
       "kind": "export",

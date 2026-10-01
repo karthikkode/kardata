@@ -270,3 +270,19 @@ Four routed scenarios retain screenshots and videos under frontend/test-results:
 Visual inspection found the expanded identity displaced the remaining editor;
 a bounded, keyboard-focusable scroll region now contains it. Fixture evidence
 does not substitute for the UI-driven Meta pilot.
+
+## Compatible revision retention measurement
+
+`research.plan-retention.test.ts` includes2000 synthetic completed-work receipts
+and the actual approval/retention transaction. Local watched result:47.66ms for
+approval/retention,158,531,584 bytes runner RSS at end, zero pool waiters at end;
+Node22.23.3,16 logical CPUs,98,794,881,024 bytes host memory. Retained raw source/
+test hashes and metrics: ignored backend/test-results/retention.load.json. This
+is one isolated operation measurement, not percentile/peak demand, concurrent
+production capacity or2000 real companies. Full stress/pilot requirements remain.
+
+Compatible revisions preserve unresolved intake states; real coordinator regression
+`keeps unresolved intake blocking acceptance after a compatible plan revision`
+passes and prevents false completion. Approval conflicts on stale plan/context.
+Changed scope/decisions/criteria are not inferred compatible; explicit eligibility
+review across a scope expansion remains required before that pilot journey.

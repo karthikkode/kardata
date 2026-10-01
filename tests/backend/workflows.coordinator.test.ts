@@ -162,6 +162,7 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
       if (query === 'TEST empty' || (['TEST source-rejected', 'TEST source-uncertain'].includes(query) && page > 0)) return []
       if (['TEST source-rejected', 'TEST source-uncertain'].includes(query) && page === 0) return [{ title: 'TEST Australian widgets business', snippet: 'Australian manufacturing widgets', url: `https://${query.includes('rejected') ? 'rejected' : 'uncertain'}.example.test/` }]
       if (query === 'TEST cap-recovery') return page === 0 ? ['failed-a', 'failed-b', 'widgets'].map((domain) => ({ title: 'TEST Australian widgets company', snippet: 'Australian manufacturing widgets', url: `https://${domain}.example.test/` })) : []
+      if (query === 'TEST mixed-retention') return page === 0 ? [{ title: 'TEST Australian widgets business', snippet: 'Australian manufacturing widgets', url: 'https://widgets.example.test/' }, { title: 'TEST uncertain Australian business', snippet: 'Australian manufacturing widgets', url: 'https://uncertain.example.test/' }] : []
       if (query === 'TEST intake-cap') return page === 0 ? [
         { title: 'TEST Australian widgets business', snippet: 'Australian manufacturing widgets', url: 'https://rejected.example.test/' },
         { title: 'TEST Australian Widgets company', snippet: 'Australian manufacturing widgets', url: 'https://widgets.example.test/' },
@@ -557,4 +558,25 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
       expect(after.estimatedPercent).toBe(100)
     } finally { release() }
   }, 60000)
+  it('keeps unresolved intake blocking acceptance after a compatible plan revision', async () => {
+    const run = await start('TEST mixed-retention', 1, 3)
+    expect(await run.handle.result()).toBe('failed')
+    const before = await readResearchProgress(pool, run.sectorId, scope)
+    expect(before.items.filter((item) => item.kind === 'company')).toHaveLength(1)
+    expect(before.items.some((item) => item.state === 'blocked' && item.detail.startsWith('uncertain:'))).toBe(true)
+    expect(before.items.find((item) => item.id.includes(':discovery:'))?.state).toBe('complete')
+    await setSectorState(pool, run.sectorId, 'paused', { scope })
+    await updateSectorPlan(pool, run.sectorId, '# TEST clearer presentation', scope, 'TEST compatible blocked revision')
+    await approveSectorPlan(pool, run.sectorId, 2, scope); await projectNewEvents(pool)
+    const restarted = await client.workflow.start('sectorCoordinator', { taskQueue: queue, workflowId: run.handle.workflowId, args: [{ sectorId: run.sectorId, scope, turnTaskQueue: `${queue}-turn` }] })
+    handles.push(restarted)
+    expect(await restarted.result()).toBe('failed')
+    const after = await readResearchProgress(pool, run.sectorId, scope)
+    expect(after.planVersion).toBe(2)
+    expect(after.items.filter((item) => item.kind === 'company')).toHaveLength(1)
+    expect(after.items.some((item) => item.state === 'blocked' && item.detail.startsWith('uncertain:'))).toBe(true)
+    expect(after.estimatedPercent).not.toBe(100)
+    expect(after.budgetUsedMs).toBeGreaterThanOrEqual(before.budgetUsedMs)
+  }, 60000)
+
 })
