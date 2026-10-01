@@ -50,6 +50,10 @@ The final UI-driven campaign and basic-filtering contract are in
 matrix is `docs/deep-checks/acceptance.json`. The final audit command runs both
 file-review and functionality-acceptance gates.
 
+Historical implementation milestones below retain their original phase counts;
+current verification and unfinished release gates are tracked in
+`docs/implementation-status.md` and `docs/deep-checks/README.md`.
+
 Frontend harness built: Vite + React + TypeScript, Tailwind tokens, owned
 primitives, Vitest + Playwright gates : all green from a clean install.
 Karbot agents layer built (`agents/`, `third_party/` policy, area docs under

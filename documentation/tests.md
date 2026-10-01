@@ -197,3 +197,32 @@ exception. It checks private redirect/fetch/image/frame/popup/TURN-TCP denial,
 site-auth capability secrecy, and independent CDP-client survival. Additional
 KARDATA_RETRIEVAL_TEST=1 exercises a real public HTTPS source through production
 DNS/CONNECT and Chromium TLS. No owner sidecar/research data is disrupted.
+
+Source-backed intake: `npm test -w @kardata/backend -- discovery.intake.test.ts`
+checks missing/forged/foreign evidence, identity names, invalid shapes and honest
+rejection/uncertainty. `KARDATA_TEMPORAL_TEST=1 TEST_DATABASE_URL=... npm test -w
+@kardata/backend -- workflows.coordinator.test.ts` exercises real isolated
+Postgres/Temporal with scripted retrieval/reviewer fixtures. It is not a Meta
+pilot or evidence that a fixture company exists.
+
+Controlled legacy coverage: opt-in `KARDATA_BASELINE_REPLAY=1
+KARDATA_BASELINE_ROOT=/absolute/unchanged/baseline npm test -w @kardata/backend --
+temporal.baseline-replay.test.ts` verifies the checkout is exactly unchanged main
+`e454d44e1625c28b117a227c0650a891532cd39f`, executes its actual workflow bundles
+with explicitly scripted activities in a fresh Temporal namespace, and replays
+captured histories with current code. Build/install the baseline's existing
+workspaces first. No shared worker queue is polled outside that isolated
+namespace. Retain history bytes, hashes and a controlled-baseline manifest in
+ignored backend/test-results; never relabel these as pre-cutoff user histories or
+live provider/data-layer evidence. Historical replay remains a separate gate.
+
+The historical gate may use `KARDATA_BASELINE_REPLAY_REPORT=/absolute/path/to/the
+retained/manifest.json` plus `KARDATA_BASELINE_ROOT` only for workflow types with
+no pre-cutoff history. It checks manifest/history hashes, exact workflow types,
+the unchanged baseline commit and reproducibly rebuilt baseline bundle hashes.
+Available historical histories must replay; failures never fall back to fixtures.
+Results label historical and controlled-baseline origins separately. Missing
+coverage without this explicit verified fallback still fails.
+
+Historical cutoff overrides must resolve to the exact pinned baseline instant.
+Earlier dates cannot hide available user histories behind controlled fixtures.

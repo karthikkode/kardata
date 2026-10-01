@@ -523,6 +523,18 @@ async function requireSector(db: Db, sectorId: string, scope?: Scope): Promise<v
   if (!sector) throw new DbContractError(`unknown sector ${sectorId}`)
 }
 
+/** Publication guards read committed lifecycle events while holding the caller's
+ * transaction lock; a lagging projector must not erase owner pause intent. */
+export async function readSectorExecutionState(db: Db, sectorId: string, scope?: Scope): Promise<SectorState> {
+  const sector = await getSector(db, sectorId, scope)
+  if (!sector) throw new DbContractError(`unknown sector ${sectorId}`)
+  const { rows } = await db.query<{ payload: unknown }>(`SELECT payload FROM events WHERE partition=$1 AND type=$2 ORDER BY seq DESC LIMIT 1`, [`sector:${sectorId}`, SECTOR_STATE_CHANGED_EVENT])
+  if (!rows[0]) return sector.state
+  const result = SectorStateChangedPayload.safeParse(rows[0].payload)
+  if (!result.success || result.data.sectorId !== sectorId) throw new DbContractError('Invalid durable sector lifecycle.')
+  return result.data.state
+}
+
 export async function setSectorState(
   db: Db,
   sectorId: string,

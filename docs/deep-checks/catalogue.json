@@ -24,7 +24,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "30dc6da12cbc49af687e998419b2227ab890caa65afe7716d2215f0b60a22b99",
+      "sha256": "8776cd5a8ad8144f907512a379dca1c0f40e6d6b370eb880e447641e88e3f908",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -1296,7 +1296,7 @@
     },
     {
       "path": "backend/src/db/index.ts",
-      "sha256": "fda33b7eeffd7ee36b40ab272928b3e651f0ea011fd9de2a5fab7887dae53e68",
+      "sha256": "d03fb019d6a38bd2c8173da007c20177ff447bf41bc902b86dec35488e1702cb",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1468,6 +1468,7 @@
         "readOutboxBacklog",
         "readPartition",
         "readSectorDocument",
+        "readSectorExecutionState",
         "readSectorPlan",
         "rebuildFromEvents",
         "rebuildLedger",
@@ -1723,7 +1724,7 @@
     },
     {
       "path": "backend/src/db/sectors.ts",
-      "sha256": "c4f491f273ab8af853f4e4536181c08f53f5f2f033277c50735312778be006a2",
+      "sha256": "1cbf8dffb335e56a33c99eaf870322a2edf027b0001368051319a25651bd254b",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1757,6 +1758,7 @@
         "markCompanyFound",
         "pauseSectorResearch",
         "projectSectorEvent",
+        "readSectorExecutionState",
         "recordResearchSession",
         "registerSectorDiscovery",
         "resumeSectorResearch",
@@ -2299,7 +2301,7 @@
     },
     {
       "path": "backend/src/temporal/activities/coordinator.ts",
-      "sha256": "d6283c0c631db536e603a211036de69af467f2025f0d556d63ed587f288fc055",
+      "sha256": "e43b11b5411bb73233476e2dbe1a30b4fbbd9da58b1e663f33dee2996d62bff3",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2310,6 +2312,7 @@
         "researchCheckpointActivity",
         "researchDiscoveryAcceptanceActivity",
         "researchDiscoveryClosedActivity",
+        "researchIntakeActivity",
         "researchLifecycleActivity",
         "researchSearchActivity",
         "researchVerdictActivity"
@@ -2483,6 +2486,15 @@
       ]
     },
     {
+      "path": "backend/src/temporal/discovery-intake.ts",
+      "sha256": "4e25782b2b6f6508aaeefa8f9f16b660132075ffbe585f530a5084229c0f57ae",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "validateDiscoveryIntake"
+      ]
+    },
+    {
       "path": "backend/src/temporal/gateway.ts",
       "sha256": "5530a9dc24b913f8ede63c489affbcfa36aab2fd3ce6abce92417ee4773a99b0",
       "review": "pending",
@@ -2587,7 +2599,7 @@
     },
     {
       "path": "backend/src/temporal/workflows/coordinator.ts",
-      "sha256": "4d23aefa6fd97bcdd1d529b0abb2bf073ddc0fe6b1a6a599d9f3e10214cf02a9",
+      "sha256": "4dd9a592aecdc7dacd3325d22128cb4324a0a1ab81eb7631e8d7f85b7ee874d1",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3974,7 +3986,7 @@
     },
     {
       "path": "tests/backend/db.sectors.test.ts",
-      "sha256": "0ef46da9c02af6a7f460c10d0c51e8e5333b67e6a8d8e283ccdf96b22a127b77",
+      "sha256": "2b7d11ffe49773afe9a602278186ed073e8cb3e1068b49364f370b8d20dbd6e1",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -3996,6 +4008,13 @@
     {
       "path": "tests/backend/discovery.acceptance.test.ts",
       "sha256": "a44afae775cf77b2c1cfb82d32568cad8bcf0ddf462fea2de5c5892d87d3501f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/discovery.intake.test.ts",
+      "sha256": "9d462cce482cc9b436dc1e16dc42bbfb851b8503811cf469971c26ffd147ba97",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4380,6 +4399,13 @@
       "exports": []
     },
     {
+      "path": "tests/backend/temporal.baseline-replay.test.ts",
+      "sha256": "85300665c467d04b917ccd136311f5a2738b05114324f5fd4ad0ea7c732faed9",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/backend/temporal.cancel.test.ts",
       "sha256": "5359df8bbfae980b165a3adcde7bcb3c6eaa3319fd5cb0431ac2d92b924b19bf",
       "review": "pending",
@@ -4402,7 +4428,7 @@
     },
     {
       "path": "tests/backend/temporal.legacy-replay.test.ts",
-      "sha256": "fe195038c7f73ea2e969ab077d4a9172c4afeb227b3ffde81f4361a765883912",
+      "sha256": "74252f0501a37368373b07fe5e1abe8a5f055f3df402167d602313f92fa105bd",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4482,7 +4508,7 @@
     },
     {
       "path": "tests/backend/workflows.coordinator.test.ts",
-      "sha256": "59822f6e367c7977f86943c244bc7b9d3c499aaf1381c088dcb1e59bf52ab1e2",
+      "sha256": "8bdbd326c8b860cd08b47df68f1fe46a95f7bd0dc1e10335725370ba61ed5c52",
       "review": "pending",
       "tests": [],
       "exports": []

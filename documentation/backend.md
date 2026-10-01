@@ -352,3 +352,39 @@ credentials. Idle contexts expire independently after five minutes, with a
 Trusted CDP discovery also has a full-response deadline and64-KiB response cap.
 Response/request errors clear timers and destroy owned requests; websocket origin,
 port and transport derive from configured control origin, not advertised hosts.
+
+### Discovery intake before publication
+
+New discovery coordinators use the `research-source-intake-v1` Temporal marker.
+Search results are candidates, never companies. At most two leaf reviewers run
+concurrently using only `web_fetch`; assignments require basic identity,
+geographic and sector checks, not company deep research. Every accepted check
+requires an exact fetched quote on the candidate domain; the identity quote
+contains the returned business name. Cross-domain redirects remain uncertain
+until explicitly reviewed. Unknown business size stays unknown.
+
+The parent validates structured results, indexes an inspectable intake receipt in
+the sector library, then atomically records company publication and work receipts
+under the sector transaction. Publication checks the current approved plan,
+running lifecycle and approved scope again. Discovery never overwrites an existing
+master-ledger verdict. Rejected candidates are completed screening work; uncertain
+or failed screening remains blocked and prevents 100% completion. Cursor state
+tracks screened domains separately from accepted-company counts. Settled intake
+receipts are reused after restart. Existing histories retain their original
+contract; no shared rollout is authorized merely by passing fixture tests.
+
+Intake reports have per-workflow-attempt identities, stable across activity
+retries. Explicit same-plan restarts retry interrupted screening before skipping
+completed search directions; settled receipts and screened domains prevent
+relaunching recovered work on repeated pages. Semantic `uncertain` results still
+require owner review, not automatic acceptance. A reviewer that finishes during
+pause is removed from the live-child signal set before the parent parks. Paused
+publication defers using the saved outcome and does not launch another reviewer.
+
+The accepted-company ceiling applies on recovery as well as normal dispatch.
+Publication counts current-version company work under the sector transaction;
+idempotent already-published domains can replay, but a new domain cannot exceed
+the approved ceiling. Excess interrupted work stays blocked for owner review.
+Screened domains include earlier rejected/uncertain receipts across completed
+query directions. Search pages are not truncated by accepted-company capacity
+before basic screening; a rejected candidate does not hide the next valid hit.

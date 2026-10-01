@@ -5602,6 +5602,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/index.ts#readSectorExecutionState",
+      "source": "backend/src/db/index.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/index.ts#readSectorPlan",
       "source": "backend/src/db/index.ts",
       "kind": "export",
@@ -6989,6 +6996,13 @@
     },
     {
       "id": "backend/src/db/sectors.ts#projectSectorEvent",
+      "source": "backend/src/db/sectors.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/sectors.ts#readSectorExecutionState",
       "source": "backend/src/db/sectors.ts",
       "kind": "export",
       "features": [],
@@ -8766,6 +8780,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/temporal/activities/coordinator.ts#researchIntakeActivity",
+      "source": "backend/src/temporal/activities/coordinator.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/temporal/activities/coordinator.ts#researchLifecycleActivity",
       "source": "backend/src/temporal/activities/coordinator.ts",
       "kind": "export",
@@ -9342,6 +9363,13 @@
     {
       "id": "backend/src/temporal/discovery-acceptance.ts#validateDiscoveryAcceptance",
       "source": "backend/src/temporal/discovery-acceptance.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/discovery-intake.ts#validateDiscoveryIntake",
+      "source": "backend/src/temporal/discovery-intake.ts",
       "kind": "export",
       "features": [],
       "status": "pending"

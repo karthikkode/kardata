@@ -120,6 +120,7 @@ export {
   listSectors,
   markCompanyFound,
   registerSectorDiscovery,
+  readSectorExecutionState,
   pauseSectorResearch,
   projectSectorEvent,
   recordResearchSession,

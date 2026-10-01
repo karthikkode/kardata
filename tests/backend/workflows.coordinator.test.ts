@@ -4,10 +4,11 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Pool } from 'pg'
+import { ApplicationFailure } from '@temporalio/common'
 import { Client as WorkflowClient } from '@temporalio/client'
 import type { NativeConnection, Worker } from '@temporalio/worker'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { approveSectorPlan, createSector, ensureResearchSession, readResearchProgress, recordPlanVersion, setSectorState, updateSectorPlan } from '../../backend/src/db/index.js'
+import { approveSectorPlan, createSector, ensureResearchSession, listArtifacts, listSectorCompanies, readResearchProgress, recordPlanVersion, setSectorState, updateSectorPlan } from '../../backend/src/db/index.js'
 import { ensureApprovedCoordinator } from '../../backend/src/temporal/gateway.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { appendEventActivity } from '../../backend/src/temporal/activities/turn.js'
@@ -18,6 +19,25 @@ import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
 const search = vi.hoisted(() => vi.fn())
 vi.mock('../../backend/src/temporal/activities/sweep.js', async (importOriginal) => ({ ...await importOriginal<typeof import('../../backend/src/temporal/activities/sweep.js')>(), searchWebPageActivity: search }))
+const receiptFault = vi.hoisted(() => ({ fail: false, revision: 1, pause: false }))
+vi.mock('../../backend/src/db/index.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../backend/src/db/index.js')>()
+  return { ...original, createArtifact: async (...args: Parameters<typeof original.createArtifact>) => {
+    const result = await original.createArtifact(...args)
+    if (receiptFault.fail && args[1].name.endsWith(' intake.md')) {
+      receiptFault.fail = false
+      throw ApplicationFailure.nonRetryable('TEST interrupted after durable receipt', 'TestReceiptInterrupted')
+    }
+    if (receiptFault.pause && args[1].name.endsWith(' intake.md')) {
+      receiptFault.pause = false
+      const session = await original.getSession(args[0], args[1].sessionId)
+      if (!session?.sectorId) throw new Error('TEST receipt session missing sector')
+      await original.setSectorState(args[0], session.sectorId, 'paused')
+      // Intentionally no projector catch-up: this is the publication race.
+    }
+    return result
+  } }
+})
 const ENABLED = process.env['KARDATA_TEMPORAL_TEST'] === '1' && Boolean(TEST_DATABASE_URL)
 const scope = { tenantId: 'test-discovery-coordinator', projectId: null }
 
@@ -28,6 +48,14 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
   const queue = `test-coordinator-${randomUUID()}`
   const pages: number[] = []
   const reviewerOperations: string[] = []
+  let intakeHold: Hold | null = null
+  let intakeTransient = false
+  const transientDomains = new Set<string>()
+  let failPageCheckpoint = false
+  let failSecondDirection = false
+  const searchSeen: string[][] = []
+  let intakeDeferred = 0
+  let racePublication = false
   type Hold = { entered(): void; ready: Promise<void>; completed?(): void; skip?: number }
   let loadHold: Hold | null = null, resumeHold: Hold | null = null
   const handles: Array<ReturnType<WorkflowClient['workflow']['getHandle']>> = []
@@ -41,6 +69,30 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
     client = new WorkflowClient({ connection: await connectClient() })
     const path = join(import.meta.dirname, '..', '..', 'backend', 'src', 'temporal', 'workflows', 'coordinator.ts')
     researchWorker = await createLaneWorker({ lane: 'research', connection, namespace: temporalNamespace(), workflowsPath: path, taskQueue: queue, activities: { ...activities,
+      researchIntakeActivity: async (input: Parameters<typeof activities.researchIntakeActivity>[0]) => {
+        if (racePublication) {
+          racePublication = false
+          const url = 'https://racing-company.example.test/'
+          const racer = { ...input, item: { ...input.item, id: `${input.item.id}:racer`, childId: `${input.item.childId}:racer`, sourceUrl: url }, candidate: { ...input.candidate, domain: 'racing-company.example.test', url }, outcome: { ...input.outcome, reply: input.outcome.reply.replaceAll(input.candidate.url, url), sources: input.outcome.sources?.map((source) => ({ ...source, url })) } }
+          const [result] = await Promise.all([activities.researchIntakeActivity(input), activities.researchIntakeActivity(racer)])
+          return result
+        }
+        const result = await activities.researchIntakeActivity(input)
+        if (result.deferred) intakeDeferred++
+        return result
+      },
+      researchSearchActivity: async (input: Parameters<typeof activities.researchSearchActivity>[0]) => {
+        searchSeen.push(input.seen)
+        if (failSecondDirection && input.query === 'TEST intake-cap') { failSecondDirection = false; throw ApplicationFailure.nonRetryable('TEST stopped before next direction', 'TestDirectionInterrupted') }
+        return activities.researchSearchActivity(input)
+      },
+      researchCheckpointActivity: async (input: Parameters<typeof activities.researchCheckpointActivity>[0]) => {
+        if (failPageCheckpoint && input.item.cursor?.page === 1 && !input.item.id.includes(':intake:')) {
+          failPageCheckpoint = false
+          throw ApplicationFailure.nonRetryable('TEST failed before page cursor commit', 'TestPageInterrupted')
+        }
+        return activities.researchCheckpointActivity(input)
+      },
       loadCoordinatorActivity: async (input: activities.CoordinatorInput) => {
         const loaded = await activities.loadCoordinatorActivity(input)
         const hold = loadHold
@@ -57,8 +109,21 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
     } })
     turnWorker = await createLaneWorker({ lane: 'turn', connection, namespace: temporalNamespace(), workflowsPath: path, taskQueue: `${queue}-turn`, activities: {
       appendEventActivity,
-      karbotTurnActivity: async (input: { text: string; runKey: string }) => {
+      karbotTurnActivity: async (input: { text: string; runKey: string; toolAllow?: string[] }) => {
         reviewerOperations.push(input.runKey)
+        const candidateLine = input.text.split('\n').find((line) => line.startsWith('Candidate: '))
+        if (candidateLine) {
+          const candidate = JSON.parse(candidateLine.slice('Candidate: '.length)) as { name: string; url: string }
+          expect(input.toolAllow).toEqual(['web_fetch'])
+          if (transientDomains.delete(new URL(candidate.url).hostname)) return { reply: '', toolCalls: [], haltNotice: 'TEST temporary source failure' }
+          if (intakeTransient) { intakeTransient = false; return { reply: '', toolCalls: [], haltNotice: 'TEST transient provider interruption' } }
+          if (intakeHold) { const hold = intakeHold; intakeHold = null; hold.entered(); await hold.ready }
+          if (/rejected|uncertain/.test(candidate.url)) return { reply: JSON.stringify({ decision: candidate.url.includes('rejected') ? 'reject' : 'uncertain', name: 'Unknown', reason: 'TEST basic intake did not establish fit' }), toolCalls: [], sources: [] }
+          const name = 'TEST Australian Widgets company'
+          const excerpt = `${name} is an Australian manufacturing widgets supplier. Evidence revision ${receiptFault.revision}.`
+          const evidence = { url: candidate.url, excerpt }
+          return { reply: JSON.stringify({ decision: 'accept', name, reason: 'TEST source-backed intake', identity: evidence, geography: evidence, sector: evidence }), toolCalls: [], sources: [{ url: candidate.url, text: excerpt }] }
+        }
         const sampleLine = input.text.split('\n').find((line) => line.startsWith('Reproducible sample: '))
         if (!sampleLine) throw new Error('Unexpected fixture reviewer assignment')
         const sample = JSON.parse(sampleLine.slice('Reproducible sample: '.length)) as Array<{ id: string; url: string }>
@@ -69,7 +134,13 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
     researchRun = researchWorker.run(); turnRun = turnWorker.run()
     search.mockImplementation(async ({ query, page }: { query: string; page: number }) => {
       pages.push(page)
-      if (query === 'TEST empty') return []
+      if (query === 'TEST empty' || (['TEST source-rejected', 'TEST source-uncertain'].includes(query) && page > 0)) return []
+      if (['TEST source-rejected', 'TEST source-uncertain'].includes(query) && page === 0) return [{ title: 'TEST Australian widgets business', snippet: 'Australian manufacturing widgets', url: `https://${query.includes('rejected') ? 'rejected' : 'uncertain'}.example.test/` }]
+      if (query === 'TEST cap-recovery') return page === 0 ? ['failed-a', 'failed-b', 'widgets'].map((domain) => ({ title: 'TEST Australian widgets company', snippet: 'Australian manufacturing widgets', url: `https://${domain}.example.test/` })) : []
+      if (query === 'TEST intake-cap') return page === 0 ? [
+        { title: 'TEST Australian widgets business', snippet: 'Australian manufacturing widgets', url: 'https://rejected.example.test/' },
+        { title: 'TEST Australian Widgets company', snippet: 'Australian manufacturing widgets', url: 'https://widgets.example.test/' },
+      ] : []
       if (query === 'TEST metadata-junk' && page === 0) return [
         { title: 'Top 20 Australian widgets companies', snippet: 'Australian manufacturing widgets directory', url: 'https://widget-directory.example.test/' },
         { title: 'Australian widgets manufacturing jobs', snippet: 'Manufacturing widgets', url: 'https://widget-jobs.example.test/jobs/australia' },
@@ -87,11 +158,11 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
     researchWorker?.shutdown(); turnWorker?.shutdown(); await Promise.all([researchRun, turnRun]); await connection?.close(); await pool?.end(); vi.unstubAllEnvs()
   }, 60000)
 
-  async function start(query: string, target: number) {
+  async function start(query: string, target: number, maxCompanies = 10, secondQuery?: string) {
     const sector = await createSector(pool, { name: 'TEST Australian widgets', topic: 'Australian manufacturing widgets', initialState: 'draft', scope })
     await projectNewEvents(pool)
     const session = await ensureResearchSession(pool, sector.sectorId, scope)
-    await recordPlanVersion(pool, sector.sectorId, `# TEST discovery\n\n\`\`\`research-plan\n${JSON.stringify({ researchDepth: 'discovery', discoveryTarget: target, discovery: [{ id: 'widgets', title: 'TEST widgets', queries: [query], maxPages: 3 }], companyBrief: 'Discovery only', budgets: { maxCompanies: 10, maxWallMinutes: 5, concurrency: 2 }, acceptance: ['Verified Australian companies'] })}\n\`\`\``, 'test-plan', scope)
+    await recordPlanVersion(pool, sector.sectorId, `# TEST discovery\n\n\`\`\`research-plan\n${JSON.stringify({ researchDepth: 'discovery', discoveryTarget: target, discovery: [{ id: 'widgets', title: 'TEST widgets', queries: [query], maxPages: 3 }, ...(secondQuery ? [{ id: 'second', title: 'TEST second direction', queries: [secondQuery], maxPages: 3 }] : [])], companyBrief: 'Discovery only', budgets: { maxCompanies, maxWallMinutes: 5, concurrency: 2 }, acceptance: ['Verified Australian companies'] })}\n\`\`\``, 'test-plan', scope)
     await setSectorState(pool, sector.sectorId, 'planned', { scope }); await projectNewEvents(pool)
     await approveSectorPlan(pool, sector.sectorId, 1, scope); await projectNewEvents(pool)
     await setSectorState(pool, sector.sectorId, 'queued', { scope }); await projectNewEvents(pool)
@@ -130,6 +201,155 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
     expect(companies).toHaveLength(1)
     expect(companies[0]?.sourceUrl).toBe('https://widgets.example.test/')
     expect(companies[0]?.title).not.toMatch(/directory|jobs/i)
+  }, 60000)
+
+  it.each(['TEST source-rejected', 'TEST source-uncertain'])('never publishes %s candidates', async (query) => {
+    const run = await start(query, 1)
+    expect(await run.handle.result()).toBe('failed')
+    const progress = await readResearchProgress(pool, run.sectorId, scope)
+    expect(progress.items.filter((item) => item.kind === 'company')).toHaveLength(0)
+    expect(progress.items.find((item) => item.title.startsWith('Screen '))?.detail).toMatch(/reject:|uncertain:/)
+    expect(progress.estimatedPercent).not.toBe(100)
+  }, 60000)
+
+  it('retries interrupted intake on an explicit same-plan restart without duplicating companies', async () => {
+    intakeTransient = true
+    const run = await start('TEST partial', 1)
+    expect(await run.handle.result()).toBe('failed')
+    const before = await readResearchProgress(pool, run.sectorId, scope)
+    expect(before.items.filter((item) => item.kind === 'company')).toHaveLength(0)
+    expect(before.items.find((item) => item.title.startsWith('Screen '))?.state).toBe('blocked')
+    const restarted = await client.workflow.start('sectorCoordinator', { taskQueue: queue, workflowId: run.handle.workflowId, args: [{ sectorId: run.sectorId, scope, turnTaskQueue: `${queue}-turn` }] })
+    handles.push(restarted)
+    expect(await restarted.result()).toBe('complete')
+    const after = await readResearchProgress(pool, run.sectorId, scope)
+    expect(after.items.filter((item) => item.kind === 'company')).toHaveLength(1)
+    expect(after.items.find((item) => item.title.startsWith('Screen '))?.attempts).toBe(2)
+    expect(after.budgetUsedMs).toBeGreaterThanOrEqual(before.budgetUsedMs)
+  }, 60000)
+
+  it('screens the rest of a page after rejecting a candidate without exceeding the company cap', async () => {
+    const run = await start('TEST intake-cap', 1, 1)
+    expect(await run.handle.result()).toBe('complete')
+    const progress = await readResearchProgress(pool, run.sectorId, scope)
+    expect(progress.items.filter((item) => item.kind === 'company')).toHaveLength(1)
+    expect(progress.items.filter((item) => item.title.startsWith('Screen '))).toHaveLength(2)
+  }, 60000)
+
+  it('enforces the publication ceiling under concurrent intake transactions', async () => {
+    racePublication = true
+    const run = await start('TEST partial', 1, 1)
+    expect(await run.handle.result()).toBe('failed')
+    await projectNewEvents(pool)
+    const progress = await readResearchProgress(pool, run.sectorId, scope)
+    expect(progress.items.filter((item) => item.kind === 'company')).toHaveLength(1)
+    expect(progress.items.filter((item) => item.id.includes(':intake:') && item.detail.includes('Approved company limit reached'))).toHaveLength(1)
+    expect((await listSectorCompanies(pool, run.sectorId, scope)).companies).toHaveLength(1)
+  }, 60000)
+
+  it('retains interrupted work for review instead of exceeding the accepted-company cap on restart', async () => {
+    transientDomains.add('failed-a.example.test'); transientDomains.add('failed-b.example.test')
+    const run = await start('TEST cap-recovery', 1, 1)
+    expect(await run.handle.result()).toBe('failed')
+    expect((await readResearchProgress(pool, run.sectorId, scope)).items.filter((item) => item.kind === 'company')).toHaveLength(1)
+    const basis = reviewerOperations.length
+    const restarted = await client.workflow.start('sectorCoordinator', { taskQueue: queue, workflowId: run.handle.workflowId, args: [{ sectorId: run.sectorId, scope, turnTaskQueue: `${queue}-turn` }] })
+    handles.push(restarted)
+    expect(await restarted.result()).toBe('failed')
+    expect(reviewerOperations).toHaveLength(basis)
+    const progress = await readResearchProgress(pool, run.sectorId, scope)
+    expect(progress.items.filter((item) => item.kind === 'company')).toHaveLength(1)
+    expect(progress.items.filter((item) => item.id.includes(':intake:') && item.detail.includes('Approved company limit reached'))).toHaveLength(2)
+    expect(progress.estimatedPercent).not.toBe(100)
+  }, 60000)
+
+  it('carries rejected screening domains across completed directions on restart', async () => {
+    failSecondDirection = true
+    const run = await start('TEST source-rejected', 1, 1, 'TEST intake-cap')
+    expect(await run.handle.result()).toBe('failed')
+    searchSeen.length = 0
+    const restarted = await client.workflow.start('sectorCoordinator', { taskQueue: queue, workflowId: run.handle.workflowId, args: [{ sectorId: run.sectorId, scope, turnTaskQueue: `${queue}-turn` }] })
+    handles.push(restarted)
+    expect(await restarted.result()).toBe('complete')
+    expect(searchSeen[0]).toContain('rejected.example.test')
+    expect((await readResearchProgress(pool, run.sectorId, scope)).items.filter((item) => item.kind === 'company')).toHaveLength(1)
+  }, 60000)
+
+  it('does not review recovered candidates again when replaying an uncheckpointed search page', async () => {
+    intakeTransient = true
+    failPageCheckpoint = true
+    const run = await start('TEST partial', 1)
+    expect(await run.handle.result()).toBe('failed')
+    const operations = reviewerOperations.filter((key) => key.startsWith(`intake-${run.sectorId}`)).length
+    searchSeen.length = 0
+    const restarted = await client.workflow.start('sectorCoordinator', { taskQueue: queue, workflowId: run.handle.workflowId, args: [{ sectorId: run.sectorId, scope, turnTaskQueue: `${queue}-turn` }] })
+    handles.push(restarted)
+    expect(await restarted.result()).toBe('complete')
+    expect(reviewerOperations.filter((key) => key.startsWith(`intake-${run.sectorId}`))).toHaveLength(operations + 1)
+    expect(searchSeen[0]).toContain('widgets.example.test')
+    expect((await readResearchProgress(pool, run.sectorId, scope)).items.filter((item) => item.kind === 'company')).toHaveLength(1)
+  }, 60000)
+
+  it('preserves an earlier archived receipt when a restarted review produces changed evidence', async () => {
+    receiptFault.fail = true
+    const run = await start('TEST partial', 1)
+    expect(await run.handle.result()).toBe('failed')
+    expect((await readResearchProgress(pool, run.sectorId, scope)).items.filter((item) => item.kind === 'company')).toHaveLength(0)
+    const first = (await listArtifacts(pool, run.sessionId)).filter((entry) => entry.name?.endsWith(' intake.md'))
+    expect(first).toHaveLength(1)
+    receiptFault.revision++
+    const restarted = await client.workflow.start('sectorCoordinator', { taskQueue: queue, workflowId: run.handle.workflowId, args: [{ sectorId: run.sectorId, scope, turnTaskQueue: `${queue}-turn` }] })
+    handles.push(restarted)
+    expect(await restarted.result()).toBe('complete')
+    const reports = (await listArtifacts(pool, run.sessionId)).filter((entry) => entry.name?.endsWith(' intake.md'))
+    expect(reports).toHaveLength(2)
+    expect(new Set(reports.map((entry) => entry.sha256)).size).toBe(2)
+    expect(reports.find((entry) => entry.artifactId === first[0]?.artifactId)?.sha256).toBe(first[0]?.sha256)
+  }, 60000)
+
+  it('honors a committed pause even before its projection catches up', async () => {
+    receiptFault.pause = true
+    const basis = intakeDeferred
+    const run = await start('TEST partial', 1)
+    await vi.waitFor(() => { expect(intakeDeferred).toBeGreaterThan(basis) }, { timeout: 10000 })
+    await run.handle.signal('coordinatorPause')
+    const paused = await readResearchProgress(pool, run.sectorId, scope)
+    expect(paused.items.filter((item) => item.kind === 'company')).toHaveLength(0)
+    await run.handle.signal('coordinatorResume')
+    expect(await run.handle.result()).toBe('complete')
+    expect((await readResearchProgress(pool, run.sectorId, scope)).items.filter((item) => item.kind === 'company')).toHaveLength(1)
+  }, 60000)
+
+  it('resumes after a reviewer finishes while the parent is paused without relaunching the child', async () => {
+    let entered: () => void = () => undefined, release: () => void = () => undefined
+    const called = new Promise<void>((resolve) => { entered = resolve })
+    intakeHold = { entered, ready: new Promise<void>((resolve) => { release = resolve }) }
+    const run = await start('TEST partial', 1)
+    try {
+      await called
+      const basis = reviewerOperations.filter((key) => key.startsWith(`intake-${run.sectorId}`)).length
+      await run.handle.signal('coordinatorPause')
+      release()
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      expect((await readResearchProgress(pool, run.sectorId, scope)).items.filter((item) => item.kind === 'company')).toHaveLength(0)
+      await run.handle.signal('coordinatorResume')
+      expect(await run.handle.result()).toBe('complete')
+      expect(reviewerOperations.filter((key) => key.startsWith(`intake-${run.sectorId}`))).toHaveLength(basis)
+    } finally { release(); intakeHold = null }
+  }, 60000)
+
+  it('keeps company publication behind the source-review boundary', async () => {
+    let entered: () => void = () => undefined, release: () => void = () => undefined
+    const called = new Promise<void>((resolve) => { entered = resolve })
+    intakeHold = { entered, ready: new Promise<void>((resolve) => { release = resolve }) }
+    const run = await start('TEST partial', 1)
+    try {
+      await called
+      expect((await readResearchProgress(pool, run.sectorId, scope)).items.filter((item) => item.kind === 'company')).toHaveLength(0)
+      release()
+      expect(await run.handle.result()).toBe('complete')
+      expect((await readResearchProgress(pool, run.sectorId, scope)).items.filter((item) => item.kind === 'company')).toHaveLength(1)
+    } finally { release(); intakeHold = null }
   }, 60000)
 
   it('uses fresh reviewer operation identities when a child workflow id is reused', async () => {

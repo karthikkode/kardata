@@ -1,13 +1,16 @@
+import { createHash } from 'node:crypto'
 import { Context } from '@temporalio/activity'
 import { z } from 'zod'
 import type { Scope } from '../../auth/keys.js'
-import { appendEvent, closeDiscovery, createArtifact, ensureResearchSession, getSector, readGlobalContext, readResearchProgress, recordResearchBudget, readSectorPlan, recordLedgerProblem, recordResearchWork, setCompanyStage, setCompanyState, setSectorState, upsertLedgerCompany, workerPoolFromEnv, workspaceTransaction, type PlanVersion } from '../../db/index.js'
+import { appendEvent, closeDiscovery, createArtifact, ensureResearchSession, getSector, readGlobalContext, readResearchProgress, recordResearchBudget, readSectorPlan, recordLedgerProblem, registerSectorDiscovery, registerLedgerCandidate, readSectorExecutionState, recordResearchWork, setCompanyStage, setCompanyState, setSectorState, upsertLedgerCompany, workerPoolFromEnv, workspaceTransaction, type PlanVersion } from '../../db/index.js'
 import { projectNewEvents } from '../../projector.js'
 import { createLogger, logOp } from '../../observability/logging.js'
 import { extractNewDomains, sectorSignals } from '../sweep-rules.js'
 import type { WorkItem } from '../research-plan.js'
 import { recordSweepCompanyActivity, searchWebPageActivity } from './sweep.js'
 import type { TurnOutcome } from './turn.js'
+import { validateDiscoveryIntake } from '../discovery-intake.js'
+import type { CandidateCompany } from '../sweep-rules.js'
 import { discoverySample, validateDiscoveryAcceptance } from '../discovery-acceptance.js'
 
 export interface CoordinatorInput { sectorId: string; scope?: Scope; /** Isolated harness queue override; never accepted by product APIs. */ turnTaskQueue?: string }
@@ -31,7 +34,7 @@ export async function researchCheckpointActivity(input: CoordinatorInput & { ver
 export async function researchBudgetActivity(input: CoordinatorInput & { runId: string; spentMs: number; checkpoint: number }) {
   return logOp(logger, 'research.budget.checkpoint', () => recordResearchBudget(workerPoolFromEnv(), input))
 }
-export async function researchSearchActivity(input: CoordinatorInput & { version: number; query: string; page: number; seen: string[]; remaining: number; basicFiltering?: boolean }) {
+export async function researchSearchActivity(input: CoordinatorInput & { version: number; query: string; page: number; seen: string[]; remaining: number; basicFiltering?: boolean; sourceIntake?: boolean }) {
   return logOp(logger, 'research.discovery', async () => {
     const db = workerPoolFromEnv()
     await projectNewEvents(db)
@@ -40,13 +43,49 @@ export async function researchSearchActivity(input: CoordinatorInput & { version
     const plan = await readSectorPlan(db, input.sectorId, input.scope)
     const depth = plan?.versions.find((version) => version.version === input.version)?.executable?.researchDepth
     const hits = await searchWebPageActivity({ query: input.query, page: input.page })
-    const candidates = extractNewDomains(hits, input.seen, sectorSignals(sector.name, sector.topic), input.basicFiltering).slice(0, input.remaining)
+    const screened = extractNewDomains(hits, input.seen, sectorSignals(sector.name, sector.topic), input.basicFiltering)
+    const candidates = input.sourceIntake ? screened : screened.slice(0, input.remaining)
+    if (input.sourceIntake) return { domains: [], candidates: candidates.map((candidate) => ({ ...candidate, intakeKey: createHash('sha256').update(candidate.domain).digest('hex') })), exhausted: hits.length === 0 }
     for (const company of candidates) {
       Context.current().heartbeat({ op: 'research.discovery', sectorId: input.sectorId })
       const { companyId } = await recordSweepCompanyActivity({ sectorId: input.sectorId, scope: input.scope, company: { ...company, sectorName: sector.name } })
       await recordResearchWork(db, { sectorId: input.sectorId, planVersion: input.version, scope: input.scope, item: { id: `${input.sectorId}:v${input.version}:${companyId}`, kind: 'company', title: company.name, state: depth === 'discovery' ? 'complete' : 'pending', attempts: 0, childId: depth === 'discovery' ? null : `research-${input.sectorId}-v${input.version}-${companyId}`, sourceUrl: company.url, evidence: [], detail: depth === 'discovery' ? 'Discovered from search results. Company deep research has not run.' : '' } })
     }
     return { domains: candidates.map((company) => company.domain), exhausted: hits.length === 0 }
+  })
+}
+export async function researchIntakeActivity(input: CoordinatorInput & { version: number; sessionId: string; item: WorkItem; candidate: CandidateCompany; outcome: TurnOutcome }) {
+  return logOp(logger, 'research.discovery.intake', async () => {
+    const result = validateDiscoveryIntake(input.outcome, input.candidate)
+    const db = workerPoolFromEnv()
+    await projectNewEvents(db)
+    // The exact validated receipt is inspectable in the existing sector library.
+    await createArtifact(db, { sessionId: input.sessionId, name: `${input.candidate.domain} intake.md`, content: ['# Basic company intake', `Company: ${result.name}`, `Decision: ${result.decision}`, `Plan version: ${input.version}`, result.reason, ...(['identity', 'geography', 'sector'] as const).flatMap((field) => { const evidence = result[field]; return evidence ? [`## ${field[0]!.toUpperCase()}${field.slice(1)}`, `[Source](${evidence.url})`, `> ${evidence.excerpt.replace(/\n/g, '\n> ')}`] : [] }), 'Company size: unknown unless separately evidenced. No company deep research was performed.'].join('\n\n'), producedBy: `agent:${input.item.childId}`, reason: 'subagent_output', artifactId: `intake-${input.item.childId}-${Context.current().info.workflowExecution?.runId ?? Context.current().info.activityId}`, scope: input.scope })
+    return workspaceTransaction(db, input.sectorId, async (tx) => {
+      const plan = await readSectorPlan(tx, input.sectorId, input.scope)
+      if (plan?.latest?.version !== input.version || plan.approvedVersion !== input.version) throw new Error('Intake plan changed; publication requires renewed review.')
+      const sector = await getSector(tx, input.sectorId, input.scope)
+      const context = await readGlobalContext(tx, input.sectorId, input.scope)
+      if (!sector || (plan.approvedContext && plan.approvedContext.scope !== context.sections.scope)) throw new Error('Approved research scope changed.')
+      const executionState = await readSectorExecutionState(tx, input.sectorId, input.scope)
+      if (executionState === 'paused') return { accepted: false, deferred: true, limited: false }
+      if (executionState !== 'running') throw new Error('Research is not running.')
+      if (result.decision === 'accept') {
+        const progress = await readResearchProgress(tx, input.sectorId, input.scope)
+        const companies = progress.items.filter((entry) => entry.kind === 'company')
+        const existing = companies.some((entry) => entry.sourceUrl && new URL(entry.sourceUrl).hostname.replace(/^www\./, '') === input.candidate.domain)
+        const limit = plan.latest.executable?.budgets.maxCompanies
+        if (!limit || (!existing && companies.length >= limit)) {
+          await recordResearchWork(tx, { sectorId: input.sectorId, planVersion: input.version, scope: input.scope, item: { ...input.item, state: 'blocked', detail: 'Approved company limit reached. Owner review and a revised limit are required.' } })
+          return { accepted: false, deferred: false, limited: true }
+        }
+        await registerLedgerCandidate(tx, { domain: input.candidate.domain, name: result.name, sector: sector.name })
+        const { companyId } = await registerSectorDiscovery(tx, { sectorId: input.sectorId, name: result.name, domain: input.candidate.domain, scope: input.scope })
+        await recordResearchWork(tx, { sectorId: input.sectorId, planVersion: input.version, scope: input.scope, item: { id: `${input.sectorId}:v${input.version}:${companyId}`, kind: 'company', title: result.name, state: 'complete', attempts: 0, childId: null, sourceUrl: input.candidate.url, evidence: [result.identity!.url, result.geography!.url, result.sector!.url], detail: 'Source-backed basic intake passed. Company deep research has not run.' } })
+      }
+      await recordResearchWork(tx, { sectorId: input.sectorId, planVersion: input.version, scope: input.scope, item: { ...input.item, state: result.decision === 'uncertain' ? 'blocked' : 'complete', evidence: [result.identity, result.geography, result.sector].flatMap((entry) => entry ? [entry.url] : []), detail: `${result.decision}: ${result.reason}` } })
+      return { accepted: result.decision === 'accept', deferred: false, limited: false }
+    })
   })
 }
 export async function researchDiscoveryAcceptanceActivity(input: CoordinatorInput & { version: number; sessionId: string; item: WorkItem; outcomes: TurnOutcome[] }) {

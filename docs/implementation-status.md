@@ -2429,3 +2429,69 @@ HTTP/DB/Temporal file/context journeys enabled. Independent reviewer passed 35
 proxy/auth/isolation cases, backend types and diff on Node 22.23.3; control timer
 finding resolved, no new concrete defect found in reviewed paths. Its checks do
 not independently rerun the author's live browser, DB or full-suite results.
+
+### 2026-10-01 — source-backed basic intake preflight
+
+New discovery runs now review candidates before company publication, using at
+most two fetch-only children. Each accepted company has independently required
+identity/geography/sector quote fields. Rejected candidates are screening work;
+uncertain checks remain blocked. Receipts are retained in sector files and work
+progress. No company deep research or outreach is added.
+
+Independent review found and corrected: immutable report ID collision after an
+archive-success/publication-failure restart; skipped interrupted intake on a
+same-plan restart; duplicate review on an uncheckpointed repeated page; signaling
+a finished child after pause; and publication using a stale lifecycle projection.
+The last guard now reads committed state under the existing DB transaction lock.
+All have maintained regression scenarios, including archived receipt preservation
+and pause without projector catch-up.
+
+Watched Node 22.23.3 evidence: 8 intake validator tests; real isolated
+Postgres/Temporal coordinator plus sector repository battery 26 passed
+(17 coordinator, 9 repository cases), /tmp/kardata-intake-temporal-db-final.log.
+Retrieval/reviewers in this battery are explicit scripted fixtures, not Meta.
+The earlier mechanical gate passed 997 tests with 288 declared gated skips;
+later DB lifecycle/lag additions require the final refreshed gate below before
+handoff. No shared deployment, manual population, pilot or merge has occurred.
+Two first rejection fixtures incorrectly supplied a valid company on page 1;
+the fixtures were corrected to their declared rejection-only population rather
+than weakening publication assertions. All subsequent fixtures passed.
+
+Replay baseline preparation uses an isolated managed worktree at e454d44. No
+baseline source edits, shared worker rollout or resource deletion has occurred.
+Compatibility, uncertain-operation recovery, full functionality acceptance and
+the actual UI-driven Meta campaign still remain unfinished.
+
+Controlled legacy recovery evidence: six exact-baseline workflow types replayed
+with current bundles. The combined gate then replayed six retained user histories
+(three sessionRun and three subagentRun) plus verified controlled baseline
+histories for four missing types. It does not move the historical cutoff or
+claim fixtures are historical user runs. Baseline worktree source/commit and
+bundle hashes are checked. Evidence: /tmp/kardata-baseline-replay.log and
+/tmp/kardata-historical-and-baseline-replay-2.log, retained hashed manifests under
+backend/test-results. The SDK JSON replay helper failed on installed protobuf
+Type identity; generated SDK History.fromObject decoding passed without changing
+dependencies or histories. Cutoffs unequal to the pinned baseline instant now fail validation. Independent
+review found that earlier cutoffs could hide available historical coverage;
+maintained pure guard regressions deny both earlier and later dates.
+
+Further intake findings: recovery now obeys the accepted-company ceiling, also
+checked atomically under concurrent publication. Semantic rejection does not
+truncate the next valid source on a page. Rejected domains survive completed
+query-direction checkpoints. The first cap-count assertions also counted the
+completed discovery direction's explanatory text; predicates now select intake
+identities, while company-row and accepted-count ceilings remain exact.
+
+Final watched slice checks on Node 22.23.3: mechanical pr:verify997 passed /
+300 explicit gated skips, lint/typechecks/frontend build; backend build passed.
+Real isolated coordinator/sector-repository battery30 passed (21 coordinator +9
+repository). Final validator plus combined replay gate14 passed. Intake receipts
+are readable markdown with named fit checks/source quotes. Required Meta/UI,
+full-scale mixed-failure, complete file/functionality review and shared rollout
+remain unverified; legacy mutation-cache and uncertain-operation recovery are
+still preflight work. No release acceptance status was promoted automatically.
+
+The cutoff correction passed18 focused validator/replay/guard cases and a fresh
+full mechanical gate:1001 passed /300 explicitly gated skips, lint/types and
+frontend build. No test was disabled to obtain these results. Historical proof
+retains the fixed cutoff and origin distinctions; no release waiver is implied.

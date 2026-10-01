@@ -145,25 +145,29 @@ and streamed body consumption. It rejects above2 MiB before buffering the rest,
 cancels blocked/error/late bodies, and returns the actual final fetched URL.
 Redirects are manual (maximum five) with URL checks before each request. Operational
 fetch logs contain operation/code/latency, not body or credential-bearing URLs.
-This is full-response resource protection; resolved-DNS destination protection and
-product browser admission/ownership remain separate unverified release gates.
+Resolved-DNS pinning and guarded browser transport now complement these bounds;
+see `documentation/backend.md`. Shared rollout and Meta acceptance remain open.
 
 Browser tool ownership is server-derived from scope, key and validated execution
 thread. All five browser tools carry that identity through the pool facade; session
 IDs are opaque UUIDs, not authority. Foreign-owner operations fail with `blocked`
 before browser access, including close. The existing tool schemas and role floors
-are unchanged. Private-network/DNS protection is a separate pending preflight gate.
+are unchanged. Browser destinations use the public-only guarded proxy described below; shared
+rollout still requires compatibility and live acceptance.
 
 Conversation `sessionId` guards apply only to DB product tools. Browser tools use
 their own session namespace and execution-derived ownership, so a validated child
 or sector parent can operate its own browser without treating its ID as a product
 conversation. Initial browser navigation shares the fetch literal-address policy;
-DNS rebinding and requests after navigation remain unverified.
+The guarded proxy applies admission and pinned connections to subsequent browser
+requests too, including frames and popups; isolated Chromium tests cover these
+paths, not the eventual Meta campaign.
 
 Production web_fetch now pins each HTTP(S) connection to an admitted DNS address,
 rejecting mixed/private/empty resolutions before transport. Redirects resolve and
 validate independently. Source cancellation, byte caps and decoding retain the
-existing tool surface. Browser-network requests remain a separate unfinished gate.
+existing tool surface. Browser requests use the authenticated public-web proxy on the existing backend
+listener. See backend/deployment contracts and explicit test evidence.
 
 Browser proxy credentials derive from validated execution code and never appear
 in tool arguments/results. They authorize public-web transport only, not product

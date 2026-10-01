@@ -135,3 +135,12 @@ bookkeeping uses `run-*` scopes so the two can never collide). Proven by
 `tests/backend/workflows.research.test.ts` against the real server (needs
 `KARDATA_TEMPORAL_TEST=1`), including report equality with the real agents
 assembler over event-sourced findings. Loop/time budgets stay B2.6 work.
+
+## Basic discovery intake
+
+The new backend coordinator screens every candidate before publication through
+bounded source-only children. These are basic fit checks, not the deep-research
+pipeline above. The parent validates each independent evidence field and owns
+publication. See `documentation/backend.md` for the exact receipt, persistence,
+replay and approval contract. Children expose their own conversation; parked
+children report `paused` through their status query rather than `running`.

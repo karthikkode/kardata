@@ -10,6 +10,7 @@ import {
   createSession,
   DbContractError,
   getSector,
+  readSectorExecutionState,
   listCompanies,
   listSectors,
   listSectorCompanies,
@@ -262,6 +263,17 @@ describe('sector repos (B-S2)', () => {
       const seqs = activity.entries.map((entry) => entry.seq)
       expect([...seqs].sort((a, b) => a - b)).toEqual(seqs)
       await expect(sectorActivity(pool, `t-missing-${STAMP}`, SCOPE)).rejects.toBeInstanceOf(DbContractError)
+    })
+
+    it('reads committed lifecycle independently of projector lag and enforces owner scope', async () => {
+      const created = await createSector(pool, { name: 'TEST lifecycle lag', initialState: 'draft', scope: SCOPE })
+      await catchUp()
+      await setSectorState(pool, created.sectorId, 'paused', { scope: SCOPE })
+      expect((await getSector(pool, created.sectorId, SCOPE))?.state).toBe('draft')
+      expect(await readSectorExecutionState(pool, created.sectorId, SCOPE)).toBe('paused')
+      await expect(readSectorExecutionState(pool, created.sectorId, OTHER)).rejects.toBeInstanceOf(DbContractError)
+      await catchUp()
+      expect((await getSector(pool, created.sectorId, SCOPE))?.state).toBe('paused')
     })
 
     it('replays idempotently and rebuilds from events', async () => {

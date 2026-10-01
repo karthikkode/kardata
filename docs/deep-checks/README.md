@@ -237,3 +237,14 @@ and complete functionality/file acceptance remain unfinished release requirement
 Latest browser matrix: 54 passed / 4 Meta-gated skips. Independent light verification:
 35 proxy/auth/isolation cases, types and diff passed on Node 22.23.3. No shared
 backend/worker/browser rollout has occurred; required compatibility still precedes it.
+
+## Source-backed intake continuation
+
+Run the intake validator and isolated coordinator/sector-repository suites from
+`documentation/tests.md`. They cover publication timing, rejection/uncertainty,
+failed intake and mid-page restart, retained report versions, pause-after-child
+completion and committed pause under projector lag. Readable receipts are files
+in the existing sector library. Scripted reviewer evidence establishes contracts,
+not the live 2,000-company campaign. Current exact-source/reference durability,
+legacy replay/cache compatibility and uncertain-operation recovery remain required
+before the shared pilot rollout.

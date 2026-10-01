@@ -262,3 +262,9 @@ only under explicit owner instruction; model execution cannot invoke this door.
 The owner authorized a dedicated approver credential for the final UI test on
 2026-10-01. Keep the prior operator key unchanged and store raw new material only
 in ignored local configuration. Boundaries log outcomes without hashes/tokens.
+
+`readSectorExecutionState` is a scoped DB-layer lifecycle guard. It reads the
+latest committed sector-state event rather than assuming the projection is up
+to date. Intake publication calls it within the existing durable transaction
+lock, after archive work. A committed owner pause therefore blocks publication
+even when the projector is lagging; no projector runs inside that transaction.
