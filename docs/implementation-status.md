@@ -2355,3 +2355,30 @@ checks on Node 22; no further concrete defect found in covered DI paths. Real
 Chromium/second-client survival, DNS/network admission, Meta, full stress and
 historical replay remain unverified for this slice. PR remains draft and no
 backend/worker rollout or pilot launch has occurred.
+
+## Source DNS preflight continuation
+
+The previous checkpoint named unfinished implementation/verification as blockers;
+none required a merge or owner permission. Four production-default DNS regressions
+failed before the fix: DNS aliases to private IPv4/IPv6, mixed addresses and empty
+resolution were not checked. Fetch now resolves once per hop, admits all answers
+and pins native connection lookup while preserving original Host/TLS authority.
+Late DNS cannot start a cancelled request. Response compression remains supported
+with streamed encoded/decoded limits. A test edit initially joined two statements
+and failed parsing; the newline was repaired, not skipped. Native transport/DNS
+doubles are not real network or browser admission proof.
+
+DNS focused battery passed 64 cases with one browser-gated skip; backend lint/types
+passed on Node 22.23.3. Maintained KARDATA_RETRIEVAL_TEST=1 HTTPS check passed
+(9 retrieval cases / 1 browser skip), exercising actual DNS/TLS/body consumption.
+The earlier browser commit eecc235 CI completed successfully. Native transport
+doubles, a single real source and earlier CI do not establish new full-release
+readiness or browser-network admission.
+
+Source-DNS slice full Node 22 gates passed: frontend 303, agents 202, backend 466
+(971 total / 276 explicit gated skips), lint/types/frontend and backend builds.
+Independent reviewer found no concrete defect in 11 DNS cases/types/diff. Its raw
+compressed-byte coverage finding now has a 12th case using valid gzip metadata
+with tiny decoded output; removing the raw guard makes that maintained test fail,
+and restoring it passes. This added test is focused proof, not a new full-battery
+count. The entire preflight and real UI pilot are still incomplete.

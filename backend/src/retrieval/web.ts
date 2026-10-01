@@ -4,8 +4,13 @@
 // Chromium. Pure validation plus injectable fetch keep this unit-tested
 // without network.
 import { z } from 'zod'
-import { BlockList, isIP } from 'node:net'
+import { BlockList, isIP, type LookupFunction } from 'node:net'
+import { lookup } from 'node:dns/promises'
+import { request as httpRequest } from 'node:http'
+import { request as httpsRequest } from 'node:https'
+import { Readable, Transform, pipeline } from 'node:stream'
 import { createLogger, logOp } from '../observability/logging.js'
+import { createGunzip, createInflate, createBrotliDecompress } from 'node:zlib'
 import { sourceHtmlText } from './html.js'
 
 export type RetrievalCode = 'validation_failed' | 'unconfigured' | 'blocked' | 'fetch_failed' | 'overload'
@@ -88,8 +93,71 @@ function discardBody(response: Response): void {
   if (response.body) void response.body.cancel().catch(() => fetchLogger.warn({ event: 'retrieval.fetch.cleanup.error', code: 'body_cancel_failed' }))
 }
 
+/** Resolve once and pin the connection, retaining the original Host/TLS name.
+ * Merely checking DNS before ordinary fetch would permit a second lookup to
+ * return a private address. Every redirect invokes this transport afresh. */
+const sourceFetch: FetchImpl = async (input, init) => {
+  const url = publicSourceUrl(typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url)
+  const host = url.hostname.replace(/^\[|\]$/g, '')
+  const family = isIP(host)
+  const addresses = family ? [{ address: host, family }] : await lookup(host, { all: true, verbatim: true })
+  if (!addresses.length) throw new RetrievalError('blocked', 'Source has no public DNS destination')
+  for (const entry of addresses) {
+    if (![4, 6].includes(entry.family) || isIP(entry.address) !== entry.family) throw new RetrievalError('blocked', 'Invalid source DNS destination')
+    publicSourceUrl(`http://${entry.family === 6 ? `[${entry.address}]` : entry.address}/`)
+  }
+  if (init?.signal?.aborted) throw new RetrievalError('fetch_failed', 'Source fetch cancelled before connection')
+  const selected = addresses[0]!
+  const pinnedLookup: LookupFunction = (_hostname, options, callback) => {
+    if (options.all) callback(null, [selected])
+    else callback(null, selected.address, selected.family)
+  }
+  return new Promise<Response>((resolve, reject) => {
+    const request = (url.protocol === 'https:' ? httpsRequest : httpRequest)(url, {
+      method: 'GET', agent: false, lookup: pinnedLookup,
+      ...(init?.signal ? { signal: init.signal } : {}),
+      headers: { Accept: 'text/html,text/plain,application/xhtml+xml', 'Accept-Encoding': 'identity' },
+    }, (incoming) => {
+      const status = incoming.statusCode ?? 0
+      const encoding = incoming.headers['content-encoding']?.toLowerCase()
+      if (status < 200 || status > 599 || (encoding && !['identity', 'gzip', 'deflate', 'br'].includes(encoding))) {
+        incoming.destroy()
+        reject(new RetrievalError('blocked', 'Source response encoding or status unsupported'))
+        return
+      }
+      const headers = new Headers()
+      for (const [key, value] of Object.entries(incoming.headers)) if (value !== undefined) headers.set(key, Array.isArray(value) ? value.join(', ') : value)
+      if (Number(incoming.headers['content-length'] ?? 0) > WEB_FETCH_MAX_BYTES) { incoming.destroy(); reject(new RetrievalError('fetch_failed', 'Source exceeds byte limit')); return }
+      if ([204, 205, 304].includes(status)) {
+        incoming.resume()
+        resolve(new Response(null, { status, headers }))
+      } else {
+        let body: Readable = incoming
+        if (encoding && encoding !== 'identity') {
+          let rawBytes = 0
+          const limit = new Transform({ transform(chunk: Buffer, _encoding, callback) {
+            rawBytes += chunk.length
+            if (rawBytes > WEB_FETCH_MAX_BYTES) callback(new RetrievalError('fetch_failed', 'Encoded source exceeds byte limit'))
+            else callback(null, chunk)
+          } })
+          const decoder = encoding === 'gzip' ? createGunzip() : encoding === 'br' ? createBrotliDecompress() : createInflate()
+          pipeline(incoming, limit, decoder, (error) => {
+            if (error) fetchLogger.warn({ event: 'retrieval.fetch.decode.error', code: 'source_stream_failed' })
+          })
+          body = decoder
+          headers.delete('content-encoding')
+          headers.delete('content-length')
+        }
+        resolve(new Response(Readable.toWeb(body) as ReadableStream<Uint8Array>, { status, headers }))
+      }
+    })
+    request.on('error', reject)
+    request.end()
+  })
+}
+
 /** Headers, redirect chain and streaming body share one deadline/byte budget. */
-export async function webFetch(rawUrl: string, fetchImpl: FetchImpl = fetch): Promise<FetchResult> {
+export async function webFetch(rawUrl: string, fetchImpl: FetchImpl = sourceFetch): Promise<FetchResult> {
   return logOp(fetchLogger, 'retrieval.fetch', async () => {
     let current = publicSourceUrl(rawUrl)
     const controller = new AbortController()

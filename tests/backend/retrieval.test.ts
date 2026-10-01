@@ -42,6 +42,16 @@ describe('webFetch', () => {
   })
 })
 
+describe.skipIf(process.env['KARDATA_RETRIEVAL_TEST'] !== '1')('live public source transport', () => {
+  it('fetches an HTTPS public source through real DNS, TLS and body consumption', async () => {
+    const result = await webFetch('https://example.com/')
+    expect(result.status).toBe(200)
+    expect(result.url).toBe('https://example.com/')
+    expect(result.text.length).toBeGreaterThan(0)
+    expect(result.truncated).toBe(false)
+  }, 20_000)
+})
+
 describe('webSearch', () => {
   it('fails closed without a key, never an empty list', async () => {
     await expect(webSearch({}, 'acme widgets')).rejects.toMatchObject({ code: 'unconfigured' })

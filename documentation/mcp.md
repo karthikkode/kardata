@@ -159,3 +159,8 @@ their own session namespace and execution-derived ownership, so a validated chil
 or sector parent can operate its own browser without treating its ID as a product
 conversation. Initial browser navigation shares the fetch literal-address policy;
 DNS rebinding and requests after navigation remain unverified.
+
+Production web_fetch now pins each HTTP(S) connection to an admitted DNS address,
+rejecting mixed/private/empty resolutions before transport. Redirects resolve and
+validate independently. Source cancellation, byte caps and decoding retain the
+existing tool surface. Browser-network requests remain a separate unfinished gate.

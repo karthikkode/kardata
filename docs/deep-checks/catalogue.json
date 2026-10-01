@@ -24,7 +24,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "7543b907d0f7d99115c02027be9d53118abdda8313caa3f9d06f1f13353ad3a5",
+      "sha256": "3de5edb842448727e9c6945af58a9345c33ec67dc8487871803b82cc51e9f31a",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -2118,7 +2118,7 @@
     },
     {
       "path": "backend/src/retrieval/web.ts",
-      "sha256": "4e7e4a4017048d291bd7956abdf1825aace8ef915d0868c117cde33c352a2da9",
+      "sha256": "4f187b8aa5078fd54913fe32c7915e0a9cbe91a7762735c2a540893f8c9ac837",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4224,6 +4224,13 @@
       "exports": []
     },
     {
+      "path": "tests/backend/retrieval.dns.test.ts",
+      "sha256": "ae8fa6bc91465dd2696ef49e4aba0e23e9a492079c05cf15a52fac06745395cc",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/backend/retrieval.fetch-bounds.test.ts",
       "sha256": "05df23d657ef5d56d310b3408cd03567b801143672c95d1b7fbc5abc4ba02ff4",
       "review": "pending",
@@ -4239,7 +4246,7 @@
     },
     {
       "path": "tests/backend/retrieval.test.ts",
-      "sha256": "935b0d0264c4d3a4aef0ca42fb6d45b0e15674ce306b6c1122cf35a438500d49",
+      "sha256": "bc50e1f3e5e7f8be8fc0e5556f43842822dca6cdba44ed207bc96183b0b763cc",
       "review": "pending",
       "tests": [],
       "exports": []

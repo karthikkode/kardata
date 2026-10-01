@@ -102,3 +102,7 @@ workspaces), `npm run test:e2e` (browser smoke), `npm run lint`,
 Curated hardening UI evidence is retained locally (ignored binaries) under
 `tests/evidence/hardening-2026-10-01/`; generated browser runs remain ignored.
 See `docs/deep-checks/README.md` for commands and acceptance gaps.
+
+Public-source transport has a separate opt-in real DNS/TLS check, documented in
+`documentation/tests.md` (`KARDATA_RETRIEVAL_TEST`). It is not browser-network
+isolation or evidence of the Meta UI pilot.

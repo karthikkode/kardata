@@ -296,3 +296,15 @@ capacity and its original receipt.
 CDP close receipts are registered as soon as context acquisition resolves,
 including late acquisitions, so an earlier navigation failure/external close
 cannot make cleanup miss an already emitted close event.
+
+### Pinned source DNS transport
+
+Production public-source fetch resolves all DNS answers and rejects empty, invalid
+or non-public/mixed answers before connection. Each hop uses a fresh native HTTP(S)
+connection whose lookup returns only the checked address; the original URL host
+and HTTPS certificate name remain intact. Cancellation after late DNS resolution
+cannot open a connection. The existing full-request deadline and byte limits apply.
+Gzip/deflate/Brotli decoding is streamed; both encoded and decoded bodies are
+bounded, and decoding failure propagates. Injected test fetches are not available
+as MCP arguments. This does not protect Chromium subresources, clicks or popups;
+those remain mandatory preflight work.

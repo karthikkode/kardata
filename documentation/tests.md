@@ -177,3 +177,12 @@ close receipt. They are not real CDP/Chromium lifecycle proof.
 The gated live pool test asserts a second independent browser client still
 snapshots after closing the first. Mock-path tests prove disposal ordering and
 accounting; they do not substitute for live shared-browser survival.
+
+retrieval.dns.test.ts exercises the default production fetch transport with DNS
+and native HTTP(S) doubles: private/mixed/empty denial, pinned repeated lookups,
+redirect resolution, late-DNS cancellation, compression and expanded/broken-body
+failures. It does not establish live TLS, real DNS or Chromium network behavior.
+
+Opt-in KARDATA_RETRIEVAL_TEST=1 runs the maintained real HTTPS source check in
+retrieval.test.ts. It establishes DNS/TLS/body wiring for one public source, not
+Chromium isolation, company qualification or the Meta UI pilot.
