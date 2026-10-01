@@ -372,6 +372,7 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
       },
       provider: adapter,
       mcp: {
+        authorityId: deps.mcp.authorityId,
         listTools: () => deps.mcp.listTools(),
         callTool: async (name, args, operationId) => {
           const result = await deps.mcp.callTool(name, args, operationId)

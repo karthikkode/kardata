@@ -88,3 +88,8 @@ or failed result checkpoint therefore cannot allow a replacement task to bypass
 unconfirmed effects. Successful confirmed results clear these provisional
 receipts; thrown client failures preserve them. Recovery uses the same identities
 before another provider round, including after compaction.
+
+The production turn's source-collection MCP wrapper must preserve authorityId,
+as do palette/grant wrappers. Credential rotation cannot bypass recovery merely
+because an intermediate wrapper records fetched evidence. The HTTP/activity/DB
+regression exercises rotation under a new API-key identity and proves one effect.
