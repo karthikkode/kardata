@@ -3,6 +3,7 @@
 // border) so every panel that adopts these rows looks like one product.
 // Karbot keeps its own layout; it only shares overflow-safe Markdown.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Check, Copy } from 'lucide-react'
 import { sessionAge } from './ChatPanel'
 
 /** Gap that opens a timestamp divider between two stamped rows. */
@@ -39,11 +40,42 @@ export function UserBubble({ children }: { children: ReactNode }) {
   )
 }
 
-/** Left-aligned agent bubble. Same wrap guarantee as the user side. */
-export function AgentBubble({ children }: { children: ReactNode }) {
+/** Left-aligned agent bubble. Same wrap guarantee as the user side.
+ * Settled replies (never live or streaming text) carry a small
+ * keyboard-accessible Copy action; clipboard failures report locally and
+ * the draft is never touched. No regenerate or edit actions exist. */
+export function AgentBubble({ children, copyText }: { children: ReactNode; copyText?: string }) {
+  const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState(false)
+  async function copy() {
+    if (copyText === undefined) return
+    setCopyError(false)
+    try {
+      await navigator.clipboard.writeText(copyText)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setCopyError(true)
+    }
+  }
   return (
     <div className="min-w-0 max-w-full px-1 py-1 text-sm leading-relaxed [overflow-wrap:anywhere]">
       {children}
+      {copyText !== undefined ? (
+        <div className="mt-1 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void copy()}
+            className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:h-10"
+          >
+            {copied ? <Check className="size-3.5 shrink-0" aria-hidden /> : <Copy className="size-3.5 shrink-0" aria-hidden />}
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+          {copyError ? (
+            <p role="alert" className="text-xs text-destructive">Copy failed. Try again.</p>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -198,21 +198,35 @@
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
 }
 
-@layer components {
-  /* Plan brief body: consecutive markdown sections read as grouped
-     definition rows instead of floating headings. Icons arrive from the
-     Markdown h3 keyword map; rhythm and dividers live here so chat
-     replies keep their own spacing. Token-only, no motion. */
-  .plan-brief > h3:not(:first-child) {
-    border-top: 1px solid var(--border);
-    padding-top: 0.75rem;
-    margin-top: 0.75rem;
+/* Page replacement: a 200ms ease-out opacity crossfade owned by the View
+   Transitions API (see useNavigation). The outgoing snapshot is
+   non-interactive by construction; focus moves to the new heading after
+   commit (see App). Without API support the swap is instant with the
+   entering content fading in via the page preset. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 200ms;
+  animation-timing-function: ease-out;
+}
+::view-transition-old(root) {
+  animation-name: kardata-page-out;
+}
+::view-transition-new(root) {
+  animation-name: kardata-page-in;
+}
+@keyframes kardata-page-out {
+  to {
+    opacity: 0;
   }
-  .plan-brief > p {
-    color: var(--muted-foreground);
-    margin-top: 0.25rem;
-    margin-bottom: 0;
+}
+@keyframes kardata-page-in {
+  from {
+    opacity: 0;
   }
 }

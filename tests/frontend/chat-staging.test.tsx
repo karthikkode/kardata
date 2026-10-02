@@ -580,7 +580,8 @@ describe('chat staging (no mocks)', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Delete Server chat' }))
     // Arm, not fire: no request until confirmed.
     expect(calls.some((call) => call.method === 'DELETE')).toBe(false)
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
+    expect(await screen.findByRole('alertdialog', { name: 'Delete "Server chat"?' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete conversation' }))
     await vi.waitFor(() => {
       expect(calls.some((call) => call.method === 'DELETE' && call.url.includes('/v1/sessions/s-1'))).toBe(true)
     })
@@ -603,7 +604,8 @@ describe('chat staging (no mocks)', () => {
     fireEvent.click(within(menu).getByRole('button', { name: 'Delete Server chat' }))
     // Arm, not fire: no request until the row confirm.
     expect(calls.some((call) => call.method === 'DELETE')).toBe(false)
-    fireEvent.click(within(menu).getByRole('button', { name: 'Confirm delete Server chat' }))
+    expect(await screen.findByRole('alertdialog', { name: 'Delete "Server chat"?' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete conversation' }))
     await vi.waitFor(() => {
       expect(calls.some((call) => call.method === 'DELETE' && call.url.includes('/v1/sessions/s-1'))).toBe(true)
     })

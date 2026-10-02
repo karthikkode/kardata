@@ -9,7 +9,7 @@ describe('TopBar', () => {
     const onTheme = vi.fn()
     const user = userEvent.setup()
     render(
-      <TopBar query="" onQuery={() => {}} dark={false} onTheme={onTheme} chatOpen={false} onChatToggle={() => {}} />,
+      <TopBar query="" onQuery={() => {}} dark={false} onTheme={onTheme} chatOpen={false} onChatToggle={() => {}} showSearch />,
     )
     const toggle = screen.getByRole('button', { name: 'Switch to dark theme' })
     expect(toggle.textContent).toBe('')
@@ -19,7 +19,7 @@ describe('TopBar', () => {
 
   it('names the opposite theme when dark', () => {
     render(
-      <TopBar query="" onQuery={() => {}} dark onTheme={() => {}} chatOpen={false} onChatToggle={() => {}} />,
+      <TopBar query="" onQuery={() => {}} dark onTheme={() => {}} chatOpen={false} onChatToggle={() => {}} showSearch />,
     )
     expect(
       screen.getByRole('button', { name: 'Switch to light theme' }),
@@ -38,6 +38,7 @@ describe('TopBar', () => {
           onTheme={() => {}}
           chatOpen={false}
           onChatToggle={() => {}}
+          showSearch
         />
       )
     }
@@ -52,12 +53,12 @@ describe('TopBar', () => {
     const onChatToggle = vi.fn()
     const user = userEvent.setup()
     const { rerender } = render(
-      <TopBar query="" onQuery={() => {}} dark={false} onTheme={() => {}} chatOpen={false} onChatToggle={onChatToggle} />,
+      <TopBar query="" onQuery={() => {}} dark={false} onTheme={() => {}} chatOpen={false} onChatToggle={onChatToggle} showSearch />,
     )
     await user.click(screen.getByRole('button', { name: 'Open chat' }))
     expect(onChatToggle).toHaveBeenCalledTimes(1)
     rerender(
-      <TopBar query="" onQuery={() => {}} dark={false} onTheme={() => {}} chatOpen onChatToggle={onChatToggle} />,
+      <TopBar query="" onQuery={() => {}} dark={false} onTheme={() => {}} chatOpen onChatToggle={onChatToggle} showSearch />,
     )
     expect(screen.getByRole('button', { name: 'Close chat' })).toHaveAttribute('aria-expanded', 'true')
   })
@@ -66,13 +67,25 @@ describe('TopBar', () => {
     const onQuery = vi.fn()
     const user = userEvent.setup()
     const { rerender } = render(
-      <TopBar query="pets" onQuery={onQuery} dark={false} onTheme={() => {}} chatOpen={false} onChatToggle={() => {}} />,
+      <TopBar query="pets" onQuery={onQuery} dark={false} onTheme={() => {}} chatOpen={false} onChatToggle={() => {}} showSearch />,
     )
     await user.click(screen.getByRole('button', { name: 'Clear search' }))
     expect(onQuery).toHaveBeenCalledWith('')
     rerender(
-      <TopBar query="" onQuery={onQuery} dark={false} onTheme={() => {}} chatOpen={false} onChatToggle={() => {}} />,
+      <TopBar query="" onQuery={onQuery} dark={false} onTheme={() => {}} chatOpen={false} onChatToggle={() => {}} showSearch />,
     )
     expect(screen.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument()
+  })
+
+  it('hides the search outside Overview without losing the query', () => {
+    const { rerender } = render(
+      <TopBar query="pets" onQuery={() => {}} dark={false} onTheme={() => {}} chatOpen={false} onChatToggle={() => {}} showSearch={false} />,
+    )
+    expect(screen.queryByLabelText('Search researches')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open chat' })).toBeInTheDocument()
+    rerender(
+      <TopBar query="pets" onQuery={() => {}} dark={false} onTheme={() => {}} chatOpen={false} onChatToggle={() => {}} showSearch />,
+    )
+    expect(screen.getByLabelText('Search researches')).toHaveValue('pets')
   })
 })

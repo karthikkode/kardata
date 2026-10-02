@@ -2,6 +2,7 @@
 // rendering: filtering, overflow totals, and tab switches run against the
 // component contract, never a mock origin.
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ResearchList } from '@/components/Dashboard'
 import { ResearchesPage } from '@/components/ResearchesPage'
@@ -124,7 +125,7 @@ describe('ResearchesPage', () => {
     stubCompaniesTab()
     renderPage()
     expect(screen.getByText('Pet care')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Companies' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Companies' }))
     expect(await screen.findByText('West Paw')).toBeInTheDocument()
     expect(screen.queryByText('Pet care', { exact: true })).not.toBeInTheDocument()
   })
@@ -162,13 +163,16 @@ describe('ResearchesPage', () => {
     expect(screen.queryByRole('button', { name: /Show more/ })).not.toBeInTheDocument()
   })
 
-  it('filters by state and clears back to everything', () => {
+  it('filters by state and clears back to everything', async () => {
+    const user = userEvent.setup()
     renderPage()
     expect(screen.getByText('Pet care')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Failed' }))
+    await user.click(screen.getByRole('combobox', { name: 'Filter by state' }))
+    await user.click(await screen.findByRole('option', { name: 'Failed' }))
     expect(screen.getByText('Vintage hi-fi')).toBeInTheDocument()
     expect(screen.queryByText('Pet care')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Paused' }))
+    await user.click(screen.getByRole('combobox', { name: 'Filter by state' }))
+    await user.click(await screen.findByRole('option', { name: 'Paused' }))
     expect(
       screen.getByText(/No researches match these filters/),
     ).toBeInTheDocument()
@@ -215,6 +219,8 @@ describe('ResearchesPage', () => {
   it('creates a sector draft from the sectors tab', () => {
     const onCreateSector = vi.fn()
     renderPage({ onCreateSector })
+    fireEvent.click(screen.getByRole('button', { name: 'New sector' }))
+    expect(screen.getByRole('dialog', { name: 'New sector draft' })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Speciality foods' } })
     fireEvent.change(screen.getByLabelText('Topic (optional)'), { target: { value: 'Artisanal' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create draft' }))
@@ -224,13 +230,25 @@ describe('ResearchesPage', () => {
   it('requires a name before creating', () => {
     const onCreateSector = vi.fn()
     renderPage({ onCreateSector })
+    fireEvent.click(screen.getByRole('button', { name: 'New sector' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create draft' }))
     expect(screen.getByRole('alert')).toHaveTextContent('Name the sector first.')
     expect(onCreateSector).not.toHaveBeenCalled()
   })
 
+  it('closes the creation dialog with Escape and returns focus', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(screen.getByRole('button', { name: 'New sector' }))
+    expect(screen.getByRole('dialog', { name: 'New sector draft' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'New sector draft' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New sector' })).toHaveFocus()
+  })
+
   it('surfaces a failed create instead of staying silent', () => {
     renderPage({ createError: 'request failed: POST /v1/sectors' })
+    fireEvent.click(screen.getByRole('button', { name: 'New sector' }))
     expect(screen.getByRole('alert')).toHaveTextContent('request failed: POST /v1/sectors')
   })
 

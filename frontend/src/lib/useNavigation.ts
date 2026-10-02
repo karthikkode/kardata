@@ -54,7 +54,11 @@ function serialize(nav: Navigation): string {
 
 /** View state synced both ways with the URL. Updates push a history entry
  * (Back/Forward work); popstate re-parses so the back button restores the
- * view. Scenario params are preserved verbatim. */
+ * view. Scenario params are preserved verbatim. Section changes run inside
+ * a View Transition where supported, so the outgoing page crossfades
+ * (non-interactive snapshot) instead of vanishing; otherwise the swap is
+ * instant with the entering content fading in. Reduced motion collapses
+ * both paths via CSS with scroll and focus work intact. */
 export function useNavigation(): [Navigation, (next: Partial<Navigation>) => void] {
   const [nav, setNavState] = useState<Navigation>(() => parseNavigation(window.location.search))
   useEffect(() => {
@@ -67,11 +71,21 @@ export function useNavigation(): [Navigation, (next: Partial<Navigation>) => voi
     }
   }, [])
   const setNav = useCallback((next: Partial<Navigation>) => {
-    setNavState((current) => {
-      const merged = { ...current, ...next }
-      window.history.pushState(null, '', serialize(merged))
-      return merged
-    })
+    const apply = (): void => {
+      setNavState((current) => {
+        const merged = { ...current, ...next }
+        window.history.pushState(null, '', serialize(merged))
+        return merged
+      })
+    }
+    const documentWithTransition = document as Document & {
+      startViewTransition?: (callback: () => void) => void
+    }
+    if (typeof documentWithTransition.startViewTransition === 'function') {
+      documentWithTransition.startViewTransition(apply)
+    } else {
+      apply()
+    }
   }, [])
   return [nav, setNav]
 }

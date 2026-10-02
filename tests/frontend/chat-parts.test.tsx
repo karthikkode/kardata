@@ -1,7 +1,8 @@
 // chat-parts proofs: divider gaps, bubble shells, and the agent mark.
 // No API stubs; pure render and pure-function assertions.
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
 import { AgentBubble, AgentMark, TimeDivider, UserBubble, splitAfter } from '@/components/chat-parts'
 import { toolGroupSummary } from '@/components/ChatPanel'
 
@@ -63,5 +64,37 @@ describe('chat parts', () => {
     render(<AgentMark name="Speciality Foods chat" />)
     expect(screen.getByText('Speciality Foods chat')).toBeInTheDocument()
     expect(screen.getByText('S')).toBeInTheDocument()
+  })
+
+  it('offers no copy action without settled text', () => {
+    render(<AgentBubble>Streaming…</AgentBubble>)
+    expect(screen.queryByRole('button', { name: 'Copy' })).not.toBeInTheDocument()
+  })
+
+  it('copies settled reply text and confirms', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn(async () => undefined)
+    vi.stubGlobal('navigator', { clipboard: { writeText } })
+    try {
+      render(<AgentBubble copyText="Settled answer.">Settled answer.</AgentBubble>)
+      await user.click(screen.getByRole('button', { name: 'Copy' }))
+      expect(writeText).toHaveBeenCalledWith('Settled answer.')
+      expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('reports clipboard rejection locally without touching content', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('navigator', { clipboard: { writeText: async () => { throw new Error('denied') } } })
+    try {
+      render(<AgentBubble copyText="Settled answer.">Settled answer.</AgentBubble>)
+      await user.click(screen.getByRole('button', { name: 'Copy' }))
+      expect(await screen.findByRole('alert')).toHaveTextContent('Copy failed. Try again.')
+      expect(screen.getByText('Settled answer.')).toBeInTheDocument()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

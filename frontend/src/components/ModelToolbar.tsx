@@ -47,6 +47,17 @@ function announceModelsMenuOpen() {
   window.dispatchEvent(new CustomEvent(MODELS_MENU_OPEN_EVENT))
 }
 
+/** Collision-aware menu placement: open above the trigger when the space
+ * below cannot fit the menu, so bottom-docked composers never push the
+ * list off-screen where it cannot be selected. Pure for tests. */
+export function shouldOpenAbove(
+  rect: { top: number; bottom: number },
+  viewportHeight: number,
+  needed = 340,
+): boolean {
+  return viewportHeight - rect.bottom < needed && rect.top >= needed
+}
+
 function defaultsOf(providers: ProviderEntry[], defaultProvider: string): Draft {
   const entry = providers.find((item) => item.name === defaultProvider) ?? providers[0]
   if (!entry) return { provider: '', model: '', reasoning: false }
@@ -108,6 +119,8 @@ export function ModelToolbar({
   /** Model row with its effort flyout open (hover or keyboard focus).
    * Touch users get the same flyout by tapping the row's effort button. */
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
+  const [menuAbove, setMenuAbove] = useState(false)
+  const [effortAbove, setEffortAbove] = useState(false)
   const [flyoutTop, setFlyoutTop] = useState(0)
   const [flyoutRight, setFlyoutRight] = useState<number | null>(null)
   const [flyoutLeft, setFlyoutLeft] = useState<number | null>(null)
@@ -385,7 +398,7 @@ export function ModelToolbar({
           <button
             type="button"
             onClick={retryCatalog}
-            className="h-7 shrink-0 cursor-pointer rounded-md border border-border px-2 text-xs"
+            className="h-8 pointer-coarse:h-10 shrink-0 cursor-pointer rounded-md border border-border px-2 text-xs"
           >
             Try again
           </button>
@@ -398,7 +411,7 @@ export function ModelToolbar({
           <button
             type="button"
             onClick={retryCatalog}
-            className="h-7 shrink-0 cursor-pointer rounded-md border border-border px-2 text-xs"
+            className="h-8 pointer-coarse:h-10 shrink-0 cursor-pointer rounded-md border border-border px-2 text-xs"
           >
             Try again
           </button>
@@ -412,7 +425,7 @@ export function ModelToolbar({
             <button
               type="button"
               onClick={retryBinding}
-              className="h-7 shrink-0 cursor-pointer rounded-md border border-border px-2 text-xs"
+              className="h-8 pointer-coarse:h-10 shrink-0 cursor-pointer rounded-md border border-border px-2 text-xs"
             >
               Try again
             </button>
@@ -439,10 +452,12 @@ export function ModelToolbar({
                 if (menu.open) closeMenu()
                 else {
                   announceModelsMenuOpen()
+                  const rect = triggerRef.current?.getBoundingClientRect()
+                  setMenuAbove(rect ? shouldOpenAbove(rect, window.innerHeight) : false)
                   menu.set(true)
                 }
               }}
-              className="flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-full px-2.5 text-xs font-medium hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+              className="flex h-8 pointer-coarse:h-10 min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-full px-2.5 text-xs font-medium hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
             >
               <span className="min-w-0 flex-1 truncate text-left">{triggerLabel}</span>
               <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
@@ -465,10 +480,12 @@ export function ModelToolbar({
                   if (effortMenu.open) closeMenu()
                   else {
                     announceModelsMenuOpen()
+                    const rect = effortTriggerRef.current?.getBoundingClientRect()
+                    setEffortAbove(rect ? shouldOpenAbove(rect, window.innerHeight, 240) : false)
                     effortMenu.set(true)
                   }
                 }}
-                className="flex h-7 shrink-0 cursor-pointer items-center gap-0.5 rounded-full px-2.5 text-xs capitalize text-muted-foreground hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+                className="flex h-8 pointer-coarse:h-10 shrink-0 cursor-pointer items-center gap-0.5 rounded-full px-2.5 text-xs capitalize text-muted-foreground hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
               >
                 {draft.effort ?? DEFAULT_EFFORT}
                 <ChevronDown className="size-3.5 shrink-0" aria-hidden />
@@ -505,7 +522,7 @@ export function ModelToolbar({
                 effortTriggerRef.current?.focus()
               }
             }}
-            className={`z-50 mb-2 w-44 overflow-hidden rounded-xl border border-border bg-muted p-2 shadow-xl ${compact ? 'absolute right-0 bottom-full' : 'absolute right-4 top-full'} ${effortMenu.closing ? popoverExit : popoverEnter}`}
+            className={`z-50 mb-2 w-44 overflow-hidden rounded-xl border border-border bg-muted p-2 shadow-xl ${compact || effortAbove ? 'absolute right-0 bottom-full' : 'absolute right-4 top-full'} ${effortMenu.closing ? popoverExit : popoverEnter}`}
           >
             {activeEfforts.map((level) => {
               const active = (draft.effort ?? DEFAULT_EFFORT) === level
@@ -556,7 +573,7 @@ export function ModelToolbar({
                 triggerRef.current?.focus()
               }
             }}
-            className={`z-50 mb-2 flex max-h-80 flex-col overflow-hidden rounded-xl border border-border bg-muted shadow-xl ${compact ? 'absolute right-0 bottom-full w-72' : 'absolute inset-x-4 top-full'} ${menu.closing ? popoverExit : popoverEnter}`}
+            className={`z-50 flex max-h-80 flex-col overflow-hidden rounded-xl border border-border bg-muted shadow-xl ${compact || menuAbove ? 'absolute right-0 bottom-full mb-2 w-72' : 'absolute inset-x-4 top-full mt-2'} ${menu.closing ? popoverExit : popoverEnter}`}
           >
             <div className="border-b border-border p-2">
               <input
@@ -658,7 +675,7 @@ export function ModelToolbar({
                                   if (row instanceof HTMLElement) openFlyout(key, row)
                                   else setExpandedKey(key)
                                 }}
-                                className="h-7 shrink-0 cursor-pointer rounded-md border border-border px-1.5 text-xs capitalize text-muted-foreground hover:border-muted-foreground"
+                                className="h-8 pointer-coarse:h-10 shrink-0 cursor-pointer rounded-md border border-border px-1.5 text-xs capitalize text-muted-foreground hover:border-muted-foreground"
                               >
                                 {currentLevel ?? 'Effort'}
                               </button>

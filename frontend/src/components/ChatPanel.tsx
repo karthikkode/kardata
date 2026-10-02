@@ -3,7 +3,7 @@
 // arrive on the thread stream. No fixtures, no simulated replies, no local
 // uploads: every row on screen was served by the backend.
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { motion } from 'motion/react'
+import { m } from 'motion/react'
 import {
   ArrowLeft,
   Bot,
@@ -67,7 +67,11 @@ import { ModelToolbar } from './ModelToolbar'
 import { SubagentsPanel } from './SubagentsPanel'
 import { PanelError, SkeletonRows, ToolRow, UnavailableNotice } from './research-parts'
 import { Button } from './ui/button'
+import { CollapsiblePanel, CollapsibleRoot, CollapsibleTrigger } from './ui/collapsible'
 import { Input } from './ui/input'
+import { Textarea } from './ui/textarea'
+import { ConfirmAction } from './ui/alert-dialog'
+import { ConversationComposer, OperationNotice } from './shells'
 import { AgentBubble, UserBubble } from './chat-parts'
 
 export type ChatScope = { id: string; name: string } | null
@@ -344,40 +348,31 @@ export function SessionsPanel({
               </span>
             </button>
             {confirmingId === session.id ? (
-              <span role="group" aria-label={`Delete ${session.title}?`} className="flex shrink-0 items-center gap-1">
-                <button
-                  type="button"
-                  aria-label={`Confirm delete ${session.title}`}
-                  disabled={deleting}
-                  onClick={() => {
-                    onDelete(session)
-                    setConfirmingId(null)
-                  }}
-                  className="cursor-pointer rounded-md border border-border px-1.5 py-0.5 text-xs font-medium hover:border-muted-foreground disabled:opacity-50"
-                >
-                  {deleting ? '…' : 'Delete'}
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Keep ${session.title}`}
-                  disabled={deleting}
-                  onClick={() => setConfirmingId(null)}
-                  className="cursor-pointer rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
-                >
-                  Keep
-                </button>
-              </span>
-            ) : (
-              <button
-                type="button"
-                aria-label={`Delete ${session.title}`}
-                disabled={deleting}
-                onClick={() => setConfirmingId(session.id)}
-                className="shrink-0 cursor-pointer rounded-md p-1 text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-50"
-              >
-                <Trash2 className="size-3.5" aria-hidden />
-              </button>
-            )}
+              <ConfirmAction
+                open
+                onOpenChange={(open) => {
+                  if (!open) setConfirmingId(null)
+                }}
+                title={`Delete "${session.title}"?`}
+                description="This removes the chat from the session list. Its history is retained in the audit log."
+                confirmLabel="Delete conversation"
+                pending={deleting}
+                onConfirm={() => {
+                  onDelete(session)
+                  setConfirmingId(null)
+                }}
+              />
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Delete ${session.title}`}
+              disabled={deleting}
+              onClick={() => setConfirmingId(session.id)}
+            >
+              <Trash2 className="size-4" aria-hidden />
+            </Button>
           </div>
         ))}
       </div>
@@ -479,7 +474,7 @@ export function ThinkingPlaceholder() {
     return () => window.clearInterval(timer)
   }, [])
   return (
-    <motion.div
+    <m.div
       role="status"
       aria-label="Agent is replying"
       initial={{ opacity: 0, y: 8 }}
@@ -498,7 +493,7 @@ export function ThinkingPlaceholder() {
         ))}
       </span>
       <span className="font-medium">Thinking{elapsed > 0 ? ` · ${elapsed}s` : null}</span>
-    </motion.div>
+    </m.div>
   )
 }
 
@@ -533,13 +528,16 @@ export function ActivityGroup({ tools, reasoning, live = false }: { tools: ChatT
     return `${Math.max(0, Math.floor((now - tool.seenAt) / 1000))}s`
   }
   return (
-    <div className="mb-2 text-muted-foreground">
-      <button
-        type="button"
-        aria-expanded={open}
+    <CollapsibleRoot
+      open={open}
+      onOpenChange={(next) => {
+        if (typeof next === 'boolean') setOpen(next)
+      }}
+      className="mb-2 text-muted-foreground"
+    >
+      <CollapsibleTrigger
         aria-label={`${open ? 'Hide' : 'Show'} ${label}`}
-        onClick={() => setOpen((value) => !value)}
-        className="group inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border/70 bg-card/60 px-2.5 py-1 text-left text-xs transition-colors hover:border-border hover:bg-muted/50"
+        className="group inline-flex min-h-8 pointer-coarse:min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-border/70 bg-card/60 px-2.5 py-1 text-left text-xs transition-colors hover:border-border hover:bg-muted/50"
       >
         {reasoning ? <Brain className="size-3.5 shrink-0 text-primary" aria-hidden /> : <Wrench className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
         <span className="font-medium text-foreground">{label}</span>
@@ -550,11 +548,12 @@ export function ActivityGroup({ tools, reasoning, live = false }: { tools: ChatT
         ) : null}
         {failed ? <span className="rounded-full bg-destructive/10 px-1.5 py-0.5 text-xs font-medium text-destructive">Needs attention</span> : null}
         <ChevronDown
-          className={`size-3.5 shrink-0 text-muted-foreground motion-safe:transition-transform ${open ? 'rotate-180' : ''}`}
+          data-chevron
+          className="size-3.5 shrink-0 text-muted-foreground"
           aria-hidden
         />
-      </button>
-      {open ? (
+      </CollapsibleTrigger>
+      <CollapsiblePanel>
         <div className="mt-2 ml-1 space-y-1.5 border-l-2 border-primary/20 pl-3">
           {reasoning ? (
             <div className="scroll-slim max-h-60 overflow-y-auto rounded-lg border border-border/60 bg-muted/40 p-3 text-xs leading-relaxed text-foreground/90 whitespace-pre-wrap">
@@ -571,8 +570,8 @@ export function ActivityGroup({ tools, reasoning, live = false }: { tools: ChatT
             />
           ))}
         </div>
-      ) : null}
-    </div>
+      </CollapsiblePanel>
+    </CollapsibleRoot>
   )
 }
 
@@ -590,7 +589,7 @@ function MessageBubble({ message, files, live = false }: { message: ChatText; fi
     <div className="min-w-0">
       <div>
         {message.reasoning ? <ActivityGroup tools={[]} reasoning={message.reasoning} live={live} /> : null}
-        {message.text ? <AgentBubble>
+        {message.text ? <AgentBubble copyText={live ? undefined : message.text}>
           <Markdown text={message.text} />
           {message.failed ? (
             <span className="mt-1 block text-xs text-muted-foreground">This reply failed.</span>
@@ -620,6 +619,9 @@ export function SessionFilesView({
   const [selectedFile, setSelectedFile] = useState<ChatFile | null>(null)
   const [fileBody, setFileBody] = useState<string | null>(null)
   const [loadingBody, setLoadingBody] = useState(false)
+  const [bodyError, setBodyError] = useState<string | null>(null)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
+  const previewRequest = useRef(0)
   const [createOpen, setCreateOpen] = useState(false)
   const [newFileName, setNewFileName] = useState('')
   const [newFileContent, setNewFileContent] = useState('')
@@ -629,28 +631,44 @@ export function SessionFilesView({
   function openPreview(file: ChatFile) {
     setSelectedFile(file)
     setFileBody(null)
-    if (!config) return
+    setBodyError(null)
+    if (!config) {
+      setBodyError('Preview needs a backend connection.')
+      return
+    }
+    // A preview request for file A must never overwrite file B after
+    // switching: only the latest request may settle into state.
+    const request = previewRequest.current + 1
+    previewRequest.current = request
     setLoadingBody(true)
     getArtifactBody(config, sessionId, file.id)
       .then((res) => {
+        if (previewRequest.current !== request) return
         setFileBody(res.body)
       })
       .catch(() => {
-        setFileBody('Could not load artifact body.')
+        if (previewRequest.current !== request) return
+        setBodyError('Could not load the file preview. Existing files are kept. Try again.')
       })
       .finally(() => {
-        setLoadingBody(false)
+        if (previewRequest.current === request) setLoadingBody(false)
       })
   }
 
   function downloadFile(file: ChatFile) {
-    if (!config) return
+    if (!config) {
+      setDownloadError(`Download of ${file.name} needs a backend connection.`)
+      return
+    }
+    setDownloadError(null)
     getArtifactBody(config, sessionId, file.id)
       .then((res) => {
         const blob = new Blob([res.body], { type: 'text/plain;charset=utf-8' })
         downloadBlob(blob, file.name)
       })
-      .catch(() => undefined)
+      .catch(() => {
+        setDownloadError(`Download of ${file.name} failed. The file is kept. Try again.`)
+      })
   }
 
   async function handleCreateFile() {
@@ -695,50 +713,53 @@ export function SessionFilesView({
           Create file
         </Button>
       </div>
+      {downloadError ? (
+        <div className="mb-4">
+          <OperationNotice phase="error" title="File download failed." detail={downloadError} onDismiss={() => setDownloadError(null)} />
+        </div>
+      ) : null}
 
       {createOpen ? (
         <div className="mb-4 rounded-xl border border-border bg-card p-3 shadow-2xs">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-xs font-semibold">New File</span>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Close file creation"
               onClick={() => setCreateOpen(false)}
-              className="text-muted-foreground hover:text-foreground"
             >
-              <X className="size-3.5" aria-hidden />
-            </button>
+              <X className="size-4" aria-hidden />
+            </Button>
           </div>
           <div className="space-y-2">
             <Input
               placeholder="filename.md or data.csv"
               value={newFileName}
               onChange={(e) => setNewFileName(e.target.value)}
-              className="h-8 text-xs font-mono"
+              className="font-mono text-xs"
             />
-            <textarea
+            <Textarea
               placeholder="Enter file contents..."
               value={newFileContent}
               onChange={(e) => setNewFileContent(e.target.value)}
-              className="scroll-slim min-h-[80px] w-full rounded-md border border-border bg-background p-2 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+              className="scroll-slim min-h-[80px] font-mono text-xs"
             />
-            {createError ? <p className="text-xs text-destructive">{createError}</p> : null}
+            {createError ? <OperationNotice phase="error" title="Could not create the file." detail={createError} /> : null}
             <div className="flex justify-end gap-2">
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
                 onClick={() => setCreateOpen(false)}
-                className="h-7 text-xs"
               >
                 Cancel
               </Button>
               <Button
                 type="button"
                 variant="default"
-                size="sm"
                 disabled={creating || !newFileName.trim()}
                 onClick={() => void handleCreateFile()}
-                className="h-7 text-xs"
               >
                 {creating ? 'Saving...' : 'Save File'}
               </Button>
@@ -773,16 +794,15 @@ export function SessionFilesView({
                   </p>
                 </div>
               </div>
-              <div className="flex shrink-0 items-center gap-1">
+              <div className="flex shrink-0 items-center gap-2">
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon-sm"
                   aria-label={`Preview ${file.name}`}
                   onClick={() => openPreview(file)}
-                  className="size-7"
                 >
-                  <Eye className="size-3.5" aria-hidden />
+                  <Eye className="size-4" aria-hidden />
                 </Button>
                 <Button
                   type="button"
@@ -790,9 +810,8 @@ export function SessionFilesView({
                   size="icon-sm"
                   aria-label={`Download ${file.name}`}
                   onClick={() => downloadFile(file)}
-                  className="size-7"
                 >
-                  <Download className="size-3.5" aria-hidden />
+                  <Download className="size-4" aria-hidden />
                 </Button>
               </div>
             </div>
@@ -807,16 +826,15 @@ export function SessionFilesView({
               <FileCode className="size-3.5 text-primary" aria-hidden />
               <span className="truncate text-xs font-mono font-medium">{selectedFile.name}</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
               <Button
                 type="button"
                 variant="ghost"
                 size="icon-sm"
                 aria-label="Download open file"
                 onClick={() => downloadFile(selectedFile)}
-                className="size-6"
               >
-                <Download className="size-3" aria-hidden />
+                <Download className="size-4" aria-hidden />
               </Button>
               <Button
                 type="button"
@@ -824,16 +842,24 @@ export function SessionFilesView({
                 size="icon-sm"
                 aria-label="Close file preview"
                 onClick={() => setSelectedFile(null)}
-                className="size-6"
               >
-                <X className="size-3" aria-hidden />
+                <X className="size-4" aria-hidden />
               </Button>
             </div>
           </div>
           <div className="scroll-slim max-h-56 overflow-y-auto">
             {loadingBody ? (
-              <p className="py-4 text-center text-xs text-muted-foreground">Loading file...</p>
-            ) : fileBody ? (
+              <p role="status" className="py-4 text-center text-xs text-muted-foreground">Loading file preview…</p>
+            ) : bodyError ? (
+              <div role="alert" className="rounded-lg border border-border bg-muted/30 p-3">
+                <p className="text-xs">{bodyError}</p>
+                {selectedFile ? (
+                  <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => openPreview(selectedFile)}>
+                    Try again
+                  </Button>
+                ) : null}
+              </div>
+            ) : fileBody !== null && fileBody !== '' ? (
               <div className="text-xs">
                 <Markdown text={fileBody} />
               </div>
@@ -1675,7 +1701,7 @@ export function ChatPanel({
                 <Pencil className="size-4" aria-hidden />
               </Button>
             ) : null}
-            {activeSession && !confirmingDelete ? (
+            {activeSession ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -1686,32 +1712,21 @@ export function ChatPanel({
                 <Trash2 className="size-4" aria-hidden />
               </Button>
             ) : null}
-            {activeSession && confirmingDelete ? (
-              <span role="group" aria-label={`Delete ${activeSession.title}?`} className="flex shrink-0 items-center gap-1">
-                <Button
-                  type="button"
-                  variant="default"
-                  size="sm"
-                  disabled={deletingSession}
-                  onClick={() => {
-                    if (activeSession) runDelete(activeSession.id)
-                  }}
-                >
-                  {deletingSession ? 'Deleting…' : 'Confirm delete'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={deletingSession}
-                  onClick={cancelDelete}
-                >
-                  Keep
-                </Button>
-              </span>
-            ) : null}
-            {deleteError ? (
-              <p role="alert" className="shrink-0 text-xs text-muted-foreground">{deleteError}</p>
+            {activeSession ? (
+              <ConfirmAction
+                open={confirmingDelete}
+                onOpenChange={(open) => {
+                  if (!open) cancelDelete()
+                }}
+                title={`Delete "${activeSession.title}"?`}
+                description="This removes the chat from the session list. Its history is retained in the audit log."
+                confirmLabel="Delete conversation"
+                pending={deletingSession}
+                error={deleteError}
+                onConfirm={() => {
+                  runDelete(activeSession.id)
+                }}
+              />
             ) : null}
             {scope ? (
               <button
@@ -1719,7 +1734,7 @@ export function ChatPanel({
                 ref={contextButtonRef}
                 aria-expanded={contextPanel.open}
                 onClick={() => contextPanel.set(!contextPanel.open)}
-                className="inline-flex h-6 shrink-0 cursor-pointer items-center rounded-full border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:border-muted-foreground"
+                className="inline-flex h-8 pointer-coarse:h-10 shrink-0 cursor-pointer items-center rounded-full border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:border-muted-foreground"
               >
                 Context
               </button>
@@ -1734,7 +1749,7 @@ export function ChatPanel({
                 role="tab"
                 aria-selected={activeTab === 'conversation'}
                 onClick={() => setActiveTab('conversation')}
-                className={`rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
+                className={`min-h-8 pointer-coarse:min-h-10 rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
                   activeTab === 'conversation'
                     ? 'bg-background text-foreground shadow-2xs'
                     : 'text-muted-foreground hover:text-foreground'
@@ -1747,7 +1762,7 @@ export function ChatPanel({
                 role="tab"
                 aria-selected={activeTab === 'files'}
                 onClick={() => setActiveTab('files')}
-                className={`rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
+                className={`min-h-8 pointer-coarse:min-h-10 rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
                   activeTab === 'files'
                     ? 'bg-background text-foreground shadow-2xs'
                     : 'text-muted-foreground hover:text-foreground'
@@ -2059,8 +2074,8 @@ export function ChatPanel({
             onOpenThread={openThreadChat}
             onStopThread={stopThread}
           /> : null}
-          <form
-            className="relative border-t border-border px-4 py-3"
+          <ConversationComposer label="Message the agent" input={<form
+            className="relative"
             onSubmit={(event) => {
               event.preventDefault()
               send(draft)
@@ -2189,7 +2204,7 @@ export function ChatPanel({
               aria-label="Toggle plan mode"
               aria-pressed={planMode}
               onClick={() => setPlanMode((val) => !val)}
-              className={`h-7 gap-1 rounded-full px-2 text-xs ${
+              className={`h-8 pointer-coarse:h-10 gap-1 rounded-full px-2 text-xs ${
                 planMode ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -2228,7 +2243,7 @@ export function ChatPanel({
               </Button>
             )}
             </div>
-          </form>
+          </form>} />
           </div>
         </>
       )}

@@ -50,7 +50,7 @@ test('clip: section switch crossfade with heading focus', async ({ page }) => {
   await serveClipsApi(page)
   await page.goto('/')
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
-  await expect(page.getByRole('heading', { name: 'Researches' })).toBeFocused()
+  await expect(page.getByRole('heading', { name: 'Researches', exact: true })).toBeFocused()
   await page.waitForTimeout(300)
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Agents' }).click()
   await expect(page.getByRole('heading', { name: 'Agents' })).toBeFocused()

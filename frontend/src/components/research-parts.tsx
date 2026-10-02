@@ -5,6 +5,7 @@ import { researchStages } from '../data/stages'
 import type { CompanyResearch, SectorResearch } from '../data/research'
 import { StatusPill } from './StatusPill'
 import { Button } from './ui/button'
+import { Skeleton } from './ui/skeleton'
 
 export const stateLabel = {
   draft: 'Draft',
@@ -121,11 +122,7 @@ export function SkeletonRows({ label }: { label: string }) {
   return (
     <div role="status" aria-label={label}>
       {[0, 1, 2].map((index) => (
-        <div
-          key={index}
-          aria-hidden
-          className="h-19 rounded-lg bg-muted motion-safe:animate-pulse"
-        />
+        <Skeleton key={index} className="h-19" />
       ))}
     </div>
   )
@@ -188,7 +185,6 @@ export function ToolRow({
             aria-label={open ? `Hide ${name} detail` : `Show ${name} detail`}
             aria-expanded={open}
             onClick={() => setOpen((value) => !value)}
-            className="size-6 shrink-0 rounded"
           >
             <ChevronDown
               className={`size-3.5 motion-safe:transition-transform ${open ? 'rotate-180' : ''}`}
@@ -204,7 +200,7 @@ export function ToolRow({
       ) : null}
       {state === 'failed' && onRetry ? (
         <div className="mt-1.5">
-          <Button type="button" variant="ghost" size="sm" onClick={onRetry} className="h-6 text-xs">
+          <Button type="button" variant="ghost" size="sm" onClick={onRetry} className="text-xs">
             Retry tool
           </Button>
         </div>

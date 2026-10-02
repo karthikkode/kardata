@@ -62,9 +62,10 @@ describe('SectorContextDrawer', () => {
       screen.getByText(
         (_, element) =>
           element?.tagName === 'P' &&
-          element?.textContent === '30 / 1,000,000 tokens · 0.00% of context · digest abc123def456 · 1 references',
+          element?.textContent === '30 / 1,000,000 estimated tokens · 0.00% of context · digest abc123def456 · 1 references',
       ),
     ).toBeInTheDocument()
+    expect(screen.getByText('Legacy estimate, not a budget limit.')).toBeInTheDocument()
     expect(screen.getByText('[notes.md:0] Title')).toBeInTheDocument()
     expect(screen.getByText('No history pinned.')).toBeInTheDocument()
     expect(screen.getByText('No tail pinned.')).toBeInTheDocument()

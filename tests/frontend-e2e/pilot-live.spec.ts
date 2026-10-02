@@ -50,7 +50,7 @@ test.describe('pilot-01 live UI walk', () => {
 
     await mark('researches-first-paint', async () => {
       await page.goto('/?section=Researches')
-      await expect(page.getByRole('heading', { name: 'Researches' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Researches', exact: true })).toBeVisible()
     })
     await page.screenshot({ path: `${EVIDENCE}/01-researches.png` })
 

@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { ExecutablePlanDetails, ResearchPlanEditor } from '@/components/ResearchPlanEditor'
+import { ExecutablePlanDetails, PlanBriefTimeline, ResearchPlanEditor, splitBriefSections } from '@/components/ResearchPlanEditor'
 import type { ExecutableResearchPlan } from '@/data/research-plan'
 
 const executable: ExecutableResearchPlan = { discovery: [{ id: 'au', title: 'Australian SMEs', queries: ['Australian manufacturers'], maxPages: 2 }], companyBrief: 'Verify identity and source evidence.', budgets: { maxCompanies: 2000, maxWallMinutes: 60, concurrency: 2 }, acceptance: ['Distinct Australian companies with fetched evidence'] }
@@ -42,6 +42,119 @@ describe('owner review of executable plans', () => {
     render(<ResearchPlanEditor markdown="Legacy" busy={false} error={null} onSave={async () => false} />)
     await user.click(screen.getByRole('button', { name: 'Edit plan' }))
     expect(screen.getByText(/legacy plan has no executable work/)).toBeInTheDocument()
+  })
+})
+
+describe('executable plan presentation contract', () => {
+  const longQuery = `Australian manufacturers ${'with cited evidence '.repeat(18)}`.slice(0, 300)
+  const targetPlan: ExecutableResearchPlan = {
+    ...executable,
+    discoveryTarget: 500,
+    discovery: [{ id: 'au', title: 'Australian SMEs', queries: [longQuery], maxPages: 2 }],
+    companyBrief: `Verify identity. ${'Keep uncertain claims explicit. '.repeat(30)}`,
+  }
+
+  it('renders full queries as numbered rows without a completion bar', () => {
+    const { container } = render(<ExecutablePlanDetails plan={targetPlan} />)
+    expect(screen.getByText(longQuery)).toBeInTheDocument()
+    expect(screen.getByText(longQuery).closest('li')).not.toHaveClass('truncate')
+    expect(screen.getByRole('region', { name: 'Executable research work' })).toHaveTextContent('Target 500 of up to 2,000 companies')
+    expect(container.querySelector('[style*="width"]')).toBeNull()
+  })
+
+  it('lists acceptance as neutral numbered requirements', () => {
+    render(<ExecutablePlanDetails plan={executable} />)
+    const region = screen.getByRole('region', { name: 'Acceptance criteria' })
+    const items = within(region).getAllByRole('listitem')
+    expect(items).toHaveLength(1)
+    expect(items[0]).toHaveTextContent(executable.acceptance[0]!)
+  })
+
+  it('discloses long instructions behind an explicit control', async () => {
+    const user = userEvent.setup()
+    render(<ExecutablePlanDetails plan={targetPlan} />)
+    const toggle = screen.getByRole('button', { name: 'Show full instructions' })
+    await user.click(toggle)
+    expect(screen.getByRole('button', { name: 'Show less' })).toBeInTheDocument()
+  })
+
+  it('keeps blank numerics editable and reports field errors with a focused summary', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn(async () => true)
+    render(<ResearchPlanEditor markdown="Plan" executable={executable} busy={false} error={null} onSave={onSave} />)
+    await user.click(screen.getByRole('button', { name: 'Edit plan' }))
+    const limit = screen.getByLabelText('Company limit')
+    await user.clear(limit)
+    expect((limit as HTMLInputElement).value).toBe('')
+    await user.click(screen.getByRole('button', { name: 'Save plan' }))
+    expect(onSave).not.toHaveBeenCalled()
+    expect(screen.getAllByText('Enter a company limit from 1 to 2000.')).toHaveLength(2)
+    const summary = screen.getByText('Fix this field before saving.').closest('[role="alert"]')!
+    expect(summary).toHaveTextContent('Enter a company limit from 1 to 2000.')
+    expect(summary).toHaveFocus()
+  })
+  it('rejects a cleared discovery target instead of defaulting to one', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn(async () => true)
+    const discovery = {
+      ...executable,
+      researchDepth: 'discovery' as const,
+      discoveryTarget: 500,
+    }
+    render(<ResearchPlanEditor markdown="Plan" executable={discovery} busy={false} error={null} onSave={onSave} />)
+    await user.click(screen.getByRole('button', { name: 'Edit plan' }))
+    const target = screen.getByLabelText('Discovery target')
+    expect(target).toHaveValue(500)
+    await user.clear(target)
+    expect((target as HTMLInputElement).value).toBe('')
+    await user.click(screen.getByRole('button', { name: 'Save plan' }))
+    expect(onSave).not.toHaveBeenCalled()
+    expect(screen.getAllByText('Enter a discovery target from 1 to 2000.').length).toBeGreaterThan(0)
+    expect(screen.getByRole('dialog', { name: 'Edit research plan' })).toBeInTheDocument()
+  })
+  it('leaves a never-set discovery target unset instead of erroring', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn(async () => true)
+    const discovery = { ...executable, researchDepth: 'discovery' as const }
+    render(<ResearchPlanEditor markdown="Plan" executable={discovery} busy={false} error={null} onSave={onSave} />)
+    await user.click(screen.getByRole('button', { name: 'Edit plan' }))
+    expect(screen.getByLabelText('Discovery target')).toHaveValue(null)
+    await user.click(screen.getByRole('button', { name: 'Save plan' }))
+    expect(onSave).toHaveBeenCalledTimes(1)
+    expect(onSave.mock.calls[0]?.[0]).not.toContain('discoveryTarget')
+  })
+})
+
+describe('narrative brief timeline', () => {
+  const brief = 'Intro line.\n\n## scope\n\nJourney sector, owner-edited.\n\n### direction shards\n\nPayments.\n\n## Custom heading\n\nAnything goes.\n\n```\n## not a heading\n```\n\n## budgets\n\n'
+
+  it('splits heading-led sections while preserving every line', () => {
+    const { intro, sections } = splitBriefSections(brief)
+    expect(intro).toBe('Intro line.')
+    expect(sections.map((section) => [section.heading, section.level])).toEqual([
+      ['scope', 2],
+      ['direction shards', 3],
+      ['Custom heading', 2],
+      ['budgets', 2],
+    ])
+    expect(sections[0]?.body).toBe('Journey sector, owner-edited.')
+    expect(sections[2]?.body).toBe('Anything goes.\n\n```\n## not a heading\n```')
+    expect(sections[3]?.body).toBe('')
+  })
+
+  it('renders every section with a medallion and intact text', () => {
+    render(<PlanBriefTimeline text={brief} />)
+    expect(screen.getByText('Intro line.')).toBeInTheDocument()
+    for (const heading of ['scope', 'direction shards', 'Custom heading', 'budgets']) {
+      expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument()
+    }
+    expect(screen.getByText('Journey sector, owner-edited.')).toBeInTheDocument()
+    expect(screen.getByText('## not a heading')).toBeInTheDocument()
+  })
+
+  it('falls back to plain markdown without sections', () => {
+    render(<PlanBriefTimeline text={'Just prose, no headings.'} />)
+    expect(screen.getByText('Just prose, no headings.')).toBeInTheDocument()
   })
 })
 

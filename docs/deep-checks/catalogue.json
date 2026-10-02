@@ -919,7 +919,7 @@
     },
     {
       "path": "backend/eslint.config.js",
-      "sha256": "7fa6b03ce3b22a30b4a69b900094f9e20a6f363ef2a208713e957d196f4b6a79",
+      "sha256": "710fc7d15fbcd7f7fc9e66301c74e421ae23bbb6adbcc269ff7c5906a6ab57b8",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3467,7 +3467,7 @@
     },
     {
       "path": "frontend/package.json",
-      "sha256": "d309d88dba4e6c0dc5dc388255b6f01fe6db8302f6a03706d82ce7b6646d7cdf",
+      "sha256": "f612d981b5ae0911a0296c0f8eeef59bf6a93a961994ea88272cb534e5ecb281",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -3497,7 +3497,7 @@
     },
     {
       "path": "frontend/src/App.tsx",
-      "sha256": "56c39217f60f442419b17501d193d672227c118c7ebb011aa00d0be2c2e97125",
+      "sha256": "b5df15820f4063373ff7ed8ce044cafdcb64b981eab2791787883b4d738efab0",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3506,7 +3506,7 @@
     },
     {
       "path": "frontend/src/components/ChatPanel.tsx",
-      "sha256": "0fc7947013d12a15165e73969d264ccc62bc53ea3b341c0b1d1912804d309322",
+      "sha256": "c9838564394ce65b1ca2c15729fb0aea1ca8263a3bc73920098261e7f330ef4d",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3533,7 +3533,7 @@
     },
     {
       "path": "frontend/src/components/Dashboard.tsx",
-      "sha256": "843d440495fa71b51b03d7fdca126e6fd6384bd529b72bc26afe708072a39ce5",
+      "sha256": "568c3ef81f73b5400b756386c992afd87a3f3999e989a75eead47a6ddb9df493",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3543,7 +3543,7 @@
     },
     {
       "path": "frontend/src/components/ExecutionInspector.tsx",
-      "sha256": "50686efecfd4acbf008bb15b91841eb5fd3da5f9de99e820192f6983e9f1bce9",
+      "sha256": "1dc009ec567da7f87b2a428f5a44489e68d492dd05493a26a0e13556568d593e",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3570,26 +3570,28 @@
     },
     {
       "path": "frontend/src/components/Markdown.tsx",
-      "sha256": "ccd41cdd2ef667aacd475dac3cf8103c6d02b6d740389a724647489959ce0cf6",
+      "sha256": "9565e152b2fc8e95a2197ed8b1c918ff29a62de446565ecfa6c818cea1179728",
       "review": "pending",
       "tests": [],
       "exports": [
         "Markdown",
+        "planSectionIcon",
         "safeExternalUrl"
       ]
     },
     {
       "path": "frontend/src/components/ModelToolbar.tsx",
-      "sha256": "96903d5127d915bfbd2b24f89e89fc85b36fcb635ba64b0b675508510e275057",
+      "sha256": "824ecd2c61332d623de1fca7f1273d13c8fc646f18db67030b35655c42699243",
       "review": "pending",
       "tests": [],
       "exports": [
-        "ModelToolbar"
+        "ModelToolbar",
+        "shouldOpenAbove"
       ]
     },
     {
       "path": "frontend/src/components/ModelsPanel.tsx",
-      "sha256": "e08134aa4eb4209a9ed443f2cb0aead758546b4169f0ed2d96c14872fe220d38",
+      "sha256": "2680c721f7fbfb606693fe95681c7b5ce12cb6defdc6a3452b10f132b999457f",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3599,17 +3601,21 @@
     },
     {
       "path": "frontend/src/components/ResearchPlanEditor.tsx",
-      "sha256": "05c3ea3fa4bcafabf495872e3f0d46119b43b584eeaac122cdc3b65ebd234031",
+      "sha256": "ff02f1bccc4c90790c5b9b4c3dc1778b931ab46bcf0042a902794b3c3094e8f7",
       "review": "pending",
       "tests": [],
       "exports": [
+        "BriefSection",
         "ExecutablePlanDetails",
-        "ResearchPlanEditor"
+        "PlanBriefTimeline",
+        "PlanVersionTimeline",
+        "ResearchPlanEditor",
+        "splitBriefSections"
       ]
     },
     {
       "path": "frontend/src/components/ResearchesPage.tsx",
-      "sha256": "7a2c708c084c405ef75a08014dd2249a66e4918c119332b55341fb4d19f3d90b",
+      "sha256": "fc0af8d89df740db7fe671bae0e04fd8bf52a6118a86c12e196ca54ffbf6f125",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3618,7 +3624,7 @@
     },
     {
       "path": "frontend/src/components/RunConsole.tsx",
-      "sha256": "b657fcfc0c9a1977c09f273c4e5a239582d701c4b0a48004aae0d0d500926e49",
+      "sha256": "94cacddbc258f271b3a33016b320c60876ae396104af28e7f9173b63cfcec4ba",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3627,7 +3633,7 @@
     },
     {
       "path": "frontend/src/components/RunsPanel.tsx",
-      "sha256": "8c359e97ed8ff7c4a6033c202c294de9a13fe8a56279277ea4e71fbe8fd87df4",
+      "sha256": "59ea5d24b203b306868473e5e1a65ee65f97b19185de3775feef001a34b82430",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3636,7 +3642,7 @@
     },
     {
       "path": "frontend/src/components/SectorChatPanel.tsx",
-      "sha256": "208dd0ea98bbc088d723a3f5cf729738fe546e5e53339ae4fe1c47056376df90",
+      "sha256": "2fe2b061122387c06b2ae20543958a0ff39b4d94c4c50daee3b11ecc9e015f01",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3645,7 +3651,7 @@
     },
     {
       "path": "frontend/src/components/SectorContextDrawer.tsx",
-      "sha256": "f67a07528e33b68f8fa79d03d22db21fe63111743f7923dfea6839b4c80aeee5",
+      "sha256": "928ed5614b49f4487d58aa5f5c3d992aca338039d95226e2a47a22c010c284ce",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3654,7 +3660,7 @@
     },
     {
       "path": "frontend/src/components/SectorDetailPage.tsx",
-      "sha256": "69e6e2f2a016bc55c17b1ad677c09f5b39f57a6df0724ce45f0bb77ca922b826",
+      "sha256": "17b92ae0ec2c839ab71ee60054a87da03ad3efb9f1803e9142e6cc0d4b1a5cda",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3674,7 +3680,7 @@
     },
     {
       "path": "frontend/src/components/SectorLanding.tsx",
-      "sha256": "0b1674b5a989472ee9062e8bac217a57ac117163c47ce21f275388311d0723fb",
+      "sha256": "be57e730bd7d1510d24e2774ce715d03a0f574608951fc3943ed6d8dcd3e3cf1",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3683,7 +3689,7 @@
     },
     {
       "path": "frontend/src/components/SectorPlanSection.tsx",
-      "sha256": "5a8bd4427d2233329c629b5e8ff5a278dd78b0354733ad4b080768e648fe58f0",
+      "sha256": "190c2b8935072fa6d3137b281e43c478e3905eaf6b70f3a6b08c706059e49197",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3692,17 +3698,19 @@
     },
     {
       "path": "frontend/src/components/SectorWorkspace.tsx",
-      "sha256": "30569d33e73f8c805676e3b8abead39043b39946d28d97a40d58fa614b978b7e",
+      "sha256": "113c574498d971b79fd6c59ab7766f188b05bbd8081b0ce117aad19a16cc9fb8",
       "review": "pending",
       "tests": [],
       "exports": [
         "ResearchActions",
-        "SectorWorkspace"
+        "SectorWorkspace",
+        "SessionOptions",
+        "activateNeighbor"
       ]
     },
     {
       "path": "frontend/src/components/Sidebar.tsx",
-      "sha256": "5efa1342830f671143b0376a3ab5a34673943511831c8ebca8caa485cbaf2070",
+      "sha256": "5a482e677d79b353d16a2358d5eb20ef7f41e7320afb997b7507784aa417d24e",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3711,7 +3719,7 @@
     },
     {
       "path": "frontend/src/components/StatusPill.tsx",
-      "sha256": "dd33cd9ed58977c5c74308188d94792120f8989418375a4a2a4fa1e085c70f3b",
+      "sha256": "bce4e88d84ba4b5480cb27729a3a89eed4cbb63bb0e6298b2ccb4ff5e0e404d4",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3722,7 +3730,7 @@
     },
     {
       "path": "frontend/src/components/SubagentsPanel.tsx",
-      "sha256": "85882cff6d1f35a99266727992c3fdfe21df8bc4fb1fb956de19b7040456a7f6",
+      "sha256": "72c6093d412fd0eff7631b1c203f87be12e7125794403adb64299a21faf8ace4",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3740,7 +3748,7 @@
     },
     {
       "path": "frontend/src/components/TopBar.tsx",
-      "sha256": "7f1381de6989664f2f33484533c699ae3edb10ba12fe02665fa5e7de5950e5be",
+      "sha256": "413d81d60523111c0ddba1d00e4adfb09592b8f1f37bc46e0d5941b3a8470e7d",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3749,7 +3757,7 @@
     },
     {
       "path": "frontend/src/components/chat-parts.tsx",
-      "sha256": "6c148e635801a6a970797ec99c1fb867e27f9973d2fe4a870028d14d77378e67",
+      "sha256": "346c2f90808d5cf3c89f20e68932da5d5055fe1ce6da385502aa8ca1447bf3c8",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3763,8 +3771,29 @@
       ]
     },
     {
+      "path": "frontend/src/components/chat/AssistantRuntimeAdapter.tsx",
+      "sha256": "99e9b9a68639d32dfce676c574ea6f12a6f164efae04ec58f44f4377028be224",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "AssistantRuntimeAdapter"
+      ]
+    },
+    {
+      "path": "frontend/src/components/chat/assistantAdapter.ts",
+      "sha256": "8292b989fd7b43d887110c2550e89bf50293c2af1a8a7587fe4a5c39322f5b60",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "MessageSegmentLike",
+        "PendingParts",
+        "toThreadMessages",
+        "toThreadSegments"
+      ]
+    },
+    {
       "path": "frontend/src/components/research-parts.tsx",
-      "sha256": "8cb7c2ba5228d8adb7ab1823ef2516240dd8581cc9cd3dfdec8dd545970e96f1",
+      "sha256": "eea97b628002f8225f07ae17b864a9941202df9c47d866eeab47e2f46b227641",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3783,8 +3812,64 @@
       ]
     },
     {
+      "path": "frontend/src/components/shells.tsx",
+      "sha256": "d9c215f887ee99d6eefbadcce17be02b4700a689776b5cc3d11122527f72a668",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ConversationComposer",
+        "EmptyKind",
+        "ListFooter",
+        "OperationNotice",
+        "PageHeader",
+        "PlanDocument",
+        "PlanSection",
+        "ResourceState",
+        "SearchField",
+        "SectionCard",
+        "StatusBadge"
+      ]
+    },
+    {
+      "path": "frontend/src/components/text.tsx",
+      "sha256": "5b22b1869834b1cb2866948aa59026f0e6b18c3cbec9fc3c886b1117982e630f",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "Body",
+        "Caption",
+        "CardTitle",
+        "Eyebrow",
+        "Mono",
+        "PageTitle",
+        "SectionTitle",
+        "WorkspaceTitle"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ui/alert-dialog.tsx",
+      "sha256": "f4e3e85f1aa49f1c0c936d5c25bc7167988505c411697d323a1e64ddfc0ba0d3",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "AlertDialogRoot",
+        "AlertDialogTrigger",
+        "ConfirmAction"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ui/badge.tsx",
+      "sha256": "6586771b96e3306cf1ca2738fce8b64448e409daa2aae4dd62a3bf2bfbdaf03b",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "Badge",
+        "BadgeTone"
+      ]
+    },
+    {
       "path": "frontend/src/components/ui/button.tsx",
-      "sha256": "448bfe8061a1b03f6790e53daeed1d15854544635fa655208cfabf0cf2c18008",
+      "sha256": "b9e17f92bee86d60d00ab9513c731d45713aaeab393e1481f370bec8fcfacdb4",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3793,8 +3878,57 @@
       ]
     },
     {
+      "path": "frontend/src/components/ui/checkbox.tsx",
+      "sha256": "78a6a6ab7b50f0baf286d3a46d37807c574a00337bbe01b1577fa57c8b82d2d4",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "CheckboxRoot"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ui/collapsible.tsx",
+      "sha256": "61fab18ecea3ff67b9785bb241b893ead1f3759100719b8a8814b6953eaca804",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "CollapsiblePanel",
+        "CollapsibleRoot",
+        "CollapsibleTrigger"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ui/dialog.tsx",
+      "sha256": "ccad1511f6cd424fc0602f49302e0e475fc0f8449f32776b5cddb6a544725898",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "DialogBody",
+        "DialogClose",
+        "DialogDescription",
+        "DialogFooter",
+        "DialogHeader",
+        "DialogPopup",
+        "DialogRoot",
+        "DialogTitle",
+        "DialogTrigger"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ui/field.tsx",
+      "sha256": "36dbe4bf35a7b43c6766e4b2780bfa28d27ffea57575f5a41b34d7ac68d99a60",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FieldDescription",
+        "FieldError",
+        "FieldLabel",
+        "FieldRoot"
+      ]
+    },
+    {
       "path": "frontend/src/components/ui/input.tsx",
-      "sha256": "dab990dfefa0ba78854ab6602ad074270dba9d7d1262184d9bfbb62bd990903b",
+      "sha256": "5f67508d18210ef4099fbbcac8bebe32e58f7b6f2eb556e4e4667897a55e08c0",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3802,8 +3936,133 @@
       ]
     },
     {
+      "path": "frontend/src/components/ui/menu.tsx",
+      "sha256": "4f84178dd1d0a85aa9d0d2a37eeed29c241309748e290920699ebbe3dce2d6a7",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "MenuCheckboxItem",
+        "MenuItem",
+        "MenuLabel",
+        "MenuPopup",
+        "MenuRoot",
+        "MenuSeparator",
+        "MenuTrigger"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ui/popover.tsx",
+      "sha256": "d882e3591eea4764b3a7d431fc1094465a5292a27d4240ad49654ddd8224b61e",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "PopoverDescription",
+        "PopoverPopup",
+        "PopoverRoot",
+        "PopoverTitle",
+        "PopoverTrigger"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ui/progress.tsx",
+      "sha256": "21fc232671ae4c83b79ddcc3008353a78c3cf617d7c52b8387d38d6191cfc5c3",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ProgressRoot"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ui/searchable.tsx",
+      "sha256": "b1c6d4836f7f55a9afb19944c31548f4e92b05d4926143e06a0d89866d9278ae",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SearchableEmpty",
+        "SearchableInput",
+        "SearchableItem",
+        "SearchableList",
+        "SearchablePopup",
+        "SearchableRoot",
+        "SearchableTrigger"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ui/select.tsx",
+      "sha256": "7714f2fa1c930cf4d29cebc92e2f8c6dc60b9d91d8493486bdeff4f59b9b2e5e",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SelectItem",
+        "SelectPopup",
+        "SelectRoot",
+        "SelectTrigger"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ui/separator.tsx",
+      "sha256": "a92a12ab990c8a4a0a0de5e6e245923e5a61006c461052f6b33182130cb64c1c",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "Separator"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ui/skeleton.tsx",
+      "sha256": "42e0902defb68a8147e517a22d8b3af280cc13cddae595ee487f312b88e49c57",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "Skeleton"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ui/switch.tsx",
+      "sha256": "34c40af8c9d9be22a496356b891c89687acf06ed493f1b56eff0db0fa64829a7",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SwitchRoot"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ui/tabs.tsx",
+      "sha256": "8c9088d56fca7f22b52a59218e700e89a118b010c05b6b31d7930d49a1c2a93e",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "TabsList",
+        "TabsPanel",
+        "TabsRoot",
+        "TabsTab"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ui/textarea.tsx",
+      "sha256": "3f02c7f4b10813cc6ab912399a755025821bce6276f0757ee58a59ec690f73e6",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "Textarea",
+        "TextareaProps"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ui/tooltip.tsx",
+      "sha256": "9fa7291e8dac8d1f9a04b23da63846e59ea7c1b0883d8bab5a48f75fa19f5219",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "TooltipPopup",
+        "TooltipProvider",
+        "TooltipRoot",
+        "TooltipTrigger"
+      ]
+    },
+    {
       "path": "frontend/src/components/workspace-parts.tsx",
-      "sha256": "d6356f1524ecc0e9290f4b80fa6f5ffaaeeef6ef9a287302d220cbfed028a929",
+      "sha256": "19c95c2c9e924f6e6b131e01cb813004147c1ab0a4123e76eb8f97b04bef687f",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4042,7 +4301,7 @@
     },
     {
       "path": "frontend/src/index.css",
-      "sha256": "46f5e878c034b7983a7d00b924ae1130a24e0e2d67938a62962ee622f9fa406c",
+      "sha256": "91fab62635ac617fa55433061078c7e30a6bb4f073a1dcb2d1a3923197c0557c",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4058,22 +4317,38 @@
     },
     {
       "path": "frontend/src/lib/motion.ts",
-      "sha256": "88656ca62b1f47164a6f0a69a3258e9599dbf2fb144a2c31f0169452a8d5d167",
+      "sha256": "f7a19bd9dd9d312726a5c887a81f906a83ba5262bbbb40b6496e3619eac3e5ba",
       "review": "pending",
       "tests": [],
       "exports": [
         "EXIT_MS",
+        "POPOVER_MS",
+        "dialogEnter",
+        "dialogExit",
         "dockEnter",
         "dockExit",
+        "noticeEnter",
+        "pageEnter",
+        "pageExit",
         "popoverEnter",
         "popoverExit",
         "prefersReducedMotion",
+        "rowEnter",
         "useExitState"
       ]
     },
     {
+      "path": "frontend/src/lib/overlay.ts",
+      "sha256": "5a07c515c980724d4a8172e0a98a20dd8b4b3d6a2fae2cfe3f81e2972f201da1",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "useTopmostOverlay"
+      ]
+    },
+    {
       "path": "frontend/src/lib/useNavigation.ts",
-      "sha256": "1342c1f0c062796e77d66473196ad1a21516dfc3d38089ad5d324902f0dad2f4",
+      "sha256": "4cafe6d17db0fb156b6668e1a8190b8679ae6d33a749b911c966020f60174ec9",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4100,7 +4375,7 @@
     },
     {
       "path": "frontend/src/test/setup.ts",
-      "sha256": "278c8ab04d4daa680e919eee55458a535f7795062bb69216b331d801a6852355",
+      "sha256": "281322af0ca705c9e267e2fd7e81e4d5949a78e517f6315519a8ab1c20df149e",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4137,7 +4412,7 @@
     },
     {
       "path": "package-lock.json",
-      "sha256": "d0291dd97af3c61321bc64310a6b397d4efb535d0d636f3ce78ab2180c564457",
+      "sha256": "04e3239b4a273867da4774970ffc27b1f7d77498f3495ef2680f61eb915609a8",
       "review": "excluded",
       "reason": "Generated npm lock: dependency and integrity review belongs to package manifests.",
       "tests": [],
@@ -5672,7 +5947,7 @@
     },
     {
       "path": "tests/frontend-e2e/matrix.spec.ts",
-      "sha256": "69499680ec50bf3eac05bd68136a1746d0f3c9398240ae599d8e9bd12e44a368",
+      "sha256": "cd0bf5788142d38ce6ca077eda244cdd4938d85ffffc6795e145860e3a0d715a",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5686,7 +5961,7 @@
     },
     {
       "path": "tests/frontend-e2e/pilot-live.spec.ts",
-      "sha256": "f3257cd92ca1d4afd6a49b006c5445dde67c6d82eddc8c670cc47ae522c547ce",
+      "sha256": "24645aff3576f5804248527fb704c87707a0ffbf3b5966c94204e2799dae711a",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5700,14 +5975,14 @@
     },
     {
       "path": "tests/frontend-e2e/plan-full.spec.ts",
-      "sha256": "a6b37952735ce1f28c479eccaa2479ece1c639bebbdf98eea1a83dbec59b7f79",
+      "sha256": "1197f31a92d74294928028f32a4f5173affaf12473162678dba546b373adb6c9",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend-e2e/plan-live.spec.ts",
-      "sha256": "8a792efc834720777c7d7621d7a831c90b09a339159a393e15d76dfb78ea615a",
+      "sha256": "42ba4aa11e4343c8bce2e51ff08c526be4c59c566940fff9c80cb942570582fa",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5715,6 +5990,13 @@
     {
       "path": "tests/frontend-e2e/polish.spec.ts",
       "sha256": "3d13acfe8a09a3bcf96a674bb8f0645a8896e7e6a7ba8c7734e4d0a5b79f05db",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/revamp-evidence.spec.ts",
+      "sha256": "2e8f1b242cc02c3b0c9ddacb822c689bed31ac9f11c23ff98c6eb9cc4984a264",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5749,7 +6031,7 @@
     },
     {
       "path": "tests/frontend-e2e/transitions.spec.ts",
-      "sha256": "d96cd8e80f50d133cbc80014253dc1d7512b7aad0f4aeae8d867c0b910583f9c",
+      "sha256": "57e96b64389351b030333f96ef4782f5ae9c3bdb34300ede58b67bd48de949e7",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5770,14 +6052,14 @@
     },
     {
       "path": "tests/frontend-e2e/workspace.spec.ts",
-      "sha256": "d882eb47a12ac72908b0c50b6525e8aff27b1d2e287e6523c6f821e1e0b87578",
+      "sha256": "862a1898953a003269ab3ad387fcf265bd9ed900913a67cef43ed1586c91ff52",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend/Button.test.tsx",
-      "sha256": "c04111c4715b79cdabfe49e3149a7654512d8497a86452d30c7b18769dde5832",
+      "sha256": "09d49fff7cea47a65e2a44c33a1479e10163232315968c6958cfcb2085103e26",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5812,7 +6094,7 @@
     },
     {
       "path": "tests/frontend/ResearchesPage.test.tsx",
-      "sha256": "42dcb8f59687d6609d345dae83e3194b37a9663d66198cbe9f5e8ec0bff32c38",
+      "sha256": "4b44d46b996ce229a5a1bb72b8e41b534d953a0baea86efc7bb9fe9dd767800b",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5826,14 +6108,14 @@
     },
     {
       "path": "tests/frontend/SectorChatPanel.test.tsx",
-      "sha256": "b4681c3208bddc9e227babec104b84ef4625dc210ae2ef85d99d5061cb2999ca",
+      "sha256": "4a66b1b0e1c079cc96870a27fa667927b3c5dd838cea04e364e859acb886250c",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend/SectorContextDrawer.test.tsx",
-      "sha256": "1f7d40eee684b39e2bc0c6ff3e0709bd67679170f8b8c1f4fe8c2341ad89270f",
+      "sha256": "e9eea69706d271f3c57c49669e04a058047442ae44a8a87df32cefb795a5518d",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5875,7 +6157,7 @@
     },
     {
       "path": "tests/frontend/TopBar.test.tsx",
-      "sha256": "f84da7cc0885ff11bd514ccb19bd274e8dd9bc8bf64473b3906547a5fa0ce052",
+      "sha256": "3dcc14e1ea62f4272551e2cef707a7a7a9411f6da47c90a1c51acd0242bc3ed8",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5895,15 +6177,29 @@
       "exports": []
     },
     {
+      "path": "tests/frontend/assistant-adapter.test.tsx",
+      "sha256": "5028266d090f5798171bda01e10bf0eb87e7ff4f5b0aad9346704b52d14fde96",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/assistant-runtime.test.tsx",
+      "sha256": "5e88c6f4f7e419eb644195700cf1efd781f668adf2ed492889d8d6a784cf2f7a",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/frontend/chat-parts.test.tsx",
-      "sha256": "7c4e9caf1ba68f7717e62dbec9a2c8c5c85655c2440746401819529158babd5b",
+      "sha256": "3367fe3e2da03d728c5293b191cf7828d787019967769e56e05a22df3174858e",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend/chat-staging.test.tsx",
-      "sha256": "2c34253e8f76e6da2ce6777234695e4bdc94d03b0565613e6037a59f0dafab24",
+      "sha256": "2d7945a8d376c8c7247c5dde5719b26b51e14a22a3c09d622e0a85e0f336a879",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5911,6 +6207,20 @@
     {
       "path": "tests/frontend/company-window.test.tsx",
       "sha256": "b5c85652ddf230d46e6572280fb43bd851f7eaeb8aaa1804d904a9595628bb5a",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/coverage-registry.md",
+      "sha256": "072a431f8a03e7e33793164eda448d12d0639fbf233b3e22f5de500e5c04b485",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/coverage-registry.test.ts",
+      "sha256": "7b8ba16473b602567cbb195eb6ae993c840d66ada85a2fe6ca38bcc4e10a9175",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5938,7 +6248,7 @@
     },
     {
       "path": "tests/frontend/markdown.test.tsx",
-      "sha256": "9d0e2a31944a714a0dfddda00842a1bd5eb77190d3f4c90d5e0eebca16d61608",
+      "sha256": "3b21ffc103aaed99857190ffd733d01da88ec023422da61319d21c98d843d26a",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5952,14 +6262,28 @@
     },
     {
       "path": "tests/frontend/models-staging.test.tsx",
-      "sha256": "641dc5dfe3661fc63dac95f7b8463d068ee6c736353bccfd263ecdbbd576798f",
+      "sha256": "ac091feda9efeb7decf26cbb61adb3929d5be2f350bcff2aa6f881882aac49f6",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/motion-presets.test.tsx",
+      "sha256": "9f74ac2dbf98aa136e14c47e8648aec6e179dcc10a376c2b3e9b9d31f63e2d83",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend/navigation-url.test.tsx",
-      "sha256": "71b0f1010ca2efcfbe715cab90ec2994f67f01f53f105392e592cb2598d24925",
+      "sha256": "ab56307e6c948bead9c14c9297e8146c7b2dd7308494649b688c40b90474643e",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/nested-overlays.test.tsx",
+      "sha256": "7a3ad691d081da1e3c302575842403efaf38314fcddc00db9c490fb64aa34ad1",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5987,7 +6311,7 @@
     },
     {
       "path": "tests/frontend/research-plan-editor.test.tsx",
-      "sha256": "ccac0b2c63a6651f55a06e528770ee988edd803db5481c43505b2b44e168ac58",
+      "sha256": "7cd2f8f2b991f7b08f1fb0c9fa4425106d40df1796a62a514aad7c38b99d8019",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6028,6 +6352,27 @@
       "exports": []
     },
     {
+      "path": "tests/frontend/session-files.test.tsx",
+      "sha256": "e74e088476bf9ca7e0f7559dcff129c9556ad81fa32252ee592203a4f9591f4f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/session-options.test.tsx",
+      "sha256": "9a2ec8a541d0bcca40b51d63c9d08001ac7edaa808ee8db98ef4d5e4ea417b7a",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/shells.test.tsx",
+      "sha256": "1c6be235a126879727be23e1f0d6c5476c6b6145303b9e8a34e99238f113b3d7",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/frontend/staging-api.test.ts",
       "sha256": "c374421787cb0628b5b8ac2ee06510960f9dbd029419d96d078a444faebe257f",
       "review": "pending",
@@ -6049,8 +6394,22 @@
       "exports": []
     },
     {
+      "path": "tests/frontend/text-primitives.test.tsx",
+      "sha256": "b6d1f84dd68bb96cf1122224c9fd57cc237dd53bd2db1412162d64d394ea7ef6",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/frontend/typography.test.ts",
-      "sha256": "fbe9d57df500b90cc0e4160d70426c2507e3cc932c2b3db92108171702ea30f6",
+      "sha256": "efdb25fbc3ffb266ff0dfbdd6dd29b90d14a2f4ae9d8d144ca22725c72780ce0",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/ui-primitives.test.tsx",
+      "sha256": "e5c75ef168d21f3a60fb39985d0b9c4e5ad637fd2d9e581e4bc11c18541469d6",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6086,6 +6445,13 @@
     {
       "path": "tests/frontend/workspace-session-creation.test.tsx",
       "sha256": "e90797d80e3dafdc10d2bc7a5edc376a2055f3d1213229846e0651a102b74e10",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/workspace-tabs.test.tsx",
+      "sha256": "2918ec8147696079d12d07c795936a4e1c84e4eab7113e9af9cb8df2cc973190",
       "review": "pending",
       "tests": [],
       "exports": []

@@ -7,9 +7,9 @@ import { Button } from './ui/button'
 
 const labels = { request: 'Request', response: 'Response', 'tool-result': 'Tool result' }
 const DISPLAY_CHARS = 64_000
-export function ExecutionInspector({ page, body, selectedSeq, hasPrevious, onSelect, onNext, onPrevious, onClose }: {
+export function ExecutionInspector({ page, body, selectedSeq, hasPrevious, onSelect, onNext, onPrevious, onClose, open = true }: {
   page: Resource<ExecutionRecordPage>; body: Resource<ExecutionRecordBody>; selectedSeq: number | null; hasPrevious: boolean
-  onSelect(seq: number): void; onNext(): void; onPrevious(): void; onClose(): void
+  onSelect(seq: number): void; onNext(): void; onPrevious(): void; onClose(): void; open?: boolean
 }) {
   const selected = page.data?.records.find((record) => record.seq === selectedSeq)
   const details = useRef<HTMLElement>(null)
@@ -28,7 +28,7 @@ export function ExecutionInspector({ page, body, selectedSeq, hasPrevious, onSel
     link.href = url; link.download = `execution-${selectedSeq}.json`; link.click()
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
-  return <WorkspaceOverlay title="Execution records" onClose={onClose} footer={<><Button variant="outline" disabled={!hasPrevious || page.status === 'loading'} onClick={onPrevious}>Previous records</Button><Button disabled={page.status !== 'ready' || page.data?.nextAfterSeq == null} onClick={onNext}>Next records</Button></>}>
+  return <WorkspaceOverlay title="Execution records" open={open} onClose={onClose} footer={<><Button variant="outline" disabled={!hasPrevious || page.status === 'loading'} onClick={onPrevious}>Previous records</Button><Button disabled={page.status !== 'ready' || page.data?.nextAfterSeq == null} onClick={onNext}>Next records</Button></>}>
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3"><p className="text-xs leading-relaxed text-muted-foreground">Saved normalized adapter inputs, results and tool boundaries. Historical snapshots retain the content seen at that time. Inspection requires an approver key.</p><Button variant="ghost" size="icon-sm" aria-label="Refresh execution records" onClick={page.refresh}><RefreshCw className="size-4" aria-hidden /></Button></div>
       <ResourceNotice resource={page} label="Execution inspection" />

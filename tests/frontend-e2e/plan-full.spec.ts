@@ -45,7 +45,7 @@ test.describe('plan-03 full lifecycle journey', () => {
 
     await mark('researches-first-paint', async () => {
       await page.goto('/?section=Researches')
-      await expect(page.getByRole('heading', { name: 'Researches' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Researches', exact: true })).toBeVisible()
     })
 
     const stamp = Date.now().toString(36)

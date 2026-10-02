@@ -15,3 +15,10 @@ afterEach(() => {
   // never leaks into the next.
   window.history.replaceState({}, '', '/')
 })
+
+// jsdom has no PointerEvent; Base UI pointer handling constructs one.
+// Mirror the browser with a MouseEvent-backed stand-in so pointer-driven
+// primitives (checkbox and friends) behave under user-event.
+if (typeof window.PointerEvent === 'undefined') {
+  window.PointerEvent = window.MouseEvent as unknown as typeof window.PointerEvent
+}

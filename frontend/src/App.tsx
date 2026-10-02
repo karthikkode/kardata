@@ -29,10 +29,11 @@ import {
   stagingConfig,
   type StagingConfig,
 } from './data/staging-api'
-import { useExitState } from './lib/motion'
-import { MotionConfig } from 'motion/react'
+import { useExitState, pageEnter } from './lib/motion'
+import { LazyMotion, MotionConfig, domAnimation } from 'motion/react'
 import { useNavigation } from './lib/useNavigation'
 import { stateLabel } from './components/research-parts'
+import { PageHeader } from './components/shells'
 
 export default function App() {
   // View state lives in the URL (useNavigation): refresh, deep links, and
@@ -242,10 +243,11 @@ export default function App() {
       : []
 
   if (section === 'SectorChat' && detailData.detail && staging && detailData.status !== 'denied') {
-    return <MotionConfig reducedMotion="user"><SectorWorkspace sector={detailData.detail} model={workspace} config={staging} dark={dark} onTheme={() => setDark((value) => !value)} onBack={() => setNav({ section: 'SectorDetail', sessionId: null, threadKey: null })} actions={{ busy: researchBusy, error: researchError, plan: () => void planCurrentSector(), approve: (version, contextVersion) => void approveCurrentSector(version, contextVersion), start: () => void startCurrentSector(), pause: () => void pauseCurrentSector(), resume: () => void resumeCurrentSector(), edit: editCurrentSectorPlan }} /></MotionConfig>
+    return <MotionConfig reducedMotion="user"><LazyMotion features={domAnimation}><SectorWorkspace sector={detailData.detail} model={workspace} config={staging} dark={dark} onTheme={() => setDark((value) => !value)} onBack={() => setNav({ section: 'SectorDetail', sessionId: null, threadKey: null })} actions={{ busy: researchBusy, error: researchError, plan: () => void planCurrentSector(), approve: (version, contextVersion) => void approveCurrentSector(version, contextVersion), start: () => void startCurrentSector(), pause: () => void pauseCurrentSector(), resume: () => void resumeCurrentSector(), edit: editCurrentSectorPlan }} /></LazyMotion></MotionConfig>
   }
   return (
     <MotionConfig reducedMotion="user">
+    <LazyMotion features={domAnimation}>
     <div className="flex min-h-screen bg-muted/40 text-foreground">
       <Sidebar active={section} onSelect={(next) => setNav({ section: next, sectorId: null })} />
       <div className="flex min-w-0 flex-1 flex-col">
@@ -253,6 +255,7 @@ export default function App() {
           query={query}
           onQuery={setQuery}
           dark={dark}
+          showSearch={section === 'Overview'}
           onTheme={() => setDark((value) => !value)}
           chatOpen={chatOpen}
           onChatToggle={() => {
@@ -274,18 +277,12 @@ export default function App() {
             onClose={closeChat}
           />
         ) : null}
-        <main className="flex-1 px-4 py-6 md:px-6">
+        <main className="flex-1 px-4 py-6 md:px-6 lg:px-8">
           <div
             key={section}
-            className="mx-auto w-full max-w-6xl motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+            className={`mx-auto w-full max-w-6xl ${pageEnter}`}
           >
-            <h1
-              ref={headingRef}
-              tabIndex={-1}
-              className="mb-4 text-xl font-semibold tracking-tight focus:outline-none"
-            >
-              {heading}
-            </h1>
+            <PageHeader ref={headingRef} tabIndex={-1} title={heading} className="mb-4" titleClassName="focus:outline-none" />
             {!staging ? (
               <div className="rounded-xl border border-dashed border-border bg-background p-4">
                 <p className="text-sm font-medium">Backend not connected.</p>
@@ -351,6 +348,7 @@ export default function App() {
         </main>
       </div>
     </div>
+    </LazyMotion>
     </MotionConfig>
   )
 }

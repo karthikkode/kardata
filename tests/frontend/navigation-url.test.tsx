@@ -109,7 +109,7 @@ describe('app navigation sync', () => {
     const { default: App } = await import('@/App')
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: 'View all 1 sector researches' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Companies' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Companies' }))
     expect(await screen.findByRole('region', { name: 'All company researches' })).toBeInTheDocument()
     expect(window.location.search).toContain('tab=companies')
   })

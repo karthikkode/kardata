@@ -38,8 +38,9 @@ function isSectorContextView(data: unknown): data is SectorContextView {
 }
 
 function MeterBar({ view }: { view: SectorContextView }) {
-  // Model window the meter scales against (muse-spark class, 1M tokens).
-  // Usage reads come from the backend view; only the scale lives here.
+  // Legacy estimated inspection view: usage reads come from the backend
+  // view and the scale below is an estimate only. It is not the active
+  // local-context budget authority.
   const WINDOW_TOKENS = 1_000_000
   const total = view.usage.totalEstimatedTokens
   const percent = ((total / WINDOW_TOKENS) * 100).toFixed(2)
@@ -50,7 +51,8 @@ function MeterBar({ view }: { view: SectorContextView }) {
   ]
   return (
     <div>
-      <div className="relative">
+      <p className="mb-1 text-xs text-muted-foreground">Legacy estimate, not a budget limit.</p>
+      <div>
         <div
           role="img"
           aria-label={`Context meter: ${total} of ${WINDOW_TOKENS} estimated tokens (${percent} percent of context)`}
@@ -65,19 +67,12 @@ function MeterBar({ view }: { view: SectorContextView }) {
             />
           ))}
         </div>
-        <div
-          className="pointer-events-none absolute inset-y-0 w-0.5 bg-amber-500/80"
-          style={{ left: '60%' }}
-          title="60% compaction threshold"
-          aria-hidden
-        />
       </div>
       <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
         <p>
-          {total.toLocaleString()} / {WINDOW_TOKENS.toLocaleString()} tokens · {percent}% of context · digest{' '}
+          {total.toLocaleString()} / {WINDOW_TOKENS.toLocaleString()} estimated tokens · {percent}% of context · digest{' '}
           {view.digest.version} · {view.segments.references.length} references
         </p>
-        <span className="text-xs text-amber-500 dark:text-amber-400">60% compact threshold</span>
       </div>
     </div>
   )

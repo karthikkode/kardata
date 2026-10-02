@@ -3483,3 +3483,25 @@ remote CI and the complete PR checklist remain the root's package/merge gates.
 Owned test containers/volumes/databases and Temporal histories remain retained;
 only explicitly named obsolete owned test Postgres instances were gracefully
 stopped. Runtime/pilot/shared services and data were untouched in this slice.
+
+UI revamp completion (2026-10-02, branch codex/ui-revamp-complete from
+ui-revamp-perfect head fdbc9d2): owned Base UI wrappers for all 19
+primitives plus 9 shared feature shells with a maintained ID-to-evidence
+registry (tests/frontend/coverage-registry.md). Adopted without copy or
+request-semantics changes: Researches Tabs/Select/creation-dialog,
+SearchField unification (TopBar/files/sessions/subagents), workspace and
+Karbot deletion through ConfirmAction (row delete touch-visible at 32px),
+workspace tablist arrows, Karbot file targets at 32px, collapsed-sidebar
+tooltips, App title/gutters/presets, legacy drawer labeled as an estimate
+with the 60% threshold claim and amber removed. Red suites during the pass
+were contracts, not baselines: kept-mounted tab panels hid rows from sync
+queries (reverted to exact mount semantics), tooltip/statuspill/select
+roles needed wrapper fixes, drawer meter copy updated to the honest
+estimate wording, and stale tab/button/confirm names were updated to the
+intended product contracts (tabs, Select options, version-bound approval,
+alert-dialog deletion). Frontend gates green: lint 0 errors, typecheck
+clean, 421 unit passed / 6 skipped, build clean. Browser re-verification
+and the remaining explicit follow-ups (composer visual migration,
+Select-primitive model menus, 200%-zoom/touch-keyboard matrices, live
+DB/Temporal/provider suites, 2,000-company campaign) are recorded in the
+completion handoff plan.

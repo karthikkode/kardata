@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowLeft, X } from 'lucide-react'
+import { ArrowLeft, Plus } from 'lucide-react'
 import type { CompanyResearch, ResearchData, SectorResearch } from '../data/research'
 import { useStagingCompanies } from '../data/research'
 import type { ResearchState, StagingConfig } from '../data/staging-api'
@@ -17,6 +17,20 @@ import {
 } from './research-parts'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
+import {
+  DialogBody,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogPopup,
+  DialogRoot,
+  DialogTitle,
+  DialogTrigger,
+} from './ui/dialog'
+import { FieldLabel, FieldRoot } from './ui/field'
+import { ListFooter, SearchField, SectionCard } from './shells'
+import { SelectItem, SelectPopup, SelectRoot, SelectTrigger } from './ui/select'
+import { TabsList, TabsPanel, TabsRoot, TabsTab } from './ui/tabs'
 
 const stateFilters = [
   'draft',
@@ -32,90 +46,52 @@ const stateFilters = [
 
 type StateFilter = ResearchState | 'all'
 
+const stateOptions: { value: StateFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  ...stateFilters.map((state) => ({ value: state as StateFilter, label: stateLabel[state] })),
+]
+
 function FilterBar({
-  tab,
-  onTab,
   query,
   onQuery,
   active,
   onActive,
 }: {
-  tab: ResearchList
-  onTab: (tab: ResearchList) => void
   query: string
   onQuery: (value: string) => void
   active: StateFilter
   onActive: (filter: StateFilter) => void
 }) {
   return (
-    <div className="space-y-3">
-      <div role="group" aria-label="Research type" className="flex gap-2">
-        {(
-          [
-            { value: 'sectors', label: 'Sectors' },
-            { value: 'companies', label: 'Companies' },
-          ] as const
-        ).map(({ value, label }) => (
-          <Button
-            key={value}
-            type="button"
-            variant={tab === value ? 'default' : 'outline'}
-            size="sm"
-            aria-pressed={tab === value}
-            onClick={() => onTab(value)}
-          >
-            {label}
-          </Button>
-        ))}
+    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+      <div className="min-w-0 flex-1 sm:min-w-52">
+        <SearchField
+          value={query}
+          onChange={onQuery}
+          label="Filter researches"
+          placeholder="Type to filter"
+          clearLabel="Clear filter"
+        />
       </div>
-      <div className="max-w-sm">
-        <label htmlFor="researches-filter" className="mb-1 block text-sm font-medium">
-          Filter researches
-        </label>
-        <div className="relative">
-          <Input
-            id="researches-filter"
-            placeholder="Type to filter"
-            value={query}
-            onChange={(event) => onQuery(event.target.value)}
-            className={query ? 'pr-8' : undefined}
-          />
-          {query ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => onQuery('')}
-              aria-label="Clear filter"
-              className="absolute top-1/2 right-1 -translate-y-1/2"
-            >
-              <X className="size-4" aria-hidden />
-            </Button>
-          ) : null}
-        </div>
-      </div>
-      <div role="group" aria-label="Filter by state" className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant={active === 'all' ? 'default' : 'outline'}
-          size="sm"
-          aria-pressed={active === 'all'}
-          onClick={() => onActive('all')}
+      <div className="w-full sm:w-52">
+        <span id="researches-state-label" className="mb-1 block text-sm font-medium">
+          Filter by state
+        </span>
+        <SelectRoot
+          value={stateOptions.find((option) => option.value === active) ?? stateOptions[0]}
+          onValueChange={(option) => {
+            if (option) onActive(option.value)
+          }}
         >
-          All
-        </Button>
-        {stateFilters.map((state) => (
-          <Button
-            key={state}
-            type="button"
-            variant={active === state ? 'default' : 'outline'}
-            size="sm"
-            aria-pressed={active === state}
-            onClick={() => onActive(active === state ? 'all' : state)}
-          >
-            {stateLabel[state]}
-          </Button>
-        ))}
+          <SelectTrigger aria-labelledby="researches-state-label" />
+          <SelectPopup>
+            {stateOptions.map((option) => (
+              <SelectItem key={option.value} value={option}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </SelectRoot>
       </div>
     </div>
   )
@@ -210,9 +186,7 @@ function FullList({
   return (
     <>
       {showCount ? (
-        <p aria-live="polite" className="mb-2 text-xs text-muted-foreground">
-          Showing {Math.min(rows.length, 50)} of {rows.length} matching
-        </p>
+        <ListFooter shown={Math.min(rows.length, 50)} total={rows.length} filtered />
       ) : null}
       <OverflowList total={rows.length}>{rows.map((item) => item.row)}</OverflowList>
     </>
@@ -285,30 +259,23 @@ function CompaniesFullList({
   }
   return (
     <>
-      {showCount ? (
-        <p aria-live="polite" className="mb-2 text-xs text-muted-foreground">
-          Showing {rows.length} of {total} matching
-        </p>
-      ) : null}
       <OverflowList total={total}>{rows.map((item) => <CompanyRow key={item.id} research={item} />)}</OverflowList>
-      {hasMore ? (
-        <div className="mt-2 flex justify-center">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={data.showMore}
-            disabled={data.loadingMore}
-          >
-            {data.loadingMore ? 'Loading more…' : `Show more (${rows.length} of ${total})`}
-          </Button>
+      {showCount || hasMore ? (
+        <div className="mt-2">
+          <ListFooter
+            shown={rows.length}
+            total={total}
+            filtered
+            loadingMore={data.loadingMore}
+            onMore={hasMore ? data.showMore : undefined}
+          />
         </div>
       ) : null}
     </>
   )
 }
 
-function CreateSectorForm({
+function CreateSectorDialog({
   creating,
   createError,
   onCreate,
@@ -317,60 +284,91 @@ function CreateSectorForm({
   createError: string | null
   onCreate: (name: string, topic: string) => void
 }) {
+  const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [topic, setTopic] = useState('')
   const [error, setError] = useState('')
+  // Typed values survive a failed submit: the dialog stays open with the
+  // draft intact, and only a successful creation navigates away (unmount).
+  function submit() {
+    if (creating) return
+    if (!name.trim()) {
+      setError('Name the sector first.')
+      return
+    }
+    setError('')
+    onCreate(name.trim(), topic.trim())
+  }
   return (
-    <form
-      aria-label="Create a sector draft"
-      className="mt-4 rounded-xl border border-dashed border-border p-3"
-      onSubmit={(event) => {
-        event.preventDefault()
-        if (!name.trim()) {
-          setError('Name the sector first.')
-          return
-        }
-        setError('')
-        onCreate(name.trim(), topic.trim())
+    <DialogRoot
+      open={open}
+      onOpenChange={(next) => {
+        if (creating) return
+        setOpen(next)
+        if (!next) setError('')
       }}
     >
-      <h2 className="text-sm font-semibold">New sector draft</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Drafts collect context files first; research starts only when you press Start.
-      </p>
-      <div className="mt-2 grid max-w-md gap-2">
-        <div>
-          <label htmlFor="new-sector-name" className="mb-1 block text-sm font-medium">
-            Name
-          </label>
-          <Input
-            id="new-sector-name"
-            placeholder="Speciality foods"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </div>
-        <div>
-          <label htmlFor="new-sector-topic" className="mb-1 block text-sm font-medium">
-            Topic (optional)
-          </label>
-          <Input
-            id="new-sector-topic"
-            placeholder="Artisanal packaged foods"
-            value={topic}
-            onChange={(event) => setTopic(event.target.value)}
-          />
-        </div>
-      </div>
-      {error || createError ? (
-        <p role="alert" className="mt-2 text-sm text-muted-foreground">
-          {error || createError}
-        </p>
-      ) : null}
-      <Button type="submit" variant="default" size="sm" className="mt-2" disabled={creating}>
-        {creating ? 'Creating…' : 'Create draft'}
-      </Button>
-    </form>
+      <DialogTrigger
+        render={(props) => (
+          <Button type="button" variant="default" size="sm" {...props}>
+            <Plus className="size-4" aria-hidden />
+            New sector
+          </Button>
+        )}
+      />
+      <DialogPopup>
+        <DialogHeader>
+          <div className="min-w-0 flex-1">
+            <DialogTitle>New sector draft</DialogTitle>
+            <DialogDescription>
+              Drafts collect context files first; research starts only when you press Start.
+            </DialogDescription>
+          </div>
+        </DialogHeader>
+        <DialogBody>
+          <form
+            aria-label="Create a sector draft"
+            className="grid gap-4"
+            onSubmit={(event) => {
+              event.preventDefault()
+              submit()
+            }}
+          >
+            <FieldRoot>
+              <FieldLabel htmlFor="new-sector-name">Name</FieldLabel>
+              <Input
+                id="new-sector-name"
+                placeholder="Speciality foods"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
+            </FieldRoot>
+            <FieldRoot>
+              <FieldLabel htmlFor="new-sector-topic">Topic (optional)</FieldLabel>
+              <Input
+                id="new-sector-topic"
+                placeholder="Artisanal packaged foods"
+                value={topic}
+                onChange={(event) => setTopic(event.target.value)}
+              />
+            </FieldRoot>
+            {error || createError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {error || createError}
+              </p>
+            ) : null}
+          </form>
+        </DialogBody>
+        <DialogFooter>
+          <Button type="button" variant="outline" disabled={creating} onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button type="button" variant="default" disabled={creating} pending={creating} onClick={submit}>
+            {creating ? 'Creating…' : 'Create draft'}
+          </Button>
+        </DialogFooter>
+      </DialogPopup>
+    </DialogRoot>
   )
 }
 
@@ -405,51 +403,59 @@ export function ResearchesPage({
   }
   return (
     <div className="space-y-6">
-      <Button type="button" variant="ghost" size="sm" onClick={onBack}>
-        <ArrowLeft className="size-4" aria-hidden />
-        Back to Overview
-      </Button>
-      {tab === 'sectors' ? (
-        <CreateSectorForm creating={creating} createError={createError} onCreate={onCreateSector} />
-      ) : null}
-      <section
-        aria-label={tab === 'sectors' ? 'All sector researches' : 'All company researches'}
-        className="rounded-xl border border-border bg-background px-4 py-3"
-      >
-        <FilterBar
-          tab={tab}
-          onTab={changeTab}
-          query={query}
-          onQuery={setQuery}
-          active={active}
-          onActive={setActive}
-        />
-        <div className="mt-4">
-          {tab === 'sectors' ? (
-            <FullList
-              data={sectors}
-              tab={tab}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Button type="button" variant="ghost" size="sm" onClick={onBack}>
+          <ArrowLeft className="size-4" aria-hidden />
+          Back to Overview
+        </Button>
+        {tab === 'sectors' ? (
+          <CreateSectorDialog creating={creating} createError={createError} onCreate={onCreateSector} />
+        ) : null}
+      </div>
+      <TabsRoot value={tab} onValueChange={(value) => changeTab(value as ResearchList)}>
+        <SectionCard
+          title={tab === 'sectors' ? 'All sector researches' : 'All company researches'}
+        >
+          <TabsList aria-label="Research type">
+            <TabsTab value="sectors">Sectors</TabsTab>
+            <TabsTab value="companies">Companies</TabsTab>
+          </TabsList>
+          <div className="mt-4">
+            <FilterBar
               query={query}
+              onQuery={setQuery}
               active={active}
-              onClear={() => {
-                setQuery('')
-                setActive('all')
-              }}
-              onOpenSector={onOpenSector}
+              onActive={setActive}
             />
-          ) : (
-            <CompaniesFullList
-              staging={staging}
-              query={query}
-              active={active}
-              onClear={() => {
-                setQuery('')
-                setActive('all')
-              }}
-            />
-          )}
-        </div>
-      </section>
+          </div>
+          <div className="mt-4">
+            <TabsPanel value="sectors">
+              <FullList
+                data={sectors}
+                tab="sectors"
+                query={query}
+                active={active}
+                onClear={() => {
+                  setQuery('')
+                  setActive('all')
+                }}
+                onOpenSector={onOpenSector}
+              />
+            </TabsPanel>
+            <TabsPanel value="companies">
+              <CompaniesFullList
+                staging={staging}
+                query={query}
+                active={active}
+                onClear={() => {
+                  setQuery('')
+                  setActive('all')
+                }}
+              />
+            </TabsPanel>
+          </div>
+        </SectionCard>
+      </TabsRoot>
     </div>
   )
 }

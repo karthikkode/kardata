@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor, waitForElementToBeRemoved, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ModelsPanel } from '@/components/ModelsPanel'
-import { ModelToolbar } from '@/components/ModelToolbar'
+import { ModelToolbar, shouldOpenAbove } from '@/components/ModelToolbar'
 import type { StagingConfig } from '@/data/staging-api'
 
 const config: StagingConfig = { baseUrl: 'https://staging.test', apiKey: 'key' }
@@ -40,11 +41,11 @@ describe('Meta-only Models tab', () => {
     stubApi(baseHandler)
     render(<ModelsPanel config={config} onBack={() => undefined} />)
     expect(await screen.findByText('Meta')).toBeInTheDocument()
-    expect(screen.getByText('Live')).toBeInTheDocument()
+    expect(screen.getByText('Configured')).toBeInTheDocument()
     expect(screen.getByText('Server default')).toBeInTheDocument()
     expect(await screen.findByText(/Server chat uses Meta muse-spark-1.3-contributor, reasoning on, effort high/)).toBeInTheDocument()
     expect(screen.queryByText('DeepSeek')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Effort')).toHaveValue('high')
+    expect(screen.getByRole('combobox', { name: 'Effort' })).toHaveTextContent('high')
   })
 
   it('saves a changed model and effort', async () => {
@@ -56,8 +57,11 @@ describe('Meta-only Models tab', () => {
     })
     render(<ModelsPanel config={config} onBack={() => undefined} />)
     await screen.findByText('Meta')
-    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'muse-spark-1.3' } })
-    fireEvent.change(screen.getByLabelText('Effort'), { target: { value: 'low' } })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('combobox', { name: 'Model' }))
+    await user.click(await screen.findByRole('option', { name: 'muse-spark-1.3' }))
+    await user.click(screen.getByRole('combobox', { name: 'Effort' }))
+    await user.click(await screen.findByRole('option', { name: 'low' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save to session' }))
     await waitFor(() => expect(calls.some((call) => call.method === 'PATCH')).toBe(true))
     const patch = calls.find((call) => call.method === 'PATCH')
@@ -85,6 +89,18 @@ describe('Meta-only Models tab', () => {
   it('explains missing backend configuration', () => {
     render(<ModelsPanel config={null} onBack={() => undefined} />)
     expect(screen.getByText('Models need a backend connection.')).toBeInTheDocument()
+  })
+})
+
+describe('model menu placement', () => {
+  it('opens above a bottom-docked trigger and below a top one', () => {
+    expect(shouldOpenAbove({ top: 800, bottom: 830 }, 900)).toBe(true)
+    expect(shouldOpenAbove({ top: 100, bottom: 130 }, 900)).toBe(false)
+    expect(shouldOpenAbove({ top: 800, bottom: 830 }, 900, 240)).toBe(true)
+  })
+
+  it('keeps a short viewport from forcing an impossible placement', () => {
+    expect(shouldOpenAbove({ top: 10, bottom: 40 }, 300)).toBe(false)
   })
 })
 

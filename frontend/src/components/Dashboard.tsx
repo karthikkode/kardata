@@ -15,7 +15,7 @@ import {
   UnavailableNotice,
 } from './research-parts'
 import { Button } from './ui/button'
-import { SectionTitle } from './text'
+import { SectionCard } from './shells'
 
 // Email tracking has no backend yet, so the stats strip is a neutral
 // placeholder with no numbers and no sample rows.
@@ -140,30 +140,32 @@ function SectorPanel({
   }
   const showCount = data.status === 'ready' && (needle || filtered.length > rows.length)
   return (
-    <section
-      aria-label="Sector researches"
-      className="flex flex-col rounded-xl border border-border bg-background px-4 py-3"
+    <SectionCard
+      title="Sector researches"
+      metadata={
+        showCount ? (
+          <p aria-live="polite" className="shrink-0 text-xs text-muted-foreground">
+            Showing {rows.length} of {filtered.length} matching
+          </p>
+        ) : undefined
+      }
+      footer={
+        data.items.length > 0 ? (
+          <div className="mt-auto ml-auto">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onViewAll('sectors')}
+            >
+              View all {data.items.length} sector researches
+            </Button>
+          </div>
+        ) : undefined
+      }
     >
-      <SectionTitle>Sector researches</SectionTitle>
-      {showCount ? (
-        <p aria-live="polite" className="mt-0.5 text-xs text-muted-foreground">
-          Showing {rows.length} of {filtered.length} matching
-        </p>
-      ) : null}
       {body}
-      {data.items.length > 0 ? (
-        <div className="mt-auto flex justify-end border-t border-border pt-3">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => onViewAll('sectors')}
-          >
-            View all {data.items.length} sector researches
-          </Button>
-        </div>
-      ) : null}
-    </section>
+    </SectionCard>
   )
 }
 
@@ -228,32 +230,34 @@ function CompanyPanel({
   const total = data.total ?? data.items.length
   const windowed = total > data.items.length
   return (
-    <section
-      aria-label="Company researches"
-      className="flex flex-col rounded-xl border border-border bg-background px-4 py-3"
+    <SectionCard
+      title="Company researches"
+      metadata={
+        showCount ? (
+          <p aria-live="polite" className="shrink-0 text-xs text-muted-foreground">
+            {needle && windowed
+              ? `Showing ${rows.length} of ${filtered.length} matching in the loaded ${data.items.length} of ${total}`
+              : `Showing ${rows.length} of ${filtered.length} matching`}
+          </p>
+        ) : undefined
+      }
+      footer={
+        data.items.length > 0 ? (
+          <div className="mt-auto ml-auto">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onViewAll('companies')}
+            >
+              View all {total} company researches
+            </Button>
+          </div>
+        ) : undefined
+      }
     >
-      <SectionTitle>Company researches</SectionTitle>
-      {showCount ? (
-        <p aria-live="polite" className="mt-0.5 text-xs text-muted-foreground">
-          {needle && windowed
-            ? `Showing ${rows.length} of ${filtered.length} matching in the loaded ${data.items.length} of ${total}`
-            : `Showing ${rows.length} of ${filtered.length} matching`}
-        </p>
-      ) : null}
       {body}
-      {data.items.length > 0 ? (
-        <div className="mt-auto flex justify-end border-t border-border pt-3">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => onViewAll('companies')}
-          >
-            View all {total} company researches
-          </Button>
-        </div>
-      ) : null}
-    </section>
+    </SectionCard>
   )
 }
 

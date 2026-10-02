@@ -1,6 +1,6 @@
-import { MessageCircle, Moon, Sun, X } from 'lucide-react'
+import { MessageCircle, Moon, Sun } from 'lucide-react'
 import { Button } from './ui/button'
-import { Input } from './ui/input'
+import { SearchField } from './shells'
 
 export function TopBar({
   query,
@@ -9,6 +9,7 @@ export function TopBar({
   onTheme,
   chatOpen,
   onChatToggle,
+  showSearch,
 }: {
   query: string
   onQuery: (value: string) => void
@@ -16,30 +17,24 @@ export function TopBar({
   onTheme: () => void
   chatOpen: boolean
   onChatToggle: () => void
+  /** Overview-only search: other pages must not offer a control that has no
+   * effect there. The query lives in App, so returning to Overview keeps it. */
+  showSearch: boolean
 }) {
   return (
     <header className="sticky top-0 z-10 flex items-center gap-4 border-b border-border bg-background/80 px-4 py-3 backdrop-blur md:px-6">
-      <div className="relative max-w-sm flex-1">
-        <Input
-          aria-label="Search researches"
-          placeholder="Search researches on Overview"
-          value={query}
-          onChange={(event) => onQuery(event.target.value)}
-          className={query ? 'pr-8' : undefined}
-        />
-        {query ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onQuery('')}
-            aria-label="Clear search"
-            className="absolute top-1/2 right-1 -translate-y-1/2"
-          >
-            <X className="size-4" aria-hidden />
-          </Button>
-        ) : null}
-      </div>
+      {showSearch ? (
+        <div className="max-w-sm flex-1">
+          <SearchField
+            value={query}
+            onChange={onQuery}
+            label="Search researches"
+            placeholder="Search researches on Overview"
+          />
+        </div>
+      ) : (
+        <div className="min-w-0 flex-1" aria-hidden />
+      )}
       <Button
         variant="outline"
         size="icon"

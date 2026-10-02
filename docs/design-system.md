@@ -191,8 +191,13 @@ one of these patterns; anything else needs an explicit exception.
 
 - Durations: 150ms for micro feedback (hover, focus, pressed), 200ms for
   enter, exit, and section changes. One easing everywhere: ease-out. Never
-  linear for movement, never springy overshoot. The JS constant is `EXIT_MS`
-  in `frontend/src/lib/motion.ts`; change it with the CSS together.
+  linear for movement, never springy overshoot. The JS constants are
+  `EXIT_MS` (200) and `POPOVER_MS` (150) in `frontend/src/lib/motion.ts`,
+  next to the centralized preset pairs (`popoverEnter`/`popoverExit`,
+  `dockEnter`/`dockExit`, `dialogEnter`/`dialogExit`, `pageEnter`/`pageExit`,
+  `rowEnter`, `noticeEnter`); change constants with the CSS together.
+  Pinned by `tests/frontend/motion-presets.test.tsx` (durations, distances,
+  reduced-motion guards, no springs).
 - Implementation: `motion@13.5.0` (exact, `motion/react`) implements
   transitions where it is efficient, and the `tw-animate-css` enter plus
   exit pairs remain sanctioned implementations of this same standard.
@@ -201,11 +206,18 @@ one of these patterns; anything else needs an explicit exception.
   section (springs with overshoot, sibling-moving layout transitions,
   gestures, scroll-linked effects, parallax) still needs an explicit
   exception with its own tests.
-- Every enter has a matching exit at the same duration. Closings stay mounted
-  through `useExitState` (reopen cancels the close) and swap the shared
-  enter/exit class pair; popovers drift with fade plus a small scale change,
-  the chat dock slides from the edge. Openings that re-derive every keystroke
-  (the `@` mention list) keep the enter only: an exit there would flicker.
+- Every enter has a matching exit at the same duration. Base UI overlay
+  primitives (dialog, menu, popover, tooltip, select, searchable,
+  collapsible) animate both directions with `data-starting-style` /
+  `data-ending-style` transitions in the owned `ui/*` wrappers, so the
+  library retains the exiting popup and no second timer runs alongside it.
+  Custom closings (chat dock, composer menus, mention/skill lists) stay
+  mounted through `useExitState` (reopen cancels the close) and swap the
+  shared enter/exit class pair; menus and popovers rise 4px over 150ms,
+  dialogs rise 8px over 200ms, the chat dock slides 16px from the edge,
+  pages crossfade opacity-only over 200ms. Openings that re-derive every
+  keystroke (the `@` mention list) keep the enter only: an exit there would
+  flicker.
 - Animate opacity and translate only. Never height, margin, padding, or
   anything that reflows siblings. If content must appear, reserve its space
   first (skeletons), then crossfade.
@@ -261,14 +273,17 @@ research strip controls and single-pill composer keep
 their existing behavior; Karbot keeps its own layout and only shares the
 overflow-safe markdown.
 
-## Context drawer (sector)
+## Context drawer (sector, legacy inspection view)
 
-The drawer shows the assembled context in exact words: the meter scaled to
-the 1M-token model window with an exact `used / 1,000,000 · percent`
-readout, the system prompt verbatim, pinned reference texts verbatim, files
-with full unit text behind the filename toggle, conversation history and
-tail verbatim (with honest empty states), then notes. Usage numbers come
-from the backend view; only the window scale is a display constant.
+The drawer shows the assembled context in exact words: usage reads come
+from the backend view against a 1M-token estimated scale with an exact
+`used / 1,000,000 estimated tokens · percent` readout labeled "Legacy
+estimate, not a budget limit." There is no compaction-threshold marker: the
+old 60% claim was removed because the drawer is not the active
+local-context budget authority. The system prompt reads verbatim, pinned
+reference texts verbatim, files with full unit text behind the filename
+toggle, conversation history and tail verbatim (with honest empty states),
+then notes.
 Citations read like the model sees them: units cite `filename:ord`, notes
 cite `[note:1]` by position, file summaries read `N units · Nk chars`
 (never a content hash). The meter header and the add-note composer are
@@ -288,9 +303,34 @@ library without owner approval.
 
 | Primitive | Source | Notes |
 |---|---|---|
-| button | `src/components/ui/button.tsx` | `cva` variants; Radix Slot for `asChild` |
-| input | `src/components/ui/input.tsx` | Unstyled field; pair with a label |
-| text scale | `src/components/text.tsx` | Eyebrow, PageTitle, SectionTitle, CardTitle, Body, Caption, Mono; no raw `text-[` sizes in feature code |
+| button | `src/components/ui/button.tsx` | Base UI; variants + sizes; `pending` disables with `aria-busy` |
+| input | `src/components/ui/input.tsx` | Base UI; invalid/disabled states; pair with a label |
+| textarea | `src/components/ui/textarea.tsx` | Shared multiline; bounded growth stays caller-owned |
+| field | `src/components/ui/field.tsx` | Base UI Field: label/description/error associations |
+| select | `src/components/ui/select.tsx` | Base UI; labeled finite choices, portaled popup, selected marker |
+| searchable | `src/components/ui/searchable.tsx` | Base UI Combobox: filtering, selected marker, no-match state |
+| checkbox | `src/components/ui/checkbox.tsx` | Base UI; indeterminate support, error/disabled |
+| switch | `src/components/ui/switch.tsx` | Base UI; boolean settings only, never approval acknowledgment |
+| tabs | `src/components/ui/tabs.tsx` | Base UI; controlled selection, tab/panel keyboard behavior |
+| menu | `src/components/ui/menu.tsx` | Base UI; roving focus, Escape, outside dismissal, trigger restoration |
+| popover | `src/components/ui/popover.tsx` | Base UI; portaled, collision-handled, controlled dismissal |
+| dialog | `src/components/ui/dialog.tsx` | Base UI; focus trap, title/description, scrolling body, sticky footer |
+| alert-dialog | `src/components/ui/alert-dialog.tsx` | Base UI + `ConfirmAction`: explicit destructive confirmation |
+| tooltip | `src/components/ui/tooltip.tsx` | Base UI; never the sole source of essential text |
+| collapsible | `src/components/ui/collapsible.tsx` | Base UI; trigger/content relationship, 150ms chevron/content fade |
+| progress | `src/components/ui/progress.tsx` | Base UI; determinate only with a backend denominator |
+| badge | `src/components/ui/badge.tsx` | Icon + text tones; noninteractive unless built as a control |
+| skeleton | `src/components/ui/skeleton.tsx` | Reserved geometry; static under reduced motion |
+| separator | `src/components/ui/separator.tsx` | Base UI; token border |
+| text scale | `src/components/text.tsx` | PageTitle (h1, 24px), WorkspaceTitle/SectionTitle (h2, 16px), CardTitle (h3, 14px), Body (14/22), Caption (12/18), Eyebrow (12/16), Mono; refs/IDs/tabIndex forward; no raw `text-[` sizes in feature code |
+
+Shared feature shells live in `src/components/shells.tsx` (props only, never
+fetch): PageHeader, SectionCard, ResourceState (loading/first-run
+empty/filtered empty/error/denied/offline over the `Resource<T>` shape),
+SearchField, ListFooter, OperationNotice, StatusBadge, ConversationComposer,
+PlanDocument (+PlanSection). `StatusPill` delegates to Badge;
+`ResourceNotice` (workspace-parts) delegates to ResourceState; the
+Researches list notices stay in `research-parts.tsx` with pinned copy.
 
 Add new primitives only via the shadcn CLI copy flow so sources stay standard.
 Never fork or edit a primitive for feature styling: compose it, or add a

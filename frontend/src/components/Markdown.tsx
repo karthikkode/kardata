@@ -8,6 +8,7 @@ import type { ReactNode } from 'react'
 import {
   AlertTriangle,
   Compass,
+  FileText,
   HelpCircle,
   Search,
   Target,
@@ -55,6 +56,13 @@ function headingText(children: ReactNode): string {
   return ''
 }
 
+/** Plan glyph by heading keyword with a neutral document fallback, so
+ * every brief section, known or custom, gets a medallion. Styling only:
+ * nothing is parsed for scope or authority. */
+export function planSectionIcon(text: string): typeof Target {
+  return headingIcon(text) ?? FileText
+}
+
 /** Section glyph by heading keyword (case-insensitive); unknown sections stay plain. */
 function headingIcon(text: string): typeof Target | null {
   const needle = text.toLowerCase()
@@ -71,18 +79,7 @@ const components: Components = {
   p: ({ children }) => <p className="my-1.5 text-sm leading-relaxed first:mt-0 last:mb-0">{children}</p>,
   h1: ({ children }) => <h1 className="mt-6 mb-3 text-lg font-semibold tracking-tight first:mt-0 last:mb-0">{children}</h1>,
   h2: ({ children }) => <h2 className="mt-5 mb-2 text-base font-semibold tracking-tight first:mt-0 last:mb-0">{children}</h2>,
-  h3: ({ children }) => {
-    const Icon = headingIcon(headingText(children))
-    if (!Icon) {
-      return <h3 className="mt-4 mb-2 text-sm font-semibold first:mt-0 last:mb-0">{children}</h3>
-    }
-    return (
-      <h3 className="mt-4 mb-2 flex items-center gap-1.5 text-sm font-semibold first:mt-0 last:mb-0">
-        <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-        <span className="min-w-0">{children}</span>
-      </h3>
-    )
-  },
+  h3: ({ children }) => <h3 className="mt-4 mb-2 text-sm font-semibold first:mt-0 last:mb-0">{children}</h3>,
   h4: ({ children }) => <h4 className="my-1.5 text-xs font-semibold tracking-wide text-muted-foreground first:mt-0 last:mb-0">{children}</h4>,
   ul: ({ children }) => <ul className="my-1.5 list-disc space-y-1 pl-5 text-sm marker:text-muted-foreground first:mt-0 last:mb-0">{children}</ul>,
   ol: ({ children }) => <ol className="my-1.5 list-decimal space-y-1 pl-5 text-sm marker:text-muted-foreground first:mt-0 last:mb-0">{children}</ol>,
@@ -121,7 +118,36 @@ const components: Components = {
   hr: () => <hr className="my-2 border-border" />,
 }
 
-export function Markdown({ text }: { text: string }) {
+export function Markdown({ text, variant = 'chat' }: { text: string; variant?: 'chat' | 'plan' }) {
+  // Plan documents render through the explicit plan variant: decorative
+  // section glyphs and grouped-row rhythm live on the renderer itself, not
+  // on wrapper DOM (no reaching through ancestors). Ordinary chat never
+  // receives keyword icons.
+  const renderers: Components =
+    variant === 'plan'
+      ? {
+          ...components,
+          h2: ({ children }) => {
+            const Icon = headingIcon(headingText(children))
+            return (
+              <h2 className="mt-5 flex items-center gap-2 border-t border-border pt-4 text-base font-semibold tracking-tight first:mt-0 first:border-t-0 first:pt-0">
+                {Icon ? <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden /> : null}
+                <span className="min-w-0">{children}</span>
+              </h2>
+            )
+          },
+          h3: ({ children }) => {
+            const Icon = headingIcon(headingText(children))
+            return (
+              <h3 className="mt-4 flex items-center gap-1.5 border-t border-border pt-3 text-sm font-semibold first:mt-0 first:border-t-0 first:pt-0">
+                {Icon ? <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden /> : null}
+                <span className="min-w-0">{children}</span>
+              </h3>
+            )
+          },
+          p: ({ children }) => <p className="mt-1 mb-0 text-sm leading-relaxed text-muted-foreground first:mt-0">{children}</p>,
+        }
+      : components
   return (
     <div className="min-w-0 [overflow-wrap:anywhere]">
     <ReactMarkdown
@@ -130,7 +156,7 @@ export function Markdown({ text }: { text: string }) {
       unwrapDisallowed
       skipHtml
       urlTransform={safeExternalUrl}
-      components={components}
+      components={renderers}
     >
       {text}
     </ReactMarkdown>

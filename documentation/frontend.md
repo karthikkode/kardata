@@ -148,7 +148,61 @@ is efficient; the `tw-animate-css` enter plus exit pairs remain sanctioned
 implementations of the same 150/200 ease-out standard. `MotionConfig
 reducedMotion="user"` wraps both App roots so OS reduced-motion collapses
 every JS-driven animation with focus plus scroll plus content work intact.
+The centralized presets live in `frontend/src/lib/motion.ts`
+(`EXIT_MS`/`POPOVER_MS` plus `popover`, `dock`, `dialog`, `page`, `row`,
+and `notice` enter/exit pairs) and are pinned by
+`tests/frontend/motion-presets.test.tsx`. Motion-powered feature markup
+uses the lightweight `m` component under `LazyMotion features={domAnimation}`
+(both App roots). Base UI overlay primitives carry their enter and exit in
+the owned wrappers via `data-starting-style`/`data-ending-style`
+transitions; `useExitState` retention stays only on the custom surfaces
+(dock, composer menus, mention/skill lists). Page replacement crossfades
+through the View Transitions API in `useNavigation` (instant swap with a
+fade-in where unsupported). Only one system owns each exit.
 See `docs/design-system.md` for the admitted pattern list.
+
+## Owned primitives and shared shells (revamp completion)
+
+Wrappers live in `frontend/src/components/ui/` (Base UI 1.8.0, shadcn copy
+flow): button (with `pending`), input, textarea, field, select, searchable
+(combobox), checkbox (indeterminate), switch (boolean settings only), tabs,
+menu, popover, dialog, alert-dialog (plus `ConfirmAction`), tooltip,
+collapsible, progress (determinate only), badge, skeleton, separator.
+Pinned by `tests/frontend/ui-primitives.test.tsx`.
+
+Shared presentational shells live in `frontend/src/components/shells.tsx`
+(props only, never fetch): PageHeader, SectionCard, ResourceState (the
+canonical loading/first-run/filtered/error/denied/offline treatment over
+`Resource<T>`), SearchField, ListFooter, OperationNotice, StatusBadge,
+ConversationComposer (visual layout; drafts and commands stay caller-owned),
+PlanDocument. `ResourceNotice` delegates to ResourceState and `StatusPill`
+delegates to Badge; the Researches list notices keep their pinned copy in
+`research-parts.tsx`. Pinned by `tests/frontend/shells.test.tsx`.
+
+Adopted (including review remediation): App page title/gutters with
+Overview-only search; Researches type tabs (Base UI Tabs), state selection
+(shared Select), sector creation (shared dialog), SectionCard/ListFooter
+shells; Dashboard cards on SectionCard; PlanDocument in the workspace Plan
+tab and landing dialog; ConversationComposer around both composers;
+TopBar/files/session/subagent searches (SearchField); workspace and Karbot
+session deletion (ConfirmAction with exact titles; touch-visible row
+delete); settled-reply Copy with local failure reporting; separated
+Karbot preview/download failure states with stale-preview sequencing;
+workspace tablist arrow keys (drafts/scroll survive); Karbot file targets
+at 32px; collapsed-sidebar tooltips; legacy drawer estimate labeling with
+the 60% claim and amber removed; shared Select/checkbox on the Models
+panel with "Configured"; 40px standard / 32px compact (+coarse 40px)
+control scale; Markdown `variant="plan"` with renderer-owned grouped
+rhythm; WorkspaceOverlay on the shared dialog with topmost-only sibling
+Escape handling; real page crossfades under LazyMotion. The full
+ID-to-evidence map is `tests/frontend/coverage-registry.md`.
+
+Deliberately unchanged: ModelToolbar custom menus keep their pinned
+focus/search/select/Escape contract and durable draft/binding/save
+orchestration (transplanting cost-adjacent binding logic would violate
+the durable-behavior rule); composer drafts, mention/steering semantics,
+and chat transport stay Kardata-owned (no ComposerPrimitive, no
+ThreadList); approval/authority/persistence/file contracts untouched.
 
 ## Sector workspace (landing → Open → chat)
 

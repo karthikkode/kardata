@@ -58,11 +58,37 @@ describe('house markdown', () => {
 describe('plan section icons', () => {
   it('matches known plan headings to glyphs and leaves the rest plain', async () => {
     const { Markdown } = await import('@/components/Markdown')
-    const { container, rerender } = render(<Markdown text={'### scope\n\nBody'} />)
+    const { container, rerender } = render(<Markdown variant="plan" text={'### scope\n\nBody'} />)
     expect(container.querySelector('h3 svg')).not.toBeNull()
     expect(screen.getByText('scope')).toBeInTheDocument()
-    rerender(<Markdown text={'### Something custom\n\nBody'} />)
+    rerender(<Markdown variant="plan" text={'### Something custom\n\nBody'} />)
     expect(container.querySelector('h3 svg')).toBeNull()
     expect(screen.getByText('Something custom')).toBeInTheDocument()
+  })
+
+  it('keeps keyword icons out of ordinary chat markdown', async () => {
+    const { Markdown } = await import('@/components/Markdown')
+    const { container } = render(<Markdown text={'### scope\n\nBody'} />)
+    expect(container.querySelector('h3 svg')).toBeNull()
+    expect(screen.getByText('scope')).toBeInTheDocument()
+  })
+
+  it('groups plan sections with dividers on the renderer, not wrapper DOM', async () => {
+    const { Markdown } = await import('@/components/Markdown')
+    const { container } = render(
+      <Markdown variant="plan" text={'### scope\n\nBody one\n\n### budgets\n\nBody two'} />,
+    )
+    const headings = Array.from(container.querySelectorAll('h3'))
+    expect(headings).toHaveLength(2)
+    for (const heading of headings) expect(heading.className).toContain('border-t')
+    expect(container.querySelector('.plan-brief')).toBeNull()
+  })
+
+  it('gives plan h2 sections the same glyph treatment as h3', async () => {
+    const { Markdown } = await import('@/components/Markdown')
+    const { container } = render(<Markdown variant="plan" text={'## query shapes\n\nBody'} />)
+    expect(container.querySelector('h2 svg')).not.toBeNull()
+    const chat = render(<Markdown text={'## query shapes\n\nBody'} />).container
+    expect(chat.querySelector('h2 svg')).toBeNull()
   })
 })

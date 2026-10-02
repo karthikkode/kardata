@@ -2,7 +2,7 @@
 // row comes from the backend: GET /v1/providers for the catalog (key
 // presence only, never key material) and the session read/write pair for
 // the binding. No fixtures, no guessed models.
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import {
   getSession,
@@ -17,8 +17,10 @@ import {
   type StagingConfig,
 } from '../data/staging-api'
 import { DeniedNotice, PanelError, SkeletonRows, UnavailableNotice } from './research-parts'
-import { StatusPill } from './StatusPill'
 import { Button } from './ui/button'
+import { CheckboxRoot } from './ui/checkbox'
+import { SelectItem, SelectPopup, SelectRoot, SelectTrigger } from './ui/select'
+import { StatusBadge } from './shells'
 
 type LoadStatus = 'loading' | 'ready' | 'error' | 'denied' | 'offline'
 
@@ -86,6 +88,12 @@ function ProviderCard({
   const modelInputId = `models-model-${entry.name}`
   const reasoningInputId = `models-reasoning-${entry.name}`
   const effortInputId = `models-effort-${entry.name}`
+  // Stable option identities: the shared Select matches by reference, so
+  // the catalogue maps once per model list instead of per render.
+  const modelOptions = useMemo(
+    () => entry.models.map((model) => ({ value: model.model, label: model.displayName })),
+    [entry.models],
+  )
   return (
     <li className="flex flex-col gap-3 rounded-xl border border-border bg-background px-4 py-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -95,7 +103,7 @@ function ProviderCard({
             Server default
           </span>
         ) : null}
-        <StatusPill tone={entry.hasKey ? 'ok' : 'idle'} label={entry.hasKey ? 'Live' : 'Unconfigured'} />
+        <StatusBadge label={entry.hasKey ? 'Configured' : 'Unconfigured'} tone={entry.hasKey ? 'success' : 'neutral'} icon={<span aria-hidden className={`size-2 rounded-full ${entry.hasKey ? 'bg-emerald-500' : 'bg-muted-foreground'}`} />} />
       </div>
       <p className="text-xs text-muted-foreground">
         {entry.hasKey
@@ -104,58 +112,62 @@ function ProviderCard({
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label htmlFor={modelInputId} className="mb-1 block text-sm font-medium">
+          <span id={modelInputId} className="mb-1 block text-sm font-medium">
             Model
-          </label>
-          <select
-            id={modelInputId}
-            value={modelId}
+          </span>
+          <SelectRoot
+            value={modelOptions.find((option) => option.value === modelId) ?? null}
+            onValueChange={(option) => {
+              if (option) onModel(option.value)
+            }}
             disabled={saving || entry.models.length === 0}
-            onChange={(event) => onModel(event.target.value)}
-            className="h-9 w-full cursor-pointer rounded-lg border border-border bg-background px-2.5 text-sm disabled:pointer-events-none disabled:opacity-50"
           >
-            {entry.models.map((model) => (
-              <option key={`${model.model}-${model.displayName}`} value={model.model}>
-                {model.displayName}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger aria-labelledby={modelInputId} />
+            <SelectPopup>
+              {modelOptions.map((option) => (
+                <SelectItem key={option.value} value={option}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectPopup>
+          </SelectRoot>
         </div>
         {listedEfforts.length > 0 ? (
           <div>
-            <label htmlFor={effortInputId} className="mb-1 block text-sm font-medium">
+            <span id={effortInputId} className="mb-1 block text-sm font-medium">
               Effort
-            </label>
-            <select
-              id={effortInputId}
+            </span>
+            <SelectRoot
               value={effort && listedEfforts.includes(effort) ? effort : 'high'}
+              onValueChange={(option) => {
+                if (option) onEffort(option)
+              }}
               disabled={saving}
-              onChange={(event) => onEffort(event.target.value)}
-              className="h-9 w-full cursor-pointer rounded-lg border border-border bg-background px-2.5 text-sm capitalize disabled:pointer-events-none disabled:opacity-50"
             >
-              {listedEfforts.map((level) => (
-                <option key={level} value={level}>
-                  {level}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger aria-labelledby={effortInputId} className="capitalize" />
+              <SelectPopup>
+                {listedEfforts.map((level) => (
+                  <SelectItem key={level} value={level}>
+                    {level}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </SelectRoot>
           </div>
         ) : (
           <div>
-            <label
-              htmlFor={reasoningInputId}
+            <span
+              id={reasoningInputId}
               className={`mb-1 block text-sm font-medium ${canReason ? '' : 'text-muted-foreground'}`}
             >
               Reasoning
-            </label>
-            <div className="flex h-9 items-center gap-2">
-              <input
-                id={reasoningInputId}
-                type="checkbox"
+            </span>
+            <div className="flex h-10 items-center gap-2">
+              <CheckboxRoot
+                aria-labelledby={reasoningInputId}
                 checked={canReason && reasoning}
                 disabled={!canReason || saving}
-                onChange={(event) => onReasoning(event.target.checked)}
-                className="size-4 shrink-0 cursor-pointer disabled:pointer-events-none"
+                onCheckedChange={(checked) => onReasoning(checked === true)}
               />
               <span className="text-xs text-muted-foreground">
                 {canReason
@@ -380,9 +392,9 @@ export function ModelsPanel({
         ) : (
           <div className="space-y-4">
             <div className="max-w-sm">
-              <label htmlFor="models-session" className="mb-1 block text-sm font-medium">
+              <span id="models-session-label" className="mb-1 block text-sm font-medium">
                 Session
-              </label>
+              </span>
               {sessions.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-border p-4">
                   <p className="text-sm text-muted-foreground">
@@ -390,18 +402,23 @@ export function ModelsPanel({
                   </p>
                 </div>
               ) : (
-                <select
-                  id="models-session"
-                  value={activeSessionId ?? ''}
-                  onChange={(event) => setActiveSessionId(event.target.value || null)}
-                  className="h-9 w-full cursor-pointer rounded-lg border border-border bg-background px-2.5 text-sm"
+                <SelectRoot
+                  value={sessions.find((session) => session.id === activeSessionId) ?? null}
+                  onValueChange={(option) => {
+                    if (option) setActiveSessionId(option.id)
+                  }}
+                  itemToStringLabel={(option) => option.title}
+                  itemToStringValue={(option) => option.id}
                 >
-                  {sessions.map((session) => (
-                    <option key={session.id} value={session.id}>
-                      {session.title}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger aria-labelledby="models-session-label" />
+                  <SelectPopup>
+                    {sessions.map((session) => (
+                      <SelectItem key={session.id} value={session}>
+                        {session.title}
+                      </SelectItem>
+                    ))}
+                  </SelectPopup>
+                </SelectRoot>
               )}
             </div>
             {activeSession ? (

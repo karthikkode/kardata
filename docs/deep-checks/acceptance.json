@@ -11692,6 +11692,41 @@
       "status": "pending"
     },
     {
+      "id": "frontend/src/components/chat/assistantAdapter.ts#MessageSegmentLike",
+      "source": "frontend/src/components/chat/assistantAdapter.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/chat/assistantAdapter.ts#PendingParts",
+      "source": "frontend/src/components/chat/assistantAdapter.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/chat/assistantAdapter.ts#toThreadMessages",
+      "source": "frontend/src/components/chat/assistantAdapter.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/chat/assistantAdapter.ts#toThreadSegments",
+      "source": "frontend/src/components/chat/assistantAdapter.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/chat/AssistantRuntimeAdapter.tsx#AssistantRuntimeAdapter",
+      "source": "frontend/src/components/chat/AssistantRuntimeAdapter.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "frontend/src/components/ChatPanel.tsx#ActivityGroup",
       "source": "frontend/src/components/ChatPanel.tsx",
       "kind": "export",
@@ -11867,6 +11902,13 @@
       "status": "pending"
     },
     {
+      "id": "frontend/src/components/Markdown.tsx#planSectionIcon",
+      "source": "frontend/src/components/Markdown.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "frontend/src/components/Markdown.tsx#safeExternalUrl",
       "source": "frontend/src/components/Markdown.tsx",
       "kind": "export",
@@ -11889,6 +11931,13 @@
     },
     {
       "id": "frontend/src/components/ModelToolbar.tsx#ModelToolbar",
+      "source": "frontend/src/components/ModelToolbar.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ModelToolbar.tsx#shouldOpenAbove",
       "source": "frontend/src/components/ModelToolbar.tsx",
       "kind": "export",
       "features": [],
@@ -11986,6 +12035,13 @@
       "status": "pending"
     },
     {
+      "id": "frontend/src/components/ResearchPlanEditor.tsx#BriefSection",
+      "source": "frontend/src/components/ResearchPlanEditor.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "frontend/src/components/ResearchPlanEditor.tsx#ExecutablePlanDetails",
       "source": "frontend/src/components/ResearchPlanEditor.tsx",
       "kind": "export",
@@ -11993,7 +12049,28 @@
       "status": "pending"
     },
     {
+      "id": "frontend/src/components/ResearchPlanEditor.tsx#PlanBriefTimeline",
+      "source": "frontend/src/components/ResearchPlanEditor.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ResearchPlanEditor.tsx#PlanVersionTimeline",
+      "source": "frontend/src/components/ResearchPlanEditor.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "frontend/src/components/ResearchPlanEditor.tsx#ResearchPlanEditor",
+      "source": "frontend/src/components/ResearchPlanEditor.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ResearchPlanEditor.tsx#splitBriefSections",
       "source": "frontend/src/components/ResearchPlanEditor.tsx",
       "kind": "export",
       "features": [],
@@ -12070,6 +12147,13 @@
       "status": "pending"
     },
     {
+      "id": "frontend/src/components/SectorWorkspace.tsx#activateNeighbor",
+      "source": "frontend/src/components/SectorWorkspace.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "frontend/src/components/SectorWorkspace.tsx#ResearchActions",
       "source": "frontend/src/components/SectorWorkspace.tsx",
       "kind": "export",
@@ -12079,6 +12163,90 @@
     {
       "id": "frontend/src/components/SectorWorkspace.tsx#SectorWorkspace",
       "source": "frontend/src/components/SectorWorkspace.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/SectorWorkspace.tsx#SessionOptions",
+      "source": "frontend/src/components/SectorWorkspace.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/shells.tsx#ConversationComposer",
+      "source": "frontend/src/components/shells.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/shells.tsx#EmptyKind",
+      "source": "frontend/src/components/shells.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/shells.tsx#ListFooter",
+      "source": "frontend/src/components/shells.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/shells.tsx#OperationNotice",
+      "source": "frontend/src/components/shells.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/shells.tsx#PageHeader",
+      "source": "frontend/src/components/shells.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/shells.tsx#PlanDocument",
+      "source": "frontend/src/components/shells.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/shells.tsx#PlanSection",
+      "source": "frontend/src/components/shells.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/shells.tsx#ResourceState",
+      "source": "frontend/src/components/shells.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/shells.tsx#SearchField",
+      "source": "frontend/src/components/shells.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/shells.tsx#SectionCard",
+      "source": "frontend/src/components/shells.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/shells.tsx#StatusBadge",
+      "source": "frontend/src/components/shells.tsx",
       "kind": "export",
       "features": [],
       "status": "pending"
@@ -12126,8 +12294,99 @@
       "status": "pending"
     },
     {
+      "id": "frontend/src/components/text.tsx#Body",
+      "source": "frontend/src/components/text.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/text.tsx#Caption",
+      "source": "frontend/src/components/text.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/text.tsx#CardTitle",
+      "source": "frontend/src/components/text.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/text.tsx#Eyebrow",
+      "source": "frontend/src/components/text.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/text.tsx#Mono",
+      "source": "frontend/src/components/text.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/text.tsx#PageTitle",
+      "source": "frontend/src/components/text.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/text.tsx#SectionTitle",
+      "source": "frontend/src/components/text.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/text.tsx#WorkspaceTitle",
+      "source": "frontend/src/components/text.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "frontend/src/components/TopBar.tsx#TopBar",
       "source": "frontend/src/components/TopBar.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/alert-dialog.tsx#AlertDialogRoot",
+      "source": "frontend/src/components/ui/alert-dialog.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/alert-dialog.tsx#AlertDialogTrigger",
+      "source": "frontend/src/components/ui/alert-dialog.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/alert-dialog.tsx#ConfirmAction",
+      "source": "frontend/src/components/ui/alert-dialog.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/badge.tsx#Badge",
+      "source": "frontend/src/components/ui/badge.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/badge.tsx#BadgeTone",
+      "source": "frontend/src/components/ui/badge.tsx",
       "kind": "export",
       "features": [],
       "status": "pending"
@@ -12147,8 +12406,386 @@
       "status": "pending"
     },
     {
+      "id": "frontend/src/components/ui/checkbox.tsx#CheckboxRoot",
+      "source": "frontend/src/components/ui/checkbox.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/collapsible.tsx#CollapsiblePanel",
+      "source": "frontend/src/components/ui/collapsible.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/collapsible.tsx#CollapsibleRoot",
+      "source": "frontend/src/components/ui/collapsible.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/collapsible.tsx#CollapsibleTrigger",
+      "source": "frontend/src/components/ui/collapsible.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/dialog.tsx#DialogBody",
+      "source": "frontend/src/components/ui/dialog.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/dialog.tsx#DialogClose",
+      "source": "frontend/src/components/ui/dialog.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/dialog.tsx#DialogDescription",
+      "source": "frontend/src/components/ui/dialog.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/dialog.tsx#DialogFooter",
+      "source": "frontend/src/components/ui/dialog.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/dialog.tsx#DialogHeader",
+      "source": "frontend/src/components/ui/dialog.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/dialog.tsx#DialogPopup",
+      "source": "frontend/src/components/ui/dialog.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/dialog.tsx#DialogRoot",
+      "source": "frontend/src/components/ui/dialog.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/dialog.tsx#DialogTitle",
+      "source": "frontend/src/components/ui/dialog.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/dialog.tsx#DialogTrigger",
+      "source": "frontend/src/components/ui/dialog.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/field.tsx#FieldDescription",
+      "source": "frontend/src/components/ui/field.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/field.tsx#FieldError",
+      "source": "frontend/src/components/ui/field.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/field.tsx#FieldLabel",
+      "source": "frontend/src/components/ui/field.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/field.tsx#FieldRoot",
+      "source": "frontend/src/components/ui/field.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "frontend/src/components/ui/input.tsx#Input",
       "source": "frontend/src/components/ui/input.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/menu.tsx#MenuCheckboxItem",
+      "source": "frontend/src/components/ui/menu.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/menu.tsx#MenuItem",
+      "source": "frontend/src/components/ui/menu.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/menu.tsx#MenuLabel",
+      "source": "frontend/src/components/ui/menu.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/menu.tsx#MenuPopup",
+      "source": "frontend/src/components/ui/menu.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/menu.tsx#MenuRoot",
+      "source": "frontend/src/components/ui/menu.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/menu.tsx#MenuSeparator",
+      "source": "frontend/src/components/ui/menu.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/menu.tsx#MenuTrigger",
+      "source": "frontend/src/components/ui/menu.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/popover.tsx#PopoverDescription",
+      "source": "frontend/src/components/ui/popover.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/popover.tsx#PopoverPopup",
+      "source": "frontend/src/components/ui/popover.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/popover.tsx#PopoverRoot",
+      "source": "frontend/src/components/ui/popover.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/popover.tsx#PopoverTitle",
+      "source": "frontend/src/components/ui/popover.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/popover.tsx#PopoverTrigger",
+      "source": "frontend/src/components/ui/popover.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/progress.tsx#ProgressRoot",
+      "source": "frontend/src/components/ui/progress.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/searchable.tsx#SearchableEmpty",
+      "source": "frontend/src/components/ui/searchable.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/searchable.tsx#SearchableInput",
+      "source": "frontend/src/components/ui/searchable.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/searchable.tsx#SearchableItem",
+      "source": "frontend/src/components/ui/searchable.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/searchable.tsx#SearchableList",
+      "source": "frontend/src/components/ui/searchable.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/searchable.tsx#SearchablePopup",
+      "source": "frontend/src/components/ui/searchable.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/searchable.tsx#SearchableRoot",
+      "source": "frontend/src/components/ui/searchable.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/searchable.tsx#SearchableTrigger",
+      "source": "frontend/src/components/ui/searchable.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/select.tsx#SelectItem",
+      "source": "frontend/src/components/ui/select.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/select.tsx#SelectPopup",
+      "source": "frontend/src/components/ui/select.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/select.tsx#SelectRoot",
+      "source": "frontend/src/components/ui/select.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/select.tsx#SelectTrigger",
+      "source": "frontend/src/components/ui/select.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/separator.tsx#Separator",
+      "source": "frontend/src/components/ui/separator.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/skeleton.tsx#Skeleton",
+      "source": "frontend/src/components/ui/skeleton.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/switch.tsx#SwitchRoot",
+      "source": "frontend/src/components/ui/switch.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/tabs.tsx#TabsList",
+      "source": "frontend/src/components/ui/tabs.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/tabs.tsx#TabsPanel",
+      "source": "frontend/src/components/ui/tabs.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/tabs.tsx#TabsRoot",
+      "source": "frontend/src/components/ui/tabs.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/tabs.tsx#TabsTab",
+      "source": "frontend/src/components/ui/tabs.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/textarea.tsx#Textarea",
+      "source": "frontend/src/components/ui/textarea.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/textarea.tsx#TextareaProps",
+      "source": "frontend/src/components/ui/textarea.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/tooltip.tsx#TooltipPopup",
+      "source": "frontend/src/components/ui/tooltip.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/tooltip.tsx#TooltipProvider",
+      "source": "frontend/src/components/ui/tooltip.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/tooltip.tsx#TooltipRoot",
+      "source": "frontend/src/components/ui/tooltip.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/ui/tooltip.tsx#TooltipTrigger",
+      "source": "frontend/src/components/ui/tooltip.tsx",
       "kind": "export",
       "features": [],
       "status": "pending"
@@ -13274,6 +13911,20 @@
       "status": "pending"
     },
     {
+      "id": "frontend/src/lib/motion.ts#dialogEnter",
+      "source": "frontend/src/lib/motion.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/lib/motion.ts#dialogExit",
+      "source": "frontend/src/lib/motion.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "frontend/src/lib/motion.ts#dockEnter",
       "source": "frontend/src/lib/motion.ts",
       "kind": "export",
@@ -13289,6 +13940,34 @@
     },
     {
       "id": "frontend/src/lib/motion.ts#EXIT_MS",
+      "source": "frontend/src/lib/motion.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/lib/motion.ts#noticeEnter",
+      "source": "frontend/src/lib/motion.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/lib/motion.ts#pageEnter",
+      "source": "frontend/src/lib/motion.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/lib/motion.ts#pageExit",
+      "source": "frontend/src/lib/motion.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/lib/motion.ts#POPOVER_MS",
       "source": "frontend/src/lib/motion.ts",
       "kind": "export",
       "features": [],
@@ -13316,8 +13995,22 @@
       "status": "pending"
     },
     {
+      "id": "frontend/src/lib/motion.ts#rowEnter",
+      "source": "frontend/src/lib/motion.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "frontend/src/lib/motion.ts#useExitState",
       "source": "frontend/src/lib/motion.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/lib/overlay.ts#useTopmostOverlay",
+      "source": "frontend/src/lib/overlay.ts",
       "kind": "export",
       "features": [],
       "status": "pending"
@@ -14352,6 +15045,13 @@
       "status": "pending"
     },
     {
+      "id": "ui:frontend/src/components/chat/AssistantRuntimeAdapter.tsx",
+      "source": "frontend/src/components/chat/AssistantRuntimeAdapter.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "ui:frontend/src/components/ChatPanel.tsx",
       "source": "frontend/src/components/ChatPanel.tsx",
       "kind": "ui",
@@ -14492,6 +15192,13 @@
       "status": "pending"
     },
     {
+      "id": "ui:frontend/src/components/shells.tsx",
+      "source": "frontend/src/components/shells.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "ui:frontend/src/components/Sidebar.tsx",
       "source": "frontend/src/components/Sidebar.tsx",
       "kind": "ui",
@@ -14520,8 +15227,29 @@
       "status": "pending"
     },
     {
+      "id": "ui:frontend/src/components/text.tsx",
+      "source": "frontend/src/components/text.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "ui:frontend/src/components/TopBar.tsx",
       "source": "frontend/src/components/TopBar.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "ui:frontend/src/components/ui/alert-dialog.tsx",
+      "source": "frontend/src/components/ui/alert-dialog.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "ui:frontend/src/components/ui/badge.tsx",
+      "source": "frontend/src/components/ui/badge.tsx",
       "kind": "ui",
       "features": [],
       "status": "pending"
@@ -14534,8 +15262,113 @@
       "status": "pending"
     },
     {
+      "id": "ui:frontend/src/components/ui/checkbox.tsx",
+      "source": "frontend/src/components/ui/checkbox.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "ui:frontend/src/components/ui/collapsible.tsx",
+      "source": "frontend/src/components/ui/collapsible.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "ui:frontend/src/components/ui/dialog.tsx",
+      "source": "frontend/src/components/ui/dialog.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "ui:frontend/src/components/ui/field.tsx",
+      "source": "frontend/src/components/ui/field.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "ui:frontend/src/components/ui/input.tsx",
       "source": "frontend/src/components/ui/input.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "ui:frontend/src/components/ui/menu.tsx",
+      "source": "frontend/src/components/ui/menu.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "ui:frontend/src/components/ui/popover.tsx",
+      "source": "frontend/src/components/ui/popover.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "ui:frontend/src/components/ui/progress.tsx",
+      "source": "frontend/src/components/ui/progress.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "ui:frontend/src/components/ui/searchable.tsx",
+      "source": "frontend/src/components/ui/searchable.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "ui:frontend/src/components/ui/select.tsx",
+      "source": "frontend/src/components/ui/select.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "ui:frontend/src/components/ui/separator.tsx",
+      "source": "frontend/src/components/ui/separator.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "ui:frontend/src/components/ui/skeleton.tsx",
+      "source": "frontend/src/components/ui/skeleton.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "ui:frontend/src/components/ui/switch.tsx",
+      "source": "frontend/src/components/ui/switch.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "ui:frontend/src/components/ui/tabs.tsx",
+      "source": "frontend/src/components/ui/tabs.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "ui:frontend/src/components/ui/textarea.tsx",
+      "source": "frontend/src/components/ui/textarea.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "ui:frontend/src/components/ui/tooltip.tsx",
+      "source": "frontend/src/components/ui/tooltip.tsx",
       "kind": "ui",
       "features": [],
       "status": "pending"

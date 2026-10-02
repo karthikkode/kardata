@@ -11,7 +11,7 @@ import {
   type SectorPlanView,
   type StagingConfig,
 } from '../data/staging-api'
-import { Markdown } from './Markdown'
+import { PlanBriefTimeline } from './ResearchPlanEditor'
 import { Button } from './ui/button'
 import { DeniedNotice, PanelError, SkeletonRows, UnavailableNotice } from './research-parts'
 
@@ -119,8 +119,8 @@ export function SectorPlanSection({
           {state.plan.latest ? (
             <>
               <p className="inline-flex items-center rounded-full border border-border bg-muted/40 px-2.5 py-0.5 font-mono text-xs tabular-nums text-muted-foreground select-none">v{state.plan.latest.version}</p>
-              <div className="plan-brief mt-3 text-sm">
-                <Markdown text={state.plan.latest.markdown} />
+              <div className="mt-3">
+                <PlanBriefTimeline text={state.plan.latest.markdown} />
               </div>
             </>
           ) : (

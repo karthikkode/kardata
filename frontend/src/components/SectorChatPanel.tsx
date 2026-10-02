@@ -81,7 +81,7 @@ function segmentRow(segment: MessageSegment, live: boolean, onProposeContext?: (
       <div key={segment.key} className="group/agent-msg">
         <ActivityGroup tools={segment.tools} reasoning={segment.reply?.reasoning} live={live} />
         {segment.reply ? (
-          <AgentBubble>
+          <AgentBubble copyText={live ? undefined : segment.reply.text}>
             <Markdown text={segment.reply.text} />
             <div className="mt-1 flex items-center justify-between gap-2">
               {segment.reply.at ? (
@@ -92,7 +92,7 @@ function segmentRow(segment: MessageSegment, live: boolean, onProposeContext?: (
                   type="button"
                   aria-label="Add to sector context"
                   onClick={() => onProposeContext(segment.reply?.text ?? '')}
-                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground opacity-60 transition-opacity hover:opacity-100 hover:text-foreground"
+                  className="inline-flex min-h-8 pointer-coarse:min-h-10 items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground opacity-60 transition-opacity hover:opacity-100 hover:text-foreground"
                 >
                   <Globe className="size-3" aria-hidden />
                   <span>+ Context</span>
@@ -133,7 +133,7 @@ function segmentRow(segment: MessageSegment, live: boolean, onProposeContext?: (
   ) : (
     <div key={segment.message.id} className="group/agent-msg">
       {loneReasoning}
-      <AgentBubble>
+      <AgentBubble copyText={live ? undefined : msgText}>
         {body}
         <div className="mt-1 flex items-center justify-between gap-2">
           {stamped ?? <span />}
@@ -142,7 +142,7 @@ function segmentRow(segment: MessageSegment, live: boolean, onProposeContext?: (
               type="button"
               aria-label="Add to sector context"
               onClick={() => onProposeContext(msgText)}
-              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground opacity-60 transition-opacity hover:opacity-100 hover:text-foreground"
+              className="inline-flex min-h-8 pointer-coarse:min-h-10 items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground opacity-60 transition-opacity hover:opacity-100 hover:text-foreground"
             >
               <Globe className="size-3" aria-hidden />
               <span>+ Context</span>
