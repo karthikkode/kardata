@@ -45,14 +45,14 @@ export class MetaAdapter implements ProviderAdapter {
   }
 
   chat(request: ProviderRequest): Promise<ProviderResponse> {
-    if (this.mode === 'responses') return responsesCall(this.responsesTransport, request)
+    if (this.mode === 'responses') return responsesCall(this.responsesTransport, { ...request, toolChoice: { mode: 'auto' } })
     // Meta Chat wire supports only tool_choice "auto" (live-verified 400 on
     // required/none/named): clamp here so callers keep one canonical shape.
     return chatCompletions(this.chatTransport, { ...request, toolChoice: { mode: 'auto' } })
   }
 
   chatStream(request: ProviderRequest): AsyncIterable<StreamEvent> {
-    if (this.mode === 'responses') return responsesStream(this.responsesTransport, request)
+    if (this.mode === 'responses') return responsesStream(this.responsesTransport, { ...request, toolChoice: { mode: 'auto' } })
     return chatCompletionsStream(this.chatTransport, { ...request, toolChoice: { mode: 'auto' } })
   }
 }

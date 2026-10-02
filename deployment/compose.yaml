@@ -6,6 +6,9 @@ name: kardata
 services:
   db:
     image: postgres@sha256:a3b7f434b2dc57ce85a67e171163eb8ab1a1ebcb39d27484661f26b1dfbe30d6
+    # Parallel query DSM exceeds Docker's 64-MiB default under the verified
+    # test fan-out. Connection/pool budgets remain unchanged.
+    shm_size: 1gb
     # Explicit ceiling for the connection budget table in
     # documentation/db.md; slow-query log feeds pool tuning. Dev values.
     command: ['postgres', '-c', 'max_connections=100', '-c', 'log_min_duration_statement=1000']
@@ -65,6 +68,10 @@ services:
       - --headless
       - --no-sandbox
       - --disable-gpu
+      - --enable-automation
+      - --disable-quic
+      - --disable-background-networking
+      - --force-webrtc-ip-handling-policy=disable_non_proxied_udp
       - --remote-debugging-address=0.0.0.0
       - --remote-debugging-port=9222
       - about:blank
@@ -98,6 +105,7 @@ services:
       GOOGLE_APPLICATION_CREDENTIALS: /run/kardata/adc.json
       KARDATA_ARCHIVE_DIR: /var/kardata/archive
       KARDATA_CHROME_CDP_URL: http://browser:9222
+      KARDATA_BROWSER_PROXY_URL: http://backend:3001
     volumes:
       # Prior-project service-account file, read-only. Unset
       # KARDATA_GCP_ADC_PATH keeps the /dev/null mount and the filesystem
@@ -135,9 +143,17 @@ services:
       # token from agents/.env (compose environment wins over env_file),
       # leaving the worker with a closed MCP client and tool-less turns.
       KARDATA_CHROME_CDP_URL: http://browser:9222
+      KARDATA_BROWSER_PROXY_URL: http://backend:3001
       KARDATA_PG_WORKER_MAX: '5'
+      KARDATA_GCS_BUCKET: ${KARDATA_GCS_BUCKET:-}
+      KARDATA_GCS_PREFIX: ${KARDATA_GCS_PREFIX:-}
+      KARDATA_GCP_PROJECT_ID: ${KARDATA_GCP_PROJECT_ID:-}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/kardata/adc.json
+      KARDATA_ARCHIVE_DIR: /var/kardata/archive
     volumes:
       - ./worker-entrypoint.sh:/worker-entrypoint.sh:ro
+      - ${KARDATA_GCP_ADC_PATH:-/dev/null}:/run/kardata/adc.json:ro
+      - archive-data:/var/kardata/archive
     depends_on:
       db:
         condition: service_healthy

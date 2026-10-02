@@ -190,3 +190,438 @@ the everything-log. Plan: `documentation/plans/2026-09-25-backend-build.md`.
   `sdoc-*`/`snote-*` ids; only model-visible prose changed. Proven by
   `tests/backend/sector-context.test.ts` (stub-DB) and
   `tests/backend/api.sector-context.test.ts` (live).
+
+## Overflow recovery hardening
+
+Overflow state frames carry `historyRefresh: true`. The client reloads durable
+messages through bounded 200-row REST pages before accepting the snapshot token;
+hidden launch notices advance the REST cursor even when a page is empty. A failed
+reload retains the previous stream token so the snapshot is retried. Snapshot
+capture reads the outbox token before the thread view to keep concurrent commits
+in the tail. Transient reasoning/tool frames are cleared on hydration; durable
+messages decide completion. Large transcript rendering remains a separate gate.
+
+Most API contract tests still use Fastify inject. The isolated file-browser
+integration binds the existing backend to an ephemeral loopback port so browser
+file actions cross real HTTP, Postgres, and the filesystem archive. It creates
+no new product service and makes no provider or Temporal claim.
+
+A session-filtered run directory describes only its recorded parent/child IDs,
+plus its explicitly requested legacy self-scoped research ID. It does not scan
+unrelated Temporal histories. Missing SDK histories remain absent; child pause
+state remains authoritative from its thread header. The unfiltered fleet directory
+is a separate performance/coverage requirement.
+
+Mutation handlers retain their idempotency guard when handler execution or
+completion recording throws with an uncertain outcome. Response headers label
+`x-kardata-operation-state: uncertain`; correlated logs carry an operation hash.
+Only explicitly proven pre-effect results release the guard. Uncertain records
+require reconciliation and never permit automatic repeat effects. The agent
+checkpoints original operation identities before dispatch, parks unconfirmed
+results and exposes pending status through the scoped local-context endpoint.
+Resume rechecks the original receipt under the same execution authority before
+allowing another provider round. Genuinely unprovable in-progress/legacy effects
+remain parked; automated repair of those effects is still a release requirement.
+
+Outbox socket failure wakes the waiting stream and closes its response for client
+reconnect; it cannot leave an idle leased client with an unhandled error. The
+connection is destroyed once. This uses the existing resume/history contract;
+stream-pool capacity and browser disconnect drills remain separate release gates.
+
+New coordinator histories select basic company-result metadata screening through
+`research-basic-filter-v1`. Its activity flag is internal, not a product request
+argument. Old histories omit the flag and retain the recorded extraction contract.
+Junk-result pages still permit search pagination; only empty raw pages exhaust.
+This gate alone is not fetched-source/geography verification.
+
+The final acceptance audit found public-web fetch still clears its timeout after
+headers and checks byte size only after full buffering. Fetched-source intake
+must not adopt that path as verified until full-body deadlines/streaming byte caps,
+redirect/network-destination protection and source provenance are exercised.
+These remain explicit acceptance gaps, not silently accepted operating limits.
+
+### Full-response source-fetch bounds
+
+Public source fetch keeps its15-second deadline through headers, redirects and
+body reads, cancels above the2-MiB streaming cap, and follows at most five redirects
+with URL checks before each hop. Final provenance names the final fetched URL.
+Blocked/non-text/error bodies are cancelled. Body/header failures are logged by
+code and rethrown; this does not claim resolved-DNS pinning or browser network
+admission, which remain separate mandatory gates before the pilot.
+
+HTML text extraction uses the shared linear scanner in retrieval/html.ts. It
+ignores script/style/comment content, respects quoted attribute delimiters and
+omits unterminated markup/content. An isolated time/memory-bounded child regression
+covers malformed bodies near the fetch cap, so parsing cannot monopolize the
+shared HTTP process through repeated regex backtracking. It is text extraction,
+not DOM execution or a claim of advanced company qualification.
+
+### Browser execution ownership
+
+Browser sessions have opaque UUID identities and retain the trusted caller identity
+for their lifetime. MCP derives that identity from tenant/project, key ID and the
+validated execution thread; model arguments cannot select an owner. Snapshot, act,
+screenshot and close check that identity before touching Chromium. A caller cannot
+close another execution's session. Internal retrieval callers must pass the same
+caller on close as on navigation; anonymous internal sessions stay anonymous.
+
+Opening publishes a session only after page creation, navigation and the initial
+bounded snapshot succeed. Failures close the owned browser or sidecar context and
+release the pool slot only after confirmed cleanup. Close/idle cleanup logs
+start/done/error and propagates failures. Context/page creation and cleanup have
+30-second caller deadlines. Uncertain cleanup retains capacity, denies further
+use, and permits owner-matched Close retry; late confirmation releases the slot; this does not establish restart orphan recovery or
+network/DNS destination admission, which remain preflight requirements.
+
+Source fetch and initial browser navigation share literal URL admission: http(s),
+no userinfo, no localhost (including trailing-dot/subdomains), private/reserved IPv4,
+IPv6 local/mapped/documentation/transition ranges. WHATWG URL normalization precedes
+IP classification, so integer/hex IPv4 cannot bypass it. Node's built-in BlockList
+handles subnet classification; no dependency is added. This is not resolved-DNS
+pinning or subresource/popup/redirect/browser network isolation. Those remain
+mandatory preflight work.
+
+Browser actions also have a 30-second outer deadline, including keyboard/wheel
+operations. An uncertain action blocks further operations until it settles; Close
+remains available. Completion is not inferred from elapsed time or timeout.
+
+For CDP contexts, cleanup confirmation is the actual context `close` event. The
+first cleanup receipt is retained across deadlines/errors; repeated Close observes
+that receipt instead of invoking a Playwright close method that may return a no-op
+while closing. A late event releases retained capacity. No event means uncertain
+capacity remains retained, even if a repeated SDK method could resolve.
+
+After a real CDP context-close receipt, dispose its client connection with
+Playwright browser.close, then release capacity. The pinned CDP adapter closes
+the transport (not the shared Chromium process); live independent-client survival
+is still required to establish deployed behavior. A hung/failed disposal retains
+capacity and its original receipt.
+
+CDP close receipts are registered as soon as context acquisition resolves,
+including late acquisitions, so an earlier navigation failure/external close
+cannot make cleanup miss an already emitted close event.
+
+### Pinned source DNS transport
+
+Production public-source fetch resolves all DNS answers and rejects empty, invalid
+or non-public/mixed answers before connection. Each hop uses a fresh native HTTP(S)
+connection whose lookup returns only the checked address; the original URL host
+and HTTPS certificate name remain intact. Cancellation after late DNS resolution
+cannot open a connection. The existing full-request deadline and byte limits apply.
+Gzip/deflate/Brotli decoding is streamed; both encoded and decoded bodies are
+bounded, and decoding failure propagates. Injected test fetches are not available
+as MCP arguments. This does not protect Chromium subresources, clicks or popups;
+those remain mandatory preflight work.
+
+### Browser network guard contract
+
+Agent browser contexts use an authenticated HTTP proxy on the existing backend
+listener. This is an internal execution transport, not a product REST tool, new
+service or raw DB surface. Credentials are short-lived, domain-separated HMAC
+capabilities derived by trusted execution code; they grant only bounded public-web
+transport and cannot authenticate /v1 or approve anything. No model arguments
+select a proxy, secret or execution owner. Ordinary /v1, /mcp and health routes
+retain their existing authority.
+
+Every plain HTTP request and HTTPS/WebSocket CONNECT target must use port80/443,
+pass shared literal policy, and resolve entirely to admitted public addresses.
+Connections pin a checked address; redirects/new destinations pass the proxy
+again. Proxy credentials never reach destination headers or logs. Default bounds:
+128 total connections,16 per capability,15-second connection deadline,60-second
+idle timeout,120-second total lifetime,2-MiB request/response byte ceiling.
+Cancellation and backend shutdown close owned sockets and release capacity once.
+
+Contexts remove Chromium's implicit loopback bypass and use service-worker blocking.
+Owned and CDP browsers must demonstrate required no-QUIC/no-unproxied-UDP flags
+before navigation; missing configuration fails closed. Existing browser tools keep
+their schemas, ownership and lifecycle. HTTP proxy verification, real Chromium
+redirect/subresource/popup/WebSocket/private-address denial and two-client survival
+are distinct required tests. Private/CDP/proxy control endpoints are trusted
+configuration, never untrusted page destinations.
+
+Browser proxy capability issuance logs its hash on the trusted MCP logger;
+transport logs carry the same hash for request/workflow correlation. Access logs
+normalize proxy traffic to browser.proxy, never a raw credential-bearing URI.
+Proxy sockets retain quota until their actual close receipt, including rejected
+CONNECT peers that leave a write half open. Accepted socket errors are supervised;
+backend shutdown cancels owned sockets. Teardown has a one-second flush bound.
+
+Playwright's generic proxy-password option also supplies unscoped site HTTP auth.
+The guard therefore uses a page CDP auth interceptor: only a Proxy challenge from
+the exact configured control origin receives the capability. Site challenges and
+repeated/foreign challenges are cancelled. No proxy password is installed as site
+credentials. Idle contexts expire independently after five minutes, with a
+30-minute absolute lifetime; uncertain cleanup retains capacity.
+
+Trusted CDP discovery also has a full-response deadline and64-KiB response cap.
+Response/request errors clear timers and destroy owned requests; websocket origin,
+port and transport derive from configured control origin, not advertised hosts.
+
+### Discovery intake before publication
+
+New discovery coordinators use the `research-source-intake-v1` Temporal marker.
+Search results are candidates, never companies. At most two leaf reviewers run
+concurrently using only `web_fetch`; assignments require basic identity,
+geographic and sector checks, not company deep research. Every accepted check
+requires an exact fetched quote on the candidate domain; the identity quote
+contains the returned business name. Cross-domain redirects remain uncertain
+until explicitly reviewed. Unknown business size stays unknown.
+
+The parent validates structured results, indexes an inspectable intake receipt in
+the sector library, then atomically records company publication and work receipts
+under the sector transaction. Publication checks the current approved plan,
+running lifecycle and approved scope again. Discovery never overwrites an existing
+master-ledger verdict. Rejected candidates are completed screening work; uncertain
+or failed screening remains blocked and prevents 100% completion. Cursor state
+tracks screened domains separately from accepted-company counts. Settled intake
+receipts are reused after restart. Existing histories retain their original
+contract; no shared rollout is authorized merely by passing fixture tests.
+
+Intake reports have per-workflow-attempt identities, stable across activity
+retries. Explicit same-plan restarts retry interrupted screening before skipping
+completed search directions; settled receipts and screened domains prevent
+relaunching recovered work on repeated pages. Semantic `uncertain` results still
+require owner review, not automatic acceptance. A reviewer that finishes during
+pause is removed from the live-child signal set before the parent parks. Paused
+publication defers using the saved outcome and does not launch another reviewer.
+
+The accepted-company ceiling applies on recovery as well as normal dispatch.
+Publication counts current-version company work under the sector transaction;
+idempotent already-published domains can replay, but a new domain cannot exceed
+the approved ceiling. Excess interrupted work stays blocked for owner review.
+Screened domains include earlier rejected/uncertain receipts across completed
+query directions. Search pages are not truncated by accepted-company capacity
+before basic screening; a rejected candidate does not hide the next valid hit.
+
+### Durable fetched-source receipts
+
+Fetched evidence is retained as exact text in the existing archive, addressed by
+SHA-256 of URL plus text under the source session's hashed namespace. Shared
+source persistence verifies archive content before returning a durable reference;
+missing or corrupt content cannot become a successful DB pointer. The same
+implementation serves turn checkpoints and discovery intake. Archive failure
+parks publication without deleting transcripts, earlier receipts or source bytes.
+Intake review events retain the exact validated decision, source references,
+plan version, source thread and timestamp, independently of terminal continuation
+cleanup. Operational logs contain hashes/counts, not source bodies or secrets.
+This source receipt is distinct from full provider request/response inspection,
+which remains a separate acceptance requirement.
+
+Production turn activity results transport source references, not full fetched
+pages, to stay within Temporal payload limits. The parent hydrates verified
+session-scoped source text in its validation activity; legacy inline outcomes
+remain readable for replay and explicit fixtures. Turn source-receipt events
+persist before continuation cleanup. Corrupt/missing/foreign archive references
+fail validation and cannot publish a company or successful evidence verdict.
+
+Source archive reads use optional byte limits: filesystem reads stop at cap+1
+before full buffering; GCS reads request a bounded byte range and verify the
+returned length. Source text is capped at the existing retrieval2 MiB limit.
+Integrity/scope/limit failures have explicit codes; operational read/write
+boundaries emit start/done/error without bodies. Exact existing sources are
+adopted rather than overwritten, including a write whose acknowledgement was
+lost. Source references retain the established URL-plus-text hash convention.
+
+Source storage exchanges have a60-second deadline and honor activity cancellation.
+Production filesystem and GCS source paths abort owned I/O; late injected-target
+completion cannot produce a reference or DB checkpoint. Terminal source archival
+remains inside the activity's cancellation/heartbeat supervision. Checkpoint,
+steering and cleanup mutations carry the independent attempt lease (migration19)
+so cancelled same-operation attempts cannot corrupt a replacement continuation.
+
+Acceptance and company-verdict publication check cancellation after archive work
+and again inside the serialized DB boundary. Final acceptance also rechecks the
+approved plan/scope and committed lifecycle. Pause defers publication using saved
+review outcomes; resume does not repeat reviewers. Terminal lifecycle writes do
+not override a committed owner pause. Previously completed same-plan acceptance
+can be reused after an explicit restart; a revised scope still needs reapproval.
+
+Search HTTP now shares the existing DNS-pinned public-source transport. Each
+search page has a15s deadline through headers, redirect handling and streamed
+body consumption. Keyed JSON is capped at1MiB and keyless HTML at512KiB before
+parsing; encoded native-transport limits remain in force. Credentialed search
+rejects redirects so subscription headers cannot reach another destination.
+Keyless redirects are bounded to five and revalidate every destination. Rejected,
+late and oversized bodies are cancelled. Operational triples record coded errors
+without queries, subscription keys or body contents. Malformed keyed results fail
+closed rather than pretending discovery exhausted successfully.
+
+All search legs validate the existing MCP pagination contract before networking:
+count1-20, page0-100, both integers; defaults10/0. Invalid numbers never produce
+a remote request or an apparently successful empty page.
+
+Brave pagination uses page offsets0-9, not result-row offsets. Keyed requests
+send the requested page directly and fail before networking above9; the existing
+sector discovery fallback may then use keyless/browser search. Keyless engines
+retain row offsets. Nullable descriptions yield an empty snippet; absent/null
+web content counts as exhausted only with explicit more_results_available=false.
+Contract authority: [Brave pagination](https://api-dashboard.search.brave.com/app/documentation/web-search/codes)
+and [response schema](https://api-dashboard.search.brave.com/api-reference/web/search/post).
+
+Plan edit/approval serialize through the workspace transaction and committed
+lifecycle, rejecting older versions. POST sector approve optionally accepts
+contextVersion; the workspace always passes the displayed version and stale
+context conflicts before mutation. Approval receipts additionally pin protected
+Decisions text, with legacy reads remaining supported. Exact-compatible completed
+work is retained transactionally; scope/decision changes require eligibility
+review. Current provenance is readable in the shared progress response.
+
+Worker startup now ensures a bounded recurring `executionReconciliation`
+workflow on the existing research queue. It records scoped durable observations
+and conversation notices. Provider-owning starts reserve a durable epoch before
+Temporal admission, including versioned child launches; attempt ownership binds
+the exact execution. Exact terminal/head/lease matches with no unresolved start
+can be parked for owner review, retaining context and instructions. Legacy and
+missing-heartbeat/progress/queue findings remain advisory; matching an old token
+alone never permits lifecycle changes. Unknown/expired start outcomes stay guarded.
+Contract and thresholds: [agents supervision](agents-supervision.md). Matching
+deployed activation and outbound alert delivery require separate live evidence.
+
+HTTP observability emits a sanitized ingress `http.request.start`, a coded
+`http.request.error` for framework exceptions, and the existing terminal
+`op=http.request` access record. Hung handlers leave ingress evidence. Hooks
+share one minted/validated trace ID despite plugin registration order; unmatched
+routes collapse to `*unmatched*`. URLs, query strings, headers, request bodies and
+exception bodies/stacks are excluded. Existing metrics keep bounded route labels.
+
+New discovery coordinators use the compact-state Temporal patch. Status checks
+carry scope/version/budget only; snapshots carry bounded retry references and a
+validation sample, with a1.5MB serialized guard. Full records are read through
+scoped DB helpers. Completed/rejected intake IDs are checked server-side; cursor
+commands carry query/page positions instead of growing rejected-domain lists.
+History continuation waits for checkpointed work, no active children and finished
+signal handlers. Approved version, recovery cursor and cumulative budget survive.
+Legacy histories take their original branch and remain replayable.
+
+Sector library metadata combines uploaded documents and generated/imported
+artifacts by newest arrival timestamp, with file ID as a deterministic tie-break.
+It uses document creation times and the first stored/referenced/indexed event in
+the sector's bound sessions; imports therefore use their local library arrival.
+Timestamp bookkeeping stays internal and does not add wire fields. Existing
+hidden/indexing flags and generated-document alias handling remain authoritative.
+Context reference assembly keeps its existing stable ID sort.
+
+### Normalized provider execution inspection
+
+Production turns archive exact normalized adapter requests after refresh and
+compaction, and replies before tool dispatch. Tool results retain original call
+and operation identities. Each DB receipt binds the owning session/thread, turn,
+attempt lease, round and verified archive hash/size. Operational logs contain
+identity/latency/code only. These are not raw vendor HTTP payloads or credentials.
+Archive failures park a recoverable context operation before further execution.
+Archive IO precedes the DB transaction; failed commits may retain orphan bytes,
+but never publish a success pointer to missing content.
+
+Boundary metadata records the shared context version, observed approved plan
+version and local context version used to assemble the input. Context/plan reads
+around reference assembly must match; three unsuccessful attempts park rather
+than label mixed content with an unrelated version. An observed approved plan
+version is distinct from a child assignment's original executable-plan identity.
+Existing source receipts and immutable transcripts retain their separate roles.
+Owner inspection and full integration evidence are tracked as separate gates.
+
+### Owner execution inspection
+
+`GET /v1/threads/{threadKey}/execution-records?afterSeq=0&limit=20` returns scoped
+chronological metadata and a nullable next cursor (limit1–100). Metadata includes
+sequence/time, logical turn, attempt lease, round/kind, optional actual workflow,
+execution and canonical owner epoch, and archive hash/byte count. It omits archive
+keys and record bodies. `GET .../execution-records/{seq}` resolves the immutable
+scoped journal, then verifies the session namespace, exact bytes and archive hash
+before returning `{record: JSON object}`. Missing/corrupt content is an explicit
+recoverable conflict; a foreign conversation/sequence is not found.
+
+Both routes always require a registered approver key, including local open mode.
+There is no agent MCP surface. Owners can inspect historical content seen before
+a file was hidden. These are normalized adapter snapshots. Observed shared-plan
+metadata describes the reference snapshot and does not change assignment scope.
+
+### Owner intake review
+
+`POST /v1/sectors/{sectorId}/work/{workId}/review` requires approver authority
+and exact `{planVersion, receiptVersion, decision: retry|exclude, reason}`.
+A receiptVersion digest is supplied on progress work records. Missing scope is
+404; stale versions, executing candidate children, non-paused/non-failed sectors
+and settled/non-candidate work are 409. The existing mutation idempotency and
+boundary logging apply. No MCP/model exclusion route exists. Exact prior receipts
+and authenticated owner decisions remain in the sector event journal.
+
+The intake-review mutation declares the shared optional IdempotencyKey header in
+OpenAPI and uses the existing per-key request-fingerprint guard. Repeating one
+exact owner decision with its original key replays the recorded receipt without
+another work transition/journal event; changed arguments under that key conflict.
+The review client keeps the key for an exact failed submission and supplies it on
+retry; editing the reviewed work, decision or owner reason creates a new request.
+
+## Scoped in-app supervision alerts
+
+`GET /v1/alerts?beforeSeq=&limit=` feeds the existing Agents surface using durable
+`t.reconciliation.finding` events. Always validate a viewer-or-higher key, even
+in test/open app mode. Derive tenant/project/session/thread scope from the
+validated caller and stored ownership; exclude deleted/unattributed sessions.
+Descending exclusive sequence pagination defaults to20 and caps at100. Response
+data is `{items,nextBeforeSeq}`; items contain seq, at, sessionId, sessionTitle, threadKey,
+nullable sectorId, kind, response, threadStatus and state (`current-warning` or
+`historical`). Omit free-text reasons, execution IDs, leases and raw payloads.
+
+Only a closed-owner parking observation whose tagged recovery pause remains the
+latest thread-state event, whose thread is PAUSED, whose recovery epoch matches
+the current execution head, and which has no pending/uncertain starts is a current
+warning. All advisory or superseded observations are historical; age never
+proves liveness or justifies cancellation. Reads perform no recovery mutation. The route catches up the projector first;
+a still-behind bounded catch-up returns recoverable503 instead of stale current status.
+Delivery means supervisor → durable DB → authenticated UI; external Prometheus
+notification delivery remains a separate unconfigured capability.
+
+## Recoverable PDF file operations
+
+HTTP upload and MCP attachment call the shared backend attachment helper. PDF
+runner/archive dependencies are checked before publication; missing dependencies
+return a recoverable unavailable result without creating a file/job. Successful
+admission returns current stored metadata/progress, including a dispatch failure
+or fast completion rather than a stale initial processing snapshot. No provider
+call happens inline during PDF admission. The original scope/model/job binding
+and exact-version context approvals remain authoritative.
+An RPC start failure after retention records `dispatch_outcome_unknown`: the
+workflow may have started despite its lost acknowledgement. It requires explicit
+owner acknowledgement before another potentially paid dispatch. Missing local
+runner/archive capability is the separate proven pre-effect failure above.
+
+PDF upload returns a retained processing file after original archive verification;
+existing Temporal worker handles the approved full-PDF contract. Sector library
+rows may include `processing`: jobId, state, revision, totalImages(nullable until
+manifest sealing), completedImages, failedImages, uncertainImages, errorCode(nullable)
+and retryRequiresApproval. This contains no private image refs, provider bodies,
+leases or credentials. Original bytes remain available through existing owner file
+reads while agent knowledge reads await complete indexing.
+
+`POST /v1/sectors/{sectorId}/files/{fileId}/retry` always requires a validated
+approver key. Body names exact jobId/revision and allowDuplicatePaid(defaultfalse);
+unknown paid outcomes require true. Hidden files and stale revisions are conflicts;
+foreign scope is not-found. It retains file identity/receipts and queues a new
+workflow revision through the existing worker. It never approves context inclusion.
+Design authority: `documentation/plans/2026-10-01-pdf-ingestion.md`.
+
+The file body exposes `fullChars`, `textTruncated` and nullable `nextOrd`. A
+truncated preview advertises nextOrd0 to start browsing the complete indexed
+sections. `GET /v1/sectors/{sectorId}/files/{fileId}/units?fromOrd=&limit=` uses
+an inclusive ordinal cursor, defaults20 and caps100. It returns status, units,
+nextOrd and fullChars; processing/failed files return no staged units. Ownership,
+visibility and projector catch-up apply before reads. Original download availability
+means a visible retained original; owners reveal hidden files before reading.
+
+A proved original paid response can clear provider_outcome_unknown only for the
+same current attempt/revision when no other unknown request or hidden/manual pause
+blocks it. Known unusable output retains its exact paid record and requires explicit
+approver acknowledgement before another paid attempt. Private producer-sealed
+archive recovery never grants approval or general execution authority.
+
+### Queued file admission recovery
+
+Accepted uploads survive a process exit before Temporal admission through the
+existing worker's durable file-admission maintenance. Admission identity and
+nonce are private server bindings, absent from UI/MCP inputs and progress output.
+An ambiguous start remains visible as dispatch_outcome_unknown and requires
+owner review unless exact execution proof resolves it. Retry uses the existing
+approver/revision/possible-paid-duplication contract. DB protocol is authoritative
+in `documentation/db.md`; scan/activation limits in `documentation/agents-supervision.md`.

@@ -231,3 +231,17 @@ describe('searchWebPageActivity fallback chain', () => {
     expect(called).toBe(0)
   })
 })
+
+// Availability proof only: candidates are not accepted or stored as companies.
+describe.skipIf(process.env['KARDATA_RETRIEVAL_TEST'] !== '1')('live keyless discovery search', () => {
+  it('returns actual bounded public search candidates through production DNS/body guards', async () => {
+    const hits = await keylessSearch('Australian electrical plumbing service companies', { count: 3 })
+    expect(hits.length).toBeGreaterThan(0)
+    expect(hits.length).toBeLessThanOrEqual(3)
+    for (const hit of hits) {
+      expect(new URL(hit.url).protocol).toMatch(/^https?:$/)
+      expect(hit.title.length).toBeGreaterThan(0)
+      expect(['bing', 'duckduckgo', 'duckduckgo-lite', 'mojeek']).toContain(hit.engine)
+    }
+  }, 65000)
+})

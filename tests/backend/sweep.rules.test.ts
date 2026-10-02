@@ -119,3 +119,38 @@ describe('extractNewDomains relevance gate', () => {
     expect(extractNewDomains(hits, [])).toHaveLength(1)
   })
 })
+
+describe('basic company-result screening', () => {
+  it('does not admit keyword-matching directories, articles, ranked lists or jobs', () => {
+    const junk = [
+      { title: 'Australian plumbing directory', url: 'https://yellowpages.com.au/plumbers' },
+      { title: 'Electrical jobs in Australia', url: 'https://seek.com.au/electrical-jobs' },
+      { title: 'Top 20 Australian plumbing companies', url: 'https://trade-magazine.example/top-contractors' },
+      { title: 'Plumbing tips in Australia', url: 'https://service.example/blog/plumbing-tips' },
+      { title: 'Australian electrician news', url: 'https://trade-news.example/articles/electrician-market' },
+      { title: 'Australian plumbing directory', url: 'https://unknown.example', snippet: 'Browse our directory of plumbers and electrical contractors.' },
+    ]
+    expect(extractNewDomains(junk, [], ['plumbing','electrical','electrician'], true)).toEqual([])
+  })
+  it('rejects non-HTTP search results but does not confuse host suffixes with platform domains', () => {
+    const hits = [
+      { title: 'Plumbing', url: 'ftp://plumber.example/services' },
+      { title: 'Plumbing', url: 'https://jobs.linkedin.com/company/plumber' },
+      { title: 'Plumbing', url: 'https://brightx.com/services' },
+      { title: 'Plumbing', url: 'https://notgoogle.com/services' },
+    ]
+    expect(extractNewDomains(hits, [], ['plumbing'], true).map(({ domain }) => domain)).toEqual(['brightx.com', 'notgoogle.com'])
+  })
+  it('retains ordinary company/service pages without treating brand words as jobs or lists', () => {
+    const hits = [
+      { title: 'Best Plumbing Brisbane', url: 'https://best-plumbing.example/services', snippet: 'Our plumbing services and contact details.' },
+      { title: 'Job Electrical Services', url: 'https://job-electrical.example/about-us', snippet: 'Electrical contractors serving Australia.' },
+    ]
+    expect(extractNewDomains(hits, [], ['plumbing','electrical'], true)).toHaveLength(2)
+  })
+  it('retains the recorded legacy extraction contract when basic screening was not selected', () => {
+    const hit = { title: '10 Best Payment Processing', url: 'https://connectpay.com/blog/x' }
+    expect(extractNewDomains([hit], [], ['payment'])).toHaveLength(1)
+    expect(extractNewDomains([hit], [], ['payment'], true)).toHaveLength(0)
+  })
+})

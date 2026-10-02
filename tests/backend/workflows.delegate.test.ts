@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { readPartition } from '../../backend/src/db/index.js'
 import { connectClient, connectWorker, temporalNamespace } from '../../backend/src/temporal/connection.js'
 import { delegationWorkflowId, TemporalRunsGateway } from '../../backend/src/temporal/gateway.js'
+import * as epochActivities from '../../backend/src/temporal/activities/execution-epochs.js'
 import { createLaneWorker } from '../../backend/src/temporal/worker.js'
 import { appendEventActivity, karbotTurnActivity } from '../../backend/src/temporal/activities/turn.js'
 import { ensureTestDb } from './db-helper.js'
@@ -65,7 +66,7 @@ describe.skipIf(!ENABLED)('delegation door (db.delegate_subagent gateway)', () =
       connection,
       namespace: temporalNamespace(),
       workflowsPath: WORKFLOWS_PATH,
-      activities: { appendEventActivity, karbotTurnActivity },
+      activities: { appendEventActivity, karbotTurnActivity,...epochActivities },
       taskQueue: `kardata-test-delegate-${Date.now()}`,
     })
     run = worker.run()
@@ -97,7 +98,7 @@ describe.skipIf(!ENABLED)('delegation door (db.delegate_subagent gateway)', () =
         fakeSteps: [{ text: 'door reply' }],
         taskQueue: taskQueue(),
       })
-      expect(childId).toMatch(/^child-[0-9a-f]{8}$/)
+      expect(childId).toMatch(/^child-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
       expect(commandId.startsWith('cmd-')).toBe(true)
       const parentHandle = client.workflow.getHandle(delegationWorkflowId(sessionId))
       await waitFor(async () => {

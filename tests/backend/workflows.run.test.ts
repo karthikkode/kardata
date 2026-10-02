@@ -1,4 +1,5 @@
 import { Client as WorkflowClient } from '@temporalio/client'
+import { ApplicationFailure } from '@temporalio/activity'
 import type { NativeConnection, Worker } from '@temporalio/worker'
 import { Pool } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -48,6 +49,7 @@ describe.skipIf(!ENABLED)('session-run workflow (B2.2)', () => {
   let url = ''
   let worker: Worker
   let run: Promise<void>
+  const blocked = new Set<string>()
 
   beforeAll(async () => {
     process.env['TEMPORAL_ADDRESS'] = ADDRESS
@@ -63,7 +65,13 @@ describe.skipIf(!ENABLED)('session-run workflow (B2.2)', () => {
       connection,
       namespace: temporalNamespace(),
       workflowsPath: WORKFLOWS_PATH,
-      activities: { karbotTurnActivity, appendEventActivity },
+      activities: { karbotTurnActivity: async (input: Parameters<typeof karbotTurnActivity>[0]) => {
+        if (['context-blocked-turn','operation-blocked-turn'].includes(input.text) && !blocked.has(input.sessionId)) {
+          blocked.add(input.sessionId)
+          throw ApplicationFailure.nonRetryable('Original operation was preserved.', input.text === 'operation-blocked-turn' ? 'OperationBlocked' : 'ContextBlocked')
+        }
+        return karbotTurnActivity(input)
+      }, appendEventActivity },
       taskQueue: `kardata-test-run-${Date.now()}`,
     })
     run = worker.run()
@@ -81,6 +89,28 @@ describe.skipIf(!ENABLED)('session-run workflow (B2.2)', () => {
   function db(): Pool {
     return new Pool({ connectionString: url })
   }
+
+  it.each(['context-blocked-turn','operation-blocked-turn'])('parks %s and resumes the original turn without repeating its user message', async (request) => {
+    const sessionId = `${request}-${Date.now()}`
+    const handle = await client.workflow.start('sessionRun', { taskQueue: (worker.options as { taskQueue: string }).taskQueue, workflowId: `session-run-${sessionId}`, args: [{ sessionId, fakeSteps: [{ text: 'Recovered answer' }] }] })
+    try {
+      await handle.signal('runSend', request)
+      const pool = db()
+      try {
+        // Workflow queries can observe PAUSED before its event-writing activity
+        // settles. Wait for both authorities; projector catch-up cannot project
+        // an event that has not committed yet.
+        await waitFor(async () => {
+          await projectNewEvents(pool)
+          return await queryState(handle) === 'PAUSED' && (await getThread(pool, sessionId))?.status === 'PAUSED'
+        }, 30000, 'durable context pause')
+        expect((await getThread(pool, sessionId))?.status).toBe('PAUSED')
+      } finally { await pool.end() }
+      await handle.signal('runResume')
+      await waitFor(async () => (await texts(sessionId)).includes('Recovered answer'), 30000, 'context recovery')
+      expect((await texts(sessionId)).filter((text) => text === request)).toHaveLength(1)
+    } finally { await handle.signal('runCancel'); await handle.result() }
+  }, 90000)
 
   async function texts(sessionId: string): Promise<string[]> {
     const pool = db()

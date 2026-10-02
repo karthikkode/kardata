@@ -29,6 +29,7 @@ import {
   Wrench,
   X,
 } from 'lucide-react'
+import { downloadBlob } from '../lib/download'
 import { dockEnter, dockExit, popoverEnter, popoverExit, useExitState } from '@/lib/motion'
 import {
   cancelRun,
@@ -333,7 +334,7 @@ export function SessionsPanel({
                   Research
                 </span>
               ) : null}
-              <span className="min-w-0 flex-1 truncate text-sm">{session.title}</span>
+              <span className="min-w-0 flex-1"><span className="block truncate text-sm">{session.title}</span><span className="block break-all text-xs text-muted-foreground">{session.id}</span></span>
               <span className="shrink-0 text-xs text-muted-foreground">
                 {sessionAge(session.updatedAt)}
               </span>
@@ -639,12 +640,7 @@ export function SessionFilesView({
     getArtifactBody(config, sessionId, file.id)
       .then((res) => {
         const blob = new Blob([res.body], { type: 'text/plain;charset=utf-8' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = file.name
-        a.click()
-        URL.revokeObjectURL(url)
+        downloadBlob(blob, file.name)
       })
       .catch(() => undefined)
   }
@@ -1152,7 +1148,7 @@ export function ChatPanel({
     let streamDead = false
     void (async () => {
       try {
-        for await (const snapshot of followThread(config, key, controller.signal)) {
+        for await (const snapshot of followThread(config, key, controller.signal, { reconnectOnEOF: true })) {
           if (!live || controller.signal.aborted) return
           if (snapshot.error) {
             deadErrors += 1

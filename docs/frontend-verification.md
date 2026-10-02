@@ -205,3 +205,163 @@ Gates (Wave 7): frontend lint 0 errors, typecheck clean, `npm test`
 276 passed / 6 skipped, `npm run build` clean, `npm run test:e2e`
 40 passed / 4 skipped exit 0. Backend live battery 78 files /
 480 tests exit 0 (bounded workers; see status entry on the DB wedge).
+
+## Hardening slice: plan editing and file preview
+
+Fixture browser journeys passed at 1440×960 and 390×960 in light/dark.
+Reviewed editor stills `hardening-editor-{1440,390}-{light,dark}.png`: pinned
+Save/Cancel, contained scrolling, readable fields, no sideways spill. Reviewed
+preview stills `hardening-preview-1440-light.png` and
+`hardening-preview-390-dark.png`: original-file action and markdown remain
+inside the dialog; mobile resources stay behind the preview. These are fixture
+results, not the Meta pilot. The four maintained `hardening surfaces` journeys
+assert anchors, Save bounds, Escape/focus return and contain no network data.
+Their videos are `frontend/test-results/workspace-hardening-surfaces-<width>-<theme>-chromium/video.webm`.
+
+A read-only walkthrough of an existing completed run exposed misleading future
+work copy in its empty ledger. The complete/failed regression failed before the
+fix; terminal runs now say no ledger was recorded and retain saved results.
+
+## Stream and company-list hardening (2026-10-01)
+
+Maintained browser matrix: 50 passed / 4 live-gated skips before the durable
+receipt extension. Company polling preserves a loaded 200-row window, and the
+1,000-row list remains navigable. The overflow journey hydrates 200 history rows
+plus the terminal answer and captures `hardening-overflow-recovery.png`.
+The two new receipt journeys capture `hardening-overflow-steering-consumed.png`
+and `hardening-overflow-steering-missed.png`; their results are recorded after
+verification, not inferred from fixtures. All these journeys use declared TEST
+fixtures and do not establish live-provider or deployment readiness.
+
+Latest full matrix: **52 passed / 4 live-gated skips**, exit 0. Inspected the
+consumed/missed steering stills: terminal answer stays visible, Stop clears,
+missed instructions return to the draft with a plain explanation and recovery
+control. No horizontal spill in either inspected desktop capture. Fixture EOF
+intentionally leaves the reconnect notice visible. Transition videos are:
+
+- `frontend/test-results/workspace-overflow-recover-70c20-consumed-steering-in-the-UI-chromium/video.webm`
+- `frontend/test-results/workspace-overflow-recover-8d4f1-s-missed-steering-in-the-UI-chromium/video.webm`
+
+The independent reviewer reran 13 frontend recovery cases and 13 isolated live
+DB/HTTP cases; this is additional verification of the slice, not a full release
+verdict. Remaining UI matrices and real-provider journeys stay acceptance gaps.
+
+Curated reviewed captures and the consumed/missed steering transition clips are
+retained in `tests/evidence/hardening-2026-10-01/` for PR review. They are labeled
+TEST fixture journeys; no production or real-provider claim is implied.
+
+
+## Isolated real-HTTP file recovery
+
+`files-db.spec.ts` passed its production-route journey with isolated Postgres and
+filesystem archive: failed indexing shows an alert and no file; retry shows the
+file; preview renders its extracted heading; downloaded bytes exactly equal the
+chosen upload. Captures: `files-db-upload-failure.png` and
+`files-db-upload-recovered.png`. Chat SSE alone is stubbed. The open-mode test
+proves file behavior, while separate keyed HTTP suites prove authority. The
+existing production deployment and Meta pilot are not involved.
+
+The stricter Research-heading guard reproduced the remount initialization race
+before its fix and now passes before file actions. The upload-error copy guard
+likewise failed on the generic internal-error banner and now passes on its retry
+instruction. Latest full matrix with isolated DB enabled: 53 passed/4 live-provider
+skips. File recovery video remains local at
+`tests/evidence/hardening-2026-10-01/files-db-upload-recovery.webm`.
+
+
+## General Karbot context tools over real execution
+
+`agent-context-db.spec.ts` drives the existing chat UI over real HTTP, Temporal,
+MCP and Postgres with a scripted provider. Captured real tool replies include the
+owned local notes and explicitly selected authorized sector scope. The visible
+activity group has two done tools; Send returns after the durable terminal answer
+without waiting for stream EOF. Screenshot/video: `agent-context-real-tools.png`
+and its labeled Playwright clip. No Meta or first-send creation claim is made.
+
+The full matrix initially failed before the composer appeared because a session
+run directory scanned the whole accumulated Temporal fleet. Session reads now
+use their recorded graph. The same unchanged 10-second interaction deadline now
+passes: latest full matrix **54 passed / 4 Meta-gated skips**.
+
+### Real stream disconnect recovery (2026-10-01)
+
+`agent-context-db.spec.ts` now completes its scripted tool-backed UI turn, retains
+an unsent draft, inventories the sole idle LISTEN connection in its UUID-isolated
+DB, terminates that exact PID, observes a new browser stream request/DB listener,
+and asserts one terminal reply, unchanged draft, Send visible and Stop absent.
+The initial browser run failed because Karbot did not reconnect on graceful EOF;
+the same deadline now passes. Screenshot visually reviewed: completed tool group,
+terminal answer, draft retained in the composer, no Thinking/Stop residue. This
+is real HTTP/Temporal/MCP/DB with scripted provider, not Meta or a deployment.
+Local retained evidence: `tests/evidence/hardening-2026-10-01/agent-context-db-reconnected.png`
+and `agent-context-db-reconnected.webm`. The existing CI browser-agent artifact
+includes the generated still/video. No research records or owner workflows were
+modified; disruptive drill is isolated.
+
+### Live UI preflight, not campaign completion (2026-10-01)
+
+The actual app Models screen loaded Meta, five available choices, the default
+muse-spark-1.3-contributor at high effort, and key-configured status after the
+owner-authorized test credential setup. No session selection/model binding was
+changed. Read-only Overview also showed historical government/news/guide entries
+among company candidates, reinforcing that source/identity/geography screening
+must precede the new campaign's accepted count. Existing records were not altered.
+Local JPEG proof: `tests/evidence/hardening-2026-10-01/meta-models-preflight.jpg`.
+This is real-app catalogue readiness, not a Meta research turn, current-worker
+rollout proof, or the2000-company pilot. CUA exports JPEG; JPG/JPEG evidence is now
+ignored alongside PNG/WebM. The browser tab is retained for later UI pilot work.
+
+### Unconfirmed tool operation recovery (2026-10-01)
+
+`workspace.spec.ts --grep 'operation recovery'` passed four routed browser
+scenarios at1440/390px in light/dark with reduced motion. Each asserts a paused
+conversation without Thinking, the readable pending-operation card, expandable
+original identity, keyboard focus and Escape focus return. Screenshots/videos
+are retained under frontend/test-results. This is fixture UI evidence, not Meta.
+Visual review of the mobile dark screenshot caught an expanded long ID consuming
+the editor viewport. The fix bounds that code region to128px, allows keyboard
+scrolling and preserves the full ID; the same four cases passed after correction.
+The final mobile still shows recovery status, local notes and both actions within
+the dialog, without horizontal overflow. Other themes/sizes have matching layout
+assertions and retained stills for review.
+
+### Revision approval basis and retained work (2026-10-01)
+
+Full routed workspace suite29 passed. Four plan-context conflict scenarios at
+1440/390px light/dark assert the POST pins version/contextVersion, keep conflict
+visible and leave the plan editable. Retained discovery provenance and original
+source stay readable while percentage is pending. Context denial removes approval;
+fresh503 context failure disables approval after the existing poll. Desktop/mobile
+stills and transition videos are retained under frontend/test-results. The mobile
+dark conflict still was visually inspected: visible banner, readable executable
+limits, both plan actions and bounded scroll; no horizontal overflow. These are
+explicit fixtures, not approvals performed on live pilot research.
+
+### File processing and supervision preflight (2026-10-02)
+
+The maintained browser matrix passed 122 with 7 explicit live/runtime skips on
+owned port 15174. Source hashes for all 82 frontend/e2e files stayed unchanged.
+The PDF cases cover 1440/390px, both themes, reduced motion, paid-retry review,
+denied submission with retained acknowledgement, and bounded section paging.
+Current screenshots/video are under
+`frontend/test-results/final-browser-15174/playwright/file-processing-*`.
+The mobile-light denied review and desktop-dark section preview were visually
+inspected: readable copy, fully visible actions, no sideways spill, and full
+content available through section controls/original download. The current file
+list shows upload provenance separately from current processing status.
+
+Alert cases cover both sizes/themes, long references, older-page loading,
+denial and retry; stills/videos are in the matching `alerts-*` directories.
+The long-reference captures preserve text through wrapping and paginate 20 rows;
+desktop-dark and mobile-light geometry were inspected. Extremely long synthetic
+identifiers produce tall cards, so these captures establish overflow safety,
+not a measured large-fleet UX/performance claim.
+
+An additional actual Meta journey used the retained isolated app, without route
+interception or backend data population. One synthetic mixed-text/bitmap/vector
+PDF completed 4/4 image analyses; native and AI-derived sections were visible,
+the original downloaded exactly and no page errors occurred. Its desktop-light
+preview was visually inspected. Safe screenshots and transition video are in
+`backend/test-results/preflight-safe-visual-proof/`; raw credential-bearing traces
+remain private and excluded. This is PDF production-path evidence, not a live
+company-discovery campaign or complete OCR-quality evaluation.

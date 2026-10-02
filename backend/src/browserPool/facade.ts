@@ -6,6 +6,7 @@
 // the query cache (query + count + page), never in a worker slot.
 // Tool names, schemas, roles, and `via` tags are unchanged: the pool and
 // caches sit underneath the existing contract.
+import type { Logger } from 'pino'
 import {
   browserAct,
   browserClose,
@@ -96,7 +97,7 @@ async function defaultBrowserLeg(query: string): Promise<SweepSearchHit[]> {
   try {
     return linksFromSnapshot(snapshot)
   } finally {
-    await browserClose(sessionId).catch(() => undefined)
+    await browserClose(sessionId, 'sweep').catch(() => undefined)
   }
 }
 
@@ -216,24 +217,24 @@ export async function pooledWebSearch(
 // (acquire on navigate, release on close/idle-reap). These pass-throughs
 // exist so every agent browser call crosses the facade — the one place a
 // future tier router can intercept without touching callers.
-export function pooledBrowserNavigate(url: string, opts?: { caller?: string; timeoutMs?: number }) {
+export function pooledBrowserNavigate(url: string, opts?: { caller?: string; timeoutMs?: number; logger?: Logger }) {
   return browserNavigate(url, opts)
 }
 
-export function pooledBrowserSnapshot(sessionId: string) {
-  return browserSnapshot(sessionId)
+export function pooledBrowserSnapshot(sessionId: string, caller?: string) {
+  return browserSnapshot(sessionId, caller)
 }
 
-export function pooledBrowserAct(sessionId: string, act: BrowserAct) {
-  return browserAct(sessionId, act)
+export function pooledBrowserAct(sessionId: string, act: BrowserAct, caller?: string) {
+  return browserAct(sessionId, act, caller)
 }
 
-export function pooledBrowserClose(sessionId: string) {
-  return browserClose(sessionId)
+export function pooledBrowserClose(sessionId: string, caller?: string) {
+  return browserClose(sessionId, caller)
 }
 
-export function pooledBrowserScreenshot(sessionId: string, options: { fullPage?: boolean } = {}) {
-  return browserScreenshot(sessionId, options)
+export function pooledBrowserScreenshot(sessionId: string, options: { fullPage?: boolean } = {}, caller?: string) {
+  return browserScreenshot(sessionId, options, caller)
 }
 
 export { browserPoolStats } from './pool.js'

@@ -1,3 +1,6 @@
+import { createHash } from 'node:crypto'
+import { recordThreadFileExposure } from '../../db/context-files.js'
+import { getSession, type TransactableDb } from '../../db/index.js'
 // Plan/task tool activities (B4.2). `toolCallActivity` executes one
 // agents plan/task tool call with approval gates, timeouts, and durable
 // idempotency — the pure core (`executeToolCall`) takes its side effects
@@ -175,8 +178,8 @@ export async function executeToolCall(
   const started = Date.now()
   const partition = `session:${input.sessionId}`
 
-  // Durable exactly-once: a recorded outcome replays verbatim.
-  const recorded = await deps.findRecorded(input.idempotencyKey)
+  // Mutations replay exactly once; file reads recheck current visibility and integrity.
+  const recorded = input.call.name === 'artifact.read' ? undefined : await deps.findRecorded(input.idempotencyKey)
   if (recorded) {
     deps.log({ op: 'tool.call', tool: input.call.name, ok: !recorded.result.isError, latencyMs: 0 })
     return recorded
@@ -293,6 +296,8 @@ export async function executeToolCall(
           findEvent: (key) => findEventByKey(db, key),
           record: (event) => appendEvent(db, event).then(() => undefined),
         })
+        const session = await getSession(db, input.sessionId)
+        if (session?.sectorId) await recordThreadFileExposure(db as TransactableDb, input.sessionId, session.sectorId, artifactId, undefined, undefined, createHash('sha256').update(served.body).digest('hex'))
         return { content: served.body }
       } catch (error) {
         if (error instanceof UnindexedArtifactError || error instanceof CorruptArtifactError) {

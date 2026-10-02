@@ -14,6 +14,7 @@ import {
   renameSession,
   setSessionModel,
   sessionKind,
+  WorkspaceError,
   researchSessionBinding,
 } from '../db/index.js'
 import { RunNotFound, SESSION_PREFIX } from '../temporal/gateway.js'
@@ -142,6 +143,8 @@ export function sessionRoutes(app: FastifyInstance, catalog: ModelCatalog): void
       // Stop the session workflow first so no turn lands after the
       // tombstone; a missing workflow is fine (never started or already
       // closed) and never fails the delete.
+      if (!(await getSession(pool, params.sessionId, auth.scope))) throw new WorkspaceError('not_found', 'Conversation not found.')
+      if (await sessionKind(pool, params.sessionId) === 'research') throw new WorkspaceError('conflict', 'The persistent research conversation cannot be deleted.')
       try {
         await runs.cancelRun(`${SESSION_PREFIX}${params.sessionId}`)
       } catch (error) {

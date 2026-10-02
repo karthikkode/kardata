@@ -39,6 +39,15 @@ describe('DeltaAccumulator', () => {
 })
 
 describe('FakeProvider', () => {
+  it.each(['complete', 'incomplete', null] as const)('scripts explicit terminal completion %s consistently for nonstream and stream fixtures', async (completion) => {
+    const fake = new FakeProvider([{ text: 'TEST reply', completion }, { text: 'TEST reply', completion }])
+    const response = await fake.chat(request())
+    expect(response.completion).toBe(completion ?? undefined)
+    const events = []
+    for await (const event of fake.chatStream(request())) events.push(event)
+    expect(events.at(-1)).toEqual({ kind: 'done', usage: response.usage, ...(completion === null ? {} : { completion }) })
+    if (completion === null) expect(response).not.toHaveProperty('completion')
+  })
   it('replays scripted text plus tool calls and records requests', async () => {
     const fake = new FakeProvider([
       {

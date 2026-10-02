@@ -2,7 +2,8 @@
 // (trace_id, run_id, op, attempt, tenant) so logs join to traces and events.
 // Secret scrubbing is fail-closed: keys matching the sensitive pattern are
 // redacted even when the exact field name was never allow-listed.
-import { DefaultLogger, type LogEntry, type Logger as TemporalLogger, type LogLevel } from '@temporalio/worker'
+import { createHash } from 'node:crypto'
+import { DefaultLogger, type LogEntry, type Logger as TemporalLogger, type LogLevel, type TelemetryOptions } from '@temporalio/worker'
 import pino, { type Logger } from 'pino'
 
 export interface LogContext {
@@ -19,17 +20,48 @@ export interface LogContext {
 // legitimate log content.
 const SENSITIVE_KEY = /api[_-]?key|secret|passwd|password|token|auth|bearer|credential|private[_-]?key|session[_-]?key/i
 const REDACTED = '[Redacted]'
+const TOKEN_COUNTER = /^(input_?tokens|output_?tokens|cache_?read_?tokens|cache_?write_?tokens|cache_?hit_?tokens|cache_?miss_?tokens|cached_?tokens|total_?tokens|token_?budget|token_?cap)$/i
+
+/** Native Core defaults to its own console, independently of the JS logger.
+ * Forward through this owned boundary while preserving SDK's default levels. */
+export function workerLoggingOptions(): TelemetryOptions['logging'] {
+  return { filter: { core: 'WARN',other: 'ERROR' },forward: {} }
+}
+
+/** Core error fields may be Rust-formatted strings, not Error instances.
+ * Keep diagnostics/correlation, never native exception bodies or raw entries. */
+function nativeDiagnostic(entry: LogEntry): { fields: Record<string,unknown>; message: string } {
+  const meta=entry.meta ?? {}
+  const fields: Record<string,unknown>={ sdkComponent: 'core',event: 'temporal.native',messageHash: createHash('sha256').update(entry.message).digest('hex') }
+  for (const key of ['target','run_id','workflow_id','workflowId','runId','namespace','task_queue','taskQueue','activity_id','activityId','activity_type','activityType']) {
+    const value=meta[key]
+    if (typeof value==='string' && value.length<=512) fields[key]=value
+  }
+  for (const key of ['attempt','durationMs','duration_ms','latencyMs']) {
+    const value=meta[key]
+    if (typeof value==='number' && Number.isFinite(value) && value>=0) fields[key]=value
+  }
+  return { fields,message: 'Temporal native diagnostic' }
+}
 
 export function scrubSecrets<T>(value: T): T {
-  if (Array.isArray(value)) return value.map((entry) => scrubSecrets(entry)) as T
-  if (typeof value === 'object' && value !== null) {
-    const out: Record<string, unknown> = {}
-    for (const [field, entry] of Object.entries(value)) {
-      out[field] = SENSITIVE_KEY.test(field) ? REDACTED : scrubSecrets(entry)
-    }
-    return out as T
+  const ancestors = new WeakSet<object>()
+  const scrub = (entry: unknown): unknown => {
+    if (typeof entry !== 'object' || entry === null) return entry
+    if (entry instanceof Error) return { name: entry.name, ...('code' in entry && typeof entry.code === 'string' ? { code: entry.code } : {}) }
+    if (ancestors.has(entry)) return '[Circular]'
+    ancestors.add(entry)
+    try {
+      if (Array.isArray(entry)) return entry.map(scrub)
+      const out: Record<string, unknown> = Object.create(null) as Record<string, unknown>
+      for (const [field, child] of Object.entries(entry)) {
+        const counter = TOKEN_COUNTER.test(field) && typeof child === 'number' && Number.isSafeInteger(child) && child >= 0
+        out[field] = SENSITIVE_KEY.test(field) && !counter ? REDACTED : scrub(child)
+      }
+      return out
+    } finally { ancestors.delete(entry) }
   }
-  return value
+  return scrub(value) as T
 }
 
 export function createLogger(context: LogContext = {}, destination?: pino.DestinationStream): Logger {
@@ -104,20 +136,22 @@ export function createWorkerLogger(
   const base = createLogger({ op: 'temporal' }, destination)
   const sink = (entry: LogEntry): void => {
     // pino owns the timestamp: the nanos field would not survive JSON.
-    const fields = { ...(entry.meta ?? {}) }
+    const native=entry.meta?.['sdkComponent']==='core' || entry.message.startsWith('Error converting native log entry:') ? nativeDiagnostic(entry) : undefined
+    const fields = native?.fields ?? { ...(entry.meta ?? {}) }
+    const message=native?.message ?? entry.message
     switch (entry.level) {
       case 'TRACE':
       case 'DEBUG':
-        base.debug(fields, entry.message)
+        base.debug(fields, message)
         break
       case 'WARN':
-        base.warn(fields, entry.message)
+        base.warn(fields, message)
         break
       case 'ERROR':
-        base.error(fields, entry.message)
+        base.error(fields, message)
         break
       default:
-        base.info(fields, entry.message)
+        base.info(fields, message)
     }
   }
   return new DefaultLogger(level, sink)

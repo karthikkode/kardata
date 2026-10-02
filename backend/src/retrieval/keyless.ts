@@ -7,7 +7,8 @@
 import { z } from 'zod'
 import {
   RetrievalError,
-  WEB_FETCH_TIMEOUT_MS,
+  requestSearchPage,
+  searchPagination,
   type FetchImpl,
   type SearchHit,
 } from './web.js'
@@ -227,33 +228,13 @@ export async function keylessSearch(
   const parsed = QuerySchema.safeParse(rawQuery)
   if (!parsed.success) throw new RetrievalError('validation_failed', 'query must be 2-300 characters')
   const query = parsed.data
-  const count = Math.min(Math.max(options.count ?? 10, 1), 20)
-  const offset = (options.page ?? 0) * count
-  const fetchImpl = options.fetchImpl ?? fetch
+  const { count, offset } = searchPagination(options)
 
   for (const engine of ENGINES) {
     try {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), WEB_FETCH_TIMEOUT_MS)
-      let response: Response
-      try {
-        response = await fetchImpl(engine.buildUrl(query, offset), {
-          headers: {
-            Accept: 'text/html',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'User-Agent': BROWSER_UA,
-          },
-          signal: controller.signal,
-        })
-      } finally {
-        clearTimeout(timer)
-      }
-      if (!response.ok) continue
-      const contentType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() ?? ''
-      if (contentType && !contentType.includes('html')) continue
-      const buffer = new Uint8Array(await response.arrayBuffer())
-      if (buffer.length > KEYLESS_MAX_BYTES) continue
-      const html = new TextDecoder().decode(buffer)
+      const response = await requestSearchPage(engine.buildUrl(query, offset), { headers: { Accept: 'text/html', 'Accept-Language': 'en-US,en;q=0.9', 'User-Agent': BROWSER_UA }, maxBytes: KEYLESS_MAX_BYTES, followRedirects: true, fetchImpl: options.fetchImpl })
+      if (response.contentType && !response.contentType.includes('html')) continue
+      const html = response.text
       if (CHALLENGE.test(html)) continue
       const hits = engine
         .parse(html)

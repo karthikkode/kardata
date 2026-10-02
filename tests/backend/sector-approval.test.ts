@@ -18,8 +18,8 @@ function stubDb(
   state: { name: string; topic: string; state: string; plans: string[] },
   captured: Captured[],
 ): TransactableDb {
-  return {
-    connect: async () => ({}) as unknown as PoolClient,
+  const db: TransactableDb = {
+    connect: async () => ({ query: (text: string, params?: unknown[]) => db.query(text, params), release: () => undefined }) as unknown as PoolClient,
     async query<TRow>(text: string, params: unknown[] = []): Promise<{ rowCount: number | null; rows: TRow[] }> {
       captured.push({ text, params })
       if (text.includes('INSERT INTO events')) {
@@ -28,6 +28,7 @@ function stubDb(
         if (typeof payload.markdown === 'string') state.plans.push(payload.markdown)
         return { rowCount: 1, rows: [{ seq: captured.length }] as unknown as TRow[] }
       }
+      if (text.startsWith('SELECT payload FROM events')) return { rowCount: 1, rows: [{ payload: { sectorId: 'sec-1', state: state.state } }] as unknown as TRow[] }
       if (text.includes('FROM events WHERE partition')) {
         return {
           rowCount: state.plans.length,
@@ -55,6 +56,7 @@ function stubDb(
       return { rowCount: 0, rows: [] }
     },
   }
+  return db
 }
 
 const SCOPE = { tenantId: 't', projectId: null }

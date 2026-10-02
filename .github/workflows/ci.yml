@@ -1,8 +1,6 @@
 # CI verify pipeline (no deploy target: this workflow proves, never ships).
-# Hermetic only: pr:verify (lint + typecheck + tests, all workspaces),
-# frontend production build, and the Playwright e2e suite against the Vite
-# dev server with stubbed /v1/* responses. Live-gated suites (Temporal,
-# compose smoke, provider probes) stay checklist-stated, never CI-run.
+# Deterministic verification plus isolated Postgres/Temporal integration.
+# Paid provider, full stress and live UI pilot evidence remain release gates.
 name: ci
 
 on:
@@ -21,6 +19,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run pr:verify
+      - run: npm test -w @kardata/backend -- pdf-mixed.test.ts
+        env:
+          KARDATA_PDF_MEMORY_TEST: '1'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pdf-memory-review
+          path: backend/test-results/pdf-decoded-memory*.json
 
   e2e:
     runs-on: ubuntu-latest
@@ -34,3 +40,66 @@ jobs:
       - run: npx playwright install --with-deps chromium
         working-directory: frontend
       - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-review
+          path: frontend/test-results/
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres@sha256:a3b7f434b2dc57ce85a67e171163eb8ab1a1ebcb39d27484661f26b1dfbe30d6
+        env:
+          POSTGRES_USER: kardata
+          POSTGRES_PASSWORD: kardata-ci
+          POSTGRES_DB: kardata_test
+        ports: ['5432:5432']
+        options: --shm-size=1g --health-cmd "pg_isready -U kardata" --health-interval 5s --health-timeout 3s --health-retries 12
+      temporal:
+        image: temporalio/auto-setup@sha256:b1edc1e20002d958c8182f2ae08dee877a125083683a627a44917683419ba6a8
+        env:
+          DB: postgres12_pgx
+          DB_PORT: '5432'
+          POSTGRES_USER: kardata
+          POSTGRES_PWD: kardata-ci
+          POSTGRES_SEEDS: postgres
+        ports: ['7233:7233']
+        options: --health-cmd "temporal operator cluster health --address `hostname -i`:7233" --health-interval 10s --health-timeout 5s --health-retries 18
+    env:
+      TEST_DATABASE_URL: postgresql://kardata:kardata-ci@localhost:5432/kardata_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w @kardata/agents
+      - run: npm test -w @kardata/backend
+      - run: npm test -w @kardata/backend -- workflows.run.test.ts workflows.subagents.test.ts workflows.plan.test.ts workflows.coordinator.test.ts workflows.file-processing.test.ts
+        env:
+          KARDATA_TEMPORAL_TEST: '1'
+          KARDATA_FILE_TEMPORAL_ADDRESS: localhost:7233
+
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: npx tsc --noEmit --strict --skipLibCheck --target es2022 --module nodenext --moduleResolution nodenext --types node tests/frontend-e2e/files-db.spec.ts
+      - run: npm run test:e2e -w frontend -- files-db.spec.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-files-integration
+          path: frontend/test-results/
+
+      - run: npx tsc --noEmit --strict --skipLibCheck --target es2022 --module nodenext --moduleResolution nodenext --types node tests/frontend-e2e/agent-context-db.spec.ts
+      - run: npm run test:e2e -w frontend -- agent-context-db.spec.ts
+        env:
+          KARDATA_TEMPORAL_TEST: '1'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-agent-context-integration
+          path: frontend/test-results/

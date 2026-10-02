@@ -19,6 +19,8 @@ export type FakeStep =
       reasoning?: string
       toolCalls?: ToolCallRequest[]
       usage?: Partial<Usage>
+      /** Null scripts unknown terminal metadata; fixtures otherwise finish. */
+      completion?: ProviderResponse['completion'] | null
       /** Optional dwell before the step resolves, so cancellation tests
        * can land mid-turn against a deterministic tool window. */
       delayMs?: number
@@ -64,6 +66,7 @@ export class FakeProvider implements ProviderAdapter {
       reasoning: step.reasoning ?? '',
       toolCalls: step.toolCalls ?? [],
       usage: { ...emptyUsage(), ...step.usage },
+      ...(step.completion === null ? {} : { completion: step.completion ?? 'complete' }),
     }
   }
 
@@ -85,6 +88,6 @@ export class FakeProvider implements ProviderAdapter {
       yield { kind: 'toolcall_delta', index, textAppend: JSON.stringify(call.args) }
       yield { kind: 'toolcall_end', index, call }
     }
-    yield { kind: 'done', usage: { ...emptyUsage(), ...step.usage } }
+    yield { kind: 'done', usage: { ...emptyUsage(), ...step.usage }, ...(step.completion === null ? {} : { completion: step.completion ?? 'complete' }) }
   }
 }

@@ -15,6 +15,7 @@ import { activityOptions } from '../timeouts.js'
 import type * as planActivitiesModule from '../activities/plan.js'
 import type * as sweepActivitiesModule from '../activities/sweep.js'
 import type * as turnActivitiesModule from '../activities/turn.js'
+import { visiblePlan } from '../research-plan.js'
 
 const plan = proxyActivities<typeof planActivitiesModule>(activityOptions('research'))
 const sweep = proxyActivities<typeof sweepActivitiesModule>(activityOptions('research'))
@@ -22,14 +23,13 @@ const sweep = proxyActivities<typeof sweepActivitiesModule>(activityOptions('res
 // pacing + MCP wiring live there), never on the research worker running
 // this workflow. Without the explicit queue the task lands on the research
 // queue, whose worker has no turn activities (live NotFoundError 2026-09-30).
-const turn = proxyActivities<typeof turnActivitiesModule>({
-  ...activityOptions('turn'),
-  taskQueue: laneConfig('turn').taskQueue,
-})
 
 export interface SectorPlanInput {
   sectorId: string
   sessionId: string
+  ownerEpoch?: string
+  /** Isolated harness override; product routes never accept this field. */
+  turnTaskQueue?: string
   /** Tenant binding: the artifact and transitions carry this scope. */
   scope?: { tenantId: string; projectId: string | null }
   /** Test-only scripted fake steps for the planning turn. Never set in
@@ -53,14 +53,21 @@ export function planningBrief(name: string, topic: string): string {
     'Return a plan with exactly these headings: scope, direction shards, query shapes, budgets, risks, open questions.',
     'Every claim needs evidence or an explicit uncertain mark — never invent.',
     'Write the plan as the reply. If you cannot evidence a section, say so under its heading.',
-    'Append a research-plan fenced JSON block with exactly: discovery (array of {id,title,queries:string[],maxPages:1..10}), companyBrief (instructions to investigate all worthy problems and report evidence), budgets ({maxCompanies:1..1000,maxWallMinutes:1..1440,concurrency:2}), acceptance (nonempty string[]). This is the executable specification the owner will approve. Use real sector queries, bounded budgets and evidence-based completion requirements.',
+    'Append a research-plan fenced JSON block with exactly: researchDepth ("discovery" for sector discovery; company deep research requires a separately approved phase), discoveryTarget (minimum distinct-company count requested by the owner, 1..2000; do not set it above maxCompanies), discovery (array of {id,title,queries:string[],maxPages:1..10}), companyBrief (instructions to investigate all worthy problems and report evidence), budgets ({maxCompanies:1..2000,maxWallMinutes:1..1440,concurrency:2}), acceptance (nonempty string[]). This is the executable specification the owner will approve. Use real sector queries, bounded budgets and evidence-based completion requirements.',
   ].join('\n')
 }
 
 export async function sectorPlan(input: SectorPlanInput): Promise<'planned' | 'failed'> {
+  const turn = proxyActivities<typeof turnActivitiesModule>({ ...activityOptions('turn'), taskQueue: input.turnTaskQueue ?? laneConfig('turn').taskQueue })
   const modern = patched('plan-version-run-v2')
+  const transcript = patched('plan-transcript-v1')
   const versionKey = modern ? workflowInfo().runId : input.sectorId
   const progress: PlanProgress = { sectorId: input.sectorId, status: 'planning' }
+  const append = (key: string, message: Record<string, unknown>, kind: 'text' | 'tool' = 'text') => turn.appendEventActivity({ idempotencyKey: `plan-transcript:${versionKey}:${key}`, partition: `session:${input.sessionId}`, type: 't.message.appended', payload: { threadKey: input.sessionId, kind, message } })
+  const failed = async () => {
+    await plan.setPlanStateActivity({ sectorId: input.sectorId, state: 'failed', scope: input.scope })
+    if (transcript) await append('failure', { role: 'agent', text: 'The research plan could not be completed. Review the error and retry planning.', failed: true })
+  }
   setHandler(planProgressQuery, () => ({ ...progress }))
   let context: Awaited<ReturnType<typeof sweep.loadSweepContextActivity>>
   try {
@@ -68,28 +75,33 @@ export async function sectorPlan(input: SectorPlanInput): Promise<'planned' | 'f
   } catch (error) {
     if (isSweepCancellation(error)) throw error
     log.error('plan context failed', { sectorId: input.sectorId, error })
-    await plan.setPlanStateActivity({ sectorId: input.sectorId, state: 'failed', scope: input.scope })
+    await failed()
     return 'failed'
   }
   let reply: string
+  let reasoning: string | undefined
   try {
+    if (transcript) await append('request', { role: 'user', text: `Prepare the research plan for ${context.name}.` })
     const outcome = await turn.karbotTurnActivity({
       sessionId: input.sessionId,
       threadKey: input.sessionId,
       runKey: modern ? `plan:${input.sectorId}:${versionKey}` : `plan:${input.sectorId}`,
+      ...(input.ownerEpoch ? { ownerEpoch: input.ownerEpoch,ownerFirstExecutionId: workflowInfo().firstExecutionRunId,ownerContinuedFromExecutionId: workflowInfo().continuedFromExecutionRunId } : {}),
       text: planningBrief(context.name, context.topic),
       ...(input.fakeSteps === undefined ? {} : { fakeSteps: input.fakeSteps }),
     })
     reply = outcome.reply
+    reasoning = outcome.reasoning
+    if (transcript) for (const [index, tool] of outcome.toolCalls.entries()) await append(`tool:${index}`, tool, 'tool')
   } catch (error) {
     if (isSweepCancellation(error)) throw error
     log.error('plan turn failed', { sectorId: input.sectorId, error })
-    await plan.setPlanStateActivity({ sectorId: input.sectorId, state: 'failed', scope: input.scope })
+    await failed()
     return 'failed'
   }
   if (!reply.trim()) {
     log.error('plan turn empty', { sectorId: input.sectorId })
-    await plan.setPlanStateActivity({ sectorId: input.sectorId, state: 'failed', scope: input.scope })
+    await failed()
     return 'failed'
   }
   try {
@@ -98,14 +110,16 @@ export async function sectorPlan(input: SectorPlanInput): Promise<'planned' | 'f
       markdown: reply,
       idempotencyKey: `run:${versionKey}`,
       scope: input.scope,
+      ...(transcript ? { requireExecutable: true } : {}),
     })
   } catch (error) {
     if (isSweepCancellation(error)) throw error
     log.error('plan write failed', { sectorId: input.sectorId, error })
-    await plan.setPlanStateActivity({ sectorId: input.sectorId, state: 'failed', scope: input.scope })
+    await failed()
     return 'failed'
   }
   progress.status = 'planned'
+  if (transcript) await append('reply', { role: 'agent', text: visiblePlan(reply), ...(reasoning ? { reasoning } : {}) })
   await plan.setPlanStateActivity({ sectorId: input.sectorId, state: 'planned', scope: input.scope })
   return 'planned'
 }

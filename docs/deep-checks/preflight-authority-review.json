@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "reviewer": "catalogue_audit",
+  "at": "2026-10-01T16:48:59.936630+00:00",
+  "checkoutHead": "e4659f33c83190418bd0604349a995870bc62403",
+  "purpose": "Manual whole-small-module review proposal only. Merge into catalogue after checking unchanged bytes; no functionality tier or scenario is declared verified. Working tree is not asserted identical to HEAD.",
+  "entries": [
+    {
+      "path": "backend/src/db/context-files.ts",
+      "sha256": "0e251063bd67bc03dd6cf573000329712e56622dbae7776b5ce88472a90cf36c",
+      "review": "reviewed",
+      "contract": "documentation/db.md",
+      "tests": [
+        "tests/backend/mcp.file-promotion-provenance.test.ts"
+      ]
+    },
+    {
+      "path": "backend/src/db/execution-records.ts",
+      "sha256": "f5132912f7180484c83f657f0371a2a5c55577e72b6a00f8e294ea908be78aca",
+      "review": "reviewed",
+      "contract": "documentation/db.md",
+      "tests": [
+        "tests/backend/execution-records.test.ts",
+        "tests/backend/execution.inspection.test.ts"
+      ]
+    },
+    {
+      "path": "backend/src/db/operation-receipts.ts",
+      "sha256": "32bb1dcc8754ed8389f86c043288b9bf8e4a66ac7fe693b6c788ea13282fccce",
+      "review": "reviewed",
+      "contract": "documentation/mcp.md",
+      "tests": [
+        "tests/backend/mcp.operation-receipts.test.ts"
+      ]
+    },
+    {
+      "path": "backend/src/db/work-review.ts",
+      "sha256": "b9346fff1147e4f019f8e02e22f8b8561c814c7885253ab8b64cc410bb0eb3bf",
+      "review": "reviewed",
+      "contract": "documentation/db.md",
+      "tests": [
+        "tests/backend/work.review.test.ts"
+      ]
+    },
+    {
+      "path": "backend/src/routes/execution-records.ts",
+      "sha256": "6ba7cd94e291bb8546b2d6de93f61b62b85b5295676df17f7e5e62e8c00fc0c7",
+      "review": "reviewed",
+      "contract": "documentation/backend.md",
+      "tests": [
+        "tests/backend/execution.inspection.test.ts"
+      ]
+    },
+    {
+      "path": "backend/src/routes/workspace.ts",
+      "sha256": "93d085646418bf796dad192101920356344cebc081e057e312e1c906759e3100",
+      "review": "reviewed",
+      "contract": "documentation/backend.md",
+      "tests": [
+        "tests/backend/api.workspace.test.ts",
+        "tests/backend/work.review.test.ts",
+        "tests/backend/mcp.file-promotion-provenance.test.ts"
+      ]
+    },
+    {
+      "path": "backend/src/auth/keys.ts",
+      "sha256": "2a19e17a79c072ea8edf6f7bd14a23a687a0876403b6f046fc5cbd27e8305990",
+      "review": "reviewed",
+      "contract": "documentation/backend.md",
+      "tests": [
+        "tests/backend/api.auth.test.ts",
+        "tests/backend/mcp.tools.test.ts"
+      ]
+    },
+    {
+      "path": "backend/src/auth/execution.ts",
+      "sha256": "e95d9a4d6a860e24bac479adc395c5ebbf2e0fe59a8bf5a0855a7632657c2fc2",
+      "review": "reviewed",
+      "contract": "documentation/mcp.md",
+      "tests": [
+        "tests/backend/mcp.authority.test.ts"
+      ]
+    },
+    {
+      "path": "backend/src/context.ts",
+      "sha256": "1f458fd3b7d155a92755ff9a365ca3be12e218e5179057876dc066ea348c0720",
+      "review": "reviewed",
+      "contract": "documentation/agents-context.md",
+      "tests": [
+        "tests/backend/context.compaction-recovery.test.ts",
+        "tests/backend/api.session-compact.test.ts",
+        "tests/backend/mcp.file-promotion-provenance.test.ts"
+      ]
+    },
+    {
+      "path": "backend/src/db/file-pipeline.ts",
+      "sha256": "19b18bcf1506546d64a1f553bc6583c6faac0bf11fe041c26c4f579fdfa1d25c",
+      "review": "reviewed",
+      "contract": "documentation/db.md",
+      "tests": [
+        "tests/backend/file-pipeline.test.ts",
+        "tests/backend/ocr.test.ts"
+      ]
+    }
+  ],
+  "testHashes": {
+    "tests/backend/mcp.file-promotion-provenance.test.ts": "2945cdc8508b94e2a371b34867fee55afd37959354acf9ed0d865525f234da29",
+    "tests/backend/execution-records.test.ts": "017ba652f1af3771abe062a3d44b132f3c591b595c448f8c8d452ba0d455c888",
+    "tests/backend/execution.inspection.test.ts": "0de3a524efc2f847f830aa85fd6013376a0be7fda7348128f81157da4de2765d",
+    "tests/backend/mcp.operation-receipts.test.ts": "0dcdd55ebbae95910c9baae7617a859b81d0af421c64969fe0cf61aad0d9da14",
+    "tests/backend/work.review.test.ts": "ab1111b499a08334b4014f188f5401c232ff32654c8b2617ae2c7449d6c37988",
+    "tests/backend/api.workspace.test.ts": "8ee16fdb98561c79d163aa68f513c099bbecd99014c79d20729d0a08247ef511",
+    "tests/backend/api.auth.test.ts": "28067b9ba7c215969eb8055c65256e9c7c68a7664a80dcbe19d01dec5344edf8",
+    "tests/backend/mcp.tools.test.ts": "d1e679b0b81723e2761ba974a773419f2faeebb5d8726a513861582bafdd6a34",
+    "tests/backend/mcp.authority.test.ts": "2f950887d5d634b2b8b80f0beb46a5d87309b39ba27b1bdb8d012a9ecf88c9cd",
+    "tests/backend/context.compaction-recovery.test.ts": "f4725f5fec3687a42cb6b1a02005c67d61c34c5bf87ff57eeda4c0152b5729fd",
+    "tests/backend/api.session-compact.test.ts": "3cd07c5bffbe8592f3c3f38531fc9805addf0f17320946482c0558fe8b6b2928",
+    "tests/backend/file-pipeline.test.ts": "eb6416325b685022faa58e4bff15f3212db24c844b942a4a5a69d4037a35f275",
+    "tests/backend/ocr.test.ts": "348227d476d94b5c943885bac26db9b376027f9f93a4cbf3f72b0328158b1e11"
+  },
+  "ocrFollowupAt": "2026-10-01T16:55:56.142050+00:00",
+  "ocrCoverageFollowupAt": "2026-10-01T16:58:36.584646+00:00"
+}

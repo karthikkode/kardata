@@ -22,6 +22,7 @@ const ENABLED = TEST_DATABASE_URL !== undefined && TEST_DATABASE_URL !== ''
 const STAMP = randomUUID()
 
 const KEYS = {
+  approver: { presented: 'key-sec-approver', tenant: 'tenant-sec', project: null, role: 'approver' },
   operator: { presented: 'key-sec-operator', tenant: 'tenant-sec', project: null, role: 'operator' },
   viewer: { presented: 'key-sec-viewer', tenant: 'tenant-sec', project: null, role: 'viewer' },
   operatorB: { presented: 'key-sec-operator-b', tenant: 'tenant-sec-b', project: null, role: 'operator' },
@@ -362,6 +363,60 @@ describe.skipIf(!ENABLED)('sector research routes (B-S4)', () => {
     expect(empty.statusCode).toBe(400)
   })
 
+  it('keeps the executable work when the owner edits only the displayed plan', async () => {
+    const headers = authHeader(KEYS.operator.presented)
+    const created = await app.inject({ method: 'POST', url: '/v1/sectors', headers, payload: { name: `Executable edit ${STAMP}` } })
+    const sectorId = created.json<{ data: { id: string } }>().data.id
+    const scope = { tenantId: 'tenant-sec', projectId: null }
+    const executable = { discovery: [{ id: 'au', title: 'Australian SMEs', queries: ['Australian manufacturers'], maxPages: 2 }], companyBrief: 'Check identity and sources.', budgets: { maxCompanies: 1000, maxWallMinutes: 60, concurrency: 2 }, acceptance: ['Distinct companies with source evidence'] }
+    await recordPlanVersion(pool, sectorId, `## Scope\nAustralian SMEs\n\n\`\`\`research-plan\n${JSON.stringify(executable)}\n\`\`\``, `executable-edit-${STAMP}`, scope)
+    await setSectorState(pool, sectorId, 'planned', { scope })
+    await projectNewEvents(pool)
+    const edited = await app.inject({ method: 'PATCH', url: `/v1/sectors/${sectorId}/plan`, headers, payload: { markdown: '## Scope\nAustralian SMEs, with clearer notes.' } })
+    expect(edited.statusCode).toBe(200)
+    const read = await app.inject({ method: 'GET', url: `/v1/sectors/${sectorId}/plan`, headers })
+    expect(read.json<{ data: { latest: { executable: unknown; markdown: string } } }>().data.latest).toMatchObject({ executable, markdown: '## Scope\nAustralian SMEs, with clearer notes.' })
+  })
+  it('replays the original plan version after a later version exists', async () => {
+    const operator = authHeader(KEYS.operator.presented)
+    const scope = { tenantId: 'tenant-sec', projectId: null }
+    const created = await app.inject({ method: 'POST', url: '/v1/sectors', headers: operator, payload: { name: `TEST plan replay ${STAMP}` } })
+    const sectorId = (created.json() as { data: { id: string } }).data.id
+    await projectNewEvents(pool)
+    expect(await recordPlanVersion(pool, sectorId, '## Scope\nFirst.', `replay-first-${STAMP}`, scope)).toEqual({ version: 1 })
+    expect(await recordPlanVersion(pool, sectorId, '## Scope\nSecond.', `replay-second-${STAMP}`, scope)).toEqual({ version: 2 })
+    expect(await recordPlanVersion(pool, sectorId, '## Scope\nFirst.', `replay-first-${STAMP}`, scope)).toEqual({ version: 1 })
+  })
+  it('requires the approver role before reviewing a research-plan approval', async () => {
+    const denied = await app.inject({ method: 'POST', url: '/v1/sectors/sec-unknown/approve', headers: authHeader(KEYS.operator.presented), payload: { version: 1 } })
+    expect(denied.statusCode).toBe(403)
+    expect(denied.json()).toMatchObject({ error: { code: 'permission_denied' } })
+  })
+  it('pins shared scope and denies starting or resuming after an unreviewed scope change', async () => {
+    const owner = authHeader(KEYS.approver.presented)
+    const scope = { tenantId: 'tenant-sec', projectId: null }
+    const created = await app.inject({ method: 'POST', url: '/v1/sectors', headers: owner, payload: { name: `TEST scope binding ${STAMP}`, topic: 'Reviewed Australian scope' } })
+    const sectorId = created.json<{ data: { id: string } }>().data.id
+    const executable = { researchDepth: 'discovery', discoveryTarget: 1, discovery: [{ id: 'au', title: 'Australian companies', queries: ['Australian manufacturers'], maxPages: 1 }], companyBrief: 'Discovery only', budgets: { maxCompanies: 10, maxWallMinutes: 5, concurrency: 2 }, acceptance: ['Verified Australian companies'] }
+    await recordPlanVersion(pool, sectorId, `# TEST plan\n\n\`\`\`research-plan\n${JSON.stringify(executable)}\n\`\`\``, `scope-plan-${STAMP}`, scope)
+    await setSectorState(pool, sectorId, 'planned', { scope }); await projectNewEvents(pool)
+    expect((await app.inject({ method: 'POST', url: `/v1/sectors/${sectorId}/approve`, headers: owner, payload: { version: 1 } })).statusCode).toBe(200)
+    const plan = await app.inject({ method: 'GET', url: `/v1/sectors/${sectorId}/plan`, headers: owner })
+    expect(plan.json()).toMatchObject({ data: { approvedContext: { version: 0, scope: 'Reviewed Australian scope' } } })
+    const changed = await app.inject({ method: 'PATCH', url: `/v1/sectors/${sectorId}/global-context`, headers: owner, payload: { baseVersion: 0, sections: { scope: 'Changed scope requires review', decisions: '', findings: '', questions: '' } } })
+    expect(changed.statusCode).toBe(200)
+    expect((await app.inject({ method: 'POST', url: `/v1/sectors/${sectorId}/start`, headers: owner })).statusCode).toBe(409)
+    await setSectorState(pool, sectorId, 'queued', { scope }); await projectNewEvents(pool)
+    await setSectorState(pool, sectorId, 'running', { scope }); await projectNewEvents(pool)
+    await setSectorState(pool, sectorId, 'paused', { scope }); await projectNewEvents(pool)
+    expect((await app.inject({ method: 'POST', url: `/v1/sectors/${sectorId}/resume`, headers: owner })).statusCode).toBe(409)
+    const revised = await app.inject({ method: 'PATCH', url: `/v1/sectors/${sectorId}/plan`, headers: owner, payload: { markdown: '## Scope\nChanged scope requires owner review.' } })
+    expect(revised.statusCode).toBe(200)
+    expect(revised.json()).toMatchObject({ data: { version: 2, state: 'planned' } })
+    expect((await app.inject({ method: 'POST', url: `/v1/sectors/${sectorId}/approve`, headers: owner, payload: { version: 2 } })).statusCode).toBe(200)
+    expect((await app.inject({ method: 'POST', url: `/v1/sectors/${sectorId}/start`, headers: owner })).statusCode).toBe(200)
+  })
+
   it('creates drafts, attaches context, and starts explicitly (never auto-research)', async () => {
     const operator = authHeader(KEYS.operator.presented)
     const viewer = authHeader(KEYS.viewer.presented)
@@ -421,7 +476,7 @@ describe.skipIf(!ENABLED)('sector research routes (B-S4)', () => {
     const approved = await app.inject({
       method: 'POST',
       url: `/v1/sectors/${draft.id}/approve`,
-      headers: operator,
+      headers: authHeader(KEYS.approver.presented),
       payload: { version: 1 },
     })
     expect(approved.statusCode).toBe(200)

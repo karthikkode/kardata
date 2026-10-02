@@ -5,6 +5,8 @@
 // on resume/restart (a start that never lands must not relabel). Without a
 // runner every path fails closed — a state-only transition would lie about
 // a run that keeps going (pause) or never starts (resume/restart).
+import { readGlobalContext } from './workspace.js'
+import { readSectorPlan } from './sector-plan.js'
 import type { Scope } from '../auth/keys.js'
 import { DbContractError } from './errors.js'
 import type { Db } from './events.js'
@@ -63,6 +65,10 @@ export async function resumeSectorSweep(
   if (!sector) throw new SectorTransitionError('not_found', `no such sector ${sectorId}`)
   if (sector.state !== 'paused') {
     throw new SectorTransitionError('conflict', `sector ${sectorId} is ${sector.state}, not paused`)
+  }
+  const plan = await readSectorPlan(db, sectorId, scope)
+  if (plan?.approvedContext && (await readGlobalContext(db, sectorId, scope)).sections.scope !== plan.approvedContext.scope) {
+    throw new SectorTransitionError('conflict', 'Shared scope changed. Revise and approve the plan before resuming.')
   }
   const runner = requireRunner(runs)
   try {

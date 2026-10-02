@@ -12,4 +12,4 @@ Cross-cutting decisions (override area docs when they conflict):
 - Tokens in `frontend/src/index.css` are the only colors. No arbitrary values.
 - Components never fetch and never import fixtures; data enters via props.
 - Every behavior change ships its test in the same change.
-- `vision.md` (to write) governs product scope; area docs govern implementation.
+- `vision.md` governs product scope; area docs govern implementation.

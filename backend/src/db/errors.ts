@@ -6,8 +6,17 @@
 export class DbContractError extends Error {
   readonly code = 'db_contract'
 
-  constructor(message: string) {
-    super(`db contract: ${message}`)
+  constructor(message: string, options?: ErrorOptions) {
+    super(`db contract: ${message}`, options)
     this.name = 'DbContractError'
   }
+}
+
+export class WorkspaceError extends Error {
+  constructor(readonly code: 'not_found' | 'conflict' | 'permission_denied' | 'validation_failed', message: string, options?: ErrorOptions) { super(message, options) }
+}
+
+export class ArtifactImportTimeout extends Error {
+  readonly code = 'artifact_import_timeout'
+  constructor() { super('Artifact import deadline exceeded; retained partial records require verification before reuse.') }
 }

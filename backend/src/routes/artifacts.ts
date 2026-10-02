@@ -1,7 +1,7 @@
 // Artifact routes. Lists stored/indexed metadata for a session scope
 // (files menu); the body route serves bytes through the app-held archive
 // target with the same index gate as the pipeline; the references route
-// attaches an existing file to another session without copying bytes;
+// links general-session files; sector imports copy and index verified bytes;
 // the tenant listing powers cross-session attach discovery.
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
@@ -153,7 +153,7 @@ export function artifactRoutes(app: FastifyInstance): void {
           fromScope: body.fromScope,
           toSessionId: sessionId,
           scope: auth.scope,
-        })
+        }, (app as FastifyInstance & { kardataArchive?: import('../archive/targets.js').ArchiveTarget }).kardataArchive)
         return { status: 201, body: { ok: true, data: summary } }
       } catch (error) {
         if (error instanceof DbContractError) {

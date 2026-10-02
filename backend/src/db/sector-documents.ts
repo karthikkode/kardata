@@ -4,14 +4,15 @@
 // a configured OCR endpoint) and every file is indexed into units: turns
 // include units, never raw bytes. Pure extraction is unit-tested without a
 // database.
-import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import type { Scope } from '../auth/keys.js'
-import { countDocumentUnits, insertDocumentUnits, listDocumentUnits } from './document-units.js'
-import { DbContractError } from './errors.js'
+import { DbContractError, WorkspaceError } from './errors.js'
 import { assertFileVisible, hiddenFileIds } from './workspace.js'
 import type { ArchiveTarget } from '../archive/targets.js'
+import { withArchiveDeadline } from '../archive/targets.js'
 import type { Db } from './events.js'
+import { createLogger, logOp } from '../observability/logging.js'
+
 import {
   documentExtension,
   extractFileUnits,
@@ -21,6 +22,8 @@ import {
   type OcrAdapter,
 } from './file-pipeline.js'
 import { getSector } from './sectors.js'
+
+const documentLogger = createLogger({ op: 'file.ingest' })
 
 export { documentExtension, SECTOR_DOCUMENT_MAX_BYTES, sha256Hex }
 
@@ -33,6 +36,11 @@ export async function extractDocumentText(filename: string, bytes: Buffer): Prom
   return { text: extraction.units.map((unit) => unit.text).join('\n\n'), mediaType: extraction.mediaType }
 }
 
+export type SectorDocumentStatus = ExtractionStatus | 'processing'
+function storedDocumentStatus(value: string): SectorDocumentStatus {
+  if (['indexed','needs-ocr','failed','processing'].includes(value)) return value as SectorDocumentStatus
+  throw new DbContractError('Unknown stored document processing status')
+}
 export interface SectorDocument {
   id: string
   sectorId: string
@@ -42,7 +50,10 @@ export interface SectorDocument {
   sha256: string
   createdAt: string
   /** indexed (units ready) or needs-ocr (stored, awaiting OCR). */
-  status: ExtractionStatus
+  status: SectorDocumentStatus
+  fullChars?: number
+  textTruncated?: boolean
+  nextOrd?: number | null
 }
 
 export interface IngestedDocument extends SectorDocument {
@@ -61,82 +72,72 @@ const ContentSchema = z.string().min(1)
  * ingest is idempotent on content hash. */
 export async function ingestSectorDocument(
   db: Db,
-  input: { sectorId: string; filename: string; contentBase64: string; scope?: Scope; ocr?: OcrAdapter; archive?: ArchiveTarget },
+  input: { sectorId: string; filename: string; contentBase64: string; scope?: Scope; ocr?: OcrAdapter; archive?: ArchiveTarget; source?: 'artifact' },
 ): Promise<IngestedDocument> {
-  if (!FilenameSchema.safeParse(input.filename).success) throw new DbContractError('filename must be 1-255 characters')
-  if (!ContentSchema.safeParse(input.contentBase64).success) throw new DbContractError('contentBase64 must be non-empty')
-  // Existence + scope read the projection; the insert reuses the
-  // validated scope for tenant binding.
-  if (!(await getSector(db, input.sectorId, input.scope))) throw new DbContractError(`unknown sector ${input.sectorId}`)
-  let bytes: Buffer
-  try {
-    bytes = Buffer.from(input.contentBase64, 'base64')
-  } catch {
-    throw new DbContractError('contentBase64 is not valid base64')
-  }
-  if (bytes.length === 0) throw new DbContractError('document is empty')
-  const extraction = await extractFileUnits(input.filename, bytes, input.ocr)
-  if (extraction.status === 'failed') throw new DbContractError(extraction.detail ?? 'could not extract document text')
-  const text = extraction.units.map((unit) => unit.text).join('\n\n')
-  const sha256 = sha256Hex(text)
-  // needs-ocr rows all hash the empty string: dedup those on filename so
-  // two different unscanned images never alias each other.
-  const duplicate = extraction.status === 'indexed'
-    ? await db.query<{ id: string; filename: string; media_type: string; sha256: string; created_at: Date | string; status: string }>(
-      `SELECT id, filename, media_type, sha256, created_at, status FROM sector_documents
-       WHERE sector_id = $1 AND sha256 = $2 ORDER BY created_at ASC LIMIT 1`,
-      [input.sectorId, sha256],
-    )
-    : await db.query<{ id: string; filename: string; media_type: string; sha256: string; created_at: Date | string; status: string }>(
-      `SELECT id, filename, media_type, sha256, created_at, status FROM sector_documents
-       WHERE sector_id = $1 AND filename = $2 AND status = 'needs-ocr' ORDER BY created_at ASC LIMIT 1`,
-      [input.sectorId, input.filename],
-    )
-  const found = duplicate.rows[0]
-  if (found) {
-    if (input.archive) {
-      const originalHash = sha256Hex(bytes.toString('base64'))
-      const key = `sector-uploads/${sha256Hex(input.sectorId)}/${originalHash}.base64`
-      await input.archive.write(key, bytes.toString('base64'))
-      await db.query('UPDATE sector_documents SET archive_key=$2,original_hash=$3 WHERE id=$1 AND archive_key IS NULL', [found.id, key, originalHash])
+  return logOp(documentLogger, 'file.ingest', async () => {
+    if (!FilenameSchema.safeParse(input.filename).success) throw new DbContractError('filename must be 1-255 characters')
+    if (!ContentSchema.safeParse(input.contentBase64).success) throw new DbContractError('contentBase64 must be non-empty')
+    // Existence + scope read the projection; the insert reuses the
+    // validated scope for tenant binding.
+    if (!(await getSector(db, input.sectorId, input.scope))) throw new DbContractError(`unknown sector ${input.sectorId}`)
+    let bytes: Buffer
+    try {
+      bytes = Buffer.from(input.contentBase64, 'base64')
+    } catch {
+      throw new DbContractError('contentBase64 is not valid base64')
     }
+    if (bytes.length === 0) throw new DbContractError('document is empty')
+    const extraction = await extractFileUnits(input.filename, bytes, input.ocr)
+    if (extraction.status === 'failed') throw new DbContractError(extraction.detail ?? 'could not extract document text')
+    const text = extraction.units.map((unit) => unit.text).join('\n\n')
+    // Version identity includes bytes and extraction. Distinct scans cannot
+    // alias by filename/empty OCR; generated files retain separate provenance.
+    const sha256 = sha256Hex(JSON.stringify({ v: 2, source: input.source ?? 'upload', original: bytes.toString('base64'), units: extraction.units }))
+    const duplicate = await db.query<{ id: string; filename: string; media_type: string; sha256: string; created_at: Date | string; status: string }>(
+        `SELECT id, filename, media_type, sha256, created_at, status FROM sector_documents
+         WHERE sector_id = $1 AND sha256 = $2 ORDER BY created_at ASC LIMIT 1`,
+        [input.sectorId, sha256],
+      )
+    const id = duplicate.rows[0]?.id ?? `sdoc-${sha256Hex(`${input.sectorId}:${sha256}`).slice(0, 48)}`
+    const originalHash = sha256Hex(bytes.toString('base64'))
+    const archiveKey = `sector-uploads/${sha256Hex(input.sectorId)}/${originalHash}.base64`
+    if (input.archive) await input.archive.write(archiveKey, bytes.toString('base64'))
+    // One statement owns publication: an index failure rolls back the row and
+    // its byte reference too. Content identity coalesces concurrent uploads via
+    // the existing document primary key, while adopting legacy matching IDs.
+    const { rows } = await db.query<{ id: string; filename: string; media_type: string; text: string; sha256: string; created_at: Date | string; status: ExtractionStatus }>(
+      `WITH document AS (
+         INSERT INTO sector_documents (id, sector_id, filename, media_type, text, sha256, status, tenant_id, project_id, archive_key, original_hash)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         ON CONFLICT(id) DO UPDATE SET
+           archive_key=COALESCE(sector_documents.archive_key,EXCLUDED.archive_key),
+           original_hash=COALESCE(sector_documents.original_hash,EXCLUDED.original_hash)
+         WHERE sector_documents.sector_id=EXCLUDED.sector_id AND sector_documents.sha256=EXCLUDED.sha256
+         RETURNING id,filename,media_type,text,sha256,created_at,status
+       ), indexed AS (
+         INSERT INTO sector_document_units (document_id,ord,kind,text,confidence,uncertain,sha256)
+         SELECT document.id,u.ord,u.kind,u.text,u.confidence,u.uncertain,u.sha256
+         FROM document CROSS JOIN jsonb_to_recordset($12::jsonb)
+           AS u(ord integer,kind text,text text,confidence double precision,uncertain boolean,sha256 text)
+         ON CONFLICT(document_id,ord) DO UPDATE SET kind=EXCLUDED.kind,text=EXCLUDED.text,
+           confidence=EXCLUDED.confidence,uncertain=EXCLUDED.uncertain,sha256=EXCLUDED.sha256
+         RETURNING ord
+       ) SELECT document.* FROM document`,
+      [id, input.sectorId, input.filename, extraction.mediaType, text, sha256, extraction.status,
+        input.scope?.tenantId ?? null, input.scope?.projectId ?? null, input.archive ? archiveKey : null,
+        input.archive ? originalHash : null,
+        JSON.stringify(extraction.units.map((unit) => ({ ...unit, confidence: unit.confidence ?? null, sha256: sha256Hex(unit.text) })))],
+    )
+    const stored = rows[0]
+    if (!stored) throw new DbContractError('document publication did not return a stored row')
     return {
-      id: found.id,
-      sectorId: input.sectorId,
-      filename: found.filename,
-      mediaType: found.media_type,
-      chars: text.length,
-      sha256: found.sha256,
-      createdAt: found.created_at instanceof Date ? found.created_at.toISOString() : String(found.created_at ?? ''),
-      status: found.status === 'needs-ocr' ? 'needs-ocr' : 'indexed',
-      ...(extraction.detail ? { detail: extraction.detail } : {}),
-      unitCount: await countDocumentUnits(db, found.id),
+      id: stored.id, sectorId: input.sectorId, filename: stored.filename, mediaType: stored.media_type,
+      chars: stored.text.length, sha256: stored.sha256,
+      createdAt: stored.created_at instanceof Date ? stored.created_at.toISOString() : String(stored.created_at),
+      status: stored.status, ...(extraction.detail ? { detail: extraction.detail } : {}),
+      unitCount: extraction.units.length,
     }
-  }
-  const id = `sdoc-${randomUUID()}`
-  const originalHash = sha256Hex(bytes.toString('base64'))
-  const archiveKey = `sector-uploads/${sha256Hex(input.sectorId)}/${originalHash}.base64`
-  if (input.archive) await input.archive.write(archiveKey, bytes.toString('base64'))
-  const { rows } = await db.query<{ created_at: Date | string }>(
-    `INSERT INTO sector_documents (id, sector_id, filename, media_type, text, sha256, status, tenant_id, project_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING created_at`,
-    [id, input.sectorId, input.filename, extraction.mediaType, text, sha256, extraction.status, input.scope?.tenantId ?? null, input.scope?.projectId ?? null],
-  )
-  await insertDocumentUnits(db, id, extraction.units)
-  if (input.archive) await db.query('UPDATE sector_documents SET archive_key=$2,original_hash=$3 WHERE id=$1', [id, archiveKey, originalHash])
-  const created = rows[0]?.created_at
-  return {
-    id,
-    sectorId: input.sectorId,
-    filename: input.filename,
-    mediaType: extraction.mediaType,
-    chars: text.length,
-    sha256,
-    createdAt: created instanceof Date ? created.toISOString() : String(created ?? ''),
-    status: extraction.status,
-    ...(extraction.detail ? { detail: extraction.detail } : {}),
-    unitCount: extraction.units.length,
-  }
+  }, { sectorId: input.sectorId })
 }
 
 /** Context documents for one sector, newest last. Scope-filtered like
@@ -149,12 +150,15 @@ export async function listSectorDocuments(db: Db, sectorId: string, scope?: Scop
     sector_id: string
     filename: string
     media_type: string
-    text: string
+    text?: string
+    chars: number
+    full_chars: string | null
+    text_truncated: boolean
     sha256: string
     status: string
     created_at: Date | string
   }>(
-    `SELECT id, sector_id, filename, media_type, text, sha256, status, created_at
+    `SELECT id, sector_id, filename, media_type, CASE WHEN status='indexed' THEN COALESCE(full_chars,char_length(text)) ELSE 0 END AS chars, full_chars, text_truncated, sha256, status, created_at
      FROM sector_documents WHERE sector_id = $1 ORDER BY created_at ASC`,
     [sectorId],
   )
@@ -164,10 +168,10 @@ export async function listSectorDocuments(db: Db, sectorId: string, scope?: Scop
     sectorId: row.sector_id,
     filename: row.filename,
     mediaType: row.media_type,
-    chars: row.text.length,
+    chars: row.status === 'indexed' ? Number(row.full_chars ?? row.chars ?? row.text?.length ?? 0) : 0,
     sha256: row.sha256,
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
-    status: (row.status === 'needs-ocr' ? 'needs-ocr' : 'indexed') as ExtractionStatus,
+    status: storedDocumentStatus(row.status),
   }))
 }
 
@@ -191,9 +195,11 @@ export async function readSectorDocument(
     text: string
     sha256: string
     status: string
+    full_chars: string | null
+    text_truncated: boolean
     created_at: Date | string
   }>(
-    `SELECT id, filename, media_type, text, sha256, status, created_at
+    `SELECT id, filename, media_type, text, sha256, status, full_chars, text_truncated, created_at
      FROM sector_documents WHERE sector_id = $1 AND id = $2`,
     [sectorId, documentId],
   )
@@ -204,11 +210,14 @@ export async function readSectorDocument(
     sectorId,
     filename: row.filename,
     mediaType: row.media_type,
-    chars: row.text.length,
+    chars: row.status === 'indexed' ? Number(row.full_chars ?? row.text.length) : 0,
+    fullChars: row.status === 'indexed' ? Number(row.full_chars ?? row.text.length) : 0,
+    textTruncated: row.status === 'indexed' && Boolean(row.text_truncated),
+    nextOrd: row.status === 'indexed' && row.text_truncated ? 0 : null,
     sha256: row.sha256,
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
-    status: (row.status === 'needs-ocr' ? 'needs-ocr' : 'indexed') as ExtractionStatus,
-    text: row.text,
+    status: storedDocumentStatus(row.status),
+    text: row.status === 'indexed' ? row.text : '',
   }
 }
 
@@ -224,10 +233,10 @@ export async function readOriginalSectorDocument(db: Db, sectorId: string, docum
   const doc = await readSectorDocument(db, sectorId, documentId, scope)
   const { rows } = await db.query<{ archive_key: string | null; original_hash: string | null }>('SELECT archive_key,original_hash FROM sector_documents WHERE id=$1', [documentId])
   const stored = rows[0]
-  if (!stored?.archive_key) return { filename: doc.filename, mediaType: doc.mediaType, text: doc.text, originalAvailable: false }
-  const contentBase64 = await archive.read(stored.archive_key)
+  if (!stored?.archive_key) return { filename: doc.filename, mediaType: doc.mediaType, text: doc.text, fullChars: doc.fullChars??doc.chars, textTruncated: doc.textTruncated??false, nextOrd: doc.nextOrd??null, originalAvailable: false }
+  const contentBase64 = await withArchiveDeadline(archive).read(stored.archive_key, 12 * 1024 * 1024)
   if (contentBase64 === undefined || sha256Hex(contentBase64) !== stored.original_hash) throw new DbContractError('Original file is missing or corrupt')
-  return { filename: doc.filename, mediaType: doc.mediaType, text: doc.text, contentBase64, originalAvailable: true }
+  return { filename: doc.filename, mediaType: doc.mediaType, text: doc.text, fullChars: doc.fullChars??doc.chars, textTruncated: doc.textTruncated??false, nextOrd: doc.nextOrd??null, contentBase64, originalAvailable: true }
 }
 
 export interface DocumentTocEntry {
@@ -240,17 +249,18 @@ export interface DocumentTocEntry {
 export interface DocumentSummaryResult {
   documentId: string
   filename: string
-  status: ExtractionStatus
+  status: SectorDocumentStatus
   mediaType: string
   chars: number
   totalUnits: number
   toc: DocumentTocEntry[]
+  nextOrd?: number | null
 }
 
 export interface DocumentChunksResult {
   documentId: string
   filename: string
-  status: ExtractionStatus
+  status: SectorDocumentStatus
   units: Array<{ ord: number; kind: string; text: string; uncertain: boolean }>
 }
 
@@ -277,18 +287,20 @@ export async function querySectorDocument(
     id: string
     filename: string
     media_type: string
-    text: string
+    text?: string
+    full_chars: string | null
     status: string
   }>(
-    `SELECT id, filename, media_type, text, status
+    `SELECT id, filename, media_type, COALESCE(full_chars,char_length(text)) AS full_chars, status
      FROM sector_documents WHERE sector_id = $1 AND id = $2`,
     [sectorId, input.documentId],
   )
   const doc = rows[0]
   if (!doc) throw new DbContractError(`unknown document ${input.documentId} in sector ${sectorId}`)
-  const status = (doc.status === 'needs-ocr' ? 'needs-ocr' : 'indexed') as ExtractionStatus
+  const status = storedDocumentStatus(doc.status)
   const base = { documentId: doc.id, filename: doc.filename, status }
   const mode = input.mode ?? (input.query || (input.ords && input.ords.length > 0) ? 'chunks' : 'summary')
+  if (status !== 'indexed') return mode === 'chunks' ? { ...base, units: [] } : { ...base, mediaType: doc.media_type, chars: 0, totalUnits: 0, toc: [] }
   if (mode === 'chunks') {
     if (input.ords && input.ords.length > 0) {
       const { rows: slices } = await db.query<{ ord: number; kind: string; text: string; uncertain: boolean }>(
@@ -306,22 +318,24 @@ export async function querySectorDocument(
       )
       return { ...base, units: matches }
     }
-    const units = await listDocumentUnits(db, input.documentId)
+    const {rows:units}=await db.query<{ord:number;kind:string;text:string;uncertain:boolean}>('SELECT ord,kind,text,uncertain FROM sector_document_units WHERE document_id=$1 ORDER BY ord LIMIT 20',[input.documentId])
     return {
       ...base,
       units: units.slice(0, 20).map((unit) => ({ ord: unit.ord, kind: unit.kind, text: unit.text, uncertain: unit.uncertain })),
     }
   }
-  const units = await listDocumentUnits(db, input.documentId)
+  const {rows:units}=await db.query<{ord:number;kind:string;text?:string;preview:string;uncertain:boolean;total_units:string}>('SELECT ord,kind,left(text,150) AS preview,uncertain,count(*) OVER() AS total_units FROM sector_document_units WHERE document_id=$1 ORDER BY ord LIMIT 100',[input.documentId])
+  const totalUnits=Number(units[0]?.total_units??units.length)
   return {
     ...base,
     mediaType: doc.media_type,
-    chars: doc.text.length,
-    totalUnits: units.length,
+    chars: Number(doc.full_chars??doc.text?.length??0),
+    totalUnits,
+    nextOrd: totalUnits>units.length ? (units.at(-1)?.ord??-1)+1 : null,
     toc: units.map((unit) => ({
       ord: unit.ord,
       kind: unit.kind,
-      preview: unit.text.slice(0, 150).replace(/\s+/g, ' ').trim(),
+      preview: (unit.preview??unit.text??'').slice(0, 150).replace(/\s+/g, ' ').trim(),
       uncertain: unit.uncertain,
     })),
   }
@@ -337,4 +351,17 @@ async function owningSectorId(db: Db, documentId: string): Promise<string> {
   const owner = rows[0]?.sector_id
   if (!owner) throw new DbContractError(`unknown document ${documentId}`)
   return owner
+}
+/** Owner-facing indexed sections; full content never needs a monolithic response. */
+export async function readSectorDocumentUnitsPage(db:Db,sectorId:string,documentId:string,fromOrd=0,limit=20,scope?:Scope) {
+  if(!Number.isInteger(fromOrd)||fromOrd<0||fromOrd>2147483647||!Number.isInteger(limit)||limit<1||limit>100)throw new DbContractError('Document unit pages require a valid integer ordinal and1–100 units.')
+  if(!(await getSector(db,sectorId,scope)))throw new WorkspaceError('not_found','Document not found.')
+  await assertFileVisible(db,sectorId,documentId)
+  const document=await db.query<{status:string;full_chars:string|null}>('SELECT status,COALESCE(full_chars,char_length(text)) AS full_chars FROM sector_documents WHERE sector_id=$1 AND id=$2',[sectorId,documentId])
+  const row=document.rows[0];if(!row)throw new WorkspaceError('not_found','Document not found.')
+  const status=storedDocumentStatus(row.status)
+  if(status!=='indexed')return {status,units:[],nextOrd:null,fullChars:0}
+  const {rows}=await db.query<{ord:number;kind:string;text:string;uncertain:boolean;source_page:number|null;source_image_id:string|null;source_image_ordinal:number|null;source_image_role:string|null}>('SELECT ord,kind,text,uncertain,source_page,source_image_id,source_image_ordinal,source_image_role FROM sector_document_units WHERE document_id=$1 AND ord>=$2 ORDER BY ord LIMIT $3',[documentId,fromOrd,limit+1])
+  const units=rows.slice(0,limit).map(unit=>({ord:unit.ord,kind:unit.kind,text:unit.text,uncertain:unit.uncertain,...(unit.source_page===null?{}:{page:unit.source_page}),...(unit.source_image_id===null?{}:{imageId:unit.source_image_id}),...(unit.source_image_ordinal===null?{}:{imageOrdinal:unit.source_image_ordinal}),...(unit.source_image_role===null?{}:{imageRole:unit.source_image_role})}))
+  return {status,units,nextOrd:rows.length>limit?units.at(-1)!.ord+1:null,fullChars:Number(row.full_chars??0)}
 }

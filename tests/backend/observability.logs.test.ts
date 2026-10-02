@@ -36,6 +36,36 @@ function requests(lines: string[]): Array<Record<string, unknown>> {
 }
 
 describe('observability logs (B5.1)', () => {
+  it('logs ingress before a held handler finishes and joins the eventual response trace without request content',async () => {
+    const { lines,stream }=capture(); const app=buildApp({ logger: createLogger({},stream) })
+    let release!: () => void; const gate=new Promise<void>((done) => { release=done }); let entered=false
+    app.post('/TEST-held-request',async () => { entered=true; await gate; return { ok: true } })
+    try {
+      const response=app.inject({ method: 'POST',url: '/TEST-held-request?token=TEST-private-query',headers: { authorization: 'Bearer TEST-private-header' },payload: { data: 'TEST-private-body' } })
+      const deadline=Date.now()+1000
+      while (!entered && Date.now()<deadline) await new Promise((done) => setTimeout(done,5))
+      expect(entered).toBe(true)
+      const start=logged(lines).find((entry) => entry['event']==='http.request.start')
+      expect(start).toMatchObject({ method: 'POST',route: '/TEST-held-request',trace_id: expect.stringMatching(/^[a-f0-9]{32}$/) })
+      expect(requests(lines)).toHaveLength(0)
+      release(); const result=await response; expect(result.statusCode).toBe(200)
+      expect(requests(lines)[0]?.['trace_id']).toBe(start?.['trace_id'])
+      expect(result.headers['traceparent']).toContain(start?.['trace_id'])
+      expect(lines.join('')).not.toContain('TEST-private-')
+    } finally { release(); await app.close() }
+  })
+  it('logs coded HTTP failure without raw exception body/stack and retains ingress/egress',async () => {
+    const { lines,stream }=capture(); const app=buildApp({ logger: createLogger({},stream) })
+    app.get('/TEST-error-request',async () => { throw Object.assign(new Error('TEST private HTTP execution body'),{ code: 'TEST_HTTP_FAILURE' }) })
+    try {
+      expect((await app.inject('/TEST-error-request')).statusCode).toBe(500)
+      const records=logged(lines)
+      expect(records.find((entry) => entry['event']==='http.request.error')).toMatchObject({ code: 'TEST_HTTP_FAILURE',route: '/TEST-error-request' })
+      expect(records.some((entry) => entry['event']==='http.request.start')).toBe(true)
+      expect(requests(lines)).toHaveLength(1)
+      expect(lines.join('')).not.toContain('TEST private HTTP execution body')
+    } finally { await app.close() }
+  })
   it('logs every request with method, route, status, latency, and trace_id', async () => {
     const { lines, stream } = capture()
     const app: FastifyInstance = buildApp({ logger: createLogger({ op: 'http' }, stream) })
@@ -87,7 +117,7 @@ describe('observability logs (B5.1)', () => {
       expect(missing.statusCode).toBe(404)
       const entries = requests(lines)
       expect(entries).toHaveLength(1)
-      expect(entries[0]?.['route']).toBe('/nope')
+      expect(entries[0]?.['route']).toBe('*unmatched*')
       expect(entries[0]?.['status']).toBe(404)
       expect(entries[0]?.['level']).toBe(40)
       const text = JSON.stringify(entries)

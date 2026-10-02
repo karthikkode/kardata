@@ -3,6 +3,10 @@
 // never deep into repos and never 'pg' directly (enforced by eslint
 // no-restricted-imports). Repositories land here slice by slice.
 export * from './workspace.js'
+export * from './reconciliation.js'
+export { listSupervisionAlerts, SupervisionAlert } from './alerts.js'
+export * from './file-jobs.js'
+export * from './execution-epochs.js'
 export { DbContractError } from './errors.js'
 export {
   type AppendedEvent,
@@ -39,7 +43,9 @@ export {
 } from './events.js'
 export {
   getThread,
+  getThreadHeader,
   listThreads,
+  listThreadHeaders,
   projectBatch,
   type ProjectionResult,
   rebuildFromEvents,
@@ -88,6 +94,7 @@ export {
   RecordProblemInput,
   UpsertCompanyInput,
   upsertLedgerCompany,
+  registerLedgerCandidate,
 } from './company-ledger.js'
 export {
   COMPANY_FOUND_EVENT,
@@ -116,6 +123,8 @@ export {
   listSectorCompanies,
   listSectors,
   markCompanyFound,
+  registerSectorDiscovery,
+  readSectorExecutionState,
   pauseSectorResearch,
   projectSectorEvent,
   recordResearchSession,
@@ -214,7 +223,7 @@ export {
   workerPoolBudget,
   workerPoolFromEnv,
 } from './pool.js'
-export { findKeyByHash, type KeyRecord } from './keys.js'
+export { findKeyByHash, registerApiKey, type KeyRecord } from './keys.js'
 export {
   checkRate,
   claimIdempotency,
@@ -242,3 +251,8 @@ export {
   readOutboxBacklog,
   subscribeOutbox,
 } from './outbox.js'
+
+export { recordTurnExecution, listThreadExecutionRecords, readThreadExecutionReference, readRecoveryRequestReference, type ExecutionRecordMetadata } from './execution-records.js'
+export { workspaceReferenceSnapshot } from './workspace.js'
+
+export {readSectorDocumentUnitsPage,type SectorDocumentStatus} from './sector-documents.js'

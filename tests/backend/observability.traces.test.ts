@@ -144,6 +144,13 @@ describe('telemetry pipeline (B5.2)', () => {
     const query = spans().find((line) => line['name'] === 'db.query')
     expect(String(query?.['status'])).toMatch(/^error/)
   })
+  it('does not export private bound values echoed in a database error', async () => {
+    resetSpans()
+    const failing = { query: async (_text: string, _params?: unknown[]): Promise<{ rowCount: number; rows: never[] }> => { throw new Error('duplicate value SECRET-BOUND-VALUE in private table') } }
+    const db = wrapPool(failing)
+    await expect(db.query('INSERT INTO private_table VALUES ($1)', ['SECRET-BOUND-VALUE'])).rejects.toThrow('duplicate value')
+    expect(JSON.stringify(spans())).not.toContain('SECRET-BOUND-VALUE')
+  })
 
   it('exposes Prometheus exposition with the RED pair', async () => {
     const { stream } = capture()

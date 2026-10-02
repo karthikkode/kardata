@@ -115,7 +115,7 @@ paths:
     post:
       operationId: compactSession
       tags: [sessions]
-      summary: Extractive compaction marker for long histories; short histories report honestly.
+      summary: Compact durable working context; preserve the visible transcript and park on failure.
       parameters:
         - $ref: '#/components/parameters/SessionId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -337,6 +337,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MessagePage'
+  /v1/threads/{threadKey}/steering-receipts:
+    get:
+      operationId: listSteeringReceipts
+      tags: [threads]
+      description: Scoped durable consumed/missed instruction outcomes, including receipts skipped by stream overflow.
+      parameters:
+        - $ref: '#/components/parameters/ThreadKey'
+        - name: afterId
+          in: query
+          schema: { type: string, maxLength: 255, default: '' }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 200 }
+      responses:
+        '200':
+          description: Ascending ID page, with null nextAfterId at the end.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok: { const: true }
+                  data:
+                    type: object
+                    required: [items, nextAfterId]
+                    properties:
+                      nextAfterId: { type: [string, 'null'] }
+                      items:
+                        type: array
+                        maxItems: 200
+                        items:
+                          type: object
+                          required: [id, state]
+                          properties:
+                            id: { type: string }
+                            state: { type: string, enum: [consumed, missed] }
   /v1/threads/{threadKey}/events:
     get:
       operationId: streamThread
@@ -357,6 +394,31 @@ paths:
             text/event-stream:
               schema:
                 $ref: '#/components/schemas/StreamEvent'
+  /v1/alerts:
+    get:
+      operationId: listSupervisionAlerts
+      tags: [ops]
+      summary: Authenticated scoped durable supervision notices, never raw fleet payloads.
+      parameters:
+        - name: beforeSeq
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 9007199254740991 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Newest-first scoped notices with exclusive sequence pagination.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupervisionAlertEnvelope'
+        '400':
+          description: Invalid page parameters.
+        '403':
+          description: Missing, unknown or mismatched scoped credentials, including open app mode.
+        '503':
+          description: Database unavailable.
   /v1/runs:
     get:
       operationId: listRuns
@@ -772,6 +834,9 @@ paths:
                 version:
                   type: integer
                   minimum: 1
+                contextVersion:
+                  type: integer
+                  minimum: 0
       responses:
         '200':
           description: Approved sector.
@@ -829,13 +894,18 @@ paths:
                   maxLength: 255
                 contentBase64:
                   type: string
+                  maxLength: 12582912
       responses:
         '201':
-          description: Attached document metadata.
+          description: Current attached metadata. PDFs report durable processing progress and are not indexed until complete.
           content:
             application/json:
               schema:
                 type: object
+                required: [ok, data]
+                properties:
+                  ok: { const: true }
+                  data: { $ref: '#/components/schemas/AttachedSectorDocument' }
         '400':
           description: Bad input or unsupported type.
           content:
@@ -844,6 +914,12 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
         '404':
           $ref: '#/components/responses/NotFound'
+        '503':
+          description: PDF file-processing runner or archive unavailable before file/job publication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/sectors/{sectorId}/context/compact:
     post:
       operationId: compactSectorContext
@@ -1150,6 +1226,7 @@ paths:
       operationId: mcpRpc
       tags: [mcp]
       summary: MCP Streamable HTTP endpoint (JSON-RPC over POST, JSON responses).
+      description: Execution bindings and grants are checked before replay. Reads are fresh. Mutations use semantic input and authority identity; RPC response IDs follow each retry. Proven pre-effect failures may retry; uncertain mutation outcomes retain their guards.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -1169,6 +1246,15 @@ paths:
           $ref: '#/components/responses/Denied'
         '409':
           $ref: '#/components/responses/IdempotencyReplay'
+        '500':
+          description: Handler or completion-store failure; an uncertain guarded mutation must not be blindly repeated.
+          headers:
+            x-kardata-operation-state:
+              schema: { type: string, enum: [uncertain] }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/sectors/{sectorId}/research-session:
     post:
       operationId: ensureSectorResearchSession
@@ -1459,6 +1545,59 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+  /v1/sectors/{sectorId}/work/{workId}/review:
+    post:
+      operationId: reviewResearchWork
+      tags: [sectors]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - {name: sectorId, in: path, required: true, schema: *a0}
+        - {name: workId, in: path, required: true, schema: *a0}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [planVersion, receiptVersion, decision, reason]
+              properties:
+                planVersion: {type: integer, minimum: 1}
+                receiptVersion: {type: string, pattern: '^[a-f0-9]{64}$'}
+                decision: {type: string, enum: [retry, exclude]}
+                reason: {type: string, minLength: 1, maxLength: 4000}
+              additionalProperties: false
+      responses:
+        "200":
+          description: Exact reviewed work receipt; approver only.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok: {type: boolean, const: true}
+                  data: {$ref: '#/components/schemas/ResearchWork'}
+                additionalProperties: false
+        "400":
+          description: Invalid decision.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        "403":
+          description: Approver required.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        "404":
+          description: Sector or work outside scope.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        "409":
+          description: Stale receipt/plan, unsafe boundary or ineligible work.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
   /v1/sectors/{sectorId}/progress:
     get:
       operationId: getResearchProgress
@@ -1654,6 +1793,44 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+  /v1/threads/{threadKey}/operations/{operationId}:
+    get:
+      operationId: inspectThreadOperation
+      tags: [sectors]
+      parameters:
+        - name: threadKey
+          in: path
+          required: true
+          schema: { type: string }
+        - name: operationId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128 }
+      responses:
+        "200":
+          description: Scoped durable receipt; unproven effects retain their guard.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok: { type: boolean, const: true }
+                  data:
+                    type: object
+                    required: [operationId, state, reason]
+                    properties:
+                      operationId: { type: string }
+                      toolName: { type: string }
+                      state: { type: string, enum: [confirmed, unresolved] }
+                      reason: { type: string }
+                      recordedAt: { type: string, format: date-time }
+                    additionalProperties: false
+                additionalProperties: false
+        "403":
+          description: Caller lacks viewer authority.
+        "404":
+          description: Thread or operation is unavailable within caller scope.
   /v1/threads/{threadKey}/context:
     get:
       operationId: getLocalContext
@@ -1745,6 +1922,46 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+  /v1/threads/{threadKey}/context/rebuild:
+    post:
+      operationId: rebuildLocalContext
+      tags: [sectors]
+      description: Approver-only explicit owner replacement; preserves historical transcript and unresolved operation authority.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: threadKey
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version, summary, independent]
+              properties:
+                version: { type: integer, minimum: 0 }
+                summary: { type: string, minLength: 1, maxLength: 48000 }
+                independent: { type: boolean, const: true }
+              additionalProperties: false
+      responses:
+        "200":
+          description: Owner-reviewed private context replacement.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok: { type: boolean, const: true }
+                  data:
+                    $ref: "#/components/schemas/LocalContext"
+                additionalProperties: false
+        "403":
+          description: Approver role required.
+        "409":
+          description: Active lease, stale version or unresolved source-dependent operations.
   /v1/threads/{threadKey}/context/compact:
     post:
       operationId: compactLocalContext
@@ -1785,6 +2002,174 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+  /v1/sectors/{sectorId}/files/{fileId}/units:
+    get:
+      operationId: getSectorFileUnits
+      tags: [files]
+      summary: Scoped indexed sections; processing files expose no staged content.
+      parameters:
+        - $ref: '#/components/parameters/SectorId'
+        - name: fileId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: fromOrd
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 2147483647, default: 0 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Ordinals at or after fromOrd; nextOrd starts the next page.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/FileUnitsPage' }
+        '403': { description: Missing credentials or hidden file. }
+        '404': { description: File outside scope or unknown. }
+        '503': { description: Projection or database unavailable. }
+  /v1/sectors/{sectorId}/files/{fileId}/retry:
+    post:
+      operationId: retryFileProcessing
+      tags: [files]
+      summary: Approver retry of a retained PDF job with exact revision and paid-outcome acknowledgement.
+      parameters:
+        - $ref: '#/components/parameters/SectorId'
+        - name: fileId
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [jobId, revision]
+              properties:
+                jobId: { type: string }
+                revision: { type: integer, minimum: 0 }
+                allowDuplicatePaid: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Retained file job queued at the new revision.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/FileProcessingProgress' }
+        '403': { description: Validated approver key required. }
+        '404': { description: File/job outside scope or unknown. }
+        '409': { description: Hidden file, stale revision or paid outcome requiring explicit acknowledgement. }
+        '503': { description: Existing file worker unavailable. }
+  /v1/sectors/{sectorId}/files/{fileId}/body:
+    get:
+      operationId: getSectorFileBody
+      summary: Read a visible sector file with retained original bytes and extracted text
+      parameters:
+        - name: sectorId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: fileId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Scoped file preview
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/SectorFileBody' }
+        '403':
+          description: Access denied or file hidden
+        '404':
+          description: File or sector not visible
+        '409':
+          description: File not indexed
+        '500':
+          description: Stored file failed its integrity check
+
+  /v1/threads/{threadKey}/execution-records:
+    get:
+      operationId: listExecutionRecords
+      tags: [threads]
+      summary: Approver-only scoped metadata for normalized adapter execution records.
+      description: Requires a registered approver key even in local open mode. No MCP counterpart. Archive keys and content are omitted from this list.
+      parameters:
+        - $ref: '#/components/parameters/ThreadKey'
+        - name: Authorization
+          in: header
+          required: true
+          schema: { type: string }
+        - name: afterSeq
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 9007199254740991, default: 0 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Scoped chronological metadata page.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/ExecutionRecordPage' }
+                additionalProperties: false
+        '400': { description: Invalid pagination. }
+        '403': { description: Registered approver key required. }
+        '404': { description: Conversation outside caller scope or deleted. }
+  /v1/threads/{threadKey}/execution-records/{seq}:
+    get:
+      operationId: getExecutionRecord
+      tags: [threads]
+      summary: Approver-only verified normalized adapter snapshot.
+      description: The scoped journal supplies the archive reference. Session, hash and exact byte size are verified. Historical snapshots may contain content seen before a file was hidden. Shared plan observed identifies shared-reference metadata, not the coordinator's assignment version.
+      parameters:
+        - $ref: '#/components/parameters/ThreadKey'
+        - name: seq
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1, maximum: 9007199254740991 }
+        - name: Authorization
+          in: header
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Verified JSON object containing a normalized adapter input/result or tool boundary.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/ExecutionRecordBody' }
+                additionalProperties: false
+        '400': { description: Invalid sequence. }
+        '403': { description: Registered approver key required. }
+        '404': { description: Journal record outside this conversation. }
+        '409': { description: Missing, corrupt or invalid stored snapshot. }
 components:
   parameters:
     SessionId:
@@ -1815,9 +2200,11 @@ components:
     IdempotencyKey:
       name: Idempotency-Key
       in: header
-      description: Duplicate POST with the same key replays the first result.
+      description: Duplicate authorized mutation with unchanged semantic input replays its outcome. Uncertain operations conflict until reconciled; MCP reads are fresh.
       schema:
         type: string
+        minLength: 1
+        maxLength: 128
   responses:
     NotFound:
       description: Unknown id.
@@ -1838,12 +2225,44 @@ components:
             ok: false
             error: { code: permission_denied, message: 'approve role required' }
     IdempotencyReplay:
-      description: Same key seen before; first result replayed, one effect.
+      description: Operation key conflicts with different semantic input/authority or an unresolved guarded operation.
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/CommandEnvelope'
+            $ref: '#/components/schemas/ErrorEnvelope'
   schemas:
+    SupervisionAlert:
+      type: object
+      additionalProperties: false
+      required: [seq, at, sessionId, sessionTitle, threadKey, sectorId, kind, response, state, threadStatus]
+      properties:
+        seq: { type: integer, minimum: 1 }
+        at: { type: string, format: date-time }
+        sessionId: { type: string }
+        sessionTitle: { type: string }
+        threadKey: { type: string }
+        sectorId: { type: [string, 'null'] }
+        kind: { type: string, enum: [closed-owner, missing-heartbeat, stalled-progress, queue-starvation, owner-unavailable] }
+        response: { type: string, enum: [observe, park] }
+        state: { type: string, enum: [current-warning, historical] }
+        threadStatus: { type: string }
+    SupervisionAlertPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextBeforeSeq]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/SupervisionAlert' }
+        nextBeforeSeq: { type: [integer, 'null'], minimum: 1 }
+    SupervisionAlertEnvelope:
+      type: object
+      additionalProperties: false
+      required: [ok, data]
+      properties:
+        ok: { type: boolean, const: true }
+        data: { $ref: '#/components/schemas/SupervisionAlertPage' }
     McpRequest:
       type: object
       description: JSON-RPC request for POST /mcp (initialize, tools/list, tools/call).
@@ -2123,6 +2542,18 @@ components:
       type: object
       required: [sectorId, versions, latest]
       properties:
+        approvedContext:
+          type: object
+          required: [version, scope]
+          properties:
+            version:
+              type: integer
+              minimum: 0
+            scope:
+              type: string
+            decisions:
+              type: string
+          additionalProperties: false
         sectorId:
           type: string
         versions:
@@ -2477,7 +2908,7 @@ components:
           format: date-time
         payload:
           type: object
-          description: ThreadMessage for message events, Thread for state events; ephemeral provider text, reasoning, or tool status for delta, reasoning, or tool events.
+          description: ThreadMessage for message events, Thread for state events (overflow adds historyRefresh=true; reload bounded message pages before accepting its token); ephemeral provider text, reasoning, or tool status for delta, reasoning, or tool events.
       example:
         seq: 8
         threadKey: s-now
@@ -2526,6 +2957,7 @@ components:
         - hash
         - ords
       properties:
+        readSectorId: { type: string, description: Server-validated source library scope. }
         fileId: *a1
         filename: *a1
         hash: *a1
@@ -2548,6 +2980,10 @@ components:
         - at
         - fileRef
       properties:
+        sourceRefs:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextFileReference"
         id: *a1
         baseVersion: *a2
         sections:
@@ -2597,6 +3033,43 @@ components:
           items:
             $ref: "#/components/schemas/ContextChange"
       additionalProperties: false
+    ExecutionRecordMetadata:
+      type: object
+      required: [seq, at, runKey, attemptLease, round, kind, ref]
+      properties:
+        seq: { type: integer, minimum: 1, maximum: 9007199254740991 }
+        at: { type: string, format: date-time }
+        runKey: { type: string }
+        attemptLease: { type: string, format: uuid }
+        round: { type: integer, minimum: 0 }
+        kind: { type: string, enum: [request, response, tool-result] }
+        workflowId: { type: string }
+        executionId: { type: string }
+        ownerEpoch: { type: string, format: uuid }
+        ref:
+          type: object
+          required: [hash, bytes]
+          properties:
+            hash: { type: string, pattern: '^[a-f0-9]{64}$' }
+            bytes: { type: integer, minimum: 1, maximum: 16777216 }
+          additionalProperties: false
+      additionalProperties: false
+    ExecutionRecordPage:
+      type: object
+      required: [records, nextAfterSeq]
+      properties:
+        records:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/ExecutionRecordMetadata' }
+        nextAfterSeq: { type: [integer, 'null'], minimum: 1, maximum: 9007199254740991 }
+      additionalProperties: false
+    ExecutionRecordBody:
+      type: object
+      required: [record]
+      properties:
+        record: { type: object, additionalProperties: true }
+      additionalProperties: false
     LocalContext:
       type: object
       required:
@@ -2606,12 +3079,99 @@ components:
         - coveredSeq
         - version
       properties:
+        pendingResponse:
+          type: object
+          required: [round]
+          properties:
+            round: { type: integer, minimum: 1 }
+          additionalProperties: false
+        task: { type: string, description: Owner inspection only; omitted from agent MCP local context. }
+        sourceRefs:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextFileReference"
+        contextBlocked: { type: string }
         threadKey: *a1
         notes: *a1
         summary: *a1
         coveredSeq: *a2
         version: *a2
+        pendingOperations:
+          type: array
+          items:
+            type: object
+            required: [operationId, toolName, callId, reason]
+            properties:
+              operationId: { type: string }
+              toolName: { type: string }
+              callId: { type: string }
+              reason: { type: string }
+            additionalProperties: false
+        usage:
+          type: object
+          required: [inputTokens, budget, window, method]
+          properties:
+            inputTokens: { type: integer, minimum: 0 }
+            budget: { type: integer, minimum: 1 }
+            window: { type: integer, minimum: 1 }
+            method: { type: string, enum: [exact, estimated] }
+          additionalProperties: false
       additionalProperties: false
+    AttachedSectorDocument:
+      type: object
+      additionalProperties: false
+      required: [id, sectorId, filename, mediaType, chars, sha256, createdAt, status, unitCount]
+      properties:
+        id: { type: string }
+        sectorId: { type: string }
+        filename: { type: string, maxLength: 255 }
+        mediaType: { type: string }
+        chars: { type: integer, minimum: 0 }
+        sha256: { type: string }
+        createdAt: { type: string, format: date-time }
+        status: { type: string, enum: [indexed, processing, needs-ocr, failed] }
+        unitCount: { type: integer, minimum: 0 }
+        detail: { type: string }
+        processing: { $ref: '#/components/schemas/FileProcessingProgress' }
+    FileIndexedUnit:
+      type: object
+      additionalProperties: false
+      required: [ord, kind, text, uncertain]
+      properties:
+        ord: { type: integer, minimum: 0 }
+        kind: { type: string }
+        text: { type: string, maxLength: 2000 }
+        uncertain: { type: boolean }
+        page: { type: integer, minimum: 1 }
+        imageId: { type: string }
+        imageOrdinal: { type: integer, minimum: 0 }
+        imageRole: { type: string, enum: [embedded, page-visual] }
+    FileUnitsPage:
+      type: object
+      additionalProperties: false
+      required: [status, units, nextOrd, fullChars]
+      properties:
+        status: { type: string, enum: [indexed, processing, failed, needs-ocr] }
+        units:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/FileIndexedUnit' }
+        nextOrd: { type: [integer, 'null'], minimum: 0 }
+        fullChars: { type: integer, minimum: 0 }
+    FileProcessingProgress:
+      type: object
+      additionalProperties: false
+      required: [jobId, state, revision, totalImages, completedImages, failedImages, uncertainImages, errorCode, retryRequiresApproval]
+      properties:
+        jobId: { type: string }
+        state: { type: string, enum: [queued, processing, paused, failed, uncertain, complete] }
+        revision: { type: integer, minimum: 0 }
+        totalImages: { type: [integer, 'null'], minimum: 0 }
+        completedImages: { type: integer, minimum: 0 }
+        failedImages: { type: integer, minimum: 0 }
+        uncertainImages: { type: integer, minimum: 0 }
+        errorCode: { type: [string, 'null'] }
+        retryRequiresApproval: { type: boolean }
     LibraryFile:
       type: object
       required:
@@ -2645,6 +3205,7 @@ components:
             - artifact
         sessionId: *a1
         documentId: *a1
+        processing: { $ref: '#/components/schemas/FileProcessingProgress' }
       additionalProperties: false
     ResearchWork:
       type: object
@@ -2658,6 +3219,10 @@ components:
         - evidence
         - detail
       properties:
+        receiptVersion: {type: string, pattern: '^[a-f0-9]{64}$'}
+        sourceUrl:
+          type: string
+          format: uri
         id: *a1
         kind:
           type: string
@@ -2673,6 +3238,7 @@ components:
             - complete
             - blocked
             - failed
+            - excluded
         attempts: *a2
         childId:
           anyOf:
@@ -2710,6 +3276,10 @@ components:
         - discoveryClosed
         - estimatedPercent
       properties:
+        budgetUsedMs:
+          type: integer
+          minimum: 0
+          description: Recorded active-operation milliseconds across coordinator runs.
         sectorId: *a1
         state: *a1
         planVersion: *a2
@@ -2736,6 +3306,25 @@ components:
         - change
         - units
       properties:
+        sources:
+          type: array
+          items:
+            type: object
+            required: [ref, units]
+            properties:
+              ref:
+                $ref: "#/components/schemas/ContextFileReference"
+              units:
+                type: array
+                items:
+                  type: object
+                  required: [ord, text, uncertain]
+                  properties:
+                    ord: { type: integer, minimum: 0 }
+                    text: { type: string }
+                    uncertain: { type: boolean }
+                  additionalProperties: false
+            additionalProperties: false
         change:
           $ref: "#/components/schemas/ContextChange"
         units:
@@ -2771,6 +3360,15 @@ components:
         - budgets
         - acceptance
       properties:
+        discoveryTarget:
+          type: integer
+          minimum: 1
+          maximum: 2000
+          description: Minimum distinct-company count required before discovery acceptance.
+        researchDepth:
+          type: string
+          enum: [discovery, company]
+          description: Omission retains the legacy company-research execution contract.
         discovery:
           type: array
           items:
@@ -2802,7 +3400,7 @@ components:
             maxCompanies:
               type: integer
               minimum: 1
-              maximum: 1000
+              maximum: 2000
             maxWallMinutes:
               type: integer
               minimum: 1
@@ -2814,4 +3412,18 @@ components:
         acceptance:
           type: array
           items: *a1
+      additionalProperties: false
+
+    SectorFileBody:
+      type: object
+      required: [filename, mediaType, text, originalAvailable]
+      properties:
+        filename: { type: string }
+        mediaType: { type: string }
+        text: { type: string }
+        originalAvailable: { type: boolean }
+        fullChars: { type: integer, minimum: 0 }
+        textTruncated: { type: boolean }
+        nextOrd: { type: [integer, 'null'], minimum: 0 }
+        contentBase64: { type: string, contentEncoding: base64 }
       additionalProperties: false

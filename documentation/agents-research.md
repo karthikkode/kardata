@@ -135,3 +135,100 @@ bookkeeping uses `run-*` scopes so the two can never collide). Proven by
 `tests/backend/workflows.research.test.ts` against the real server (needs
 `KARDATA_TEMPORAL_TEST=1`), including report equality with the real agents
 assembler over event-sourced findings. Loop/time budgets stay B2.6 work.
+
+## Basic discovery intake
+
+The new backend coordinator screens every candidate before publication through
+bounded source-only children. These are basic fit checks, not the deep-research
+pipeline above. The parent validates each independent evidence field and owns
+publication. See `documentation/backend.md` for the exact receipt, persistence,
+replay and approval contract. Children expose their own conversation; parked
+children report `paused` through their status query rather than `running`.
+
+New company/discovery-child histories pin `company-child-steering-v1`: followup
+turns retain the explicit parent assignment and the last completed steered outcome
+is what the parent validates. A superseded initial answer cannot publish after a
+later correction. Terminal status reports failures honestly and message counts
+include followups. Existing histories retain their original contract via the
+workflow marker. Source outcomes use archive refs on production activities; the
+parent validates hydrated bytes, not model-authored citation claims alone.
+
+## Compatible revision retention
+
+Plan edit/approval serializes with sector workspace decisions and checks committed
+lifecycle state. Approval rejects a stale version even if it exists in history.
+For discovery-only revisions, completed source-backed companies and settled intake
+receipts remain eligible automatically only when the approved scope, company brief
+and acceptance criteria are exactly unchanged. Direction completion also requires
+an identical direction and unchanged company limit/target: raising capacity cannot
+mistake a previously capacity-stopped query for exhausted discovery. Incomplete,
+failed and uncertain work never becomes complete through retention.
+
+Retention creates version-owned receipts linked by readable provenance to their
+original version; source evidence, child conversations and files are preserved.
+The approval transaction records retained identities and refuses a company limit
+below the retained count. Budget usage remains sector-cumulative. Scope changes
+require explicit owner review of eligibility; textual similarity never establishes
+permission or compatibility. No automatic inference of a scope expansion.
+
+New plan approvals also pin the protected Decisions text in approvedContext.
+Readers accept legacy approvals without that optional field, but automatic
+retention cannot assume their decisions were unchanged. Findings/clarifications
+may advance the document version without invalidating an exact Scope/Decisions
+match. This is an additive approval receipt, not authority granted to agents.
+
+The workspace approval action sends the context version currently displayed and
+is unavailable while global context has not loaded. The approval transaction
+rejects a stale context version before copying work or pinning the plan. The API
+field is optional for legacy clients; omitting it does not relax latest-plan,
+role or sector checks. The current workspace always supplies it.
+
+Compatible retention also carries unresolved intake identities, states and attempts.
+They remain blockers; retaining a completed direction never hides its uncertain or
+failed candidates. The coordinator must still resolve or explicitly review them
+before acceptance. Old receipts remain immutable alongside the new version.
+
+## Bounded coordinator transport
+
+New discovery histories use a versioned compact-state contract. Status checks read
+only committed scope/version/budget; they do not transport the complete work ledger
+or context revision history. Initial/final snapshots use company counts/domains,
+the deterministic50-company sample, direction checkpoints and bounded retry pages.
+Full work details remain in Postgres and individual work reads are sector/version
+scoped. Candidate receipt lookups use existing work identities rather than passing
+all rejected domains through each workflow command. Cursor pages retain query/page
+positions; the DB receipts are the authoritative dedup set.
+
+History rotates only at checkpointed boundaries with no active children or signal
+handlers. It preserves the approved version, recovery cursor, cumulative budget
+and persistent research session; old histories retain their original contract via
+Temporal patching. Oversized state fails recoverably rather than raising server
+limits or pretending the missing work completed. The transport regression budget
+is1.5MB, below Temporal's default2MB per-event limit. Reference:
+[Temporal server limits](https://github.com/temporalio/temporal/blob/main/common/dynamicconfig/constants.go).
+
+## Owner review of unresolved basic intake
+
+Only the owner through an approver-keyed HTTP/UI decision can retry or exclude a
+blocked/failed `:intake:` discovery candidate. Review is fenced by the displayed
+latest approved plan version and a digest of the exact work receipt. A paused or
+failed sector and no executing/unresolved-start candidate child are required.
+Normal/model sessions have no exclusion tool or authority. Scope, acceptance,
+objectives and budgets still require plan revision/reapproval.
+
+Exclusion uses a distinct `excluded` state: it resolves that candidate blocker,
+never publishes a company or completes a direction, acceptance or company work.
+Retry changes only the state to pending under the same identity, preserving
+attempts, source, evidence and reason; dispatch increments cumulative attempts.
+Both journal the authenticated key, exact old receipt and explicit owner reason.
+Completed and excluded receipts are immutable to late checkpoints. Parent intake
+publication serializes against owner review and rejects excluded/stale attempts.
+
+An owner retry remains pending until Resume/Restart. A live paused parent detects\nthe scoped review-journal sequence advancing, then reloads at a safe boundary\nwithout active children or signal handlers. A new execution loads the pending\nidentity; history rotation preserves cursors, attempts and cumulative budgets.\nNo elapsed time or normal session message authorizes a retry or exclusion.
+
+New review-aware coordinator histories observe a scoped review sequence. After
+Resume, a changed sequence rotates only at a checkpointed boundary with no live
+children/handlers, then reloads pending retries. Query cursors and cumulative
+budgets stay durable. Pending owner retries remain eligible even when their
+original reason begins uncertain; the reason/history are preserved. Exclusion
+and exact attempt/receipt fences also apply inside publication transactions.

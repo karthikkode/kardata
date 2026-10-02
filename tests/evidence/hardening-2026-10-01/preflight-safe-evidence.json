@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "scope": "Synthetic PDF production-path and decoded-memory verification only; no company pilot, no real customer data",
+  "excluded": "All raw traces, credentials, request headers, environment files and response bodies",
+  "files": [
+    {
+      "path": "tests/evidence/hardening-2026-10-01/preflight-final-pdf-native-and-meta.png",
+      "bytes": 137221,
+      "sha256": "889373b8b1aba31e13495b1753c762bb5f11bbfcbe3ba1ba0ab2bda77df94a58"
+    },
+    {
+      "path": "tests/evidence/hardening-2026-10-01/preflight-final-pdf-processing.png",
+      "bytes": 84084,
+      "sha256": "ff21c652c71a96c23d376d39eeeaec347af31e2a4e846d7888b8ed07c5cb46d3"
+    },
+    {
+      "path": "tests/evidence/hardening-2026-10-01/preflight-final-real-meta-pdf-video.webm",
+      "bytes": 714992,
+      "sha256": "095bf6b4f19d81f8a932a8f255cc60abe5a3fd163dbd95cf42d9cce40f977ba6"
+    },
+    {
+      "path": "tests/evidence/hardening-2026-10-01/preflight-meta-pdf-receipts.json",
+      "bytes": 2457,
+      "sha256": "0cee5fd08b29ae67d5a3e87ef7697bd8e9d5fd282f273bd01b272c5899f9371d"
+    },
+    {
+      "path": "tests/evidence/hardening-2026-10-01/preflight-pdf-decoded-memory.json",
+      "bytes": 7446,
+      "sha256": "431c8eb422bd0295222f06c89c10abfc666ce88f9711cc53583177df9304b25e"
+    },
+    {
+      "path": "tests/evidence/hardening-2026-10-01/preflight-pdf-decoded-memory.full-suite.json",
+      "bytes": 7467,
+      "sha256": "3a97472fb801fc0af4d49ce3d9215e9926c61115ef4bafe1a4edce3fa2df15d8"
+    }
+  ]
+}

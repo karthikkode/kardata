@@ -149,6 +149,7 @@ export function registerRateLimit(app: FastifyInstance, limitPerMin: number, log
 export interface IdempotentOutcome {
   status: number
   body: unknown
+  retrySafeBeforeEffect?: boolean
 }
 
 /** Idempotent mutation wrapper (B3.4). Without an Idempotency-Key header —
@@ -157,33 +158,64 @@ export interface IdempotentOutcome {
  * replays the stored status and body without re-executing, and key reuse
  * for a different request (or a twin execution in flight) is 409 conflict.
  * Records are scoped to the caller so keys never replay across tenants.
- * Thrown errors release the claim so the retry is not wedged. */
+ * Only proven pre-effect outcomes release a claim; uncertain failures retain
+ * the guard so retries cannot duplicate committed effects. */
 export async function withIdempotency(
   request: FastifyRequest,
   reply: FastifyReply,
   pool: Db | undefined,
   keyId: string,
   execute: () => Promise<IdempotentOutcome>,
+  options: { fingerprintBody?: unknown; responseBody?(body: unknown): unknown; recover?(fingerprint: string): Promise<IdempotentOutcome | undefined>; beforeExecute?(fingerprint: string): Promise<void>; afterExecute?(fingerprint: string, result: IdempotentOutcome): Promise<void> } = {},
 ): Promise<unknown> {
   const raw = header(request, 'idempotency-key')
   if (raw === undefined || pool === undefined) {
     const direct = await execute()
-    return reply.code(direct.status).send(direct.body)
+    return reply.code(direct.status).send(options.responseBody ? options.responseBody(direct.body) : direct.body)
   }
   if (raw.length === 0 || raw.length > 128) {
     return sendError(reply, 400, 'validation_failed', 'idempotency key must be 1-128 characters')
   }
   const recordKey = `${keyId}:${raw}`
-  const fingerprint = mutationFingerprint(request.method, request.url, request.body)
+  const fingerprint = mutationFingerprint(request.method, request.url, options.fingerprintBody ?? request.body)
   const claim = await claimIdempotency(pool, recordKey, fingerprint)
-  if (claim.kind === 'replay') return reply.code(claim.status).send(claim.body)
-  if (claim.kind === 'conflict') return sendError(reply, 409, 'conflict', claim.reason)
+  if (claim.kind === 'replay') return reply.code(claim.status).send(options.responseBody ? options.responseBody(claim.body) : claim.body)
+  if (claim.kind === 'conflict') {
+    const recovered = claim.sameRequest ? await options.recover?.(fingerprint) : undefined
+    if (recovered) {
+      if (!await completeIdempotency(pool, recordKey, recovered.status, recovered.body, fingerprint)) return sendError(reply, 409, 'conflict', 'The operation guard changed during recovery.')
+      return reply.code(recovered.status).send(options.responseBody ? options.responseBody(recovered.body) : recovered.body)
+    }
+    return sendError(reply, 409, 'conflict', claim.reason)
+  }
+  let handlerStarted = false
   try {
+    const recovered = await options.recover?.(fingerprint)
+    if (recovered) {
+      if (!await completeIdempotency(pool, recordKey, recovered.status, recovered.body, fingerprint)) return sendError(reply, 409, 'conflict', 'The operation guard changed during recovery.')
+      return reply.code(recovered.status).send(options.responseBody ? options.responseBody(recovered.body) : recovered.body)
+    }
+    await options.beforeExecute?.(fingerprint)
+    handlerStarted = true
     const result = await execute()
-    await completeIdempotency(pool, recordKey, result.status, result.body)
-    return reply.code(result.status).send(result.body)
+    await options.afterExecute?.(fingerprint, result)
+    if (result.retrySafeBeforeEffect) await releaseIdempotency(pool, recordKey, fingerprint)
+    else if (!await completeIdempotency(pool, recordKey, result.status, result.body, fingerprint)) throw new WorkspaceError('conflict', 'The operation guard changed before completion.')
+    return reply.code(result.status).send(options.responseBody ? options.responseBody(result.body) : result.body)
   } catch (error) {
-    await releaseIdempotency(pool, recordKey)
+    if (!handlerStarted) {
+      // Intent/receipt I/O failed before this handler could produce an effect.
+      // A failed release still preserves the guard and propagates the failure.
+      await releaseIdempotency(pool, recordKey, fingerprint)
+      throw error
+    }
+    const logger = (request.server as FastifyInstance & { kardataLogger?: Logger }).kardataLogger
+    logger?.error({ event: 'http.idempotency.uncertain', op: 'http.idempotency', route: request.routeOptions.url,
+      operationHash: mutationFingerprint('operation', request.url, recordKey), code: 'mutation_outcome_uncertain',
+      ...(request.traceContext ? { trace_id: request.traceContext.traceId } : {}) })
+    // The handler or response-store may have committed before losing its reply.
+    // Keep the guard until the operation can be reconciled, never blindly repeat.
+    reply.header('x-kardata-operation-state', 'uncertain')
     throw error
   }
 }
@@ -246,7 +278,7 @@ export function route(
         route: `${method.toUpperCase()} ${url}`,
         ...(request.traceContext ? { trace_id: request.traceContext.traceId } : {}),
         code: error instanceof WorkspaceError ? error.code : error instanceof RunNotFound ? 'not_found' : error instanceof ThreadNotAccepting ? 'conflict' : 'internal',
-        message: error instanceof Error ? error.message.slice(0, 300) : 'unknown route error',
+        errorType: error instanceof Error ? error.constructor.name : 'unknown',
       })
       return mapRouteError(reply, error)
     }

@@ -8,12 +8,10 @@ scrape_configs:
   - job_name: prometheus
     static_configs:
       - targets: ['localhost:9090']
-  # Backend /metrics ships in B5.2 (RED pair + process defaults, bounded
-  # labels). The Temporal SDK target stays commented until the worker fleet
-  # wires Runtime.install, so failed scrapes never become background noise.
+  # Backend RED metrics and the existing worker's activated SDK telemetry.
   - job_name: backend
     static_configs:
       - targets: ['backend:3001']
-  # - job_name: temporal
-  #   static_configs:
-  #     - targets: ['temporal:8077']
+  - job_name: temporal-worker
+    static_configs:
+      - targets: ['worker:9464']

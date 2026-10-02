@@ -8,6 +8,51 @@ import { extractRawText } from 'mammoth'
 import { extractImages, extractText, getDocumentProxy } from 'unpdf'
 import { createHash } from 'node:crypto'
 import { DbContractError } from './errors.js'
+import { createLogger, logOp } from '../observability/logging.js'
+
+const ocrLogger = createLogger({ op: 'file.ocr' })
+class OcrFailure extends Error {
+  constructor(readonly code: string, message: string) { super(message) }
+}
+async function recognizeOcr(ocr: OcrAdapter, image: Uint8Array, mediaType: string): Promise<OcrResult> {
+  return logOp(ocrLogger, 'file.ocr', async () => {
+    try { return validateOcrResult(await ocr.recognize(image, mediaType)) }
+    catch (error) { throw error instanceof OcrFailure ? error : new OcrFailure('ocr_failed', 'OCR could not finish. Retry after the service recovers.') }
+  })
+}
+function validateOcrResult(result: OcrResult): OcrResult {
+  if (!result || typeof result.text !== 'string' || !Number.isFinite(result.confidence) || result.confidence < 0 || result.confidence > 1) throw new OcrFailure('ocr_invalid_response', 'OCR returned invalid text or confidence.')
+  if (Buffer.byteLength(result.text, 'utf8') > SECTOR_DOCUMENT_MAX_BYTES) throw new OcrFailure('ocr_limit', 'OCR transcript exceeds the document byte limit.')
+  return result
+}
+function discardOcrBody(response: Response): void {
+  void response.body?.cancel().catch(() => ocrLogger.warn({ event: 'file.ocr.cleanup.error', code: 'ocr_body_cancel_failed' }))
+}
+async function readOcrJson(response: Response, aborted: Promise<never>): Promise<unknown> {
+  if (Number(response.headers.get('content-length') ?? 0) > SECTOR_DOCUMENT_MAX_BYTES) {
+    discardOcrBody(response)
+    throw new OcrFailure('ocr_limit', 'OCR response exceeds the document byte limit.')
+  }
+  const reader = response.body?.getReader()
+  const chunks: Uint8Array[] = []
+  let bytes = 0
+  if (reader) {
+    try {
+      for (;;) {
+        const chunk = await Promise.race([reader.read(), aborted])
+        if (chunk.done) break
+        bytes += chunk.value.byteLength
+        if (bytes > SECTOR_DOCUMENT_MAX_BYTES) throw new OcrFailure('ocr_limit', 'OCR response exceeds the document byte limit.')
+        chunks.push(chunk.value)
+      }
+    } catch (error) {
+      void reader.cancel().catch(() => ocrLogger.warn({ event: 'file.ocr.cleanup.error', code: 'ocr_body_cancel_failed' }))
+      throw error
+    } finally { reader.releaseLock() }
+  }
+  try { return JSON.parse(Buffer.concat(chunks, bytes).toString('utf8')) as unknown }
+  catch { throw new OcrFailure('ocr_invalid_response', 'OCR endpoint returned malformed JSON.') }
+}
 
 export function sha256Hex(data: string): string {
   return createHash('sha256').update(data, 'utf8').digest('hex')
@@ -133,8 +178,12 @@ export function createHttpOcrAdapter(config: HttpOcrConfig): OcrAdapter {
     async recognize(image: Uint8Array, mediaType: string): Promise<OcrResult> {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), timeoutMs)
+      const rejectAbort = () => rejectDeadline(new OcrFailure('ocr_timeout', 'OCR request timed out.'))
+      let rejectDeadline: (reason: Error) => void = () => undefined
+      const aborted = new Promise<never>((_resolve, reject) => { rejectDeadline = reject })
+      controller.signal.addEventListener('abort', rejectAbort, { once: true })
       try {
-        const response = await fetchFn(config.endpoint, {
+        const headers = fetchFn(config.endpoint, {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
@@ -142,19 +191,22 @@ export function createHttpOcrAdapter(config: HttpOcrConfig): OcrAdapter {
           },
           body: JSON.stringify({ imageBase64: Buffer.from(image).toString('base64'), mediaType }),
           signal: controller.signal,
-        })
-        if (!response.ok) throw new DbContractError(`ocr endpoint failed with HTTP ${response.status}`)
-        const payload: unknown = await response.json()
-        if (typeof payload !== 'object' || payload === null) throw new DbContractError('ocr endpoint returned malformed JSON')
+        }).then((response) => { if (controller.signal.aborted) discardOcrBody(response); return response })
+        const response = await Promise.race([headers, aborted])
+        if (!response.ok) { discardOcrBody(response); throw new OcrFailure('ocr_http_failed', `OCR endpoint returned HTTP ${response.status}.`) }
+        const payload = await readOcrJson(response, aborted)
+        if (typeof payload !== 'object' || payload === null) throw new OcrFailure('ocr_invalid_response', 'OCR endpoint returned malformed JSON.')
         const record = payload as Record<string, unknown>
-        if (typeof record['text'] !== 'string') throw new DbContractError('ocr endpoint returned no text')
-        const confidence = typeof record['confidence'] === 'number' ? record['confidence'] : 1
-        return { text: record['text'], confidence }
+        if (typeof record['text'] !== 'string') throw new OcrFailure('ocr_invalid_response', 'OCR endpoint returned no text.')
+        const confidence = record['confidence'] === undefined ? 1 : record['confidence']
+        if (typeof confidence !== 'number') throw new OcrFailure('ocr_invalid_response', 'OCR returned invalid confidence.')
+        return validateOcrResult({ text: record['text'], confidence })
       } catch (error) {
-        if (error instanceof DbContractError) throw error
-        throw new DbContractError(`ocr request failed: ${error instanceof Error ? error.message.slice(0, 200) : 'unknown error'}`)
+        if (error instanceof OcrFailure) throw error
+        throw new OcrFailure(controller.signal.aborted ? 'ocr_timeout' : 'ocr_transport_failed', controller.signal.aborted ? 'OCR request timed out.' : 'OCR transport failed. Retry after the service recovers.')
       } finally {
         clearTimeout(timer)
+        controller.signal.removeEventListener('abort', rejectAbort)
       }
     },
   }
@@ -179,6 +231,7 @@ function unitKind(paragraph: string): UnitKind {
 
 /** Chunk on paragraph boundaries within maxChars; oversize paragraphs hard-split. */
 export function chunkTextUnits(text: string, maxChars = UNIT_MAX_CHARS): ExtractedUnit[] {
+  if (!Number.isInteger(maxChars) || maxChars < 1 || maxChars > UNIT_MAX_CHARS) throw new DbContractError(`chunk budget must be a positive integer no greater than ${UNIT_MAX_CHARS}`)
   const paragraphs = text.split(/\n\s*\n/).map((part) => part.trim()).filter((part) => part.length > 0)
   const chunks: string[] = []
   let current = ''
@@ -189,8 +242,12 @@ export function chunkTextUnits(text: string, maxChars = UNIT_MAX_CHARS): Extract
   for (const paragraph of paragraphs) {
     if (paragraph.length > maxChars) {
       flush()
-      for (let at = 0; at < paragraph.length; at += maxChars) {
-        chunks.push(paragraph.slice(at, at + maxChars))
+      for (let at = 0; at < paragraph.length;) {
+        let end = Math.min(at + maxChars, paragraph.length)
+        const previous = paragraph.charCodeAt(end - 1), next = paragraph.charCodeAt(end)
+        if (previous >= 0xd800 && previous <= 0xdbff && next >= 0xdc00 && next <= 0xdfff) end -= 1
+        if (end === at) throw new DbContractError('chunk budget cannot fit a supplementary Unicode codepoint')
+        chunks.push(paragraph.slice(at, end)); at = end
       }
       continue
     }
@@ -211,15 +268,14 @@ export interface FileExtraction {
   units: ExtractedUnit[]
 }
 
-function ocrUnit(ord: number, result: OcrResult): ExtractedUnit {
-  const text = result.text.trim()
-  return {
-    ord,
+function ocrUnits(ord: number, result: OcrResult): ExtractedUnit[] {
+  return chunkTextUnits(result.text.trim()).map((unit, index) => ({
+    ...unit,
+    ord: ord + index,
     kind: 'ocr',
-    text,
     confidence: result.confidence,
     uncertain: result.confidence < OCR_CONFIDENCE_MIN,
-  }
+  }))
 }
 
 async function extractPdfUnits(bytes: Buffer, ocr?: OcrAdapter): Promise<FileExtraction> {
@@ -244,22 +300,33 @@ async function extractPdfUnits(bytes: Buffer, ocr?: OcrAdapter): Promise<FileExt
     return { status: 'needs-ocr', detail: `image-only PDF (${pages} pages): configure an OCR endpoint to index it`, mediaType: 'application/pdf', units: [] }
   }
   const units: ExtractedUnit[] = []
-  for (let page = 1; page <= pages && units.length < MAX_OCR_IMAGES; page += 1) {
+  const incomplete = (code: string, message: string): FileExtraction => {
+    ocrLogger.warn({ event: 'file.ocr.coverage.incomplete', code })
+    return { status: 'needs-ocr', detail: `OCR unavailable: ${code}: ${message}`, mediaType: 'application/pdf', units: [] }
+  }
+  let attemptedImages = 0
+  let transcriptBytes = 0
+  for (let page = 1; page <= pages; page += 1) {
     let images: Uint8Array[]
     try {
       images = (await extractImages(new Uint8Array(bytes), page)).map(
         (entry) => new Uint8Array(entry.data.buffer as ArrayBuffer, entry.data.byteOffset, entry.data.byteLength),
       )
     } catch {
-      continue
+      return incomplete('ocr_coverage_incomplete', 'A PDF page could not be inspected. No partial transcript was indexed.')
     }
+    if (!images.length) return incomplete('ocr_coverage_incomplete', 'A scanned PDF page has no OCR-readable images. No partial transcript was indexed.')
     for (const image of images) {
-      if (units.length >= MAX_OCR_IMAGES) break
+      if (attemptedImages >= MAX_OCR_IMAGES) return incomplete('ocr_limit', 'The PDF has more images than the OCR budget. No partial transcript was indexed.')
+      attemptedImages += 1
       try {
-        const result = await ocr.recognize(image, 'image/png')
-        if (result.text.trim()) units.push(ocrUnit(units.length, result))
-      } catch {
-        continue
+        const result = await recognizeOcr(ocr, image, 'image/png')
+        transcriptBytes += Buffer.byteLength(result.text, 'utf8')
+        if (transcriptBytes > SECTOR_DOCUMENT_MAX_BYTES) return incomplete('ocr_limit', 'Aggregate OCR transcript exceeds the document byte limit.')
+        if (!result.text.trim()) return incomplete('ocr_coverage_incomplete', 'OCR returned no transcript for a PDF image. No partial transcript was indexed.')
+        units.push(...ocrUnits(units.length, result))
+      } catch (error) {
+        return incomplete(error instanceof OcrFailure ? error.code : 'ocr_failed', error instanceof OcrFailure ? error.message : 'OCR could not finish. No partial transcript was indexed.')
       }
     }
   }
@@ -306,16 +373,16 @@ export async function extractFileUnits(
     return { status: 'needs-ocr', detail: 'image upload: configure an OCR endpoint to index it', mediaType: classified.mediaType, units: [] }
   }
   try {
-    const result = await ocr.recognize(new Uint8Array(bytes), classified.mediaType)
+    const result = await recognizeOcr(ocr, new Uint8Array(bytes), classified.mediaType)
     if (!result.text.trim()) {
       return { status: 'needs-ocr', detail: 'OCR returned no text for this image', mediaType: classified.mediaType, units: [] }
     }
-    return { status: 'indexed', mediaType: classified.mediaType, units: [ocrUnit(0, result)] }
+    return { status: 'indexed', mediaType: classified.mediaType, units: ocrUnits(0, result) }
   } catch (error) {
     // A throwing OCR backend (endpoint down, vision rejected) degrades to
     // needs-ocr with the reason attached: the attach succeeds and the file
     // waits for OCR instead of failing the upload.
-    const detail = error instanceof Error ? error.message.slice(0, 300) : 'OCR failed'
+    const detail = error instanceof OcrFailure ? `${error.code}: ${error.message}` : 'ocr_failed: OCR could not finish.'
     return { status: 'needs-ocr', detail: `OCR unavailable: ${detail}`, mediaType: classified.mediaType, units: [] }
   }
 }

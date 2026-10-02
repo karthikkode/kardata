@@ -73,13 +73,12 @@ The session picker and subagent thread controls use backend-owned records.
 Karbot includes a Session Files tab with in-app artifact preview, download,
 and file creation, a Plan Mode toggle for milestone planning (`/plan`), and
 a live mid-run Steer action to guide agents and subagents on the fly.
-Sector chat provides Global Context Update Approval Cards to push agent insights
-into the global sector context upon operator confirmation.
-The Context Studio (`SectorContextDrawer`) features a 60% compaction threshold
-marker, raw verbatim digest inspector, and `compactSectorContext` trigger.
-The Sector Detail Page presents a 4-Pillar Workbench (`Workbench (All)`,
-`Research Activity`, `Sector Chat`, `Context Studio`, `Files Hub`) with a
-Linear-grade command header.
+The active sector surface is the landing/workspace described below, including
+versioned global-context approval and durable thread compaction. The older
+`SectorChatPanel`, `SectorContextDrawer` and `SectorDetailPage` workbench remain
+legacy components; App does not route their full layouts. Only CompanySection
+is shared with the active landing. Their old 60% context meter and note-approval
+cards do not define the product's current context/approval contract.
 
 The sector research strip states every lifecycle case: draft and failed
 offer Plan, approved offers Start, running offers Pause, paused offers
@@ -118,6 +117,14 @@ The client rejects removed provider ids before sending a model PATCH.
 
 ## Sector workspace (landing → Open → chat)
 
+Hardening additions: `ResearchPlanEditor` presents executable query/limit/target
+controls and retains drafts on failed saves. `ExecutablePlanDetails` is shared
+by Plan and progress dialog. `SectorFilePreview` displays retained extracts and
+uses shared `downloadBlob` for original/extracted downloads. The data hooks own
+all fetching. Queued, reconnecting and paused chat states are explicit; missed
+steering remains visible. Work-item lists are searchable and windowed, with
+source links and truthful counts. Tests are linked in the hardening catalogue.
+
 - The sector route lands on the summary page (`SectorLanding`): a
   `Research status` region (state copy, progress estimate, `View
   progress` dialog, `Open` button) plus the shared `CompanySection`
@@ -134,6 +141,12 @@ The client rejects removed provider ids before sending a model PATCH.
   title plus close, never a bespoke modal. Every async resource renders
   through `ResourceNotice` (loading / error with retry / denied) plus
   an explicit empty state where the resource can be empty.
+- Successful conversation creation publishes the server-acknowledged session
+  into its scoped list before changing the URL. The following list refresh must
+  not flash a foreign-session denial or disable the new composer. Resource
+  acknowledgements from an earlier credential/sector scope are ignored; genuinely
+  missing sessions still receive the scoped unavailable state. Regression:
+  `tests/frontend/workspace-session-creation.test.tsx`.
 - Proven by `tests/frontend/sector-workspace.test.tsx` (landing,
   editor, files, local context) and the landing-to-workspace journey
   tests in `navigation-url`, `SectorDetailPage`, and
@@ -172,3 +185,133 @@ The client rejects removed provider ids before sending a model PATCH.
 - Accent: `primary` is a restrained indigo (`--primary`, light and dark pairs in `frontend/src/index.css`) with a matching `ring`; charts are categorical hues instead of gray. Surfaces stay neutral; color lands on actions (buttons, active states, links, quote rules, switches, progress) only.
 - Agent markdown (`Markdown.tsx`): tables size to content (`w-max min-w-full`) inside a bordered scroll frame with a tinted head and scoped headers, so long filenames and ids scroll instead of breaking mid-token; blockquotes are tinted panels with an accent rule; inline code carries a hairline border; links use the accent; lists breathe (`space-y-1`, muted markers).
 - Scrollbars: every scroll container carries `scroll-slim` over the global thin token-matched base (canonical rule in `docs/design-system.md`): chat lists, popovers, mention/skill menus, model flyout, research overflow lists, detail columns, drawer unit lists, `pre` and table wrappers.
+
+Company polling retains and refreshes the window the user has loaded. A filter
+or credential change resets it; a poll does not. Next-page failures retain rows
+and display a recoverable alert. Offline company reads show a connection state.
+
+Overflow stream snapshots rehydrate message history through bounded REST pages,
+including hidden-only pages, before advancing the resume token. Failure retries
+that same snapshot; stale transient thinking is cleared after durable hydration.
+Regression: `tests/frontend/follow-resume.test.ts`.
+
+A caller-owned resume cursor survives graceful EOF follower replacement, so
+reconnecting the workspace does not replay old reasoning or tool frames.
+
+First-load research-session initialization caches only confirmed permission
+failures. A discarded/remounted request cannot mark initialization complete
+before its result is delivered. Concurrent ensures rely on the backend's
+persistent one-session binding; denied viewer requests are not repeatedly sent.
+
+Server upload failures show a concrete retry instruction and confirm existing
+files are retained. Internal failure codes stay in correlated backend logs.
+
+Persistent Karbot background tails opt into graceful-EOF reconnection in the
+shared follower, preserving the accepted sequence and accumulated messages. EOF
+emits a recoverable connection error and uses the existing bounded failure policy;
+a closed transport never means research completed. One-shot legacy send flows
+retain terminal refetch/settling behavior; the sector workspace owns its existing
+cursor and reconnect loop. A real browser regression disconnects only its isolated
+DB listener, observes a fresh stream request, and verifies retained draft, one
+terminal reply, and restored Send control. No surrounding layout changes.
+
+Reconnect waits are abort-aware. Closing/switching a conversation cancels a pending
+wait, and the follower checks abort again before dispatching any stream request;
+old followers cannot reopen transport after cancellation.
+
+The local-context view displays durable pending-operation recovery separately
+from context compaction. It shows the tool/reason and keeps long operation IDs
+behind a keyboard-accessible disclosure. Resume checks that original identity;
+compaction retains it. No control silently issues a replacement mutation.
+
+Workspace plan approval includes the global-context version currently shown.
+While context is loading, denied or unavailable, approval is unavailable; stale
+context conflicts remain visible with the plan editable. Retained completed work
+shows its source version and original source link through shared progress, without
+claiming a percentage while the revised discovery queue can still expand.
+
+Pending-operation cards offer **Inspect receipt** in local context. The workspace
+loads its scoped receipt through the data layer and displays confirmed versus
+unresolved effects and the exact recovery explanation. The original identity is
+retained; inspection does not release guards or mark an effect successful. Notes
+and drafts remain editable and loading/errors use the shared resource notice.
+
+File-derived context proposals render exact file hashes and included units before
+approval. Source previews render fifty units at a time. Local context shows a
+source-recovery notice and preserves its stored summary; failed dependencies never
+produce a blank working-memory display. The safe-rebuild review presents original
+task, stored summary, dependency identities, an independent replacement preview
+and explicit owner confirmation. It keeps typed text on request failure, rejects
+stale versions, and does not automatically resume work.
+
+The sector Files panel renders fifty matching metadata records initially and adds
+fifty with the existing Show more button. Its footer stays reachable outside the
+independently scrolling list and states the displayed and filtered totals. Search
+still covers the entire loaded library; changing search or hidden-file visibility
+resets the display window. Metadata refresh preserves an expanded window. Upload,
+generated-file preview, hide/reveal and context inclusion retain their existing
+permissions and processing/error/OCR states.
+
+Nonindexed file states use readable Processing, Failed and Needs OCR labels,
+including the legacy underscore OCR spelling.
+
+Local context has a compact Execution records entry. The owner inspector reads
+twenty metadata boundaries per page; next/previous controls stay in the modal
+footer. Selecting one loads its verified normalized JSON. Display initially caps
+at64,000 characters, explicitly states partial display, and offers additional text
+and complete JSON download. Provider/model and observed global/shared-plan/local
+versions appear separately from expandable actual execution identity. History
+inspection preserves local-note drafts and returns focus on close. Loading,
+empty, denied, offline and metadata/body failures remain distinct. This UI does
+not assert that a stored provider response is automatically recovered after a
+post-provider storage failure; that durable recovery has its own acceptance gate.
+
+### Basic intake review
+
+Shared PlanProgress on the landing progress dialog and workspace Plan tab offers
+Review intake for blocked/failed candidates. A dialog shows the exact saved source,
+evidence, reason, attempts and plan version, and collects an explicit owner reason
+for Retry or Exclude. Data hooks own requests. Loading, denied/offline/errors and
+stale receipt conflicts preserve the open review and reason draft; review latest
+refreshes the displayed receipt before another decision. Controls require a paused
+or failed sector. Excluded candidates remain visible and never count completed.
+
+Intake decisions carry a request idempotency key. The data hook retains it while
+an exact reviewed work/version/decision/reason submission has failed, allowing a
+lost reply to recover the original HTTP receipt. Changing any submitted decision
+field generates a fresh key; success clears the pending submission identity.
+
+## In-app supervision alerts
+
+The Agents page includes a compact, props-only alert panel over an authenticated
+`GET /v1/alerts` data hook. It polls the latest bounded page and lets owners read
+older pages or return to latest. Alerts derive from durable scoped supervision
+records, not un-attributed fleet metrics. Only a backend-confirmed matching
+recovery pause is labeled a current warning; advisory/old observations remain
+explicitly historical. Fixed kind labels explain the finding without exposing
+raw execution bodies. Sector findings link to their exact session/thread
+workspace. General-session findings show the current session title and exact identifier;
+the existing chat picker also exposes that identifier so duplicate titles remain
+distinguishable. Owners use the existing agent directory for child threads; no
+unsupported general-session deep link is invented.
+Loading, empty, denied, offline and error use the shared resource states. No
+alert automatically resumes, cancels or modifies work. This is in-app delivery,
+not external notification delivery or a guarantee the owner has read an alert.
+
+## Complete PDF processing in Files
+
+PDF uploads enqueue the existing worker after exact original-byte archival.
+Files shows queued, reading-pages, processing, paused, failed/uncertain and
+indexed states, with durable saved-image counts rather than a timer or an early
+100% claim. Original downloads remain available while a visible file is processing.
+A review dialog pins job/revision and requires renewed review after state changes;
+possible duplicate paid work requires an explicit owner acknowledgement. Failed
+requests retain review state. Hidden files cannot retry until revealed.
+
+Large extracted content uses a bounded preview and20 indexed sections per page;
+Next/Previous replace the page rather than appending an unbounded transcript.
+Native page text and AI-derived image/chart descriptions retain page/image
+provenance; model interpretation is explicitly uncertain. This presentation does
+not truncate the stored content or promote it into shared context automatically.
+The body refreshes after a file's terminal status changes. Design authority:
+[PDF ingestion](plans/2026-10-01-pdf-ingestion.md).

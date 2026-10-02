@@ -1,5 +1,14 @@
 # DB
 
+Durable supervision uses `backend/src/db/reconciliation.ts` for bounded keyset
+thread reads and matched-state observation recording inside existing workspace/
+durable transaction locks. Migration0021 adds retained execution intents, a
+per-thread epoch head and private active epoch/workflow/execution lease fields.
+Only exact terminal execution proof with unchanged head/lease and no unresolved
+starts permits recovery parking; legacy/unknown ownership remains advisory.
+No research content or execution history is deleted. Sector health limits reads to that sector's
+persisted session/thread IDs. See [supervision](agents-supervision.md).
+
 Postgres schema, migrations, and the single access layer. No seeds
 pretending to be live data.
 
@@ -24,6 +33,32 @@ pretending to be live data.
   `DbContractError` on misalignment. No raw SQL outside the layer.
 - Pool settings (max, timeouts, per-process budgets) live in
   `backend/src/db/pool.ts` and nowhere else.
+
+## Hardening contracts (2026-10-01)
+
+- Event and outbox sequence allocation uses the shared transaction-scoped
+  durable-stream advisory lock. Sequence order must match commit order or
+  projector/SSE cursors can skip a delayed transaction. Workspace transactions
+  acquire this lock before aggregate locks. Never hold a transaction across
+  provider/archive IO or call the projector from inside a workspace transaction.
+  Proved by `db.commit-order.test.ts` (both original failures reproduced).
+- Migrations serialize across processes with a dedicated session lock before
+  schema bookkeeping. Connect timeout: 10 seconds; lock wait: 30 seconds;
+  statement timeout: five minutes. Client close releases the lock. Concurrent
+  migrators are tested on fresh isolated databases, never the shared base URL.
+- Sector discovery ids include sector and normalized domain. Legacy ids are
+  adopted only in their owning sector. Discovery registers ledger candidates
+  without overwriting researched verdicts; intentional research updates remain
+  the separate upsert operation.
+- New file version digests include original bytes, extraction units
+  and upload/artifact provenance. Different scans with the same filename cannot
+  alias through empty OCR text. Historical hashes and approvals stay unchanged.
+- `commitThreadCompaction` atomically updates the summary and parked working
+  view using context-version/checkpoint comparison. Active or changed work
+  rejects stale replacement. Visible transcript rows remain immutable.
+- Thread directory reads use `listThreadHeaders`; authority reads use
+  `getThreadHeader`. Neither loads entire child transcripts. Full history reads
+  remain explicit operations.
 
 ## Read-path paging (thousand-row rule)
 
@@ -57,6 +92,13 @@ server-side and counts from totals, never window lengths.
   (`log_min_duration_statement = 1000` in compose).
 
 ## Connection budget
+
+Parallel query dynamic shared memory has a separate deployment budget: the
+matching Compose runtime provides1GiB rather than Docker's64MiB default.
+Pool/connection ceilings below still apply. Shared-memory exhaustion is an
+infrastructure failure, never a reason to weaken contention tests or classify
+healthy queued agents as dead. See the deployment authority and recorded
+isolated concurrency evidence before selecting a supported operating envelope.
 
 Every pool max below must sum under the compose Postgres
 `max_connections = 100` (explicit in `deployment/compose.yaml`).
@@ -124,7 +166,7 @@ adds auth, transport, and tool schemas, never SQL.
 | `db.list_companies` / `db.list_sector_companies` | `listCompanies` / `listSectorCompanies` | scope-filtered reads |
 | `db.sector_activity` | `sectorActivity` | timeline derived from the sector partition |
 | `db.create_sector` | `createSector` | appends sector.created; id server-generated |
-| `db.attach_sector_document` / `db.list_sector_documents` / `db.read_sector_document` / `db.query_document` | `ingestSectorDocument` / `listSectorDocuments` / `readSectorDocument` / `querySectorDocument` | context file attach, list, full-text read, and dual-mode TOC summary / targeted chunk query; visibility passes through the owning sector |
+| `db.attach_sector_document` / `db.list_sector_documents` / `db.read_sector_document` / `db.query_document` | `attachSectorDocument` / `listSectorDocuments` / `readSectorDocument` / `querySectorDocument` | shared backend semantic attachment orchestrates durable PDF jobs through the layer; context list/read/TOC/chunks retain scoped DB functions |
 | `db.get_global_context` / `db.propose_global_context` | `readGlobalContext` / `proposeGlobalContext` | versioned shared sector context read + proposed edits (normal chats need owner approval; research writes via parent commit) |
 | `db.commit_child_context` | `commitChildContext` | research parent commits a child finding or open question (scope/decisions/file inclusion need owner approval) |
 | `db.list_sector_files` / `db.propose_file_context` | `listSectorLibrary` / `proposeFileContext` | visible indexed sector files; owner approval to include exact file units in global context |
@@ -154,13 +196,15 @@ adds auth, transport, and tool schemas, never SQL.
 | `db.ledger_upsert_company` / `db.ledger_get_company` / `db.ledger_list_companies` | `upsertLedgerCompany` / `getLedgerCompany` / `listLedgerCompanies` | master-ledger company record |
 | `db.ledger_record_problem` / `db.ledger_list_problems` | `recordLedgerProblem` / `listLedgerProblems` | one row per researched problem |
 
-## Current schema (0001–0017)
+## Current schema (0001–0019)
 
 - 0009–0013: sector drafts, document units index, context selection
   (notes + unit exclusions), research session pin, planning states.
 - 0014–0017: sector workspace (`sector_workspace` + `workspace_changes`
   approvals, `workspace_files` library, `thread_context` local memory,
   `research_work`, `thread_instructions` steering). Repo map row above.
+
+- 0018–0019: workspace lookup/value guards and active-attempt lease fencing.
 
 - 0008: `kb_documents` / `kb_chunks` (versioned product corpus, GIN FTS),
   `ledger_companies` / `ledger_problems` (cross-run master ledger).
@@ -182,3 +226,293 @@ Reserved, currently unwritten by product code: `heartbeats.attempt`
 (future per-op attempt counting) and `outbox.delivered_at` (future
 publisher claiming). Kept intentionally; removal is one migration if
 they stay unused.
+
+Plan-write retries return their original event-derived version even after later
+plan writes. A concurrent newer plan never changes an earlier operation result.
+
+New artifact bodies use content-addressed archive references. Conflicting ID
+replays cannot overwrite winning bytes or re-index altered content. Legacy flat
+references remain readable. Imports check source tenant/project ownership and
+source visibility before recording a destination reference.
+
+Artifact creation emits the shared start/done/error boundary logs and pipeline
+operation records; operational output includes identities/counts, never bodies.
+
+### Document ingestion atomicity
+
+File-processing creation may receive a trusted execution source thread from the
+shared attachment helper. The layer validates its scoped owning session and sector
+binding before archive/publication. An immutable source event records each actual
+job/thread association; caller-provided names never grant this provenance or any
+research/approval authority. Repeated uploads retain the same file/job identity.
+
+OCR transcript units share the2,000-character text-unit cap. Image and scanned-PDF
+transcripts split in reading order with sequential ordinals, retaining OCR kind,
+confidence and uncertainty on every chunk. Owner-required PDF completion supersedes
+the former ten-image/scanned-only limit. Every page retains its native text and every
+embedded image is sent individually, in reading order, through the existing configured
+AI provider OCR adapter. Calls are sequential; native text never suppresses image
+processing. A PDF with no images still indexes its native text. Completed image work
+must remain durable across retry/restart so recovery does not repeat a paid provider
+response. Original bytes, per-image evidence and extraction-version identity remain
+retained; incomplete work must expose a recoverable processing/failure state and
+cannot masquerade as a complete index. Each provider/storage operation is bounded
+by deadline/byte limits and attributable retries; no arbitrary image-count document
+truncation applies. This is the approved target contract, not a claim that current
+implementation is complete. Archive receipt/checkpoint binding and mixed-PDF real
+parser/provider verification remain requirements before activation.
+OCR failure details expose only stable reason codes and safe HTTP status; transport
+exceptions, endpoint URLs, credentials and response bodies stay out of document
+details. OCR boundaries log start/done/error with code and latency only.
+HTTP OCR responses stream under the existing8MiB document byte budget before JSON
+parsing. The existing request deadline covers headers and body reads, including an
+abort-ignoring injected transport; oversized/non-success/late bodies are cancelled.
+All OCR adapters must return finite confidence from0 to1. Only absent HTTP confidence
+uses the historical default1, inferred from the adapter source rather than measured
+OCR confidence; malformed values never silently become confident text
+or JSON-null provenance. Each OCR transcript and the aggregate scanned-PDF transcript
+share the8MiB byte cap; overflow retains original upload bytes as Needs OCR without
+publishing a partial index. These per-operation caps do not establish100-concurrent
+file capacity, extraction/parser peak memory or a deployed OCR endpoint limit.
+`file-pipeline.test.ts` pins these limits with injected OCR/PDF doubles; these are
+not deployed OCR/provider or genuine-document evidence.
+
+Archive acceptance precedes DB publication. A document row, its extracted units,
+and its original-byte reference publish in one SQL statement, or not at all.
+New uploads derive their document ID from a 48-hex-character sector/version
+hash prefix (53 characters including `sdoc-`, within the existing 64-character
+unit-reference contract); the full stored version hash guards collisions.
+concurrent identical uploads coalesce through the existing primary key. Existing
+matching IDs are adopted to retain old links. No legacy rows or bytes are removed.
+A successful archive write followed by DB failure may retain unreferenced bytes;
+it never publishes a pointer implying a complete index. Retrying repairs the full
+index for the same version. No new table, index, or transaction service is added.
+
+### Outbox subscription cleanup
+
+A subscription owns one pooled LISTEN client. Failed LISTEN setup destroys that
+lease and rethrows the original error. Callback registration is idempotent;
+registration after close is ignored. Concurrent/repeated close shares one cleanup
+result, removes every handler, and releases the client exactly once. Failed
+UNLISTEN destroys the client rather than returning residual subscription state to
+the pool; the failure is logged and propagated. Subscribe/unsubscribe emit the
+shared start/done/error operation triple. This fixes lifecycle safety, not pool
+capacity: one held client per stream remains a measured scalability requirement.
+
+A leased client has an explicit error supervisor before LISTEN begins. A socket
+failure destroys its lease once and notifies consumers, including a consumer
+registered after the failure. SSE waiters wake and fail; MCP waits reject rather
+than report a healthy timeout. Operational logs record connection failures without
+connection strings or payloads. An isolated DB drill terminates only its own
+inventoried listener PID and asserts stream rejection, pool recovery, and a healthy
+subsequent query.
+
+### Owner-authorized key provisioning
+
+`registerApiKey` is an administrative DB-layer operation, not an HTTP or MCP
+capability. It accepts a key ID, SHA-256 hash, tenant/project scope and a validated
+role. Raw credentials never reach Postgres. Exact repeats are idempotent; a
+conflicting ID/hash/scope/role cannot overwrite an existing credential. Provision
+only under explicit owner instruction; model execution cannot invoke this door.
+The owner authorized a dedicated approver credential for the final UI test on
+2026-10-01. Keep the prior operator key unchanged and store raw new material only
+in ignored local configuration. Boundaries log outcomes without hashes/tokens.
+
+`readSectorExecutionState` is a scoped DB-layer lifecycle guard. It reads the
+latest committed sector-state event rather than assuming the projection is up
+to date. Intake publication calls it within the existing durable transaction
+lock, after archive work. A committed owner pause therefore blocks publication
+even when the projector is lagging; no projector runs inside that transaction.
+
+Discovery review events persist validated decisions and verified content-addressed
+source references before publication. They remain in the sector event partition
+when a terminal turn clears its working continuation. Exact source text lives in
+the established archive; event refs carry hashes/session provenance rather than
+large bodies. Publication still has its independent approved-plan/lifecycle/cap
+transaction. A durable review receipt does not imply its candidate was accepted.
+
+### Active attempt fencing
+
+Each production turn receives an independent DB attempt lease. Checkpoint writes,
+steering consumption, terminal checkpoint cleanup and active-state release must
+match that lease. A cancelled or expired attempt cannot overwrite or clear a
+replacement attempt, even when both carry the same logical operation ID. The
+lease is additive transient state; durable summaries/transcripts/continuations
+remain intact. Internal manual context repair remains separately version-checked.
+
+Attempt fencing also applies to automatic summary persistence inside its existing
+transaction. Reading a newer context version does not let an older attempt
+replace that summary. Manual owner edits retain the version-checked API. All
+production continuation hydration uses verified session-scoped, cancellable,
+bounded archive reads, including restart checkpoints.
+
+Research work upserts fence conflict updates by sector and plan version. Reusing
+an identity from another sector is denied; reusing it under another version
+conflicts. Completed receipts are immutable and replay emits no false state
+notification. The conflict predicate is atomic, including competing inserts.
+
+Plan edit and approval use the workspace transaction/durable-stream lock and the
+committed lifecycle seam. Stale approvals fail; concurrent twin approvals pin once.
+Compatible discovery retention uses a single bulk insert, preserves original rows
+and journals source/destination versions plus prefixes/count in the same approval
+transaction. Lower limits and changed scope/criteria cannot silently discard or
+bless prior work. Retention never converts blocked/failed receipts to completion.
+
+Bound MCP mutation intents and successful replies use the existing event log via
+`operation-receipts.ts`. Receipt keys hash caller/operation identity; the payload
+retains the validated thread, semantic authority fingerprint and exact successful
+reply. Recording precedes response-cache completion. An exact authorized retry
+can reconstruct that cache from the durable reply, including after completed-cache
+retention. Intent-only, conflicting and legacy-unproven records retain their guard.
+Scoped inspection returns status/reason only, never arguments or response content.
+
+HTTP replay completion/release passes the request fingerprint to the quota
+repository. These paths compare both fingerprint and in-progress state before
+changing a claim. A changed guard remains intact and the route reports conflict;
+legacy DB-tool adapters keep their existing optional-argument contract.
+
+Migration0020 records file exposures and independent parent/child dependency
+snapshots in thread context, exact source references in proposals, and dependencies
+for changed global sections, summaries and working checkpoints. File lineage is
+validated by hash/unit identity through indexed sector-library ownership; unit
+validation reads ordinal metadata instead of repeatedly loading extracted text.
+Null legacy receipts do not certify old context as file-free. Owner histories stay
+stored; agent assembly parks on hidden, changed or unknown dependencies.
+
+Approver-only safe rebuild fences version and active leases, preserves original
+operation/budget/steering/archive records, journals the replaced summary, and
+covers old transcript/outbox ranges without deleting them. It cannot erase source
+lineage beneath unresolved mutation arguments. Agents cannot invoke this operation.
+
+The migration marks pre-existing conversations' historical provenance unknown,
+including those without an earlier thread_context row. An empty new dependency
+array is not evidence that their old transcript was file-free. Explicit owner
+rebuild establishes a safe current context and fences historical agent reads.
+
+Coordinator transport reads bounded state rather than full ledger bodies: scoped
+counts/domains, the existing deterministic50-company sample, exact individual
+work records and100-reference retry pages. Work details remain unchanged in DB.
+Candidate receipt lookup uses existing primary-key work identities in batches20;
+no additional index or custom cache. Publication cap checks read counts/accepted
+identity under the existing workspace lock. Plan reads filter event types before
+fetching payloads; raw partition/history APIs retain their original complete data.
+
+General-session references keep their existing alias behavior. A sector import
+copies the verified indexed artifact through the existing target archive/index
+pipeline, then indexes extraction units in the destination sector before returning
+indexed success. The original source reference remains recorded as provenance.
+Destination copies have independent library visibility. Partial archive/unit
+failures remain processing and retries reuse the same file identity; missing or
+corrupt source bytes never produce a successful import reference.
+
+Execution inspection records use the existing immutable event journal plus verified
+content-addressed archive references. Each record binds session/thread, logical
+turn, attempt lease, round and kind. The journal transaction validates the session
+binding and current lease; stale attempts cannot publish current execution records.
+Archive IO occurs before that transaction. Unreferenced bytes after a failed commit
+are retained for reconciliation; no DB pointer certifies unverified content.
+Records describe normalized adapter inputs/results, not raw vendor HTTP payloads.
+Production callbacks, keyed owner inspection and UI proof are pending separately.
+
+`listSectorLibrary` orders uploaded and generated metadata together by arrival,
+descending, then file ID. A single scoped aggregate reads artifact arrival times
+from existing events; document timestamps come from the existing document rows.
+No new column or API property is introduced. The keyed HTTP regression in
+`files.library-order.test.ts` places a new generated report before 2,000 older
+upload metadata rows and verifies stable ordering for tied timestamps.
+
+Execution journal writes reject a ref outside
+`execution-records/<sha256(sessionId)>/<hash>.json` before publication. The matching
+active lease row supplies actual workflow/execution IDs and canonical epoch;
+conflicting supplied workflow/execution metadata is rejected. Trusted SDK values
+are a legacy fallback only when those DB columns are null. These immutable IDs
+survive active-lease cleanup. Scoped keyset reads cap metadata pages at100 and
+keep private archive references inside the backend read layer.
+
+### Intake owner decisions
+
+`reviewResearchWork` is an approver-route-only scoped repository operation. It
+locks the sector workspace and selected work receipt, compares a SHA-256 receipt
+digest and latest approved plan version, and rejects live candidate leases or
+unresolved execution starts. Migration0022 admits `excluded` without rewriting
+old rows; rollback requires no excluded rows. Only unresolved discovery intake
+receipts are eligible. The event `sector.research.work_reviewed` stores exact
+previous work, plan version, decision, owner key and reason. Retry retains the
+receipt fields and counters; exclusion preserves them too. Work updates cannot
+overwrite completed/excluded receipts. No company publication occurs here.
+
+## Scoped in-app supervision alert reads
+
+`backend/src/db/alerts.ts` reads only `t.reconciliation.finding` events whose
+partition and thread ownership agree with an undeleted, tenant/project-scoped
+session. Exclusive descending sequence pages fetch at most limit+1 (limit1–100).
+No new table, migration, agent DB credentials or raw fleet read is introduced.
+The current-warning predicate joins the tagged parking event, latest thread state
+and current execution head, and excludes every unresolved start intent. A
+successor or manual state change demotes the prior warning to historical. Sector
+links are returned only when the sector row agrees with caller scope. Reads use
+logOp; private execution fields and unbounded reason bodies never enter output.
+HTTP shapes/roles are authoritative in `documentation/backend.md`; liveness
+semantics are in `documentation/agents-supervision.md`.
+
+Alert sessionTitle follows current scoped session metadata: latest rename title,
+otherwise original creation title. It is an identification aid alongside UUID,
+not execution content or authorization. Duplicate titles retain distinct IDs.
+
+Durable file processing retains stored processing/failed/needs-ocr status on all
+document and library reads. Agent document queries expose no text, units or TOC
+until atomic indexed publication; processing metadata is not readable knowledge.
+Original archive bytes remain owner-readable through the scoped file surface.
+
+## Durable PDF jobs and paid receipts
+
+Approved design: `documentation/plans/2026-10-01-pdf-ingestion.md`. Migration0023
+adds file-owned jobs, ordered image identities and immutable attempt rows. Original
+SHA256(base64) and source/settings identity pin the file; final extraction digest
+is separate. Paid replies stage exact serialized normalized responses plus parsed
+JSON before archive completion. New provider requests are admitted at most two
+concurrently through a shared DB transaction lock. Request-start receipts cannot
+be treated as pre-effect failures; absent durable response proof requires explicit
+approver retry with possible duplicate paid work acknowledged. Retries retain
+prior attempts, original bytes and completed image work. No rollback may drop
+nonempty processing receipts. Final publication atomically reveals ordered capped units with page/image provenance
+only after sealed manifest completeness. WIP batches remain unreadable knowledge. Hidden
+files cannot dispatch new images, retry or publish. Model/agent code cannot approve
+retries or acquire DB/archive authority through tool arguments.
+
+### Streamed full-document publication
+
+Version1 manifests remain supported. Version2 holds scoped/hash-verified references
+to bounded version1 record parts, preserving all pages and image placements.
+`streamFileProcessingUnits` yields ordered native/image units; production uses
+`stageAndPublishFileProcessingJob`, not the array inspection helper. Batches of
+at most100 units commit behind the sector workspace advisory lock without the
+global durable-event lock and without archive IO inside a DB transaction.
+Incomplete rows remain hidden from every agent/document query until statusindexed.
+
+Retry may replace nonpublic derived staging units and remove an obsolete staged
+tail for this exact file/revision. Original bytes, manifest parts and every paid
+attempt remain retained, so knowledge is not discarded. The final short workspace
+transaction validates revision, manifest, completed image ownership and staged
+coverage/digest before publishing indexed visibility and its durable event.
+Canonical streaming digests/checkpoints and complete character counts are retained.
+Document text becomes a bounded64,000-code-unit preview; full content stays in
+indexed units and the access-controlled archives, with explicit truncation metadata.
+File metadata listing reads counts rather than transporting full text bodies.
+
+Document chunk budgets are finite integers1..2000 UTF-16 code units. Chunk cuts
+never divide a supplementary Unicode code point into unmatched surrogate halves;
+a one-unit budget cannot hold such a pair and fails explicitly. Paragraph packing
+remains unchanged. This preserves valid JSONB units for emoji/native/OCR text.
+
+### Queued file admission bindings
+
+File jobs persist private dispatch_state(unreserved/reserved/confirmed/uncertain),
+nonce, canonical workflow ID and exact execution ID. Reserve commits before RPC;
+only the owning nonce/revision may record its outcome. Immutable reserve/outcome
+events retain previous heads after owner retry resets admission at a new revision.
+Reserved NOT_FOUND is not proof that a late RPC had no effect. Exact execution
+proof may clear only dispatch-specific uncertainty with no hidden or unknown
+provider work; old acknowledgements cannot reset a successor. These fields are
+never public progress, model authority or approval grants. Maintenance behavior
+and bounds are in `documentation/agents-supervision.md`.

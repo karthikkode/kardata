@@ -9,6 +9,23 @@ provider calls, slow spans).
 
 ## stall
 
+The current worker source starts durable `executionReconciliation` on its existing
+research queue. Verify the matching image/workflow is actually running before
+assuming supervision is active. Its `t.reconciliation.finding` events appear in
+the owning session inspector and sector `db.research_health` historical
+observations. Modern attempts with exact terminal execution, matching current
+epoch/lease and no unresolved start are parked for owner review with an
+`execution.recovery` notice. Legacy/unknown ownership remains advisory. New start
+reservations protect same-ID successors before event/lease acquisition. Inspect
+saved local context/pending operations before deciding recovery. Heartbeat/progress/
+queue observations never cancel a healthy slow workflow. Missing Temporal status means unresolved, not
+dead. Complete cursor rotations add detection latency at large fleet sizes.
+
+Legacy `t.stall.response` response names below describe pure policy decisions;
+they alone do not prove an actual suspend/retry occurred. Alert delivery and
+Prometheus incident wiring must be verified separately from durable finding
+records. Do not treat a seeded metrics test as deployed reconciliation evidence.
+
 - Alert: `KardataStaleHeartbeats` (page). A run is past its operation
   heartbeat threshold (60 s idle, 120 s in-tool).
 - Diagnose: `{container="kardata-backend-1"} |= "stall.sweep"` shows the
@@ -16,10 +33,10 @@ provider calls, slow spans).
   `repeated-calls`, `budget-near`, `context-near`) plus the recorded
   response. The full record is the `t.stall.response` event in the run's
   session partition.
-- Act: `suspend` → the run parked itself for checkpointed resume; inspect
+- Act: verify the actual workflow state, then inspect
   the reason, fix the cause (usually a stuck tool or dead provider call),
   then resume via `POST /v1/commands/resume` (approver role). `retry` →
-  Temporal already retried the activity; watch one retry window before
+  verify the actual Temporal activity attempts; watch one retry window before
   touching anything. `alert` (budget/context-near) → extend the budget via
   resume with `extendedBudgetMs`, or accept the coming suspension.
 - Close: heartbeat resumes (gauge returns to 0) and the next sweep is

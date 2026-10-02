@@ -35,7 +35,95 @@ function request(): ProviderRequest {
   }
 }
 
+describe('provider terminal completion evidence', () => {
+  it.each([
+    ['stop', 'complete'], ['tool_calls', 'complete'], ['function_call', 'complete'],
+    ['length', 'incomplete'], ['content_filter', 'incomplete'],
+    [null, undefined], ['TEST unfamiliar', undefined], [undefined, undefined],
+  ] as const)('maps Chat finish reason %s without guessing or discarding the partial reply', async (reason, expected) => {
+    for (const Adapter of [MetaAdapter, OpenAICompatAdapter]) {
+      const body = { choices: [{ message: { content: 'TEST retained partial reply' }, ...(reason === undefined ? {} : { finish_reason: reason }) }], usage: { prompt_tokens: 11, completion_tokens: 7 } }
+      const adapter = new Adapter({ apiKey: 'TEST key', model: 'TEST model', baseUrl: 'https://TEST-provider.example', fetchFn: stubFetch(JSON.stringify(body), 'application/json') })
+      const response = await adapter.chat(request())
+      expect(response.completion).toBe(expected)
+      if (expected === undefined) expect(response).not.toHaveProperty('completion')
+      expect(response.text).toBe('TEST retained partial reply')
+      expect(response.usage).toMatchObject({ inputTokens: 11, outputTokens: 7 })
+    }
+  })
+  it.each([
+    ['completed', 'complete'], ['incomplete', 'incomplete'], ['failed', 'incomplete'], ['cancelled', 'incomplete'],
+    ['in_progress', undefined], ['queued', undefined], ['TEST unfamiliar', undefined], [undefined, undefined],
+  ] as const)('maps Responses status %s only when it proves terminal completion', async (status, expected) => {
+    const body = { ...(status === undefined ? {} : { status }), output: [{ type: 'message', content: [{ type: 'output_text', text: 'TEST preserved response' }] }], usage: { input_tokens: 9, output_tokens: 3 } }
+    const adapter = new MetaAdapter({ apiKey: 'TEST key', model: 'TEST model', mode: 'responses', fetchFn: stubFetch(JSON.stringify(body), 'application/json') })
+    const response = await adapter.chat(request())
+    expect(response.completion).toBe(expected)
+    if (expected === undefined) expect(response).not.toHaveProperty('completion')
+    expect(response.text).toBe('TEST preserved response')
+    expect(response.usage).toMatchObject({ inputTokens: 9, outputTokens: 3 })
+  })
+  it.each(['stop', 'length', undefined] as const)('retains explicit Chat terminal metadata across stream EOF (%s)', async (reason) => {
+    const frame = { choices: [{ delta: { content: 'TEST streamed reply' }, ...(reason === undefined ? {} : { finish_reason: reason }) }] }
+    const adapter = new MetaAdapter({ apiKey: 'TEST key', model: 'TEST model', fetchFn: stubFetch(`data: ${JSON.stringify(frame)}\n\n`, 'text/event-stream') })
+    const events = []
+    for await (const event of adapter.chatStream(request())) events.push(event)
+    const done = events.find((event) => event.kind === 'done')
+    expect(done).toEqual({ kind: 'done', usage: emptyUsage(), ...(reason === undefined ? {} : { completion: reason === 'stop' ? 'complete' : 'incomplete' }) })
+  })
+  it.each(['completed', 'incomplete', undefined] as const)('preserves Responses stream terminal status %s without treating EOF as proof', async (status) => {
+    const terminal = { type: status === 'incomplete' ? 'response.incomplete' : 'response.completed', response: { ...(status === undefined ? {} : { status }), usage: { input_tokens: 4, output_tokens: 2 } } }
+    const frames = [{ type: 'response.output_text.delta', delta: 'TEST retained streamed text' }, terminal].map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')
+    const adapter = new MetaAdapter({ apiKey: 'TEST key', model: 'TEST model', mode: 'responses', fetchFn: stubFetch(frames, 'text/event-stream') })
+    const events = []
+    for await (const event of adapter.chatStream(request())) events.push(event)
+    expect(events[0]).toEqual({ kind: 'text_delta', text: 'TEST retained streamed text' })
+    expect(events.at(-1)).toEqual({ kind: 'done', usage: { ...emptyUsage(), inputTokens: 4, outputTokens: 2 }, ...(status === undefined ? {} : { completion: status === 'completed' ? 'complete' : 'incomplete' }) })
+  })
+})
+
+describe('input-token endpoint availability', () => {
+  it('bounds billing-error JSON before classifying its whitelisted code', async () => {
+    let cancelled = false
+    const stream = new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode('A'.repeat(64 * 1024 + 1))) }, cancel() { cancelled = true } })
+    const adapter = new MetaAdapter({ apiKey: 'TEST key', model: 'TEST model', mode: 'responses', fetchFn: async () => new Response(stream, { status: 402 }) })
+    await expect(adapter.countInputTokens!(request())).rejects.toMatchObject({ name: 'ProviderError', message: expect.stringContaining('byte limit') })
+    expect(cancelled).toBe(true)
+  })
+  it.each([{}, { input_tokens: -1 }, { input_tokens: 0.5 }, { input_tokens: Number.MAX_SAFE_INTEGER + 1 }])('preserves malformed successful counter replies as failures: %j', async (body) => {
+    const adapter = new MetaAdapter({ apiKey: 'TEST key', model: 'TEST model', mode: 'responses', fetchFn: stubFetch(JSON.stringify(body), 'application/json') })
+    await expect(adapter.countInputTokens!(request())).rejects.toMatchObject({ name: 'ProviderError' })
+  })
+  it.each([404, 405, 501])('classifies only unsupported counter HTTP%s as unavailable', async (status) => {
+    const adapter = new MetaAdapter({ apiKey: 'TEST key', model: 'TEST model', mode: 'responses', fetchFn: stubFetch('TEST private endpoint body', 'text/plain', status) })
+    await expect(adapter.countInputTokens!(request())).rejects.toMatchObject({ name: 'TokenCountUnavailableError', code: 'token_count_unavailable', status, reason: 'unsupported' })
+  })
+  it('classifies the exact count-only billing code without retaining raw body/message', async () => {
+    const adapter = new MetaAdapter({ apiKey: 'TEST key', model: 'TEST model', mode: 'responses', fetchFn: stubFetch(JSON.stringify({ error: { code: 'billing_not_configured', message: 'TEST private billing message' } }), 'application/json', 402) })
+    const error = await adapter.countInputTokens!(request()).catch((failure: unknown) => failure)
+    expect(error).toMatchObject({ name: 'TokenCountUnavailableError', code: 'token_count_unavailable', status: 402, reason: 'billing_not_configured' })
+    expect(String(error)).not.toContain('TEST private')
+  })
+  it.each([402, 401, 403, 429, 503])('keeps HTTP%s generic errors distinct from counter unavailability', async (status) => {
+    const adapter = new MetaAdapter({ apiKey: 'TEST key', model: 'TEST model', mode: 'responses', fetchFn: stubFetch(JSON.stringify({ error: { code: 'TEST another code', message: 'TEST secret message' } }), 'application/json', status) })
+    const error = await adapter.countInputTokens!(request()).catch((failure: unknown) => failure)
+    expect(error).toMatchObject({ name: 'ProviderError' })
+    expect(String(error)).not.toContain('TEST secret')
+  })
+})
+
 describe('MetaAdapter', () => {
+  it.each([false, true])('clamps Meta Responses none to auto without adding tools (stream=%s)', async (stream) => {
+    let body: Record<string, unknown> | undefined
+    const adapter = new MetaAdapter({ apiKey: 'TEST key', model: 'TEST model', mode: 'responses', fetchFn: async (_url, init) => {
+      body = JSON.parse(String(init?.body)) as Record<string, unknown>
+      return new Response(stream ? 'data: [DONE]\n\n' : JSON.stringify({ status: 'completed', output: [], usage: {} }), { headers: { 'content-type': stream ? 'text/event-stream' : 'application/json' } })
+    } })
+    const input = { ...request(), tools: [], toolChoice: { mode: 'none' as const } }
+    if (stream) { for await (const _event of adapter.chatStream(input)) { /* consume */ } } else await adapter.chat(input)
+    expect(body).toMatchObject({ tool_choice: 'auto', tools: [] })
+    expect(input.toolChoice.mode).toBe('none')
+  })
   it('maps chat-wire parallel calls with zeroed cache counters', async () => {
     const adapter = new MetaAdapter({
       apiKey: 'test',

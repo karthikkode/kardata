@@ -36,6 +36,8 @@ export interface ResearchHealth {
   liveThreads: number
   /** True when the sector claims running but no thread is open. */
   stale: boolean
+  /** Historical observations, not an assertion these warnings remain active. */
+  recentSupervision: Array<{ threadKey: string; kind: string; response: string; reason: string; at: string }>
 }
 
 export async function researchHealth(
@@ -59,7 +61,7 @@ export async function researchHealth(
   for (const session of sessions) {
     const threads = await listThreads(db, session.id)
     const rows = threads.map((thread) => {
-      if (thread.status !== 'FINISHED') liveThreads += 1
+      if (!['FINISHED','ERROR','PAUSED','SUSPENDED'].includes(thread.status)) liveThreads += 1
       return {
         key: thread.key,
         status: thread.status,
@@ -70,6 +72,12 @@ export async function researchHealth(
     })
     sessionHealth.push({ sessionId: session.id, threads: rows })
   }
+  const { rows: supervision } = await db.query<{ payload: { threadKey: string; kind: string; response: string; reason: string }; at: Date }>(
+    `SELECT payload,at FROM events WHERE type='t.reconciliation.finding'
+      AND partition=ANY($1::text[]) AND payload->>'threadKey'=ANY($2::text[])
+      ORDER BY seq DESC LIMIT 20`,
+    [sessionHealth.map((session) => `session:${session.sessionId}`),sessionHealth.flatMap((session) => session.threads.map((thread) => thread.key))],
+  )
   return {
     sector: { id: sector.id, name: sector.name, state: sector.state },
     activityEntries: head.total,
@@ -77,5 +85,6 @@ export async function researchHealth(
     sessions: sessionHealth,
     liveThreads,
     stale: sector.state === 'running' && liveThreads === 0,
+    recentSupervision: supervision.map((row) => ({ threadKey: row.payload.threadKey,kind: row.payload.kind,response: row.payload.response,reason: row.payload.reason,at: new Date(row.at).toISOString() })),
   }
 }

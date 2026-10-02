@@ -120,7 +120,7 @@ export function CompanySection({
       <div className="mt-2">
         {companies.status === 'loading' ? (
           <SkeletonRows label={`Companies in ${sectorName} are loading`} />
-        ) : companies.status === 'error' ? (
+        ) : companies.status === 'error' || companies.status === 'offline' ? (
           <PanelError
             heading="Companies did not load."
             detail="Check your connection and try again."
@@ -142,6 +142,7 @@ export function CompanySection({
               <CompanyRow key={item.id} research={item} />
             ))}
           </OverflowList>
+          {companies.moreError ? <p role="alert" className="mt-2 rounded-lg border border-border bg-muted/30 p-3 text-xs">{companies.moreError} Your loaded companies are saved. Try Show more again.</p> : null}
           {(total ?? rows.length) > rows.length ? (
             <div className="mt-2 flex justify-center">
               <Button

@@ -1,3 +1,5 @@
+import { useSupervisionAlerts } from './data/alerts'
+import { SupervisionAlertsPanel } from './components/SupervisionAlertsPanel'
 import { useEffect, useRef, useState } from 'react'
 import { ChatPanel, type ChatScope } from './components/ChatPanel'
 import { Dashboard, type ResearchList } from './components/Dashboard'
@@ -56,6 +58,7 @@ export default function App() {
   // the app explains instead of inventing data. Read once; flipping the
   // flag reloads.
   const [staging] = useState<StagingConfig | null>(() => stagingConfig())
+  const alerts = useSupervisionAlerts(staging, section === 'Agents')
 
   function focusChatToggle() {
     requestAnimationFrame(() => {
@@ -150,13 +153,16 @@ export default function App() {
     }
   }
 
-  async function approveCurrentSector(version: number) {
+  async function approveCurrentSector(version: number, contextVersion?: number) {
     if (!sectorId || !staging) return
     setResearchBusy(true)
     setResearchError(null)
     try {
-      await approveSectorPlan(staging, sectorId, version)
+      await approveSectorPlan(staging, sectorId, version, contextVersion)
       detailData.refresh()
+      workspace.plan.refresh()
+      workspace.progress.refresh()
+      workspace.global.refresh()
     } catch (error: unknown) {
       setResearchError(error instanceof Error ? error.message : 'Approve failed.')
     } finally {
@@ -165,14 +171,17 @@ export default function App() {
   }
 
   async function editCurrentSectorPlan(markdown: string) {
-    if (!sectorId || !staging) return
+    if (!sectorId || !staging) return false
     setResearchBusy(true)
     setResearchError(null)
     try {
       await updateSectorPlan(staging, sectorId, markdown)
       detailData.refresh()
+      workspace.plan.refresh()
+      return true
     } catch (error: unknown) {
       setResearchError(error instanceof Error ? error.message : 'Plan edit failed.')
+      return false
     } finally {
       setResearchBusy(false)
     }
@@ -232,7 +241,7 @@ export default function App() {
       : []
 
   if (section === 'SectorChat' && detailData.detail && staging && detailData.status !== 'denied') {
-    return <SectorWorkspace sector={detailData.detail} model={workspace} config={staging} dark={dark} onTheme={() => setDark((value) => !value)} onBack={() => setNav({ section: 'SectorDetail', sessionId: null, threadKey: null })} actions={{ busy: researchBusy, error: researchError, plan: () => void planCurrentSector(), approve: (version) => void approveCurrentSector(version), start: () => void startCurrentSector(), pause: () => void pauseCurrentSector(), resume: () => void resumeCurrentSector(), edit: (markdown) => void editCurrentSectorPlan(markdown) }} />
+    return <SectorWorkspace sector={detailData.detail} model={workspace} config={staging} dark={dark} onTheme={() => setDark((value) => !value)} onBack={() => setNav({ section: 'SectorDetail', sessionId: null, threadKey: null })} actions={{ busy: researchBusy, error: researchError, plan: () => void planCurrentSector(), approve: (version, contextVersion) => void approveCurrentSector(version, contextVersion), start: () => void startCurrentSector(), pause: () => void pauseCurrentSector(), resume: () => void resumeCurrentSector(), edit: editCurrentSectorPlan }} />
   }
   return (
     <div className="flex min-h-screen bg-muted/40 text-foreground">
@@ -316,10 +325,13 @@ export default function App() {
                 onBack={() => setNav({ section: 'Researches', sectorId: null })}
               />
             ) : section === 'Agents' ? (
+              <>
+              <SupervisionAlertsPanel resource={alerts.resource} viewingOlder={alerts.viewingOlder} onOlder={alerts.older} onLatest={alerts.latest} />
               <RunsPanel
                 config={staging}
                 onBack={() => setNav({ section: 'Overview', sectorId: null })}
               />
+              </>
             ) : section === 'Models' ? (
               <ModelsPanel
                 config={staging}

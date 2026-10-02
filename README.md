@@ -1,7 +1,6 @@
 # Kardata
 
-Rebuild home. Product vision lives in `documentation/vision.md` (write it first :
-everything below hangs off it).
+Rebuild home. Product vision lives in `documentation/vision.md`; area docs govern its implementation.
 
 ## Map
 
@@ -16,6 +15,27 @@ everything below hangs off it).
 | `documentation/` | All area docs plus cross-cutting decisions. | `documentation/README.md` |
 | `agents/` | Karbot agent harness (own turn loop, providers, tools, subagents, context). No donor servers, persistence, auth, or telemetry. | `documentation/agents.md` |
 | `third_party/` | Pinned donor references (manifest, licenses, patches, upstream tests). Reference only: never imported at runtime. | `third_party/README.md` |
+
+Owner execution inspection lives in `backend/src/routes/execution-records.ts`
+over scoped journal reads in `backend/src/db/execution-records.ts`, with the
+Local context entry and `frontend/src/components/ExecutionInspector.tsx` view.
+Its contracts remain in the backend, DB and frontend area docs below.
+
+Owner review of unresolved basic-intake candidates shares PlanProgress on the
+landing dialog and workspace Plan tab, through `backend/src/db/work-review.ts`
+and the approver-only workspace route. Its contract is in the research/backend/DB
+and frontend area docs; pilot acceptance remains a separate pending gate.
+
+In-app supervision alerts on the existing Agents page read durable, scoped
+observations through `backend/src/db/alerts.ts` and `backend/src/routes/alerts.ts`.
+Contracts live in the backend/DB/frontend and supervision area docs; external
+notification delivery is not configured.
+
+Backend live-DB tests prepare a run-scoped, sealed PostgreSQL schema template
+through `tests/backend/db-setup.ts` before feature test clocks. Each invocation
+of the shared helper still creates a separate, validated empty UUID database;
+the configured base and interrupted databases are never reused or purged.
+The test contract and fixture rules live in `documentation/tests.md`.
 
 ## Conventions
 
@@ -40,6 +60,19 @@ everything below hangs off it).
 4. `documentation/README.md` lists cross-cutting decisions that override area docs.
 
 ## Status
+
+Repo-wide hardening is in progress on a separate branch. Approved contract:
+`documentation/plans/2026-09-30-repo-hardening.md`; operational file/feature
+inventory and runnable acceptance gate: `docs/deep-checks/README.md`. Pending
+reviews and live-pilot gaps are explicit and do not count as completed capability.
+The final UI-driven campaign and basic-filtering contract are in
+`documentation/plans/2026-10-01-final-acceptance.md`; its functionality/scenario
+matrix is `docs/deep-checks/acceptance.json`. The final audit command runs both
+file-review and functionality-acceptance gates.
+
+Historical implementation milestones below retain their original phase counts;
+current verification and unfinished release gates are tracked in
+`docs/implementation-status.md` and `docs/deep-checks/README.md`.
 
 Frontend harness built: Vite + React + TypeScript, Tailwind tokens, owned
 primitives, Vitest + Playwright gates : all green from a clean install.
@@ -83,9 +116,21 @@ House markdown: GFM replies through a safe renderer (`Markdown.tsx`,
 no raw HTML, http(s)-only links), format contracted in the system prompt.
 Checkpoint hardening: `npm run test:coverage` (istanbul) at 76% lines,
 offline/SSE-resume regression tests, dead `ui/dialog` removed.
-`documentation/vision.md` is still the first product doc to write.
+`documentation/vision.md` defines the product scope and commercial guardrails.
 
 Run from the repo root (Node 22): `npm run dev` (app), `npm test` (all
 workspaces), `npm run test:e2e` (browser smoke), `npm run lint`,
 `npm run typecheck`, `npm run build`. Live probes:
 `npm run test:live --workspace=@kardata/agents` (needs keys, skips without).
+
+Curated hardening UI evidence is retained locally (ignored binaries) under
+`tests/evidence/hardening-2026-10-01/`; generated browser runs remain ignored.
+See `docs/deep-checks/README.md` for commands and acceptance gaps.
+
+Public-source transport has a separate opt-in real DNS/TLS check, documented in
+`documentation/tests.md` (`KARDATA_RETRIEVAL_TEST`). It is not browser-network
+isolation or evidence of the Meta UI pilot.
+
+Agent browser network protection is an execution-only transport on the existing
+backend listener, specified in `documentation/backend.md`; deployment wiring
+remains in `documentation/deployment.md`. It adds no product service or framework.

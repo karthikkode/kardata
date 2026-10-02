@@ -1,7 +1,7 @@
 // Research data bundles (staging-only). Components render ResearchData
 // bundles from the backend; without credentials the flag-off path renders
 // a not-configured notice, never sample data.
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   getSectorDetail,
   listCompanies,
@@ -95,6 +95,7 @@ export interface CompanyFilters {
 export const COMPANY_WINDOW = 100
 
 export interface CompanyData extends ResearchData<CompanyResearch> {
+  moreError: string | null
   /** True while the next window appends; the loaded rows stay visible. */
   loadingMore: boolean
   /** Fetch the next window and append it (id-deduped). No-op at the total. */
@@ -109,6 +110,9 @@ export function useStagingCompanies(
   const [items, setItems] = useState<CompanyResearch[]>([])
   const [total, setTotal] = useState<number | undefined>(undefined)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [moreError, setMoreError] = useState<string | null>(null)
+  const wantedWindow = useRef(COMPANY_WINDOW)
+  const nextOffset = useRef(0)
   const [attempt, retry] = useRefetch()
   const [moreNonce, setMoreNonce] = useState(0)
   const state = filters.state ?? ''
@@ -125,10 +129,14 @@ export function useStagingCompanies(
 
   // Reset during render, never in the fetch effect: when the query
   // changes the previous rows no longer belong to it.
-  const query = config ? `${config.baseUrl} ${config.apiKey} ${state} ${needle} ${sector} ${attempt}` : null
+  const query = config ? `${config.baseUrl} ${config.apiKey} ${state} ${needle} ${sector}` : null
   const [activeQuery, setActiveQuery] = useState<string | null>(null)
   if (activeQuery !== query) {
     setActiveQuery(query)
+    setItems([])
+    setMoreNonce(0)
+    setLoadingMore(false)
+    setMoreError(null)
     if (query === null) {
       setItems([])
       setTotal(undefined)
@@ -140,14 +148,36 @@ export function useStagingCompanies(
   }
 
   useEffect(() => {
+    wantedWindow.current = COMPANY_WINDOW
+    nextOffset.current = 0
+  }, [query])
+
+  useEffect(() => {
     if (!config) return
     let live = true
-    listCompanies(config, { ...serverFilters(), limit: COMPANY_WINDOW, offset: 0 })
+    const wanted = wantedWindow.current
+    const readWindow = async () => {
+      const companies: CompanyResearch[] = []
+      let count = 0
+      let consumed = 0
+      for (let offset = 0; offset < wanted; offset += COMPANY_WINDOW) {
+        const page = await listCompanies(config, { ...serverFilters(), limit: COMPANY_WINDOW, offset })
+        if (!live) return undefined
+        companies.push(...page.companies)
+        consumed = offset + page.companies.length
+        count = page.total
+        if (companies.length >= count || page.companies.length === 0) break
+      }
+      return { companies: [...new Map(companies.map((company) => [company.id, company])).values()], total: count, nextOffset: consumed }
+    }
+    readWindow()
       .then((page) => {
-        if (!live) return
+        if (!live || !page || wanted !== wantedWindow.current) return
         setItems(page.companies)
+        nextOffset.current = page.nextOffset
         setTotal(page.total)
         setLoadingMore(false)
+        setMoreError(null)
         setStatus('ready')
       })
       .catch((error: unknown) => {
@@ -163,9 +193,11 @@ export function useStagingCompanies(
   useEffect(() => {
     if (!config || moreNonce === 0) return
     let live = true
-    listCompanies(config, { ...serverFilters(), limit: COMPANY_WINDOW, offset: items.length })
+    const offset = nextOffset.current
+    listCompanies(config, { ...serverFilters(), limit: COMPANY_WINDOW, offset })
       .then((page) => {
         if (!live) return
+        nextOffset.current = offset + page.companies.length
         setItems((current) => {
           const seen = new Set(current.map((row) => row.id))
           return [...current, ...page.companies.filter((row) => !seen.has(row.id))]
@@ -173,24 +205,27 @@ export function useStagingCompanies(
         setTotal(page.total)
         setLoadingMore(false)
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (!live) return
         setLoadingMore(false)
+        setMoreError(error instanceof Error ? error.message : 'More companies did not load. Try again.')
       })
     return () => {
       live = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [moreNonce])
+  }, [moreNonce, query])
 
   function showMore(): void {
     if (loadingMore) return
     if (total !== undefined && items.length >= total) return
     setLoadingMore(true)
+    setMoreError(null)
+    wantedWindow.current = nextOffset.current + COMPANY_WINDOW
     setMoreNonce((value) => value + 1)
   }
 
-  return { status, items, total, loadingMore, showMore, retry }
+  return { status, items, total, loadingMore, moreError, showMore, retry }
 }
 
 export interface SectorDetailData {

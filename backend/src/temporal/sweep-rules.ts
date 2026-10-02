@@ -131,6 +131,7 @@ export function extractNewDomains(
   hits: CandidateHit[],
   alreadySeen: string[],
   signals: readonly string[] = [],
+  basicFiltering = false,
 ): CandidateCompany[] {
   const seen = new Set(alreadySeen.map((domain) => domain.toLowerCase()))
   const fresh: CandidateCompany[] = []
@@ -139,7 +140,9 @@ export function extractNewDomains(
     if (!host) continue
     const domain = host.startsWith('www.') ? host.slice(4) : host
     if (seen.has(domain)) continue
+    if (basicFiltering && !basicCompanyHit(hit, domain)) continue
     if (
+      !basicFiltering && (
       domain.endsWith('google.com') ||
       domain.endsWith('bing.com') ||
       domain.endsWith('linkedin.com') ||
@@ -147,7 +150,7 @@ export function extractNewDomains(
       domain.endsWith('twitter.com') ||
       domain.endsWith('x.com') ||
       domain.endsWith('youtube.com') ||
-      domain.endsWith('wikipedia.org')
+      domain.endsWith('wikipedia.org'))
     ) {
       continue
     }
@@ -158,6 +161,28 @@ export function extractNewDomains(
     fresh.push({ domain, name: hit.title.slice(0, 200) || domain, url: hit.url })
   }
   return fresh
+}
+
+const NON_COMPANY_DOMAINS = [
+  'google.com', 'bing.com', 'duckduckgo.com', 'linkedin.com', 'facebook.com',
+  'twitter.com', 'x.com', 'youtube.com', 'wikipedia.org', 'seek.com.au',
+  'indeed.com', 'glassdoor.com', 'yellowpages.com.au', 'truelocal.com.au',
+  'hotfrog.com.au', 'yelp.com', 'yelp.com.au', 'tripadvisor.com',
+]
+
+/** Metadata screening only, not a deep-research verdict or geographic proof.
+ * Keep legacy callers unchanged for durable workflow replay. */
+function basicCompanyHit(hit: CandidateHit, domain: string): boolean {
+  const authority = /^https?:\/\/([^/?#]+)(?:[/?#]|$)/i.exec(hit.url.trim())?.[1]
+  if (!authority || !/^[a-z0-9.-]+(?::\d{1,5})?$/i.test(authority)) return false
+  const port = authority.split(':')[1]
+  if (port && (Number(port) < 1 || Number(port) > 65535)) return false
+  if (NON_COMPANY_DOMAINS.some((blocked) => domain === blocked || domain.endsWith(`.${blocked}`))) return false
+  const path = /^https?:\/\/[^/?#]+([^?#]*)/i.exec(hit.url.trim())?.[1] ?? ''
+  if (/\/(?:blogs?|news|articles?|careers?|jobs?|vacancies|directory|directories|listings?)(?:[/.?#-]|$)/i.test(path)) return false
+  if (/\b(?:top|best)\s+\d+\b|\b\d+\s+(?:top|best)\b|\bdirectory\b|\bjob\s+(?:board|listings?)\b|\bjobs\s+(?:in|for)\b|\bvacancies\b/i.test(hit.title)) return false
+  if (/\bdirectory of\b|\bbrowse\b.{0,50}\blistings\b|\bjob vacancies\b/i.test(hit.snippet ?? '')) return false
+  return true
 }
 
 /** Cancellation shapes for the sweep workflow (mirrors the two shapes

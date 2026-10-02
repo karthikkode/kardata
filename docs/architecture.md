@@ -314,7 +314,9 @@ events ──retention──▶ cold archive (GCS) ──replay──┘
 - Snapshot-overflow rule (named): backlog past the token longer than
   `SNAPSHOT_THRESHOLD` (200) opens with one `state` frame carrying the
   live thread plus the latest token instead of replaying history. The
-  client re-renders from the snapshot and tails from its token.
+  client reloads bounded durable message pages when `historyRefresh: true`,
+  then accepts the token and tails. A failed reload retries the prior token.
+  Snapshot token capture precedes the thread view to avoid dropping concurrent commits.
 - Liveness: `: ping` comments every 15 s; one `LISTEN` connection per
   stream, released with `UNLISTEN` on close. A mid-stream failure closes
   the connection and the client resumes from its last good token, which is
@@ -595,8 +597,9 @@ events ──retention──▶ cold archive (GCS) ──replay──┘
   by content hash, the version in its own field and never inside the
   model-visible text), so sibling sessions always share world-state with no
   invalidation. Sector chats load digest + included units through the
-  prompt seam after KB preload, capped at 24k chars; general sessions
-  skip it; sector reads fail closed to context-free turns. Proven by
+  versioned shared references at safe provider boundaries. The assembled
+  request uses the independent 100,000-token/window budget; failures park
+  the operation instead of silently dropping sector context. Proven by
   `tests/backend/sector-context.test.ts` and `tests/backend/karbot.turn.test.ts`.
 - Sector context endpoints (migration `0011`): `GET
   /v1/sectors/{id}/context` returns the exact assembled payload behind the
@@ -781,3 +784,11 @@ events ──retention──▶ cold archive (GCS) ──replay──┘
   queries or describes — so answers reflect the durable log and can lag
   live workflow truth. Viewers get 403, cross-tenant callers get 404 with
   no payload. Proven by `tests/backend/api.inspector.test.ts`.
+
+Hardening archive boundary: new artifact records point at a content-addressed
+body; prior flat keys are still supported. Conflicting concurrent writes retain
+the recorded winner. Archive keys reject traversal and malformed paths; local
+writes use an atomic rename. Listing failures propagate instead of pretending
+the archive is empty. Code rollback must preserve the metadata-aware artifact
+reader for newly written objects; reverting to the former flat-key reader alone
+is unsafe. No stored content is deleted by this change.

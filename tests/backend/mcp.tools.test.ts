@@ -19,9 +19,10 @@ import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import type { DbQueryResult } from '../../backend/src/db/index.js'
 import { DbContractError } from '../../backend/src/db/index.js'
 import * as dbLayer from '../../backend/src/db/index.js'
+import * as fileIngestion from '../../backend/src/file-ingestion.js'
 import * as retrievalBrowser from '../../backend/src/retrieval/browser.js'
 import * as retrievalWeb from '../../backend/src/retrieval/web.js'
-import { createMcpServer, invokeTool, McpToolError, TOOL_LAYER, TOOL_META, toolCapability } from '../../backend/src/mcp/tools.js'
+import { createMcpServer, invokeTool, McpToolError, TOOL_LAYER, TOOL_META, toolCapability, PLATFORM_INTERNAL_TOOLS } from '../../backend/src/mcp/tools.js'
 import { TOOL_NAMES, type McpToolName } from '../../backend/src/mcp/schemas.js'
 import type { TransactableDb } from '../../backend/src/db/index.js'
 
@@ -258,6 +259,7 @@ describe('mcp tool parity (Phase 2)', () => {
     // namespaces count as layer functions here.
     const layers: Record<string, unknown> = {
       ...(dbLayer as Record<string, unknown>),
+      ...(fileIngestion as Record<string, unknown>),
       ...(retrievalWeb as Record<string, unknown>),
       ...(retrievalBrowser as Record<string, unknown>),
       delegateSubagent: TemporalRunsGateway.prototype.delegateSubagent,
@@ -275,20 +277,23 @@ describe('mcp tool parity (Phase 2)', () => {
   it('valid args pass tool schema and layer validation; invalid args fail before any query', async () => {
     for (const name of TOOL_NAMES) {
       const { db, state } = makeFake()
-      const ctx = { pool: db, scope: SCOPE, role: 'approver' as const, keyId: 'test-key' }
+      const ctx = { pool: db, scope: SCOPE, role: 'approver' as const, keyId: 'test-key', runs: { async startSectorSweep() { throw new Error('Runner must not execute before DB validation') }, async cancelSectorSweep() { throw new Error('Runner must not execute before DB validation') } } }
       const sample = SAMPLES[name]
       // Retrieval tools touch the network/browser: their valid path is
       // proven by dedicated tests with injected doubles, never here.
       if (sample.invoke !== false) {
+        if (name === 'db.subscribe_outbox') {
+          await expect(invokeTool(name, ctx, sample.valid)).rejects.toMatchObject({ code: 'permission_denied' })
+        }
         try {
-          await invokeTool(name, ctx, sample.valid)
+          await invokeTool(name, PLATFORM_INTERNAL_TOOLS.has(name) ? { ...ctx, scope: undefined } : ctx, sample.valid)
         } catch (error) {
           expect(error, `${name} valid sample`).toBeInstanceOf(QueryReached)
         }
       }
       const bad = makeFake()
       const badCtx = { pool: bad.db, scope: SCOPE, role: 'approver' as const, keyId: 'test-key' }
-      const failure = await invokeTool(name, badCtx, sample.invalid).then(
+      const failure = await invokeTool(name, PLATFORM_INTERNAL_TOOLS.has(name) ? { ...badCtx, scope: undefined } : badCtx, sample.invalid).then(
         () => undefined,
         (error: unknown) => error,
       )
@@ -419,7 +424,7 @@ describe('mcp transport (Phase 2)', () => {
           rows: [{ key_id: `k-${role}`, tenant_id: 'tenant-a', project_id: null, roles: role }] as never,
         }
       }
-      if (/FROM heartbeats/.test(text)) {
+      if (/FROM heartbeats|FROM events/.test(text)) {
         return { rowCount: 0, rows: [] as never }
       }
       throw new QueryReached(text)
@@ -444,7 +449,7 @@ describe('mcp transport (Phase 2)', () => {
       await initialize(operatorApp, { authorization: 'Bearer key-operator' })
       const operatorCall = await postMcp(
         operatorApp,
-        rpc('tools/call', { name: 'db.list_heartbeats', arguments: {} }, 2),
+        rpc('tools/call', { name: 'db.list_sessions', arguments: {} }, 2),
         { authorization: 'Bearer key-operator' },
       )
       expect(operatorCall.status).toBe(200)
@@ -560,7 +565,7 @@ describe('mcp transport (Phase 2)', () => {
     }
   })
 
-  it('replays idempotent POSTs and conflicts on key reuse', async () => {
+  it('replays mutations across RPC ids and conflicts on changed semantic input', async () => {
     const stored = new Map<string, { fingerprint: string; status: number; body: unknown }>()
     const { db } = makeFake(async (text, params) => {
       if (/FROM idempotency_records/.test(text)) {
@@ -582,7 +587,8 @@ describe('mcp transport (Phase 2)', () => {
         }
         return { rowCount: 1, rows: [] as never }
       }
-      if (/FROM heartbeats/.test(text)) {
+      if (/INSERT INTO heartbeats/.test(text)) return { rowCount: 1, rows: [] as never }
+      if (/FROM heartbeats|FROM events/.test(text)) {
         return { rowCount: 0, rows: [] as never }
       }
       throw new QueryReached(text)
@@ -590,7 +596,7 @@ describe('mcp transport (Phase 2)', () => {
     const app = buildApp({ pool: db })
     try {
       await initialize(app)
-      const body = rpc('tools/call', { name: 'db.list_heartbeats', arguments: {} }, 7)
+      const body = rpc('tools/call', { name: 'db.record_heartbeat', arguments: { runId: 'TEST replay run', op: 'turn', busy: false } }, 7)
       const first = await app.inject({
         method: 'POST',
         url: '/mcp',
@@ -602,15 +608,17 @@ describe('mcp transport (Phase 2)', () => {
         method: 'POST',
         url: '/mcp',
         headers: { ...MCP_HEADERS, 'idempotency-key': 'idem-1' },
-        payload: body,
+        payload: JSON.stringify({ ...JSON.parse(body), id: 8 }),
       })
       expect(second.statusCode).toBe(200)
-      expect(second.body).toBe(first.body)
+      expect(second.json().id).toBe(8)
+      expect(second.json().result).toEqual(first.json().result)
+      expect(stored.size).toBe(1)
       const conflict = await app.inject({
         method: 'POST',
         url: '/mcp',
         headers: { ...MCP_HEADERS, 'idempotency-key': 'idem-1' },
-        payload: rpc('tools/call', { name: 'db.list_heartbeats', arguments: {} }, 8),
+        payload: rpc('tools/call', { name: 'db.record_heartbeat', arguments: { runId: 'TEST replay run', op: 'other', busy: false } }, 9),
       })
       expect(conflict.statusCode).toBe(409)
     } finally {
@@ -658,7 +666,7 @@ describe('mcp authz hardening (Wave 1)', () => {
       expect(state.queries, name).toBe(0)
 
       const approver = makeFake()
-      const reached = await invokeTool(name, ctxFor(approver.db, 'approver', 'key-a'), SAMPLES[name].valid).then(
+      const reached = await invokeTool(name, { ...ctxFor(approver.db, 'approver', 'key-a'), scope: undefined }, SAMPLES[name].valid).then(
         () => 'layer-accepted',
         (error: unknown) => error,
       )
@@ -742,8 +750,8 @@ describe('mcp authz hardening (Wave 1)', () => {
       }
       throw new QueryReached(text)
     })
-    const first = await invokeTool('db.claim_idempotency', ctxFor(db, 'approver', 'key-a'), { key: 'k', fingerprint: 'f' })
-    const second = await invokeTool('db.claim_idempotency', ctxFor(db, 'approver', 'key-b'), { key: 'k', fingerprint: 'f' })
+    const first = await invokeTool('db.claim_idempotency', { ...ctxFor(db, 'approver', 'key-a'), scope: undefined }, { key: 'k', fingerprint: 'f' })
+    const second = await invokeTool('db.claim_idempotency', { ...ctxFor(db, 'approver', 'key-b'), scope: undefined }, { key: 'k', fingerprint: 'f' })
     expect(first).toMatchObject({ kind: 'proceed' })
     // Same raw key from another caller is an independent claim, not a conflict.
     expect(second).toMatchObject({ kind: 'proceed' })
@@ -779,7 +787,7 @@ describe('mcp tool-execution logging', () => {
     const { lines, stream } = capture()
     const { db } = makeFake()
     // Empty batch projects nothing: succeeds against the fake without a query.
-    await invokeTool('db.project_batch', loggedCtx(db, stream), { events: [] })
+    await invokeTool('db.project_batch', { ...loggedCtx(db, stream), scope: undefined }, { events: [] })
     const events = lines.map((line) => JSON.parse(line) as Record<string, unknown>)
     expect(events).toHaveLength(2)
     expect(events[0]).toMatchObject({ event: 'tool.call.start', op: 'tool.call', tool: 'db.project_batch' })
@@ -793,7 +801,7 @@ describe('mcp tool-execution logging', () => {
     const { db } = makeFake()
     // append_event reaches the fake DB and blows up: the error line must
     // land and the original rejection must survive (logged, never swallowed).
-    const failure = await invokeTool('db.append_event', loggedCtx(db, stream), {
+    const failure = await invokeTool('db.append_event', { ...loggedCtx(db, stream), scope: undefined }, {
       idempotencyKey: 'k1',
       partition: 'p',
       type: 't',
@@ -811,7 +819,7 @@ describe('mcp tool-execution logging', () => {
 
   it('no logger means no log lines but the tool still runs', async () => {
     const { db } = makeFake()
-    const result = await invokeTool('db.project_batch', { pool: db, scope: SCOPE, role: 'approver', keyId: 'key-a' }, { events: [] })
+    const result = await invokeTool('db.project_batch', { pool: db, scope: undefined, role: 'approver', keyId: 'key-a' }, { events: [] })
     expect(result).toMatchObject({ applied: 0 })
   })
 })
@@ -856,7 +864,7 @@ describe('mcp monitor and steer tools', () => {
   }
 
   function ctxForRole(db: TransactableDb, role: 'viewer' | 'operator' | 'approver', extra: Record<string, unknown> = {}) {
-    return { pool: db, scope: SCOPE, role, keyId: 'key-a', ...extra }
+    return { pool: db, scope: undefined, role, keyId: 'key-a', ...extra }
   }
 
   it('send queues through the messenger and steer passes the gateway verdict back', async () => {

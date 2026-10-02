@@ -1,0 +1,6094 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "bbc0be33bdec3a11879b975b95c5ee88bf52bd0c3d85414bea5f24a3318fe4f8",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "647b907f1357b830df15667bedc4030ec30ab687612ecd80488a6633dc27efaf",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "dfc90718c64dc90a571d65092cebe528612b0a5d6d116f9711f7c0f17c270f19",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "README.md",
+      "sha256": "ddc2c7ecf67a2d9618e92a0d360acc205e7fbac183f6a4edc0590ea8c2f34b98",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/.env.example",
+      "sha256": "783ace97728997022f29dfe82eb79eb12bd3690b0184da64f13fc7c51627df9b",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/README.md",
+      "sha256": "2cb0f1798b16c2ec1fee2180de435c5348e6a27783f7649060d139c84ffdbcb4",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/eslint.config.js",
+      "sha256": "ff655ce4abc6d885e7f3afb0e0f1092d60f3af2155c12bb3f8c4741155c4ebb2",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "default"
+      ]
+    },
+    {
+      "path": "agents/package.json",
+      "sha256": "8af7a42ee000a4ac6588519b3c7156a95151e0610effc21a8cacf5b47296d575",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/adapters.test.ts",
+      "sha256": "82e06f447028925d33caa8343c1cca6a368667756670a55f6486f280fc13301f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/budgets.test.ts",
+      "sha256": "f1de0999439b2bf839b2f178c7ecbe9612061b0dc3617745389572e7717c18af",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/budgets.ts",
+      "sha256": "1a035b583296da34016511e122831e7fc08aafc1f98d0d6ad482e2780e99d442",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "BudgetLimits",
+        "BudgetTracker",
+        "RepeatVerdict",
+        "RepetitionTracker",
+        "TrippedBudget",
+        "fingerprintAction"
+      ]
+    },
+    {
+      "path": "agents/src/chaos.test.ts",
+      "sha256": "c344cdfe2b60cca12887f808a4538c5f9f926d885960f594fef55f6a6c3e1eb4",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/clock.test.ts",
+      "sha256": "b07acb382796eda692949c86113868504c252d3d8d3f9d3d3b214df6b407e7c7",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/clock.ts",
+      "sha256": "33e110be1d556731f6bfe3cfff173fc6577e7d6b302c57e5f053c5cab78d78f1",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "Clock",
+        "frozenClock",
+        "seededRng",
+        "systemClock"
+      ]
+    },
+    {
+      "path": "agents/src/compaction.test.ts",
+      "sha256": "a37568afc5b324e3bdc1881a198cb505a280f339755d424d8179d34ea85512eb",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/compaction.ts",
+      "sha256": "fbd6749d617d301c0939292e9ce01812f16236f837198738f53d5abe07fd767c",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ContextBudgetError",
+        "DEFAULT_INPUT_BUDGET",
+        "InputTokenMeasurement",
+        "OUTPUT_RESERVE",
+        "assembledTokens",
+        "compactContext",
+        "contextInputBudget",
+        "measureInputTokens"
+      ]
+    },
+    {
+      "path": "agents/src/condense.ts",
+      "sha256": "bfc492851be6c1c07ca51935a3891fd85cdf3d187797f7efd031478c4e7e7a24",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "CondenseOptions",
+        "CondenseReason",
+        "CondenseResult",
+        "SummaryArtifact",
+        "UnitLedger",
+        "UnitTotals",
+        "condense"
+      ]
+    },
+    {
+      "path": "agents/src/config.ts",
+      "sha256": "c17d02d9e867599f2c4b91b0741b9bdc6a08753bee0edc3a15b9277a602c147a",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "LiveProviderConfig",
+        "applyDotEnv",
+        "parseDotEnv",
+        "readLiveConfig"
+      ]
+    },
+    {
+      "path": "agents/src/context.test.ts",
+      "sha256": "e79cee3020024487e7b50532e475498e003af9ca1b9ec178f504a11581beda0b",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/context.ts",
+      "sha256": "e8c48adb20b6d1fe3b10173fab284ccdef4e3dadc2a141f51a578be1cc3aa4f2",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "AssembleInput",
+        "CachePolicy",
+        "CacheProvider",
+        "ContextSegmentUsage",
+        "ContextSnapshot",
+        "ContextUsage",
+        "IMAGE_ESTIMATE_TOKENS",
+        "ReferenceEntry",
+        "TOKEN_ESTIMATE_CHARS_PER_TOKEN",
+        "assembleContext",
+        "assembleReferences",
+        "canonicalRequestBytes",
+        "createSnapshot",
+        "describeCachePolicy",
+        "describeSegments",
+        "estimateMessageTokens",
+        "estimateMessagesTokens",
+        "estimateTokens",
+        "formatReference",
+        "partitionHistory"
+      ]
+    },
+    {
+      "path": "agents/src/domain.test.ts",
+      "sha256": "d751d0eae4d588dccec95fcb39be118d3329d95241cd9666cd2cf5cbc1e4db00",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/domain.ts",
+      "sha256": "486b0cfe07de9c298fcd3eb3d7d1a35e84c2a352312efd2a407aa60ed01f97f5",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "CompanySummary",
+        "DOCUMENT_FIXTURES",
+        "DocumentSummary",
+        "EvidenceItem",
+        "SectorSummary",
+        "domainTools"
+      ]
+    },
+    {
+      "path": "agents/src/epochs.test.ts",
+      "sha256": "a3526dbfb78230f20343ac4cd552570813cbe0b655e31d748bf96972bacafd03",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/epochs.ts",
+      "sha256": "df1dd67f8b2b9f030665eb85581a77e872469f5639b04965a6ba44562bd7d4a5",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "IdempotencyLog",
+        "cancelRun",
+        "pauseRun",
+        "resumeRun"
+      ]
+    },
+    {
+      "path": "agents/src/fake.test.ts",
+      "sha256": "9293cecd3c683d9619fa21f1657a4d4af317080b5c197555d6ee6984cf810619",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/fake.ts",
+      "sha256": "588da0f338cb393621f5e31dc4f8d823dabad31ed49e2bb872ed0fb27ba4787e",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FakeProvider",
+        "FakeStep",
+        "isFakeError"
+      ]
+    },
+    {
+      "path": "agents/src/fixtures/generic-chat.json",
+      "sha256": "3f4b25c84c6e6ac6ed62a6eb9f612e92d2d635fb25c4b4affe55650885401cb6",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/fixtures/meta-chat.json",
+      "sha256": "e0ec8a4f38e9401d4024a2cabd1b06db40064dfb50ef5c6e247d8a84df836758",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/fixtures/meta-responses.json",
+      "sha256": "e469e45ba8c3ae8aac3721b363497e99ba8a2c1e0b8360f11e6615ae730a220e",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/fixtures/research-fintech-acme.json",
+      "sha256": "4dcb64c2fcd6558b9fbbd09c0192f25300b8063126f78845485a48e3c5bd41c5",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/fixtures/research-fintech-live.json",
+      "sha256": "063166d828056d0006e91f66b5ff5f8639657a1267d6d62954542217845dceab",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/gates.test.ts",
+      "sha256": "a36f7a21f597bf43a983495a1ed3585821b9c5800e6051634a7f7914d475e829",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/gates.ts",
+      "sha256": "4c46e3eb0768f6babe7fbaae3bc04b75428ad384f8232bf1208698692c3e847b",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "GateInput",
+        "RubricResult",
+        "RubricVerdict",
+        "SubmitterScope",
+        "TripwireError",
+        "assertNoTripwire",
+        "checkBudgetsClear",
+        "checkSubmissionShape",
+        "checkSubmitterScope",
+        "checkTodosComplete",
+        "runGateChain",
+        "runRubric"
+      ]
+    },
+    {
+      "path": "agents/src/index.test.ts",
+      "sha256": "e0d7e501e688064e83b5f6193880f02756423dc7505f3e68eadd4acbab5713eb",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/index.ts",
+      "sha256": "9f20512d3ada7386b2bc2271ee32c8a780a8e8dd3ac60d1129ba9419520bb198",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "*:./budgets.js",
+        "*:./clock.js",
+        "*:./compaction.js",
+        "*:./condense.js",
+        "*:./config.js",
+        "*:./context.js",
+        "*:./domain.js",
+        "*:./epochs.js",
+        "*:./fake.js",
+        "*:./gates.js",
+        "*:./loop.js",
+        "*:./manifest.js",
+        "*:./meta.js",
+        "*:./metrics.js",
+        "*:./openai-compat.js",
+        "*:./planning.js",
+        "*:./preflight.js",
+        "*:./prompt.js",
+        "*:./providers.js",
+        "*:./queue.js",
+        "*:./replay.js",
+        "*:./research.js",
+        "*:./researchPack.js",
+        "*:./responses.js",
+        "*:./router.js",
+        "*:./skills.js",
+        "*:./stub.js",
+        "*:./subagents.js",
+        "*:./supervision.js",
+        "*:./tasks.js",
+        "*:./tools.js",
+        "*:./transcript.js",
+        "*:./transport.js",
+        "*:./turn.js",
+        "*:./turnRunner.js"
+      ]
+    },
+    {
+      "path": "agents/src/loop.test.ts",
+      "sha256": "2c56968a2c92a36b8aacb3a5ea5fed8517b5f44c010ebb255e53f53422c25d34",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/loop.ts",
+      "sha256": "bf30e43fceb06ca4d70818d519a086c7bb58ef538014d7c1bb98763ea65adeb3",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "IllegalTransitionError",
+        "RUN_STATES",
+        "Run",
+        "RunState",
+        "createRun",
+        "isLegalTransition",
+        "transition"
+      ]
+    },
+    {
+      "path": "agents/src/manifest.test.ts",
+      "sha256": "6d8850364285f704ff0273d1bafa37ef1a75cab4e60afc58a25717b2e5579b1d",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/manifest.ts",
+      "sha256": "af3d64b8b3417804dbd172bcc1befe856961ab000f242b0e130671d1998e4139",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "Manifest",
+        "ManifestPin",
+        "ManifestTaken",
+        "validateManifest"
+      ]
+    },
+    {
+      "path": "agents/src/meta.ts",
+      "sha256": "c8367c61102b0925eea9358e56d0d860a2d29308b2187be06879f76b17af6fb4",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "MetaAdapter",
+        "MetaConfig",
+        "MetaMode"
+      ]
+    },
+    {
+      "path": "agents/src/metrics.ts",
+      "sha256": "ca52e622f3af27e3a886e0498e38b9a58c20899cda64899a56aaf9f0774391d4",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FleetSnapshot",
+        "MetricsBoard",
+        "ProviderObservation",
+        "QueueSnapshot",
+        "RunSnapshot"
+      ]
+    },
+    {
+      "path": "agents/src/openai-compat.ts",
+      "sha256": "3154b3df901d76aca11ebe2572c78debc3e73b566c9a09fae8f8184e3214d82a",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "OpenAICompatAdapter",
+        "OpenAICompatConfig"
+      ]
+    },
+    {
+      "path": "agents/src/planning.test.ts",
+      "sha256": "63294624a7698bdaeee47d8cee10214f8e2c1e806ad6e520259e2161eacc1d05",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/planning.ts",
+      "sha256": "ffe1b7da2c7ef8bcdc6079bda428e80823516595d4bc9feec31055472e618fde",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "PLAN_WRITE_TOOLS",
+        "PlanResult",
+        "PlanSnapshot",
+        "PlanStore",
+        "Todo",
+        "TodoStatus",
+        "planTools",
+        "suppressDuplicatePlanWrites"
+      ]
+    },
+    {
+      "path": "agents/src/preflight.ts",
+      "sha256": "ce06080a7acb3915a3c1e560725d87a736dc675de571eed78949a8592b267b3f",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "PreflightInput",
+        "PreflightReceipt",
+        "PreflightResult",
+        "freezeBrief",
+        "runPreflight"
+      ]
+    },
+    {
+      "path": "agents/src/probe.test.ts",
+      "sha256": "d8594b5fad9fddb19d8d879310147b4e1f26ed08375322be04b608b023fd7998",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/prompt.test.ts",
+      "sha256": "d17e4ebcf6b3ebd64ccc550c8d3267704970284b1e66ceadaa42d41af0ae4ef3",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/prompt.ts",
+      "sha256": "d851a50246535ac18377c56f065302296da6d45970caad9f1a90d54b69c5f667",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "BRAINSTORM_MODE_PROMPT",
+        "PLAN_MODE_PROMPT",
+        "PromptParts",
+        "TurnMode",
+        "composeSystemPrompt",
+        "modePromptFor"
+      ]
+    },
+    {
+      "path": "agents/src/providers.ts",
+      "sha256": "dda7721d8eef384090210f641f974b9f7fcbea5c3bd09610c724a03978c25d9f",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ChatImage",
+        "ChatMessage",
+        "DeltaAccumulator",
+        "JsonSchema",
+        "JsonSchemaProperty",
+        "MessageRole",
+        "ProviderAdapter",
+        "ProviderError",
+        "ProviderRequest",
+        "ProviderResponse",
+        "StreamEvent",
+        "TokenCountUnavailableError",
+        "ToolCallRequest",
+        "ToolChoice",
+        "ToolDefinition",
+        "ToolResult",
+        "Usage",
+        "emptyUsage"
+      ]
+    },
+    {
+      "path": "agents/src/queue.ts",
+      "sha256": "d61f3b1cd92c98c783c749cdf4d99d452b01ed9ca052d90dcdd2f76f9aa04c76",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "BoundedQueue",
+        "EnqueueResult"
+      ]
+    },
+    {
+      "path": "agents/src/replay.ts",
+      "sha256": "e589a670846c6cac5ac969b697a00695523d91b664807c78b62f1f4f2e5de7a7",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "GoldenCall",
+        "LearningCandidate",
+        "LearningStatus",
+        "LearningStore",
+        "assertReplayMatches",
+        "extractCalls"
+      ]
+    },
+    {
+      "path": "agents/src/research.budgets.test.ts",
+      "sha256": "727250e722aaed6f4a604e7bff9c78021629abe2ffad8a95c2d98ffcb552b157",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/research.loops.test.ts",
+      "sha256": "ed46bf48e0db2e3fe42604f5cf6afbef905d1f82e960efaa2b80deb0567a13c9",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/research.outline.test.ts",
+      "sha256": "8600b2dedce39a1d98c70c2cce17fc9ec700ffdde8f5bccf6632f41d71805cc8",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/research.pack.test.ts",
+      "sha256": "105df753ce2a271b691c117c2ad6e80b64a1d3d4ad8522b59bbc40f5b106e53a",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/research.resume.test.ts",
+      "sha256": "a3557f71b6756b57c19665f92783910fe64444b8928d2a8c44c7a175580d79da",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/research.test.ts",
+      "sha256": "a83b7772f79bef0d2cb2e9968e44ac085d050f025e2d96f3cb3b59f1925e0108",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/research.ts",
+      "sha256": "951f0a8e6019129d05fd82af65ddc66a384e8466f60271465ffa7c7323b56d96",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "Finding",
+        "ResearchCheckpoint",
+        "ResearchDetailLevel",
+        "ResearchFieldDef",
+        "ResearchGovernor",
+        "ResearchInput",
+        "ResearchOutcome",
+        "ResearchOutline",
+        "ResearchOutlineItem",
+        "ResearchStageCheckpoint",
+        "RetrievedDoc",
+        "Retriever",
+        "StageMonitor",
+        "StubRetriever",
+        "assembleReport",
+        "buildOutline",
+        "captureFinding",
+        "runResearchWorkflow",
+        "validateFindingsCoverage"
+      ]
+    },
+    {
+      "path": "agents/src/researchPack.ts",
+      "sha256": "395373f15d814ebc8bb9bccbc01192eb0a7dfc82d7bc1338033e7082c89e3950",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "CassetteRetriever",
+        "ResearchPack",
+        "ResearchPackDoc",
+        "createResearchPack",
+        "hashScope",
+        "validateResearchPack"
+      ]
+    },
+    {
+      "path": "agents/src/responses.ts",
+      "sha256": "1e9aacd4d541732a89282b080b1ebcc448cc4e3101c384f119016605cb16bd02",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ResponsesTransportConfig",
+        "responsesCall",
+        "responsesInputTokens",
+        "responsesStream"
+      ]
+    },
+    {
+      "path": "agents/src/router.test.ts",
+      "sha256": "6f20c6963b9cee560f12bb142dbd3882fd0f0095844e7d8d04210cf33a046ecb",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/router.ts",
+      "sha256": "4337c546430e809e236dd5e5c63a0a693c44a856bda1def2237e27eab909bb22",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ModelCapabilities",
+        "NoSatisfyingRouteError",
+        "ProviderRoute",
+        "RateLimiter",
+        "Router",
+        "RouterConfig",
+        "UnitRequirement"
+      ]
+    },
+    {
+      "path": "agents/src/skills.test.ts",
+      "sha256": "801650ac0025c46dcd05f52524cd44611c929130b46d91c184854c619617eef8",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/skills.ts",
+      "sha256": "f0e4c83edfea9cdd375d88b026b8225ca8498f1fef8d7c240d83fd080191b447",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "Skill",
+        "getSkill",
+        "isValidSkillName",
+        "listSkills"
+      ]
+    },
+    {
+      "path": "agents/src/soak.test.ts",
+      "sha256": "b8830aa1fbf6962d7b1cb1c25ef95bd0c9a3987c3272f8f07d9d38c32cae6731",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/stub.test.ts",
+      "sha256": "0b36183bf23f888c9a89c09a602afa92ea0ba7126bd3d30c2cbd7e47524f9dbb",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/stub.ts",
+      "sha256": "20a57dcb549932c5f1c9f55990809d8cb21560a3e607eda61b8733527aeb16a4",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "StubEndpoint",
+        "StubScenario",
+        "startStubEndpoint"
+      ]
+    },
+    {
+      "path": "agents/src/subagents.soak.test.ts",
+      "sha256": "0480db81cdc7052a9b88518b4425a3cd5e6b8175e4001b6fc9b9cb3f458b8ee5",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/subagents.test.ts",
+      "sha256": "425deaf4066950ae6bfc6b1b42334e2b4c9465468ff3ba3be0e292c13fa59183",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/subagents.ts",
+      "sha256": "3f96b00b53bb923a5d25ff653400a1ace3749490801e4714afe6009ebe8fd152",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ChildSnapshot",
+        "ChildStatus",
+        "ChildSummary",
+        "ContextMode",
+        "MessageVerdict",
+        "SubagentLimits",
+        "SubagentManager",
+        "SubagentOptions"
+      ]
+    },
+    {
+      "path": "agents/src/supervision.test.ts",
+      "sha256": "f36a16e45378190905c43cac3186693937f2871066d383180e29ca22e7ac716b",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/supervision.ts",
+      "sha256": "75ccd12de0ab3465abee4fbcd75577ec4cb291803d00af819574744843cec674",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "AuditLog",
+        "FindingKind",
+        "HeartbeatMonitor",
+        "HeartbeatThresholds",
+        "RunStats",
+        "SupervisorDecision",
+        "SupervisorFinding",
+        "SupervisorResponse",
+        "SweepThresholds",
+        "decide",
+        "sweep"
+      ]
+    },
+    {
+      "path": "agents/src/tasks.ts",
+      "sha256": "9fa16357e6689a7c535c0fd71edb04116f5b1675187f75c421c08799769708b7",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "BlockerRecord",
+        "CheckpointRecord",
+        "ClarificationRecord",
+        "FailureRecord",
+        "SubmissionRecord",
+        "TaskLedger",
+        "taskTools"
+      ]
+    },
+    {
+      "path": "agents/src/tools.test.ts",
+      "sha256": "1461944886902deec44d20be1b059257982474df87bad94ab7f715d9f099ca47",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/tools.ts",
+      "sha256": "1d0d579fc42eba73ef291bb017e948d0edc2158962c3a04fa6650be60711ff39",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ApprovalGate",
+        "ApprovalVerdict",
+        "DispatchOptions",
+        "ToolContext",
+        "ToolHandler",
+        "ToolRegistration",
+        "ToolRegistry",
+        "dispatch",
+        "validateArgs"
+      ]
+    },
+    {
+      "path": "agents/src/transcript.test.ts",
+      "sha256": "62d8920d65da208f2d37c5cae2c4fc8815c4f7c77c17db8a843ef13dc5bfcfec",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/transcript.ts",
+      "sha256": "883b8af94f6420c845dc142bc848ecdb0582f9f4c8fe26c0f76377232d5beaae",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "TRANSCRIPT_VERSION",
+        "TranscriptKind",
+        "TranscriptLine",
+        "TranscriptWriter"
+      ]
+    },
+    {
+      "path": "agents/src/transport.ts",
+      "sha256": "56430053e312ff66fbf621bc2bfb732fc9521d27525d5e6406b83cf7fc8cc626",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ChatTransportConfig",
+        "chatCompletions",
+        "chatCompletionsStream",
+        "readSseData"
+      ]
+    },
+    {
+      "path": "agents/src/turn.ts",
+      "sha256": "4ed84c84997673bcc3c3a78401a5616be8f5209a9f9cdf52239a399729d435e8",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "TurnContext",
+        "TurnOutcome",
+        "runTurn"
+      ]
+    },
+    {
+      "path": "agents/src/turnRunner.test.ts",
+      "sha256": "1f7cb65a5c7af4bede9cd95291b0652019637d0de6898b61e97361f94f621d9f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/src/turnRunner.ts",
+      "sha256": "f2e484594904dc9d3845a04c320f185eff358d6c8576a3cf276db7ac3c125b9e",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "CondenseHarness",
+        "KarbotHarness",
+        "KarbotTurnOptions",
+        "KarbotTurnResult",
+        "MCP_TOOL_GRANT_HEADER",
+        "McpFetchFn",
+        "McpHttpResponse",
+        "McpToolOutcome",
+        "OperationRecoveryError",
+        "PendingProviderResponse",
+        "RecoveryOperation",
+        "StreamableMcpClient",
+        "StreamableMcpClientOptions",
+        "TurnRunnerMcpClient",
+        "TurnRunnerSink",
+        "TurnSnapshotVersions",
+        "createClosedMcpClient",
+        "runKarbotTurn",
+        "toolOperationId"
+      ]
+    },
+    {
+      "path": "agents/tsconfig.build.json",
+      "sha256": "0a55be3c0ceb5bd04df55b04e6095d2dc37715d001e837a211e8893471d94150",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/tsconfig.json",
+      "sha256": "5432a9fb69c38616cea65989989e625ffea5ae7c7938a269948c079ea5c787d0",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "agents/vitest.config.ts",
+      "sha256": "7b1006536a51eea2dbaf17f67e09b836948bc83c0aa6fa8b90a8fe8b10a06007",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "default"
+      ]
+    },
+    {
+      "path": "backend/eslint.config.js",
+      "sha256": "7fa6b03ce3b22a30b4a69b900094f9e20a6f363ef2a208713e957d196f4b6a79",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "default"
+      ]
+    },
+    {
+      "path": "backend/openapi/v1.yaml",
+      "sha256": "7be031ca1f35c176b32a33c982962934f427890488ec2cddd7465630a53a5c02",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "backend/package.json",
+      "sha256": "8846cd055c03417606a11a73effe7f9abece0a912d7a621e070d72d8778f2887",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "backend/src/app.ts",
+      "sha256": "f8d4f13f1244e4280d63634967b4641ebf23506fdde9dc0e9b821d19fb8ef6bb",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ApiResponse",
+        "AppOptions",
+        "HealthData",
+        "buildApp"
+      ]
+    },
+    {
+      "path": "backend/src/archive/retention.ts",
+      "sha256": "60c3d49867889ef72d0c20408fd9555c58c0b2ebc824d1ff7f8f86ad98ce1d98",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "RetentionOptions",
+        "RetentionResult",
+        "archiveKey",
+        "readArchive",
+        "runRetention"
+      ]
+    },
+    {
+      "path": "backend/src/archive/targets.ts",
+      "sha256": "74a2830beb69bcc3a34354a136ff35a9170684975ea6ed5ebc431c98dfff4a41",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ArchiveTarget",
+        "ArchivedExecutionRecord",
+        "ArchivedResearchSource",
+        "FilesystemTarget",
+        "GcsBucketHandle",
+        "GcsFileHandle",
+        "GcsListedFile",
+        "GcsTarget",
+        "ResearchSourceError",
+        "SourceOutcome",
+        "archiveResearchOutcome",
+        "assertArchiveKey",
+        "hydrateResearchSources",
+        "persistExecutionRecord",
+        "persistResearchSource",
+        "readExecutionRecord",
+        "resolveArchiveTarget",
+        "withArchiveDeadline"
+      ]
+    },
+    {
+      "path": "backend/src/artifacts/pipeline.ts",
+      "sha256": "c7e48f133fbc1a9cfbb2e806e906f10d0f731ea200af2b1be24d26cab151759f",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ARTIFACT_INDEXED_EVENT",
+        "ARTIFACT_MAX_BYTES",
+        "ARTIFACT_STORED_EVENT",
+        "ArtifactConflictError",
+        "ArtifactDeps",
+        "ArtifactKind",
+        "ArtifactReason",
+        "ArtifactScope",
+        "ArtifactValidationError",
+        "CorruptArtifactError",
+        "IndexedArtifact",
+        "ServedArtifact",
+        "StoreInput",
+        "StoredArtifact",
+        "UnindexedArtifactError",
+        "bodyKey",
+        "indexArtifact",
+        "indexedEventKey",
+        "referencedEventKey",
+        "serveArtifact",
+        "storeAndIndex",
+        "storeArtifact",
+        "storedEventKey"
+      ]
+    },
+    {
+      "path": "backend/src/auth/execution.ts",
+      "sha256": "e95d9a4d6a860e24bac479adc395c5ebbf2e0fe59a8bf5a0855a7632657c2fc2",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "verifyExecution"
+      ]
+    },
+    {
+      "path": "backend/src/auth/keys.ts",
+      "sha256": "2a19e17a79c072ea8edf6f7bd14a23a687a0876403b6f046fc5cbd27e8305990",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "Caller",
+        "Role",
+        "Scope",
+        "hashKey",
+        "resolveCaller",
+        "roleAtLeast",
+        "roleLevelAtLeast"
+      ]
+    },
+    {
+      "path": "backend/src/browserPool/cache.ts",
+      "sha256": "200ceb6986e9f81bb47c11a334ef601815654a77b5b2eb03bf46dd4a4eb43387",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "BROWSER_DOC_TTL_MS",
+        "BROWSER_QUERY_TTL_MS",
+        "CachedDoc",
+        "CachedSearchHit",
+        "clearBrowserCacheForTests",
+        "dedupInflight",
+        "getCachedDoc",
+        "getCachedQuery",
+        "normalizeBrowserUrl",
+        "queryCacheKey",
+        "setCachedDoc",
+        "setCachedQuery"
+      ]
+    },
+    {
+      "path": "backend/src/browserPool/facade.ts",
+      "sha256": "b3d3fc387c8ee665027a43506c1ce9d124e8815cf489947feb6a1570ffaefaba",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SweepSearchDeps",
+        "SweepSearchHit",
+        "SweepSearchVia",
+        "browserPoolStats",
+        "linksFromSnapshot",
+        "pooledBrowserAct",
+        "pooledBrowserClose",
+        "pooledBrowserNavigate",
+        "pooledBrowserScreenshot",
+        "pooledBrowserSnapshot",
+        "pooledSearchWebPage",
+        "pooledWebFetch",
+        "pooledWebSearch"
+      ]
+    },
+    {
+      "path": "backend/src/browserPool/index.ts",
+      "sha256": "8025fe0b457ccaa07d70bd15c2fb2aab7f9ee6bceb237a67a1822a59db968766",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "BROWSER_DOC_TTL_MS",
+        "BROWSER_POOL_ABSOLUTE_MAX",
+        "BROWSER_POOL_DEFAULT_MAX",
+        "BROWSER_QUERY_TTL_MS",
+        "BROWSER_SLOT_TIMEOUT_MS",
+        "BrowserSlot",
+        "CachedDoc",
+        "CachedSearchHit",
+        "SweepSearchDeps",
+        "SweepSearchHit",
+        "SweepSearchVia",
+        "acquireBrowserSlot",
+        "browserPoolMax",
+        "browserPoolStats",
+        "clearBrowserCacheForTests",
+        "dedupInflight",
+        "facadePoolStats",
+        "getCachedDoc",
+        "getCachedQuery",
+        "linksFromSnapshot",
+        "normalizeBrowserUrl",
+        "pooledBrowserAct",
+        "pooledBrowserClose",
+        "pooledBrowserNavigate",
+        "pooledBrowserScreenshot",
+        "pooledBrowserSnapshot",
+        "pooledSearchWebPage",
+        "pooledWebFetch",
+        "pooledWebSearch",
+        "queryCacheKey",
+        "resetBrowserPoolForTests",
+        "setBrowserPoolMaxForTests",
+        "setCachedDoc",
+        "setCachedQuery"
+      ]
+    },
+    {
+      "path": "backend/src/browserPool/pool.ts",
+      "sha256": "27685296d18668147c14a8d61d69fd03b7096edf2b08f777b5cb78ba99e6fb1e",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "BROWSER_POOL_ABSOLUTE_MAX",
+        "BROWSER_POOL_DEFAULT_MAX",
+        "BROWSER_SLOT_TIMEOUT_MS",
+        "BrowserSlot",
+        "acquireBrowserSlot",
+        "browserPoolMax",
+        "browserPoolStats",
+        "resetBrowserPoolForTests",
+        "setBrowserPoolMaxForTests"
+      ]
+    },
+    {
+      "path": "backend/src/context.ts",
+      "sha256": "1f458fd3b7d155a92755ff9a365ca3be12e218e5179057876dc066ea348c0720",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "compactOwnerThread",
+        "compactThread",
+        "localContextMessages"
+      ]
+    },
+    {
+      "path": "backend/src/contract.ts",
+      "sha256": "a9fb58cf2e5189e2c7568ba0a63e9dfded0280d4bed0ea5f1344a980f0a56e0a",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "EXPECTED_TYPES",
+        "PARITY",
+        "ParityEntry",
+        "ParityKind",
+        "checkParity",
+        "loadSpec"
+      ]
+    },
+    {
+      "path": "backend/src/db/alerts.ts",
+      "sha256": "a48ed5a4df089c5ac5dad7314b5d19a47b66b3bb8c6921702d50a2f1e18d9d5e",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SupervisionAlert",
+        "listSupervisionAlerts"
+      ]
+    },
+    {
+      "path": "backend/src/db/checkpoints.ts",
+      "sha256": "cdb2d5e5b5f5a8f6485b79125480a13e08b68a9e21ca5b847345a78da25dbcab",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "CheckpointTx",
+        "DURABLE_STREAM_LOCK_SQL",
+        "TransactableDb",
+        "runCheckpointTx"
+      ]
+    },
+    {
+      "path": "backend/src/db/cli.ts",
+      "sha256": "d0a7cfce6f5229b78bde01114192a986019bb93e786ea332a22d609e4d3332be",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "backend/src/db/company-ledger.ts",
+      "sha256": "f1f6a9df39131eac6b7d7d50ff3785aab28279976a21cb5fdd6e0897aae1227f",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "LedgerCompany",
+        "LedgerProblem",
+        "LedgerQualification",
+        "ProblemStatus",
+        "RecordProblemInput",
+        "UpsertCompanyInput",
+        "getLedgerCompany",
+        "listLedgerCompanies",
+        "listLedgerProblems",
+        "recordLedgerProblem",
+        "registerLedgerCandidate",
+        "upsertLedgerCompany"
+      ]
+    },
+    {
+      "path": "backend/src/db/context-files.ts",
+      "sha256": "0e251063bd67bc03dd6cf573000329712e56622dbae7776b5ce88472a90cf36c",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ContextFileBlocked",
+        "ContextFileRef",
+        "agentHistoryBoundary",
+        "assertThreadFileContext",
+        "inheritThreadFileRefs",
+        "mergeFileRefs",
+        "recordThreadFileExposure",
+        "threadFileRefs",
+        "validateFileRefs"
+      ]
+    },
+    {
+      "path": "backend/src/db/document-units.ts",
+      "sha256": "9979c68de483f32e65a24ec331ce5dafb6090641324f498110627e3290d1c5a3",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "DocumentUnit",
+        "countDocumentUnits",
+        "insertDocumentUnits",
+        "listDocumentUnitOrdinals",
+        "listDocumentUnits"
+      ]
+    },
+    {
+      "path": "backend/src/db/errors.ts",
+      "sha256": "2449db0ab3f340a32988ae6fa04d15e81f03dae73a911376b6dd402a296f276a",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ArtifactImportTimeout",
+        "DbContractError",
+        "WorkspaceError"
+      ]
+    },
+    {
+      "path": "backend/src/db/events.ts",
+      "sha256": "95bf4533b7d4af65c49bd4ae6823f604f947a110919afd248565bdc21678634d",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ARTIFACT_REFERENCED_EVENT",
+        "AppendedEvent",
+        "ArtifactSummary",
+        "CreateArtifactInput",
+        "Db",
+        "DbQueryResult",
+        "EventEnvelope",
+        "SESSION_DELETED_EVENT",
+        "SESSION_MODEL_EVENT",
+        "SessionModelSelection",
+        "SessionRecord",
+        "StoredEvent",
+        "appendEvent",
+        "createArtifact",
+        "createSession",
+        "deleteEventsBySeq",
+        "deleteSession",
+        "findEventByKey",
+        "findLaunchParentWorkflowId",
+        "getSession",
+        "getSessionModel",
+        "listArtifacts",
+        "listSessions",
+        "listTenantArtifacts",
+        "readEventsAfter",
+        "readEventsOlderThan",
+        "readPartition",
+        "referenceArtifact",
+        "renameSession",
+        "resolveArtifactScope",
+        "setSessionModel"
+      ]
+    },
+    {
+      "path": "backend/src/db/execution-epochs.ts",
+      "sha256": "6d205f573162f5dd87b114ae7e5999d38160e92452fb605b56f66b659dab1ded",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "EpochOwnership",
+        "ExecutionIntentInput",
+        "bindExecutionEpoch",
+        "confirmExecutionIntent",
+        "markExecutionIntent",
+        "readActiveExecutionIdentity",
+        "recoveryCheckpointHash",
+        "reserveExecutionIntent",
+        "verifyOriginalExecutionEpoch"
+      ]
+    },
+    {
+      "path": "backend/src/db/execution-records.ts",
+      "sha256": "f5132912f7180484c83f657f0371a2a5c55577e72b6a00f8e294ea908be78aca",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ExecutionRecordMetadata",
+        "listThreadExecutionRecords",
+        "readRecoveryRequestReference",
+        "readThreadExecutionReference",
+        "recordTurnExecution"
+      ]
+    },
+    {
+      "path": "backend/src/db/file-jobs.ts",
+      "sha256": "81df6699f94d96b390d6ae1a2fba7514d6b25f78dd337aaeae858140569490f3",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FileArchiveRef",
+        "FileImageClaim",
+        "FileImageIdentity",
+        "FileProcessingJob",
+        "FileProcessingManifest",
+        "FileProcessingPagedManifest",
+        "FileProcessingProgress",
+        "FileProcessingUnit",
+        "assembleFileProcessingUnits",
+        "beginFileProcessingJob",
+        "claimFileImage",
+        "completeFileImage",
+        "createFileProcessingJob",
+        "failFileImage",
+        "failFileProcessingJob",
+        "fileImageResponseUnits",
+        "fileProcessingArchivePrefix",
+        "fileProcessingProgress",
+        "fileProcessingWorkflowId",
+        "finalizeFileProcessingJob",
+        "listFileAdmissionCandidates",
+        "listFileProcessingJobs",
+        "listSectorFileProcessing",
+        "markFileImageRequestStarted",
+        "markFileProcessingDispatchOutcome",
+        "pauseFileProcessingJob",
+        "readCurrentFileImageAttempt",
+        "readFileImage",
+        "readFileImageAttempt",
+        "readFileJobBoundary",
+        "readFileProcessingJob",
+        "readNextFileImage",
+        "registerFileImages",
+        "rejectFileImageResponse",
+        "reserveFileProcessingDispatch",
+        "restoreFileImageArchive",
+        "retryFileProcessingJob",
+        "stageAndPublishFileProcessingJob",
+        "stageFileImageResponse",
+        "streamFileProcessingUnits"
+      ]
+    },
+    {
+      "path": "backend/src/db/file-pipeline.ts",
+      "sha256": "6a85c76239d368e81f7bad69914d64aefc91033aec6eb999be6cd09480119561",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ClassifiedFile",
+        "ExtractedUnit",
+        "ExtractionStatus",
+        "FileExtraction",
+        "FileKind",
+        "HttpOcrConfig",
+        "MAX_OCR_IMAGES",
+        "OCR_CONFIDENCE_MIN",
+        "OcrAdapter",
+        "OcrResult",
+        "SECTOR_DOCUMENT_MAX_BYTES",
+        "ScriptedOcrAdapter",
+        "UNIT_MAX_CHARS",
+        "UnitKind",
+        "chunkTextUnits",
+        "classifyUpload",
+        "createHttpOcrAdapter",
+        "documentExtension",
+        "extractFileUnits",
+        "sha256Hex"
+      ]
+    },
+    {
+      "path": "backend/src/db/heartbeats.ts",
+      "sha256": "98f41e5c4d0357b01ee8e9e53264106a6525377db3c055b1c57697d10d0c88bd",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "HEARTBEAT_WRITE_MS",
+        "StoredHeartbeat",
+        "heartbeatThrottleKey",
+        "listHeartbeats",
+        "pruneHeartbeats",
+        "recordHeartbeat"
+      ]
+    },
+    {
+      "path": "backend/src/db/index.ts",
+      "sha256": "abaec2f18f70e70462c041c33fde247efa681752c71ced7367135ab3301a57b3",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "*:./execution-epochs.js",
+        "*:./file-jobs.js",
+        "*:./reconciliation.js",
+        "*:./workspace.js",
+        "ARTIFACT_REFERENCED_EVENT",
+        "ActivityEntry",
+        "AppendedEvent",
+        "ArtifactSummary",
+        "COMPANY_FOUND_EVENT",
+        "COMPANY_STAGE_CHANGED_EVENT",
+        "COMPANY_STATE_CHANGED_EVENT",
+        "CheckpointTx",
+        "ClassifiedFile",
+        "CompactContextResult",
+        "CompanyFilters",
+        "CompanyRecord",
+        "CompanyStage",
+        "ConnectableDb",
+        "ContextFileView",
+        "ContextNoteView",
+        "ContextUnitView",
+        "CreateArtifactInput",
+        "DEFAULT_POOL_BUDGET",
+        "Db",
+        "DbContractError",
+        "DbQueryResult",
+        "DocumentChunksResult",
+        "DocumentSummaryResult",
+        "DocumentTocEntry",
+        "DocumentUnit",
+        "EventEnvelope",
+        "ExecutionRecordMetadata",
+        "ExtractedUnit",
+        "ExtractionStatus",
+        "FileExtraction",
+        "HEARTBEAT_WRITE_MS",
+        "IdempotencyOutcome",
+        "IngestedDocument",
+        "KbChunkInput",
+        "KbDocumentInput",
+        "KbSearchHit",
+        "KeyRecord",
+        "LedgerCompany",
+        "LedgerProblem",
+        "LedgerQualification",
+        "LedgerResult",
+        "OCR_CONFIDENCE_MIN",
+        "OcrAdapter",
+        "OcrResult",
+        "OutboxRow",
+        "OutboxSubscription",
+        "Paging",
+        "PlanVersion",
+        "PoolBudget",
+        "PoolStat",
+        "ProblemStatus",
+        "ProjectionResult",
+        "QuerySectorDocumentInput",
+        "QuerySectorDocumentResult",
+        "RateDecision",
+        "RecordProblemInput",
+        "ResearchHealth",
+        "ResearchSessionHealth",
+        "ResearchThreadHealth",
+        "SECTOR_CREATED_EVENT",
+        "SECTOR_DOCUMENT_MAX_BYTES",
+        "SECTOR_PLAN_APPROVED_EVENT",
+        "SECTOR_PLAN_WRITTEN_EVENT",
+        "SECTOR_RESEARCH_STARTED_EVENT",
+        "SECTOR_STATE_CHANGED_EVENT",
+        "SECTOR_TRANSITIONS",
+        "SERVER_POOL_BUDGET",
+        "SESSION_DELETED_EVENT",
+        "SESSION_MODEL_EVENT",
+        "ScriptedOcrAdapter",
+        "SectorContextView",
+        "SectorDigest",
+        "SectorDocument",
+        "SectorDocumentStatus",
+        "SectorFilters",
+        "SectorPlan",
+        "SectorPlanError",
+        "SectorPlanFailure",
+        "SectorPlanRunner",
+        "SectorRecord",
+        "SectorStartError",
+        "SectorStartFailure",
+        "SectorState",
+        "SectorSweepRunner",
+        "SectorTransitionError",
+        "SectorTransitionFailure",
+        "SessionModelSelection",
+        "SessionRecord",
+        "StoredEvent",
+        "StoredHeartbeat",
+        "SupervisionAlert",
+        "ThreadMessenger",
+        "TransactableDb",
+        "UNIT_MAX_CHARS",
+        "UnitRef",
+        "UpsertCompanyInput",
+        "UsageTotals",
+        "WORKER_POOL_BUDGET",
+        "addContextNotes",
+        "appendEvent",
+        "approveSectorPlan",
+        "assertSectorTransition",
+        "buildSectorDigest",
+        "cancelThreadRun",
+        "checkRate",
+        "chunkTextUnits",
+        "claimIdempotency",
+        "classifyUpload",
+        "compactSectorContext",
+        "completeIdempotency",
+        "countDocumentUnits",
+        "createArtifact",
+        "createDbPool",
+        "createHttpOcrAdapter",
+        "createSector",
+        "createSession",
+        "deleteEventsBySeq",
+        "deleteSession",
+        "documentExtension",
+        "extractDocumentText",
+        "extractFileUnits",
+        "findEventByKey",
+        "findKeyByHash",
+        "findLaunchParentWorkflowId",
+        "fleetTotals",
+        "getLedgerCompany",
+        "getSector",
+        "getSectorContext",
+        "getSession",
+        "getSessionModel",
+        "getThread",
+        "getThreadHeader",
+        "heartbeatThrottleKey",
+        "ingestSectorDocument",
+        "insertDocumentUnits",
+        "latestOutboxSeq",
+        "listArtifacts",
+        "listCompanies",
+        "listContextNotes",
+        "listDocumentUnits",
+        "listHeartbeats",
+        "listLedgerCompanies",
+        "listLedgerProblems",
+        "listSectorCompanies",
+        "listSectorDocuments",
+        "listSectors",
+        "listSessions",
+        "listSupervisionAlerts",
+        "listTenantArtifacts",
+        "listThreadExecutionRecords",
+        "listThreadHeaders",
+        "listThreads",
+        "markCompanyFound",
+        "pauseSectorResearch",
+        "pauseSectorSweep",
+        "pauseThreadRun",
+        "planSectorResearch",
+        "poolStats",
+        "projectBatch",
+        "projectSectorEvent",
+        "projectUsage",
+        "pruneHeartbeats",
+        "pruneOutbox",
+        "publishOutboxFrame",
+        "querySectorDocument",
+        "readEventsAfter",
+        "readEventsOlderThan",
+        "readOriginalSectorDocument",
+        "readOutboxBacklog",
+        "readPartition",
+        "readRecoveryRequestReference",
+        "readSectorDocument",
+        "readSectorDocumentUnitsPage",
+        "readSectorExecutionState",
+        "readSectorPlan",
+        "readThreadExecutionReference",
+        "rebuildFromEvents",
+        "rebuildLedger",
+        "recordHeartbeat",
+        "recordKbBatch",
+        "recordLedgerProblem",
+        "recordPlanVersion",
+        "recordResearchSession",
+        "recordTurnExecution",
+        "referenceArtifact",
+        "registerApiKey",
+        "registerLedgerCandidate",
+        "registerSectorDiscovery",
+        "releaseIdempotency",
+        "renameSession",
+        "researchHealth",
+        "resolveArtifactScope",
+        "restartSectorSweep",
+        "resumeSectorResearch",
+        "resumeSectorSweep",
+        "resumeThreadRun",
+        "runCheckpointTx",
+        "runTotals",
+        "searchKb",
+        "sectorActivity",
+        "sendThreadMessage",
+        "serverPoolBudget",
+        "setCompanyStage",
+        "setCompanyState",
+        "setSectorState",
+        "setSessionModel",
+        "setUnitExclusions",
+        "sha256Hex",
+        "startSectorResearch",
+        "steerThread",
+        "subscribeOutbox",
+        "sweepIdempotency",
+        "updateSectorPlan",
+        "upsertLedgerCompany",
+        "workerPoolBudget",
+        "workerPoolFromEnv",
+        "workspaceReferenceSnapshot"
+      ]
+    },
+    {
+      "path": "backend/src/db/kb-ingest.ts",
+      "sha256": "89f54f8c7430e40d1e35362256d735ee5109ace97fa9ac75ae42ac0184a3a2f7",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ParsedKbDoc",
+        "collectKbDocs",
+        "parseKbFile",
+        "provenanceSha",
+        "runKbIngest",
+        "sha256Hex"
+      ]
+    },
+    {
+      "path": "backend/src/db/keys.ts",
+      "sha256": "8439d3240e5fee5abb44a1cb786da0c74a1f37439690c6ed95ab9ea9ef0a5bda",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "KeyRecord",
+        "findKeyByHash",
+        "registerApiKey"
+      ]
+    },
+    {
+      "path": "backend/src/db/knowledge.ts",
+      "sha256": "9021f4cb027aa4e366639a60bb5382da5c772919d0aa3cfaa295f483a263736e",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "KbChunkInput",
+        "KbDocumentInput",
+        "KbSearchHit",
+        "recordKbBatch",
+        "searchKb"
+      ]
+    },
+    {
+      "path": "backend/src/db/ledger.ts",
+      "sha256": "e951b2e032b41d0a94a978f2a34d96e0c8fdff0eac39b7c3349956dbda1605ea",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "LedgerResult",
+        "UsageTotals",
+        "fleetTotals",
+        "projectUsage",
+        "rebuildLedger",
+        "runTotals"
+      ]
+    },
+    {
+      "path": "backend/src/db/migrate.ts",
+      "sha256": "b5631dd5dc7eb1c419c7135270606f4285ee4098b9932f83a3261cee5c4c3640",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "Direction",
+        "migrate",
+        "migrationFiles"
+      ]
+    },
+    {
+      "path": "backend/src/db/operation-receipts.ts",
+      "sha256": "32bb1dcc8754ed8389f86c043288b9bf8e4a66ac7fe693b6c788ea13282fccce",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "OperationReceiptIdentity",
+        "inspectOperationReceipt",
+        "recordOperationIntent",
+        "recordOperationResult",
+        "recoverOperationResult"
+      ]
+    },
+    {
+      "path": "backend/src/db/outbox.ts",
+      "sha256": "7c9d6e6fc080f9b307fb1cc975113ee006310adc0c0715e336c938e8846cec42",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ConnectableDb",
+        "OutboxRow",
+        "OutboxSubscription",
+        "latestOutboxSeq",
+        "pruneOutbox",
+        "publishOutboxFrame",
+        "readOutboxBacklog",
+        "subscribeOutbox"
+      ]
+    },
+    {
+      "path": "backend/src/db/pdf-extraction.ts",
+      "sha256": "c11f8c6326c6ca16d4057ce16c999cb10fc269b360b1cef7be16d8dc4926a555",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "PDF_IMAGE_MAX_BYTES",
+        "PDF_IMAGE_MAX_PIXELS",
+        "PDF_PAGE_VISUAL_SCALE",
+        "PdfExtractionPart",
+        "planPdfExtraction"
+      ]
+    },
+    {
+      "path": "backend/src/db/pool.ts",
+      "sha256": "95869c6c21f0ba076ea9bffbf74c1effbc7213c0e35495e0dc9d4530d362ae1c",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "DEFAULT_POOL_BUDGET",
+        "PoolBudget",
+        "PoolStat",
+        "SERVER_POOL_BUDGET",
+        "WORKER_POOL_BUDGET",
+        "createDbPool",
+        "poolStats",
+        "serverPoolBudget",
+        "workerPoolBudget",
+        "workerPoolFromEnv"
+      ]
+    },
+    {
+      "path": "backend/src/db/quotas.ts",
+      "sha256": "9e0403cd404ce0564f6d6dcaa4fffc4bd5175b3ab3386592eb66aa69be58caee",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "IdempotencyOutcome",
+        "RateDecision",
+        "checkRate",
+        "claimIdempotency",
+        "completeIdempotency",
+        "releaseIdempotency",
+        "sweepIdempotency"
+      ]
+    },
+    {
+      "path": "backend/src/db/reconciliation.ts",
+      "sha256": "5e1c35a35413325e85b1399fe15337384c855fff73e674051e105a085535806a",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ReconciliationCandidate",
+        "ReconciliationFinding",
+        "listReconciliationCandidates",
+        "recordReconciliation"
+      ]
+    },
+    {
+      "path": "backend/src/db/research-health.ts",
+      "sha256": "39850c3409d1473719bfd5a1e8a1e4ff2be6e53b6ad5624812579beb4b957562",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ResearchHealth",
+        "ResearchSessionHealth",
+        "ResearchThreadHealth",
+        "researchHealth"
+      ]
+    },
+    {
+      "path": "backend/src/db/sector-context.ts",
+      "sha256": "9e30779c987a616ae9b98ca46b99c9bef76546c0dff0a6993b2111eef60b7f14",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "CompactContextResult",
+        "ContextFileView",
+        "ContextNoteView",
+        "ContextUnitView",
+        "SectorContextView",
+        "SectorDigest",
+        "UnitRef",
+        "addContextNotes",
+        "buildSectorDigest",
+        "citationLabels",
+        "compactSectorContext",
+        "getSectorContext",
+        "listContextNotes",
+        "setUnitExclusions"
+      ]
+    },
+    {
+      "path": "backend/src/db/sector-documents.ts",
+      "sha256": "52d8231d5298b7fd18f47f54803b6fae5cc948e0b3a4af0a696efa1af266ab6c",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "DocumentChunksResult",
+        "DocumentSummaryResult",
+        "DocumentTocEntry",
+        "IngestedDocument",
+        "QuerySectorDocumentInput",
+        "QuerySectorDocumentResult",
+        "SECTOR_DOCUMENT_MAX_BYTES",
+        "SectorDocument",
+        "SectorDocumentStatus",
+        "documentExtension",
+        "extractDocumentText",
+        "ingestSectorDocument",
+        "listSectorDocuments",
+        "querySectorDocument",
+        "readOriginalSectorDocument",
+        "readSectorDocument",
+        "readSectorDocumentUnitsPage",
+        "sha256Hex"
+      ]
+    },
+    {
+      "path": "backend/src/db/sector-lifecycle.ts",
+      "sha256": "0a5b8607cc39ea60ceff3e32bbd7d86bc8309140b429aad26263461f44790a5d",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "pauseSectorSweep",
+        "restartSectorSweep",
+        "resumeSectorSweep"
+      ]
+    },
+    {
+      "path": "backend/src/db/sector-plan.ts",
+      "sha256": "a8e64fde3c4a0d796d1dde1dc2ccbac6ad71a8bc9c2c49f2b031d5bdcee3f13a",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "PlanVersion",
+        "SectorPlan",
+        "SectorPlanError",
+        "SectorPlanFailure",
+        "SectorPlanRunner",
+        "approveSectorPlan",
+        "planSectorResearch",
+        "readSectorPlan",
+        "recordPlanVersion",
+        "updateSectorPlan"
+      ]
+    },
+    {
+      "path": "backend/src/db/sector-start.ts",
+      "sha256": "ee2b1add769b0d7012893d092ca34f68a39c5827de8aee5139d1d46ebaa87db9",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SectorStartError",
+        "SectorStartFailure",
+        "SectorSweepRunner",
+        "startSectorResearch"
+      ]
+    },
+    {
+      "path": "backend/src/db/sectors.ts",
+      "sha256": "1cbf8dffb335e56a33c99eaf870322a2edf027b0001368051319a25651bd254b",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ActivityEntry",
+        "COMPANY_FOUND_EVENT",
+        "COMPANY_STAGE_CHANGED_EVENT",
+        "COMPANY_STATE_CHANGED_EVENT",
+        "CompanyFilters",
+        "CompanyRecord",
+        "CompanyStage",
+        "PAGING_DEFAULT_LIMIT",
+        "PAGING_MAX_LIMIT",
+        "Paging",
+        "SECTOR_CREATED_EVENT",
+        "SECTOR_PLAN_APPROVED_EVENT",
+        "SECTOR_PLAN_WRITTEN_EVENT",
+        "SECTOR_RESEARCH_STARTED_EVENT",
+        "SECTOR_STATE_CHANGED_EVENT",
+        "SECTOR_TRANSITIONS",
+        "SectorFilters",
+        "SectorRecord",
+        "SectorState",
+        "SectorTransitionError",
+        "SectorTransitionFailure",
+        "assertSectorTransition",
+        "createSector",
+        "getSector",
+        "listCompanies",
+        "listSectorCompanies",
+        "listSectors",
+        "markCompanyFound",
+        "pauseSectorResearch",
+        "projectSectorEvent",
+        "readSectorExecutionState",
+        "recordResearchSession",
+        "registerSectorDiscovery",
+        "resumeSectorResearch",
+        "sectorActivity",
+        "setCompanyStage",
+        "setCompanyState",
+        "setSectorState"
+      ]
+    },
+    {
+      "path": "backend/src/db/threads.ts",
+      "sha256": "6336fe5eed1b653207bcbd578ea32847b0338cf0c63cd423b4bbc4a6a1028359",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ProjectionResult",
+        "ThreadMessenger",
+        "cancelThreadRun",
+        "getThread",
+        "getThreadHeader",
+        "listThreadHeaders",
+        "listThreads",
+        "pauseThreadRun",
+        "projectBatch",
+        "rebuildFromEvents",
+        "resumeThreadRun",
+        "sendThreadMessage",
+        "steerThread"
+      ]
+    },
+    {
+      "path": "backend/src/db/work-review.ts",
+      "sha256": "b9346fff1147e4f019f8e02e22f8b8561c814c7885253ab8b64cc410bb0eb3bf",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "WorkReviewDecision",
+        "readResearchWorkReviewSequence",
+        "reviewResearchWork"
+      ]
+    },
+    {
+      "path": "backend/src/db/workspace.ts",
+      "sha256": "88f3d7bf3a9b183a01a856f895fd2466295f1bc4d0e392210aea111905f8f69f",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ContextChange",
+        "ContextSections",
+        "GlobalContext",
+        "LibraryFile",
+        "ThreadContext",
+        "TurnContinuation",
+        "WorkspaceError",
+        "assertFileVisible",
+        "assertGlobalFileContext",
+        "beginThreadTurn",
+        "clearTurnContinuation",
+        "closeDiscovery",
+        "commitChildContext",
+        "commitThreadCompaction",
+        "consumeSteering",
+        "decideContextChange",
+        "enqueueSteering",
+        "ensureResearchSession",
+        "finishSteering",
+        "formatGlobalContext",
+        "hiddenFileIds",
+        "indexSectorArtifact",
+        "listSectorLibrary",
+        "notifyWorkspace",
+        "previewContextChange",
+        "proposeFileContext",
+        "proposeGlobalContext",
+        "readDiscoveryPublicationState",
+        "readGlobalContext",
+        "readResearchBudget",
+        "readResearchCoordinatorProgress",
+        "readResearchProgress",
+        "readResearchWorkItem",
+        "readSectorLibraryFile",
+        "readSteeringReceiptsPage",
+        "readThreadContext",
+        "readTurnContinuation",
+        "rebuildThreadContext",
+        "recordContextMeasurement",
+        "recordResearchBudget",
+        "recordResearchWork",
+        "requireSector",
+        "requireThread",
+        "researchIntakeReceipts",
+        "researchSessionBinding",
+        "researchThreadState",
+        "retainCompatibleDiscovery",
+        "saveThreadContext",
+        "saveTurnContinuation",
+        "sessionKind",
+        "setFileVisibility",
+        "workspaceReferenceSnapshot",
+        "workspaceReferences",
+        "workspaceTransaction"
+      ]
+    },
+    {
+      "path": "backend/src/file-ingestion.ts",
+      "sha256": "6694654a5bd0076c45bd886d277d741c3fca7566f530328137c393f8c3762e79",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FileIngestionUnavailable",
+        "FileProcessorRunner",
+        "attachSectorDocument",
+        "isPdfDocumentUpload"
+      ]
+    },
+    {
+      "path": "backend/src/http/cors.ts",
+      "sha256": "4188e61dbdf375880dcf1da93c36c78795a6a4e5d7658f627c666bd146bd5654",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "DEFAULT_CORS_ORIGINS",
+        "OriginCarrier",
+        "corsHeadersFor",
+        "parseCorsOrigins",
+        "registerCors"
+      ]
+    },
+    {
+      "path": "backend/src/http/limits.ts",
+      "sha256": "e0b61b0b66973327fc5634f98f04e3ecf0a599948e9cf8cc781f5479a4209a6d",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "IdempotencyOutcome",
+        "RateDecision",
+        "hashKey",
+        "mutationFingerprint",
+        "rateBucket"
+      ]
+    },
+    {
+      "path": "backend/src/ledger/project.ts",
+      "sha256": "bc3c9871d4ee7036af6c32ac39363676a2465302a7db86d3c73eb9c5bcb5f878",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "UsageRecorded",
+        "formatCents"
+      ]
+    },
+    {
+      "path": "backend/src/mcp/routes.ts",
+      "sha256": "8d85e3aa887433b61a17f73f8956c5936df56de0991ee4c480fb2f0944629f89",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "mcpRoutes"
+      ]
+    },
+    {
+      "path": "backend/src/mcp/schemas.ts",
+      "sha256": "2bf96439b9dc65edb4c29c1ae88b35f9bc815abf4accee8f571f04fb6b7d4720",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "McpToolName",
+        "TOOL_NAMES",
+        "TOOL_SCHEMAS"
+      ]
+    },
+    {
+      "path": "backend/src/mcp/tools.ts",
+      "sha256": "7f0c234b0fc2bfd4671279bf129e023eb828d49ac0888325ab81ea31c434bd80",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "McpToolContext",
+        "McpToolError",
+        "PLATFORM_INTERNAL_TOOLS",
+        "TOOL_LAYER",
+        "TOOL_META",
+        "ToolCapability",
+        "ToolGrant",
+        "createMcpServer",
+        "invokeTool",
+        "toolCapability"
+      ]
+    },
+    {
+      "path": "backend/src/observability/logging.ts",
+      "sha256": "399bed54c9c39e8cfaae16672eff74c25361895c0ed594f3ba39d3012697eca9",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "LogContext",
+        "childLogger",
+        "createLogger",
+        "createWorkerLogger",
+        "logOp",
+        "scrubSecrets",
+        "workerLoggingOptions"
+      ]
+    },
+    {
+      "path": "backend/src/observability/metrics.ts",
+      "sha256": "f7bff48066dc231f605aab4ac546cc6784a574b66a58e3c70287e3c60190b0bd",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "CARDINALITY_BUDGET",
+        "HttpMetrics",
+        "METRIC_LABEL_ALLOW",
+        "TelemetryOptions",
+        "createHttpMetrics",
+        "enforceLabelAllowlist",
+        "refreshFleetGauges",
+        "renderMetrics",
+        "workerTelemetryOptions"
+      ]
+    },
+    {
+      "path": "backend/src/observability/reconciliation.ts",
+      "sha256": "89053e20dd2db88bc3d9fef3821a148a1c0c403c23cf9c9eff6d922585fc28d6",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "OwnerObservation",
+        "RECONCILIATION_LIMITS",
+        "reconcileObservation"
+      ]
+    },
+    {
+      "path": "backend/src/observability/requestLog.ts",
+      "sha256": "e5b7dca269ac1e224ff124e068f80ebdadacbcb765c55c97be995637b56ff746",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "RequestObservability",
+        "registerRequestLogging"
+      ]
+    },
+    {
+      "path": "backend/src/observability/stalls.ts",
+      "sha256": "c2a9ce2fd6b247ef06e52be53ce46585874fe39394c2326dfb030b5f3a151147",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "DEFAULT_STALL_THRESHOLDS",
+        "HeartbeatRow",
+        "LoopEvidence",
+        "RunObservation",
+        "StallOutcome",
+        "StallSweepInput",
+        "StallThresholds",
+        "stalledTurnsFor",
+        "sweepStalls"
+      ]
+    },
+    {
+      "path": "backend/src/observability/trace.ts",
+      "sha256": "26fd234935143ad1d5c3e3e70340a9d95e57ee4250496852f05ca5c6f2ccb96f",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "TraceContext",
+        "extractTraceContext",
+        "injectTraceparent",
+        "newSpanId",
+        "newTraceId",
+        "tracePlugin"
+      ]
+    },
+    {
+      "path": "backend/src/observability/tracing.ts",
+      "sha256": "95d13ab23506da63a68381e91a4ec513f0b68ef63ae3c9f816004452c27acad4",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SpanLine",
+        "StartSpanOptions",
+        "TRACER_NAME",
+        "clearSpanContext",
+        "currentSpanContext",
+        "ensureTracing",
+        "enterSpanContext",
+        "spanContextFromTrace",
+        "startSpan",
+        "withSpanContext",
+        "wrapPool"
+      ]
+    },
+    {
+      "path": "backend/src/ocr.ts",
+      "sha256": "ac4092b53372db1fe3ba1eb2283305758e5ced396e402915c73a3eee59663a08",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "DOCUMENT_IMAGE_MAX_OUTPUT_TOKENS",
+        "DOCUMENT_IMAGE_PROMPT_VERSION",
+        "DOCUMENT_IMAGE_SYSTEM",
+        "MODEL_OCR_CONFIDENCE",
+        "createModelOcrAdapter",
+        "documentImageRequest",
+        "documentImageSelection"
+      ]
+    },
+    {
+      "path": "backend/src/projector.ts",
+      "sha256": "71b4ad9bfcded390034783e9a986c62d09d3f1459875c1eac149d09afb7bc18a",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ProjectorResult",
+        "projectNewEvents"
+      ]
+    },
+    {
+      "path": "backend/src/providers/catalog.ts",
+      "sha256": "c2a00b3a6a6627bebc82e5a0cf4931aa24af69878d41477950d912fcf557725d",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ModelCatalog",
+        "ModelCatalogUnavailable",
+        "fetchMetaModels"
+      ]
+    },
+    {
+      "path": "backend/src/providers/gateway.ts",
+      "sha256": "ed36690daa03e352e8a5bdb487751f85d19a107dde59a299d5c8304ccbb7bc9c",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ChatLogFields",
+        "ChatOutcome",
+        "EffectiveSelection",
+        "MessageSelection",
+        "ProviderFailureCode",
+        "ProviderGatewayError",
+        "ProviderSelection",
+        "ResolveOptions",
+        "StreamChatOptions",
+        "chatOnce",
+        "probeProvider",
+        "resolveAdapter",
+        "resolveEffectiveSelection",
+        "resolveSelection",
+        "streamChat"
+      ]
+    },
+    {
+      "path": "backend/src/providers/registry.ts",
+      "sha256": "6daba9c89c959653177fbd0348b1bc9b992c40ffec6d2f78a9226f24a7506744",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "DEFAULT_EFFORT",
+        "ModelEntry",
+        "ReasoningCapability",
+        "RegistryEnv",
+        "RegistryProvider",
+        "defaultModelFor",
+        "findModel",
+        "isKnownEffort",
+        "isKnownModel",
+        "listModels",
+        "modelsFor"
+      ]
+    },
+    {
+      "path": "backend/src/retrieval/browser.ts",
+      "sha256": "3e4724c7e1e9e44b4dcf23e8f9ed10484783beceed9bd7f73cb1671d9b917130",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "BROWSER_IDLE_TIMEOUT_MS",
+        "BROWSER_NAV_TIMEOUT_MS",
+        "BROWSER_NETWORK_FLAGS",
+        "BROWSER_SCREENSHOT_MAX_BYTES",
+        "BrowserAct",
+        "browserAct",
+        "browserClose",
+        "browserNavigate",
+        "browserScreenshot",
+        "browserSnapshot"
+      ]
+    },
+    {
+      "path": "backend/src/retrieval/html.ts",
+      "sha256": "5ce1c13664102c114739aa98dba88c2ca2009433f066de9ab2cce4824863a463",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "sourceHtmlText"
+      ]
+    },
+    {
+      "path": "backend/src/retrieval/keyless.ts",
+      "sha256": "481cbe11724896707303f95f5fbe4396ee31c6573e60ffce7391f2223f28eaaa",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "KEYLESS_MAX_BYTES",
+        "KeylessHit",
+        "keylessSearch"
+      ]
+    },
+    {
+      "path": "backend/src/retrieval/proxy.ts",
+      "sha256": "637eec5f3708e990e441e79592f28a8923c1965e282c5667f487e9a6c0a73a8d",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "BROWSER_PROXY_LIFETIME_MS",
+        "BrowserProxyOptions",
+        "ProxyEnvironment",
+        "browserProxyCredentials",
+        "configureBrowserProxyContext",
+        "registerBrowserProxy"
+      ]
+    },
+    {
+      "path": "backend/src/retrieval/web.ts",
+      "sha256": "2f5ee92df624356684d5ea9d763b52e0907d3c5987ceffafe1df7391774d3f75",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FetchImpl",
+        "FetchResult",
+        "RetrievalCode",
+        "RetrievalError",
+        "SearchEnv",
+        "SearchHit",
+        "WEB_FETCH_MAX_BYTES",
+        "WEB_FETCH_TIMEOUT_MS",
+        "publicSourceUrl",
+        "requestSearchPage",
+        "resolvePublicSource",
+        "searchPagination",
+        "webFetch",
+        "webSearch"
+      ]
+    },
+    {
+      "path": "backend/src/routes/alerts.ts",
+      "sha256": "cc92de8cbe84f45cd174b7ed157b6248d6f879b579ec7fd6149e2f598daae949",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "alertRoutes"
+      ]
+    },
+    {
+      "path": "backend/src/routes/artifacts.ts",
+      "sha256": "2fe161e75f829c0f845a3bfc06f4e78e7f1164b155f30311ceb82910e679987c",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "artifactRoutes"
+      ]
+    },
+    {
+      "path": "backend/src/routes/commands.ts",
+      "sha256": "4b8be2ff19769b9ccec3fbfdc0b43fff806d84f247f0d1fa094f2bf5e0bf1e1c",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "commandRoutes"
+      ]
+    },
+    {
+      "path": "backend/src/routes/execution-records.ts",
+      "sha256": "6ba7cd94e291bb8546b2d6de93f61b62b85b5295676df17f7e5e62e8c00fc0c7",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "executionRecordRoutes"
+      ]
+    },
+    {
+      "path": "backend/src/routes/http.ts",
+      "sha256": "e8459c30957ab86a86c5943cfb611d6c7caf2eeccfec7f4803df6feec25dacf7",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ErrorCode",
+        "IdempotentOutcome",
+        "RouteDeps",
+        "RouteHandler",
+        "authorize",
+        "header",
+        "mapRouteError",
+        "parseInput",
+        "registerRateLimit",
+        "requireArchive",
+        "requirePool",
+        "requireRuns",
+        "requireSessionScope",
+        "route",
+        "sendError",
+        "sessionVisible",
+        "withIdempotency"
+      ]
+    },
+    {
+      "path": "backend/src/routes/inspector.ts",
+      "sha256": "43858a2b7b4b7a4d2b7c38236c8bbd49d6076526cf1139fbee4384651ccdf106",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "inspectorRoutes"
+      ]
+    },
+    {
+      "path": "backend/src/routes/providers.ts",
+      "sha256": "cd983368872db5c4b86e3ea102dca955862ee2fdb402b2f9684bb8a333a1e86a",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "providerRoutes"
+      ]
+    },
+    {
+      "path": "backend/src/routes/runs.ts",
+      "sha256": "c14cde6f65fb59f8c72e0077b9bb26b78bf31485f6f3e8e8bddadd1f13015356",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "runRoutes",
+        "runVisible"
+      ]
+    },
+    {
+      "path": "backend/src/routes/sectors.ts",
+      "sha256": "3b8b218649aafede2a411a82e74f64e9582e73ba88bdc07c60d713e78c1e64b6",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "sectorRoutes"
+      ]
+    },
+    {
+      "path": "backend/src/routes/sessions.ts",
+      "sha256": "a4bf84555e08a59de1769a0005877e39518488c6513a9ea19196c67ab8fa182b",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "sessionRoutes"
+      ]
+    },
+    {
+      "path": "backend/src/routes/skills.ts",
+      "sha256": "05efca2aaef184e9657ef413b0f86f10ed7fbc1aafcd73bf15160165828a871e",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "skillRoutes"
+      ]
+    },
+    {
+      "path": "backend/src/routes/threads.ts",
+      "sha256": "5cc8a39aefb16c1c7688227ae58b3a285ade3019a04dcfd05ab38da80e0f97a9",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "threadRoutes"
+      ]
+    },
+    {
+      "path": "backend/src/routes/workspace.ts",
+      "sha256": "c0e88a0f7447a694b96fb92f4aa340517e787c8ccbaf8e516c2932e045206405",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "workspaceRoutes"
+      ]
+    },
+    {
+      "path": "backend/src/server.ts",
+      "sha256": "0c6c3b4e2f2406c3e84740821c0d73f3cdbaae15232620df197d12a2e2775bea",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "backend/src/skills.ts",
+      "sha256": "509ac4699feb3ba19a952d3c03badafc414555c09b4f7381a11a113e41759824",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SlashCommand",
+        "parseSlashCommand",
+        "resolveSlashCommand"
+      ]
+    },
+    {
+      "path": "backend/src/streams/outbox.ts",
+      "sha256": "d21ad3b8673e0d4f5b3c45f8059944a87b3c50aa1170c16173b31a46ba500d9c",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SNAPSHOT_THRESHOLD",
+        "StreamFrame",
+        "StreamFrameType",
+        "openThreadStream"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/activities/coordinator.ts",
+      "sha256": "102b7895ea1fa1ea15d139cbd06bb2d09202823bff768635d17327aca716ce68",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "CoordinatorInput",
+        "evidenceVerdict",
+        "loadCoordinatorActivity",
+        "prepareExecutionIntentActivity",
+        "prepareResearchTurnRecoveryActivity",
+        "researchBudgetActivity",
+        "researchCheckpointActivity",
+        "researchDiscoveryAcceptanceActivity",
+        "researchDiscoveryClosedActivity",
+        "researchIntakeActivity",
+        "researchLifecycleActivity",
+        "researchSearchActivity",
+        "researchVerdictActivity",
+        "researchWorkItemActivity",
+        "settlePreparedExecutionIntentActivity"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/activities/execution-epochs.ts",
+      "sha256": "9b111dd8398cdfa7b9d90100d658c175971097099afc6570e84a2aae7cd81264",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "originalRecoveryReadyActivity",
+        "prepareExecutionIntentActivity",
+        "prepareResearchTurnRecoveryActivity",
+        "settlePreparedExecutionIntentActivity"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/activities/file-admission.ts",
+      "sha256": "9aaa195aaf0cb05a7b658fc476bb0aa9943103b737733a9d75f07d5f62ef5929",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FileAdmissionOwner",
+        "fileAdmissionPageActivity",
+        "inspectFileAdmissionOwner",
+        "reconcileFileAdmissionPage"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/activities/file-processing.ts",
+      "sha256": "34a18d74c6f793851afe162b965545fac471d101553df62a266723010384a519",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FileProcessingDependencies",
+        "FileProcessingInput",
+        "createFileProcessingActivities",
+        "failFileProcessingActivity",
+        "finalizeFileProcessingActivity",
+        "nextFileImageActivity",
+        "prepareFileProcessingActivity",
+        "processFileImageActivity"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/activities/loopguards.ts",
+      "sha256": "44682ea5dab9ead7f9281d84eddc75bda027c1fbe2ef15ba776d630a06d740a1",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "DetectLoopInput",
+        "GuardedStageInput",
+        "GuardedStageResult",
+        "detectLoopActivity",
+        "runGuardedStageActivity"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/activities/plan.ts",
+      "sha256": "77e9f9db6e9f44289ea74dd6323ff35064742fb34ff84f306dc4eda647637bb3",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "PlanVersion",
+        "SectorPlan",
+        "readSectorPlanActivity",
+        "setPlanStateActivity",
+        "writePlanArtifactActivity"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/activities/providers.ts",
+      "sha256": "dc50335885e55696c25ec7738d39402c19f8472ef4a6a2caed37fe70d27a72f6",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "PROVIDER_ERROR_EVENT",
+        "ProviderChatDeps",
+        "ProviderChatInput",
+        "executeProviderChat",
+        "providerChatActivity"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/activities/reconciliation.ts",
+      "sha256": "221b25c48e4856777c6f07c6e9440df71af5bc4ef7c0f18598c42c2f08a8331a",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ReconciliationPage",
+        "inspectWorkflowOwner",
+        "reconcilePage",
+        "reconciliationPageActivity"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/activities/research.ts",
+      "sha256": "d6241e48316a5e8d47a5403baf361a0795729cd323eebbe433b6897708de7821",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "HeartbeatSink",
+        "ResearchStageInput",
+        "ResearchStageResult",
+        "STAGE_MS",
+        "runResearchStageActivity",
+        "scriptedFindings",
+        "workWithHeartbeats"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/activities/stalls.ts",
+      "sha256": "dac8d6a75db0c60fa0262f865bfe33ac7ad980fc97cbb7181f8b61bc864291a6",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "STALL_RESPONSE_EVENT",
+        "StallSweepInput",
+        "stallResponseEvent",
+        "stallSweepActivity"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/activities/sweep.ts",
+      "sha256": "4a58cfbe6e1d5a803fcc5e0903193c6e6ddd37a1f7d56bd1fd104fe8a9b31fda",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SweepCompany",
+        "SweepContext",
+        "SweepSearchDeps",
+        "SweepSearchHit",
+        "SweepSearchVia",
+        "linksFromSnapshot",
+        "loadSweepContextActivity",
+        "recordSweepCompanyActivity",
+        "searchWebPageActivity",
+        "setSweepStateActivity"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/activities/tools.ts",
+      "sha256": "a68461a5273444dc0e394a99107d2a2dd9215fbe9dcf635f53b52952490b6b0e",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ApprovalInput",
+        "DEFAULT_TOOL_TIMEOUT_MS",
+        "RecordedToolCall",
+        "SENSITIVE_TOOLS",
+        "TOOL_APPROVAL_EVENT",
+        "TOOL_EXECUTED_EVENT",
+        "TOOL_TIMEOUT_EVENT",
+        "TaskSnapshot",
+        "ToolCallDeps",
+        "ToolCallInput",
+        "ToolCallResult",
+        "emptyTaskSnapshot",
+        "executeToolCall",
+        "toolCallActivity"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/activities/turn.ts",
+      "sha256": "6e5ec851131680193d65c7b75ab4704e46f8ab4a74ebc63c148bcd109525f52d",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "AppendEventInput",
+        "ChildTurnInput",
+        "KARBOT_SYSTEM_PROMPT",
+        "KarbotTurnDeps",
+        "KarbotTurnInput",
+        "KarbotTurnLogFields",
+        "McpAuthProbe",
+        "PRODUCT_TOOLS",
+        "RESEARCH_TURN_WALL_MS",
+        "ResearchPausedError",
+        "SECTOR_TOOLS",
+        "TURN_HEARTBEAT_MS",
+        "TurnInput",
+        "TurnOutcome",
+        "appendEventActivity",
+        "chatHistory",
+        "checkWorkerMcpAuth",
+        "executeKarbotTurn",
+        "freezeOriginalPalette",
+        "karbotTurnActivity",
+        "productMcpClient",
+        "runChildTurnActivity",
+        "runTurnActivity",
+        "sectorMcpClient",
+        "selectTurnContinuation"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/connection.ts",
+      "sha256": "083198d186e3a489c691df5ad7bc3a572f7b554a093bb55d1a61d510de5ccb8d",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "connectClient",
+        "connectWorker",
+        "temporalAddress",
+        "temporalNamespace"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/dev-worker.ts",
+      "sha256": "b110c5930501b313ca36ec8768e3e0b835b9b4066db738514216e90f80e63b48",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "backend/src/temporal/discovery-acceptance.ts",
+      "sha256": "085a4b72ccfee234c84aac64c813a08ce2eef125db010d0a980029472d238c6f",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "discoverySample",
+        "validateDiscoveryAcceptance"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/discovery-intake.ts",
+      "sha256": "4e25782b2b6f6508aaeefa8f9f16b660132075ffbe585f530a5084229c0f57ae",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "validateDiscoveryIntake"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/gateway.ts",
+      "sha256": "ab5d61ad99364de0d2280da441311137a41d882d0b4d8737fa43ce667090258b",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ApprovedCoordinatorHandle",
+        "CancelHandle",
+        "CommandResult",
+        "DelegateSubagentInput",
+        "DelegatedChild",
+        "RunInfo",
+        "RunNotFound",
+        "RunState",
+        "RunsGateway",
+        "SESSION_PREFIX",
+        "SESSION_WORKFLOW_TYPE",
+        "SessionSignalStart",
+        "SkillInvocation",
+        "SubagentDelegator",
+        "TemporalRunsGateway",
+        "ThreadNotAccepting",
+        "buildSessionSignalStart",
+        "delegationWorkflowId",
+        "ensureApprovedCoordinator",
+        "signalRunCancel"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/guards.ts",
+      "sha256": "31fe7f5362005665ee1d3813e4ef19b1ac5526fd50e92c19ab202aa67d3f9c5f",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "GuardVisit",
+        "LoopVerdict",
+        "decideLoop"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/lanes.ts",
+      "sha256": "92fa1483e57c6349fa8d8b0130418586b9c5d3e0ea56d78be1e62b6cd83ccaee",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "LANES",
+        "Lane",
+        "LaneConfig",
+        "allLaneConfigs",
+        "laneConfig"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/reconciliation-start.ts",
+      "sha256": "673612e19f2a5aad4c17975fbcf41c616c3f82f2ab588dceafde51c5e0370aff",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FILE_ADMISSION_WORKFLOW_ID",
+        "RECONCILIATION_WORKFLOW_ID",
+        "ensureExecutionReconciliation",
+        "ensureFileAdmissionReconciliation"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/research-plan.ts",
+      "sha256": "1e3e7f9997e06283e1884f72a5937b14578348005580dacb20e828084101e14a",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ExecutablePlan",
+        "WorkItem",
+        "parseExecutablePlan",
+        "progressSummary",
+        "visiblePlan"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/sweep-rules.ts",
+      "sha256": "cf91b151bf64bb96b497bbf467f06efb60cc09cbf82861592691c28dc929fadb",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "CandidateCompany",
+        "CandidateHit",
+        "ENGLISH_REGIONS",
+        "buildQueryTemplates",
+        "extractNewDomains",
+        "isSweepCancellation",
+        "sectorSignals",
+        "stripTestMarkers"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/timeouts.ts",
+      "sha256": "91e74d4e4d0311de71ac13f62e71d86ac9612680313e3398b6eeb5ca6a853c3e",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "LaneTimeouts",
+        "activityOptions",
+        "laneTimeouts"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/turn-recovery.ts",
+      "sha256": "859d5c1360b52285e647c95b626da34685a60c61ef3d4cbcde984c175f57e670",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "OriginalTurnRecovery",
+        "loadOriginalTurnRecovery"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/worker.ts",
+      "sha256": "eb61171237a09a2263b151a400dec8427bcdc504b17d83c1c902d646e3c3173c",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ActivityFunction",
+        "LaneWorkerOptions",
+        "createLaneWorker"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/workflows/coordinator.ts",
+      "sha256": "5340e5d8e49709562dd19448a6004f808b110ffad58864abddb6cbb16eebf2b7",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "companyResearch",
+        "coordinatorPause",
+        "coordinatorResume",
+        "coordinatorState",
+        "sectorCoordinator"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/workflows/epoch-start.ts",
+      "sha256": "54709e51573064bce00531b7a448a6b71abcc3b194820a10e3c9cdc35fe15285",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "withPreparedExecution"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/workflows/file-admission.ts",
+      "sha256": "54db4a87af7eae0bda4f0c531938695155c0ef5d98f80f3d2ba31cd42149c880",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "fileAdmissionReconciliation"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/workflows/file-processing.ts",
+      "sha256": "fd03d781221d0ef191c4ce7ce9451ce28873d3013185a2a8ded8e9df8cf957c5",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "fileProcessing"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/workflows/loopguards.ts",
+      "sha256": "ecde40cf276e20ab04d70a26325e494e8d03de6fb13e60b963edf9779b1fbe21",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "DEFAULT_SUSPEND_TIMEOUT_MS",
+        "GuardResume",
+        "GuardedRunInput",
+        "GuardedRunState",
+        "GuardedRunStatus",
+        "SuspendKind",
+        "guardResumeSignal",
+        "guardStateQuery",
+        "guardedResearchRun"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/workflows/plan.ts",
+      "sha256": "5d2e6e2ce5e1988c847af12b396760cbe205d45c64a32959222d08045f10511c",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "PlanProgress",
+        "SectorPlanInput",
+        "planProgressQuery",
+        "planningBrief",
+        "sectorPlan"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/workflows/reconciliation.ts",
+      "sha256": "4ea52986cd1219b513b730dcc0c67c48a4d9ed6b39f5af5f50a473a02664659c",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "executionReconciliation"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/workflows/research-bundle.ts",
+      "sha256": "f0f2183fbe9ba9624c940097db45a29d1b7d370c33490bc564e95900d46c0bad",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "*:./coordinator.js",
+        "*:./file-admission.js",
+        "*:./file-processing.js",
+        "*:./plan.js",
+        "*:./reconciliation.js",
+        "*:./sweep.js"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/workflows/research.ts",
+      "sha256": "a7ca210713b15a795fc3211f96858ac3720598dba276ba94423cc9b9e77d5edc",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ResearchRunInput",
+        "ResearchRunState",
+        "ResearchRunStatus",
+        "assembleFindingsReport",
+        "researchPauseSignal",
+        "researchResumeSignal",
+        "researchRun",
+        "researchStateQuery"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/workflows/resumable-turn.ts",
+      "sha256": "add0105d2a23143dd5f87315c6dd6551a4a0d0f66404d0367b80040687d0c561",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "resumableTurn"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/workflows/run.ts",
+      "sha256": "a4c7f8cf0cc8a0f1e5f07c6eab476ffb2b56cb26a90ab758cbdf2abc1c499e31",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "DEFAULT_IDLE_TIMEOUT_MS",
+        "SessionRunInput",
+        "SessionRunState",
+        "SkillSignalArgs",
+        "cancelSignal",
+        "pauseSignal",
+        "resumeSignal",
+        "sendSignal",
+        "sessionRun",
+        "skillSignal",
+        "stateQuery",
+        "steerSignal"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/workflows/subagents.ts",
+      "sha256": "b4331b5aaf66106fa65360eacd32073ff2efe1d17ef386f9dcff00822579f38e",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "DEFAULT_CHILD_FINISH_TIMEOUT_MS",
+        "DEFAULT_MAX_IN_FLIGHT_CHILDREN",
+        "DEFAULT_PARENT_IDLE_TIMEOUT_MS",
+        "DelegateParentInput",
+        "DelegateRequest",
+        "NoteDoneRequest",
+        "ParentState",
+        "RedirectRequest",
+        "SteerRequest",
+        "SubagentChildInput",
+        "childCanDelegateQuery",
+        "childCancelSignal",
+        "childFinishSignal",
+        "childMessageSignal",
+        "childRedirectSignal",
+        "childStateQuery",
+        "childSummaryQuery",
+        "delegateParent",
+        "parentDelegateSignal",
+        "parentFinishSignal",
+        "parentNoteDoneSignal",
+        "parentRecoverSignal",
+        "parentStateQuery",
+        "parentSteerSignal",
+        "subagentRun"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/workflows/sweep.ts",
+      "sha256": "422aba891c75d871278af5c5c2140c2e56e01b5b40f7c9f615e2834e16fa3d24",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "DEFAULT_MAX_PAGES_PER_TEMPLATE",
+        "SectorSweepInput",
+        "SweepProgress",
+        "sectorSweep",
+        "sweepProgressQuery"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/workflows/turn-bundle.ts",
+      "sha256": "3e9e7d53b637c13e0f32595d6bf62049ee3eb72c2dba384ae23c96ff6ecef463",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "*:./run.js",
+        "*:./subagents.js",
+        "companyResearch"
+      ]
+    },
+    {
+      "path": "backend/src/threads/project.ts",
+      "sha256": "b411fa15077bb973f43fb9fe1577e94c12faf6049fcf4b3a595bc9de877f4c7a",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ChildRef",
+        "MessageAppended",
+        "MessageKind",
+        "QueueEnqueued",
+        "QueueReleased",
+        "SendReceived",
+        "SessionCreated",
+        "SessionDeleted",
+        "SubagentCompleted",
+        "SubagentLaunched",
+        "SubagentLaunchedV2",
+        "SubagentMissedSteer",
+        "ThreadFinished",
+        "ThreadState",
+        "ThreadView",
+        "routeSend"
+      ]
+    },
+    {
+      "path": "backend/src/threads/views.ts",
+      "sha256": "9cc3493f68e5f4abf5f289e743d79aceb5ac4a28ed1944158c454d59345beb56",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ApiThread",
+        "toApiMessage",
+        "toApiThread"
+      ]
+    },
+    {
+      "path": "backend/tsconfig.build.json",
+      "sha256": "71739e11e05e7ab3777c01d07ebd319dfe831d614e9f33e8b8bf0a81e708286e",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "backend/tsconfig.json",
+      "sha256": "8fb785b1b01e2b09e184eaec27f28fcb4f3f1312347ecdb1a49e4028a066db53",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "backend/vitest.config.ts",
+      "sha256": "34ae66e1b0f9b583a5aedfa509d5839ddee5e87a964d64d136c4f82bba4ee2c8",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "default"
+      ]
+    },
+    {
+      "path": "db/migrations/0001_init.sql",
+      "sha256": "4431bf06f733027bcae6349eeb52d5c1f667bc33d9f9ab54747fccb2bb4c5cc9",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0002_ledger_event_seq.sql",
+      "sha256": "930a2f6e0b252360e430185dbd2b08654d8915efa99058ae7f159c7ecf245637",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0003_projection_checkpoints.sql",
+      "sha256": "19b2206505eb77bd1e9e400ae7ad7954f5f78e6d6d2a81bafcab5c7340f5f401",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0004_outbox_notify.sql",
+      "sha256": "fdfb3ce3c32cef493400c7adfce41645b08b7c73b97b7e7803d0c4f54262d018",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0005_api_keys.sql",
+      "sha256": "e5ca1825561a1e8483bc34e9495f393d8fb5458d361d668dd72b1dc57cd5bf06",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0006_rate_idempotency.sql",
+      "sha256": "bf6d747143ed06087dc14ec2b9a0af396e4a2074fc73558a7cd898b64b7761dc",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0007_sector_domain.sql",
+      "sha256": "1f61cebedc24bf6bb4b62c5642f85c2b00e9e4a7bc44d5cf7ae8971ffd4b47e6",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0008_knowledge_ledger.sql",
+      "sha256": "6ab453be23a22b520b6f8a89e32b2c9ee87cf3461f6ba8d54358ddcdeccf4978",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0009_sector_drafts.sql",
+      "sha256": "aff74ee10b88326c53c81a0b6558ecc5994b0ec2e88d631b232e6f523e8c5a64",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0010_sector_document_units.sql",
+      "sha256": "816bd8bc5f9d72d9232bebe5522382dced34928221a245ba00451eea91abd745",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0011_sector_context_selection.sql",
+      "sha256": "f366d047137d6cb02ca8791d2d679a7306281250516b5e731ab394206f60957c",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0012_sector_research_session.sql",
+      "sha256": "ae99c80831a5ae3ba7d7a262bcdbd0a7e0ec398cd401056d2973d9f3552f7c6e",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0013_sector_planning_states.sql",
+      "sha256": "75d06c47d780d57817920346963aa581df1dfb437fea0146e90f20f3950392c1",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0014_sector_workspace.sql",
+      "sha256": "b4bbcbf50a055f62f84926663ce6fa6557cc8b8d1f1dce8307b7a0a38c331892",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0015_workspace_file_index.sql",
+      "sha256": "2e732826cd6a20c295a0a8f2f1a37bea7ef8724ac28969913e4a4e397462898b",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0016_turn_continuations.sql",
+      "sha256": "da25e697e58f09d451d16580c586b8dbeadebd4983652b1278e5a8fb5abdcb9f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0017_workspace_measurements.sql",
+      "sha256": "896037aefd4b841d582925d6fc76e12b9dc8634a1a00dce094bf40e7f445584f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0018_workspace_hardening.sql",
+      "sha256": "73771ccdb28563d54c3f56ce1788c119cf9017977d1262784519e5a0703ef524",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0019_turn_attempt_leases.sql",
+      "sha256": "717f083e64e98ce3b98f08d7fc2f7f00db92e9b0852e25fa536ad4574802ee13",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0020_context_file_dependencies.sql",
+      "sha256": "4440df2393b60a5fb92b9209bdbb19496c2584a4af82630fd66311505025103a",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0021_execution_epochs.sql",
+      "sha256": "4028855fca0bf57f5cd7065abeec6d63bf6e7e151ad83eec2c16f56eff9f5b17",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0022_intake_review.sql",
+      "sha256": "b0cd76598acc845b69c2ea9556396535d7a9683d7f671da41c864c1a2df73f40",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0023_file_processing.sql",
+      "sha256": "da19c870899e4f3b1999c0b937567e1331390108896210f11cbac4cf6fcdced2",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "deployment/Dockerfile",
+      "sha256": "ebf406eda2bcb8c7104b13b74d9f98c54089e30930456d94b62623408d3f56cd",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "deployment/backend-entrypoint.sh",
+      "sha256": "c950b776e8f943cbf36f62df4d49ca472248e03d3fc5de8399e014b8a9616be2",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "deployment/compose.yaml",
+      "sha256": "25e601f46b1c50f0ff773690dd2e882c35046bc166bc5529727c8452d73ee348",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "deployment/grafana-provisioning/dashboards/dashboards.yaml",
+      "sha256": "021d95b76734d96c951084e75ca1f17537ec45bdd861c538d234a31d5c1255ff",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "deployment/grafana-provisioning/dashboards/kardata-fleet.json",
+      "sha256": "99e372e00d5edae016ed3e9b036e737a64a7d855866735f4f636ada78ebf7c05",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "deployment/grafana-provisioning/dashboards/kardata-runs.json",
+      "sha256": "5fb4deddc7cdbc9fd91adc9f4f6d3ff1fc47cbb407dc12e436fbb62a9030f027",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "deployment/grafana-provisioning/datasources/datasources.yaml",
+      "sha256": "cbfe440d990d63f0e37cdc4498ef70bb005261a453366efaa9f7e530a518ce3f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "deployment/loki.yaml",
+      "sha256": "8f1bd0cad9a2c619d02266f30233427f2cd3d2e72c797da0703dec6b4693a5db",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "deployment/prometheus-rules.test.yaml",
+      "sha256": "8572d7d1aa02c7dc61ffc0031b8f683aad5af0228ad3bdd1ffce70d4c63593f0",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "deployment/prometheus-rules.yaml",
+      "sha256": "0b5aaaf6105629febe48a82e88c5e6da5544fa6a9ca47ddf4fe6f0e4ada6c02c",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "deployment/prometheus.yaml",
+      "sha256": "df86794c75beea385fac19a2c871c14be0bc7ce5b3e2e5fc6584bf6cf35dfccc",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "deployment/promtail.yaml",
+      "sha256": "b0cfb573d6d2b891b7e444e43676c32f4b6f5a3e998bb27a6cbf789e139c258b",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "deployment/worker-entrypoint.sh",
+      "sha256": "cf3129eab1b9c29feddc015d0328ade2d6a6218fb4e422ce09d7070997355a4d",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "frontend/.gitignore",
+      "sha256": "463b5f9362420aaa6bbf70c200b7cef361af47f34e60e6767851406f3091a39a",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "frontend/.oxlintrc.json",
+      "sha256": "b4d344818a1e1bf43997e4744a9153c8eef770c98b58229cd86363dabb85ded4",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "frontend/components.json",
+      "sha256": "156858e2da20785ac0f1853580c7e34d5b8496f519e8839d2176e85947d4f779",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "frontend/eslint.config.js",
+      "sha256": "cad80f95c03e872d8eee394b815f2c98edcd8c3aad419a0d40c212a3353152c9",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "default"
+      ]
+    },
+    {
+      "path": "frontend/index.html",
+      "sha256": "c489ca10e39dee2c944678c7cbe29c05c1464f0d3ad331829be0616dfe292ada",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "frontend/package.json",
+      "sha256": "d309d88dba4e6c0dc5dc388255b6f01fe6db8302f6a03706d82ce7b6646d7cdf",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "frontend/playwright.config.ts",
+      "sha256": "6349035ad454e624b3cc2c8a0d82761baa21835e6fe3605310a8358d4f528626",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "default"
+      ]
+    },
+    {
+      "path": "frontend/public/favicon.svg",
+      "sha256": "61bc9a161de58248288e6905425d7180f0624c2865007b97d763fdac12043a66",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "frontend/public/icons.svg",
+      "sha256": "b45fa506195cfcdef406ba9f0c77b36ddc1a7c224040926ec70abc2fdea7b93a",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "frontend/src/App.tsx",
+      "sha256": "56c39217f60f442419b17501d193d672227c118c7ebb011aa00d0be2c2e97125",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "default"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ChatPanel.tsx",
+      "sha256": "0fc7947013d12a15165e73969d264ccc62bc53ea3b341c0b1d1912804d309322",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ActivityGroup",
+        "ChatFile",
+        "ChatMessage",
+        "ChatPanel",
+        "ChatScope",
+        "ChatText",
+        "ChatTool",
+        "FilesMenu",
+        "MessageSegment",
+        "SessionFilesView",
+        "SessionsPanel",
+        "ThinkingPlaceholder",
+        "groupMessageSegments",
+        "mergeChatMessages",
+        "messageSeq",
+        "sessionAge",
+        "toChatMessages",
+        "toLiveMessages",
+        "toolGroupSummary"
+      ]
+    },
+    {
+      "path": "frontend/src/components/Dashboard.tsx",
+      "sha256": "843d440495fa71b51b03d7fdca126e6fd6384bd529b72bc26afe708072a39ce5",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "Dashboard",
+        "ResearchList"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ExecutionInspector.tsx",
+      "sha256": "50686efecfd4acbf008bb15b91841eb5fd3da5f9de99e820192f6983e9f1bce9",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ExecutionInspector"
+      ]
+    },
+    {
+      "path": "frontend/src/components/FileProcessingRetry.tsx",
+      "sha256": "5a41e3afdbeafb9fd3d7155dcc2f62edd93b182667482bff7b3f2de9f29c2599",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FileProcessingRetry"
+      ]
+    },
+    {
+      "path": "frontend/src/components/FileProcessingStatus.tsx",
+      "sha256": "c0127e2d6ef2986e27363b86d098fd6ab39f78b738c3449d5eebd5de11a5b102",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FileProcessingStatus"
+      ]
+    },
+    {
+      "path": "frontend/src/components/Markdown.tsx",
+      "sha256": "ccd41cdd2ef667aacd475dac3cf8103c6d02b6d740389a724647489959ce0cf6",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "Markdown",
+        "safeExternalUrl"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ModelToolbar.tsx",
+      "sha256": "96903d5127d915bfbd2b24f89e89fc85b36fcb635ba64b0b675508510e275057",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ModelToolbar"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ModelsPanel.tsx",
+      "sha256": "e08134aa4eb4209a9ed443f2cb0aead758546b4169f0ed2d96c14872fe220d38",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ModelsPanel",
+        "providerLabel"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ResearchPlanEditor.tsx",
+      "sha256": "05c3ea3fa4bcafabf495872e3f0d46119b43b584eeaac122cdc3b65ebd234031",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ExecutablePlanDetails",
+        "ResearchPlanEditor"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ResearchesPage.tsx",
+      "sha256": "7a2c708c084c405ef75a08014dd2249a66e4918c119332b55341fb4d19f3d90b",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ResearchesPage"
+      ]
+    },
+    {
+      "path": "frontend/src/components/RunConsole.tsx",
+      "sha256": "b657fcfc0c9a1977c09f273c4e5a239582d701c4b0a48004aae0d0d500926e49",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "RunConsole"
+      ]
+    },
+    {
+      "path": "frontend/src/components/RunsPanel.tsx",
+      "sha256": "8c359e97ed8ff7c4a6033c202c294de9a13fe8a56279277ea4e71fbe8fd87df4",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "RunsPanel"
+      ]
+    },
+    {
+      "path": "frontend/src/components/SectorChatPanel.tsx",
+      "sha256": "208dd0ea98bbc088d723a3f5cf729738fe546e5e53339ae4fe1c47056376df90",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SectorChatPanel"
+      ]
+    },
+    {
+      "path": "frontend/src/components/SectorContextDrawer.tsx",
+      "sha256": "f67a07528e33b68f8fa79d03d22db21fe63111743f7923dfea6839b4c80aeee5",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SectorContextDrawer"
+      ]
+    },
+    {
+      "path": "frontend/src/components/SectorDetailPage.tsx",
+      "sha256": "69e6e2f2a016bc55c17b1ad677c09f5b39f57a6df0724ce45f0bb77ca922b826",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "AttachResult",
+        "CompanySection",
+        "SectorDetailPage"
+      ]
+    },
+    {
+      "path": "frontend/src/components/SectorFilePreview.tsx",
+      "sha256": "6b58f591480bad0780d0324804e4f55179a2d772cef6e32c35fc66b748329e51",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SectorFilePreview"
+      ]
+    },
+    {
+      "path": "frontend/src/components/SectorLanding.tsx",
+      "sha256": "0b1674b5a989472ee9062e8bac217a57ac117163c47ce21f275388311d0723fb",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SectorLanding"
+      ]
+    },
+    {
+      "path": "frontend/src/components/SectorPlanSection.tsx",
+      "sha256": "5a8bd4427d2233329c629b5e8ff5a278dd78b0354733ad4b080768e648fe58f0",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SectorPlanSection"
+      ]
+    },
+    {
+      "path": "frontend/src/components/SectorWorkspace.tsx",
+      "sha256": "30569d33e73f8c805676e3b8abead39043b39946d28d97a40d58fa614b978b7e",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ResearchActions",
+        "SectorWorkspace"
+      ]
+    },
+    {
+      "path": "frontend/src/components/Sidebar.tsx",
+      "sha256": "5efa1342830f671143b0376a3ab5a34673943511831c8ebca8caa485cbaf2070",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "Sidebar"
+      ]
+    },
+    {
+      "path": "frontend/src/components/StatusPill.tsx",
+      "sha256": "dd33cd9ed58977c5c74308188d94792120f8989418375a4a2a4fa1e085c70f3b",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "StatusPill",
+        "StatusTone",
+        "toneDot"
+      ]
+    },
+    {
+      "path": "frontend/src/components/SubagentsPanel.tsx",
+      "sha256": "85882cff6d1f35a99266727992c3fdfe21df8bc4fb1fb956de19b7040456a7f6",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SubagentsPanel"
+      ]
+    },
+    {
+      "path": "frontend/src/components/SupervisionAlertsPanel.tsx",
+      "sha256": "33d920dd972fdabcbbf97edaea589fbeb616d4ce95a423c5de7d556612d6b0fc",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SupervisionAlertsPanel"
+      ]
+    },
+    {
+      "path": "frontend/src/components/TopBar.tsx",
+      "sha256": "7f1381de6989664f2f33484533c699ae3edb10ba12fe02665fa5e7de5950e5be",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "TopBar"
+      ]
+    },
+    {
+      "path": "frontend/src/components/chat-parts.tsx",
+      "sha256": "6c148e635801a6a970797ec99c1fb867e27f9973d2fe4a870028d14d77378e67",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "AgentBubble",
+        "AgentMark",
+        "DIVIDER_GAP_MS",
+        "TimeDivider",
+        "UserBubble",
+        "splitAfter",
+        "useChatStick"
+      ]
+    },
+    {
+      "path": "frontend/src/components/research-parts.tsx",
+      "sha256": "8cb7c2ba5228d8adb7ab1823ef2516240dd8581cc9cd3dfdec8dd545970e96f1",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "CompanyRow",
+        "DeniedNotice",
+        "OVERFLOW_THRESHOLD",
+        "OverflowList",
+        "PanelError",
+        "SectorRow",
+        "SkeletonRows",
+        "ToolRow",
+        "UnavailableNotice",
+        "firstRunCopy",
+        "stateLabel",
+        "stateTone"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ui/button.tsx",
+      "sha256": "448bfe8061a1b03f6790e53daeed1d15854544635fa655208cfabf0cf2c18008",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "Button",
+        "buttonVariants"
+      ]
+    },
+    {
+      "path": "frontend/src/components/ui/input.tsx",
+      "sha256": "dab990dfefa0ba78854ab6602ad074270dba9d7d1262184d9bfbb62bd990903b",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "Input"
+      ]
+    },
+    {
+      "path": "frontend/src/components/workspace-parts.tsx",
+      "sha256": "d6356f1524ecc0e9290f4b80fa6f5ffaaeeef6ef9a287302d220cbfed028a929",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "GlobalContextPanel",
+        "LocalContextEditor",
+        "PlanProgress",
+        "ResourceNotice",
+        "WorkspaceFiles",
+        "WorkspaceOverlay"
+      ]
+    },
+    {
+      "path": "frontend/src/data/alerts.ts",
+      "sha256": "f0dd56cfc0dcc6ce10202296d80773e03b7baf19330335973e2c62949d2fbf9f",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SupervisionAlert",
+        "SupervisionAlertsPage",
+        "listSupervisionAlerts",
+        "useSupervisionAlerts"
+      ]
+    },
+    {
+      "path": "frontend/src/data/research-plan.ts",
+      "sha256": "92fd1c0fea083a9e681c0549ce39244c070bd045d70a3953b69a808d99a6cf23",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ExecutableResearchPlan",
+        "ResearchPlanVersion",
+        "SectorPlanResponse"
+      ]
+    },
+    {
+      "path": "frontend/src/data/research.ts",
+      "sha256": "eeaef0b89c2482c7323f8a234b49be2b213ed20f0fd16221de9a75b54a973720",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "COMPANY_WINDOW",
+        "CompanyData",
+        "CompanyFilters",
+        "CompanyResearch",
+        "ResearchData",
+        "ResearchStatus",
+        "SectorActivityEntry",
+        "SectorDetail",
+        "SectorDetailData",
+        "SectorResearch",
+        "useStagingCompanies",
+        "useStagingSectorDetail",
+        "useStagingSectors"
+      ]
+    },
+    {
+      "path": "frontend/src/data/sector-workspace.ts",
+      "sha256": "1b366072fc8bd847bdb1e3e5545922e661c3004fe4bab33ae7488f71cdf3cbb6",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SectorWorkspaceModel",
+        "useSectorWorkspace"
+      ]
+    },
+    {
+      "path": "frontend/src/data/stages.ts",
+      "sha256": "14d1b757702b99f5aea05118468bc8b1e6a8b0c2675a094b70c91c71604365a3",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ResearchStage",
+        "researchStages"
+      ]
+    },
+    {
+      "path": "frontend/src/data/staging-api.ts",
+      "sha256": "411255822b6dc50deea1ced04decd1e7084982de460d45307b387ae358d77939",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ArtifactBody",
+        "ArtifactReference",
+        "ArtifactSummary",
+        "AttachedDocument",
+        "CommandAccepted",
+        "CompactSectorContextResult",
+        "CompactSessionResult",
+        "CompanyPage",
+        "CompanyResearch",
+        "ContextFileView",
+        "ContextNoteView",
+        "ContextUnitView",
+        "CreateArtifactInput",
+        "DeltaPayload",
+        "FollowThreadOptions",
+        "LiveMessage",
+        "LiveThread",
+        "PlanVersionView",
+        "ProviderCatalog",
+        "ProviderCatalogSchema",
+        "ProviderEntry",
+        "ProviderEntrySchema",
+        "ProviderModel",
+        "ProviderModelSchema",
+        "ResearchState",
+        "RunState",
+        "RunSummary",
+        "STREAM_IDLE_TIMEOUT_MS",
+        "SectorActivityEntry",
+        "SectorContextView",
+        "SectorDetail",
+        "SectorDocumentSummary",
+        "SectorFilters",
+        "SectorPlanView",
+        "SectorResearch",
+        "Session",
+        "SessionModelSelection",
+        "SetSessionModelInput",
+        "SkillSummary",
+        "StagingApiError",
+        "StagingConfig",
+        "StreamFrame",
+        "ThreadView",
+        "ToolPayload",
+        "TurnMode",
+        "apiErrorStatus",
+        "approveSectorPlan",
+        "attachSectorDocument",
+        "cancelRun",
+        "compactSectorContext",
+        "compactSession",
+        "createArtifact",
+        "createSector",
+        "createSession",
+        "decideApproval",
+        "deleteSession",
+        "followThread",
+        "getArtifactBody",
+        "getSectorContext",
+        "getSectorDetail",
+        "getSession",
+        "listCompanies",
+        "listMessages",
+        "listProviders",
+        "listRuns",
+        "listSectorDocuments",
+        "listSectors",
+        "listSessionArtifacts",
+        "listSessions",
+        "listSkills",
+        "listTenantArtifacts",
+        "listThreads",
+        "openThreadStream",
+        "patchSectorContext",
+        "pauseSector",
+        "planSector",
+        "readSectorPlan",
+        "referenceArtifact",
+        "renameSession",
+        "request",
+        "restartSector",
+        "resumeRun",
+        "resumeSector",
+        "sendThreadText",
+        "setSessionModel",
+        "stagingConfig",
+        "stagingEnabled",
+        "startSector",
+        "steerThread",
+        "updateSectorPlan"
+      ]
+    },
+    {
+      "path": "frontend/src/data/useWorkReview.ts",
+      "sha256": "7ed27f5f293b58d74a75991f573149253bce0a779aac3167e8ab52a175abca43",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "useWorkReview"
+      ]
+    },
+    {
+      "path": "frontend/src/data/useWorkspace.ts",
+      "sha256": "4d6ed4d37418bca34d42d6ec65cdba21ce03e1f25ac6de20c452cc82ea904b8f",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "Resource",
+        "useWorkspaceConversation",
+        "useWorkspaceResource"
+      ]
+    },
+    {
+      "path": "frontend/src/data/workspace-api.ts",
+      "sha256": "e4395c81d7eaf06736720beb5e24c882fa2daed75a417a5e85adbff9c11deb89",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ContextChange",
+        "ContextPreview",
+        "ExecutionRecordBody",
+        "ExecutionRecordMetadata",
+        "ExecutionRecordPage",
+        "FileProcessingProgress",
+        "FileUnitsPage",
+        "GlobalContext",
+        "LibraryFile",
+        "LocalContext",
+        "OperationReceipt",
+        "ResearchProgress",
+        "Sections",
+        "SectorFileBody",
+        "compactLocalContext",
+        "decideGlobalContext",
+        "ensureResearchSession",
+        "getContextPreview",
+        "getExecutionRecord",
+        "getFileUnitsPage",
+        "getGlobalContext",
+        "getLocalContext",
+        "getResearchProgress",
+        "getSectorFileBody",
+        "getSectorFiles",
+        "hideSectorFile",
+        "includeSectorFile",
+        "inspectThreadOperation",
+        "listExecutionRecords",
+        "proposeGlobalContext",
+        "rebuildLocalContext",
+        "retryFileProcessing",
+        "reviewResearchWork",
+        "saveGlobalContext",
+        "saveLocalContext"
+      ]
+    },
+    {
+      "path": "frontend/src/index.css",
+      "sha256": "46f5e878c034b7983a7d00b924ae1130a24e0e2d67938a62962ee622f9fa406c",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "frontend/src/lib/download.ts",
+      "sha256": "b77cccefa75534a389dfbc3ab08cf71532d249997af69b07762a0b5fd89091e6",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "downloadBlob"
+      ]
+    },
+    {
+      "path": "frontend/src/lib/motion.ts",
+      "sha256": "88656ca62b1f47164a6f0a69a3258e9599dbf2fb144a2c31f0169452a8d5d167",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "EXIT_MS",
+        "dockEnter",
+        "dockExit",
+        "popoverEnter",
+        "popoverExit",
+        "prefersReducedMotion",
+        "useExitState"
+      ]
+    },
+    {
+      "path": "frontend/src/lib/useNavigation.ts",
+      "sha256": "1342c1f0c062796e77d66473196ad1a21516dfc3d38089ad5d324902f0dad2f4",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "Navigation",
+        "parseNavigation",
+        "useNavigation"
+      ]
+    },
+    {
+      "path": "frontend/src/lib/utils.ts",
+      "sha256": "14300d758170c270c75b057f38fedb3793a5920ea872f0477e29fb131185e8a7",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "cn"
+      ]
+    },
+    {
+      "path": "frontend/src/main.tsx",
+      "sha256": "6e9e5807fcbd48b75a96db5cbef36c996262196be42e6d4760dc86babbe61ad2",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "frontend/src/test/setup.ts",
+      "sha256": "278c8ab04d4daa680e919eee55458a535f7795062bb69216b331d801a6852355",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "frontend/tsconfig.app.json",
+      "sha256": "50c528f159ded5ae2630aa05a6e777c017cb3db02090d80c261b04e1a282e4fe",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "frontend/tsconfig.json",
+      "sha256": "770b4140bbb581e2dfd9ea9946ffc9c75a1d86ba7d2db5f77c83e37cbdf9d808",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "frontend/tsconfig.node.json",
+      "sha256": "d366cc0827139db39c61815f22491bbfda56c654354a42ad7795143d314e45e8",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "frontend/vite.config.ts",
+      "sha256": "6acfc6e05e1495e342f4db9313a52085473f5c3a5d21081836ceb495abc51adb",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "default"
+      ]
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "d0291dd97af3c61321bc64310a6b397d4efb535d0d636f3ce78ab2180c564457",
+      "review": "excluded",
+      "reason": "Generated npm lock: dependency and integrity review belongs to package manifests.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "package.json",
+      "sha256": "4c3bace4c49a13d44b669eebafe8e6a47e0699a02bb81b838ddadcd35dbbf77f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/alerts.test.ts",
+      "sha256": "e07a76a1e9a74ad551dd2010ff9aaa5c3fdcee38f0365c93f3fe0e22b410fc7f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/api.artifacts.test.ts",
+      "sha256": "8ddc809a09934e1b79e295920e1dedfca0e8a37d3a75b5294f40f049d13a4d45",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/api.auth.test.ts",
+      "sha256": "28067b9ba7c215969eb8055c65256e9c7c68a7664a80dcbe19d01dec5344edf8",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/api.cors.test.ts",
+      "sha256": "f7feff9f8cf5528bc0ffd549c1b22997f7a88111a61ffdfc1b1cc1b572cd4901",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/api.idempotency.test.ts",
+      "sha256": "d0b9789a7be4d67664197c9fe6cb5b316e913c32d61bece8ae27eaa9a887800f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/api.inspector.test.ts",
+      "sha256": "3e95ccdd29938329e2b434dd564ba9af3874fbfcf9f0372099f81804ccdaae1c",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/api.live.test.ts",
+      "sha256": "c1bb5eb93483337dd347fe28cbc689ddb52ae0ca0dc6354e16cf2ed6dcc2677d",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/api.rest.test.ts",
+      "sha256": "9809166d8f152366e8b52e33bfceb96b5f33b59b64737831a7da3824a5656fa5",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/api.sector-compact.test.ts",
+      "sha256": "a6522f6bec1938fcf9253d4c06f2dd8833769298c42cc544f8464f2403c8a337",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/api.sector-context.test.ts",
+      "sha256": "d3c7b823bcd31483d194b093985779a82ad338c896fe71a2ebcbc52b9aced1d5",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/api.sectors.test.ts",
+      "sha256": "8450f9d2971e29ba07081128b9aa4226ccb1292d07191a108fe2b3c2aed4d2f7",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/api.session-compact.test.ts",
+      "sha256": "3cd07c5bffbe8592f3c3f38531fc9805addf0f17320946482c0558fe8b6b2928",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/api.session-model.test.ts",
+      "sha256": "91cf923c647aceeb0a3490b631b21db821a96a448c7e28831bff2d9550593339",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/api.session-sector.test.ts",
+      "sha256": "e030cf5d6a367838cea6a713666455c7a76c9a40c7cd4f21ccdd59576bdb9f20",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/api.sse.test.ts",
+      "sha256": "b108144762d68d9d287826a180ad80b58a362418f8a7ff866e786c5148ee6276",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/api.workspace.test.ts",
+      "sha256": "8ee16fdb98561c79d163aa68f513c099bbecd99014c79d20729d0a08247ef511",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/archive.container.test.ts",
+      "sha256": "1573c4b20a4698e99bd28c72321d68be93f536bbcef5149a3838c5634bd0a015",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/archive.storage-config.test.ts",
+      "sha256": "6639b2b478ce9718d4acdaa8c905744f3285d397124ebb4994351b89ac35d722",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/archive.targets.test.ts",
+      "sha256": "80025b83b6509966e566a04020d5202340f679aaeccf930db44c07935d9a6a44",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/artifacts.test.ts",
+      "sha256": "1b08803d8d7c6ef5f65e0978380ca3f574e293a92c05c1d51aac44c06bac644f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/browser-pool.test.ts",
+      "sha256": "cc2b337fc7a18cb0fc0fd545e2decf4c74e0f1410b9ab51a0e9807bd60519284",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/browser.isolation.test.ts",
+      "sha256": "65081f1c3ac672742c98222cb2179bd7f5b2c186507db1d07a474b4d80c2b689",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/browser.network.test.ts",
+      "sha256": "a1f0de0d56dca79158cd11df913444905c4d878a2667ff4efc9b0d2fb51d32b9",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/browser.proxy-auth.test.ts",
+      "sha256": "08445133d3ac105dded608528adc67ea18a50a3aedfa4e7c3c6a020864af54b5",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/browser.proxy.test.ts",
+      "sha256": "2aac84293251eca52b73ce063d0c1e50894a61914e3cd95ff7a8bf8a024df2d4",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/compose.smoke.test.ts",
+      "sha256": "42b32d76ee3aebc835b133d933d92aefc74c2dad37ed48d18b5abb5a78d0367f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/context.compaction-recovery.test.ts",
+      "sha256": "f4725f5fec3687a42cb6b1a02005c67d61c34c5bf87ff57eeda4c0152b5729fd",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/contract.test.ts",
+      "sha256": "dbd2c6a9c53adc8badd49515122a4f08def3c81e6b9ef58c2f5a2473537e99b5",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db-helper.test.ts",
+      "sha256": "eb7eca51e5baa3c61c81d1e90db792991ad242641c30e2ef1d21af6b7fa7c332",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db-helper.ts",
+      "sha256": "5fd75603566c7a0c3930c7fa29b4c9789c77fdc9bf9cd3cf298ea9bdd4ee6232",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "TEMPLATE_RUN_ENV",
+        "TEST_DATABASE_URL",
+        "derivedUrl",
+        "ensureTestDb",
+        "prepareTestTemplate",
+        "templateIdentity"
+      ]
+    },
+    {
+      "path": "tests/backend/db-setup.ts",
+      "sha256": "b7330b2f13fc59eca2bd40b6dea275260a11dd85dacb31ad7b14a73d600fe1c4",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "default"
+      ]
+    },
+    {
+      "path": "tests/backend/db-template-unit.test.ts",
+      "sha256": "dbd98d5fd56bf565db8bd8c45e024a5626e217e5401299522599f7190d5a6e9c",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db-template.test.ts",
+      "sha256": "f859f911bb726902a4426ca1378e9de7612227772aa1a599d3d17c416d06dbd4",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.artifacts-create.test.ts",
+      "sha256": "fe39d697dc598f8abdd47d673404645d35ba42e717ae589e459bf9ed55f49afd",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.artifacts.test.ts",
+      "sha256": "4744d1baeafc0abe32897525d692077fccfd1cca2d2be380e69c0c0e17d4f249",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.commit-order.test.ts",
+      "sha256": "b06ad8e29483d7019c41474b14b367005f941ea428d31c01cd49d42fb0e88c20",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.concurrency.test.ts",
+      "sha256": "140af5430590522250465e5d6ebe67294662e1c5977ec26c2b2d5b451b329984",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.contract.test.ts",
+      "sha256": "5e2c61c34bbd971d10a4c38c799d89610962a1e949763d813a397389cc910d17",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.discovery-integrity.test.ts",
+      "sha256": "658e4fb88cc0b56f04b89f544ce7d08196c78fb2ee995b95e2b28e17944958ea",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.document-ingest-recovery.test.ts",
+      "sha256": "0c12d63d6548f7c7f715295b19ba1dafad9677d9bfe11f6839e4e94900d47223",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.document-units.test.ts",
+      "sha256": "def6c69900fe0bf734f2ab74a3568338fbe767e52766679ee90896a00bfe2ec4",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.key-provisioning.test.ts",
+      "sha256": "767719a1fde1dd6f103f331d70fb1c4b30fa412362602a3ed1cf66863e734780",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.knowledge.test.ts",
+      "sha256": "2cedf74712e5f1aa4aa620de0383ae64dd84aee1bbc7301d0ca55dafa57e34be",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.migrations.test.ts",
+      "sha256": "a9fd5da10e907a1456f0f802197f06073c8496b5a9db2ca55d675b02eceeb77b",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.outbox-disconnect.test.ts",
+      "sha256": "8d9687203eb9b6222263e404f92e32173a2869b19c3f055fe74ca247dc3af536",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.outbox-subscription.test.ts",
+      "sha256": "bab4ee80b5af0fd81f0565df9e9715728452fd5cc3171dbc80a2f8db4acead57",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.pool.test.ts",
+      "sha256": "17398fcfff1ee074bc88f9721e7c836cfb679e98f6db243bb7281d89620842c4",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.research-budget.test.ts",
+      "sha256": "ea8ba4587622d572531c14c762c054bc75d13048dc49af30b1744c6d304e187e",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.sector-documents-query.test.ts",
+      "sha256": "91be508c847d212e29a044f3d62273c21bc28cb3b4b50acdc70d59c7aecac98d",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.sectors.test.ts",
+      "sha256": "2b7d11ffe49773afe9a602278186ed073e8cb3e1068b49364f370b8d20dbd6e1",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.thread-directory.test.ts",
+      "sha256": "76440cadd35cc30062d5199a2c912465632133649dd90c70dadd89f1a1adb88b",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db.workspace-idempotency.test.ts",
+      "sha256": "b4d88c70339f03b87b4a4d06886bf04529cd1c36b713f01c5c1485d72e419227",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/deployment.capacity.test.ts",
+      "sha256": "25824b1b79be6930642e7224437626beada065e381f8ac6de03f54eefc133ed6",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/discovery.acceptance.test.ts",
+      "sha256": "a44afae775cf77b2c1cfb82d32568cad8bcf0ddf462fea2de5c5892d87d3501f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/discovery.intake.test.ts",
+      "sha256": "9d462cce482cc9b436dc1e16dc42bbfb851b8503811cf469971c26ffd147ba97",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/eslint.config.js",
+      "sha256": "083f9455846c6aef81cb072255d7cdfc0d1f29ca08aa287fab6c6069b5f1b333",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "default"
+      ]
+    },
+    {
+      "path": "tests/backend/events.append.test.ts",
+      "sha256": "08535a60e60d323a4393dfaebae93796d873988a158a852a9bf11e828f45f8ad",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/execution-epochs.test.ts",
+      "sha256": "8b110a95fcaea2ee0af3fe380ae105291de084cc79819ffb2a68bc2e8c305191",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/execution-records.test.ts",
+      "sha256": "017ba652f1af3771abe062a3d44b132f3c591b595c448f8c8d452ba0d455c888",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/execution.inspection.test.ts",
+      "sha256": "0de3a524efc2f847f830aa85fd6013376a0be7fda7348128f81157da4de2765d",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/fake-gateway.ts",
+      "sha256": "995c196d5c0110691074ef8eb3a8fa3ebb2e6fe969dfd2cca4505b8e321a1cfa",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FakeRunsGateway"
+      ]
+    },
+    {
+      "path": "tests/backend/file-admission.test.ts",
+      "sha256": "bf68bf5de9f3cb5e8f3a4b2dbe891b5236e8caa650013ce3b11f321bf469d7af",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/file-jobs-recovery.test.ts",
+      "sha256": "8635c05e7f130ab9ff4099d553535bad35d29861183df29a0aae0930519db679",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/file-pipeline.test.ts",
+      "sha256": "e3151bfd0a19c8fffe0dc59d03dc22553d364f7222a3ed2dc34814fc2fb3e4ae",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/file-processing-api.test.ts",
+      "sha256": "f67e4f8a12ebd07de2f6b20286a31f0ad130cdfea3c217f152e6d8ad2c92bf2d",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/files.library-order.test.ts",
+      "sha256": "f721356815b131a428cc9e0063ea77eb869864d3c276d6bfc33897535fe9bdfb",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/fleet-seed.test.ts",
+      "sha256": "c6a15f10c4def828e0f50b93c2bee4435e7c2344ff916f1e1a0a0f86fe041d91",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/fleet-seed.ts",
+      "sha256": "991d58132febaef8aeed44d8d11afca9fd7e7cc2f7f9807ca5a4888eadd45786",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FleetCompany",
+        "FleetDoc",
+        "generateFleet"
+      ]
+    },
+    {
+      "path": "tests/backend/hardening.acceptance.test.ts",
+      "sha256": "acdfb4ce8672668261ec6604baaebe398a0e19b8d7d570bf29b5903a345ee5a2",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/hardening.catalog.test.ts",
+      "sha256": "048376a3700e96f4b94ecf1f03e017499989bbd58f67df7884e38018aa344ce8",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/health.test.ts",
+      "sha256": "525421bcd25b6a29d4e7ee4da04b286944908c7cbc238f1288f121ac0572c58b",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/heartbeat-recovery.test.ts",
+      "sha256": "acb6f2694390fea2d8f84d9e0536d76d1cf703026233a8fb6e41c948168c5380",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/http.idempotency-recovery.test.ts",
+      "sha256": "fece39ad4d1028a0847914869a19b4d07dfe4b41c18706dfc8454a1c67a47464",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/karbot.turn.test.ts",
+      "sha256": "8d161404a6ae478dc20a274b12c78e6f4a872f5973d32f5606598281330753e6",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/kb.eval.test.ts",
+      "sha256": "cfb5bcafae4e2a9bf99ab94476b7ac8a221f6f93b7db4e0cdc1a4e9fa8113be5",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/ledger.test.ts",
+      "sha256": "4657d7ac9dfd4b1091afa05bad23571ad21893947da4f6d6db61ae9d51a8c351",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/logging.test.ts",
+      "sha256": "32e78061acc1b58c38592c2b11c0ffbc053f58301643eeeb489e5d64e9ec24cf",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/loopguards.rules.test.ts",
+      "sha256": "59066f33d2f5d530fce0f1ca9d93bcf8cd65b1a6af8b3bffa10ee4abf0c8e6ca",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/mcp.authority.test.ts",
+      "sha256": "2f950887d5d634b2b8b80f0beb46a5d87309b39ba27b1bdb8d012a9ecf88c9cd",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/mcp.file-ingestion-db.test.ts",
+      "sha256": "99d3825bd4d526c1b2943a022a355639a428ac9b08b45c42ef83db4ea089b51c",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/mcp.file-ingestion.test.ts",
+      "sha256": "ec2749bbf5ecfee48b87288f06e31cebaeb499e655662c10d1cbe332b3c80725",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/mcp.file-promotion-provenance.test.ts",
+      "sha256": "2945cdc8508b94e2a371b34867fee55afd37959354acf9ed0d865525f234da29",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/mcp.operation-receipts.test.ts",
+      "sha256": "0dcdd55ebbae95910c9baae7617a859b81d0af421c64969fe0cf61aad0d9da14",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/mcp.operation-recovery.test.ts",
+      "sha256": "d46e631db6fe24ddd9d7d929b4da7a85794e1def34d06aa2e03b63fe3476e26a",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/mcp.read-document.test.ts",
+      "sha256": "73d537787182839a05c205a34c6364d5e3932a9394395fe258135cf2735f5754",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/mcp.tools.test.ts",
+      "sha256": "9296361ff2575f5fb398b9e6c07e9205450179b28e7501b7e6c5146362ea34a3",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/no-hardcoded-staging.test.ts",
+      "sha256": "5203d69dc70a02ac200be4fa0bf8df7e20f8f5509f8d752ed5df78e191eb0690",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/observability.boards.test.ts",
+      "sha256": "33741ce5febfafe476ea3cf34dc54698d4a808f184b7cbefe3c663586f0b820b",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/observability.logs.test.ts",
+      "sha256": "5487f173393c8fafb4f76a38c19aac020b50a72e418a05747b70ce9358f4dc1b",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/observability.reconciliation.test.ts",
+      "sha256": "e5a5d1ac8433b2d2161cb43f4a4a5c47c9333931e0779dbbb8b8d6064a9687a1",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/observability.stall-activity.test.ts",
+      "sha256": "e2191677f163aec82d97121342bc3c777bb3ed206f068a3490d27d7a437333b9",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/observability.stall.test.ts",
+      "sha256": "bff6f0dbd90b404dcfbb16766de9f2a9fdeaf8b87c02de088cac1d6542f51992",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/observability.traces.test.ts",
+      "sha256": "10a153ba5e63ca5ecf9e4f4d32d6912f7fb9a962975fcdc616d8dd9cf8f38165",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/ocr.test.ts",
+      "sha256": "348227d476d94b5c943885bac26db9b376027f9f93a4cbf3f72b0328158b1e11",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/ops.inspector.test.ts",
+      "sha256": "91164a4704439a7059e9a10c1e81518667cf9e9319ddb16f179a87827ff0e4a3",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/outbox.snapshot.test.ts",
+      "sha256": "b95a75a2e7fd774f5cf3c95c86db4c03f8ddca76d8f6ce10848491389bb8699e",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/pdf-fixtures.ts",
+      "sha256": "dab7aef29bdf8b191cf632b0288e2f158c1ac0917e3fa5d447af25e24ea100de",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "stressImagePdf",
+        "testPdf"
+      ]
+    },
+    {
+      "path": "tests/backend/pdf-mixed.test.ts",
+      "sha256": "2ed0823de81cd4b60a49cf9f0b90ed551cba5fd016bb287285fe90942e839e19",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/projector.catchup.test.ts",
+      "sha256": "59e18e3a6ad89cd1d6a5c13ff0402002c360b04e04af7fa422f1d877653909df",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/providers.catalog.test.ts",
+      "sha256": "afabc73a78e58ff115374987fbd2ba62ca10dd132644e73dac24d91653cbaa86",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/providers.gateway.test.ts",
+      "sha256": "5a34234f7a8e3600c4adaa373211446719ccc689d4c5b2de1d3ed02a3cd6033f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/providers.registry.test.ts",
+      "sha256": "d6e3f53b53aaf561c69ce0ab1696266318db870392d5512e9a5ff01a9c93c4b2",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/providers.selection.test.ts",
+      "sha256": "7ff193646e46b1507b176a12d58d698e0a648eb1538c0dfa2eb3642eed0fbc96",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/recovery.palette.test.ts",
+      "sha256": "9bfe644ef4c1c497fa5c2fb08e364ed8a61274f02fdc2e694561978e374583c4",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/research-plan.contract.test.ts",
+      "sha256": "f736ec6edfc9fe455cade22b8050db5febd4384253029507366fb6312d0b0506",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/research.plan-retention.test.ts",
+      "sha256": "66d6a6db514044eb00f54209d4a44e8911946f210ff1c0591439256694d34407",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/research.report-recovery.test.ts",
+      "sha256": "b81beb462052cbd04ab2914ad29c18851ed7f73c96bcbf60b86020a17bb4706f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/research.transport-budget.test.ts",
+      "sha256": "f74ade754aadf431f2aae181d7ee79cb9769d65e3e957b2bdd50a429b40343dd",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/research.work-authority.test.ts",
+      "sha256": "6a511b22d28b01eb0bd04dbee5d21f4242e3139520e4479b0d7147a5b4479c8a",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/retention.test.ts",
+      "sha256": "6328cfbc902033a64a50d810f4ac74e9ca22d807936de01e5e49d69b267676aa",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/retrieval.destinations.test.ts",
+      "sha256": "c34772edbc43a95c8e770bc5e9019e1b08f76b395fdd2acb2bf7de8318e4c024",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/retrieval.dns.test.ts",
+      "sha256": "2cdb9a9e2ba58231d007d2d98689580776645960eeaddecfd0b30f325c8a9110",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/retrieval.fetch-bounds.test.ts",
+      "sha256": "05df23d657ef5d56d310b3408cd03567b801143672c95d1b7fbc5abc4ba02ff4",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/retrieval.html.test.ts",
+      "sha256": "a8540b0d64bb0abd9970d97b0c5057ca7a399636e42b9cbb39530278eea86f27",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/retrieval.search-bounds.test.ts",
+      "sha256": "f1ba82f297b78bfaf987b54c6d802185eb23d5016955f8c2d4b782193c9b99a8",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/retrieval.test.ts",
+      "sha256": "f19a4f26934fcdb410b998c52e8250234054c770ac9ce5bf182c0070f5dc73f7",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/sector-approval.test.ts",
+      "sha256": "cf4c3106006cf305bc2e1a52bff46bb8f385d34515ad8af5dd06e71e47bdd623",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/sector-context.test.ts",
+      "sha256": "4c5942bd0c74d6b5ea3c76173050b64aa069b9c3d6bf96caa81f90f669857619",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/sector-documents.test.ts",
+      "sha256": "a22d318ddd1b638b04c8e99a87c4f5b4b5352b535c48007b54e62b4c3c48ce77",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/sector-lifecycle.test.ts",
+      "sha256": "3416c92ca5d870b6927c520e255efc83585a98ba11c3cc874e147a313ad6c391",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/sector-plan.test.ts",
+      "sha256": "3622d25508da2ec3aa69b2fefb3f9df46728eb9600c760d7f007790d746d5402",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/sector-start.test.ts",
+      "sha256": "46d3475eb449bcc1068aa9a7ddb24748c0671f096694b2bc8a35a6ff08fd5bf0",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/sector-transitions.test.ts",
+      "sha256": "52a20e0b3e63e2ee498ecd3be2e5469c3579abeded58f2e2f0920116525363b1",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/skills.slash.test.ts",
+      "sha256": "149083ce4525fbf97cd01bf2f1acfd6191c5f0c5dcf5ee75a5c5cefafdfc566d",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/soak.harness.test.ts",
+      "sha256": "44382ea396c865df1d08d1b0af62f5eb199836ef6e7b262c1a15d24d8413a579",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/soak.report.md",
+      "sha256": "932c309151f3b67b8339f146f8f4f07a7aa8a90acb818f2914d00dacf1a1a62e",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/subagent-delegate.test.ts",
+      "sha256": "4c7aaac01cbc64d5f63f447b578b5475d366f75aff8193810934b79d36a8203c",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/sweep.rules.test.ts",
+      "sha256": "a40990ee2dcc67bdb259b52e73b0923b9ff611d5d04b1026f01e70019f0abfad",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/sweep.search.test.ts",
+      "sha256": "405438da2d8fe08c184cb6b5b3b0f31037f94b45e507865a2d5cae5557daf8c4",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/temporal.baseline-replay.test.ts",
+      "sha256": "85300665c467d04b917ccd136311f5a2738b05114324f5fd4ad0ea7c732faed9",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/temporal.cancel.test.ts",
+      "sha256": "5359df8bbfae980b165a3adcde7bcb3c6eaa3319fd5cb0431ac2d92b924b19bf",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/temporal.execution-epochs.test.ts",
+      "sha256": "d73d6ebf7de5e39b40f91ee79770579be4aab2af90f84e8d20d14a7965588779",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/temporal.heartbeats.test.ts",
+      "sha256": "f082bb9480122904c9fcfc19c16a08698d2522e445a9441703879fc9168ccd3c",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/temporal.lanes.test.ts",
+      "sha256": "4171092a31b8db89b70490f477540f173966298fce2684bb1430555d8401b5aa",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/temporal.legacy-replay.test.ts",
+      "sha256": "74252f0501a37368373b07fe5e1abe8a5f055f3df402167d602313f92fa105bd",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/temporal.native-logging.test.ts",
+      "sha256": "6e6dbe7ec900173a228fb373e5b813e3a40b36dd147debf4597c5016be8ed056",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/temporal.owner-resume.test.ts",
+      "sha256": "da8e04651f1b61ba93fef7a38f68ab13369c25e94b3e86337f917a877749dc85",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/temporal.reconciliation.test.ts",
+      "sha256": "e6d3be11f1f3581e7a0bc7876b0f0e1de5942daa3676b7c52b3705d3e4c08add",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/temporal.research-transition.test.ts",
+      "sha256": "83c5918da402b0f76ea24f06f26523d310a0ae88c29692856fffcdedfdebcfeb",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/temporal.session-runs.test.ts",
+      "sha256": "e5c87c66ca77a4647b4ca1f970d8c0c09a144760fdf36e783ba0047e310d64e2",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/temporal.session-start.test.ts",
+      "sha256": "3eff8d327e4f15e34d1198d2f5cd7352720ac600fbe66bd9a2a8b8edffee5bd3",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/temporal.timeouts.test.ts",
+      "sha256": "60928a6f24746ce05a24ee4abd475812d766f03f6a01abc664b82928210105fc",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/temporal.vendor-pacing.test.ts",
+      "sha256": "8427a2412f2841873d76d753e315fca02fff872312c9a0790fedda31a701366a",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/temporal/epoch-workflows.ts",
+      "sha256": "84a898840a27f4bd6fbdd3250306ce6d43cd25824cfe3df68f56313e500421d4",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "epochContinuation",
+        "epochHeldChild",
+        "epochRejectedChild",
+        "nativePrivateFailure"
+      ]
+    },
+    {
+      "path": "tests/backend/temporal/probe-workflows.ts",
+      "sha256": "b1ad58f02acb50712862514e62ce140c61648b33cd9b92c7edf795ab388e46cd",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "blockingWorkflow",
+        "quickWorkflow"
+      ]
+    },
+    {
+      "path": "tests/backend/threads.test.ts",
+      "sha256": "244b81ae693bf642a7a37d1185da11053e3c491577a09021438de7b3b245aab8",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/tools.activities.test.ts",
+      "sha256": "7e1a5acfcc26d91787eb9d4fbea6ee60f0f42baf540a4b97281e13e0c42d5b7c",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/turn-recovery-contract.test.ts",
+      "sha256": "5f907bb57f6579432f384d688b6b7f3c2bc2a563f8c42e4962e342f66b01584a",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/turn.activity-lifecycle.test.ts",
+      "sha256": "8947f2f64fdcabaae1440a1bd3f19e426dc17204c44c6fc8c0e4743246958131",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/turn.paid-response-recovery.test.ts",
+      "sha256": "91d2f4653a7766be3ac3b4b17d7c0a4fcc36f967415d083d23ebbfb21346e209",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/turn.sources.integration.test.ts",
+      "sha256": "7e7c128e78c9697e423c8e61a63bfa93b9cba072fc48e051173a0be4d28c646d",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/work.review.test.ts",
+      "sha256": "ab1111b499a08334b4014f188f5401c232ff32654c8b2617ae2c7449d6c37988",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/worker.mcp-auth.test.ts",
+      "sha256": "30a26d975078fe272383d28a696873b4e84abae1a8e9a24d19bd39e63e0c21ab",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/workflows.coordinator.test.ts",
+      "sha256": "839bca5ee15f7a6395715285b419c8915efeaf8cdab6571471cad58d413ede19",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/workflows.delegate.test.ts",
+      "sha256": "aa2ca366ca2a05c99ef8f1472d90491d7cecfb95c632a60fcfe0098a7be7cc94",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/workflows.file-processing.test.ts",
+      "sha256": "0d7923a5e6e0151c611397509bac80a3f530b9d7fd59ca7474215f828bd4ea61",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/workflows.fleet-load.test.ts",
+      "sha256": "6d0335a6396ea2a73570f801f08bcf18ef62dee015c75bfe879c1441b1927b49",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/workflows.loopguards.test.ts",
+      "sha256": "6d265f1b86b17c14e66dad8c3b4d533191e9b01e09f4c0c35d9f2fce00b272b3",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/workflows.plan-brief.test.ts",
+      "sha256": "55f09f8a2f98ecd7de0162e22a36de7058911d1e7f6e2a81fce0fc917514bde9",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/workflows.plan.test.ts",
+      "sha256": "e20e953f28f3a79ae4a46bd286ef02f1bc06a1a09ae041cc783e1302c1962435",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/workflows.research.test.ts",
+      "sha256": "3deb9db548de20e5ee42f31f732230b6af2837a406bd47c51750dc1105da05df",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/workflows.run.test.ts",
+      "sha256": "5e7eac5149854f0af65dd732f53db0d43f7ca7f1e493ea64da5126662efc7b0e",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/workflows.subagents.test.ts",
+      "sha256": "b2124f71d82494b68f0df9418223490a6e8942c2b8ddd2e00d29e6bc95462d0d",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/workflows.sweep.test.ts",
+      "sha256": "1c77417c22fd5f3fc469d1ed1b5ce45c2376b8f041891604d69a969e04958f46",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/hardening-2026-10-01/preflight-final-pdf-native-and-meta.png",
+      "sha256": "889373b8b1aba31e13495b1753c762bb5f11bbfcbe3ba1ba0ab2bda77df94a58",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/hardening-2026-10-01/preflight-final-pdf-processing.png",
+      "sha256": "ff21c652c71a96c23d376d39eeeaec347af31e2a4e846d7888b8ed07c5cb46d3",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/hardening-2026-10-01/preflight-final-real-meta-pdf-video.webm",
+      "sha256": "095bf6b4f19d81f8a932a8f255cc60abe5a3fd163dbd95cf42d9cce40f977ba6",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/hardening-2026-10-01/preflight-meta-pdf-receipts.json",
+      "sha256": "0cee5fd08b29ae67d5a3e87ef7697bd8e9d5fd282f273bd01b272c5899f9371d",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/hardening-2026-10-01/preflight-pdf-decoded-memory.full-suite.json",
+      "sha256": "3a97472fb801fc0af4d49ce3d9215e9926c61115ef4bafe1a4edce3fa2df15d8",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/hardening-2026-10-01/preflight-pdf-decoded-memory.json",
+      "sha256": "431c8eb422bd0295222f06c89c10abfc666ce88f9711cc53583177df9304b25e",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/hardening-2026-10-01/preflight-safe-evidence.json",
+      "sha256": "8992dbfb2dc61487a6d288d7cce997d3ad8350072a31829178af57df67cb23de",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/delegate-live.json",
+      "sha256": "1fab2350c34fec881317e42c4caae3ccc1b2fddd55d5a78f658974daf08d14d0",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/journey.json",
+      "sha256": "516ea51c713576da8adb0b8976ac7c71f945137fca56588ae6c97fc97bdd2f1b",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/pilot-companies.json",
+      "sha256": "be71e0977fe50854fdfefa6bb89857f56f813473f4ac03330b3bbf34675e7a19",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/run-notes.md",
+      "sha256": "308f91be1cee70f6beda50c514de978bf940c525e95f1ac843b8c889ef93fd95",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdict-airwallex.json",
+      "sha256": "6e76999bf2c49ce35a4e82790abcaeea2fbe470aa5abcf90f2ff7221a0ea7047",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdict-chargebee.json",
+      "sha256": "2a5e1594545a4cc5dedc38d29e969f5cc491a07bd3238e83706e99b38eaf70d1",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdict-checkout.json",
+      "sha256": "e60ce2b7ae6de4fcd04bd20a80493c27e39581051628e912bd496f40086f79bb",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdict-clover.json",
+      "sha256": "d38eb0cefb8b1068fd8ebcb3c420c24de17894bfed4fbd76bc0ab70120bafb31",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdict-dharma.json",
+      "sha256": "50de3a2ea093889a692fba41e2d4eae3b0f9ea69fec04f10b773f91075dd4ca2",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdict-dojo.json",
+      "sha256": "7ea472f964cdf1676a160530e1ea67d9dc89445d9f1cd5b33c31366d57960cff",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdict-eposnow.json",
+      "sha256": "f49bf3f3ee5363174e6daaa710e557b5e4825d857591aacbdeeb5dd04648d9f2",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdict-gocardless.json",
+      "sha256": "b1908d50254cabe32cc4697c6487a154450f5978f2185844d19a36ce127d3b0d",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdict-helcim.json",
+      "sha256": "294846ba9629ca40520145b1e35a9c52f7a6714f740a5d16c44ca1e607c2ba39",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdict-lightspeed.json",
+      "sha256": "38c3048ee092338d71d2b0d3f717550eb47b1bd9cee24bea41b940b61a9d6193",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdict-paymentcloud.json",
+      "sha256": "0b9c054b92d09f32cb8906b8218795fdd2f7464f3db7867253a513dbe3d2fe13",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdict-rapyd.json",
+      "sha256": "f2d6df1e677b2c38379f833edf897546b475fdf6ac0a009bac9aae7bbe5e31b4",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdict-recurly.json",
+      "sha256": "d6648172e5aca24c15f2175ac44d15dbdf2761da7bd794e04d9c6ae76338ac81",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdict-stax.json",
+      "sha256": "c3431a83f53560ecef77a90b5df9afe23d9601bc9b9def1b23c4da9860e0a1bb",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdict-stripe.json",
+      "sha256": "bd4f5c4bd769f3f38c7165cfdb36ed33d84a8329cc947678382528b852de6430",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdict-sumup.json",
+      "sha256": "0990e1342aea54f564ad948c625c8d196f63bf0136ff90729512bcfd6567f311",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdict-toast.json",
+      "sha256": "e6aabe32f85e1bf0207a9ef800501bdb81f2ebac16bfd694a4693839a789d256",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdict-tyro-2.json",
+      "sha256": "5565b8977572aa5307221b8a020175015268a4433b7862e128b10d69141aed6d",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdict-tyro.json",
+      "sha256": "9774da0b39ac900c44e040616a2873129baf4a07decffc18f6ff47290e37f61f",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdict-wise.json",
+      "sha256": "b74474f6c432f61784db460fe34aff37fec21ed0a9fc4c3efa4971fb0df53dbe",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdict-zettle.json",
+      "sha256": "f1115852dfdbf5e711f420f7f59ffd8453c248148534f027d9d44b0b6de1c8ad",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/pilot-01/verdicts.md",
+      "sha256": "1904a1ff95595531d27510f06eaccdfd57f0461a4e3ecba497494565a8fdc554",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/plan-01/journey.json",
+      "sha256": "ec4369aeefa54067956b9ae3bb49557f8710474ba7f69de83ccb6bf601355003",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/plan-02/journey.json",
+      "sha256": "d248d61446de06aa784c7e8485610922bcb658c21bec24fac721582996f85d6a",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/plan-03/journey.json",
+      "sha256": "386a390e65b7127635aa85e1720cb1c8b5aaa89e168c991b6f69ca387f7634a4",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/agent-context-db.spec.ts",
+      "sha256": "8ebe4d881eb272a1308cce4ebaca50f711715c7f62046a05f87c71df861b2e61",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/alerts.spec.ts",
+      "sha256": "b2bb2263954124d0bf74d97bb9c8db0ea12936f69df5f835f5875b731034be31",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/context-recovery.spec.ts",
+      "sha256": "6668776105579dea8a12f3ac0f14105762ec8ca9cd6ac0edf829572a4e1afbae",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/execution-inspection.spec.ts",
+      "sha256": "66f20c62e98f278affaf8148206101376f5bc33c5fdfd1c01afd02eeb68a8192",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/file-processing.spec.ts",
+      "sha256": "7f54e9b76cbc544adb98fd96867fd1d10c4061428994ff60aebc42d50950aae5",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/files-db.spec.ts",
+      "sha256": "c26ca0b8c704575c348b3825911d99327e0dc168482cd32929133c3fa7669fb4",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/files-scale.spec.ts",
+      "sha256": "90a48576c1db49bc3c6a294c7b573007358fe6ba1d425dd38852ae428349ade5",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/formatter.spec.ts",
+      "sha256": "5df57bcfd0ff2c31328efd06c200645c1693bfcbd8d998d83f9e3dc9d478b23e",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/matrix.spec.ts",
+      "sha256": "69499680ec50bf3eac05bd68136a1746d0f3c9398240ae599d8e9bd12e44a368",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/pdf-meta-preflight.spec.ts",
+      "sha256": "596ce195e8b2a7aa7b609b2efdd9ea17cb183b6fbc1529486610d675059ca42a",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/pilot-live.spec.ts",
+      "sha256": "f3257cd92ca1d4afd6a49b006c5445dde67c6d82eddc8c670cc47ae522c547ce",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/plan-console.spec.ts",
+      "sha256": "c34f16da17963100389d2d1cbc9f2d7aa7e95b8b11344eb2b46e98de19729186",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/plan-full.spec.ts",
+      "sha256": "a6b37952735ce1f28c479eccaa2479ece1c639bebbdf98eea1a83dbec59b7f79",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/plan-live.spec.ts",
+      "sha256": "8a792efc834720777c7d7621d7a831c90b09a339159a393e15d76dfb78ea615a",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/polish.spec.ts",
+      "sha256": "3d13acfe8a09a3bcf96a674bb8f0645a8896e7e6a7ba8c7734e4d0a5b79f05db",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/runtime-preflight.spec.ts",
+      "sha256": "f3df2ce49b3308de6402521477aa9bf6d44f150e767ac20bc903358d01d231be",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/scale.spec.ts",
+      "sha256": "457ce8fb2200b8272a99a78b4ca96d0826f6c3d9fe936bdfcc4a38b89319f063",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/scrollbars.spec.ts",
+      "sha256": "3dc79580854c2579a612930f756bb34b37ad9f9006382acf659a8a2306db13a9",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/smoke.spec.ts",
+      "sha256": "1fde68e632fff1b35d783975e269cd75fa725a2c6a0a1a1ca66d2d8c86304b05",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/transitions.spec.ts",
+      "sha256": "d96cd8e80f50d133cbc80014253dc1d7512b7aad0f4aeae8d867c0b910583f9c",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/visual.spec.ts",
+      "sha256": "66fe87353ac9bfe78acc704e8095c7a93d90be04f349302862039d7379ca3ba9",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/work-review.spec.ts",
+      "sha256": "4633af008f693b25968a17b680acaaf60747a81bf480434f4a34b9b95847524c",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/workspace.spec.ts",
+      "sha256": "d882eb47a12ac72908b0c50b6525e8aff27b1d2e287e6523c6f821e1e0b87578",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/Button.test.tsx",
+      "sha256": "c04111c4715b79cdabfe49e3149a7654512d8497a86452d30c7b18769dde5832",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/Dashboard.test.tsx",
+      "sha256": "6388306279cd5892fdfc00b43ebd9ed883716a5efb75610fbc256cbf1aa9a206",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/FilesMenu.test.tsx",
+      "sha256": "dc1d1587d0b0cc1ebaa7130dfc33329a7ee590471cf7969122eb3fd7da4f74c2",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/Navigation.test.tsx",
+      "sha256": "4c320fb1503e6f737285f6bd043be6dd98c7fa23be4760a8d1a98c2793cece15",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/OverflowList.test.tsx",
+      "sha256": "0f86f7b3a467592349953126edf170919714575abc36ec4ec6b785854723e45a",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/ResearchesPage.test.tsx",
+      "sha256": "42dcb8f59687d6609d345dae83e3194b37a9663d66198cbe9f5e8ec0bff32c38",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/RunConsole.test.tsx",
+      "sha256": "c5c4abb9692fd9d9aa78de12e0abd0de6e00695534761a1c5e148bfacd87e93a",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/SectorChatPanel.test.tsx",
+      "sha256": "b4681c3208bddc9e227babec104b84ef4625dc210ae2ef85d99d5061cb2999ca",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/SectorContextDrawer.test.tsx",
+      "sha256": "1f7d40eee684b39e2bc0c6ff3e0709bd67679170f8b8c1f4fe8c2341ad89270f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/SectorDetailPage.test.tsx",
+      "sha256": "76857ea26e7c043f1601fae1f7e73b984dd9ef144e6bda9038f0ba3427e2668f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/SectorPlanSection.test.tsx",
+      "sha256": "bb942cdb4e00402a13897ff0db0edea37005ead841770e1fe8a6fb1a9ff5028b",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/Sidebar.test.tsx",
+      "sha256": "a5135dbc2533064ad238c5215b81b705cb8147a9ff19bc23ee0c0b1622f5d236",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/StatusPill.test.tsx",
+      "sha256": "e3c87b672b2aa77607ff9a776a8bb2bbbeb33b8524d1835bb49a70744cc449db",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/SubagentsPanel.test.tsx",
+      "sha256": "bd67f0b4f34bdd9c61581317590cff3fd2bef7954def395694c6ff5d30c42c93",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/TopBar.test.tsx",
+      "sha256": "f84da7cc0885ff11bd514ccb19bd274e8dd9bc8bf64473b3906547a5fa0ce052",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/alerts-api.test.ts",
+      "sha256": "82a34dccdaf01554bb46df1d0d29e387b4c26ffb369ce010399c251bedda329a",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/approval.test.ts",
+      "sha256": "167fbc5b4aab152afeb1164f6b7ae55c062006759cca771915ba872f6c0cc3bc",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/chat-parts.test.tsx",
+      "sha256": "7c4e9caf1ba68f7717e62dbec9a2c8c5c85655c2440746401819529158babd5b",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/chat-staging.test.tsx",
+      "sha256": "2c34253e8f76e6da2ce6777234695e4bdc94d03b0565613e6037a59f0dafab24",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/company-window.test.tsx",
+      "sha256": "b5c85652ddf230d46e6572280fb43bd851f7eaeb8aaa1804d904a9595628bb5a",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/execution-inspection.test.tsx",
+      "sha256": "a3b92c51f5861b5fd3dc4b1159d4622eb4777a0fa5c1a7f57aa2487808770288",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/file-processing.test.tsx",
+      "sha256": "63899f21a2360a2437ec8ef58dfe8c20a5d2e22889f14d60afe5850ea85a9fb6",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/follow-resume.test.ts",
+      "sha256": "94648b31b790a76befed27e26a188dfcdfb093bc8adb3546476b8be26686b31b",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/markdown.test.tsx",
+      "sha256": "9d0e2a31944a714a0dfddda00842a1bd5eb77190d3f4c90d5e0eebca16d61608",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/models-api.test.ts",
+      "sha256": "eec6f8ad484c168b8a4b82c9d0cda8da06db39a95f099e3d1c4f8b7ea3921677",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/models-staging.test.tsx",
+      "sha256": "641dc5dfe3661fc63dac95f7b8463d068ee6c736353bccfd263ecdbbd576798f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/navigation-url.test.tsx",
+      "sha256": "71b0f1010ca2efcfbe715cab90ec2994f67f01f53f105392e592cb2598d24925",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/no-em-dashes.test.ts",
+      "sha256": "3a044dc7b609d418b034a270d67d356bf3e9ffc8a4657d0a95a0166c9eb00edf",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/no-hardcoded-staging.test.ts",
+      "sha256": "9a66f69638d5f39b220572559846a85504107f2ae8f64d88fc26ee0fb296d653",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/plan-api.test.ts",
+      "sha256": "18f85d25dee85b25ddb00e52cb6e282a2bede9de1697471f9c1533793c777747",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/research-plan-editor.test.tsx",
+      "sha256": "ccac0b2c63a6651f55a06e528770ee988edd803db5481c43505b2b44e168ac58",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/research-staging.test.tsx",
+      "sha256": "dce12f899ca24c0258743b91ae82fd8d1442af916d072d43c167ba1cb4303711",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/runs-staging.test.tsx",
+      "sha256": "aa9987cce76a8428e291402d01a95178ce605391513c3b5c877a97ecf05815ab",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/scrollbars.test.ts",
+      "sha256": "953940f927f2c7f20bfb2bd43810b7d1729d50b68e6d66bdd2e4b73b045f011c",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/sector-file-preview.test.tsx",
+      "sha256": "09b8a662ddc95341861be1382daf33413f75a44fed3160f93656816cf32b443b",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/sector-workspace.test.tsx",
+      "sha256": "b4bf70b9776dcb28ee2d39aeaeba84851f3e5089bd2dc8b58576b3cb16832e60",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/staging-api.test.ts",
+      "sha256": "c374421787cb0628b5b8ac2ee06510960f9dbd029419d96d078a444faebe257f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/staging-sectors.test.ts",
+      "sha256": "d5e7bdacf57e9ac629405435407cf264a69c2c12edb4272fbc5b17f30bba18a2",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/supervision-alerts.test.tsx",
+      "sha256": "4ca93ec3635db16c9637cab610a470733f4795fff9c6ea8edd540bc84eaeb009",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/typography.test.ts",
+      "sha256": "fbe9d57df500b90cc0e4160d70426c2507e3cc932c2b3db92108171702ea30f6",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/work-review-api.test.ts",
+      "sha256": "9e9c11a8535043a2e9c1d69a43ae74ea083b544f7b06b0c92b18fbec64f6cdd4",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/work-review.test.tsx",
+      "sha256": "0648f33f450bd88bc2fa1d881e57eb67cb19f5cda83c1b63b16a45f2868dcaec",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/workspace-conversation.test.tsx",
+      "sha256": "3febd919747114796d5a9d5b3d786b39cfbcda25e851f87e8a3576b71b589650",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/workspace-files-scale.test.tsx",
+      "sha256": "95fb64e4265ed55e44337f32f5ef318948e8434c91062ad65ab22be3f5a62327",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/workspace-session-creation.test.tsx",
+      "sha256": "e90797d80e3dafdc10d2bc7a5edc376a2055f3d1213229846e0651a102b74e10",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    }
+  ]
+}

@@ -166,6 +166,21 @@ describe('artifact pipeline (B4.3)', () => {
     expect(second.artifactId).toBe(first.artifactId)
     expect(d.events.size).toBe(1)
   })
+  it('rejects conflicting content under an indexed id without overwriting its original bytes', async () => {
+    const dir = target(), d = testDeps()
+    const original = { scope: SESSION, name: 'TEST evidence.txt', body: 'Original evidence', artifactId: 'test-immutable', reason: 'report' as const, producedBy: 'TEST run' }
+    await storeAndIndex(dir, original, d)
+    await expect(storeAndIndex(dir, { ...original, body: 'Changed evidence' }, d)).rejects.toThrow(/conflict/i)
+    expect((await serveArtifact(dir, SESSION, original.artifactId, d)).body).toBe(original.body)
+  })
+  it('retains the winning content and integrity record under conflicting concurrent stores', async () => {
+    const dir = target(), d = testDeps()
+    const original = { scope: SESSION, name: 'TEST evidence.txt', artifactId: 'test-concurrent-immutable', reason: 'report' as const, producedBy: 'TEST run' }
+    const results = await Promise.allSettled(['First evidence', 'Second evidence'].map((body) => storeAndIndex(dir, { ...original, body }, d)))
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1)
+    expect(['First evidence', 'Second evidence']).toContain((await serveArtifact(dir, SESSION, original.artifactId, d)).body)
+  })
 
   it('rejects reason-less and producer-less stores before writing', async () => {
     const dir = target()

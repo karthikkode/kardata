@@ -182,11 +182,11 @@ describe('stall detection (B5.3)', () => {
       try {
         const runId = `run-${STAMP}-live`
         await recordHeartbeat(pool, runId, 'turn', true)
-        // Throttled twin write: still one row, still busy.
+        // Same operation row, but lifecycle changes bypass write throttling.
         await recordHeartbeat(pool, runId, 'turn', false)
         const beats = await listHeartbeats(pool)
         const beat = beats.find((row) => row.runId === runId)
-        expect(beat?.busy).toBe(true)
+        expect(beat?.busy).toBe(false)
         expect(Date.now() - (beat?.atMs ?? 0)).toBeLessThan(30_000)
 
         const outcomes = sweepStalls({

@@ -19,8 +19,8 @@ const ALLOW_LIST: Array<{ file: string; literal: string }> = [
   { file: join('temporal', 'connection.ts'), literal: 'localhost:7233' },
   { file: join('http', 'cors.ts'), literal: 'http://localhost:5173' },
   { file: join('http', 'cors.ts'), literal: 'http://127.0.0.1:5173' },
-  { file: join('retrieval', 'web.ts'), literal: `'localhost',` },
-  { file: join('retrieval', 'web.ts'), literal: `'127.0.0.1',` },
+  { file: join('retrieval', 'web.ts'), literal: `hostname === 'localhost'` },
+  { file: join('retrieval', 'web.ts'), literal: `hostname.endsWith('.localhost')` },
   { file: join('retrieval', 'browser.ts'), literal: '`127.0.0.1:' },
 ]
 

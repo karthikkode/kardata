@@ -29,7 +29,7 @@ const ALLOWED_ELEMENTS = [
   'hr',
 ]
 
-function safeUrl(url: string): string {
+export function safeExternalUrl(url: string): string {
   try {
     const parsed = new URL(url)
     if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return url
@@ -72,7 +72,7 @@ const components: Components = {
   a: ({ children, href }) => (
     <a
       className="font-medium text-primary underline decoration-primary/40 underline-offset-2 [overflow-wrap:anywhere]"
-      href={safeUrl(href ?? '')}
+      href={safeExternalUrl(href ?? '')}
       target="_blank"
       rel="noreferrer"
     >
@@ -90,7 +90,7 @@ export function Markdown({ text }: { text: string }) {
       allowedElements={ALLOWED_ELEMENTS}
       unwrapDisallowed
       skipHtml
-      urlTransform={safeUrl}
+      urlTransform={safeExternalUrl}
       components={components}
     >
       {text}

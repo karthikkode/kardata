@@ -12,6 +12,7 @@ import {
   SECTOR_TOOLS,
   type KarbotTurnDeps,
   type KarbotTurnInput,
+  KarbotTurnInput as KarbotTurnInputSchema,
   type KarbotTurnLogFields,
 } from '../../backend/src/temporal/activities/turn.js'
 import type { ProviderSelection } from '../../backend/src/providers/gateway.js'
@@ -90,6 +91,9 @@ function input(overrides: Partial<KarbotTurnInput> = {}): KarbotTurnInput {
     ...overrides,
   }
 }
+it.each(['complete', 'incomplete', null] as const)('retains scripted completion %s through the activity input/checkpoint seam', (completion) => {
+  expect(KarbotTurnInputSchema.parse(input({ fakeSteps: [{ text: 'TEST original response', completion }] })).fakeSteps).toEqual([{ text: 'TEST original response', completion }])
+})
 
 const ENV_KEY = 'KARDATA_PROVIDER'
 let savedEnv: string | undefined
@@ -380,7 +384,7 @@ describe('executeKarbotTurn', () => {
       new FakeProvider([{ text: 'earlier summary' }, { text: 'done' }]),
     )
     world.deps.loadHistory = async () =>
-      Array.from({ length: 35 }, (_, index) => ({ role: 'user' as const, text: `m${index}` }))
+      Array.from({ length: 35 }, (_, index) => ({ role: 'user' as const, text: `m${index} ${'source evidence '.repeat(700)}` }))
     const outcome = await executeKarbotTurn(input(), world.deps)
     expect(outcome.reply).toBe('done')
     // One summarizer chat plus one condensed turn stream.
@@ -469,5 +473,27 @@ describe('research turn wall budget', () => {
     // wall cut the tail. Ten minutes covers measured research with
     // headroom; interactive turns rarely approach either bound.
     expect(RESEARCH_TURN_WALL_MS).toBe(600_000)
+  })
+})
+
+
+describe('durable normalized execution records', () => {
+  it('records the exact refreshed input and source context versions each round', async () => {
+    const world = memoryWorld(new FakeProvider([{ text: 'TEST stored answer' }]))
+    const records: Array<{ round: number; kind: string; record: Record<string, unknown> }> = []
+    world.deps.refreshContext = async () => ({ references: ['TEST reviewed findings'], notes: 'TEST local notes', steering: ['TEST steer'], contextVersion: 7, planVersion: 3, localVersion: 11 })
+    world.deps.persistExecution = async (round, kind, record) => { records.push({ round, kind, record }) }
+    await executeKarbotTurn(input(), world.deps)
+    expect(records.map((entry) => entry.kind)).toEqual(['request','response'])
+    expect(records[0]?.record).toMatchObject({ version: 1, provider: 'fake', model: null, round: 1, boundary: { contextVersion: 7, planVersion: 3, localVersion: 11 } })
+    const { signal: _signal, ...request } = world.adapter.calls[0]!
+    expect(records[0]?.record['data']).toEqual(request)
+    expect(JSON.stringify(records)).not.toContain('mcpToken')
+  })
+  it('parks storage failure before provider execution with a recoverable context error', async () => {
+    const world = memoryWorld(new FakeProvider([{ text: 'TEST must not run' }]))
+    world.deps.persistExecution = async () => { throw new Error('TEST archive failed') }
+    await expect(executeKarbotTurn(input(), world.deps)).rejects.toThrow('Execution content could not be durably recorded')
+    expect(world.adapter.calls).toHaveLength(0)
   })
 })

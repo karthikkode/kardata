@@ -11,10 +11,10 @@ import type { Db } from './events.js'
 /** Minimum milliseconds between table writes for one (run, op). */
 export const HEARTBEAT_WRITE_MS = 5_000
 
-const lastWrite = new Map<string, number>()
+const lastWrites = new WeakMap<Db, Map<string, { at: number; busy: boolean }>>()
 
 export function heartbeatThrottleKey(runId: string, op: string): string {
-  return `${runId}:${op}`
+  return JSON.stringify([runId, op])
 }
 
 const RunIdSchema = z.string().min(1)
@@ -36,9 +36,10 @@ export async function recordHeartbeat(
   if (typeof busy !== 'boolean') throw new DbContractError('busy must be a boolean')
   if (!Number.isFinite(nowMs)) throw new DbContractError('nowMs must be finite')
   const key = heartbeatThrottleKey(runId, op)
+  let lastWrite = lastWrites.get(db)
+  if (!lastWrite) { lastWrite = new Map(); lastWrites.set(db, lastWrite) }
   const last = lastWrite.get(key)
-  if (last !== undefined && nowMs - last < HEARTBEAT_WRITE_MS) return
-  lastWrite.set(key, nowMs)
+  if (last !== undefined && last.busy === busy && nowMs - last.at >= 0 && nowMs - last.at < HEARTBEAT_WRITE_MS) return
   await db.query(
     `INSERT INTO heartbeats (run_id, op, at, busy)
      VALUES ($1, $2, now(), $3)
@@ -46,6 +47,11 @@ export async function recordHeartbeat(
      DO UPDATE SET at = EXCLUDED.at, busy = EXCLUDED.busy`,
     [runId, op, busy],
   )
+  // Failed writes must never appear as persisted beats. Cache only success.
+  lastWrite.set(key, { at: nowMs, busy })
+  if (lastWrite.size > 1000) {
+    for (const [entry, value] of lastWrite) if (nowMs - value.at >= HEARTBEAT_WRITE_MS) lastWrite.delete(entry)
+  }
 }
 
 export interface StoredHeartbeat {

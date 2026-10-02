@@ -6,6 +6,10 @@ import type { PoolClient } from 'pg'
 import { z } from 'zod'
 import { DbContractError } from './errors.js'
 import type { Db } from './events.js'
+import { DURABLE_STREAM_LOCK_SQL } from './checkpoints.js'
+import { createLogger, logOp } from '../observability/logging.js'
+
+const subscriptionLogger = createLogger({ op: 'db.outbox.subscription' })
 
 /** A Db that can also hand out a dedicated LISTEN client. pg Pool
  * satisfies this structurally; callers pass the pool through opaquely. */
@@ -63,7 +67,8 @@ export async function publishOutboxFrame(
     throw new DbContractError("type must be 'message', 'state', 'delta', 'reasoning', or 'tool'")
   }
   const { rows } = await db.query<{ seq: number | string }>(
-    'INSERT INTO outbox (thread_key, type, payload) VALUES ($1, $2, $3::jsonb) RETURNING seq',
+    `WITH durable_order AS MATERIALIZED (${DURABLE_STREAM_LOCK_SQL})
+     INSERT INTO outbox (thread_key, type, payload) SELECT $1, $2, $3::jsonb FROM durable_order RETURNING seq`,
     [threadKey, type, JSON.stringify(payload)],
   )
   const row = rows[0]
@@ -96,33 +101,75 @@ export async function latestOutboxSeq(db: Db, threadKey: string): Promise<number
 
 export interface OutboxSubscription {
   onNotification(callback: (payload: string | undefined) => void): void
+  onError(callback: (error: Error) => void): void
   close(): Promise<void>
 }
 
-/** Dedicated LISTEN client. Closing anyway runs UNLISTEN best-effort. */
+/** Dedicated LISTEN client. Failed setup/cleanup destroys the lease;
+ * close is idempotent, including its failure result. */
 export async function subscribeOutbox(db: ConnectableDb): Promise<OutboxSubscription> {
-  const listener = await db.connect()
-  await listener.query('LISTEN kardata_outbox')
+  const listener = await logOp(subscriptionLogger, 'db.outbox.acquire', () => db.connect())
+  let failure: Error | undefined
+  let released = false
+  const errorHandlers = new Set<(error: Error) => void>()
+  const release = (destroy = false): void => {
+    if (released) return
+    released = true
+    if (destroy) listener.release(true)
+    else listener.release()
+  }
+  const onError = (error: Error): void => {
+    if (failure) return
+    failure = error
+    subscriptionLogger.error({ event: 'db.outbox.connection.error', op: 'db.outbox.connection', code: 'code' in error ? error.code : error.name })
+    release(true)
+    for (const callback of errorHandlers) callback(error)
+  }
+  // pg-pool removes its idle error handler while this client is leased.
+  listener.on('error', onError)
+  try {
+    await logOp(subscriptionLogger, 'db.outbox.subscribe', async () => {
+      await listener.query('LISTEN kardata_outbox')
+      if (failure) throw failure
+    })
+  } catch (error) {
+    release(true)
+    throw error
+  }
   const notify = (callback: (payload: string | undefined) => void) => (message: unknown): void => {
     callback((message as { payload?: string }).payload)
   }
   const handlers = new Map<(payload: string | undefined) => void, (message: unknown) => void>()
+  let closing: Promise<void> | undefined
   return {
     onNotification(callback: (payload: string | undefined) => void): void {
+      if (closing || failure || handlers.has(callback)) return
       const handler = notify(callback)
       handlers.set(callback, handler)
       listener.on('notification', handler)
     },
-    async close(): Promise<void> {
+    onError(callback: (error: Error) => void): void {
+      if (failure) callback(failure)
+      else if (!closing) errorHandlers.add(callback)
+    },
+    close(): Promise<void> {
+      if (closing) return closing
       for (const handler of handlers.values()) listener.removeListener('notification', handler)
       handlers.clear()
-      try {
-        await listener.query('UNLISTEN kardata_outbox')
-      } catch {
-        // Closing anyway; release below still runs.
-      } finally {
-        listener.release()
-      }
+      errorHandlers.clear()
+      closing = logOp(subscriptionLogger, 'db.outbox.unsubscribe', async () => {
+        try {
+          if (failure) throw failure
+          await listener.query('UNLISTEN kardata_outbox')
+          if (failure) throw failure
+        } catch (error) {
+          release(true)
+          throw error
+        }
+        listener.removeListener('error', onError)
+        release()
+      })
+      return closing
     },
   }
 }

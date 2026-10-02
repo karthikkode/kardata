@@ -19,11 +19,14 @@ import { fetchMetaModels, type ModelCatalog } from './providers/catalog.js'
 import { providerRoutes } from './routes/providers.js'
 import { registerRateLimit } from './routes/http.js'
 import { runRoutes } from './routes/runs.js'
+import { alertRoutes } from './routes/alerts.js'
 import { sectorRoutes } from './routes/sectors.js'
 import { sessionRoutes } from './routes/sessions.js'
 import { skillRoutes } from './routes/skills.js'
 import { threadRoutes } from './routes/threads.js'
+import { registerBrowserProxy } from './retrieval/proxy.js'
 import { workspaceRoutes } from './routes/workspace.js'
+import { executionRecordRoutes } from './routes/execution-records.js'
 
 export interface HealthData {
   status: 'ok'
@@ -88,6 +91,8 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     },
   }))
 
+  registerBrowserProxy(app)
+
   // Trace first: every later hook and route reads request.traceContext.
   void app.register(tracePlugin)
   // CORS before the rate hook so browser preflights are never counted.
@@ -113,7 +118,9 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   artifactRoutes(app)
   threadRoutes(app)
   workspaceRoutes(app)
+  executionRecordRoutes(app)
   runRoutes(app)
+  alertRoutes(app)
   commandRoutes(app)
   inspectorRoutes(app)
   skillRoutes(app)

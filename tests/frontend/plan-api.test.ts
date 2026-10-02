@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   planSector,
+  approveSectorPlan,
   readSectorPlan,
   updateSectorPlan,
   type StagingConfig,
@@ -73,4 +74,11 @@ describe('sector plan edits', () => {
     expect(await updateSectorPlan(config, 's-1', '## scope\nEdited.')).toEqual({ version: 2 })
     expect(calls).toEqual([{ url: 'https://staging.test/v1/sectors/s-1/plan', method: 'PATCH' }])
   })
+})
+
+it('pins the displayed context version in the owner approval request', async () => {
+  const calls: unknown[] = []
+  vi.stubGlobal('fetch', vi.fn(async (_url: string, init: { body?: string }) => { calls.push(JSON.parse(init.body ?? '{}')); return { ok: true, status: 200, json: async () => ({ ok: true, data: { id: 's-1', state: 'approved' } }) } }))
+  await approveSectorPlan(config, 's-1', 2, 7)
+  expect(calls).toEqual([{ version: 2, contextVersion: 7 }])
 })

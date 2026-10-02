@@ -1,5 +1,104 @@
 # Implementation status
 
+The full browser matrix exposed a company pagination bug: its five-second poll
+replaced 600 loaded rows with the first 100. Polling now reloads the requested
+window, while query changes reset it. A named browser journey crosses the poll
+and checks refreshed rows plus retained totals; pagination failures are visible
+instead of swallowed. This is a product fix, not a timing exemption.
+
+Worker startup now activates the existing redacting logger and SDK metrics;
+Prometheus configuration targets worker:9464. Structured errors omit private
+bodies/stacks, and SDK task tokens are redacted. This wiring still needs its
+local deployment/scrape gate; no live activation is claimed from unit checks.
+The live UI pilot is waiting on an owner-configured approver credential: the
+current UI key is operator and was not granted new permissions.
+
+Archive regressions reproduced conflicting-ID overwrite, concurrent corruption,
+unsafe keys and swallowed listing errors. Content-addressed references now keep
+winning bytes immutable and validate stored/index hashes; legacy flat records
+stay readable. Cross-tenant source imports and scoped MCP event plumbing were
+also reproduced and denied. Former unit fixtures claiming scoped platform
+access now explicitly test internal unscoped bindings; HTTP scope-denial
+regressions remain the product authority gate.
+
+Fresh reviewer recovery findings now have maintained regressions: delayed setup
+is raced immediately against heartbeat failure/cancellation, and tool dispatch
+checks owning cancellation before completion frames or further checkpoints.
+Cumulative coordinator active-operation time now has durable sector checkpoints
+and appears in progress; the real Temporal suite verifies pause exclusion and
+revised-plan replacement (28 combined recovery/planning cases passed).
+
+Plan-write replay returned the newest version rather than the original result
+when later edits existed. The live `api.sectors` regression failed before the
+fix; version results now count plan events through the stored operation seq.
+Terminal empty-ledger copy likewise has failing-before/passing-after UI proof.
+
+The isolated fleet test passed 10/50/100/1,000 logical child tiers in 536.79s
+using scripted providers with real HTTP MCP, Temporal, Postgres and indexed
+artifacts. This is not a provider-capacity benchmark; the later measured run and explicit
+limits are recorded in `deep-checks/README.md`. MCP transport now bounds headers/body
+and propagates activity cancellation. Reviewer operations include workflow run
+identity; live reused-reviewer regression passed.
+
+Independent hardening review identified blank-quotation acceptance and transcript
+hydration through the MCP thread directory. Both now have regressions: normalized
+blank quotes are rejected and directory reads return headers only. Acceptance
+reports explicitly qualify sampled evidence. Review remains changes-required
+until the wider live gates and release catalogue are complete.
+
+## Repo hardening: initial correctness/recovery slices (2026-10-01, ongoing)
+
+- Working branch remains `codex/deep-checks-sector-hardening`; no merge or
+  deployment/pilot completion is claimed. File catalogue release gate still
+  refuses pending reviews. Primary-source comparisons are in
+  `deep-checks/opensource-comparison.md`.
+- Reproduced/fixed: executable plan loss on text edits; workspace queued-send,
+  EOF and draft races; failed heartbeat throttling; cyclic scrub/token-counter
+  redaction; provider timeout late frames; SQL error values in trace export;
+  concurrent migrator races; projector/outbox cursors overtaking uncommitted
+  sequence numbers; scan filename aliasing when OCR was unavailable.
+- Real DB authority tests now cover invalid execution signatures, cross-tenant
+  thread/run access, denied leaf delegation, protected deletion before cancel,
+  normal proposal approval, parent autonomy and child proposal routing.
+- Independent reviewer found child lifecycle key reuse, missed steering,
+  queued-request loss during reconnect, oversized-continuation repair, false
+  discovery completion and pagination exhaustion defects. Follow-up fixes and
+  maintained regressions added; fresh final review remains required.
+- Real Temporal checks passed for context park/resume, reused child identities,
+  planning transcript/terminal output, and discovery acceptance. Discovery
+  reviewers use ten-entry cohorts (at most two active) because a 50-fetch turn
+  cannot fit the existing 25-tool budget. Acceptance report is indexed only
+  after fetched-source/criteria/sample validation.
+- Red test root causes: initial discovery/replay tests used wrong helper
+  signatures; corrected to the repository contracts. Planning test created
+  then read a sector without projector catch-up; now projects and creates a
+  genuine research session, with isolated turn/research queues. OCR-version
+  fixture initially lacked image magic; corrected synthetic image fixture,
+  then observed the maintained test fail on original alias logic and pass on
+  the fix. Reviewer fixture included an unsupported name field; corrected to
+  strict result shape. Browser heading query matched both Discovery and
+  Australian discovery; exact accessible heading now pins its intended anchor.
+- Generated soak output moved to ignored backend/test-results rather than
+  rewriting a tracked report. No shared database cleanup was performed.
+- Whole-file audit, durable per-round inspection/evaluation, production
+  reconciliation, full stress envelope, live-provider UI pilot and PR checklist
+  remain acceptance gaps. Current successes are recorded slice by slice.
+
+## Repo hardening: database test isolation (in progress, 2026-09-30)
+
+- Branch: `codex/deep-checks-sector-hardening`; approved contract in
+  `../documentation/plans/2026-09-30-repo-hardening.md`.
+- Root cause: migration round-trips used `TEST_DATABASE_URL` directly,
+  dropping the shared base schema. Other suites reused fixed database names,
+  including potentially half-migrated leftovers after interrupted runs.
+- Fix: validated test-only names, fresh UUID-suffixed database per harness
+  invocation, round-trips on their own databases. No automatic cleanup or
+  shared database mutation. Six unsafe-name regressions failed before the
+  fix and pass after it. Hermetic harness/migration suite: 8 passed, 2
+  live-gated skipped. Live proof is still pending.
+- The overall hardening, catalogue, UI evidence, recovery/scale gates and
+  Meta pilot remain unfinished. This entry records one slice only.
+
 ## Deep-check round on frontend-revamp (2026-09-30)
 
 - Four independent audit subagents (contract/parity, deep-check
@@ -17,7 +116,7 @@
   validate up front, propose/commit are idempotent replays
   (`ON CONFLICT` + winner-select; `parent-commit:` short-circuit), raw
   `Error`s became `WorkspaceError`. Proven by
-  `db.workspace-idempotency.test.ts` (4/4 fail-before, pass-after).
+  `db.workspace-idempotency.test.ts` (4/ 4 fail-before, pass-after).
 - Schema: new `0018_workspace_hardening` (3 lookup indexes + 4 CHECKs;
   FKs deliberately omitted — thread local memory is authoritative, must
   survive `rebuildFromEvents` truncation and session-delete projection,
@@ -315,7 +414,7 @@
   `agents/src/fixtures/research-fintech-acme.json` (2 docs,
   2 findings).
 - Proven failing-first by `agents/src/research.pack.test.ts`
-  (failed on missing module before the fix; 4/4 after):
+  (failed on missing module before the fix; 4/ 4 after):
   replay with `fetch` stubbed to throw, end-to-end workflow
   report byte-identical to the golden, `createResearchPack`
   round-trip equality, four tamper rejections, secrets scan.
@@ -364,7 +463,7 @@
   unit islands (containment removed), filename unit labels, units-count
   summaries, indexed notes, offset single ring on the composer.
 - Proven by stub-DB sector-context tests (4 failed before, pass after),
-  live sector-context 4/4 on 5433, drawer unit tests 7/7, polish e2e 4/4
+  live sector-context 4/ 4 on 5433, drawer unit tests 7/7, polish e2e 4/ 4
   with `polish-drawer-*` shots reviewed light + dark. Chaining test
   verified to fail with the trap restored.
 - Open decision: AI-generated display names for uploads (provider,
@@ -922,7 +1021,7 @@ entries below; open owner proposals live in the Phase 7 entry.
   `db.list_sessions` without `sectorId`) lists general sessions only;
   sector chats list through `?sectorId=`.
 - Evidence (live-db where gated): `tests/backend/api.sectors.test.ts`
-  (pause/resume 403/404/409/200), `tests/backend/db.sectors.test.ts`
+  (pause/resume 403/ 404/ 409/200), `tests/backend/db.sectors.test.ts`
   (pin projection), `tests/backend/sector-start.test.ts` (pin record,
   unknown/foreign session, pause/resume tools),
   `tests/backend/api.session-sector.test.ts` (bare list excludes sector
@@ -1782,7 +1881,7 @@ scale claims with evidence links.
   plan) the same way the turn lane serves its turn-bundle.
 - Evidence: stub-DB protocol tests, brief-shape tests, live Temporal
   planned + empty-failed branches, live route tests (visible chat,
-  conflict, empty/read/404).
+  conflict, empty/read/ 404).
 
 ## Plan panel + strip rewiring (P3)
 
@@ -1866,3 +1965,1508 @@ scale claims with evidence links.
   (gateway union widened already), tokenCap retune, frontend
   surfaces (Files tab, Plan mode, approval cards, pillar tabs stay in
   the stashed revamp tree).
+
+## Hardening regressions: report attempts and stream overflow (2026-10-01)
+
+- Immutable report IDs now include the owning workflow run, so a new acceptance
+  attempt after an archive-success/checkpoint-failure window preserves the earlier
+  report instead of conflicting with its bytes. The isolated real-DB activity
+  recovery regression passed; this proof does not exercise a live Meta provider.
+- Company polling retains loaded windows and de-duplicates overlapping IDs while
+  paging by raw row offset. Three hook regressions and the browser polling
+  regression passed.
+- Overflow snapshots previously skipped terminal messages while advancing the
+  stream token. Recovery now drains 200-row REST pages, including hidden-only
+  pages, and advances the token only after hydration. The stream recovery battery
+  passed 21 cases. UI evidence is captured by the
+  maintained workspace overflow scenario; The full browser matrix passed 50 cases with 4 explicitly live-gated skips;
+  release-wide verification remains open.
+- The gate caught two ref writes during render in company-window reset. Resets
+  now run in a query-identity effect; all three window regressions pass.
+
+- Independent review found cursor-only EOF recovery lost steering receipts and
+  streamed prefixes. The resumed follower now retains the full accumulator.
+  Review also found overflow skipped receipts: a scope-checked durable receipt
+  page endpoint now restores consumed/missed outcomes before snapshot acceptance.
+  Focused frontend recovery tests passed 13; scoped HTTP/contract battery passed
+  29 against isolated Postgres. Full gates are rerun after these changes.
+
+- Latest complete local gates: pr:verify frontend 301/6 skipped, agents 202,
+  backend 373/243 skipped; Postgres battery 555/59 skipped; selected real
+  Temporal recovery/planning 28 passed; browser matrix 52/ 4 live-gated skips.
+  Backend build passed separately. Independent reviewer verified 13 isolated
+  DB/HTTP cases and cleared both stream findings after fresh recovery tests.
+  No deployment, merge, complete audit, or Meta pilot is claimed.
+
+- The release catalogue gate was watched fail on 431 pending file reviews.
+  This is an explicit unfinished acceptance requirement, not a weakened gate.
+  Curated UI binaries remain local under the existing ignore convention; remote
+  PR binary attachments remain outstanding.
+
+
+## Document publication recovery (next slice, 2026-10-01)
+
+- Real Postgres fault injection reproduced a visible document and partial units
+  after the second unit failed. Twenty concurrent identical uploads produced 13
+  separate IDs. Both tests failed before the fix; archive-offline denial passed.
+- Document row, units, and archive reference now publish atomically in one SQL
+  statement. New IDs derive from sector/version identity; legacy matching IDs
+  are adopted without deleting duplicates or history. No new index/schema.
+- The focused live battery passed 19 cases and typecheck passed. The new DB
+  trigger tests use only their fresh isolated database and retain archive bytes.
+  UI upload/retry verification and wider gates remain required for this slice.
+
+- The full battery caught a compatibility error in the first atomic-ingest draft:
+  a 69-character derived ID exceeded the existing 64-character unit-reference
+  contract. IDs now use a 48-hex-character prefix (53 total), with the full hash
+  checked on conflicts. The existing context include/exclude route test remains
+  unchanged as the independent contract oracle.
+
+- The stricter real-HTTP browser gate caught first-load initialization being
+  marked complete by an abandoned React request. Only confirmed denied ensures
+  are cached now; idempotent concurrent ensures can both return their binding.
+  The same browser heading guard that failed before now passes before upload.
+- Legacy random-ID/partial-index repair regression passed, preserving the exact
+  old ID and filename while completing its units and original-byte reference.
+- The original draft commit's cloud verify, e2e and isolated integration jobs
+  all passed. The additional file-browser CI step is not claimed green until
+  its next remote run completes. Deployment/provider/release gaps remain open.
+
+- The concurrent full-DB run hit the unchanged 10-second synthetic soak setup
+  deadline while browser/build gates competed for host resources. Sequential
+  live DB verification then passed 559/59 gated skips in 15.80 seconds. No test
+  deadline or assertion was weakened. Run live DB gates sequentially on this
+  development host; the contention failure remains recorded.
+- Latest browser matrix passed 53/ 4 live-provider skips; pr:verify passed 876
+  deterministic cases/253 gated skips. Independent review repeated mechanical
+  gates and eight isolated ingestion/context cases successfully.
+
+- Screenshot review exposed a generic "internal error" upload banner. The exact
+  recovery-copy browser assertion failed before the UI fix; server upload errors
+  now explain choosing the file again and retaining existing files. Technical
+  failure codes remain in backend logs. The file state is still checked against
+  real HTTP status, Postgres rows, and downloaded bytes.
+
+
+## Read-only historical replay availability (2026-10-01)
+
+- Added a maintained read-only SDK replay gate pinned to main baseline e454d44's
+  timestamp (2026-09-30T16:44:46Z). It never starts workflows or activities.
+- Initial harness path incorrectly doubled backend/ under npm workspace cwd;
+  fixed to resolve the repository from the test module, not process.cwd().
+- Three pre-baseline sessionRun and three subagentRun histories replayed with
+  current code. They are historical test runs, not owner Meta-pilot evidence.
+- companyResearch, sectorPlan, sectorSweep and sectorCoordinator had no retained
+  pre-baseline histories in the queried namespace. Four checks fail explicitly
+  on this unavailable evidence; no compatibility pass or worker rollout is
+  claimed. The cutoff was not relaxed to collect newer hardening-test histories.
+- The file-ingestion follow-up's cloud verify, e2e and integration jobs passed,
+  including standalone browser typecheck and production HTTP/DB/archive journey.
+  CI browser artifacts are linked from PR #36; the full release remains blocked.
+
+
+## Karbot context-read parity (next slice, 2026-10-01)
+
+- Two real MCP/HTTP regressions failed before fixes: general Karbot could not
+  read its own local context and the global-context tool accepted no sector
+  selector for general chats. Local reads now use validated own-thread identity;
+  explicit sector selection reads approved scoped context only. Sector actors
+  cannot select another sector; pending proposals remain source/parent-private.
+- No approval, owner decision, or research authority is gained from arguments.
+  Focused gates and UI-driven agent verification remain required for this slice.
+
+- The MCP text-only SQL guard flagged the English verb "select" in the new
+  description. The description now says "provide sectorId"; no SQL boundary or
+  test was weakened. All production reads continue through the DB layer.
+
+- Context-tool MCP/HTTP battery passed 40 cases; backend typecheck passed.
+- The real chat UI journey passed over HTTP/Temporal/MCP/Postgres with a scripted
+  provider. Both real tool responses contain the expected scoped context, and
+  both durable tool summaries are done. Send returns only after the terminal
+  message, while the server stream remains open. It is not a Meta journey.
+- Harness failures were root-caused: wrong Open-chat button label, closed-page
+  teardown aborting resource cleanup, and checking DB projection before terminal
+  commit/catch-up. Cleanup is now nested and projection catches up before reads.
+  One exact inventoried test-owned orphan (isolated queue, UUID/run ID verified)
+  was terminated after the failed teardown; no shared workflow or data was deleted.
+
+- The full agent browser matrix exposed a slow composer bootstrap. Inspection
+  showed session-filtered run reads enumerated/described the entire Temporal
+  namespace, including thousands of unrelated stress-test histories. A bounded
+  directory regression failed on that enumeration before the gateway fix. Session
+  reads now describe their recorded graph and retain legacy self-scoped research
+  compatibility. Full browser and gateway gates are being rerun.
+
+- Scoped run-directory regressions passed two cases without network dependencies:
+  no unrelated fleet enumeration and preserved explicit legacy research identity.
+  The full browser matrix then passed 54/ 4 Meta-gated skips within the unchanged
+  interaction deadline. Unfiltered fleet enumeration remains an operating-limit
+  gap; no whole-system scalability claim is made.
+
+
+## MCP replay and general-child authority (2026-10-01)
+
+- Two transport regressions failed before fixes: a cached read returned private
+  context despite an invalid execution signature, and a retry of a completed
+  mutation conflicted solely because its JSON-RPC ID changed.
+- Bindings/grants are checked before replay lookup; reads are fresh, mutations
+  use semantic request plus authority identity, and reply IDs are rebound. A
+  repeated hidden-file read after UI hide is denied. Legacy records lacking
+  authority identity are not silently replayed; reconciliation/rollout remains
+  an explicit gap before worker deployment.
+- A general-chat child could read its parent transcript because isolation only
+  applied to sector-bound parents. The maintained test failed before the fix;
+  own-thread/parent-session checks now also apply without a sector binding.
+- Focused HTTP/DB/transport/gateway battery: 53 passed. Fixtures were corrected
+  to use a real mutation for replay (reads intentionally re-evaluate visibility)
+  and to parse the existing string RPC builder rather than spreading its bytes.
+  No test authority/visibility rule was weakened.
+
+- Independent review found parent renaming still allowed for general children
+  and missing-runner failures cached permanently. Both regressions failed before
+  fixes. Child naming is now owner/parent-only. Only explicit server-typed
+  pre-dispatch dependency failures release replay guards; ordinary uncertain
+  mutation errors remain recorded and do not execute again. Existing DB-contract
+  error compatibility is retained while the wire marks the retry-safe condition.
+
+- Independent review found completion-record failure could release a guard after
+  a real committed mutation. Two fault-injection regressions failed before the
+  fix (completion-store loss and handler error after commit). Unknown outcomes
+  now retain guards, emit correlated uncertain-operation logs, and return an
+  uncertainty header; the same operation does not run again. Explicit typed
+  pre-effect failures still recover safely. Focused six-file battery: 70 passed.
+- The wider battery caught a changed missing-runner phrase; restored the pinned
+  "no sweep runner" wording without weakening its fail-closed assertions.
+  Uncertain-operation reconciliation/UI and legacy replay migration remain
+  acceptance gaps; an in-progress guard is not claimed to be an active worker.
+
+- Final watched follow-up gates: deterministic 878/269 gated skips; Postgres
+  571/65 skips; browser 54/ 4 Meta skips; backend build and contract 18 passed.
+  The matching OpenAPI now describes semantic MCP replay, fresh reads, uncertainty
+  headers and the actual 409 error envelope. Independent focused guard review
+  passed 55 cases. Full audit, legacy-history/cache compatibility, uncertain-operation
+  reconciliation/UI, scale failure envelope, telemetry activation and Meta pilot
+  remain open. No merge/deployment or complete-release claim is made.
+
+### Outbox resource lifecycle follow-up (2026-10-01)
+
+- Maintained regressions reproduced three defects: failed LISTEN leaked a leased
+  client, duplicate callbacks delivered twice while leaving an untracked handler,
+  and failed UNLISTEN silently returned a subscribed client to the pool. Repeated
+  close also had no single-release guard. The four-case lifecycle suite now passes
+  with setup/cleanup failure destruction, idempotent registration/close, and
+  preserved cleanup errors. No shared database or data was changed by these tests.
+- This is not stream scalability acceptance: each subscription still consumes one
+  server-pool lease. Real PostgreSQL SSE verification, higher concurrency capacity,
+  and independent review remain required before release.
+- Independent review found a further P1 in the same surface: a leased pg client
+  lacked an error handler, so socket failure could crash the HTTP process. The
+  event-emitter regression failed first; supervision now destroys once and wakes
+  SSE/MCP consumers. An isolated real-Postgres drill terminated only its captured
+  LISTEN PID; the waiter rejected, the lease returned to zero active clients, and
+  a subsequent query succeeded. Latest focused live battery: 14 passed. This is
+  backend recovery evidence, not a browser or deployed-service claim.
+- Follow-up independent review found a failure-wake race during an awaited
+  backlog read. A maintained test held that query, disconnected the listener,
+  then completed the query; the stream stalled before the fix and now rejects
+  before entering its idle wait. A test typecheck also exposed pg's overloaded
+  connect ReturnType resolving to void; the fixture now uses explicit PoolClient.
+  Neither deadline nor assertion was weakened.
+- The UI disconnect drill initially failed: Karbot's persistent background tail
+  silently ended on graceful EOF despite backend recovery. A shared-follower
+  regression also failed first. Karbot now opts into EOF reconnection with its
+  last accepted token. Browser journey passed through real HTTP/Temporal/MCP/DB
+  with scripted provider; draft and one terminal reply survived reconnect.
+- Applying persistent-tail semantics to the legacy one-shot sector send broke its
+  pinned post-EOF settling test. That flow retains its existing terminal refetch;
+  only Karbot's persistent tail opts in. The assertion was not weakened.
+- Independent frontend verification exposed cross-test stream interference. The
+  root cause was concrete: cancellation during reconnect delay still dispatched
+  one more fetch, allowing a stale follower to touch the replacement transport.
+  A maintained cancellation regression observed two fetches instead of one before
+  the fix. The follower now checks abort before dispatch and its delay responds
+  immediately to abort. No assertion or deadline was relaxed.
+- Final watched gates for this follow-up: pr:verify passed (frontend 303/6 gated
+  skips, agents 202, backend381/264 gated skips; lint/typecheck/frontend build),
+  isolated Postgres578/65 gated skips, full browser54/ 4 Meta-gated skips, backend
+  build and standalone browser typecheck passed. Independent DB/stream16 and
+  frontend69 plus both typechecks passed. Existing lint/bundle warnings remain.
+  No merge or worker deployment; full release audit, compatibility, reconciliation,
+  scale envelope and UI Meta pilot remain open.
+
+### Final acceptance preparation and basic metadata screening (2026-10-01)
+
+- Owner approved a UI-only Australian electrical/plumbing/HVAC discovery campaign,
+  target2000, basic filtering retained and deep research/advanced qualification
+  deferred. Final design contract and pending acceptance matrix are recorded.
+- Initial keyword-only extraction admitted articles/directories/jobs; three new
+  maintained regressions failed before strengthened opt-in metadata screening.
+  New coordinator histories select the gate through a patch; legacy activity
+  arguments remain unchanged. One path regex initially classified a brand host
+  as a job path; the unchanged positive case caught it and path-only matching
+  repaired it. Rules15 passed; real Temporal/isolatedDB coordinator9 passed,
+  including a keyword-junk page followed by a legitimate company page.
+  Geography/fetched-source proof, rejection inspection and the live pilot remain
+  open; this is not a full basic-quality acceptance claim.
+- Independent review caught inventory gate gaps: exported interfaces/types/defaults/
+  barrels were omitted, evidence could be placeholder strings, and the documented
+  release command omitted scenario acceptance. A failing export-form regression
+  reproduced omission. Enumeration now includes those forms, proof is structured
+  and artifact/commit/source/test hashes are validated at release, and the canonical
+  command runs both gates. All pending surfaces/scenarios intentionally block it.
+- Owner explicitly authorized creating test approval keys. Dedicated approver was
+  provisioned through the DB layer in the prior UI tenant/project, with raw material
+  only in ignored local files and old operator untouched. No model/HTTP/MCP key-
+  creation tool was added. A10-twin provisioning test exposed a separate-unique-
+  index race; conflict-safe insertion plus exact subsequent identity read fixed it.
+  Three isolatedDB key tests passed. Config roles were verified without displaying
+  keys; health200 and Meta catalog200 with5 available models were read-only checks,
+  not deployed-branch or provider-research proof. Running backend identifies itself
+  as dev-compose; final compatibility/rollout preflight remains required.
+- Final matrix now has22 pending functionality groups/82 scenarios and 1653 pending
+  declared surfaces (1494 exports,60 HTTP,74 MCP,25 UI). Required evidence tiers
+  are explicit per scenario, so unit-only evidence cannot fulfill browser/stress/
+  live-provider requirements. Independent initial review6 structural checks and
+  administrative key3 live cases passed; release remains intentionally blocked.
+- Watched preparation checks: pr:verify894 passed / 275 gated skips; full isolatedDB
+  589 passed/67 gated skips; coordinator9 passed. The combined enabled release
+  command fails both file and functionality gates as expected on pending reviews.
+  Retrieval inspection found the header-only timeout and post-buffer byte cap;
+  source/geography intake must remain unverified until those paths are hardened.
+- Live UI Models screen confirmed five Meta choices and the unchanged contributor/
+  high-effort default. Screenshot retained locally; no session/model mutation.
+  Historical Overview candidates include government/news/guide pages. They were
+  not deleted or counted toward a new campaign. Product browser navigation also
+  lacks a public-network admission check; record this with fetch body/deadline,
+  network-destination and ownership hardening before the live pilot.
+- Final independent preparation review passed24 cases, backend types and diff
+  whitespace. Critical required tiers are pinned independently of status entries;
+  verified surface mappings must include their actual source file. Final mechanical
+  gate repeated894 passed / 275 declared gated skips. No source/network intake,
+  historical rollout, full audit, Meta inference campaign or2000-company outcome
+  is claimed by this slice. PR remains draft/unmerged.
+
+### Full-response retrieval bounds follow-up (2026-10-01)
+
+- Three maintained regressions failed on the original implementation: a body
+  stalled indefinitely after headers, size rejection happened only after reading
+  all bytes, and redirect destinations were not inspected before network access.
+  Fetch now holds one15-second deadline through headers/redirects/body, cancels at
+  the2-MiB streamed cap and validates each of at most five redirects. Final URL is
+  actual fetched provenance. Late header responses are cancelled even when an
+  injected transport ignores abort. Raw bodies/URLs do not enter operational logs.
+- Focused retrieval/pool suite24 passed/2 real-browser gated skips, including a
+  controlled real-HTTP body that never finishes (15-second cancellation). Loopback
+  routing is explicit test transport injection, not DNS-admission proof. Private-
+  CIDR/DNS pinning, browser ownership/admission, basic source/geography publication
+  and full live campaign remain open. No company records were populated.
+- Independent review found the old HTML regexes were quadratic on malformed
+  script/style/tag openings. A source-evidence regression failed before repair;
+  quote-aware linear extraction now drops ignored/unterminated content and hidden
+  attributes/comments. An isolated child test processes nearly2MiB malformed HTML
+  with64MiB heap and2-second process bound. The real HTTP regression now observes
+  its socket close before forced teardown; it cannot pass merely through cleanup.
+  Focused four-file battery27 passed/2 browser-gated skips. DNS/private networks,
+  browser scope/admission, source intake and full campaign remain unverified.
+- Further independent parser review found Unicode lowercasing could expand string
+  length and corrupt closing-tag offsets. Mixed-case script/style with expanding
+  Unicode content failed first; offset-preserving ASCII tag folding repaired it.
+  The near-cap isolated CPU test remains green. No deadline/assertion was weakened.
+- Final watched retrieval gates: pr:verify905 passed / 275 declared gated skips,
+  backend build, browser54 passed/ 4 Meta-gated skips. Independent19 focused cases,
+  backend types and whitespace passed; no further concrete defect in this slice.
+  Public-network/DNS/browser controls and actual basic intake/pilot remain required.
+
+## 2026-10-01 browser ownership preflight
+
+The audit found predictable process-local browser IDs and no ownership check on
+snapshot/action/screenshot/close. Failed page creation leaked a host slot; a failed
+initial snapshot could publish a session without returning its ID. Three maintained
+regressions failed before the fix (the leaked slot also caused the following same-
+host open to time out). Ownership is now scope/key/validated-thread derived at MCP,
+checked by all session operations, and IDs use UUIDs. Publication follows successful
+initial snapshot; confirmed cleanup releases slots and cleanup is logged/rethrown; uncertain cleanup retains capacity.
+Focused four-file tests: 51 passed, 3 explicitly gated skips. These are mocked
+Chromium/tool-boundary checks, not live browser or DNS/network validation.
+Remaining preflight includes network admission, source-backed basic intake, legacy
+replay/cache compatibility and recoverable uncertain operations; pilot not started.
+
+Independent review caught a namespace collision: child guards treated a browser ID
+as a parent conversation ID. Two maintained child tests failed before the DB-only
+namespace fix; general/sector parent/child own-operation tests now pass. Review
+also found Playwright creation/cleanup had no deadline: caller waits are now bounded
+at 30 seconds. Uncertain cleanup retains physical-capacity accounting, rejects
+further use, and accepts an owner-matched Close retry or late confirmation. Open
+context cleanup uncertainty is logged, not mislabeled successful resource release.
+
+Literal-destination regressions exposed private/reserved/numeric IPv4, IPv6 and
+non-http browser admission; 32 cases failed before the shared literal policy.
+Chromium and fetch are mocked in this denial suite. An initial browser test run
+was interrupted and replaced with an explicit fail-closed Chromium mock; it is not
+verification evidence. DNS pinning, browser redirects/subresources and orphan
+reconciliation remain acceptance gaps. The first mechanical gate caught an unused
+catch binding in the new open handler; it was removed without weakening lint.
+
+The full gate also caught the staging-literal scanner's two obsolete blocklist
+exceptions after the denial policy changed shape. Its exceptions now match only
+the exact localhost-denial expressions; the environment/default scanner remains
+enforced for every other occurrence. This is a guard-fixture update, not permission
+to introduce localhost service defaults.
+
+Independent review found keyboard/wheel SDK operations also use unbounded waits.
+The action wrapper now bounds the full action and blocks overlaps while completion
+is uncertain. Maintained press/wheel late-completion tests and hung-context tests
+pass alongside ownership/cleanup tests (14 focused cases). CDP late-context cleanup
+and restart-orphan recovery remain separately unverified.
+
+CDP mock-path checks now exercise late-context cleanup and close failure without
+closing the shared browser. Independent review then found that repeated Playwright
+context.close can resolve without completing physical cleanup. The maintained
+no-op-close regression fails when the receipt fix is removed and passes with it:
+release now observes the original context close event; retry never treats a no-op
+as confirmation. The fixture serves real owned loopback discovery HTTP and mocks
+Chromium; actual CDP/browser/network recovery remains a live verification gap.
+
+Final watched browser-slice gates: pr:verify: 959 passed / 275 live-gated skips
+(frontend 303, agents 202, backend 454), backend build, and 16 isolated-Postgres
+HTTP authority cases passed. Focused 100 passed / 3 gated skips. No new frontend
+layout was changed, so no new visual/browser matrix is claimed; real Chromium,
+Meta, full stress and historical replay remain unrun for this slice.
+
+Independent installed-SDK review found context-only cleanup leaked one CDP client
+connection per navigation. Cleanup now chains client transport disposal after the
+actual context-close receipt and releases only after both complete. The pinned
+Playwright CDP implementation disposes its transport rather than sending Chromium
+Browser.close. The live pool test now checks the second client survives closing
+the first; it remains explicitly gated/unrun, so no shared-browser safety proof
+is claimed from mock tests or SDK inspection alone.
+
+A further receipt timing gap was repaired: listeners now register at context
+acquisition, rather than first cleanup. The early-close regression confirms an
+already observed close releases on owner Close. The mock now models async context
+creation, matching Playwright; an interrupted synchronous-mock run is not proof.
+The18 browser cases pass; latest receipt/disposal changes require fresh full gates.
+
+Final browser preflight-slice checks on Node 22.23.3 passed: pr:verify
+(frontend 303, agents 202, backend 455; 960 passed / 275 explicitly gated skips),
+separate backend build and 16 isolated Postgres HTTP authority cases. Independent
+review /root/independent_review passed 18 focused cases, backend types and diff
+checks on Node 22; no further concrete defect found in covered DI paths. Real
+Chromium/second-client survival, DNS/network admission, Meta, full stress and
+historical replay remain unverified for this slice. PR remains draft and no
+backend/worker rollout or pilot launch has occurred.
+
+## Source DNS preflight continuation
+
+The previous checkpoint named unfinished implementation/verification as blockers;
+none required a merge or owner permission. Four production-default DNS regressions
+failed before the fix: DNS aliases to private IPv4/IPv6, mixed addresses and empty
+resolution were not checked. Fetch now resolves once per hop, admits all answers
+and pins native connection lookup while preserving original Host/TLS authority.
+Late DNS cannot start a cancelled request. Response compression remains supported
+with streamed encoded/decoded limits. A test edit initially joined two statements
+and failed parsing; the newline was repaired, not skipped. Native transport/DNS
+doubles are not real network or browser admission proof.
+
+DNS focused battery passed 64 cases with one browser-gated skip; backend lint/types
+passed on Node 22.23.3. Maintained KARDATA_RETRIEVAL_TEST=1 HTTPS check passed
+(9 retrieval cases / 1 browser skip), exercising actual DNS/TLS/body consumption.
+The earlier browser commit eecc235 CI completed successfully. Native transport
+doubles, a single real source and earlier CI do not establish new full-release
+readiness or browser-network admission.
+
+Source-DNS slice full Node 22 gates passed: frontend 303, agents 202, backend 466
+(971 total / 276 explicit gated skips), lint/types/frontend and backend builds.
+Independent reviewer found no concrete defect in 11 DNS cases/types/diff. Its raw
+compressed-byte coverage finding now has a 12th case using valid gzip metadata
+with tiny decoded output; removing the raw guard makes that maintained test fail,
+and restoring it passes. This added test is focused proof, not a new full-battery
+count. The entire preflight and real UI pilot are still incomplete.
+
+## Browser network guard preflight (in progress)
+
+Network admission now lives on the existing backend HTTP listener, with ephemeral
+HMAC capabilities, literal/DNS admission and pinned connections. No extra service
+or dependency was added. Browser contexts use verified QUIC/WebRTC policy flags,
+service-worker blocking and removal of loopback proxy bypass. Installed Playwright
+inspection exposed that generic proxy credentials also authorize site HTTP auth;
+custom exact-origin/proxy-only CDP auth avoids that leak. Real isolated Chromium
+checks pass for private page traffic/redirects/popup/TURN-TCP and malicious site
+auth. A controlled shared test browser proves one client's disposal preserves the
+other and leaves zero task contexts after both close. A real public HTTPS source
+also passes through authenticated CONNECT, DNS and Chromium TLS.
+
+Independent review found raw CONNECT half-open peers escaping cleanup and accepted
+socket errors that could crash Node. Close-receipt accounting, bounded flush,
+shutdown tracking and accepted/late error supervision now have maintained tests.
+The first half-open test incorrectly waited for the client to close its own write
+half; the corrected oracle asserts the SERVER socket close before test-peer cleanup.
+A missing enable-automation flag prevented runtime inspection and failed closed;
+local/sidecar flags now match. Type/lint errors in typed CDP parameters, HTTP spy
+overloads and an unnecessary assignment were fixed without relaxing gates.
+
+Focused proxy/auth/expiry/DNS suites passed; full repository and browser matrices,
+new independent review, intake validation and legacy/recovery gates are still
+pending. These are real isolated browser/network checks, not the UI Meta pilot.
+Existing shared backend/worker/browser images remain unchanged; no pilot launched.
+
+CDP control-discovery truncation now clears its deadline and releases its slot;
+maintained headers-plus-partial-JSON peer-close regression passes. The broader
+gate caught a prefer-const error in the new control timer; fixed without lowering
+lint. Actual Chromium checks now total5: private page/redirect/popup/TURN-TCP and
+site-auth secrecy, isolated2-client CDP survival, and real public HTTPS viaCONNECT.
+These are separate from the unstarted UI Meta campaign.
+
+Final watched Node 22 transport gates: pr:verify 989 passed / 281 explicit gated
+skips (frontend 303, agents 202, backend 484), lint/types and both builds; four
+isolated-Postgres HTTP/MCP authority suites: 48 passed. Owned Chromium network
+suite: 5 passed, including production DNS/CONNECT to a public HTTPS peer.
+Browser matrix and latest independent control-discovery verification pending.
+No shared rollout, pilot company population, main merge or data purge occurred.
+
+Browser matrix passed 54 cases / 4 explicitly Meta-gated skips with real isolated
+HTTP/DB/Temporal file/context journeys enabled. Independent reviewer passed 35
+proxy/auth/isolation cases, backend types and diff on Node 22.23.3; control timer
+finding resolved, no new concrete defect found in reviewed paths. Its checks do
+not independently rerun the author's live browser, DB or full-suite results.
+
+### 2026-10-01 — source-backed basic intake preflight
+
+New discovery runs now review candidates before company publication, using at
+most two fetch-only children. Each accepted company has independently required
+identity/geography/sector quote fields. Rejected candidates are screening work;
+uncertain checks remain blocked. Receipts are retained in sector files and work
+progress. No company deep research or outreach is added.
+
+Independent review found and corrected: immutable report ID collision after an
+archive-success/publication-failure restart; skipped interrupted intake on a
+same-plan restart; duplicate review on an uncheckpointed repeated page; signaling
+a finished child after pause; and publication using a stale lifecycle projection.
+The last guard now reads committed state under the existing DB transaction lock.
+All have maintained regression scenarios, including archived receipt preservation
+and pause without projector catch-up.
+
+Watched Node 22.23.3 evidence: 8 intake validator tests; real isolated
+Postgres/Temporal coordinator plus sector repository battery 26 passed
+(17 coordinator, 9 repository cases), /tmp/kardata-intake-temporal-db-final.log.
+Retrieval/reviewers in this battery are explicit scripted fixtures, not Meta.
+The earlier mechanical gate passed 997 tests with 288 declared gated skips;
+later DB lifecycle/lag additions require the final refreshed gate below before
+handoff. No shared deployment, manual population, pilot or merge has occurred.
+Two first rejection fixtures incorrectly supplied a valid company on page 1;
+the fixtures were corrected to their declared rejection-only population rather
+than weakening publication assertions. All subsequent fixtures passed.
+
+Replay baseline preparation uses an isolated managed worktree at e454d44. No
+baseline source edits, shared worker rollout or resource deletion has occurred.
+Compatibility, uncertain-operation recovery, full functionality acceptance and
+the actual UI-driven Meta campaign still remain unfinished.
+
+Controlled legacy recovery evidence: six exact-baseline workflow types replayed
+with current bundles. The combined gate then replayed six retained user histories
+(three sessionRun and three subagentRun) plus verified controlled baseline
+histories for four missing types. It does not move the historical cutoff or
+claim fixtures are historical user runs. Baseline worktree source/commit and
+bundle hashes are checked. Evidence: /tmp/kardata-baseline-replay.log and
+/tmp/kardata-historical-and-baseline-replay-2.log, retained hashed manifests under
+backend/test-results. The SDK JSON replay helper failed on installed protobuf
+Type identity; generated SDK History.fromObject decoding passed without changing
+dependencies or histories. Cutoffs unequal to the pinned baseline instant now fail validation. Independent
+review found that earlier cutoffs could hide available historical coverage;
+maintained pure guard regressions deny both earlier and later dates.
+
+Further intake findings: recovery now obeys the accepted-company ceiling, also
+checked atomically under concurrent publication. Semantic rejection does not
+truncate the next valid source on a page. Rejected domains survive completed
+query-direction checkpoints. The first cap-count assertions also counted the
+completed discovery direction's explanatory text; predicates now select intake
+identities, while company-row and accepted-count ceilings remain exact.
+
+Final watched slice checks on Node 22.23.3: mechanical pr:verify997 passed /
+300 explicit gated skips, lint/typechecks/frontend build; backend build passed.
+Real isolated coordinator/sector-repository battery30 passed (21 coordinator +9
+repository). Final validator plus combined replay gate14 passed. Intake receipts
+are readable markdown with named fit checks/source quotes. Required Meta/UI,
+full-scale mixed-failure, complete file/functionality review and shared rollout
+remain unverified; legacy mutation-cache and uncertain-operation recovery are
+still preflight work. No release acceptance status was promoted automatically.
+
+The cutoff correction passed18 focused validator/replay/guard cases and a fresh
+full mechanical gate:1001 passed /300 explicitly gated skips, lint/types and
+frontend build. No test was disabled to obtain these results. Historical proof
+retains the fixed cutoff and origin distinctions; no release waiver is implied.
+
+### 2026-10-01 — durable source/attempt/steering preflight continuation
+
+Production turn results now return verified source archive refs rather than
+multi-megabyte pages through Temporal. Source and review receipts persist in
+Postgres before continuation cleanup; original text is verified under the source
+session namespace. Source exchanges have60s deadlines, byte caps, cancellable
+filesystem/GCS I/O and coded integrity/scope/limit errors. Existing URL-plus-text
+hashes/paths remain readable. No additional service, framework or dependency.
+
+Migration19 adds per-attempt leases. Late same-operation checkpoints, summaries,
+steering and cleanup cannot overwrite or clear a replacement. Archival remains
+inside cancellation/heartbeat supervision; source validation activities keep
+heartbeats separate from semantic completion. New child histories preserve their
+assignment on followup and return the latest steered outcome, not a superseded
+initial answer. Terminal failure/count reporting is versioned for legacy replay.
+
+Independent review found and corrected: unbounded/unscoped continuation hydration,
+unfenced automatic summaries and detached acceptance/verdict publication after
+cancellation. Final acceptance now checks committed pause/approved scope under
+transaction and resumes saved reviews; final lifecycle cannot overwrite pause.
+Watched Node22 checks so far:23 archive cases; isolated migration/initial lease9;
+latest real Temporal/PG31 (25 coordinator +6 compaction/lease cases). Scripted
+retrieval/provider bodies remain fixture evidence, not the Meta pilot.
+
+Two source-ref fixture errors were corrected without weakening assertions: the
+competing publisher changed citation URLs without minting matching archive refs;
+the no-inline-body assertion treated its short quote as the entire source body.
+The fixture now uses verified ref identities and distinct body/quote content.
+The pause-state test waited only for signal receipt before reading projection;
+it now waits for applied state, preserving the intentional pre-projection guard.
+All subsequent heavy regression cases passed. Full current gates and replay are
+still being run; no shared migration/worker rollout, pilot population or merge.
+
+Broad verification findings: the activity-lifecycle double returned no lease;
+it now supplies and asserts the actual cleanup attempt token. Concurrent catalogue
+and matrix refresh raced the matrix's import-time inventory read; refreshes now
+run sequentially as documented. Full DB battery710 passed /95 gated skips with
+one migration5s timeout under default high file fan-out. Test infrastructure now
+bounds DB file workers to2 within the existing connection budget; all stress
+fan-out, migrator races, timeouts and assertions stay intact. A full rerun follows.
+
+Current source slice final evidence: bounded full Postgres battery711 passed /95
+explicit gated skips; exact production activity→scripted HTTP MCP→real Postgres /
+filesystem source journal passed1 case and retained refs after terminal cleanup.
+Independent re-review confirmed scoped/deadlined continuation hydration, summary
+lease CAS and post-archive publication cancellation guards;23 focused archive
+cases, types and diff checks passed independently. Retained historical/controlled
+replay10 cases and report recovery1 passed. No Meta/provider/pilot claim follows.
+
+Final watched mechanical source gate:1012 passed /308 explicitly gated skips;
+lint/typechecks/frontend build and separate backend build passed on Node22.23.3.
+The new production activity fixture's SDK generic result required an explicit
+TurnOutcome type; typecheck caught and fixed that test declaration. No gate was
+weakened. Browser/full-stress/Meta campaign evidence remains a separate release
+requirement; uncertain operation and legacy cache recovery is next preflight work.
+
+### 2026-10-01 — uncertain-operation recovery preflight
+
+The agent now parks an unconfirmed mutation rather than treating a lost reply as
+ordinary model feedback. Working checkpoints retain original tool arguments,
+operation identity and an execution-authority fingerprint outside compactable
+history. Resume checks the original operation before another provider round;
+changed credentials/grants/thread binding cannot replay it under fresh authority.
+Denied retries retain the original uncertainty. New tasks cannot overwrite an
+unresolved checkpoint. Prepared identities persist before dispatch, covering
+worker cancellation and failed result-checkpoint writes. No blind guard deletion,
+new operation ID or automatic assumption of success is used.
+
+Local context exposes readable pending-operation status and expandable identity;
+OpenAPI and client validation include the same additive fields. Temporal recovery
+is versioned; operation and compaction failures have distinct messages. Completed
+cached replies replay safely; genuinely unprovable in-progress/legacy receipts
+remain parked. Automated proof of an unjournaled historical effect is not claimed.
+
+Watched focused checks:40 runner cases; real HTTP/MCP/Postgres activity test1
+(lost post-commit reply, role revocation/restoration, new-task denial, compaction,
+exactly one created session);8 real Temporal workflow cases;21 workspace component
+cases;4 browser cases desktop/mobile/light/dark with reduced motion, long identity,
+focus restoration and screenshots/videos. The first prepared-receipt HTTP run
+used the stale agents build and failed the pre-dispatch assertion; rebuilding the
+workspace package made the exact same assertion pass. Browser evidence uses
+explicit routed fixtures, not Meta or a populated live campaign.
+
+Work-item upserts now fence conflicts atomically by sector and plan version.
+Foreign-sector identity reuse is denied, another version conflicts, and completed
+replay publishes no false state notification. Three isolated Postgres cases prove
+cross-scope denial, immutable completion and a competing two-sector claim.
+
+The initial broad mechanical run correctly failed stale catalogue surfaces;
+sequential inventory refresh corrected the evidence without promoting reviews.
+Subsequent mechanical gate passed1027 tests /310 explicit gated skips with lint,
+types and frontend build. This count preceded the final work-authority addition;
+current full DB, replay and final mechanical gates are being rerun. No shared
+rollout, pilot or merge occurred. Unresolved release requirements remain explicit.
+
+Latest mechanical gate after work-authority/browser additions:1027 passed /313
+explicit skips; lint/typechecks/frontend build passed. The full DB run failed a
+stale inventory load (new test added before refresh) and the1000-agent usage
+projection exceeded its unchanged5s test deadline during overlapping gates.
+The isolated soak rerun passed4 cases with the original deadline; full isolated
+DB rerun is sequential. This is an unresolved measurement until that rerun passes,
+not a timeout waiver. Browser re-review bounded the long ID;4 rerun cases passed.
+
+Sequential full DB rerun passed716 /96 explicit gated skips with unchanged test
+limits. Independent review then reproduced a prepared-checkpoint authority bypass
+and duplicate assistant tool calls on successful prepared recovery. Both are
+fixed with exact checkpoint regressions: changed authority dispatches zero tools
+and provider requests; one/three recovered calls preserve one original assistant
+block with exactly one result per call. Runner43 cases pass. These were missed by
+the earlier lost-reply-only checkpoint shape and are now maintained regressions.
+
+Independent final runner recheck passed43 cases and confirmed both prepared
+checkpoint fixes; no further concrete defect found in this bounded review.
+Historical/controlled replay passed10 cases (all six workflow types plus cutoff
+contract guards). Controlled fixtures remain labeled separately from historical
+production runs. Fresh mechanical/workflow gates follow the final review fixes.
+
+Current workflow battery33 passed (25 discovery coordinator +8 session recovery),
+full routed workspace browser suite22 passed, retained legacy replay10 passed.
+Operation IDs now hash header-unsafe Unicode/control/edge-whitespace values while
+preserving valid short legacy identities;46 focused runner cases passed. Current
+backend build passed. Remaining preflight includes bounded search bodies/deadlines,
+version-retained eligible discovery and unprovable legacy operation reconciliation;
+complete release audit/stress/provider evidence and matched rollout remain open.
+
+Sealed recovery mechanical gate on Node22.23.3:1033 passed /313 explicit gated
+skips, lint/typechecks/frontend build. Source files remained fixed throughout
+that run. Existing five hook lint warnings and bundle-size warning stay visible.
+This verified recovery slice is reviewable separately; it is not full preflight
+or release completion and the PR remains draft.
+
+### 2026-10-01 — bounded search transport continuation
+
+Keyed/keyless search formerly cleared its deadline at headers, then read entire
+bodies before applying caps. Both now use one bounded search-page helper over
+DNS-pinned public transport:15s whole-page deadline,1MiB keyed/512KiB keyless,
+five public-checked keyless redirects, no credentialed redirects, late/error body
+cancellation and coded operational triples. Shared pagination validates the
+existing count1-20/page0-100 contract before networking.
+
+Primary Brave docs exposed a faulty existing assumption: offset is a page0-9,
+not page multiplied by count. Corrected the production parameter and regression;
+keyed pages past9 fail explicitly for discovery fallback. Provider-null snippets
+remain empty; missing/null web data needs an explicit exhausted flag rather than
+silently claiming no companies. Source: official pagination and response-schema
+links in documentation/backend.md. No provider/service/dependency was added.
+
+Focused bounds/DNS/compatibility cases pass; a test spy initially omitted its
+fetch signature and typecheck caught tuple indexing, corrected with typeof fetch.
+Independent bounded review found no concrete transport defect:30 cases passed,
+2 browser-gated skips, backend types and diff check. Later pagination/schema
+changes are undergoing recheck. No live keyed-search or Meta-pilot claim yet.
+
+Updated focused search battery51 passed /2 explicit browser skips; backend lint
+and types passed. Real public HTTPS source retrieval passed under DNS-pinned
+transport (9 cases/1 browser skip in that command). Independent pagination/schema
+recheck42 passed /2 browser skips; no concrete defect found in its bounded pass.
+A maintained opt-in keyless availability journey now queries actual public
+engines without storing candidates or creating company records. Its results are
+separate from source-backed intake and the Meta/UI pilot.
+
+Production recovery follow-up: source collection wrapped the MCP client without
+forwarding its authority fingerprint. Corrected the wrapper and extended actual
+HTTP/MCP/Postgres regression with a newly registered API-key identity plus worker
+credential rotation, retained original hash, blocked replay and exactly one effect
+on restored authority.26 activity/unit cases pass. Independent read-only review
+confirmed propagation and the regression oracle; no new defect found. This fixes
+a gap missed by the earlier runner-only authority tests, not an owner waiver.
+
+Live keyless availability passed10 cases including actual candidate retrieval,
+without storing results. Basic source-backed intake and the UI/Meta2000-company
+campaign remain separate requirements. No junk candidate was accepted into the DB.
+
+Sealed search mechanical gate passed1055 cases /314 explicit gated skips with
+lint/typechecks/frontend build; separate backend build passed. Search contracts
+and native DNS regressions ran on the production paths with deterministic doubles;
+public source and keyless availability were additionally exercised live. No
+acceptance record was promoted wholesale and no matching shared rollout occurred.
+
+### 2026-10-01 — plan revision consistency work
+
+Approval previously allowed an older stored version despite a newer edit; edit
+and approval also checked only projected lifecycle and did not serialize shared
+scope decisions. Both mutations now share the workspace transaction and committed
+state seam. Stale approvals conflict; one concurrent approver wins.
+
+Exact-compatible discovery revisions copy completed source-backed company and
+settled intake receipts with original evidence/child provenance. Identical query
+completion is retained only without company-capacity/target changes, avoiding
+false exhaustion after expanding the queue. Changed scope/acceptance/brief is not
+silently deemed compatible. Lower limits below retained companies roll back the
+whole approval. Cumulative budget remains sector-owned. Explicit owner-reviewed
+retention across a changed scope is still a separate preflight requirement.
+
+The transaction change exposed incomplete unit doubles (connect returned no
+query/release; lifecycle SELECT received plan payloads). Doubles now implement
+transaction query/release and distinguish committed state reads; the original
+assertions pass. Real isolated DB tests verify retained evidence/child IDs,
+capacity expansion, changed criteria/scope, stale/twin approval and rollback.
+No test timeouts were increased and no pilot data was mutated.
+
+Independent review found that copied completed directions could hide unresolved
+intakes if only settled receipts were retained. Fixed by carrying intake identities
+and states/attempts, not upgrading them. Real Temporal/PG regression1 passed:
+one accepted and one uncertain candidate; compatible v2 still fails acceptance,
+keeps the uncertain blocker and never displays100%, while cumulative budget stays.
+Protected Decisions are now pinned in additive approval metadata and must match
+for automatic retention; legacy unknown decisions are not guessed. Current
+workspace pins displayed contextVersion; stale context conflicts before mutation.
+
+Browser tests initially assumed denied context still exposed the research Plan
+tab and assumed an invented generic503 banner. Actual denial hides the conversation,
+and the503 banner carries the server's message. Assertions now check unavailable
+approval in the real denied state and disabled approval after fresh context fails.
+The error transition passed with the unchanged5s poll and10s assertion deadline.
+Routed fixture evidence is not a live-user approval or Meta campaign.
+
+Sealed compatible-retention checks: full DB747 passed /98 explicit gated skips;
+real coordinator26 passed (including the unresolved-revision regression); full
+workspace browser29 passed; mechanical1056 passed /324 explicit gated skips,
+lint/types/frontend build. Measured2000 synthetic receipt approval/retention:
+47.66ms,158,531,584 bytes runner RSS at end, zero pool waiters at end on Node22,
+16 logical CPUs and98,794,881,024 bytes host memory. Raw hashes/measurement remain
+in backend/test-results/retention.load.json. No real companies were created by
+that measurement. Independent lightweight recheck13 passed; no remaining concrete
+defect found in its bounded retention review. Shared rollout and pilot remain open.
+
+Next identified scale check: coordinator checkpoints currently return full work
+and context history repeatedly. Temporal's documented per-event blob limit and
+history growth require bounded transport/state reads before the2000-company pilot;
+small fixtures do not establish this capability. Explicit owner eligibility
+selection across changed scope and unresolved-operation reconciliation also remain.
+
+### Durable reconciliation source slice (2026-10-01)
+
+Owner terminal session recovery now has an actual HTTP→Temporal→activity→DB/
+archive proof: `/tmp/kardata-owner-resume-live-1.log` passed2 cases in3.91s
+(session restore plus full-UUID delegation). A late finalizer failure retains a
+paid reply; after isolated termination, operator Resume is denied and approver
+Resume adopts original checkpoint/manifest/model under a new epoch. It produces
+one user message, one final reply and one provider call. The final parameterized
+session and delegated-child terminal restore gate then passed2/2 in5.26s
+(`/tmp/kardata-owner-resume-final.log`). Both use actual owner HTTP commands,
+Temporal executions, Postgres and archive storage, with a scripted provider;
+neither is live Meta/pilot evidence. Backend typecheck and scoped recovery/logging
+lint passed after the fixture corrections. Negative-contract corrected fixtures
+still require inclusion in the final full DB gate.
+
+Negative original-contract tests plus palette ceiling passed4/4 in1.85s
+(`/tmp/kardata-recovery-negatives-live.log`): foreign SDK scheduled input denied
+despite matching prompt, nested original grant/mode preserved on repeated
+recovery, bounded history pages, changed-checkpoint ownership denial and no new
+tool dispatch/authority fingerprint change. Subsequent fixture corrections use
+actual persisted JSONB checkpoint hashes and ToolDefinition.parameters; final
+full checks must include these versions.
+
+HTTP ingress review found missing start logs: only onResponse emitted a line,
+leaving held requests absent. Source now emits ingress and coded errors with the
+same trace as egress; matched patterns or *unmatched* replace raw paths. Held
+handler/error/privacy regressions passed in20 lightweight logging checks with
+two explicit integration skips (`/tmp/kardata-http-ingress-tests.log`).
+
+The initial advisory prototype described below is superseded in source by
+execution-epoch fencing (migration0021). Provider-owning gateway and child starts
+reserve first; SDK receipts/validated attempts bind a canonical execution chain.
+The recovery transaction checks current epoch, exact run, lease and every
+unresolved concurrent intent. Legacy and unknown metadata stay advisory. A new
+private attempt supersedes only tagged recovery pause, preserving manual pause.
+No shared image/database rollout is implied.
+
+Verified `/tmp/kardata-epoch-focused-final-2.log`:10 passing focused cases in5.60s
+(seven isolated-PG, three real Temporal/isolated-namespace cases). Actual gateway
+start is held after reserve but before RPC/event/lease to reproduce the previous
+false-positive race; old recovery is denied. Its exact terminated successor is
+safely parked. An actual continue-as-new chain preserves canonical epoch while
+advancing its run, rejecting older callbacks/observations. SDK duplicate-start
+rejection settles no-effect failure; typed unknown launch stays uncertain and
+emits a conversation notice. Ordinary signals and older concurrent unknown RPCs,
+manual pause, pre-dispatch failure, deadline expiry and observe→park journal
+transitions are pinned. Scripted provider work is not Meta/pilot evidence.
+
+Red findings were preserved: helper initially imported the failure class from
+the wrong SDK export; fixed to the supported common export. The unknown-outcome
+fixture initially threw generic Error, which retries workflow tasks rather than
+closing an execution. It failed its unchanged60-second test deadline; changed
+only that fixture to the intended nonretryable ApplicationFailure. Its sole
+owned stuck workflow was inventoried then terminated, without deleting history.
+
+That failed fixture exposed native SDK console leakage: configuring the JS Pino
+logger does not forward Core logs. Source now explicitly forwards native logs
+through a constrained diagnostic serializer, retaining severity/target/IDs/hash
+and excluding raw error/message/span/entry bodies. Existing SDK filters and
+Prometheus metrics remain unchanged. Local SDK runtime-options/runtime-logger
+sources establish the independent-console behavior. Focused logger regression
+and final verification results are recorded separately; older deployed images
+have not been activated with this fix.
+
+Added a singleton existing-lane Temporal supervisor with bounded cursor pages,
+RPC deadlines, bounded per-page retries, failure recovery on subsequent passes
+and continue-as-new history rotation. It records correlated findings and an
+execution.recovery notice for observed closed owners. Working context, summaries,
+leases, lifecycle state and pending instructions remain intact. Scoped sector health
+provides recent historical observations. This source is not activated in the
+older shared worker image, and it is not the Meta pilot.
+
+Concrete defect: five-second heartbeat throttling suppressed busy→idle changes,
+leaving completed operations falsely busy. The previous live test asserted that
+incorrect outcome. Identical-state writes remain throttled; transitions and
+clock rollback now write immediately, with a focused regression and corrected
+real repository assertion. No timeout or resource bound was weakened.
+
+Initial prototype gates passed19 pure/isolated-PG cases and two real Temporal/
+isolated-PG cases in39.19 seconds, including recovery after exactly three page
+failures on the next30-second pass. Subsequent review identified a cross-system
+race: a latest terminal Temporal description plus unchanged local lease does not
+fence a same-ID restart before lease acquisition. Automatic parking was removed;
+current terminal observations never clear leases or change thread status. A
+durable pre-start epoch across gateway and workflow-owned launches is required
+before automatic abandoned-lease recovery can be enabled. Final source gates:
+23 pure/logging/isolated-PG tests pass in3.00s, including retained ownership,
+notice deduplication, scoped health, paused availability and planning attribution.
+Two real Temporal/isolated-PG tests pass in39.21s: exactly three exhausted page
+attempts recover at the next30-second pass with the same cursor; a real same-ID
+workflow restart remains RUNNING after an old terminal observation, with its
+local lease/status untouched. Production Pino worker logging redacts SDK task
+tokens and sanitizes errors in retained evidence. Backend typecheck and changed
+source/test lint pass. Evidence is retained locally, ignored, in
+`backend/test-results/kardata-reconciliation-db-final.log` and
+`backend/test-results/kardata-reconciliation-temporal-redacted.log`.
+
+Independent review found a planning ownership attribution defect: a persistent
+research-session thread executes planning under sector-plan-ID, while generic
+session threads normally use session-run-ID. The resolver now checks the planning
+run key against the session's durable sector binding, reads the actual plan's
+heartbeat, and leaves unprovable bindings unknown. A live repository regression
+pins planning ownership and mismatch denial in the passing23-case gate.
+
+No inferred lease TTL, age-based agent kill, parent/child ancestry recovery,
+browser-process restart recovery, full-fleet operating envelope, outbound alert
+delivery, rollout, pilot or merge proof is claimed by this slice.
+
+### Coordinator pilot-scale transport and history (2026-10-01)
+
+The synthetic2000-company/4000-intake production activity+PG regression failed
+before the fix:9,531,704 serialized bytes, above Temporal's2MB default blob limit.
+Compact snapshots nowmeasure71,272 bytes and routine checks1,241 bytes; all6000
+receipts and their full intake reasons remain stored. Raw hashes/result:
+backend/test-results/coordinator.transport.json. This is synthetic transport proof,
+not2000 live companies or completed pilot. Existing PK receipt lookup replaces
+repeated rejected-domain command lists; plan reads fetch only plan-event payloads.
+Publication cap checks no longer load the entire ledger under the transaction lock.
+
+Real forced history continuation passes and preserves company identities/budgets.
+Independent review foundthree edge failures: committed pause restored only intent,
+empty-page exhaustion could resume the next raw page, and retry pages after100
+lost attempt increments. Fixed and pinned by3 real Temporal/PG regressions, including
+101 interrupted attempts5 becoming6. A test counted the wrong intake run-key shape;
+corrected its prefix oracle without changing the no-duplicate assertion. Excess
+capacity candidates retain exact hydrated receipts and remain blocked.
+
+Full coordinator battery initially28 passed/2 red tests: old assertions demanded
+rejected/accepted domains inside workflow transport lists. New contract moves that
+dedup to scoped DB IDs. Both maintained regressions now assert empty transport
+lists, lookup of the exact durable intake ID, and unchanged/no-repeated reviewer
+counts; focused rerun2 passed. Fresh full coordinator/mechanical/replay gates follow.
+No source record was deleted and no test deadline increased. Independent bounded
+transport review18 lightcases passed andfoundno furtherconcrete defect.
+
+Sector Files scale review reproduced the all-row rendering defect with the
+maintained `files-scale.spec.ts` browser oracle: the initial view mounted 2,004
+visible-file buttons instead of a bounded fifty-row window. The pre-fix browser
+log is `/tmp/kardata-files-scale-browser-before.log`; two component regressions
+also failed in `/tmp/kardata-files-scale-unit-before.log` (72.25s). The minimal fix
+uses fifty-row increments with truthful filtered totals and a fixed footer, plus
+search/hidden-filter resets. Fresh Node22 gates passed: three component checks,
+312 frontend tests with six explicit skips, frontend lint/typecheck/build, and
+14 maintained browser cases in15.1s. The final browser gate adds actual list
+scrolling with a stationary Global context panel, keyboard/focus reachability,
+metadata-refresh preservation, mobile/desktop themes and reduced motion, and
+loading/empty/error/denied/offline recovery. Screenshots, traces, videos and
+per-case source hashes are retained in `/tmp/kardata-files-scale-browser-final`;
+the run log is `/tmp/kardata-files-scale-browser-final.log`. All fixtures identify
+synthetic TEST evidence, not live ingestion or full file-layer verification.
+The follow-up mixed-library regression reproduced uploaded-first grouping: two
+isolated Postgres tests failed in `/tmp/kardata-files-order-before.log`. The
+existing library now combines both sources newest first with a deterministic
+file-ID tie-break, using internal timestamps and no wire-shape changes. Both
+cases passed in2.15s in `/tmp/kardata-files-order-after.log`, including a real
+newly archived/indexed generated report visible first over keyed HTTP among
+2,000 older synthetic upload metadata records. This is scoped ordering evidence;
+the bulk upload rows are fixtures and do not certify 2,000 ingestion operations.
+
+CI at de2e54c passed mechanical/browser jobs but exposed a session recovery test
+race: workflow PAUSED was queryable before its state-event activity committed,
+so immediate projector catch-up read IDLE. The maintained test now waits for both
+the workflow query and durable projected PAUSED within the original30-second
+deadline before resume. It retains original-operation and exactly-one-user-message
+assertions. This corrects the test synchronization contract; fresh real Temporal
+verification remains pending. Log: /tmp/kardata-ci-retention-failed.log.
+
+Current epoch integration:38 real session/coordinator cases passed217.41s;
+legacy replay10 passed3.27s (historical and controlled-baseline origins retained).
+These gates preceded provider-record wiring and do not establish that new slice.
+New normalized execution callbacks49 agent cases and archive26 cases passed.
+Core record tests initially failed2 because the backend imported the previous
+built agents package; rebuilding the existing package made27 core cases pass.
+Model metadata's optional SDK field also produced a type error; normalized missing
+model to explicit null. Full workspace typecheck then passed. Production archive/
+DB callback and owner inspection verification remain pending. No pilot or rollout.
+
+Preflight deployment audit caught a real archive durability mismatch: backend
+mounted archive-data at /var/kardata/archive, but worker had neither that mount
+nor matching archive/GCS environment. New worker-written source/execution records
+would be isolated in disposable storage and unreadable by owner HTTP inspection.
+Maintained archive.storage-config.test observed2 failures before the fix and2
+passes afterwards. Compose now shares the existing volume/target and read-only ADC
+settings; no service/dependency/new product volume added. Read-only inventory of
+three known old worker archive roots found0 files/0 bytes. Matching deployment
+round-trip/restart proof remains pending; no container was replaced in this audit.
+
+Owner execution inspection passed5 real keyed HTTP/Postgres/FS cases in2.37s
+(/tmp/kardata-execution-inspection-http.log):22-record keyset paging, exact body
+reads, body/key omission from metadata, role denial including open mode, tenant
+and same-tenant conversation isolation, invalid cursor boundaries, corrupt archive
+409 and foreign namespace rejection before journal publication. Contract suites18
+passed. Synthetic records are TEST-labeled; no Meta/pilot capability is claimed.
+
+### Unresolved intake owner review (2026-10-01)
+
+Pilot blocker: source-backed uncertain/failed candidates had no owner action and
+could remain acceptance blockers indefinitely. The missing UI/HTTP boundary was
+not covered by the earlier intake verdict tests. Added scoped approver review of
+an exact work/plan receipt at a paused or failed nonexecuting candidate boundary.
+Retry retains identity/attempts/evidence/reason/budget usage; exclusion is a
+separate immutable state, never completed company/direction/acceptance work.
+Owner decisions retain the entire old receipt and explicit reason in the journal.
+Contract: documentation/agents-research.md, backend.md, db.md and frontend.md.
+
+Observed original PlanProgress regressions fail2/2 (no Review intake control),
+then fixed6/6 component and2/2 client tests pass. Actual isolated Postgres and
+keyed loopback HTTP observed4/4 fail with the former absent route, then4/4 pass
+with the route restored. Cases cover authority/scope, exact receipt/plan fences,
+concurrent contradictory decisions, child leases/unresolved starts, retained
+counters/reason, exclusion versus late checkpoints and scoped journal marker.
+Migration gates pass4/4 including concurrent migrators and empty down/up.
+Their stale exact enumerations previously stopped at0019; they now include the
+actual0020/0021/0022 migrations without relaxing the oracle.
+
+Both shared UI entry points pass8/8 maintained browser scenarios at390/1440px,
+light/dark and reduced motion: keyboard opening, long-content bounds, denied
+save/draft retention, stale reload/explicit latest review, exclusion and truthful
+counts. Screenshots/traces/videos: frontend/test-results/work-review-2026-10-01.
+A reviewed mobile dark screenshot shows wrapped source/reason content and
+reachable controls within the dialog. Backend logs and source-hash manifest are
+retained under backend/test-results/work-review-2026-10-01 (ignored evidence).
+These are TEST fixtures, not genuine company/source or Meta campaign proof.
+The parent Temporal exclusion/publication and paused-retry rotation gates are a
+separate coordinated slice; no pilot, release or merge completion is claimed.
+
+Owner Files/context/inspection closure: the maintained32-case browser batch first
+passed28 and failed4 (`/tmp/kardata-owner-files-recovery-inspection-final.log`).
+Three failures proved the rebuild conflict alert was clipped after context/layout
+refresh; centering it and repeating the scroll/focus on version/busy changes fixed
+the product. The fourth was an incorrect exact-alert assertion that included the
+existing retry-button text; the corrected test checks the message and full viewport.
+The final unchanged-source32 cases passed in26.7s:
+`/tmp/kardata-owner-files-recovery-inspection-closure.log`. Captures, videos, traces
+and physical per-case source-evidence JSON files remain in the matching directory.
+Visual review confirms the mobile conflict, stale-source warning and fixed actions
+are visible together, plus bounded escaped JSON and complete normalized download.
+
+The owner inspector is keyed/approver-only, scoped and paginated; namespace,
+hash and byte checks precede serving archived content. Metadata omits storage keys;
+actual IDs derive from the matching lease row and remain in immutable journals.
+Normalized JSON displays64,000 characters initially and explicitly offers complete
+download. Observed shared-plan labels do not claim assignment-plan identity.
+Client/UI focused40 and contracts18 passed; full frontend332 passed/six explicit
+skips, workspace lint passed (five existing frontend warnings), frontend build
+passed (existing chunk warning). The concurrent workspace typecheck found only a
+coordinator test's narrowed nullable-child fixture, handed to its owner for repair.
+Post-provider storage recovery, live Meta campaign, archive-container restart and
+whole-release acceptance remain separate gates. Synthetic UI data is never claimed
+as live provider, research or file-ingestion capability.
+
+Root coordinator review integration passed4 real Temporal/Postgres cases19.69s
+(/tmp/kardata-owner-review-coordinator.log): explicitly retried uncertain receipts
+retain attempts/history, excluded candidates never publish/relaunch, paused owner
+retry forces checkpointed history rotation and dispatch, and a late accepted
+assessment cannot override exclusion. New intake claims carry exact receipt CAS;
+late callbacks cannot overwrite reviewed work. A racing publication fixture now
+prepares its own work receipt rather than borrowing another candidate authority.
+Private original-turn adoption validates hash/run/user under a row-locked lease
+transaction, restores original optional flags (including omission), pins model/
+effort/window and freezes names without altering transport identity. Types passed;
+full battery and negative recovery gates follow.
+
+### Intake-review idempotency contract correction (2026-10-01)
+
+The full backend preflight caught a missing shared IdempotencyKey declaration on
+POST /v1/sectors/{sectorId}/work/{workId}/review. The route already used the
+existing fingerprint guard, but the workspace client's generic request helper
+sent no key. The receipt fence prevented duplicate owner effects; a lost reply
+could not replay its exact cached receipt through the UI. This gap escaped the
+initial review tests because their HTTP harness supplied keys directly and the
+client assertions inspected only the body.
+
+Added the shared optional OpenAPI parameter and a narrow optional client request
+key. useWorkReview retains one key for an exact failed submission; changing its
+work/version/decision/reason creates a fresh request. Observed the contract gate
+fail before the declaration fix. Observed2 client regressions fail without the
+previously absent header, then3 client tests pass with header/key retention.
+The real keyed HTTP/isolated-PG suite now passes5/5: repeated exact owner decision
+returns the identical200receipt and one journal event; changed arguments with the
+same key return409. Contract suites pass18 tests with3 explicit live skips.
+Final frontend suite passes333 tests with6 explicit skips; typecheck, lint and
+build pass (the existing5 lint warnings and build chunk advisory remain).
+Backend lint/typecheck pass. These are isolated fixtures, not pilot evidence.
+
+Full isolated DB run initially814 passed/4 failed/116 explicitly gated skips.
+Root causes: new work-review OpenAPI omitted IdempotencyKey; context authority
+fixtures reused an intentionally hidden-source-blocked thread and its failed v1
+seed; activity supervision fixture lacked the new UUID/producer-identity setup.
+Header/client replay fixed with same-key200/changed-args409 proof; authority
+fixtures isolated without changing policy (16pass). Updated lifecycle fixture
+then revealed real late source-inheritance after heartbeat abort. Added abort
+checks at setup boundaries and moved producer identity into protected cleanup/
+heartbeat supervision. Maintained5-case setup suite passes; source ownership
+read failure also releases its claimed lease and logs a static code. FullDB
+rerun remained required at this checkpoint; no test deadline/assertion was weakened.
+
+### Integrated preflight closure and Postgres capacity (2026-10-01)
+
+The next original two-file-worker DB run encountered an infrastructure failure,
+not an accepted red baseline: the running Postgres container had Docker's64-MiB
+shared-memory mount. At15:54:31 UTC a32-MiB dynamic-segment resize failed with
+ENOSPC during schema creation; the process then received signal11 and Postgres
+entered crash recovery. That run ended567 passed/13 failed/356 skipped,56 failed
+files and one uncaught connection error. Setup-failure skips are not intentional
+gate skips. No shared container was restarted or data purged; Postgres completed
+its own recovery at15:56:23 UTC. Logs: backend/test-results/preflight-final-isolated-db.log
+and preflight-final-postgres-crash.log.
+
+The prior migration round-trip also exceeded its unchanged5-second deadline
+under this run's resource pressure. After recovery the isolated migration suite
+passed4/4 in2.59s without changing its deadline or assertions. A diagnostic
+one-file-worker full DB rerun passed820/116 declared gate skips in157.59s; it
+does not certify the original concurrency envelope. The capacity regression
+observed missing shm_size red before the source-only Compose correction and
+green afterwards. Compose now declares1GiB and retains max_connections100.
+The actual shared running container still has64MiB; source changes do not
+activate it. Matching reviewed deployment and preservation of existing storage
+remain required before rollout.
+
+A fresh owned Postgres container used the same pinned image,1GiB shared memory,
+100 connections, an ephemeral loopback port and a retained UUID fixture volume.
+The full original two-file-worker DB battery passed821/116 explicit gate skips
+in91.14s, with128 passed files/17 gated files, unchanged deadlines and original
+within-file contention. The isolated runtime logged no shared-memory exhaustion
+or crash recovery. Inventory/runtime logs are preflight-final-owned-pg.log and
+preflight-final-owned-pg-runtime.log; the test log is
+backend/test-results/preflight-final-isolated-db-capacity.log. No database was
+dropped. The owned container and volume remain available for further isolated
+verification; no shared deployment changed.
+
+Final Node22.23.3 pr:verify passed1112 tests/395 explicit gate skips: frontend333/6,
+agents229, backend550/389. Workspace lint/typecheck, agents/frontend builds and
+separate backend build passed. Five existing Hooks warnings and the frontend
+chunk advisory remain. Logs: backend/test-results/preflight-final-pr-verify.log
+and preflight-final-backend-build.log. The actual SDK/HTTP/Temporal/Postgres/archive
+owner Resume suite passed2/2 after the final activity setup changes; focused
+pending-response storage recovery passed3/3. These use scripted providers, not
+paid Meta calls. Logs: preflight-final-terminal-owner-resume.log and
+preflight-final-paid-response.log.
+
+The archive container/config gates passed3/3 in2.40s. The owned writer was removed,
+then separate server and replacement-worker containers verified exact normalized
+execution JSON and TEST Unicode source text through production archive APIs.
+The extended maintained case uses persistResearchSource/hydrateResearchSources,
+not a duplicate storage helper. Its fixture volume remains retained; only its
+owned ephemeral containers were removed. Log: preflight-final-archive-container.log;
+before/after volume inventories are retained beside it. This proves isolated
+filesystem persistence across container roles, not matching shared deployment,
+GCS credentials/network, genuine fetched content or the Meta UI campaign.
+
+Sequential catalogue/acceptance refreshes each passed3 structural tests with one
+release assertion gated. The enabled combined release audit then failed2/8 as
+required:508 of543 files still have pending reviews, and all1780 surfaces,
+22 features and82 scenarios remain pending. Log:
+backend/test-results/preflight-final-release-audit.log. No review/acceptance
+status was fabricated. Full browser matrix verification, matching deployed UI/
+source-archive round trip, outbound-alert activation and the actual Meta pilot
+remain separate gates; no shared worker/backend/browser rollout, push or merge
+occurred in this closure. Frozen source/log hashes are retained in
+backend/test-results/preflight-final-source-manifest.json; the tested tree is
+explicitly an uncommitted integration over de2e54c, not release evidence bound
+to a committed source snapshot.
+# Final maintained browser closure (2026-10-01)
+
+Full Node22 browser gate passed113 cases with4 explicitly skipped Meta journeys
+in59.8s, exit0. It includes real isolated HTTP/Postgres/filesystem upload recovery
+and scripted-provider HTTP/MCP/Postgres/Temporal context/reconnect, plus eight
+exact767/768/1279/1280px light/dark rail/drawer/focus/overflow cases. Product source
+was unchanged. All430 captured source/test/configuration/migration hashes stayed
+stable during the final run. Watched logs,145 PNGs,82 videos and113 traces remain
+in ignored `frontend/test-results/browser-closure-final-20261001T1617/`.
+
+One prior matrix failed the file fixture's teardown: the live page issued late
+resource reads after its owned backend began closing, causing503/ECONNREFUSED.
+The maintained fixture now stops its page, waits for routed reads, and preserves
+backend/pool cleanup in nested finally blocks. Assertions/timeouts are unchanged;
+the focused real-file case and the complete final matrix passed after correction.
+New boundary test collection also required moving worker-scoped trace/video
+settings from describe to file scope. Failed logs remain retained.
+
+Exact proof/hashes, visual-review scope and skipped gates are in
+[browser closure](deep-checks/browser-closure.md). Four Meta UI journeys,
+the2000 genuine-company campaign,50-company validation, shared rollout and full
+file/functionality acceptance remain separate pending release gates. No merge,
+deployment or release certification follows from the browser result.
+
+### CI Postgres shared-memory parity (2026-10-01)
+
+Packaging review found the existing GitHub integration Postgres service still
+used Docker's64-MiB default despite the observed local parallel-query crash and
+verified1-GiB owned-runtime correction above. The maintained capacity regression
+now parses the CI configuration as well as Compose. It failed1/2 before the
+CI service option was added; capacity plus archive-configuration checks then
+passed4/4 on Node22.23.3. Logs: /tmp/kardata-ci-capacity-before.log and
+/tmp/kardata-ci-capacity-after.log. The existing CI service now declares
+--shm-size=1g; image, connection budgets, services and dependencies are unchanged.
+
+This closes source configuration parity, not deployment activation or a new
+cloud-green claim. The shared running Postgres remains64MiB. The new latest-head
+cloud run must be watched separately; full release/pilot/acceptance gates remain
+pending. No shared service, database or research data was changed.
+
+
+### Isolated production runtime and new-conversation race (2026-10-01)
+
+Current PR4415b709 production image cold-started on a fresh UUID Compose project,
+with isolated Postgres/Temporal/archive/browser and dedicated test credentials.
+Exact health SHA, production MCP74tools, guarded HTTPS browser navigation, active
+reconciliation supervisor and worker SDKmetrics verified. The owner-facing UI
+created retained test records; the maintained no-interception runtime browser
+gate passed1 case, including exact download bytes, context reload and draft
+switching. No shared rollout or Meta company pilot occurred.
+
+A new conversation briefly showed a false unavailable state because navigation
+preceded refreshed session-list data. The workspace now adopts the acknowledged
+POST result before navigation; obsolete-scope acknowledgements cannot publish
+or navigate. Four maintained regressions and frontend lint/typecheck/build/full
+tests passed (337tests/6explicit skips). Details and limits:
+[isolated runtime proof](deep-checks/runtime-preflight.md). Full repository audit,
+stress envelope, alert delivery and genuine2000-company campaign remain open.
+
+### Independent durable PDF recovery verification (2026-10-01)
+
+Approved contract: [PDF ingestion](../documentation/plans/2026-10-01-pdf-ingestion.md).
+The maintained file-jobs-recovery suite initially observed5 product failures
+and2 passes: stale failure callbacks reparking owner retries, lost superseded
+paid replies, changed JSONB serialization, failed native-only publication without
+retry, and incomplete image lists accepted against a sealed manifest. Revision/
+attempt fences, exact serialized receipts and source-derived publication now
+pass those same oracles. Before proof: backend/test-results/file-jobs-recovery-before.log.
+
+Additional maintained activity tests exposed PNG/base64 reference mismatches,
+a second provider call after reply-staging failure, lost paid replies during total
+DB outage, and unprotected provider-construction cleanup. Storage cancellation
+also started an already-cancelled queued write. The Unicode case observed a valid
+emoji transcript rejected by JSONB after the2,000-code-unit chunker split a
+surrogate pair. The streamed publisher initially consumed its digest before its
+final batch. Their independent failure logs are retained under backend/test-results:
+file-jobs-activity-input-before.log, file-jobs-activity-paid-before.log,
+file-jobs-activity-setup-before.log, file-jobs-archive-cancel-before.log,
+file-jobs-unicode-before.log and file-jobs-stream-digest-before.log.
+All fixes stayed with their assigned source owners; tests retained original
+content, byte limits and production deadlines.
+
+Final Node22.23.3 focused result:39/39 passed in22.20s. It covers actual PDF bytes,
+Postgres, filesystem storage and production activity factories with scripted
+providers, including24 separately analyzed repeated images. A second-batch fault
+retains100 staged rows while every public document reader returns empty content/
+TOC/chunks/search until the final complete publication. Recovery reuses completed
+paid receipts and restores all source coverage. Missing/corrupt and foreign refs,
+hidden scope, unusable/incomplete/tool-call responses, authenticated fallback
+tampering, bounded storage/token-count/provider exchanges and late replies are
+pinned. Log: backend/test-results/file-jobs-recovery-after.log.
+
+Actual SDK/HTTP lifecycle verification uses only owned Postgres32772 and isolated
+Temporal17233, with fresh namespaces/queues and UUID databases. The file runner
+double changes queue dispatch only; workers and all file activities are real SDK
+execution. Worker replacement after archive acknowledgement loss reuses the
+original producer/attempt and retains original bytes. Current ID-only history
+replays. Hidden pause/reveal and scoped approver HTTP acknowledgement of unknown
+paid work pass. The cursor-read hidden transition first failed with a real SDK
+permission error; adding its pause boundary made the focused case and then the
+full3/3 batch pass in25.92s. Log: backend/test-results/file-jobs-sdk-after.log;
+the initial failed SDK log is retained in file-jobs-sdk-before.log. The additional
+post-isolation hidden failure was observed and reported before the fix; its plain
+log was overwritten by the successful rerun. Its exact owned namespace history
+was subsequently fetched read-only and retained with a SHA256 manifest at
+backend/test-results/file-jobs-sdk-hidden-before.manifest.json; it identifies
+the nextFileImageActivity failure without relabeling it as a shared/user history.
+
+Test corrections are explicit: a cross-job namespace guard correctly returns
+permission_denied, not the originally assumed conflict. FakeProvider consumes
+its step array; cloning each SDK fixture prevents earlier cases exhausting later
+ones. A verified late reply now resolves only its exact active provider-outcome
+uncertainty, so the test resumes that same revision instead of requesting an
+unneeded owner retry. Missing-proof and manual-pause guards remain strict. No
+timeout or behavioral assertion was weakened to obtain green.
+
+The focused test files pass lint; backend typecheck passed during SDK preparation.
+These are deterministic provider fixtures, not paid Meta quality, genuine company
+evidence, GCS credential/network proof or matching deployed PDF-worker activation.
+Decoded parser/RSS and fleet measurements, full integrated mechanical/browser
+gates and release audit remain separate requirements after source freeze.
+Owned DB/archive records and namespaced histories remain retained; no shared
+service was restarted, no database dropped and no merge/push/pilot occurred in
+this verification slice. Commands and limits are in documentation/tests.md.
+
+Final pre-dispatch follow-up (2026-10-02): claiming an image is not permission
+to start a provider request after its job has parked. Root added the queued/
+processing check inside the request-start transaction. The maintained claim →
+dispatch-outcome parking → denied request-start case passes1/1, with request
+timestamp/payload absent and no published units (file-jobs-pre-dispatch-after.log).
+Subsequent supported cases added global two-slot admission across three distinct
+jobs/independent Postgres pools and repair of oversized corrupt completed bytes
+from the canonical paid checkpoint without constructing a provider. The latest
+whole low-level/factory file now passes42/42 in20.42s. The actual SDK suite retains
+the full3-case25.92s lifecycle result plus separately watched25-second prepare
+and finalize storage checks; no whole5-case SDK claim is made. The prepare case
+is healthy-path evidence only. The affected finalize oracle first failed with
+finalize attempts[1,2] under explicit test-only suppressed heartbeat reporting,
+then passed with normal SDK reporting, attempt[1] and zero timeout events in28.43s.
+Production source was never swapped for that control. Logs:
+file-jobs-cap-archive-after.log, file-jobs-sdk-slow-after.log,
+file-jobs-sdk-finalize-control-before.log and file-jobs-sdk-finalize-after.log.
+The full100-file/RSS and fleet envelope remain pending.
+Both owned test files pass lint; final backend typecheck passes after the last
+admission-source edits (file-jobs-sdk-typecheck.log). Source/log hashes are retained in
+backend/test-results/file-jobs-verification.manifest.json, explicitly labeled
+uncommitted integration evidence rather than final release certification.
+
+
+Final owned-DB closure checkpoint (2026-10-02): Node 22, the original two-file
+worker configuration and fresh UUID databases on owned loopback Postgres 32772
+ran the complete backend battery. It observed 968 passed, 122 skipped and one
+mechanical catalogue failure in 119.09s: the new pdf-meta-preflight browser spec
+was absent from maintained enumeration. No product/DB test failed. The 627
+captured source/doc files were unchanged across that run. Before/after SHA256
+manifests are retained as backend/test-results/final-db-source-before.json and
+final-db-source-after.json; the exact red log is final-backend-owned-db.log.
+Maintained catalogue and acceptance refreshes then ran in separate completed
+calls, preserving pending review state; their ordinary combined regression
+passed 6 with 2 release skips. This is enumeration repair, not reviewed release
+certification. The separate owned empty-database migration suite passed 4/4 in
+3.06s, including migration 0023 down/up and concurrent migrator serialization
+(final-owned-migrations-0023.log). The required green whole-backend rerun waits
+for the narrow token-count fallback source freeze. Live Temporal, Compose/archive
+container, stress and Meta flags were absent from this DB battery; their evidence
+remains separate. The actual Meta PDF attempt is blocked by 402
+billing_not_configured, not successful quality proof; no additional Meta requests
+were made by this verification slice.
+
+Follow-up provider diagnosis (2026-10-02): the same effective key/model returned
+200 for models, chat, Responses and both streaming paths. The 402
+`billing_not_configured` is specific to `/responses/input_tokens`, not a global
+generation denial. A tiny actual PNG through Meta Responses initially exposed
+400 `invalid_request_error` for `tool_choice: none`; with `auto`, a bounded
+4096-output-token probe completed with nonempty text (49 input, 839 output,
+zero tool calls). Safe status/usage proofs are retained in
+backend/test-results/provider-endpoint-preflight.json and
+preflight-vision-generation.json. These prove endpoint availability, not PDF
+extraction quality or a company-discovery pilot. Narrow counter-unavailability
+fallback and Responses tool-choice regressions are being implemented before
+rerunning the actual PDF UI workflow.
+
+Counter/Responses regressions: seven maintained cases failed before the narrow
+availability fallback and Meta Responses `auto` clamp. The focused suite passed
+54 afterward; the complete hermetic agents suite passed 278, with lint,
+typecheck and build green. Backend integration typecheck passed. An independent
+whole-repo verification attempt then caught lint errors in two ignored diagnostic
+scripts (Node globals and an undocumented empty JSON catch). Those scripts were
+corrected without excluding paths, changing lint rules or deleting evidence;
+the independent whole-repo rerun remains pending. The updated PDF recovery tests
+also caught two test-oracle privacy mismatches: the established activity returns
+a safe public error while retaining its original cause. Assertions now require
+both, plus zero provider dispatch and no paid-request marker; product behavior
+was not changed to expose raw errors. Full recovery/DB reruns remain pending.
+
+Follow-up completion of the counter slice: the strengthened recovery suite
+passed 45/45 (final-file-jobs-recovery-after.log). The actual isolated app UI
+mixed-PDF journey passed: native text retained, four separately dispatched Meta
+image responses complete and archived on attempt one, final indexed output
+visible and the 1,655-byte original downloaded exactly. Safe receipt proof is
+backend/test-results/preflight-pdf-final-receipts.json; curated screenshots/video
+are in preflight-safe-visual-proof. This is one synthetic mixed-text/bitmap/vector
+fixture through the production path, not company discovery, OCR quality across
+all documents or a fleet/RSS capacity measurement.
+
+A fresh independent reviewer then watched Node22.23.3 `npm run pr:verify` exit0:
+1,271 passed /473 explicit gated skips (frontend361/6, agents281, backend629/467),
+with lint, types and agents/frontend builds green. All551 maintained
+source/config/test hashes stayed unchanged. Log:
+/tmp/kardata-independent-counter-pr-verify-final.log; source proof:
+/tmp/kardata-independent-counter-final-after.json. Its scoped verdict approves
+the reviewed counter/Meta Responses correction; full owned-DB/SDK reruns,
+PR packaging and remote gates remain separate merge conditions. The full
+release inventory audit and company pilot remain unapproved and incomplete.
+
+Final packaging regressions: CI's Temporal step lacked the new PDF SDK suite and
+its explicit owned-server address. A maintained YAML regression failed before
+adding both and passed afterward (deployment.capacity3/3; pdf-ci-gate-before.log
+and pdf-ci-gate-after.log). No additional CI service or weakened gate was added.
+Compaction also accepted explicitly incomplete, nonempty summaries and unexpected
+tool output as working memory. Two maintained cases reproduced that loss risk;
+the unit now parks both before adoption and preserves the original history.
+Compaction15/15, agents lint/typecheck/build passed (compaction-incomplete-before/
+after.log). This guard changes no file-image request or token-measurement logic.
+
+Final package entrypoint caught a catalogue drift after the memory fixture added
+`stressImagePdf`: backend639 passed/471 skipped with one enumeration failure;
+no feature assertion failed. The maintained catalogue was refreshed, followed by
+a completed sequential acceptance refresh; review status remains pending where
+not independently established. Exact failed proof is final-package-pr-verify.log,
+maintenance logs final-memory-catalogue-refresh.log and
+final-memory-acceptance-sequential.log. A fresh complete entrypoint is required
+before committing/merging; the enumeration repair is not full-release approval.
+
+Final package entrypoint passed on Node22.23.3: `npm run pr:verify` exit0,
+1,284 passed /477 explicit skips (frontend361/6, agents283, backend640/471).
+Lint, typecheck, agents build and frontend build passed. Existing five Hooks
+warnings and the frontend bundle-size warning remain visible; neither was hidden
+or weakened. Log: backend/test-results/final-package-pr-verify-after.log.
+The live DB985/122, current SDK5/5, browser122/7 and scoped real Meta PDF/memory
+evidence remain separate gates. Remote checks on the exact forthcoming commit,
+the completed PR checklist and final independent packaging verdict are still
+required before merge. The full release audit/company pilot remain deferred.
+
+The final maintained browser matrix on isolated UI port 15174 passed 122 tests
+with 7 explicitly skipped gates (Node 22, two workers). It exercised production
+file HTTP routes against owned Postgres 32772 and scripted context tools through
+owned Temporal 17233. All 82 captured frontend/e2e files stayed unchanged.
+Logs, SHA256 manifests, screenshots, traces and videos remain under
+frontend/test-results/final-browser-15174/. The two Meta PDF journeys, matching
+deployed runtime journey and four live staging/pilot plan journeys were disabled;
+this run does not certify those tiers.
+
+The new token-count activity regressions initially observed 43 passed and 2
+failed: both expected internal error strings instead of the established public
+conflict message, "Image processing could not start." The test oracle now checks
+that public code/message plus the retained exact cause, failed/non-uncertain job,
+no approval requirement, zero provider calls and null request-start timestamp.
+The red log is retained as final-file-jobs-token-count-oracle-before.log. This
+corrects a test privacy-contract mismatch; it does not change provider behavior
+or weaken the no-paid-effect guards. Its green rerun and final whole-DB battery
+remain pending the owned runtime UI slot release.
+
+Current token-count recovery proof is green: final-file-jobs-recovery-after.log
+records 45/45 passed in 46.20s, including exact privacy-safe public errors and
+retained causes, failed/non-uncertain pre-effect parking, zero paid calls and
+null request-start timestamps. The subsequent whole two-worker DB run observed
+960 passed, 128 skipped and 6 failed tests in 190.96s; two further suite setup
+hooks also failed. All failures were unchanged 5s/10s fixture/migration deadlines,
+not feature assertions. Only the ongoing operations status doc changed during
+that run; production and test hashes were stable.
+
+The six affected files reran with two workers after external verification had
+finished: 67 passed, 4 skipped and 2 failed migration tests, plus the soak setup
+hook. Retry acknowledgement, recovery, alerts and commit-order cases passed.
+The owned Postgres log recorded a checkpoint syncing 63,640 retained files,
+69.278s of sync and 322.915s total; host I/O pressure was about 12.77% full
+stall versus 0.49% CPU pressure at capture. The prior whole run had zero migration
+completions over 5s; this run had seven, with maximum 9,733ms. These observations
+identify retained-instance checkpoint I/O as a material fixture bottleneck; the
+external check overlap alone does not explain the standalone failures. Exact
+logs remain in final-backend-owned-db-after.log and
+final-db-timeout-reproduction.log. Recovery cleanup now clears its per-case pool
+handle before awaiting setup and after cleanup, preventing a failed setup from
+double-closing the previous case's pool. No deadline or effect assertion changed.
+A final green whole-DB gate and current whole SDK file remain required.
+
+A newly owned pinned Postgres instance on loopback 32773, 1 GiB shared memory and
+100 connections preserved the previous instance/data. Its first whole run still
+observed 967 passed, 122 skipped and 5 fixture/deadline failures in 174.34s while
+the old instance continued checkpointing. The owner then authorized a graceful
+stop of only old owned test Postgres 32772. PostgreSQL confirmed clean shutdown,
+exit 0 and no OOM; its container and volume remain retained. Host full I/O
+pressure fell from about 15.95% to 0.16%. The current test instance's checkpoint
+completion is being allowed to settle before the required unchanged-deadline
+whole two-worker rerun. Resource inventory, pressure and clean-shutdown logs are
+retained under backend/test-results/final-owned-*. No shared, pilot or runtime
+service/data was changed. Retained test-database campaigns need separate owned
+instances and checkpoint isolation; preserving test data does not justify
+weakening deadlines or calling these red runs release proof.
+
+The pristine campaign with both old proof instances stopped still observed
+965 passed, 125 skipped and 5 failed tests in 175.15s, plus a session setup hook.
+Isolation alone therefore did not resolve the fixture deadlines. Four affected
+files passed 31/31 in light targeted runs (16.04s and 19.93s); those do not replace
+the full gate. Query-phase instrumentation in an ignored diagnostic setup then
+recorded actual maintained helper/test operations: 24 database creations totaled
+3.174s (maximum 555.5ms), while 95 schema statements lasting at least 100ms
+already totaled 31.484s. Four fixture databases accumulated 4.8–7.36s of DDL
+before test bodies. The recorded diagnostic run observed 27 passed/4 timed out;
+no query, result or deadline was changed. Earlier console-only instrumentation
+emitted no captured phase records and is not phase evidence. Cgroup inspection
+found no owned Postgres CPU/memory or io.max cap; its volume is ext4 on NVMe.
+
+A bounded interleaved benchmark on owned Postgres 32774 used three rounds of two
+concurrent fixture calls. Six current UUID database creations with all 23
+migrations had median 1107.4ms and maximum 1180.4ms; six fresh UUID clones of a
+fully migrated empty template had median 90.9ms and maximum 104.1ms. All clones
+and current databases checked 23 migration rows and zero events; all 13 databases
+were retained. Benchmark 1/1 passed in 4.87s, with exact JSON/code/logs retained as
+backend/test-results/pg-template-benchmark.*. This diagnostic recommends an
+immutable, versioned migrated-template harness with concurrent bootstrap and
+contamination guards; it does not claim that helper is implemented or that the
+full DB gate is green. Repeated full-schema fixture DDL, rather than database
+creation or endpoint body work, is the measured bottleneck. Merge remains held.
+
+The sealed, run/migration-identified native template harness is now implemented
+and independently reviewed with bounded connection/statement/lock setup and
+prepare/create operation triples. The first full two-worker campaign using it
+passed 984 tests with 122 explicit skips in 123.84s; its sole failure was the
+migration round-trip's 5s deadline. The test performed an extra unasserted down/up
+setup cycle after ensureTestDb had already supplied a validated migrated empty
+schema. With owner approval, that redundant pair was removed after the run,
+keeping the exact 23 reverse-down assertions, empty-table assertion and actual
+23-migration up checks; simultaneous three-migrator and other real-up tests stayed
+unchanged. No deadline or assertion was reduced or increased. Targeted real
+migration tests then passed 4/4 in 4.29s. Logs:
+final-backend-template-owned-db.log and final-template-migrations-after.log.
+This resolved unnecessary fixture DDL work; the final whole gate is still pending.
+
+The next whole template-harness campaign passed 981 tests with 126 skipped in
+123.36s, with zero feature assertion failures but a 10s soak setup-hook failure
+that prevented its four cases from running. Its synthetic baseline made 1000
+heartbeat writes and 1000 production appendEvent calls as separate autocommits.
+With owner approval, the same ordered calls, IDs, controlled ages and payloads
+now seed through one owned PoolClient transaction, with commit/rollback/release.
+No raw usage SQL bypasses appendEvent validation, redaction or ordering. Three
+obsolete delete/truncate resets were removed because every fixture is already a
+fresh validated empty database. Detection, projection, metrics, budget and timing
+assertions and their deadlines stayed unchanged. Targeted soak 4/4 passed in
+5.48s and its test lint passed (final-soak-fixture-transaction-after.log). These
+are synthetic-fleet measurements, not live worker or provider capacity. The final
+whole campaign and current SDK file remain required.
+
+Final reviewed verification closure (2026-10-02): the complete backend battery
+now passes 985 tests with 122 explicit skips (137 test files passed, 18 skipped)
+in 102.58s. It used Node 22, the original two-file worker configuration and
+unchanged test/hook deadlines on owned loopback Postgres 32775, with the sealed
+native template harness and reviewed fixture corrections. All 630 captured
+source/doc files were unchanged across the run. The current whole file-processing
+SDK suite then passed 5/5 in 78.36s on owned Temporal 17233 and Postgres 32775:
+three lifecycle/recovery cases plus both 25-second preparation/finalization
+storage cases, each retaining attempt 1 and no heartbeat timeout. Its same 630
+source/doc hashes also stayed unchanged. Providers in these SDK cases remain
+scripted. Exact proof: final-backend-reviewed-owned-db.log,
+final-reviewed-db-source-before.json, final-reviewed-db-source-after.json,
+final-current-file-sdk.log and final-current-sdk-source-{before,after}.json,
+under backend/test-results. These green results supersede the earlier pending
+whole-DB/current-SDK checkpoints; their red evidence remains retained.
+
+Temporal/Compose/container/stress/Meta gates were disabled in the DB battery;
+the named SDK gate was enabled separately. This verification did not make paid
+provider calls. The independently run real Meta PDF UI result is a separate
+provider/deployment tier, not evidence from scripted SDK tests. Final pr:verify,
+remote CI and the complete PR checklist remain the root's package/merge gates.
+Owned test containers/volumes/databases and Temporal histories remain retained;
+only explicitly named obsolete owned test Postgres instances were gracefully
+stopped. Runtime/pilot/shared services and data were untouched in this slice.
