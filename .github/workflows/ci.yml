@@ -19,6 +19,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run pr:verify
+      - run: npm test -w @kardata/backend -- pdf-mixed.test.ts
+        env:
+          KARDATA_PDF_MEMORY_TEST: '1'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pdf-memory-review
+          path: backend/test-results/pdf-decoded-memory*.json
 
   e2e:
     runs-on: ubuntu-latest
@@ -71,9 +79,10 @@ jobs:
       - run: npm ci
       - run: npm run build -w @kardata/agents
       - run: npm test -w @kardata/backend
-      - run: npm test -w @kardata/backend -- workflows.run.test.ts workflows.subagents.test.ts workflows.plan.test.ts workflows.coordinator.test.ts
+      - run: npm test -w @kardata/backend -- workflows.run.test.ts workflows.subagents.test.ts workflows.plan.test.ts workflows.coordinator.test.ts workflows.file-processing.test.ts
         env:
           KARDATA_TEMPORAL_TEST: '1'
+          KARDATA_FILE_TEMPORAL_ADDRESS: localhost:7233
 
       - run: npx playwright install --with-deps chromium
         working-directory: frontend

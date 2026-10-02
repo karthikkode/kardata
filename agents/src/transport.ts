@@ -143,6 +143,11 @@ function parseUsage(raw: unknown): Usage {
   }
   return usage
 }
+function completionOf(reason: unknown): ProviderResponse['completion'] {
+  if (reason === 'stop' || reason === 'tool_calls' || reason === 'function_call') return 'complete'
+  if (reason === 'length' || reason === 'content_filter') return 'incomplete'
+  return undefined
+}
 
 async function post(
   config: ChatTransportConfig,
@@ -221,11 +226,13 @@ export async function chatCompletions(
     }
   }
   const reasoning = wire['reasoning_content']
+  const completion = completionOf(message['finish_reason'])
   return {
     text: typeof wire['content'] === 'string' ? wire['content'] : '',
     toolCalls,
     usage: parseUsage(body['usage']),
     ...(typeof reasoning === 'string' ? { reasoning } : {}),
+    ...(completion === undefined ? {} : { completion }),
   }
 }
 
@@ -260,6 +267,7 @@ export async function* chatCompletionsStream(
   )
   const pending = new Map<number, { id: string; name: string; argsText: string; started: boolean }>()
   let usage = emptyUsage()
+  let completion: ProviderResponse['completion']
   const flush = function* (): Generator<StreamEvent> {
     for (const [index, call] of [...pending.entries()].sort(([a], [b]) => a - b)) {
       yield {
@@ -273,7 +281,7 @@ export async function* chatCompletionsStream(
   for await (const data of readSseData(response)) {
     if (data === '[DONE]') {
       yield* flush()
-      yield { kind: 'done', usage }
+      yield { kind: 'done', usage, ...(completion === undefined ? {} : { completion }) }
       return
     }
     let event: unknown
@@ -285,9 +293,12 @@ export async function* chatCompletionsStream(
     if (!isRecord(event)) continue
     if (event['usage'] !== undefined) usage = parseUsage(event['usage'])
     const choices = event['choices']
-    if (!Array.isArray(choices) || !isRecord(choices[0]) || !isRecord(choices[0]['delta'])) {
+    if (!Array.isArray(choices) || !isRecord(choices[0])) {
       continue
     }
+    const terminal = completionOf(choices[0]['finish_reason'])
+    if (terminal !== undefined && completion !== 'incomplete') completion = terminal
+    if (!isRecord(choices[0]['delta'])) continue
     const delta = choices[0]['delta']
     if (typeof delta['content'] === 'string' && delta['content']) {
       yield { kind: 'text_delta', text: delta['content'] }
@@ -324,5 +335,5 @@ export async function* chatCompletionsStream(
     }
   }
   yield* flush()
-  yield { kind: 'done', usage }
+  yield { kind: 'done', usage, ...(completion === undefined ? {} : { completion }) }
 }

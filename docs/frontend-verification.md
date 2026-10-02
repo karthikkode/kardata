@@ -336,3 +336,32 @@ stills and transition videos are retained under frontend/test-results. The mobil
 dark conflict still was visually inspected: visible banner, readable executable
 limits, both plan actions and bounded scroll; no horizontal overflow. These are
 explicit fixtures, not approvals performed on live pilot research.
+
+### File processing and supervision preflight (2026-10-02)
+
+The maintained browser matrix passed 122 with 7 explicit live/runtime skips on
+owned port 15174. Source hashes for all 82 frontend/e2e files stayed unchanged.
+The PDF cases cover 1440/390px, both themes, reduced motion, paid-retry review,
+denied submission with retained acknowledgement, and bounded section paging.
+Current screenshots/video are under
+`frontend/test-results/final-browser-15174/playwright/file-processing-*`.
+The mobile-light denied review and desktop-dark section preview were visually
+inspected: readable copy, fully visible actions, no sideways spill, and full
+content available through section controls/original download. The current file
+list shows upload provenance separately from current processing status.
+
+Alert cases cover both sizes/themes, long references, older-page loading,
+denial and retry; stills/videos are in the matching `alerts-*` directories.
+The long-reference captures preserve text through wrapping and paginate 20 rows;
+desktop-dark and mobile-light geometry were inspected. Extremely long synthetic
+identifiers produce tall cards, so these captures establish overflow safety,
+not a measured large-fleet UX/performance claim.
+
+An additional actual Meta journey used the retained isolated app, without route
+interception or backend data population. One synthetic mixed-text/bitmap/vector
+PDF completed 4/4 image analyses; native and AI-derived sections were visible,
+the original downloaded exactly and no page errors occurred. Its desktop-light
+preview was visually inspected. Safe screenshots and transition video are in
+`backend/test-results/preflight-safe-visual-proof/`; raw credential-bearing traces
+remain private and excluded. This is PDF production-path evidence, not a live
+company-discovery campaign or complete OCR-quality evaluation.

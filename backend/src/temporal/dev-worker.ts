@@ -1,3 +1,4 @@
+import * as fileProcessingActivities from './activities/file-processing.js'
 // Dev worker entry: serves the turn lane (session chat plus subagent
 // delegation) and the sweep lane (sector discovery) locally. Session
 // workflows (workflows/run.ts) call only the turn activities, so that
@@ -34,7 +35,8 @@ import { connectWorker, temporalNamespace } from './connection.js'
 import { createLaneWorker } from './worker.js'
 import * as coordinatorActivities from './activities/coordinator.js'
 import { reconciliationPageActivity } from './activities/reconciliation.js'
-import { ensureExecutionReconciliation } from './reconciliation-start.js'
+import { ensureExecutionReconciliation, ensureFileAdmissionReconciliation } from './reconciliation-start.js'
+import { fileAdmissionPageActivity } from './activities/file-admission.js'
 import { prepareExecutionIntentActivity,settlePreparedExecutionIntentActivity,originalRecoveryReadyActivity } from './activities/execution-epochs.js'
 
 async function main(): Promise<void> {
@@ -60,7 +62,13 @@ async function main(): Promise<void> {
     workflowsPath: join(workflowsDir, 'research-bundle.js'),
     activities: {
       ...coordinatorActivities,
+      prepareFileProcessingActivity: fileProcessingActivities.prepareFileProcessingActivity,
+      nextFileImageActivity: fileProcessingActivities.nextFileImageActivity,
+      processFileImageActivity: fileProcessingActivities.processFileImageActivity,
+      finalizeFileProcessingActivity: fileProcessingActivities.finalizeFileProcessingActivity,
+      failFileProcessingActivity: fileProcessingActivities.failFileProcessingActivity,
       reconciliationPageActivity,
+      fileAdmissionPageActivity,
       prepareExecutionIntentActivity,
       settlePreparedExecutionIntentActivity,
       loadSweepContextActivity,
@@ -82,6 +90,7 @@ async function main(): Promise<void> {
   console.log(`sweep worker polling ${sweepWorker.options.taskQueue}`)
   try {
     await ensureExecutionReconciliation()
+    await ensureFileAdmissionReconciliation()
     await Promise.all([turnWorker.run(), sweepWorker.run()])
   } finally { await connection.close() }
 }

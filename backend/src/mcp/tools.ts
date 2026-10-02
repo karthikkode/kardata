@@ -1,7 +1,7 @@
 import { agentHistoryBoundary, ContextFileBlocked, recordThreadFileExposure, assertThreadFileContext, validateFileRefs } from '../db/context-files.js'
 import { assertGlobalFileContext } from '../db/workspace.js'
-// MCP tool bindings (Phase 2). Each tool is pure wiring over one db layer
-// function from the binding table in documentation/db.md — the server adds
+// MCP tool bindings (Phase 2). Each tool wires one semantic operation
+// from the binding table in documentation/db.md — the server adds
 // auth, transport, and tool schemas, never SQL. Projector-only
 // publishOutboxFrame/runCheckpointTx are intentionally absent.
 import { McpServer } from '@modelcontextprotocol/server'
@@ -30,7 +30,6 @@ import {
   getSector,
   getSession,
   getThread,
-  ingestSectorDocument,
   latestOutboxSeq,
   listLedgerCompanies,
   listLedgerProblems,
@@ -96,10 +95,14 @@ import {
 import type { BrowserAct } from '../retrieval/browser.js'
 import { RetrievalError } from '../retrieval/web.js'
 import type { ArchiveTarget } from '../archive/targets.js'
+import { attachSectorDocument, isPdfDocumentUpload, type FileProcessorRunner } from '../file-ingestion.js'
 
 type BrowserActArgs = BrowserAct
 
 export interface McpToolContext {
+  /** Trusted file-processing capability; PDF attachment fails before effects
+   * when absent. Model arguments cannot install a runner or choose authority. */
+  fileProcessor?: FileProcessorRunner
   runReader?: { getRun(runId: string): Promise<{ sessionId: string; threadKey: string } | null> }
   executionThread?: string
   pool: TransactableDb
@@ -154,7 +157,7 @@ export const TOOL_LAYER: Record<McpToolName, string> = {
   'db.list_sector_companies': 'listSectorCompanies',
   'db.sector_activity': 'sectorActivity',
   'db.create_sector': 'createSector',
-  'db.attach_sector_document': 'ingestSectorDocument',
+  'db.attach_sector_document': 'attachSectorDocument',
   'db.list_sector_documents': 'listSectorDocuments',
   'db.read_sector_document': 'readSectorDocument',
   'db.query_document': 'querySectorDocument',
@@ -266,7 +269,7 @@ export const TOOL_META: Record<McpToolName, { description: string; minRole: Role
   'db.list_sector_companies': { description: 'List companies in one sector.', minRole: 'viewer' },
   'db.sector_activity': { description: 'Sector timeline derived from the sector partition.', minRole: 'viewer' },
   'db.create_sector': { description: 'Create a sector (appends sector.created).', minRole: 'operator' },
-  'db.attach_sector_document': { description: 'Attach a context document to a sector (.md/.txt/.csv/.json/.pdf/.docx/.png/.jpg/.webp). Images and scanned PDFs index via OCR when configured, else attach as needs-ocr.', minRole: 'operator' },
+  'db.attach_sector_document': { description: 'Attach a context document to a sector. PDFs queue durable full-page/image processing and return current status/progress, not immediate indexed knowledge. Text/images retain their existing ingestion path. Failed/uncertain paid retries and context inclusion require owner review.', minRole: 'operator' },
   'db.list_sector_documents': { description: 'List context documents for a sector.', minRole: 'viewer' },
   'db.read_sector_document': { description: 'Read one context document with its full extracted text, for quoting a file back. needs-ocr rows carry empty text.', minRole: 'viewer' },
   'db.query_document': { description: 'Query a context document: TOC summary by default, targeted unit search/slice on demand. Cite units, never dump whole files.', minRole: 'viewer' },
@@ -435,7 +438,7 @@ const INVOKERS: Invokers = {
       scope: ctx.scope,
     }),
   'db.attach_sector_document': (ctx, args) =>
-    ingestSectorDocument(ctx.pool, { sectorId: args.sectorId, filename: args.filename, contentBase64: args.contentBase64, scope: ctx.scope, archive: ctx.archive }),
+    attachSectorDocument(ctx.pool, { sectorId: args.sectorId, filename: args.filename, contentBase64: args.contentBase64, scope: ctx.scope, archive: ctx.archive, fileProcessor: ctx.fileProcessor, sourceThread: ctx.executionThread, logger: ctx.logger }),
   'db.list_sector_documents': (ctx, args) => listSectorDocuments(ctx.pool, args.sectorId, ctx.scope),
   'db.read_sector_document': async (ctx, args) => {
     const result = await readSectorDocument(ctx.pool, args.sectorId, args.documentId, ctx.scope)
@@ -805,6 +808,10 @@ export async function invokeTool(
       }
     }
     const invoker = INVOKERS[name] as (ctx: McpToolContext, args: unknown) => Promise<unknown>
+    if (name === 'db.attach_sector_document') {
+      const upload = parsed.data as { filename: string; contentBase64: string }
+      if (isPdfDocumentUpload(upload.filename, upload.contentBase64) && (typeof ctx.fileProcessor?.startFileProcessing !== 'function' || !ctx.archive)) throw new McpPreconditionError('PDF attachment requires a file-processing runner and archive.')
+    }
     dispatched = true
     return invoker(ctx, parsed.data)
   }

@@ -183,6 +183,7 @@ const FakeStepSchema = z.union([
   z.object({
     text: z.string(),
     toolCalls: FakeToolCallSchema.array().optional(),
+    completion: z.enum(['complete', 'incomplete']).nullable().optional(),
     delayMs: z.number().int().min(0).optional(),
   }),
   z.object({ error: z.string().min(1), retryable: z.boolean().optional() }),

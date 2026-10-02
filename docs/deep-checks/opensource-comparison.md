@@ -15,6 +15,34 @@ below prove Kardata changes, not upstream performance claims.
 | Logs | [Pino redaction](https://github.com/pinojs/pino/blob/6ba157b1a6727399f9dc01a584d2e08d5094ea57/docs/redaction.md) | MIT, LICENSE at that SHA | Keep Pino as serializer/logger, not custom file logging. Static path redaction alone does not cover unknown credential variants, so our fail-closed scrub remains. Preserve only validated numeric token counters, handle cyclic metadata, and omit SQL error values from exported spans. Two scrub regressions and a trace-privacy regression failed before fixes. |
 | Browser verification | [Playwright runner](https://github.com/microsoft/playwright/blob/8b552173e8d767db29b8baef8f4a1f08cf7f26bf/packages/playwright/src/runner/tasks.ts) | Apache-2.0, LICENSE at that SHA | Retain the installed runner, assertions, isolated contexts, traces and video. Use maintained scenarios rather than standalone screenshots as proof. The fixture browser battery is distinct from the UI-driven Meta pilot. |
 
+## Native PostgreSQL test templates (2026-10-02)
+
+The existing pinned image reports PostgreSQL 16.15. Its upstream release tag
+`REL_16_15` resolves to `7d3e000c5961a544302072058a1184e9a588837b`;
+the [frozen COPYRIGHT](https://github.com/postgres/postgres/blob/7d3e000c5961a544302072058a1184e9a588837b/COPYRIGHT)
+confirms the PostgreSQL license. No donor implementation, new dependency or
+additional product service is adopted.
+
+Pattern: build a run-scoped schema-only database once, close its connections,
+seal connection admission, then create fresh owned UUID databases from it.
+PostgreSQL requires the source to have no active connections and restricts
+cloning an ordinary source to its owner or a superuser. Its default `WAL_LOG`
+strategy suits small templates; `FILE_COPY` forces checkpoints. Database-level
+grants/settings do not copy, so this harness requires schema-local migrations
+and revalidates each clone. Sources:
+[CREATE DATABASE](https://www.postgresql.org/docs/16/sql-createdatabase.html),
+[template databases](https://www.postgresql.org/docs/16/manage-ag-templatedbs.html).
+
+Measured before adoption on the same owned PG/host with two concurrent calls:
+six fresh migrations had median 1,107ms/max 1,180ms; six clones had
+median 91ms/max 104ms. Each result retained all 23 migration records and empty
+application events. This roughly 12x fixture-creation result is not an end-to-end
+product speed claim. Proof: ignored pg-template-benchmark.json/log plus phase
+profile evidence. Rejected options: shared mutable fixtures, automatic data
+purges, relaxed test deadlines, disabled durability and increased server budgets.
+Run/migration identity, ownership, bootstrap serialization, seal, empty-data
+checks and failed-source retention are maintained regressions.
+
 ## Current measurable differences
 
 - Two delayed-commit cursor tests failed before the ordering fix and pass after;

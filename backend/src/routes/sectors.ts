@@ -20,6 +20,8 @@ import { pauseSectorSweep, restartSectorSweep, resumeSectorSweep } from '../db/s
 import { SectorPlanError, planSectorResearch, readSectorPlan } from '../db/sector-plan.js'
 import { SectorStartError, startSectorResearch } from '../db/sector-start.js'
 import { createModelOcrAdapter } from '../ocr.js'
+import { attachSectorDocument, FileIngestionUnavailable } from '../file-ingestion.js'
+import { childLogger } from '../observability/logging.js'
 import { resolveAdapter } from '../providers/gateway.js'
 import { projectNewEvents } from '../projector.js'
 import {
@@ -27,7 +29,6 @@ import {
   ensureResearchSession,
   DbContractError,
   getSector,
-  ingestSectorDocument,
   listCompanies,
   listSectorCompanies,
   listSectorDocuments,
@@ -323,16 +324,20 @@ export function sectorRoutes(app: FastifyInstance): void {
     return withIdempotency(request, reply, pool, auth.keyId, async () => {
       await projectNewEvents(pool)
       try {
-        const document = await ingestSectorDocument(pool, {
+        const dependencies = app as FastifyInstance & { kardataRuns?: import('../temporal/gateway.js').RunsGateway; kardataArchive?: import('../archive/targets.js').ArchiveTarget; kardataLogger?: import('pino').Logger }
+        const document = await attachSectorDocument(pool, {
           sectorId,
           filename: body.filename,
           contentBase64: body.contentBase64,
           scope: auth.scope,
           ocr: resolveOcrAdapter(),
-          archive: (app as FastifyInstance & { kardataArchive?: import('../archive/targets.js').ArchiveTarget }).kardataArchive,
+          archive: dependencies.kardataArchive,
+          ...(typeof dependencies.kardataRuns?.startFileProcessing === 'function' ? { fileProcessor: { startFileProcessing: dependencies.kardataRuns.startFileProcessing.bind(dependencies.kardataRuns) } } : {}),
+          logger: dependencies.kardataLogger ? childLogger(dependencies.kardataLogger, { traceId: request.traceContext?.traceId, tenant: auth.scope?.tenantId }) : undefined,
         })
         return { status: 201, body: { ok: true, data: document } }
       } catch (error) {
+        if (error instanceof FileIngestionUnavailable) return { status: 503, retrySafeBeforeEffect: true, body: { ok: false, error: { code: 'overload', message: error.message } } }
         if (error instanceof DbContractError) {
           const status = error.message.startsWith('unknown sector') ? 404 : 400
           const code = status === 404 ? 'not_found' : 'validation_failed'

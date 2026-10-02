@@ -3,7 +3,7 @@
 import { expect, test } from '@playwright/test'
 
 test.use({ video: 'on', actionTimeout: 10_000 })
-test('general Karbot reads own local and authorized sector context through real agent tools', async ({ page }) => {
+test('general Karbot reads own local and authorized sector context through real agent tools', async ({ page }, info) => {
   test.skip(!process.env.TEST_DATABASE_URL || process.env.KARDATA_TEMPORAL_TEST !== '1', 'needs isolated Postgres and real Temporal gate')
   test.setTimeout(120_000)
   const [{ Pool }, { randomUUID }, { join }, { mkdtempSync }, { tmpdir }, { ensureTestDb }, { buildApp }, db, { projectNewEvents }, connectivity, { TemporalRunsGateway }, { createLaneWorker }, activities, { Client }] = await Promise.all([
@@ -24,7 +24,7 @@ test('general Karbot reads own local and authorized sector context through real 
   Runtime.install({ logger: createWorkerLogger() })
   const connection = await connectivity.connectWorker(), clientConnection = await connectivity.connectClient()
   const client = new Client({ connection: clientConnection, namespace: connectivity.temporalNamespace() })
-  const app = buildApp({ pool, runs: new TemporalRunsGateway(pool, clientConnection), auth: true, corsOrigins: ['http://127.0.0.1:5174'] })
+  const app = buildApp({ pool, runs: new TemporalRunsGateway(pool, clientConnection), auth: true, corsOrigins: [new URL(info.project.use.baseURL ?? 'http://127.0.0.1:5174').origin] })
   let worker: Awaited<ReturnType<typeof createLaneWorker>> | undefined, run: Promise<void> | undefined
   const toolReturns: unknown[] = []
   app.addHook('onSend', async (request, _reply, payload) => {

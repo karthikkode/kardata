@@ -9,6 +9,10 @@ import { sha256Hex, type ExtractedUnit } from './file-pipeline.js'
 export interface DocumentUnit extends ExtractedUnit {
   documentId: string
   sha256: string
+  page?: number
+  imageId?: string
+  imageOrdinal?: number
+  imageRole?: 'embedded' | 'page-visual'
 }
 
 export async function insertDocumentUnits(db: Db, documentId: string, units: ExtractedUnit[]): Promise<void> {
@@ -41,8 +45,12 @@ export async function listDocumentUnits(db: Db, documentId: string): Promise<Doc
     confidence: number | null
     uncertain: boolean
     sha256: string
+    source_page: number | null
+    source_image_id: string | null
+    source_image_ordinal: number | null
+    source_image_role: 'embedded' | 'page-visual' | null
   }>(
-    `SELECT document_id, ord, kind, text, confidence, uncertain, sha256
+    `SELECT document_id, ord, kind, text, confidence, uncertain, sha256, source_page, source_image_id, source_image_ordinal, source_image_role
      FROM sector_document_units WHERE document_id = $1 ORDER BY ord ASC`,
     [documentId],
   )
@@ -54,6 +62,10 @@ export async function listDocumentUnits(db: Db, documentId: string): Promise<Doc
     ...(row.confidence === null ? {} : { confidence: row.confidence }),
     uncertain: row.uncertain,
     sha256: row.sha256,
+    ...(row.source_page == null ? {} : { page: row.source_page }),
+    ...(row.source_image_id == null ? {} : { imageId: row.source_image_id }),
+    ...(row.source_image_ordinal == null ? {} : { imageOrdinal: row.source_image_ordinal }),
+    ...(row.source_image_role == null ? {} : { imageRole: row.source_image_role }),
   }))
 }
 

@@ -1472,6 +1472,20 @@
       "status": "pending"
     },
     {
+      "id": "agents/src/compaction.ts#InputTokenMeasurement",
+      "source": "agents/src/compaction.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "agents/src/compaction.ts#measureInputTokens",
+      "source": "agents/src/compaction.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "agents/src/compaction.ts#OUTPUT_RESERVE",
       "source": "agents/src/compaction.ts",
       "kind": "export",
@@ -2474,6 +2488,13 @@
     },
     {
       "id": "agents/src/providers.ts#StreamEvent",
+      "source": "agents/src/providers.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "agents/src/providers.ts#TokenCountUnavailableError",
       "source": "agents/src/providers.ts",
       "kind": "export",
       "features": [],
@@ -3509,6 +3530,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/archive/targets.ts#withArchiveDeadline",
+      "source": "backend/src/archive/targets.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/artifacts/pipeline.ts#ARTIFACT_INDEXED_EVENT",
       "source": "backend/src/artifacts/pipeline.ts",
       "kind": "export",
@@ -4265,6 +4293,20 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/alerts.ts#listSupervisionAlerts",
+      "source": "backend/src/db/alerts.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/alerts.ts#SupervisionAlert",
+      "source": "backend/src/db/alerts.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/checkpoints.ts#CheckpointTx",
       "source": "backend/src/db/checkpoints.ts",
       "kind": "export",
@@ -4811,6 +4853,286 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/file-jobs.ts#assembleFileProcessingUnits",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#beginFileProcessingJob",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#claimFileImage",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#completeFileImage",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#createFileProcessingJob",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#failFileImage",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#failFileProcessingJob",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#FileArchiveRef",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#FileImageClaim",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#FileImageIdentity",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#fileImageResponseUnits",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#fileProcessingArchivePrefix",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#FileProcessingJob",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#FileProcessingManifest",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#FileProcessingPagedManifest",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#fileProcessingProgress",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#FileProcessingProgress",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#FileProcessingUnit",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#fileProcessingWorkflowId",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#finalizeFileProcessingJob",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#listFileAdmissionCandidates",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#listFileProcessingJobs",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#listSectorFileProcessing",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#markFileImageRequestStarted",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#markFileProcessingDispatchOutcome",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#pauseFileProcessingJob",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#readCurrentFileImageAttempt",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#readFileImage",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#readFileImageAttempt",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#readFileJobBoundary",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#readFileProcessingJob",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#readNextFileImage",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#registerFileImages",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#rejectFileImageResponse",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#reserveFileProcessingDispatch",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#restoreFileImageArchive",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#retryFileProcessingJob",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#stageAndPublishFileProcessingJob",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#stageFileImageResponse",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/file-jobs.ts#streamFileProcessingUnits",
+      "source": "backend/src/db/file-jobs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/file-pipeline.ts#chunkTextUnits",
       "source": "backend/src/db/file-pipeline.ts",
       "kind": "export",
@@ -4994,6 +5316,13 @@
     },
     {
       "id": "backend/src/db/index.ts#*:./execution-epochs.js",
+      "source": "backend/src/db/index.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/index.ts#*:./file-jobs.js",
       "source": "backend/src/db/index.ts",
       "kind": "export",
       "features": [],
@@ -5651,6 +5980,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/index.ts#listSupervisionAlerts",
+      "source": "backend/src/db/index.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/index.ts#listTenantArtifacts",
       "source": "backend/src/db/index.ts",
       "kind": "export",
@@ -5911,6 +6247,13 @@
     },
     {
       "id": "backend/src/db/index.ts#readSectorDocument",
+      "source": "backend/src/db/index.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/index.ts#readSectorDocumentUnitsPage",
       "source": "backend/src/db/index.ts",
       "kind": "export",
       "features": [],
@@ -6211,6 +6554,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/index.ts#SectorDocumentStatus",
+      "source": "backend/src/db/index.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/index.ts#SectorFilters",
       "source": "backend/src/db/index.ts",
       "kind": "export",
@@ -6415,6 +6765,13 @@
     },
     {
       "id": "backend/src/db/index.ts#subscribeOutbox",
+      "source": "backend/src/db/index.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/index.ts#SupervisionAlert",
       "source": "backend/src/db/index.ts",
       "kind": "export",
       "features": [],
@@ -6759,6 +7116,41 @@
     {
       "id": "backend/src/db/outbox.ts#subscribeOutbox",
       "source": "backend/src/db/outbox.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/pdf-extraction.ts#PDF_IMAGE_MAX_BYTES",
+      "source": "backend/src/db/pdf-extraction.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/pdf-extraction.ts#PDF_IMAGE_MAX_PIXELS",
+      "source": "backend/src/db/pdf-extraction.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/pdf-extraction.ts#PDF_PAGE_VISUAL_SCALE",
+      "source": "backend/src/db/pdf-extraction.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/pdf-extraction.ts#PdfExtractionPart",
+      "source": "backend/src/db/pdf-extraction.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/pdf-extraction.ts#planPdfExtraction",
+      "source": "backend/src/db/pdf-extraction.ts",
       "kind": "export",
       "features": [],
       "status": "pending"
@@ -7128,6 +7520,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/sector-documents.ts#readSectorDocumentUnitsPage",
+      "source": "backend/src/db/sector-documents.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/sector-documents.ts#SECTOR_DOCUMENT_MAX_BYTES",
       "source": "backend/src/db/sector-documents.ts",
       "kind": "export",
@@ -7136,6 +7535,13 @@
     },
     {
       "id": "backend/src/db/sector-documents.ts#SectorDocument",
+      "source": "backend/src/db/sector-documents.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/sector-documents.ts#SectorDocumentStatus",
       "source": "backend/src/db/sector-documents.ts",
       "kind": "export",
       "features": [],
@@ -8024,6 +8430,34 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/file-ingestion.ts#attachSectorDocument",
+      "source": "backend/src/file-ingestion.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/file-ingestion.ts#FileIngestionUnavailable",
+      "source": "backend/src/file-ingestion.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/file-ingestion.ts#FileProcessorRunner",
+      "source": "backend/src/file-ingestion.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/file-ingestion.ts#isPdfDocumentUpload",
+      "source": "backend/src/file-ingestion.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/http/cors.ts#corsHeadersFor",
       "source": "backend/src/http/cors.ts",
       "kind": "export",
@@ -8542,6 +8976,41 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/ocr.ts#DOCUMENT_IMAGE_MAX_OUTPUT_TOKENS",
+      "source": "backend/src/ocr.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/ocr.ts#DOCUMENT_IMAGE_PROMPT_VERSION",
+      "source": "backend/src/ocr.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/ocr.ts#DOCUMENT_IMAGE_SYSTEM",
+      "source": "backend/src/ocr.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/ocr.ts#documentImageRequest",
+      "source": "backend/src/ocr.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/ocr.ts#documentImageSelection",
+      "source": "backend/src/ocr.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/ocr.ts#MODEL_OCR_CONFIDENCE",
       "source": "backend/src/ocr.ts",
       "kind": "export",
@@ -9004,6 +9473,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/routes/alerts.ts#alertRoutes",
+      "source": "backend/src/routes/alerts.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/routes/artifacts.ts#artifactRoutes",
       "source": "backend/src/routes/artifacts.ts",
       "kind": "export",
@@ -9384,6 +9860,90 @@
     {
       "id": "backend/src/temporal/activities/execution-epochs.ts#settlePreparedExecutionIntentActivity",
       "source": "backend/src/temporal/activities/execution-epochs.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/file-admission.ts#FileAdmissionOwner",
+      "source": "backend/src/temporal/activities/file-admission.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/file-admission.ts#fileAdmissionPageActivity",
+      "source": "backend/src/temporal/activities/file-admission.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/file-admission.ts#inspectFileAdmissionOwner",
+      "source": "backend/src/temporal/activities/file-admission.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/file-admission.ts#reconcileFileAdmissionPage",
+      "source": "backend/src/temporal/activities/file-admission.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/file-processing.ts#createFileProcessingActivities",
+      "source": "backend/src/temporal/activities/file-processing.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/file-processing.ts#failFileProcessingActivity",
+      "source": "backend/src/temporal/activities/file-processing.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/file-processing.ts#FileProcessingDependencies",
+      "source": "backend/src/temporal/activities/file-processing.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/file-processing.ts#FileProcessingInput",
+      "source": "backend/src/temporal/activities/file-processing.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/file-processing.ts#finalizeFileProcessingActivity",
+      "source": "backend/src/temporal/activities/file-processing.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/file-processing.ts#nextFileImageActivity",
+      "source": "backend/src/temporal/activities/file-processing.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/file-processing.ts#prepareFileProcessingActivity",
+      "source": "backend/src/temporal/activities/file-processing.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/file-processing.ts#processFileImageActivity",
+      "source": "backend/src/temporal/activities/file-processing.ts",
       "kind": "export",
       "features": [],
       "status": "pending"
@@ -10194,6 +10754,20 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/temporal/reconciliation-start.ts#ensureFileAdmissionReconciliation",
+      "source": "backend/src/temporal/reconciliation-start.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/reconciliation-start.ts#FILE_ADMISSION_WORKFLOW_ID",
+      "source": "backend/src/temporal/reconciliation-start.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/temporal/reconciliation-start.ts#RECONCILIATION_WORKFLOW_ID",
       "source": "backend/src/temporal/reconciliation-start.ts",
       "kind": "export",
@@ -10390,6 +10964,20 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/temporal/workflows/file-admission.ts#fileAdmissionReconciliation",
+      "source": "backend/src/temporal/workflows/file-admission.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/workflows/file-processing.ts#fileProcessing",
+      "source": "backend/src/temporal/workflows/file-processing.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/temporal/workflows/loopguards.ts#DEFAULT_SUSPEND_TIMEOUT_MS",
       "source": "backend/src/temporal/workflows/loopguards.ts",
       "kind": "export",
@@ -10496,6 +11084,20 @@
     },
     {
       "id": "backend/src/temporal/workflows/research-bundle.ts#*:./coordinator.js",
+      "source": "backend/src/temporal/workflows/research-bundle.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/workflows/research-bundle.ts#*:./file-admission.js",
+      "source": "backend/src/temporal/workflows/research-bundle.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/workflows/research-bundle.ts#*:./file-processing.js",
       "source": "backend/src/temporal/workflows/research-bundle.ts",
       "kind": "export",
       "features": [],
@@ -11244,6 +11846,20 @@
       "status": "pending"
     },
     {
+      "id": "frontend/src/components/FileProcessingRetry.tsx#FileProcessingRetry",
+      "source": "frontend/src/components/FileProcessingRetry.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/FileProcessingStatus.tsx#FileProcessingStatus",
+      "source": "frontend/src/components/FileProcessingStatus.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "frontend/src/components/Markdown.tsx#Markdown",
       "source": "frontend/src/components/Markdown.tsx",
       "kind": "export",
@@ -11503,6 +12119,13 @@
       "status": "pending"
     },
     {
+      "id": "frontend/src/components/SupervisionAlertsPanel.tsx#SupervisionAlertsPanel",
+      "source": "frontend/src/components/SupervisionAlertsPanel.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "frontend/src/components/TopBar.tsx#TopBar",
       "source": "frontend/src/components/TopBar.tsx",
       "kind": "export",
@@ -11568,6 +12191,34 @@
     {
       "id": "frontend/src/components/workspace-parts.tsx#WorkspaceOverlay",
       "source": "frontend/src/components/workspace-parts.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/data/alerts.ts#listSupervisionAlerts",
+      "source": "frontend/src/data/alerts.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/data/alerts.ts#SupervisionAlert",
+      "source": "frontend/src/data/alerts.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/data/alerts.ts#SupervisionAlertsPage",
+      "source": "frontend/src/data/alerts.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/data/alerts.ts#useSupervisionAlerts",
+      "source": "frontend/src/data/alerts.ts",
       "kind": "export",
       "features": [],
       "status": "pending"
@@ -12427,6 +13078,20 @@
       "status": "pending"
     },
     {
+      "id": "frontend/src/data/workspace-api.ts#FileProcessingProgress",
+      "source": "frontend/src/data/workspace-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/data/workspace-api.ts#FileUnitsPage",
+      "source": "frontend/src/data/workspace-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "frontend/src/data/workspace-api.ts#getContextPreview",
       "source": "frontend/src/data/workspace-api.ts",
       "kind": "export",
@@ -12435,6 +13100,13 @@
     },
     {
       "id": "frontend/src/data/workspace-api.ts#getExecutionRecord",
+      "source": "frontend/src/data/workspace-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/data/workspace-api.ts#getFileUnitsPage",
       "source": "frontend/src/data/workspace-api.ts",
       "kind": "export",
       "features": [],
@@ -12547,6 +13219,13 @@
     },
     {
       "id": "frontend/src/data/workspace-api.ts#ResearchProgress",
+      "source": "frontend/src/data/workspace-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/data/workspace-api.ts#retryFileProcessing",
       "source": "frontend/src/data/workspace-api.ts",
       "kind": "export",
       "features": [],
@@ -12854,6 +13533,13 @@
       "status": "pending"
     },
     {
+      "id": "http:getSectorFileUnits",
+      "source": "backend/openapi/v1.yaml",
+      "kind": "http",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "http:getSession",
       "source": "backend/openapi/v1.yaml",
       "kind": "http",
@@ -12953,6 +13639,13 @@
     },
     {
       "id": "http:listSteeringReceipts",
+      "source": "backend/openapi/v1.yaml",
+      "kind": "http",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "http:listSupervisionAlerts",
       "source": "backend/openapi/v1.yaml",
       "kind": "http",
       "features": [],
@@ -13072,6 +13765,13 @@
     },
     {
       "id": "http:resumeSector",
+      "source": "backend/openapi/v1.yaml",
+      "kind": "http",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "http:retryFileProcessing",
       "source": "backend/openapi/v1.yaml",
       "kind": "http",
       "features": [],
@@ -13673,6 +14373,20 @@
       "status": "pending"
     },
     {
+      "id": "ui:frontend/src/components/FileProcessingRetry.tsx",
+      "source": "frontend/src/components/FileProcessingRetry.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "ui:frontend/src/components/FileProcessingStatus.tsx",
+      "source": "frontend/src/components/FileProcessingStatus.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "ui:frontend/src/components/Markdown.tsx",
       "source": "frontend/src/components/Markdown.tsx",
       "kind": "ui",
@@ -13794,6 +14508,13 @@
     {
       "id": "ui:frontend/src/components/SubagentsPanel.tsx",
       "source": "frontend/src/components/SubagentsPanel.tsx",
+      "kind": "ui",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "ui:frontend/src/components/SupervisionAlertsPanel.tsx",
+      "source": "frontend/src/components/SupervisionAlertsPanel.tsx",
       "kind": "ui",
       "features": [],
       "status": "pending"

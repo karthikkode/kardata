@@ -19,6 +19,7 @@ import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import type { DbQueryResult } from '../../backend/src/db/index.js'
 import { DbContractError } from '../../backend/src/db/index.js'
 import * as dbLayer from '../../backend/src/db/index.js'
+import * as fileIngestion from '../../backend/src/file-ingestion.js'
 import * as retrievalBrowser from '../../backend/src/retrieval/browser.js'
 import * as retrievalWeb from '../../backend/src/retrieval/web.js'
 import { createMcpServer, invokeTool, McpToolError, TOOL_LAYER, TOOL_META, toolCapability, PLATFORM_INTERNAL_TOOLS } from '../../backend/src/mcp/tools.js'
@@ -258,6 +259,7 @@ describe('mcp tool parity (Phase 2)', () => {
     // namespaces count as layer functions here.
     const layers: Record<string, unknown> = {
       ...(dbLayer as Record<string, unknown>),
+      ...(fileIngestion as Record<string, unknown>),
       ...(retrievalWeb as Record<string, unknown>),
       ...(retrievalBrowser as Record<string, unknown>),
       delegateSubagent: TemporalRunsGateway.prototype.delegateSubagent,

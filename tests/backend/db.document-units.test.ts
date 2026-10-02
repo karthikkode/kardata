@@ -22,7 +22,7 @@ const PNG = Buffer.concat([
   Buffer.from('fake-image-bytes'),
 ])
 
-describe('sector document units', () => {
+describe.skipIf(!ENABLED)('sector document units', () => {
   let pool: Pool | undefined
   let sectorId = ''
 
@@ -57,6 +57,16 @@ describe('sector document units', () => {
     expect(units.map((unit) => unit.ord)).toEqual(units.map((_, index) => index))
     expect(units[0]?.kind).toBe('heading')
     expect(await countDocumentUnits(pool, doc.id)).toBe(doc.unitCount)
+  })
+  it('publishes valid JSONB units with exact supplementary Unicode text across the two-thousand-unit boundary', async () => {
+    if (!pool) throw new Error('TEST database was not initialized')
+    const body = 'TEST ' + 'A'.repeat(1994) + '🙂' + '𠮷'.repeat(1100)
+    const document = await ingestSectorDocument(pool, { sectorId, filename: 'TEST unicode boundary.md', contentBase64: Buffer.from(body).toString('base64'), scope: SCOPE })
+    const units = await listDocumentUnits(pool, document.id)
+    expect(document.status).toBe('indexed')
+    expect(units.map((unit) => unit.text).join('')).toBe(body)
+    expect(units.every((unit) => unit.text.length <= 2000 && !/[\uD800-\uDFFF]/u.test(unit.text))).toBe(true)
+    expect(units.map((unit) => unit.ord)).toEqual(units.map((_, index) => index))
   })
 
   it('stores images as needs-ocr without an adapter', async () => {

@@ -280,3 +280,38 @@ Intake decisions carry a request idempotency key. The data hook retains it while
 an exact reviewed work/version/decision/reason submission has failed, allowing a
 lost reply to recover the original HTTP receipt. Changing any submitted decision
 field generates a fresh key; success clears the pending submission identity.
+
+## In-app supervision alerts
+
+The Agents page includes a compact, props-only alert panel over an authenticated
+`GET /v1/alerts` data hook. It polls the latest bounded page and lets owners read
+older pages or return to latest. Alerts derive from durable scoped supervision
+records, not un-attributed fleet metrics. Only a backend-confirmed matching
+recovery pause is labeled a current warning; advisory/old observations remain
+explicitly historical. Fixed kind labels explain the finding without exposing
+raw execution bodies. Sector findings link to their exact session/thread
+workspace. General-session findings show the current session title and exact identifier;
+the existing chat picker also exposes that identifier so duplicate titles remain
+distinguishable. Owners use the existing agent directory for child threads; no
+unsupported general-session deep link is invented.
+Loading, empty, denied, offline and error use the shared resource states. No
+alert automatically resumes, cancels or modifies work. This is in-app delivery,
+not external notification delivery or a guarantee the owner has read an alert.
+
+## Complete PDF processing in Files
+
+PDF uploads enqueue the existing worker after exact original-byte archival.
+Files shows queued, reading-pages, processing, paused, failed/uncertain and
+indexed states, with durable saved-image counts rather than a timer or an early
+100% claim. Original downloads remain available while a visible file is processing.
+A review dialog pins job/revision and requires renewed review after state changes;
+possible duplicate paid work requires an explicit owner acknowledgement. Failed
+requests retain review state. Hidden files cannot retry until revealed.
+
+Large extracted content uses a bounded preview and20 indexed sections per page;
+Next/Previous replace the page rather than appending an unbounded transcript.
+Native page text and AI-derived image/chart descriptions retain page/image
+provenance; model interpretation is explicitly uncertain. This presentation does
+not truncate the stored content or promote it into shared context automatically.
+The body refreshes after a file's terminal status changes. Design authority:
+[PDF ingestion](plans/2026-10-01-pdf-ingestion.md).

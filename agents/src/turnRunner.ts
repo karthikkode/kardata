@@ -26,6 +26,7 @@ import {
   type ChatMessage,
   type ProviderAdapter,
   type ProviderRequest,
+  type ProviderResponse,
   type ToolCallRequest,
   type ToolDefinition,
   type Usage,
@@ -74,7 +75,7 @@ export interface TurnRunnerSink {
 
 export interface PendingProviderResponse {
   round: number
-  response: { text: string; reasoning: string; toolCalls: ToolCallRequest[]; usage: Usage }
+  response: { text: string; reasoning: string; toolCalls: ToolCallRequest[]; usage: Usage; completion?: ProviderResponse['completion'] }
   metadata?: Record<string, unknown>
 }
 
@@ -367,6 +368,7 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
           let reasoningText = ''
           const calls = new DeltaAccumulator()
           let turnUsage: Usage = emptyUsage()
+          let completion: ProviderResponse['completion']
           for await (const event of options.provider.chatStream({
             ...providerRequest,
             signal: roundSignal,
@@ -386,11 +388,12 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
               calls.push(event)
             } else if (event.kind === 'done') {
               turnUsage = event.usage
+              if (event.completion !== undefined && completion !== 'incomplete') completion = event.completion
             } else {
               calls.push(event)
             }
           }
-          return { replyText, reasoningText, toolCalls: calls.calls(), turnUsage }
+          return { replyText, reasoningText, toolCalls: calls.calls(), turnUsage, completion }
         })(),
         new Promise<never>((_, reject) => {
           onAbort = () => reject(roundSignal.reason)
@@ -430,7 +433,7 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
           harness.budgets.noteCost(cost)
         }
       }
-      const pendingResponse: PendingProviderResponse = { round: turn, response: { text: streamed.replyText, reasoning: streamed.reasoningText, toolCalls: structuredClone(streamed.toolCalls), usage: { ...streamed.turnUsage } } }
+      const pendingResponse: PendingProviderResponse = { round: turn, response: { text: streamed.replyText, reasoning: streamed.reasoningText, toolCalls: structuredClone(streamed.toolCalls), usage: { ...streamed.turnUsage }, ...(streamed.completion === undefined ? {} : { completion: streamed.completion }) } }
       if (options.onProviderResponse) {
         await options.onCheckpoint?.(history, turn, usage, previousToolCalls + executed.length + streamed.toolCalls.length, preparedOperations(streamed.toolCalls), pendingResponse)
         await options.onProviderResponse(turn, pendingResponse.response)

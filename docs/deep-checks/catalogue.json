@@ -3,7 +3,7 @@
   "files": [
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "33e83d28af557553b8639e1fb04e0aa3250466b456e615dc33feca5d12052eda",
+      "sha256": "bbc0be33bdec3a11879b975b95c5ee88bf52bd0c3d85414bea5f24a3318fe4f8",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -24,7 +24,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "1561f2556a49308aff66eded57aab5b51c5c3a2f986a2634837872b21d5a830f",
+      "sha256": "ddc2c7ecf67a2d9618e92a0d360acc205e7fbac183f6a4edc0590ea8c2f34b98",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -61,7 +61,7 @@
     },
     {
       "path": "agents/src/adapters.test.ts",
-      "sha256": "41af909042d49903a93f405ec97fc179e7fb5d45bfd2a18404de35599aff2981",
+      "sha256": "82e06f447028925d33caa8343c1cca6a368667756670a55f6486f280fc13301f",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -115,23 +115,25 @@
     },
     {
       "path": "agents/src/compaction.test.ts",
-      "sha256": "973db2f7cba510c0971e48f4f92b5b5d9b77fd61ad256451f5e71ea0d18473a9",
+      "sha256": "a37568afc5b324e3bdc1881a198cb505a280f339755d424d8179d34ea85512eb",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "agents/src/compaction.ts",
-      "sha256": "2c91900910f76367d472e95e798c8d3b17e3087e1b99918dd136b73b76b6c764",
+      "sha256": "fbd6749d617d301c0939292e9ce01812f16236f837198738f53d5abe07fd767c",
       "review": "pending",
       "tests": [],
       "exports": [
         "ContextBudgetError",
         "DEFAULT_INPUT_BUDGET",
+        "InputTokenMeasurement",
         "OUTPUT_RESERVE",
         "assembledTokens",
         "compactContext",
-        "contextInputBudget"
+        "contextInputBudget",
+        "measureInputTokens"
       ]
     },
     {
@@ -238,14 +240,14 @@
     },
     {
       "path": "agents/src/fake.test.ts",
-      "sha256": "d351128e99a90ae3e084c3a23fa1bbbdea16b5ffc1b4f14b4b9631023ee9c0e5",
+      "sha256": "9293cecd3c683d9619fa21f1657a4d4af317080b5c197555d6ee6984cf810619",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "agents/src/fake.ts",
-      "sha256": "8aae41c89f70dfd378ab59523cb9c39b6ac1b3f0054f37d770910e49a83487e8",
+      "sha256": "588da0f338cb393621f5e31dc4f8d823dabad31ed49e2bb872ed0fb27ba4787e",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -414,7 +416,7 @@
     },
     {
       "path": "agents/src/meta.ts",
-      "sha256": "44ec58fe37c33988c46bf0586dc94448ed6d1d20a168db8980c77b4ac157c340",
+      "sha256": "c8367c61102b0925eea9358e56d0d860a2d29308b2187be06879f76b17af6fb4",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -512,7 +514,7 @@
     },
     {
       "path": "agents/src/providers.ts",
-      "sha256": "1a09a7e4e7b15c5eebf9b4307af042572b388bfdbff4692d2f1a539475e88ed6",
+      "sha256": "dda7721d8eef384090210f641f974b9f7fcbea5c3bd09610c724a03978c25d9f",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -527,6 +529,7 @@
         "ProviderRequest",
         "ProviderResponse",
         "StreamEvent",
+        "TokenCountUnavailableError",
         "ToolCallRequest",
         "ToolChoice",
         "ToolDefinition",
@@ -644,7 +647,7 @@
     },
     {
       "path": "agents/src/responses.ts",
-      "sha256": "230d2af96a52b4351b38a6bb1a3735abcedc43f81f1a37f0c4235a647a77c5ca",
+      "sha256": "1e9aacd4d541732a89282b080b1ebcc448cc4e3101c384f119016605cb16bd02",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -836,7 +839,7 @@
     },
     {
       "path": "agents/src/transport.ts",
-      "sha256": "57bb89eaa7d0a0c3ee926539a5f5d129047d48600c7cd6ef7fc2eef8388b9f9a",
+      "sha256": "56430053e312ff66fbf621bc2bfb732fc9521d27525d5e6406b83cf7fc8cc626",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -859,14 +862,14 @@
     },
     {
       "path": "agents/src/turnRunner.test.ts",
-      "sha256": "becc8e4c20a8b280bed1b8432bc084a72f87a2bae531a24ef5814018e5b6b768",
+      "sha256": "1f7cb65a5c7af4bede9cd95291b0652019637d0de6898b61e97361f94f621d9f",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "agents/src/turnRunner.ts",
-      "sha256": "b8e1c09c8b4d92358b40d1320132ac16270900e8be713132078294ed45ddb9df",
+      "sha256": "f2e484594904dc9d3845a04c320f185eff358d6c8576a3cf276db7ac3c125b9e",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -925,21 +928,21 @@
     },
     {
       "path": "backend/openapi/v1.yaml",
-      "sha256": "fb1bf19ee4275f21217a306bf3321791cf7b72d7c2c43762a3368016a9633384",
+      "sha256": "7be031ca1f35c176b32a33c982962934f427890488ec2cddd7465630a53a5c02",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "backend/package.json",
-      "sha256": "450f71fb862bde0a815c53fbade9a708668961cab599a6805a0a7f7d3212db5c",
+      "sha256": "8846cd055c03417606a11a73effe7f9abece0a912d7a621e070d72d8778f2887",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "backend/src/app.ts",
-      "sha256": "dcf38a21620874a758d00827286c2adbf7ed69be933a375913973d63bd52712e",
+      "sha256": "f8d4f13f1244e4280d63634967b4641ebf23506fdde9dc0e9b821d19fb8ef6bb",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -964,7 +967,7 @@
     },
     {
       "path": "backend/src/archive/targets.ts",
-      "sha256": "de8c20c4afea889554ec496d3a9e6734dc3cabf6e94aed1a47f8a0f6f06b63b8",
+      "sha256": "74a2830beb69bcc3a34354a136ff35a9170684975ea6ed5ebc431c98dfff4a41",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -984,7 +987,8 @@
         "persistExecutionRecord",
         "persistResearchSource",
         "readExecutionRecord",
-        "resolveArchiveTarget"
+        "resolveArchiveTarget",
+        "withArchiveDeadline"
       ]
     },
     {
@@ -1155,7 +1159,7 @@
     },
     {
       "path": "backend/src/contract.ts",
-      "sha256": "dcaa8c68740cc087d7947d5c9b9d8e537052c2e2370b71d8e6130703cdf515fb",
+      "sha256": "a9fb58cf2e5189e2c7568ba0a63e9dfded0280d4bed0ea5f1344a980f0a56e0a",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1165,6 +1169,16 @@
         "ParityKind",
         "checkParity",
         "loadSpec"
+      ]
+    },
+    {
+      "path": "backend/src/db/alerts.ts",
+      "sha256": "a48ed5a4df089c5ac5dad7314b5d19a47b66b3bb8c6921702d50a2f1e18d9d5e",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SupervisionAlert",
+        "listSupervisionAlerts"
       ]
     },
     {
@@ -1225,7 +1239,7 @@
     },
     {
       "path": "backend/src/db/document-units.ts",
-      "sha256": "3984a16e51cebbe8bb16704eb04b6ae53386684d3c6945ad82708bda3485d006",
+      "sha256": "9979c68de483f32e65a24ec331ce5dafb6090641324f498110627e3290d1c5a3",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1238,7 +1252,7 @@
     },
     {
       "path": "backend/src/db/errors.ts",
-      "sha256": "de3b5be3f0e669261a828473e4bd20ead03b9219c3f6410b65a46a8a83641a74",
+      "sha256": "2449db0ab3f340a32988ae6fa04d15e81f03dae73a911376b6dd402a296f276a",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1317,8 +1331,56 @@
       ]
     },
     {
+      "path": "backend/src/db/file-jobs.ts",
+      "sha256": "81df6699f94d96b390d6ae1a2fba7514d6b25f78dd337aaeae858140569490f3",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FileArchiveRef",
+        "FileImageClaim",
+        "FileImageIdentity",
+        "FileProcessingJob",
+        "FileProcessingManifest",
+        "FileProcessingPagedManifest",
+        "FileProcessingProgress",
+        "FileProcessingUnit",
+        "assembleFileProcessingUnits",
+        "beginFileProcessingJob",
+        "claimFileImage",
+        "completeFileImage",
+        "createFileProcessingJob",
+        "failFileImage",
+        "failFileProcessingJob",
+        "fileImageResponseUnits",
+        "fileProcessingArchivePrefix",
+        "fileProcessingProgress",
+        "fileProcessingWorkflowId",
+        "finalizeFileProcessingJob",
+        "listFileAdmissionCandidates",
+        "listFileProcessingJobs",
+        "listSectorFileProcessing",
+        "markFileImageRequestStarted",
+        "markFileProcessingDispatchOutcome",
+        "pauseFileProcessingJob",
+        "readCurrentFileImageAttempt",
+        "readFileImage",
+        "readFileImageAttempt",
+        "readFileJobBoundary",
+        "readFileProcessingJob",
+        "readNextFileImage",
+        "registerFileImages",
+        "rejectFileImageResponse",
+        "reserveFileProcessingDispatch",
+        "restoreFileImageArchive",
+        "retryFileProcessingJob",
+        "stageAndPublishFileProcessingJob",
+        "stageFileImageResponse",
+        "streamFileProcessingUnits"
+      ]
+    },
+    {
       "path": "backend/src/db/file-pipeline.ts",
-      "sha256": "8c0835868273c4c28f3ba1ab43ae1bfd5ec16cc764da824940226f39e323c07d",
+      "sha256": "6a85c76239d368e81f7bad69914d64aefc91033aec6eb999be6cd09480119561",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1360,11 +1422,12 @@
     },
     {
       "path": "backend/src/db/index.ts",
-      "sha256": "d8b1084ea172c87eefd8fa7886d5d260aac773d4dd4e38d260cbf25280114cce",
+      "sha256": "abaec2f18f70e70462c041c33fde247efa681752c71ced7367135ab3301a57b3",
       "review": "pending",
       "tests": [],
       "exports": [
         "*:./execution-epochs.js",
+        "*:./file-jobs.js",
         "*:./reconciliation.js",
         "*:./workspace.js",
         "ARTIFACT_REFERENCED_EVENT",
@@ -1441,6 +1504,7 @@
         "SectorContextView",
         "SectorDigest",
         "SectorDocument",
+        "SectorDocumentStatus",
         "SectorFilters",
         "SectorPlan",
         "SectorPlanError",
@@ -1457,6 +1521,7 @@
         "SessionRecord",
         "StoredEvent",
         "StoredHeartbeat",
+        "SupervisionAlert",
         "ThreadMessenger",
         "TransactableDb",
         "UNIT_MAX_CHARS",
@@ -1513,6 +1578,7 @@
         "listSectorDocuments",
         "listSectors",
         "listSessions",
+        "listSupervisionAlerts",
         "listTenantArtifacts",
         "listThreadExecutionRecords",
         "listThreadHeaders",
@@ -1537,6 +1603,7 @@
         "readPartition",
         "readRecoveryRequestReference",
         "readSectorDocument",
+        "readSectorDocumentUnitsPage",
         "readSectorExecutionState",
         "readSectorPlan",
         "readThreadExecutionReference",
@@ -1676,6 +1743,19 @@
       ]
     },
     {
+      "path": "backend/src/db/pdf-extraction.ts",
+      "sha256": "c11f8c6326c6ca16d4057ce16c999cb10fc269b360b1cef7be16d8dc4926a555",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "PDF_IMAGE_MAX_BYTES",
+        "PDF_IMAGE_MAX_PIXELS",
+        "PDF_PAGE_VISUAL_SCALE",
+        "PdfExtractionPart",
+        "planPdfExtraction"
+      ]
+    },
+    {
       "path": "backend/src/db/pool.ts",
       "sha256": "95869c6c21f0ba076ea9bffbf74c1effbc7213c0e35495e0dc9d4530d362ae1c",
       "review": "pending",
@@ -1734,7 +1814,7 @@
     },
     {
       "path": "backend/src/db/sector-context.ts",
-      "sha256": "17f7714523ff1cefdb244bb16574ee33e3d1a53db1099031265840649fc65db6",
+      "sha256": "9e30779c987a616ae9b98ca46b99c9bef76546c0dff0a6993b2111eef60b7f14",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1756,7 +1836,7 @@
     },
     {
       "path": "backend/src/db/sector-documents.ts",
-      "sha256": "d02e143f8dd3049f261e978043def861631b7ef88443c979a4567f4d152f98db",
+      "sha256": "52d8231d5298b7fd18f47f54803b6fae5cc948e0b3a4af0a696efa1af266ab6c",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1768,6 +1848,7 @@
         "QuerySectorDocumentResult",
         "SECTOR_DOCUMENT_MAX_BYTES",
         "SectorDocument",
+        "SectorDocumentStatus",
         "documentExtension",
         "extractDocumentText",
         "ingestSectorDocument",
@@ -1775,6 +1856,7 @@
         "querySectorDocument",
         "readOriginalSectorDocument",
         "readSectorDocument",
+        "readSectorDocumentUnitsPage",
         "sha256Hex"
       ]
     },
@@ -1899,7 +1981,7 @@
     },
     {
       "path": "backend/src/db/workspace.ts",
-      "sha256": "6fda9c23823ec5bc2d8e9cb8acdc5e300840319e5fbc778b62ddcc834f1e7b31",
+      "sha256": "88f3d7bf3a9b183a01a856f895fd2466295f1bc4d0e392210aea111905f8f69f",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1960,6 +2042,18 @@
       ]
     },
     {
+      "path": "backend/src/file-ingestion.ts",
+      "sha256": "6694654a5bd0076c45bd886d277d741c3fca7566f530328137c393f8c3762e79",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FileIngestionUnavailable",
+        "FileProcessorRunner",
+        "attachSectorDocument",
+        "isPdfDocumentUpload"
+      ]
+    },
+    {
       "path": "backend/src/http/cors.ts",
       "sha256": "4188e61dbdf375880dcf1da93c36c78795a6a4e5d7658f627c666bd146bd5654",
       "review": "pending",
@@ -1997,7 +2091,7 @@
     },
     {
       "path": "backend/src/mcp/routes.ts",
-      "sha256": "b26a416aceffc88e827d614be6c37cf98de177d3394a95b3a9a2bb7d6c4dda3a",
+      "sha256": "8d85e3aa887433b61a17f73f8956c5936df56de0991ee4c480fb2f0944629f89",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2006,7 +2100,7 @@
     },
     {
       "path": "backend/src/mcp/schemas.ts",
-      "sha256": "e93a2b3b5ce3e2cc384f15216410e952750086256f4dd78473917ead0e1b3c9a",
+      "sha256": "2bf96439b9dc65edb4c29c1ae88b35f9bc815abf4accee8f571f04fb6b7d4720",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2017,7 +2111,7 @@
     },
     {
       "path": "backend/src/mcp/tools.ts",
-      "sha256": "859d7ad7ea09c5b132a80efb20b882d2fbe028cf0168e4418a798a65c5a8d248",
+      "sha256": "7f0c234b0fc2bfd4671279bf129e023eb828d49ac0888325ab81ea31c434bd80",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2138,12 +2232,17 @@
     },
     {
       "path": "backend/src/ocr.ts",
-      "sha256": "e3914ae8e61588af10ed4c1d2aaff8ef60692284c2b6666cd3961b123a307380",
+      "sha256": "ac4092b53372db1fe3ba1eb2283305758e5ced396e402915c73a3eee59663a08",
       "review": "pending",
       "tests": [],
       "exports": [
+        "DOCUMENT_IMAGE_MAX_OUTPUT_TOKENS",
+        "DOCUMENT_IMAGE_PROMPT_VERSION",
+        "DOCUMENT_IMAGE_SYSTEM",
         "MODEL_OCR_CONFIDENCE",
-        "createModelOcrAdapter"
+        "createModelOcrAdapter",
+        "documentImageRequest",
+        "documentImageSelection"
       ]
     },
     {
@@ -2284,6 +2383,15 @@
       ]
     },
     {
+      "path": "backend/src/routes/alerts.ts",
+      "sha256": "cc92de8cbe84f45cd174b7ed157b6248d6f879b579ec7fd6149e2f598daae949",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "alertRoutes"
+      ]
+    },
+    {
       "path": "backend/src/routes/artifacts.ts",
       "sha256": "2fe161e75f829c0f845a3bfc06f4e78e7f1164b155f30311ceb82910e679987c",
       "review": "pending",
@@ -2365,7 +2473,7 @@
     },
     {
       "path": "backend/src/routes/sectors.ts",
-      "sha256": "0c717e3e232821f5b571555a10211ba7ab39bca40de6f3ad507635e798ad8e4d",
+      "sha256": "3b8b218649aafede2a411a82e74f64e9582e73ba88bdc07c60d713e78c1e64b6",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2401,7 +2509,7 @@
     },
     {
       "path": "backend/src/routes/workspace.ts",
-      "sha256": "93d085646418bf796dad192101920356344cebc081e057e312e1c906759e3100",
+      "sha256": "c0e88a0f7447a694b96fb92f4aa340517e787c8ccbaf8e516c2932e045206405",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2471,6 +2579,34 @@
         "prepareExecutionIntentActivity",
         "prepareResearchTurnRecoveryActivity",
         "settlePreparedExecutionIntentActivity"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/activities/file-admission.ts",
+      "sha256": "9aaa195aaf0cb05a7b658fc476bb0aa9943103b737733a9d75f07d5f62ef5929",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FileAdmissionOwner",
+        "fileAdmissionPageActivity",
+        "inspectFileAdmissionOwner",
+        "reconcileFileAdmissionPage"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/activities/file-processing.ts",
+      "sha256": "34a18d74c6f793851afe162b965545fac471d101553df62a266723010384a519",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FileProcessingDependencies",
+        "FileProcessingInput",
+        "createFileProcessingActivities",
+        "failFileProcessingActivity",
+        "finalizeFileProcessingActivity",
+        "nextFileImageActivity",
+        "prepareFileProcessingActivity",
+        "processFileImageActivity"
       ]
     },
     {
@@ -2593,7 +2729,7 @@
     },
     {
       "path": "backend/src/temporal/activities/turn.ts",
-      "sha256": "7c5131695bdd3627ebbae21811f28fdc778cbb53274b874ecdb09887c6b1bcf0",
+      "sha256": "6e5ec851131680193d65c7b75ab4704e46f8ab4a74ebc63c148bcd109525f52d",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2638,7 +2774,7 @@
     },
     {
       "path": "backend/src/temporal/dev-worker.ts",
-      "sha256": "23df95ab4c54e1e5622826ca64e1a7b7fa92ffa0792b4c7bde35937d9414558a",
+      "sha256": "b110c5930501b313ca36ec8768e3e0b835b9b4066db738514216e90f80e63b48",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -2664,7 +2800,7 @@
     },
     {
       "path": "backend/src/temporal/gateway.ts",
-      "sha256": "39665ea8a378518b5c127503f482b683f012dba9bbdbdac5089a1b70aabaaa46",
+      "sha256": "ab5d61ad99364de0d2280da441311137a41d882d0b4d8737fa43ce667090258b",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2716,12 +2852,14 @@
     },
     {
       "path": "backend/src/temporal/reconciliation-start.ts",
-      "sha256": "e47242f72b8a079443f867a5679ff24556cea8be4cc49aaa836c8fe1a87328f8",
+      "sha256": "673612e19f2a5aad4c17975fbcf41c616c3f82f2ab588dceafde51c5e0370aff",
       "review": "pending",
       "tests": [],
       "exports": [
+        "FILE_ADMISSION_WORKFLOW_ID",
         "RECONCILIATION_WORKFLOW_ID",
-        "ensureExecutionReconciliation"
+        "ensureExecutionReconciliation",
+        "ensureFileAdmissionReconciliation"
       ]
     },
     {
@@ -2808,6 +2946,24 @@
       ]
     },
     {
+      "path": "backend/src/temporal/workflows/file-admission.ts",
+      "sha256": "54db4a87af7eae0bda4f0c531938695155c0ef5d98f80f3d2ba31cd42149c880",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "fileAdmissionReconciliation"
+      ]
+    },
+    {
+      "path": "backend/src/temporal/workflows/file-processing.ts",
+      "sha256": "fd03d781221d0ef191c4ce7ce9451ce28873d3013185a2a8ded8e9df8cf957c5",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "fileProcessing"
+      ]
+    },
+    {
       "path": "backend/src/temporal/workflows/loopguards.ts",
       "sha256": "ecde40cf276e20ab04d70a26325e494e8d03de6fb13e60b963edf9779b1fbe21",
       "review": "pending",
@@ -2848,11 +3004,13 @@
     },
     {
       "path": "backend/src/temporal/workflows/research-bundle.ts",
-      "sha256": "5852522c278a3f53df69e335c9f7443b39f63fdf920424462186885c0751b003",
+      "sha256": "f0f2183fbe9ba9624c940097db45a29d1b7d370c33490bc564e95900d46c0bad",
       "review": "pending",
       "tests": [],
       "exports": [
         "*:./coordinator.js",
+        "*:./file-admission.js",
+        "*:./file-processing.js",
         "*:./plan.js",
         "*:./reconciliation.js",
         "*:./sweep.js"
@@ -3011,7 +3169,7 @@
     },
     {
       "path": "backend/vitest.config.ts",
-      "sha256": "d36587bc453096a570b782bb18ffdda307176628175d41c63b1777ef3e9e8f77",
+      "sha256": "34ae66e1b0f9b583a5aedfa509d5839ddee5e87a964d64d136c4f82bba4ee2c8",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3173,6 +3331,13 @@
       "exports": []
     },
     {
+      "path": "db/migrations/0023_file_processing.sql",
+      "sha256": "da19c870899e4f3b1999c0b937567e1331390108896210f11cbac4cf6fcdced2",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "deployment/Dockerfile",
       "sha256": "ebf406eda2bcb8c7104b13b74d9f98c54089e30930456d94b62623408d3f56cd",
       "review": "pending",
@@ -3309,7 +3474,7 @@
     },
     {
       "path": "frontend/playwright.config.ts",
-      "sha256": "6a0128bb2aeb588fc6904c5fc0abb90a2ae5f956d01bc57ae736350ea02436ff",
+      "sha256": "6349035ad454e624b3cc2c8a0d82761baa21835e6fe3605310a8358d4f528626",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3332,7 +3497,7 @@
     },
     {
       "path": "frontend/src/App.tsx",
-      "sha256": "fdb0cf188469fc3fcc2940fcae4675ae4af0c6f66f4598e835594aafadb79484",
+      "sha256": "56c39217f60f442419b17501d193d672227c118c7ebb011aa00d0be2c2e97125",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3341,7 +3506,7 @@
     },
     {
       "path": "frontend/src/components/ChatPanel.tsx",
-      "sha256": "80fbb76c11314f1eab31a0a31190637ed74080a1f4b179aeae0d2cc829b07ac0",
+      "sha256": "0fc7947013d12a15165e73969d264ccc62bc53ea3b341c0b1d1912804d309322",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3383,6 +3548,24 @@
       "tests": [],
       "exports": [
         "ExecutionInspector"
+      ]
+    },
+    {
+      "path": "frontend/src/components/FileProcessingRetry.tsx",
+      "sha256": "5a41e3afdbeafb9fd3d7155dcc2f62edd93b182667482bff7b3f2de9f29c2599",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FileProcessingRetry"
+      ]
+    },
+    {
+      "path": "frontend/src/components/FileProcessingStatus.tsx",
+      "sha256": "c0127e2d6ef2986e27363b86d098fd6ab39f78b738c3449d5eebd5de11a5b102",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FileProcessingStatus"
       ]
     },
     {
@@ -3482,7 +3665,7 @@
     },
     {
       "path": "frontend/src/components/SectorFilePreview.tsx",
-      "sha256": "75dbde14998bdb603427e793a12346e0e9d75bdf6ed27e4df3186f4c490f358e",
+      "sha256": "6b58f591480bad0780d0324804e4f55179a2d772cef6e32c35fc66b748329e51",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3509,7 +3692,7 @@
     },
     {
       "path": "frontend/src/components/SectorWorkspace.tsx",
-      "sha256": "878a5332678c81f3373a6bd7ac07565067b74ad76e7773b6331b99acdde6f2db",
+      "sha256": "30569d33e73f8c805676e3b8abead39043b39946d28d97a40d58fa614b978b7e",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3544,6 +3727,15 @@
       "tests": [],
       "exports": [
         "SubagentsPanel"
+      ]
+    },
+    {
+      "path": "frontend/src/components/SupervisionAlertsPanel.tsx",
+      "sha256": "33d920dd972fdabcbbf97edaea589fbeb616d4ce95a423c5de7d556612d6b0fc",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SupervisionAlertsPanel"
       ]
     },
     {
@@ -3611,7 +3803,7 @@
     },
     {
       "path": "frontend/src/components/workspace-parts.tsx",
-      "sha256": "5da70697de1f15309cff1a9dfed931d3d1d9e6c9c86d52d257f0a337b8507bb0",
+      "sha256": "d6356f1524ecc0e9290f4b80fa6f5ffaaeeef6ef9a287302d220cbfed028a929",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3621,6 +3813,18 @@
         "ResourceNotice",
         "WorkspaceFiles",
         "WorkspaceOverlay"
+      ]
+    },
+    {
+      "path": "frontend/src/data/alerts.ts",
+      "sha256": "f0dd56cfc0dcc6ce10202296d80773e03b7baf19330335973e2c62949d2fbf9f",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "SupervisionAlert",
+        "SupervisionAlertsPage",
+        "listSupervisionAlerts",
+        "useSupervisionAlerts"
       ]
     },
     {
@@ -3657,7 +3861,7 @@
     },
     {
       "path": "frontend/src/data/sector-workspace.ts",
-      "sha256": "4adb1d2fd9ade43afe6b736ccb8ce5873928766530b8784de6cb241143817852",
+      "sha256": "1b366072fc8bd847bdb1e3e5545922e661c3004fe4bab33ae7488f71cdf3cbb6",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3795,7 +3999,7 @@
     },
     {
       "path": "frontend/src/data/workspace-api.ts",
-      "sha256": "a715e770b691b54518eb4b9d327d8dd26d1c25a96dd52c633c551518c0b9fd81",
+      "sha256": "e4395c81d7eaf06736720beb5e24c882fa2daed75a417a5e85adbff9c11deb89",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3804,6 +4008,8 @@
         "ExecutionRecordBody",
         "ExecutionRecordMetadata",
         "ExecutionRecordPage",
+        "FileProcessingProgress",
+        "FileUnitsPage",
         "GlobalContext",
         "LibraryFile",
         "LocalContext",
@@ -3816,6 +4022,7 @@
         "ensureResearchSession",
         "getContextPreview",
         "getExecutionRecord",
+        "getFileUnitsPage",
         "getGlobalContext",
         "getLocalContext",
         "getResearchProgress",
@@ -3827,6 +4034,7 @@
         "listExecutionRecords",
         "proposeGlobalContext",
         "rebuildLocalContext",
+        "retryFileProcessing",
         "reviewResearchWork",
         "saveGlobalContext",
         "saveLocalContext"
@@ -3929,7 +4137,7 @@
     },
     {
       "path": "package-lock.json",
-      "sha256": "9ab1df9553c4c57f1336533cb60dcdc9529174b001255104b182e2eaead9e11c",
+      "sha256": "d0291dd97af3c61321bc64310a6b397d4efb535d0d636f3ce78ab2180c564457",
       "review": "excluded",
       "reason": "Generated npm lock: dependency and integrity review belongs to package manifests.",
       "tests": [],
@@ -3938,6 +4146,13 @@
     {
       "path": "package.json",
       "sha256": "4c3bace4c49a13d44b669eebafe8e6a47e0699a02bb81b838ddadcd35dbbf77f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/alerts.test.ts",
+      "sha256": "e07a76a1e9a74ad551dd2010ff9aaa5c3fdcee38f0365c93f3fe0e22b410fc7f",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4140,14 +4355,40 @@
     },
     {
       "path": "tests/backend/db-helper.ts",
-      "sha256": "6bfb4ab501cf3bbcf544adb98ebd79e67217f845944f92d15ae3b1b0db8aee22",
+      "sha256": "5fd75603566c7a0c3930c7fa29b4c9789c77fdc9bf9cd3cf298ea9bdd4ee6232",
       "review": "pending",
       "tests": [],
       "exports": [
+        "TEMPLATE_RUN_ENV",
         "TEST_DATABASE_URL",
         "derivedUrl",
-        "ensureTestDb"
+        "ensureTestDb",
+        "prepareTestTemplate",
+        "templateIdentity"
       ]
+    },
+    {
+      "path": "tests/backend/db-setup.ts",
+      "sha256": "b7330b2f13fc59eca2bd40b6dea275260a11dd85dacb31ad7b14a73d600fe1c4",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "default"
+      ]
+    },
+    {
+      "path": "tests/backend/db-template-unit.test.ts",
+      "sha256": "dbd98d5fd56bf565db8bd8c45e024a5626e217e5401299522599f7190d5a6e9c",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/db-template.test.ts",
+      "sha256": "f859f911bb726902a4426ca1378e9de7612227772aa1a599d3d17c416d06dbd4",
+      "review": "pending",
+      "tests": [],
+      "exports": []
     },
     {
       "path": "tests/backend/db.artifacts-create.test.ts",
@@ -4200,7 +4441,7 @@
     },
     {
       "path": "tests/backend/db.document-units.test.ts",
-      "sha256": "7d37c6ac01cd2e72a384604e0243f4d70610e7da3345dd08fbc4ee33444ff888",
+      "sha256": "def6c69900fe0bf734f2ab74a3568338fbe767e52766679ee90896a00bfe2ec4",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4221,7 +4462,7 @@
     },
     {
       "path": "tests/backend/db.migrations.test.ts",
-      "sha256": "ba613eddcf76da02bd0a06cb3740ee868b3ab5fe7de815bbb8821d9d5ccde2f4",
+      "sha256": "a9fd5da10e907a1456f0f802197f06073c8496b5a9db2ca55d675b02eceeb77b",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4256,7 +4497,7 @@
     },
     {
       "path": "tests/backend/db.sector-documents-query.test.ts",
-      "sha256": "2910d8445744f4dbd35e9a107ea9b64f495bb891909e1cbc7b859e8d9259570f",
+      "sha256": "91be508c847d212e29a044f3d62273c21bc28cb3b4b50acdc70d59c7aecac98d",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4284,7 +4525,7 @@
     },
     {
       "path": "tests/backend/deployment.capacity.test.ts",
-      "sha256": "483eb52ef25f30926cfcbbe723bdb618c051ea459dc06513d8e7f4fda36d289b",
+      "sha256": "25824b1b79be6930642e7224437626beada065e381f8ac6de03f54eefc133ed6",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4350,8 +4591,29 @@
       ]
     },
     {
+      "path": "tests/backend/file-admission.test.ts",
+      "sha256": "bf68bf5de9f3cb5e8f3a4b2dbe891b5236e8caa650013ce3b11f321bf469d7af",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/file-jobs-recovery.test.ts",
+      "sha256": "8635c05e7f130ab9ff4099d553535bad35d29861183df29a0aae0930519db679",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/backend/file-pipeline.test.ts",
-      "sha256": "fcdcf3481b55c3d9684edd35b31836cc2bbc1439e8778198d29071f7e9998585",
+      "sha256": "e3151bfd0a19c8fffe0dc59d03dc22553d364f7222a3ed2dc34814fc2fb3e4ae",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/file-processing-api.test.ts",
+      "sha256": "f67e4f8a12ebd07de2f6b20286a31f0ad130cdfea3c217f152e6d8ad2c92bf2d",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4418,7 +4680,7 @@
     },
     {
       "path": "tests/backend/karbot.turn.test.ts",
-      "sha256": "4b64365b22d3327b34d1d83d15065c531d26a646529879f4f2a6232b57fd953d",
+      "sha256": "8d161404a6ae478dc20a274b12c78e6f4a872f5973d32f5606598281330753e6",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4459,6 +4721,20 @@
       "exports": []
     },
     {
+      "path": "tests/backend/mcp.file-ingestion-db.test.ts",
+      "sha256": "99d3825bd4d526c1b2943a022a355639a428ac9b08b45c42ef83db4ea089b51c",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/mcp.file-ingestion.test.ts",
+      "sha256": "ec2749bbf5ecfee48b87288f06e31cebaeb499e655662c10d1cbe332b3c80725",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/backend/mcp.file-promotion-provenance.test.ts",
       "sha256": "2945cdc8508b94e2a371b34867fee55afd37959354acf9ed0d865525f234da29",
       "review": "pending",
@@ -4488,7 +4764,7 @@
     },
     {
       "path": "tests/backend/mcp.tools.test.ts",
-      "sha256": "d1e679b0b81723e2761ba974a773419f2faeebb5d8726a513861582bafdd6a34",
+      "sha256": "9296361ff2575f5fb398b9e6c07e9205450179b28e7501b7e6c5146362ea34a3",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4559,6 +4835,23 @@
     {
       "path": "tests/backend/outbox.snapshot.test.ts",
       "sha256": "b95a75a2e7fd774f5cf3c95c86db4c03f8ddca76d8f6ce10848491389bb8699e",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/pdf-fixtures.ts",
+      "sha256": "dab7aef29bdf8b191cf632b0288e2f158c1ac0917e3fa5d447af25e24ea100de",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "stressImagePdf",
+        "testPdf"
+      ]
+    },
+    {
+      "path": "tests/backend/pdf-mixed.test.ts",
+      "sha256": "2ed0823de81cd4b60a49cf9f0b90ed551cba5fd016bb287285fe90942e839e19",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4747,7 +5040,7 @@
     },
     {
       "path": "tests/backend/soak.harness.test.ts",
-      "sha256": "17aef60ae392441b88972acd6d3d6e4c469a3b5c6401d99f0b2a91732fe2abc7",
+      "sha256": "44382ea396c865df1d08d1b0af62f5eb199836ef6e7b262c1a15d24d8413a579",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4971,6 +5264,13 @@
       "exports": []
     },
     {
+      "path": "tests/backend/workflows.file-processing.test.ts",
+      "sha256": "0d7923a5e6e0151c611397509bac80a3f530b9d7fd59ca7474215f828bd4ea61",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/backend/workflows.fleet-load.test.ts",
       "sha256": "6d0335a6396ea2a73570f801f08bcf18ef62dee015c75bfe879c1441b1927b49",
       "review": "pending",
@@ -5023,6 +5323,62 @@
       "path": "tests/backend/workflows.sweep.test.ts",
       "sha256": "1c77417c22fd5f3fc469d1ed1b5ce45c2376b8f041891604d69a969e04958f46",
       "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/hardening-2026-10-01/preflight-final-pdf-native-and-meta.png",
+      "sha256": "889373b8b1aba31e13495b1753c762bb5f11bbfcbe3ba1ba0ab2bda77df94a58",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/hardening-2026-10-01/preflight-final-pdf-processing.png",
+      "sha256": "ff21c652c71a96c23d376d39eeeaec347af31e2a4e846d7888b8ed07c5cb46d3",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/hardening-2026-10-01/preflight-final-real-meta-pdf-video.webm",
+      "sha256": "095bf6b4f19d81f8a932a8f255cc60abe5a3fd163dbd95cf42d9cce40f977ba6",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/hardening-2026-10-01/preflight-meta-pdf-receipts.json",
+      "sha256": "0cee5fd08b29ae67d5a3e87ef7697bd8e9d5fd282f273bd01b272c5899f9371d",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/hardening-2026-10-01/preflight-pdf-decoded-memory.full-suite.json",
+      "sha256": "3a97472fb801fc0af4d49ce3d9215e9926c61115ef4bafe1a4edce3fa2df15d8",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/hardening-2026-10-01/preflight-pdf-decoded-memory.json",
+      "sha256": "431c8eb422bd0295222f06c89c10abfc666ce88f9711cc53583177df9304b25e",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/hardening-2026-10-01/preflight-safe-evidence.json",
+      "sha256": "8992dbfb2dc61487a6d288d7cce997d3ad8350072a31829178af57df67cb23de",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
       "exports": []
     },
@@ -5260,7 +5616,14 @@
     },
     {
       "path": "tests/frontend-e2e/agent-context-db.spec.ts",
-      "sha256": "7f73a2c08b8b14f1e7b531bc60a0e840e20305b11a02a74065fdaceee0b7643d",
+      "sha256": "8ebe4d881eb272a1308cce4ebaca50f711715c7f62046a05f87c71df861b2e61",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/alerts.spec.ts",
+      "sha256": "b2bb2263954124d0bf74d97bb9c8db0ea12936f69df5f835f5875b731034be31",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5280,8 +5643,15 @@
       "exports": []
     },
     {
+      "path": "tests/frontend-e2e/file-processing.spec.ts",
+      "sha256": "7f54e9b76cbc544adb98fd96867fd1d10c4061428994ff60aebc42d50950aae5",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/frontend-e2e/files-db.spec.ts",
-      "sha256": "053fc65624c537ce1b9f3659375e1b8f4b0181120f83857108ef6618b8f51f28",
+      "sha256": "c26ca0b8c704575c348b3825911d99327e0dc168482cd32929133c3fa7669fb4",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5303,6 +5673,13 @@
     {
       "path": "tests/frontend-e2e/matrix.spec.ts",
       "sha256": "69499680ec50bf3eac05bd68136a1746d0f3c9398240ae599d8e9bd12e44a368",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/pdf-meta-preflight.spec.ts",
+      "sha256": "596ce195e8b2a7aa7b609b2efdd9ea17cb183b6fbc1529486610d675059ca42a",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5504,6 +5881,13 @@
       "exports": []
     },
     {
+      "path": "tests/frontend/alerts-api.test.ts",
+      "sha256": "82a34dccdaf01554bb46df1d0d29e387b4c26ffb369ce010399c251bedda329a",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/frontend/approval.test.ts",
       "sha256": "167fbc5b4aab152afeb1164f6b7ae55c062006759cca771915ba872f6c0cc3bc",
       "review": "pending",
@@ -5519,7 +5903,7 @@
     },
     {
       "path": "tests/frontend/chat-staging.test.tsx",
-      "sha256": "03d51c248a6e22d736c1144b29eb80f18ca1061abc83f74e947e3285300e60bc",
+      "sha256": "2c34253e8f76e6da2ce6777234695e4bdc94d03b0565613e6037a59f0dafab24",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5534,6 +5918,13 @@
     {
       "path": "tests/frontend/execution-inspection.test.tsx",
       "sha256": "a3b92c51f5861b5fd3dc4b1159d4622eb4777a0fa5c1a7f57aa2487808770288",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/file-processing.test.tsx",
+      "sha256": "63899f21a2360a2437ec8ef58dfe8c20a5d2e22889f14d60afe5850ea85a9fb6",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5646,6 +6037,13 @@
     {
       "path": "tests/frontend/staging-sectors.test.ts",
       "sha256": "d5e7bdacf57e9ac629405435407cf264a69c2c12edb4272fbc5b17f30bba18a2",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/supervision-alerts.test.tsx",
+      "sha256": "4ca93ec3635db16c9637cab610a470733f4795fff9c6ea8edd540bc84eaeb009",
       "review": "pending",
       "tests": [],
       "exports": []

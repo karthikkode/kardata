@@ -10,7 +10,8 @@ import type { Scope } from '../auth/keys.js'
 import { DbContractError } from './errors.js'
 import type { Db } from './events.js'
 import { listDocumentUnits } from './document-units.js'
-import { sha256Hex, type ExtractionStatus } from './file-pipeline.js'
+import { sha256Hex } from './file-pipeline.js'
+import type { SectorDocumentStatus } from './sector-documents.js'
 import { listSectorDocuments, type SectorDocument } from './sector-documents.js'
 import { getSector } from './sectors.js'
 
@@ -26,7 +27,7 @@ export interface ContextFileView {
   id: string
   filename: string
   mediaType: string
-  status: ExtractionStatus
+  status: SectorDocumentStatus
   sha256: string
   chars: number
   excluded: boolean
@@ -184,7 +185,7 @@ export async function getSectorContext(db: Db, sectorId: string, scope?: Scope):
   const labels = citationLabels(documents)
   for (const document of documents) {
     const docExcluded = exclusions.get(`${document.id}:-1`) ?? false
-    const units = await listDocumentUnits(db, document.id)
+    const units = document.status === 'indexed' ? await listDocumentUnits(db, document.id) : []
     const views: ContextUnitView[] = units.map((unit) => {
       const excluded = docExcluded || (exclusions.get(`${document.id}:${unit.ord}`) ?? false)
       return { ord: unit.ord, kind: unit.kind, text: unit.text, uncertain: unit.uncertain, excluded }

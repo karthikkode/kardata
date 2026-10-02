@@ -43,8 +43,10 @@ dev/staging, not prod; its Postgres flags are dev values.
 The existing worker now initializes Temporal SDK logging/metrics before its
 connection. SDK metrics bind port 9464 by default; Prometheus uses the worker
 target, not the Temporal server. Deploy its matching scrape configuration with
-the worker. The hardening PR remains a draft until live deployment, replay and
-release acceptance evidence are complete.
+the worker. The owner authorized merging the verified preflight fixes before the separate
+2,000-company pilot. Preflight deployment/replay and applicable PR checks must
+still pass; that merge does not certify the pending full release acceptance or
+live company campaign.
 
 Browser network guard uses the existing backend port, configured as
 KARDATA_BROWSER_PROXY_URL in backend/worker. The existing KARDATA_MCP_TOKEN signs
@@ -73,3 +75,18 @@ bucket from the owner-facing server. Configuration regression:
 restart verification remain separate gates. Before replacing an older worker,
 inventory and preserve any legacy container-local archive bytes; never discard
 them by treating a new shared mount as automatic migration.
+
+CI integration gates durable PDF ingestion with `workflows.file-processing.test.ts`
+on its existing isolated Temporal service. It explicitly sets
+`KARDATA_FILE_TEMPORAL_ADDRESS=localhost:7233`; no shared-server fallback is allowed.
+The suite includes archive recovery, worker replacement, hidden-file pause and
+both 25-second storage heartbeat checks. Providers are scripted fixtures. This
+gate establishes durable execution, not real Meta extraction quality; the
+opt-in UI journey remains separate. The YAML-parsing deployment-capacity
+regression pins the suite and explicit address together.
+
+CI also runs the opt-in real PDF decoded-memory scenarios separately from
+`pr:verify`, setting `KARDATA_PDF_MEMORY_TEST=1` and retaining the JSON report.
+The scenarios assert image counts, pixel hashes and cleanup for near-limit
+rasters with 1/10/100 repeated placements and up to two concurrent parsers.
+Memory readings are measurements, not a portable hard-RSS bound.

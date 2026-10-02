@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { apiErrorStatus, attachSectorDocument, cancelRun, createSession, deleteSession, listSessions, listThreads, readSectorPlan, renameSession, resumeRun, StagingApiError, type StagingConfig } from './staging-api'
-import { rebuildLocalContext, inspectThreadOperation, compactLocalContext, decideGlobalContext, ensureResearchSession, getContextPreview, getGlobalContext, getLocalContext, getResearchProgress, getSectorFileBody, getSectorFiles, hideSectorFile, includeSectorFile, saveGlobalContext, saveLocalContext, type Sections } from './workspace-api'
+import { rebuildLocalContext, inspectThreadOperation, compactLocalContext, decideGlobalContext, ensureResearchSession, getContextPreview, getGlobalContext, getLocalContext, getResearchProgress, getSectorFileBody, getSectorFiles, hideSectorFile, includeSectorFile, saveGlobalContext, saveLocalContext, retryFileProcessing, getFileUnitsPage, type Sections } from './workspace-api'
 import { useWorkspaceConversation, useWorkspaceResource } from './useWorkspace'
 import { getExecutionRecord, listExecutionRecords } from './workspace-api'
 
@@ -11,6 +11,7 @@ export function useSectorWorkspace(config: StagingConfig | null, sectorId: strin
   const [proposalId, setProposalId] = useState<string | null>(null)
   const [inspection, setInspection] = useState<{ thread: string; operationId: string } | null>(null)
   const [previewFileId, setPreviewFileId] = useState<string | null>(null)
+  const [filePage, setFilePage] = useState<{ id: string; fromOrd: number; previous: number[] } | null>(null)
   const deniedInitialization = useRef(new Set<string>())
   const operationLock = useRef(false)
   const sessions = useWorkspaceResource(config, sectorId ? `sessions:${sectorId}` : null, async (cfg) => {
@@ -41,7 +42,9 @@ export function useSectorWorkspace(config: StagingConfig | null, sectorId: strin
   const currentExecution = execution?.thread === activeThread ? execution : null
   const executionPage = useWorkspaceResource(config, currentExecution ? `execution-page:${activeThread}:${currentExecution.afterSeq}` : null, (cfg) => listExecutionRecords(cfg, activeThread ?? '', currentExecution?.afterSeq ?? 0))
   const executionBody = useWorkspaceResource(config, currentExecution?.seq ? `execution-record:${activeThread}:${currentExecution.seq}` : null, (cfg) => getExecutionRecord(cfg, activeThread ?? '', currentExecution?.seq ?? 0))
-  const fileBody = useWorkspaceResource(config, previewFileId && sectorId ? `file-body:${sectorId}:${previewFileId}` : null, (cfg) => getSectorFileBody(cfg, sectorId ?? '', previewFileId ?? ''))
+  const fileBody = useWorkspaceResource(config, previewFileId && sectorId ? `file-body:${sectorId}:${previewFileId}:${files.data?.find((file) => file.id === previewFileId)?.status ?? 'unknown'}` : null, (cfg) => getSectorFileBody(cfg, sectorId ?? '', previewFileId ?? ''))
+  const currentFilePage = filePage?.id === previewFileId ? filePage : null
+  const fileUnits = useWorkspaceResource(config, currentFilePage && sectorId ? `file-units:${sectorId}:${currentFilePage.id}:${currentFilePage.fromOrd}` : null, (cfg) => getFileUnitsPage(cfg, sectorId ?? '', currentFilePage?.id ?? '', currentFilePage?.fromOrd ?? 0))
   async function act(name: string, work: (cfg: StagingConfig) => Promise<unknown>) {
     if (!config || operationLock.current) return false
     operationLock.current = true
@@ -54,7 +57,11 @@ export function useSectorWorkspace(config: StagingConfig | null, sectorId: strin
     closeExecution: () => setExecution(null), selectExecution: (seq: number) => setExecution((current) => current ? { ...current, seq } : null),
     nextExecutionPage: () => setExecution((current) => current && executionPage.data?.nextAfterSeq ? { ...current, afterSeq: executionPage.data.nextAfterSeq, previous: [...current.previous, current.afterSeq], seq: null } : current),
     previousExecutionPage: () => setExecution((current) => current?.previous.length ? { ...current, afterSeq: current.previous.at(-1)!, previous: current.previous.slice(0, -1), seq: null } : current),
-    operationReceipt: inspection?.thread === activeThread ? operationReceipt : undefined, inspectOperation: (operationId: string) => { if (activeThread) { if (inspection?.thread === activeThread && inspection.operationId === operationId) operationReceipt.refresh(); else setInspection({ thread: activeThread, operationId }) } }, sessions, selected, activeThread, threads, child, global, files, progress, plan, local, chat, operation, preview, reviewProposal: setProposalId, fileBody, previewFileId, previewFile: setPreviewFileId,
+    operationReceipt: inspection?.thread === activeThread ? operationReceipt : undefined, inspectOperation: (operationId: string) => { if (activeThread) { if (inspection?.thread === activeThread && inspection.operationId === operationId) operationReceipt.refresh(); else setInspection({ thread: activeThread, operationId }) } }, sessions, selected, activeThread, threads, child, global, files, progress, plan, local, chat, operation, preview, reviewProposal: setProposalId, fileBody, fileUnits: currentFilePage ? fileUnits : undefined, fileHasPrevious: Boolean(currentFilePage?.previous.length),
+    browseFileUnits: () => { if (previewFileId) setFilePage({ id: previewFileId, fromOrd: 0, previous: [] }) },
+    nextFileUnits: () => setFilePage((current) => current && fileUnits.data?.nextOrd !== null && fileUnits.data?.nextOrd !== undefined ? { ...current, fromOrd: fileUnits.data.nextOrd, previous: [...current.previous, current.fromOrd] } : current),
+    previousFileUnits: () => setFilePage((current) => current?.previous.length ? { ...current, fromOrd: current.previous.at(-1)!, previous: current.previous.slice(0, -1) } : current),
+    previewFileId, previewFile: (id: string | null) => { setPreviewFileId(id); setFilePage(null) },
     error: error ?? (sessionId && sessions.status === 'ready' && !selected ? 'This conversation is not available in this sector.' : requestedThread && threads.status === 'ready' && !activeThread ? 'This subagent does not belong to this conversation.' : null),
     openSession: (id: string) => onNavigate(id, id),
     openThread: (key: string) => { if (selected) onNavigate(selected.id, key) },
@@ -65,6 +72,7 @@ export function useSectorWorkspace(config: StagingConfig | null, sectorId: strin
     resume: () => act('resume', async (cfg) => { if (activeThread) await resumeRun(cfg, child ? child.key.replace(/^agent:/, '') : `session-run-${selected?.id}`); threads.refresh(); local.refresh() }),
     saveGlobal: (sections: Sections, baseVersion: number) => act('global', async (cfg) => { if (!sectorId) return; await saveGlobalContext(cfg, sectorId, baseVersion, sections); global.refresh() }),
     decide: (id: string, approve: boolean) => act('approval', async (cfg) => { if (!sectorId) return; await decideGlobalContext(cfg, sectorId, id, approve); global.refresh(); files.refresh() }),
+    retryFile: (fileId: string, jobId: string, revision: number, allowDuplicatePaid: boolean) => act('file-retry', async (cfg) => { if (!sectorId) return; await retryFileProcessing(cfg, sectorId, fileId, jobId, revision, allowDuplicatePaid); files.refresh() }),
     hideFile: (id: string, hidden: boolean) => act('file', async (cfg) => { if (!sectorId) return; await hideSectorFile(cfg, sectorId, id, hidden); files.refresh() }),
     includeFile: (id: string) => act('file', async (cfg) => { if (!sectorId || !global.data || !activeThread) return; await includeSectorFile(cfg, sectorId, id, global.data.version, activeThread); global.refresh() }),
     upload: (file: File) => act('upload', async (cfg) => {

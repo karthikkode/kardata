@@ -4,6 +4,8 @@
 // no-restricted-imports). Repositories land here slice by slice.
 export * from './workspace.js'
 export * from './reconciliation.js'
+export { listSupervisionAlerts, SupervisionAlert } from './alerts.js'
+export * from './file-jobs.js'
 export * from './execution-epochs.js'
 export { DbContractError } from './errors.js'
 export {
@@ -252,3 +254,5 @@ export {
 
 export { recordTurnExecution, listThreadExecutionRecords, readThreadExecutionReference, readRecoveryRequestReference, type ExecutionRecordMetadata } from './execution-records.js'
 export { workspaceReferenceSnapshot } from './workspace.js'
+
+export {readSectorDocumentUnitsPage,type SectorDocumentStatus} from './sector-documents.js'

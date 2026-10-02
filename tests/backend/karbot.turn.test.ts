@@ -12,6 +12,7 @@ import {
   SECTOR_TOOLS,
   type KarbotTurnDeps,
   type KarbotTurnInput,
+  KarbotTurnInput as KarbotTurnInputSchema,
   type KarbotTurnLogFields,
 } from '../../backend/src/temporal/activities/turn.js'
 import type { ProviderSelection } from '../../backend/src/providers/gateway.js'
@@ -90,6 +91,9 @@ function input(overrides: Partial<KarbotTurnInput> = {}): KarbotTurnInput {
     ...overrides,
   }
 }
+it.each(['complete', 'incomplete', null] as const)('retains scripted completion %s through the activity input/checkpoint seam', (completion) => {
+  expect(KarbotTurnInputSchema.parse(input({ fakeSteps: [{ text: 'TEST original response', completion }] })).fakeSteps).toEqual([{ text: 'TEST original response', completion }])
+})
 
 const ENV_KEY = 'KARDATA_PROVIDER'
 let savedEnv: string | undefined

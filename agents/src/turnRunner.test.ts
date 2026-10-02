@@ -756,7 +756,7 @@ describe('provider execution persistence boundaries', () => {
     expect(order).toEqual(['request1', 'response1', 'dispatch', 'result', 'request2', 'response2'])
     expect(requests).toEqual(provider.calls.map(({ signal: _signal, ...request }) => request))
     expect(requests[0]).not.toHaveProperty('signal')
-    expect(responses).toEqual([{ text: '', reasoning: '', toolCalls: [call], usage: emptyUsage() }, { text: 'TEST final', reasoning: '', toolCalls: [], usage: emptyUsage() }])
+    expect(responses).toEqual([{ text: '', reasoning: '', toolCalls: [call], usage: emptyUsage(), completion: 'complete' }, { text: 'TEST final', reasoning: '', toolCalls: [], usage: emptyUsage(), completion: 'complete' }])
     expect(results).toEqual([{ original: call, outcome: { content: 'TEST exact tool result' }, operationId: 'TEST record run:TEST record call' }])
   })
   it('does not execute the provider when request persistence fails', async () => {
@@ -788,6 +788,22 @@ it('retains a paid final response and usage through recording failure without ca
   expect(persisted).toHaveBeenCalledWith(1, expect.objectContaining({ text: 'TEST original paid response', usage: actualUsage }), undefined)
   expect(result.text).toBe('TEST original paid response'); expect(result.usage).toEqual(actualUsage)
   expect(saved?.meta.pendingResponse?.response.text).toBe('TEST original paid response')
+})
+
+it.each(['complete', 'incomplete', undefined] as const)('preserves terminal completion %s in a serialized paid-response checkpoint and resume', async (completion) => {
+  const provider = new FakeProvider([{ text: 'TEST preserved paid reply', completion: completion ?? null }])
+  const calls = vi.spyOn(provider, 'chatStream')
+  let saved: { messages: Parameters<NonNullable<import('./turnRunner.js').KarbotTurnOptions['onCheckpoint']>>[0]; meta: NonNullable<import('./turnRunner.js').KarbotTurnOptions['resume']> } | undefined
+  const base = { provider, operationKey: 'TEST completion checkpoint', systemPrompt: 'TEST', messages: [], mcp: memoryMcp(), sink: memorySink().sink,
+    onCheckpoint: async (messages: Parameters<NonNullable<import('./turnRunner.js').KarbotTurnOptions['onCheckpoint']>>[0], round: number, usage: ReturnType<typeof emptyUsage>, toolCalls: number, blockedOperations?: RecoveryOperation[], pendingResponse?: import('./turnRunner.js').PendingProviderResponse) => { saved = JSON.parse(JSON.stringify({ messages, meta: { round, usage, toolCalls, blockedOperations, pendingResponse } })) as typeof saved },
+  }
+  await expect(runKarbotTurn({ ...base, onProviderResponse: async () => { throw new Error('TEST archive acknowledgement unavailable') } })).rejects.toThrow('TEST archive acknowledgement unavailable')
+  expect(saved!.meta.pendingResponse!.response.completion).toBe(completion)
+  if (completion === undefined) expect(saved!.meta.pendingResponse!.response).not.toHaveProperty('completion')
+  const persist = vi.fn(async () => undefined)
+  await runKarbotTurn({ ...base, messages: saved!.messages, resume: saved!.meta, onProviderResponse: persist })
+  expect(calls).toHaveBeenCalledOnce()
+  expect(persist).toHaveBeenCalledWith(1, saved!.meta.pendingResponse!.response, undefined)
 })
 
 it('records a pending paid tool response before dispatching any recovered operation', async () => {

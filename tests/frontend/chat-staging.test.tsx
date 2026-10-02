@@ -675,4 +675,19 @@ describe('chat staging (no mocks)', () => {
       expect(calls.some((call) => call.url.endsWith('/v1/sessions') && call.method === 'POST')).toBe(true)
     })
   })
+  it('distinguishes duplicate session titles by the exact identifier shown in alerts', async () => {
+    const rows = [
+      { ...SESSIONS[0], title: 'TEST duplicate title' },
+      { ...SESSIONS[0], id: 's-2', title: 'TEST duplicate title' },
+    ]
+    stubApi((url) => url.endsWith('/v1/sessions')
+      ? { status: 200, payload: { ok: true, data: rows } }
+      : baseHandler(url))
+    render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Chat sessions' }))
+    const choices = await screen.findAllByRole('menuitem', { name: 'Open TEST duplicate title' })
+    expect(within(choices[0]!).getByText('s-1', { exact: true })).toBeVisible()
+    expect(within(choices[1]!).getByText('s-2', { exact: true })).toBeVisible()
+  })
+
 })

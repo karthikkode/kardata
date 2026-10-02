@@ -13,7 +13,7 @@ export class DbContractError extends Error {
 }
 
 export class WorkspaceError extends Error {
-  constructor(readonly code: 'not_found' | 'conflict' | 'permission_denied' | 'validation_failed', message: string) { super(message) }
+  constructor(readonly code: 'not_found' | 'conflict' | 'permission_denied' | 'validation_failed', message: string, options?: ErrorOptions) { super(message, options) }
 }
 
 export class ArtifactImportTimeout extends Error {

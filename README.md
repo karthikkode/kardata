@@ -26,6 +26,17 @@ landing dialog and workspace Plan tab, through `backend/src/db/work-review.ts`
 and the approver-only workspace route. Its contract is in the research/backend/DB
 and frontend area docs; pilot acceptance remains a separate pending gate.
 
+In-app supervision alerts on the existing Agents page read durable, scoped
+observations through `backend/src/db/alerts.ts` and `backend/src/routes/alerts.ts`.
+Contracts live in the backend/DB/frontend and supervision area docs; external
+notification delivery is not configured.
+
+Backend live-DB tests prepare a run-scoped, sealed PostgreSQL schema template
+through `tests/backend/db-setup.ts` before feature test clocks. Each invocation
+of the shared helper still creates a separate, validated empty UUID database;
+the configured base and interrupted databases are never reused or purged.
+The test contract and fixture rules live in `documentation/tests.md`.
+
 ## Conventions
 
 - Every top-level directory has exactly one mirror doc in `documentation/`, named

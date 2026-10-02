@@ -22,6 +22,10 @@ export interface ParityEntry {
 }
 
 export const PARITY: ParityEntry[] = [
+  { sourceFile:'frontend/src/data/workspace-api.ts',mockType:'FileProcessingProgress',kind:'counterpart',specPointer:'#/components/schemas/FileProcessingProgress',note:'scoped file job lifecycle and paid retry risk' },
+  { sourceFile:'frontend/src/data/workspace-api.ts',mockType:'FileUnitsPage',kind:'counterpart',specPointer:'#/components/schemas/FileUnitsPage',note:'bounded indexed sections with exact inclusive ordinal cursor' },
+  { sourceFile: 'frontend/src/data/alerts.ts', mockType: 'SupervisionAlert', kind: 'counterpart', specPointer: '#/components/schemas/SupervisionAlert', note: 'scoped durable supervision notice with current-warning proof' },
+  { sourceFile: 'frontend/src/data/alerts.ts', mockType: 'SupervisionAlertsPage', kind: 'counterpart', specPointer: '#/components/schemas/SupervisionAlertPage', note: 'exclusive descending sequence pages capped at100' },
   { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'ExecutionRecordMetadata', kind: 'counterpart', specPointer: '#/components/schemas/ExecutionRecordMetadata', note: 'approver-only scoped journal metadata without archive keys' },
   { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'ExecutionRecordPage', kind: 'counterpart', specPointer: '#/components/schemas/ExecutionRecordPage', note: 'chronological bounded execution inspection pages' },
   { sourceFile: 'frontend/src/data/workspace-api.ts', mockType: 'ExecutionRecordBody', kind: 'counterpart', specPointer: '#/components/schemas/ExecutionRecordBody', note: 'verified archived normalized adapter JSON object' },

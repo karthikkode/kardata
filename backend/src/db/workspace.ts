@@ -13,6 +13,7 @@ import { DbContractError, WorkspaceError } from './errors.js'
 export { WorkspaceError } from './errors.js'
 import { publishOutboxFrame } from './outbox.js'
 import { ingestSectorDocument, listSectorDocuments, readOriginalSectorDocument } from './sector-documents.js'
+import { listSectorFileProcessing, type FileProcessingProgress } from './file-jobs.js'
 import { listDocumentUnits } from './document-units.js'
 import { progressSummary, type WorkItem } from '../temporal/research-plan.js'
 import { discoverySample } from '../temporal/discovery-acceptance.js'
@@ -358,6 +359,7 @@ export async function finishSteering(db: TransactableDb, threadKey: string, runK
 export interface LibraryFile {
   id: string; filename: string; status: string; source: string; hash: string
   hidden: boolean; included: boolean; kind: 'document' | 'artifact'; sessionId?: string; documentId?: string
+  processing?: FileProcessingProgress
 }
 export async function readSectorLibraryFile(db: Db, sectorId: string, fileId: string, archive: ArchiveTarget, scope?: Scope) {
   return logOp(workspaceLogger, 'workspace.file.read', () => readLibraryFile(db, sectorId, fileId, archive, scope), { sectorId, fileId })
@@ -408,6 +410,8 @@ export async function listSectorLibrary(db: Db, sectorId: string, scope?: Scope)
     }
   }
   for (const file of files.values()) if (file.kind === 'artifact' && !file.documentId) file.status = 'processing'
+  const processing = await listSectorFileProcessing(db, sectorId, scope)
+  for (const file of files.values()) if (processing[file.documentId ?? file.id]) file.processing = processing[file.documentId ?? file.id]
   return [...files.values()].sort((a, b) => (arrivedAt.get(b.id) ?? 0) - (arrivedAt.get(a.id) ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 }
 export async function setFileVisibility(db: TransactableDb, sectorId: string, fileId: string, hidden: boolean, scope?: Scope) {

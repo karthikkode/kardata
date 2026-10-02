@@ -176,3 +176,32 @@ recorded `suspend` decision alone is not proof a workflow was actually suspended
 Parent/child ancestry reconciliation, browser-process restart reconciliation,
 outbound alert delivery and performance-envelope release gates remain separate
 requirements; this page does not claim those have passed.
+
+## Scoped in-app delivery
+
+The owner selected in-app alerts through the existing backend. Durable
+`t.reconciliation.finding` records now feed an authenticated read for the Agents
+surface; HTTP contract is in `documentation/backend.md`, query ownership in
+`documentation/db.md`. A warning is current only when a confirmed closed-owner
+park still owns the latest recovery-tagged PAUSED state and unchanged execution
+head, with no unresolved start. Missing heartbeat, progress, queue and unavailable
+owner findings remain historical observations, never proof that work is dead.
+A successor or manual pause demotes an old notice. UI links permit owner review,
+not automatic resume/cancel. This is supervisor → durable DB → authenticated UI
+delivery; external Prometheus notification receivers remain unconfigured.
+
+### Queued file admission recovery
+
+The existing research worker ensures the separate `fileAdmissionReconciliation`
+workflow; existing execution-supervision histories stay unchanged. Each pass
+scans100 jobs, performs at most four concurrent owner inspections under a shared
+two-second RPC deadline, and waits30 seconds. After100 pages it continues as new
+with only a keyset cursor. Exhausted retries retain their cursor.
+
+Unreserved queued work may start only after confirmed NOT_FOUND. Reserved absence
+or mismatched owner proof parks it; unavailable unreserved/confirmed observations
+defer without classifying healthy work as dead. Exact fileProcessing type, canonical
+revision workflow ID and bounded first-history job/revision/nonce arguments must
+agree before adopting a running owner. Closed owners park for review. Private
+CAS/event retention is specified in `documentation/db.md`; API owner controls
+remain in `documentation/backend.md`. Actual SDK activation is operations evidence.

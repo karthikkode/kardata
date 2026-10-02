@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test'
 
 test.use({ video: 'on' })
 
-test('UI upload failure publishes nothing; retry previews and downloads exact bytes', async ({ page }) => {
+test('UI upload failure publishes nothing; retry previews and downloads exact bytes', async ({ page }, info) => {
   test.skip(!process.env.TEST_DATABASE_URL, 'needs TEST_DATABASE_URL for isolated production file routes')
   test.setTimeout(60_000)
   const [{ Pool }, { mkdtempSync }, { tmpdir }, { join }, { readFile }, { randomUUID }, { ensureTestDb }, { buildApp }, { FilesystemTarget }, db, { projectNewEvents }, { FakeRunsGateway }] = await Promise.all([
@@ -14,7 +14,7 @@ test('UI upload failure publishes nothing; retry previews and downloads exact by
   ])
   const pool = new Pool({ connectionString: await ensureTestDb('kardata_test_browser_files') })
   const archive = new FilesystemTarget(mkdtempSync(join(tmpdir(), 'kardata-browser-files-')))
-  const app = buildApp({ pool, runs: new FakeRunsGateway(pool), archiveTarget: archive, corsOrigins: ['http://127.0.0.1:5174'] })
+  const app = buildApp({ pool, runs: new FakeRunsGateway(pool), archiveTarget: archive, corsOrigins: [new URL(info.project.use.baseURL ?? 'http://127.0.0.1:5174').origin] })
   const sectorId = `sec-${randomUUID()}`
   const filename = 'TEST UI retained evidence.md'
   const content = `# TEST UI retained evidence\n\n${'First evidence paragraph. '.repeat(120)}\n\nTEST browser indexing fault\n\n${'Second evidence paragraph. '.repeat(120)}`

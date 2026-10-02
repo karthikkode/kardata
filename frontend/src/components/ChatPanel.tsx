@@ -334,7 +334,7 @@ export function SessionsPanel({
                   Research
                 </span>
               ) : null}
-              <span className="min-w-0 flex-1 truncate text-sm">{session.title}</span>
+              <span className="min-w-0 flex-1"><span className="block truncate text-sm">{session.title}</span><span className="block break-all text-xs text-muted-foreground">{session.id}</span></span>
               <span className="shrink-0 text-xs text-muted-foreground">
                 {sessionAge(session.updatedAt)}
               </span>

@@ -14,7 +14,7 @@ const UNITS = [
   { document_id: 'sdoc-1', ord: 2, kind: 'text', text: 'Target buyers run RevOps at fifty to five hundred staff.', confidence: null, uncertain: false, sha256: 'c' },
 ]
 
-function stubDb(state: { sector: boolean; doc: boolean }): TransactableDb {
+function stubDb(state: { sector: boolean; doc: boolean; status?: string }): TransactableDb {
   return {
     connect: async () => ({}) as unknown as PoolClient,
     async query<TRow>(text: string, params: unknown[] = []): Promise<{ rowCount: number | null; rows: TRow[] }> {
@@ -35,7 +35,7 @@ function stubDb(state: { sector: boolean; doc: boolean }): TransactableDb {
         return {
           rowCount: state.doc ? 1 : 0,
           rows: (state.doc
-            ? [{ id: 'sdoc-1', sector_id: 'sec-1', filename: 'brief.md', media_type: 'text/markdown', text: 'full text', status: 'indexed' }]
+            ? [{ id: 'sdoc-1', sector_id: 'sec-1', filename: 'brief.md', media_type: 'text/markdown', text: 'full text', status: state.status ?? 'indexed' }]
             : []) as unknown as TRow[],
         }
       }
@@ -56,6 +56,11 @@ function stubDb(state: { sector: boolean; doc: boolean }): TransactableDb {
 const SCOPE = { tenantId: 't', projectId: null }
 
 describe('querySectorDocument', () => {
+  it.each(['processing','failed','needs-ocr'])('never exposes partial stored units or text for %s', async (status) => {
+    const db=stubDb({sector:true,doc:true,status})
+    expect(await querySectorDocument(db,{documentId:'sdoc-1',sectorId:'sec-1'})).toMatchObject({status,chars:0,totalUnits:0,toc:[]})
+    for(const choice of [{query:'fixed'},{ords:[2]},{mode:'chunks' as const}]) expect(await querySectorDocument(db,{documentId:'sdoc-1',sectorId:'sec-1',...choice})).toMatchObject({status,units:[]})
+  })
   it('summarizes with a TOC and no full-text leak', async () => {
     const result = await querySectorDocument(stubDb({ sector: true, doc: true }), {
       documentId: 'sdoc-1',

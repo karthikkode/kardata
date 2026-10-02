@@ -1,0 +1,261 @@
+{
+  "schema": 1,
+  "measuredAt": "2026-10-02T05:04:44.143Z",
+  "node": "v22.23.3",
+  "platform": "linux",
+  "arch": "x64",
+  "cpuModel": "AMD Ryzen 7 7840HS w/ Radeon 780M Graphics",
+  "cpuCount": 16,
+  "totalMemoryBytes": 98794881024,
+  "sampleIntervalMs": 10,
+  "pixelsPerImage": 7998000,
+  "limits": "Observed process memory; includes runtime and native buffers. external/arrayBuffers report Node-tracked native allocations, not all Sharp/PDFJS native memory. Sampling can miss transients; no hard RSS guarantee.",
+  "results": [
+    {
+      "placements": 1,
+      "concurrent": 1,
+      "originalBytes": 24057,
+      "originalHash": "380c24d166412609e96622edcda8bf2dc7e74d9219c4afd2d520d463897b3550",
+      "elapsedMs": 104.43823599999996,
+      "baseline": {
+        "rss": 562589696,
+        "heapTotal": 80207872,
+        "heapUsed": 42723544,
+        "external": 70808845,
+        "arrayBuffers": 43732371
+      },
+      "observedPeak": {
+        "rss": 606609408,
+        "heapTotal": 80732160,
+        "heapUsed": 45002048,
+        "external": 80311663,
+        "arrayBuffers": 72551796
+      },
+      "processLifetimeMaxRssKiB": 592392,
+      "postCleanup": {
+        "rss": 606609408,
+        "heapTotal": 80732160,
+        "heapUsed": 42110192,
+        "external": 52377603,
+        "arrayBuffers": 48456009
+      },
+      "jobs": [
+        {
+          "images": 1,
+          "imageHash": "e0de8a2d95a0b3f57ab1de8b5f523c5ce1ae28fe683a641942ababf2814bca2f",
+          "destroyCalls": 1,
+          "pageCleanupCalls": 1
+        }
+      ]
+    },
+    {
+      "placements": 1,
+      "concurrent": 2,
+      "originalBytes": 24057,
+      "originalHash": "380c24d166412609e96622edcda8bf2dc7e74d9219c4afd2d520d463897b3550",
+      "elapsedMs": 147.22375199999988,
+      "baseline": {
+        "rss": 632430592,
+        "heapTotal": 80732160,
+        "heapUsed": 42165264,
+        "external": 76498795,
+        "arrayBuffers": 72577201
+      },
+      "observedPeak": {
+        "rss": 684695552,
+        "heapTotal": 81256448,
+        "heapUsed": 44502800,
+        "external": 124680132,
+        "arrayBuffers": 120431751
+      },
+      "processLifetimeMaxRssKiB": 668776,
+      "postCleanup": {
+        "rss": 684826624,
+        "heapTotal": 78032896,
+        "heapUsed": 37176312,
+        "external": 100636970,
+        "arrayBuffers": 96610993
+      },
+      "jobs": [
+        {
+          "images": 1,
+          "imageHash": "e0de8a2d95a0b3f57ab1de8b5f523c5ce1ae28fe683a641942ababf2814bca2f",
+          "destroyCalls": 1,
+          "pageCleanupCalls": 1
+        },
+        {
+          "images": 1,
+          "imageHash": "e0de8a2d95a0b3f57ab1de8b5f523c5ce1ae28fe683a641942ababf2814bca2f",
+          "destroyCalls": 1,
+          "pageCleanupCalls": 1
+        }
+      ]
+    },
+    {
+      "placements": 10,
+      "concurrent": 1,
+      "originalBytes": 24337,
+      "originalHash": "37ee4df39cbe6f0e9b52ef5aca5e1553621f4365050eb5b42eebb85a4fc4f53f",
+      "elapsedMs": 226.73170800000025,
+      "baseline": {
+        "rss": 710123520,
+        "heapTotal": 78032896,
+        "heapUsed": 37263264,
+        "external": 124758442,
+        "arrayBuffers": 120732465
+      },
+      "observedPeak": {
+        "rss": 710123520,
+        "heapTotal": 78295040,
+        "heapUsed": 38455472,
+        "external": 130001940,
+        "arrayBuffers": 125975963
+      },
+      "processLifetimeMaxRssKiB": 693608,
+      "postCleanup": {
+        "rss": 666050560,
+        "heapTotal": 78295040,
+        "heapUsed": 37121992,
+        "external": 76755009,
+        "arrayBuffers": 72729038
+      },
+      "jobs": [
+        {
+          "images": 10,
+          "imageHash": "e0de8a2d95a0b3f57ab1de8b5f523c5ce1ae28fe683a641942ababf2814bca2f",
+          "destroyCalls": 1,
+          "pageCleanupCalls": 1
+        }
+      ]
+    },
+    {
+      "placements": 10,
+      "concurrent": 2,
+      "originalBytes": 24337,
+      "originalHash": "37ee4df39cbe6f0e9b52ef5aca5e1553621f4365050eb5b42eebb85a4fc4f53f",
+      "elapsedMs": 376.75095899999997,
+      "baseline": {
+        "rss": 666050560,
+        "heapTotal": 78295040,
+        "heapUsed": 37099872,
+        "external": 100884673,
+        "arrayBuffers": 96858702
+      },
+      "observedPeak": {
+        "rss": 840278016,
+        "heapTotal": 79081472,
+        "heapUsed": 39858272,
+        "external": 245786865,
+        "arrayBuffers": 217210869
+      },
+      "processLifetimeMaxRssKiB": 820584,
+      "postCleanup": {
+        "rss": 768331776,
+        "heapTotal": 78032896,
+        "heapUsed": 37330112,
+        "external": 149254840,
+        "arrayBuffers": 145006459
+      },
+      "jobs": [
+        {
+          "images": 10,
+          "imageHash": "e0de8a2d95a0b3f57ab1de8b5f523c5ce1ae28fe683a641942ababf2814bca2f",
+          "destroyCalls": 1,
+          "pageCleanupCalls": 1
+        },
+        {
+          "images": 10,
+          "imageHash": "e0de8a2d95a0b3f57ab1de8b5f523c5ce1ae28fe683a641942ababf2814bca2f",
+          "destroyCalls": 1,
+          "pageCleanupCalls": 1
+        }
+      ]
+    },
+    {
+      "placements": 100,
+      "concurrent": 1,
+      "originalBytes": 27128,
+      "originalHash": "3558d78bf70193c75c31260836d883f5db2d00704f9bd6b356c59324eb838a93",
+      "elapsedMs": 1404.4792509999997,
+      "baseline": {
+        "rss": 768331776,
+        "heapTotal": 78032896,
+        "heapUsed": 37235792,
+        "external": 173387295,
+        "arrayBuffers": 169138914
+      },
+      "observedPeak": {
+        "rss": 768331776,
+        "heapTotal": 78557184,
+        "heapUsed": 38969488,
+        "external": 173387295,
+        "arrayBuffers": 169138914
+      },
+      "processLifetimeMaxRssKiB": 820584,
+      "postCleanup": {
+        "rss": 675127296,
+        "heapTotal": 78032896,
+        "heapUsed": 37206936,
+        "external": 52619983,
+        "arrayBuffers": 48705217
+      },
+      "jobs": [
+        {
+          "images": 100,
+          "imageHash": "e0de8a2d95a0b3f57ab1de8b5f523c5ce1ae28fe683a641942ababf2814bca2f",
+          "destroyCalls": 1,
+          "pageCleanupCalls": 1
+        }
+      ]
+    },
+    {
+      "placements": 100,
+      "concurrent": 2,
+      "originalBytes": 27128,
+      "originalHash": "3558d78bf70193c75c31260836d883f5db2d00704f9bd6b356c59324eb838a93",
+      "elapsedMs": 1834.275724,
+      "baseline": {
+        "rss": 675127296,
+        "heapTotal": 78032896,
+        "heapUsed": 37248784,
+        "external": 76752438,
+        "arrayBuffers": 72837672
+      },
+      "observedPeak": {
+        "rss": 847040512,
+        "heapTotal": 79081472,
+        "heapUsed": 40268384,
+        "external": 269981827,
+        "arrayBuffers": 241294626
+      },
+      "processLifetimeMaxRssKiB": 827188,
+      "postCleanup": {
+        "rss": 798920704,
+        "heapTotal": 78032896,
+        "heapUsed": 37542496,
+        "external": 125128187,
+        "arrayBuffers": 120991011
+      },
+      "jobs": [
+        {
+          "images": 100,
+          "imageHash": "e0de8a2d95a0b3f57ab1de8b5f523c5ce1ae28fe683a641942ababf2814bca2f",
+          "destroyCalls": 1,
+          "pageCleanupCalls": 1
+        },
+        {
+          "images": 100,
+          "imageHash": "e0de8a2d95a0b3f57ab1de8b5f523c5ce1ae28fe683a641942ababf2814bca2f",
+          "destroyCalls": 1,
+          "pageCleanupCalls": 1
+        }
+      ]
+    }
+  ],
+  "cancellation": {
+    "images": 1,
+    "imageHash": "e0de8a2d95a0b3f57ab1de8b5f523c5ce1ae28fe683a641942ababf2814bca2f",
+    "destroyCalls": 1,
+    "pageCleanupCalls": 0
+  }
+}

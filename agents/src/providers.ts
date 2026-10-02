@@ -105,6 +105,8 @@ export interface ProviderResponse {
   usage: Usage
   /** Visible reasoning passthrough when a provider exposes it. */
   reasoning?: string
+  /** Only explicit provider terminal metadata proves completion. */
+  completion?: 'complete' | 'incomplete'
 }
 
 export type StreamEvent =
@@ -113,7 +115,7 @@ export type StreamEvent =
   | { kind: 'toolcall_start'; index: number; key: string }
   | { kind: 'toolcall_delta'; index: number; textAppend: string }
   | { kind: 'toolcall_end'; index: number; call: ToolCallRequest }
-  | { kind: 'done'; usage: Usage }
+  | { kind: 'done'; usage: Usage; completion?: ProviderResponse['completion'] }
 
 export interface ProviderAdapter {
   countInputTokens?(request: ProviderRequest): Promise<number>
@@ -129,6 +131,14 @@ export class ProviderError extends Error {
   ) {
     super(message)
     this.name = 'ProviderError'
+  }
+}
+/** Only the input-count endpoint can assert this narrow availability signal. */
+export class TokenCountUnavailableError extends ProviderError {
+  readonly code = 'token_count_unavailable'
+  constructor(readonly reason: 'unsupported' | 'billing_not_configured', readonly status: number) {
+    super('Provider input-token counting is unavailable.', false)
+    this.name = 'TokenCountUnavailableError'
   }
 }
 

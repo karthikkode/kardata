@@ -166,7 +166,7 @@ adds auth, transport, and tool schemas, never SQL.
 | `db.list_companies` / `db.list_sector_companies` | `listCompanies` / `listSectorCompanies` | scope-filtered reads |
 | `db.sector_activity` | `sectorActivity` | timeline derived from the sector partition |
 | `db.create_sector` | `createSector` | appends sector.created; id server-generated |
-| `db.attach_sector_document` / `db.list_sector_documents` / `db.read_sector_document` / `db.query_document` | `ingestSectorDocument` / `listSectorDocuments` / `readSectorDocument` / `querySectorDocument` | context file attach, list, full-text read, and dual-mode TOC summary / targeted chunk query; visibility passes through the owning sector |
+| `db.attach_sector_document` / `db.list_sector_documents` / `db.read_sector_document` / `db.query_document` | `attachSectorDocument` / `listSectorDocuments` / `readSectorDocument` / `querySectorDocument` | shared backend semantic attachment orchestrates durable PDF jobs through the layer; context list/read/TOC/chunks retain scoped DB functions |
 | `db.get_global_context` / `db.propose_global_context` | `readGlobalContext` / `proposeGlobalContext` | versioned shared sector context read + proposed edits (normal chats need owner approval; research writes via parent commit) |
 | `db.commit_child_context` | `commitChildContext` | research parent commits a child finding or open question (scope/decisions/file inclusion need owner approval) |
 | `db.list_sector_files` / `db.propose_file_context` | `listSectorLibrary` / `proposeFileContext` | visible indexed sector files; owner approval to include exact file units in global context |
@@ -239,6 +239,43 @@ Artifact creation emits the shared start/done/error boundary logs and pipeline
 operation records; operational output includes identities/counts, never bodies.
 
 ### Document ingestion atomicity
+
+File-processing creation may receive a trusted execution source thread from the
+shared attachment helper. The layer validates its scoped owning session and sector
+binding before archive/publication. An immutable source event records each actual
+job/thread association; caller-provided names never grant this provenance or any
+research/approval authority. Repeated uploads retain the same file/job identity.
+
+OCR transcript units share the2,000-character text-unit cap. Image and scanned-PDF
+transcripts split in reading order with sequential ordinals, retaining OCR kind,
+confidence and uncertainty on every chunk. Owner-required PDF completion supersedes
+the former ten-image/scanned-only limit. Every page retains its native text and every
+embedded image is sent individually, in reading order, through the existing configured
+AI provider OCR adapter. Calls are sequential; native text never suppresses image
+processing. A PDF with no images still indexes its native text. Completed image work
+must remain durable across retry/restart so recovery does not repeat a paid provider
+response. Original bytes, per-image evidence and extraction-version identity remain
+retained; incomplete work must expose a recoverable processing/failure state and
+cannot masquerade as a complete index. Each provider/storage operation is bounded
+by deadline/byte limits and attributable retries; no arbitrary image-count document
+truncation applies. This is the approved target contract, not a claim that current
+implementation is complete. Archive receipt/checkpoint binding and mixed-PDF real
+parser/provider verification remain requirements before activation.
+OCR failure details expose only stable reason codes and safe HTTP status; transport
+exceptions, endpoint URLs, credentials and response bodies stay out of document
+details. OCR boundaries log start/done/error with code and latency only.
+HTTP OCR responses stream under the existing8MiB document byte budget before JSON
+parsing. The existing request deadline covers headers and body reads, including an
+abort-ignoring injected transport; oversized/non-success/late bodies are cancelled.
+All OCR adapters must return finite confidence from0 to1. Only absent HTTP confidence
+uses the historical default1, inferred from the adapter source rather than measured
+OCR confidence; malformed values never silently become confident text
+or JSON-null provenance. Each OCR transcript and the aggregate scanned-PDF transcript
+share the8MiB byte cap; overflow retains original upload bytes as Needs OCR without
+publishing a partial index. These per-operation caps do not establish100-concurrent
+file capacity, extraction/parser peak memory or a deployed OCR endpoint limit.
+`file-pipeline.test.ts` pins these limits with injected OCR/PDF doubles; these are
+not deployed OCR/provider or genuine-document evidence.
 
 Archive acceptance precedes DB publication. A document row, its extracted units,
 and its original-byte reference publish in one SQL statement, or not at all.
@@ -403,3 +440,79 @@ receipts are eligible. The event `sector.research.work_reviewed` stores exact
 previous work, plan version, decision, owner key and reason. Retry retains the
 receipt fields and counters; exclusion preserves them too. Work updates cannot
 overwrite completed/excluded receipts. No company publication occurs here.
+
+## Scoped in-app supervision alert reads
+
+`backend/src/db/alerts.ts` reads only `t.reconciliation.finding` events whose
+partition and thread ownership agree with an undeleted, tenant/project-scoped
+session. Exclusive descending sequence pages fetch at most limit+1 (limit1–100).
+No new table, migration, agent DB credentials or raw fleet read is introduced.
+The current-warning predicate joins the tagged parking event, latest thread state
+and current execution head, and excludes every unresolved start intent. A
+successor or manual state change demotes the prior warning to historical. Sector
+links are returned only when the sector row agrees with caller scope. Reads use
+logOp; private execution fields and unbounded reason bodies never enter output.
+HTTP shapes/roles are authoritative in `documentation/backend.md`; liveness
+semantics are in `documentation/agents-supervision.md`.
+
+Alert sessionTitle follows current scoped session metadata: latest rename title,
+otherwise original creation title. It is an identification aid alongside UUID,
+not execution content or authorization. Duplicate titles retain distinct IDs.
+
+Durable file processing retains stored processing/failed/needs-ocr status on all
+document and library reads. Agent document queries expose no text, units or TOC
+until atomic indexed publication; processing metadata is not readable knowledge.
+Original archive bytes remain owner-readable through the scoped file surface.
+
+## Durable PDF jobs and paid receipts
+
+Approved design: `documentation/plans/2026-10-01-pdf-ingestion.md`. Migration0023
+adds file-owned jobs, ordered image identities and immutable attempt rows. Original
+SHA256(base64) and source/settings identity pin the file; final extraction digest
+is separate. Paid replies stage exact serialized normalized responses plus parsed
+JSON before archive completion. New provider requests are admitted at most two
+concurrently through a shared DB transaction lock. Request-start receipts cannot
+be treated as pre-effect failures; absent durable response proof requires explicit
+approver retry with possible duplicate paid work acknowledged. Retries retain
+prior attempts, original bytes and completed image work. No rollback may drop
+nonempty processing receipts. Final publication atomically reveals ordered capped units with page/image provenance
+only after sealed manifest completeness. WIP batches remain unreadable knowledge. Hidden
+files cannot dispatch new images, retry or publish. Model/agent code cannot approve
+retries or acquire DB/archive authority through tool arguments.
+
+### Streamed full-document publication
+
+Version1 manifests remain supported. Version2 holds scoped/hash-verified references
+to bounded version1 record parts, preserving all pages and image placements.
+`streamFileProcessingUnits` yields ordered native/image units; production uses
+`stageAndPublishFileProcessingJob`, not the array inspection helper. Batches of
+at most100 units commit behind the sector workspace advisory lock without the
+global durable-event lock and without archive IO inside a DB transaction.
+Incomplete rows remain hidden from every agent/document query until statusindexed.
+
+Retry may replace nonpublic derived staging units and remove an obsolete staged
+tail for this exact file/revision. Original bytes, manifest parts and every paid
+attempt remain retained, so knowledge is not discarded. The final short workspace
+transaction validates revision, manifest, completed image ownership and staged
+coverage/digest before publishing indexed visibility and its durable event.
+Canonical streaming digests/checkpoints and complete character counts are retained.
+Document text becomes a bounded64,000-code-unit preview; full content stays in
+indexed units and the access-controlled archives, with explicit truncation metadata.
+File metadata listing reads counts rather than transporting full text bodies.
+
+Document chunk budgets are finite integers1..2000 UTF-16 code units. Chunk cuts
+never divide a supplementary Unicode code point into unmatched surrogate halves;
+a one-unit budget cannot hold such a pair and fails explicitly. Paragraph packing
+remains unchanged. This preserves valid JSONB units for emoji/native/OCR text.
+
+### Queued file admission bindings
+
+File jobs persist private dispatch_state(unreserved/reserved/confirmed/uncertain),
+nonce, canonical workflow ID and exact execution ID. Reserve commits before RPC;
+only the owning nonce/revision may record its outcome. Immutable reserve/outcome
+events retain previous heads after owner retry resets admission at a new revision.
+Reserved NOT_FOUND is not proof that a late RPC had no effect. Exact execution
+proof may clear only dispatch-specific uncertainty with no hidden or unknown
+provider work; old acknowledgements cannot reset a successor. These fields are
+never public progress, model authority or approval grants. Maintenance behavior
+and bounds are in `documentation/agents-supervision.md`.

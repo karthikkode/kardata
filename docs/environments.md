@@ -200,17 +200,19 @@ Three host values, all optional in dev:
   gates DB suites, `KARDATA_TEMPORAL_TEST=1` gates Temporal suites,
   `KARDATA_COMPOSE=1` gates compose smoke, the Meta key gates live
   provider probes. Without its gate a suite skips explicitly and the
-  handoff states what was skipped. Known flaky: timer-bound workflow
-  suites (e.g. loopguards attempt bounds) occasionally fail under
-  full-suite parallel load and pass isolated — re-run before diagnosing.
+  handoff states what was skipped. Failures remain merge blockers: retain the
+  failed run and compare a bounded isolated reproduction to diagnose resource
+  contention. A passing rerun does not erase the failure or justify weakening
+  deadlines; record its root cause and maintained regression.
 - Migrate outside compose: `DATABASE_URL=... npm run migrate --workspace @kardata/backend -- up|down`.
 - Retention sweep (B6): `DATABASE_URL=... node backend/dist/db/cli.js sweep [days]`
   deletes outbox frames, completed idempotency replay records, and heartbeat
   rows older than the window (default 90 days). In-progress idempotency
   claims are never swept. Run it on a schedule (cron/systemd timer) — without
   it those three tables grow unbounded.
-- Tear down: `docker compose -f deployment/compose.yaml down` (volumes persist;
-  add `-v` for a clean slate).
+- Tear down: `docker compose -f deployment/compose.yaml down` preserves volumes.
+  Removing volumes requires an explicit scoped owner instruction and inventory;
+  never add `-v` as routine test or deployment cleanup.
 - Archive backend: `KARDATA_ARCHIVE_TARGET=gcs|fs` (default `fs`),
   `KARDATA_GCS_BUCKET` + `KARDATA_ARCHIVE_PREFIX` for staging GCS,
   credentials via `GOOGLE_APPLICATION_CREDENTIALS`. Local runs stay on the

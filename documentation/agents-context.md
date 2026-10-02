@@ -34,6 +34,18 @@ output reserve. Trigger at 80%, target 50%; label heuristic counts as estimates.
 Native counting is preferred where supported. Failed/empty summaries and failed
 post-summary counts preserve context and return recoverable ContextBudgetError.
 No extractive fallback or empty placeholder substitutes for a failed summary.
+Explicitly incomplete provider output or unexpected summary tool calls are
+recoverable failures even when accompanied by nonempty text. Neither can replace
+working memory; the original history stays immutable. Missing terminal metadata
+retains the existing generic-adapter contract and does not prove completion.
+The shared whole-request measurement uses native counting first. Only the typed
+count-endpoint unavailability defined in agents-providers.md permits fallback to
+an estimated count of system/references,history,complete tool schemas and images.
+Every individual pre/post-summary measurement records its actual exact/estimated
+method; hook presence never labels a fallback exact. Generic counter errors or
+invalid counts still park recoverably. No error becomes zero or removes the
+100,000/window-minus-output-reserve caps. File image callers supply their existing
+conservative pixel estimate through this same helper rather than bypassing caps.
 
 Backend manual compaction repairs the parked continuation as well as its linked
 durable summary. Commit rejects active turns and changed checkpoints. New

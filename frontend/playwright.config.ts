@@ -1,17 +1,20 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const testPort = Number(process.env.KARDATA_E2E_PORT ?? 5174)
+if (!Number.isInteger(testPort) || testPort < 1024 || testPort > 65535) throw new Error('Invalid isolated E2E port')
+
 export default defineConfig({
   testDir: '../tests/frontend-e2e',
   fullyParallel: true,
   reporter: 'list',
   use: {
-    baseURL: 'http://127.0.0.1:5174',
+    baseURL: `http://127.0.0.1:${testPort}`,
     trace: 'on-first-retry',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: 'npm run dev -- --host 127.0.0.1 --port 5174',
-    url: 'http://127.0.0.1:5174',
+    command: `npm run dev -- --host 127.0.0.1 --port ${testPort} --strictPort`,
+    url: `http://127.0.0.1:${testPort}`,
     reuseExistingServer: false,
     env: {
       VITE_STAGING_API: '1',

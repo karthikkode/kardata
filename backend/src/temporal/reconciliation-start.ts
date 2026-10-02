@@ -15,3 +15,16 @@ export async function ensureExecutionReconciliation(): Promise<void> {
     } finally { await connection.close() }
   })
 }
+
+export const FILE_ADMISSION_WORKFLOW_ID = 'kardata-file-admission-reconciliation-v1'
+/** Separate workflow type: existing supervision histories stay replayable. */
+export async function ensureFileAdmissionReconciliation(): Promise<void> {
+  await logOp(createLogger({runId:FILE_ADMISSION_WORKFLOW_ID}),'file.admission.supervisor.start',async()=>{
+    const connection=await Connection.connect({address:temporalAddress(),connectTimeout:'5s'})
+    try{
+      const client=new Client({connection,namespace:temporalNamespace()})
+      try{await connection.withDeadline(Date.now()+5000,()=>client.workflow.start('fileAdmissionReconciliation',{workflowId:FILE_ADMISSION_WORKFLOW_ID,taskQueue:laneConfig('research').taskQueue,args:[{}]}))}
+      catch(error){if(!(error instanceof WorkflowExecutionAlreadyStartedError))throw error}
+    }finally{await connection.close()}
+  })
+}

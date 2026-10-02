@@ -4,6 +4,7 @@
 import {
   emptyUsage,
   ProviderError,
+  TokenCountUnavailableError,
   type ProviderRequest,
   type ProviderResponse,
   type StreamEvent,
@@ -61,16 +62,50 @@ function toInputItems(systemPrompt: string, request: ProviderRequest): unknown[]
   }
   return out
 }
+async function countJson(response: Response, aborted: Promise<never>): Promise<unknown> {
+  const reader = response.body?.getReader(), chunks: Uint8Array[] = []
+  let bytes = 0
+  if (reader) {
+    try {
+      for (;;) {
+        const chunk = await Promise.race([reader.read(), aborted])
+        if (chunk.done) break
+        bytes += chunk.value.byteLength
+        if (bytes > 64 * 1024) throw new ProviderError('Input token count response exceeds its byte limit', false)
+        chunks.push(chunk.value)
+      }
+    } catch (error) { await Promise.race([reader.cancel(), aborted]); throw error }
+    finally { reader.releaseLock() }
+  }
+  const buffer = new Uint8Array(bytes)
+  let at = 0
+  for (const chunk of chunks) { buffer.set(chunk, at); at += chunk.byteLength }
+  try { return JSON.parse(new TextDecoder().decode(buffer)) as unknown }
+  catch { throw new ProviderError('Invalid input token count JSON', false) }
+}
 export async function responsesInputTokens(config: ResponsesTransportConfig, request: ProviderRequest): Promise<number> {
-  const response = await (config.fetchFn ?? fetch)(`${config.baseUrl}/responses/input_tokens`, {
-    method: 'POST', headers: { authorization: `Bearer ${config.apiKey}`, 'content-type': 'application/json' },
-    signal: request.signal ? AbortSignal.any([request.signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000),
-    body: JSON.stringify({ model: config.model, input: toInputItems(request.systemPrompt, request), tools: request.tools.map((tool) => ({ type: 'function', name: tool.name, description: tool.description, parameters: tool.parameters })) }),
-  })
-  if (!response.ok) throw new ProviderError(`Input token count failed with HTTP ${response.status}`, response.status >= 500)
-  const body: unknown = await response.json()
-  if (!isRecord(body) || typeof body['input_tokens'] !== 'number' || !Number.isInteger(body['input_tokens']) || body['input_tokens'] < 0) throw new ProviderError('Invalid input token count', false)
-  return body['input_tokens']
+  const deadline = new AbortController(), signal = request.signal ? AbortSignal.any([request.signal, deadline.signal]) : deadline.signal
+  const timer = setTimeout(() => deadline.abort(), 15_000)
+  let onAbort: (() => void) | undefined
+  const aborted = new Promise<never>((_resolve, reject) => { onAbort = () => reject(new ProviderError('Input token count was cancelled or exceeded its deadline', true)); signal.addEventListener('abort', onAbort, { once: true }) })
+  try {
+    signal.throwIfAborted()
+    const headers = (config.fetchFn ?? fetch)(`${config.baseUrl}/responses/input_tokens`, {
+      method: 'POST', headers: { authorization: `Bearer ${config.apiKey}`, 'content-type': 'application/json' }, signal,
+      body: JSON.stringify({ model: config.model, input: toInputItems(request.systemPrompt, request), tools: request.tools.map((tool) => ({ type: 'function', name: tool.name, description: tool.description, parameters: tool.parameters })) }),
+    }).then(async (response) => { if (signal.aborted) await response.body?.cancel(); return response })
+    const response = await Promise.race([headers, aborted])
+    if ([404, 405, 501].includes(response.status)) { await Promise.race([response.body?.cancel() ?? Promise.resolve(), aborted]); throw new TokenCountUnavailableError('unsupported', response.status) }
+    if (!response.ok && response.status !== 402) { await Promise.race([response.body?.cancel() ?? Promise.resolve(), aborted]); throw new ProviderError(`Input token count failed with HTTP ${response.status}`, response.status >= 500 || response.status === 429) }
+    const body = await countJson(response, aborted)
+    if (response.status === 402) {
+      if (isRecord(body) && isRecord(body['error']) && body['error']['code'] === 'billing_not_configured') throw new TokenCountUnavailableError('billing_not_configured', 402)
+      throw new ProviderError('Input token count failed with HTTP 402', false)
+    }
+    if (!isRecord(body) || typeof body['input_tokens'] !== 'number' || !Number.isSafeInteger(body['input_tokens']) || body['input_tokens'] < 0) throw new ProviderError('Invalid input token count', false)
+    return body['input_tokens']
+  } catch (error) { if (error instanceof ProviderError) throw error; throw new ProviderError('Input token count request failed', true) }
+  finally { clearTimeout(timer); if (onAbort) signal.removeEventListener('abort', onAbort) }
 }
 
 function toToolChoice(choice: ToolChoice): unknown {
@@ -137,6 +172,11 @@ function parseOutputItems(output: unknown): { text: string; reasoning: string; t
   }
   return { text, reasoning, toolCalls }
 }
+function completionOf(status: unknown): ProviderResponse['completion'] {
+  if (status === 'completed') return 'complete'
+  if (status === 'incomplete' || status === 'failed' || status === 'cancelled') return 'incomplete'
+  return undefined
+}
 
 async function post(
   config: ResponsesTransportConfig,
@@ -185,7 +225,8 @@ export async function responsesCall(
   const body: unknown = await response.json()
   if (!isRecord(body)) throw new ProviderError('Malformed responses envelope', false)
   const { text, reasoning, toolCalls } = parseOutputItems(body['output'])
-  return { text, toolCalls, usage: parseUsage(body['usage']), ...(reasoning ? { reasoning } : {}) }
+  const completion = completionOf(body['status'])
+  return { text, toolCalls, usage: parseUsage(body['usage']), ...(reasoning ? { reasoning } : {}), ...(completion === undefined ? {} : { completion }) }
 }
 
 // Semantic streaming: output_item.added opens the slot, argument deltas
@@ -211,9 +252,10 @@ export async function* responsesStream(
   const pending = new Map<number, { callId: string; name: string; argsText: string; started: boolean }>()
   const summaryDeltaIndexes = new Set<string>()
   let usage = emptyUsage()
+  let completion: ProviderResponse['completion']
   for await (const data of readSseData(response)) {
       if (data === '[DONE]') {
-        yield { kind: 'done', usage }
+        yield { kind: 'done', usage, ...(completion === undefined ? {} : { completion }) }
         return
       }
       let event: unknown
@@ -224,8 +266,10 @@ export async function* responsesStream(
       }
       if (!isRecord(event) || typeof event['type'] !== 'string') continue
       const kind = event['type']
-      if (kind === 'response.completed' && isRecord(event['response'])) {
+      if ((kind === 'response.completed' || kind === 'response.incomplete') && isRecord(event['response'])) {
         usage = parseUsage(event['response']['usage'])
+        const terminal = completionOf(event['response']['status'])
+        if (terminal !== undefined && completion !== 'incomplete') completion = terminal
       } else if (kind === 'response.failed') {
         const failed = isRecord(event['response']) ? event['response'] : {}
         const error = isRecord(failed['error']) ? failed['error'] : {}
@@ -287,5 +331,5 @@ export async function* responsesStream(
         }
       }
   }
-  yield { kind: 'done', usage }
+  yield { kind: 'done', usage, ...(completion === undefined ? {} : { completion }) }
 }

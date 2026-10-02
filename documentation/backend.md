@@ -552,3 +552,76 @@ exact owner decision with its original key replays the recorded receipt without
 another work transition/journal event; changed arguments under that key conflict.
 The review client keeps the key for an exact failed submission and supplies it on
 retry; editing the reviewed work, decision or owner reason creates a new request.
+
+## Scoped in-app supervision alerts
+
+`GET /v1/alerts?beforeSeq=&limit=` feeds the existing Agents surface using durable
+`t.reconciliation.finding` events. Always validate a viewer-or-higher key, even
+in test/open app mode. Derive tenant/project/session/thread scope from the
+validated caller and stored ownership; exclude deleted/unattributed sessions.
+Descending exclusive sequence pagination defaults to20 and caps at100. Response
+data is `{items,nextBeforeSeq}`; items contain seq, at, sessionId, sessionTitle, threadKey,
+nullable sectorId, kind, response, threadStatus and state (`current-warning` or
+`historical`). Omit free-text reasons, execution IDs, leases and raw payloads.
+
+Only a closed-owner parking observation whose tagged recovery pause remains the
+latest thread-state event, whose thread is PAUSED, whose recovery epoch matches
+the current execution head, and which has no pending/uncertain starts is a current
+warning. All advisory or superseded observations are historical; age never
+proves liveness or justifies cancellation. Reads perform no recovery mutation. The route catches up the projector first;
+a still-behind bounded catch-up returns recoverable503 instead of stale current status.
+Delivery means supervisor → durable DB → authenticated UI; external Prometheus
+notification delivery remains a separate unconfigured capability.
+
+## Recoverable PDF file operations
+
+HTTP upload and MCP attachment call the shared backend attachment helper. PDF
+runner/archive dependencies are checked before publication; missing dependencies
+return a recoverable unavailable result without creating a file/job. Successful
+admission returns current stored metadata/progress, including a dispatch failure
+or fast completion rather than a stale initial processing snapshot. No provider
+call happens inline during PDF admission. The original scope/model/job binding
+and exact-version context approvals remain authoritative.
+An RPC start failure after retention records `dispatch_outcome_unknown`: the
+workflow may have started despite its lost acknowledgement. It requires explicit
+owner acknowledgement before another potentially paid dispatch. Missing local
+runner/archive capability is the separate proven pre-effect failure above.
+
+PDF upload returns a retained processing file after original archive verification;
+existing Temporal worker handles the approved full-PDF contract. Sector library
+rows may include `processing`: jobId, state, revision, totalImages(nullable until
+manifest sealing), completedImages, failedImages, uncertainImages, errorCode(nullable)
+and retryRequiresApproval. This contains no private image refs, provider bodies,
+leases or credentials. Original bytes remain available through existing owner file
+reads while agent knowledge reads await complete indexing.
+
+`POST /v1/sectors/{sectorId}/files/{fileId}/retry` always requires a validated
+approver key. Body names exact jobId/revision and allowDuplicatePaid(defaultfalse);
+unknown paid outcomes require true. Hidden files and stale revisions are conflicts;
+foreign scope is not-found. It retains file identity/receipts and queues a new
+workflow revision through the existing worker. It never approves context inclusion.
+Design authority: `documentation/plans/2026-10-01-pdf-ingestion.md`.
+
+The file body exposes `fullChars`, `textTruncated` and nullable `nextOrd`. A
+truncated preview advertises nextOrd0 to start browsing the complete indexed
+sections. `GET /v1/sectors/{sectorId}/files/{fileId}/units?fromOrd=&limit=` uses
+an inclusive ordinal cursor, defaults20 and caps100. It returns status, units,
+nextOrd and fullChars; processing/failed files return no staged units. Ownership,
+visibility and projector catch-up apply before reads. Original download availability
+means a visible retained original; owners reveal hidden files before reading.
+
+A proved original paid response can clear provider_outcome_unknown only for the
+same current attempt/revision when no other unknown request or hidden/manual pause
+blocks it. Known unusable output retains its exact paid record and requires explicit
+approver acknowledgement before another paid attempt. Private producer-sealed
+archive recovery never grants approval or general execution authority.
+
+### Queued file admission recovery
+
+Accepted uploads survive a process exit before Temporal admission through the
+existing worker's durable file-admission maintenance. Admission identity and
+nonce are private server bindings, absent from UI/MCP inputs and progress output.
+An ambiguous start remains visible as dispatch_outcome_unknown and requires
+owner review unless exact execution proof resolves it. Retry uses the existing
+approver/revision/possible-paid-duplication contract. DB protocol is authoritative
+in `documentation/db.md`; scan/activation limits in `documentation/agents-supervision.md`.

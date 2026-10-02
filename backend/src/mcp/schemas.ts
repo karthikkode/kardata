@@ -110,8 +110,8 @@ export const TOOL_SCHEMAS = {
   }),
   'db.attach_sector_document': z.object({
     sectorId: NonEmpty,
-    filename: NonEmpty,
-    contentBase64: NonEmpty,
+    filename: z.string().min(1).max(255),
+    contentBase64: z.string().min(1).max(12 * 1024 * 1024),
   }),
   'db.list_sector_documents': z.object({
     sectorId: NonEmpty,

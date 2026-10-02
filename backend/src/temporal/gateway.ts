@@ -15,6 +15,7 @@ import {
   appendEvent,
   reserveExecutionIntent,confirmExecutionIntent,markExecutionIntent,
   type TransactableDb,
+  reserveFileProcessingDispatch, markFileProcessingDispatchOutcome, readFileProcessingJob,
 } from '../db/index.js'
 import {
   Client,
@@ -71,6 +72,7 @@ export interface SkillInvocation {
 }
 
 export interface RunsGateway {
+  startFileProcessing?(jobId: string, revision: number): Promise<void>
   listRuns(sessionId?: string): Promise<RunInfo[]>
   getRun(runId: string): Promise<RunInfo | null>
   send(threadKey: string, text: string): Promise<CommandResult>
@@ -238,6 +240,44 @@ export class TemporalRunsGateway implements RunsGateway {
       })()
     }
     return this.clientPromise
+  }
+
+  async startFileProcessing(jobId: string, revision: number): Promise<void> {
+    if (!/^fjob-[a-f0-9]{48}$/.test(jobId) || !Number.isInteger(revision) || revision < 0) throw new TypeError('Invalid file processing admission.')
+    await logOp(createLogger({ op: 'file.processing.dispatch' }), 'file.processing.dispatch', async () => {
+      const job = await readFileProcessingJob(this.pool, jobId)
+      if (job.revision !== revision) throw new Error('A newer file revision owns admission.')
+      if (job.state === 'complete') return
+      const reservation = await reserveFileProcessingDispatch(this.pool, jobId, revision)
+      if (!reservation.nonce || !reservation.workflowId) {
+        throw new Error('File admission has no durable reservation identity.')
+      }
+      const nonce = reservation.nonce, workflowId = reservation.workflowId
+      const client = await this.client()
+      try {
+        if (reservation.ownsReservation) {
+          const handle = await client.connection.withDeadline(Date.now() + 2_000, () => client.workflow.start('fileProcessing', {
+            workflowId, taskQueue: laneConfig('research').taskQueue,
+            args: [{ jobId, revision, dispatchNonce: nonce }],
+          }))
+          await markFileProcessingDispatchOutcome(this.pool, { jobId, revision, nonce, workflowId, outcome: 'confirmed', executionId: handle.firstExecutionRunId })
+          return
+        }
+        const handle = client.workflow.getHandle(workflowId)
+        const description = await client.connection.withDeadline(Date.now() + 2_000, () => handle.describe())
+        if (description.type !== 'fileProcessing') throw new Error('File execution type does not match its reserved owner.')
+        const history = await client.connection.withDeadline(Date.now() + 2_000, () => client.connection.workflowService.getWorkflowExecutionHistory({ namespace: client.options.namespace, execution: { workflowId, runId: description.runId }, maximumPageSize: 20 }))
+        if (Buffer.byteLength(JSON.stringify(history.history)) > 1_048_576) throw new Error('File admission history exceeds its bounded inspection budget.')
+        const started = history.history?.events?.find((event) => event.workflowExecutionStartedEventAttributes)?.workflowExecutionStartedEventAttributes
+        const payloads = started?.input?.payloads
+        const args = payloads ? await defaultPayloadConverter.fromPayload(payloads[0]!) as { jobId?: string; revision?: number; dispatchNonce?: string } : null
+        if (!args || args.jobId !== jobId || args.revision !== revision || args.dispatchNonce !== reservation.nonce) throw new Error('File execution input does not match its reserved owner.')
+        await markFileProcessingDispatchOutcome(this.pool, { jobId, revision, nonce, workflowId, outcome: 'confirmed', executionId: description.runId })
+      } catch (error) {
+        await markFileProcessingDispatchOutcome(this.pool, { jobId, revision, nonce, workflowId, outcome: 'uncertain' })
+        throw new Error('File dispatch outcome requires durable owner inspection.', { cause: error })
+      }
+    }, { jobId, revision })
   }
 
   async listRuns(sessionId?: string): Promise<RunInfo[]> {

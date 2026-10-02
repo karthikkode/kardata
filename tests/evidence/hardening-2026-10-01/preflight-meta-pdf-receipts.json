@@ -1,0 +1,88 @@
+{
+  "at": "2026-10-02T03:57:18.984Z",
+  "jobId": "fjob-6a344bc4b8629fac38c5e0ec2ceb1c42a5ef52ea67ccff22",
+  "provider": "meta",
+  "model": "muse-spark-1.3-contributor",
+  "state": "complete",
+  "totalImages": 4,
+  "completedImages": 4,
+  "extractionHash": "1c576f59daecdef0403088e517fa268d04faf906822ed312151069b6287c9b5f",
+  "images": [
+    {
+      "imageId": "img-c15e4f77e4611435c560da7b822f5b5371c073f3417e0e6f223932a6f914f292",
+      "page": 1,
+      "ordinal": 0,
+      "attempt": 1,
+      "state": "complete",
+      "requestStartedAt": "2026-10-02T03:56:00.030Z",
+      "completion": "complete",
+      "textChars": 640,
+      "usage": {
+        "inputTokens": 178,
+        "outputTokens": 1050,
+        "cacheHitTokens": 0,
+        "cacheMissTokens": 178,
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0
+      },
+      "hasResultRef": true
+    },
+    {
+      "imageId": "img-af9eff025663d8f8a7f06abeac04916673f52bdd57cfc6a8164d48c48ac51e8f",
+      "page": 1,
+      "ordinal": 1,
+      "attempt": 1,
+      "state": "complete",
+      "requestStartedAt": "2026-10-02T03:56:17.609Z",
+      "completion": "complete",
+      "textChars": 685,
+      "usage": {
+        "inputTokens": 2698,
+        "outputTokens": 679,
+        "cacheHitTokens": 0,
+        "cacheMissTokens": 2698,
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0
+      },
+      "hasResultRef": true
+    },
+    {
+      "imageId": "img-d5c0563962702be93b4f495d33b78063ca67b123410fd28a678b8e2d0e25ac89",
+      "page": 2,
+      "ordinal": 0,
+      "attempt": 1,
+      "state": "complete",
+      "requestStartedAt": "2026-10-02T03:56:28.262Z",
+      "completion": "complete",
+      "textChars": 639,
+      "usage": {
+        "inputTokens": 178,
+        "outputTokens": 1085,
+        "cacheHitTokens": 0,
+        "cacheMissTokens": 178,
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0
+      },
+      "hasResultRef": true
+    },
+    {
+      "imageId": "img-74a58d529f54d2d597f903545cd82f1c95f01143c20220260f51db751587a5c5",
+      "page": 2,
+      "ordinal": 1,
+      "attempt": 1,
+      "state": "complete",
+      "requestStartedAt": "2026-10-02T03:56:46.371Z",
+      "completion": "complete",
+      "textChars": 623,
+      "usage": {
+        "inputTokens": 2698,
+        "outputTokens": 628,
+        "cacheHitTokens": 0,
+        "cacheMissTokens": 2698,
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0
+      },
+      "hasResultRef": true
+    }
+  ]
+}

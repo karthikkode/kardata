@@ -12,9 +12,11 @@ export type ContextChange = z.infer<typeof Change>
 const Preview = z.object({ sources: z.array(z.object({ ref: ContextFileRef, units: z.array(z.object({ ord: z.number(), text: z.string(), uncertain: z.boolean() })) })).optional(), change: Change, units: z.array(z.object({ ord: z.number(), text: z.string(), uncertain: z.boolean() })) })
 export type ContextPreview = z.infer<typeof Preview>
 export const getContextPreview = (config: StagingConfig, id: string, proposal: string) => read(config, 'GET', `${sectorPath(id)}/global-context/proposals/${encodeURIComponent(proposal)}`, Preview)
-const File = z.object({ id: z.string(), filename: z.string(), status: z.string(), source: z.string(), hash: z.string(), hidden: z.boolean(), included: z.boolean(), kind: z.enum(['document','artifact']), sessionId: z.string().optional() })
+export const FileProcessingProgress = z.object({ jobId: z.string(), state: z.enum(['queued','processing','paused','failed','uncertain','complete']), revision: z.number().int().nonnegative(), totalImages: z.number().int().nonnegative().nullable(), completedImages: z.number().int().nonnegative(), failedImages: z.number().int().nonnegative(), uncertainImages: z.number().int().nonnegative(), errorCode: z.string().nullable(), retryRequiresApproval: z.boolean() })
+export type FileProcessingProgress = z.infer<typeof FileProcessingProgress>
+const File = z.object({ id: z.string(), filename: z.string(), status: z.string(), source: z.string(), hash: z.string(), hidden: z.boolean(), included: z.boolean(), kind: z.enum(['document','artifact']), sessionId: z.string().optional(), processing: FileProcessingProgress.optional() })
 export type LibraryFile = z.infer<typeof File>
-const FileBody = z.object({ filename: z.string(), mediaType: z.string(), text: z.string(), originalAvailable: z.boolean(), contentBase64: z.string().optional() })
+const FileBody = z.object({ filename: z.string(), mediaType: z.string(), text: z.string(), originalAvailable: z.boolean(), contentBase64: z.string().optional(), fullChars: z.number().nonnegative().optional(), textTruncated: z.boolean().optional(), nextOrd: z.number().int().nonnegative().nullable().optional() })
 export type SectorFileBody = z.infer<typeof FileBody>
 const Local = z.object({ pendingResponse: z.object({ round: z.number() }).optional(), task: z.string().optional(), sourceRefs: z.array(ContextFileRef).optional(), contextBlocked: z.string().optional(), pendingOperations: z.array(z.object({ operationId: z.string(), toolName: z.string(), callId: z.string(), reason: z.string() })).optional(), threadKey: z.string(), notes: z.string(), summary: z.string(), coveredSeq: z.number(), version: z.number(), usage: z.object({ inputTokens: z.number(), budget: z.number(), window: z.number(), method: z.enum(['exact','estimated']) }).optional() })
 export type LocalContext = z.infer<typeof Local>
@@ -59,3 +61,9 @@ export const listExecutionRecords = (config: StagingConfig, thread: string, afte
 export const getExecutionRecord = (config: StagingConfig, thread: string, seq: number) => read(config, 'GET', `/v1/threads/${encodeURIComponent(thread)}/execution-records/${seq}`, ExecutionRecordBody)
 
 export const reviewResearchWork = (config: StagingConfig, sectorId: string, workId: string, planVersion: number, receiptVersion: string, decision: 'retry' | 'exclude', reason: string, idempotencyKey: string = crypto.randomUUID()) => read(config, 'POST', `${sectorPath(sectorId)}/work/${encodeURIComponent(workId)}/review`, WorkItem, { planVersion, receiptVersion, decision, reason }, idempotencyKey)
+
+export const retryFileProcessing = (config: StagingConfig, sectorId: string, fileId: string, jobId: string, revision: number, allowDuplicatePaid: boolean) => read(config, 'POST', `${sectorPath(sectorId)}/files/${encodeURIComponent(fileId)}/retry`, FileProcessingProgress, { jobId, revision, allowDuplicatePaid })
+
+export const FileUnitsPage = z.object({ status: z.string(), units: z.array(z.object({ ord: z.number().int().nonnegative(), kind: z.string(), text: z.string(), uncertain: z.boolean(), page: z.number().int().positive().optional(), imageOrdinal: z.number().int().nonnegative().optional(), imageRole: z.enum(['embedded','page-visual']).optional(), imageId: z.string().optional() })).max(100), nextOrd: z.number().int().nonnegative().nullable(), fullChars: z.number().nonnegative() })
+export type FileUnitsPage = z.infer<typeof FileUnitsPage>
+export const getFileUnitsPage = (config: StagingConfig, sectorId: string, fileId: string, fromOrd: number) => read(config, 'GET', `${sectorPath(sectorId)}/files/${encodeURIComponent(fileId)}/units?fromOrd=${fromOrd}&limit=20`, FileUnitsPage)

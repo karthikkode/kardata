@@ -13,6 +13,17 @@ delta accumulator.
 - `Usage` normalized across providers: input, output, cache read, cache write,
   cache hit, cache miss. Missing counters stay zero. Cost is computed by Karbot
   metering, never trusted from a vendor field.
+- `ProviderResponse.completion` is optional `complete|incomplete`. Chat terminal
+  finish reasons `stop`, `tool_calls` and legacy `function_call` prove complete;
+  `length` and `content_filter` prove incomplete. Responses terminal status
+  `completed` proves complete; `incomplete`, `failed` and `cancelled` prove
+  incomplete. Missing, unfamiliar or still-running metadata remains unknown
+  (field absent). Partial text, calls and usage stay preserved; completion does
+  not authorize another paid call or claim that the answer is factually correct.
+  Stream terminal metadata carries the same optional field through normalized
+  response checkpoints and resume; socket EOF or a plain done frame alone never
+  proves complete. Existing turn behavior is unchanged. File image publication
+  requires explicit complete status under the separate PDF ingestion contract.
 - Stream events: `text_delta`, `toolcall_start(index,key)`,
   `toolcall_delta(index,string-append)`, `toolcall_end(index,call)`, `done`.
 
@@ -25,6 +36,9 @@ delta accumulator.
   `[DONE]`. LF and CRLF frame separators stream incrementally.
 - `FakeProvider` consumes scripted steps in order; exhaustion throws. Errors
   are retryable only when the step says so.
+  Successful fixtures default to explicit complete generation; a step can script
+  incomplete generation or null completion for unknown metadata. This is fixture
+  behavior, not evidence of live Meta terminal metadata.
 
 ## Adapters
 
@@ -38,9 +52,18 @@ delta accumulator.
   The provider's private raw reasoning is not exposed as readable text;
   summaries may be absent for simple turns. Meta Spark 1.3 and 1.3
   Contributor are live-verified on this path.
+  Meta Responses likewise accepts only auto tool choice; the Meta adapter clamps
+  that wire choice while preserving an empty tool list for image analysis. The
+  generic Responses transport does not inherit this Meta-specific restriction.
 - Generic OpenAI-compatible: Chat wire, config-only binding.
 - HTTP mapping: 429 and 5xx are retryable `ProviderError`; anything else is
   fatal. Unparseable tool arguments fail loudly, never silently dropped.
+- Input-token counting has a narrower availability contract. Its endpoint alone
+  may throw typed `TokenCountUnavailableError` for404/405/501 or402 with exact
+  error code `billing_not_configured`. Error JSON is bounded and only whitelisted
+  code is classified; raw message/body is never logged. Other402/auth/429/503,
+  malformed replies and transport failures remain errors,never zero counts or
+  permission to guess exact usage. Generation still uses the same key/model.
 
 ## Routing (T2.5)
 

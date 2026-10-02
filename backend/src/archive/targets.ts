@@ -286,10 +286,46 @@ async function sourceIO<T>(work: (signal: AbortSignal) => Promise<T>, outer?: Ab
       rejectAbort = () => reject(signal.reason)
       signal.addEventListener('abort', rejectAbort, { once: true })
     })
-    return await Promise.race([work(signal), aborted])
+    return await Promise.race([Promise.resolve().then(() => { signal.throwIfAborted(); return work(signal) }), aborted])
   } finally {
     clearTimeout(timer)
     if (rejectAbort) signal.removeEventListener('abort', rejectAbort)
     deadline.abort()
   }
+}
+
+/** Bound file-storage operations even when a target ignores cancellation.
+ * Writes use deterministic immutable receipt keys; an expired acknowledgement
+ * never proves that the write did not happen. Callers verify before replay. */
+const archiveDeadlineLimits = new WeakMap<ArchiveTarget, number>()
+export function withArchiveDeadline(target: ArchiveTarget, timeoutMs = 30_000): ArchiveTarget {
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 300_000) throw new TypeError('Invalid archive operation deadline.')
+  if ((archiveDeadlineLimits.get(target) ?? Infinity) <= timeoutMs) return target
+  const logger = createLogger({ op: 'file.archive' })
+  const keyHash = (key: string) => createHash('sha256').update(key).digest('hex')
+  async function run<T>(work: (signal: AbortSignal) => Promise<T>, external?: AbortSignal): Promise<T> {
+    const controller = new AbortController()
+    const signal = external ? AbortSignal.any([controller.signal, external]) : controller.signal
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let rejectAbort: () => void = () => undefined
+    const aborted = new Promise<never>((_resolve, reject) => {
+      rejectAbort = () => reject(new ResearchSourceError('source_timeout', 'File storage operation did not settle before its deadline.'))
+      signal.addEventListener('abort', rejectAbort, { once: true })
+    })
+    try {
+      signal.throwIfAborted()
+      timer = setTimeout(() => controller.abort(), timeoutMs)
+      return await Promise.race([Promise.resolve().then(() => { signal.throwIfAborted(); return work(signal) }), aborted])
+    } finally {
+      if (timer) clearTimeout(timer)
+      signal.removeEventListener('abort', rejectAbort)
+    }
+  }
+  const bounded: ArchiveTarget = {
+    write: (key, body, signal) => logOp(logger, 'file.archive.write', () => run((boundedSignal) => target.write(key, body, boundedSignal), signal), { keyHash: keyHash(key), bytes: Buffer.byteLength(body) }),
+    read: (key, maxBytes, signal) => logOp(logger, 'file.archive.read', () => run((boundedSignal) => target.read(key, maxBytes, boundedSignal), signal), { keyHash: keyHash(key), maxBytes }),
+    list: (prefix) => logOp(logger, 'file.archive.list', () => run(() => target.list(prefix)), { keyHash: keyHash(prefix) }),
+  }
+  archiveDeadlineLimits.set(bounded, timeoutMs)
+  return bounded
 }

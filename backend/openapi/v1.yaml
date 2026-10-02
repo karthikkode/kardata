@@ -394,6 +394,31 @@ paths:
             text/event-stream:
               schema:
                 $ref: '#/components/schemas/StreamEvent'
+  /v1/alerts:
+    get:
+      operationId: listSupervisionAlerts
+      tags: [ops]
+      summary: Authenticated scoped durable supervision notices, never raw fleet payloads.
+      parameters:
+        - name: beforeSeq
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 9007199254740991 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Newest-first scoped notices with exclusive sequence pagination.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupervisionAlertEnvelope'
+        '400':
+          description: Invalid page parameters.
+        '403':
+          description: Missing, unknown or mismatched scoped credentials, including open app mode.
+        '503':
+          description: Database unavailable.
   /v1/runs:
     get:
       operationId: listRuns
@@ -869,13 +894,18 @@ paths:
                   maxLength: 255
                 contentBase64:
                   type: string
+                  maxLength: 12582912
       responses:
         '201':
-          description: Attached document metadata.
+          description: Current attached metadata. PDFs report durable processing progress and are not indexed until complete.
           content:
             application/json:
               schema:
                 type: object
+                required: [ok, data]
+                properties:
+                  ok: { const: true }
+                  data: { $ref: '#/components/schemas/AttachedSectorDocument' }
         '400':
           description: Bad input or unsupported type.
           content:
@@ -884,6 +914,12 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
         '404':
           $ref: '#/components/responses/NotFound'
+        '503':
+          description: PDF file-processing runner or archive unavailable before file/job publication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /v1/sectors/{sectorId}/context/compact:
     post:
       operationId: compactSectorContext
@@ -1966,6 +2002,76 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+  /v1/sectors/{sectorId}/files/{fileId}/units:
+    get:
+      operationId: getSectorFileUnits
+      tags: [files]
+      summary: Scoped indexed sections; processing files expose no staged content.
+      parameters:
+        - $ref: '#/components/parameters/SectorId'
+        - name: fileId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: fromOrd
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 2147483647, default: 0 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Ordinals at or after fromOrd; nextOrd starts the next page.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/FileUnitsPage' }
+        '403': { description: Missing credentials or hidden file. }
+        '404': { description: File outside scope or unknown. }
+        '503': { description: Projection or database unavailable. }
+  /v1/sectors/{sectorId}/files/{fileId}/retry:
+    post:
+      operationId: retryFileProcessing
+      tags: [files]
+      summary: Approver retry of a retained PDF job with exact revision and paid-outcome acknowledgement.
+      parameters:
+        - $ref: '#/components/parameters/SectorId'
+        - name: fileId
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [jobId, revision]
+              properties:
+                jobId: { type: string }
+                revision: { type: integer, minimum: 0 }
+                allowDuplicatePaid: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Retained file job queued at the new revision.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok: { type: boolean, const: true }
+                  data: { $ref: '#/components/schemas/FileProcessingProgress' }
+        '403': { description: Validated approver key required. }
+        '404': { description: File/job outside scope or unknown. }
+        '409': { description: Hidden file, stale revision or paid outcome requiring explicit acknowledgement. }
+        '503': { description: Existing file worker unavailable. }
   /v1/sectors/{sectorId}/files/{fileId}/body:
     get:
       operationId: getSectorFileBody
@@ -2125,6 +2231,38 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorEnvelope'
   schemas:
+    SupervisionAlert:
+      type: object
+      additionalProperties: false
+      required: [seq, at, sessionId, sessionTitle, threadKey, sectorId, kind, response, state, threadStatus]
+      properties:
+        seq: { type: integer, minimum: 1 }
+        at: { type: string, format: date-time }
+        sessionId: { type: string }
+        sessionTitle: { type: string }
+        threadKey: { type: string }
+        sectorId: { type: [string, 'null'] }
+        kind: { type: string, enum: [closed-owner, missing-heartbeat, stalled-progress, queue-starvation, owner-unavailable] }
+        response: { type: string, enum: [observe, park] }
+        state: { type: string, enum: [current-warning, historical] }
+        threadStatus: { type: string }
+    SupervisionAlertPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextBeforeSeq]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/SupervisionAlert' }
+        nextBeforeSeq: { type: [integer, 'null'], minimum: 1 }
+    SupervisionAlertEnvelope:
+      type: object
+      additionalProperties: false
+      required: [ok, data]
+      properties:
+        ok: { type: boolean, const: true }
+        data: { $ref: '#/components/schemas/SupervisionAlertPage' }
     McpRequest:
       type: object
       description: JSON-RPC request for POST /mcp (initialize, tools/list, tools/call).
@@ -2979,6 +3117,61 @@ components:
             method: { type: string, enum: [exact, estimated] }
           additionalProperties: false
       additionalProperties: false
+    AttachedSectorDocument:
+      type: object
+      additionalProperties: false
+      required: [id, sectorId, filename, mediaType, chars, sha256, createdAt, status, unitCount]
+      properties:
+        id: { type: string }
+        sectorId: { type: string }
+        filename: { type: string, maxLength: 255 }
+        mediaType: { type: string }
+        chars: { type: integer, minimum: 0 }
+        sha256: { type: string }
+        createdAt: { type: string, format: date-time }
+        status: { type: string, enum: [indexed, processing, needs-ocr, failed] }
+        unitCount: { type: integer, minimum: 0 }
+        detail: { type: string }
+        processing: { $ref: '#/components/schemas/FileProcessingProgress' }
+    FileIndexedUnit:
+      type: object
+      additionalProperties: false
+      required: [ord, kind, text, uncertain]
+      properties:
+        ord: { type: integer, minimum: 0 }
+        kind: { type: string }
+        text: { type: string, maxLength: 2000 }
+        uncertain: { type: boolean }
+        page: { type: integer, minimum: 1 }
+        imageId: { type: string }
+        imageOrdinal: { type: integer, minimum: 0 }
+        imageRole: { type: string, enum: [embedded, page-visual] }
+    FileUnitsPage:
+      type: object
+      additionalProperties: false
+      required: [status, units, nextOrd, fullChars]
+      properties:
+        status: { type: string, enum: [indexed, processing, failed, needs-ocr] }
+        units:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/FileIndexedUnit' }
+        nextOrd: { type: [integer, 'null'], minimum: 0 }
+        fullChars: { type: integer, minimum: 0 }
+    FileProcessingProgress:
+      type: object
+      additionalProperties: false
+      required: [jobId, state, revision, totalImages, completedImages, failedImages, uncertainImages, errorCode, retryRequiresApproval]
+      properties:
+        jobId: { type: string }
+        state: { type: string, enum: [queued, processing, paused, failed, uncertain, complete] }
+        revision: { type: integer, minimum: 0 }
+        totalImages: { type: [integer, 'null'], minimum: 0 }
+        completedImages: { type: integer, minimum: 0 }
+        failedImages: { type: integer, minimum: 0 }
+        uncertainImages: { type: integer, minimum: 0 }
+        errorCode: { type: [string, 'null'] }
+        retryRequiresApproval: { type: boolean }
     LibraryFile:
       type: object
       required:
@@ -3012,6 +3205,7 @@ components:
             - artifact
         sessionId: *a1
         documentId: *a1
+        processing: { $ref: '#/components/schemas/FileProcessingProgress' }
       additionalProperties: false
     ResearchWork:
       type: object
@@ -3228,5 +3422,8 @@ components:
         mediaType: { type: string }
         text: { type: string }
         originalAvailable: { type: boolean }
+        fullChars: { type: integer, minimum: 0 }
+        textTruncated: { type: boolean }
+        nextOrd: { type: [integer, 'null'], minimum: 0 }
         contentBase64: { type: string, contentEncoding: base64 }
       additionalProperties: false

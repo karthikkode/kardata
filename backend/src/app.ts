@@ -19,6 +19,7 @@ import { fetchMetaModels, type ModelCatalog } from './providers/catalog.js'
 import { providerRoutes } from './routes/providers.js'
 import { registerRateLimit } from './routes/http.js'
 import { runRoutes } from './routes/runs.js'
+import { alertRoutes } from './routes/alerts.js'
 import { sectorRoutes } from './routes/sectors.js'
 import { sessionRoutes } from './routes/sessions.js'
 import { skillRoutes } from './routes/skills.js'
@@ -119,6 +120,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   workspaceRoutes(app)
   executionRecordRoutes(app)
   runRoutes(app)
+  alertRoutes(app)
   commandRoutes(app)
   inspectorRoutes(app)
   skillRoutes(app)

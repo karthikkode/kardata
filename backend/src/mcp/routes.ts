@@ -146,7 +146,7 @@ async function serveMcp(
   // The runs gateway satisfies every runner interface structurally
   // (sweep starter, thread messenger, subagent delegator); absent runners
   // fail their tools closed instead of half-acting.
-  const server = createMcpServer({ pool, scope: auth.scope, role: auth.role, keyId: auth.keyId, executionThread, ...(toolLogger ? { logger: toolLogger } : {}), ...(runs ? { runs, messenger: runs, delegator: runs, runReader: runs } : {}), ...(archive ? { archive } : {}) }, grant)
+  const server = createMcpServer({ pool, scope: auth.scope, role: auth.role, keyId: auth.keyId, executionThread, ...(toolLogger ? { logger: toolLogger } : {}), ...(runs ? { runs, messenger: runs, delegator: runs, runReader: runs } : {}), ...(typeof runs?.startFileProcessing === 'function' ? { fileProcessor: { startFileProcessing: runs.startFileProcessing.bind(runs) } } : {}), ...(archive ? { archive } : {}) }, grant)
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,

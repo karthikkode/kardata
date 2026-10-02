@@ -1,9 +1,51 @@
 import { describe, expect, it } from 'vitest'
 import { FakeProvider } from './fake.js'
-import { assembledTokens, compactContext, contextInputBudget, ContextBudgetError } from './compaction.js'
-import type { ChatMessage, ProviderAdapter } from './providers.js'
+import { assembledTokens, compactContext, contextInputBudget, ContextBudgetError, measureInputTokens } from './compaction.js'
+import { TokenCountUnavailableError, ProviderError, type ChatMessage, type ProviderAdapter } from './providers.js'
+import { MetaAdapter } from './meta.js'
 
 describe('independent compaction', () => {
+  it('uses a caller conservative whole-request estimate only for typed counting unavailability', async () => {
+    const fake = new FakeProvider([]), request = { systemPrompt: 'TEST', messages: [], tools: [], toolChoice: { mode: 'none' as const } }
+    const provider = { ...fake, providerName: 'TEST', chat: fake.chat.bind(fake), chatStream: fake.chatStream.bind(fake), countInputTokens: async () => { throw new TokenCountUnavailableError('billing_not_configured', 402) } }
+    expect(await measureInputTokens(provider, request, () => 4321)).toEqual({ inputTokens: 4321, method: 'estimated' })
+    const failure = new ProviderError('TEST unrelated counter failure', true)
+    await expect(measureInputTokens({ ...provider, countInputTokens: async () => { throw failure } }, request, () => 0)).rejects.toBe(failure)
+    expect(fake.calls).toEqual([])
+  })
+  it.each([NaN, -1, 0.5, Number.MAX_SAFE_INTEGER + 1])('rejects invalid native count %s rather than estimating or using zero', async (count) => {
+    const fake = new FakeProvider([]), provider = { providerName: 'TEST', chat: fake.chat.bind(fake), chatStream: fake.chatStream.bind(fake), countInputTokens: async () => count }
+    await expect(measureInputTokens(provider, { systemPrompt: 'TEST', messages: [], tools: [], toolChoice: { mode: 'auto' } }, () => 0)).rejects.toBeInstanceOf(ContextBudgetError)
+  })
+  it('records exact then estimated when only the post-summary count endpoint becomes unavailable', async () => {
+    const fake = new FakeProvider([{ text: 'TEST retained objectives and source identifiers.' }]), methods: string[] = []
+    let counts = 0
+    const provider = { providerName: 'TEST', chat: fake.chat.bind(fake), chatStream: fake.chatStream.bind(fake), countInputTokens: async () => { if (++counts === 1) return 90000; throw new TokenCountUnavailableError('unsupported', 404) } }
+    const messages: ChatMessage[] = Array.from({ length: 8 }, (_, index) => ({ role: 'user', text: `TEST original ${index}`, contextSeq: index + 1 }))
+    const original = JSON.stringify(messages)
+    expect((await compactContext({ provider, system: 'TEST', messages, tools: [], onMeasurement: async (value) => { methods.push(value.method) } })).needed).toBe(true)
+    expect(methods).toEqual(['exact', 'estimated']); expect(JSON.stringify(messages)).toBe(original)
+    expect(fake.calls).toHaveLength(1)
+  })
+  it('uses a labeled whole-request estimate for exact count-endpoint unavailability without a generation call', async () => {
+    const calls: string[] = []
+    const provider = new MetaAdapter({ apiKey: 'TEST key', model: 'TEST model', mode: 'responses', fetchFn: async (url) => {
+      calls.push(String(url))
+      return new Response(JSON.stringify({ error: { code: 'billing_not_configured', message: 'TEST count endpoint only' } }), { status: 402 })
+    } })
+    const system = 'TEST instructions\n\nTEST source references', messages: ChatMessage[] = [{ role: 'user', text: 'TEST task', images: [{ mediaType: 'image/png', base64: 'TEST image' }] }]
+    const tools = [{ name: 'TEST lookup', description: 'TEST full schema ' + 'A'.repeat(2000), parameters: { type: 'object' as const, properties: { TESTfield: { type: 'string' } } } }]
+    const measurements: Array<{ inputTokens: number; method: string }> = []
+    expect(await compactContext({ provider, system, messages, tools, onMeasurement: async (value) => { measurements.push(value) } })).toEqual({ needed: false })
+    expect(measurements).toHaveLength(1)
+    expect(measurements[0]).toMatchObject({ inputTokens: assembledTokens(system, messages, tools), method: 'estimated' })
+    expect(measurements[0]!.inputTokens).toBeGreaterThan(1500)
+    expect(calls.every((url) => url.endsWith('/responses/input_tokens'))).toBe(true)
+  })
+  it('keeps unrelated count503 failures parked with originals and no generation', async () => {
+    const provider = new MetaAdapter({ apiKey: 'TEST key', model: 'TEST model', mode: 'responses', fetchFn: async () => new Response('{}', { status: 503 }) })
+    await expect(compactContext({ provider, system: 'TEST', messages: [{ role: 'user', text: 'TEST retained' }], tools: [] })).rejects.toBeInstanceOf(ContextBudgetError)
+  })
   it('parks summarizer and post-summary measurement failures without losing their cause', async () => {
     const failure = new Error('provider unavailable')
     const messages: ChatMessage[] = Array.from({ length: 8 }, (_, i) => ({ role: 'user', text: `objective ${i}` }))
@@ -48,6 +90,14 @@ describe('independent compaction', () => {
     if (!outcome.needed) throw new Error('Expected a summary')
     expect(outcome.view.some((message) => message.role === 'tool')).toBe(false)
     expect(outcome.summary.coveredSeq).toBeGreaterThanOrEqual(3)
+  })
+  it.each(['incomplete', 'tool-call'] as const)('preserves original history when the summary is %s', async (failure) => {
+    const messages: ChatMessage[] = Array.from({ length: 6 }, (_, i) => ({ role: 'user', text: `required decision ${i}`, contextSeq: i + 1 }))
+    const original = structuredClone(messages)
+    const provider = new FakeProvider([{ text: 'Partial working memory', ...(failure === 'incomplete' ? { completion: 'incomplete' as const } : { toolCalls: [{ id: 'unexpected', name: 'mutate', args: {} }] }) }])
+    await expect(compactContext({ provider, system: '', messages, tools: [], force: true })).rejects.toBeInstanceOf(ContextBudgetError)
+    expect(messages).toEqual(original)
+    expect(provider.calls).toHaveLength(1)
   })
   it('preserves originals and fails visibly when summary or budget cannot fit', async () => {
     const messages: ChatMessage[] = Array.from({ length: 6 }, (_, i) => ({ role: 'user', text: `decision ${i}` }))

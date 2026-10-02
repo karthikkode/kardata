@@ -1,3 +1,5 @@
+import { useSupervisionAlerts } from './data/alerts'
+import { SupervisionAlertsPanel } from './components/SupervisionAlertsPanel'
 import { useEffect, useRef, useState } from 'react'
 import { ChatPanel, type ChatScope } from './components/ChatPanel'
 import { Dashboard, type ResearchList } from './components/Dashboard'
@@ -56,6 +58,7 @@ export default function App() {
   // the app explains instead of inventing data. Read once; flipping the
   // flag reloads.
   const [staging] = useState<StagingConfig | null>(() => stagingConfig())
+  const alerts = useSupervisionAlerts(staging, section === 'Agents')
 
   function focusChatToggle() {
     requestAnimationFrame(() => {
@@ -322,10 +325,13 @@ export default function App() {
                 onBack={() => setNav({ section: 'Researches', sectorId: null })}
               />
             ) : section === 'Agents' ? (
+              <>
+              <SupervisionAlertsPanel resource={alerts.resource} viewingOlder={alerts.viewingOlder} onOlder={alerts.older} onLatest={alerts.latest} />
               <RunsPanel
                 config={staging}
                 onBack={() => setNav({ section: 'Overview', sectorId: null })}
               />
+              </>
             ) : section === 'Models' ? (
               <ModelsPanel
                 config={staging}

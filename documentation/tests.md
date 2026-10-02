@@ -25,6 +25,24 @@ UUID-suffixed database per invocation. The configured `TEST_DATABASE_URL`
 is a connection template only, never the target of migration down-tests.
 Do not reuse databases from interrupted tests or automatically purge them.
 Migration round-trips own isolated databases just like other live suites.
+With `TEST_DATABASE_URL`, Vitest prepares one schema-only PostgreSQL template
+before worker test clocks start. Its identity binds a fresh verification-run UUID
+to the ordered migration filenames and bytes. Bootstrap holds an advisory lock;
+only a fully migrated, empty, owned source with the matching identity may be
+sealed (`ALLOW_CONNECTIONS false`) and cloned. Every invocation still creates a
+fresh UUID database, using PostgreSQL's default WAL_LOG clone strategy. Partial,
+contaminated, unsealed or differently owned templates fail closed and are left
+for inspection, never reused or deleted. The configured base is never modified.
+Direct harness callers without the Vitest run identity retain fresh migration
+setup. Clones do not inherit database-level settings or grants; migrations must
+remain schema-local. Migration round-trip tests still execute the real migrator.
+Template preparation and fresh database creation emit coded start/done/error
+boundary logs without connection strings or exception bodies. Connections use
+the migrator's 10-second connection, 30-second lock and 300-second statement
+bounds. Every clone checks the migration set and absence of application rows
+before being returned, including externally contaminated, resealed sources.
+The pattern follows [PostgreSQL CREATE DATABASE](https://www.postgresql.org/docs/16/sql-createdatabase.html)
+and [template database rules](https://www.postgresql.org/docs/16/manage-ag-templatedbs.html).
 Workflow queries and persisted thread state are separate observation boundaries:
 recovery tests wait for both within their existing deadline before sending Resume.
 Projector catch-up alone cannot prove that an in-flight event activity committed.
@@ -330,3 +348,86 @@ page navigation fails. Browser closure evidence is in
 ## Matching isolated deployment UI gate
 
 `KARDATA_RUNTIME_PREFLIGHT_URL=http://127.0.0.1:15173 npm run test:e2e -w frontend -- runtime-preflight.spec.ts` operates an already running, owner-isolated production stack. The UI must already carry its dedicated local test credential. It creates only labeled test sectors/chats/context/files through UI controls, verifies exact downloaded bytes and retained drafts, and leaves records intact for inspection. It never intercepts routes, starts research, calls Meta or populates companies. The gate explicitly skips without its target and denies the ordinary shared UI port5173. Do not use it against pilot data. Retained deployment details: [runtime proof](../docs/deep-checks/runtime-preflight.md).
+
+## In-app alert and OCR gates
+
+`TEST_DATABASE_URL=<owned-isolated-base> npm test -w @kardata/backend -- alerts.test.ts` covers authenticated scope, paging, exact recovery warnings and historical/superseded observations using production DB functions. It explicitly skips without the DB gate. `npm test -w frontend -- supervision-alerts.test.tsx alerts-api.test.ts` covers readable states, permission handling, keyed validation and paging controls. `npm run test:e2e -w frontend -- alerts.spec.ts` captures mobile/desktop, light/dark, reduced-motion, long-reference, paging and denied/retry fixtures; it is synthetic HTTP evidence, not live supervision or external notification proof.
+
+`npm test -w @kardata/backend -- file-pipeline.test.ts ocr.test.ts` pins safe OCR failure details, unit/response/transcript limits, confidence validity and deadlines with injected adapters and PDF doubles. Original archive bytes remain intact. Deployed OCR service and simultaneous parser/RSS limits remain separate gates.
+
+## Durable PDF recovery verification
+
+Approved behavior: [complete PDF ingestion](plans/2026-10-01-pdf-ingestion.md).
+`TEST_DATABASE_URL=<owned-isolated-base> npm test -w @kardata/backend -- file-jobs-recovery.test.ts`
+uses fresh UUID databases, actual filesystem storage and maintained TEST PDF
+bytes. It checks exact original/paid reply retention, JSONB serialization,
+superseded attempts, signed fallback integrity, incomplete/unsolicited outputs,
+hidden and foreign scope, complete manifest coverage, Unicode-safe chunks,
+committed staging invisibility, bounded storage/provider operations and retained
+results across failed publication. The activity factory uses scripted providers;
+this is not live Meta evidence or an actual SDK worker test. Injected short
+deadlines pin cancellation behavior without weakening production deadlines.
+Storage timeout preserves uncertainty: a late write is not proof of failed effect,
+and cannot publish an original-byte pointer after its caller has failed.
+
+`KARDATA_TEMPORAL_TEST=1 KARDATA_FILE_TEMPORAL_ADDRESS=<owned-server> TEST_DATABASE_URL=<owned-isolated-base> npm test -w @kardata/backend -- workflows.file-processing.test.ts`
+additionally uses real SDK workers, unique queues/namespaces and keyed loopback
+HTTP. Only the file runner's queue choice is injected; its dispatch reaches the
+actual server. Cases cover worker replacement after archive acknowledgement loss,
+ID-only history/replay, hidden pause/reveal and scoped approver acknowledgement
+for an unknown paid outcome. Providers remain scripted. Declare the owned server
+explicitly; no default server fallback exists. Cleanup cancels only its captured
+owned workflows and closes owned clients/workers; DB/archive records remain.
+The25-second storage cases distinguish preparation health from finalization:
+each asserts its own activity attempt stays at1 and no heartbeat timeout occurs.
+`KARDATA_FILE_TEST_DISABLE_FINALIZE_HEARTBEAT=1` is an explicit test-fixture-only
+control for the finalize oracle. It suppresses SDK reporting without changing
+production code; the maintained healthy assertion must fail under that control.
+Matching deployed PDF processing, real Meta output quality and decoded-memory/
+fleet measurements remain separate evidence tiers.
+
+`mcp.file-ingestion.test.ts` checks the shared HTTP/MCP attachment boundary with
+DB doubles: PDF capability/input preflight, role/grant/bound-sector denial, trusted
+source-thread copying, queued versus indexed state, current dispatch-failure/fast
+completion metadata and stable concurrent admission identity. Transport cases use
+actual Fastify/MCP dispatch; they do not prove database or worker behavior.
+`TEST_DATABASE_URL=<owned-test-base> npm test -w @kardata/backend -- mcp.file-ingestion-db.test.ts`
+uses a UUID-isolated Postgres, filesystem originals and keyed HTTP/MCP to check
+scope, actual child provenance, coalescing and failure inventories. Its runner
+records admission only; no provider or Temporal execution is claimed. Missing
+DB configuration skips these cases explicitly. Real worker gates remain above.
+
+The existing Playwright harness supports `KARDATA_E2E_PORT` (default5174, valid
+integer1024..65535), with Vite strict-port startup. Use an alternate owned port
+when5174 belongs to another app rather than stopping that app or reusing its
+server as test evidence. PDF UI evidence used15174 while the owner's mockup
+server remained on5174. The real-HTTP browser fixtures derive CORS from the configured test origin, so
+the alternate port preserves the same authority assertions.
+
+Actual Meta PDF UI preflight: `pdf-meta-preflight.spec.ts` requires explicit
+KARDATA_PDF_META_PREFLIGHT_URL and KARDATA_PDF_META_PREFLIGHT_FILE. It uses the
+retained owned app, no route interceptions or backend data population, uploads a
+labeled synthetic maintained PDF, observes durable file progress, checks native
+and AI-derived text, and verifies exact original download bytes. It creates no
+companies or research plan. Without both inputs it skips explicitly. Provider
+billing/access errors remain acceptance gaps; never substitute mock completion.
+Actual-key browser traces are private ignored evidence and must be redacted before
+sharing; test keys or provider credentials never belong in committed artifacts.
+
+For final owned-DB campaigns, preserve prior UUID test databases and use a
+separate owned instance of the existing pinned Postgres test service when a
+retained instance's checkpoint/file-sync work affects fixture deadlines. Keep
+1 GiB shared memory, the 100-connection budget and the original two-file Vitest
+worker limit. Capture checkpoint and host I/O pressure alongside hashes/results;
+allow owned checkpoints to finish before the next campaign. Stop only a named
+owned instance with explicit scoped authorization and a graceful shutdown;
+retain its container/volume. Never purge retained data, alter shared services or
+increase test deadlines to hide resource contention. This operating evidence
+proves an isolated test campaign, not production fleet or RSS capacity.
+
+The synthetic 1000-agent soak seeds its baseline in one owned fixture transaction:
+the same controlled heartbeat rows and production appendEvent calls keep their
+order, IDs, ages and payloads. Commit/rollback/release governs only setup; the
+actual sweep, projection, metrics, budget and timing assertions run unchanged.
+Fresh empty clones need no prior-run delete/truncate resets. Fixture commit costs
+are outside the measured pipeline and do not imply live fleet throughput.

@@ -57,6 +57,17 @@ in `tests/backend/mcp.authority.test.ts`.
 
 ## Tools
 
+`db.attach_sector_document` and the HTTP document-upload route share the existing
+backend semantic attachment operation. PDF detection uses decoded bytes plus the
+filename contract. PDFs require a file-processing runner capability and archive
+on trusted tool context before any mutation, then retain original bytes and queue
+the durable full-PDF job. Replies include current document status and the same
+minimal `processing` progress as HTTP; queued is never described as indexed.
+Text/image legacy ingestion remains unchanged. Missing runner/archive fails closed
+before effects and is retry-safe; paid uncertain retries remain owner-only.
+Validated execution context supplies source-thread provenance, never tool arguments;
+it grants no research-parent, context-inclusion or owner-approval authority.
+
 - 65 tools covering the binding table (rows bundle read/write pairs, so
   tools outnumber rows): `db.append_event`,
   `db.read_partition`, `db.find_event`, `db.read_events_after`,

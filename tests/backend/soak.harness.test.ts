@@ -191,12 +191,7 @@ describe.skipIf(!ENABLED)('1000-agent soak (B5.6)', () => {
   beforeAll(async () => {
     const url = await ensureTestDb('kardata_test_soak')
     pool = new Pool({ connectionString: url })
-    // Rerun-safe: prior runs leave heartbeats, usage events, stall
-    // responses, and ledger rows behind; idempotency dedup would
-    // otherwise make the second run measure nothing.
-    await pool.query(`DELETE FROM events WHERE idempotency_key LIKE 'soak-%' OR idempotency_key LIKE 'stall:soak-%'`)
-    await pool.query(`DELETE FROM heartbeats WHERE run_id LIKE 'soak-%'`)
-    await pool.query('TRUNCATE ledger_entries')
+    // A fresh validated clone is empty; baseline data is one fixture transaction.
     agents = buildFleet()
     expect(agents).toHaveLength(1000)
     for (const agent of agents) {
@@ -204,30 +199,40 @@ describe.skipIf(!ENABLED)('1000-agent soak (B5.6)', () => {
       else if (!agent.id.startsWith('soak-budget-')) induced.add(agent.id)
     }
 
-    // Seed one heartbeat row per agent with controlled ages.
-    const now = Date.now()
-    for (const agent of agents) {
-      await pool.query(
-        `INSERT INTO heartbeats (run_id, op, at, busy) VALUES ($1, 'turn', to_timestamp($2 / 1000.0), $3)
-         ON CONFLICT (run_id, op) DO UPDATE SET at = EXCLUDED.at, busy = EXCLUDED.busy`,
-        [agent.id, now - agent.beatAgeMs, agent.beatBusy],
-      )
-    }
+    const seed = await pool.connect()
+    try {
+      await seed.query('BEGIN')
+      // Seed one heartbeat row per agent with controlled ages.
+      const now = Date.now()
+      for (const agent of agents) {
+        await seed.query(
+          `INSERT INTO heartbeats (run_id, op, at, busy) VALUES ($1, 'turn', to_timestamp($2 / 1000.0), $3)
+           ON CONFLICT (run_id, op) DO UPDATE SET at = EXCLUDED.at, busy = EXCLUDED.busy`,
+          [agent.id, now - agent.beatAgeMs, agent.beatBusy],
+        )
+      }
 
-    // Seed one usage event per agent; costs are integer micro-dollars so
-    // the expected totals below are exact, not float-approximate.
-    for (const agent of agents) {
-      await appendEvent(pool, {
-        idempotencyKey: `soak-use-${agent.id}`,
-        partition: 'ledger:soak',
-        type: 't.usage.recorded',
-        payload: {
-          runId: agent.id,
-          inputTokens: agent.inputTokens,
-          outputTokens: agent.outputTokens,
-          cost: (agent.costMicros / 1_000_000).toFixed(6),
-        },
-      })
+      // Seed one usage event per agent; costs are integer micro-dollars so
+      // the expected totals below are exact, not float-approximate.
+      for (const agent of agents) {
+        await appendEvent(seed, {
+          idempotencyKey: `soak-use-${agent.id}`,
+          partition: 'ledger:soak',
+          type: 't.usage.recorded',
+          payload: {
+            runId: agent.id,
+            inputTokens: agent.inputTokens,
+            outputTokens: agent.outputTokens,
+            cost: (agent.costMicros / 1_000_000).toFixed(6),
+          },
+        })
+      }
+      await seed.query('COMMIT')
+    } catch (error) {
+      await seed.query('ROLLBACK')
+      throw error
+    } finally {
+      seed.release()
     }
 
     runs = new FakeRunsGateway(pool)
