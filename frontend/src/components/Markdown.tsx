@@ -2,7 +2,13 @@
 // never becomes DOM (skipHtml), only the GFM subset below survives, and
 // links are restricted to http(s). Styling maps onto existing text tokens;
 // user bubbles and mention chips intentionally stay plain text.
-import ReactMarkdown, { type Components } from 'react-markdown'
+//
+// SPIKE (ui-revamp-spike-streamdown): Streamdown replaces react-markdown
+// as the renderer. Contract preserved: ALLOWED_ELEMENTS, unwrapDisallowed,
+// skipHtml, safeExternalUrl, token-mapped components, hostile-output
+// inertness, truncated-fragment tolerance. mode="static" keeps rendering
+// synchronous with no word-stagger animation (motion rules intact).
+import { Streamdown, type Components } from 'streamdown'
 import remarkGfm from 'remark-gfm'
 
 const ALLOWED_ELEMENTS = [
@@ -85,7 +91,8 @@ const components: Components = {
 export function Markdown({ text }: { text: string }) {
   return (
     <div className="min-w-0 [overflow-wrap:anywhere]">
-    <ReactMarkdown
+    <Streamdown
+      mode="static"
       remarkPlugins={[remarkGfm]}
       allowedElements={ALLOWED_ELEMENTS}
       unwrapDisallowed
@@ -94,7 +101,7 @@ export function Markdown({ text }: { text: string }) {
       components={components}
     >
       {text}
-    </ReactMarkdown>
+    </Streamdown>
     </div>
   )
 }
