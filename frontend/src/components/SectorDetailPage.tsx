@@ -82,7 +82,7 @@ export function CompanySection({
       aria-label={`Companies in ${sectorName}`}
       className="rounded-xl border border-border bg-background px-4 py-3"
     >
-      <h2 className="text-base font-semibold">Companies</h2>
+      <h2 className="text-base font-semibold tracking-tight">Companies</h2>
       <div className="mt-3 max-w-sm">
         <label htmlFor="sector-companies-filter" className="mb-1 block text-sm font-medium">
           Filter companies
@@ -278,7 +278,7 @@ function DocumentsSection({
   const showPending = attaching && attachingName
   return (
     <section aria-label={`Context documents for ${sectorName}`} className="px-4 py-3">
-      <h2 className="text-base font-semibold">Files</h2>
+      <h2 className="text-base font-semibold tracking-tight">Files</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         The sweep reads these when research runs. The eye toggle adds or removes a file from context.
       </p>
@@ -549,7 +549,7 @@ export function SectorDetailPage({
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-lg font-bold tracking-tight text-foreground sm:text-xl">{detail.name}</p>
+            <p className="text-xl font-semibold tracking-tight text-foreground">{detail.name}</p>
             {detail.topic ? (
               <p className="text-xs text-muted-foreground sm:text-sm">{detail.topic}</p>
             ) : null}
@@ -658,7 +658,7 @@ export function SectorDetailPage({
                 : 'hidden'
           }`}
         >
-          <h2 className="text-base font-semibold">Sector chat</h2>
+          <h2 className="text-base font-semibold tracking-tight">Sector chat</h2>
           <div className="mt-3 min-h-0 flex-1">
             <SectorChatPanel
               config={staging}

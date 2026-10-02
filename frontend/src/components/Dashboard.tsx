@@ -4,6 +4,7 @@ import type {
   ResearchData,
   SectorResearch,
 } from '../data/research'
+import { Mail } from 'lucide-react'
 import {
   CompanyRow,
   DeniedNotice,
@@ -20,7 +21,9 @@ import { Button } from './ui/button'
 function StatsPanel() {
   return (
     <div className="rounded-xl border border-dashed border-border bg-background p-4">
-      <p className="text-sm font-medium">Email tracking is not connected yet.</p>
+      <p className="flex items-center gap-2 text-sm font-medium">
+        <Mail className="size-4 shrink-0 text-muted-foreground" aria-hidden />        Email tracking is not connected yet.
+      </p>
       <p className="mt-1 text-sm text-muted-foreground">
         Scheduled, sent, and reply counts will appear here once email tracking lands.
       </p>
@@ -140,7 +143,7 @@ function SectorPanel({
       aria-label="Sector researches"
       className="flex flex-col rounded-xl border border-border bg-background px-4 py-3"
     >
-      <h2 className="text-base font-semibold">Sector researches</h2>
+      <h2 className="text-base font-semibold tracking-tight">Sector researches</h2>
       {showCount ? (
         <p aria-live="polite" className="mt-0.5 text-xs text-muted-foreground">
           Showing {rows.length} of {filtered.length} matching
@@ -228,7 +231,7 @@ function CompanyPanel({
       aria-label="Company researches"
       className="flex flex-col rounded-xl border border-border bg-background px-4 py-3"
     >
-      <h2 className="text-base font-semibold">Company researches</h2>
+      <h2 className="text-base font-semibold tracking-tight">Company researches</h2>
       {showCount ? (
         <p aria-live="polite" className="mt-0.5 text-xs text-muted-foreground">
           {needle && windowed

@@ -55,7 +55,7 @@ function SubagentRow({
         onClick={() => onTagThread?.(thread.key)}
         aria-label={`Chat with ${thread.key}`}
         aria-current={active ? 'true' : undefined}
-        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
+        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <span
           aria-hidden

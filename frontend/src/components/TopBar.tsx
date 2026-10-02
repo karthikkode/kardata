@@ -18,7 +18,7 @@ export function TopBar({
   onChatToggle: () => void
 }) {
   return (
-    <header className="flex items-center gap-4 border-b border-border bg-background px-4 py-3 md:px-6">
+    <header className="sticky top-0 z-10 flex items-center gap-4 border-b border-border bg-background/80 px-4 py-3 backdrop-blur md:px-6">
       <div className="relative max-w-sm flex-1">
         <Input
           aria-label="Search researches"

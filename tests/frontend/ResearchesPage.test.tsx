@@ -186,6 +186,17 @@ describe('ResearchesPage', () => {
     expect(screen.getByText('Showing 1 of 1 matching')).toBeInTheDocument()
   })
 
+  it('clears the text filter from the input without losing the list', () => {
+    renderPage()
+    fireEvent.change(screen.getByLabelText('Filter researches'), {
+      target: { value: 'outdoor' },
+    })
+    expect(screen.queryByText('Pet care')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filter' }))
+    expect(screen.getByLabelText('Filter researches')).toHaveValue('')
+    expect(screen.getByText('Pet care')).toBeInTheDocument()
+  })
+
   it('counts the filtered total past fifty rows, not the base list', () => {
     renderPage({ sectors: overflowSectors() })
     fireEvent.change(screen.getByLabelText('Filter researches'), {

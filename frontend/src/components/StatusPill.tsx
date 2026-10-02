@@ -30,7 +30,7 @@ export function StatusPill({
       className={cn(
         'inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-sm select-none',
         clickable &&
-          'cursor-pointer transition-shadow hover:shadow-md hover:border-muted-foreground',
+          'cursor-pointer transition-shadow hover:shadow-md hover:border-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         className,
       )}
     >

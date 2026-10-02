@@ -28,7 +28,7 @@ export function Sidebar({
   const [collapsed, setCollapsed] = useState(false)
   return (
     <aside className={cn('flex w-16 shrink-0 flex-col gap-1 border-r border-border bg-background p-2 md:p-4 sticky top-0 h-screen', !collapsed && 'md:w-56')}>
-      <p className={cn('px-2 pb-2 text-lg font-semibold', collapsed ? 'hidden' : 'hidden md:block')}>Kardata</p>
+      <p className={cn('px-2 pb-2 text-lg font-semibold tracking-tight', collapsed ? 'hidden' : 'hidden md:block')}>Kardata</p>
       <nav aria-label="Primary" className="flex flex-col gap-1">
         {items.map(({ label, icon: Icon, disabled }: { label: string; icon: typeof Bot; disabled?: boolean }) => (
           <button
@@ -42,11 +42,11 @@ export function Sidebar({
             aria-current={!disabled && active === label ? 'page' : undefined}
             title={disabled ? 'Coming soon' : undefined}
             className={cn(
-              'flex items-center justify-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-muted md:justify-start',
+              'flex items-center justify-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:justify-start',
               !disabled && 'cursor-pointer',
               !disabled && active === label
-                ? 'bg-muted font-medium text-foreground'
-                : 'text-muted-foreground',
+                ? 'border border-border bg-muted font-medium text-foreground shadow-xs'
+                : 'border border-transparent text-muted-foreground',
               disabled && 'cursor-default opacity-60',
               collapsed && 'md:justify-center',
             )}
@@ -61,7 +61,7 @@ export function Sidebar({
         onClick={() => setCollapsed((value) => !value)}
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         aria-expanded={!collapsed}
-        className="mt-auto hidden cursor-pointer items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted md:flex"
+        className="mt-auto hidden cursor-pointer items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:flex"
       >
         {collapsed ? (
           <ChevronsRight className="size-4 shrink-0" aria-hidden />

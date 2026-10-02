@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, X } from 'lucide-react'
 import type { CompanyResearch, ResearchData, SectorResearch } from '../data/research'
 import { useStagingCompanies } from '../data/research'
 import type { ResearchState, StagingConfig } from '../data/staging-api'
@@ -72,12 +72,27 @@ function FilterBar({
         <label htmlFor="researches-filter" className="mb-1 block text-sm font-medium">
           Filter researches
         </label>
-        <Input
-          id="researches-filter"
-          placeholder="Type to filter"
-          value={query}
-          onChange={(event) => onQuery(event.target.value)}
-        />
+        <div className="relative">
+          <Input
+            id="researches-filter"
+            placeholder="Type to filter"
+            value={query}
+            onChange={(event) => onQuery(event.target.value)}
+            className={query ? 'pr-8' : undefined}
+          />
+          {query ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => onQuery('')}
+              aria-label="Clear filter"
+              className="absolute top-1/2 right-1 -translate-y-1/2"
+            >
+              <X className="size-4" aria-hidden />
+            </Button>
+          ) : null}
+        </div>
       </div>
       <div role="group" aria-label="Filter by state" className="flex flex-wrap gap-2">
         <Button

@@ -53,7 +53,7 @@ export function SectorRow({
         type="button"
         onClick={() => onOpen(research.id)}
         aria-label={`Open ${research.name}`}
-        className="flex min-h-19 w-full cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 py-3 text-left transition-colors hover:bg-muted/60"
+        className="flex min-h-19 w-full cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 py-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:bg-muted/60 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
       >
         <span className="min-w-32 flex-1 basis-32">
           <span className="block truncate text-sm font-medium">{research.name}</span>
@@ -100,7 +100,7 @@ export function CompanyRow({
   research: CompanyResearch
 }) {
   return (
-    <li className="flex min-h-19 flex-col justify-center border-b border-border py-3 last:border-0">
+    <li className="flex min-h-19 flex-col justify-center border-b border-border py-3 last:border-0 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <div className="min-w-32 flex-1 basis-32">
           <p className="truncate text-sm font-medium">{research.name}</p>

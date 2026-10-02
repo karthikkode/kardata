@@ -280,7 +280,7 @@ export default function App() {
             <h1
               ref={headingRef}
               tabIndex={-1}
-              className="mb-4 text-xl font-semibold focus:outline-none"
+              className="mb-4 text-xl font-semibold tracking-tight focus:outline-none"
             >
               {heading}
             </h1>

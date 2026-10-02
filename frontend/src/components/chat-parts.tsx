@@ -20,7 +20,7 @@ export function splitAfter(previous: string | undefined, next: string | undefine
 /** Centered relative-time divider, mirroring the timestamps under bubbles. */
 export function TimeDivider({ at }: { at: string }) {
   return (
-    <div className="flex items-center gap-2 py-1">
+    <div className="flex items-center gap-2 py-1 select-none">
       <span aria-hidden className="h-px flex-1 bg-border" />
       <span className="shrink-0 text-xs text-muted-foreground">{sessionAge(at)}</span>
       <span aria-hidden className="h-px flex-1 bg-border" />
@@ -33,7 +33,7 @@ export function TimeDivider({ at }: { at: string }) {
  * Wraps anywhere so pasted tokens never spill. */
 export function UserBubble({ children }: { children: ReactNode }) {
   return (
-    <div className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-primary/10 px-3.5 py-2 text-sm text-foreground [overflow-wrap:anywhere]">
+    <div className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md border border-primary/20 bg-primary/10 px-3.5 py-2 text-sm text-foreground shadow-xs [overflow-wrap:anywhere]">
       {children}
     </div>
   )
@@ -92,7 +92,7 @@ export function useChatStick(activityKey: string) {
 export function AgentMark({ name }: { name: string }) {
   const initial = name.trim().charAt(0).toUpperCase() || '•'
   return (
-    <span className="flex min-w-0 items-center justify-center gap-2">
+    <span className="flex min-w-0 items-center justify-center gap-2 select-none">
       <span
         aria-hidden
         className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground"

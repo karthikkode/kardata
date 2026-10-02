@@ -1591,7 +1591,7 @@ export function ChatPanel({
     <div
       role="complementary"
       aria-label="Assistant chat"
-      className={`fixed inset-y-0 right-0 z-40 flex w-full max-w-sm flex-col border-l border-border bg-background ${closing ? dockExit : dockEnter}`}
+      className={`fixed inset-y-0 right-0 z-40 flex w-full max-w-sm flex-col border-l border-border bg-background shadow-xl ${closing ? dockExit : dockEnter}`}
     >
       <div className="relative flex items-center gap-2 border-b border-border px-4 py-3">
         {openThread ? (

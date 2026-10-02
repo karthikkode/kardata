@@ -3,7 +3,7 @@
 // cancelled. There is no launching: the backend exposes no primitive for
 // it, so the view observes and stops only.
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Square } from 'lucide-react'
 import {
   cancelRun,
   listRuns,
@@ -64,7 +64,7 @@ function RunRow({
 }) {
   const live = run.state === 'RUNNING' || run.state === 'PAUSED'
   return (
-    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-background px-4 py-3">
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-background px-4 py-3 shadow-xs motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{run.id}</p>
         <p className="truncate text-xs text-muted-foreground">
@@ -84,7 +84,7 @@ function RunRow({
           disabled={cancelling}
           onClick={() => onCancel(run)}
         >
-          {cancelling ? 'Cancelling' : 'Cancel'}
+          {cancelling ? 'Cancelling' : <><Square className="size-4" aria-hidden />Cancel</>}
         </Button>
       ) : null}
     </li>

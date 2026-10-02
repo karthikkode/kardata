@@ -1,22 +1,48 @@
 import { useId, useState } from 'react'
+import { Check, Clock, Compass, FileText, Layers, ListChecks, Pencil, Target, Users } from 'lucide-react'
 import { ExecutableResearchPlan, type ExecutableResearchPlan as Plan } from '../data/research-plan'
 import { WorkspaceOverlay } from './workspace-parts'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 
 export function ExecutablePlanDetails({ plan }: { plan: Plan }) {
-  return <section aria-label="Executable research work" className="space-y-4 rounded-xl border border-border p-4">
-    <h3 className="text-sm font-semibold">Approved work and limits</h3>
-    <p className="text-sm">{plan.researchDepth === 'discovery' ? 'Discovery only. Company deep research will not run.' : 'Discovery and company research'}</p>
-    {plan.discoveryTarget ? <p className="text-sm">Discovery target: {plan.discoveryTarget.toLocaleString()} distinct companies</p> : null}
-    <p className="text-xs text-muted-foreground">Up to {plan.budgets.maxCompanies.toLocaleString()} companies · {plan.budgets.maxWallMinutes} active minutes · {plan.budgets.concurrency} concurrent researchers</p>
-    {plan.discovery.map((direction) => <section key={direction.id} className="space-y-2">
-      <h4 className="text-sm font-medium">{direction.title}</h4>
-      <p className="text-xs text-muted-foreground">Up to {direction.maxPages} pages per query</p>
-      <ul className="list-disc space-y-1 pl-5 text-sm break-words">{direction.queries.map((query, index) => <li key={index}>{query}</li>)}</ul>
+  return <section aria-label="Executable research work" className="mt-6 space-y-4 border-t border-border pt-6">
+    <div className="flex items-center gap-2">
+      <Target className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+      <h3 className="text-sm font-semibold tracking-tight">Approved work and limits</h3>
+      <span className="ml-auto inline-flex items-center rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground select-none">{plan.researchDepth === 'discovery' ? 'Discovery only' : 'Discovery and research'}</span>
+    </div>
+    {plan.researchDepth === 'discovery' ? <p className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">Company deep research will not run in this plan.</p> : null}
+    <dl className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <div className="rounded-lg border border-border bg-background px-3 py-2.5">
+        <dt className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground"><Users className="size-3.5 shrink-0" aria-hidden />Companies</dt>
+        <dd className="mt-1 font-mono text-sm font-semibold tabular-nums">{plan.discoveryTarget ? `${plan.discoveryTarget.toLocaleString()} companies` : `Up to ${plan.budgets.maxCompanies.toLocaleString()} companies`}</dd>
+      </div>
+      <div className="rounded-lg border border-border bg-background px-3 py-2.5">
+        <dt className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground"><Clock className="size-3.5 shrink-0" aria-hidden />Active time</dt>
+        <dd className="mt-1 font-mono text-sm font-semibold tabular-nums">{plan.budgets.maxWallMinutes} min</dd>
+      </div>
+      <div className="rounded-lg border border-border bg-background px-3 py-2.5">
+        <dt className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground"><Layers className="size-3.5 shrink-0" aria-hidden />Researchers</dt>
+        <dd className="mt-1 font-mono text-sm font-semibold tabular-nums">{plan.budgets.concurrency} concurrent</dd>
+      </div>
+    </dl>
+    {plan.discovery.map((direction) => <section key={direction.id} aria-label={direction.title} className="rounded-xl border border-border bg-background p-4">
+      <div className="flex items-center gap-2">
+        <Compass className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        <h4 className="min-w-0 flex-1 truncate text-sm font-semibold">{direction.title}</h4>
+        <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">Up to {direction.maxPages} pages/query</span>
+      </div>
+      <ul className="mt-3 flex flex-wrap gap-1.5">{direction.queries.map((query, index) => <li key={index} className="max-w-full truncate rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs" title={query}>{query}</li>)}</ul>
     </section>)}
-    <section><h4 className="mb-2 text-sm font-medium">Research instructions</h4><p className="whitespace-pre-wrap text-sm break-words">{plan.companyBrief}</p></section>
-    <section><h4 className="mb-2 text-sm font-medium">Acceptance criteria</h4><ul className="list-disc space-y-1 pl-5 text-sm break-words">{plan.acceptance.map((criterion, index) => <li key={index}>{criterion}</li>)}</ul></section>
+    <section aria-label="Research instructions" className="rounded-xl border border-border bg-background p-4">
+      <div className="flex items-center gap-2"><FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden /><h4 className="text-sm font-semibold">Research instructions</h4></div>
+      <p className="mt-2 text-sm leading-relaxed break-words whitespace-pre-wrap">{plan.companyBrief}</p>
+    </section>
+    <section aria-label="Acceptance criteria" className="rounded-xl border border-border bg-background p-4">
+      <div className="flex items-center gap-2"><ListChecks className="size-4 shrink-0 text-muted-foreground" aria-hidden /><h4 className="text-sm font-semibold">Acceptance criteria</h4></div>
+      <ul className="mt-2 space-y-1.5">{plan.acceptance.map((criterion, index) => <li key={index} className="flex items-start gap-2 text-sm break-words"><Check className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden /><span className="min-w-0">{criterion}</span></li>)}</ul>
+    </section>
   </section>
 }
 
@@ -25,7 +51,7 @@ export function ResearchPlanEditor({ markdown, executable, busy, error, onSave }
 }) {
   const [open, setOpen] = useState(false)
   const formId = useId()
-  return <><Button variant="ghost" size="sm" className="mt-3" disabled={busy} onClick={() => setOpen(true)}>Edit plan</Button>
+  return <><Button variant="ghost" size="sm" className="mt-3" disabled={busy} onClick={() => setOpen(true)}><Pencil className="size-4 shrink-0" aria-hidden />Edit plan</Button>
     {open ? <WorkspaceOverlay title="Edit research plan" onClose={() => setOpen(false)} footer={<><Button variant="outline" disabled={busy} onClick={() => setOpen(false)}>Cancel</Button><Button type="submit" form={formId} disabled={busy}>{busy ? 'Saving…' : 'Save plan'}</Button></>}>
       <PlanForm formId={formId} markdown={markdown} executable={executable} busy={busy} error={error} onSave={async (text) => { if (await onSave(text)) setOpen(false) }} />
     </WorkspaceOverlay> : null}

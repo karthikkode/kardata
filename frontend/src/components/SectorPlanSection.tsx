@@ -3,6 +3,7 @@
 // artifact (panel-key pattern: resets during render, fetch in effect)
 // and re-reads while a plan run is away.
 import { useEffect, useState } from 'react'
+import { ClipboardList } from 'lucide-react'
 import {
   apiErrorStatus,
   readSectorPlan,
@@ -82,8 +83,12 @@ export function SectorPlanSection({
   }, [sectorState, config])
   if (state.status === 'closed') return null
   return (
-    <section aria-label={`Research plan for ${sectorName}`} className="rounded-xl border border-border bg-background px-4 py-3">
-      <h2 className="text-base font-semibold">Research plan</h2>
+    <section aria-label={`Research plan for ${sectorName}`} className="overflow-hidden rounded-2xl border border-border bg-background shadow-xs">
+      <div className="flex items-center gap-2.5 border-b border-border bg-muted/30 px-4 py-3.5">
+        <ClipboardList className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        <h2 className="min-w-0 flex-1 text-sm font-semibold tracking-tight">Research plan</h2>
+      </div>
+      <div className="px-4 py-4">
       {state.status === 'loading' ? (
         <div className="mt-3">
           <SkeletonRows label="Research plan is loading" />
@@ -113,13 +118,17 @@ export function SectorPlanSection({
           ) : null}
           {state.plan.latest ? (
             <>
-              <p className="text-xs text-muted-foreground">v{state.plan.latest.version}</p>
-              <div className="mt-1 text-sm">
+              <p className="inline-flex items-center rounded-full border border-border bg-muted/40 px-2.5 py-0.5 font-mono text-xs tabular-nums text-muted-foreground select-none">v{state.plan.latest.version}</p>
+              <div className="mt-3 text-sm">
                 <Markdown text={state.plan.latest.markdown} />
               </div>
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">No research plan yet for {sectorName}.</p>
+            <div className="rounded-xl border border-dashed border-border p-5 text-center">
+              <ClipboardList className="mx-auto size-6 text-muted-foreground" aria-hidden />
+              <p className="mt-2 text-sm font-semibold">No research plan yet</p>
+              <p className="mx-auto mt-1 max-w-sm text-xs text-muted-foreground">Create a plan for {sectorName} to lock queries, limits, and acceptance criteria.</p>
+            </div>
           )}
           {sectorState === 'draft' || sectorState === 'failed' ? (
             <Button
@@ -157,6 +166,7 @@ export function SectorPlanSection({
           ) : null}
         </div>
       )}
+      </div>
     </section>
   )
 }
