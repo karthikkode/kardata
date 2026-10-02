@@ -3,6 +3,7 @@
 // arrive on the thread stream. No fixtures, no simulated replies, no local
 // uploads: every row on screen was served by the backend.
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { motion } from 'motion/react'
 import {
   ArrowLeft,
   Bot,
@@ -477,9 +478,13 @@ export function ThinkingPlaceholder() {
     return () => window.clearInterval(timer)
   }, [])
   return (
-    <div
+    <motion.div
       role="status"
       aria-label="Agent is replying"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
       className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs text-primary shadow-2xs"
     >
       <Brain className="size-3.5 shrink-0 motion-safe:animate-pulse" aria-hidden />
@@ -492,7 +497,7 @@ export function ThinkingPlaceholder() {
         ))}
       </span>
       <span className="font-medium">Thinking{elapsed > 0 ? ` · ${elapsed}s` : null}</span>
-    </div>
+    </motion.div>
   )
 }
 
