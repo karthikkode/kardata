@@ -3,6 +3,7 @@
 // arrive on the thread stream. No fixtures, no simulated replies, no local
 // uploads: every row on screen was served by the backend.
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { motion } from 'motion/react'
 import {
   ArrowLeft,
   Bot,
@@ -349,7 +350,7 @@ export function SessionsPanel({
                     onDelete(session)
                     setConfirmingId(null)
                   }}
-                  className="cursor-pointer rounded-md border border-border px-1.5 py-0.5 text-[11px] font-medium hover:border-muted-foreground disabled:opacity-50"
+                  className="cursor-pointer rounded-md border border-border px-1.5 py-0.5 text-xs font-medium hover:border-muted-foreground disabled:opacity-50"
                 >
                   {deleting ? '…' : 'Delete'}
                 </button>
@@ -358,7 +359,7 @@ export function SessionsPanel({
                   aria-label={`Keep ${session.title}`}
                   disabled={deleting}
                   onClick={() => setConfirmingId(null)}
-                  className="cursor-pointer rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+                  className="cursor-pointer rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
                 >
                   Keep
                 </button>
@@ -475,9 +476,13 @@ export function ThinkingPlaceholder() {
     return () => window.clearInterval(timer)
   }, [])
   return (
-    <div
+    <motion.div
       role="status"
       aria-label="Agent is replying"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
       className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs text-primary shadow-2xs"
     >
       <Brain className="size-3.5 shrink-0 motion-safe:animate-pulse" aria-hidden />
@@ -490,7 +495,7 @@ export function ThinkingPlaceholder() {
         ))}
       </span>
       <span className="font-medium">Thinking{elapsed > 0 ? ` · ${elapsed}s` : null}</span>
-    </div>
+    </motion.div>
   )
 }
 
@@ -536,11 +541,11 @@ export function ActivityGroup({ tools, reasoning, live = false }: { tools: ChatT
         {reasoning ? <Brain className="size-3.5 shrink-0 text-primary" aria-hidden /> : <Wrench className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
         <span className="font-medium text-foreground">{label}</span>
         {tools.length > 0 && !reasoning ? (
-          <span className="rounded-full bg-muted px-1.5 py-0.2 text-[10px] font-mono text-muted-foreground">
+          <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs font-mono text-muted-foreground">
             {tools.length}
           </span>
         ) : null}
-        {failed ? <span className="rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive">Needs attention</span> : null}
+        {failed ? <span className="rounded-full bg-destructive/10 px-1.5 py-0.5 text-xs font-medium text-destructive">Needs attention</span> : null}
         <ChevronDown
           className={`size-3.5 shrink-0 text-muted-foreground motion-safe:transition-transform ${open ? 'rotate-180' : ''}`}
           aria-hidden
@@ -760,7 +765,7 @@ export function SessionFilesView({
                 </span>
                 <div className="min-w-0">
                   <p className="truncate text-xs font-medium font-mono text-foreground">{file.name}</p>
-                  <p className="truncate text-[10px] text-muted-foreground">
+                  <p className="truncate text-xs text-muted-foreground">
                     {file.source} {file.detail ? `· ${file.detail}` : ''}
                   </p>
                 </div>

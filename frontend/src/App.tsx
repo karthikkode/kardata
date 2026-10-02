@@ -30,6 +30,7 @@ import {
   type StagingConfig,
 } from './data/staging-api'
 import { useExitState } from './lib/motion'
+import { MotionConfig } from 'motion/react'
 import { useNavigation } from './lib/useNavigation'
 import { stateLabel } from './components/research-parts'
 
@@ -241,9 +242,10 @@ export default function App() {
       : []
 
   if (section === 'SectorChat' && detailData.detail && staging && detailData.status !== 'denied') {
-    return <SectorWorkspace sector={detailData.detail} model={workspace} config={staging} dark={dark} onTheme={() => setDark((value) => !value)} onBack={() => setNav({ section: 'SectorDetail', sessionId: null, threadKey: null })} actions={{ busy: researchBusy, error: researchError, plan: () => void planCurrentSector(), approve: (version, contextVersion) => void approveCurrentSector(version, contextVersion), start: () => void startCurrentSector(), pause: () => void pauseCurrentSector(), resume: () => void resumeCurrentSector(), edit: editCurrentSectorPlan }} />
+    return <MotionConfig reducedMotion="user"><SectorWorkspace sector={detailData.detail} model={workspace} config={staging} dark={dark} onTheme={() => setDark((value) => !value)} onBack={() => setNav({ section: 'SectorDetail', sessionId: null, threadKey: null })} actions={{ busy: researchBusy, error: researchError, plan: () => void planCurrentSector(), approve: (version, contextVersion) => void approveCurrentSector(version, contextVersion), start: () => void startCurrentSector(), pause: () => void pauseCurrentSector(), resume: () => void resumeCurrentSector(), edit: editCurrentSectorPlan }} /></MotionConfig>
   }
   return (
+    <MotionConfig reducedMotion="user">
     <div className="flex min-h-screen bg-muted/40 text-foreground">
       <Sidebar active={section} onSelect={(next) => setNav({ section: next, sectorId: null })} />
       <div className="flex min-w-0 flex-1 flex-col">
@@ -349,5 +351,6 @@ export default function App() {
         </main>
       </div>
     </div>
+    </MotionConfig>
   )
 }

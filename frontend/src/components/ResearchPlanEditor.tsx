@@ -15,15 +15,15 @@ export function ExecutablePlanDetails({ plan }: { plan: Plan }) {
     {plan.researchDepth === 'discovery' ? <p className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">Company deep research will not run in this plan.</p> : null}
     <dl className="grid grid-cols-1 gap-2 sm:grid-cols-3">
       <div className="rounded-lg border border-border bg-background px-3 py-2.5">
-        <dt className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground"><Users className="size-3.5 shrink-0" aria-hidden />Companies</dt>
+        <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground"><Users className="size-3.5 shrink-0" aria-hidden />Companies</dt>
         <dd className="mt-1 font-mono text-sm font-semibold tabular-nums">{plan.discoveryTarget ? `${plan.discoveryTarget.toLocaleString()} companies` : `Up to ${plan.budgets.maxCompanies.toLocaleString()} companies`}</dd>
       </div>
       <div className="rounded-lg border border-border bg-background px-3 py-2.5">
-        <dt className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground"><Clock className="size-3.5 shrink-0" aria-hidden />Active time</dt>
+        <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground"><Clock className="size-3.5 shrink-0" aria-hidden />Active time</dt>
         <dd className="mt-1 font-mono text-sm font-semibold tabular-nums">{plan.budgets.maxWallMinutes} min</dd>
       </div>
       <div className="rounded-lg border border-border bg-background px-3 py-2.5">
-        <dt className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground"><Layers className="size-3.5 shrink-0" aria-hidden />Researchers</dt>
+        <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground"><Layers className="size-3.5 shrink-0" aria-hidden />Researchers</dt>
         <dd className="mt-1 font-mono text-sm font-semibold tabular-nums">{plan.budgets.concurrency} concurrent</dd>
       </div>
     </dl>

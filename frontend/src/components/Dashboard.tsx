@@ -15,6 +15,7 @@ import {
   UnavailableNotice,
 } from './research-parts'
 import { Button } from './ui/button'
+import { SectionTitle } from './text'
 
 // Email tracking has no backend yet, so the stats strip is a neutral
 // placeholder with no numbers and no sample rows.
@@ -143,7 +144,7 @@ function SectorPanel({
       aria-label="Sector researches"
       className="flex flex-col rounded-xl border border-border bg-background px-4 py-3"
     >
-      <h2 className="text-base font-semibold tracking-tight">Sector researches</h2>
+      <SectionTitle>Sector researches</SectionTitle>
       {showCount ? (
         <p aria-live="polite" className="mt-0.5 text-xs text-muted-foreground">
           Showing {rows.length} of {filtered.length} matching
@@ -231,7 +232,7 @@ function CompanyPanel({
       aria-label="Company researches"
       className="flex flex-col rounded-xl border border-border bg-background px-4 py-3"
     >
-      <h2 className="text-base font-semibold tracking-tight">Company researches</h2>
+      <SectionTitle>Company researches</SectionTitle>
       {showCount ? (
         <p aria-live="polite" className="mt-0.5 text-xs text-muted-foreground">
           {needle && windowed

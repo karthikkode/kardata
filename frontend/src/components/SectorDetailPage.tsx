@@ -23,6 +23,7 @@ import { SectorContextDrawer } from './SectorContextDrawer'
 import { SectorPlanSection } from './SectorPlanSection'
 import { RunConsole } from './RunConsole'
 import { Button } from './ui/button'
+import { SectionTitle } from './text'
 import { Input } from './ui/input'
 
 const stateFilters = [
@@ -82,7 +83,7 @@ export function CompanySection({
       aria-label={`Companies in ${sectorName}`}
       className="rounded-xl border border-border bg-background px-4 py-3"
     >
-      <h2 className="text-base font-semibold tracking-tight">Companies</h2>
+      <SectionTitle>Companies</SectionTitle>
       <div className="mt-3 max-w-sm">
         <label htmlFor="sector-companies-filter" className="mb-1 block text-sm font-medium">
           Filter companies
@@ -278,7 +279,7 @@ function DocumentsSection({
   const showPending = attaching && attachingName
   return (
     <section aria-label={`Context documents for ${sectorName}`} className="px-4 py-3">
-      <h2 className="text-base font-semibold tracking-tight">Files</h2>
+      <SectionTitle>Files</SectionTitle>
       <p className="mt-1 text-sm text-muted-foreground">
         The sweep reads these when research runs. The eye toggle adds or removes a file from context.
       </p>
@@ -658,7 +659,7 @@ export function SectorDetailPage({
                 : 'hidden'
           }`}
         >
-          <h2 className="text-base font-semibold tracking-tight">Sector chat</h2>
+          <SectionTitle>Sector chat</SectionTitle>
           <div className="mt-3 min-h-0 flex-1">
             <SectorChatPanel
               config={staging}

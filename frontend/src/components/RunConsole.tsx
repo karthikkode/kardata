@@ -16,6 +16,7 @@ import {
   type ThreadView,
 } from '../data/staging-api'
 import { Button } from './ui/button'
+import { SectionTitle } from './text'
 import { Input } from './ui/input'
 import { SkeletonRows } from './research-parts'
 
@@ -79,7 +80,7 @@ export function RunConsole({
   if (!config) return null
   return (
     <section aria-label={`Run console for ${sector.name}`} className="rounded-xl border border-border bg-background px-4 py-3">
-      <h2 className="text-base font-semibold tracking-tight">Run console</h2>
+      <SectionTitle>Run console</SectionTitle>
       <div className="mt-3 space-y-4">
         <div>
           <h3 className="text-sm font-semibold">Timeline</h3>

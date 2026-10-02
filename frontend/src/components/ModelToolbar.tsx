@@ -475,7 +475,7 @@ export function ModelToolbar({
               </button>
             </>
           ) : !showEffort && draft.reasoning && canReason && !bare ? (
-            <span className="shrink-0 px-1 text-[11px] text-muted-foreground">Thinking</span>
+            <span className="shrink-0 px-1 text-xs text-muted-foreground">Thinking</span>
           ) : null}
           {saving ? (
             <span role="status" className="shrink-0 pr-1 text-xs text-muted-foreground">
@@ -583,11 +583,11 @@ export function ModelToolbar({
                 visibleProviders.map((entry) => (
                   <div key={entry.name} className="mb-1 last:mb-0">
                     <div className="flex items-baseline justify-between gap-2 px-2 pt-1.5 pb-0.5">
-                      <p className="text-[11px] font-semibold tracking-wide text-muted-foreground">
+                      <p className="text-xs font-semibold tracking-wide text-muted-foreground">
                         {providerLabel(entry.name)}
                       </p>
                       {!entry.hasKey ? (
-                        <p className="text-[11px] text-muted-foreground">No key</p>
+                        <p className="text-xs text-muted-foreground">No key</p>
                       ) : null}
                     </div>
                     {matches(entry).map((model) => {
@@ -639,7 +639,7 @@ export function ModelToolbar({
                                 {model.displayName}
                               </span>
                               {model.reasoning === 'native' && !hasDepths ? (
-                                <span className="shrink-0 text-[11px] text-muted-foreground">
+                                <span className="shrink-0 text-xs text-muted-foreground">
                                   Thinking
                                 </span>
                               ) : null}
@@ -658,7 +658,7 @@ export function ModelToolbar({
                                   if (row instanceof HTMLElement) openFlyout(key, row)
                                   else setExpandedKey(key)
                                 }}
-                                className="h-7 shrink-0 cursor-pointer rounded-md border border-border px-1.5 text-[11px] capitalize text-muted-foreground hover:border-muted-foreground"
+                                className="h-7 shrink-0 cursor-pointer rounded-md border border-border px-1.5 text-xs capitalize text-muted-foreground hover:border-muted-foreground"
                               >
                                 {currentLevel ?? 'Effort'}
                               </button>
@@ -689,7 +689,7 @@ export function ModelToolbar({
                       ...(flyoutLeft === null ? { right: flyoutRight ?? 8 } : { left: flyoutLeft }),
                     }}
                   >
-                    <p className="px-2 pt-1 pb-0.5 text-[11px] font-semibold tracking-wide text-muted-foreground">
+                    <p className="px-2 pt-1 pb-0.5 text-xs font-semibold tracking-wide text-muted-foreground">
                       Effort
                     </p>
                     {flyoutTarget.model.efforts.map((level) => {
@@ -758,7 +758,7 @@ export function ModelToolbar({
                   </span>
                   <span className="font-medium">Thinking</span>
                   {!canReason ? (
-                    <span className="ml-auto text-[11px] text-muted-foreground">
+                    <span className="ml-auto text-xs text-muted-foreground">
                       Not on this model
                     </span>
                   ) : null}

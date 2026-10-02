@@ -77,7 +77,7 @@ function MeterBar({ view }: { view: SectorContextView }) {
           {total.toLocaleString()} / {WINDOW_TOKENS.toLocaleString()} tokens · {percent}% of context · digest{' '}
           {view.digest.version} · {view.segments.references.length} references
         </p>
-        <span className="text-[11px] text-amber-500 dark:text-amber-400">60% compact threshold</span>
+        <span className="text-xs text-amber-500 dark:text-amber-400">60% compact threshold</span>
       </div>
     </div>
   )
