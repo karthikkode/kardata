@@ -60,6 +60,9 @@ import {
   type ToolPayload,
 } from '../data/staging-api'
 import { Markdown } from './Markdown'
+import { ThreadPrimitive } from '@assistant-ui/react'
+import { AssistantRuntimeAdapter } from './chat/AssistantRuntimeAdapter'
+import { toThreadSegments } from './chat/assistantAdapter'
 import { ModelToolbar } from './ModelToolbar'
 import { SubagentsPanel } from './SubagentsPanel'
 import { PanelError, SkeletonRows, ToolRow, UnavailableNotice } from './research-parts'
@@ -1591,6 +1594,7 @@ export function ChatPanel({
     message.kind === 'text' && message.role === 'agent' && messageSeq(message) > awaitingReply.basis,
   )
   const replying = working || awaitingCurrentReply || Boolean(pendingText) || Boolean(pendingReasoning) || pendingTools.length > 0
+  const segments = groupMessageSegments(messages)
 
   return (
     <div
@@ -1924,7 +1928,14 @@ export function ChatPanel({
             onScroll={onLogScroll}
             className="scroll-slim h-full space-y-4 overflow-y-auto px-4 py-3"
           >
+            <AssistantRuntimeAdapter
+              messages={toThreadSegments(segments)}
+              isRunning={replying}
+              onSend={() => undefined}
+            >
+            <ThreadPrimitive.Root>
             {messages.length === 0 && !replying ? (
+              <ThreadPrimitive.Empty>
               <div className="rounded-xl border border-dashed border-border p-4">
                 <p className="text-sm text-muted-foreground">
                   {openThread
@@ -1934,9 +1945,13 @@ export function ChatPanel({
                       : 'Ask anything.'}
                 </p>
               </div>
+              </ThreadPrimitive.Empty>
             ) : null}
-            {groupMessageSegments(messages).map((segment) =>
-              'tools' in segment ? (
+            <ThreadPrimitive.Messages>
+              {({ message: runtimeMessage }) => {
+                const segment = segments.find((entry) => entry.key === runtimeMessage.id)
+                if (!segment) return null
+                return 'tools' in segment ? (
                 <div key={segment.key}>
                   <ActivityGroup tools={segment.tools} reasoning={segment.reply?.reasoning} />
                   {segment.reply ? (
@@ -1955,8 +1970,11 @@ export function ChatPanel({
                     />
                   )}
                 </div>
-              ),
-            )}
+                )
+              }}
+            </ThreadPrimitive.Messages>
+            </ThreadPrimitive.Root>
+            </AssistantRuntimeAdapter>
             {echo && !sendError && !messages.some((message) =>
               message.kind === 'text' && message.role === 'user' &&
               message.text === echo.text && messageSeq(message) > echo.basis,

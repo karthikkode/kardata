@@ -121,3 +121,63 @@ export function toThreadMessages(
   }
   return messages
 }
+
+export type MessageSegmentLike =
+  | { key: string; tools: ChatTool[]; reply?: { id: string; kind: 'text'; role: 'user' | 'agent'; text: string; reasoning?: string; failed?: boolean; missedSteer?: boolean; at?: string } }
+  | { key: string; message: ChatMessage }
+
+/** One runtime message per presentational segment, preserving grouping and order. */
+export function toThreadSegments(segments: MessageSegmentLike[]): ThreadMessage[] {
+  return segments.map((segment) => {
+    if ('tools' in segment) {
+      const content: ThreadAssistantMessagePart[] = segment.tools.map((tool) => ({
+        type: 'tool-call',
+        toolCallId: tool.id,
+        toolName: tool.name,
+        args: {},
+        argsText: tool.detail,
+        ...(tool.state === 'failed' ? { isError: true } : {}),
+        ...(tool.state === 'running' ? { isPreliminary: true } : {}),
+      }))
+      if (segment.reply?.reasoning) content.push({ type: 'reasoning', text: segment.reply.reasoning })
+      if (segment.reply) content.push({ type: 'text', text: segment.reply.text })
+      const anyRunning = segment.tools.some((tool) => tool.state === 'running')
+      const anyFailed = segment.tools.some((tool) => tool.state === 'failed')
+      return {
+        id: segment.key,
+        role: 'assistant',
+        content,
+        status: anyRunning
+          ? { type: 'running' }
+          : anyFailed || segment.reply?.failed
+            ? { type: 'incomplete', reason: 'error' }
+            : { type: 'complete', reason: 'stop' },
+        metadata: { unstable_state: null, unstable_annotations: [], unstable_data: [], steps: [], custom: {} },
+        createdAt: stamp(segment.tools[0]?.at ?? segment.reply?.at),
+      }
+    }
+    const row = segment.message
+    if (row.kind === 'text' && row.role === 'user') {
+      return {
+        id: segment.key,
+        role: 'user',
+        content: [{ type: 'text', text: row.text }],
+        attachments: [],
+        metadata: { custom: {} },
+        createdAt: stamp(row.at),
+      }
+    }
+    const text = row.kind === 'text' ? row : null
+    const content: ThreadAssistantMessagePart[] = []
+    if (text?.reasoning) content.push({ type: 'reasoning', text: text.reasoning })
+    content.push({ type: 'text', text: text ? text.text : '' })
+    return {
+      id: segment.key,
+      role: 'assistant',
+      content,
+      status: text?.failed ? { type: 'incomplete', reason: 'error' } : { type: 'complete', reason: 'stop' },
+      metadata: { unstable_state: null, unstable_annotations: [], unstable_data: [], steps: [], custom: {} },
+      createdAt: stamp(text?.at),
+    }
+  })
+}

@@ -67,3 +67,20 @@ describe('assistant adapter mapping', () => {
     expect(toThreadMessages(settled, { pendingText: null, pendingReasoning: null, pendingTools: [] })).toHaveLength(1)
   })
 })
+
+describe('assistant segment mapping', () => {
+  it('keeps tool-plus-reply groups in one runtime message in order', async () => {
+    const { toThreadSegments } = await import('@/components/chat/assistantAdapter')
+    const { groupMessageSegments } = await import('@/components/ChatPanel')
+    const segments = groupMessageSegments([
+      { id: 'm:1', kind: 'text', role: 'user', text: 'go' },
+      { id: 'm:2', kind: 'tool', name: 'db.kb_search', detail: '', state: 'done' },
+      { id: 'm:3', kind: 'text', role: 'agent', text: 'Found it', reasoning: 'trace' },
+    ])
+    expect(segments).toHaveLength(2)
+    const out = toThreadSegments(segments)
+    expect(out.map((m) => m.id)).toEqual(['m:1', 'm:2'])
+    expect(out[0]).toMatchObject({ role: 'user' })
+    expect(out[1]).toMatchObject({ role: 'assistant', status: { type: 'complete', reason: 'stop' } })
+  })
+})
