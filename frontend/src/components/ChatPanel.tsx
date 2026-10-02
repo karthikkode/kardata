@@ -59,6 +59,8 @@ import {
   type ToolPayload,
 } from '../data/staging-api'
 import { Markdown } from './Markdown'
+import { PRIMITIVE_BUNDLE_PROBE as AUI_PROBE } from './chat/assistantAdapter'
+void AUI_PROBE
 import { ModelToolbar } from './ModelToolbar'
 import { SubagentsPanel } from './SubagentsPanel'
 import { PanelError, SkeletonRows, ToolRow, UnavailableNotice } from './research-parts'
