@@ -4,6 +4,15 @@
 // user bubbles and mention chips intentionally stay plain text.
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import type { ReactNode } from 'react'
+import {
+  AlertTriangle,
+  Compass,
+  HelpCircle,
+  Search,
+  Target,
+  Wallet,
+} from 'lucide-react'
 
 const ALLOWED_ELEMENTS = [
   'p',
@@ -39,11 +48,41 @@ export function safeExternalUrl(url: string): string {
   return '#'
 }
 
+/** Plain text of heading children for keyword matching; complex nodes opt out. */
+function headingText(children: ReactNode): string {
+  if (typeof children === 'string' || typeof children === 'number') return String(children)
+  if (Array.isArray(children)) return children.map(headingText).join('')
+  return ''
+}
+
+/** Section glyph by heading keyword (case-insensitive); unknown sections stay plain. */
+function headingIcon(text: string): typeof Target | null {
+  const needle = text.toLowerCase()
+  if (needle.includes('scope')) return Target
+  if (needle.includes('direction')) return Compass
+  if (needle.includes('quer')) return Search
+  if (needle.includes('budget')) return Wallet
+  if (needle.includes('risk')) return AlertTriangle
+  if (needle.includes('question')) return HelpCircle
+  return null
+}
+
 const components: Components = {
   p: ({ children }) => <p className="my-1.5 text-sm leading-relaxed first:mt-0 last:mb-0">{children}</p>,
   h1: ({ children }) => <h1 className="mt-6 mb-3 text-lg font-semibold tracking-tight first:mt-0 last:mb-0">{children}</h1>,
   h2: ({ children }) => <h2 className="mt-5 mb-2 text-base font-semibold tracking-tight first:mt-0 last:mb-0">{children}</h2>,
-  h3: ({ children }) => <h3 className="mt-4 mb-2 text-sm font-semibold first:mt-0 last:mb-0">{children}</h3>,
+  h3: ({ children }) => {
+    const Icon = headingIcon(headingText(children))
+    if (!Icon) {
+      return <h3 className="mt-4 mb-2 text-sm font-semibold first:mt-0 last:mb-0">{children}</h3>
+    }
+    return (
+      <h3 className="mt-4 mb-2 flex items-center gap-1.5 text-sm font-semibold first:mt-0 last:mb-0">
+        <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+        <span className="min-w-0">{children}</span>
+      </h3>
+    )
+  },
   h4: ({ children }) => <h4 className="my-1.5 text-xs font-semibold tracking-wide text-muted-foreground first:mt-0 last:mb-0">{children}</h4>,
   ul: ({ children }) => <ul className="my-1.5 list-disc space-y-1 pl-5 text-sm marker:text-muted-foreground first:mt-0 last:mb-0">{children}</ul>,
   ol: ({ children }) => <ol className="my-1.5 list-decimal space-y-1 pl-5 text-sm marker:text-muted-foreground first:mt-0 last:mb-0">{children}</ol>,

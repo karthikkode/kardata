@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { Check, Clock, Compass, FileText, Layers, ListChecks, Pencil, Target, Users } from 'lucide-react'
+import { Check, Clock, Compass, FileText, History, Layers, ListChecks, Pencil, Target, Users } from 'lucide-react'
 import { ExecutableResearchPlan, type ExecutableResearchPlan as Plan } from '../data/research-plan'
 import { WorkspaceOverlay } from './workspace-parts'
 import { Button } from './ui/button'
@@ -27,6 +27,14 @@ export function ExecutablePlanDetails({ plan }: { plan: Plan }) {
         <dd className="mt-1 font-mono text-sm font-semibold tabular-nums">{plan.budgets.concurrency} concurrent</dd>
       </div>
     </dl>
+    {plan.discoveryTarget ? (
+      <div>
+        <div aria-hidden className="h-1.5 overflow-hidden rounded-full bg-muted">
+          <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, Math.round((plan.discoveryTarget / Math.max(1, plan.budgets.maxCompanies)) * 100))}%` }} />
+        </div>
+        <p className="mt-1.5 text-xs text-muted-foreground">Target <span className="font-mono tabular-nums">{plan.discoveryTarget.toLocaleString()}</span> of up to <span className="font-mono tabular-nums">{plan.budgets.maxCompanies.toLocaleString()}</span> companies</p>
+      </div>
+    ) : null}
     {plan.discovery.map((direction) => <section key={direction.id} aria-label={direction.title} className="rounded-xl border border-border bg-background p-4">
       <div className="flex items-center gap-2">
         <Compass className="size-4 shrink-0 text-muted-foreground" aria-hidden />
@@ -92,4 +100,40 @@ function PlanForm({ formId, markdown, executable, busy, error, onSave }: {
     <p className="rounded-lg bg-muted p-3 text-xs text-muted-foreground">Editing an approved plan reopens review. Execution uses the queries and limits shown here.</p>
     {validation || error ? <p role="alert" className="text-sm">{validation ?? error}</p> : null}
   </form>
+}
+
+export function PlanVersionTimeline({ versions, latestVersion, approvedVersion }: {
+  versions: { version: number; at: string }[]
+  latestVersion: number
+  approvedVersion?: number | null
+}) {
+  if (versions.length < 2) return null
+  const ordered = [...versions].sort((a, b) => b.version - a.version)
+  return (
+    <details className="rounded-xl border border-border bg-background">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <History className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        <span className="min-w-0 flex-1 font-semibold">Plan history</span>
+        <span className="inline-flex shrink-0 items-center rounded-full border border-border px-2 py-0.5 font-mono text-xs tabular-nums text-muted-foreground select-none">{versions.length} versions</span>
+      </summary>
+      <ol className="space-y-1 border-t border-border px-4 py-3">
+        {ordered.map((entry) => (
+          <li key={entry.version} className="flex items-center gap-2 text-sm">
+            <span className="inline-flex shrink-0 items-center rounded-full border border-border px-2 py-0.5 font-mono text-xs tabular-nums text-muted-foreground select-none">v{entry.version}</span>
+            <time dateTime={entry.at} title={new Date(entry.at).toLocaleString()} className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+              {new Date(entry.at).toLocaleString()}
+            </time>
+            {approvedVersion === entry.version ? (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary select-none">
+                <Check className="size-3 shrink-0" aria-hidden />Approved
+              </span>
+            ) : null}
+            {entry.version === latestVersion && approvedVersion !== entry.version ? (
+              <span className="shrink-0 text-xs text-muted-foreground">Current</span>
+            ) : null}
+          </li>
+        ))}
+      </ol>
+    </details>
+  )
 }

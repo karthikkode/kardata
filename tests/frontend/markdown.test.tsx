@@ -3,6 +3,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { Markdown } from '@/components/Markdown'
+// NOTE: plan-icon suite appended at file end; shared import above covers it.
 
 describe('house markdown', () => {
   it('renders bold lead-ins, lists, tables, and code', () => {
@@ -51,5 +52,17 @@ describe('house markdown', () => {
     expect(container.textContent).toContain('half bold')
     const fenced = render(<Markdown text={'```ts\nconst a = 1'} />).container
     expect(fenced.textContent).toContain('const a = 1')
+  })
+})
+
+describe('plan section icons', () => {
+  it('matches known plan headings to glyphs and leaves the rest plain', async () => {
+    const { Markdown } = await import('@/components/Markdown')
+    const { container, rerender } = render(<Markdown text={'### scope\n\nBody'} />)
+    expect(container.querySelector('h3 svg')).not.toBeNull()
+    expect(screen.getByText('scope')).toBeInTheDocument()
+    rerender(<Markdown text={'### Something custom\n\nBody'} />)
+    expect(container.querySelector('h3 svg')).toBeNull()
+    expect(screen.getByText('Something custom')).toBeInTheDocument()
   })
 })

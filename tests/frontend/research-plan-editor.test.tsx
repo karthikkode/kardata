@@ -44,3 +44,32 @@ describe('owner review of executable plans', () => {
     expect(screen.getByText(/legacy plan has no executable work/)).toBeInTheDocument()
   })
 })
+
+describe('plan version timeline', () => {
+  it('stays hidden for a single version', async () => {
+    const { PlanVersionTimeline } = await import('@/components/ResearchPlanEditor')
+    const { container } = render(
+      <PlanVersionTimeline versions={[{ version: 1, at: '2026-01-01T00:00:00.000Z' }]} latestVersion={1} approvedVersion={null} />,
+    )
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it('lists versions newest first with the approved badge', async () => {
+    const user = userEvent.setup()
+    const { PlanVersionTimeline } = await import('@/components/ResearchPlanEditor')
+    render(
+      <PlanVersionTimeline
+        versions={[
+          { version: 1, at: '2026-01-01T00:00:00.000Z' },
+          { version: 2, at: '2026-01-02T00:00:00.000Z' },
+        ]}
+        latestVersion={2}
+        approvedVersion={2}
+      />,
+    )
+    await user.click(screen.getByText('Plan history'))
+    const tags = screen.getAllByText(/^v[12]$/).map((el) => el.textContent)
+    expect(tags).toEqual(['v2', 'v1'])
+    expect(screen.getByText('Approved')).toBeInTheDocument()
+  })
+})
