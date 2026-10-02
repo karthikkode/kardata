@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 
-// One motion scale for the whole app, exactly the handoff table (2.7):
-// hover/pressed/color 150ms ease-out; page/section 200ms opacity crossfade
-// (implemented by the View Transitions API in useNavigation, with the
-// pageEnter/pageExit class pair as the no-API fallback); dialog 200ms
-// opacity + 8px rise; menu/popover 150ms opacity + 4px rise;
-// drawer/dock 200ms opacity + 16px from its edge; new rows and settled
-// messages 150ms opacity + 4px rise (entering content only, never a remount
-// of history); inline notices 150ms opacity; disclosures change layout
-// immediately with a 150ms content fade; chevrons rotate 150ms; skeletons
-// pulse only while loading and stay static under reduced motion.
+// One motion scale for the whole app (plan 2.6): hover/pressed/color
+// 120ms; page replacement 120ms out plus 180ms rise-in (implemented by the
+// View Transitions API in useNavigation, with the pageEnter/pageExit class
+// pair as the no-API fallback); dialog 180ms opacity plus scale plus 4px
+// rise; menu/popover 120ms opacity plus scale from the transform origin;
+// drawer/dock 240ms in (opacity plus 16px from its edge), 180ms out; new
+// rows and settled messages 180ms opacity plus 4px rise (entering content
+// only, never a remount of history); inline notices 120ms opacity;
+// disclosures animate height over 180ms with a 120ms content fade;
+// chevrons rotate 180ms; skeletons sheen while loading and stay static
+// under reduced motion; stat numbers count up once on first mount (see
+// lib/animate-number.ts), polls swap instantly.
 //
 // Base UI overlay primitives (dialog, alert-dialog, menu, popover,
 // tooltip, select, searchable, collapsible) implement their enter AND exit
@@ -20,10 +22,20 @@ import { useEffect, useRef, useState } from 'react'
 // skill lists), which swap enter/exit on `closing`. Motion-powered feature
 // markup uses the lightweight `m` component under `LazyMotion
 // features={domAnimation}` (both App roots). Change constants with the CSS
-// together. No springs, overshoot, parallax, drag, scroll-linked effects,
-// or animated counters.
-export const EXIT_MS = 200
-export const POPOVER_MS = 150
+// together. No springs, overshoot, parallax, drag, or scroll-linked
+// effects.
+
+/** JS mirror of the CSS motion tokens (ms durations, bezier tuples). */
+export const MOTION = {
+  fast: 120,
+  base: 180,
+  slow: 240,
+  ease: [0.16, 1, 0.3, 1] as [number, number, number, number],
+  easeSoft: [0.25, 0.1, 0.25, 1] as [number, number, number, number],
+}
+
+export const EXIT_MS = 180
+export const POPOVER_MS = 120
 
 export function prefersReducedMotion(): boolean {
   return (
@@ -32,37 +44,51 @@ export function prefersReducedMotion(): boolean {
   )
 }
 
-// Menu/popover/select/tooltip/file-menus: 150ms opacity plus 4px vertical
-// translation. The dock drifts sideways instead, matching a sheet leaving
-// the edge (200ms opacity plus 16px). Dialogs rise 8px over 200ms.
-// Consumers swap the enter pair for the exit pair on `closing`.
+// Menu/popover/select/tooltip/file-menus: 120ms opacity plus scale from
+// the transform origin, 100ms opacity-only exit. The dock slides sideways
+// instead, matching a sheet leaving the edge (240ms in, 180ms out).
+// Dialogs rise 4px with scale over 180ms. Consumers swap the enter pair
+// for the exit pair on `closing`.
 export const popoverEnter =
-  'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-150'
+  'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-120'
 export const popoverExit =
-  'motion-safe:animate-out motion-safe:fade-out-0 motion-safe:slide-out-to-bottom-1 motion-safe:duration-150'
+  'motion-safe:animate-out motion-safe:fade-out-0 motion-safe:duration-100'
 export const dockEnter =
-  'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-right-4 motion-safe:duration-200'
+  'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-right-4 motion-safe:duration-240'
 export const dockExit =
-  'motion-safe:animate-out motion-safe:fade-out-0 motion-safe:slide-out-to-right-4 motion-safe:duration-200'
-// Dialogs and alert dialogs: 200ms opacity plus 8px vertical translation.
+  'motion-safe:animate-out motion-safe:fade-out-0 motion-safe:slide-out-to-right-4 motion-safe:duration-180'
+// Dialogs and alert dialogs: 180ms opacity plus 4px rise with scale;
+// 120ms opacity exit.
 export const dialogEnter =
-  'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-200'
+  'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:zoom-in-95 motion-safe:duration-180'
 export const dialogExit =
-  'motion-safe:animate-out motion-safe:fade-out-0 motion-safe:slide-out-to-bottom-2 motion-safe:duration-200'
-// Page/section replacement: 200ms opacity crossfade. Outgoing content turns
-// inert during replacement; focus moves to the new heading after commit.
+  'motion-safe:animate-out motion-safe:fade-out-0 motion-safe:zoom-out-95 motion-safe:duration-120'
+// Page/section replacement: old fades over 120ms; new rises 4px over
+// 180ms. Outgoing content turns inert during replacement; focus moves to
+// the new heading after commit.
 export const pageEnter =
-  'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200'
+  'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-180'
 export const pageExit =
-  'motion-safe:animate-out motion-safe:fade-out-0 motion-safe:duration-200'
-// New list rows and newly settled messages: 150ms opacity plus 4px rise,
+  'motion-safe:animate-out motion-safe:fade-out-0 motion-safe:duration-120'
+// New list rows and newly settled messages: 180ms opacity plus 4px rise,
 // applied to the entering node only. History never reanimates on poll,
 // reconnect, or thread switch; streaming text never animates per token.
 export const rowEnter =
-  'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-150'
-// Inline operation notices: 150ms opacity only, no movement.
+  'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-180'
+// Inline operation notices: 120ms opacity only, no movement.
 export const noticeEnter =
-  'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150'
+  'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-120'
+// Live-inserted rows via motion: initial keyframe for the entering node.
+// The animate target is opacity 1 / y 0 over 180ms at the call site.
+/** Stagger delay for item N: 30ms each, capped at the first 12 items. */
+export function staggerDelay(index: number): number {
+  return Math.min(Math.max(0, index), 11) * 0.03
+}
+/** Sliding tab indicator (shared layoutId per group). */
+export const tabIndicatorTransition = {
+  duration: 0.18,
+  ease: [0.16, 1, 0.3, 1] as [number, number, number, number],
+}
 
 type ExitState = 'open' | 'closing' | 'closed'
 

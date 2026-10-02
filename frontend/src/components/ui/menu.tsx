@@ -1,11 +1,10 @@
-// Owned menu over Base UI: roving focus, Escape, outside dismissal, and
-// trigger restoration are primitive-owned. Popup is portaled with collision
-// handling; only one system owns the exit (useExitState in the caller for
-// controlled retention, never a second timeout).
+// Action menu over Base UI: trigger plus one expanded option list with
+// keyboard traversal owned by the primitive. One action per row; nested
+// flyouts stay out (submenu support is MenuSubmenuRoot below).
 import * as React from 'react'
 import { Menu } from '@base-ui/react/menu'
 import { Check } from 'lucide-react'
-import { cn } from 'cn'
+import { cn } from '@/lib/utils'
 
 function MenuRoot(props: React.ComponentProps<typeof Menu.Root>) {
   return <Menu.Root data-slot="menu" {...props} />
@@ -15,18 +14,20 @@ function MenuTrigger({ className, ...props }: React.ComponentProps<typeof Menu.T
   return <Menu.Trigger data-slot="menu-trigger" className={className} {...props} />
 }
 
-function MenuPopup({ className, ...props }: React.ComponentProps<typeof Menu.Popup>) {
+function MenuPopup({ className, children, ...props }: React.ComponentProps<typeof Menu.Popup>) {
   return (
     <Menu.Portal data-slot="menu-portal">
-      <Menu.Positioner data-slot="menu-positioner" sideOffset={4}>
+      <Menu.Positioner data-slot="menu-positioner" sideOffset={4} className="z-50 outline-none">
         <Menu.Popup
           data-slot="menu-popup"
           className={cn(
-            'scroll-slim z-50 max-h-64 min-w-40 overflow-y-auto rounded-lg border border-border bg-popover p-1 text-sm text-popover-foreground shadow-lg outline-none transition ease-out duration-150 data-[ending-style]:translate-y-1 data-[ending-style]:opacity-0 data-[starting-style]:translate-y-1 data-[starting-style]:opacity-0',
+            'scroll-slim max-h-80 min-w-40 origin-[var(--transform-origin)] overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-md outline-none transition-all duration-120 ease-out data-[ending-style]:opacity-0 data-[ending-style]:duration-100 data-[starting-style]:scale-[0.96] data-[starting-style]:opacity-0',
             className,
           )}
           {...props}
-        />
+        >
+          {children}
+        </Menu.Popup>
       </Menu.Positioner>
     </Menu.Portal>
   )
@@ -37,7 +38,7 @@ function MenuItem({ className, ...props }: React.ComponentProps<typeof Menu.Item
     <Menu.Item
       data-slot="menu-item"
       className={cn(
-        'flex min-h-8 cursor-pointer pointer-coarse:min-h-10 items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none select-none focus:bg-muted data-highlighted:bg-muted data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0',
+        'flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1 text-left text-ui outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-surface-hover data-highlighted:text-foreground [&_svg]:size-4 [&_svg]:shrink-0',
         className,
       )}
       {...props}
@@ -45,38 +46,49 @@ function MenuItem({ className, ...props }: React.ComponentProps<typeof Menu.Item
   )
 }
 
-function MenuCheckboxItem({
-  className,
-  children,
-  ...props
-}: React.ComponentProps<typeof Menu.CheckboxItem>) {
+function MenuCheckboxItem({ className, children, ...props }: React.ComponentProps<typeof Menu.CheckboxItem>) {
   return (
     <Menu.CheckboxItem
       data-slot="menu-checkbox-item"
       className={cn(
-        'flex min-h-8 cursor-pointer pointer-coarse:min-h-10 items-center gap-2 rounded-md py-1.5 pr-2 pl-7 text-sm outline-none select-none focus:bg-muted data-highlighted:bg-muted data-disabled:pointer-events-none data-disabled:opacity-50',
+        'relative flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm py-1 pr-2 pl-8 text-left text-ui outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-surface-hover data-highlighted:text-foreground [&_svg]:size-4 [&_svg]:shrink-0',
         className,
       )}
       {...props}
     >
       <Menu.CheckboxItemIndicator
-        data-slot="menu-checkbox-indicator"
-        className="absolute left-2 flex size-4 items-center justify-center"
+        data-slot="menu-checkbox-item-indicator"
+        className="absolute left-2 flex size-4 items-center justify-center text-primary-text"
       >
-        <Check aria-hidden className="size-3.5" />
+        <Check aria-hidden />
       </Menu.CheckboxItemIndicator>
       {children}
     </Menu.CheckboxItem>
   )
 }
 
-function MenuSeparator({ className, ...props }: React.ComponentProps<typeof Menu.Separator>) {
+function MenuRadioGroup(props: React.ComponentProps<typeof Menu.RadioGroup>) {
+  return <Menu.RadioGroup data-slot="menu-radio-group" {...props} />
+}
+
+function MenuRadioItem({ className, children, ...props }: React.ComponentProps<typeof Menu.RadioItem>) {
   return (
-    <Menu.Separator
-      data-slot="menu-separator"
-      className={cn('mx-1 my-1 border-t border-border', className)}
+    <Menu.RadioItem
+      data-slot="menu-radio-item"
+      className={cn(
+        'relative flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm py-1 pr-2 pl-8 text-left text-ui outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-surface-hover data-highlighted:text-foreground [&_svg]:size-4 [&_svg]:shrink-0',
+        className,
+      )}
       {...props}
-    />
+    >
+      <Menu.RadioItemIndicator
+        data-slot="menu-radio-item-indicator"
+        className="absolute left-2 flex size-4 items-center justify-center"
+      >
+        <span aria-hidden className="size-1.5 rounded-full bg-current" />
+      </Menu.RadioItemIndicator>
+      {children}
+    </Menu.RadioItem>
   )
 }
 
@@ -84,10 +96,56 @@ function MenuLabel({ className, ...props }: React.ComponentProps<typeof Menu.Gro
   return (
     <Menu.GroupLabel
       data-slot="menu-label"
-      className={cn('px-2 py-1 text-xs font-medium text-muted-foreground select-none', className)}
+      className={cn('px-2 pt-1.5 pb-1 text-2xs font-medium tracking-[0.05em] text-foreground-subtle uppercase', className)}
       {...props}
     />
   )
 }
 
-export { MenuRoot, MenuTrigger, MenuPopup, MenuItem, MenuCheckboxItem, MenuSeparator, MenuLabel }
+function MenuSeparator({ className, ...props }: React.ComponentProps<typeof Menu.Separator>) {
+  return (
+    <Menu.Separator
+      data-slot="menu-separator"
+      className={cn('mx-1 my-1 border-t border-border-subtle', className)}
+      {...props}
+    />
+  )
+}
+
+function MenuGroup(props: React.ComponentProps<typeof Menu.Group>) {
+  return <Menu.Group data-slot="menu-group" {...props} />
+}
+
+function MenuSubmenuRoot(props: React.ComponentProps<typeof Menu.SubmenuRoot>) {
+  return <Menu.SubmenuRoot data-slot="menu-submenu" {...props} />
+}
+
+function MenuSubmenuTrigger({ className, children, ...props }: React.ComponentProps<typeof Menu.SubmenuTrigger>) {
+  return (
+    <Menu.SubmenuTrigger
+      data-slot="menu-submenu-trigger"
+      className={cn(
+        'flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1 text-left text-ui outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-surface-hover data-highlighted:text-foreground data-popup-open:bg-surface-hover [&_svg]:size-4 [&_svg]:shrink-0',
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </Menu.SubmenuTrigger>
+  )
+}
+
+export {
+  MenuRoot,
+  MenuTrigger,
+  MenuPopup,
+  MenuItem,
+  MenuCheckboxItem,
+  MenuRadioGroup,
+  MenuRadioItem,
+  MenuLabel,
+  MenuSeparator,
+  MenuGroup,
+  MenuSubmenuRoot,
+  MenuSubmenuTrigger,
+}

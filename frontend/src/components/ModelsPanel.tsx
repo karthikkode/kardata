@@ -3,7 +3,7 @@
 // presence only, never key material) and the session read/write pair for
 // the binding. No fixtures, no guessed models.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
+import { Icons } from '@/lib/icons'
 import {
   getSession,
   listProviders,
@@ -103,7 +103,7 @@ function ProviderCard({
             Server default
           </span>
         ) : null}
-        <StatusBadge label={entry.hasKey ? 'Configured' : 'Unconfigured'} tone={entry.hasKey ? 'success' : 'neutral'} icon={<span aria-hidden className={`size-2 rounded-full ${entry.hasKey ? 'bg-emerald-500' : 'bg-muted-foreground'}`} />} />
+        <StatusBadge label={entry.hasKey ? 'Configured' : 'Unconfigured'} tone={entry.hasKey ? 'success' : 'neutral'} icon={<span aria-hidden className={`size-2 rounded-full ${entry.hasKey ? 'bg-success' : 'bg-muted-foreground'}`} />} />
       </div>
       <p className="text-xs text-muted-foreground">
         {entry.hasKey
@@ -363,7 +363,7 @@ export function ModelsPanel({
   return (
     <div className="space-y-6">
       <Button type="button" variant="ghost" size="sm" onClick={onBack}>
-        <ArrowLeft className="size-4" aria-hidden />
+        <Icons.back className="size-4" aria-hidden />
         Back to Overview
       </Button>
       <section

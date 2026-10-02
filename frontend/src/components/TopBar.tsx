@@ -1,6 +1,6 @@
-import { MessageCircle, Moon, Sun } from 'lucide-react'
-import { Button } from './ui/button'
+import { Icons } from '@/lib/icons'
 import { SearchField } from './shells'
+import { IconButton } from './IconButton'
 
 export function TopBar({
   query,
@@ -35,24 +35,12 @@ export function TopBar({
       ) : (
         <div className="min-w-0 flex-1" aria-hidden />
       )}
-      <Button
-        variant="outline"
-        size="icon"
-        onClick={onChatToggle}
-        aria-label={chatOpen ? 'Close chat' : 'Open chat'}
-        aria-expanded={chatOpen}
-        className="ml-auto"
-      >
-        <MessageCircle className="size-4" aria-hidden />
-      </Button>
-      <Button
-        variant="outline"
-        size="icon"
-        onClick={onTheme}
-        aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
-      >
-        {dark ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
-      </Button>
+      <IconButton label={chatOpen ? 'Close chat' : 'Open chat'} size="icon" variant="outline" onClick={onChatToggle} aria-expanded={chatOpen} className="ml-auto">
+        <Icons.messageCircle className="size-4" aria-hidden />
+      </IconButton>
+      <IconButton label={dark ? 'Switch to light theme' : 'Switch to dark theme'} size="icon" variant="outline" onClick={onTheme}>
+        {dark ? <Icons.themeLight className="size-4" aria-hidden /> : <Icons.themeDark className="size-4" aria-hidden />}
+      </IconButton>
     </header>
   )
 }

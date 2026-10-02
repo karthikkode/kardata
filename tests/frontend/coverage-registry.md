@@ -280,3 +280,32 @@ No suitable surface (honest non-adoption, not silent gaps):
   the model menus above; short lists correctly use `ui/select`.
 - `ui/switch`: no genuine boolean setting exists in the product UI;
   approval acknowledgment must never become a switch.
+
+## UI v2 Stage 1 foundations (F1-F12)
+
+| foundation | files | tests | status |
+|---|---|---|---|
+| F1 tokens (2.1/2.4 values, both themes) | `frontend/src/index.css` | tokens.test.ts, contrast.test.ts | pass |
+| F2 theme system (system/light/dark, no-flash) | `frontend/src/lib/theme.ts`, `frontend/index.html` | theme.test.tsx | pass |
+| F3 type primitives + usage sweep | `frontend/src/components/text.tsx` | text-primitives.test.tsx, type-usage.test.ts, typography.test.ts | pass |
+| F4 primitive restyle (19 ui wrappers) | `frontend/src/components/ui/` | ui-primitives.test.tsx + v2/primitives.spec.ts (19 e2e, 2 skipped: collapsible/progress lack fixture anchors) | pass |
+| F5 ListRow + interaction recipes | `frontend/src/components/ui/list.tsx`, `frontend/src/lib/interaction.ts` | list.test.tsx, interaction.test.ts | pass |
+| F6 motion system (2.6 patterns) | `frontend/src/lib/motion.ts` | motion-presets.test.tsx | pass |
+| F7 icon map + IconButton | `frontend/src/lib/icons.ts`, `frontend/src/components/IconButton.tsx` | icons.test.ts | pass |
+| F8 toasts (sonner) | `frontend/src/lib/toast.ts` | toast.test.ts + v2/primitives.spec.ts toast shots | pass |
+| F9 command palette (cmdk) | `frontend/src/components/CommandPalette.tsx` | command-palette.test.tsx + v2/primitives.spec.ts palette shots | pass |
+| F10 data table (tanstack 8.21.3) | `frontend/src/components/DataTable.tsx` | data-table.test.tsx | pass |
+| F11 shared state components | `frontend/src/components/shells.tsx` ResourceState | shells.test.tsx | pass |
+| F12 humanized labels + format | `frontend/src/lib/labels.ts`, `frontend/src/lib/format.ts` | labels.test.ts, format.test.ts | pass |
+| animate-number helper | `frontend/src/lib/animate-number.ts` | animate-number.test.tsx | pass |
+| cn configured merger (custom font sizes) | `frontend/src/lib/utils.ts` | cn.test.ts | pass |
+| e2e support (fixtures/api/shot/audit/color) | `tests/frontend-e2e/support/*` | color.test.ts, v2/audit.spec.ts (5 tests, 30 page/state/theme/width combos, zero violations) | pass |
+
+F4 e2e evidence: `frontend/test-results/v2/F4-*.png` (76 shots, every primitive
+x default/hover/focus/open/disabled/loading x light/dark x 1440/390, each opened
+and reviewed). Known page-level findings carried into later stages (not
+foundations defects): Models 390 "MetaServer default" wrap (Stage 6 MO-03),
+blocky page-level loading skeletons (page loading states own layout mirroring),
+raw "Filter" stage text + unlabeled bars (Stage 2 RS-05), old "New sector draft"
+dialog copy (Stage 2 RS-06), static hover/focus shots show limited state
+(covered by audit checks 6/8 + unit tests + Stage 8 videos).

@@ -1,88 +1,80 @@
 import { useState } from 'react'
-import {
-  Bot,
-  ChevronsLeft,
-  ChevronsRight,
-  Cpu,
-  FlaskConical,
-  LayoutDashboard,
-  Mail,
-} from 'lucide-react'
+import { Icons } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { TooltipPopup, TooltipRoot, TooltipTrigger } from './ui/tooltip'
 
 const items = [
-  { label: 'Overview', icon: LayoutDashboard },
-  { label: 'Researches', icon: FlaskConical },
-  { label: 'Agents', icon: Bot },
-  { label: 'Models', icon: Cpu },
-  { label: 'Emails', icon: Mail, disabled: true },
+ { label: 'Overview', icon: Icons.dashboard },
+ { label: 'Researches', icon: Icons.researches },
+ { label: 'Agents', icon: Icons.agents },
+ { label: 'Models', icon: Icons.models },
+ { label: 'Emails', icon: Icons.emails, disabled: true },
 ]
 
 export function Sidebar({
-  active,
-  onSelect,
+ active,
+ onSelect,
 }: {
-  active: string
-  onSelect: (item: string) => void
+ active: string
+ onSelect: (item: string) => void
 }) {
-  const [collapsed, setCollapsed] = useState(false)
-  return (
-    <aside className={cn('flex w-16 shrink-0 flex-col gap-1 border-r border-border bg-background p-2 md:p-4 sticky top-0 h-screen', !collapsed && 'md:w-56')}>
-      <p className={cn('px-2 pb-2 text-lg font-semibold tracking-tight', collapsed ? 'hidden' : 'hidden md:block')}>Kardata</p>
-      <nav aria-label="Primary" className="flex flex-col gap-1">
-        {items.map(({ label, icon: Icon, disabled }: { label: string; icon: typeof Bot; disabled?: boolean }) => {
-          const name = disabled ? `${label} (coming soon)` : label
-          const button = (
-            <button
-              key={label}
-              type="button"
-              onClick={() => {
-                if (!disabled) onSelect(label)
-              }}
-              disabled={disabled}
-              aria-label={name}
-              aria-current={!disabled && active === label ? 'page' : undefined}
-              title={disabled ? 'Coming soon' : undefined}
-              className={cn(
-                'flex items-center justify-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:justify-start',
-                !disabled && 'cursor-pointer',
-                !disabled && active === label
-                  ? 'border border-border bg-muted font-medium text-foreground shadow-xs'
-                  : 'border border-transparent text-muted-foreground',
-                disabled && 'cursor-default opacity-60',
-                collapsed && 'md:justify-center',
-              )}
-            >
-              <Icon className="size-4 shrink-0" aria-hidden />
-              <span className={cn(collapsed ? 'hidden' : 'hidden md:inline')}>{label}</span>
-            </button>
-          )
-          // Collapsed labels hide visually but stay as accessible names; a
-          // keyboard/pointer tooltip exposes the destination visually too.
-          if (!collapsed) return button
-          return (
-            <TooltipRoot key={label}>
-              <TooltipTrigger render={button} />
-              <TooltipPopup>{name}</TooltipPopup>
-            </TooltipRoot>
-          )
-        })}
-      </nav>
-      <button
-        type="button"
-        onClick={() => setCollapsed((value) => !value)}
-        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        aria-expanded={!collapsed}
-        className="mt-auto hidden cursor-pointer items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:flex"
-      >
-        {collapsed ? (
-          <ChevronsRight className="size-4 shrink-0" aria-hidden />
-        ) : (
-          <ChevronsLeft className="size-4 shrink-0" aria-hidden />
-        )}
-        <span className={cn(collapsed ? 'hidden' : 'hidden md:inline')}>Collapse</span>
-      </button>
-    </aside>
-  )
+ const [collapsed, setCollapsed] = useState(false)
+ return (
+ <aside className={cn('flex w-16 shrink-0 flex-col gap-1 border-r border-border bg-background p-2 md:p-4 sticky top-0 h-screen', !collapsed && 'md:w-56')}>
+ <p className={cn('px-2 pb-2 text-sm font-medium', collapsed ? 'hidden' : 'hidden md:block')}>Kardata</p>
+ <nav aria-label="Primary" className="flex flex-col gap-1">
+ {items.map(({ label, icon: Icon, disabled }: { label: string; icon: typeof Icons.agents; disabled?: boolean }) => {
+ const name = disabled ? `${label} (coming soon)` : label
+ const button = (
+ <button
+ key={label}
+ type="button"
+ onClick={() => {
+ if (!disabled) onSelect(label)
+ }}
+ disabled={disabled}
+ aria-label={name}
+ aria-current={!disabled && active === label ? 'page' : undefined}
+ title={disabled ? 'Coming soon' : undefined}
+ className={cn(
+ 'flex items-center justify-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:justify-start',
+ !disabled && 'cursor-pointer',
+ !disabled && active === label
+ ? 'border border-border bg-muted font-medium text-foreground shadow-xs'
+ : 'border border-transparent text-muted-foreground',
+ disabled && 'cursor-default opacity-60',
+ collapsed && 'md:justify-center',
+ )}
+ >
+ <Icon className="size-4 shrink-0" aria-hidden />
+ <span className={cn(collapsed ? 'hidden' : 'hidden md:inline')}>{label}</span>
+ </button>
+ )
+ // Collapsed labels hide visually but stay as accessible names; a
+ // keyboard/pointer tooltip exposes the destination visually too.
+ if (!collapsed) return button
+ return (
+ <TooltipRoot key={label}>
+ <TooltipTrigger render={button} />
+ <TooltipPopup>{name}</TooltipPopup>
+ </TooltipRoot>
+ )
+ })}
+ </nav>
+ <button
+ type="button"
+ onClick={() => setCollapsed((value) => !value)}
+ aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+ aria-expanded={!collapsed}
+ className="mt-auto hidden cursor-pointer items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:flex"
+ >
+ {collapsed ? (
+ <Icons.chevronsRight className="size-4 shrink-0" aria-hidden />
+ ) : (
+ <Icons.chevronsLeft className="size-4 shrink-0" aria-hidden />
+ )}
+ <span className={cn(collapsed ? 'hidden' : 'hidden md:inline')}>Collapse</span>
+ </button>
+ </aside>
+ )
 }

@@ -5,7 +5,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { Page } from '@playwright/test'
-import { contrastRatio, parseRgb } from './color'
+import { contrastRatio, parseCssColor } from './color'
 import { V2_AUDIT } from './shot'
 
 export interface AuditViolation {
@@ -86,15 +86,30 @@ export async function auditPage(page: Page, options: AuditOptions = {}): Promise
         }
         return parts.join(' > ')
       }
+      const alphaOf = (color: string): number | null => {
+        const rgb = /^rgba?\(([^)]+)\)$/.exec(color)
+        if (rgb) {
+          const channels = rgb[1]?.split(',').map((part) => Number(part.trim())) ?? []
+          if (channels.length === 3) return 1
+          if (channels.length === 4 && Number.isFinite(channels[3])) return channels[3] as number
+          return null
+        }
+        // Chromium serializes token colours as oklch(), and colours that
+        // passed through color-mix as oklab(); alpha rides after /.
+        if (/^oklch\(/.test(color) || /^oklab\(/.test(color)) {
+          const slash = /^(?:oklch|oklab)\([^)]*\/\s*([\d.]+%?)\s*\)$/.exec(color)
+          if (!slash) return 1
+          const raw = slash[1] ?? ''
+          const alpha = raw.endsWith('%') ? Number(raw.slice(0, -1)) / 100 : Number(raw)
+          return Number.isFinite(alpha) ? alpha : null
+        }
+        return null
+      }
       const opaqueBackground = (element: Element): string | null => {
         let current: Element | null = element
         while (current) {
           const background = getComputedStyle(current).backgroundColor
-          const parsed = /^rgba?\(([^)]+)\)$/.exec(background)
-          if (parsed) {
-            const channels = parsed[1]?.split(',').map((part) => Number(part.trim())) ?? []
-            if (channels.length === 3 || (channels.length === 4 && (channels[3] as number) >= 1)) return background
-          }
+          if ((alphaOf(background) ?? 0) >= 1) return background
           current = current.parentElement
         }
         return null
@@ -135,10 +150,10 @@ export async function auditPage(page: Page, options: AuditOptions = {}): Promise
         }
       }
       if (!skipped.has('contrast')) {
-        const foreground = parseRgb(record.color)
-        const background = record.background ? parseRgb(record.background) : null
+        const foreground = parseCssColor(record.color)
+        const background = record.background ? parseCssColor(record.background) : null
         if (!foreground || !background || background.alpha < 1) {
-          fail('contrast', record.selector, `no opaque background for "${record.text}"`)
+          fail('contrast', record.selector, `uncomputable pair for "${record.text}" (${record.color} on ${record.background})`)
           checks['contrast'] = 'fail'
         } else {
           let effective = foreground
@@ -319,6 +334,16 @@ export async function auditPage(page: Page, options: AuditOptions = {}): Promise
         checks['focus'] = 'fail'
       }
     }
+    // Tabbing leaves focus-opened tooltips behind; they keep their old
+    // coordinates across resizes and fake a horizontal overflow in the
+    // next combo. Blur (plus Escape for dialogs/menus) resets the page,
+    // then wait out the exit animation. A tooltip still mounted after
+    // that is genuinely stuck: fail loud, it needs a product fix.
+    await page.keyboard.press('Escape')
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+    })
+    await page.locator('[role="tooltip"]').waitFor({ state: 'detached', timeout: 3000 })
   }
 
   // -- check 9: h1 alignment ----------------------------------------------

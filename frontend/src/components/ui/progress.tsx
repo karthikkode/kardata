@@ -3,18 +3,18 @@
 // from budget exhaustion.
 import * as React from 'react'
 import { Progress } from '@base-ui/react/progress'
-import { cn } from 'cn'
+import { cn } from '@/lib/utils'
 
 function ProgressRoot({ className, ...props }: React.ComponentProps<typeof Progress.Root>) {
   return (
     <Progress.Root
       data-slot="progress"
-      className={cn('h-1.5 w-full overflow-hidden rounded-full bg-muted', className)}
+      className={cn('h-1.5 w-full overflow-hidden rounded-full bg-surface-active', className)}
       {...props}
     >
       <Progress.Indicator
         data-slot="progress-indicator"
-        className="h-full w-full flex-1 rounded-full bg-primary transition-transform duration-150 ease-out"
+        className="h-full w-full flex-1 origin-left rounded-full bg-primary transition-transform duration-240 ease-out"
       />
     </Progress.Root>
   )

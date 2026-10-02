@@ -4,7 +4,8 @@
 // renders the exact title/description/consequences it was given.
 import * as React from 'react'
 import { AlertDialog } from '@base-ui/react/alert-dialog'
-import { cn } from 'cn'
+import { CircleAlert } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { useTopmostOverlay } from '@/lib/overlay'
 import { Button } from './button'
 
@@ -56,42 +57,41 @@ export function ConfirmAction({
       <AlertDialog.Portal data-slot="alert-dialog-portal">
         <AlertDialog.Backdrop
           data-slot="alert-dialog-backdrop"
-          className="fixed inset-0 z-50 bg-black/40 transition-opacity ease-out duration-200 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0 dark:bg-black/60"
+          className="fixed inset-0 z-50 bg-overlay transition-opacity duration-180 ease-out-soft data-[ending-style]:opacity-0 data-[ending-style]:duration-120 data-[starting-style]:opacity-0"
         />
         <div className="pointer-events-none fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
           <AlertDialog.Popup
             data-slot="alert-dialog-popup"
             className={cn(
-              'pointer-events-auto flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-xl outline-none transition ease-out duration-200 data-[ending-style]:translate-y-2 data-[ending-style]:opacity-0 data-[starting-style]:translate-y-2 data-[starting-style]:opacity-0',
+              'pointer-events-auto flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-120 flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-lg outline-none transition-all duration-180 ease-out data-[ending-style]:scale-[0.98] data-[ending-style]:opacity-0 data-[ending-style]:duration-120 data-[starting-style]:translate-y-1 data-[starting-style]:scale-[0.97] data-[starting-style]:opacity-0',
             )}
           >
-            <div className="flex shrink-0 items-start gap-3 px-5 pt-5">
+            <div className="flex shrink-0 items-start gap-3 px-5 pt-5 pb-2">
               <AlertDialog.Title
                 data-slot="alert-dialog-title"
-                className="min-w-0 flex-1 text-base font-semibold tracking-tight"
+                className="min-w-0 flex-1 text-base font-medium text-foreground"
               >
                 {title}
               </AlertDialog.Title>
             </div>
             <AlertDialog.Description
               data-slot="alert-dialog-description"
-              className="scroll-slim min-h-0 overflow-y-auto px-5 py-3 text-sm text-muted-foreground"
+              className="scroll-slim min-h-0 overflow-y-auto px-5 py-2 text-ui text-muted-foreground"
             >
               {description}
             </AlertDialog.Description>
             {error ? (
-              <p role="alert" className="mx-5 mb-1 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              <p role="alert" className="mx-5 mt-2 flex gap-2 rounded-md border border-danger-border bg-danger-soft p-3 text-ui text-danger">
+                <CircleAlert aria-hidden className="size-4 shrink-0" />
                 {error}
               </p>
             ) : null}
-            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 px-5 py-4">
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 px-5 pt-4 pb-5">
               <AlertDialog.Close
                 data-slot="alert-dialog-cancel"
-                className="inline-flex h-10 cursor-pointer items-center justify-center rounded-lg border border-border bg-background px-4 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
-              >
-                {cancelLabel}
-              </AlertDialog.Close>
-              <Button variant="destructive" disabled={working} onClick={() => void confirm()}>
+                render={<Button variant="secondary">{cancelLabel}</Button>}
+              />
+              <Button variant="destructive" pending={working} onClick={() => void confirm()}>
                 {working ? 'Working…' : confirmLabel}
               </Button>
             </div>

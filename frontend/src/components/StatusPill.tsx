@@ -4,10 +4,10 @@ import { Badge } from './ui/badge'
 export type StatusTone = 'ok' | 'working' | 'paused' | 'failed' | 'idle'
 
 export const toneDot: Record<StatusTone, string> = {
-  ok: 'bg-emerald-500',
-  working: 'bg-sky-500',
-  paused: 'bg-amber-500',
-  failed: 'bg-red-500',
+  ok: 'bg-success',
+  working: 'bg-info',
+  paused: 'bg-warning',
+  failed: 'bg-danger',
   idle: 'bg-muted-foreground',
 }
 

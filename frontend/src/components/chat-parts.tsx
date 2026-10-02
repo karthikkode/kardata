@@ -3,7 +3,7 @@
 // border) so every panel that adopts these rows looks like one product.
 // Karbot keeps its own layout; it only shares overflow-safe Markdown.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Check, Copy } from 'lucide-react'
+import { Icons } from '@/lib/icons'
 import { sessionAge } from './ChatPanel'
 
 /** Gap that opens a timestamp divider between two stamped rows. */
@@ -68,7 +68,7 @@ export function AgentBubble({ children, copyText }: { children: ReactNode; copyT
             onClick={() => void copy()}
             className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:h-10"
           >
-            {copied ? <Check className="size-3.5 shrink-0" aria-hidden /> : <Copy className="size-3.5 shrink-0" aria-hidden />}
+            {copied ? <Icons.approve className="size-3.5 shrink-0" aria-hidden /> : <Icons.copy className="size-3.5 shrink-0" aria-hidden />}
             {copied ? 'Copied' : 'Copy'}
           </button>
           {copyError ? (
@@ -127,11 +127,11 @@ export function AgentMark({ name }: { name: string }) {
     <span className="flex min-w-0 items-center justify-center gap-2 select-none">
       <span
         aria-hidden
-        className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground"
+        className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground"
       >
         {initial}
       </span>
-      <span className="min-w-0 truncate text-sm font-semibold">{name}</span>
+      <span className="min-w-0 truncate text-sm font-medium">{name}</span>
     </span>
   )
 }

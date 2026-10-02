@@ -3,11 +3,12 @@
 // Stopping cancels the thread's run through the parent. There is no local
 // launching or staged progress: every row on screen was served by the API.
 import { useState } from 'react'
-import { ChevronDown, MessageSquare, Square } from 'lucide-react'
+import { Icons } from '@/lib/icons'
 import { popoverEnter, popoverExit, useExitState } from '@/lib/motion'
 import type { ThreadView } from '../data/staging-api'
 import { toneDot } from './StatusPill'
 import { Button } from './ui/button'
+import { IconButton } from './IconButton'
 
 function toneFor(status: string): 'working' | 'ok' | 'failed' | 'idle' {
   if (/running/i.test(status)) return 'working'
@@ -70,25 +71,15 @@ function SubagentRow({
         ) : null}
       </button>
       {running ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`Stop ${thread.key}`}
-          onClick={() => onStop(thread.key)}
+        <IconButton label={`Stop ${thread.key}`} size="icon-sm" type="button" onClick={() => onStop(thread.key)}
         >
-          <Square className="size-4" aria-hidden />
-        </Button>
+          <Icons.stopSquare className="size-4" aria-hidden />
+        </IconButton>
       ) : null}
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        aria-label={`Open ${thread.key} chat`}
-        onClick={() => onOpenThread?.(thread.key)}
+      <IconButton label={`Open ${thread.key} chat`} size="icon-sm" type="button" onClick={() => onOpenThread?.(thread.key)}
       >
-        <MessageSquare className="size-4" aria-hidden />
-      </Button>
+        <Icons.chatMessage className="size-4" aria-hidden />
+      </IconButton>
     </div>
   )
 }
@@ -139,7 +130,7 @@ export function SubagentsPanel({
           <span aria-hidden className={`size-1.5 rounded-full ${toneDot.working}`} />
         ) : null}
         {threads.length} subagents
-        <ChevronDown
+        <Icons.chevronDown
           className={`size-4 motion-safe:transition-transform ${subagentList.open ? 'rotate-180' : ''}`}
           aria-hidden
         />

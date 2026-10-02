@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from 'react'
-import { Check, ChevronDown, ChevronRight, LoaderCircle, Lock, WifiOff, Wrench, X } from 'lucide-react'
+import { Icons } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { researchStages } from '../data/stages'
 import type { CompanyResearch, SectorResearch } from '../data/research'
 import { StatusPill } from './StatusPill'
 import { Button } from './ui/button'
 import { Skeleton } from './ui/skeleton'
+import { IconButton } from './IconButton'
 
 export const stateLabel = {
   draft: 'Draft',
@@ -67,7 +68,7 @@ export function SectorRow({
           <span className="text-muted-foreground">found</span>
         </span>
         <StatusPill tone={stateTone[research.state]} label={stateLabel[research.state]} className="h-7 w-32 justify-center" />
-        <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        <Icons.chevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
       </button>
     </li>
   )
@@ -154,19 +155,19 @@ export function ToolRow({
       : state === 'done'
         ? { tone: 'ok', label: 'Done' }
         : { tone: 'failed', label: 'Failed' }
-  const StatusIcon = state === 'running' ? LoaderCircle : state === 'done' ? Check : X
+  const StatusIcon = state === 'running' ? Icons.loading : state === 'done' ? Icons.approve : Icons.deny
   const badgeTint =
     state === 'running'
       ? 'bg-primary/10 text-primary border-primary/20'
       : state === 'done'
-        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+        ? 'bg-success-soft text-success border-success-border'
         : 'bg-destructive/10 text-destructive border-destructive/20'
 
   return (
     <div className="my-1 rounded-lg border border-border/70 bg-card/60 px-2.5 py-1.5 shadow-2xs transition-colors hover:border-border">
       <div className="flex items-center gap-2">
         <span className="flex size-5 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
-          <Wrench className="size-3" aria-hidden />
+          <Icons.toolActivity className="size-3" aria-hidden />
         </span>
         <p className="min-w-0 flex-1 truncate text-xs font-medium font-mono text-foreground">{name}</p>
         <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${badgeTint}`}>
@@ -178,19 +179,13 @@ export function ToolRow({
           {state === 'running' && elapsed ? <span aria-hidden>· {elapsed}</span> : null}
         </span>
         {hasDetail ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label={open ? `Hide ${name} detail` : `Show ${name} detail`}
-            aria-expanded={open}
-            onClick={() => setOpen((value) => !value)}
+          <IconButton label={open ? `Hide ${name} detail` : `Show ${name} detail`} size="icon-sm" type="button" aria-expanded={open} onClick={() => setOpen((value) => !value)}
           >
-            <ChevronDown
+            <Icons.chevronDown
               className={`size-3.5 motion-safe:transition-transform ${open ? 'rotate-180' : ''}`}
               aria-hidden
             />
-          </Button>
+          </IconButton>
         ) : null}
       </div>
       {open && hasDetail ? (
@@ -275,7 +270,7 @@ export function UnavailableNotice({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="flex flex-col items-start gap-3 py-6">
       <p className="flex items-center gap-2 text-sm font-medium">
-        <WifiOff className="size-4" aria-hidden />
+        <Icons.offline className="size-4" aria-hidden />
         No connection
       </p>
       <p className="text-sm text-muted-foreground">Check your connection and try again.</p>
@@ -286,18 +281,17 @@ export function UnavailableNotice({ onRetry }: { onRetry: () => void }) {
   )
 }
 
-// The request reached the API and was refused (bad key or a role without
-// access). Retry cannot help: the key or its access must change in
-// frontend/.env, then the dev server restarts.
+// The request reached the API and was refused (a key without access).
+// Retry cannot help: an owner must grant access first.
 export function DeniedNotice({ heading }: { heading: string }) {
   return (
     <div className="flex flex-col items-start gap-3 py-6">
       <p className="flex items-center gap-2 text-sm font-medium">
-        <Lock className="size-4" aria-hidden />
+        <Icons.denied className="size-4" aria-hidden />
         {heading}
       </p>
       <p className="text-sm text-muted-foreground">
-        Ask an admin for access, or check the API key in frontend/.env.
+        Ask an owner for access, then try again.
       </p>
     </div>
   )

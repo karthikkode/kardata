@@ -5,7 +5,7 @@
 // same commands/send + thread-stream path as Karbot (thread key defaults
 // to the session id); only the session pool is scoped.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Check, ClipboardList, Compass, Globe, MessagesSquare, Pause, Pencil, Play, RotateCcw, Send, Square, X } from 'lucide-react'
+import { Icons } from '@/lib/icons'
 import { AgentBubble, AgentMark, TimeDivider, UserBubble, splitAfter, useChatStick } from './chat-parts'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -39,6 +39,7 @@ import {
   type Session,
   type StagingConfig,
 } from '../data/staging-api'
+import { IconButton } from './IconButton'
 
 function errorText(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
@@ -94,7 +95,7 @@ function segmentRow(segment: MessageSegment, live: boolean, onProposeContext?: (
                   onClick={() => onProposeContext(segment.reply?.text ?? '')}
                   className="inline-flex min-h-8 pointer-coarse:min-h-10 items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground opacity-60 transition-opacity hover:opacity-100 hover:text-foreground"
                 >
-                  <Globe className="size-3" aria-hidden />
+                  <Icons.globalContext className="size-3" aria-hidden />
                   <span>+ Context</span>
                 </button>
               ) : null}
@@ -144,7 +145,7 @@ function segmentRow(segment: MessageSegment, live: boolean, onProposeContext?: (
               onClick={() => onProposeContext(msgText)}
               className="inline-flex min-h-8 pointer-coarse:min-h-10 items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground opacity-60 transition-opacity hover:opacity-100 hover:text-foreground"
             >
-              <Globe className="size-3" aria-hidden />
+              <Icons.globalContext className="size-3" aria-hidden />
               <span>+ Context</span>
             </button>
           ) : null}
@@ -549,38 +550,31 @@ export function SectorChatPanel({
                 }
               }}
             />
-            <Button type="submit" variant="ghost" size="icon" aria-label="Save session name" disabled={savingName}>
-              <Check className="size-4" aria-hidden />
-            </Button>
-            <Button type="button" variant="ghost" size="icon" aria-label="Cancel rename" onClick={cancelRename}>
-              <X className="size-4" aria-hidden />
-            </Button>
+            <IconButton label="Save session name" size="icon" type="submit" disabled={savingName}>
+              <Icons.approve className="size-4" aria-hidden />
+            </IconButton>
+            <IconButton label="Cancel rename" size="icon" type="button" onClick={cancelRename}>
+              <Icons.deny className="size-4" aria-hidden />
+            </IconButton>
           </form>
         ) : (
           <>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="Chat sessions"
-              aria-expanded={sessionsOpen}
-              className="shrink-0"
-              onClick={() => {
+            <IconButton label="Chat sessions" size="icon" type="button" aria-expanded={sessionsOpen} className="shrink-0" onClick={() => {
                 setSessionsOpen(!sessionsOpen)
                 setSessionsClosing(false)
               }}
             >
-              <MessagesSquare className="size-4" aria-hidden />
-            </Button>
+              <Icons.chatSession className="size-4" aria-hidden />
+            </IconButton>
             <div className="flex min-w-0 flex-1 justify-center px-1">
               <AgentMark
                 name={active ? active.title : sessions === undefined ? 'Loading chats…' : 'No sector chats yet'}
               />
             </div>
             {active ? (
-              <Button type="button" variant="ghost" size="icon" aria-label={`Rename ${active.title}`} className="shrink-0" onClick={startRename}>
-                <Pencil className="size-4" aria-hidden />
-              </Button>
+              <IconButton label={`Rename ${active.title}`} size="icon" type="button" className="shrink-0" onClick={startRename}>
+                <Icons.edit className="size-4" aria-hidden />
+              </IconButton>
             ) : (
               <span aria-hidden className="size-9 shrink-0" />
             )}
@@ -610,72 +604,30 @@ export function SectorChatPanel({
             Research {stateLabel[researchState].toLowerCase()}
           </p>
           {researchState === 'draft' ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="Plan research"
-              disabled={researchBusy}
-              onClick={onPlanResearch}
-            >
-              <ClipboardList className="size-4" aria-hidden />
-            </Button>
+            <IconButton label="Plan research" size="icon" type="button" disabled={researchBusy} onClick={onPlanResearch}>
+              <Icons.clipboard className="size-4" aria-hidden />
+            </IconButton>
           ) : researchState === 'approved' ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="Start research"
-              disabled={researchBusy}
-              onClick={onStartResearch}
-            >
-              <Play className="size-4" aria-hidden />
-            </Button>
+            <IconButton label="Start research" size="icon" type="button" disabled={researchBusy} onClick={onStartResearch}>
+              <Icons.play className="size-4" aria-hidden />
+            </IconButton>
           ) : researchState === 'failed' ? (
             <>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Plan research"
-                disabled={researchBusy}
-                onClick={onPlanResearch}
-              >
-                <ClipboardList className="size-4" aria-hidden />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Restart research"
-                disabled={researchBusy}
-                onClick={onRestartResearch}
-              >
-                <RotateCcw className="size-4" aria-hidden />
-              </Button>
+              <IconButton label="Plan research" size="icon" type="button" disabled={researchBusy} onClick={onPlanResearch}>
+                <Icons.clipboard className="size-4" aria-hidden />
+              </IconButton>
+              <IconButton label="Restart research" size="icon" type="button" disabled={researchBusy} onClick={onRestartResearch}>
+                <Icons.rotateBack className="size-4" aria-hidden />
+              </IconButton>
             </>
           ) : researchState === 'running' ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="Pause research"
-              disabled={researchBusy}
-              onClick={onPauseResearch}
-            >
-              <Pause className="size-4" aria-hidden />
-            </Button>
+            <IconButton label="Pause research" size="icon" type="button" disabled={researchBusy} onClick={onPauseResearch}>
+              <Icons.pause className="size-4" aria-hidden />
+            </IconButton>
           ) : researchState === 'paused' ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="Resume research"
-              disabled={researchBusy}
-              onClick={onResumeResearch}
-            >
-              <Play className="size-4" aria-hidden />
-            </Button>
+            <IconButton label="Resume research" size="icon" type="button" disabled={researchBusy} onClick={onResumeResearch}>
+              <Icons.play className="size-4" aria-hidden />
+            </IconButton>
           ) : null}
         </div>
       ) : null}
@@ -754,18 +706,12 @@ export function SectorChatPanel({
         </div>
       ) : null}
       {contextUpdateResult ? (
-        <div className="mt-2 flex items-center justify-between rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+        <div className="mt-2 flex items-center justify-between rounded-lg border border-success-border bg-success-soft px-3 py-1.5 text-xs text-success">
           <span>{contextUpdateResult}</span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="Dismiss update notification"
-            className="size-5"
-            onClick={() => setContextUpdateResult(null)}
+          <IconButton label="Dismiss update notification" size="icon" type="button" className="size-5" onClick={() => setContextUpdateResult(null)}
           >
-            <X className="size-3" aria-hidden />
-          </Button>
+            <Icons.deny className="size-3" aria-hidden />
+          </IconButton>
         </div>
       ) : null}
       {proposedNote ? (
@@ -775,7 +721,7 @@ export function SectorChatPanel({
           className="mt-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm shadow-sm"
         >
           <div className="flex items-center gap-2 font-medium text-foreground">
-            <Globe className="size-4 text-primary" aria-hidden />
+            <Icons.globalContext className="size-4 text-primary" aria-hidden />
             <span>Global Context Proposal</span>
             <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary">Requires Approval</span>
           </div>
@@ -810,7 +756,7 @@ export function SectorChatPanel({
               onClick={() => void handleApproveContextUpdate(proposedNote)}
               className="gap-1.5"
             >
-              <Check className="size-3.5" aria-hidden />
+              <Icons.approve className="size-3.5" aria-hidden />
               <span>{contextUpdating ? 'Updating…' : 'Approve and Update Context'}</span>
             </Button>
           </div>
@@ -860,17 +806,17 @@ export function SectorChatPanel({
                 onClick={() => void steer(draft)}
                 className="h-8 gap-1 rounded-full px-2.5 text-xs text-primary hover:bg-primary/10"
               >
-                <Compass className="size-3.5" aria-hidden />
+                <Icons.steer className="size-3.5" aria-hidden />
                 <span>Steer</span>
               </Button>
-              <Button type="submit" variant="outline" size="icon" aria-label="Stop reply" className="shrink-0 rounded-full">
-                <Square className="size-4" aria-hidden />
-              </Button>
+              <IconButton label="Stop reply" size="icon" type="submit" variant="outline" className="shrink-0 rounded-full">
+                <Icons.stopSquare className="size-4" aria-hidden />
+              </IconButton>
             </div>
           ) : (
-            <Button type="submit" variant="default" size="icon" aria-label="Send message" disabled={!active || !draft.trim()} className="shrink-0 rounded-full">
-              <Send className="size-4" aria-hidden />
-            </Button>
+            <IconButton label="Send message" size="icon" type="submit" variant="default" disabled={!active || !draft.trim()} className="shrink-0 rounded-full">
+              <Icons.sendMessage className="size-4" aria-hidden />
+            </IconButton>
           )}
         </div>
       </form>

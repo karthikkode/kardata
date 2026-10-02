@@ -4,7 +4,7 @@ import type {
   ResearchData,
   SectorResearch,
 } from '../data/research'
-import { Mail } from 'lucide-react'
+import { Icons } from '@/lib/icons'
 import {
   CompanyRow,
   DeniedNotice,
@@ -23,7 +23,7 @@ function StatsPanel() {
   return (
     <div className="rounded-xl border border-dashed border-border bg-background p-4">
       <p className="flex items-center gap-2 text-sm font-medium">
-        <Mail className="size-4 shrink-0 text-muted-foreground" aria-hidden />        Email tracking is not connected yet.
+        <Icons.emails className="size-4 shrink-0 text-muted-foreground" aria-hidden />        Email tracking is not connected yet.
       </p>
       <p className="mt-1 text-sm text-muted-foreground">
         Scheduled, sent, and reply counts will appear here once email tracking lands.

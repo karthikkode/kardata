@@ -1,7 +1,7 @@
 // ResearchesPage proofs. Bundles are backend-shaped rows built inline for
 // rendering: filtering, overflow totals, and tab switches run against the
 // component contract, never a mock origin.
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ResearchList } from '@/components/Dashboard'
@@ -242,7 +242,7 @@ describe('ResearchesPage', () => {
     await user.click(screen.getByRole('button', { name: 'New sector' }))
     expect(screen.getByRole('dialog', { name: 'New sector draft' })).toBeInTheDocument()
     await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog', { name: 'New sector draft' })).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New sector draft' })).not.toBeInTheDocument())
     expect(screen.getByRole('button', { name: 'New sector' })).toHaveFocus()
   })
 

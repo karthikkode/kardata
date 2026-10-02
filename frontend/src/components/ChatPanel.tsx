@@ -4,32 +4,7 @@
 // uploads: every row on screen was served by the backend.
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { m } from 'motion/react'
-import {
-  ArrowLeft,
-  Bot,
-  Brain,
-  Check,
-  ChevronDown,
-  Compass,
-  Download,
-  Eye,
-  FileCode,
-  FileText,
-  FolderOpen,
-  History,
-  ListTree,
-  Lock,
-  Minimize2,
-  Pencil,
-  Pin,
-  Plus,
-  Send,
-  Square,
-  SquarePen,
-  Trash2,
-  Wrench,
-  X,
-} from 'lucide-react'
+import { Icons } from '@/lib/icons'
 import { downloadBlob } from '../lib/download'
 import { dockEnter, dockExit, popoverEnter, popoverExit, useExitState } from '@/lib/motion'
 import {
@@ -73,6 +48,7 @@ import { Textarea } from './ui/textarea'
 import { ConfirmAction } from './ui/alert-dialog'
 import { ConversationComposer, OperationNotice } from './shells'
 import { AgentBubble, UserBubble } from './chat-parts'
+import { IconButton } from './IconButton'
 
 export type ChatScope = { id: string; name: string } | null
 
@@ -305,16 +281,9 @@ export function SessionsPanel({
       >
         <div className="flex items-center gap-2 px-2 py-1.5">
           <p className="min-w-0 flex-1 text-sm font-medium">Chats</p>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="New session"
-            autoFocus
-            onClick={onNew}
-          >
-            <SquarePen className="size-4" aria-hidden />
-          </Button>
+          <IconButton label="New session" size="icon" type="button" autoFocus onClick={onNew}>
+            <Icons.newChat className="size-4" aria-hidden />
+          </IconButton>
         </div>
         {sessions.length === 0 ? (
           <p className="px-2 py-1.5 text-sm text-muted-foreground">
@@ -338,7 +307,7 @@ export function SessionsPanel({
             >
               {pinnedId !== null && session.id === pinnedId ? (
                 <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
-                  <Pin className="size-3.5" aria-hidden />
+                  <Icons.pin className="size-3.5" aria-hidden />
                   Research
                 </span>
               ) : null}
@@ -363,16 +332,10 @@ export function SessionsPanel({
                 }}
               />
             ) : null}
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`Delete ${session.title}`}
-              disabled={deleting}
-              onClick={() => setConfirmingId(session.id)}
+            <IconButton label={`Delete ${session.title}`} size="icon-sm" type="button" disabled={deleting} onClick={() => setConfirmingId(session.id)}
             >
-              <Trash2 className="size-4" aria-hidden />
-            </Button>
+              <Icons.delete className="size-4" aria-hidden />
+            </IconButton>
           </div>
         ))}
       </div>
@@ -427,7 +390,7 @@ export function FilesMenu({
             onClick={() => onPick(file)}
             className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-background"
           >
-            <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <Icons.fileDocs className="size-4 shrink-0 text-muted-foreground" aria-hidden />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm">{file.name}</span>
               <span className="block truncate text-xs text-muted-foreground">{file.source}</span>
@@ -483,7 +446,7 @@ export function ThinkingPlaceholder() {
       transition={{ duration: 0.2, ease: 'easeOut' }}
       className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs text-primary shadow-2xs"
     >
-      <Brain className="size-3.5 shrink-0 motion-safe:animate-pulse" aria-hidden />
+      <Icons.thinking className="size-3.5 shrink-0 motion-safe:animate-pulse" aria-hidden />
       <span aria-hidden className="flex gap-1">
         {[0, 1, 2].map((index) => (
           <span
@@ -539,7 +502,7 @@ export function ActivityGroup({ tools, reasoning, live = false }: { tools: ChatT
         aria-label={`${open ? 'Hide' : 'Show'} ${label}`}
         className="group inline-flex min-h-8 pointer-coarse:min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-border/70 bg-card/60 px-2.5 py-1 text-left text-xs transition-colors hover:border-border hover:bg-muted/50"
       >
-        {reasoning ? <Brain className="size-3.5 shrink-0 text-primary" aria-hidden /> : <Wrench className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
+        {reasoning ? <Icons.thinking className="size-3.5 shrink-0 text-primary" aria-hidden /> : <Icons.toolActivity className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
         <span className="font-medium text-foreground">{label}</span>
         {tools.length > 0 && !reasoning ? (
           <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs font-mono text-muted-foreground">
@@ -547,7 +510,7 @@ export function ActivityGroup({ tools, reasoning, live = false }: { tools: ChatT
           </span>
         ) : null}
         {failed ? <span className="rounded-full bg-destructive/10 px-1.5 py-0.5 text-xs font-medium text-destructive">Needs attention</span> : null}
-        <ChevronDown
+        <Icons.chevronDown
           data-chevron
           className="size-3.5 shrink-0 text-muted-foreground"
           aria-hidden
@@ -697,7 +660,7 @@ export function SessionFilesView({
     <div className="flex h-full flex-col p-4">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold">Session Files</h2>
+          <h2 className="text-sm font-medium">Session Files</h2>
           <p className="text-xs text-muted-foreground">
             {files.length} {files.length === 1 ? 'file' : 'files'} generated in this session
           </p>
@@ -709,7 +672,7 @@ export function SessionFilesView({
           onClick={() => setCreateOpen(true)}
           className="gap-1.5 text-xs"
         >
-          <Plus className="size-3.5" aria-hidden />
+          <Icons.plus className="size-3.5" aria-hidden />
           Create file
         </Button>
       </div>
@@ -722,16 +685,11 @@ export function SessionFilesView({
       {createOpen ? (
         <div className="mb-4 rounded-xl border border-border bg-card p-3 shadow-2xs">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-semibold">New File</span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Close file creation"
-              onClick={() => setCreateOpen(false)}
+            <span className="text-xs font-medium">New File</span>
+            <IconButton label="Close file creation" size="icon-sm" type="button" onClick={() => setCreateOpen(false)}
             >
-              <X className="size-4" aria-hidden />
-            </Button>
+              <Icons.deny className="size-4" aria-hidden />
+            </IconButton>
           </div>
           <div className="space-y-2">
             <Input
@@ -771,7 +729,7 @@ export function SessionFilesView({
       <div className="scroll-slim min-h-0 flex-1 space-y-2 overflow-y-auto">
         {files.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            <FolderOpen className="mx-auto mb-2 size-8 opacity-40" aria-hidden />
+            <Icons.folderOpen className="mx-auto mb-2 size-8 opacity-40" aria-hidden />
             <p className="font-medium">No files created yet</p>
             <p className="mt-1 text-xs">
               Every document, report, or export created by Karbot or subagents appears here.
@@ -785,7 +743,7 @@ export function SessionFilesView({
             >
               <div className="flex min-w-0 items-center gap-2.5">
                 <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                  <FileText className="size-4" aria-hidden />
+                  <Icons.fileDocs className="size-4" aria-hidden />
                 </span>
                 <div className="min-w-0">
                   <p className="truncate text-xs font-medium font-mono text-foreground">{file.name}</p>
@@ -795,24 +753,14 @@ export function SessionFilesView({
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Preview ${file.name}`}
-                  onClick={() => openPreview(file)}
+                <IconButton label={`Preview ${file.name}`} size="icon-sm" type="button" onClick={() => openPreview(file)}
                 >
-                  <Eye className="size-4" aria-hidden />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Download ${file.name}`}
-                  onClick={() => downloadFile(file)}
+                  <Icons.reveal className="size-4" aria-hidden />
+                </IconButton>
+                <IconButton label={`Download ${file.name}`} size="icon-sm" type="button" onClick={() => downloadFile(file)}
                 >
-                  <Download className="size-4" aria-hidden />
-                </Button>
+                  <Icons.download className="size-4" aria-hidden />
+                </IconButton>
               </div>
             </div>
           ))
@@ -823,28 +771,18 @@ export function SessionFilesView({
         <div className="mt-3 rounded-xl border border-border bg-card p-3 shadow-lg">
           <div className="mb-2 flex items-center justify-between border-b border-border pb-2">
             <div className="flex min-w-0 items-center gap-1.5">
-              <FileCode className="size-3.5 text-primary" aria-hidden />
+              <Icons.fileCode className="size-3.5 text-primary" aria-hidden />
               <span className="truncate text-xs font-mono font-medium">{selectedFile.name}</span>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Download open file"
-                onClick={() => downloadFile(selectedFile)}
+              <IconButton label="Download open file" size="icon-sm" type="button" onClick={() => downloadFile(selectedFile)}
               >
-                <Download className="size-4" aria-hidden />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Close file preview"
-                onClick={() => setSelectedFile(null)}
+                <Icons.download className="size-4" aria-hidden />
+              </IconButton>
+              <IconButton label="Close file preview" size="icon-sm" type="button" onClick={() => setSelectedFile(null)}
               >
-                <X className="size-4" aria-hidden />
-              </Button>
+                <Icons.deny className="size-4" aria-hidden />
+              </IconButton>
             </div>
           </div>
           <div className="scroll-slim max-h-56 overflow-y-auto">
@@ -1631,16 +1569,10 @@ export function ChatPanel({
       <div className="relative flex items-center gap-2 border-b border-border px-4 py-3">
         {openThread ? (
           <>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="Back to chat"
-              onClick={backToSession}
-            >
-              <ArrowLeft className="size-4" aria-hidden />
-            </Button>
-            <p className="min-w-0 flex-1 truncate text-sm font-semibold">{openThread.key}</p>
+            <IconButton label="Back to chat" size="icon" type="button" onClick={backToSession}>
+              <Icons.back className="size-4" aria-hidden />
+            </IconButton>
+            <p className="min-w-0 flex-1 truncate text-sm font-medium">{openThread.key}</p>
           </>
         ) : renaming && activeSession ? (
           <>
@@ -1664,53 +1596,29 @@ export function ChatPanel({
                   }
                 }}
               />
-              <Button
-                type="submit"
-                variant="ghost"
-                size="icon"
-                aria-label="Save session name"
-                disabled={savingName}
-              >
-                <Check className="size-4" aria-hidden />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Cancel rename"
-                onClick={cancelRename}
-              >
-                <X className="size-4" aria-hidden />
-              </Button>
+              <IconButton label="Save session name" size="icon" type="submit" disabled={savingName}>
+                <Icons.approve className="size-4" aria-hidden />
+              </IconButton>
+              <IconButton label="Cancel rename" size="icon" type="button" onClick={cancelRename}>
+                <Icons.deny className="size-4" aria-hidden />
+              </IconButton>
             </form>
           </>
         ) : (
           <>
-            <Bot className="size-4 shrink-0" aria-hidden />
-            <p className="min-w-0 flex-1 truncate text-sm font-semibold">
+            <Icons.agents className="size-4 shrink-0" aria-hidden />
+            <p className="min-w-0 flex-1 truncate text-sm font-medium">
               {activeSession ? activeSession.title : scope ? scope.name : 'Assistant'}
             </p>
             {activeSession ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={`Rename ${activeSession.title}`}
-                onClick={startRename}
-              >
-                <Pencil className="size-4" aria-hidden />
-              </Button>
+              <IconButton label={`Rename ${activeSession.title}`} size="icon" type="button" onClick={startRename}>
+                <Icons.edit className="size-4" aria-hidden />
+              </IconButton>
             ) : null}
             {activeSession ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={`Delete ${activeSession.title}`}
-                onClick={confirmDelete}
-              >
-                <Trash2 className="size-4" aria-hidden />
-              </Button>
+              <IconButton label={`Delete ${activeSession.title}`} size="icon" type="button" onClick={confirmDelete}>
+                <Icons.delete className="size-4" aria-hidden />
+              </IconButton>
             ) : null}
             {activeSession ? (
               <ConfirmAction
@@ -1771,28 +1679,14 @@ export function ChatPanel({
                 Files {files.length > 0 ? `(${files.length})` : ''}
               </button>
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="Compact session context"
-              title="Compact session context to free tokens"
-              disabled={compacting || !activeSessionId}
-              onClick={() => void handleCompactSession()}
+            <IconButton label="Compact session context" size="icon" type="button" title="Compact session context to free tokens" disabled={compacting || !activeSessionId} onClick={() => void handleCompactSession()}
             >
-              <Minimize2 className={`size-4 ${compacting ? 'animate-spin' : ''}`} aria-hidden />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              ref={sessionsButtonRef}
-              aria-label="Chat sessions"
-              aria-expanded={sessionsPanel.open}
-              onClick={() => sessionsPanel.set(!sessionsPanel.open)}
+              <Icons.minimize className={`size-4 ${compacting ? 'animate-spin' : ''}`} aria-hidden />
+            </IconButton>
+            <IconButton label="Chat sessions" size="icon" type="button" ref={sessionsButtonRef} aria-expanded={sessionsPanel.open} onClick={() => sessionsPanel.set(!sessionsPanel.open)}
             >
-              <History className="size-4" aria-hidden />
-            </Button>
+              <Icons.history className="size-4" aria-hidden />
+            </IconButton>
             {sessionsPanel.mounted ? (
               <SessionsPanel
                 sessions={sessions ?? []}
@@ -1811,16 +1705,9 @@ export function ChatPanel({
             ) : null}
           </>
         )}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label="Close chat"
-          onClick={onClose}
-          className="ml-auto"
-        >
-          <X className="size-4" aria-hidden />
-        </Button>
+        <IconButton label="Close chat" size="icon" type="button" onClick={onClose} className="ml-auto">
+          <Icons.deny className="size-4" aria-hidden />
+        </IconButton>
         {(scope !== null && contextPanel.mounted) ? (
           <>
             <button
@@ -1878,7 +1765,7 @@ export function ChatPanel({
         <div role="status" className="flex items-center justify-between border-b border-border bg-muted/40 px-4 py-1.5 text-xs text-muted-foreground">
           <span>{compactStatus}</span>
           <button type="button" onClick={() => setCompactStatus(null)} className="hover:text-foreground">
-            <X className="size-3" aria-hidden />
+            <Icons.deny className="size-3" aria-hidden />
           </button>
         </div>
       ) : null}
@@ -1900,7 +1787,7 @@ export function ChatPanel({
         <div className="p-4">
           <div className="rounded-xl border border-dashed border-border bg-background p-4">
             <p className="flex items-center gap-2 text-sm font-medium">
-              <Lock className="size-4 shrink-0" aria-hidden />
+              <Icons.denied className="size-4 shrink-0" aria-hidden />
               Chat is not shared with this key.
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -2082,19 +1969,11 @@ export function ChatPanel({
             }}
           >
             <div className="flex items-center gap-1 rounded-full border border-border bg-background py-1 pr-1.5 pl-1.5">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              ref={addButtonRef}
-              aria-label="Add files"
-              aria-expanded={filesMenu.open}
-              disabled={working}
-              onClick={() => filesMenu.set(!filesMenu.open)}
+            <IconButton label="Add files" size="icon" type="button" ref={addButtonRef} aria-expanded={filesMenu.open} disabled={working} onClick={() => filesMenu.set(!filesMenu.open)}
               className="shrink-0 rounded-full"
             >
-              <Plus className="size-4" aria-hidden />
-            </Button>
+              <Icons.plus className="size-4" aria-hidden />
+            </IconButton>
             {filesMenu.mounted ? (
               <FilesMenu
                 files={files}
@@ -2208,7 +2087,7 @@ export function ChatPanel({
                 planMode ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <ListTree className="size-3.5" aria-hidden />
+              <Icons.planMode className="size-3.5" aria-hidden />
               <span>Plan</span>
             </Button>
             {replying ? (
@@ -2223,24 +2102,17 @@ export function ChatPanel({
                   onClick={() => steerRunningAgent(draft)}
                   className="h-8 gap-1 rounded-full px-2.5 text-xs text-primary hover:bg-primary/10"
                 >
-                  <Compass className="size-3.5" aria-hidden />
+                  <Icons.steer className="size-3.5" aria-hidden />
                   Steer
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  aria-label="Stop reply"
-                  onClick={stopReply}
-                  className="shrink-0 rounded-full"
-                >
-                  <Square className="size-4" aria-hidden />
-                </Button>
+                <IconButton label="Stop reply" size="icon" type="button" variant="outline" onClick={stopReply} className="shrink-0 rounded-full">
+                  <Icons.stopSquare className="size-4" aria-hidden />
+                </IconButton>
               </div>
             ) : (
-              <Button type="submit" variant="default" size="icon" aria-label="Send message" className="shrink-0 rounded-full">
-                <Send className="size-4" aria-hidden />
-              </Button>
+              <IconButton label="Send message" size="icon" type="submit" variant="default" className="shrink-0 rounded-full">
+                <Icons.sendMessage className="size-4" aria-hidden />
+              </IconButton>
             )}
             </div>
           </form>} />

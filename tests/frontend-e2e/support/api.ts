@@ -42,6 +42,9 @@ export interface ApiOptions {
   /** static: fulfill frames then close. live: held-open stream, auto-primed.
    * quiet: held-open stream, test pushes frames itself. */
   stream?: 'static' | 'live' | 'quiet'
+  /** How long `loading` routes stay pending. Default 1500ms; audits pass
+   * more so the skeleton survives the whole check run. */
+  loadingMs?: number
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
@@ -58,6 +61,7 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
   const data = options.data ?? {}
   const modes = options.modes ?? {}
   const streamMode = options.stream ?? 'live'
+  const loadingMs = options.loadingMs ?? 1500
   const mode = (key: RouteKey): RouteMode => modes[key] ?? 'ok'
 
   // Mutable world: mutations apply so action specs see consistent reads.
@@ -87,7 +91,7 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
 
   async function gate(route: Route, key: RouteKey): Promise<RouteMode> {
     const state = mode(key)
-    if (state === 'loading') await sleep(1500)
+    if (state === 'loading') await sleep(loadingMs)
     else if (state === 'error') await fail(route, 500, 'internal', 'Something went wrong on purpose.')
     else if (state === 'denied') await fail(route, 403, 'permission_denied', 'This key cannot read this resource.')
     else if (state === 'offline') await route.abort('internetdisconnected')
@@ -136,7 +140,7 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
     // -- sectors ---------------------------------------------------------
     if (path === '/sectors' && method === 'GET') {
       const state = await gate(route, 'sectors')
-      if (state !== 'ok' && state !== 'loading') return
+      if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
       let rows = liveSectors()
       if (mode('sectors') === 'empty') rows = []
       const wanted = url.searchParams.get('state')
@@ -148,7 +152,7 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
     }
     if (path === '/sectors' && method === 'POST') {
       const state = await gate(route, 'sectorMutations')
-      if (state !== 'ok' && state !== 'loading') return
+      if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
       sectorNonce += 1
       const input = body()
       const created: FixtureSector = {
@@ -171,7 +175,7 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
 
       if (rest === '' && method === 'GET') {
         const state = await gate(route, 'sector')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         const rows = liveCompanies().filter((company) => company.sectorId === sectorId)
         await ok(route, {
           ...sector, companiesFound: mode('sector') === 'empty' ? 0 : rows.length,
@@ -184,49 +188,49 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
       const transition = (next: ResearchState): void => { sectorStates.set(sectorId, next) }
       if (rest === '/start' && method === 'POST') {
         const state = await gate(route, 'sectorMutations')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         transition('queued'); await ok(route, { ...sector, state: 'queued' }); return
       }
       if (rest === '/restart' && method === 'POST') {
         const state = await gate(route, 'sectorMutations')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         transition('running'); await ok(route, { ...sector, state: 'running' }); return
       }
       if (rest === '/pause' && method === 'POST') {
         const state = await gate(route, 'sectorMutations')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         transition('paused'); await ok(route, { ...sector, state: 'paused' }); return
       }
       if (rest === '/resume' && method === 'POST') {
         const state = await gate(route, 'sectorMutations')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         transition('running'); await ok(route, { ...sector, state: 'running' }); return
       }
       if (rest === '/plan' && method === 'POST') {
         const state = await gate(route, 'sectorMutations')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         transition('planning'); await ok(route, { ...sector, state: 'planning' }); return
       }
       if (rest === '/approve' && method === 'POST') {
         const state = await gate(route, 'sectorMutations')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         transition('approved'); await ok(route, { ...sector, state: 'approved' }); return
       }
       if (rest === '/plan' && method === 'GET') {
         const state = await gate(route, 'plan')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         await ok(route, planView(sectorId, mode('plan') === 'empty' ? 'empty' : (data.planVariant ?? 'approved')))
         return
       }
       if (rest === '/plan' && method === 'PATCH') {
         const state = await gate(route, 'sectorMutations')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         await ok(route, { version: planVersions.length + 1 })
         return
       }
       if (rest === '/progress' && method === 'GET') {
         const state = await gate(route, 'progress')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         const progress = progressFor(sectorId, mode('progress') === 'empty' ? 'empty' : (data.progressVariant ?? 'running'))
         await ok(route, { ...progress, state: sector.state })
         return
@@ -234,7 +238,7 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
       const reviewMatch = /^\/work\/([^/]+)\/review$/.exec(rest)
       if (reviewMatch && method === 'POST') {
         const state = await gate(route, 'workReview')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         const input = body()
         await ok(route, {
           id: decodeURIComponent(reviewMatch[1] as string), kind: 'discovery', title: 'Screen Parramatta results page 2',
@@ -247,33 +251,33 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
       }
       if (rest === '/research-session' && method === 'POST') {
         const state = await gate(route, 'researchSession')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         await ok(route, { id: `session-${sectorId}-research`, title: 'Research', sectorId, kind: 'research', createdAt: sector.createdAt, updatedAt: sector.updatedAt })
         return
       }
       if (rest === '/global-context' && method === 'GET') {
         const state = await gate(route, 'global')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         await ok(route, globalFor(sectorId, mode('global') === 'empty' ? 'empty' : (data.globalVariant ?? 'full')))
         return
       }
       if (rest === '/global-context' && method === 'PATCH') {
         const state = await gate(route, 'global')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         const input = body()
         await ok(route, { id: 'change-saved', baseVersion: input['baseVersion'] ?? 3, sections: input['sections'], sourceThread: 'owner', author: 'Owner', state: 'approved', version: 4, at: new Date().toISOString(), fileRef: null })
         return
       }
       if (rest === '/global-context/proposals' && method === 'POST') {
         const state = await gate(route, 'global')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         await ok(route, { id: 'change-proposed', baseVersion: 3, sections: (body())['sections'], sourceThread: 'session-x', author: 'Research agent 1', state: 'pending', version: null, at: new Date().toISOString(), fileRef: null })
         return
       }
       const proposalMatch = /^\/global-context\/proposals\/([^/]+)(\/decision)?$/.exec(rest)
       if (proposalMatch && method === 'GET') {
         const state = await gate(route, 'global')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         const global = globalFor(sectorId, 'full')
         const change = global.changes.find((entry) => entry.id === decodeURIComponent(proposalMatch[1] as string)) ?? global.changes[0]
         await ok(route, {
@@ -285,14 +289,14 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
       }
       if (proposalMatch && method === 'POST') {
         const state = await gate(route, 'global')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         const approved = (body())['approve'] === true
         await ok(route, { id: decodeURIComponent(proposalMatch[1] as string), baseVersion: 2, sections: globalFor(sectorId, 'full').sections, sourceThread: 'session-electrical-research', author: 'Research agent 1', state: approved ? 'approved' : 'denied', version: approved ? 4 : null, at: new Date().toISOString(), fileRef: null })
         return
       }
       if (rest === '/files' && method === 'GET') {
         const state = await gate(route, 'files')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         const rows = mode('files') === 'empty' ? [] : data.filesVariant === 'large' ? largeLibrary() : libraryFiles
         await ok(route, rows.map((file) => hiddenFiles.has(file.id) ? { ...file, hidden: hiddenFiles.get(file.id) } : file))
         return
@@ -306,40 +310,40 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
         if (!file) { await fail(route, 404, 'not_found', 'File not found.'); return }
         if (fileRest === '' && method === 'PATCH') {
           const state = await gate(route, 'files')
-          if (state !== 'ok' && state !== 'loading') return
+          if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
           hiddenFiles.set(fileId, (body())['hidden'] === true)
           await ok(route, { ...file, hidden: hiddenFiles.get(fileId) })
           return
         }
         if (fileRest === '/body' && method === 'GET') {
           const state = await gate(route, 'fileBody')
-          if (state !== 'ok' && state !== 'loading') return
+          if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
           const mediaType = file.filename.endsWith('.pdf') ? 'application/pdf' : file.filename.endsWith('.csv') ? 'text/csv' : file.filename.endsWith('.json') ? 'application/json' : file.filename.endsWith('.png') ? 'image/png' : 'text/markdown'
           await ok(route, { filename: file.filename, mediaType, text: file.filename.endsWith('.png') ? '' : FILE_MARKDOWN, originalAvailable: true, fullChars: FILE_MARKDOWN.length, textTruncated: false })
           return
         }
         if (fileRest === '/units' && method === 'GET') {
           const state = await gate(route, 'fileBody')
-          if (state !== 'ok' && state !== 'loading') return
+          if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
           await ok(route, fileUnits(Number(url.searchParams.get('fromOrd') ?? 0)))
           return
         }
         if (fileRest === '/retry' && method === 'POST') {
           const state = await gate(route, 'files')
-          if (state !== 'ok' && state !== 'loading') return
+          if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
           await ok(route, { jobId: 'job-pdf-2', state: 'processing', revision: 3, totalImages: 6, completedImages: 2, failedImages: 0, uncertainImages: 0, errorCode: null, retryRequiresApproval: false })
           return
         }
         if (fileRest === '/context' && method === 'POST') {
           const state = await gate(route, 'files')
-          if (state !== 'ok' && state !== 'loading') return
+          if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
           await ok(route, { id: 'change-file-1', baseVersion: 3, sections: globalFor(sectorId, 'full').sections, sourceThread: 'session-electrical-research', author: 'Owner', state: 'pending', version: null, at: new Date().toISOString(), fileRef: { fileId: file.id, filename: file.filename, hash: file.hash, ords: [0] } })
           return
         }
       }
       if (rest === '/documents' && (method === 'GET' || method === 'POST')) {
         const state = await gate(route, 'files')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         if (method === 'GET') { await ok(route, []); return }
         const input = body()
         await ok(route, { id: 'sdoc-1', sectorId, filename: String(input['filename'] ?? 'upload.md'), mediaType: 'text/markdown', chars: 120, sha256: HEX64, createdAt: new Date().toISOString(), status: 'indexed', unitCount: 1 })
@@ -347,13 +351,13 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
       }
       if (rest === '/context' && method === 'GET') {
         const state = await gate(route, 'context')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         await ok(route, { sectorId, digest: { version: 'v3', text: 'Crew notes digest.' }, segments: { system: '', references: [], history: [], tail: [] }, usage: { system: { messages: 0, estimatedTokens: 0 }, references: { messages: 0, estimatedTokens: 0 }, history: { messages: 0, estimatedTokens: 0 }, tail: { messages: 0, estimatedTokens: 0 }, totalEstimatedTokens: 0 }, files: [], notes: [] })
         return
       }
       if ((rest === '/context' && method === 'PATCH') || (rest === '/context/compact' && method === 'POST')) {
         const state = await gate(route, 'context')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         await ok(route, rest.endsWith('compact') ? { sectorId, compacted: true } : { sectorId, digest: { version: 'v3', text: '' }, segments: { system: '', references: [], history: [], tail: [] }, usage: { system: { messages: 0, estimatedTokens: 0 }, references: { messages: 0, estimatedTokens: 0 }, history: { messages: 0, estimatedTokens: 0 }, tail: { messages: 0, estimatedTokens: 0 }, totalEstimatedTokens: 0 }, files: [], notes: [] })
         return
       }
@@ -362,7 +366,7 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
     // -- companies -------------------------------------------------------
     if (path === '/companies' && method === 'GET') {
       const state = await gate(route, 'companies')
-      if (state !== 'ok' && state !== 'loading') return
+      if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
       let rows = mode('companies') === 'empty' ? [] : liveCompanies()
       const wanted = url.searchParams.get('state')
       const needle = (url.searchParams.get('query') ?? '').toLowerCase()
@@ -379,7 +383,7 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
     // -- sessions --------------------------------------------------------
     if (path === '/sessions' && method === 'GET') {
       const state = await gate(route, 'sessions')
-      if (state !== 'ok' && state !== 'loading') return
+      if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
       let rows = mode('sessions') === 'empty' ? [] : liveSessions()
       const sectorId = url.searchParams.get('sectorId')
       rows = sectorId ? rows.filter((session) => session.sectorId === sectorId) : rows.filter((session) => !session.sectorId)
@@ -388,7 +392,7 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
     }
     if (path === '/sessions' && method === 'POST') {
       const state = await gate(route, 'sessions')
-      if (state !== 'ok' && state !== 'loading') return
+      if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
       const input = body()
       const created: FixtureSession = {
         id: `session-custom-${Date.now()}`, title: String(input['title'] ?? 'New conversation'),
@@ -407,53 +411,53 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
       if (!session || deletedIds.has(sessionId)) { await fail(route, 404, 'not_found', 'Session not found.'); return }
       if (rest === '' && method === 'GET') {
         const state = await gate(route, 'sessions')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         await ok(route, session)
         return
       }
       if (rest === '' && method === 'DELETE') {
         const state = await gate(route, 'sessions')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         deletedIds.add(sessionId)
         await ok(route, { id: sessionId, deleted: true })
         return
       }
       if (rest === '/rename' && method === 'POST') {
         const state = await gate(route, 'sessions')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         renamedTitles.set(sessionId, String((body())['title'] ?? session.title))
         await ok(route, { ...session, title: renamedTitles.get(sessionId) })
         return
       }
       if (rest === '/model' && method === 'PATCH') {
         const state = await gate(route, 'sessions')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         const input = body()
         await ok(route, { provider: 'meta', model: input['model'], reasoning: input['reasoning'] ?? false, ...(typeof input['effort'] === 'string' ? { effort: input['effort'] } : {}) })
         return
       }
       if (rest === '/compact' && method === 'POST') {
         const state = await gate(route, 'sessions')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         await ok(route, { sessionId, compacted: true, messageCount: 40 })
         return
       }
       if (rest === '/threads' && method === 'GET') {
         const state = await gate(route, 'threads')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         const count = mode('threads') === 'empty' ? 0 : (data.subagents ?? (sessionId.includes('research') ? 6 : 0))
         await ok(route, sessionThreads(sessionId, count))
         return
       }
       if (rest === '/artifacts' && method === 'GET') {
         const state = await gate(route, 'artifacts')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         await ok(route, mode('artifacts') === 'empty' ? [] : artifacts)
         return
       }
       if (rest === '/artifacts' && method === 'POST') {
         const state = await gate(route, 'artifacts')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         const input = body()
         await ok(route, { artifactId: `art-${Date.now()}`, name: String(input['name'] ?? 'file.md'), kind: 'file', bytes: String(input['content'] ?? '').length, sha256: HEX64, indexed: true })
         return
@@ -461,7 +465,7 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
       const artifactMatch = /^\/artifacts\/([^/]+)(\/body)?$/.exec(rest)
       if (artifactMatch && method === 'GET') {
         const state = await gate(route, 'artifacts')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         const found = artifacts.find((entry) => entry.artifactId === decodeURIComponent(artifactMatch[1] as string))
         if (!found) { await fail(route, 404, 'not_found', 'File not found.'); return }
         await ok(route, artifactMatch[2] ? { body: FILE_MARKDOWN, meta: { name: found.name } } : found)
@@ -469,7 +473,7 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
       }
       if (rest === '/artifacts/references' && method === 'POST') {
         const state = await gate(route, 'artifacts')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         await ok(route, { artifactId: 'art-1', name: 'shortlist.md', kind: 'report', indexed: true })
         return
       }
@@ -483,7 +487,7 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
       const messages = data.messages ?? threadMessages(threadKey)
       if (rest === '/messages' && method === 'GET') {
         const state = await gate(route, 'messages')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         const rows = mode('messages') === 'empty' ? [] : messages
         const afterSeq = Number(url.searchParams.get('afterSeq') ?? 0)
         const limit = Number(url.searchParams.get('limit') ?? 200)
@@ -494,13 +498,13 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
       }
       if (rest === '/steering-receipts' && method === 'GET') {
         const state = await gate(route, 'messages')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         await ok(route, { items: [], nextAfterId: null })
         return
       }
       if (rest === '/events' && method === 'GET') {
         const state = await gate(route, 'events')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         const rows = mode('events') === 'empty' ? [] : messages
         const frames = rows.map((message, i) => ({ seq: i + 1, threadKey, type: 'message', at: message.at ?? '', payload: message }))
         await route.fulfill({ status: 200, contentType: 'text/event-stream', body: frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join('') })
@@ -508,33 +512,33 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
       }
       if (rest === '/context' && method === 'GET') {
         const state = await gate(route, 'local')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         await ok(route, localFor(threadKey, mode('local') === 'empty' ? 'empty' : (data.localVariant ?? 'full')))
         return
       }
       if (rest === '/context' && method === 'PATCH') {
         const state = await gate(route, 'local')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         const base = localFor(threadKey, data.localVariant ?? 'full')
         await ok(route, { ...base, notes: String((body())['notes'] ?? base.notes), version: base.version + 1 })
         return
       }
       if (rest === '/context/compact' && method === 'POST') {
         const state = await gate(route, 'local')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         await ok(route, { compacted: true, context: localFor(threadKey, data.localVariant ?? 'full') })
         return
       }
       if (rest === '/context/rebuild' && method === 'POST') {
         const state = await gate(route, 'local')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         await ok(route, localFor(threadKey, 'full'))
         return
       }
       const opMatch = /^\/operations\/([^/]+)$/.exec(rest)
       if (opMatch && method === 'GET') {
         const state = await gate(route, 'operations')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         const operationId = decodeURIComponent(opMatch[1] as string)
         const unresolved = operationId.includes('f1e2')
         await ok(route, { operationId, toolName: 'db.mark_company_found', state: unresolved ? 'unresolved' : 'confirmed', reason: unresolved ? 'The stream dropped before the confirmation.' : 'The reply was verified.', recordedAt: new Date().toISOString() })
@@ -542,14 +546,14 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
       }
       if (rest === '/execution-records' && method === 'GET') {
         const state = await gate(route, 'execution')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         await ok(route, mode('execution') === 'empty' ? { records: [], nextAfterSeq: null } : executionPage(Number(url.searchParams.get('afterSeq') ?? 0)))
         return
       }
       const execMatch = /^\/execution-records\/(\d+)$/.exec(rest)
       if (execMatch && method === 'GET') {
         const state = await gate(route, 'execution')
-        if (state !== 'ok' && state !== 'loading') return
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
         await ok(route, executionBody(Number(execMatch[1])))
         return
       }
@@ -558,7 +562,7 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
     // -- commands --------------------------------------------------------
     if (path.startsWith('/commands/') && method === 'POST') {
       const state = await gate(route, 'commands')
-      if (state !== 'ok' && state !== 'loading') return
+      if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
       commandNonce += 1
       if (path === '/commands/approve') { await ok(route, { commandId: `cmd-${commandNonce}` }); return }
       await ok(route, { commandId: `cmd-${commandNonce}`, state: 'accepted' })
@@ -568,7 +572,7 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
     // -- runs / providers / skills / artifacts / alerts ------------------
     if (path === '/runs' && method === 'GET') {
       const state = await gate(route, 'runs')
-      if (state !== 'ok' && state !== 'loading') return
+      if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
       let rows = mode('runs') === 'empty' ? [] : (data.runs ?? runs)
       const sessionId = url.searchParams.get('sessionId')
       if (sessionId) rows = rows.filter((run) => run.sessionId === sessionId)
@@ -577,26 +581,26 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
     }
     if (path === '/providers' && method === 'GET') {
       const state = await gate(route, 'providers')
-      if (state !== 'ok' && state !== 'loading') return
+      if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
       const variant = mode('providers') === 'empty' ? 'empty' : (data.providersVariant ?? 'default')
       await ok(route, variant === 'empty' ? providersEmpty : variant === 'nokey' ? providersNoKey : providers)
       return
     }
     if (path === '/skills' && method === 'GET') {
       const state = await gate(route, 'skills')
-      if (state !== 'ok' && state !== 'loading') return
+      if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
       await ok(route, mode('skills') === 'empty' ? [] : skills)
       return
     }
     if (path === '/artifacts' && method === 'GET') {
       const state = await gate(route, 'artifacts')
-      if (state !== 'ok' && state !== 'loading') return
+      if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
       await ok(route, mode('artifacts') === 'empty' ? [] : artifacts)
       return
     }
     if (path === '/alerts' && method === 'GET') {
       const state = await gate(route, 'alerts')
-      if (state !== 'ok' && state !== 'loading') return
+      if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
       const rows = [...(mode('alerts') === 'empty' ? [] : (data.alerts ?? alerts))].sort((a, b) => b.seq - a.seq)
       const limit = Number(url.searchParams.get('limit') ?? 20)
       const before = url.searchParams.get('beforeSeq')

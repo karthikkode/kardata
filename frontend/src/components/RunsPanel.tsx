@@ -3,7 +3,7 @@
 // cancelled. There is no launching: the backend exposes no primitive for
 // it, so the view observes and stops only.
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, Square } from 'lucide-react'
+import { Icons } from '@/lib/icons'
 import {
   cancelRun,
   listRuns,
@@ -84,7 +84,7 @@ function RunRow({
           disabled={cancelling}
           onClick={() => onCancel(run)}
         >
-          {cancelling ? 'Cancelling' : <><Square className="size-4" aria-hidden />Cancel</>}
+          {cancelling ? 'Cancelling' : <><Icons.stopSquare className="size-4" aria-hidden />Cancel</>}
         </Button>
       ) : null}
     </li>
@@ -174,7 +174,7 @@ export function RunsPanel({
   return (
     <div className="space-y-6">
       <Button type="button" variant="ghost" size="sm" onClick={onBack}>
-        <ArrowLeft className="size-4" aria-hidden />
+        <Icons.back className="size-4" aria-hidden />
         Back to Overview
       </Button>
       <section

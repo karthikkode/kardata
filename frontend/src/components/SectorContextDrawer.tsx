@@ -3,7 +3,7 @@
 // token meter, per-file units with include/exclude toggles, user notes with
 // add, and deliberate loading/empty/error/denied states.
 import { useEffect, useState } from 'react'
-import { Check, Copy, Eye, EyeOff, FileText, Minimize2, Plus } from 'lucide-react'
+import { Icons } from '@/lib/icons'
 import {
   compactSectorContext,
   getSectorContext,
@@ -115,7 +115,7 @@ function FileBlock({
           onClick={() => onToggleUnit(file.id, undefined, !file.excluded)}
           aria-label={file.excluded ? `Include ${file.filename}` : `Exclude ${file.filename}`}
         >
-          {file.excluded ? <Eye className="size-4" aria-hidden /> : <EyeOff className="size-4" aria-hidden />}
+          {file.excluded ? <Icons.reveal className="size-4" aria-hidden /> : <Icons.hide className="size-4" aria-hidden />}
         </Button>
       </div>
       <p className="mt-1 font-mono text-xs text-muted-foreground">
@@ -138,7 +138,7 @@ function FileBlock({
                   onClick={() => onToggleUnit(file.id, unit.ord, !unit.excluded)}
                   aria-label={unit.excluded ? `Include unit ${unit.ord}` : `Exclude unit ${unit.ord}`}
                 >
-                  {unit.excluded ? <Eye className="size-4" aria-hidden /> : <EyeOff className="size-4" aria-hidden />}
+                  {unit.excluded ? <Icons.reveal className="size-4" aria-hidden /> : <Icons.hide className="size-4" aria-hidden />}
                 </Button>
               </div>
               <p className="mt-0.5 whitespace-pre-wrap text-sm">{unit.text}</p>
@@ -271,7 +271,7 @@ export function SectorContextDrawer({
   return (
     <div role="region" aria-label={`Context for ${sectorName}`} className="flex min-h-0 flex-col px-4 py-3">
       <div className="flex items-center gap-2">
-        <h2 className="flex-1 text-base font-semibold">Context</h2>
+        <h2 className="flex-1 text-base font-medium">Context</h2>
         {state.status === 'ready' ? (
           <div className="flex items-center gap-1.5">
             <Button
@@ -282,7 +282,7 @@ export function SectorContextDrawer({
               onClick={() => setShowRaw((prev) => !prev)}
               className="h-7 gap-1 px-2 text-xs"
             >
-              <FileText className="size-3.5" aria-hidden />
+              <Icons.fileDocs className="size-3.5" aria-hidden />
               <span>{showRaw ? 'Structured' : 'Raw Text'}</span>
             </Button>
             <Button
@@ -294,7 +294,7 @@ export function SectorContextDrawer({
               onClick={() => void handleCompact()}
               className="h-7 gap-1 px-2 text-xs text-primary"
             >
-              <Minimize2 className="size-3.5" aria-hidden />
+              <Icons.minimize className="size-3.5" aria-hidden />
               <span>{compacting ? 'Compacting…' : 'Compact Context'}</span>
             </Button>
           </div>
@@ -354,7 +354,7 @@ export function SectorContextDrawer({
                   }}
                   className="h-7 gap-1 text-xs"
                 >
-                  {copiedRaw ? <Check className="size-3.5 text-emerald-500" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
+                  {copiedRaw ? <Icons.approve className="size-3.5 text-success" aria-hidden /> : <Icons.copy className="size-3.5" aria-hidden />}
                   <span>{copiedRaw ? 'Copied' : 'Copy'}</span>
                 </Button>
               </div>
@@ -453,7 +453,7 @@ export function SectorContextDrawer({
                     }}
                   />
                   <Button type="button" variant="outline" size="sm" disabled={savingNote || !note.trim()} onClick={() => void addNote()}>
-                    <Plus className="size-4" aria-hidden />
+                    <Icons.plus className="size-4" aria-hidden />
                     Add
                   </Button>
                 </div>

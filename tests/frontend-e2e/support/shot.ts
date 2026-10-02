@@ -28,6 +28,22 @@ const DEFAULT_HEIGHTS: Record<number, number> = { 1440: 900, 1280: 800, 1279: 80
 
 async function defaultApplyTheme(page: Page, theme: ShotTheme): Promise<void> {
   await page.emulateMedia({ colorScheme: theme })
+  // React flips .dark asynchronously after the media change; shooting or
+  // auditing before it settles mixes dark text with a light background.
+  await page
+    .waitForFunction((expected) => document.documentElement.classList.contains('dark') === (expected === 'dark'), theme, { timeout: 5000 })
+    .catch(() => undefined)
+}
+
+/** Fail-loud theme settle for audits (contrast is meaningless mid-flip). */
+export async function settleTheme(page: Page, theme: ShotTheme): Promise<void> {
+  await page.emulateMedia({ colorScheme: theme })
+  await page.waitForFunction((expected) => document.documentElement.classList.contains('dark') === (expected === 'dark'), theme, {
+    timeout: 5000,
+  })
+  // The class flips first; transition-colors finishes 120ms later. Audit
+  // before that and text still computes the old endpoint (as oklab).
+  await page.waitForTimeout(300)
 }
 
 export function shotPath(id: string, state: string, theme: ShotTheme, width: number): string {

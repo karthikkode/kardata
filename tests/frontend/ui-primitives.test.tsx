@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { Textarea } from '@/components/ui/textarea'
@@ -104,7 +104,7 @@ describe('owned primitives', () => {
     await user.click(screen.getByRole('button', { name: 'Actions' }))
     expect(await screen.findByRole('menuitem', { name: 'Rename' })).toBeInTheDocument()
     await user.keyboard('{Escape}')
-    expect(screen.queryByRole('menuitem', { name: 'Rename' })).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('menuitem', { name: 'Rename' })).not.toBeInTheDocument())
   })
 
   it('dismisses a popover with Escape', async () => {
@@ -143,7 +143,7 @@ describe('owned primitives', () => {
     await user.click(screen.getByRole('button', { name: 'Open' }))
     expect(await screen.findByRole('dialog', { name: 'Create sector' })).toBeInTheDocument()
     await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog', { name: 'Create sector' })).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Create sector' })).not.toBeInTheDocument())
   })
 
   it('confirms destructive actions explicitly with pending and error states', async () => {

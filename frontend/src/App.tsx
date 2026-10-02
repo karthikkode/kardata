@@ -34,6 +34,65 @@ import { LazyMotion, MotionConfig, domAnimation } from 'motion/react'
 import { useNavigation } from './lib/useNavigation'
 import { stateLabel } from './components/research-parts'
 import { PageHeader } from './components/shells'
+import { CommandPalette, type PaletteSection } from './components/CommandPalette'
+import { TooltipProvider } from './components/ui/tooltip'
+import { useTheme } from './lib/theme'
+import { Toaster } from 'sonner'
+
+function AppOverlays({
+  paletteOpen,
+  onPaletteOpenChange,
+  sectors,
+  onNavigate,
+  onSelectSector,
+  onNewSector,
+  onOpenKarbot,
+  onToggleTheme,
+  theme,
+}: {
+  paletteOpen: boolean
+  onPaletteOpenChange: (open: boolean) => void
+  sectors: Array<{ id: string; name: string; topic: string }>
+  onNavigate: (section: PaletteSection) => void
+  onSelectSector: (sectorId: string) => void
+  onNewSector: () => void
+  onOpenKarbot: () => void
+  onToggleTheme: () => void
+  theme: 'light' | 'dark'
+}) {
+  return (
+    <>
+      <Toaster
+        theme={theme}
+        position="bottom-right"
+        offset={16}
+        gap={8}
+        visibleToasts={3}
+        toastOptions={{
+          duration: 4000,
+          style: { width: 356 },
+          classNames: {
+            toast: 'rounded-lg border border-border bg-popover text-popover-foreground shadow-md',
+            title: 'text-sm font-medium text-popover-foreground',
+            description: 'text-ui text-muted-foreground',
+            actionButton: 'bg-primary text-primary-foreground hover:bg-primary-hover',
+            cancelButton: 'border border-border bg-card text-foreground hover:bg-surface-hover',
+          },
+        }}
+      />
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={onPaletteOpenChange}
+        sectors={sectors}
+        onNavigate={onNavigate}
+        onSelectSector={onSelectSector}
+        onNewSector={onNewSector}
+        onOpenKarbot={onOpenKarbot}
+        onToggleTheme={onToggleTheme}
+      />
+    </>
+  )
+}
 
 export default function App() {
   // View state lives in the URL (useNavigation): refresh, deep links, and
@@ -47,7 +106,10 @@ export default function App() {
     : 'Overview'
   const sectorId = section === 'SectorDetail' || section === 'SectorChat' ? nav.sectorId : null
   const [query, setQuery] = useState('')
-  const [dark, setDark] = useState(false)
+  const { resolved: resolvedTheme, setPreference: setThemePreference } = useTheme()
+  const dark = resolvedTheme === 'dark'
+  const toggleTheme = (): void => setThemePreference(dark ? 'light' : 'dark')
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const [chatScope, setChatScope] = useState<ChatScope>(null)
   const [researchBusy, setResearchBusy] = useState(false)
   const [researchError, setResearchError] = useState<string | null>(null)
@@ -243,11 +305,22 @@ export default function App() {
       : []
 
   if (section === 'SectorChat' && detailData.detail && staging && detailData.status !== 'denied') {
-    return <MotionConfig reducedMotion="user"><LazyMotion features={domAnimation}><SectorWorkspace sector={detailData.detail} model={workspace} config={staging} dark={dark} onTheme={() => setDark((value) => !value)} onBack={() => setNav({ section: 'SectorDetail', sessionId: null, threadKey: null })} actions={{ busy: researchBusy, error: researchError, plan: () => void planCurrentSector(), approve: (version, contextVersion) => void approveCurrentSector(version, contextVersion), start: () => void startCurrentSector(), pause: () => void pauseCurrentSector(), resume: () => void resumeCurrentSector(), edit: editCurrentSectorPlan }} /></LazyMotion></MotionConfig>
+    return <MotionConfig reducedMotion="user"><LazyMotion features={domAnimation}><TooltipProvider delay={400}><SectorWorkspace sector={detailData.detail} model={workspace} config={staging} dark={dark} onTheme={() => toggleTheme()} onBack={() => setNav({ section: 'SectorDetail', sessionId: null, threadKey: null })} actions={{ busy: researchBusy, error: researchError, plan: () => void planCurrentSector(), approve: (version, contextVersion) => void approveCurrentSector(version, contextVersion), start: () => void startCurrentSector(), pause: () => void pauseCurrentSector(), resume: () => void resumeCurrentSector(), edit: editCurrentSectorPlan }} /><AppOverlays
+          paletteOpen={paletteOpen}
+          onPaletteOpenChange={setPaletteOpen}
+          sectors={(sectors.items ?? []).map((sector) => ({ id: sector.id, name: sector.name, topic: sector.topic }))}
+          onNavigate={(section) => setNav({ section })}
+          onSelectSector={goSector}
+          onNewSector={() => setNav({ section: 'Researches' })}
+          onOpenKarbot={() => openChat()}
+          onToggleTheme={toggleTheme}
+          theme={resolvedTheme}
+        /></TooltipProvider></LazyMotion></MotionConfig>
   }
   return (
     <MotionConfig reducedMotion="user">
     <LazyMotion features={domAnimation}>
+    <TooltipProvider delay={400}>
     <div className="flex min-h-screen bg-muted/40 text-foreground">
       <Sidebar active={section} onSelect={(next) => setNav({ section: next, sectorId: null })} />
       <div className="flex min-w-0 flex-1 flex-col">
@@ -256,7 +329,7 @@ export default function App() {
           onQuery={setQuery}
           dark={dark}
           showSearch={section === 'Overview'}
-          onTheme={() => setDark((value) => !value)}
+          onTheme={() => toggleTheme()}
           chatOpen={chatOpen}
           onChatToggle={() => {
             if (chatOpen) {
@@ -348,6 +421,18 @@ export default function App() {
         </main>
       </div>
     </div>
+    <AppOverlays
+          paletteOpen={paletteOpen}
+          onPaletteOpenChange={setPaletteOpen}
+          sectors={(sectors.items ?? []).map((sector) => ({ id: sector.id, name: sector.name, topic: sector.topic }))}
+          onNavigate={(section) => setNav({ section })}
+          onSelectSector={goSector}
+          onNewSector={() => setNav({ section: 'Researches' })}
+          onOpenKarbot={() => openChat()}
+          onToggleTheme={toggleTheme}
+          theme={resolvedTheme}
+        />
+    </TooltipProvider>
     </LazyMotion>
     </MotionConfig>
   )

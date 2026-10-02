@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -33,10 +33,10 @@ describe('nested overlay Escape', () => {
     await user.click(screen.getByRole('button', { name: 'Open inspector' }))
     expect(screen.getByRole('dialog', { name: 'Execution records' })).toBeInTheDocument()
     await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog', { name: 'Execution records' })).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Execution records' })).not.toBeInTheDocument())
     expect(screen.getByRole('dialog', { name: 'Local context' })).toBeInTheDocument()
     await user.keyboard('{Escape}{Escape}')
-    expect(screen.queryByRole('dialog', { name: 'Local context' })).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Local context' })).not.toBeInTheDocument())
   })
 
 describe('overlay lifecycle', () => {
@@ -90,7 +90,7 @@ describe('overlay lifecycle', () => {
     expect(screen.getByRole('dialog', { name: 'Review candidate intake' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Finish work' }))
     await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog', { name: 'Review candidate intake' })).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Review candidate intake' })).not.toBeInTheDocument())
   })
 
   it('keeps the parent dialog behind a confirm action', async () => {
@@ -116,7 +116,7 @@ describe('overlay lifecycle', () => {
     }
     render(<Harness />)
     await user.keyboard('{Escape}')
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
     expect(screen.getByRole('dialog', { name: 'Conversation options' })).toBeInTheDocument()
     expect(onParent).not.toHaveBeenCalled()
   })

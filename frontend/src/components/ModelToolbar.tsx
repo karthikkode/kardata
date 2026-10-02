@@ -6,7 +6,7 @@
 // PATCH /v1/sessions/:id/model. No fixtures, no guessed models.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ChevronDown } from 'lucide-react'
+import { Icons } from '@/lib/icons'
 import { popoverEnter, popoverExit, useExitState } from '@/lib/motion'
 import {
   getSession,
@@ -460,7 +460,7 @@ export function ModelToolbar({
               className="flex h-8 pointer-coarse:h-10 min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-full px-2.5 text-xs font-medium hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
             >
               <span className="min-w-0 flex-1 truncate text-left">{triggerLabel}</span>
-              <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+              <Icons.chevronDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
             </button>
           )}
           {showEffort && display !== 'model' ? (
@@ -488,7 +488,7 @@ export function ModelToolbar({
                 className="flex h-8 pointer-coarse:h-10 shrink-0 cursor-pointer items-center gap-0.5 rounded-full px-2.5 text-xs capitalize text-muted-foreground hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
               >
                 {draft.effort ?? DEFAULT_EFFORT}
-                <ChevronDown className="size-3.5 shrink-0" aria-hidden />
+                <Icons.chevronDown className="size-3.5 shrink-0" aria-hidden />
               </button>
             </>
           ) : !showEffort && draft.reasoning && canReason && !bare ? (
@@ -539,7 +539,7 @@ export function ModelToolbar({
                   className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs capitalize hover:bg-background"
                 >
                   <span className="w-4 shrink-0">
-                    {active ? <Check className="size-3.5" aria-hidden /> : null}
+                    {active ? <Icons.approve className="size-3.5" aria-hidden /> : null}
                   </span>
                   <span className="min-w-0 flex-1 truncate font-medium">{level}</span>
                 </button>
@@ -600,7 +600,7 @@ export function ModelToolbar({
                 visibleProviders.map((entry) => (
                   <div key={entry.name} className="mb-1 last:mb-0">
                     <div className="flex items-baseline justify-between gap-2 px-2 pt-1.5 pb-0.5">
-                      <p className="text-xs font-semibold tracking-wide text-muted-foreground">
+                      <p className="text-xs font-medium tracking-wide text-muted-foreground">
                         {providerLabel(entry.name)}
                       </p>
                       {!entry.hasKey ? (
@@ -650,7 +650,7 @@ export function ModelToolbar({
                               className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs hover:bg-background"
                             >
                               <span className="w-4 shrink-0">
-                                {selected ? <Check className="size-3.5" aria-hidden /> : null}
+                                {selected ? <Icons.approve className="size-3.5" aria-hidden /> : null}
                               </span>
                               <span className="min-w-0 flex-1 truncate font-medium">
                                 {model.displayName}
@@ -706,7 +706,7 @@ export function ModelToolbar({
                       ...(flyoutLeft === null ? { right: flyoutRight ?? 8 } : { left: flyoutLeft }),
                     }}
                   >
-                    <p className="px-2 pt-1 pb-0.5 text-xs font-semibold tracking-wide text-muted-foreground">
+                    <p className="px-2 pt-1 pb-0.5 text-xs font-medium tracking-wide text-muted-foreground">
                       Effort
                     </p>
                     {flyoutTarget.model.efforts.map((level) => {
@@ -740,7 +740,7 @@ export function ModelToolbar({
                         >
                           <span className="w-4 shrink-0">
                             {targetSelected && active ? (
-                              <Check className="size-3.5" aria-hidden />
+                              <Icons.approve className="size-3.5" aria-hidden />
                             ) : null}
                           </span>
                           <span className="min-w-0 flex-1 truncate font-medium">{level}</span>

@@ -83,7 +83,7 @@ export function RunConsole({
       <SectionTitle>Run console</SectionTitle>
       <div className="mt-3 space-y-4">
         <div>
-          <h3 className="text-sm font-semibold">Timeline</h3>
+          <h3 className="text-sm font-medium">Timeline</h3>
           {activity.length ? (
             <ol className="mt-2 space-y-1">
               {activity.map((entry, index) => (
@@ -102,7 +102,7 @@ export function RunConsole({
           ) : null}
         </div>
         <div>
-          <h3 className="text-sm font-semibold">Steer</h3>
+          <h3 className="text-sm font-medium">Steer</h3>
           {threads.status === 'loading' ? (
             <div className="mt-2">
               <SkeletonRows label="Steer targets are loading" />

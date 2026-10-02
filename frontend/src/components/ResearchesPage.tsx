@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowLeft, Plus } from 'lucide-react'
+import { Icons } from '@/lib/icons'
 import type { CompanyResearch, ResearchData, SectorResearch } from '../data/research'
 import { useStagingCompanies } from '../data/research'
 import type { ResearchState, StagingConfig } from '../data/staging-api'
@@ -311,7 +311,7 @@ function CreateSectorDialog({
       <DialogTrigger
         render={(props) => (
           <Button type="button" variant="default" size="sm" {...props}>
-            <Plus className="size-4" aria-hidden />
+            <Icons.plus className="size-4" aria-hidden />
             New sector
           </Button>
         )}
@@ -405,7 +405,7 @@ export function ResearchesPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Button type="button" variant="ghost" size="sm" onClick={onBack}>
-          <ArrowLeft className="size-4" aria-hidden />
+          <Icons.back className="size-4" aria-hidden />
           Back to Overview
         </Button>
         {tab === 'sectors' ? (

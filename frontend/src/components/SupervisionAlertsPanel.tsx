@@ -54,7 +54,7 @@ export function SupervisionAlertsPanel({ resource, viewingOlder, onOlder, onLate
   return (
     <section aria-label="Supervision alerts" className="mb-6 rounded-xl border border-border bg-background p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">Supervision alerts</h2>
+        <h2 className="text-sm font-medium">Supervision alerts</h2>
         {viewingOlder ? <Button variant="ghost" size="sm" onClick={onLatest}>Latest alerts</Button> : null}
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
