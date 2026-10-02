@@ -1,5 +1,18 @@
 # Implementation status
 
+Library-spike verdicts on `ui-revamp-perfect` (frontend-only, measured, not assumed).
+Streamdown 2.7.0: typecheck clean, 4/5 markdown tests green; the hostile-output
+case differs (link dropped versus the pinned inert `#` anchor, both inert) and
+the bundle grows +349 kB raw (+107 kB gzip), so the spike is rejected and
+`react-markdown` stays; the shape question is logged here if ever reconsidered.
+assistant-ui thread-list iteration: 4 chat-staging failures (rows absent on sync
+query) traced to async first-paint in primitive lists versus sync-owned
+iteration; both list transplants reverted, suites green again (64 passed on the
+revert check). Message iteration via the segment-preserving adapter holds parity
+(dead-stream, merge, settle, resume green). Motion 13.5.0 on one wrapper: +124 kB
+raw (+40 kB gzip), accepted by owner override with `MotionConfig
+reducedMotion="user"` on both App roots.
+
 The full browser matrix exposed a company pagination bug: its five-second poll
 replaced 600 loaded rows with the first 100. Polling now reloads the requested
 window, while query changes reset it. A named browser journey crosses the poll

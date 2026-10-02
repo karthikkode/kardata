@@ -193,6 +193,14 @@ one of these patterns; anything else needs an explicit exception.
   enter, exit, and section changes. One easing everywhere: ease-out. Never
   linear for movement, never springy overshoot. The JS constant is `EXIT_MS`
   in `frontend/src/lib/motion.ts`; change it with the CSS together.
+- Implementation: `motion@13.5.0` (exact, `motion/react`) implements
+  transitions where it is efficient, and the `tw-animate-css` enter plus
+  exit pairs remain sanctioned implementations of this same standard.
+  `MotionConfig reducedMotion="user"` wraps both App roots so OS
+  reduced-motion collapses every JS-driven animation. Anything beyond this
+  section (springs with overshoot, sibling-moving layout transitions,
+  gestures, scroll-linked effects, parallax) still needs an explicit
+  exception with its own tests.
 - Every enter has a matching exit at the same duration. Closings stay mounted
   through `useExitState` (reopen cancels the close) and swap the shared
   enter/exit class pair; popovers drift with fade plus a small scale change,
@@ -282,6 +290,7 @@ library without owner approval.
 |---|---|---|
 | button | `src/components/ui/button.tsx` | `cva` variants; Radix Slot for `asChild` |
 | input | `src/components/ui/input.tsx` | Unstyled field; pair with a label |
+| text scale | `src/components/text.tsx` | Eyebrow, PageTitle, SectionTitle, CardTitle, Body, Caption, Mono; no raw `text-[` sizes in feature code |
 
 Add new primitives only via the shadcn CLI copy flow so sources stay standard.
 Never fork or edit a primitive for feature styling: compose it, or add a

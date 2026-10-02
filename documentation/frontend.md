@@ -1,8 +1,13 @@
 # Frontend
 
 Stack: Vite + React + TypeScript SPA, Tailwind CSS v4, owned primitives in
-`frontend/src/components/ui` (shadcn copy flow over Base UI). Tokens in
-`frontend/src/index.css` (`:root` + `.dark`).
+`frontend/src/components/ui` (shadcn copy flow over Base UI), assistant-ui
+headless chat primitives in adapter mode (`@assistant-ui/react`, transport
+stays Kardata), Motion (`motion/react`) implementing the transition standard
+alongside the CSS pairs. Tokens in `frontend/src/index.css` (`:root` + `.dark`).
+Shared text scale in `frontend/src/components/text.tsx` (Eyebrow, PageTitle,
+SectionTitle, CardTitle, Body, Caption, Mono); no raw `text-[` sizes in
+feature code (pinned by `tests/frontend/typography.test.ts`).
 
 ## Component anatomy (mandatory shape)
 
@@ -114,6 +119,36 @@ capability checks. An unbound session shows Muse Spark 1.3 Contributor at
 high effort. A stored per-session choice remains visible until changed.
 The client rejects removed provider ids before sending a model PATCH.
 (Owned primitives inventory: see `docs/design-system.md`.)
+
+## Chat primitive adapter (assistant-ui, transport untouched)
+
+Message iteration in `ChatPanel.tsx` (dock) and `SectorWorkspace.tsx`
+(`ConversationView`) renders through `ThreadPrimitive.Messages` with a
+render prop, driven by `AssistantRuntimeAdapter`
+(`frontend/src/components/chat/AssistantRuntimeAdapter.tsx`) over
+`useExternalStoreRuntime`. Row state maps through `toThreadMessages` and
+`toThreadSegments` (`frontend/src/components/chat/assistantAdapter.ts`),
+which preserve merge order, segment grouping, and failed plus live statuses
+using the true `ThreadMessage` shapes. The empty state renders through
+`ThreadPrimitive.Empty`. Transport stays Kardata: `followThread`, merge by
+durable seq, resume tokens, dead-stream bound, abort-aware waits, and
+`useChatStick` are unchanged, and no ComposerPrimitive owns the draft.
+Proven by `tests/frontend/assistant-adapter.test.tsx`,
+`tests/frontend/assistant-runtime.test.tsx`, `chat-staging.test.tsx`,
+`follow-resume.test.ts`, `workspace-conversation.test.tsx`, and
+`SectorChatPanel.test.tsx`. Iteration for static session lists stays
+Kardata-owned: primitive lists render asynchronously on first paint while
+owned lists paint synchronously, so lists keep owned iteration (parity gate
+with failing-before evidence, 4 chat-staging failures reverted).
+
+## Motion standard (Motion implements, CSS pairs coexist)
+
+`motion@13.5.0` (exact) via `motion/react` implements transitions where it
+is efficient; the `tw-animate-css` enter plus exit pairs remain sanctioned
+implementations of the same 150/200 ease-out standard. `MotionConfig
+reducedMotion="user"` wraps both App roots so OS reduced-motion collapses
+every JS-driven animation with focus plus scroll plus content work intact.
+See `docs/design-system.md` for the admitted pattern list.
 
 ## Sector workspace (landing → Open → chat)
 
