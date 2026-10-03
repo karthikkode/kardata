@@ -1,5 +1,6 @@
-// Stage 2-5 style audit: Overview + Researches + sector landing +
-// workspace + Karbot dock + stage-5 plan/files/context surfaces, every
+// Stage 2-6 style audit: Overview + Researches + sector landing +
+// workspace + Karbot dock + stage-5 plan/files/context surfaces +
+// stage-6 agents/models/emails pages, every
 // state x theme x 1440/390 (+ a coarse-pointer mobile context for the
 // 40px touch floor). Alignment is enabled now that SH-01 owns the page
 // frame; Researches aligns h1 against the tab list (its first full-width
@@ -566,5 +567,53 @@ test('audit-workspace-inspector', async ({ page, browser }) => {
     options: {},
     interact: openInspector,
     anchors: ['main h1', 'text=20 entries'],
+  })
+})
+
+const AGENTS = { report: 'agents', shotPrefix: 'AG-audit', url: '/?section=Agents', alignSelector: '[data-page-section], section' } as const
+const MODELS = { report: 'models', shotPrefix: 'MO-audit', url: '/?section=Models', alignSelector: '[data-page-section], section' } as const
+const EMAILS = { report: 'emails', shotPrefix: 'EM-audit', url: '/?section=Emails', alignSelector: '[data-page-section], section' } as const
+
+async function openCancelConfirm(page: Page): Promise<void> {
+  const dialog = page.getByRole('alertdialog', { name: 'Cancel this run?' })
+  if (await dialog.isVisible()) return
+  await page.getByRole('button', { name: 'Cancel', exact: true }).first().click()
+  await expect(dialog).toBeVisible()
+}
+
+test('audit-agents', async ({ page, browser }) => {
+  test.setTimeout(120_000)
+  await auditView(page, browser, {
+    ...AGENTS, state: 'default',
+    options: {},
+    anchors: ['main h1', 'text=25 of 25 runs'],
+  })
+})
+
+test('audit-agents-cancel', async ({ page, browser }) => {
+  test.setTimeout(120_000)
+  await auditView(page, browser, {
+    ...AGENTS, report: 'agents-cancel', shotPrefix: 'AG-audit-cancel', state: 'cancel',
+    options: {},
+    interact: openCancelConfirm,
+    anchors: ['role=alertdialog[name="Cancel this run?"]', 'role=button[name="Cancel run"]'],
+  })
+})
+
+test('audit-models', async ({ page, browser }) => {
+  test.setTimeout(120_000)
+  await auditView(page, browser, {
+    ...MODELS, state: 'default',
+    options: {},
+    anchors: ['main h1', 'text=Browser chat uses'],
+  })
+})
+
+test('audit-emails', async ({ page, browser }) => {
+  test.setTimeout(120_000)
+  await auditView(page, browser, {
+    ...EMAILS, state: 'default',
+    options: {},
+    anchors: ['main h1', 'text=Email tracking is coming soon'],
   })
 })

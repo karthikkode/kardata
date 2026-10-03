@@ -149,6 +149,7 @@ export function ResourceState({
  onClearFilter,
  clearLabel = 'Clear search',
  icon,
+ iconClassName,
  compact = false,
  skeleton,
  notice,
@@ -166,6 +167,7 @@ export function ResourceState({
  onClearFilter?: () => void
  clearLabel?: string
  icon?: React.ReactNode
+ iconClassName?: string
  compact?: boolean
  skeleton?: React.ReactNode
  notice?: React.ReactNode
@@ -261,7 +263,7 @@ export function ResourceState({
  return (
  <div className={cn(`flex min-w-0 flex-col items-center text-center ${compact ? 'py-6' : 'py-12'}`, className)}>
  {icon && !compact ? (
- <span className="flex size-10 items-center justify-center rounded-full bg-muted [&_svg]:size-5 [&_svg]:text-muted-foreground">
+ <span className={cn('flex size-10 items-center justify-center rounded-full bg-muted [&_svg]:size-5 [&_svg]:text-muted-foreground', iconClassName)}>
  {icon}
  </span>
  ) : null}

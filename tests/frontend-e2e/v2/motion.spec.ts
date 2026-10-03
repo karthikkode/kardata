@@ -1,7 +1,8 @@
 // v2 motion videos: every overlay shows enter AND exit, 1280x800 webm
 // in frontend/test-results/v2/video/. Stages 2-4 record the shell,
 // Researches, landing, workspace, conversation and Karbot IDs; stage 5
-// appends plan, files and context; later stages append theirs here.
+// appends plan, files and context; stage 6 the runs cancel confirm;
+// later stages append theirs here.
 import { copyFileSync, mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -362,4 +363,19 @@ test('GC-06-review', async ({ page }) => {
   await page.keyboard.press('Escape')
   await expect(review).toBeHidden()
   await saveVideo(page, 'GC-06-review')
+})
+
+test('AG-03-cancel-confirm', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await serveApi(page)
+  await page.goto('/?section=Agents')
+  await expect(page.locator('main h1')).toHaveText('Agents')
+  await page.getByRole('region', { name: 'Runs' }).scrollIntoViewIfNeeded()
+  await page.getByRole('button', { name: 'Cancel', exact: true }).first().click()
+  const dialog = page.getByRole('alertdialog', { name: 'Cancel this run?' })
+  await expect(dialog).toBeVisible()
+  await page.waitForTimeout(700)
+  await dialog.getByRole('button', { name: 'Cancel run' }).click()
+  await expect(dialog).toBeHidden()
+  await saveVideo(page, 'AG-03-cancel-confirm')
 })

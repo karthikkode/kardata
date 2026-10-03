@@ -3,7 +3,10 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ModelsPanel } from '@/components/ModelsPanel'
 import { ModelToolbar } from '@/components/ModelToolbar'
+import { notify } from '@/lib/toast'
 import type { StagingConfig } from '@/data/staging-api'
+
+vi.mock('@/lib/toast', () => ({ notify: { success: vi.fn(), error: vi.fn() } }))
 
 const config: StagingConfig = { baseUrl: 'https://staging.test', apiKey: 'key' }
 const session = { id: 's-1', title: 'Server chat', createdAt: '', updatedAt: '' }
@@ -41,9 +44,9 @@ describe('Meta-only Models tab', () => {
     stubApi(baseHandler)
     render(<ModelsPanel config={config} />)
     expect(await screen.findByText('Meta')).toBeInTheDocument()
-    expect(screen.getByText('Configured')).toBeInTheDocument()
-    expect(screen.getByText('Server default')).toBeInTheDocument()
-    expect(await screen.findByText(/Server chat uses Meta muse-spark-1.3-contributor, reasoning on, effort high/)).toBeInTheDocument()
+    expect(screen.getByText('Key configured')).toBeInTheDocument()
+    expect(screen.getByText('Default')).toBeInTheDocument()
+    expect(await screen.findByText('Server chat uses Meta · muse-spark-1.3-contributor · High effort')).toBeInTheDocument()
     expect(screen.queryByText('DeepSeek')).not.toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Effort' })).toHaveTextContent('high')
   })
@@ -66,6 +69,7 @@ describe('Meta-only Models tab', () => {
     await waitFor(() => expect(calls.some((call) => call.method === 'PATCH')).toBe(true))
     const patch = calls.find((call) => call.method === 'PATCH')
     expect(JSON.parse(patch?.body ?? '{}')).toEqual({ provider: 'meta', model: 'muse-spark-1.3', reasoning: true, effort: 'low' })
+    await waitFor(() => expect(notify.success).toHaveBeenCalledWith('Saved'))
   })
 
   it('shows empty, error, and denied states without invented providers', async () => {

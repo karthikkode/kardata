@@ -37,7 +37,7 @@ import { CreateSectorDialog } from './components/CreateSectorDialog'
 import { Button } from './components/ui/button'
 import { Icons } from '@/lib/icons'
 import { notify } from './lib/toast'
-import { PageHeader } from './components/shells'
+import { PageHeader, ResourceState } from './components/shells'
 import { CommandPalette, type PaletteSection } from './components/CommandPalette'
 import { TooltipProvider } from './components/ui/tooltip'
 import { useTheme } from './lib/theme'
@@ -128,6 +128,8 @@ export default function App() {
   // flag reloads.
   const [staging] = useState<StagingConfig | null>(() => stagingConfig())
   const alerts = useSupervisionAlerts(staging, section === 'Agents')
+  const [runsRefresh, setRunsRefresh] = useState(0)
+  const [runsLoading, setRunsLoading] = useState(false)
 
   function focusChatToggle() {
     requestAnimationFrame(() => {
@@ -330,7 +332,11 @@ export default function App() {
           ? 'Research activity across all sectors.'
           : section === 'Researches'
             ? 'Sectors you research and the companies they discover.'
-            : undefined
+            : section === 'Agents'
+              ? 'Runs and supervision alerts across your sessions.'
+              : section === 'Models'
+                ? 'Choose the provider and model each session uses.'
+                : undefined
   const headerCrumbs =
     staging && section === 'SectorDetail' && detail
       ? [
@@ -361,6 +367,17 @@ export default function App() {
       <Button type="button" variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
         <Icons.plus aria-hidden />
         New sector
+      </Button>
+    ) : staging && section === 'Agents' ? (
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        disabled={alerts.resource.status === 'loading' || runsLoading}
+        onClick={() => { alerts.resource.refresh(); setRunsRefresh((value) => value + 1) }}
+      >
+        <Icons.retry aria-hidden className={alerts.resource.status === 'loading' || runsLoading ? 'motion-safe:animate-spin' : undefined} />
+        Refresh
       </Button>
     ) : undefined
   // Context summary derives from the served sector detail and recomputes
@@ -441,12 +458,19 @@ export default function App() {
               titleClassName="focus:outline-none"
             />
             {!staging ? (
-              <div className="rounded-xl border border-dashed border-border bg-background p-4">
-                <p className="text-sm font-medium">Backend not connected.</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Set the staging API URL and key, then reload. No sample data is shown.
-                </p>
-              </div>
+              <ResourceState
+                resource={{ status: 'ready', refresh: () => window.location.reload() }}
+                label="Backend"
+                emptyKind="first"
+                icon={<Icons.notConnected aria-hidden />}
+                emptyTitle="Connect the backend"
+                emptyBody="Set the staging API URL and key in the frontend environment, then reload."
+                emptyAction={
+                  <Button type="button" variant="secondary" size="sm" onClick={() => window.location.reload()}>
+                    Reload
+                  </Button>
+                }
+              />
             ) : section === 'Overview' ? (
               <Dashboard
                 onViewAll={goResearches}
@@ -486,17 +510,36 @@ export default function App() {
                 onBack={() => setNav({ section: 'Researches', sectorId: null })}
               />
             ) : section === 'Agents' ? (
-              <>
-              <SupervisionAlertsPanel resource={alerts.resource} viewingOlder={alerts.viewingOlder} onOlder={alerts.older} onLatest={alerts.latest} />
-              <RunsPanel config={staging} />
-              </>
+              <div className="flex min-w-0 flex-col gap-6">
+              <SupervisionAlertsPanel
+                resource={alerts.resource}
+                viewingOlder={alerts.viewingOlder}
+                onOlder={alerts.older}
+                onLatest={alerts.latest}
+                onOpenConversation={(alert) => {
+                  if (alert.sectorId) setNav({ section: 'SectorChat', sectorId: alert.sectorId, sessionId: alert.sessionId, threadKey: alert.threadKey, view: null })
+                }}
+              />
+              <RunsPanel config={staging} refreshSignal={runsRefresh} onLoadingChange={setRunsLoading} />
+              </div>
             ) : section === 'Models' ? (
               <ModelsPanel config={staging} />
+            ) : section === 'Emails' ? (
+              <section aria-label="Emails">
+                <ResourceState
+                  resource={{ status: 'ready', refresh: () => undefined }}
+                  label="Emails"
+                  emptyKind="first"
+                  icon={<Icons.emails aria-hidden />}
+                  emptyTitle="Email tracking is coming soon"
+                  emptyBody="Scheduled, sent and reply counts will appear here once email tracking is connected."
+                />
+              </section>
             ) : (
               <div className="rounded-xl border border-dashed border-border bg-background p-4">
-                <p className="text-sm font-medium">Email tracking is not connected yet.</p>
+                <p className="text-sm font-medium">Unknown section.</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Outreach records will appear here once email tracking lands.
+                  This view does not exist in this build.
                 </p>
               </div>
             )}

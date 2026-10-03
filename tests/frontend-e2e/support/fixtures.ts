@@ -749,7 +749,9 @@ export interface FixtureRun {
 export const runs: FixtureRun[] = (() => {
   const states: FixtureRun['state'][] = ['RUNNING', 'RUNNING', 'RUNNING', 'PAUSED', 'CANCELLING', 'FINISHED', 'FINISHED', 'FINISHED', 'ERROR', 'IDLE', 'SUSPENDED', 'FINISHED']
   return Array.from({ length: 25 }, (_, i) => ({
-    id: `run-${(0x9f3c1a2b + i * 7919).toString(16).slice(0, 8)}-${String(i + 1).padStart(2, '0')}`,
+    // Sequence first: the runs table shows an 8-char short id, so the
+    // distinguishing digits lead (a hex-suffix id would repeat one row).
+    id: `run-${String(i + 1).padStart(2, '0')}-${(0x9f3c1a2b + i * 7919).toString(16).slice(0, 8)}`,
     sessionId: i % 2 ? 'session-electrical-research' : 'session-karbot-01',
     threadKey: i % 2 ? 'session-electrical-research' : 'session-karbot-01',
     state: states[i % states.length] as FixtureRun['state'],

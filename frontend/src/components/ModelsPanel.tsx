@@ -3,6 +3,9 @@
 // presence only, never key material) and the session read/write pair for
 // the binding. No fixtures, no guessed models.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Icons } from '@/lib/icons'
+import { humanizeKey } from '@/lib/format'
+import { notify } from '@/lib/toast'
 import {
   getSession,
   listProviders,
@@ -15,11 +18,13 @@ import {
   type SessionModelSelection,
   type StagingConfig,
 } from '../data/staging-api'
-import { DeniedNotice, PanelError, SkeletonRows, UnavailableNotice } from './research-parts'
+import { DeniedNotice, PanelError, UnavailableNotice } from './research-parts'
+import { BodySm, Caption, CardTitle } from './text'
 import { Button } from './ui/button'
-import { CheckboxRoot } from './ui/checkbox'
+import { FieldDescription, FieldLabel, FieldRoot } from './ui/field'
 import { SelectItem, SelectPopup, SelectRoot, SelectTrigger } from './ui/select'
-import { StatusBadge } from './shells'
+import { Skeleton } from './ui/skeleton'
+import { SwitchRoot } from './ui/switch'
 
 type LoadStatus = 'loading' | 'ready' | 'error' | 'denied' | 'offline'
 
@@ -28,10 +33,19 @@ function statusOf(error: unknown): LoadStatus {
 }
 
 /** Provider ids stay server spellings on the wire; the card shows the
- * plain-language label. */
+ * plain-language label, humanized when the provider is unknown. */
 export function providerLabel(name: string): string {
   if (name === 'meta') return 'Meta'
-  return name
+  return humanizeKey(name)
+}
+
+/** Display name from the catalog; the model id when the catalog lacks it. */
+function modelDisplayName(providers: ProviderEntry[], provider: string, model: string): string {
+  return providers.find((entry) => entry.name === provider)?.models.find((candidate) => candidate.model === model)?.displayName ?? model
+}
+
+function effortLabel(effort: string): string {
+  return `${effort.charAt(0).toUpperCase()}${effort.slice(1)} effort`
 }
 
 function saveErrorOf(error: unknown): string {
@@ -52,10 +66,10 @@ function saveErrorOf(error: unknown): string {
 
 // One provider card: key state, model picker, reasoning control, and the
 // save that binds the selection to the active session. The reasoning
-// checkbox stays visible but disabled where the selected model has no
+// switch stays visible but disabled where the selected model has no
 // reasoning capability, so the choice is prevented, not just explained.
 // Models with listed depths (Meta effort) show an effort picker instead
-// of the on/off checkbox, since their thinking is mandatory.
+// of the on/off switch, since their thinking is mandatory.
 function ProviderCard({
   entry,
   isDefault,
@@ -93,27 +107,22 @@ function ProviderCard({
     () => entry.models.map((model) => ({ value: model.model, label: model.displayName })),
     [entry.models],
   )
+  const label = providerLabel(entry.name)
+  const initials = label.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase() || '??'
   return (
     <li className="flex flex-col gap-3 rounded-xl border border-border bg-background px-4 py-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <p className="min-w-0 flex-1 text-sm font-medium">{providerLabel(entry.name)}</p>
-        {isDefault ? (
-          <span className="inline-flex h-6 shrink-0 cursor-default items-center rounded-full border border-border px-2.5 text-xs select-none">
-            Server default
-          </span>
-        ) : null}
-        <StatusBadge label={entry.hasKey ? 'Configured' : 'Unconfigured'} tone={entry.hasKey ? 'success' : 'neutral'} icon={<span aria-hidden className={`size-2 rounded-full ${entry.hasKey ? 'bg-success' : 'bg-muted-foreground'}`} />} />
+        <span aria-hidden className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-medium text-muted-foreground">
+          {initials}
+        </span>
+        <CardTitle className="min-w-0 flex-auto">{label}</CardTitle>
+        {isDefault ? <Caption as="span" className="shrink-0">Default</Caption> : null}
+        <span aria-hidden className={`size-2 shrink-0 rounded-full ${entry.hasKey ? 'bg-success' : 'bg-muted-foreground'}`} />
+        <BodySm as="span" className="shrink-0">{entry.hasKey ? 'Key configured' : 'No key'}</BodySm>
       </div>
-      <p className="text-xs text-muted-foreground">
-        {entry.hasKey
-          ? `Key configured. Default model: ${entry.defaultModel}.`
-          : 'No API key configured for this provider. Selections still save.'}
-      </p>
       <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <span id={modelInputId} className="mb-1 block text-sm font-medium">
-            Model
-          </span>
+        <FieldRoot>
+          <FieldLabel id={modelInputId}>Model</FieldLabel>
           <SelectRoot
             value={modelOptions.find((option) => option.value === modelId) ?? null}
             onValueChange={(option) => {
@@ -130,12 +139,10 @@ function ProviderCard({
               ))}
             </SelectPopup>
           </SelectRoot>
-        </div>
+        </FieldRoot>
         {listedEfforts.length > 0 ? (
-          <div>
-            <span id={effortInputId} className="mb-1 block text-sm font-medium">
-              Effort
-            </span>
+          <FieldRoot>
+            <FieldLabel id={effortInputId}>Effort</FieldLabel>
             <SelectRoot
               value={effort && listedEfforts.includes(effort) ? effort : 'high'}
               onValueChange={(option) => {
@@ -152,29 +159,22 @@ function ProviderCard({
                 ))}
               </SelectPopup>
             </SelectRoot>
-          </div>
+          </FieldRoot>
         ) : (
-          <div>
-            <span
-              id={reasoningInputId}
-              className={`mb-1 block text-sm font-medium ${canReason ? '' : 'text-muted-foreground'}`}
-            >
-              Reasoning
-            </span>
-            <div className="flex h-10 items-center gap-2">
-              <CheckboxRoot
-                aria-labelledby={reasoningInputId}
-                checked={canReason && reasoning}
-                disabled={!canReason || saving}
-                onCheckedChange={(checked) => onReasoning(checked === true)}
-              />
-              <span className="text-xs text-muted-foreground">
-                {canReason
-                  ? 'Reason before answering.'
-                  : 'Not available on this model.'}
-              </span>
-            </div>
-          </div>
+          <FieldRoot>
+            <FieldLabel id={reasoningInputId} className={canReason ? undefined : 'text-muted-foreground'}>Reasoning</FieldLabel>
+            <FieldDescription>
+              {canReason
+                ? 'Reason before answering.'
+                : 'Not available on this model.'}
+            </FieldDescription>
+            <SwitchRoot
+              aria-labelledby={reasoningInputId}
+              checked={canReason && reasoning}
+              disabled={!canReason || saving}
+              onCheckedChange={(checked) => onReasoning(checked === true)}
+            />
+          </FieldRoot>
         )}
       </div>
       {saveError ? (
@@ -185,12 +185,12 @@ function ProviderCard({
       <div className="mt-auto flex justify-end">
         <Button
           type="button"
-          variant="outline"
+          variant="primary"
           size="sm"
           disabled={saving || entry.models.length === 0}
           onClick={onSave}
         >
-          {saving ? 'Saving' : 'Save to session'}
+          {saving ? 'Saving…' : 'Save to session'}
         </Button>
       </div>
     </li>
@@ -330,6 +330,7 @@ export function ModelsPanel({
         setBinding(stored)
         setBoundFor(activeSessionId)
         setBindingFailed(false)
+        notify.success('Saved')
         setDrafts((current) => ({
           ...current,
           [stored.provider]: {
@@ -352,9 +353,9 @@ export function ModelsPanel({
   const bindingText = !activeSession
     ? null
     : binding
-      ? `${activeSession.title} uses ${providerLabel(binding.provider)} ${binding.model}, reasoning ${binding.reasoning ? 'on' : 'off'}${binding.effort === undefined ? '' : `, effort ${binding.effort}`}.`
+      ? `${activeSession.title} uses ${providerLabel(binding.provider)} · ${modelDisplayName(providers, binding.provider, binding.model)} · ${binding.effort === undefined ? `Reasoning ${binding.reasoning ? 'on' : 'off'}` : effortLabel(binding.effort)}`
       : defaultEntry
-        ? `${activeSession.title} uses default ${providerLabel(defaultEntry.name)} ${defaultEntry.defaultModel}, effort high.`
+        ? `${activeSession.title} uses default ${providerLabel(defaultEntry.name)} · ${modelDisplayName(providers, defaultEntry.name, defaultEntry.defaultModel)} · ${effortLabel('high')}`
         : `${activeSession.title} has no configured model.`
 
   return (
@@ -371,7 +372,24 @@ export function ModelsPanel({
             </p>
           </div>
         ) : status === 'loading' ? (
-          <SkeletonRows label="Models are loading" />
+          <div role="status" aria-label="Models are loading">
+            <span className="sr-only">Loading Models</span>
+            <div aria-hidden className="grid gap-3 lg:grid-cols-2">
+              {[0, 1].map((tile) => (
+                <div key={tile} className="flex flex-col gap-3 rounded-xl border border-border bg-background px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="size-8 rounded-md" />
+                    <Skeleton className="h-4 flex-1" />
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Skeleton className="h-10" />
+                    <Skeleton className="h-10" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         ) : status === 'error' ? (
           <PanelError
             heading="Models did not load."
@@ -384,10 +402,8 @@ export function ModelsPanel({
           <UnavailableNotice onRetry={retryCatalog} />
         ) : (
           <div className="space-y-4">
-            <div className="max-w-sm">
-              <span id="models-session-label" className="mb-1 block text-sm font-medium">
-                Session
-              </span>
+            <FieldRoot className="max-w-sm">
+              <FieldLabel id="models-session-label">Session</FieldLabel>
               {sessions.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-border p-4">
                   <p className="text-sm text-muted-foreground">
@@ -413,9 +429,9 @@ export function ModelsPanel({
                   </SelectPopup>
                 </SelectRoot>
               )}
-            </div>
+            </FieldRoot>
             {activeSession ? (
-              <div className="rounded-lg border border-border p-4">
+              <div className="rounded-lg border border-border bg-card p-4">
                 {bindingFailed && boundFor !== activeSessionId ? (
                   <div className="flex flex-wrap items-center gap-3">
                     <p className="min-w-0 flex-1 text-sm text-muted-foreground">
@@ -430,8 +446,9 @@ export function ModelsPanel({
                     Loading the current model.
                   </p>
                 ) : (
-                  <p aria-live="polite" className="text-sm">
-                    {bindingText}
+                  <p aria-live="polite" className="flex items-center gap-2">
+                    <Icons.models aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+                    <BodySm as="span" className="min-w-0 flex-1">{bindingText}</BodySm>
                   </p>
                 )}
               </div>

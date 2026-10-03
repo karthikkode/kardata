@@ -1,6 +1,7 @@
 // Stage 2 shell (SH-01..06): page frame, sidebar, top bar, theme menu,
 // palette and toaster in light+dark at 1440+390 (768 where the plan
 // names it). SH-07 lands in Stage 6, SH-08 in motion.spec.ts.
+import { spawn, type ChildProcess } from 'node:child_process'
 import { expect, test, type Page } from '@playwright/test'
 import { serveApi } from '../support/api'
 import { capture } from '../support/capture'
@@ -154,4 +155,67 @@ test('SH-06-error', async ({ page }) => {
       await expect(page.getByText('Upload failed')).toBeVisible()
     },
   )
+})
+
+// SH-07-not-connected boots its own flag-off vite on 15175: the shared
+// webServer always sets VITE_STAGING_API and import.meta.env is baked at
+// serve time, so no route can simulate the unconfigured state. The app
+// fetches nothing before the empty state, so no API mock is needed.
+const NOSTAGING_PORT = 15175
+let nostaging: ChildProcess | null = null
+
+async function startNostaging(): Promise<void> {
+  if (nostaging) return
+  // Empty, not deleted: a local frontend/.env would otherwise resupply
+  // the flag (shell env wins over .env files in Vite).
+  const env = { ...process.env, VITE_STAGING_API: '', VITE_STAGING_URL: '', VITE_STAGING_KEY: '' }
+  nostaging = spawn('npm', ['run', 'dev', '--', '--host', '127.0.0.1', '--port', String(NOSTAGING_PORT), '--strictPort'], {
+    cwd: new URL('../../../frontend', import.meta.url).pathname,
+    env,
+    stdio: 'pipe',
+    detached: true,
+  })
+  // Drain without storing: an unread pipe can stall the server.
+  nostaging.stdout?.resume()
+  nostaging.stderr?.resume()
+  const deadline = Date.now() + 60000
+  for (;;) {
+    try {
+      const response = await fetch(`http://127.0.0.1:${NOSTAGING_PORT}/`)
+      if (response.ok) return
+    } catch {
+      // Server still starting.
+    }
+    if (Date.now() > deadline) throw new Error(`flag-off vite on ${NOSTAGING_PORT} never came up`)
+    await new Promise((resolve) => setTimeout(resolve, 500))
+  }
+}
+
+test.afterAll(async () => {
+  // Group kill: npm spawns vite as a child, and killing npm alone
+  // orphans the server on the port.
+  if (nostaging?.pid) {
+    try { process.kill(-nostaging.pid, 'SIGTERM') } catch { nostaging.kill() }
+  }
+  nostaging = null
+})
+
+test('SH-07-not-connected', async ({ page }) => {
+  test.setTimeout(120_000)
+  await startNostaging()
+  await capture(page, 'SH-07', 'not-connected', async () => {
+    await page.goto(`http://127.0.0.1:${NOSTAGING_PORT}/`)
+    await expect(page.getByText('Connect the backend')).toBeVisible()
+  }, async () => {
+    await expect(page.getByText('Set the staging API URL and key in the frontend environment, then reload.')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Reload' })).toBeVisible()
+  })
+})
+
+test('SH-07-sector-not-found', async ({ page }) => {
+  await capture(page, 'SH-07', 'sector-not-found', async () => {
+    await serveApi(page)
+    await page.goto('/?section=SectorDetail&sector=sector-removed')
+    await expect(page.getByRole('button', { name: 'Back to researches' })).toBeVisible()
+  })
 })

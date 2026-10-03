@@ -3518,3 +3518,15 @@ pre-existing warnings in untouched files), typecheck clean, 723 unit
 passed / 6 skipped (twice), build clean, 65/65 stage e2e
 (plan/files/context), 6/6 new audit views with zero violations on all
 36 theme/width/mobile combos, 5/5 motion videos.
+
+UI v2 stage 6 (2026-10-03, branch ui-revamp-v2): agents page (alerts
+current/history toggle, runs table with cancel confirm), models page
+(session binding summary, provider tiles, save toast), emails
+coming-soon page, global app states (connect-backend empty state;
+sector-not-found already staged). SH-07-not-connected boots its own
+flag-off vite on 15175 because the shared webServer bakes
+VITE_STAGING_API at serve time. Fixture run ids reordered
+sequence-first so 8-char short ids differ. Gates green: lint 0 errors,
+typecheck clean, 724 unit passed / 6 skipped, build clean, 37/37 stage
+e2e (agents/models/shell), 4/4 new audit views with zero violations on
+all 24 combos, AG-03 cancel video.
