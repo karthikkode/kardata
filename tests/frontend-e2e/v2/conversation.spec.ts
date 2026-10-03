@@ -67,7 +67,7 @@ const MENTION_THREAD: FixtureMessage[] = [
 
 test('CV-01-long-thread', async ({ page }) => {
   await capture(page, 'CV-01', 'long-thread', () => gotoWorkspace(page), async () => {
-    await expect(convo(page).getByText('Noted. I will fold the Ryde crews into the next pass.').first()).toBeVisible()
+    await expect(convo(page).getByText('On it. I will re-check both Ryde crews against the licence register first.')).toBeVisible()
   })
 })
 
@@ -135,7 +135,7 @@ test('CV-03-lists', async ({ page }) => {
 
 test('CV-04-hover', async ({ page }) => {
   await capture(page, 'CV-04', 'hover', () => gotoWorkspace(page), async () => {
-    const last = convo(page).getByText('Noted. I will fold the Ryde crews into the next pass.').last()
+    const last = convo(page).getByText('Posted below. Ryde Volt Services stays; the unlicensed Ryde crew is out with its reason recorded.')
     await last.hover()
     await expect(convo(page).getByRole('button', { name: 'Copy' }).last()).toBeVisible()
   })
@@ -342,7 +342,7 @@ test('CV-10-visible', async ({ page }) => {
   await capture(page, 'CV-10', 'visible', () => gotoWorkspace(page), async () => {
     // Wait for the full thread first: scrolling a still-loading log pins
     // back to the bottom when the history lands.
-    await expect(convo(page).getByText('Noted. I will fold the Ryde crews into the next pass.').last()).toBeVisible()
+    await expect(convo(page).getByText('Posted below. Ryde Volt Services stays; the unlicensed Ryde crew is out with its reason recorded.')).toBeVisible()
     await convo(page).evaluate((log) => { log.scrollTop = 0 })
     await expect(page.getByRole('button', { name: 'Latest' })).toBeVisible()
   })

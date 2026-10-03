@@ -140,6 +140,7 @@ test('GC-06-review', async ({ page }) => {
     await expect(dialog.getByRole('button', { name: 'Reject' })).toBeVisible()
     // Both fixture proposals predate v3, so approval stays disabled.
     await expect(dialog.getByRole('button', { name: 'Approve', exact: true })).toBeDisabled()
+    await expect(dialog.getByText('This update is based on v2; the current version is v3. Ask for a refreshed proposal.')).toBeVisible()
   })
 })
 

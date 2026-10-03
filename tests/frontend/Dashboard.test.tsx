@@ -21,7 +21,7 @@ const LOADED_SECTORS: SectorResearch[] = [
 const LOADED_COMPANIES: CompanyResearch[] = [
   { id: 'seed-west', sectorId: 'seed-pet-care', sectorName: 'Pet care', name: 'West Paw', stage: 'Final validation', state: 'running' },
   { id: 'seed-trail', sectorId: 'seed-outdoor', sectorName: 'Outdoor gear', name: 'Trail Co', stage: 'Deep research', state: 'running' },
-  { id: 'seed-brew', sectorId: 'seed-coffee', sectorName: 'Coffee gear', name: 'Brew Lab', stage: 'Filter', state: 'paused' },
+  { id: 'seed-brew', sectorId: 'seed-pet-care', sectorName: 'Pet care', name: 'Brew Lab', stage: 'Filter', state: 'paused' },
 ]
 
 function overflowSectors(): SectorResearch[] {
@@ -105,9 +105,30 @@ describe('Dashboard stat tiles', () => {
   it('renders fixture-derived numbers with honest captions', () => {
     renderDashboard()
     expect(screen.getByRole('button', { name: 'Sectors: 3, 1 in progress. Show in Researches.' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Companies found: 3, Across 3 sectors. Show in Researches.' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Companies found: 3, Across 2 sectors. Show in Researches.' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Needs attention: 1, Failed or blocked research. Show in Researches.' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Awaiting approval: 1, Plans waiting for review. Show in Researches.' })).toBeInTheDocument()
+  })
+
+  it('counts sectors across the full list, not the windowed companies page', () => {
+    const sectors: SectorResearch[] = [
+      { id: 'w-one', name: 'One', topic: 'First', companiesFound: 60, state: 'running', createdAt: '2026-09-01T09:00:00', updatedAt: '2026-09-30T10:00:00' },
+      { id: 'w-two', name: 'Two', topic: 'Second', companiesFound: 40, state: 'running', createdAt: '2026-09-01T09:00:00', updatedAt: '2026-09-30T10:00:00' },
+    ]
+    const companies: CompanyResearch[] = [
+      { id: 'w-a', sectorId: 'w-one', sectorName: 'One', name: 'Maker A', stage: 'Filter', state: 'running' },
+    ]
+    render(
+      <Dashboard
+        onViewAll={noop}
+        onOpenFiltered={noop}
+        onOpenSector={noop}
+        onNewSector={noop}
+        sectors={{ status: 'ready', items: sectors, total: 2, retry: noop }}
+        companies={{ status: 'ready', items: companies, total: 100, retry: noop }}
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'Companies found: 100, Across 2 sectors. Show in Researches.' })).toBeInTheDocument()
   })
 
   it('opens Researches pre-filtered from each tile', () => {

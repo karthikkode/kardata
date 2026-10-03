@@ -62,7 +62,7 @@ function MeterBar({ view }: { view: SectorContextView }) {
             <span
               key={part.label}
               title={`${part.label}: ${part.tokens} tokens`}
-              className="h-full bg-muted-foreground/60 first:bg-foreground"
+              className="h-full bg-muted-foreground first:bg-foreground"
               style={{ width: `${(part.tokens / Math.max(1, WINDOW_TOKENS)) * 100}%` }}
             />
           ))}
@@ -301,7 +301,7 @@ export function SectorContextDrawer({
         ) : null}
       </div>
       {compactResult ? (
-        <div className="mt-2 flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs text-primary">
+        <div className="mt-2 flex items-center justify-between rounded-lg border border-primary-border bg-primary-soft px-3 py-1.5 text-xs text-primary">
           <span>{compactResult}</span>
           <button
             type="button"
@@ -327,7 +327,7 @@ export function SectorContextDrawer({
       ) : null}
       {state.status === 'ready' ? (
         <div className="mt-2 min-h-0 flex-1 space-y-4">
-          <div className="sticky top-0 z-10 border-b border-border bg-background/95 py-2 backdrop-blur">
+          <div className="sticky top-0 z-10 border-b border-border bg-background py-2">
             <MeterBar view={state.view} />
           </div>
           {showRaw ? (
@@ -439,7 +439,7 @@ export function SectorContextDrawer({
                   <p className="mt-1 text-sm text-muted-foreground">No tail pinned.</p>
                 )}
               </section>
-              <section aria-label="Add a context note" className="sticky bottom-0 z-10 border-t border-border bg-background/95 py-2 backdrop-blur">
+              <section aria-label="Add a context note" className="sticky bottom-0 z-10 border-t border-border bg-background py-2">
                 <h3 className="text-sm font-medium">Add note</h3>
                 <div className="mt-1 flex gap-2">
                   <Input

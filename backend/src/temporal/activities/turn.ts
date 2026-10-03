@@ -247,6 +247,9 @@ export interface KarbotTurnLogFields {
   snapshotHead?: string
   condensedCount?: number
   haltDetail?: string
+  /** Failed turns only: the underlying error message (sliced, never a
+   * stack), so log readers see why without replaying the workflow. */
+  errorDetail?: string
 }
 
 export interface KarbotTurnDeps {
@@ -494,12 +497,10 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
     }
   } catch (error) {
     const latencyMs = Date.now() - started
-    deps.log({ op: 'karbot.turn', provider: providerName, ok: false, latencyMs, code: error instanceof OperationRecoveryError ? 'operation_uncertain' : 'provider_failed' })
+    const detail = error instanceof Error ? error.message.slice(0, 200) : 'unknown provider error'
+    deps.log({ op: 'karbot.turn', provider: providerName, ok: false, latencyMs, code: error instanceof OperationRecoveryError ? 'operation_uncertain' : 'provider_failed', errorDetail: detail })
     if (error instanceof ContextFileBlocked || error instanceof ResearchPausedError || error instanceof ContextBudgetError || error instanceof OperationRecoveryError) throw error
-    throw new Error(
-      `karbot turn failed: ${error instanceof Error ? error.message.slice(0, 200) : 'unknown provider error'}`,
-      { cause: error },
-    )
+    throw new Error(`karbot turn failed: ${detail}`, { cause: error })
   }
 }
 

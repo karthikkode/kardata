@@ -17,7 +17,7 @@ const densityClass: Record<ListDensity, string> = {
 }
 
 const rowBase =
-  'relative flex w-full items-center gap-3 rounded-md px-2 text-left transition-colors duration-120 ease-out-soft hover:bg-surface-hover data-[selected]:bg-surface-active focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
+  'relative flex w-full items-center gap-3 rounded-md px-2 text-left transition-colors duration-120 ease-out-soft hover:bg-surface-hover data-[selected]:border data-[selected]:border-border-strong data-[selected]:bg-surface-raised data-[selected]:shadow-sm focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
 
 export function listRowClassName(options: { density?: ListDensity; interactive?: boolean } = {}): string {
   const { density = 'default', interactive = true } = options
@@ -28,9 +28,9 @@ export function listRowClassName(options: { density?: ListDensity; interactive?:
 export function tableRowClassName(options: { selected?: boolean; interactive?: boolean } = {}): string {
   const { selected = false, interactive = true } = options
   return cn(
-    'rounded-md transition-colors duration-120 ease-out-soft hover:bg-surface-hover data-[selected]:bg-surface-active focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+    'rounded-md transition-colors duration-120 ease-out-soft hover:bg-surface-hover data-[selected]:border data-[selected]:border-border-strong data-[selected]:bg-surface-raised data-[selected]:shadow-sm focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
     interactive && 'cursor-pointer',
-    selected && 'bg-surface-active',
+    selected && 'border border-border-strong bg-surface-raised shadow-sm',
   )
 }
 

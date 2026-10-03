@@ -537,7 +537,7 @@ export function SectorChatPanel({
 
   if (!config) {
     return (
-      <p className="mt-2 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+      <p className="mt-2 rounded-lg border border-border p-4 text-sm text-muted-foreground">
         Sector chat needs the staging backend first.
       </p>
     )
@@ -669,7 +669,7 @@ export function SectorChatPanel({
             <SkeletonRows label="Sector chats are loading" />
           ) : null}
           {active === null && sessions !== undefined ? (
-            <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+            <p className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
               Start a sector chat to discuss {sectorName} without leaving this page.
             </p>
           ) : null}
@@ -690,7 +690,7 @@ export function SectorChatPanel({
             <ActivityGroup tools={[]} reasoning={live.pendingReasoning} live />
           ) : null}
           {live?.pendingText ? (
-            <div className="max-w-[95%] rounded-lg border border-dashed border-border px-3 py-2 text-sm text-muted-foreground [overflow-wrap:anywhere]">
+            <div className="max-w-[95%] rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground [overflow-wrap:anywhere]">
               <Markdown text={live.pendingText} />
             </div>
           ) : null}
@@ -735,12 +735,12 @@ export function SectorChatPanel({
         <div
           role="region"
           aria-label="Global context proposal"
-          className="mt-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm shadow-sm"
+          className="mt-2 rounded-xl border border-primary-border bg-primary-soft p-3 text-sm shadow-sm"
         >
           <div className="flex items-center gap-2 font-medium text-foreground">
             <Icons.globalContext className="size-4 text-primary" aria-hidden />
             <span>Global Context Proposal</span>
-            <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary">Requires Approval</span>
+            <span className="rounded bg-primary-soft px-1.5 py-0.5 text-xs text-primary">Requires Approval</span>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
             Approved notes are synced to the global sector context and available to ongoing research sweeps.
@@ -821,7 +821,7 @@ export function SectorChatPanel({
                 title="Steer running agent mid-run"
                 disabled={!draft.trim()}
                 onClick={() => void steer(draft)}
-                className="h-8 gap-1 rounded-full px-2.5 text-xs text-primary hover:bg-primary/10"
+                className="h-8 gap-1 rounded-full px-2.5 text-xs text-primary hover:bg-primary-soft"
               >
                 <Icons.steer className="size-3.5" aria-hidden />
                 <span>Steer</span>

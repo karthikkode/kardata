@@ -239,7 +239,7 @@ export function RunsPanel({
         actions={<SearchField value={query} onChange={setQuery} label="Search runs" clearLabel="Clear search" className="w-full sm:w-64" />}
       >
         {!config ? (
-          <div className="rounded-lg border border-dashed border-border p-4">
+          <div className="rounded-lg border border-border p-4">
             <p className="text-sm font-medium">Runs need a backend connection.</p>
             <p className="mt-1 text-sm text-muted-foreground">
               Set the staging API URL and key, then reload.

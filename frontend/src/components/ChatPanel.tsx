@@ -2018,7 +2018,6 @@ export function ChatPanel({
                     compact
                     bare
                     display="model"
-                    modelLabel="generic"
                     config={config}
                     sessionId={activeSessionId}
                   />

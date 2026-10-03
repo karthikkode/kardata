@@ -41,7 +41,7 @@ async function serveApi(page: Page): Promise<void> {
       data = {
         defaultProvider: 'meta',
         providers: [{ name: 'meta', hasKey: true, defaultModel: 'muse-spark-1.3-contributor', models: [
-          { provider: 'meta', model: 'muse-spark-1.3-contributor', displayName: 'muse-spark-1.3-contributor', reasoning: 'native', mode: 'responses', efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'] },
+          { provider: 'meta', model: 'muse-spark-1.3-contributor', displayName: 'Muse Spark 1.3 Contributor', reasoning: 'native', mode: 'responses', efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'] },
         ] }],
       }
     }
@@ -90,7 +90,7 @@ test('revamp: overlay exits are armed with ending-style transitions', async ({ p
   await serveApi(page)
   await page.goto('/')
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
-  await page.getByRole('button', { name: 'New sector' }).click()
+  await page.getByRole('button', { name: 'New sector' }).first().click()
   const dialog = page.getByRole('dialog', { name: 'New sector' })
   await expect(dialog).toBeVisible()
   expect(await dialog.evaluate((node) => getComputedStyle(node).transitionDuration)).toBe('0.18s')
@@ -121,12 +121,12 @@ test('revamp: models selects use the shared selection controls', async ({ page }
   await serveApi(page)
   await page.goto('/')
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Models' }).click()
-  await expect(page.getByText('Configured', { exact: true })).toBeVisible()
+  await expect(page.getByText('Key configured')).toBeVisible()
   const model = page.getByRole('combobox', { name: 'Model' })
   await expect(model).toBeVisible()
   await model.click()
-  await expect(page.getByRole('option', { name: 'muse-spark-1.3-contributor' })).toBeVisible()
-  await shot(page, 'revamp-models-select', [page.getByRole('option', { name: 'muse-spark-1.3-contributor' })])
+  await expect(page.getByRole('option', { name: 'Muse Spark 1.3 Contributor' })).toBeVisible()
+  await shot(page, 'revamp-models-select', [page.getByRole('option', { name: 'Muse Spark 1.3 Contributor' })])
   await page.keyboard.press('Escape')
   await expect(model).toBeFocused()
 })
@@ -135,6 +135,7 @@ test('revamp: palette opens from every shell page', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await serveApi(page)
   await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
   await page.keyboard.press('ControlOrMeta+k')
   await expect(page.getByRole('dialog', { name: 'Command palette' })).toBeVisible()
   await page.keyboard.press('Escape')
@@ -150,8 +151,11 @@ test('revamp: 200% zoom keeps overview, researches, and dialog inside the viewpo
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-  await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
-  await page.getByRole('button', { name: 'New sector' }).click()
+  // Below 768px the sidebar is an icon rail with no accessible names,
+  // so navigate by URL (the v2 narrow-viewport pattern).
+  await page.goto('/?section=Researches')
+  await expect(page.locator('h1:has-text("Researches")')).toBeVisible()
+  await page.getByRole('button', { name: 'New sector' }).first().click()
   await expect(page.getByRole('dialog', { name: 'New sector' })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   await shot(page, 'revamp-zoom-dialog', [page.getByRole('dialog', { name: 'New sector' })])
@@ -195,7 +199,7 @@ test('revamp: loaded-list filter timing probe', async ({ page }) => {
   const box = page.getByRole('textbox', { name: 'Search files' })
   await expect(box).toBeVisible()
   const t0 = await page.evaluate(() => performance.now())
-  await expect(page.getByText('Showing 50 of 2005 files')).toBeVisible()
+  await expect(page.getByText('Showing 50 of 2,005 files')).toBeVisible()
   const initialMs = (await page.evaluate(() => performance.now())) - t0
   const needles = Array.from({ length: 20 }, (_, index) =>
     index % 4 === 3 ? 'no-match-needle' : `file ${String((index * 97) % 2005).padStart(4, '0')}`,
@@ -204,7 +208,7 @@ test('revamp: loaded-list filter timing probe', async ({ page }) => {
   for (const needle of needles) {
     const start = await page.evaluate(() => performance.now())
     await box.fill(needle)
-    await expect(page.getByText(/Showing \d+ of \d+ files/)).toBeVisible()
+    await expect(page.getByText(/Showing [\d,]+ of [\d,]+ files/)).toBeVisible()
     samples.push((await page.evaluate(() => performance.now())) - start)
   }
   const sorted = [...samples].sort((a, b) => a - b)
@@ -246,7 +250,7 @@ test('revamp: no sustained long tasks and bounded overlay memory', async ({ page
   // dialog close also times the real exit: removal must lag the Escape
   // (the exit plays) without lingering.
   for (let cycle = 0; cycle < 25; cycle++) {
-    await page.getByRole('button', { name: 'New sector' }).click()
+    await page.getByRole('button', { name: 'New sector' }).first().click()
     await expect(page.getByRole('dialog', { name: 'New sector' })).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: 'New sector' })).not.toBeVisible()
@@ -278,7 +282,7 @@ test('revamp: dialog exit plays before unmount', async ({ page }) => {
   await serveApi(page)
   await page.goto('/')
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
-  await page.getByRole('button', { name: 'New sector' }).click()
+  await page.getByRole('button', { name: 'New sector' }).first().click()
   const dialog = page.getByRole('dialog', { name: 'New sector' })
   await expect(dialog).toBeVisible()
   const t0 = await page.evaluate(() => performance.now())
@@ -345,7 +349,10 @@ for (const dark of [false, true]) {
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data }) })
     })
     await page.goto(`/?section=SectorChat&sector=${sectorId}`)
-    if (dark) await page.getByRole('button', { name: 'Use dark theme' }).click()
+    if (dark) {
+      await page.getByRole('button', { name: 'Theme' }).click()
+      await page.getByRole('menuitemradio', { name: 'Dark' }).click()
+    }
     await page.getByRole('tab', { name: 'Plan', exact: true }).click()
     const region = page.getByRole('region', { name: 'Executable research work' })
     await expect(region).toBeVisible()
@@ -396,10 +403,14 @@ for (const dark of [false, true]) {
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data }) })
     })
     await page.goto(`/?section=SectorChat&sector=${sectorId}`)
-    if (dark) await page.getByRole('button', { name: 'Use dark theme' }).click()
-    await page.getByRole('tab', { name: 'Plan', exact: true }).click()
-    const tab = page.getByRole('tabpanel', { name: 'Research plan' })
-    await expect(tab.getByRole('heading', { name: 'direction shards' })).toBeVisible()
+    if (dark) {
+      await page.getByRole('button', { name: 'Theme' }).click()
+      await page.getByRole('menuitemradio', { name: 'Dark' }).click()
+    }
+    // Planned sectors suffix the tab with a "needs approval" note.
+    await page.getByRole('tab', { name: /^Plan/ }).click()
+    const tab = page.getByRole('tabpanel', { name: /^Plan/ })
+    await expect(tab.getByRole('heading', { name: 'Search directions' })).toBeVisible()
     await expect(tab.getByText('Journey sector, owner-edited.')).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
     await page.screenshot({ path: `test-results/visual/revamp-plan-brief-${dark ? 'dark' : 'light'}.png`, animations: 'disabled' })
@@ -430,14 +441,14 @@ test('revamp: bottom-docked model menu stays inside the viewport', async ({ page
     else if (path.endsWith('/context')) data = { threadKey: sessionId, notes: '', summary: '', coveredSeq: 0, version: 0 }
     else if (path.endsWith('/steering-receipts')) data = { items: [], nextAfterId: null }
     else if (path.startsWith('/v1/sessions/')) data = { ...session, model: { provider: 'meta', model: 'muse-spark-1.3-contributor', reasoning: true, effort: 'high' } }
-    else if (path === '/v1/providers') data = { defaultProvider: 'meta', providers: [{ name: 'meta', hasKey: true, defaultModel: 'muse-spark-1.3-contributor', models: [{ provider: 'meta', model: 'muse-spark-1.3-contributor', displayName: 'muse-spark-1.3-contributor', reasoning: 'native', mode: 'responses', efforts: ['low', 'high'] }] }] }
+    else if (path === '/v1/providers') data = { defaultProvider: 'meta', providers: [{ name: 'meta', hasKey: true, defaultModel: 'muse-spark-1.3-contributor', models: [{ provider: 'meta', model: 'muse-spark-1.3-contributor', displayName: 'Muse Spark 1.3 Contributor', reasoning: 'native', mode: 'responses', efforts: ['low', 'high'] }] }] }
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data }) })
   })
   await page.goto(`/?section=SectorChat&sector=${sectorId}`)
   const trigger = page.getByRole('button', { name: 'Choose a model' })
   await expect(trigger).toBeVisible()
   await trigger.click()
-  const menu = page.getByRole('menu', { name: 'Models' })
+  const menu = page.getByRole('menu').first()
   await expect(menu).toBeVisible()
   const box = await menu.boundingBox()
   expect(box).not.toBeNull()

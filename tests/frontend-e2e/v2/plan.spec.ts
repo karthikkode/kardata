@@ -113,7 +113,16 @@ test('PL-04-narrative-only', async ({ page }) => {
 })
 
 test('PL-04-new-format', async ({ page }) => {
-  await capture(page, 'PL-04', 'new-format', () => gotoPlan(page, 'sector-electrical'))
+  await capture(page, 'PL-04', 'new-format', () => gotoPlan(page, 'sector-electrical'), async () => {
+    const brief = page.getByRole('list', { name: 'Plan brief' })
+    await expect(brief.getByRole('heading', { name: 'Search directions' })).toBeVisible()
+    const nested = page.getByRole('list', { name: 'Search directions details' })
+    await expect(nested.getByRole('listitem')).toHaveCount(2)
+    await expect(nested.getByRole('heading', { name: 'Licensed commercial crews' })).toBeVisible()
+    const medallions = nested.locator('[data-plan-medallion]')
+    await expect(medallions).toHaveText(['1', '2'])
+    await expect(medallions.locator('svg')).toHaveCount(0)
+  })
 })
 
 test('PL-05-empty', async ({ page }) => {

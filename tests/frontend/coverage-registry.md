@@ -5,8 +5,9 @@ component tests, browser scenarios, evidence, and review status. Pure
 utilities and data/config files map to compatibility tests or a justified
 nonvisual classification at the bottom. Evidence PNGs/WebMs live ignored
 under `frontend/test-results/` (fresh runs) and curated under
-`tests/evidence/hardening-2026-10-01/`; the human verdicts accumulate in
-`docs/frontend-verification.md`.
+`tests/evidence/hardening-2026-10-01/` (pre-v2) and
+`tests/evidence/ui-revamp-v2/` (v2 stages, local); the human verdicts
+accumulate in `docs/frontend-verification.md`.
 
 Legend: L/D = light/dark, viewports 390/1440 unless noted, RM = reduced motion.
 
@@ -210,20 +211,22 @@ Legend: L/D = light/dark, viewports 390/1440 unless noted, RM = reduced motion.
 |---|---|---|---|---|
 | MO-01 panel | session selector + draft vs saved | models-staging.test.tsx, models-api.test.ts | matrix models, revamp-evidence | revamp-models-select.png | pass (shared Select; "Configured", never "Live") |
 | MO-02 provider card | configured/default/model/effort/save | models-staging.test.tsx | — | pass ("Configured", never "Live") |
-| MO-03 selectors | catalogue-only | models-staging.test.tsx | visual chat-model-picker, revamp-evidence | pass (ModelsPanel on shared Select/checkbox; toolbar keeps its pinned custom menus by durable-behavior rule) |
+| MO-03 selectors | catalogue-only | models-staging.test.tsx | visual chat-model-picker, revamp-evidence | pass (ModelsPanel on shared Select/checkbox; toolbar rebuilt on ui/menu in v2) |
 | MO-04 reasoning/effort | disabled-with-reason, listed values | models-staging.test.tsx | — | pass |
-| MO-05 toolbar | full names, search menu, effort popup | models-staging.test.tsx | transitions menu clip | pass |
+| MO-05 toolbar | full names, search menu, effort submenu, reasoning switch | models-staging.test.tsx | transitions menu clip, v2/conversation.spec CP-03-* | pass (Base UI menu + submenu + switch; persist sends the selected provider) |
 | MO-06 save errors | local error + preserved selection | models-staging.test.tsx | — | pass |
 
 ## Legacy + shared utilities (N)
 
 | component | treatment | tests | status |
 |---|---|---|---|
-| SectorDetailPage | legacy layout kept; shared rows/notices/dialogs | SectorDetailPage.test.tsx | pass |
-| DocumentsSection | shared rows/fields/errors/upload states | SectorDetailPage.test.tsx | pass |
-| SectorChatPanel | shared conversation styling/composer/activity | SectorChatPanel.test.tsx | pass |
-| SectorPlanSection / PlanEdit | shared editor shell, legacy version behavior | SectorPlanSection.test.tsx | pass |
-| SectorContextDrawer | legacy estimated view labeled; 60% claim + amber removed; not budget authority | SectorContextDrawer.test.tsx | pass |
+| SectorDetailPage | legacy, unrouted; kept compiling, tests green | SectorDetailPage.test.tsx | pass |
+| DocumentsSection | legacy, unrouted; shared rows/fields/errors/upload states | SectorDetailPage.test.tsx | pass |
+| SectorChatPanel | legacy, unrouted; own conversation styling/composer/activity | SectorChatPanel.test.tsx | pass |
+| SectorPlanSection / PlanEdit | legacy, unrouted; editor shell, legacy version behavior | SectorPlanSection.test.tsx | pass |
+| SectorContextDrawer | legacy, unrouted; estimated view labeled, 60% claim + amber removed; not budget authority | SectorContextDrawer.test.tsx | pass |
+| RunConsole | legacy, unrouted; activity timeline + steer targets kept compiling | RunConsole.test.tsx | pass |
+| CompanySection | legacy, unrouted; landing renders CompaniesSection instead | SectorDetailPage.test.tsx | pass |
 | MeterBar / FileBlock | available estimates only, no invented window | SectorContextDrawer.test.tsx | pass |
 | PanelError / UnavailableNotice / DeniedNotice | list-panel notice set; ResourceState is the canonical shell for new surfaces | Dashboard/ResearchesPage suites | pass |
 | SkeletonRows | row-geometry skeletons | Dashboard.test.tsx | pass |
@@ -275,17 +278,21 @@ shells.test.tsx, session-options.test.tsx, workspace-tabs.test.tsx.
 | separator | `frontend/src/components/shells.tsx` |
 | text scale | `frontend/src/App.tsx`, `frontend/src/components/shells.tsx` |
 
+Adopted in v2: `ui/menu` in `frontend/src/components/ModelToolbar.tsx`
+(picker menu + effort submenu, collision-aware); `ui/switch` in
+`frontend/src/components/ModelToolbar.tsx` (Reasoning toggle) and
+`frontend/src/components/ModelsPanel.tsx` (provider reasoning).
+
 No suitable surface (honest non-adoption, not silent gaps):
 
-- `ui/menu`, `ui/popover`: the SessionsPanel, model menus, files menu, and
-  mention/skill listboxes own durable positioning, dismissal choreography,
-  and pinned focus contracts (`chat-staging`, `models-staging`,
-  transitions clip). Transplanting them would risk that behavior for no
-  user-visible gain.
+- `ui/popover`: the sessions panel, files menu, and mention/skill
+  listboxes own durable positioning, dismissal choreography, and pinned
+  focus contracts (`chat-staging`, transitions clip). Transplanting them
+  would risk that behavior for no user-visible gain.
 - `ui/searchable`: no backend-supplied long-list selection exists outside
-  the model menus above; short lists correctly use `ui/select`.
-- `ui/switch`: no genuine boolean setting exists in the product UI;
-  approval acknowledgment must never become a switch.
+  the model menu above; short lists correctly use `ui/select`.
+- `ui/switch` for approvals: approval acknowledgment must never become a
+  switch (the adopted switches are genuine boolean settings only).
 
 ## UI v2 Stage 1 foundations (F1-F12)
 
@@ -349,3 +356,92 @@ dialog copy (Stage 2 RS-06), static hover/focus shots show limited state
 | SL-05 companies | `frontend/src/components/CompaniesSection.tsx` | toolbar/paging/poll/empties/more-error/denied | companies-section.test.tsx | v2/landing.spec | — | pass |
 | SL-06 not found/denied | `frontend/src/components/SectorLanding.tsx` | not-found way back, shared notice states | sector-workspace.test.tsx | v2/landing.spec | — | pass |
 | SL view param | `frontend/src/lib/useNavigation.ts` + `frontend/src/components/SectorWorkspace.tsx` initialView | ?view=plan deep link, SectorChat scoping | use-navigation.test.tsx | v2/landing.spec | — | pass |
+
+## UI v2 Stage 4 workspace + conversation + Karbot (WS/CV/CP/KB/SA/SO)
+
+| ID | source | states | component tests | browser | evidence | status |
+|---|---|---|---|---|---|---|
+| WS-01 layout | `frontend/src/components/SectorWorkspace.tsx` | 280/360 rails, persisted hide, drawers below 1280/768 | workspace-session-creation.test.tsx | v2/workspace.spec, v2/motion.spec | — | pass |
+| WS-02 left rail header | `frontend/src/components/SectorWorkspace.tsx` | back + name + status/companies caption | workspace-session-creation.test.tsx | v2/workspace.spec | — | pass |
+| WS-03 session switch | `frontend/src/components/SectorWorkspace.tsx` | Research/Chats segmented, arrows | workspace-tabs.test.tsx | v2/workspace.spec, v2/motion.spec | — | pass |
+| WS-04 session items | `frontend/src/components/SectorWorkspace.tsx` | selected/hover/menu/empty/paging/long titles | workspace-session-creation.test.tsx | v2/workspace.spec | — | pass |
+| WS-05 new chat | `frontend/src/components/SectorWorkspace.tsx` | pending + acknowledged select | workspace-session-creation.test.tsx | v2/workspace.spec | — | pass |
+| WS-06 chat search | `frontend/src/components/SectorWorkspace.tsx` | filtered list | workspace-session-creation.test.tsx | v2/workspace.spec | — | pass |
+| WS-07 header | `frontend/src/components/SectorWorkspace.tsx` | lifecycle per state, chat/subagent variants | SectorChatPanel.test.tsx | v2/workspace.spec | — | pass |
+| WS-08 tabs | `frontend/src/components/SectorWorkspace.tsx` | chat/plan, needs-approval dot | workspace-tabs.test.tsx, workspace-conversation.test.tsx | v2/workspace.spec | — | pass |
+| WS-09 subagent strip | `frontend/src/components/SectorWorkspace.tsx` | chips + directory link | chat-staging.test.tsx | v2/workspace.spec | — | pass |
+| WS-10 errors | `frontend/src/components/SectorWorkspace.tsx` | inline notice + dismiss, toast outcomes | workspace-conversation.test.tsx | v2/workspace.spec | — | pass |
+| CV-01..CV-04 column + messages | `frontend/src/components/chat-parts.tsx` | prose/table/code/lists, mentions, copy actions | chat-parts.test.tsx, chat-staging.test.tsx, markdown.test.tsx | v2/conversation.spec, v2/karbot.spec | — | pass |
+| CV-05 thinking row | `frontend/src/components/chat/ThinkingRow.tsx` | live shimmer + elapsed, expandable | chat-staging.test.tsx, workspace-conversation.test.tsx | v2/conversation.spec, v2/motion.spec | — | pass |
+| CV-06 reasoning disclosure | `frontend/src/components/chat/ReasoningDisclosure.tsx` | settled disclosure, open survives settle | chat-staging.test.tsx, workspace-conversation.test.tsx | v2/conversation.spec, v2/motion.spec | — | pass |
+| CV-07 tool activity | `frontend/src/components/chat/ToolActivity.tsx` | summary + per-tool rows, failed tone | chat-staging.test.tsx | v2/conversation.spec | — | pass |
+| CV-08 live tail | `frontend/src/components/chat-parts.tsx` | queued/reconnecting/paused/failed | chat-staging.test.tsx, follow-resume.test.ts | v2/conversation.spec | — | pass |
+| CV-09 empty | `frontend/src/components/chat/ConversationEmpty.tsx` | research/chat/karbot variants + suggestions | workspace-conversation.test.tsx | v2/conversation.spec | — | pass |
+| CV-10 latest pill | `frontend/src/components/SectorWorkspace.tsx` | appears off-bottom | workspace-conversation.test.tsx | v2/conversation.spec | — | pass |
+| CV-11 missed steer | `frontend/src/components/chat-parts.tsx` | saved notice + Send now | chat-staging.test.tsx | v2/conversation.spec | — | pass |
+| CP-01..CP-02 composer | `frontend/src/components/chat/Composer.tsx` | empty/focus/multiline/disabled, idle/busy toolbar | chat-staging.test.tsx, shells.test.tsx | v2/conversation.spec, v2/karbot.spec | — | pass |
+| CP-03 model picker | `frontend/src/components/ModelToolbar.tsx` | trigger/menu/bottom-docked/search-empty/effort submenu | models-staging.test.tsx | v2/conversation.spec, v2/motion.spec | — | pass |
+| CP-04 hint | `frontend/src/components/chat/Composer.tsx` | focused kbd hints at 768+ | chat-staging.test.tsx | v2/conversation.spec | — | pass |
+| CP-05 mentions/skills | `frontend/src/components/ChatPanel.tsx` | listboxes + empty | chat-staging.test.tsx | v2/conversation.spec | — | pass |
+| CP-06 send failure | `frontend/src/components/chat/Composer.tsx` | notice + retry, draft kept | chat-staging.test.tsx | v2/conversation.spec | — | pass |
+| KB-01 dock | `frontend/src/components/ChatPanel.tsx` | sheet 440 / full mobile, Esc + focus return | Navigation.test.tsx, chat-staging.test.tsx | v2/karbot.spec, v2/motion.spec | — | pass |
+| KB-02 header | `frontend/src/components/ChatPanel.tsx` | switcher trigger, new/files/more/close | chat-staging.test.tsx | v2/karbot.spec | — | pass |
+| KB-03 sessions menu | `frontend/src/components/ChatPanel.tsx` | list/new/delete/empty/scroll | chat-staging.test.tsx | v2/karbot.spec | — | pass |
+| KB-04 context popover | `frontend/src/components/ChatPanel.tsx` | scoped key-value list | chat-staging.test.tsx | v2/karbot.spec | — | pass |
+| KB-05 chat view | `frontend/src/components/ChatPanel.tsx` + `frontend/src/components/chat/` | thread/thinking/tools | chat-staging.test.tsx | v2/karbot.spec | — | pass |
+| KB-06 composer | `frontend/src/components/ChatPanel.tsx` + `frontend/src/components/chat/Composer.tsx` | karbot variant | chat-staging.test.tsx | v2/karbot.spec | — | pass |
+| KB-08 session files | `frontend/src/components/ChatPanel.tsx` | list/empty/create/preview/download | chat-staging.test.tsx, sector-file-preview.test.tsx | v2/karbot.spec | — | pass |
+| KB-09 dock states | `frontend/src/components/ChatPanel.tsx` | not-connected/denied/loading/error/offline/failure | chat-staging.test.tsx | v2/karbot.spec | — | pass |
+| KB-10 rename/delete | `frontend/src/components/ChatPanel.tsx` | dialog + ConfirmAction | chat-staging.test.tsx, session-options.test.tsx | v2/karbot.spec | — | pass |
+| SA-02 directory | `frontend/src/components/SectorWorkspace.tsx` | search/count/open/show more/empty | chat-staging.test.tsx | v2/workspace.spec | — | pass |
+| SA-03 karbot panel | `frontend/src/components/SubagentsPanel.tsx` | collapsible rows, stop/open | chat-staging.test.tsx | v2/karbot.spec | — | pass |
+| SO-01 rename | `frontend/src/components/SectorWorkspace.tsx` | dialog + toast | session-options.test.tsx | v2/workspace.spec | — | pass |
+| SO-02 delete | `frontend/src/components/SectorWorkspace.tsx` | ConfirmAction, research exempt | session-options.test.tsx | v2/workspace.spec | — | pass |
+
+## UI v2 Stage 5 plan + files + context + inspector (PL/FL/GC/LC)
+
+| ID | source | states | component tests | browser | evidence | status |
+|---|---|---|---|---|---|---|
+| PL-01 header | `frontend/src/components/plan/PlanTab.tsx` | draft/planned/approved/blocked | plan-tab.test.tsx, research-plan-editor.test.tsx | v2/plan.spec | — | pass |
+| PL-02 at a glance | `frontend/src/components/plan/PlanTab.tsx` | stat tiles, wrap | plan-tab.test.tsx | v2/plan.spec | — | pass |
+| PL-03 steps timeline | `frontend/src/components/plan/PlanSteps.tsx` | executable/running/long/390, segmented rail | plan-steps.test.tsx | v2/plan.spec, v2/motion.spec | — | pass |
+| PL-04 brief | `frontend/src/components/plan/PlanSteps.tsx` | brief/narrative/new-format, no-steps notice | plan-steps.test.tsx, research-plan-editor.test.tsx | v2/plan.spec | — | pass |
+| PL-05 empty | `frontend/src/components/plan/PlanTab.tsx` | empty/planning skeleton | plan-tab.test.tsx | v2/plan.spec | — | pass |
+| PL-06 versions | `frontend/src/components/plan/PlanTab.tsx` | collapsible rows | plan-tab.test.tsx | v2/plan.spec | — | pass |
+| PL-07 edit dialog | `frontend/src/components/ResearchPlanEditor.tsx` | sections/counts/errors/discard/390 | research-plan-editor.test.tsx | v2/plan.spec, v2/motion.spec | — | pass |
+| PL-08 progress | `frontend/src/components/workspace-parts.tsx` PlanProgress | running/complete/attention/empty/filtered/many | sector-workspace.test.tsx, work-review.test.tsx | v2/plan.spec | — | pass |
+| PL-09 intake review | `frontend/src/components/workspace-parts.tsx` | open/stale/390, idempotent decisions | work-review.test.tsx | v2/plan.spec | — | pass |
+| FL-01 header | `frontend/src/components/workspace-parts.tsx` WorkspaceFiles | count/upload/hidden toggle/dragover | sector-workspace.test.tsx, workspace-files-scale.test.tsx | v2/files.spec, v2/motion.spec | — | pass |
+| FL-02 rows | `frontend/src/components/workspace-parts.tsx` | icon tile/meta/badges/actions/long/types | sector-workspace.test.tsx | v2/files.spec | — | pass |
+| FL-03 processing | `frontend/src/components/FileProcessingStatus.tsx` | progress caption/review action | file-processing.test.tsx | v2/files.spec | — | pass |
+| FL-04 upload | `frontend/src/components/workspace-parts.tsx` | optimistic row + toasts | file-processing.test.tsx | v2/files.spec | — | pass |
+| FL-05 empty | `frontend/src/components/workspace-parts.tsx` | compact rail empty | sector-workspace.test.tsx | v2/files.spec | — | pass |
+| FL-06 preview | `frontend/src/components/SectorFilePreview.tsx` | markdown/sections/truncated/no-text/390 | sector-file-preview.test.tsx | v2/files.spec, v2/motion.spec | — | pass |
+| FL-07 retry | `frontend/src/components/FileProcessingRetry.tsx` | open/stale/paid ack | file-processing.test.tsx | v2/files.spec | — | pass |
+| FL-08 paging | `frontend/src/components/workspace-parts.tsx` | truthful 50+ totals | workspace-files-scale.test.tsx | v2/files.spec | — | pass |
+| GC-01 header | `frontend/src/components/workspace-parts.tsx` GlobalContextPanel | version/history/edit actions | sector-workspace.test.tsx | v2/context.spec | — | pass |
+| GC-02 body | `frontend/src/components/workspace-parts.tsx` | four overline blocks, clamp, empties | sector-workspace.test.tsx | v2/context.spec | — | pass |
+| GC-03 pending | `frontend/src/components/workspace-parts.tsx` | notice + review rows | sector-workspace.test.tsx | v2/context.spec | — | pass |
+| GC-04 edit | `frontend/src/components/workspace-parts.tsx` | four fields/save/conflict | sector-workspace.test.tsx | v2/context.spec | — | pass |
+| GC-05 history | `frontend/src/components/workspace-parts.tsx` | revisions/empty | sector-workspace.test.tsx | v2/context.spec | — | pass |
+| GC-06 review | `frontend/src/components/workspace-parts.tsx` | diff/stale/390 | sector-workspace.test.tsx, approval.test.ts | v2/context.spec, v2/motion.spec | — | pass |
+| GC-07 dependencies | `frontend/src/components/workspace-parts.tsx` | summary/units/show more | sector-file-preview.test.tsx | v2/context.spec | — | pass |
+| LC-01 sheet | `frontend/src/components/workspace-parts.tsx` | usage/summary/notes/compact | sector-workspace.test.tsx | v2/context.spec | — | pass |
+| LC-02 recovery | `frontend/src/components/workspace-parts.tsx` | notice + operation cards | sector-workspace.test.tsx | v2/context.spec | — | pass |
+| LC-03 blocked | `frontend/src/components/workspace-parts.tsx` | danger notice + rebuild entry | sector-workspace.test.tsx | v2/context.spec | — | pass |
+| LC-04 rebuild | `frontend/src/components/workspace-parts.tsx` | sections/preview/confirm | sector-workspace.test.tsx | v2/context.spec | — | pass |
+| LC-05 inspector | `frontend/src/components/ExecutionInspector.tsx` | list/detail/pager/390/empty | execution-inspection.test.tsx | v2/context.spec | — | pass |
+
+## UI v2 Stage 6 agents + models + emails + states (AG/MO/EM/SH-07)
+
+| ID | source | states | component tests | browser | evidence | status |
+|---|---|---|---|---|---|---|
+| AG-01 header | `frontend/src/App.tsx` header config | title/description/refresh | runs-staging.test.tsx, supervision-alerts.test.tsx | v2/agents.spec | — | pass |
+| AG-02 alerts | `frontend/src/components/SupervisionAlertsPanel.tsx` | current/history/empty/error/denied | supervision-alerts.test.tsx, alerts-api.test.ts | v2/agents.spec | — | pass |
+| AG-03 runs | `frontend/src/components/RunsPanel.tsx` | table/cancel/cancelling/empty/390 | runs-staging.test.tsx | v2/agents.spec, v2/motion.spec | — | pass |
+| MO-01 header | `frontend/src/App.tsx` header config | title/description | models-staging.test.tsx | v2/models.spec | — | pass |
+| MO-02 binding | `frontend/src/components/ModelsPanel.tsx` | session select/summary/loading/error | models-staging.test.tsx, models-api.test.ts | v2/models.spec | — | pass |
+| MO-03 providers | `frontend/src/components/ModelsPanel.tsx` | tiles/selects/save toast | models-staging.test.tsx | v2/models.spec | — | pass |
+| MO-04 states | `frontend/src/components/ModelsPanel.tsx` | loading/empty/error/denied | models-staging.test.tsx | v2/models.spec | — | pass |
+| EM-01 page | `frontend/src/App.tsx` | coming-soon empty, no actions | Navigation.test.tsx | v2/models.spec | — | pass |
+| SH-07 states | `frontend/src/App.tsx` | not-connected/sector-not-found | Navigation.test.tsx | v2/shell.spec | — | pass (not-connected boots a flag-off vite on 15175 inside the spec) |

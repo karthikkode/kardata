@@ -365,7 +365,7 @@ export function ModelsPanel({
         className="rounded-xl border border-border bg-background px-4 py-3"
       >
         {!config ? (
-          <div className="rounded-lg border border-dashed border-border p-4">
+          <div className="rounded-lg border border-border p-4">
             <p className="text-sm font-medium">Models need a backend connection.</p>
             <p className="mt-1 text-sm text-muted-foreground">
               Set the staging API URL and key, then reload.
@@ -405,7 +405,7 @@ export function ModelsPanel({
             <FieldRoot className="max-w-sm">
               <FieldLabel id="models-session-label">Session</FieldLabel>
               {sessions.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border p-4">
+                <div className="rounded-lg border border-border p-4">
                   <p className="text-sm text-muted-foreground">
                     No sessions yet. Start one from chat to bind a model.
                   </p>
@@ -454,7 +454,7 @@ export function ModelsPanel({
               </div>
             ) : null}
             {providers.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-border p-4">
+              <div className="rounded-lg border border-border p-4">
                 <p className="text-sm text-muted-foreground">
                   No providers listed. The catalog is empty on the server.
                 </p>

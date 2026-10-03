@@ -113,6 +113,7 @@ test('KB-06-default', async ({ page }) => {
     const box = dock(page).getByRole('textbox', { name: 'Message the agent' })
     await expect(box).toBeVisible()
     await box.fill('What is running right now?')
+    await expect(dock(page).getByText('Muse Spark 1.3 Contributor')).toBeVisible()
   })
 })
 
@@ -249,5 +250,16 @@ test('KB-10-delete', async ({ page }) => {
     await dock(page).getByRole('button', { name: 'More actions' }).click()
     await page.getByRole('menuitem', { name: 'Delete' }).click()
     await expect(page.getByRole('alertdialog', { name: 'Delete "Browser chat"?' })).toBeVisible()
+  })
+})
+
+test('SA-03-open', async ({ page }) => {
+  await capture(page, 'SA-03', 'open', () => gotoDock(page, { data: { subagents: 3 } }), async () => {
+    await dock(page).getByRole('button', { name: '3 subagents, 2 running' }).click()
+    await expect(dock(page).getByRole('button', { name: 'Chat with Research agent 1' })).toBeVisible()
+    await expect(dock(page).getByText('Research agent 2')).toBeVisible()
+    // Humanized names only: raw keys survive in tooltips, never as text.
+    await expect(dock(page).getByText(/agent:session-karbot/)).toHaveCount(0)
+    await expect(dock(page).getByRole('button', { name: 'Chat with Research agent 1' })).toHaveAttribute('title', 'agent:session-karbot-01-child-1')
   })
 })

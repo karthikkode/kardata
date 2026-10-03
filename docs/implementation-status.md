@@ -3547,3 +3547,72 @@ counterpart per the MessageSegment precedent) plus sanctioned
 UPDATE_HARDENING_CATALOG / UPDATE_ACCEPTANCE_SURFACES regens. Gate
 green: backend lint/typecheck clean, 645 passed / 471 skipped / 0
 failed across 86 files.
+
+UI v2 stage 8 partial (2026-10-03, branch ui-revamp-v2): section-6
+sweeps green, v2 e2e 346 passed / 13 skipped / 0 failed, evidence in
+tests/evidence/ui-revamp-v2/stage8/. Red suite is a contract: the
+first full run of the 15 pre-v2 specs against the v2 UI finished 41
+passed / 9 skipped / 94 failed (15.5m, EXIT 1; raw log
+stage8/existing-run.txt, signatures stage8/existing-failures.txt,
+test-results archived to stage8/existing-raw/). Root cause sampled
+per spec: every failure
+signature asserts pre-v2 markup/copy/flows the revamp intentionally
+removed (region 'Supervision alerts', 'Sessions' dialog, 'Sector
+resources' rail, 'Resume conversation', 'Estimate pending', 'Edit
+research plan' Plan textbox, 'Models' dock menu, old files-region
+copy, single 'New sector' button). Verified via git grep: base
+709cfa2 carries those strings, the v2 branch does not; the v2 suite
+pins the replacement contracts and is green. So the failing side is
+the stale tests, not the product. Owner decision (2026-10-03):
+migrate all 94 to v2 contracts, no deletions. Migration edits for
+all 15 spec files are on disk (parallel workers, verified by read
+for alerts/workspace) but their green runs died with the workers
+(FD exhaustion) and must be re-verified sequentially. Stage-8
+sweep suites green (icons/type-usage/em-dash/coverage-registry),
+frontend gates green (lint 0 errors, typecheck clean, 724 unit / 6
+skipped, build clean). Migration verification (sequential,
+--workers=1, port 15174): all 15 files green, zero stragglers left
+(transitions 3, scale+files-scale 16, polish 3, smoke 4, scrollbars
+5, file-processing 4, context-recovery 8, matrix 5, alerts 5,
+work-review 8, execution-inspection 10, visual 9, revamp-evidence 15
+with filter p95 19.5ms / longtask 0 / heap 0%, workspace 37). Two
+red tests pinned real product bugs, fixed on the product side: (1)
+ResearchPlanEditor depth Select showed the raw value 'discovery'
+pre-open (Base UI Select.Value falls back to the raw value until
+items register; every other Select already passes valueText or
+object values) -> valueText with the item labels, pinned by the
+workspace hardening test; (2) the sessions loader failed the whole
+session rail ('Sessions is not shared with this key') when only
+shared-context reads were denied, hiding the Plan tab and approval
+-> denied-only fallback resolves the research row from its kind and
+skips creation, pinned by 'plan approval is unavailable when
+context authority is denied'. A WS-05-pending failure seen only in
+a combined v2+pre-v2 invocation passes standalone; the final full
+matrix re-confirms. Backend re-green needed one test-side fix: the
+catalogue exports test read every catalogued file (including stage-8
+evidence binaries) and timed out at 5s after the evidence land;
+it now reads only parseable sources and reviewed files (assertions
+unchanged, 5.2s -> 1.1s), followed by a sanctioned catalogue
+re-regen. Backend 645 passed / 471 skipped / 0 failed; acceptance
+regen wrote no diff.
+
+UI v2 stage 8 complete (2026-10-04, branch ui-revamp-v2):
+external review rounds 1-3 all addressed (nested brief numbering,
+Overview tile window-count fix, rewritten thread fixture, context
+section variant, GC-06 stale notice, SA-03 capture, evidence
+honesty relabel to 38 opened / 870 NOT VISUALLY REVIEWED,
+Karbot subagent humanized names + single status, Karbot model
+display name + effort, subagent rows on the shared ListRow
+recipe). Final matrix: full Playwright suite 485 passed / 22
+skipped / 0 failed (37.1m, --workers=1, port 15174; log
+stage8/full-run-final.txt, results archived to
+stage8/full-run-final-results/); v2 audit spec 42/42 inside the
+run. pr:verify EXIT 0: lint 0 errors / 7 pre-existing warnings,
+typecheck clean, frontend 734/6, agents 281/2, backend 646/471
+skipped, builds clean (log stage8/pr-verify.txt). Handoff:
+documentation/plans/2026-10-03-ui-revamp-v2-handoff.md with Gates
+filled and Blocked cleared. Live send outage found during the
+run (stale workers dying on Meta's 402 for the token-count
+endpoint): failed karbot.turn logs now carry errorDetail
+(included in the stage 8 commit); containers rebuilt and a
+live Meta send verified ok (10s, 1 turn).

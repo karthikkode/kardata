@@ -29,7 +29,7 @@ function TabIndicator() {
         transition={tabIndicatorTransition}
         className={
           variant === 'segmented'
-            ? 'absolute inset-0 rounded-sm bg-card shadow-xs'
+            ? 'absolute inset-0 rounded-sm border border-border bg-surface-raised shadow-sm'
             : 'absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-foreground'
         }
       />

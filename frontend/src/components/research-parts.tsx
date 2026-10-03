@@ -87,7 +87,7 @@ export function SectorRow({
         type="button"
         onClick={() => onOpen(research.id)}
         aria-label={`Open ${research.name}`}
-        className="flex min-h-19 w-full cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 py-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:bg-muted/60 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+        className="flex min-h-14 w-full cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 py-3 text-left transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:bg-surface-hover motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
       >
         <span className="min-w-32 flex-1 basis-32">
           <span className="block truncate text-sm font-medium">{research.name}</span>
@@ -158,7 +158,7 @@ export function CompanyRow({
   research: CompanyResearch
 }) {
   return (
-    <li className="flex min-h-19 flex-col justify-center border-b border-border py-3 last:border-0 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
+    <li className="flex min-h-14 flex-col justify-center border-b border-border py-3 last:border-0 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <div className="min-w-32 flex-1 basis-32">
           <p className="truncate text-sm font-medium">{research.name}</p>
@@ -173,13 +173,13 @@ export function CompanyRow({
   )
 }
 
-// Skeleton rows match the row metric they stand in for (min-h-19 flush
-// rows), so arrival does not shift layout. See SkeletonCards below.
+// Skeleton rows match the row metric they stand in for (min-h-14
+// comfortable rows), so arrival does not shift layout. See SkeletonCards below.
 export function SkeletonRows({ label }: { label: string }) {
   return (
     <div role="status" aria-label={label}>
       {[0, 1, 2].map((index) => (
-        <Skeleton key={index} className="h-19" />
+        <Skeleton key={index} className="h-14" />
       ))}
     </div>
   )
@@ -214,13 +214,13 @@ export function ToolRow({
   const StatusIcon = state === 'running' ? Icons.loading : state === 'done' ? Icons.approve : Icons.deny
   const badgeTint =
     state === 'running'
-      ? 'bg-primary/10 text-primary border-primary/20'
+      ? 'bg-primary-soft text-primary border-primary-border'
       : state === 'done'
         ? 'bg-success-soft text-success border-success-border'
-        : 'bg-destructive/10 text-destructive border-destructive/20'
+        : 'bg-danger-soft text-danger border-danger-border'
 
   return (
-    <div className="my-1 rounded-lg border border-border/70 bg-card/60 px-2.5 py-1.5 shadow-2xs transition-colors hover:border-border">
+    <div className="my-1 rounded-lg border border-border bg-card px-2.5 py-1.5 shadow-2xs transition-colors hover:border-border">
       <div className="flex items-center gap-2">
         <span className="flex size-5 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
           <Icons.toolActivity className="size-3" aria-hidden />
@@ -245,7 +245,7 @@ export function ToolRow({
         ) : null}
       </div>
       {open && hasDetail ? (
-        <pre className="scroll-slim mt-2 overflow-x-auto rounded bg-muted/70 p-2 font-mono text-xs text-muted-foreground whitespace-pre-wrap">
+        <pre className="scroll-slim mt-2 overflow-x-auto rounded bg-surface-sunken p-2 font-mono text-xs text-muted-foreground whitespace-pre-wrap">
           {detail}
         </pre>
       ) : null}

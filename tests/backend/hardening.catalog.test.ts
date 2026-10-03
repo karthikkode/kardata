@@ -73,7 +73,12 @@ describe('maintained functionality catalogue', () => {
   })
   it('records current public function/class/schema names rather than implying test coverage', () => {
     for (const file of catalogue.files) {
-      expect(file.exports, file.path).toEqual(exportsOf(file.path, readFileSync(join(root, file.path), 'utf8')))
+      // Evidence binaries need no content check: only maintained sources
+      // are parsed and only reviewed files are re-hashed, so runtime stays
+      // flat as evidence grows.
+      const parseable = /\.[cm]?[jt]sx?$/.test(file.path) || file.review === 'reviewed'
+      const text = parseable ? readFileSync(join(root, file.path), 'utf8') : ''
+      expect(file.exports, file.path).toEqual(exportsOf(file.path, text))
       if (file.review === 'excluded') expect(file.reason, file.path).toBeTruthy()
       if (file.review === 'reviewed') {
         expect(file.sha256, file.path).toBe(createHash('sha256').update(readFileSync(join(root, file.path))).digest('hex'))

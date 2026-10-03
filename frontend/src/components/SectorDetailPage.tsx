@@ -144,7 +144,7 @@ export function CompanySection({
  <CompanyRow key={item.id} research={item} />
  ))}
  </OverflowList>
- {companies.moreError ? <p role="alert" className="mt-2 rounded-lg border border-border bg-muted/30 p-3 text-xs">{companies.moreError} Your loaded companies are saved. Try Show more again.</p> : null}
+ {companies.moreError ? <p role="alert" className="mt-2 rounded-lg border border-border bg-muted p-3 text-xs">{companies.moreError} Your loaded companies are saved. Try Show more again.</p> : null}
  {(total ?? rows.length) > rows.length ? (
  <div className="mt-2 flex justify-center">
  <Button
@@ -160,7 +160,7 @@ export function CompanySection({
  ) : null}
  </>
  ) : (
- <div className="mt-2 rounded-lg border border-dashed border-border p-4">
+ <div className="mt-2 rounded-lg border border-border p-4">
  <p className="text-sm text-muted-foreground">
  {filtered
  ? 'No companies match these filters. Clear them to see everything.'
@@ -290,7 +290,7 @@ function DocumentsSection({
  ) : documents.length || showPending ? (
  <ul className="space-y-2">
  {showPending ? (
- <li className="flex items-center gap-3 rounded-lg border border-dashed border-border px-3 py-2 text-sm">
+ <li className="flex items-center gap-3 rounded-lg border border-border px-3 py-2 text-sm">
  <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
  <Icons.loading className="size-4 animate-spin text-muted-foreground" aria-hidden />
  </span>
@@ -452,7 +452,7 @@ export function SectorDetailPage({
  <Icons.back className="size-4" aria-hidden />
  Back to Researches
  </Button>
- <p className="rounded-xl border border-dashed border-border bg-background p-4 text-sm text-muted-foreground">
+ <p className="rounded-xl border border-border bg-background p-4 text-sm text-muted-foreground">
  Sector research not found. It may have been removed.
  </p>
  </div>
@@ -522,7 +522,7 @@ export function SectorDetailPage({
  : detail.state === 'paused'
  ? 'border-warning-border bg-warning-soft text-warning'
  : detail.state === 'failed'
- ? 'border-destructive/20 bg-destructive/10 text-destructive'
+ ? 'border-danger-border bg-danger-soft text-danger'
  : detail.state === 'complete'
  ? 'border-success-border bg-success-soft text-success'
  : 'border-border bg-muted text-muted-foreground'
@@ -545,7 +545,7 @@ export function SectorDetailPage({
  </div>
 
  <div className="flex flex-wrap items-center gap-2 pt-2 sm:pt-0">
- <div role="tablist" aria-label="Sector view modes" className="inline-flex rounded-lg border border-border bg-muted/60 p-1 text-xs">
+ <div role="tablist" aria-label="Sector view modes" className="inline-flex rounded-lg border border-border bg-muted p-1 text-xs">
  <button
  type="button"
  role="tab"

@@ -90,7 +90,9 @@ test('polish: hover and focus states stay inside their rows', async ({ page }) =
   await page.setViewportSize({ width: 1440, height: 600 })
   await serveWorkspaceApi(page)
   await openWorkspace(page)
-  await page.getByRole('button', { name: 'Chats', exact: true }).click()
+  // WS-03: the rail switch is a Session types tablist now.
+  await page.getByRole('tab', { name: /^Chats/ }).click()
+  await expect(page.getByRole('list', { name: 'Chat sessions' })).toBeVisible()
   const row = page.getByRole('button', { name: 'Open Pricing brainstorm' })
   await row.hover()
   await expect(row).toBeVisible()
@@ -110,8 +112,10 @@ test('polish: dark workspace keeps pins and hover without spill', async ({ page 
   await page.setViewportSize({ width: 1440, height: 600 })
   await serveWorkspaceApi(page)
   await openWorkspace(page)
-  await page.getByRole('button', { name: 'Use dark theme' }).click()
-  await expect(page.getByRole('button', { name: 'Use light theme' })).toBeVisible()
+  // SH-04: the shared ThemeMenu lives in the rail footer here.
+  await page.getByRole('button', { name: 'Theme' }).click()
+  await page.getByRole('menuitemradio', { name: 'Dark' }).click()
+  await expect(page.locator('html.dark')).toBeAttached()
   const list = page.getByRole('log', { name: 'Conversation messages' })
   await list.evaluate((el) => {
     el.scrollTop = 600
@@ -122,7 +126,7 @@ test('polish: dark workspace keeps pins and hover without spill', async ({ page 
   const composer = page.getByRole('textbox', { name: 'Message this conversation' })
   expect(intersectsPort((await header.boundingBox()) as unknown as Box, port)).toBe(true)
   expect(intersectsPort((await composer.boundingBox()) as unknown as Box, port)).toBe(true)
-  await page.getByRole('button', { name: 'Chats', exact: true }).click()
+  await page.getByRole('tab', { name: /^Chats/ }).click()
   await page.getByRole('button', { name: 'Open Buyer notes' }).hover()
   await shot(page, 'polish-workspace-dark', [header, composer])
 })

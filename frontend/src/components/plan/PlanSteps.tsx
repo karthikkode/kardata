@@ -33,7 +33,8 @@ const medallionTone: Record<PlanStepTone, string> = {
   running: 'bg-primary-soft text-primary-text',
 }
 
-export function PlanSteps({ steps, label = 'Plan steps' }: { steps: PlanStep[]; label?: string }) {
+export function PlanSteps({ steps, label = 'Plan steps', size = 'md' }: { steps: PlanStep[]; label?: string; size?: 'md' | 'sm' }) {
+  const compact = size === 'sm'
   return (
     <ol aria-label={label} className="flex min-w-0 flex-col">
       {steps.map((step, index) => {
@@ -45,19 +46,19 @@ export function PlanSteps({ steps, label = 'Plan steps' }: { steps: PlanStep[]; 
             key={step.id}
             data-plan-step={step.id}
             style={{ animationDelay: `${staggerDelay(index)}s` }}
-            className={cn('relative min-w-0 pl-12 [animation-fill-mode:backwards]', !last && 'pb-6', rowEnter)}
+            className={cn('relative min-w-0 [animation-fill-mode:backwards]', compact ? 'pl-10' : 'pl-12', !last && 'pb-6', rowEnter)}
           >
             {last ? null : (
-              <span aria-hidden data-plan-rail className="absolute top-8 bottom-0 left-4 w-0.5 -translate-x-1/2 bg-border" />
+              <span aria-hidden data-plan-rail className={cn('absolute bottom-0 w-0.5 -translate-x-1/2 bg-border', compact ? 'top-6 left-3' : 'top-8 left-4')} />
             )}
-            <span aria-hidden data-plan-medallion className={cn('absolute top-0 left-0 flex size-8 items-center justify-center rounded-full ring-4 ring-card', medallionTone[tone])}>
+            <span aria-hidden data-plan-medallion className={cn('absolute top-0 left-0 flex items-center justify-center rounded-full ring-card', compact ? 'size-6 ring-2' : 'size-8 ring-4', medallionTone[tone])}>
               {tone === 'running' ? (
                 <span aria-hidden className="absolute inset-0 rounded-full bg-primary opacity-30 motion-safe:animate-ping motion-safe:[animation-duration:1.6s]" />
               ) : null}
               {StepIcon ? (
-                <StepIcon aria-hidden className="size-4" />
+                <StepIcon aria-hidden className={compact ? 'size-3' : 'size-4'} />
               ) : step.stepNumber !== undefined ? (
-                <Numeric className="text-ui font-medium">{step.stepNumber}</Numeric>
+                <Numeric className={compact ? 'text-xs font-medium' : 'text-ui font-medium'}>{step.stepNumber}</Numeric>
               ) : null}
             </span>
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">

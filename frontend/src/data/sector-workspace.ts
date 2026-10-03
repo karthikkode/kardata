@@ -16,10 +16,19 @@ export function useSectorWorkspace(config: StagingConfig | null, sectorId: strin
   const operationLock = useRef(false)
   const sessions = useWorkspaceResource(config, sectorId ? `sessions:${sectorId}` : null, async (cfg) => {
     const rows = await listSessions(cfg, sectorId ?? '')
-    const context = await getGlobalContext(cfg, sectorId ?? '')
-    let research = rows.find((row) => row.id === context.researchSessionId)
+    // A key denied shared-context reads still lists its sessions: resolve
+    // the research row from its kind instead of failing the whole rail.
+    // Only denial falls back (and skips creation); other context failures
+    // still fail the load.
+    let researchSessionId: string | null | undefined
+    try {
+      researchSessionId = (await getGlobalContext(cfg, sectorId ?? '')).researchSessionId
+    } catch (error) {
+      if (apiErrorStatus(error) !== 'denied') throw error
+    }
+    let research = researchSessionId != null ? rows.find((row) => row.id === researchSessionId) : rows.find((row) => row.kind === 'research')
     const key = `${cfg.baseUrl}:${cfg.apiKey}:${sectorId}`
-    if (!research && !deniedInitialization.current.has(key)) {
+    if (!research && researchSessionId !== undefined && !deniedInitialization.current.has(key)) {
       try { research = await ensureResearchSession(cfg, sectorId ?? '') } catch (error) {
         if (apiErrorStatus(error) === 'denied') deniedInitialization.current.add(key)
         else throw error

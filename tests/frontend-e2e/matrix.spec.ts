@@ -57,7 +57,7 @@ async function serveMatrixApi(page: Page): Promise<void> {
       data = {
         defaultProvider: 'meta',
         providers: [{ name: 'meta', hasKey: true, defaultModel: 'muse-spark-1.3-contributor', models: [
-          { provider: 'meta', model: 'muse-spark-1.3-contributor', displayName: 'muse-spark-1.3-contributor', reasoning: 'native', mode: 'responses', efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'] },
+          { provider: 'meta', model: 'muse-spark-1.3-contributor', displayName: 'Muse Spark 1.3 Contributor', reasoning: 'native', mode: 'responses', efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'] },
         ] }],
       }
     }
@@ -76,6 +76,13 @@ async function toDark(page: Page): Promise<void> {
   await expect(page.locator('html.dark')).toBeAttached()
 }
 
+/** Below 768px the sidebar is an icon rail with no accessible names;
+ * deep-link like the v2 audits do (same surfaces, same shots). */
+async function openSection(page: Page, section: 'Researches' | 'Agents' | 'Models'): Promise<void> {
+  if ((page.viewportSize()?.width ?? 1440) < 768) await page.goto(`/?section=${section}`)
+  else await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: section }).click()
+}
+
 async function captureSuite(page: Page, tag: string, dark = false): Promise<void> {
   await page.goto('/')
   if (dark) await toDark(page)
@@ -83,21 +90,22 @@ async function captureSuite(page: Page, tag: string, dark = false): Promise<void
     page.getByRole('heading', { name: 'Overview' }),
     page.getByRole('region', { name: 'Recent sectors' }),
   ])
-  await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
+  await openSection(page, 'Researches')
   await shot(page, `${tag}-researches`, [page.getByText('Speciality Foods')])
   await page.getByRole('link', { name: /^Speciality Foods/ }).click()
-  // The sector route lands on the summary page; chat lives one Open deeper
-  // (covered with session/thread/plan detail in workspace.spec.ts).
+  // The sector route lands on the summary page; chat lives one Open
+  // workspace deeper (covered with session/thread/plan detail in
+  // workspace.spec.ts). SL-01 actions are labelled now.
   await shot(page, `${tag}-detail`, [
     page.getByRole('region', { name: 'Research status' }),
-    page.getByRole('button', { name: 'Open', exact: true }),
+    page.getByRole('button', { name: 'Open workspace' }),
   ])
-  await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Agents' }).click()
+  await openSection(page, 'Agents')
   await shot(page, `${tag}-agents`, [
     page.getByRole('heading', { name: 'Agents' }),
-    page.getByLabel('Filter runs'),
+    page.getByLabel('Search runs'),
   ])
-  await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Models' }).click()
+  await openSection(page, 'Models')
   await shot(page, `${tag}-models`, [page.getByRole('heading', { name: 'Models' })])
   await page.getByRole('button', { name: 'Ask Karbot' }).click()
   const chat = page.getByRole('complementary', { name: 'Assistant chat' })

@@ -130,6 +130,14 @@ describe('chat model picker', () => {
     expect(screen.queryByRole('button', { name: 'Choose reasoning effort' })).not.toBeInTheDocument()
   })
 
+  it('shows the generic pill only when asked (legacy panels)', async () => {
+    stubApi(handler)
+    render(<ModelToolbar config={config} sessionId="s-1" modelLabel="generic" />)
+    const trigger = await screen.findByRole('button', { name: 'Choose a model' })
+    expect(trigger).toHaveTextContent('Model')
+    expect(trigger).not.toHaveTextContent('muse-spark-1.3-contributor')
+  })
+
   it('seeds an unbound session from the Meta high default', async () => {
     stubApi((url, init) => url.includes('/v1/sessions/') && init.method !== 'PATCH'
       ? { status: 200, payload: { ok: true, data: session } }

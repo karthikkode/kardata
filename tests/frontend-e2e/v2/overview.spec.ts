@@ -80,10 +80,35 @@ test('OV-04-error', async ({ page }) => {
 })
 
 test('OV-04-long-names', async ({ page }) => {
-  await serveApi(page, { data: { sectors: [longSector] } })
+  await serveApi(page, { data: { sectors: [longSector], companies: [] } })
   await page.goto('/')
   await expect(page.getByRole('list', { name: 'Recent sectors' }).getByRole('button').first()).toBeVisible()
   await shot(page, 'OV-04', 'long-names', { anchors: ['section[aria-label="Recent sectors"]'] })
+})
+
+test('OV-04-long-names-ellipsis', async ({ page }) => {
+  await serveApi(page, { data: { sectors: [longSector], companies: [] } })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+  const row = page.getByRole('list', { name: 'Recent sectors' }).getByRole('button').first()
+  await expect(row).toBeVisible()
+  // Secondary meta steps aside below sm so the name keeps readable room
+  // (regression: the name starved to ~1 char behind badge/count/age).
+  await expect(row.getByText('companies')).toBeHidden()
+  await expect(row.getByText('In progress')).toBeVisible()
+  const name = row.getByText(longSector.name, { exact: true })
+  const box = await name.evaluate((el) => ({
+    overflows: el.scrollWidth > el.clientWidth + 1,
+    textOverflow: getComputedStyle(el).textOverflow,
+    whiteSpace: getComputedStyle(el).whiteSpace,
+    title: el.getAttribute('title'),
+    width: el.clientWidth,
+  }))
+  expect(box.overflows).toBe(true)
+  expect(box.textOverflow).toBe('ellipsis')
+  expect(box.whiteSpace).toBe('nowrap')
+  expect(box.title).toBe(longSector.name)
+  expect(box.width).toBeGreaterThan(80)
 })
 
 test('OV-05-default', async ({ page }) => {

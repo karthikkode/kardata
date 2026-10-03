@@ -5,9 +5,11 @@ Stack: Vite + React + TypeScript SPA, Tailwind CSS v4, owned primitives in
 headless chat primitives in adapter mode (`@assistant-ui/react`, transport
 stays Kardata), Motion (`motion/react`) implementing the transition standard
 alongside the CSS pairs. Tokens in `frontend/src/index.css` (`:root` + `.dark`).
-Shared text scale in `frontend/src/components/text.tsx` (Eyebrow, PageTitle,
-SectionTitle, CardTitle, Body, Caption, Mono); no raw `text-[` sizes in
-feature code (pinned by `tests/frontend/typography.test.ts`).
+Shared text scale in `frontend/src/components/text.tsx` (PageTitle,
+PageDescription, WorkspaceTitle, SectionTitle, CardTitle, Body, BodySm,
+Description, Caption, Label, Overline, Numeric, Mono, Kbd); no raw `text-[`
+sizes in feature code (pinned by `tests/frontend/typography.test.ts` and
+`tests/frontend/type-usage.test.ts`).
 
 ## Component anatomy (mandatory shape)
 
@@ -47,11 +49,14 @@ Replying also clears by the durable sequence: a resumed stream may contain
 only a short tail, so its array length cannot identify the finished turn.
 
 Provider text appears incrementally below the current conversation; the
-persisted terminal message replaces the pending text. One quiet Activity
-disclosure precedes the answer and contains tool calls plus reasoning text
-actually sent by the provider. It reads Reasoning when such text exists and
-Activity otherwise. It stays collapsed for settled replies and opens during
-live reasoning. Meta Responses may supply a summary, not raw private
+persisted terminal message replaces the pending text. In-flight turns show
+an inline ThinkingRow (Brain + shimmer "Thinking" + elapsed clock, no
+border or background); settled replies carry a compact
+ReasoningDisclosure ("Thought for 12s", or "Reasoning" without a
+duration), the same instance keyed by message id so expanding during
+streaming stays expanded after settle. Tool calls render in a separate
+ToolActivity disclosure ("Used 3 tools" / "Using ...") with humanized
+per-tool rows. Meta Responses may supply a summary, not raw private
 reasoning; turns without either get no invented block. Running tool rows
 show in-flight age from client-side first-seen stamps; wire frames are
 unchanged. Agent replies render house markdown (`Markdown.tsx`: GFM subset,
@@ -80,10 +85,12 @@ and file creation, a Plan Mode toggle for milestone planning (`/plan`), and
 a live mid-run Steer action to guide agents and subagents on the fly.
 The active sector surface is the landing/workspace described below, including
 versioned global-context approval and durable thread compaction. The older
-`SectorChatPanel`, `SectorContextDrawer` and `SectorDetailPage` workbench remain
-legacy components; App does not route their full layouts. Only CompanySection
-is shared with the active landing. Their old 60% context meter and note-approval
-cards do not define the product's current context/approval contract.
+`SectorChatPanel`, `SectorContextDrawer`, `SectorDetailPage`,
+`SectorPlanSection`, and `RunConsole` workbench remain legacy components;
+App does not route their full layouts (the active landing renders the new
+`CompaniesSection`, not the legacy `CompanySection`). Their old 60%
+context meter and note-approval cards do not define the product's current
+context/approval contract. Deletion awaits an owner decision.
 
 The sector research strip states every lifecycle case: draft and failed
 offer Plan, approved offers Start, running offers Pause, paused offers
@@ -145,7 +152,8 @@ with failing-before evidence, 4 chat-staging failures reverted).
 
 `motion@13.5.0` (exact) via `motion/react` implements transitions where it
 is efficient; the `tw-animate-css` enter plus exit pairs remain sanctioned
-implementations of the same 150/200 ease-out standard. `MotionConfig
+implementations of the same 120/180/240 token standard (`MOTION` mirror in
+`lib/motion.ts`, `EXIT_MS` 180 / `POPOVER_MS` 120). `MotionConfig
 reducedMotion="user"` wraps both App roots so OS reduced-motion collapses
 every JS-driven animation with focus plus scroll plus content work intact.
 The centralized presets live in `frontend/src/lib/motion.ts`
@@ -180,7 +188,8 @@ delegates to Badge; the Researches list notices keep their pinned copy in
 `research-parts.tsx`. Pinned by `tests/frontend/shells.test.tsx`.
 
 Adopted (including review remediation): App page title/gutters with
-Overview-only search; Researches type tabs (Base UI Tabs), state selection
+the v2 page frame (Overview-only search removed in favor of the
+palette); Researches type tabs (Base UI Tabs), state selection
 (shared Select), sector creation (shared dialog), SectionCard/ListFooter
 shells; Dashboard cards on SectionCard; PlanDocument in the workspace Plan
 tab and landing dialog; ConversationComposer around both composers;
@@ -197,12 +206,15 @@ rhythm; WorkspaceOverlay on the shared dialog with topmost-only sibling
 Escape handling; real page crossfades under LazyMotion. The full
 ID-to-evidence map is `tests/frontend/coverage-registry.md`.
 
-Deliberately unchanged: ModelToolbar custom menus keep their pinned
-focus/search/select/Escape contract and durable draft/binding/save
-orchestration (transplanting cost-adjacent binding logic would violate
-the durable-behavior rule); composer drafts, mention/steering semantics,
+Deliberately unchanged: composer drafts, mention/steering semantics,
 and chat transport stay Kardata-owned (no ComposerPrimitive, no
 ThreadList); approval/authority/persistence/file contracts untouched.
+The model picker was rebuilt on the Base UI menu primitive
+(`MenuRoot`/`MenuPopup`/submenu, `ui/switch` reasoning toggle,
+collision-aware placement, full keyboard); `persist()` sends the
+selected provider (the hardcoded `'meta'` bug is fixed with a unit
+test). Pinned by `models-staging` menu suites and the CP-03 browser
+proof.
 
 ## Sector workspace (landing → Open → chat)
 
@@ -243,10 +255,30 @@ source links and truthful counts. Tests are linked in the hardening catalogue.
 
 ## Shell and lists (revamp wave 1)
 - The chat dock exit runs through the shared `useExitState` (`frontend/src/lib/motion.ts`): open, close, and reopen-cancel behave like every other popover. `App.tsx` keeps no bespoke exit timer. Focus returns to the chat toggle on close.
-- The app column caps at `max-w-6xl` and the sidebar sticks (`sticky top-0 h-screen`) with a desktop collapse toggle (`Collapse sidebar` / `Expand sidebar`, `aria-expanded`). collapsed keeps the icon rail with accessible names.
-- `Emails` has no backend and stays a disabled coming-soon entry (`Emails (coming soon)`, no navigation) instead of a dead placeholder route.
-- `TopBar` search is Overview-scoped (placeholder says so) with a keyboard-reachable `Clear search` icon button that appears only with text.
-- Dashboard preview panels state their filter outcome (`Showing X of Y matching`, `aria-live polite`) whenever a search is active or the preview cap hides rows. `View all N` keeps the truthful unfiltered total because navigation drops the Overview needle.
+- Shell pages share one frame (`max-w-page`, `pt-6`/`pb-12`) with a
+  `PageHeader` (breadcrumb row, title + optional status badge, description,
+  right-aligned actions). Titles come from a label map, never raw ids;
+  loading sectors show a title skeleton. No "Back to Overview" buttons;
+  breadcrumbs replace back links. The audit asserts the h1 left edge
+  equals the first content block's left edge (±1px). The sidebar sticks
+  (`sticky top-0 h-screen`) with a persisted desktop collapse toggle
+  (`Collapse sidebar` / `Expand sidebar`, `aria-expanded`); collapsed
+  keeps the icon rail with accessible names and tooltips, and below
+  768px it is always the rail. A sliding `layoutId` indicator marks the
+  active item (`bg-sidebar-active`, no border/shadow); Researches stays
+  active on sector views.
+- `Emails` has no backend: the sidebar entry stays disabled with a "Soon"
+  badge and an "Email tracking is coming soon" tooltip, and the routed
+  Emails page is the full coming-soon empty state (no actions).
+- `TopBar` (48px, bottom divider) holds a command-palette trigger styled
+  as a search box ("Search..." + Ctrl K hint; icon-only below 768px),
+  an "Ask Karbot" button, and the theme menu. The Overview text search
+  field is removed; sector search lives in the palette and Researches
+  filters.
+- Dashboard preview panels ("Recent sectors", "Recent companies") show
+  six recent rows with a plain "View all" header link. Overview stat
+  tiles (Sectors, Companies found, Needs attention, Awaiting approval)
+  link to pre-filtered Researches URLs.
 
 ## Lists and detail (revamp wave 2)
 
@@ -266,7 +298,14 @@ source links and truthful counts. Tests are linked in the hardening catalogue.
 - `SectorDetailPage` company sections state their filter outcome the same way with a filtered overflow total. The workspace columns scale with the viewport (`calc(100vh-14rem)`, min 480px) instead of a fixed 760px, and eye toggles carry tooltips naming the file.
 - The context drawer caps open unit lists at `max-h-64` with internal scroll; it stays a docked panel (overlay decision recorded as follow-up, not built). The meter header and add-note composer stick to the scrollport edges so fixed elements stay on scroll; unit islands chain the wheel to the column instead of trapping it; file summaries read `N units · Nk chars` and unit rows cite `filename:ord` with notes numbered by position, so no storage id or content hash reaches the reader. The drawer content is not itself a scroll container (that would trap the sticky pins). Canonical rule in `docs/design-system.md`.
 - `RunsPanel` tones `CANCELLING` as paused (amber), never failed red, and a failed cancel surfaces `Could not cancel run <id>. Try again.` as an alert instead of swallowing the error.
-- Chat: Karbot user bubbles share the sector tint and shape (`bg-primary/10`, `rounded-2xl`) with anywhere-wrap for long tokens; the Karbot log announces politely like the sector log; both composers expose the Enter/Shift+Enter contract via tooltip. The model menu search no longer autofocuses on open, and the bare composer pill caps tighter on small screens (`max-w-32`, `sm:max-w-52`) with full names in the menu.
+- Chat: user bubbles are `bg-surface-active`, `rounded-xl` with
+  `rounded-br-sm`, max 85% width, with anywhere-wrap for long tokens;
+  agent messages have no bubble. The Karbot log announces politely like
+  the sector log; both composers expose the Enter/Shift+Enter contract
+  via tooltip and a focused hint row at 768px and up. The model picker
+  trigger is a ghost chip (display name + effort); its menu is a
+  collision-aware Base UI menu with search, provider groups, an effort
+  submenu, and a Reasoning switch.
 - Agent markdown renders real heading levels (h1/h2/h3/h4 with house sizes) instead of flattening everything to paragraphs.
 - Checked and kept: `SubagentsPanel` rows already use explicit buttons (tag/stop/open), so no mis-tap change; `ModelsPanel` selects already share the design-system classes; the attach file input stays button-proxied (keyboard path is the Attach button).
 - Visual specs freeze animations per shot (`animations: disabled`) after a mid-fade blank was caught on the Agents page: Playwright visibility ignores opacity, so section fades must complete before capture. Motion is verified by transition clips, not stills.

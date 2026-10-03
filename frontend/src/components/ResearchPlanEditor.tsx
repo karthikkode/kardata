@@ -186,10 +186,56 @@ export function splitBriefSections(markdown: string): { intro: string; sections:
 /**
  * The narrative brief as a curated timeline (PL-04): every heading-led
  * section gets a medallion step with a humanized title and compact body.
- * Arbitrary valid headings and all text survive untouched; the timeline
- * is pure presentation. Used everywhere a plan brief appears so
- * workspace, progress dialog, and legacy views read identically.
+ * Deeper headings nest under their parent as a compact timeline, so a
+ * section like "Search directions" never renders as an empty step above
+ * its flat sub-directions. Arbitrary valid headings and all text survive
+ * untouched; the timeline is pure presentation. Used everywhere a plan
+ * brief appears so workspace, progress dialog, and legacy views read
+ * identically.
  */
+interface BriefNode extends BriefSection {
+  index: number
+  children: BriefNode[]
+}
+
+function nestBriefSections(sections: BriefSection[]): BriefNode[] {
+  const roots: BriefNode[] = []
+  const stack: BriefNode[] = []
+  sections.forEach((section, index) => {
+    const node: BriefNode = { ...section, index, children: [] }
+    while (stack.length > 0 && stack[stack.length - 1]!.level >= node.level) stack.pop()
+    if (stack.length === 0) roots.push(node)
+    else stack[stack.length - 1]!.children.push(node)
+    stack.push(node)
+  })
+  return roots
+}
+
+function briefSectionSteps(nodes: BriefNode[], depth = 0): PlanStep[] {
+  return nodes.map((node, position) => {
+    const body = node.body ? <Markdown text={node.body} variant="compact" /> : undefined
+    const children =
+      node.children.length > 0 ? (
+        <div className="mt-3">
+          <PlanSteps label={`${planSectionLabel(node.heading)} details`} steps={briefSectionSteps(node.children, depth + 1)} size="sm" />
+        </div>
+      ) : undefined
+    return {
+      id: `${node.index}:${node.heading}`,
+      title: planSectionLabel(node.heading),
+      // Top-level sections keep their keyword glyph; nested steps are
+      // numbered so sibling directions never share one document icon.
+      ...(depth === 0 ? { icon: planSectionIcon(node.heading) } : { stepNumber: position + 1 }),
+      body: body && children ? (
+        <>
+          {body}
+          {children}
+        </>
+      ) : (body ?? children),
+    }
+  })
+}
+
 export function PlanBriefTimeline({ text }: { text: string }) {
  const { intro, sections } = splitBriefSections(text)
  if (!sections.length) return <Markdown text={text} variant="compact" />
@@ -202,12 +248,7 @@ export function PlanBriefTimeline({ text }: { text: string }) {
  ) : null}
  <PlanSteps
  label="Plan brief"
- steps={sections.map((section, index) => ({
- id: `${index}:${section.heading}`,
- title: planSectionLabel(section.heading),
- icon: planSectionIcon(section.heading),
- body: section.body ? <Markdown text={section.body} variant="compact" /> : undefined,
- }))}
+ steps={briefSectionSteps(nestBriefSections(sections))}
  />
  </div>
  )
@@ -507,7 +548,7 @@ function PlanForm({ formId, markdown, executable, busy, error, onDirtyChange, on
  <div className="flex min-w-0 flex-col gap-1.5">
  <Label as="label" htmlFor={fieldId('depth')}>Research depth</Label>
  <SelectRoot value={depth} onValueChange={(value) => { markDirty(); setDepth(value === 'discovery' ? 'discovery' : 'company') }}>
- <SelectTrigger id={fieldId('depth')} ref={(node) => { fieldRefs.current.depth = node }} />
+ <SelectTrigger id={fieldId('depth')} ref={(node) => { fieldRefs.current.depth = node }} valueText={depth === 'discovery' ? 'Discovery only' : 'Discovery and company research'} />
  <SelectPopup>
  <SelectItem value="discovery">Discovery only</SelectItem>
  <SelectItem value="company">Discovery and company research</SelectItem>

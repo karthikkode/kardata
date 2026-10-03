@@ -150,6 +150,24 @@ test('WS-03-chats', async ({ page }) => {
   )
 })
 
+test('WS-03-tab-labels', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await gotoWorkspace(page, 'sector-electrical')
+  // One contiguous label node: split nodes become flex items with gaps.
+  const chats = page.getByRole('tab', { name: 'Chats (6)' })
+  await expect(chats).toBeVisible()
+  const label = chats.locator('span.tabular-nums')
+  await expect(label).toHaveText('Chats (6)')
+  expect(await label.evaluate((node) => node.childNodes.length)).toBe(1)
+  // Elevated selected thumb, on the active tab only.
+  const research = page.getByRole('tab', { name: 'Research', selected: true })
+  await expect(research.locator('[data-slot="tab-indicator"]')).toHaveClass(/bg-surface-raised/)
+  await expect(research.locator('[data-slot="tab-indicator"]')).toHaveClass(/border-border/)
+  await chats.click()
+  const active = page.getByRole('tab', { name: 'Chats (6)', selected: true })
+  await expect(active.locator('[data-slot="tab-indicator"]')).toHaveClass(/bg-surface-raised/)
+})
+
 test('WS-04-default', async ({ page }) => {
   await capture(page, 'WS-04', 'default', () => gotoWorkspace(page, 'sector-electrical'), () => openChats(page))
 })
@@ -173,6 +191,13 @@ test('WS-04-selected', async ({ page }) => {
       await openChats(page)
       await page.getByRole('button', { name: 'Open Compare the Parramatta installers' }).click()
       await expect(page.locator('main h1:has-text("Compare the Parramatta installers")')).toBeVisible()
+      // Selecting closes the sessions drawer below 768px; scope to the
+      // always-mounted inline rail so this never lands on the drawer's
+      // frozen exit copy (nor the hidden twin ambiguity role queries hit).
+      const activeRow = page.locator('aside[aria-label="Sector sessions"] button[aria-label="Open Compare the Parramatta installers"]')
+      await expect(activeRow).toHaveAttribute('aria-current', 'page')
+      await expect(activeRow).toHaveClass(/bg-surface-raised/)
+      await expect(activeRow).toHaveClass(/border-border-strong/)
     },
   )
 })

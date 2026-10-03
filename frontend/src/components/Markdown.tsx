@@ -154,13 +154,27 @@ const compactComponents: Components = {
  ),
 }
 
-export function Markdown({ text, variant = 'chat' }: { text: string; variant?: 'chat' | 'plan' | 'compact' }) {
+/** Label-register headings for prose inside Overline-labelled context
+ * sections: an in-section `## Coverage` reads as a sub-label and can
+ * never look larger or bolder than the section labels above it. Body
+ * prose stays compact. */
+const sectionComponents: Components = {
+ ...compactComponents,
+ h1: ({ children }) => <h1 className="mt-3 mb-1 text-2xs font-medium tracking-[0.05em] text-foreground-subtle uppercase first:mt-0">{children}</h1>,
+ h2: ({ children }) => <h2 className="mt-3 mb-1 text-2xs font-medium tracking-[0.05em] text-foreground-subtle uppercase first:mt-0">{children}</h2>,
+ h3: ({ children }) => <h3 className="mt-3 mb-1 text-2xs font-medium tracking-[0.05em] text-foreground-subtle uppercase first:mt-0">{children}</h3>,
+ h4: ({ children }) => <h4 className="mt-3 mb-1 text-2xs font-medium tracking-[0.05em] text-foreground-subtle uppercase first:mt-0">{children}</h4>,
+}
+
+export function Markdown({ text, variant = 'chat' }: { text: string; variant?: 'chat' | 'plan' | 'compact' | 'section' }) {
  // Plan documents render through the explicit plan variant: decorative
  // section glyphs and grouped-row rhythm live on the renderer itself, not
  // on wrapper DOM (no reaching through ancestors). Ordinary chat never
  // receives keyword icons. The compact variant is 13px rails-and-brief
- // prose: every heading 13/20 500, paragraphs 13/20 muted.
- if (variant === 'compact') {
+ // prose: every heading 13/20 500, paragraphs 13/20 muted. The section
+ // variant shares compact prose but drops headings into the Overline
+ // label register for prose inside labelled context sections.
+ if (variant === 'compact' || variant === 'section') {
  return (
  <div data-markdown="" className="min-w-0 [overflow-wrap:anywhere]">
  <ReactMarkdown
@@ -169,7 +183,7 @@ export function Markdown({ text, variant = 'chat' }: { text: string; variant?: '
  unwrapDisallowed
  skipHtml
  urlTransform={safeExternalUrl}
- components={compactComponents}
+ components={variant === 'section' ? sectionComponents : compactComponents}
  >
  {text}
  </ReactMarkdown>

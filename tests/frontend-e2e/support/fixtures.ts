@@ -316,15 +316,67 @@ export function threadMessages(threadKey: string): FixtureMessage[] {
     { seq: 10, kind: 'tool', name: 'web_fetch', detail: 'roster page', state: 'done', at: stamp(16) },
     { seq: 11, kind: 'text', role: 'agent', text: 'Bright Spark runs the larger crew (14 named electricians) against Harbour City (9). The failed fetch was the coverage page, so I used the roster page instead.', at: stamp(17) },
   ]
+  // The middle rounds read as one evolving shortlist review: each turn
+  // asks something new and each answer moves the shortlist forward.
+  const rounds: Array<{ user: string; tool?: { name: string; detail: string }; agent: string; reasoning?: string }> = [
+    {
+      user: 'Are both crews actually licensed for commercial work? Check the register.',
+      tool: { name: 'db.kb_search', detail: 'searched 2 units' },
+      agent: 'Both check out. Bright Spark holds licence 241CB and Harbour City holds 309CB, both current on the register.',
+    },
+    {
+      user: 'Which one offers after-hours callouts? That matters for the strata clients.',
+      tool: { name: 'web_fetch', detail: 'roster page' },
+      agent: 'Harbour City advertises after-hours commercial callouts. Bright Spark does not list them, so I kept them flagged, not excluded.',
+      reasoning: 'Weighed the after-hours requirement against crew size before updating the shortlist notes.',
+    },
+    {
+      user: 'How did you weight the reviews? Bright Spark has far more of them.',
+      agent: 'I counted commercial mentions only. Most of Bright Spark’s extra reviews are residential, so the gap is smaller than the totals suggest.',
+    },
+    {
+      user: 'Drop any crew that is residential-only. I only want commercial coverage.',
+      tool: { name: 'db.kb_search', detail: 'searched 3 units' },
+      agent: 'Done. I excluded three residential-only crews with reasons recorded, and the shortlist is now commercial-only.',
+    },
+    {
+      user: 'What about Ryde? Are there crews worth adding from there?',
+      tool: { name: 'web_search', detail: '4 results' },
+      agent: 'Two Ryde crews look plausible, but one has no licence on record. I shortlisted Ryde Volt Services and left the other out.',
+      reasoning: 'Checked the Ryde candidates against the licence bar before adding one to the shortlist.',
+    },
+    {
+      user: 'Where did the crew counts come from? I do not trust estimates.',
+      agent: 'Named sources only: Bright Spark’s roster page lists 14 electricians and Harbour City’s names 9. I dropped one estimate with no source.',
+    },
+    {
+      user: 'Give me the final shortlist with one line each on why they stay.',
+      agent: 'Bright Spark for the largest verified crew, Harbour City for after-hours cover, Ryde Volt for Ryde coverage. All three are licensed and commercial.',
+    },
+  ]
   let seq = 12
-  for (let round = 0; round < 7 && seq <= 38; round++) {
-    rows.push({ seq: seq++, kind: 'text', role: 'user', text: `Follow-up question ${round + 1} about the shortlist.`, at: stamp(20 + round * 6) })
-    rows.push({ seq: seq++, kind: 'tool', name: 'db.kb_search', detail: 'searched 2 units', state: 'done', at: stamp(21 + round * 6) })
-    rows.push({ seq: seq++, kind: 'text', role: 'agent', text: `Short answer ${round + 1}: the shortlist still holds.`, reasoning: round % 2 === 0 ? `Reasoned about follow-up ${round + 1}.` : undefined, at: stamp(22 + round * 6) })
+  for (let round = 0; round < rounds.length && seq <= 38; round++) {
+    const turn = rounds[round]!
+    rows.push({ seq: seq++, kind: 'text', role: 'user', text: turn.user, at: stamp(20 + round * 6) })
+    if (turn.tool) rows.push({ seq: seq++, kind: 'tool', name: turn.tool.name, detail: turn.tool.detail, state: 'done', at: stamp(21 + round * 6) })
+    else rows.push({ seq: seq++, kind: 'tool', name: 'db.kb_search', detail: 'searched 1 unit', state: 'done', at: stamp(21 + round * 6) })
+    rows.push({ seq: seq++, kind: 'text', role: 'agent', text: turn.agent, reasoning: turn.reasoning, at: stamp(22 + round * 6) })
   }
   rows.push({ seq: seq++, kind: 'text', role: 'user', text: 'Hold on, check the Ryde crews too before you finish.', missedSteer: true, at: stamp(70) })
-  while (seq <= 40) {
-    rows.push({ seq: seq++, kind: 'text', role: 'agent', text: 'Noted. I will fold the Ryde crews into the next pass.', at: stamp(70 + seq) })
+  // Closing turns keep the thread at 40 messages while the owner steers
+  // the Ryde check: distinct turns, not repeated padding.
+  const closing: Array<{ role: 'user' | 'agent'; text: string }> = [
+    { role: 'agent', text: 'On it. I will re-check both Ryde crews against the licence register first.' },
+    { role: 'user', text: 'How long will that take? I want the shortlist today.' },
+    { role: 'agent', text: 'Minutes. The register lookups are cached, so only the roster pages need fetching.' },
+    { role: 'user', text: 'And the earlier failed fetch? Did that leave a gap?' },
+    { role: 'agent', text: 'No gap. The coverage page failed once, so I used the roster page, which names the crew directly.' },
+    { role: 'user', text: 'Good. Post the updated shortlist when the Ryde check lands.' },
+    { role: 'agent', text: 'Posted below. Ryde Volt Services stays; the unlicensed Ryde crew is out with its reason recorded.' },
+  ]
+  for (const turn of closing) {
+    if (seq > 40) break
+    rows.push({ seq: seq++, kind: 'text', role: turn.role, text: turn.text, at: stamp(70 + seq) })
   }
   return rows
 }

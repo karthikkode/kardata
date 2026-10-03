@@ -60,7 +60,7 @@ export function ExecutionInspector({ page, body, selectedSeq, hasPrevious, onSel
             <ol aria-label="Recorded boundaries" className="scroll-slim max-h-56 space-y-2 overflow-y-auto">
               {page.data.records.map((entry) => (
                 <li key={entry.seq}>
-                  <button type="button" aria-label={`${labels[entry.kind]} · Round ${entry.round} · #${entry.seq}`} aria-pressed={entry.seq === selectedSeq} onClick={() => onSelect(entry.seq)} className={`w-full cursor-pointer rounded-lg border p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${entry.seq === selectedSeq ? 'border-primary bg-muted/30' : 'border-border hover:bg-muted/20'}`}>
+                  <button type="button" aria-label={`${labels[entry.kind]} · Round ${entry.round} · #${entry.seq}`} aria-pressed={entry.seq === selectedSeq} onClick={() => onSelect(entry.seq)} className={`w-full cursor-pointer rounded-lg border p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${entry.seq === selectedSeq ? 'border-primary bg-primary-soft' : 'border-border hover:bg-surface-hover'}`}>
                     <span className="flex items-center gap-2 text-sm font-medium">
                       <span aria-hidden className={`size-2 shrink-0 rounded-full ${kindTone[entry.kind]}`} />
                       <span>#{entry.seq}</span>
@@ -72,7 +72,7 @@ export function ExecutionInspector({ page, body, selectedSeq, hasPrevious, onSel
               ))}
             </ol>
           </>
-        ) : <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">No execution records have been saved for this conversation.</p> : null}
+        ) : <p className="rounded-lg border border-border p-4 text-sm text-muted-foreground">No execution records have been saved for this conversation.</p> : null}
         {selectedSeq !== null && page.status === 'ready' ? (
           <section ref={details} tabIndex={-1} aria-label="Execution record detail" className="space-y-3 rounded-lg border border-border p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <ResourceNotice resource={body} label="Execution record" />

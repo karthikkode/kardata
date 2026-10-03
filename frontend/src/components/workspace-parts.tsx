@@ -463,7 +463,7 @@ function ContextSection({ label, text }: { label: string; text: string }) {
     <div>
       <Overline>{label}</Overline>
       <div className={cn('mt-1 min-w-0', !expanded && long && 'line-clamp-6')}>
-        <Markdown text={text} variant="compact" />
+        <Markdown text={text} variant="section" />
       </div>
       {long ? <Button type="button" variant="ghost" size="sm" aria-label={`${expanded ? 'Show less' : 'Show more'} ${label}`} onClick={() => setExpanded((value) => !value)}>{expanded ? 'Show less' : 'Show more'}</Button> : null}
     </div>
@@ -543,7 +543,7 @@ export function GlobalContextPanel({ resource, preview, busy, error, onReview, o
           ))}
         </ol>
       ) : (
-        <p className="rounded-lg border border-dashed border-border p-4 text-sm">No revisions yet.</p>
+        <p className="rounded-lg border border-border p-4 text-sm">No revisions yet.</p>
       )
     ) : null}
   </WorkspaceOverlay>
@@ -561,16 +561,22 @@ export function GlobalContextPanel({ resource, preview, busy, error, onReview, o
               <div className="mt-2 grid gap-2 md:grid-cols-2">
                 <div className="min-w-0 rounded-lg bg-surface-sunken p-3">
                   <Caption>Current</Caption>
-                  <div className="mt-1"><Markdown text={data.sections[key] || 'Empty'} variant="compact" /></div>
+                  <div className="mt-1"><Markdown text={data.sections[key] || 'Empty'} variant="section" /></div>
                 </div>
                 <div className="min-w-0 rounded-lg border border-primary-border bg-primary-soft p-3">
                   <Caption>Proposed</Caption>
-                  <div className="mt-1"><Markdown text={change.sections[key] || 'Empty'} variant="compact" /></div>
+                  <div className="mt-1"><Markdown text={change.sections[key] || 'Empty'} variant="section" /></div>
                 </div>
               </div>
             </section>
           ))}
           {error ? <p role="alert" className="rounded-lg bg-muted p-3 text-xs">{error}</p> : null}
+          {stale ? (
+            <div role="note" className="flex gap-2 rounded-md border border-warning-border bg-warning-soft p-3">
+              <span className="flex h-5 shrink-0 items-center"><Icons.alertWarning aria-hidden className="size-4 text-warning" /></span>
+              <BodySm as="span" className="min-w-0 flex-1">This update is based on v{change.baseVersion}; the current version is v{data.version}. Ask for a refreshed proposal.</BodySm>
+            </div>
+          ) : null}
           <div className="flex flex-wrap justify-end gap-2">
             <Button type="button" variant="secondary" disabled={busy} onClick={async () => { if (await onDecision(change.id, false)) setProposal(null) }}>Reject</Button>
             <span title={stale ? 'This update is based on an older version.' : undefined}>
@@ -850,8 +856,8 @@ export function LocalContextEditor({ resource, busy, error, onSave, onCompact, i
     <ResourceNotice resource={resource} label="Local context" />
     {data ? (
       <>
-        <div className="rounded-lg bg-muted/30 p-3 text-xs text-muted-foreground">Private working memory for this conversation. The visible transcript stays intact.</div>
-        {data.pendingResponse ? <p role="status" className="rounded-lg border border-border bg-muted/30 p-3 text-xs">Provider reply for round {data.pendingResponse.round} is saved locally. Resume the original turn after storage and source availability recover to finish recording it before further work.</p> : null}
+        <div className="rounded-lg bg-surface-sunken p-3 text-xs text-muted-foreground">Private working memory for this conversation. The visible transcript stays intact.</div>
+        {data.pendingResponse ? <p role="status" className="rounded-lg border border-border bg-surface-sunken p-3 text-xs">Provider reply for round {data.pendingResponse.round} is saved locally. Resume the original turn after storage and source availability recover to finish recording it before further work.</p> : null}
         {data.pendingOperations?.length ? (
           <section aria-label="Pending operation recovery" className="space-y-3">
             <div role="note" className="flex gap-2 rounded-md border border-warning-border bg-warning-soft p-3">

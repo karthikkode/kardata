@@ -18,9 +18,15 @@ React + TypeScript SPA, Tailwind CSS v4, owned primitives in
   locally.
 - Dark mode comes free from the token pairs : never hardcode a light-only or
   dark-only color.
-- Shared surfaces share one row height (`min-h-19` on research rows, content
-  centered, never filler); card footers pin to a common baseline with
-  `mt-auto` so actions align across uneven and underflow lists.
+- Row heights are fixed: dense 36px (`min-h-9`: tables, menus), default
+  44px (`min-h-11`: list rows in cards), comfortable 56px (`min-h-14`:
+  two-line rows). Content centers vertically, never filler; card footers
+  pin to a common baseline with `mt-auto` so actions align across uneven
+  and underflow lists.
+- Feature code never uses `/NN` alpha on color tokens. The only exceptions
+  are `bg-overlay` and the focus-ring alpha (`outline-ring/30` on inputs).
+  Soft fills are opaque tokens (`bg-primary-soft`, `bg-surface-sunken`,
+  `bg-danger-soft`, …).
 
 ## Theming : light and dark are both first-class (default rule)
 
@@ -45,6 +51,15 @@ even for small components.
   sole theming mechanism, and never with a hardcoded value.
 - Animation respects `prefers-reduced-motion` (global guard in `index.css`);
   use `motion-safe:`/`motion-reduce:` for anything beyond transitions.
+- Theme infrastructure: the dark variant is
+  `@custom-variant dark (&:where(.dark, .dark *))` with `color-scheme`
+  on `:root`/`.dark`. Preference lives in
+  `localStorage['kardata-theme']` (`system` | `light` | `dark`, default
+  `system`); a blocking inline script in `frontend/index.html` resolves
+  `system` via `matchMedia` before first paint (no flash), and
+  `useTheme()` (`frontend/src/lib/theme.ts`) owns the preference and
+  follows OS changes while it is `system`. One 3-way menu (Sun / Moon /
+  Monitor) everywhere; no bare toggles.
 
 ## Scrollbars : thin, token-matched, everywhere (standard rule)
 
@@ -83,27 +98,66 @@ even for small components.
 - Clickability is structural, never just a CSS class: a clickable element
   renders a `button` (or link), a read-only one renders a `span`/`div`. Review
   check: if it has `cursor-pointer` without keyboard support, it is broken.
-- Clickable chips and cards confirm hover with elevation (`hover:shadow-md`)
-  plus the pointer. Read-only indicators use `select-none` so no text cursor
-  ever appears over them.
+- Hover never adds a shadow or lift: rows and nav use
+  `hover:bg-surface-hover` (nav: `hover:bg-sidebar-accent`), clickable
+  cards add `hover:border-border-strong`. Rows press with
+  `active:bg-surface-active`; buttons press with `active:scale-[0.98]`.
+  Selected navigation is `bg-sidebar-active`/`bg-surface-active` with
+  `text-foreground` (no border, shadow, or accent); selected data
+  (checked row, chosen option) is `bg-primary-soft` with a
+  `text-primary-text` check. Read-only indicators use `select-none` so
+  no text cursor ever appears over them.
+- Focus is always visible: standalone controls use the outline recipe
+  (`focus-visible:outline-2 focus-visible:outline-offset-2
+  focus-visible:outline-ring`), rows/menu items/tabs/nav/cells use the
+  inset variant (`-outline-offset-2`), inputs add
+  `focus-visible:border-ring` plus `outline-ring/30`. The browser audit
+  Tabs through the first 15 focusables on every page and requires an
+  outline of at least 2px or a visible ring shadow.
 
-## Icons over text, containers over free text
+## Icons (lucide only, via the map)
 
-- Wherever an icon can carry the meaning, use the icon, not words. Theme
-  toggle, close, search submit, send, expand: icon buttons with accessible
-  names. Text buttons remain only where the action needs explaining
-  ("Push to email drafts", never "OK").
-- Icons come from lucide-react only, sized `size-4` in buttons and rows,
-  always `aria-hidden` next to a visible label or `aria-label` when alone.
-  No emoji as icons, no one-off SVGs when lucide has the glyph.
-- No free-flowing text. Descriptive and helper text always lives inside a
-  chip, card, or bordered container. Bare paragraphs drifting on the page
-  background are not allowed.
-- Exempt as structural: page and section headings, form labels, and text
-  inside controls. Everything else sits in a container.
-- Why: free text misaligns against UI elements and looks unfinished next to
-  contained content. Review check: any bare descriptive paragraph outside a
-  container fails review.
+- Every icon comes from the semantic map in `frontend/src/lib/icons.ts`
+  (Lucide glyphs, global `stroke-width: 1.75` in base CSS). No emoji as
+  icons, no one-off SVGs when lucide has the glyph. Pinned by
+  `tests/frontend/icons.test.ts`: only map icons render, and every
+  icon-only button is an `IconButton` with `aria-label` and tooltip.
+- Sizes: 14px `size-3.5` (badges, 12-13px text, inline meta); 16px
+  `size-4` default (buttons, nav, rows, inputs, menus, tabs); 20px
+  `size-5` (empty/error medallions, page-header object icon).
+- Color: rows/nav `text-muted-foreground` at rest, `text-foreground` on
+  hover/selected; buttons `currentColor`; status icons use status fg;
+  primary only on checked/selected data marks.
+- Gap: 16px icon + 13-14px text = 8px (`gap-2`); 14px icon + 12-13px
+  text = 6px (`gap-1.5`). Single-line rows center (`items-center`);
+  multi-line text wraps the icon in an `h-5 flex items-center` box with
+  `items-start` so the icon centers on line one.
+- Icon-only buttons are `IconButton` (tooltip with the label plus `Kbd`
+  shortcut): size `icon` (40px) or `icon-sm` (32px with 8px gaps).
+- Medallion: 40px circle `size-10 rounded-full` with an opaque soft bg
+  (`bg-muted`, `bg-primary-soft`, `bg-{status}-soft`) and a 20px icon.
+- Wherever an icon can carry the meaning, use the icon, not words.
+  Text buttons remain only where the action needs explaining.
+
+## Cards vs dividers (default: no card)
+
+- A section is a SectionTitle, an optional Description directly under
+  its title, and content, separated from the next by `border-t
+  border-border-subtle`. Descriptions are not wrapped in containers.
+- Use a bordered card (`bg-card border border-border rounded-lg`, no
+  shadow) only for: (1) a self-contained object in a grid (stat tile,
+  provider tile); (2) a list needing a frame on a busy page (Overview
+  panels, landing companies); (3) a settings group. Never nest cards.
+  One card radius (8px).
+- Clickable card: `hover:bg-surface-hover hover:border-border-strong`,
+  no shadow, no lift.
+- Radius scale: 4px `rounded-sm` (badge, Kbd, skeleton bar, inline
+  code); 6px `rounded-md` (controls, row hover, tabs, nav items);
+  8px `rounded-lg` (card, panel, popover, menu, tooltip, toast);
+  12px `rounded-xl` (dialog, side-sheet edge); `rounded-full`
+  (avatar, dot, switch, progress track, count bubble).
+  `rounded-2xl` and larger are banned in feature code. Nested radius:
+  inner = outer minus padding.
 
 ## Accessibility rules
 
@@ -111,9 +165,10 @@ even for small components.
   provide this : do not strip it).
 - Icons inside labeled containers, never bare. Status is never color alone :
   pair every dot with text or an accessible label.
-- Form inputs always have labels. Touch targets are at least 40px (`icon`
-  size-10) where pointer input is expected; dense multi-button rows may use
-  32px (`icon-sm`) only with 8px gaps and a written reason.
+- Form inputs always have labels. Touch targets are at least 32x32px on
+  desktop and 40x40px at 390px width (inline text links exempt),
+  enforced by the browser audit on every button, link, tab, menu item,
+  and input. `IconButton` size `icon` is 40px, `icon-sm` is 32px.
 - Async swaps return focus to a designed target (usually the composer),
   never `body`: approve, deny, retry, steer, send, and anything that unmounts
   the focused control.
@@ -133,6 +188,14 @@ at runtime. We cannot control those. Everything else is ours and stays clean.
 Enforcement: `tests/frontend/no-em-dashes.test.ts` scans every file under
 `frontend/src` and fails the suite on the first em dash found. Review check:
 if added UI copy shows an em dash character, the change is rejected.
+
+Sentence case for headings, buttons, tabs, and labels; uppercase only via
+the Overline primitive. Data keys are humanized before display: one
+`humanizeKey()` in `frontend/src/lib/format.ts` (snake/camel to sentence
+case; `id` to ID, `url` to URL, `pdf` to PDF) plus the explicit maps in
+`frontend/src/lib/labels.ts`. Raw keys (`direction shards`, `Filter`,
+`db.get_sector`), raw state strings, and developer paths never reach the
+UI; the browser audit rejects them on every page.
 
 ## Typography : one sans, one mono (standard rule)
 
@@ -155,6 +218,40 @@ families exist in `index.css`, that no other font package is imported in
 `frontend/src`, and that no `font-family` declaration appears outside
 `index.css`. Review check: a third typeface, or a `font-[...]` arbitrary
 utility smuggling one in, fails review.
+
+## Type scale (text.tsx primitives only)
+
+Every text element renders a primitive from
+`frontend/src/components/text.tsx` (each carries `data-type` for the
+browser audit). No raw sizes in feature code.
+
+| Primitive | Element | Size/LH | Weight | Use |
+|---|---|---|---|---|
+| `PageTitle` | h1 | 20/28 | 500 | One per view; largest shell size |
+| `PageDescription` | p | 14/22 | 400 | Under PageTitle, max-w 640px |
+| `WorkspaceTitle` | h2 | 16/24 | 500 | Workspace headers |
+| `SectionTitle` | h2 | 16/24 | 500 | Page sections, panel titles |
+| `CardTitle` | h3 | 14/20 | 500 | Card/dialog-section headings |
+| `Body` | p | 14/22 | 400 | Prose, values |
+| `BodySm` | p/span | 13/20 | 400 | Dense cells, list rows |
+| `Description` | p | 13/20 | 400 | Card subtitles, dialog descriptions, row meta |
+| `Caption` | p | 12/16 | 400 | Timestamps, footnotes, helper text |
+| `Label` | label/span | 13/20 | 500 | Form labels, key-value keys |
+| `Overline` | p | 11/16 | 500 | Sidebar/table group headers only, max 3 words |
+| `Numeric` | span | inherit or stat 24/32 | stat 500 | Every number (`tabular-nums`) |
+| `Mono` | span | 13/20 or inherit | 400 | IDs, versions, hashes, model ids, code |
+| `Kbd` | kbd | 11/16 mono | 400 | Shortcuts in tooltips and cmdk |
+
+Weights: 400 for body, values, cells, row names, descriptions; 500 for
+titles, Label, nav items, buttons, tabs, badges, Overline.
+`font-semibold`/`font-bold` appear only inside `text.tsx` and Markdown
+`<strong>` (rendered 600). No negative tracking below 18px (delete
+`tracking-tight`); positive tracking only on Overline. Every count,
+percentage, date, and duration uses `tabular-nums`; Mono is for
+identifiers only. Single-line rows use `truncate` + `title`;
+descriptions `line-clamp-2`. Pinned by
+`tests/frontend/type-usage.test.ts` plus the browser audit (weight and
+size checks on every page).
 
 ## UX principles : Nielsen heuristics as rules
 
@@ -192,14 +289,16 @@ that breaks one is unfinished, however polished it looks.
 Motion is a state change made visible. Every animation on this project cites
 one of these patterns; anything else needs an explicit exception.
 
-- Durations: 150ms for micro feedback (hover, focus, pressed), 200ms for
-  enter, exit, and section changes. One easing everywhere: ease-out. Never
-  linear for movement, never springy overshoot. The JS constants are
-  `EXIT_MS` (200) and `POPOVER_MS` (150) in `frontend/src/lib/motion.ts`,
-  next to the centralized preset pairs (`popoverEnter`/`popoverExit`,
-  `dockEnter`/`dockExit`, `dialogEnter`/`dialogExit`, `pageEnter`/`pageExit`,
-  `rowEnter`, `noticeEnter`); change constants with the CSS together.
-  Pinned by `tests/frontend/motion-presets.test.tsx` (durations, distances,
+- Duration tokens in `@theme` with a JS mirror `MOTION` in
+  `frontend/src/lib/motion.ts`: fast 120ms (hover, press, color, small
+  exits, tooltips), base 180ms (popover/dialog enter, tab indicator,
+  page crossfade, list items, chevrons), slow 240ms (side-sheet enter,
+  progress fill, count-up). Easings: `--ease-out`
+  (`cubic-bezier(0.16, 1, 0.3, 1)`) for all movement, `--ease-out-soft`
+  for color/opacity only. Never linear for movement, never springy
+  overshoot. The retention constants are `EXIT_MS` (180) and
+  `POPOVER_MS` (120); change constants with the CSS together. Pinned
+  by `tests/frontend/motion-presets.test.tsx` (durations, distances,
   reduced-motion guards, no springs).
 - Implementation: `motion@13.5.0` (exact, `motion/react`) implements
   transitions where it is efficient, and the `tw-animate-css` enter plus
@@ -209,24 +308,36 @@ one of these patterns; anything else needs an explicit exception.
   section (springs with overshoot, sibling-moving layout transitions,
   gestures, scroll-linked effects, parallax) still needs an explicit
   exception with its own tests.
-- Every enter has a matching exit at the same duration. Base UI overlay
-  primitives (dialog, menu, popover, tooltip, select, searchable,
-  collapsible) animate both directions with `data-starting-style` /
-  `data-ending-style` transitions in the owned `ui/*` wrappers, so the
-  library retains the exiting popup and no second timer runs alongside it.
-  Custom closings (chat dock, composer menus, mention/skill lists) stay
-  mounted through `useExitState` (reopen cancels the close) and swap the
-  shared enter/exit class pair; menus and popovers rise 4px over 150ms,
-  dialogs rise 8px over 200ms, the chat dock slides 16px from the edge,
-  pages crossfade opacity-only over 200ms. Openings that re-derive every
-  keystroke (the `@` mention list) keep the enter only: an exit there would
-  flicker.
-- Animate opacity and translate only. Never height, margin, padding, or
-  anything that reflows siblings. If content must appear, reserve its space
-  first (skeletons), then crossfade.
-- List insertions animate the entering row only (fade plus a small rise).
-  Existing rows never move for an arrival: capped lists absorb newcomers in
-  stable slots, full lists append below the fold.
+- Every enter has a matching exit. Base UI overlay primitives (dialog,
+  menu, popover, tooltip, select, searchable, collapsible) animate both
+  directions with `data-starting-style` / `data-ending-style`
+  transitions in the owned `ui/*` wrappers, so the library retains the
+  exiting popup and no second timer runs alongside it. Patterns: page
+  transition (old fades 120ms; new rises 4px + fades 180ms via the View
+  Transitions API with a `pageEnter` fallback); dialog (enter
+  opacity/scale/y 180ms, exit 120ms); side sheet / Karbot dock (enter
+  x 16px + opacity 240ms, exit 180ms); popover/menu/select/cmdk (enter
+  scale from transform origin 120ms, exit opacity 100ms); tooltip
+  (opacity + scale 120ms, open delay 400ms). Custom closings (chat
+  dock, composer menus, mention/skill lists) stay mounted through
+  `useExitState` (reopen cancels the close). Openings that re-derive
+  every keystroke (the `@` mention list) keep the enter only: an exit
+  there would flicker.
+- List stagger enter: items fade + rise 6px over 180ms, 30ms apart for
+  the first 12 items, first mount only, never on refetch/poll. New
+  live rows fade + rise 4px (`rowEnter`). Existing rows never move for
+  an arrival: capped lists absorb newcomers in stable slots, full
+  lists append below the fold.
+- Toasts: sonner bottom-right, 356px wide, offset 16, gap 8; 4000ms,
+  errors 8000ms with action. Skeleton shimmer: `kd-shimmer` sheen
+  1.5s linear infinite. Number count-up runs 240ms on first mount of
+  stat tiles only; polls swap instantly (final value under reduced
+  motion). Progress fill is `scaleX` origin-left 240ms. Thinking
+  indicator pulses opacity (static 0.7 under reduced motion).
+- Animate opacity and translate only (documented exceptions:
+  collapsible height via the Base UI CSS var, button-press scale).
+  If content must appear, reserve its space first (skeletons), then
+  crossfade.
 - Section changes crossfade the content, scroll to top, and move focus to
   the page heading. Announcement rides on the focus move; no extra live
   region for navigation.
@@ -239,7 +350,8 @@ one of these patterns; anything else needs an explicit exception.
 - Review check: a transition that moves siblings, lacks a focus or scroll
   contract on navigation, or animates without a `motion-safe` story fails
   review. Smoothness is eyeballed on device; tests assert roles, focus, and
-  live-region text, never pixels.
+  live-region text, never pixels. Overlay enter AND exit is proven by the
+  `motion.spec.ts` transition videos.
 
 ## Composition over configuration
 
@@ -252,29 +364,49 @@ one of these patterns; anything else needs an explicit exception.
 Rendered by `frontend/src/components/Markdown.tsx` (`react-markdown` +
 `remark-gfm`): GFM subset only (paragraphs, bold, lists, tables, code,
 blockquotes, links), raw HTML never becomes DOM, links restricted to
-http(s), styling maps onto the text tokens above. The system prompt
-contracts the output format (bold lead-ins, bullets, tables for counts,
-code citations, no raw HTML). Source citations stay literal bracket text,
-never links. User bubbles and mention chips stay plain text by design.
+http(s), styling maps onto the text tokens above. Three variants:
+`chat` (panels and chat), `plan` (plan documents: keyword icons and
+grouped rhythm on h2/h3), `compact` (13px rails: global context, brief
+timelines, rail file previews). Chat/plan rules: h1/h2 render 15/22
+500, h3-h6 14/22 500, paragraphs 14/22, lists 4px item gap, headings
+16px margin-top and 4px margin-bottom. Markdown headings are never
+larger than the panel's SectionTitle. Bold renders 600 inside
+`[data-markdown] strong` (the browser audit whitelists only that);
+the Karbot system prompt writes calm chat prose with no bold lead-in
+labels. Source citations stay literal bracket text, never links. User
+bubbles and mention chips stay plain text by design.
 Long tokens never overflow: message bubbles wrap anywhere
 (`[overflow-wrap:anywhere]`), inline code breaks anywhere (`break-all`),
 links wrap anywhere, and `pre`/tables keep their own horizontal scroll.
+Agent tables size to content (`w-max min-w-full`) inside a bordered
+scroll frame with scoped headers; blockquotes carry a 2px
+`border-border-strong` left rule with muted text; inline code is
+`bg-surface-sunken rounded-sm px-1` mono 13px; agent code blocks are
+`bg-surface-sunken rounded-lg p-3` mono 13px with a Copy button.
 
-## Chat rows (sector chat)
+## Conversation rows (shared workspace + Karbot)
 
-Shared shells live in `frontend/src/components/chat-parts.tsx`: a centered
-agent mark (initial-letter token avatar plus chat name) with session actions
-at the row edges, centered relative-time dividers on gaps past five minutes,
-user bubbles right (shrink-wrapped, soft primary tint), agent bubbles left
-in muted fill. One quiet activity disclosure per reply: consecutive tool
-calls share a grouped summary row ("2 Kb search, Scan") with per-call status
-icons (spinning while running, check when done, X when failed) and elapsed
-age on running calls; provider reasoning shares the row and starts open only
-while live. Thinking never appears as a message bubble: the replying
-placeholder mounts only when a turn is live with zero frames. The
-research strip controls and single-pill composer keep
-their existing behavior; Karbot keeps its own layout and only shares the
-overflow-safe markdown.
+Both surfaces render the shared components in
+`frontend/src/components/chat/` (transport and state stay caller-owned):
+message column `max-w-prose-kd` centered with 24px turn gaps; user
+bubbles right (`bg-surface-active`, `rounded-xl` with `rounded-br-sm`,
+max 85% width, `@file` mentions as inline chips); agent messages with
+no bubble in the chat Markdown variant. `ThinkingRow`: inline row, no
+border or background (Brain + shimmer "Thinking" + elapsed clock);
+when live reasoning text exists it expands in place.
+`ReasoningDisclosure`: compact ghost button ("Thought for 12s", or
+"Reasoning" without a duration) expanding to muted reasoning text with
+a 2px left rule; the live row and the settled disclosure are the same
+instance keyed by message id, so expanding during streaming stays
+expanded after settle. `ToolActivity`: summary row ("Used 3 tools" /
+"Using ...") expanding to per-tool rows with family icons (Search for
+search/knowledge, Globe for web, FileText for documents, Wrench
+otherwise), humanized labels, durations, and state; raw tool ids
+appear only inside the mono detail block. `ConversationEmpty`:
+per-variant title ("Ask about this research" / "Start a conversation"
+/ "Ask Karbot anything") with three suggestion buttons that fill the
+composer without sending. A floating "Latest" pill returns to the
+tail. The legacy `SectorChatPanel` keeps its own row styling.
 
 ## Context drawer (sector, legacy inspection view)
 
@@ -283,15 +415,17 @@ from the backend view against a 1M-token estimated scale with an exact
 `used / 1,000,000 estimated tokens · percent` readout labeled "Legacy
 estimate, not a budget limit." There is no compaction-threshold marker: the
 old 60% claim was removed because the drawer is not the active
-local-context budget authority. The system prompt reads verbatim, pinned
+local-context budget authority. (Legacy inspection view: unrouted, kept
+compiling; alpha-tint and dashed-border sweeps keep its classes
+token-clean.) The system prompt reads verbatim, pinned
 reference texts verbatim, files with full unit text behind the filename
 toggle, conversation history and tail verbatim (with honest empty states),
 then notes.
 Citations read like the model sees them: units cite `filename:ord`, notes
 cite `[note:1]` by position, file summaries read `N units · Nk chars`
 (never a content hash). The meter header and the add-note composer are
-sticky (`top-0` / `bottom-0` with a hairline rule and blur backdrop) so a
-fixed element stays on scroll; nested unit islands carry no scroll
+sticky (`top-0` / `bottom-0` with a hairline rule over an opaque
+`bg-background` bar) so a fixed element stays on scroll; nested unit islands carry no scroll
 containment, so the wheel chains to the column instead of trapping. The
 drawer content itself is not a scroll container (a non-scrolling
 `overflow` ancestor would trap the sticky pins); the column scrolls. The
@@ -325,7 +459,11 @@ library without owner approval.
 | badge | `src/components/ui/badge.tsx` | Icon + text tones; noninteractive unless built as a control |
 | skeleton | `src/components/ui/skeleton.tsx` | Reserved geometry; static under reduced motion |
 | separator | `src/components/ui/separator.tsx` | Base UI; token border |
-| text scale | `src/components/text.tsx` | PageTitle (h1, 24px), WorkspaceTitle/SectionTitle (h2, 16px), CardTitle (h3, 14px), Body (14/22), Caption (12/18), Eyebrow (12/16), Mono; refs/IDs/tabIndex forward; no raw `text-[` sizes in feature code |
+| text scale | `src/components/text.tsx` | PageTitle (h1, 20/28), PageDescription, WorkspaceTitle/SectionTitle (h2, 16/24), CardTitle (h3, 14/20), Body (14/22), BodySm/Description (13/20), Caption (12/16), Label (13/20 500), Overline (11/16, group headers only), Numeric (tabular), Mono, Kbd; `data-type` per primitive; refs/IDs/tabIndex forward; no raw `text-[` sizes in feature code |
+| list rows | `src/components/ui/list.tsx` | `ListRow`: inset 6px-radius hover recipe with divider hiding; tables apply the same recipe to `tr` |
+| icon button | `src/components/IconButton.tsx` | Tooltip + `aria-label` always; `icon` 40px / `icon-sm` 32px; file glyphs via `src/components/FileTypeIcon.tsx` from the extension |
+| data table | `src/components/DataTable.tsx` | TanStack table: sortable columns, row links, stacked cards at 390px, truthful Show-more footers |
+| command palette | `src/components/CommandPalette.tsx` | cmdk palette (Ctrl/Cmd+K): sector search, navigation, theme; filtered/empty states |
 
 Shared feature shells live in `src/components/shells.tsx` (props only, never
 fetch): PageHeader, SectionCard, ResourceState (loading/first-run

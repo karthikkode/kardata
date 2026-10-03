@@ -126,3 +126,15 @@ describe('plan section icons', () => {
     expect(chat.querySelector('h2 svg')).toBeNull()
   })
 })
+
+describe('section variant', () => {
+  it('renders in-section headings in the label register, never larger than the section labels', () => {
+    const { container } = render(<Markdown variant="section" text={'## Coverage\n\nParramatta first.'} />)
+    const heading = container.querySelector('h2')
+    expect(heading).not.toBeNull()
+    expect(heading!.className).toContain('text-2xs')
+    expect(heading!.className).toContain('uppercase')
+    expect(heading!.className).not.toContain('text-ui')
+    expect(heading!.className).not.toContain('font-semibold')
+  })
+})

@@ -105,7 +105,10 @@ function StatTiles({
   const failed = sectors.items.filter((sector) => sector.state === 'failed').length
   const inProgress = sectors.items.filter((sector) => sector.state === 'running').length
   const planned = sectors.items.filter((sector) => sector.state === 'planned').length
-  const companySectors = new Set(companies.items.map((company) => company.sectorId)).size
+  // Sectors with companies come from the sectors list, not the windowed
+  // companies page: the tile value is the global total, so the caption
+  // must count across the same scope, not the first 100 rows.
+  const companySectors = sectors.items.filter((sector) => sector.companiesFound > 0).length
   return (
     <div role="group" aria-label="Research totals" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {sectors.status === 'loading' ? (
@@ -239,11 +242,11 @@ function SectorPanel({
               </span>
               <span className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1">
                 <StateBadge state={sector.state} />
-                <BodySm as="span" className="text-muted-foreground">
+                <BodySm as="span" className="hidden text-muted-foreground sm:inline">
                   <Numeric>{formatCount(sector.companiesFound)}</Numeric>{' '}
                   {sector.companiesFound === 1 ? 'company' : 'companies'}
                 </BodySm>
-                <Caption as="span" title={formatFullDate(sector.updatedAt)}>
+                <Caption as="span" title={formatFullDate(sector.updatedAt)} className="hidden sm:inline">
                   {relativeAge(sector.updatedAt)}
                 </Caption>
                 <Icons.chevronRight
@@ -308,7 +311,7 @@ function CompanyPanel({
                 </Description>
               </span>
               <span className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1">
-                <BodySm as="span">{companyStageLabel(company.stage)}</BodySm>
+                <BodySm as="span" className="hidden sm:inline">{companyStageLabel(company.stage)}</BodySm>
                 <StageSteps stage={company.stage} />
                 <StateBadge state={company.state} />
                 <Icons.chevronRight

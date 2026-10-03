@@ -83,8 +83,8 @@ export function SectorPlanSection({
  }, [sectorState, config])
  if (state.status === 'closed') return null
  return (
- <section aria-label={`Research plan for ${sectorName}`} className="overflow-hidden rounded-2xl border border-border bg-background shadow-xs">
- <div className="flex items-center gap-2.5 border-b border-border bg-muted/30 px-4 py-3.5">
+ <section aria-label={`Research plan for ${sectorName}`} className="overflow-hidden rounded-lg border border-border bg-background shadow-xs">
+ <div className="flex items-center gap-2.5 border-b border-border bg-muted px-4 py-3.5">
  <Icons.clipboard className="size-4 shrink-0 text-muted-foreground" aria-hidden />
  <h2 className="min-w-0 flex-1 text-sm font-medium">Research plan</h2>
  </div>
@@ -118,13 +118,13 @@ export function SectorPlanSection({
  ) : null}
  {state.plan.latest ? (
  <>
- <p className="inline-flex items-center rounded-full border border-border bg-muted/40 px-2.5 py-0.5 font-mono text-xs tabular-nums text-muted-foreground select-none">v{state.plan.latest.version}</p>
+ <p className="inline-flex items-center rounded-full border border-border bg-muted px-2.5 py-0.5 font-mono text-xs tabular-nums text-muted-foreground select-none">v{state.plan.latest.version}</p>
  <div className="mt-3">
  <PlanBriefTimeline text={state.plan.latest.markdown} />
  </div>
  </>
  ) : (
- <div className="rounded-xl border border-dashed border-border p-5 text-center">
+ <div className="rounded-xl border border-border p-5 text-center">
  <Icons.clipboard className="mx-auto size-6 text-muted-foreground" aria-hidden />
  <p className="mt-2 text-sm font-medium">No research plan yet</p>
  <p className="mx-auto mt-1 max-w-sm text-xs text-muted-foreground">Create a plan for {sectorName} to lock queries, limits, and acceptance criteria.</p>

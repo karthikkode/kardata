@@ -36,7 +36,7 @@ async function fixtures(page: Page, options: { state?: string; denied?: boolean;
       data = [{ key: sessionId, sessionId, kind: 'session', status: options.paused ? 'PAUSED' : 'RUNNING', acceptingSteer: !options.paused, queueDepth: 0, updatedAt: stamp }, ...Array.from({ length: 6 }, (_, index) => ({ key: `agent:test-child-${index}`, name: ['Source review','Pricing analysis','Problem discovery','Market signals','Evidence check','Company review'][index], sessionId, kind: 'subagent', status: index < 2 ? 'RUNNING' : 'FINISHED', acceptingSteer: index < 2, queueDepth: 0, updatedAt: stamp }))]
     } else if (path.endsWith('/messages')) data = options.long ? [{ seq: 1, role: 'user', kind: 'text', text: 'What should we look for in this sector?', at: stamp }, { seq: 2, role: 'agent', kind: 'text', text: '## A focused research direction\n\nLook for companies with meaningful operational friction and capacity to invest.\n\n### Evidence to gather\n\n- Revenue and scale signals from reliable sources.\n- Repeated manual work across systems.\n- Cost or time impact, with explicit uncertainty.\n\n| Area | Signal | Next step |\n| --- | --- | --- |\n| Operations | Fragmented reporting | Verify the actual workflow |\n| Inventory | Manual reconciliation | Find a cost or time signal |\n\n> Keep the research broad. One symptom should not define the whole investigation.\n\nUse `company_id` only when working with tools; explain findings in plain language.', at: stamp }] : []
     else if (path.endsWith('/context')) data = { threadKey: path.split('/')[3], notes: 'Stay broad and keep sources.', summary: '', coveredSeq: 0, version: 1, ...(options.pending ? { pendingOperations: [{ operationId: 'TEST durable identity '.repeat(100), callId: 'TEST call', toolName: 'db.create_session', reason: 'The tool reply was lost; its committed effect remains unconfirmed.' }] } : {}) }
-    else if (path === '/v1/providers') data = { defaultProvider: 'meta', providers: [{ name: 'meta', hasKey: true, defaultModel: 'muse-spark-1.3-contributor', models: [{ provider: 'meta', model: 'muse-spark-1.3-contributor', displayName: 'muse-spark-1.3-contributor', reasoning: 'native', mode: 'responses', efforts: ['low','high'] }] }] }
+    else if (path === '/v1/providers') data = { defaultProvider: 'meta', providers: [{ name: 'meta', hasKey: true, defaultModel: 'muse-spark-1.3-contributor', models: [{ provider: 'meta', model: 'muse-spark-1.3-contributor', displayName: 'Muse Spark 1.3 Contributor', reasoning: 'native', mode: 'responses', efforts: ['low','high'] }] }] }
     else if (path.startsWith('/v1/sessions/')) data = path.includes(normal.id) ? normal : research
     const denied = options.denied && (path.endsWith('/files') || path.endsWith('/global-context'))
     await route.fulfill({ status: denied ? 403 : 200, contentType: 'application/json', body: JSON.stringify(denied ? { ok: false, error: { code: 'permission_denied', message: 'Fixture permission denial' } } : { ok: true, data }) })
@@ -46,24 +46,39 @@ test('sector summary opens the shared plan/progress dialog and dedicated workspa
   await fixtures(page)
   await page.goto(`/?section=SectorDetail&sector=${sector.id}`)
   await expect(page.getByRole('region', { name: 'Research status' })).toBeVisible()
-  await expect(page.getByText('Company research has not started yet.')).toBeVisible()
+  await expect(page.getByText('The plan is approved. Start research when ready.')).toBeVisible()
   await page.getByRole('button', { name: 'View progress' }).click()
-  await expect(page.getByRole('dialog', { name: 'Research progress' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Discovery', exact: true })).toBeVisible()
+  const dialog = page.getByRole('dialog', { name: 'Research progress' })
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole('button', { name: 'Show plan details' }).click()
+  await expect(dialog.getByRole('heading', { name: 'Discovery', exact: true })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('button', { name: 'View progress' })).toBeFocused()
-  await page.getByRole('button', { name: 'Open', exact: true }).click()
-  await expect(page.getByRole('tab', { name: 'Plan', exact: true })).toBeVisible()
-  await page.getByRole('tab', { name: 'Plan', exact: true }).click()
-  await expect(page.getByRole('tabpanel', { name: 'Research plan' })).toBeVisible()
+  // The header action and the status-panel next step share the name;
+  // the header renders first.
+  await page.getByRole('button', { name: 'Open workspace' }).first().click()
+  await expect(page.getByRole('tab', { name: /^Plan/ })).toBeVisible()
+  await page.getByRole('tab', { name: /^Plan/ }).click()
+  await expect(page.getByRole('tabpanel', { name: 'Plan' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Discovery', exact: true })).toBeVisible()
 })
+
+async function applyTheme(page: Page, dark: boolean): Promise<void> {
+  await page.emulateMedia({ colorScheme: dark ? 'dark' : 'light' })
+  // React flips .dark asynchronously after the media change.
+  await page
+    .waitForFunction((expected) => document.documentElement.classList.contains('dark') === (expected === 'dark'), dark ? 'dark' : 'light', { timeout: 5000 })
+    .catch(() => undefined)
+}
+
 test.describe('exact workspace drawer boundaries', () => {
   for (const width of [767, 768, 1279, 1280]) for (const dark of [false, true]) {
     test(`workspace boundary ${width}px ${dark ? 'dark' : 'light'}`, async ({ page }, info) => {
       await page.setViewportSize({ width, height: 960 })
+      await page.emulateMedia({ colorScheme: dark ? 'dark' : 'light' })
       await fixtures(page, { long: true, files: 30 })
       await page.goto(`/?section=SectorChat&sector=${sector.id}`)
+      await applyTheme(page, dark)
       await expect(page.getByRole('heading', { name: 'Research', exact: true })).toBeVisible()
       const sessions = page.getByRole('complementary', { name: 'Sector sessions', includeHidden: true })
       const resources = page.getByRole('complementary', { name: 'Sector resources', includeHidden: true })
@@ -75,8 +90,7 @@ test.describe('exact workspace drawer boundaries', () => {
         await openSessions.focus()
         await page.keyboard.press('Enter')
         const drawer = page.getByRole('dialog', { name: 'Sessions', exact: true })
-        await expect(drawer.getByRole('group', { name: 'Session types' })).toBeVisible()
-        if (dark) await drawer.getByRole('button', { name: 'Use dark theme' }).click()
+        await expect(drawer.getByRole('tablist', { name: 'Session types' })).toBeVisible()
         await drawer.screenshot({ path: info.outputPath('sessions-drawer.png'), animations: 'disabled' })
         await page.keyboard.press('Escape')
         await expect(drawer).toHaveCount(0)
@@ -84,9 +98,8 @@ test.describe('exact workspace drawer boundaries', () => {
       } else {
         await expect(sessions).toBeVisible()
         await expect(openSessions).toBeHidden()
-        if (dark) await sessions.getByRole('button', { name: 'Use dark theme' }).click()
       }
-      if (width < 1280) {
+      if (width < 1281) {
         await expect(resources).toBeHidden()
         await expect(openResources).toBeVisible()
         await openResources.focus()
@@ -114,17 +127,18 @@ test.describe('exact workspace drawer boundaries', () => {
 for (const width of [1440, 390]) for (const dark of [false, true]) {
   test(`workspace visual ${width} ${dark ? 'dark' : 'light'}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 960 })
+    await page.emulateMedia({ colorScheme: dark ? 'dark' : 'light' })
     await fixtures(page, { long: true, files: 30 })
     await page.goto(`/?section=SectorChat&sector=${sector.id}`)
+    await applyTheme(page, dark)
     await expect(page.getByRole('heading', { name: 'Research', exact: true })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'A focused research direction' })).toBeVisible()
     if (width < 768) await page.getByRole('button', { name: 'Open sessions' }).click()
-    if (dark) await page.getByRole('button', { name: 'Use dark theme' }).click()
     if (width < 768) await page.getByRole('button', { name: 'Close Sessions' }).click()
     await expect(page.getByRole('textbox', { name: 'Message this conversation' })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
     await page.screenshot({ path: `test-results/visual/workspace-${width}-${dark ? 'dark' : 'light'}.png`, animations: 'disabled' })
-    if (width < 1280) await page.getByRole('button', { name: 'Open files and global context' }).click()
+    if (width < 1281) await page.getByRole('button', { name: 'Open files and global context' }).click()
     await expect(page.getByRole('heading', { name: 'Files', exact: true })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Global context', exact: true })).toBeVisible()
     await page.screenshot({ path: `test-results/visual/workspace-resources-${width}-${dark ? 'dark' : 'light'}.png`, animations: 'disabled' })
@@ -134,42 +148,49 @@ for (const width of [1440, 390]) for (const dark of [false, true]) {
 test('paused research offers plan revision and preserves an unsuccessful edit', async ({ page }) => {
   await fixtures(page, { state: 'paused', saveError: true })
   await page.goto(`/?section=SectorChat&sector=${sector.id}`)
-  await page.getByRole('tab', { name: 'Plan', exact: true }).click()
+  await page.getByRole('tab', { name: /^Plan/ }).click()
   await page.getByRole('button', { name: 'Edit plan' }).click()
   const editor = page.getByRole('dialog', { name: 'Edit research plan' })
-  await editor.getByRole('textbox', { name: 'Plan', exact: true }).fill('TEST revised paused scope')
+  await editor.getByRole('textbox', { name: 'Plan text' }).fill('TEST revised paused scope')
   await editor.getByRole('button', { name: 'Save plan' }).click()
   await expect(editor.getByRole('alert')).toContainText('TEST plan save conflict')
-  await expect(editor.getByRole('textbox', { name: 'Plan', exact: true })).toHaveValue('TEST revised paused scope')
+  await expect(editor.getByRole('textbox', { name: 'Plan text' })).toHaveValue('TEST revised paused scope')
   await page.screenshot({ path: 'test-results/visual/hardening-paused-plan-conflict.png', animations: 'disabled' })
 })
 test('deep-linked normal chat selects Chats; subagents and context are reachable', async ({ page }) => {
   await fixtures(page)
   await page.goto(`/?section=SectorChat&sector=${sector.id}&session=${normal.id}&thread=${normal.id}`)
-  await expect(page.getByRole('button', { name: 'Chats', exact: true })).toHaveAttribute('aria-pressed', 'true')
-  await page.getByRole('button', { name: 'All 6' }).click()
-  await page.getByRole('dialog', { name: 'Subagents' }).getByRole('button', { name: /Source review/ }).click()
+  await expect(page.getByRole('tab', { name: /^Chats/, selected: true })).toBeVisible()
+  await page.getByRole('button', { name: 'View all 6' }).click()
+  await page.getByRole('dialog', { name: 'Subagents' }).getByRole('button', { name: 'Open Source review' }).click()
   await expect(page.getByRole('heading', { name: 'Source review', exact: true })).toBeVisible()
   await expect(page).toHaveURL(/thread=agent%3Atest-child-0/)
   await page.getByRole('button', { name: 'Local context', exact: true }).click()
-  await expect(page.getByRole('textbox', { name: 'Local notes' })).toHaveValue('Stay broad and keep sources.')
+  await expect(page.getByRole('dialog', { name: 'Local context' }).getByRole('textbox', { name: 'Local notes' })).toHaveValue('Stay broad and keep sources.')
 })
 test('permission failures remain visible instead of empty files or context', async ({ page }) => {
   await fixtures(page, { denied: true })
   await page.goto(`/?section=SectorChat&sector=${sector.id}`)
-  await expect(page.getByText('Files is not shared with this key.')).toBeVisible()
-  await expect(page.getByText('Global context is not shared with this key.')).toBeVisible()
+  // Below 1281px the rail lives in the drawer; scope there because the
+  // hidden inline rail renders the same copy.
+  await page.getByRole('button', { name: 'Open files and global context' }).click()
+  const drawer = page.getByRole('dialog', { name: 'Files and global context' })
+  await expect(drawer.getByText('Files is not shared with this key.')).toBeVisible()
+  await expect(drawer.getByText('Global context is not shared with this key.')).toBeVisible()
 })
 
 test('file preview downloads retained bytes and returns focus to the file', async ({ page }) => {
   await fixtures(page)
   await page.goto(`/?section=SectorChat&sector=${sector.id}`)
-  const file = page.getByRole('button', { name: 'TEST Market research and industry landscape.md', exact: true })
+  await page.getByRole('button', { name: 'Open files and global context' }).click()
+  const drawer = page.getByRole('dialog', { name: 'Files and global context' })
+  const file = drawer.getByRole('button', { name: 'TEST Market research and industry landscape.md', exact: true })
   await file.click()
   const dialog = page.getByRole('dialog', { name: 'File preview' })
   await expect(dialog.getByRole('heading', { name: 'TEST retained source' })).toBeVisible()
   const downloadPromise = page.waitForEvent('download')
-  await dialog.getByRole('button', { name: 'Download original file' }).click()
+  await dialog.getByRole('button', { name: 'Download' }).click()
+  await page.getByRole('menuitem', { name: 'Original file' }).click()
   const download = await downloadPromise
   expect(download.suggestedFilename()).toBe('TEST Market research and industry landscape.md')
   await page.screenshot({ path: 'test-results/visual/hardening-file-preview.png', animations: 'disabled' })
@@ -180,23 +201,41 @@ test('file preview downloads retained bytes and returns focus to the file', asyn
 test('failed plan edits retain the owner draft and expose exact executable work', async ({ page }) => {
   await fixtures(page, { saveError: true })
   await page.goto(`/?section=SectorChat&sector=${sector.id}`)
-  await page.getByRole('tab', { name: 'Plan', exact: true }).click()
-  await expect(page.getByRole('region', { name: 'Executable research work' })).toContainText('2,000 companies')
+  await page.getByRole('tab', { name: /^Plan/ }).click()
+  await expect(page.getByRole('region', { name: 'Executable research work' })).toContainText('Up to 2,000')
+  await expect(page.getByRole('region', { name: 'Executable research work' })).toContainText('Company limit')
   await page.getByRole('button', { name: 'Edit plan' }).click()
   const dialog = page.getByRole('dialog', { name: 'Edit research plan' })
-  await dialog.getByRole('textbox', { name: 'Plan', exact: true }).fill('TEST owner draft retained after conflict')
+  await dialog.getByRole('textbox', { name: 'Plan text' }).fill('TEST owner draft retained after conflict')
   await dialog.getByRole('button', { name: 'Save plan' }).click()
   await expect(dialog.getByRole('alert')).toContainText('TEST plan save conflict')
-  await expect(dialog.getByRole('textbox', { name: 'Plan', exact: true })).toHaveValue('TEST owner draft retained after conflict')
+  await expect(dialog.getByRole('textbox', { name: 'Plan text' })).toHaveValue('TEST owner draft retained after conflict')
   await expect(dialog.getByRole('spinbutton', { name: 'Company limit' })).toHaveValue('2000')
   await page.screenshot({ path: 'test-results/visual/hardening-plan-conflict.png', animations: 'disabled' })
 })
 
 test('paused conversations offer a visible recovery action without indefinite thinking', async ({ page }) => {
   await fixtures(page, { paused: true })
+  // Held-open stream with a PAUSED state frame (the CV-08-paused shape):
+  // a closing fixture stream would flip the chat into reconnecting and
+  // hide the paused recovery action under test.
+  await page.addInitScript(() => {
+    const nativeFetch = window.fetch.bind(window)
+    window.fetch = (input, init) => {
+      if (String(input).includes('/events?')) {
+        const frame = { seq: 1, threadKey: 'test-research', type: 'state', at: '', payload: { status: 'PAUSED' } }
+        return Promise.resolve(new Response(new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(frame)}\n\n`))
+          },
+        }), { status: 200, headers: { 'content-type': 'text/event-stream' } }))
+      }
+      return nativeFetch(input, init)
+    }
+  })
   await page.goto(`/?section=SectorChat&sector=${sector.id}`)
-  await expect(page.getByRole('button', { name: 'Resume conversation' })).toBeVisible()
-  await expect(page.getByText('This conversation is paused. Review local context, then resume the saved turn.')).toBeVisible()
+  await expect(page.getByText('This conversation is paused.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Resume' })).toBeVisible()
   await expect(page.getByText(/Thinking/)).toHaveCount(0)
   await page.screenshot({ path: 'test-results/visual/hardening-context-paused.png', animations: 'disabled' })
 })
@@ -205,18 +244,19 @@ for (const width of [1440, 390]) for (const dark of [false, true]) {
   test.use({ video: 'on' })
   test(`hardening surfaces ${width} ${dark ? 'dark' : 'light'}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 960 })
+    await page.emulateMedia({ colorScheme: dark ? 'dark' : 'light' })
     await fixtures(page, { saveError: true })
     await page.goto(`/?section=SectorChat&sector=${sector.id}`)
+    await applyTheme(page, dark)
     await expect(page.getByRole('heading', { name: 'Research', exact: true })).toBeVisible()
     if (width < 768) await page.getByRole('button', { name: 'Open sessions' }).click()
-    if (dark) await page.getByRole('button', { name: 'Use dark theme' }).click()
     if (width < 768) await page.getByRole('button', { name: 'Close Sessions' }).click()
-    await page.getByRole('tab', { name: 'Plan', exact: true }).click()
+    await page.getByRole('tab', { name: /^Plan/ }).click()
     await expect(page.getByRole('region', { name: 'Executable research work' })).toBeVisible()
     await page.getByRole('button', { name: 'Edit plan' }).click()
     const editor = page.getByRole('dialog', { name: 'Edit research plan' })
-    await expect(editor.getByRole('textbox', { name: 'Plan', exact: true })).toBeVisible()
-    await expect(editor.getByRole('combobox', { name: 'Research depth' })).toHaveValue('discovery')
+    await expect(editor.getByRole('textbox', { name: 'Plan text' })).toBeVisible()
+    await expect(editor.getByRole('combobox', { name: 'Research depth' })).toContainText('Discovery only')
     const saveBox = await editor.getByRole('button', { name: 'Save plan' }).boundingBox()
     expect(saveBox).not.toBeNull()
     expect(saveBox!.y + saveBox!.height).toBeLessThanOrEqual(960)
@@ -224,11 +264,17 @@ for (const width of [1440, 390]) for (const dark of [false, true]) {
     await page.screenshot({ path: `test-results/visual/hardening-editor-${width}-${dark ? 'dark' : 'light'}.png`, animations: 'disabled' })
     await page.keyboard.press('Escape')
     await expect(page.getByRole('button', { name: 'Edit plan' })).toBeFocused()
-    if (width < 1280) await page.getByRole('button', { name: 'Open files and global context' }).click()
-    await page.getByRole('button', { name: 'TEST Market research and industry landscape.md', exact: true }).click()
+    if (width < 1281) {
+      await page.getByRole('button', { name: 'Open files and global context' }).click()
+      await page.getByRole('dialog', { name: 'Files and global context' }).getByRole('button', { name: 'TEST Market research and industry landscape.md', exact: true }).click()
+    } else {
+      await page.getByRole('button', { name: 'TEST Market research and industry landscape.md', exact: true }).click()
+    }
     const preview = page.getByRole('dialog', { name: 'File preview' })
     await expect(preview.getByRole('heading', { name: 'TEST retained source' })).toBeVisible()
-    await expect(preview.getByRole('button', { name: 'Download original file' })).toBeVisible()
+    await preview.getByRole('button', { name: 'Download' }).click()
+    await expect(page.getByRole('menuitem', { name: 'Original file' })).toBeVisible()
+    await page.keyboard.press('Escape')
     await page.screenshot({ path: `test-results/visual/hardening-preview-${width}-${dark ? 'dark' : 'light'}.png`, animations: 'disabled' })
   })
 }
@@ -294,18 +340,40 @@ for (const outcome of ['consumed', 'missed'] as const) test(`overflow recovery r
 for (const width of [1440, 390]) for (const dark of [false, true]) {
   test(`operation recovery ${width} ${dark ? 'dark' : 'light'}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 960 })
-    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: dark ? 'dark' : 'light' })
     await fixtures(page, { paused: true, pending: true })
+    // Held-open stream with a PAUSED state frame (same shape as the
+    // paused-conversations test above): a closing fixture stream would
+    // flip the chat into reconnecting and hide the Resume button.
+    await page.addInitScript(() => {
+      const nativeFetch = window.fetch.bind(window)
+      window.fetch = (input, init) => {
+        if (String(input).includes('/events?')) {
+          const frame = { seq: 1, threadKey: 'test-research', type: 'state', at: '', payload: { status: 'PAUSED' } }
+          return Promise.resolve(new Response(new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(frame)}\n\n`))
+            },
+          }), { status: 200, headers: { 'content-type': 'text/event-stream' } }))
+        }
+        return nativeFetch(input, init)
+      }
+    })
     await page.goto(`/?section=SectorChat&sector=${sector.id}`)
-    await expect(page.getByRole('button', { name: 'Resume conversation' })).toBeVisible()
+    // Wait for the .dark flip without resetting reducedMotion emulation.
+    await page
+      .waitForFunction((expected) => document.documentElement.classList.contains('dark') === (expected === 'dark'), dark ? 'dark' : 'light', { timeout: 5000 })
+      .catch(() => undefined)
+    // First-paint anchor: cold dev boot can exceed the 5s default, so
+    // budget like the v2 first anchors (15s) instead of failing cold.
+    await expect(page.getByRole('button', { name: 'Resume' })).toBeVisible({ timeout: 15000 })
     if (width < 768) await page.getByRole('button', { name: 'Open sessions' }).click()
-    if (dark) await page.getByRole('button', { name: 'Use dark theme' }).click()
     if (width < 768) await page.getByRole('button', { name: 'Close Sessions' }).click()
     await page.getByRole('button', { name: 'Local context', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'Local context' })
     const recovery = dialog.getByRole('region', { name: 'Pending operation recovery' })
-    await expect(recovery.getByRole('heading', { name: 'Operation needs review' })).toBeVisible()
-    await expect(recovery.getByText('db.create_session', { exact: true })).toBeVisible()
+    await expect(recovery.getByText('An operation needs review')).toBeVisible()
+    await expect(recovery.getByText('DB create session', { exact: true })).toBeVisible()
     await recovery.getByText('Operation identity', { exact: true }).click()
     await expect(recovery.locator('code')).toBeVisible()
     expect(await recovery.locator('code').evaluate((element) => element.clientHeight <= 128 && element.scrollHeight > element.clientHeight)).toBe(true)
@@ -323,12 +391,13 @@ for (const width of [1440, 390]) for (const dark of [false, true]) {
 for (const width of [1440, 390]) for (const dark of [false, true]) {
   test(`plan approval context conflict ${width} ${dark ? 'dark' : 'light'}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 960 })
+    await page.emulateMedia({ colorScheme: dark ? 'dark' : 'light' })
     await fixtures(page, { state: 'planned', approvalConflict: true })
     await page.goto(`/?section=SectorChat&sector=${sector.id}`)
+    await applyTheme(page, dark)
     if (width < 768) await page.getByRole('button', { name: 'Open sessions' }).click()
-    if (dark) await page.getByRole('button', { name: 'Use dark theme' }).click()
     if (width < 768) await page.getByRole('button', { name: 'Close Sessions' }).click()
-    await page.getByRole('tab', { name: 'Plan', exact: true }).click()
+    await page.getByRole('tab', { name: /^Plan/ }).click()
     const request = page.waitForRequest((request) => request.method() === 'POST' && request.url().endsWith('/approve'))
     await page.getByRole('button', { name: 'Approve v1', exact: true }).click()
     expect((await request).postDataJSON()).toEqual({ version: 1, contextVersion: 1 })
@@ -341,26 +410,35 @@ for (const width of [1440, 390]) for (const dark of [false, true]) {
 test('retained discovery provenance remains visible in progress without a false percentage', async ({ page }) => {
   await fixtures(page, { retained: true })
   await page.goto(`/?section=SectorChat&sector=${sector.id}`)
-  await page.getByRole('tab', { name: 'Plan', exact: true }).click()
+  await page.getByRole('tab', { name: /^Plan/ }).click()
   const progress = page.getByRole('region', { name: 'Research progress' })
   await expect(progress.getByText('TEST retained Australian company', { exact: true })).toBeVisible()
   await expect(progress.getByText(/Retained from approved plan v1/)).toBeVisible()
-  await expect(progress.getByText('Estimate pending', { exact: true })).toBeVisible()
-  await expect(progress.getByRole('link', { name: 'Company source' })).toHaveAttribute('href', 'https://company.example.test/')
+  await expect(progress.getByText('Not estimated yet', { exact: true })).toBeVisible()
+  await expect(progress.getByRole('link', { name: 'Open source' })).toHaveAttribute('href', 'https://company.example.test/')
 })
 test('plan approval is unavailable when context authority is denied', async ({ page }) => {
   await fixtures(page, { state: 'planned', denied: true })
   await page.goto(`/?section=SectorChat&sector=${sector.id}`)
-  await expect(page.getByText('Global context is not shared with this key.')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Approve v1', exact: true })).toHaveCount(0)
+  // The inactive plan panel is hidden from the role tree: select it before
+  // opening the drawer, then assert the blocked approval behind the modal.
+  await page.getByRole('tab', { name: /^Plan/ }).click()
+  await expect(page.getByRole('button', { name: 'Approve v1', exact: true })).toHaveAttribute('aria-disabled', 'true')
+  await page.getByRole('button', { name: 'Open files and global context' }).click()
+  const drawer = page.getByRole('dialog', { name: 'Files and global context' })
+  await expect(drawer.getByText('Global context is not shared with this key.')).toBeVisible()
 })
 
 test('plan approval stops when fresh global context becomes unavailable', async ({ page }) => {
   await fixtures(page, { state: 'planned' })
   await page.goto(`/?section=SectorChat&sector=${sector.id}`)
-  await page.getByRole('tab', { name: 'Plan', exact: true }).click()
+  await page.getByRole('tab', { name: /^Plan/ }).click()
   await expect(page.getByRole('button', { name: 'Approve v1', exact: true })).toBeEnabled()
   await page.route(`**/v1/sectors/${sector.id}/global-context`, (route) => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ ok: false, error: { code: 'overload', message: 'TEST context unavailable' } }) }))
-  await expect(page.getByRole('alert').filter({ hasText: 'TEST context unavailable' }).first()).toBeVisible({ timeout: 10000 })
-  await expect(page.getByRole('button', { name: 'Approve v1', exact: true })).toBeDisabled()
+  // The 5s shared-context poll delivers the failure; approval blocks via
+  // aria-disabled with an explanatory tooltip, not the disabled attribute.
+  await expect(page.getByRole('button', { name: 'Approve v1', exact: true })).toHaveAttribute('aria-disabled', 'true', { timeout: 15000 })
+  await page.getByRole('button', { name: 'Open files and global context' }).click()
+  const drawer = page.getByRole('dialog', { name: 'Files and global context' })
+  await expect(drawer.getByRole('alert').filter({ hasText: 'TEST context unavailable' })).toBeVisible()
 })

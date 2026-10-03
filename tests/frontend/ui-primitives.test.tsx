@@ -126,7 +126,8 @@ describe('owned primitives', () => {
     )
     const indicators = container.querySelectorAll('[data-slot="tab-indicator"]')
     expect(indicators).toHaveLength(1)
-    expect(indicators[0]).toHaveClass('bg-card')
+    expect(indicators[0]).toHaveClass('bg-surface-raised')
+    expect(indicators[0]).toHaveClass('border-border')
     expect(screen.getByRole('tab', { name: 'Research' })).toContainElement(indicators[0])
   })
 

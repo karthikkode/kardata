@@ -126,6 +126,25 @@ test('FL-03-failed', async ({ page }) => {
   })
 })
 
+test('FL-03-list-below-search-390', async ({ page }) => {
+  // Layout pin: the scrollable list box always starts at or below the
+  // search field, so rows can only ever be cut by the list's own clip
+  // edge, never painted under the search. (A scrolled row's layout box
+  // legitimately extends above the clip; that is normal scrolling.)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await gotoFiles(page)
+  const scope = await filesScope(page)
+  const row = fileRow(scope, 'ryde-roster-scan.pdf')
+  await row.scrollIntoViewIfNeeded()
+  const geometry = await scope.getByRole('list', { name: 'Files' }).evaluate((list) => {
+    const search = list.closest('section')?.querySelector('input[type="text"]')?.getBoundingClientRect()
+    const box = (list.parentElement as HTMLElement).getBoundingClientRect()
+    return { searchBottom: search?.bottom, listTop: box.top }
+  })
+  expect(geometry.searchBottom).toBeDefined()
+  expect(geometry.listTop).toBeGreaterThanOrEqual((geometry.searchBottom as number) - 1)
+})
+
 test('FL-03-needs-review', async ({ page }) => {
   await capture(page, 'FL-03', 'needs-review', () => gotoFiles(page), async () => {
     const scope = await filesScope(page)

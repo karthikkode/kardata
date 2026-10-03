@@ -160,6 +160,27 @@ describe('narrative brief timeline', () => {
     render(<PlanBriefTimeline text={'Just prose, no headings.'} />)
     expect(screen.getByText('Just prose, no headings.')).toBeInTheDocument()
   })
+
+  it('nests deeper headings under their parent section', () => {
+    const { container } = render(<PlanBriefTimeline text={brief} />)
+    expect(screen.getByRole('list', { name: 'Plan brief' }).children).toHaveLength(3)
+    const parent = container.querySelector('li[data-plan-step="0:scope"]')
+    expect(parent).not.toBeNull()
+    expect(parent!.querySelector('li[data-plan-step="1:direction shards"]')).not.toBeNull()
+    const nested = screen.getByRole('list', { name: 'Scope details' })
+    expect(within(nested).getByRole('heading', { name: 'Search directions' })).toBeInTheDocument()
+  })
+
+  it('numbers nested steps instead of repeating one icon', () => {
+    render(<PlanBriefTimeline text={'## Search directions\n\n### Alpha crews\n\nBody one.\n\n### Beta crews\n\nBody two.\n'} />)
+    const nested = screen.getByRole('list', { name: 'Search directions details' })
+    const medallions = nested.querySelectorAll('[data-plan-medallion]')
+    expect(medallions).toHaveLength(2)
+    expect(medallions[0]).toHaveTextContent('1')
+    expect(medallions[1]).toHaveTextContent('2')
+    expect(medallions[0]?.querySelector('svg')).toBeNull()
+    expect(medallions[1]?.querySelector('svg')).toBeNull()
+  })
 })
 
 describe('plan version timeline', () => {

@@ -331,6 +331,14 @@ describe('executeKarbotTurn', () => {
     ])
   })
 
+  it('logs the provider message with a failed turn so measurement-style outages are diagnosable', async () => {
+    const world = memoryWorld(new FakeProvider([{ error: 'HTTP 402 from provider', retryable: false }]))
+    await expect(executeKarbotTurn(input(), world.deps)).rejects.toThrow('karbot turn failed')
+    expect(world.logs).toEqual([
+      expect.objectContaining({ op: 'karbot.turn', ok: false, code: 'provider_failed', errorDetail: 'HTTP 402 from provider' }),
+    ])
+  })
+
   it('rejects invalid input before touching the provider', async () => {
     const adapter = new FakeProvider([{ text: 'x' }])
     const world = memoryWorld(adapter)

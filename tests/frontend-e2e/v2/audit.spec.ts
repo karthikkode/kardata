@@ -167,7 +167,7 @@ test('audit-overview-offline', async ({ page, browser }) => {
   await auditView(page, browser, {
     ...OVERVIEW, alignSelector: '[data-page-section], section', state: 'offline', offline: true,
     options: { modes: { sectors: 'offline', companies: 'offline' } },
-    anchors: ['text=You are offline'],
+    anchors: ['section[aria-label="Recent sectors"] [role="alert"]', 'section[aria-label="Recent companies"] [role="alert"]'],
   })
 })
 

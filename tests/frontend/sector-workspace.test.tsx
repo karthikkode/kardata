@@ -368,6 +368,13 @@ describe('global context panel v2', () => {
     expect(approve).toBeDisabled()
     expect(approve.parentElement).toHaveAttribute('title', 'This update is based on an older version.')
   })
+  it('shows a visible stale notice above the review actions', async () => {
+    const user = userEvent.setup()
+    renderPanel({ ...global, version: 3, changes: [pendingChange({ baseVersion: 2 })] })
+    await user.click(screen.getByRole('button', { name: 'Review Shared context update' }))
+    expect(screen.getByRole('button', { name: 'Approve', exact: true })).toBeDisabled()
+    expect(screen.getByText('This update is based on v2; the current version is v3. Ask for a refreshed proposal.')).toBeVisible()
+  })
   it('lists revisions with status and expandable sections', async () => {
     const user = userEvent.setup()
     renderPanel({ ...global, changes: [pendingChange({ id: 'TEST revision', author: 'Owner', state: 'approved', version: 2, at: new Date(Date.now() - 3_600_000).toISOString(), sections: { ...global.sections, findings: 'TEST approved finding' } })] })

@@ -33,7 +33,7 @@ import { ModelToolbar } from './ModelToolbar'
 import { StateBadge } from './research-parts'
 import { GlobalContextPanel, LocalContextEditor, ResourceNotice, WorkspaceFiles, WorkspaceOverlay } from './workspace-parts'
 import { ConversationComposer, ResourceState, SearchField } from './shells'
-import { BodySm, Caption, CardTitle, Description, Label, Numeric, WorkspaceTitle } from './text'
+import { BodySm, Caption, CardTitle, Description, Label, WorkspaceTitle } from './text'
 import { ThemeMenu } from './ThemeMenu'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
@@ -208,7 +208,7 @@ export function SectorWorkspace({ sector, model, config, actions, onBack, initia
       <TabsRoot value={group} onValueChange={(value) => switchGroup(value as 'research' | 'normal')}>
         <TabsList variant="segmented" aria-label="Session types" className="w-full">
           <TabsTab value="research" className="flex-1">Research</TabsTab>
-          <TabsTab value="normal" className="flex-1">Chats (<Numeric>{formatCount(normal.length)}</Numeric>)</TabsTab>
+          <TabsTab value="normal" className="flex-1"><span className="tabular-nums">{`Chats (${formatCount(normal.length)})`}</span></TabsTab>
         </TabsList>
       </TabsRoot>
     </div>
@@ -307,7 +307,7 @@ export function SectorWorkspace({ sector, model, config, actions, onBack, initia
   const isResearchView = selected?.kind === 'research' && !model.child
   const planLatest = model.plan.data?.latest
   const planApproved = planLatest != null && model.plan.data?.approvedVersion === planLatest.version
-  const subagentStrip = children.length ? <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle px-4 py-2 sm:px-6"><Icons.agents className="size-4 shrink-0 text-muted-foreground" aria-hidden /><Caption as="span" className="shrink-0">Subagents</Caption><div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">{children.slice(0, 3).map((child, index) => <Button key={child.key} type="button" variant="ghost" size="sm" onClick={() => model.openThread(child.key)} title={child.name ?? 'Research agent'} className={cn('min-w-0 max-w-44', rowEnter)} style={{ animationDelay: `${staggerDelay(index)}s` }}><span aria-hidden className={cn('size-1.5 shrink-0 rounded-full', child.status === 'RUNNING' ? 'bg-success motion-safe:animate-pulse' : 'bg-muted-foreground/40')} /><span className="truncate">{child.name ?? 'Research agent'}</span></Button>)}</div><Button type="button" variant="link" size="sm" className="shrink-0" onClick={() => setDirectory(true)}>View all {children.length}</Button></div> : null
+  const subagentStrip = children.length ? <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle px-4 py-2 sm:px-6"><Icons.agents className="size-4 shrink-0 text-muted-foreground" aria-hidden /><Caption as="span" className="shrink-0">Subagents</Caption><div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">{children.slice(0, 3).map((child, index) => <Button key={child.key} type="button" variant="ghost" size="sm" onClick={() => model.openThread(child.key)} title={child.name ?? 'Research agent'} className={cn('min-w-0 max-w-44', rowEnter)} style={{ animationDelay: `${staggerDelay(index)}s` }}><span aria-hidden className={cn('size-1.5 shrink-0 rounded-full', child.status === 'RUNNING' ? 'bg-success motion-safe:animate-pulse' : 'bg-muted-foreground')} /><span className="truncate">{child.name ?? 'Research agent'}</span></Button>)}</div><Button type="button" variant="link" size="sm" className="shrink-0" onClick={() => setDirectory(true)}>View all {children.length}</Button></div> : null
   const errorNotice = blockingError && dismissedError !== blockingError ? <div className="shrink-0 border-b border-border-subtle px-4 py-2 sm:px-6"><div role="alert" className="flex gap-2 rounded-md border border-danger-border bg-danger-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertError aria-hidden className="size-4 text-danger" /></span><BodySm as="span" className="min-w-0 flex-1">{blockingError}</BodySm><IconButton label="Dismiss error" size="icon-sm" onClick={() => setDismissedError(blockingError)}><Icons.deny className="size-4" aria-hidden /></IconButton></div></div> : null
   return <div className="flex h-dvh min-h-0 overflow-hidden bg-background">
     <aside aria-label="Sector sessions" className="hidden min-h-0 w-70 shrink-0 border-r border-border-subtle bg-sidebar md:block">{sessionRail}</aside>

@@ -29,8 +29,8 @@ async function serveApi(page: Page, sent?: Promise<void>, release?: () => void) 
       release?.()
     } else if (url.endsWith('/v1/providers')) data = {
       defaultProvider: 'meta', providers: [{ name: 'meta', hasKey: true, defaultModel: 'muse-spark-1.3-contributor', models: [
-        { provider: 'meta', model: 'muse-spark-1.3-contributor', displayName: 'muse-spark-1.3-contributor', reasoning: 'native', mode: 'responses', efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'] },
-        { provider: 'meta', model: 'muse-spark-1.3', displayName: 'muse-spark-1.3', reasoning: 'native', mode: 'responses', efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'] },
+        { provider: 'meta', model: 'muse-spark-1.3-contributor', displayName: 'Muse Spark 1.3 Contributor', reasoning: 'native', mode: 'responses', efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'] },
+        { provider: 'meta', model: 'muse-spark-1.3', displayName: 'Muse Spark 1.3', reasoning: 'native', mode: 'responses', efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'] },
       ] }],
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data }) })
@@ -50,13 +50,19 @@ test('chat picker offers only live Meta models and seeds Contributor high', asyn
   await page.getByRole('button', { name: 'Ask Karbot' }).click()
   const chat = page.getByRole('complementary', { name: 'Assistant chat' })
   const trigger = chat.getByRole('button', { name: 'Choose a model' })
-  // The chat picker uses the generic label (pinned by models-staging.test):
-  // the trigger reads Model while the menu carries the live catalog.
-  await expect(trigger).toContainText('Model')
+  // The chat picker shows the bound display name plus the seeded effort
+  // (generic pills live only in the legacy SectorChatPanel):
+  // the trigger reads the Contributor name while the portalled
+  // menu carries the live catalog (CP-03: search + provider groups +
+  // effort submenus, display names, DeepSeek nowhere).
+  await expect(trigger).toContainText('Muse Spark 1.3 Contributor')
+  await expect(trigger).toContainText('high')
   await trigger.click()
-  await expect(chat.getByRole('menu', { name: 'Models' }).getByText('Meta', { exact: true })).toBeVisible()
-  await expect(chat.getByRole('menu', { name: 'Models' }).getByText('muse-spark-1.3-contributor')).toBeVisible()
-  await expect(chat.getByText('DeepSeek')).toHaveCount(0)
+  await expect(page.getByRole('textbox', { name: 'Search models' })).toBeVisible()
+  await expect(page.getByText('Meta', { exact: true })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: /^Muse Spark 1\.3 Contributor/ })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: /Muse Spark 1\.3 Thinking/ })).toBeVisible()
+  await expect(page.getByText('DeepSeek')).toHaveCount(0)
 })
 
 test('chat shows a served reply, quiet tool disclosure, and provider trace', async ({ page }) => {
@@ -70,11 +76,15 @@ test('chat shows a served reply, quiet tool disclosure, and provider trace', asy
   await chat.getByLabel('Message the agent').fill('Check the sector')
   await chat.getByRole('button', { name: 'Send message' }).click()
   await expect(chat.getByText('There are no sectors yet.')).toBeVisible()
+  // CV-06/CV-07: reasoning and tool activity are separate quiet
+  // disclosures now, tool names humanized (db.list_sectors -> Listed sectors).
   await expect(chat.getByText('Reasoning')).toBeVisible()
-  await chat.getByRole('button', { name: 'Show Reasoning' }).click()
-  await expect(chat.getByText('List sectors')).toBeVisible()
+  await expect(chat.getByText('Used 1 tool')).toBeVisible()
+  await chat.getByRole('button', { name: 'Show tool activity' }).click()
+  await expect(chat.getByText('Listed sectors')).toBeVisible()
+  await chat.getByRole('button', { name: 'Show reasoning' }).click()
   await expect(chat.getByText('Checked the sector list.')).toBeVisible()
-  await chat.getByRole('button', { name: 'Hide Reasoning' }).click()
+  await chat.getByRole('button', { name: 'Hide reasoning' }).click()
   await chat.getByRole('button', { name: 'Close' }).click()
   await expect(chat).not.toBeVisible()
 })
@@ -108,12 +118,15 @@ test('chat shows an MCP tool while its call is still running', async ({ page }) 
   await chat.getByRole('button', { name: 'Send message' }).click()
   await push({ seq: 1, threadKey: 's-1', type: 'message', at: '', payload: { seq: 1, kind: 'text', role: 'user', text: 'Check the sector' } })
   await push({ seq: 2, threadKey: 's-1', type: 'tool', at: '', payload: { runKey: 'r:1', id: 'c1', name: 'db.list_sectors', state: 'running' } })
-  await expect(chat.getByText('Running')).toBeVisible()
-  await expect(chat.getByText('List sectors')).toBeVisible()
+  // CV-07 live row: "Using <humanized tool>..." while the call runs.
+  await expect(chat.getByText('Using Listed sectors...')).toBeVisible()
+  await chat.getByRole('button', { name: 'Show tool activity' }).click()
+  // Exact: the live summary ("Using Listed sectors...") also contains it.
+  await expect(chat.getByText('Listed sectors', { exact: true })).toBeVisible()
   await expect(chat.getByText('There are no sectors yet.')).toHaveCount(0)
   await push({ seq: 3, threadKey: 's-1', type: 'tool', at: '', payload: { runKey: 'r:1', id: 'c1', name: 'db.list_sectors', state: 'done' } })
   await push({ seq: 4, threadKey: 's-1', type: 'message', at: '', payload: { seq: 2, kind: 'tool', name: 'db.list_sectors', detail: '', state: 'done' } })
   await push({ seq: 5, threadKey: 's-1', type: 'message', at: '', payload: { seq: 3, kind: 'text', role: 'agent', text: 'There are no sectors yet.' } })
   await expect(chat.getByText('There are no sectors yet.')).toBeVisible()
-  await expect(chat.getByText('Running')).toHaveCount(0)
+  await expect(chat.getByText('Using Listed sectors...')).toHaveCount(0)
 })

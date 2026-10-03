@@ -45,12 +45,20 @@ describe('List and ListRow (plan 2.5.1)', () => {
     expect(listRowClassName({ interactive: false })).not.toContain('cursor-pointer')
   })
 
+  it('renders selection as an elevated card', () => {
+    const recipe = listRowClassName()
+    expect(recipe).toContain('data-[selected]:bg-surface-raised')
+    expect(recipe).toContain('data-[selected]:border-border-strong')
+    expect(recipe).toContain('data-[selected]:shadow-sm')
+  })
+
   it('shares the recipe with table rows', () => {
     const recipe = tableRowClassName({})
     expect(recipe).toContain('rounded-md')
     expect(recipe).toContain('hover:bg-surface-hover')
     expect(recipe).toContain('cursor-pointer')
-    expect(tableRowClassName({ selected: true })).toContain('bg-surface-active')
+    expect(tableRowClassName({ selected: true })).toContain('bg-surface-raised')
+    expect(tableRowClassName({ selected: true })).toContain('border-border-strong')
   })
 
   it('activates button rows on click', async () => {

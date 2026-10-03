@@ -390,8 +390,8 @@ export function OperationNotice({
  'rounded-xl border p-3 text-sm',
  noticeEnter,
  phase === 'error'
- ? 'border-destructive/40 bg-destructive/10 text-destructive'
- : 'border-border bg-muted/30',
+ ? 'border-danger-border bg-danger-soft text-danger'
+ : 'border-border bg-surface-sunken',
  )}
  >
  <p className="font-medium">{title}</p>
