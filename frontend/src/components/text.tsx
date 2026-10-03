@@ -74,12 +74,13 @@ export const PageDescription = React.forwardRef<
 /** Workspace title inside workspace headers. */
 export const WorkspaceTitle = React.forwardRef<
   HTMLHeadingElement,
-  { children: React.ReactNode; className?: string } & SharedAttrs & React.HTMLAttributes<HTMLHeadingElement>
->(function WorkspaceTitle({ children, className, ...rest }, ref) {
+  { children: React.ReactNode; className?: string; as?: 'h1' | 'h2' } & SharedAttrs & React.HTMLAttributes<HTMLHeadingElement>
+>(function WorkspaceTitle({ children, className, as = 'h2', ...rest }, ref) {
+  const Tag = as as 'h2'
   return (
-    <h2 ref={ref} data-type="WorkspaceTitle" className={cn('text-base font-medium text-foreground', className)} {...rest}>
+    <Tag ref={ref} data-type="WorkspaceTitle" className={cn('text-base font-medium text-foreground', className)} {...rest}>
       {children}
-    </h2>
+    </Tag>
   )
 })
 
@@ -97,13 +98,20 @@ export const SectionTitle = React.forwardRef<
 
 /** Card-level heading. */
 export const CardTitle = React.forwardRef<
-  HTMLHeadingElement,
-  { children: React.ReactNode; className?: string } & SharedAttrs & React.HTMLAttributes<HTMLHeadingElement>
->(function CardTitle({ children, className, ...rest }, ref) {
+  HTMLElement,
+  { children: React.ReactNode; className?: string; as?: 'h3' | 'span' } & SharedAttrs & React.HTMLAttributes<HTMLElement>
+>(function CardTitle({ children, className, as = 'h3', ...rest }, ref) {
+  const Tag = as as 'h3'
   return (
-    <h3 ref={ref} data-type="CardTitle" className={cn('text-sm font-medium text-foreground', className)} {...rest}>
+    <Tag
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ref={ref as any}
+      data-type="CardTitle"
+      className={cn('text-sm font-medium text-foreground', className)}
+      {...rest}
+    >
       {children}
-    </h3>
+    </Tag>
   )
 })
 

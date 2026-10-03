@@ -279,17 +279,30 @@ export async function auditPage(page: Page, options: AuditOptions = {}): Promise
   // -- check 6: inset rounded hover ---------------------------------------
   if (skipped.has('hover')) checks['hover'] = 'skip'
   else {
-    const rowSelector = '[data-list-row]:visible, tbody tr:visible'
+    // data-list-row only: bare tbody tr matches non-interactive
+    // Markdown table rows, which carry no hover contract (DataTable body
+    // rows already carry data-list-row, stacked 390 included).
+    const rowSelector = '[data-list-row]:visible'
     const candidates = page.locator(rowSelector)
     // Skeletons are aria-hidden placeholders and colspan state rows are
-    // panels, not hoverable rows: measure the first real data row (views
-    // without one skip the check).
+    // panels, not hoverable rows. Rows a full-screen dock/dialog covers
+    // are not hoverable either (hovering one hangs touch actionability on
+    // the occluded point): walk to the first HITTABLE row, centering each
+    // candidate first so sticky edges do not fake an occlusion. Views
+    // without one skip the check.
     let rowIndex = -1
     for (let i = 0, count = await candidates.count(); i < count; i++) {
       const measurable = await candidates
         .nth(i)
         .evaluate((element) => element.closest('[aria-hidden="true"]') === null && element.querySelector('td[colspan]') === null)
-      if (measurable) {
+      if (!measurable) continue
+      await candidates.nth(i).evaluate((element) => element.scrollIntoView({ block: 'center', behavior: 'instant' }))
+      const hittable = await candidates.nth(i).evaluate((element) => {
+        const rect = element.getBoundingClientRect()
+        const top = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+        return top !== null && (element === top || element.contains(top))
+      })
+      if (hittable) {
         rowIndex = i
         break
       }
@@ -375,11 +388,14 @@ export async function auditPage(page: Page, options: AuditOptions = {}): Promise
         checks['focus'] = 'fail'
       }
     }
-    // Tabbing leaves focus-opened tooltips behind; they keep their old
-    // coordinates across resizes and fake a horizontal overflow in the
-    // next combo. Blur (plus Escape for dialogs/menus) resets the page,
-    // then wait out the exit animation. A tooltip still mounted after
-    // that is genuinely stuck: fail loud, it needs a product fix.
+    // The last Tab's 400ms tooltip open-delay may still be pending:
+    // settle it BEFORE Escape+blur, or the timer fires mid-clear and a
+    // healthy tooltip fails as stuck. A tooltip still mounted after
+    // open-settle + Escape + blur + the exit wait below is genuinely
+    // stuck: fail loud, it needs a product fix. (Tab-opened tooltips also
+    // keep stale coordinates across resizes and fake overflow, hence the
+    // blur discipline.)
+    await page.waitForTimeout(500)
     await page.keyboard.press('Escape')
     await page.evaluate(() => {
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur()

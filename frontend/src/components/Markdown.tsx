@@ -4,8 +4,10 @@
 // user bubbles and mention chips intentionally stay plain text.
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import type { ReactNode } from 'react'
+import { isValidElement, type ReactNode } from 'react'
 import { Icons } from '@/lib/icons'
+import { notify } from '../lib/toast'
+import { IconButton } from './IconButton'
 
 const ALLOWED_ELEMENTS = [
  'p',
@@ -67,39 +69,65 @@ function headingIcon(text: string): typeof Icons.target | null {
  return null
 }
 
+/** Fenced code block with a copy action (CV-03). */
+function CodeBlock({ children }: { children: ReactNode }) {
+ function textOf(node: ReactNode): string {
+ if (typeof node === 'string' || typeof node === 'number') return String(node)
+ if (Array.isArray(node)) return node.map(textOf).join('')
+ // Fenced blocks arrive as a <code> element wrapping the source text.
+ if (isValidElement<{ children?: ReactNode }>(node)) return textOf(node.props.children)
+ return ''
+ }
+ async function copy(): Promise<void> {
+ try {
+ await navigator.clipboard.writeText(textOf(children))
+ notify.success('Copied')
+ } catch {
+ notify.error('Copy failed. Try again.')
+ }
+ }
+ return (
+ <div className="relative my-3 first:mt-0 last:mb-0">
+ <pre className="scroll-slim overflow-x-auto rounded-lg bg-surface-sunken p-3 pr-11 font-mono text-[13px] leading-5 [&_code]:bg-transparent [&_code]:p-0 [&_code]:break-normal">{children}</pre>
+ <IconButton label="Copy code" size="icon-sm" onClick={() => void copy()} className="absolute top-2 right-2">
+ <Icons.copy className="size-4" aria-hidden />
+ </IconButton>
+ </div>
+ )
+}
+
 const components: Components = {
- p: ({ children }) => <p className="my-1.5 text-sm leading-relaxed first:mt-0 last:mb-0">{children}</p>,
- h1: ({ children }) => <h1 className="mt-6 mb-3 text-lg font-semibold first:mt-0 last:mb-0">{children}</h1>,
- h2: ({ children }) => <h2 className="mt-5 mb-2 text-base font-semibold first:mt-0 last:mb-0">{children}</h2>,
- h3: ({ children }) => <h3 className="mt-4 mb-2 text-sm font-semibold first:mt-0 last:mb-0">{children}</h3>,
- h4: ({ children }) => <h4 className="my-1.5 text-xs font-semibold tracking-wide text-muted-foreground first:mt-0 last:mb-0">{children}</h4>,
- ul: ({ children }) => <ul className="my-1.5 list-disc space-y-1 pl-5 text-sm marker:text-muted-foreground first:mt-0 last:mb-0">{children}</ul>,
- ol: ({ children }) => <ol className="my-1.5 list-decimal space-y-1 pl-5 text-sm marker:text-muted-foreground first:mt-0 last:mb-0">{children}</ol>,
+ p: ({ children }) => <p className="my-1.5 text-sm leading-[22px] first:mt-0 last:mb-0">{children}</p>,
+ strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+ h1: ({ children }) => <h1 className="mt-4 mb-1 text-[15px] leading-[22px] font-medium first:mt-0">{children}</h1>,
+ h2: ({ children }) => <h2 className="mt-4 mb-1 text-[15px] leading-[22px] font-medium first:mt-0">{children}</h2>,
+ h3: ({ children }) => <h3 className="mt-4 mb-1 text-sm leading-[22px] font-medium first:mt-0">{children}</h3>,
+ h4: ({ children }) => <h4 className="mt-4 mb-1 text-sm leading-[22px] font-medium first:mt-0">{children}</h4>,
+ ul: ({ children }) => <ul className="my-1.5 list-disc space-y-1 pl-5 text-sm leading-[22px] marker:text-muted-foreground first:mt-0 last:mb-0">{children}</ul>,
+ ol: ({ children }) => <ol className="my-1.5 list-decimal space-y-1 pl-5 text-sm leading-[22px] marker:text-muted-foreground first:mt-0 last:mb-0">{children}</ol>,
  li: ({ children }) => <li className="pl-0.5">{children}</li>,
  code: ({ children }) => (
- <code className="rounded border border-border/70 bg-muted px-1 py-0.5 font-mono text-[0.85em] break-all">{children}</code>
+ <code className="rounded-sm bg-surface-sunken px-1 font-mono text-[13px] break-all">{children}</code>
  ),
- pre: ({ children }) => (
- <pre className="scroll-slim my-3 overflow-x-auto rounded-lg border border-border/70 bg-muted p-3 font-mono text-xs first:mt-0 last:mb-0 [&_code]:border-0 [&_code]:bg-transparent [&_code]:p-0 [&_code]:break-normal">{children}</pre>
- ),
+ pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
  table: ({ children }) => (
  <div className="scroll-slim my-2 overflow-x-auto rounded-lg border border-border first:mt-0 last:mb-0">
- <table className="w-max min-w-full border-collapse text-xs">{children}</table>
+ <table className="w-max min-w-full border-collapse text-ui">{children}</table>
  </div>
  ),
- thead: ({ children }) => <thead className="bg-muted/60">{children}</thead>,
+ thead: ({ children }) => <thead className="bg-surface-sunken">{children}</thead>,
  th: ({ children }) => (
- <th scope="col" className="border-b border-border px-3 py-1.5 text-left font-semibold whitespace-nowrap">{children}</th>
+ <th scope="col" className="border-b border-border px-3 py-1.5 text-left text-[13px] font-medium whitespace-nowrap">{children}</th>
  ),
- td: ({ children }) => <td className="border-b border-border/50 px-3 py-1.5 align-top last:border-0 [overflow-wrap:anywhere]">{children}</td>,
+ td: ({ children }) => <td className="border-b border-border-subtle px-3 py-1.5 align-top text-[13px] last:border-0 [overflow-wrap:anywhere]">{children}</td>,
  blockquote: ({ children }) => (
- <blockquote className="my-2 rounded-r-lg border-l-2 border-primary/50 bg-muted/50 px-3 py-1.5 text-sm first:mt-0 last:mb-0">
+ <blockquote className="my-2 border-l-2 border-border-strong pl-3 text-sm leading-[22px] text-muted-foreground first:mt-0 last:mb-0">
  {children}
  </blockquote>
  ),
  a: ({ children, href }) => (
  <a
- className="font-medium text-primary underline decoration-primary/40 underline-offset-2 [overflow-wrap:anywhere]"
+ className="text-primary-text underline-offset-4 hover:underline [overflow-wrap:anywhere]"
  href={safeExternalUrl(href ?? '')}
  target="_blank"
  rel="noreferrer"
@@ -141,7 +169,7 @@ export function Markdown({ text, variant = 'chat' }: { text: string; variant?: '
  }
  : components
  return (
- <div className="min-w-0 [overflow-wrap:anywhere]">
+ <div data-markdown="" className="min-w-0 [overflow-wrap:anywhere]">
  <ReactMarkdown
  remarkPlugins={[remarkGfm]}
  allowedElements={ALLOWED_ELEMENTS}

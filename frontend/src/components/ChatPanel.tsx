@@ -3,8 +3,11 @@
 // arrive on the thread stream. No fixtures, no simulated replies, no local
 // uploads: every row on screen was served by the backend.
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { m } from 'motion/react'
-import { Icons } from '@/lib/icons'
+import { Icons, fileIcon } from '@/lib/icons'
+import { cn } from '@/lib/utils'
+import { humanizeKey } from '../lib/format'
+import { notify } from '../lib/toast'
+import { focusRingInset } from '../lib/interaction'
 import { downloadBlob } from '../lib/download'
 import { dockEnter, dockExit, popoverEnter, popoverExit, useExitState } from '@/lib/motion'
 import {
@@ -40,14 +43,23 @@ import { AssistantRuntimeAdapter } from './chat/AssistantRuntimeAdapter'
 import { toThreadSegments } from './chat/assistantAdapter'
 import { ModelToolbar } from './ModelToolbar'
 import { SubagentsPanel } from './SubagentsPanel'
-import { PanelError, SkeletonRows, ToolRow, UnavailableNotice } from './research-parts'
+import { PanelError, ToolRow, UnavailableNotice } from './research-parts'
 import { Button } from './ui/button'
-import { CollapsiblePanel, CollapsibleRoot, CollapsibleTrigger } from './ui/collapsible'
 import { Input } from './ui/input'
 import { Textarea } from './ui/textarea'
 import { ConfirmAction } from './ui/alert-dialog'
+import { MenuItem, MenuPopup, MenuRoot, MenuTrigger } from './ui/menu'
+import { WorkspaceOverlay } from './workspace-parts'
 import { ConversationComposer, OperationNotice } from './shells'
 import { AgentBubble, UserBubble } from './chat-parts'
+import { ConversationEmpty } from './chat/ConversationEmpty'
+import { ReasoningDisclosure, useReasoningOpen } from './chat/ReasoningDisclosure'
+import { ThinkingRow } from './chat/ThinkingRow'
+import { ToolActivity } from './chat/ToolActivity'
+import { BodySm, Caption, CardTitle, Description, Label, Mono } from './text'
+import { List, listRowClassName } from './ui/list'
+import { Skeleton } from './ui/skeleton'
+import { Composer } from './chat/Composer'
 import { IconButton } from './IconButton'
 
 export type ChatScope = { id: string; name: string } | null
@@ -277,67 +289,90 @@ export function SessionsPanel({
             onEscape()
           }
         }}
-        className={`absolute left-4 top-full z-50 mb-2 max-h-64 w-72 scroll-slim overflow-y-auto rounded-xl border border-border bg-muted p-2 shadow-xl ${closing ? popoverExit : popoverEnter}`}
+        className={`absolute left-0 top-full z-50 mt-1 max-h-80 w-80 scroll-slim overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-md ${closing ? popoverExit : popoverEnter}`}
       >
-        <div className="flex items-center gap-2 px-2 py-1.5">
-          <p className="min-w-0 flex-1 text-sm font-medium">Chats</p>
-          <IconButton label="New session" size="icon" type="button" autoFocus onClick={onNew}>
-            <Icons.newChat className="size-4" aria-hidden />
-          </IconButton>
-        </div>
+        <button
+          type="button"
+          role="menuitem"
+          aria-label="New chat"
+          autoFocus
+          onClick={onNew}
+          className={`flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1 text-left text-ui hover:bg-surface-hover ${focusRingInset}`}
+        >
+          <Icons.newChat className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          <span className="min-w-0 flex-1 truncate">New chat</span>
+        </button>
+        <div aria-hidden className="mx-1 my-1 border-t border-border-subtle" />
         {sessions.length === 0 ? (
-          <p className="px-2 py-1.5 text-sm text-muted-foreground">
-            No sessions yet. Start one with New session.
+          <p className="px-2 py-1.5 text-ui text-muted-foreground">
+            No chats yet.
           </p>
         ) : null}
-        {ordered.map((session) => (
-          <div
-            key={session.id}
-            className={`group flex items-center gap-1 rounded-lg px-1 py-0.5 ${
-              session.id === activeId ? 'bg-background' : 'hover:bg-background'
-            }`}
-          >
-            <button
-              type="button"
-              role="menuitem"
-              aria-current={session.id === activeId ? 'true' : undefined}
-              aria-label={`Open ${session.title}`}
-              onClick={() => onOpen(session)}
-              className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-left"
+        {ordered.map((session) => {
+          const active = session.id === activeId
+          return (
+            <div
+              key={session.id}
+              className={`group flex min-h-11 items-center gap-1 rounded-md px-1 py-0.5 ${
+                active ? 'bg-surface-active' : 'hover:bg-surface-hover'
+              }`}
             >
-              {pinnedId !== null && session.id === pinnedId ? (
-                <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
-                  <Icons.pin className="size-3.5" aria-hidden />
-                  Research
+              {active ? (
+                <Icons.approve className="size-4 shrink-0 text-primary-text" aria-hidden />
+              ) : (
+                <span aria-hidden className="size-4 shrink-0" />
+              )}
+              <button
+                type="button"
+                role="menuitem"
+                aria-current={active ? 'true' : undefined}
+                aria-label={`Open ${session.title}`}
+                onClick={() => onOpen(session)}
+                className={`flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-sm px-1 py-1 text-left ${focusRingInset}`}
+              >
+                {pinnedId !== null && session.id === pinnedId ? (
+                  <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
+                    <Icons.pin className="size-3.5" aria-hidden />
+                    Research
+                  </span>
+                ) : null}
+                <span className="min-w-0 flex-1">
+                  <BodySm as="span" className={`block truncate ${active ? 'font-medium' : ''}`}>{session.title}</BodySm>
+                  <Mono className="block truncate text-xs text-muted-foreground">{session.id}</Mono>
                 </span>
+                <Caption as="span" className="shrink-0 tabular-nums">
+                  {sessionAge(session.updatedAt)}
+                </Caption>
+              </button>
+              {confirmingId === session.id ? (
+                <ConfirmAction
+                  open
+                  onOpenChange={(open) => {
+                    if (!open) setConfirmingId(null)
+                  }}
+                  title={`Delete "${session.title}"?`}
+                  description="This removes the chat from the session list. Its history is retained in the audit log."
+                  confirmLabel="Delete conversation"
+                  pending={deleting}
+                  onConfirm={() => {
+                    onDelete(session)
+                    setConfirmingId(null)
+                  }}
+                />
               ) : null}
-              <span className="min-w-0 flex-1"><span className="block truncate text-sm">{session.title}</span><span className="block break-all text-xs text-muted-foreground">{session.id}</span></span>
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {sessionAge(session.updatedAt)}
-              </span>
-            </button>
-            {confirmingId === session.id ? (
-              <ConfirmAction
-                open
-                onOpenChange={(open) => {
-                  if (!open) setConfirmingId(null)
-                }}
-                title={`Delete "${session.title}"?`}
-                description="This removes the chat from the session list. Its history is retained in the audit log."
-                confirmLabel="Delete conversation"
-                pending={deleting}
-                onConfirm={() => {
-                  onDelete(session)
-                  setConfirmingId(null)
-                }}
-              />
-            ) : null}
-            <IconButton label={`Delete ${session.title}`} size="icon-sm" type="button" disabled={deleting} onClick={() => setConfirmingId(session.id)}
-            >
-              <Icons.delete className="size-4" aria-hidden />
-            </IconButton>
-          </div>
-        ))}
+              <IconButton
+                label={`Delete ${session.title}`}
+                size="icon-sm"
+                type="button"
+                disabled={deleting}
+                onClick={() => setConfirmingId(session.id)}
+                className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
+              >
+                <Icons.delete className="size-4" aria-hidden />
+              </IconButton>
+            </div>
+          )
+        })}
       </div>
     </>
   )
@@ -368,35 +403,38 @@ export function FilesMenu({
       />
       <div
         role="menu"
-        aria-label="Add files"
+        aria-label="Attach file"
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
             event.stopPropagation()
             onEscape()
           }
         }}
-        className={`absolute bottom-full left-4 z-50 mb-2 max-h-64 w-72 scroll-slim overflow-y-auto rounded-xl border border-border bg-muted p-2 shadow-xl ${closing ? popoverExit : popoverEnter}`}
+        className={`absolute bottom-full left-0 z-50 mb-2 max-h-64 w-72 scroll-slim overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-md ${closing ? popoverExit : popoverEnter}`}
       >
         {files.length === 0 ? (
-          <p className="px-2 py-1.5 text-sm text-muted-foreground">
+          <p className="px-2 py-1.5 text-ui text-muted-foreground">
             No files indexed in this session yet.
           </p>
         ) : null}
-        {files.map((file) => (
-          <button
-            key={file.id}
-            type="button"
-            role="menuitem"
-            onClick={() => onPick(file)}
-            className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-background"
-          >
-            <Icons.fileDocs className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm">{file.name}</span>
-              <span className="block truncate text-xs text-muted-foreground">{file.source}</span>
-            </span>
-          </button>
-        ))}
+        {files.map((file) => {
+          const FileTypeIcon = fileIcon(file.name)
+          return (
+            <button
+              key={file.id}
+              type="button"
+              role="menuitem"
+              onClick={() => onPick(file)}
+              className={`flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1 text-left text-ui hover:bg-surface-hover ${focusRingInset}`}
+            >
+              <FileTypeIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate">{file.name}</span>
+                <Caption as="span" className="block truncate">{file.source}</Caption>
+              </span>
+            </button>
+          )
+        })}
       </div>
     </>
   )
@@ -421,124 +459,12 @@ function renderMentionChips(text: string, files: ChatFile[]) {
   })
 }
 
-function toolLabel(name: string): string {
-  const action = (name.split('.').at(-1) ?? name).replaceAll('_', ' ')
-  return action.charAt(0).toUpperCase() + action.slice(1)
+export interface ReasoningControl {
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
-// Instant ack: mounted while the reply streams nothing yet (accepted but
-// no frames). The elapsed clock proves the app is alive during provider
-// silence; the stable aria-label keeps the existing screen-reader contract.
-export function ThinkingPlaceholder() {
-  const [elapsed, setElapsed] = useState(0)
-  useEffect(() => {
-    const start = Date.now()
-    const timer = window.setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 500)
-    return () => window.clearInterval(timer)
-  }, [])
-  return (
-    <m.div
-      role="status"
-      aria-label="Agent is replying"
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.2, ease: 'easeOut' }}
-      className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs text-primary shadow-2xs"
-    >
-      <Icons.thinking className="size-3.5 shrink-0 motion-safe:animate-pulse" aria-hidden />
-      <span aria-hidden className="flex gap-1">
-        {[0, 1, 2].map((index) => (
-          <span
-            key={index}
-            className="size-1.5 rounded-full bg-primary motion-safe:animate-pulse"
-          />
-        ))}
-      </span>
-      <span className="font-medium">Thinking{elapsed > 0 ? ` · ${elapsed}s` : null}</span>
-    </m.div>
-  )
-}
-
-// One quiet activity disclosure per reply. Tool calls and genuine provider
-// reasoning share it; the answer remains the dominant visible content.
-/** Compact group label ("2 Kb search, 1 lookup"); null for a lone call. */
-export function toolGroupSummary(tools: ChatTool[]): string | null {
-  if (tools.length < 2) return null
-  const counts = new Map<string, number>()
-  for (const tool of tools) {
-    const name = toolLabel(tool.name)
-    counts.set(name, (counts.get(name) ?? 0) + 1)
-  }
-  return [...counts].map(([name, count]) => (count > 1 ? `${count} ${name}` : name)).join(', ')
-}
-
-export function ActivityGroup({ tools, reasoning, live = false }: { tools: ChatTool[]; reasoning?: string; live?: boolean }) {
-  const [open, setOpen] = useState(live)
-  const failed = tools.some((tool) => tool.state === 'failed')
-  const label = reasoning ? 'Reasoning' : (toolGroupSummary(tools) ?? 'Activity')
-  // One shared clock for live running rows: elapsed time shows how long a
-  // call has been in flight without a timer per row.
-  const anyRunning = live && tools.some((tool) => tool.state === 'running')
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (!anyRunning) return
-    const timer = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => window.clearInterval(timer)
-  }, [anyRunning])
-  const elapsedFor = (tool: ChatTool): string | undefined => {
-    if (tool.state !== 'running' || tool.seenAt === undefined) return undefined
-    return `${Math.max(0, Math.floor((now - tool.seenAt) / 1000))}s`
-  }
-  return (
-    <CollapsibleRoot
-      open={open}
-      onOpenChange={(next) => {
-        if (typeof next === 'boolean') setOpen(next)
-      }}
-      className="mb-2 text-muted-foreground"
-    >
-      <CollapsibleTrigger
-        aria-label={`${open ? 'Hide' : 'Show'} ${label}`}
-        className="group inline-flex min-h-8 pointer-coarse:min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-border/70 bg-card/60 px-2.5 py-1 text-left text-xs transition-colors hover:border-border hover:bg-muted/50"
-      >
-        {reasoning ? <Icons.thinking className="size-3.5 shrink-0 text-primary" aria-hidden /> : <Icons.toolActivity className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
-        <span className="font-medium text-foreground">{label}</span>
-        {tools.length > 0 && !reasoning ? (
-          <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs font-mono text-muted-foreground">
-            {tools.length}
-          </span>
-        ) : null}
-        {failed ? <span className="rounded-full bg-destructive/10 px-1.5 py-0.5 text-xs font-medium text-destructive">Needs attention</span> : null}
-        <Icons.chevronDown
-          data-chevron
-          className="size-3.5 shrink-0 text-muted-foreground"
-          aria-hidden
-        />
-      </CollapsibleTrigger>
-      <CollapsiblePanel>
-        <div className="mt-2 ml-1 space-y-1.5 border-l-2 border-primary/20 pl-3">
-          {reasoning ? (
-            <div className="scroll-slim max-h-60 overflow-y-auto rounded-lg border border-border/60 bg-muted/40 p-3 text-xs leading-relaxed text-foreground/90 whitespace-pre-wrap">
-              {reasoning}
-            </div>
-          ) : null}
-          {tools.map((tool) => (
-            <ToolRow
-              key={tool.id}
-              name={toolLabel(tool.name)}
-              detail={tool.detail === `mcp:${tool.name}` ? '' : tool.detail}
-              state={tool.state}
-              elapsed={elapsedFor(tool)}
-            />
-          ))}
-        </div>
-      </CollapsiblePanel>
-    </CollapsibleRoot>
-  )
-}
-
-function MessageBubble({ message, files, live = false }: { message: ChatText; files: ChatFile[]; live?: boolean }) {
+function MessageBubble({ message, files, live = false, latest = false, reasoningControl }: { message: ChatText; files: ChatFile[]; live?: boolean; latest?: boolean; reasoningControl?: ReasoningControl }) {
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
@@ -549,21 +475,21 @@ function MessageBubble({ message, files, live = false }: { message: ChatText; fi
     )
   }
   return (
-    <div className="min-w-0">
-      <div>
-        {message.reasoning ? <ActivityGroup tools={[]} reasoning={message.reasoning} live={live} /> : null}
-        {message.text ? <AgentBubble copyText={live ? undefined : message.text}>
+    <div className="min-w-0 space-y-2">
+      {message.reasoning ? <ReasoningDisclosure reasoning={message.reasoning} open={reasoningControl?.open} onOpenChange={reasoningControl?.onOpenChange} /> : null}
+      {message.text ? (
+        <AgentBubble copyText={live ? undefined : message.text} timestamp={message.at} latest={latest && !live}>
           <Markdown text={message.text} />
           {message.failed ? (
-            <span className="mt-1 block text-xs text-muted-foreground">This reply failed.</span>
+            <BodySm as="span" className="mt-1 block text-muted-foreground">This reply failed.</BodySm>
           ) : null}
           {message.missedSteer ? (
-            <span className="mt-1 block text-xs text-muted-foreground">
+            <BodySm as="span" className="mt-1 block text-muted-foreground">
               Sent after the run moved on: shown, not relaunched.
-            </span>
+            </BodySm>
           ) : null}
-        </AgentBubble> : null}
-      </div>
+        </AgentBubble>
+      ) : null}
     </div>
   )
 }
@@ -583,8 +509,8 @@ export function SessionFilesView({
   const [fileBody, setFileBody] = useState<string | null>(null)
   const [loadingBody, setLoadingBody] = useState(false)
   const [bodyError, setBodyError] = useState<string | null>(null)
-  const [downloadError, setDownloadError] = useState<string | null>(null)
   const previewRequest = useRef(0)
+  const nameInputRef = useRef<HTMLInputElement>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [newFileName, setNewFileName] = useState('')
   const [newFileContent, setNewFileContent] = useState('')
@@ -620,19 +546,22 @@ export function SessionFilesView({
 
   function downloadFile(file: ChatFile) {
     if (!config) {
-      setDownloadError(`Download of ${file.name} needs a backend connection.`)
+      notify.error(`Download of ${file.name} needs a backend connection.`)
       return
     }
-    setDownloadError(null)
     getArtifactBody(config, sessionId, file.id)
       .then((res) => {
         const blob = new Blob([res.body], { type: 'text/plain;charset=utf-8' })
         downloadBlob(blob, file.name)
       })
       .catch(() => {
-        setDownloadError(`Download of ${file.name} failed. The file is kept. Try again.`)
+        notify.error(`Download of ${file.name} failed. The file is kept. Try again.`)
       })
   }
+
+  // fileIcon() is a pure extension lookup returning a stable lucide
+  // reference, never a per-render component definition.
+  const PreviewFileIcon = selectedFile ? fileIcon(selectedFile.name) : Icons.fileDocs
 
   async function handleCreateFile() {
     if (!config || !newFileName.trim()) return
@@ -657,155 +586,162 @@ export function SessionFilesView({
   }
 
   return (
-    <div className="flex h-full flex-col p-4">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-medium">Session Files</h2>
-          <p className="text-xs text-muted-foreground">
-            {files.length} {files.length === 1 ? 'file' : 'files'} generated in this session
-          </p>
-        </div>
+    <div className="flex h-full flex-col px-3 py-3">
+      <div className="flex items-center gap-2 px-1 pb-2">
+        <Caption className="min-w-0 flex-1 truncate tabular-nums">
+          Session files · {files.length} {files.length === 1 ? 'file' : 'files'}
+        </Caption>
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           size="sm"
           onClick={() => setCreateOpen(true)}
-          className="gap-1.5 text-xs"
         >
           <Icons.plus className="size-3.5" aria-hidden />
-          Create file
+          New file
         </Button>
       </div>
-      {downloadError ? (
-        <div className="mb-4">
-          <OperationNotice phase="error" title="File download failed." detail={downloadError} onDismiss={() => setDownloadError(null)} />
-        </div>
-      ) : null}
 
       {createOpen ? (
-        <div className="mb-4 rounded-xl border border-border bg-card p-3 shadow-2xs">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-medium">New File</span>
-            <IconButton label="Close file creation" size="icon-sm" type="button" onClick={() => setCreateOpen(false)}
-            >
-              <Icons.deny className="size-4" aria-hidden />
-            </IconButton>
-          </div>
-          <div className="space-y-2">
-            <Input
-              placeholder="filename.md or data.csv"
-              value={newFileName}
-              onChange={(e) => setNewFileName(e.target.value)}
-              className="font-mono text-xs"
-            />
-            <Textarea
-              placeholder="Enter file contents..."
-              value={newFileContent}
-              onChange={(e) => setNewFileContent(e.target.value)}
-              className="scroll-slim min-h-[80px] font-mono text-xs"
-            />
-            {createError ? <OperationNotice phase="error" title="Could not create the file." detail={createError} /> : null}
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setCreateOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="default"
-                disabled={creating || !newFileName.trim()}
-                onClick={() => void handleCreateFile()}
-              >
-                {creating ? 'Saving...' : 'Save File'}
-              </Button>
+        <WorkspaceOverlay
+          title="New file"
+          size="small"
+          onClose={() => setCreateOpen(false)}
+          initialFocus={nameInputRef}
+          footer={
+            <>
+              <Button type="button" variant="secondary" onClick={() => setCreateOpen(false)}>Cancel</Button>
+              <Button type="button" variant="primary" pending={creating} disabled={!newFileName.trim()} onClick={() => void handleCreateFile()}>Create file</Button>
+            </>
+          }
+        >
+          <form aria-label="New file" className="flex flex-col gap-4" onSubmit={(event) => { event.preventDefault(); void handleCreateFile() }}>
+            <div>
+              <Label as="label" htmlFor="session-file-name">File name</Label>
+              <Input
+                ref={nameInputRef}
+                id="session-file-name"
+                value={newFileName}
+                disabled={creating}
+                onChange={(event) => setNewFileName(event.target.value)}
+                placeholder="notes.md"
+                className="mt-1.5 font-mono"
+              />
+              <Caption className="mt-1.5">Include an extension, e.g. notes.md</Caption>
             </div>
-          </div>
-        </div>
+            <div>
+              <Label as="label" htmlFor="session-file-content">Content</Label>
+              <Textarea
+                id="session-file-content"
+                value={newFileContent}
+                disabled={creating}
+                onChange={(event) => setNewFileContent(event.target.value)}
+                rows={12}
+                className="scroll-slim mt-1.5 font-mono text-xs"
+              />
+            </div>
+            {createError ? <OperationNotice phase="error" title="Could not create the file." detail={createError} /> : null}
+          </form>
+        </WorkspaceOverlay>
       ) : null}
 
-      <div className="scroll-slim min-h-0 flex-1 space-y-2 overflow-y-auto">
+      <div className="scroll-slim min-h-0 flex-1 overflow-y-auto px-1">
         {files.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            <Icons.folderOpen className="mx-auto mb-2 size-8 opacity-40" aria-hidden />
-            <p className="font-medium">No files created yet</p>
-            <p className="mt-1 text-xs">
-              Every document, report, or export created by Karbot or subagents appears here.
-            </p>
+          <div className="px-1 py-6 text-center">
+            <Description>No files yet. Files Karbot or subagents create appear here.</Description>
           </div>
         ) : (
-          files.map((file) => (
-            <div
-              key={file.id}
-              className="flex items-center justify-between rounded-lg border border-border/80 bg-card p-2.5 transition-colors hover:border-border"
-            >
-              <div className="flex min-w-0 items-center gap-2.5">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                  <Icons.fileDocs className="size-4" aria-hidden />
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-medium font-mono text-foreground">{file.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {file.source} {file.detail ? `· ${file.detail}` : ''}
-                  </p>
-                </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <IconButton label={`Preview ${file.name}`} size="icon-sm" type="button" onClick={() => openPreview(file)}
-                >
-                  <Icons.reveal className="size-4" aria-hidden />
-                </IconButton>
-                <IconButton label={`Download ${file.name}`} size="icon-sm" type="button" onClick={() => downloadFile(file)}
-                >
-                  <Icons.download className="size-4" aria-hidden />
-                </IconButton>
-              </div>
-            </div>
-          ))
+          <List aria-label="Session files">
+            {files.map((file) => {
+              const FileIcon = fileIcon(file.name)
+              const extension = file.name.includes('.') ? file.name.split('.').pop()?.toUpperCase() ?? 'FILE' : 'FILE'
+              const sourceLabel = humanizeKey(file.source)
+              const detailLabel = file.detail && file.detail.toLowerCase() !== file.source.toLowerCase() ? file.detail : null
+              return (
+                <li key={file.id} className="group relative">
+                  <button
+                    type="button"
+                    aria-label={`Preview ${file.name}`}
+                    title={file.name}
+                    onClick={() => openPreview(file)}
+                    className={cn(listRowClassName({ density: 'comfortable' }), 'w-full pr-12 text-left')}
+                  >
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-surface-sunken text-muted-foreground">
+                      <FileIcon className="size-4" aria-hidden />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <BodySm as="span" className="block truncate font-medium">{file.name}</BodySm>
+                      <Description as="span" className="block truncate">
+                        {extension} · {sourceLabel}{detailLabel ? ` · ${detailLabel}` : ''}
+                      </Description>
+                    </span>
+                  </button>
+                  <IconButton
+                    label={`Download ${file.name}`}
+                    size="icon-sm"
+                    type="button"
+                    onClick={() => downloadFile(file)}
+                    className="absolute top-1/2 right-1 -translate-y-1/2 transition-opacity duration-120 pointer-coarse:opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100"
+                  >
+                    <Icons.download className="size-4" aria-hidden />
+                  </IconButton>
+                </li>
+              )
+            })}
+          </List>
         )}
       </div>
 
       {selectedFile ? (
-        <div className="mt-3 rounded-xl border border-border bg-card p-3 shadow-lg">
-          <div className="mb-2 flex items-center justify-between border-b border-border pb-2">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <Icons.fileCode className="size-3.5 text-primary" aria-hidden />
-              <span className="truncate text-xs font-mono font-medium">{selectedFile.name}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <IconButton label="Download open file" size="icon-sm" type="button" onClick={() => downloadFile(selectedFile)}
-              >
-                <Icons.download className="size-4" aria-hidden />
-              </IconButton>
-              <IconButton label="Close file preview" size="icon-sm" type="button" onClick={() => setSelectedFile(null)}
-              >
-                <Icons.deny className="size-4" aria-hidden />
-              </IconButton>
+        <WorkspaceOverlay
+          title="File preview"
+          size="large"
+          onClose={() => setSelectedFile(null)}
+          titleBadge={
+            <Button type="button" variant="secondary" size="sm" onClick={() => { if (selectedFile) downloadFile(selectedFile) }}>
+              <Icons.download className="size-3.5" aria-hidden />
+              Download
+            </Button>
+          }
+        >
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-surface-sunken text-muted-foreground">
+              {/* eslint-disable-next-line react-hooks/static-components -- stable lookup result, see above */}
+              <PreviewFileIcon className="size-4" aria-hidden />
+            </span>
+            <div className="min-w-0">
+              <BodySm as="p" title={selectedFile.name} className="truncate font-medium">{selectedFile.name}</BodySm>
+              <Description as="p" className="truncate">
+                {humanizeKey(selectedFile.source)}{selectedFile.detail && selectedFile.detail.toLowerCase() !== selectedFile.source.toLowerCase() ? ` · ${selectedFile.detail}` : ''}
+              </Description>
             </div>
           </div>
-          <div className="scroll-slim max-h-56 overflow-y-auto">
+          <div className="scroll-slim mt-3 max-h-[50vh] overflow-y-auto">
             {loadingBody ? (
-              <p role="status" className="py-4 text-center text-xs text-muted-foreground">Loading file preview…</p>
+              <div role="status" aria-label="Loading file preview" className="flex flex-col gap-2">
+                <Skeleton className="h-3.5 w-11/12" />
+                <Skeleton className="h-3.5 w-full" />
+                <Skeleton className="h-3.5 w-3/4" />
+              </div>
             ) : bodyError ? (
-              <div role="alert" className="rounded-lg border border-border bg-muted/30 p-3">
-                <p className="text-xs">{bodyError}</p>
-                {selectedFile ? (
-                  <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => openPreview(selectedFile)}>
+              <div role="alert" className="flex gap-2 rounded-md border border-danger-border bg-danger-soft p-3">
+                <span className="flex h-5 shrink-0 items-center">
+                  <Icons.alertError className="size-4 text-danger" aria-hidden />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <BodySm as="p">{bodyError}</BodySm>
+                  <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={() => { if (selectedFile) openPreview(selectedFile) }}>
                     Try again
                   </Button>
-                ) : null}
+                </div>
               </div>
             ) : fileBody !== null && fileBody !== '' ? (
-              <div className="text-xs">
-                <Markdown text={fileBody} />
-              </div>
+              <Markdown text={fileBody} />
             ) : (
-              <p className="text-xs text-muted-foreground">Empty file.</p>
+              <Description as="p">Empty file.</Description>
             )}
           </div>
-        </div>
+        </WorkspaceOverlay>
       ) : null}
     </div>
   )
@@ -878,7 +814,7 @@ export function ChatPanel({
   const [skillsFailed, setSkillsFailed] = useState(false)
   const [skillClosed, setSkillClosed] = useState(false)
   const [skillIndex, setSkillIndex] = useState(0)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const streamControllers = useRef<Record<string, AbortController>>({})
   const addButtonRef = useRef<HTMLButtonElement>(null)
   const sessionsButtonRef = useRef<HTMLButtonElement>(null)
@@ -886,6 +822,14 @@ export function ChatPanel({
   const sessionsPanel = useExitState()
   const filesMenu = useExitState()
   const contextPanel = useExitState()
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreOpenRef = useRef(false)
+  function setMoreOpenState(next: boolean) {
+    moreOpenRef.current = next
+    setMoreOpen(next)
+  }
+  const renameInputRef = useRef<HTMLInputElement>(null)
+  const renameSelectedRef = useRef(false)
 
   // The visible thread: an opened subagent thread, else the session thread.
   // The session thread key is the session id (sessions.ts: create starts it).
@@ -917,10 +861,10 @@ export function ChatPanel({
       ? [
           ...subagentThreads
             .filter((thread) => thread.key.toLowerCase().includes(mentionQuery))
-            .map((thread) => ({ id: thread.key, name: thread.key, hint: 'Thread' })),
+            .map((thread) => ({ id: thread.key, name: thread.key, hint: 'Thread', kind: 'thread' as const })),
           ...files
             .filter((file) => file.name.toLowerCase().includes(mentionQuery))
-            .map((file) => ({ id: file.id, name: file.name, hint: file.source })),
+            .map((file) => ({ id: file.id, name: file.name, hint: humanizeKey(file.source), kind: 'file' as const })),
         ]
       : []
   const mentionOpen = mentionMatch !== null && mentionOptions.length > 0 && !filesMenu.mounted
@@ -974,7 +918,8 @@ export function ChatPanel({
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.defaultPrevented) return
+      if (event.key === 'Escape' && !moreOpenRef.current) onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -1170,7 +1115,7 @@ export function ChatPanel({
             if (!recovered) {
               const text = echoRef.current?.text
               if (text) setPendingSend(text)
-              setSendError('That did not go through. Try again.')
+              setSendError('The reply never arrived.')
             }
           }
         }
@@ -1212,12 +1157,13 @@ export function ChatPanel({
     resetScroll()
   }
 
-  // Session rename: the header shows the served title, the pencil swaps it
-  // for an inline editor, and saving writes through the rename command.
+  // Session rename: the More menu opens a dialog (SO-01 style) and
+  // saving writes through the rename command.
   function startRename() {
     if (!activeSession) return
     setRenameDraft(activeSession.title)
     setRenameError(null)
+    renameSelectedRef.current = false
     setRenaming(true)
   }
 
@@ -1228,10 +1174,7 @@ export function ChatPanel({
 
   function saveRename() {
     const title = renameDraft.trim()
-    if (!title) {
-      setRenameError('Name cannot be empty.')
-      return
-    }
+    if (!title) return
     if (!config || !activeSession) return
     const sessionId = activeSession.id
     setSavingName(true)
@@ -1365,7 +1308,7 @@ export function ChatPanel({
         }
       })
       .catch(() => {
-        setSendError('Failed to steer running agent. Try again.')
+        setSendError('The steer request failed.')
       })
   }
 
@@ -1379,7 +1322,7 @@ export function ChatPanel({
     // Offline short-circuit: never fire a doomed request; the draft stays
     // so Try again works the moment the connection returns.
     if (offlineNow()) {
-      setSendError('No connection. Try again.')
+      setSendError('No connection.')
       return
     }
     const payloadText = planMode && !trimmed.startsWith('/') ? `/plan ${trimmed}` : trimmed
@@ -1398,7 +1341,7 @@ export function ChatPanel({
         })
         .catch(() => {
           setWorking(false)
-          setSendError(offlineNow() ? 'No connection. Try again.' : 'That did not go through. Try again.')
+          setSendError(offlineNow() ? 'No connection.' : 'The request failed.')
         })
       return
     }
@@ -1434,7 +1377,10 @@ export function ChatPanel({
           setPendingSend(null)
           return
         }
-        setSendError(offlineNow() ? 'No connection. Try again.' : 'That did not go through. Try again.')
+        // The draft was cleared optimistically: restore it so the text can
+        // be edited and resent (Retry reuses the pending payload).
+        setDraft(trimmed)
+        setSendError(offlineNow() ? 'No connection.' : 'The request failed.')
       })
   }
 
@@ -1493,7 +1439,7 @@ export function ChatPanel({
     inputRef.current?.focus()
   }
 
-  function composerKeys(event: ReactKeyboardEvent<HTMLInputElement>) {
+  function composerKeys(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === 'Escape' && (filesMenu.open || mentionOpen || mentionNoMatch || skillOpen || skillNoMatch)) {
       event.stopPropagation()
       filesMenu.set(false)
@@ -1517,11 +1463,10 @@ export function ChatPanel({
       }
       return
     }
-    // While replying the Stop button replaces Send, leaving the form
-    // without a submit button: Enter would die silently. Send explicitly
-    // only then: with Send present the native submit owns Enter, and
-    // sending here too would double-post.
-    if (event.key === 'Enter' && !mentionOpen && replying) {
+    // The multiline composer never submits implicitly, so Enter always
+    // sends explicitly (a no-op on an empty draft or a send in flight).
+    // Shift+Enter keeps its newline.
+    if (event.key === 'Enter' && !event.shiftKey && !mentionOpen) {
       event.preventDefault()
       send(draft)
       return
@@ -1559,67 +1504,65 @@ export function ChatPanel({
   )
   const replying = working || awaitingCurrentReply || Boolean(pendingText) || Boolean(pendingReasoning) || pendingTools.length > 0
   const segments = groupMessageSegments(messages)
+  const lastKey = segments.length ? segments[segments.length - 1]?.key : undefined
+  // The latest reasoning disclosure shares its open state with the live
+  // thinking row (CV-06); older disclosures stay uncontrolled.
+  const [reasoningOpen, setReasoningOpen] = useReasoningOpen(replying)
+  const reasoningControl = { open: reasoningOpen, onOpenChange: setReasoningOpen }
+  const lastReasoningKey = [...segments].reverse().find((segment) =>
+    'tools' in segment ? Boolean(segment.reply?.reasoning) : segment.message.kind === 'text' && Boolean(segment.message.reasoning),
+  )?.key
 
   return (
     <div
       role="complementary"
       aria-label="Assistant chat"
-      className={`fixed inset-y-0 right-0 z-40 flex w-full max-w-sm flex-col border-l border-border bg-background shadow-xl ${closing ? dockExit : dockEnter}`}
+      className={`fixed inset-y-0 right-0 z-40 flex w-full max-w-110 flex-col border-l border-border bg-popover shadow-lg ${closing ? dockExit : dockEnter}`}
     >
-      <div className="relative flex items-center gap-2 border-b border-border px-4 py-3">
+      <div className="relative flex h-12 items-center gap-1 border-b border-border-subtle px-2">
         {openThread ? (
           <>
-            <IconButton label="Back to chat" size="icon" type="button" onClick={backToSession}>
+            <IconButton label="Back to chat" size="icon-sm" type="button" onClick={backToSession}>
               <Icons.back className="size-4" aria-hidden />
             </IconButton>
-            <p className="min-w-0 flex-1 truncate text-sm font-medium">{openThread.key}</p>
-          </>
-        ) : renaming && activeSession ? (
-          <>
-            <form
-              className="flex min-w-0 flex-1 items-center gap-1"
-              onSubmit={(event) => {
-                event.preventDefault()
-                saveRename()
-              }}
-            >
-              <Input
-                aria-label="Session name"
-                value={renameDraft}
-                autoFocus
-                disabled={savingName}
-                onChange={(event) => setRenameDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Escape') {
-                    event.stopPropagation()
-                    cancelRename()
-                  }
-                }}
-              />
-              <IconButton label="Save session name" size="icon" type="submit" disabled={savingName}>
-                <Icons.approve className="size-4" aria-hidden />
-              </IconButton>
-              <IconButton label="Cancel rename" size="icon" type="button" onClick={cancelRename}>
-                <Icons.deny className="size-4" aria-hidden />
-              </IconButton>
-            </form>
+            <BodySm as="p" className="min-w-0 flex-1 truncate font-medium">{openThread.key}</BodySm>
           </>
         ) : (
           <>
-            <Icons.agents className="size-4 shrink-0" aria-hidden />
-            <p className="min-w-0 flex-1 truncate text-sm font-medium">
-              {activeSession ? activeSession.title : scope ? scope.name : 'Assistant'}
-            </p>
-            {activeSession ? (
-              <IconButton label={`Rename ${activeSession.title}`} size="icon" type="button" onClick={startRename}>
-                <Icons.edit className="size-4" aria-hidden />
-              </IconButton>
-            ) : null}
-            {activeSession ? (
-              <IconButton label={`Delete ${activeSession.title}`} size="icon" type="button" onClick={confirmDelete}>
-                <Icons.delete className="size-4" aria-hidden />
-              </IconButton>
-            ) : null}
+            <Icons.karbot className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <div className="relative min-w-0 flex-1">
+              <button
+                type="button"
+                ref={sessionsButtonRef}
+                aria-haspopup="menu"
+                aria-expanded={sessionsPanel.open}
+                aria-label="Chat sessions"
+                onClick={() => sessionsPanel.set(!sessionsPanel.open)}
+                title={activeSession ? activeSession.title : scope ? scope.name : 'Assistant'}
+                className={`flex h-8 w-full min-w-0 cursor-pointer items-center gap-1 rounded-md px-2 text-left text-ui transition-colors duration-120 ease-out hover:bg-surface-hover ${focusRingInset}`}
+              >
+                <span className="min-w-0 flex-1 truncate font-medium">
+                  {activeSession ? activeSession.title : scope ? scope.name : 'Assistant'}
+                </span>
+                <Icons.chevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+              </button>
+              {sessionsPanel.mounted ? (
+                <SessionsPanel
+                  sessions={sessions ?? []}
+                  activeId={activeSessionId}
+                  closing={sessionsPanel.closing}
+                  deleting={deletingSession}
+                  onOpen={openSession}
+                  onNew={newSession}
+                  onDelete={(session) => runDelete(session.id)}
+                  onClose={() => sessionsPanel.set(false)}
+                  onEscape={() => {
+                    sessionsPanel.set(false)
+                    sessionsButtonRef.current?.focus()
+                  }}
+                />
+              ) : null}
+            </div>
             {activeSession ? (
               <ConfirmAction
                 open={confirmingDelete}
@@ -1636,76 +1579,82 @@ export function ChatPanel({
                 }}
               />
             ) : null}
+            {renaming ? (
+              <WorkspaceOverlay
+                title="Rename chat"
+                size="small"
+                onClose={cancelRename}
+                initialFocus={renameInputRef}
+                footer={
+                  <>
+                    <Button type="button" variant="secondary" onClick={cancelRename}>Cancel</Button>
+                    <Button type="button" variant="primary" pending={savingName} disabled={!renameDraft.trim()} onClick={() => saveRename()}>Save</Button>
+                  </>
+                }
+              >
+                <form aria-label="Rename chat" onSubmit={(event) => { event.preventDefault(); saveRename() }}>
+                  <Label as="label" htmlFor="karbot-rename-name">Chat name</Label>
+                  <Input
+                    ref={renameInputRef}
+                    id="karbot-rename-name"
+                    value={renameDraft}
+                    disabled={savingName}
+                    onChange={(event) => setRenameDraft(event.target.value)}
+                    onFocus={(event) => {
+                      if (!renameSelectedRef.current) {
+                        renameSelectedRef.current = true
+                        event.currentTarget.select()
+                      }
+                    }}
+                    aria-describedby={renameError ? 'karbot-rename-error' : undefined}
+                    className="mt-1.5"
+                  />
+                  {renameError ? (
+                    <Caption id="karbot-rename-error" role="alert" className="mt-1.5 text-danger">{renameError}</Caption>
+                  ) : null}
+                </form>
+              </WorkspaceOverlay>
+            ) : null}
             {scope ? (
               <button
                 type="button"
                 ref={contextButtonRef}
                 aria-expanded={contextPanel.open}
                 onClick={() => contextPanel.set(!contextPanel.open)}
-                className="inline-flex h-8 pointer-coarse:h-10 shrink-0 cursor-pointer items-center rounded-full border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:border-muted-foreground"
+                className={`h-8 shrink-0 cursor-pointer rounded-md px-2 text-xs text-muted-foreground transition-colors duration-120 ease-out hover:bg-surface-hover hover:text-foreground ${focusRingInset}`}
               >
                 Context
               </button>
             ) : null}
-            <div
-              role="tablist"
-              aria-label="Chat panel views"
-              className="flex items-center gap-0.5 rounded-lg border border-border/80 bg-muted/50 p-0.5"
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'conversation'}
-                onClick={() => setActiveTab('conversation')}
-                className={`min-h-8 pointer-coarse:min-h-10 rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
-                  activeTab === 'conversation'
-                    ? 'bg-background text-foreground shadow-2xs'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Chat
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'files'}
-                onClick={() => setActiveTab('files')}
-                className={`min-h-8 pointer-coarse:min-h-10 rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
-                  activeTab === 'files'
-                    ? 'bg-background text-foreground shadow-2xs'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Files {files.length > 0 ? `(${files.length})` : ''}
-              </button>
-            </div>
-            <IconButton label="Compact session context" size="icon" type="button" title="Compact session context to free tokens" disabled={compacting || !activeSessionId} onClick={() => void handleCompactSession()}
-            >
-              <Icons.minimize className={`size-4 ${compacting ? 'animate-spin' : ''}`} aria-hidden />
+            <IconButton label="New chat" size="icon-sm" type="button" disabled={!config} onClick={newSession}>
+              <Icons.newChat className="size-4" aria-hidden />
             </IconButton>
-            <IconButton label="Chat sessions" size="icon" type="button" ref={sessionsButtonRef} aria-expanded={sessionsPanel.open} onClick={() => sessionsPanel.set(!sessionsPanel.open)}
-            >
-              <Icons.history className="size-4" aria-hidden />
-            </IconButton>
-            {sessionsPanel.mounted ? (
-              <SessionsPanel
-                sessions={sessions ?? []}
-                activeId={activeSessionId}
-                closing={sessionsPanel.closing}
-                deleting={deletingSession}
-                onOpen={openSession}
-                onNew={newSession}
-                onDelete={(session) => runDelete(session.id)}
-                onClose={() => sessionsPanel.set(false)}
-                onEscape={() => {
-                  sessionsPanel.set(false)
-                  sessionsButtonRef.current?.focus()
-                }}
-              />
-            ) : null}
+            <span className="relative inline-flex shrink-0">
+              <IconButton
+                label="Session files"
+                size="icon-sm"
+                type="button"
+                aria-pressed={activeTab === 'files'}
+                onClick={() => setActiveTab(activeTab === 'files' ? 'conversation' : 'files')}
+                className={activeTab === 'files' ? 'bg-surface-active text-foreground' : undefined}
+              >
+                <Icons.fileDocs className="size-4" aria-hidden />
+              </IconButton>
+              {files.length > 0 ? (
+                <span aria-hidden className="absolute top-1 right-1 size-1.5 rounded-full bg-primary" />
+              ) : null}
+            </span>
+            <MenuRoot open={moreOpen} onOpenChange={setMoreOpenState}>
+              <MenuTrigger render={<IconButton label="More actions" size="icon-sm" type="button" disabled={!activeSession}><Icons.moreActions className="size-4" aria-hidden /></IconButton>} />
+              <MenuPopup>
+                <MenuItem onClick={startRename}><Icons.edit aria-hidden />Rename</MenuItem>
+                <MenuItem disabled={compacting || !activeSessionId} onClick={() => void handleCompactSession()}><Icons.minimize aria-hidden className={compacting ? 'animate-spin' : undefined} />Compact context</MenuItem>
+                <MenuItem onClick={confirmDelete} className="text-danger"><Icons.delete aria-hidden />Delete</MenuItem>
+              </MenuPopup>
+            </MenuRoot>
           </>
         )}
-        <IconButton label="Close chat" size="icon" type="button" onClick={onClose} className="ml-auto">
+        <IconButton label="Close" size="icon-sm" type="button" onClick={onClose}>
           <Icons.deny className="size-4" aria-hidden />
         </IconButton>
         {(scope !== null && contextPanel.mounted) ? (
@@ -1726,10 +1675,10 @@ export function ChatPanel({
                   contextButtonRef.current?.focus()
                 }
               }}
-              className={`absolute inset-x-4 top-full z-50 rounded-xl border border-border bg-muted p-4 shadow-xl ${contextPanel.closing ? popoverExit : popoverEnter}`}
+              className={`absolute inset-x-2 top-full z-50 mt-1 rounded-lg border border-border bg-popover p-3 shadow-md ${contextPanel.closing ? popoverExit : popoverEnter}`}
             >
           <div className="flex items-center gap-2">
-            <p className="min-w-0 flex-1 text-sm font-medium">What this chat knows</p>
+            <BodySm as="p" className="min-w-0 flex-1 font-medium">What this chat knows</BodySm>
             <Button
               type="button"
               variant="ghost"
@@ -1741,63 +1690,66 @@ export function ChatPanel({
             </Button>
           </div>
           {contextSummary ? (
-            <p aria-live="polite" className="mt-1 text-sm text-muted-foreground">
+            <Description as="p" aria-live="polite" className="mt-1">
               {contextSummary}
-            </p>
+            </Description>
           ) : null}
           {contextDetails.length > 0 ? (
-            <dl className="mt-2 flex flex-col gap-1">
+            <dl className="mt-2 flex flex-col gap-1.5">
               {contextDetails.map((item) => (
-                <div key={item.label} className="flex items-baseline gap-2 text-sm">
-                  <dt className="shrink-0 text-muted-foreground">{item.label}</dt>
-                  <dd className="min-w-0 flex-1 truncate font-medium">{item.value}</dd>
+                <div key={item.label} className="flex items-baseline gap-2">
+                  <dt className="shrink-0 text-xs text-foreground-subtle">{item.label}</dt>
+                  <dd className="min-w-0 flex-1 truncate text-ui text-foreground">{item.value}</dd>
                 </div>
               ))}
             </dl>
           ) : (
-            <p className="mt-1 text-sm text-muted-foreground">No breakdown yet.</p>
+            <Description as="p" className="mt-1">No breakdown yet.</Description>
           )}
             </div>
           </>
           ) : null}
       </div>
       {compactStatus ? (
-        <div role="status" className="flex items-center justify-between border-b border-border bg-muted/40 px-4 py-1.5 text-xs text-muted-foreground">
-          <span>{compactStatus}</span>
-          <button type="button" onClick={() => setCompactStatus(null)} className="hover:text-foreground">
-            <Icons.deny className="size-3" aria-hidden />
-          </button>
+        <div role="status" className="flex items-center gap-2 border-b border-border-subtle bg-surface-sunken py-1 pr-1 pl-3">
+          <Caption as="span" className="min-w-0 flex-1 truncate">{compactStatus}</Caption>
+          <IconButton label="Dismiss" size="icon-sm" type="button" onClick={() => setCompactStatus(null)}>
+            <Icons.deny className="size-4" aria-hidden />
+          </IconButton>
         </div>
-      ) : null}
-      {renameError ? (
-        <p role="alert" className="border-b border-border px-4 py-2 text-sm text-muted-foreground">
-          {renameError}
-        </p>
       ) : null}
       {!config ? (
-        <div className="p-4">
-          <div className="rounded-xl border border-dashed border-border bg-background p-4">
-            <p className="text-sm font-medium">Chat needs a backend connection.</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Set the staging API URL and key, then reload.
-            </p>
-          </div>
+        <div className="flex flex-1 flex-col items-center px-6 py-12 text-center">
+          <span className="flex size-10 items-center justify-center rounded-full bg-muted">
+            <Icons.notConnected className="size-5 text-muted-foreground" aria-hidden />
+          </span>
+          <CardTitle as="span" className="mt-3 block">Chat needs a backend connection.</CardTitle>
+          <Description className="mt-1 max-w-80">Set the staging API URL and key, then reload.</Description>
+          <Button type="button" variant="secondary" size="sm" className="mt-4" onClick={() => window.location.reload()}>
+            Reload
+          </Button>
         </div>
       ) : denied ? (
-        <div className="p-4">
-          <div className="rounded-xl border border-dashed border-border bg-background p-4">
-            <p className="flex items-center gap-2 text-sm font-medium">
-              <Icons.denied className="size-4 shrink-0" aria-hidden />
-              Chat is not shared with this key.
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Ask an admin for access to use it.
-            </p>
-          </div>
+        <div className="flex flex-1 flex-col items-center px-6 py-12 text-center">
+          <span className="flex size-10 items-center justify-center rounded-full bg-muted">
+            <Icons.denied className="size-5 text-muted-foreground" aria-hidden />
+          </span>
+          <CardTitle as="span" className="mt-3 block">Chat is not shared with this key.</CardTitle>
+          <Description className="mt-1 max-w-80">Ask an admin for access to use it.</Description>
         </div>
       ) : loading ? (
-        <div className="p-4">
-          <SkeletonRows label="Chat history is loading" />
+        <div role="status" aria-label="Chat history is loading" className="flex flex-1 flex-col gap-6 px-4 py-6">
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-3.5 w-11/12" />
+            <Skeleton className="h-3.5 w-3/4" />
+          </div>
+          <div className="flex justify-end">
+            <Skeleton className="h-10 w-2/3 rounded-xl rounded-br-sm" />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-3.5 w-full" />
+            <Skeleton className="h-3.5 w-2/3" />
+          </div>
         </div>
       ) : failed ? (
         <div className="p-4">
@@ -1828,7 +1780,7 @@ export function ChatPanel({
             aria-label="Chat messages"
             ref={logRef}
             onScroll={onLogScroll}
-            className="scroll-slim h-full space-y-4 overflow-y-auto px-4 py-3"
+            className="scroll-slim h-full space-y-6 overflow-y-auto px-4 py-3"
           >
             <AssistantRuntimeAdapter
               messages={toThreadSegments(segments)}
@@ -1838,32 +1790,28 @@ export function ChatPanel({
             <ThreadPrimitive.Root>
             {messages.length === 0 && !replying ? (
               <ThreadPrimitive.Empty>
-              <div className="rounded-xl border border-dashed border-border p-4">
-                <p className="text-sm text-muted-foreground">
-                  {openThread
-                    ? `Talk to ${openThread.key} directly.`
-                    : scope
-                      ? `Ask anything about ${scope.name}.`
-                      : 'Ask anything.'}
-                </p>
-              </div>
+                <ConversationEmpty variant="karbot" onSuggest={(text) => { setDraft(text); inputRef.current?.focus() }} />
               </ThreadPrimitive.Empty>
             ) : null}
             <ThreadPrimitive.Messages>
               {({ message: runtimeMessage }) => {
                 const segment = segments.find((entry) => entry.key === runtimeMessage.id)
                 if (!segment) return null
+                const control = segment.key === lastReasoningKey ? reasoningControl : undefined
                 return 'tools' in segment ? (
-                <div key={segment.key}>
-                  <ActivityGroup tools={segment.tools} reasoning={segment.reply?.reasoning} />
+                <div key={segment.key} className="space-y-2">
+                  <ToolActivity tools={segment.tools} />
                   {segment.reply ? (
-                    <MessageBubble message={{ ...segment.reply, reasoning: undefined }} files={files} />
+                    <>
+                      {segment.reply.reasoning ? <ReasoningDisclosure reasoning={segment.reply.reasoning} open={control?.open} onOpenChange={control?.onOpenChange} /> : null}
+                      <MessageBubble message={{ ...segment.reply, reasoning: undefined }} files={files} latest={segment.key === lastKey} />
+                    </>
                   ) : null}
                 </div>
               ) : (
-                <div key={segment.key}>
+                <div key={segment.key} className="space-y-2">
                   {segment.message.kind === 'text' ? (
-                    <MessageBubble message={segment.message} files={files} />
+                    <MessageBubble message={segment.message} files={files} latest={segment.key === lastKey} reasoningControl={control} />
                   ) : (
                     <ToolRow
                       name={segment.message.name}
@@ -1884,9 +1832,9 @@ export function ChatPanel({
               <div key="pending-send">
                 <div className="flex justify-end">
                   <div className="max-w-[85%]">
-                    <p className="rounded-xl rounded-br-sm bg-muted px-3 py-2 text-sm">
+                    <UserBubble>
                       {renderMentionChips(echo.text, files)}
-                    </p>
+                    </UserBubble>
                     {working ? (
                       <p className="mt-0.5 text-right text-xs text-muted-foreground">Sending…</p>
                     ) : null}
@@ -1894,54 +1842,42 @@ export function ChatPanel({
                 </div>
               </div>
             ) : null}
-            {pendingTools.length > 0 ? (
-              <ActivityGroup
-                tools={pendingTools.map((tool) => ({ id: tool.id, kind: 'tool', name: tool.name, detail: '', state: tool.state, seenAt: tool.seenAt }))}
-                reasoning={pendingReasoning ?? undefined}
-                live
-              />
-            ) : null}
-            {(pendingText != null && pendingText !== '') ||
-            (pendingTools.length === 0 && pendingReasoning != null && pendingReasoning !== '') ? (
-              <div key="live-pending">
-                <MessageBubble
-                  message={{
-                    id: 'pending',
-                    kind: 'text',
-                    role: 'agent',
-                    text: pendingText ?? '',
-                    ...(pendingReasoning && pendingTools.length === 0 ? { reasoning: pendingReasoning } : {}),
-                  }}
-                  files={files}
-                  live
-                />
-              </div>
-            ) : null}
-            {sendError ? (
-              <div className="rounded-xl border border-dashed border-border p-3">
-                <p role="alert" className="text-sm text-muted-foreground">{sendError}</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                  onClick={retrySend}
-                >
-                  Try again
-                </Button>
+            {pendingTools.length > 0 || (pendingReasoning != null && pendingReasoning !== '') || (pendingText != null && pendingText !== '') ? (
+              <div key="live-pending" className="space-y-2">
+                {pendingTools.length > 0 ? (
+                  <ToolActivity
+                    tools={pendingTools.map((tool) => ({ id: tool.id, name: tool.name, detail: '', state: tool.state, seenAt: tool.seenAt }))}
+                    live
+                  />
+                ) : null}
+                {pendingReasoning != null && pendingReasoning !== '' ? (
+                  <ThinkingRow reasoning={pendingReasoning} open={reasoningOpen} onOpenChange={setReasoningOpen} />
+                ) : null}
+                {pendingText != null && pendingText !== '' ? (
+                  <MessageBubble
+                    message={{
+                      id: 'pending',
+                      kind: 'text',
+                      role: 'agent',
+                      text: pendingText,
+                    }}
+                    files={files}
+                    live
+                  />
+                ) : null}
               </div>
             ) : null}
             {replying && !working && !pendingText && !pendingReasoning && pendingTools.length === 0 ? (
-              <ThinkingPlaceholder />
+              <ThinkingRow />
             ) : null}
           </div>
           {showLatest ? (
             <div className="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center">
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="sm"
-                className={`pointer-events-auto shadow-md ${popoverEnter}`}
+                className={`pointer-events-auto rounded-full shadow-sm ${popoverEnter}`}
                 onClick={() => {
                   stuckRef.current = true
                   setShowLatest(false)
@@ -1949,7 +1885,8 @@ export function ChatPanel({
                   inputRef.current?.focus()
                 }}
               >
-                Back to latest
+                <Icons.latest aria-hidden />
+                Latest
               </Button>
             </div>
           ) : null}
@@ -1961,19 +1898,28 @@ export function ChatPanel({
             onOpenThread={openThreadChat}
             onStopThread={stopThread}
           /> : null}
-          <ConversationComposer label="Message the agent" input={<form
-            className="relative"
+          <ConversationComposer label="Message the agent" surface="bg-popover" input={<form
             onSubmit={(event) => {
               event.preventDefault()
               send(draft)
             }}
           >
-            <div className="flex items-center gap-1 rounded-full border border-border bg-background py-1 pr-1.5 pl-1.5">
-            <IconButton label="Add files" size="icon" type="button" ref={addButtonRef} aria-expanded={filesMenu.open} disabled={working} onClick={() => filesMenu.set(!filesMenu.open)}
-              className="shrink-0 rounded-full"
-            >
-              <Icons.plus className="size-4" aria-hidden />
-            </IconButton>
+            <Composer
+              id="karbot-composer"
+              label="Message the agent"
+              value={draft}
+              onChange={(value) => {
+                setDraft(value)
+                setMentionClosed(false)
+                setMentionIndex(0)
+                setSkillClosed(false)
+                setSkillIndex(0)
+              }}
+              onKeyDown={composerKeys}
+              placeholder="Ask Karbot..."
+              textareaRef={inputRef}
+              autoFocus
+              listboxes={<>
             {filesMenu.mounted ? (
               <FilesMenu
                 files={files}
@@ -1994,39 +1940,41 @@ export function ChatPanel({
               <ul
                 role="listbox"
                 aria-label="Mention a thread or file"
-                className={`absolute bottom-full left-4 z-50 mb-2 max-h-56 w-72 scroll-slim overflow-y-auto rounded-xl border border-border bg-muted p-2 shadow-xl ${popoverEnter}`}
+                className={`absolute bottom-full left-0 z-50 mb-2 max-h-56 w-72 scroll-slim overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-md ${popoverEnter}`}
               >
                 {mentionNoMatch ? (
-                  <li className="px-2 py-1.5 text-sm text-muted-foreground">
+                  <li className="px-2 py-1.5 text-ui text-muted-foreground">
                     No threads or files match &quot;@{mentionMatch?.[1] ?? ''}&quot;.
                   </li>
                 ) : null}
-                {mentionOptions.map((option, index) => (
-                  <li key={option.id} role="presentation">
-                    <button
-                      type="button"
-                      role="option"
-                      aria-selected={index === mentionIndex}
-                      onClick={() => insertMention(option)}
-                      className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left ${
-                        index === mentionIndex ? 'bg-background' : 'hover:bg-background'
-                      }`}
-                    >
-                      <span className="min-w-0 flex-1 truncate text-sm">@{option.name}</span>
-                      <span className="shrink-0 text-xs text-muted-foreground">{option.hint}</span>
-                    </button>
-                  </li>
-                ))}
+                {mentionOptions.map((option, index) => {
+                  const OptionIcon = option.kind === 'thread' ? Icons.agents : fileIcon(option.name)
+                  return (
+                    <li key={option.id} role="presentation">
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={index === mentionIndex}
+                        onClick={() => insertMention(option)}
+                        className={`flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1 text-left text-ui ${index === mentionIndex ? 'bg-surface-active' : 'hover:bg-surface-hover'} ${focusRingInset}`}
+                      >
+                        <OptionIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                        <span className="min-w-0 flex-1 truncate">@{option.name}</span>
+                        <Caption as="span" className="shrink-0">{option.hint}</Caption>
+                      </button>
+                    </li>
+                  )
+                })}
               </ul>
             ) : null}
             {skillOpen || skillNoMatch ? (
               <ul
                 role="listbox"
                 aria-label="Invoke a skill"
-                className={`absolute bottom-full left-4 z-50 mb-2 max-h-56 w-72 scroll-slim overflow-y-auto rounded-xl border border-border bg-muted p-2 shadow-xl ${popoverEnter}`}
+                className={`absolute bottom-full left-0 z-50 mb-2 max-h-56 w-72 scroll-slim overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-md ${popoverEnter}`}
               >
                 {skillNoMatch ? (
-                  <li className="px-2 py-1.5 text-sm text-muted-foreground">
+                  <li className="px-2 py-1.5 text-ui text-muted-foreground">
                     No skills match &quot;/{skillMatch?.[1] ?? ''}&quot;.
                   </li>
                 ) : null}
@@ -2037,84 +1985,76 @@ export function ChatPanel({
                       role="option"
                       aria-selected={index === skillIndex}
                       onClick={() => insertSkill(option)}
-                      className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left ${
-                        index === skillIndex ? 'bg-background' : 'hover:bg-background'
-                      }`}
+                      className={`flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1 text-left text-ui ${index === skillIndex ? 'bg-surface-active' : 'hover:bg-surface-hover'} ${focusRingInset}`}
                     >
-                      <span className="min-w-0 flex-1 truncate text-sm">/{option.name}</span>
-                      <span className="shrink-0 text-xs text-muted-foreground">{option.description}</span>
+                      <Icons.planMode className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                      <span className="shrink-0">/{option.name}</span>
+                      <Caption as="span" className="min-w-0 flex-1 truncate text-right">{option.description}</Caption>
                     </button>
                   </li>
                 ))}
               </ul>
             ) : null}
-            <Input
-              ref={inputRef}
-              aria-label="Message the agent"
-              title="Enter sends, Shift plus Enter adds a line"
-              className="h-8 flex-1 border-0 px-1 focus-visible:ring-0"
-              placeholder={openThread ? `Message ${openThread.key}` : 'Ask anything'}
-              value={draft}
-              autoFocus
-              onChange={(event) => {
-                setDraft(event.target.value)
-                setMentionClosed(false)
-                setMentionIndex(0)
-                setSkillClosed(false)
-                setSkillIndex(0)
-              }}
-              onKeyDown={composerKeys}
-            />
-            {activeSessionId && !openThreadKey ? (
-              <ModelToolbar
-                key={`models-${activeSessionId}`}
-                compact
-                bare
-                display="model"
-                modelLabel="generic"
-                config={config}
-                sessionId={activeSessionId}
-              />
-            ) : null}
-            <Button
-              type="button"
-              variant={planMode ? 'default' : 'ghost'}
-              size="sm"
-              aria-label="Toggle plan mode"
-              aria-pressed={planMode}
-              onClick={() => setPlanMode((val) => !val)}
-              className={`h-8 pointer-coarse:h-10 gap-1 rounded-full px-2 text-xs ${
-                planMode ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Icons.planMode className="size-3.5" aria-hidden />
-              <span>Plan</span>
-            </Button>
-            {replying ? (
-              <div className="flex items-center gap-1">
+              </>}
+              left={<>
+                <IconButton label="Attach file" type="button" ref={addButtonRef} aria-expanded={filesMenu.open} disabled={working} onClick={() => filesMenu.set(!filesMenu.open)}>
+                  <Icons.attachFile className="size-4" aria-hidden />
+                </IconButton>
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
-                  aria-label="Steer agent"
-                  title="Steer running agent mid-run"
+                  aria-label="Toggle plan mode"
+                  aria-pressed={planMode}
+                  onClick={() => setPlanMode((val) => !val)}
+                  className={planMode ? 'bg-primary-soft text-primary-text hover:bg-primary-soft hover:text-primary-text' : undefined}
+                >
+                  <Icons.planMode className="size-3.5" aria-hidden />
+                  <span>Plan</span>
+                </Button>
+                {activeSessionId && !openThreadKey ? (
+                  <ModelToolbar
+                    key={`models-${activeSessionId}`}
+                    compact
+                    bare
+                    display="model"
+                    modelLabel="generic"
+                    config={config}
+                    sessionId={activeSessionId}
+                  />
+                ) : null}
+              </>}
+              right={replying ? <>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
                   disabled={!draft.trim()}
                   onClick={() => steerRunningAgent(draft)}
-                  className="h-8 gap-1 rounded-full px-2.5 text-xs text-primary hover:bg-primary/10"
                 >
                   <Icons.steer className="size-3.5" aria-hidden />
                   Steer
                 </Button>
-                <IconButton label="Stop reply" size="icon" type="button" variant="outline" onClick={stopReply} className="shrink-0 rounded-full">
-                  <Icons.stopSquare className="size-4" aria-hidden />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={!draft.trim()}
+                  onClick={() => send(draft)}
+                >
+                  Queue
+                </Button>
+                <IconButton label="Stop reply" type="button" onClick={stopReply} className="text-danger hover:text-danger">
+                  <Icons.stopRun className="size-4" aria-hidden />
                 </IconButton>
-              </div>
-            ) : (
-              <IconButton label="Send message" size="icon" type="submit" variant="default" className="shrink-0 rounded-full">
-                <Icons.sendMessage className="size-4" aria-hidden />
-              </IconButton>
-            )}
-            </div>
+              </> : (
+                <IconButton label="Send message" shortcut="Enter" type="submit" variant="default" size="icon-sm" disabled={!draft.trim()} className="rounded-full">
+                  <Icons.send className="size-4" aria-hidden />
+                </IconButton>
+              )}
+              error={sendError}
+              onRetry={retrySend}
+            />
           </form>} />
           </div>
         </>

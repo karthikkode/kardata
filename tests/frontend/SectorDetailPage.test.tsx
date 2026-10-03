@@ -471,7 +471,7 @@ describe('Sector open navigation', () => {
     // The row opens the summary landing; Open workspace enters the chat workspace.
     expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
     await user.click(await screen.findByRole('button', { name: 'Open workspace' }))
-    expect(await screen.findByRole('group', { name: 'Session types' })).toBeInTheDocument()
+    expect(await screen.findByRole('tablist', { name: 'Session types' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Back to sector summary' }))
     expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
   })

@@ -13,15 +13,17 @@ import { Markdown } from './Markdown'
 import { ModelToolbar } from './ModelToolbar'
 import { stateLabel, SkeletonRows } from './research-parts'
 import {
-  ActivityGroup,
   groupMessageSegments,
   mergeChatMessages,
   sessionAge,
   SessionsPanel,
-  ThinkingPlaceholder,
   toChatMessages,
+  type ChatTool,
   type MessageSegment,
 } from './ChatPanel'
+import { ReasoningDisclosure } from './chat/ReasoningDisclosure'
+import { ThinkingRow } from './chat/ThinkingRow'
+import { ToolActivity } from './chat/ToolActivity'
 import {
   cancelRun,
   createSession,
@@ -67,6 +69,21 @@ async function settleThread(
     rows = toChatMessages(await listMessages(config, threadKey))
   }
   return rows
+}
+
+// Legacy compat (LG): the old combined activity API over the shared v2
+// disclosures. Live rows stay expanded, matching the pinned legacy tests.
+function ActivityGroup({ tools, reasoning, live = false }: { tools: ChatTool[]; reasoning?: string; live?: boolean }) {
+  return (
+    <>
+      {tools.length ? <ToolActivity tools={tools} live={live} defaultOpen={live} /> : null}
+      {reasoning ? <ReasoningDisclosure reasoning={reasoning} defaultOpen={live} /> : null}
+    </>
+  )
+}
+
+function ThinkingPlaceholder(): ReactNode {
+  return <ThinkingRow />
 }
 
 /** Newest clock on a segment for divider gaps; undefined stays gapless. */

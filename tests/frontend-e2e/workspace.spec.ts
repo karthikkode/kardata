@@ -279,9 +279,9 @@ for (const outcome of ['consumed', 'missed'] as const) test(`overflow recovery r
     await route.fulfill({ contentType: 'text/event-stream', body: frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join('') || ': recovered\n\n' })
   })
   await page.goto(`/?section=SectorChat&sector=${sector.id}`)
-  await expect(page.getByRole('button', { name: 'Steer this turn', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Steer', exact: true })).toBeVisible()
   await page.getByRole('textbox', { name: 'Message this conversation' }).fill('TEST owner steering instruction')
-  await page.getByRole('button', { name: 'Steer this turn', exact: true }).click()
+  await page.getByRole('button', { name: 'Steer', exact: true }).click()
   await expect(page.getByText('TEST terminal after steering', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Stop agent', exact: true })).toHaveCount(0)
   if (outcome === 'missed') {

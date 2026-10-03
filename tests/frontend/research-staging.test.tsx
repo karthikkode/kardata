@@ -87,7 +87,7 @@ describe('staging research surfaces (F-S2)', () => {
     expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
     expect(await screen.findByText('Server West')).toBeInTheDocument()
     await user.click(await screen.findByRole('button', { name: 'Open workspace' }))
-    expect(await screen.findByRole('group', { name: 'Session types' })).toBeInTheDocument()
+    expect(await screen.findByRole('tablist', { name: 'Session types' })).toBeInTheDocument()
     // The sector activity timeline has no renderer in the workspace UX yet;
     // coverage for it lives in RunConsole.test.tsx until it is surfaced.
   })

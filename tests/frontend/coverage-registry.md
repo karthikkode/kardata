@@ -98,6 +98,10 @@ Legend: L/D = light/dark, viewports 390/1440 unless noted, RM = reduced motion.
 | CH-16 missed steering | retained card + next-turn path | chat-staging.test.tsx | overflow steering stills | pass |
 | CH-17 send/retry failure | draft kept, explicit retry | chat-staging.test.tsx | files-db (retained drafts) | pass |
 | CH-18 copy | settled-only Copy button, success + failure states | chat-parts.test.tsx | — | pass (AgentBubble copyText in dock/workspace/legacy; live text excluded) |
+| CH-19 ThinkingRow | live shimmer row, expandable live reasoning | chat-staging.test.tsx, workspace-conversation.test.tsx | conversation.spec, karbot.spec | pass |
+| CH-20 ReasoningDisclosure | settled disclosure, expanded state survives settle | chat-staging.test.tsx, workspace-conversation.test.tsx | conversation.spec | pass |
+| CH-21 ToolActivity | summary + per-tool rows, failed tone | chat-staging.test.tsx | conversation.spec | pass |
+| CH-22 ConversationEmpty | per-variant empty + suggestions | workspace-conversation.test.tsx | conversation.spec | pass |
 
 ## Karbot dock (KB) — ChatPanel.tsx sessions/files/context
 

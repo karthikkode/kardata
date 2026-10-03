@@ -24,6 +24,7 @@ export interface ApiData {
   sectors?: FixtureSector[]
   companies?: FixtureCompany[]
   karbotSessions?: FixtureSession[]
+  sessions?: FixtureSession[]
   runs?: typeof runs
   alerts?: typeof alerts
   providersVariant?: 'default' | 'nokey' | 'empty'
@@ -87,6 +88,7 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
     const rows: FixtureSession[] = []
     for (const sector of liveSectors()) rows.push(...sectorSessions(sector).filter((session) => !deletedIds.has(session.id)))
     rows.push(...(data.karbotSessions ?? karbotSessions).filter((session) => !deletedIds.has(session.id)))
+    if (data.sessions) rows.push(...data.sessions.filter((session) => !deletedIds.has(session.id)))
     rows.push(...extraSessions.filter((session) => !deletedIds.has(session.id)))
     return rows.map((session) => renamedTitles.has(session.id) ? { ...session, title: renamedTitles.get(session.id) as string } : session)
   }

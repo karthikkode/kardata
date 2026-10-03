@@ -7,7 +7,7 @@ import { shotPath, type ShotTheme } from './shot'
 
 export const CAPTURE_THEMES: ShotTheme[] = ['light', 'dark']
 export const CAPTURE_WIDTHS = [1440, 390]
-const HEIGHTS: Record<number, number> = { 1440: 900, 768: 1024, 390: 844 }
+const HEIGHTS: Record<number, number> = { 1440: 900, 1280: 800, 1279: 800, 768: 1024, 767: 1024, 390: 844 }
 
 export interface CaptureOptions {
   themes?: ShotTheme[]

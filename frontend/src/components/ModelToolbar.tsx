@@ -1,13 +1,13 @@
 // ModelToolbar: model picker menu bound to one chat session. The trigger
-// shows the current provider and model; the menu groups every catalog
-// model by provider with the active row checked, plus a Thinking switch.
-// Everything comes from the backend (GET /v1/providers catalog, GET
-// session binding); every change persists immediately with
-// PATCH /v1/sessions/:id/model. No fixtures, no guessed models.
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+// is a ghost chip (display name plus effort); the menu groups every
+// catalog model by provider with the active row checked, effort levels in
+// a nested submenu, plus a Reasoning switch. Everything comes from the
+// backend (GET /v1/providers catalog, GET session binding); every change
+// persists immediately with PATCH /v1/sessions/:id/model. No fixtures,
+// no guessed models. Keyboard (arrows, Home/End, Enter, Esc, typeahead)
+// and collision-aware placement come from the Base UI menu primitive.
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Icons } from '@/lib/icons'
-import { popoverEnter, popoverExit, useExitState } from '@/lib/motion'
 import {
   getSession,
   listProviders,
@@ -17,6 +17,23 @@ import {
   type StagingConfig,
 } from '../data/staging-api'
 import { providerLabel } from './ModelsPanel'
+import { Caption } from './text'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import {
+  MenuGroup,
+  MenuLabel,
+  MenuPopup,
+  MenuRadioGroup,
+  MenuRadioItem,
+  MenuRoot,
+  MenuSeparator,
+  MenuSubmenuPopup,
+  MenuSubmenuRoot,
+  MenuSubmenuTrigger,
+  MenuTrigger,
+} from './ui/menu'
+import { SwitchRoot } from './ui/switch'
 
 type LoadStatus = 'loading' | 'ready' | 'error' | 'denied' | 'offline'
 
@@ -36,26 +53,11 @@ interface Draft {
 const DEFAULT_EFFORT = 'high'
 
 /** Opening a picker menu anywhere closes every other picker menu: split
- * instances (header model chip plus composer effort) otherwise stack
- * invisible dismiss overlays that swallow each other's clicks. */
+ * instances (header model chip plus composer effort) otherwise stack. */
 const MODELS_MENU_OPEN_EVENT = 'kardata:models-menu-open'
-
-/** Effort flyout width (w-44): used to pick the side with viewport room. */
-const FLYOUT_WIDTH = 176
 
 function announceModelsMenuOpen() {
   window.dispatchEvent(new CustomEvent(MODELS_MENU_OPEN_EVENT))
-}
-
-/** Collision-aware menu placement: open above the trigger when the space
- * below cannot fit the menu, so bottom-docked composers never push the
- * list off-screen where it cannot be selected. Pure for tests. */
-export function shouldOpenAbove(
-  rect: { top: number; bottom: number },
-  viewportHeight: number,
-  needed = 340,
-): boolean {
-  return viewportHeight - rect.bottom < needed && rect.top >= needed
 }
 
 function defaultsOf(providers: ProviderEntry[], defaultProvider: string): Draft {
@@ -79,6 +81,20 @@ function seedEffort(
   if (listed.length === 0) return undefined
   if (stored && listed.includes(stored)) return stored
   return DEFAULT_EFFORT
+}
+
+/** Effort radio group: a real component (not a render-called helper) so
+ * picking stays an event-handler closure the hooks rules accept. */
+function EffortLevels({ levels, current, onPick }: { levels: string[]; current: string; onPick: (level: string) => void }) {
+  return (
+    <MenuRadioGroup value={current} onValueChange={(value) => onPick(value)}>
+      {levels.map((level) => (
+        <MenuRadioItem key={level} value={level} className="capitalize">
+          {level}
+        </MenuRadioItem>
+      ))}
+    </MenuRadioGroup>
+  )
 }
 
 export function ModelToolbar({
@@ -116,21 +132,8 @@ export function ModelToolbar({
   const [attempt, setAttempt] = useState(0)
   const [bindingAttempt, setBindingAttempt] = useState(0)
   const [query, setQuery] = useState('')
-  /** Model row with its effort flyout open (hover or keyboard focus).
-   * Touch users get the same flyout by tapping the row's effort button. */
-  const [expandedKey, setExpandedKey] = useState<string | null>(null)
-  const [menuAbove, setMenuAbove] = useState(false)
-  const [effortAbove, setEffortAbove] = useState(false)
-  const [flyoutTop, setFlyoutTop] = useState(0)
-  const [flyoutRight, setFlyoutRight] = useState<number | null>(null)
-  const [flyoutLeft, setFlyoutLeft] = useState<number | null>(null)
-  const collapseTimer = useRef<number | null>(null)
-  const menu = useExitState()
-  const effortMenu = useExitState()
-  const triggerRef = useRef<HTMLButtonElement | null>(null)
-  const effortTriggerRef = useRef<HTMLButtonElement | null>(null)
-  const menuRef = useRef<HTMLDivElement | null>(null)
-  const menuWasMounted = useRef(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [effortOpen, setEffortOpen] = useState(false)
   const saveEpoch = useRef(0)
 
   const fetchCatalog = useCallback(() => {
@@ -160,31 +163,13 @@ export function ModelToolbar({
 
   useEffect(() => fetchCatalog(), [fetchCatalog])
 
-  useEffect(
-    () => () => {
-      if (collapseTimer.current !== null) window.clearTimeout(collapseTimer.current)
-    },
-    [],
-  )
-
-  // Opening the models menu moves focus into it (never the search field,
-  // which would steal typing context): Escape then bubbles to the menu
-  // handler, which closes and returns focus to the trigger. Focus-once per
-  // mount so later typing stays in the search field.
-  useEffect(() => {
-    if (menu.mounted && !menuWasMounted.current) menuRef.current?.focus({ preventScroll: true })
-    menuWasMounted.current = menu.mounted
-  })
-
   // Another picker instance opening its menu closes this one first, so a
-  // split header/composer pair never holds two competing dismiss overlays.
-  // The ref tracks the latest close (never read during render).
-  const closeLatest = useRef(() => {})
+  // split header/composer pair never holds two competing menus.
   useEffect(() => {
-    closeLatest.current = closeMenu
-  })
-  useEffect(() => {
-    const onModelsMenuOpen = () => closeLatest.current()
+    const onModelsMenuOpen = () => {
+      setMenuOpen(false)
+      setEffortOpen(false)
+    }
     window.addEventListener(MODELS_MENU_OPEN_EVENT, onModelsMenuOpen)
     return () => window.removeEventListener(MODELS_MENU_OPEN_EVENT, onModelsMenuOpen)
   }, [])
@@ -201,8 +186,9 @@ export function ModelToolbar({
     // cascading renders.
     getSession(config, sessionId)
       .then((session) => {
-        if (!live) return
-        if (epoch !== saveEpoch.current) return
+        // A save that resolved after this read started already carries
+        // the newer binding: a stale read must not overwrite it.
+        if (!live || epoch !== saveEpoch.current) return
         const stored = session.model ?? null
         if (stored) {
           // Before the catalog lands there is nothing to validate
@@ -250,47 +236,19 @@ export function ModelToolbar({
     setBindingAttempt((value) => value + 1)
   }
 
-  function closeMenu() {
-    menu.set(false)
-    effortMenu.set(false)
-    setQuery('')
-    setExpandedKey(null)
-    if (collapseTimer.current !== null) {
-      window.clearTimeout(collapseTimer.current)
-      collapseTimer.current = null
-    }
+  function openMenu(next: boolean) {
+    // Announce first: the broadcast closes other instances (this one is
+    // still closed, so its own listener is a no-op), then this opens.
+    if (next) announceModelsMenuOpen()
+    setMenuOpen(next)
+    setEffortOpen(false)
+    if (!next) setQuery('')
   }
 
-  /** Open the side flyout anchored to a row element. The flyout lives in
-   * a portal (fixed positioning), so it never clips inside the menu's
-   * scroll container and never overlaps the list. It opens left of the
-   * row, or right when a narrow dock leaves no room on the left. */
-  function openFlyout(key: string, anchor: HTMLElement) {
-    if (collapseTimer.current !== null) {
-      window.clearTimeout(collapseTimer.current)
-      collapseTimer.current = null
-    }
-    const rect = anchor.getBoundingClientRect()
-    // Room for the w-44 card plus a gap, clamped into the viewport with
-    // room for roughly five levels.
-    setFlyoutTop(Math.max(8, Math.min(rect.top - 4, window.innerHeight - 240)))
-    const roomLeft = rect.left - 8
-    const roomRight = window.innerWidth - rect.right - 8
-    if (roomLeft < FLYOUT_WIDTH + 8 && roomRight >= roomLeft) {
-      setFlyoutLeft(Math.max(8, rect.right + 8))
-      setFlyoutRight(null)
-    } else {
-      setFlyoutRight(Math.max(8, window.innerWidth - rect.left + 8))
-      setFlyoutLeft(null)
-    }
-    setExpandedKey(key)
-  }
-
-  function scheduleCollapse(key: string) {
-    if (collapseTimer.current !== null) window.clearTimeout(collapseTimer.current)
-    collapseTimer.current = window.setTimeout(() => {
-      setExpandedKey((current) => (current === key ? null : current))
-    }, 120)
+  function openEffort(next: boolean) {
+    if (next) announceModelsMenuOpen()
+    setEffortOpen(next)
+    setMenuOpen(false)
   }
 
   /** Persist one selection; the stored response is the truth the draft
@@ -300,8 +258,12 @@ export function ModelToolbar({
    * server default when the user has not chosen one. */
   function persist(next: Draft) {
     if (!config || !sessionId || saving) return
+    // The sent provider is the selected catalog entry's name, never a
+    // literal: the picker resolves the choice against the catalog first
+    // and bails on a stale draft with no matching entry.
     const entry = providers.find((item) => item.name === next.provider)
-    const selected = entry?.models.find((model) => model.model === next.model)
+    if (!entry) return
+    const selected = entry.models.find((model) => model.model === next.model)
     const canReason = selected?.reasoning === 'native'
     const listed = selected?.efforts ?? []
     const effort =
@@ -320,7 +282,7 @@ export function ModelToolbar({
     setSaving(true)
     setSaveError(null)
     setSessionModel(config, sessionId, {
-      provider: 'meta',
+      provider: entry.name,
       model: next.model,
       reasoning: outgoing.reasoning,
       ...(outgoing.effort === undefined ? {} : { effort: outgoing.effort }),
@@ -371,23 +333,34 @@ export function ModelToolbar({
       ? 'Choose a model'
       : modelLabel === 'generic'
         ? 'Model'
-        : compact
-          ? activeModel.displayName
-          : `${providerLabel(activeEntry.name)} ${activeModel.displayName}`
+        : activeModel.displayName
+  const triggerEffort = showEffort && display !== 'effort' ? (draft.effort ?? DEFAULT_EFFORT) : null
 
-  /** Portal anchor for the side flyout: the expanded row's provider and
-   * model, resolved from the catalog so levels never come from UI state. */
-  const flyoutTarget = (() => {
-    if (expandedKey === null) return null
-    for (const entry of providers) {
-      const model = entry.models.find((item) => `${entry.name}:${item.model}` === expandedKey)
-      if (model && model.efforts.length > 0) return { key: expandedKey, entry, model }
+  /** Search-field keys: arrows move into the list, Enter picks the first
+   * match, Escape/Tab bubble to the menu; anything else stays in the
+   * field instead of driving menu typeahead. */
+  function onSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    const menu = event.currentTarget.closest('[role="menu"]')
+    const items = menu
+      ? Array.from(menu.querySelectorAll('[role="menuitemradio"],[role="menuitem"]')).filter(
+          (element): element is HTMLElement => element instanceof HTMLElement,
+        )
+      : []
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      const target = event.key === 'ArrowDown' ? items[0] : items[items.length - 1]
+      target?.focus()
+    } else if (event.key === 'Enter') {
+      event.preventDefault()
+      items[0]?.click()
+    } else if (event.key !== 'Escape' && event.key !== 'Tab') {
+      event.stopPropagation()
     }
-    return null
-  })()
+  }
+
 
   return (
-    <div className={compact ? 'relative min-w-0 shrink-0' : 'relative border-b border-border px-4 py-2'}>
+    <div className={compact ? 'relative min-w-0' : 'relative px-4 py-2'}>
       {status === 'loading' ? (
         <p role="status" className="text-xs text-muted-foreground">
           Loading models.
@@ -395,26 +368,18 @@ export function ModelToolbar({
       ) : status === 'error' ? (
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-xs text-muted-foreground">Models did not load.</p>
-          <button
-            type="button"
-            onClick={retryCatalog}
-            className="h-8 pointer-coarse:h-10 shrink-0 cursor-pointer rounded-md border border-border px-2 text-xs"
-          >
+          <Button type="button" variant="secondary" size="sm" onClick={retryCatalog}>
             Try again
-          </button>
+          </Button>
         </div>
       ) : status === 'denied' ? (
         <p className="text-xs text-muted-foreground">Models are not shared with this key.</p>
       ) : status === 'offline' ? (
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-xs text-muted-foreground">Models need a connection.</p>
-          <button
-            type="button"
-            onClick={retryCatalog}
-            className="h-8 pointer-coarse:h-10 shrink-0 cursor-pointer rounded-md border border-border px-2 text-xs"
-          >
+          <Button type="button" variant="secondary" size="sm" onClick={retryCatalog}>
             Try again
-          </button>
+          </Button>
         </div>
       ) : bindingFailed || boundFor !== sessionId ? (
         <div className="flex flex-wrap items-center gap-2">
@@ -422,368 +387,209 @@ export function ModelToolbar({
             {bindingFailed ? 'The current model did not load.' : 'Loading the current model.'}
           </p>
           {bindingFailed ? (
-            <button
-              type="button"
-              onClick={retryBinding}
-              className="h-8 pointer-coarse:h-10 shrink-0 cursor-pointer rounded-md border border-border px-2 text-xs"
-            >
+            <Button type="button" variant="secondary" size="sm" onClick={retryBinding}>
               Try again
-            </button>
+            </Button>
           ) : null}
         </div>
-      ) : (
-        <div
-          className={
-            bare
-              ? 'flex min-w-0 max-w-32 items-center gap-0.5 sm:max-w-52'
-              : `flex items-center gap-0.5 rounded-full border border-border bg-background py-1 pr-1.5 pl-1.5 ${compact ? 'max-w-44 sm:max-w-60' : ''}`
-          }
-        >
-          {display === 'effort' ? null : (
-            <button
-              ref={triggerRef}
-              type="button"
-              aria-haspopup="menu"
-              aria-expanded={menu.open}
-              aria-label="Choose a model"
-              disabled={saving || providers.length === 0}
-              onClick={() => {
-                effortMenu.set(false)
-                if (menu.open) closeMenu()
-                else {
-                  announceModelsMenuOpen()
-                  const rect = triggerRef.current?.getBoundingClientRect()
-                  setMenuAbove(rect ? shouldOpenAbove(rect, window.innerHeight) : false)
-                  menu.set(true)
-                }
-              }}
-              className="flex h-8 pointer-coarse:h-10 min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-full px-2.5 text-xs font-medium hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
-            >
-              <span className="min-w-0 flex-1 truncate text-left">{triggerLabel}</span>
-              <Icons.chevronDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-            </button>
-          )}
-          {showEffort && display !== 'model' ? (
-            <>
-              {display === 'all' ? (
-                <span aria-hidden className="h-4 w-px shrink-0 bg-border" />
-              ) : null}
-              <button
-                ref={effortTriggerRef}
+      ) : display === 'effort' ? activeEfforts.length === 0 ? null : (
+        <MenuRoot open={effortOpen} onOpenChange={openEffort}>
+          <MenuTrigger
+            render={
+              <Button
                 type="button"
-                aria-haspopup="menu"
-                aria-expanded={effortMenu.open}
+                variant="ghost"
+                size="sm"
                 aria-label="Choose reasoning effort"
                 disabled={saving}
-                onClick={() => {
-                  menu.set(false)
-                  if (effortMenu.open) closeMenu()
-                  else {
-                    announceModelsMenuOpen()
-                    const rect = effortTriggerRef.current?.getBoundingClientRect()
-                    setEffortAbove(rect ? shouldOpenAbove(rect, window.innerHeight, 240) : false)
-                    effortMenu.set(true)
-                  }
-                }}
-                className="flex h-8 pointer-coarse:h-10 shrink-0 cursor-pointer items-center gap-0.5 rounded-full px-2.5 text-xs capitalize text-muted-foreground hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
               >
-                {draft.effort ?? DEFAULT_EFFORT}
-                <Icons.chevronDown className="size-3.5 shrink-0" aria-hidden />
-              </button>
-            </>
-          ) : !showEffort && draft.reasoning && canReason && !bare ? (
-            <span className="shrink-0 px-1 text-xs text-muted-foreground">Thinking</span>
-          ) : null}
-          {saving ? (
-            <span role="status" className="shrink-0 pr-1 text-xs text-muted-foreground">
-              Saving
-            </span>
-          ) : null}
-          {unconfigured ? (
-            <span className="shrink-0 pr-1 text-xs text-muted-foreground">No key</span>
-          ) : null}
-        </div>
-      )}
-      {effortMenu.mounted && status === 'ready' && boundFor === sessionId && showEffort ? (
-        <>
-          <button
-            type="button"
-            aria-label="Dismiss reasoning effort"
-            onClick={closeMenu}
-            className="fixed inset-0 z-40 cursor-default bg-transparent"
+                <span className="capitalize">{draft.effort ?? DEFAULT_EFFORT}</span>
+                <Icons.chevronDown aria-hidden />
+              </Button>
+            }
           />
-          <div
-            role="menu"
-            aria-label="Reasoning effort"
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.stopPropagation()
-                closeMenu()
-                effortTriggerRef.current?.focus()
-              }
-            }}
-            className={`z-50 mb-2 w-44 overflow-hidden rounded-xl border border-border bg-muted p-2 shadow-xl ${compact || effortAbove ? 'absolute right-0 bottom-full' : 'absolute right-4 top-full'} ${effortMenu.closing ? popoverExit : popoverEnter}`}
-          >
-            {activeEfforts.map((level) => {
-              const active = (draft.effort ?? DEFAULT_EFFORT) === level
-              return (
-                <button
-                  key={level}
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={active}
-                  onClick={() => {
-                    persist({ ...draft, effort: level })
-                    closeMenu()
-                  }}
-                  className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs capitalize hover:bg-background"
-                >
-                  <span className="w-4 shrink-0">
-                    {active ? <Icons.approve className="size-3.5" aria-hidden /> : null}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate font-medium">{level}</span>
-                </button>
-              )
-            })}
-          </div>
-        </>
-      ) : null}
-      {saveError ? (
-        <p role="alert" className="mt-1 text-xs text-muted-foreground">
-          {saveError}
-        </p>
-      ) : null}
-      {menu.mounted && status === 'ready' && boundFor === sessionId ? (
-        <>
-          <button
-            type="button"
-            aria-label="Dismiss models"
-            onClick={closeMenu}
-            className="fixed inset-0 z-40 cursor-default bg-transparent"
-          />
-          <div
-            role="menu"
-            aria-label="Models"
-            ref={menuRef}
-            tabIndex={-1}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.stopPropagation()
-                closeMenu()
-                triggerRef.current?.focus()
-              }
-            }}
-            className={`z-50 flex max-h-80 flex-col overflow-hidden rounded-xl border border-border bg-muted shadow-xl ${compact || menuAbove ? 'absolute right-0 bottom-full mb-2 w-72' : 'absolute inset-x-4 top-full mt-2'} ${menu.closing ? popoverExit : popoverEnter}`}
-          >
-            <div className="border-b border-border p-2">
-              <input
-                aria-label="Search models"
-                value={query}
-                placeholder="Search models"
-                onChange={(event) => setQuery(event.target.value)}
-                className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs outline-none placeholder:text-muted-foreground focus:border-muted-foreground"
-              />
-            </div>
-            <div
-              className="scroll-slim min-h-0 flex-1 overflow-y-auto p-2"
-              onScroll={() => {
-                // The flyout is viewport-anchored: scrolling the list
-                // would detach it, so collapse instead of chasing.
-                setExpandedKey(null)
+          <MenuPopup className="w-44">
+            <EffortLevels
+              levels={activeEfforts}
+              current={draft.effort ?? DEFAULT_EFFORT}
+              onPick={(level) => {
+                persist({ ...draft, effort: level })
+                setEffortOpen(false)
               }}
-            >
-              {visibleProviders.length === 0 ? (
-                <p className="px-2 py-4 text-center text-xs text-muted-foreground">
-                  No models match this search.
-                </p>
-              ) : (
-                visibleProviders.map((entry) => (
-                  <div key={entry.name} className="mb-1 last:mb-0">
-                    <div className="flex items-baseline justify-between gap-2 px-2 pt-1.5 pb-0.5">
-                      <p className="text-xs font-medium tracking-wide text-muted-foreground">
-                        {providerLabel(entry.name)}
-                      </p>
-                      {!entry.hasKey ? (
-                        <p className="text-xs text-muted-foreground">No key</p>
-                      ) : null}
-                    </div>
-                    {matches(entry).map((model) => {
-                      const selected = entry.name === draft.provider && model.model === draft.model
-                      const key = `${entry.name}:${model.model}`
-                      const expanded = expandedKey === key
-                      const hasDepths = model.efforts.length > 0
-                      const currentLevel =
-                        selected && draft.effort && model.efforts.includes(draft.effort)
-                          ? draft.effort
-                          : null
-                      return (
-                        <div
-                          key={model.model}
-                          data-flyout-row={key}
-                          onMouseEnter={(event) => {
-                            if (hasDepths && selected) openFlyout(key, event.currentTarget)
-                          }}
-                          onMouseLeave={() => {
-                            if (hasDepths && selected) scheduleCollapse(key)
-                          }}
-                        >
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              role="menuitemradio"
-                              aria-checked={selected}
-                              onFocus={(event) => {
-                                if (hasDepths && selected) {
-                                  const row = event.currentTarget.closest('[data-flyout-row]')
-                                  if (row instanceof HTMLElement) openFlyout(key, row)
-                                }
-                              }}
-                              onClick={() => {
+            />
+          </MenuPopup>
+        </MenuRoot>
+      ) : (
+        <div className={bare ? 'flex min-w-0 max-w-40 items-center gap-0.5 sm:max-w-64' : 'flex min-w-0 items-center gap-0.5'}>
+          <MenuRoot open={menuOpen} onOpenChange={openMenu}>
+            <MenuTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Choose a model"
+                  disabled={saving || providers.length === 0}
+                  // Explicit shrink: the button base sets shrink-0, which
+                  // would otherwise fight flex-1 non-deterministically.
+                  className="min-w-0 flex-1 shrink"
+                >
+                  <span className="min-w-0 flex-1 truncate text-left">{triggerLabel}</span>
+                  {triggerEffort ? (
+                    <Caption as="span" className="shrink-0 capitalize">
+                      {triggerEffort}
+                    </Caption>
+                  ) : null}
+                  <Icons.chevronDown aria-hidden className="shrink-0" />
+                </Button>
+              }
+            />
+            <MenuPopup className="flex max-h-80 w-80 flex-col overflow-hidden p-0">
+              <div className="border-b border-border-subtle p-2">
+                <Input
+                  aria-label="Search models"
+                  value={query}
+                  placeholder="Search models"
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={onSearchKeyDown}
+                  className="h-8 text-ui"
+                />
+              </div>
+              <div className="scroll-slim min-h-0 flex-1 overflow-y-auto p-1">
+                {visibleProviders.length === 0 ? (
+                  <p className="px-2 py-4 text-center text-ui text-muted-foreground">
+                    No models match this search.
+                  </p>
+                ) : (
+                  visibleProviders.map((entry) => (
+                    <MenuGroup key={entry.name}>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <MenuLabel>{providerLabel(entry.name)}</MenuLabel>
+                        {!entry.hasKey ? (
+                          <Caption as="span" className="shrink-0 px-2">
+                            No key
+                          </Caption>
+                        ) : null}
+                      </div>
+                      {matches(entry).map((model) => {
+                        const selected = entry.name === draft.provider && model.model === draft.model
+                        const hasDepths = model.efforts.length > 0
+                        if (!hasDepths) {
+                          return (
+                            <MenuRadioGroup
+                              key={model.model}
+                              value={selected ? model.model : ''}
+                              onValueChange={() => {
                                 persist({
                                   provider: entry.name,
                                   model: model.model,
                                   reasoning: model.reasoning === 'native',
                                   ...(draft.effort === undefined ? {} : { effort: draft.effort }),
                                 })
-                                closeMenu()
+                                setMenuOpen(false)
                               }}
-                              className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs hover:bg-background"
                             >
-                              <span className="w-4 shrink-0">
-                                {selected ? <Icons.approve className="size-3.5" aria-hidden /> : null}
-                              </span>
-                              <span className="min-w-0 flex-1 truncate font-medium">
-                                {model.displayName}
-                              </span>
-                              {model.reasoning === 'native' && !hasDepths ? (
-                                <span className="shrink-0 text-xs text-muted-foreground">
-                                  Thinking
+                              <MenuRadioItem value={model.model}>
+                                <span className="min-w-0 flex-1 truncate">{model.displayName}</span>
+                                {model.reasoning === 'native' ? (
+                                  <Caption as="span" className="shrink-0">
+                                    Thinking
+                                  </Caption>
+                                ) : null}
+                              </MenuRadioItem>
+                            </MenuRadioGroup>
+                          )
+                        }
+                        const currentLevel = selected ? (draft.effort ?? DEFAULT_EFFORT) : DEFAULT_EFFORT
+                        return (
+                          <MenuSubmenuRoot key={model.model}>
+                            <MenuSubmenuTrigger className="pl-8">
+                              <span className="min-w-0 flex-1 truncate">{model.displayName}</span>
+                              {selected ? (
+                                <span className="flex shrink-0 items-center gap-1 text-muted-foreground">
+                                  <Icons.approve aria-hidden className="size-4 text-primary-text" />
+                                  <Caption as="span" className="capitalize">
+                                    {currentLevel}
+                                  </Caption>
                                 </span>
+                              ) : model.reasoning === 'native' ? (
+                                <Caption as="span" className="shrink-0">
+                                  Thinking
+                                </Caption>
                               ) : null}
-                            </button>
-                            {hasDepths ? (
-                              <button
-                                type="button"
-                                aria-label={`Effort for ${model.displayName}`}
-                                aria-expanded={expanded}
-                                onClick={(event) => {
-                                  if (expanded) {
-                                    setExpandedKey(null)
-                                    return
-                                  }
-                                  const row = event.currentTarget.closest('[data-flyout-row]')
-                                  if (row instanceof HTMLElement) openFlyout(key, row)
-                                  else setExpandedKey(key)
-                                }}
-                                className="h-8 pointer-coarse:h-10 shrink-0 cursor-pointer rounded-md border border-border px-1.5 text-xs capitalize text-muted-foreground hover:border-muted-foreground"
-                              >
-                                {currentLevel ?? 'Effort'}
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                ))
-              )}
-            </div>
-            {flyoutTarget
-              ? createPortal(
-                  <div
-                    role="menu"
-                    aria-label={`Effort for ${flyoutTarget.model.displayName}`}
-                    onMouseEnter={() => {
-                      if (collapseTimer.current !== null) {
-                        window.clearTimeout(collapseTimer.current)
-                        collapseTimer.current = null
-                      }
-                    }}
-                    onMouseLeave={() => scheduleCollapse(flyoutTarget.key)}
-                    className={`fixed z-[60] w-44 rounded-xl border border-border bg-muted p-2 shadow-xl ${popoverEnter}`}
-                    style={{
-                      top: flyoutTop,
-                      ...(flyoutLeft === null ? { right: flyoutRight ?? 8 } : { left: flyoutLeft }),
-                    }}
-                  >
-                    <p className="px-2 pt-1 pb-0.5 text-xs font-medium tracking-wide text-muted-foreground">
-                      Effort
-                    </p>
-                    {flyoutTarget.model.efforts.map((level) => {
-                      const targetSelected =
-                        flyoutTarget.entry.name === draft.provider &&
-                        flyoutTarget.model.model === draft.model
-                      const active =
-                        (targetSelected ? (draft.effort ?? DEFAULT_EFFORT) : DEFAULT_EFFORT) ===
-                        level
-                      return (
-                        <button
-                          key={level}
-                          type="button"
-                          role="menuitemradio"
-                          aria-checked={targetSelected && active}
-                          onClick={() => {
-                            persist({
-                              provider: flyoutTarget.entry.name,
-                              model: flyoutTarget.model.model,
-                              reasoning: flyoutTarget.model.reasoning === 'native',
-                              effort: level,
-                            })
-                            closeMenu()
-                          }}
-                          title={
-                            targetSelected
-                              ? `Effort ${level}`
-                              : `Switch to ${flyoutTarget.model.displayName} at ${level} effort`
-                          }
-                          className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs capitalize hover:bg-background"
-                        >
-                          <span className="w-4 shrink-0">
-                            {targetSelected && active ? (
-                              <Icons.approve className="size-3.5" aria-hidden />
-                            ) : null}
-                          </span>
-                          <span className="min-w-0 flex-1 truncate font-medium">{level}</span>
-                        </button>
-                      )
-                    })}
-                  </div>,
-                  document.body,
-                )
-              : null}
-            <div className="border-t border-border p-2">
+                              <Icons.chevronRight aria-hidden className="size-4 text-muted-foreground" />
+                            </MenuSubmenuTrigger>
+                            <MenuSubmenuPopup className="w-44">
+                              <MenuGroup>
+                                <MenuLabel>Effort</MenuLabel>
+                                <EffortLevels
+                                  levels={model.efforts}
+                                  current={currentLevel}
+                                  onPick={(level) => {
+                                    persist({
+                                      provider: entry.name,
+                                      model: model.model,
+                                      reasoning: model.reasoning === 'native',
+                                      effort: level,
+                                    })
+                                    setMenuOpen(false)
+                                  }}
+                                />
+                              </MenuGroup>
+                            </MenuSubmenuPopup>
+                          </MenuSubmenuRoot>
+                        )
+                      })}
+                    </MenuGroup>
+                  ))
+                )}
+              </div>
               {showThinking || !canReason ? (
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={canReason && draft.reasoning}
-                  aria-label="Thinking"
-                  disabled={!canReason || saving}
-                  title={canReason ? 'Reason before answering.' : 'Not available on this model.'}
-                  onClick={() =>
-                    persist({ provider: draft.provider, model: draft.model, reasoning: !draft.reasoning })
-                  }
-                  className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs disabled:pointer-events-none disabled:opacity-50 hover:bg-background"
-                >
-                  <span
-                    aria-hidden
-                    className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${canReason && draft.reasoning ? 'bg-foreground' : 'bg-border'}`}
-                  >
-                    <span
-                      className={`absolute top-0.5 size-3 rounded-full bg-background transition-all ${canReason && draft.reasoning ? 'left-3.5' : 'left-0.5'}`}
+                <>
+                  <MenuSeparator />
+                  <div className="flex items-center gap-2 p-2">
+                    <SwitchRoot
+                      checked={canReason && draft.reasoning}
+                      disabled={!canReason || saving}
+                      onCheckedChange={(checked) =>
+                        persist({ provider: draft.provider, model: draft.model, reasoning: checked })
+                      }
+                      aria-label="Reasoning"
                     />
-                  </span>
-                  <span className="font-medium">Thinking</span>
-                  {!canReason ? (
-                    <span className="ml-auto text-xs text-muted-foreground">
-                      Not on this model
+                    <span className="text-ui" aria-hidden>
+                      Reasoning
                     </span>
-                  ) : null}
-                </button>
+                    {!canReason ? (
+                      <Caption as="span" className="ml-auto">
+                        Not on this model
+                      </Caption>
+                    ) : null}
+                  </div>
+                </>
               ) : null}
-            </div>
-          </div>
-        </>
+            </MenuPopup>
+          </MenuRoot>
+          {!showEffort && draft.reasoning && canReason && !bare ? (
+            <Caption as="span" className="shrink-0 px-1">
+              Thinking
+            </Caption>
+          ) : null}
+          {saving ? (
+            <Caption as="span" role="status" className="shrink-0 pr-1">
+              Saving
+            </Caption>
+          ) : null}
+          {unconfigured ? (
+            <Caption as="span" className="shrink-0 pr-1">
+              No key
+            </Caption>
+          ) : null}
+        </div>
+      )}
+      {saveError ? (
+        <p role="alert" className="mt-1 text-xs text-danger">
+          {saveError}
+        </p>
       ) : null}
     </div>
   )

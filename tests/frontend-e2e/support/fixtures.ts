@@ -204,6 +204,19 @@ function buildKarbotSessions(): FixtureSession[] {
 
 export const karbotSessions: FixtureSession[] = buildKarbotSessions()
 
+/** Extra deterministic chats for one sector (WS-04-many paging shots). */
+export function extraChats(sectorId: string, count: number): FixtureSession[] {
+  const topics = ['shortlist review', 'coverage check', 'crew comparison', 'quote follow-up', 'licence check', 'reference call']
+  return Array.from({ length: count }, (_, i) => ({
+    id: `session-${sectorId}-chat-extra-${i + 1}`,
+    title: `${topics[i % topics.length] as string} ${Math.floor(i / topics.length) + 1}`,
+    kind: 'normal' as const,
+    sectorId,
+    createdAt: daysAgo(20 - (i % 20)),
+    updatedAt: daysAgo(i % 9, i % 7),
+  }))
+}
+
 export function sessionById(id: string): FixtureSession | undefined {
   for (const sector of allSectors) {
     const found = sectorSessions(sector).find((session) => session.id === id)

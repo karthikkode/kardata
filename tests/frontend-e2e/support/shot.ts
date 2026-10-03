@@ -22,6 +22,11 @@ export interface ShotOptions {
   settleMs?: number
   /** Apply the theme. Default: emulateMedia (v2 system preference). */
   applyTheme?: (page: Page, theme: ShotTheme) => Promise<void>
+  /** Runs after each viewport resize, BEFORE anchors are awaited (e.g.
+   * reopen a drawer the width change closed). Must be idempotent: it runs
+   * once per width x theme. Unlike beforeShot (scroll into view), this
+   * restores the state the anchors prove. */
+  prepare?: (page: Page, width: number, theme: ShotTheme) => Promise<void>
   /** Runs after anchors settle, before the shutter (e.g. scroll the subject into view at 390). */
   beforeShot?: (page: Page, width: number, theme: ShotTheme) => Promise<void>
 }
@@ -64,8 +69,12 @@ export async function shot(page: Page, id: string, state: string, options: ShotO
       const height = options.heights?.[width] ?? DEFAULT_HEIGHTS[width] ?? 800
       await page.setViewportSize({ width, height })
       await page.evaluate(() => document.fonts.ready.then(() => undefined)).catch(() => undefined)
+      await options.prepare?.(page, width, theme)
       for (const anchor of options.anchors ?? []) {
-        await page.locator(anchor).first().waitFor({ state: 'visible', timeout: 15_000 })
+        // Visible-copy wait: drawer doubles (rail aside + open drawer)
+        // otherwise pin .first() to the hidden twin forever. filter (not
+        // :visible) keeps role=/text= engines working.
+        await page.locator(anchor).filter({ visible: true }).first().waitFor({ state: 'visible', timeout: 15_000 })
       }
       await page.waitForTimeout(options.settleMs ?? 400)
       await options.beforeShot?.(page, width, theme)

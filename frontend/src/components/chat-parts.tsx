@@ -4,7 +4,12 @@
 // Karbot keeps its own layout; it only shares overflow-safe Markdown.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Icons } from '@/lib/icons'
+import { cn } from '@/lib/utils'
+import { formatFullDate } from '../lib/format'
+import { notify } from '../lib/toast'
 import { sessionAge } from './ChatPanel'
+import { Caption } from './text'
+import { Button } from './ui/button'
 
 /** Gap that opens a timestamp divider between two stamped rows. */
 export const DIVIDER_GAP_MS = 5 * 60 * 1000
@@ -29,50 +34,44 @@ export function TimeDivider({ at }: { at: string }) {
   )
 }
 
-/** Right-aligned user bubble. Shrink-wraps short messages, caps at 85%,
- * and stays a soft primary tint, quiet against the muted agent bubble.
- * Wraps anywhere so pasted tokens never spill. */
+/** Right-aligned user bubble (CV-02). Shrink-wraps short messages,
+ * caps at 85%, and stays a neutral active tint. Wraps anywhere so
+ * pasted tokens never spill. */
 export function UserBubble({ children }: { children: ReactNode }) {
   return (
-    <div className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md border border-primary/20 bg-primary/10 px-3.5 py-2 text-sm text-foreground shadow-xs [overflow-wrap:anywhere]">
+    <div className="ml-auto w-fit max-w-[85%] rounded-xl rounded-br-sm bg-surface-active px-3.5 py-2.5 text-sm leading-[22px] text-foreground [overflow-wrap:anywhere]">
       {children}
     </div>
   )
 }
 
-/** Left-aligned agent bubble. Same wrap guarantee as the user side.
- * Settled replies (never live or streaming text) carry a small
- * keyboard-accessible Copy action; clipboard failures report locally and
- * the draft is never touched. No regenerate or edit actions exist. */
-export function AgentBubble({ children, copyText }: { children: ReactNode; copyText?: string }) {
-  const [copied, setCopied] = useState(false)
-  const [copyError, setCopyError] = useState(false)
+/** Agent message, never a bubble (CV-03/04). Same wrap guarantee as
+ * the user side. Settled replies (never live or streaming text) carry
+ * a Copy action plus a timestamp, revealed on hover/focus (always on
+ * touch and on the latest message). No regenerate or edit actions exist. */
+export function AgentBubble({ children, copyText, timestamp, latest = false }: { children: ReactNode; copyText?: string; timestamp?: string; latest?: boolean }) {
   async function copy() {
     if (copyText === undefined) return
-    setCopyError(false)
     try {
       await navigator.clipboard.writeText(copyText)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 2000)
+      notify.success('Copied')
     } catch {
-      setCopyError(true)
+      notify.error('Copy failed. Try again.')
     }
   }
   return (
-    <div className="min-w-0 max-w-full px-1 py-1 text-sm leading-relaxed [overflow-wrap:anywhere]">
+    <div className="group min-w-0 max-w-full text-sm leading-[22px] [overflow-wrap:anywhere]">
       {children}
       {copyText !== undefined ? (
-        <div className="mt-1 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => void copy()}
-            className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:h-10"
-          >
-            {copied ? <Icons.approve className="size-3.5 shrink-0" aria-hidden /> : <Icons.copy className="size-3.5 shrink-0" aria-hidden />}
-            {copied ? 'Copied' : 'Copy'}
-          </button>
-          {copyError ? (
-            <p role="alert" className="text-xs text-destructive">Copy failed. Try again.</p>
+        <div className={cn('mt-1 flex items-center gap-2 transition-opacity duration-120', latest ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100')}>
+          <Button type="button" variant="ghost" size="xs" onClick={() => void copy()}>
+            <Icons.copy aria-hidden />
+            Copy
+          </Button>
+          {timestamp ? (
+            <Caption as="span">
+              <time dateTime={timestamp} title={formatFullDate(timestamp)} className="tabular-nums">{sessionAge(timestamp)}</time>
+            </Caption>
           ) : null}
         </div>
       ) : null}
@@ -116,6 +115,33 @@ export function useChatStick(activityKey: string) {
   useEffect(() => {
     if (stuckRef.current) pinToBottom()
   }, [activityKey])
+
+  useEffect(() => {
+    // A fresh log with content starts pinned: the conversation view
+    // remounts on thread switches while the messages stay in hook state,
+    // so the activity effect above would otherwise never re-run for them.
+    if (stuckRef.current) pinToBottom()
+  }, [])
+
+  useEffect(() => {
+    // The assistant runtime renders a commit behind our segments (and
+    // images/fonts settle later still), so a single post-commit pin reads
+    // a stale height. While stuck, follow every growth instead.
+    const element = listRef.current
+    // The content wrapper, not the log: the log's own box never changes
+    // size, so only the wrapper's growth observes the late renders.
+    const content = element?.firstElementChild
+    if (!element || !content || typeof ResizeObserver === 'undefined') return
+    let lastHeight = element.scrollHeight
+    const observer = new ResizeObserver(() => {
+      const height = element.scrollHeight
+      const grew = height > lastHeight
+      lastHeight = height
+      if (grew && stuckRef.current) pinToBottom()
+    })
+    observer.observe(content)
+    return () => observer.disconnect()
+  }, [])
 
   return { listRef, showLatest, onListScroll, jumpToLatest, resetPin }
 }

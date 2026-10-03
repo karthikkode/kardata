@@ -1,6 +1,6 @@
 // Action menu over Base UI: trigger plus one expanded option list with
-// keyboard traversal owned by the primitive. One action per row; nested
-// flyouts stay out (submenu support is MenuSubmenuRoot below).
+// keyboard traversal owned by the primitive. One action per row; one
+// submenu level (MenuSubmenu*) for grouped choices like effort levels.
 import * as React from 'react'
 import { Menu } from '@base-ui/react/menu'
 import { Check } from 'lucide-react'
@@ -83,9 +83,9 @@ function MenuRadioItem({ className, children, ...props }: React.ComponentProps<t
     >
       <Menu.RadioItemIndicator
         data-slot="menu-radio-item-indicator"
-        className="absolute left-2 flex size-4 items-center justify-center"
+        className="absolute left-2 flex size-4 items-center justify-center text-primary-text"
       >
-        <span aria-hidden className="size-1.5 rounded-full bg-current" />
+        <Check aria-hidden />
       </Menu.RadioItemIndicator>
       {children}
     </Menu.RadioItem>
@@ -135,6 +135,25 @@ function MenuSubmenuTrigger({ className, children, ...props }: React.ComponentPr
   )
 }
 
+function MenuSubmenuPopup({ className, children, ...props }: React.ComponentProps<typeof Menu.Popup>) {
+  return (
+    <Menu.Portal data-slot="menu-submenu-portal">
+      <Menu.Positioner data-slot="menu-submenu-positioner" sideOffset={4} alignOffset={-4} className="z-50 outline-none">
+        <Menu.Popup
+          data-slot="menu-submenu-popup"
+          className={cn(
+            'scroll-slim max-h-80 min-w-40 origin-[var(--transform-origin)] overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-md outline-none transition-all duration-120 ease-out data-[ending-style]:opacity-0 data-[ending-style]:duration-100 data-[starting-style]:scale-[0.96] data-[starting-style]:opacity-0',
+            className,
+          )}
+          {...props}
+        >
+          {children}
+        </Menu.Popup>
+      </Menu.Positioner>
+    </Menu.Portal>
+  )
+}
+
 export {
   MenuRoot,
   MenuTrigger,
@@ -148,4 +167,5 @@ export {
   MenuGroup,
   MenuSubmenuRoot,
   MenuSubmenuTrigger,
+  MenuSubmenuPopup,
 }

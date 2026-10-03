@@ -68,8 +68,8 @@ function TabsTab({ className, children, ...props }: React.ComponentProps<typeof 
   const { variant } = React.useContext(TabsVariantContext)
   const tabClassName = cn(
     variant === 'segmented'
-      ? 'relative z-0 h-8 shrink-0 cursor-pointer rounded-sm px-3 text-ui font-medium whitespace-nowrap text-muted-foreground outline-none transition-colors duration-120 ease-out-soft hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 data-selected:text-foreground'
-      : 'relative h-10 shrink-0 cursor-pointer px-1 text-ui font-medium whitespace-nowrap text-muted-foreground outline-none transition-colors duration-120 ease-out-soft hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 data-selected:text-foreground',
+      ? 'relative z-0 h-8 pointer-coarse:h-10 shrink-0 cursor-pointer rounded-sm px-3 text-ui font-medium whitespace-nowrap text-muted-foreground outline-none transition-colors duration-120 ease-out-soft hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 data-selected:text-foreground'
+      : 'relative h-10 pointer-coarse:min-w-10 shrink-0 cursor-pointer px-1 text-ui font-medium whitespace-nowrap text-muted-foreground outline-none transition-colors duration-120 ease-out-soft hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 data-selected:text-foreground',
     className,
   )
   return (
@@ -79,7 +79,7 @@ function TabsTab({ className, children, ...props }: React.ComponentProps<typeof 
       render={(elementProps, state) => (
         <button {...elementProps} className={tabClassName}>
           {variant === 'segmented' ? <span className="relative z-10 inline-flex items-center gap-1.5">{children}</span> : children}
-          {(state as { selected?: boolean }).selected ? <TabIndicator /> : null}
+          {(state as Tabs.Tab.State).active ? <TabIndicator /> : null}
         </button>
       )}
       {...props}

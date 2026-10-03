@@ -39,7 +39,7 @@ describe('files menu', () => {
     render(
       <FilesMenu files={FILES} closing={false} onPick={noop} onClose={noop} onEscape={onEscape} />,
     )
-    fireEvent.keyDown(screen.getByRole('menu', { name: 'Add files' }), { key: 'Escape' })
+    fireEvent.keyDown(screen.getByRole('menu', { name: 'Attach file' }), { key: 'Escape' })
     expect(onEscape).toHaveBeenCalledTimes(1)
   })
 })

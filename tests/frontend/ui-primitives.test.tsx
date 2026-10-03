@@ -93,6 +93,43 @@ describe('owned primitives', () => {
     expect(screen.getByText('company list')).toBeInTheDocument()
   })
 
+  it('renders exactly one tab indicator inside the active tab', async () => {
+    const user = userEvent.setup()
+    const { container } = render(
+      <TabsRoot defaultValue="sectors">
+        <TabsList>
+          <TabsTab value="sectors">Sectors</TabsTab>
+          <TabsTab value="companies">Companies</TabsTab>
+        </TabsList>
+        <TabsPanel value="sectors">sector list</TabsPanel>
+        <TabsPanel value="companies">company list</TabsPanel>
+      </TabsRoot>,
+    )
+    const indicators = () => container.querySelectorAll('[data-slot="tab-indicator"]')
+    expect(indicators()).toHaveLength(1)
+    expect(screen.getByRole('tab', { name: 'Sectors' })).toContainElement(indicators()[0])
+    await user.click(screen.getByRole('tab', { name: 'Companies' }))
+    expect(indicators()).toHaveLength(1)
+    expect(screen.getByRole('tab', { name: 'Companies' })).toContainElement(indicators()[0])
+  })
+
+  it('renders the segmented thumb inside the active tab only', () => {
+    const { container } = render(
+      <TabsRoot defaultValue="research">
+        <TabsList variant="segmented">
+          <TabsTab value="research">Research</TabsTab>
+          <TabsTab value="chats">Chats</TabsTab>
+        </TabsList>
+        <TabsPanel value="research">research list</TabsPanel>
+        <TabsPanel value="chats">chat list</TabsPanel>
+      </TabsRoot>,
+    )
+    const indicators = container.querySelectorAll('[data-slot="tab-indicator"]')
+    expect(indicators).toHaveLength(1)
+    expect(indicators[0]).toHaveClass('bg-card')
+    expect(screen.getByRole('tab', { name: 'Research' })).toContainElement(indicators[0])
+  })
+
   it('opens a menu and closes it with Escape', async () => {
     const user = userEvent.setup()
     render(

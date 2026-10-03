@@ -1,39 +1,55 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { SessionOptions } from '@/components/SectorWorkspace'
+import { RenameSessionDialog } from '@/components/SectorWorkspace'
 
-describe('SessionOptions deletion', () => {
-  it('confirms normal-session deletion through an explicit alert dialog', async () => {
-    const user = userEvent.setup()
-    const onDelete = vi.fn()
-    render(
-      <SessionOptions title="Evening chat" research={false} busy={false} onRename={() => undefined} onDelete={onDelete} />,
-    )
-    await user.click(screen.getByRole('button', { name: 'Delete conversation' }))
-    expect(
-      await screen.findByRole('alertdialog', { name: 'Delete "Evening chat"?' }),
-    ).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Delete conversation' }))
-    expect(onDelete).toHaveBeenCalledTimes(1)
+describe('RenameSessionDialog (SO-01)', () => {
+  it('autofocuses the name field with the title selected', async () => {
+    render(<RenameSessionDialog title="Evening chat" busy={false} onClose={vi.fn()} onSave={vi.fn()} />)
+    const input = await screen.findByRole('textbox', { name: 'Chat name' })
+    expect(input).toHaveValue('Evening chat')
+    await waitFor(() => expect(input).toHaveFocus())
+    expect((input as HTMLInputElement).selectionStart).toBe(0)
+    expect((input as HTMLInputElement).selectionEnd).toBe('Evening chat'.length)
   })
 
-  it('offers no deletion action for research sessions', () => {
-    render(
-      <SessionOptions title="Research" research busy={false} onRename={() => undefined} onDelete={vi.fn()} />,
-    )
-    expect(screen.queryByRole('button', { name: 'Delete conversation' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save name' })).toBeInTheDocument()
+  it('saves the trimmed name and closes on success', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn(async () => true)
+    const onClose = vi.fn()
+    render(<RenameSessionDialog title="Evening chat" busy={false} onClose={onClose} onSave={onSave} />)
+    const input = await screen.findByRole('textbox', { name: 'Chat name' })
+    await user.clear(input)
+    await user.type(input, '  Morning review  ')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith('Morning review')
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('preserves the name on failed save by keeping the draft', async () => {
+  it('keeps the draft open when the save fails', async () => {
     const user = userEvent.setup()
-    render(
-      <SessionOptions title="Evening chat" research={false} busy={false} onRename={() => undefined} onDelete={vi.fn()} />,
-    )
-    const input = screen.getByRole('textbox')
+    const onSave = vi.fn(async () => false)
+    const onClose = vi.fn()
+    render(<RenameSessionDialog title="Evening chat" busy={false} onClose={onClose} onSave={onSave} />)
+    const input = await screen.findByRole('textbox', { name: 'Chat name' })
     await user.clear(input)
     await user.type(input, 'Renamed chat')
-    expect(input).toHaveValue('Renamed chat')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith('Renamed chat')
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('textbox', { name: 'Chat name' })).toHaveValue('Renamed chat')
+  })
+
+  it('disables Save for a blank name and cancels without saving', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn()
+    const onClose = vi.fn()
+    render(<RenameSessionDialog title="Evening chat" busy={false} onClose={onClose} onSave={onSave} />)
+    const input = await screen.findByRole('textbox', { name: 'Chat name' })
+    await user.clear(input)
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onSave).not.toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

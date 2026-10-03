@@ -57,7 +57,9 @@ describe('coverage registry gate', () => {
       expect(existsSync(join(ROOT, 'tests', 'frontend', file)), file).toBe(true)
     }
     for (const file of e2e) {
-      expect(existsSync(join(ROOT, 'tests', 'frontend-e2e', file)), file).toBe(true)
+      const top = existsSync(join(ROOT, 'tests', 'frontend-e2e', file))
+      const v2 = existsSync(join(ROOT, 'tests', 'frontend-e2e', 'v2', file))
+      expect(top || v2, file).toBe(true)
     }
   })
 

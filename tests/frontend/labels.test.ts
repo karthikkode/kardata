@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   alertKindLabel, companiesEmptyCopy, companyStageLabel, fileStatusLabel,
   planSectionLabel, researchNextStep, researchStateLabel, runStateLabel, statusSummary,
-  toolFamily, toolLabel,
+  threadStatusLabel, toolFamily, toolLabel,
 } from '@/lib/labels'
 
 describe('humanized labels (F12)', () => {
@@ -67,6 +67,10 @@ describe('humanized labels (F12)', () => {
     expect(fileStatusLabel('needs-ocr')).toBe('Needs OCR')
     expect(fileStatusLabel('needs_ocr')).toBe('Needs OCR')
     expect(fileStatusLabel('weird_status')).toBe('Weird status')
+    expect(threadStatusLabel('RUNNING')).toBe('Running')
+    expect(threadStatusLabel('QUEUED')).toBe('Queued')
+    expect(threadStatusLabel('STOPPED')).toBe('Stopped')
+    expect(threadStatusLabel('PAUSED')).toBe('Paused')
   })
 
   it('summarizes every research state in one sentence', () => {

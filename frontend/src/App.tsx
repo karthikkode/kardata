@@ -374,7 +374,7 @@ export default function App() {
       : []
 
   if (section === 'SectorChat' && detailData.detail && staging && detailData.status !== 'denied') {
-    return <MotionConfig reducedMotion="user"><LazyMotion features={domAnimation}><TooltipProvider delay={400}><SectorWorkspace sector={detailData.detail} model={workspace} config={staging} dark={dark} onTheme={() => toggleTheme()} initialView={nav.view === 'plan' ? 'plan' : 'chat'} onBack={() => setNav({ section: 'SectorDetail', sessionId: null, threadKey: null, view: null })} actions={{ busy: researchBusy, error: researchError, plan: () => void planCurrentSector(), approve: (version, contextVersion) => void approveCurrentSector(version, contextVersion), start: () => void startCurrentSector(), pause: () => void pauseCurrentSector(), resume: () => void resumeCurrentSector(), edit: editCurrentSectorPlan }} /><AppOverlays
+    return <MotionConfig reducedMotion="user"><LazyMotion features={domAnimation}><TooltipProvider delay={400}><SectorWorkspace sector={detailData.detail} model={workspace} config={staging} initialView={nav.view === 'plan' ? 'plan' : 'chat'} onBack={() => setNav({ section: 'SectorDetail', sessionId: null, threadKey: null, view: null })} actions={{ busy: researchBusy, error: researchError, plan: () => void planCurrentSector(), approve: (version, contextVersion) => void approveCurrentSector(version, contextVersion), start: () => void startCurrentSector(), pause: () => void pauseCurrentSector(), resume: () => void resumeCurrentSector(), edit: editCurrentSectorPlan }} /><AppOverlays
           paletteOpen={paletteOpen}
           onPaletteOpenChange={setPaletteOpen}
           sectors={(sectors.items ?? []).map((sector) => ({ id: sector.id, name: sector.name, topic: sector.topic }))}

@@ -443,15 +443,18 @@ export function ConversationComposer({
  input,
  controls,
  status,
+ surface = 'bg-background',
 }: {
  label: string
  input: React.ReactNode
  controls?: React.ReactNode
  status?: React.ReactNode
+ /** Footer band surface: the workspace default, or the dock popover. */
+ surface?: string
 }) {
  return (
- <div className="shrink-0 border-t border-border bg-background">
- <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 py-3 sm:px-6">
+ <div className={cn('shrink-0 border-t border-border', surface)}>
+ <div className="mx-auto flex w-full max-w-prose-kd flex-col gap-2 px-4 py-3 sm:px-6">
  <span className="sr-only">{label}</span>
  {input}
  {(controls || status) && (

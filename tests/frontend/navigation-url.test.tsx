@@ -106,7 +106,7 @@ describe('app navigation sync', () => {
     // Open workspace enters the chat workspace; the summary back button is scoped by
     // its region because the sidebar carries its own Researches entry.
     await user.click(await screen.findByRole('button', { name: 'Open workspace' }))
-    expect(await screen.findByRole('group', { name: 'Session types' })).toBeInTheDocument()
+    expect(await screen.findByRole('tablist', { name: 'Session types' })).toBeInTheDocument()
     expect(window.location.search).toContain('section=SectorChat')
     await user.click(screen.getByRole('button', { name: 'Back to sector summary' }))
     expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
@@ -135,7 +135,7 @@ describe('app navigation sync', () => {
     )
     expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
     await user.click(await screen.findByRole('button', { name: 'Open workspace' }))
-    expect(await screen.findByRole('group', { name: 'Session types' })).toBeInTheDocument()
+    expect(await screen.findByRole('tablist', { name: 'Session types' })).toBeInTheDocument()
     window.history.back()
     expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
   })

@@ -420,6 +420,13 @@
   /* DataTable stacked cards below sm: the head hides, each row becomes a
      bordered card, cells pair a muted label with their value. */
   @media (max-width: 639px) {
+    /* display:table keeps auto layout, where width:100% is a floor: long
+       nowrap truncate content expands the table past the viewport. Block
+       layout constrains it so cells truncate. */
+    .v2-table-stack {
+      display: block;
+      width: 100%;
+    }
     .v2-table-stack thead {
       display: none;
     }

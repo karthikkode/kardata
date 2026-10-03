@@ -103,7 +103,7 @@ test.describe('plan-03 full lifecycle journey', () => {
       const chat = page.getByRole('region', { name: /Sector chat for/ })
       await chat.scrollIntoViewIfNeeded()
       await chat.getByRole('button', { name: 'Chat sessions' }).click()
-      await chat.getByRole('button', { name: 'New session' }).click()
+      await chat.getByRole('menuitem', { name: 'New chat' }).click()
       await chat.getByLabel(/Message the .* chat/).fill('Journey probe: hold position.')
       await chat.getByRole('button', { name: 'Send message' }).click()
       const panel = page.getByRole('region', { name: `Research plan for ${name}` })

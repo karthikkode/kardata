@@ -39,7 +39,7 @@ describe('Section navigation', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Ask Karbot' })[0] as HTMLElement)
     const dock = screen.getByRole('complementary', { name: 'Assistant chat' })
     expect(dock).toBeInTheDocument()
-    fireEvent.click(within(dock).getByRole('button', { name: 'Close chat' }))
+    fireEvent.click(within(dock).getByRole('button', { name: 'Close' }))
     expect(
       screen.getByRole('complementary', { name: 'Assistant chat' }),
     ).toBeInTheDocument()

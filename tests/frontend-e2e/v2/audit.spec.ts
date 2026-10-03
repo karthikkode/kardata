@@ -1,10 +1,12 @@
-// Stage 2-3 style audit: Overview + Researches + sector landing, every
-// state x theme x 1440/390 (+ a coarse-pointer mobile context for the
-// 40px touch floor). Alignment is enabled now that SH-01 owns the page
-// frame; Researches aligns h1 against the tab list (its first
-// full-width row), the landing against its status section. Landing
-// audits use the paused sector so the 5s live poll cannot re-render
-// mid-check.
+// Stage 2-4 style audit: Overview + Researches + sector landing +
+// workspace + Karbot dock, every state x theme x 1440/390 (+ a
+// coarse-pointer mobile context for the 40px touch floor). Alignment is
+// enabled now that SH-01 owns the page frame; Researches aligns h1
+// against the tab list (its first full-width row), the landing against
+// its status section. Landing audits use the paused sector so the 5s
+// live poll cannot re-render mid-check. Workspace views skip alignment
+// (no SH-01 page frame: the h1 lives in the centre column) and offline
+// (the shared offline anatomy is audited on the shell pages).
 import { devices, expect, test, type Browser, type Page } from '@playwright/test'
 import { serveApi, type ApiOptions } from '../support/api'
 import { auditPage, formatViolations, writeAuditReport } from '../support/audit'
@@ -23,6 +25,10 @@ interface ViewAudit {
   /** Null skips the h1 alignment check (no full-width row yet). */
   alignSelector: string | null
   offline?: boolean
+  /** Runs after every goto (desktop, loading re-goto, mobile): opens the
+   * dock/drawer or selects the tab the anchors need. Must be idempotent
+   * across widths (check visibility before clicking drawer triggers). */
+  interact?: (page: Page) => Promise<void>
 }
 
 /** Aborted fetch alone maps to error; the offline anatomy needs the
@@ -46,8 +52,12 @@ async function auditView(page: Page, browser: Browser, view: ViewAudit): Promise
     await expect(page.getByRole('alert').first()).toBeVisible()
     await goOffline(page)
   }
+  if (view.interact) await view.interact(page)
   for (const settled of view.anchors) await expect(page.locator(settled)).toBeVisible()
-  await shot(page, `${view.shotPrefix}-${view.state}`, 'default', { anchors: view.anchors })
+  await shot(page, `${view.shotPrefix}-${view.state}`, 'default', {
+    anchors: view.anchors,
+    ...(view.interact ? { prepare: (page: Page) => view.interact?.(page) } : {}),
+  })
 
   for (const theme of THEMES) {
     await settleTheme(page, theme)
@@ -58,6 +68,7 @@ async function auditView(page: Page, browser: Browser, view: ViewAudit): Promise
       await page.waitForTimeout(250)
       if (view.state === 'loading') {
         await page.goto(view.url)
+        if (view.interact) await view.interact(page)
         await expect(page.locator(anchor)).toBeVisible()
         await settleTheme(page, theme)
       }
@@ -90,6 +101,7 @@ async function auditView(page: Page, browser: Browser, view: ViewAudit): Promise
         await expect(mpage.getByRole('alert').first()).toBeVisible()
         await goOffline(mpage)
       }
+      if (view.interact) await view.interact(mpage)
       await expect(mpage.locator(anchor)).toBeVisible()
       await settleTheme(mpage, theme)
       const coarse = await mpage.evaluate(() => window.matchMedia('(pointer: coarse)').matches)
@@ -318,5 +330,124 @@ test('audit-landing-notfound', async ({ page, browser }) => {
     ...LANDING, url: '/?section=SectorDetail&sector=sector-removed', alignSelector: null, state: 'notfound',
     options: {},
     anchors: ['text=This sector may have been removed.'],
+  })
+})
+
+// Stage 4: the workspace header always renders its h1 (falling back to
+// "Sector workspace") and the conversation log + composer mount at every
+// width, so these anchors hold on desktop and in the mobile drawer.
+
+/** Below 768px the session rail lives in a drawer; open it there,
+ * and close it at desktop widths (prepare replays per width, so a drawer
+ * opened for 390 would otherwise linger over the 1440 audit). */
+async function openSessionsDrawer(page: Page): Promise<void> {
+  // interact runs straight after goto: settle on the header first or the
+  // trigger check below races first render (and fails as "not found").
+  await expect(page.locator('main h1')).toBeVisible()
+  const drawer = page.getByRole('dialog', { name: 'Sessions' })
+  if ((page.viewportSize()?.width ?? 1440) >= 768) {
+    if (await drawer.isVisible()) await page.keyboard.press('Escape')
+    await expect(drawer).toBeHidden()
+    await expect(page.getByRole('tablist', { name: 'Session types' })).toBeVisible()
+    return
+  }
+  // Width-based branch, not isVisible(): on the touch context the
+  // trigger reports hidden for a beat after the h1 settles (entrance
+  // motion), which skipped the click and failed as "tablist not found".
+  // click() actionability-waits instead. Probe: unconditional click on the
+  // "hidden" trigger opens the drawer (zz-debug-drawer).
+  await page.getByRole('button', { name: 'Open sessions' }).click()
+  await expect(page.getByRole('tablist', { name: 'Session types' })).toBeVisible()
+}
+
+async function selectFirstChat(page: Page): Promise<void> {
+  await openSessionsDrawer(page)
+  await page.getByRole('tab', { name: /^Chats/ }).click()
+  const list = page.getByRole('list', { name: 'Chat sessions' })
+  await expect(list).toBeVisible()
+  const first = list.getByRole('button', { name: /^Open / }).first()
+  const title = ((await first.getAttribute('aria-label')) ?? '').replace(/^Open /, '')
+  expect(title.length, 'first chat must have a title').toBeGreaterThan(0)
+  await first.click()
+  await expect(page.locator('main h1')).toContainText(title)
+}
+
+async function openKarbot(page: Page): Promise<void> {
+  await expect(page.locator('h1:has-text("Overview")')).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Research totals' })).toBeVisible()
+  // The TopBar toggle closes an open dock: only click when it is absent so
+  // per-width replays keep the dock open.
+  if ((await page.getByRole('complementary', { name: 'Assistant chat' }).count()) === 0) {
+    await page.getByRole('button', { name: 'Ask Karbot' }).click()
+  }
+  await expect(page.getByRole('complementary', { name: 'Assistant chat' })).toBeVisible()
+}
+
+const WORKSPACE = {
+  report: 'workspace', shotPrefix: 'WS-audit',
+  url: '/?section=SectorChat&sector=sector-electrical',
+  alignSelector: null,
+} as const
+
+const WORKSPACE_SETTLED = ['main h1', '[aria-label="Conversation messages"]', 'role=textbox[name="Message this conversation"]']
+
+test('audit-workspace-default', async ({ page, browser }) => {
+  await auditView(page, browser, {
+    ...WORKSPACE, state: 'default', options: {},
+    anchors: WORKSPACE_SETTLED,
+  })
+})
+
+test('audit-workspace-chat', async ({ page, browser }) => {
+  await auditView(page, browser, {
+    ...WORKSPACE, state: 'chat', options: {},
+    interact: selectFirstChat,
+    anchors: WORKSPACE_SETTLED,
+  })
+})
+
+test('audit-workspace-error', async ({ page, browser }) => {
+  await auditView(page, browser, {
+    ...WORKSPACE, url: '/?section=SectorChat&sector=sector-electrical&session=session-bogus', state: 'error',
+    options: {},
+    anchors: ['main h1', '[role="alert"]'],
+  })
+})
+
+test('audit-workspace-sessions-loading', async ({ page, browser }) => {
+  await auditView(page, browser, {
+    ...WORKSPACE, state: 'sessions-loading',
+    options: { modes: { sessions: 'loading' } },
+    interact: openSessionsDrawer,
+    anchors: ['main h1', '[aria-label="Sessions is loading"]'],
+  })
+})
+
+test('audit-workspace-sessions-error', async ({ page, browser }) => {
+  await auditView(page, browser, {
+    ...WORKSPACE, state: 'sessions-error',
+    options: { modes: { sessions: 'error' } },
+    interact: openSessionsDrawer,
+    anchors: ['main h1', '[role="alert"]'],
+  })
+})
+
+test('audit-workspace-sessions-denied', async ({ page, browser }) => {
+  await auditView(page, browser, {
+    ...WORKSPACE, state: 'sessions-denied',
+    options: { modes: { sessions: 'denied' } },
+    interact: openSessionsDrawer,
+    anchors: ['main h1', 'text=Access denied'],
+  })
+})
+
+test('audit-karbot-open', async ({ page, browser }) => {
+  // Six combos over Overview + the open dock outgrows the 30s default.
+  test.setTimeout(120_000)
+  await auditView(page, browser, {
+    report: 'karbot', shotPrefix: 'KB-audit', url: '/', alignSelector: null, state: 'open',
+    options: {},
+    interact: openKarbot,
+    anchors: ['[aria-label="Assistant chat"]', 'role=textbox[name="Message the agent"]'],
   })
 })

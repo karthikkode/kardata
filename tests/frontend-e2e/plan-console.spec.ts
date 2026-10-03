@@ -57,7 +57,7 @@ test.describe('plan-02 live run console', () => {
       const chat = page.getByRole('region', { name: /Sector chat for/ })
       await chat.scrollIntoViewIfNeeded()
       await chat.getByRole('button', { name: 'Chat sessions' }).click()
-      await chat.getByRole('button', { name: 'New session' }).click()
+      await chat.getByRole('menuitem', { name: 'New chat' }).click()
       await chat.getByLabel(/Message the .* chat/).fill('Console probe: hold position.')
       await chat.getByRole('button', { name: 'Send message' }).click()
       const console = page.getByRole('region', { name: /Run console for/ })

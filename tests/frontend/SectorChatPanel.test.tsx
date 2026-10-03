@@ -115,7 +115,7 @@ describe('SectorChatPanel', () => {
     expect(calls.some((call) => call.url === 'https://staging.test/v1/sessions?sectorId=sec-foods')).toBe(true)
     expect(calls.some((call) => call.url === 'https://staging.test/v1/sessions' && !call.url.includes('?'))).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: 'Chat sessions' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'New session' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'New chat' }))
     await waitFor(() => expect(screen.getByText('Speciality Foods chat')).toBeInTheDocument())
   })
 
@@ -267,8 +267,8 @@ describe('SectorChatPanel', () => {
     push!({ seq: 1, type: 'reasoning', payload: { text: 'Checking context first.', runKey: 'r1' } })
     push!({ seq: 2, type: 'tool', payload: { runKey: 'r1', id: 't1', name: 'db.kb_search', state: 'running' } })
     expect(await screen.findByText('Reasoning')).toBeInTheDocument()
-    expect(screen.getByText('Kb search')).toBeInTheDocument()
-    expect(screen.getByText('Running')).toBeInTheDocument()
+    expect(screen.getByText('Using Searched knowledge base...')).toBeInTheDocument()
+    expect(screen.getByText('Searched knowledge base')).toBeInTheDocument()
   })
 
   it('shows a persisted thinking trace even with no tool calls', async () => {
@@ -298,7 +298,7 @@ describe('SectorChatPanel', () => {
     })
     renderPanel()
     await waitFor(() => expect(screen.getByText('Done.')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: 'Show Reasoning' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show reasoning' }))
     expect(screen.getByText('Checked context first.')).toBeInTheDocument()
   })
 
@@ -443,8 +443,8 @@ describe('SectorChatPanel', () => {
     })
     renderPanel()
     await waitFor(() => expect(screen.getByText('Found it.')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: 'Show Activity' }))
-    expect(await screen.findByText('Kb search')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show tool activity' }))
+    expect(await screen.findByText('Searched knowledge base')).toBeInTheDocument()
     expect(screen.getAllByText(/\d+[mhd]|now/).length).toBeGreaterThan(0)
   })
 
@@ -493,10 +493,10 @@ describe('SectorChatPanel', () => {
     })
     renderPanel()
     await waitFor(() => expect(screen.getByRole('button', { name: 'Chat sessions' })).toBeInTheDocument())
-    expect(screen.queryByRole('button', { name: 'New chat' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'New chat' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Chat sessions' }))
-    fireEvent.click(screen.getByRole('button', { name: 'New session' }))
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'New session' })).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('menuitem', { name: 'New chat' }))
+    await waitFor(() => expect(screen.queryByRole('menuitem', { name: 'New chat' })).not.toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: 'Chat sessions' }))
     fireEvent.click(screen.getByRole('button', { name: 'Delete Speciality Foods chat' }))
     expect(await screen.findByRole('alertdialog', { name: 'Delete "Speciality Foods chat"?' })).toBeInTheDocument()
@@ -681,9 +681,12 @@ describe('SectorChatPanel', () => {
     await waitFor(() => expect(screen.getByText('Speciality Foods chat')).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: 'Chat sessions' }))
     const items = await screen.findAllByRole('menuitem')
-    expect(items[0]).toHaveTextContent('Tomato soups')
-    expect(items[0]).toHaveTextContent('Research')
-    expect(items[1]).toHaveTextContent('Speciality Foods chat')
+    // KB-03 puts the New chat row first; the pinned research session leads
+    // the session rows after it.
+    expect(items[0]).toHaveTextContent('New chat')
+    expect(items[1]).toHaveTextContent('Tomato soups')
+    expect(items[1]).toHaveTextContent('Research')
+    expect(items[2]).toHaveTextContent('Speciality Foods chat')
   })
 
   it('stops a live reply and retries the last user message', async () => {

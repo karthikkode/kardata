@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { researchStages } from '../data/stages'
 import type { CompanyResearch, SectorResearch } from '../data/research'
 import { StatusPill } from './StatusPill'
+import { CardTitle, Description, Label } from './text'
 import { Badge, type BadgeTone } from './ui/badge'
 import { Button } from './ui/button'
 import { Skeleton } from './ui/skeleton'
@@ -268,20 +269,28 @@ export function PanelError({
   detail: string
   onRetry: () => void
 }) {
+  const AlertIcon = Icons.alertError
+  const RetryIcon = Icons.retry
   return (
     <div
       role="alert"
-      className="mt-2 rounded-lg border border-dashed border-border p-4"
+      className="mt-2 flex gap-2 rounded-md border border-danger-border bg-danger-soft p-3"
     >
-      <p className="text-sm font-medium">{heading}</p>
-      <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
+      <span className="flex h-5 shrink-0 items-center">
+        <AlertIcon className="size-4 text-danger" aria-hidden="true" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <Label as="span" className="block">{heading}</Label>
+        <Description className="mt-0.5">{detail}</Description>
+      </div>
       <Button
         type="button"
-        variant="outline"
+        variant="ghost"
         size="sm"
         onClick={onRetry}
-        className="mt-3"
+        className="shrink-0 self-start"
       >
+        <RetryIcon className="size-4" aria-hidden="true" />
         Try again
       </Button>
     </div>
@@ -322,14 +331,19 @@ export function OverflowList({
 // becomes a connection notice, and retry lands on content. Error and offline
 // copy never mix.
 export function UnavailableNotice({ onRetry }: { onRetry: () => void }) {
+  const OfflineIcon = Icons.offline
+  const RetryIcon = Icons.retry
   return (
-    <div className="flex flex-col items-start gap-3 py-6">
-      <p className="flex items-center gap-2 text-sm font-medium">
-        <Icons.offline className="size-4" aria-hidden />
-        No connection
-      </p>
-      <p className="text-sm text-muted-foreground">Check your connection and try again.</p>
-      <Button variant="outline" size="sm" onClick={onRetry}>
+    <div className="flex flex-col items-center py-12 text-center">
+      <span className="flex size-10 items-center justify-center rounded-full bg-muted">
+        <OfflineIcon className="size-5 text-muted-foreground" aria-hidden="true" />
+      </span>
+      <CardTitle className="mt-3">No connection</CardTitle>
+      <Description className="mt-1 max-w-80">
+        Check your connection and try again.
+      </Description>
+      <Button variant="secondary" size="sm" onClick={onRetry} className="mt-4">
+        <RetryIcon className="size-4" aria-hidden="true" />
         Try again
       </Button>
     </div>
@@ -339,15 +353,16 @@ export function UnavailableNotice({ onRetry }: { onRetry: () => void }) {
 // The request reached the API and was refused (a key without access).
 // Retry cannot help: an owner must grant access first.
 export function DeniedNotice({ heading }: { heading: string }) {
+  const DeniedIcon = Icons.denied
   return (
-    <div className="flex flex-col items-start gap-3 py-6">
-      <p className="flex items-center gap-2 text-sm font-medium">
-        <Icons.denied className="size-4" aria-hidden />
-        {heading}
-      </p>
-      <p className="text-sm text-muted-foreground">
+    <div className="flex flex-col items-center py-12 text-center">
+      <span className="flex size-10 items-center justify-center rounded-full bg-muted">
+        <DeniedIcon className="size-5 text-muted-foreground" aria-hidden="true" />
+      </span>
+      <CardTitle className="mt-3">{heading}</CardTitle>
+      <Description className="mt-1 max-w-80">
         Ask an owner for access, then try again.
-      </p>
+      </Description>
     </div>
   )
 }

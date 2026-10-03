@@ -75,7 +75,7 @@ test('chat shows a served reply, quiet tool disclosure, and provider trace', asy
   await expect(chat.getByText('List sectors')).toBeVisible()
   await expect(chat.getByText('Checked the sector list.')).toBeVisible()
   await chat.getByRole('button', { name: 'Hide Reasoning' }).click()
-  await chat.getByRole('button', { name: 'Close chat' }).click()
+  await chat.getByRole('button', { name: 'Close' }).click()
   await expect(chat).not.toBeVisible()
 })
 

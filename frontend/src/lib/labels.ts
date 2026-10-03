@@ -137,6 +137,16 @@ export function runStateLabel(state: string): string {
   return runStateLabels[state] ?? humanizeKey(state)
 }
 
+export const threadStatusLabels: Record<string, string> = {
+  RUNNING: 'Running',
+  QUEUED: 'Queued',
+  STOPPED: 'Stopped',
+}
+
+export function threadStatusLabel(status: string): string {
+  return threadStatusLabels[status] ?? humanizeKey(status)
+}
+
 export const alertKindLabels: Record<string, string> = {
   'closed-owner': 'Run closed',
   'missing-heartbeat': 'Heartbeat lost',
