@@ -41,4 +41,8 @@ function FieldError({ className, ...props }: React.ComponentProps<typeof Field.E
   )
 }
 
-export { FieldRoot, FieldLabel, FieldDescription, FieldError }
+function FieldControl({ ...props }: React.ComponentProps<typeof Field.Control>) {
+  return <Field.Control data-slot="field-control" {...props} />
+}
+
+export { FieldRoot, FieldLabel, FieldDescription, FieldError, FieldControl }

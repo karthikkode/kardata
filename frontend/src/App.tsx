@@ -173,6 +173,7 @@ export default function App() {
     try {
       await pauseSector(staging, sectorId)
       detailData.refresh()
+      notify.success('Research paused')
     } catch (error: unknown) {
       setResearchError(error instanceof Error ? error.message : 'Pause failed.')
     } finally {
@@ -187,6 +188,7 @@ export default function App() {
     try {
       await resumeSector(staging, sectorId)
       detailData.refresh()
+      notify.success('Research resumed')
     } catch (error: unknown) {
       setResearchError(error instanceof Error ? error.message : 'Resume failed.')
     } finally {
@@ -201,6 +203,7 @@ export default function App() {
     try {
       await startSector(staging, sectorId)
       detailData.refresh()
+      notify.success('Research started')
     } catch (error: unknown) {
       setResearchError(error instanceof Error ? error.message : 'Start failed.')
     } finally {
@@ -232,6 +235,7 @@ export default function App() {
       workspace.plan.refresh()
       workspace.progress.refresh()
       workspace.global.refresh()
+      notify.success(`Plan v${version} approved`)
     } catch (error: unknown) {
       setResearchError(error instanceof Error ? error.message : 'Approve failed.')
     } finally {
@@ -244,9 +248,11 @@ export default function App() {
     setResearchBusy(true)
     setResearchError(null)
     try {
+      const nextVersion = (workspace.plan.data?.latest?.version ?? 0) + 1
       await updateSectorPlan(staging, sectorId, markdown)
       detailData.refresh()
       workspace.plan.refresh()
+      notify.success(`Plan saved as v${nextVersion}. Review reopens.`)
       return true
     } catch (error: unknown) {
       setResearchError(error instanceof Error ? error.message : 'Plan edit failed.')

@@ -39,9 +39,9 @@ describe('ThemeMenu', () => {
     const onChange = vi.fn()
     render(<Controlled initial="light" onChange={onChange} />)
     await user.click(screen.getByRole('button', { name: 'Theme' }))
-    expect(screen.getByRole('menuitemradio', { name: 'Light' })).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByRole('menuitemradio', { name: 'Dark' })).toHaveAttribute('aria-checked', 'false')
-    await user.click(screen.getByRole('menuitemradio', { name: 'Dark' }))
+    expect(await screen.findByRole('menuitemradio', { name: 'Light' })).toHaveAttribute('aria-checked', 'true')
+    expect(await screen.findByRole('menuitemradio', { name: 'Dark' })).toHaveAttribute('aria-checked', 'false')
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Dark' }))
     expect(onChange).toHaveBeenCalledWith('dark')
   })
 

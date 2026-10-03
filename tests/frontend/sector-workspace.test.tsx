@@ -237,7 +237,7 @@ describe('workspace state and resource interactions', () => {
     expect(screen.queryByText('TEST hidden.md')).not.toBeInTheDocument()
     expect(screen.getByText('Needs OCR')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Show hidden files' }))
-    await user.click(screen.getByRole('button', { name: 'Reveal TEST hidden.md' }))
+    await user.click(screen.getByRole('button', { name: 'Reveal TEST hidden.md to agents' }))
     expect(onHide).toHaveBeenCalledWith('hidden', false)
     await user.type(screen.getByRole('textbox', { name: 'Search files' }), 'no-match')
     expect(screen.getByText('No matching files.')).toBeInTheDocument()
@@ -259,7 +259,8 @@ it('shows pending operation recovery independently of compaction without exposin
   const identity = 'op:'.concat('a'.repeat(64))
   render(<LocalContextEditor resource={{ status: 'ready', refresh: vi.fn(), data: { threadKey: 'TEST child', notes: '', summary: '', coveredSeq: 0, version: 1, pendingOperations: [{ operationId: identity, callId: 'TEST call', toolName: 'db.create_session', reason: 'The reply was lost.' }] } }} busy={false} onSave={vi.fn()} onCompact={vi.fn()} />)
   expect(screen.getByRole('region', { name: 'Pending operation recovery' })).toBeInTheDocument()
-  expect(screen.getByText('Operation needs review')).toBeVisible()
+  expect(screen.getByText('An operation needs review')).toBeVisible()
+  expect(screen.getByText('DB create session')).toBeVisible()
   expect(screen.getByText(identity)).not.toBeVisible()
   await user.click(screen.getByText('Operation identity'))
   expect(screen.getByText(identity)).toBeVisible()
@@ -285,7 +286,7 @@ it('requires source preview before approving file-derived context and renders bo
   const change = { id: 'TEST derived proposal', baseVersion: 1, sections: { ...global.sections, findings: 'TEST file-derived finding' }, sourceThread: 'research', author: 'research', state: 'pending' as const, version: null, at: '2026-10-01', fileRef: null, sourceRefs: [ref] }
   const props = { resource: { status: 'ready' as const, refresh: vi.fn(), data: { ...global, changes: [change] } }, preview: { status: 'loading' as const, refresh: vi.fn() }, busy: false, onReview: vi.fn(), onSave: vi.fn(async () => true), onDecision }
   const { rerender } = render(<GlobalContextPanel {...props} />)
-  await user.click(screen.getByRole('button', { name: 'File-derived context update Review' }))
+  await user.click(screen.getByRole('button', { name: 'Review File-derived context update' }))
   expect(screen.getByRole('button', { name: 'Approve', exact: true })).toBeDisabled()
   const units = ref.ords.map((ord) => ({ ord, text: `TEST exact source unit ${ord}`, uncertain: false }))
   rerender(<GlobalContextPanel {...props} preview={{ status: 'ready', refresh: vi.fn(), data: { change, units: [], sources: [{ ref, units }] } }} />)
@@ -317,4 +318,96 @@ it('preserves a safe-rebuild draft on failure and requires explicit independent-
   rerender(<LocalContextEditor {...props} resource={{ ...props.resource, data: { ...data, version: 3 } }} error="Context changed" />)
   expect(screen.getByRole('button', { name: 'Confirm safe rebuild' })).toBeDisabled()
   expect(screen.getByRole('textbox', { name: 'Independent replacement' })).toHaveValue('TEST reviewed objectives, completed work and open questions')
+})
+
+describe('global context panel v2', () => {
+  function renderPanel(data: GlobalContext = global, onReview = vi.fn()) {
+    const onSave = vi.fn(async () => true), onDecision = vi.fn(async () => true)
+    const view = render(<GlobalContextPanel resource={{ status: 'ready', refresh: vi.fn(), data }} preview={{ status: 'loading', refresh: vi.fn() }} busy={false} onReview={onReview} onSave={onSave} onDecision={onDecision} />)
+    return { ...view, onSave, onDecision }
+  }
+  function pendingChange(overrides = {}) {
+    return { id: 'TEST proposal', baseVersion: 1, sections: { ...global.sections, findings: 'TEST finding' }, sourceThread: 'research', author: 'research', state: 'pending' as const, version: null, at: '2026-10-01', fileRef: null, sourceRefs: [], ...overrides }
+  }
+  it('shows the version caption and section blocks with empty states', () => {
+    renderPanel()
+    expect(screen.getByText('v1')).toBeInTheDocument()
+    expect(screen.getByText('Scope text')).toBeInTheDocument()
+    expect(screen.getByText('Owner decision')).toBeInTheDocument()
+    expect(screen.getAllByText('Not set yet')).toHaveLength(2)
+  })
+  it('lists pending updates with a review action each', async () => {
+    const user = userEvent.setup(), onReview = vi.fn()
+    renderPanel({ ...global, changes: [pendingChange()] }, onReview)
+    expect(screen.getByText('1 update waiting for review')).toBeInTheDocument()
+    expect(screen.getByText('Shared context update')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Review Shared context update' }))
+    expect(onReview).toHaveBeenCalledWith('TEST proposal')
+  })
+  it('discards the draft when cancelling the editor', async () => {
+    const user = userEvent.setup()
+    const { onSave } = renderPanel()
+    await user.click(screen.getByRole('button', { name: 'Edit global context' }))
+    await user.type(screen.getByRole('textbox', { name: 'Decisions' }), ' TEST discarded')
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onSave).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog', { name: 'Edit global context' })).not.toBeInTheDocument()
+  })
+  it('warns when the context changed under an open editor', async () => {
+    const user = userEvent.setup()
+    const view = renderPanel()
+    await user.click(screen.getByRole('button', { name: 'Edit global context' }))
+    view.rerender(<GlobalContextPanel resource={{ status: 'ready', refresh: vi.fn(), data: { ...global, version: 2 } }} preview={{ status: 'loading', refresh: vi.fn() }} busy={false} onReview={vi.fn()} onSave={vi.fn(async () => true)} onDecision={vi.fn(async () => true)} />)
+    expect(screen.getByText(/Editing v1 · current is v2/)).toBeVisible()
+  })
+  it('disables approval for reviews based on an older version', async () => {
+    const user = userEvent.setup()
+    renderPanel({ ...global, version: 2, changes: [pendingChange()] })
+    await user.click(screen.getByRole('button', { name: 'Review Shared context update' }))
+    const approve = screen.getByRole('button', { name: 'Approve', exact: true })
+    expect(approve).toBeDisabled()
+    expect(approve.parentElement).toHaveAttribute('title', 'This update is based on an older version.')
+  })
+  it('lists revisions with status and expandable sections', async () => {
+    const user = userEvent.setup()
+    renderPanel({ ...global, changes: [pendingChange({ id: 'TEST revision', author: 'Owner', state: 'approved', version: 2, at: new Date(Date.now() - 3_600_000).toISOString(), sections: { ...global.sections, findings: 'TEST approved finding' } })] })
+    await user.click(screen.getByRole('button', { name: 'Context history' }))
+    expect(screen.getByText('Approved')).toBeVisible()
+    expect(screen.getByText('1h ago')).toBeVisible()
+    expect(screen.queryByText('TEST approved finding')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Owner/ }))
+    expect(screen.getByText('TEST approved finding')).toBeVisible()
+  })
+})
+
+describe('local context editor v2', () => {
+  function localData(overrides = {}) {
+    return { threadKey: 'TEST thread', notes: '', summary: '', coveredSeq: 0, version: 1, ...overrides }
+  }
+  function renderEditor(data = localData(), extra = {}) {
+    return render(<LocalContextEditor resource={{ status: 'ready', refresh: vi.fn(), data }} busy={false} onSave={vi.fn()} onCompact={vi.fn()} {...extra} />)
+  }
+  it('shows token usage against budget and window', () => {
+    renderEditor(localData({ usage: { inputTokens: 48210, budget: 100000, window: 200000, method: 'exact' } }))
+    expect(screen.getByText('48,210 of 100,000 tokens')).toBeInTheDocument()
+    expect(screen.getByText('Window 200,000')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: 'Context usage' })).toHaveAttribute('aria-valuenow', '48')
+    expect(screen.getByText('No stored summary yet')).toBeInTheDocument()
+  })
+  it('marks estimated usage honestly', () => {
+    renderEditor(localData({ usage: { inputTokens: 0, budget: 0, window: 0, method: 'estimated' } }))
+    expect(screen.getByText('Usage (estimated)')).toBeInTheDocument()
+  })
+  it('jumps to the chat input when continuing in a new conversation', async () => {
+    const user = userEvent.setup()
+    const composer = document.createElement('textarea')
+    composer.id = 'karbot-composer'
+    document.body.appendChild(composer)
+    const scroll = vi.fn()
+    composer.scrollIntoView = scroll
+    renderEditor(localData({ contextBlocked: 'TEST hidden source blocks new assembly' }))
+    await user.click(screen.getByRole('button', { name: 'Continue in a new conversation' }))
+    composer.remove()
+    expect(scroll).toHaveBeenCalledOnce()
+  })
 })

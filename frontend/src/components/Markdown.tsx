@@ -138,11 +138,44 @@ const components: Components = {
  hr: () => <hr className="my-2 border-border" />,
 }
 
-export function Markdown({ text, variant = 'chat' }: { text: string; variant?: 'chat' | 'plan' }) {
+const compactComponents: Components = {
+ ...components,
+ h1: ({ children }) => <h1 className="mt-3 mb-1 text-ui leading-5 font-medium first:mt-0">{children}</h1>,
+ h2: ({ children }) => <h2 className="mt-3 mb-1 text-ui leading-5 font-medium first:mt-0">{children}</h2>,
+ h3: ({ children }) => <h3 className="mt-3 mb-1 text-ui leading-5 font-medium first:mt-0">{children}</h3>,
+ h4: ({ children }) => <h4 className="mt-3 mb-1 text-ui leading-5 font-medium first:mt-0">{children}</h4>,
+ p: ({ children }) => <p className="my-1 text-ui leading-5 text-muted-foreground first:mt-0 last:mb-0">{children}</p>,
+ ul: ({ children }) => <ul className="my-1 list-disc space-y-1 pl-5 text-ui leading-5 text-muted-foreground marker:text-muted-foreground first:mt-0 last:mb-0">{children}</ul>,
+ ol: ({ children }) => <ol className="my-1 list-decimal space-y-1 pl-5 text-ui leading-5 text-muted-foreground marker:text-muted-foreground first:mt-0 last:mb-0">{children}</ol>,
+ blockquote: ({ children }) => (
+ <blockquote className="my-1 border-l-2 border-border-strong pl-3 text-ui leading-5 text-muted-foreground first:mt-0 last:mb-0">
+ {children}
+ </blockquote>
+ ),
+}
+
+export function Markdown({ text, variant = 'chat' }: { text: string; variant?: 'chat' | 'plan' | 'compact' }) {
  // Plan documents render through the explicit plan variant: decorative
  // section glyphs and grouped-row rhythm live on the renderer itself, not
  // on wrapper DOM (no reaching through ancestors). Ordinary chat never
- // receives keyword icons.
+ // receives keyword icons. The compact variant is 13px rails-and-brief
+ // prose: every heading 13/20 500, paragraphs 13/20 muted.
+ if (variant === 'compact') {
+ return (
+ <div data-markdown="" className="min-w-0 [overflow-wrap:anywhere]">
+ <ReactMarkdown
+ remarkPlugins={[remarkGfm]}
+ allowedElements={ALLOWED_ELEMENTS}
+ unwrapDisallowed
+ skipHtml
+ urlTransform={safeExternalUrl}
+ components={compactComponents}
+ >
+ {text}
+ </ReactMarkdown>
+ </div>
+ )
+ }
  const renderers: Components =
  variant === 'plan'
  ? {

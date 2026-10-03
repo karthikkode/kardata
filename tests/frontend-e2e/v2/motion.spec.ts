@@ -1,7 +1,7 @@
 // v2 motion videos: every overlay shows enter AND exit, 1280x800 webm
 // in frontend/test-results/v2/video/. Stages 2-4 record the shell,
-// Researches, landing, workspace, conversation and Karbot IDs; later
-// stages append theirs in this file.
+// Researches, landing, workspace, conversation and Karbot IDs; stage 5
+// appends plan, files and context; later stages append theirs here.
 import { copyFileSync, mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -283,4 +283,83 @@ test('KB-01-reduced', async ({ page }) => {
   await page.keyboard.press('Escape')
   await expect(page.getByRole('complementary', { name: 'Assistant chat' })).toBeHidden()
   await saveVideo(page, 'KB-01-reduced')
+})
+
+/** 1280px sits below the 1281px rail breakpoint, so the files and
+ * global-context rail always opens as a drawer in these videos. */
+async function openResources(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Open files and global context' }).click()
+  await expect(page.getByRole('dialog', { name: 'Files and global context' })).toBeVisible()
+}
+
+test('PL-03-steps-enter', async ({ page }) => {
+  await readyWorkspace(page)
+  await page.waitForTimeout(300)
+  await page.getByRole('tab', { name: /^Plan/ }).click()
+  await expect(page.getByRole('heading', { name: 'Research plan' })).toBeVisible()
+  await page.waitForTimeout(900)
+  await page.locator('[data-plan-step="direction-3"]').scrollIntoViewIfNeeded()
+  await page.waitForTimeout(900)
+  await page.getByRole('tab', { name: 'Chat', exact: true }).click()
+  await expect(page.getByRole('textbox', { name: 'Message this conversation' })).toBeVisible()
+  await saveVideo(page, 'PL-03-steps-enter')
+})
+
+test('PL-07-edit-discard', async ({ page }) => {
+  // sector-hvac carries the approved editable plan (mirrors plan.spec).
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await serveApi(page)
+  await page.goto('/?section=SectorChat&sector=sector-hvac')
+  await expect(page.locator('main h1')).toBeVisible()
+  await page.getByRole('tab', { name: /^Plan/ }).click()
+  await expect(page.getByRole('heading', { name: 'Research plan' })).toBeVisible()
+  await page.getByRole('button', { name: 'Edit plan', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Edit research plan' })
+  await expect(dialog).toBeVisible()
+  await page.waitForTimeout(500)
+  await page.getByRole('textbox', { name: 'Plan text' }).press('End')
+  await page.getByRole('textbox', { name: 'Plan text' }).type(' with owner edits')
+  await page.getByRole('button', { name: 'Cancel' }).click()
+  const confirm = page.getByRole('alertdialog', { name: 'Discard changes?' })
+  await expect(confirm).toBeVisible()
+  await page.waitForTimeout(500)
+  await confirm.getByRole('button', { name: 'Discard', exact: true }).click()
+  await expect(dialog).toBeHidden()
+  await saveVideo(page, 'PL-07-edit-discard')
+})
+
+test('FL-01-drag-over', async ({ page }) => {
+  await readyWorkspace(page)
+  await openResources(page)
+  const region = page.getByRole('dialog', { name: 'Files and global context' }).getByRole('region', { name: 'Sector files' })
+  await region.dispatchEvent('dragenter')
+  await expect(page.locator('.border-dashed')).toBeVisible()
+  await page.waitForTimeout(700)
+  await region.dispatchEvent('dragleave')
+  await expect(page.locator('.border-dashed')).toBeHidden()
+  await saveVideo(page, 'FL-01-drag-over')
+})
+
+test('FL-06-preview', async ({ page }) => {
+  await readyWorkspace(page)
+  await openResources(page)
+  await page.getByRole('dialog', { name: 'Files and global context' }).getByRole('button', { name: 'parramatta-crew-notes.md', exact: true }).click()
+  const preview = page.getByRole('dialog', { name: 'File preview' })
+  await expect(preview).toBeVisible()
+  await page.waitForTimeout(700)
+  await page.keyboard.press('Escape')
+  await expect(preview).toBeHidden()
+  await saveVideo(page, 'FL-06-preview')
+})
+
+test('GC-06-review', async ({ page }) => {
+  await readyWorkspace(page)
+  await openResources(page)
+  await page.getByRole('dialog', { name: 'Files and global context' }).getByRole('button', { name: 'Review Shared context update' }).click()
+  const review = page.getByRole('dialog', { name: 'Review context update' })
+  await expect(review).toBeVisible()
+  await page.waitForTimeout(700)
+  await page.keyboard.press('Escape')
+  await expect(review).toBeHidden()
+  await saveVideo(page, 'GC-06-review')
 })

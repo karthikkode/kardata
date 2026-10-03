@@ -209,13 +209,23 @@ export const Icons = {
 
 export type IconName = keyof typeof Icons
 
+/** Lowercase extension of a filename (the whole lowercased name when it
+ * has no dot). */
+export function fileExtension(filename: string): string {
+  return filename.split('.').at(-1)?.toLowerCase() ?? ''
+}
+
+/** Extension → file-type glyph. Single source behind fileIcon() and the
+ * FileTypeIcon component. */
+export const FILE_ICON_BY_EXTENSION: Record<string, LucideIcon> = {
+  pdf: Icons.fileDocs, md: Icons.fileDocs, markdown: Icons.fileDocs, txt: Icons.fileDocs, docx: Icons.fileDocs,
+  csv: Icons.fileSpreadsheet, xls: Icons.fileSpreadsheet, xlsx: Icons.fileSpreadsheet, tsv: Icons.fileSpreadsheet,
+  png: Icons.fileImage, jpg: Icons.fileImage, jpeg: Icons.fileImage, gif: Icons.fileImage, webp: Icons.fileImage, svg: Icons.fileImage,
+  json: Icons.fileCode, js: Icons.fileCode, ts: Icons.fileCode, tsx: Icons.fileCode, py: Icons.fileCode, css: Icons.fileCode, html: Icons.fileCode,
+  zip: Icons.fileArchive, tar: Icons.fileArchive, gz: Icons.fileArchive,
+}
+
 /** File-type icon from a filename extension. */
 export function fileIcon(filename: string): LucideIcon {
-  const extension = filename.split('.').at(-1)?.toLowerCase() ?? ''
-  if (extension === 'pdf' || extension === 'md' || extension === 'markdown' || extension === 'txt' || extension === 'docx') return Icons.fileDocs
-  if (extension === 'csv' || extension === 'xls' || extension === 'xlsx' || extension === 'tsv') return Icons.fileSpreadsheet
-  if (extension === 'png' || extension === 'jpg' || extension === 'jpeg' || extension === 'gif' || extension === 'webp' || extension === 'svg') return Icons.fileImage
-  if (extension === 'json' || extension === 'js' || extension === 'ts' || extension === 'tsx' || extension === 'py' || extension === 'css' || extension === 'html') return Icons.fileCode
-  if (extension === 'zip' || extension === 'tar' || extension === 'gz') return Icons.fileArchive
-  return Icons.fileUnknown
+  return FILE_ICON_BY_EXTENSION[fileExtension(filename)] ?? Icons.fileUnknown
 }

@@ -13,7 +13,7 @@ import type { Resource } from '../data/useWorkspace'
 import type { ResearchProgress } from '../data/workspace-api'
 import { CompaniesSection } from './CompaniesSection'
 import { IconButton } from './IconButton'
-import { ExecutablePlanDetails, PlanBriefTimeline } from './ResearchPlanEditor'
+import { ExecutablePlanDetails, NarrativePlanWarning, PlanBriefTimeline } from './ResearchPlanEditor'
 import { StateBadge } from './research-parts'
 import { PlanDocument, ResourceState, SectionCard } from './shells'
 import { Body, BodySm, Label, Numeric } from './text'
@@ -256,7 +256,15 @@ export function SectorLanding({
                 <CollapsiblePanel>
                   <div className="space-y-4 pt-2">
                     <PlanBriefTimeline text={latestPlan.markdown} />
-                    {latestPlan.executable ? <ExecutablePlanDetails plan={latestPlan.executable} /> : null}
+                    {latestPlan.executable ? (
+                      <ExecutablePlanDetails
+                        plan={latestPlan.executable}
+                        workItems={progress.data?.items ?? []}
+                        researchState={sector.state}
+                      />
+                    ) : (
+                      <NarrativePlanWarning onEdit={onReviewPlan} />
+                    )}
                   </div>
                 </CollapsiblePanel>
               </CollapsibleRoot>

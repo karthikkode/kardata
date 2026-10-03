@@ -1,13 +1,15 @@
-// Stage 2-4 style audit: Overview + Researches + sector landing +
-// workspace + Karbot dock, every state x theme x 1440/390 (+ a
-// coarse-pointer mobile context for the 40px touch floor). Alignment is
-// enabled now that SH-01 owns the page frame; Researches aligns h1
-// against the tab list (its first full-width row), the landing against
-// its status section. Landing audits use the paused sector so the 5s
-// live poll cannot re-render mid-check. Workspace views skip alignment
-// (no SH-01 page frame: the h1 lives in the centre column) and offline
-// (the shared offline anatomy is audited on the shell pages).
-import { devices, expect, test, type Browser, type Page } from '@playwright/test'
+// Stage 2-5 style audit: Overview + Researches + sector landing +
+// workspace + Karbot dock + stage-5 plan/files/context surfaces, every
+// state x theme x 1440/390 (+ a coarse-pointer mobile context for the
+// 40px touch floor). Alignment is enabled now that SH-01 owns the page
+// frame; Researches aligns h1 against the tab list (its first full-width
+// row), the landing against its status section. Landing audits use the
+// paused sector so the 5s live poll cannot re-render mid-check. Workspace
+// views skip alignment (no SH-01 page frame: the h1 lives in the centre
+// column) and offline (the shared offline anatomy is audited on the shell
+// pages). Stage-5 views audit default states only: error/denied/offline
+// share the ResourceNotice anatomy covered by the sessions-error views.
+import { devices, expect, test, type Browser, type Locator, type Page } from '@playwright/test'
 import { serveApi, type ApiOptions } from '../support/api'
 import { auditPage, formatViolations, writeAuditReport } from '../support/audit'
 import { settleTheme, shot, shotPath, type ShotTheme } from '../support/shot'
@@ -449,5 +451,120 @@ test('audit-karbot-open', async ({ page, browser }) => {
     options: {},
     interact: openKarbot,
     anchors: ['[aria-label="Assistant chat"]', 'role=textbox[name="Message the agent"]'],
+  })
+})
+
+async function selectPlanTab(page: Page): Promise<void> {
+  await expect(page.locator('main h1')).toBeVisible()
+  const tab = page.getByRole('tab', { name: /^Plan/ })
+  if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click()
+  await expect(page.getByRole('heading', { name: 'Research plan' })).toBeVisible()
+}
+
+/** Below 1281px the files/context rail lives in a drawer; open it there,
+ * and close it at desktop widths (an open drawer plus the inline rail
+ * renders every anchor twice). Width-based like openSessionsDrawer. */
+async function openResourcesDrawer(page: Page): Promise<void> {
+  await expect(page.locator('main h1')).toBeVisible()
+  const dialog = page.getByRole('dialog', { name: 'Files and global context' })
+  if ((page.viewportSize()?.width ?? 1440) >= 1281) {
+    if (await dialog.isVisible()) await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
+    await expect(page.getByRole('region', { name: 'Sector files' })).toBeVisible()
+    return
+  }
+  if (await dialog.isVisible()) return
+  await page.getByRole('button', { name: 'Open files and global context' }).click()
+  await expect(dialog).toBeVisible()
+}
+
+async function openLocalSheet(page: Page): Promise<void> {
+  await expect(page.locator('main h1')).toBeVisible()
+  const dialog = page.getByRole('dialog', { name: 'Local context' })
+  if (await dialog.isVisible()) return
+  await page.getByRole('button', { name: 'Local context', exact: true }).click()
+  await expect(dialog).toBeVisible()
+}
+
+async function openGlobalEditor(page: Page): Promise<void> {
+  // Editor first: once it is open the rail behind it is inert, so the
+  // drawer/region checks below would hang on later width replays.
+  const editor = page.getByRole('dialog', { name: 'Edit global context' })
+  if (await editor.isVisible()) return
+  await openResourcesDrawer(page)
+  const drawer = page.getByRole('dialog', { name: 'Files and global context' })
+  const scope: Page | Locator = (await drawer.isVisible()) ? drawer : page
+  await scope.getByRole('button', { name: 'Edit global context' }).click()
+  await expect(editor).toBeVisible()
+}
+
+async function openInspector(page: Page): Promise<void> {
+  // Inspector first: it inerts the Local context sheet behind it.
+  const inspector = page.getByRole('dialog', { name: 'Execution records' })
+  if (await inspector.isVisible()) return
+  await openLocalSheet(page)
+  await page.getByRole('dialog', { name: 'Local context' }).getByRole('button', { name: 'Execution records', exact: true }).click()
+  await expect(inspector).toBeVisible()
+}
+
+test('audit-workspace-plan', async ({ page, browser }) => {
+  test.setTimeout(120_000)
+  await auditView(page, browser, {
+    ...WORKSPACE, report: 'workspace-plan', shotPrefix: 'PL-audit', state: 'plan',
+    options: {},
+    interact: selectPlanTab,
+    anchors: ['main h1', 'role=heading[name="Research plan"]'],
+  })
+})
+
+test('audit-workspace-files', async ({ page, browser }) => {
+  test.setTimeout(120_000)
+  await auditView(page, browser, {
+    ...WORKSPACE, report: 'workspace-files', shotPrefix: 'FL-audit', state: 'files',
+    options: {},
+    interact: openResourcesDrawer,
+    // The inline rail and the drawer both render the rail; :visible picks
+    // whichever copy the width shows (a hidden copy still resolves).
+    anchors: ['main h1', 'p:text("Showing 10 of 10 files"):visible'],
+  })
+})
+
+test('audit-workspace-global', async ({ page, browser }) => {
+  test.setTimeout(120_000)
+  await auditView(page, browser, {
+    ...WORKSPACE, report: 'workspace-global', shotPrefix: 'GC-audit', state: 'global',
+    options: {},
+    interact: openResourcesDrawer,
+    anchors: ['main h1', 'span:text("2 updates waiting for review"):visible'],
+  })
+})
+
+test('audit-workspace-gc-edit', async ({ page, browser }) => {
+  test.setTimeout(120_000)
+  await auditView(page, browser, {
+    ...WORKSPACE, report: 'workspace-gc-edit', shotPrefix: 'GC-audit-edit', state: 'gc-edit',
+    options: {},
+    interact: openGlobalEditor,
+    anchors: ['role=dialog[name="Edit global context"]', 'role=button[name="Save context"]'],
+  })
+})
+
+test('audit-workspace-local', async ({ page, browser }) => {
+  test.setTimeout(120_000)
+  await auditView(page, browser, {
+    ...WORKSPACE, report: 'workspace-local', shotPrefix: 'LC-audit', state: 'local',
+    options: {},
+    interact: openLocalSheet,
+    anchors: ['main h1', 'role=textbox[name="Local notes"]'],
+  })
+})
+
+test('audit-workspace-inspector', async ({ page, browser }) => {
+  test.setTimeout(120_000)
+  await auditView(page, browser, {
+    ...WORKSPACE, report: 'workspace-inspector', shotPrefix: 'LC-audit-inspector', state: 'inspector',
+    options: {},
+    interact: openInspector,
+    anchors: ['main h1', 'text=20 entries'],
   })
 })

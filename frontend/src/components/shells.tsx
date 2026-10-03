@@ -478,23 +478,25 @@ export function PlanDocument({
  heading,
  version,
  status,
+ actions,
  children,
 }: {
  heading: string
  version: string
  status?: React.ReactNode
+ actions?: React.ReactNode
  children: React.ReactNode
 }) {
  return (
- <section aria-label={heading} className="overflow-hidden rounded-2xl border border-border bg-background shadow-xs">
- <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-5 py-4">
- <h2 className="min-w-0 flex-1 text-sm font-medium">{heading}</h2>
- <Mono className="inline-flex shrink-0 items-center rounded-full border border-border bg-background px-2.5 py-0.5 text-xs text-muted-foreground select-none">
- {version}
- </Mono>
+ <section aria-label={heading} data-card="" className="overflow-hidden rounded-lg border border-border bg-card">
+ <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-4 py-3">
+ <SectionTitle className="min-w-0 flex-1">{heading}</SectionTitle>
+ <Mono className="shrink-0 text-xs text-muted-foreground tabular-nums">{version}</Mono>
  {status}
+ {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
  </div>
- <div className="space-y-4 px-5 py-5 sm:px-6">{children}</div>
+ <Separator />
+ <div className="px-4 py-4">{children}</div>
  </section>
  )
 }

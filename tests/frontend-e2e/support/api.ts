@@ -323,7 +323,10 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
           const state = await gate(route, 'fileBody')
           if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
           const mediaType = file.filename.endsWith('.pdf') ? 'application/pdf' : file.filename.endsWith('.csv') ? 'text/csv' : file.filename.endsWith('.json') ? 'application/json' : file.filename.endsWith('.png') ? 'image/png' : 'text/markdown'
-          await ok(route, { filename: file.filename, mediaType, text: file.filename.endsWith('.png') ? '' : FILE_MARKDOWN, originalAvailable: true, fullChars: FILE_MARKDOWN.length, textTruncated: false })
+          const text = file.filename.endsWith('.png') ? '' : FILE_MARKDOWN
+          const body: Record<string, unknown> = { filename: file.filename, mediaType, text, originalAvailable: true, contentBase64: Buffer.from('FIXTURE original bytes').toString('base64'), textTruncated: false }
+          if (text) body.fullChars = text.length
+          await ok(route, body)
           return
         }
         if (fileRest === '/units' && method === 'GET') {

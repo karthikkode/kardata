@@ -10,7 +10,7 @@ describe('owner review of executable plans', () => {
   it('shows actual queries, limits, instructions and acceptance', () => {
     render(<ExecutablePlanDetails plan={executable} />)
     expect(screen.getByRole('region', { name: 'Executable research work' })).toBeInTheDocument()
-    expect(screen.getByText(/2,000 companies/)).toBeInTheDocument()
+    expect(screen.getByText('Company limit').closest('div')).toHaveTextContent('2,000')
     expect(screen.getByText('Australian manufacturers')).toBeInTheDocument()
     expect(screen.getByText(executable.acceptance[0]!)).toBeInTheDocument()
   })
@@ -19,13 +19,13 @@ describe('owner review of executable plans', () => {
     const props = { markdown: 'Original plan', executable, busy: false, error: null, onSave }
     const view = render(<ResearchPlanEditor {...props} />)
     await user.click(screen.getByRole('button', { name: 'Edit plan' }))
-    await user.clear(screen.getByRole('textbox', { name: 'Plan', exact: true }))
-    await user.type(screen.getByRole('textbox', { name: 'Plan', exact: true }), 'Owner draft')
+    await user.clear(screen.getByRole('textbox', { name: 'Plan text' }))
+    await user.type(screen.getByRole('textbox', { name: 'Plan text' }), 'Owner draft')
     await user.type(screen.getByRole('textbox', { name: 'Queries for Australian SMEs' }), '\nAustralian wholesalers')
     view.rerender(<ResearchPlanEditor {...props} markdown="Background revision" error="Save failed. Try again." />)
     await user.click(screen.getByRole('button', { name: 'Save plan' }))
     expect(screen.getByRole('dialog', { name: 'Edit research plan' })).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Plan', exact: true })).toHaveValue('Owner draft')
+    expect(screen.getByRole('textbox', { name: 'Plan text' })).toHaveValue('Owner draft')
     expect(onSave.mock.calls[0]?.[0]).toContain('Australian wholesalers')
     expect(onSave.mock.calls[0]?.[0]).toContain('"maxCompanies":2000')
     expect(screen.getByRole('alert')).toHaveTextContent('Save failed')
@@ -58,14 +58,18 @@ describe('executable plan presentation contract', () => {
     const { container } = render(<ExecutablePlanDetails plan={targetPlan} />)
     expect(screen.getByText(longQuery)).toBeInTheDocument()
     expect(screen.getByText(longQuery).closest('li')).not.toHaveClass('truncate')
-    expect(screen.getByRole('region', { name: 'Executable research work' })).toHaveTextContent('Target 500 of up to 2,000 companies')
+    const region = screen.getByRole('region', { name: 'Executable research work' })
+    expect(region).toHaveTextContent('Target')
+    expect(region).toHaveTextContent('500 companies')
+    expect(screen.getByText('Company limit').closest('div')).toHaveTextContent('2,000')
     expect(container.querySelector('[style*="width"]')).toBeNull()
   })
 
   it('lists acceptance as neutral numbered requirements', () => {
     render(<ExecutablePlanDetails plan={executable} />)
-    const region = screen.getByRole('region', { name: 'Acceptance criteria' })
-    const items = within(region).getAllByRole('listitem')
+    const heading = screen.getByRole('heading', { name: 'Acceptance criteria' })
+    const step = heading.closest('li')!
+    const items = within(step).getAllByRole('listitem')
     expect(items).toHaveLength(1)
     expect(items[0]).toHaveTextContent(executable.acceptance[0]!)
   })
@@ -88,7 +92,7 @@ describe('executable plan presentation contract', () => {
     expect((limit as HTMLInputElement).value).toBe('')
     await user.click(screen.getByRole('button', { name: 'Save plan' }))
     expect(onSave).not.toHaveBeenCalled()
-    expect(screen.getAllByText('Enter a company limit from 1 to 2000.')).toHaveLength(2)
+    expect(screen.getAllByText(/Enter a company limit from 1 to 2000\./)).toHaveLength(2)
     const summary = screen.getByText('Fix this field before saving.').closest('[role="alert"]')!
     expect(summary).toHaveTextContent('Enter a company limit from 1 to 2000.')
     expect(summary).toHaveFocus()
@@ -145,7 +149,7 @@ describe('narrative brief timeline', () => {
   it('renders every section with a medallion and intact text', () => {
     render(<PlanBriefTimeline text={brief} />)
     expect(screen.getByText('Intro line.')).toBeInTheDocument()
-    for (const heading of ['scope', 'direction shards', 'Custom heading', 'budgets']) {
+    for (const heading of ['Scope', 'Search directions', 'Custom heading', 'Budget and limits']) {
       expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument()
     }
     expect(screen.getByText('Journey sector, owner-edited.')).toBeInTheDocument()
@@ -180,9 +184,104 @@ describe('plan version timeline', () => {
         approvedVersion={2}
       />,
     )
-    await user.click(screen.getByText('Plan history'))
+    await user.click(screen.getByText('Version history'))
     const tags = screen.getAllByText(/^v[12]$/).map((el) => el.textContent)
     expect(tags).toEqual(['v2', 'v1'])
     expect(screen.getByText('Approved')).toBeInTheDocument()
+  })
+})
+
+describe('executable step states', () => {
+  const planned: ExecutableResearchPlan = {
+    discovery: [
+      { id: 'crews', title: 'Licensed commercial crews', queries: ['licensed electrician Parramatta'], maxPages: 5 },
+      { id: 'callouts', title: 'After-hours callout cover', queries: ['after-hours electrician Sydney'], maxPages: 3 },
+      { id: 'unmapped', title: 'Unmapped direction', queries: ['industrial switchboard contractor'], maxPages: 2 },
+    ],
+    companyBrief: 'Record licensed crews.',
+    budgets: { maxCompanies: 500, maxWallMinutes: 1440, concurrency: 2 },
+    acceptance: ['Every company links to a fetched source.'],
+  }
+
+  it('tones linked steps by work state and leaves unlinked steps neutral', () => {
+    const { container } = render(
+      <ExecutablePlanDetails
+        plan={planned}
+        workItems={[
+          { id: 'crews:batch-1', title: 'crews batch 1', state: 'complete' },
+          { id: 'callouts:batch-1', title: 'callouts batch 1', state: 'running' },
+        ]}
+      />,
+    )
+    const tone = (id: string) => container.querySelector(`[data-plan-step="${id}"] [data-plan-medallion]`)!.className
+    expect(tone('crews')).toContain('bg-success-soft')
+    expect(tone('callouts')).toContain('bg-primary-soft')
+    expect(container.querySelector('[data-plan-step="callouts"] .motion-safe\\:animate-ping')).not.toBeNull()
+    expect(tone('unmapped')).toContain('bg-primary-soft')
+    expect(container.querySelector('[data-plan-step="unmapped"] .motion-safe\\:animate-ping')).toBeNull()
+  })
+
+  it('summarizes limits and counts above the steps', () => {
+    render(<ExecutablePlanDetails plan={planned} />)
+    const group = screen.getByRole('group', { name: 'Plan limits' })
+    expect(group).toHaveTextContent('Up to 500')
+    expect(group).toHaveTextContent('24h max')
+    expect(group).toHaveTextContent('2 at a time')
+    expect(group).toHaveTextContent('Search directions')
+    expect(group).toHaveTextContent('Queries')
+  })
+
+  it('shows the inline start action only once approved', () => {
+    const onStart = () => undefined
+    const { rerender } = render(<ExecutablePlanDetails plan={planned} researchState="planned" onStart={onStart} />)
+    expect(screen.queryByRole('button', { name: 'Start research' })).not.toBeInTheDocument()
+    rerender(<ExecutablePlanDetails plan={planned} researchState="approved" onStart={onStart} />)
+    expect(screen.getByRole('button', { name: 'Start research' })).toBeInTheDocument()
+  })
+})
+
+describe('edit sheet behavior', () => {
+  it('focuses the field chosen in the error summary', async () => {
+    const user = userEvent.setup()
+    render(<ResearchPlanEditor markdown="Plan" executable={executable} busy={false} error={null} onSave={async () => true} />)
+    await user.click(screen.getByRole('button', { name: 'Edit plan' }))
+    await user.clear(screen.getByLabelText('Company limit'))
+    await user.click(screen.getByRole('button', { name: 'Save plan' }))
+    await user.click(screen.getByRole('button', { name: /Company limit: Enter a company limit/ }))
+    expect(screen.getByLabelText('Company limit')).toHaveFocus()
+  })
+
+  it('counts query and criteria lines while editing', async () => {
+    const user = userEvent.setup()
+    render(<ResearchPlanEditor markdown="Plan" executable={executable} busy={false} error={null} onSave={async () => true} />)
+    await user.click(screen.getByRole('button', { name: 'Edit plan' }))
+    expect(screen.getByText('1 of 30 queries')).toBeInTheDocument()
+    expect(screen.getByText('1 of 20 criteria, one per line')).toBeInTheDocument()
+    await user.type(screen.getByRole('textbox', { name: 'Queries for Australian SMEs' }), '\nAustralian wholesalers')
+    expect(screen.getByText('2 of 30 queries')).toBeInTheDocument()
+  })
+
+  it('confirms discarding dirty drafts but closes clean sheets at once', async () => {
+    const user = userEvent.setup()
+    render(<ResearchPlanEditor markdown="Plan" executable={executable} busy={false} error={null} onSave={async () => true} />)
+    await user.click(screen.getByRole('button', { name: 'Edit plan' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Edit plan' }))
+    await user.type(screen.getByRole('textbox', { name: 'Plan text' }), ' with edits')
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByRole('alertdialog', { name: 'Discard changes?' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Discard' }))
+    expect(screen.queryByRole('dialog', { name: 'Edit research plan' })).not.toBeInTheDocument()
+  })
+
+  it('never closes while a save is pending', async () => {
+    const user = userEvent.setup()
+    const props = { markdown: 'Plan', executable, error: null, onSave: async () => true }
+    const view = render(<ResearchPlanEditor {...props} busy={false} />)
+    await user.click(screen.getByRole('button', { name: 'Edit plan' }))
+    view.rerender(<ResearchPlanEditor {...props} busy />)
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Save plan' })).toBeDisabled()
   })
 })

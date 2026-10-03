@@ -3505,3 +3505,16 @@ and the remaining explicit follow-ups (composer visual migration,
 Select-primitive model menus, 200%-zoom/touch-keyboard matrices, live
 DB/Temporal/provider suites, 2,000-company campaign) are recorded in the
 completion handoff plan.
+
+UI v2 stage 5 (2026-10-03, branch ui-revamp-v2): plan tab, files rail,
+global/local context and execution inspector. Red suites were contracts,
+not baselines: the files-scale unit test overran vitest's 5s timeout
+under full-suite worker contention (11 keystrokes x 2005-row filter
+renders; fixed with single change events, same assertions), and the
+GC-04-conflict e2e flaked because four combos of 5s poll-phase waits
+exceed the 30s default test timeout (fixed with a 90s per-test budget
+on both poll-wait specs). Frontend gates green: lint 0 errors (7
+pre-existing warnings in untouched files), typecheck clean, 723 unit
+passed / 6 skipped (twice), build clean, 65/65 stage e2e
+(plan/files/context), 6/6 new audit views with zero violations on all
+36 theme/width/mobile combos, 5/5 motion videos.

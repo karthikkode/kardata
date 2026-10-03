@@ -144,6 +144,8 @@ Legend: L/D = light/dark, viewports 390/1440 unless noted, RM = reduced motion.
 | PL-12 approval | exact version/context, pending/error | approval.test.ts | workspace plan-approval-* (Approve vN) | pass |
 | PL-13 progress | counts first, bounded search | sector-workspace.test.tsx | workspace | pass |
 | PL-14 intake review | evidence/attempts/stale/idempotency | work-review.test.tsx, work-review-api.test.ts | work-review.spec L/D 390/1440 | pass |
+| PL-15 PlanSteps timeline | segmented rail, medallions, tones, skeleton (frontend/src/components/plan/PlanSteps.tsx) | plan-steps.test.tsx | plan.spec PL-03-* | pass |
+| PL-16 ResearchPlanTab | header status/actions, approve block, empty/planning (frontend/src/components/plan/PlanTab.tsx) | plan-tab.test.tsx, research-plan-editor.test.tsx | plan.spec PL-01-*, PL-05-* | pass |
 
 ## Global context (GC) — workspace-parts GlobalContextPanel
 
@@ -295,7 +297,7 @@ No suitable surface (honest non-adoption, not silent gaps):
 | F4 primitive restyle (19 ui wrappers) | `frontend/src/components/ui/` | ui-primitives.test.tsx + v2/primitives.spec.ts (19 e2e, 2 skipped: collapsible/progress lack fixture anchors) | pass |
 | F5 ListRow + interaction recipes | `frontend/src/components/ui/list.tsx`, `frontend/src/lib/interaction.ts` | list.test.tsx, interaction.test.ts | pass |
 | F6 motion system (2.6 patterns) | `frontend/src/lib/motion.ts` | motion-presets.test.tsx | pass |
-| F7 icon map + IconButton | `frontend/src/lib/icons.ts`, `frontend/src/components/IconButton.tsx` | icons.test.ts | pass |
+| F7 icon map + IconButton | `frontend/src/lib/icons.ts`, `frontend/src/components/IconButton.tsx`, `frontend/src/components/FileTypeIcon.tsx` | icons.test.ts, file-type-icon.test.tsx | pass |
 | F8 toasts (sonner) | `frontend/src/lib/toast.ts` | toast.test.ts + v2/primitives.spec.ts toast shots | pass |
 | F9 command palette (cmdk) | `frontend/src/components/CommandPalette.tsx` | command-palette.test.tsx + v2/primitives.spec.ts palette shots | pass |
 | F10 data table (tanstack 8.21.3) | `frontend/src/components/DataTable.tsx` | data-table.test.tsx | pass |

@@ -11,6 +11,9 @@ React + TypeScript SPA, Tailwind CSS v4, owned primitives in
 
 - Tokens only: use theme colors (`bg-background`, `text-muted-foreground`,
   `border-border`, …). No arbitrary hex values, no one-off status colors.
+- Sepia code surface: `bg-codeblock` + `text-codeblock-foreground` (same pair
+  both themes) for the execution-record JSON block only (LC-05); Markdown
+  code keeps `bg-surface-sunken`.
 - No global margin/padding resets beyond what the theme ships. Spacing composes
   locally.
 - Dark mode comes free from the token pairs : never hardcode a light-only or

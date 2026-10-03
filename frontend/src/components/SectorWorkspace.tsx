@@ -16,7 +16,7 @@ import { rowEnter, staggerDelay } from '../lib/motion'
 import { notify } from '../lib/toast'
 import { useTheme } from '../lib/theme'
 import { AnimatePresence, m } from 'motion/react'
-import { groupMessageSegments, sessionAge } from './ChatPanel'
+import { groupMessageSegments } from './ChatPanel'
 import { AgentBubble, UserBubble, useChatStick } from './chat-parts'
 import { Composer } from './chat/Composer'
 import { ConversationEmpty } from './chat/ConversationEmpty'
@@ -28,11 +28,11 @@ import { AssistantRuntimeAdapter } from './chat/AssistantRuntimeAdapter'
 import { toThreadSegments } from './chat/assistantAdapter'
 import { Markdown } from './Markdown'
 import { SectorFilePreview } from './SectorFilePreview'
-import { ResearchPlanEditor, ExecutablePlanDetails, PlanBriefTimeline, PlanVersionTimeline } from './ResearchPlanEditor'
+import { ResearchPlanTab } from './plan/PlanTab'
 import { ModelToolbar } from './ModelToolbar'
 import { StateBadge } from './research-parts'
-import { GlobalContextPanel, LocalContextEditor, PlanProgress, ResourceNotice, WorkspaceFiles, WorkspaceOverlay } from './workspace-parts'
-import { ConversationComposer, PlanDocument, ResourceState, SearchField } from './shells'
+import { GlobalContextPanel, LocalContextEditor, ResourceNotice, WorkspaceFiles, WorkspaceOverlay } from './workspace-parts'
+import { ConversationComposer, ResourceState, SearchField } from './shells'
 import { BodySm, Caption, CardTitle, Description, Label, Numeric, WorkspaceTitle } from './text'
 import { ThemeMenu } from './ThemeMenu'
 import { Badge } from './ui/badge'
@@ -355,7 +355,7 @@ export function SectorWorkspace({ sector, model, config, actions, onBack, initia
             <ConversationView key={model.activeThread} model={model} config={config} onContext={() => setContextOpen(true)} />
           </TabsPanel>
           <TabsPanel value="plan" keepMounted className="scroll-slim min-h-0 min-w-0 flex-1 overflow-y-auto p-5 sm:p-8">
-            <div className="mx-auto max-w-3xl space-y-6"><ResourceNotice resource={model.plan} label="Research plan" />{model.plan.status === 'ready' && model.plan.data?.latest ? <PlanDocument heading="Research plan" version={`v${model.plan.data.latest.version}`} status={<>{model.plan.data.approvedVersion === model.plan.data.latest.version ? <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary-text select-none"><Icons.approve className="size-3 shrink-0" aria-hidden />Approved</span> : null}<time dateTime={model.plan.data.latest.at} title={new Date(model.plan.data.latest.at).toLocaleString()} className="hidden shrink-0 font-mono text-xs tabular-nums text-muted-foreground sm:block">{sessionAge(model.plan.data.latest.at)}</time></>}><PlanBriefTimeline text={model.plan.data.latest.markdown} />{model.plan.data.latest.executable ? <ExecutablePlanDetails plan={model.plan.data.latest.executable} /> : null}{sector.state === 'planned' || ['planned', 'approved', 'paused'].includes(sector.state) ? <div className="flex flex-wrap items-center gap-2 border-t border-border pt-5">{sector.state === 'planned' ? <Button disabled={actions.busy || model.global.status !== 'ready' || !model.global.data} onClick={() => actions.approve(model.plan.data?.latest?.version ?? 0, model.global.data?.version)}><Icons.approve className="size-4 shrink-0" aria-hidden />{actions.busy ? 'Approving…' : `Approve v${model.plan.data?.latest?.version ?? 0}`}</Button> : null}{['planned', 'approved', 'paused'].includes(sector.state) ? <ResearchPlanEditor markdown={model.plan.data.latest.markdown} executable={model.plan.data.latest.executable} busy={actions.busy} error={actions.error} onSave={actions.edit} /> : null}{model.global.status !== 'ready' && sector.state === 'planned' ? <span className="text-xs text-muted-foreground">Approval unlocks when shared context loads.</span> : null}</div> : null}<div className="w-full"><PlanVersionTimeline versions={model.plan.data.versions.map((entry) => ({ version: entry.version, at: entry.at }))} latestVersion={model.plan.data.latest.version} approvedVersion={model.plan.data.approvedVersion ?? null} /></div></PlanDocument> : model.plan.status === 'ready' ? <div className="rounded-2xl border border-dashed border-border bg-background p-6 text-center shadow-xs sm:p-8"><Icons.clipboard className="mx-auto size-8 text-muted-foreground" aria-hidden /><p className="mt-3 text-sm font-medium">No research plan yet</p><p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">Create a plan before research begins. The plan locks queries, limits, and acceptance criteria for review.</p><Button className="mt-4" disabled={actions.busy} onClick={actions.plan}>{actions.busy ? 'Planning…' : 'Create plan'}</Button></div> : null}<PlanProgress resource={model.progress} review={workReview} /></div>
+            <ResearchPlanTab sectorState={sector.state} plan={model.plan} progress={model.progress} global={model.global} actions={actions} workReview={workReview} />
           </TabsPanel>
         </TabsRoot>
       ) : (
@@ -365,7 +365,7 @@ export function SectorWorkspace({ sector, model, config, actions, onBack, initia
     <aside aria-label="Sector resources" inert={railHidden || undefined} className={cn('hidden min-h-0 shrink-0 overflow-hidden border-l border-border-subtle bg-sidebar transition-[width,opacity] duration-180 ease-out min-[1281px]:block', railHidden ? 'min-[1281px]:w-0 min-[1281px]:border-l-0 min-[1281px]:opacity-0' : 'min-[1281px]:w-90')}>{resourceRail}</aside>
     <WorkspaceOverlay title="Sessions" side open={navOpen} onClose={() => setNavOpen(false)}>{sessionRail}</WorkspaceOverlay>
     <WorkspaceOverlay title="Files and global context" side open={resourcesOpen} onClose={() => setResourcesOpen(false)}><div className="flex h-[calc(100dvh-180px)] min-h-0 flex-col">{resourceRail}</div></WorkspaceOverlay>
-    <WorkspaceOverlay title="Local context" open={contextOpen} onClose={() => setContextOpen(false)}><LocalContextEditor key={model.activeThread} resource={model.local} busy={busy} error={model.error} onSave={(notes, version) => void model.saveLocal(notes, version)} onCompact={() => void model.compact()} inspection={model.operationReceipt} onInspectOperation={model.inspectOperation} onInspectExecution={model.inspectExecution} onRebuild={(summary, version) => model.rebuildLocal(summary, version)} /></WorkspaceOverlay>
+    <WorkspaceOverlay title="Local context" side open={contextOpen} onClose={() => setContextOpen(false)} titleBadge={<IconButton label="Execution records" size="icon-sm" onClick={() => model.inspectExecution()}><Icons.executionRecords className="size-4" aria-hidden /></IconButton>}><LocalContextEditor key={model.activeThread} resource={model.local} busy={busy} error={model.error} onSave={(notes, version) => void model.saveLocal(notes, version)} onCompact={() => void model.compact()} inspection={model.operationReceipt} onInspectOperation={model.inspectOperation} onRebuild={(summary, version) => model.rebuildLocal(summary, version)} /></WorkspaceOverlay>
     <ExecutionInspector open={model.executionOpen} page={model.executionPage} body={model.executionBody} selectedSeq={model.executionSeq} hasPrevious={model.executionHasPrevious} onSelect={model.selectExecution} onNext={model.nextExecutionPage} onPrevious={model.previousExecutionPage} onClose={model.closeExecution} />
     <WorkspaceOverlay title="Subagents" open={directory} onClose={() => setDirectory(false)}><AgentDirectory model={model} onOpen={(key) => { model.openThread(key); setDirectory(false) }} /></WorkspaceOverlay>
     <WorkspaceOverlay title="Review file processing retry" open={retryFile !== null} onClose={() => setRetryFile(null)}>{retryFile ? <FileProcessingRetry file={retryFile} latest={model.files.status === 'ready' ? model.files.data?.find((file) => file.id === retryFile.id) : undefined} busy={busy} error={model.error} onRetry={(jobId, revision, allowDuplicatePaid) => model.retryFile(retryFile.id, jobId, revision, allowDuplicatePaid)} onClose={() => setRetryFile(null)} /> : null}</WorkspaceOverlay>
