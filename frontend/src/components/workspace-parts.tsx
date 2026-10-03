@@ -1,11 +1,16 @@
 import { FileProcessingStatus } from './FileProcessingStatus'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Icons } from '@/lib/icons'
+import { cn } from '@/lib/utils'
+import { formatCount, formatDurationMs } from '../lib/format'
+import { BodySm, Caption, CardTitle, Description, Label, Numeric, SectionTitle } from './text'
+import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { CheckboxRoot } from './ui/checkbox'
 import { CollapsiblePanel, CollapsibleRoot, CollapsibleTrigger } from './ui/collapsible'
-import { Input } from './ui/input'
+import { List, ListRow } from './ui/list'
 import { ProgressRoot } from './ui/progress'
+import { Skeleton } from './ui/skeleton'
 import { Textarea } from './ui/textarea'
 import {
  DialogBody,
@@ -24,7 +29,7 @@ import type { Resource } from '../data/useWorkspace'
 import type { ContextPreview, GlobalContext, LibraryFile, LocalContext, OperationReceipt, ResearchProgress, Sections } from '../data/workspace-api'
 import { IconButton } from './IconButton'
 
-export function WorkspaceOverlay({ title, children, onClose, side = false, footer, open = true }: { title: string; children: ReactNode; onClose(): void; side?: boolean; footer?: ReactNode; open?: boolean }) {
+export function WorkspaceOverlay({ title, titleBadge, children, onClose, side = false, footer, open = true, size = 'default' }: { title: string; titleBadge?: ReactNode; children: ReactNode; onClose(): void; side?: boolean; footer?: ReactNode; open?: boolean; size?: 'default' | 'large' }) {
  // Single overlay ownership: the shared dialog owns the focus trap, Esc,
  // and trigger restoration. The root stays mounted through a controlled
  // closing so Base UI can retain and animate the exiting popup before
@@ -35,7 +40,7 @@ export function WorkspaceOverlay({ title, children, onClose, side = false, foote
  // inspector above local context).
  const topmost = useTopmostOverlay(open)
  const [visible, setVisible] = useState(open)
- const content = useRef({ title, children, footer })
+ const content = useRef({ title, titleBadge, children, footer })
  // Adjust state during render (not in an effect): reopening shows at
  // once with fresh content, and the exit keeps playing on the frozen
  // close-start content instead of emptied state. The ref below is
@@ -44,7 +49,7 @@ export function WorkspaceOverlay({ title, children, onClose, side = false, foote
  // safe (same exemption shape as the exhaustive-deps disables elsewhere).
  if (open) {
  // eslint-disable-next-line react-hooks/refs
- content.current = { title, children, footer }
+ content.current = { title, titleBadge, children, footer }
  if (!visible) setVisible(true)
  }
  useEffect(() => {
@@ -53,13 +58,16 @@ export function WorkspaceOverlay({ title, children, onClose, side = false, foote
  return () => window.clearTimeout(timer)
  }, [open, visible])
  // eslint-disable-next-line react-hooks/refs -- frozen at close-start above
- const shown = open ? { title, children, footer } : content.current
+ const shown = open ? { title, titleBadge, children, footer } : content.current
  if (!visible) return null
  return (
  <DialogRoot open={open} onOpenChange={(next) => { if (!next) topmost.guard(onClose) }}>
- <DialogPopup side={side} className={side ? undefined : 'w-[min(92vw,720px)] max-w-2xl'}>
+ <DialogPopup side={side} className={side ? undefined : size === 'large' ? 'w-[min(92vw,880px)] max-w-220' : 'w-[min(92vw,720px)] max-w-2xl'}>
  <DialogHeader>
+ <div className="flex min-w-0 flex-1 items-center gap-2">
  <DialogTitle>{shown.title}</DialogTitle>
+ {shown.titleBadge}
+ </div>
  <DialogClose aria-label={`Close ${shown.title}`} />
  </DialogHeader>
  <DialogBody>{shown.children}</DialogBody>
@@ -68,29 +76,349 @@ export function WorkspaceOverlay({ title, children, onClose, side = false, foote
  </DialogRoot>
  )
 }
-export function ResourceNotice({ resource, label }: { resource: Resource<unknown>; label: string }) {
+export function ResourceNotice({ resource, label, hideTitle, skeleton }: { resource: Resource<unknown>; label: string; hideTitle?: boolean; skeleton?: ReactNode }) {
  // Single ownership: every async resource renders through the shared
  // ResourceState. Copy and roles are preserved exactly.
- return <ResourceState resource={resource} label={label} />
+ return <ResourceState resource={resource} label={label} hideTitle={hideTitle} skeleton={skeleton} />
 }
-export function PlanProgress({ resource, review }: { resource: Resource<ResearchProgress>; review?: { busy: boolean; error: string | null; clearError(): void; decide(id: string, version: number, receipt: string, decision: 'retry' | 'exclude', reason: string): Promise<boolean> } }) {
- const [selected, setSelected] = useState<{ item: ResearchProgress['items'][number]; version: number } | null>(null), [reason, setReason] = useState('')
- const latest = resource.data?.items.find((item) => item.id === selected?.item.id)
- const stale = selected && (selected.version !== resource.data?.planVersion || latest?.receiptVersion !== selected.item.receiptVersion)
- const safe = resource.status === 'ready' && Boolean(resource.data && ['paused','failed'].includes(resource.data.state))
+export type WorkReview = { busy: boolean; error: string | null; clearError(): void; decide(id: string, version: number, receipt: string, decision: 'retry' | 'exclude', reason: string): Promise<boolean> }
 
- const [search, setSearch] = useState(''), [limit, setLimit] = useState(50)
- const terminalWithoutLedger = resource.data && ['complete', 'failed'].includes(resource.data.state) && resource.data.items.length === 0
- const rows = resource.data?.items.filter((item) => `${item.title} ${item.detail}`.toLowerCase().includes(search.toLowerCase())) ?? []
- return <section aria-label="Research progress" className="space-y-4"><ResourceNotice resource={resource} label="Research progress" />{resource.status === 'ready' && resource.data ? <>
- <div className="rounded-xl border border-border bg-muted/30 p-4 shadow-xs"><div className="flex items-center justify-between gap-3"><span className="flex min-w-0 items-center gap-2 text-sm font-medium"><Icons.plan className="size-4 shrink-0 text-muted-foreground" aria-hidden />Approved work</span><span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-background px-2.5 py-0.5 font-mono text-xs tabular-nums text-muted-foreground select-none">{resource.data.estimatedPercent === null ? <><Icons.queued className="size-3 shrink-0" aria-hidden />Estimate pending</> : `Estimated ${resource.data.estimatedPercent}%`}</span></div>
- {resource.data.estimatedPercent !== null ? <ProgressRoot aria-label="Estimated completion" max={100} value={resource.data.estimatedPercent} className="mt-3" /> : null}
- <p className="mt-2 flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">{resource.data.completed} of {resource.data.total} work items completed{resource.data.unresolved ? <span className="inline-flex items-center gap-1 font-medium text-warning"><Icons.alertWarning className="size-3 shrink-0" aria-hidden />{resource.data.unresolved} need attention</span> : ''}{resource.data.items.some((item) => item.state === 'excluded') ? `· ${resource.data.items.filter((item) => item.state === 'excluded').length} candidates excluded` : ''}</p>
- {resource.data.budgetUsedMs !== undefined ? <p className="mt-2 text-xs text-muted-foreground">{Math.round(resource.data.budgetUsedMs / 6000) / 10} active minutes recorded across research runs</p> : null}
- {!resource.data.discoveryClosed && !terminalWithoutLedger ? <p className="mt-2 text-xs text-muted-foreground">The estimate becomes available when discovery has bounded the remaining work.</p> : null}
- </div>
- {resource.data.items.length ? <><Input aria-label="Search research work" placeholder="Search work items" value={search} onChange={(event) => { setSearch(event.target.value); setLimit(50) }} /><p className="text-xs text-muted-foreground">Showing {Math.min(limit, rows.length)} of {rows.length} work items</p><ol className="scroll-slim max-h-80 space-y-2 overflow-y-auto">{rows.slice(0, limit).map((item) => <li key={item.id} className="rounded-lg border border-border p-3"><div className="flex items-start gap-2"><span aria-hidden className={`mt-1 size-2 shrink-0 rounded-full ${item.state === 'complete' ? 'bg-primary' : item.state === 'running' ? 'bg-primary/50' : 'bg-muted-foreground/30'}`} /><span className="min-w-0 flex-1 text-sm [overflow-wrap:anywhere]">{item.title}</span><span className="text-xs capitalize text-muted-foreground">{item.state}</span></div>{item.detail ? <p className="mt-2 text-xs text-muted-foreground">{item.detail}</p> : null}{review && item.kind === 'discovery' && item.id.includes(':intake:') && ['blocked','failed'].includes(item.state) && item.receiptVersion ? <Button variant="outline" size="sm" className="mt-2" onClick={() => { setSelected({ item, version: resource.data!.planVersion }); setReason(''); review.clearError() }}>Review intake</Button> : null}{item.sourceUrl ? <a href={safeExternalUrl(item.sourceUrl)} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-xs text-primary underline underline-offset-2 focus-visible:ring-2 focus-visible:ring-ring">Company source</a> : null}</li>)}</ol>{rows.length > limit ? <Button variant="outline" size="sm" onClick={() => setLimit((value) => value + 50)}>Show more work items</Button> : null}{!rows.length ? <div className="rounded-xl border border-dashed border-border bg-background p-5 text-center"><Icons.search className="mx-auto size-5 text-muted-foreground" aria-hidden /><p className="mt-2 text-sm font-medium">No matching work items.</p><p className="mx-auto mt-1 max-w-sm text-xs text-muted-foreground">Clear the search to see the full ledger.</p></div> : null}</> : <div className="rounded-2xl border border-dashed border-border bg-background p-6 text-center shadow-xs sm:p-8"><Icons.inbox className="mx-auto size-8 text-muted-foreground" aria-hidden /><p className="mt-3 text-sm font-medium">{terminalWithoutLedger ? 'No work ledger for this run' : 'No work items yet'}</p><p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{terminalWithoutLedger ? 'No work-item ledger was recorded for this run. Saved companies and conversations remain available.' : 'Work items appear when the approved research starts.'}</p></div>}
- </> : null}<WorkspaceOverlay title="Review candidate intake" open={selected !== null && review !== undefined} onClose={() => { if (!review?.busy) setSelected(null) }}>{selected && review ? <div className="space-y-4"><h3 className="break-words text-sm font-medium">{selected.item.title}</h3><p className="text-xs text-muted-foreground">Plan v{selected.version} · {selected.item.state} · {selected.item.attempts} attempts</p><p className="break-words text-sm">{selected.item.detail || 'No reason recorded.'}</p>{selected.item.sourceUrl ? <a href={safeExternalUrl(selected.item.sourceUrl)} target="_blank" rel="noopener noreferrer" className="block break-words text-xs text-primary underline focus-visible:ring-2 focus-visible:ring-ring">{selected.item.sourceUrl}</a> : null}<p className="text-xs text-muted-foreground">Fetched quotes remain in the saved intake report in Files and the candidate child conversation.</p><a href={`/?section=SectorChat&sector=${encodeURIComponent(resource.data?.sectorId ?? '')}${selected.item.childId ? `&thread=${encodeURIComponent(`agent:${selected.item.childId}`)}` : ''}`} target="_blank" rel="noopener noreferrer" className="inline-block text-xs text-primary underline focus-visible:ring-2 focus-visible:ring-ring">{selected.item.childId ? 'Open candidate conversation and Files' : 'Open research workspace Files'}</a><section aria-label="Saved intake evidence"><h4 className="text-xs font-medium">Saved evidence</h4>{selected.item.evidence.length ? <ul className="mt-2 space-y-2">{selected.item.evidence.map((url, index) => <li key={`${index}:${url}`}><a href={safeExternalUrl(url)} target="_blank" rel="noopener noreferrer" className="block break-words text-xs text-primary underline focus-visible:ring-2 focus-visible:ring-ring">{url}</a></li>)}</ul> : <p className="mt-2 text-xs text-muted-foreground">No validated evidence recorded for this candidate.</p>}</section><p className="rounded-lg bg-muted p-3 text-xs">Exclude resolves this candidate only. Retry keeps its identity, attempts and budget usage. Source receipts and history remain saved. Scope, acceptance and budgets require plan approval.</p><label className="block text-sm font-medium">Owner reason<textarea value={reason} onChange={(event) => setReason(event.target.value)} maxLength={4000} rows={4} className="mt-2 w-full rounded-lg border border-border bg-background p-3 text-sm focus-visible:ring-2 focus-visible:ring-ring" /></label><ResourceNotice resource={resource} label="Current work receipt" />{!safe ? <p role="alert" className="text-xs">Pause research and wait for the candidate child to stop before deciding.</p> : null}{stale ? <p role="alert" className="text-xs">Work changed. Your reason is kept; review the latest receipt before deciding.</p> : null}{review.error ? <p role="alert" className="rounded-lg bg-muted p-3 text-xs">{review.error}</p> : null}<div className="flex flex-wrap gap-2"><Button variant="outline" disabled={review.busy} onClick={() => resource.refresh()}>Reload latest</Button>{stale && latest && resource.status === 'ready' ? <Button variant="outline" disabled={review.busy} onClick={() => { setSelected({ item: latest, version: resource.data!.planVersion }); review.clearError() }}>Review latest receipt</Button> : null}{(['retry','exclude'] as const).map((decision) => <Button key={decision} variant={decision === 'exclude' ? 'outline' : 'default'} disabled={review.busy || !safe || Boolean(stale) || !reason.trim() || !['blocked','failed'].includes(selected.item.state)} onClick={async () => { if (selected.item.receiptVersion && await review.decide(selected.item.id, selected.version, selected.item.receiptVersion, decision, reason.trim())) { setSelected(null); setReason('') } }}>{review.busy ? 'Saving…' : decision === 'retry' ? 'Retry candidate' : 'Exclude candidate'}</Button>)}</div></div> : null}</WorkspaceOverlay></section>
+type WorkItemState = ResearchProgress['items'][number]['state']
+
+const workDot: Record<WorkItemState, string> = {
+ pending: 'bg-border-strong',
+ running: 'bg-info',
+ complete: 'bg-success',
+ blocked: 'bg-warning',
+ failed: 'bg-danger',
+ excluded: 'bg-border-strong',
+}
+
+/** Work-item state badge: only failed/blocked wear one (scannable lifecycle). */
+function WorkStateBadge({ state }: { state: 'failed' | 'blocked' }) {
+ return <Badge tone={state === 'failed' ? 'danger' : 'warning'}>{state === 'failed' ? 'Failed' : 'Blocked'}</Badge>
+}
+
+export function CounterTile({ label, value, tone }: { label: string; value: number | string; tone?: 'warning' | 'danger' }) {
+ return (
+  <div className="rounded-lg border border-border bg-card px-3 py-2">
+   <Label>{label}</Label>
+   <Numeric className={cn('mt-0.5 block text-md font-medium', tone === 'warning' && 'text-warning', tone === 'danger' && 'text-danger')}>{typeof value === 'number' ? formatCount(value) : value}</Numeric>
+  </div>
+ )
+}
+
+function ProgressSkeleton() {
+ return (
+  <div className="flex min-w-0 flex-col gap-4" aria-hidden>
+   <div className="flex items-center justify-between gap-3">
+    <Skeleton className="h-3.5 w-24" />
+    <Skeleton className="h-3 w-20" />
+   </div>
+   <Skeleton className="h-1.5 w-full rounded-full" />
+   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+    {[0, 1, 2, 3].map((index) => (
+     <div key={index} className="flex flex-col gap-1.5 rounded-lg border border-border bg-card px-3 py-2">
+      <Skeleton className="h-3 w-16" />
+      <Skeleton className="h-5 w-8" />
+     </div>
+    ))}
+   </div>
+   <Skeleton className="h-10 w-full rounded-md" />
+   {[0, 1, 2].map((index) => (
+    <div key={index} className="flex min-h-11 items-center gap-3 px-2">
+     <Skeleton className="size-2 shrink-0 rounded-full" />
+     <Skeleton className="h-3.5 min-w-0 flex-1" />
+     <Skeleton className="h-5 w-16 rounded-sm" />
+    </div>
+   ))}
+  </div>
+ )
+}
+
+function ReviewNotice({ tone, children }: { tone: 'warning' | 'danger'; children: ReactNode }) {
+ const Icon = tone === 'warning' ? Icons.alertWarning : Icons.alertError
+ return (
+  <div role="alert" className={cn('flex gap-2 rounded-md border p-3', tone === 'warning' ? 'border-warning-border bg-warning-soft' : 'border-danger-border bg-danger-soft')}>
+   <span className="flex h-5 shrink-0 items-center">
+    <Icon aria-hidden className={cn('size-4', tone === 'warning' ? 'text-warning' : 'text-danger')} />
+   </span>
+   <BodySm as="span" className="min-w-0 flex-1">{children}</BodySm>
+  </div>
+ )
+}
+
+function capitalize(value: string): string {
+ return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
+function isHttpUrl(value: string): boolean {
+ return value.startsWith('http://') || value.startsWith('https://')
+}
+
+export interface WorkReviewSelection {
+ item: ResearchProgress['items'][number]
+ version: number
+}
+
+/** Intake review dialog (PL-09, shared with SL-04): candidate evidence on
+ * the left, the owner's decision on the right. */
+export function WorkReviewDialog({
+ open, onClose, selected, latest, stale, safe, resource, review, reason, onReasonChange, onReviewLatest, onDecided,
+}: {
+ open: boolean
+ onClose(): void
+ selected: WorkReviewSelection | null
+ latest: ResearchProgress['items'][number] | undefined
+ stale: boolean
+ safe: boolean
+ resource: Resource<ResearchProgress>
+ review: WorkReview
+ reason: string
+ onReasonChange(value: string): void
+ onReviewLatest(item: ResearchProgress['items'][number]): void
+ onDecided(): void
+}) {
+ const baseId = useId()
+ const reasonId = `${baseId}-reason`
+ const countId = `${baseId}-reason-count`
+ const item = selected?.item
+ const version = selected?.version ?? 0
+ const candidateHref = `/?section=SectorChat&sector=${encodeURIComponent(resource.data?.sectorId ?? '')}${item?.childId ? `&thread=${encodeURIComponent(`agent:${item.childId}`)}` : ''}`
+ const decidable = Boolean(item && item.receiptVersion && ['blocked', 'failed'].includes(item.state) && reason.trim() && !review.busy && safe && !stale)
+
+ async function decide(decision: 'retry' | 'exclude'): Promise<void> {
+  if (!item || !item.receiptVersion) return
+  if (await review.decide(item.id, version, item.receiptVersion, decision, reason.trim())) onDecided()
+ }
+
+ return (
+  <WorkspaceOverlay title="Review candidate intake" size="large" open={open} onClose={onClose}>
+   {item ? (
+    <div className="grid gap-6 md:grid-cols-2">
+     <section aria-label="Candidate" className="min-w-0 space-y-3">
+      <div>
+       <CardTitle>{item.title}</CardTitle>
+       <Caption className="mt-1 tabular-nums">
+        Plan v{version} · {capitalize(item.state)} · {item.attempts} {item.attempts === 1 ? 'attempt' : 'attempts'}
+       </Caption>
+      </div>
+      <Description>{item.detail || 'No reason recorded.'}</Description>
+      {item.sourceUrl ? (
+       <div>
+        <Button type="button" variant="link" render={<a href={safeExternalUrl(item.sourceUrl)} target="_blank" rel="noopener noreferrer" />}>
+         Open source
+         <Icons.openExternal className="size-3.5" aria-hidden />
+        </Button>
+       </div>
+      ) : null}
+      <Caption>Fetched quotes remain in the saved intake report in Files and the candidate child conversation.</Caption>
+      <div>
+       <Button type="button" variant="link" render={<a href={candidateHref} target="_blank" rel="noopener noreferrer" />}>
+        {item.childId ? 'Open candidate conversation and Files' : 'Open research workspace Files'}
+        <Icons.openExternal className="size-3.5" aria-hidden />
+       </Button>
+      </div>
+      <section aria-label="Saved intake evidence" className="space-y-2">
+       <Label>Saved evidence</Label>
+       {item.evidence.length > 0 ? (
+        <List>
+         {item.evidence.map((entry, index) =>
+          isHttpUrl(entry) ? (
+           <ListRow key={`${index}:${entry}`} density="dense" href={safeExternalUrl(entry)} target="_blank" rel="noopener noreferrer">
+            <Icons.openExternal aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+            <BodySm as="span" className="min-w-0 flex-1 truncate">{entry}</BodySm>
+           </ListRow>
+          ) : (
+           <ListRow key={`${index}:${entry}`} density="dense">
+            <Icons.openExternal aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+            <BodySm as="span" className="min-w-0 flex-1 [overflow-wrap:anywhere]">{entry}</BodySm>
+           </ListRow>
+          ),
+         )}
+        </List>
+       ) : (
+        <Caption>No validated evidence recorded for this candidate.</Caption>
+       )}
+      </section>
+      <Caption>Exclude resolves this candidate only. Retry keeps its identity, attempts and budget usage. Source receipts and history remain saved. Scope, acceptance and budgets require plan approval.</Caption>
+     </section>
+     <section aria-label="Decision" className="min-w-0 space-y-3">
+      <div className="flex flex-col gap-1.5">
+       <Label as="label" htmlFor={reasonId}>Owner reason</Label>
+       <Textarea id={reasonId} value={reason} onChange={(event) => onReasonChange(event.target.value)} maxLength={4000} rows={4} aria-describedby={countId} />
+       <Caption id={countId} className="tabular-nums">{reason.length} / 4000</Caption>
+      </div>
+      <ResourceNotice resource={resource} label="Current work receipt" />
+      {stale ? <ReviewNotice tone="warning">Work changed. Your reason is kept; review the latest receipt before deciding.</ReviewNotice> : null}
+      {!safe ? <ReviewNotice tone="warning">Pause research and wait for the candidate child to stop before deciding.</ReviewNotice> : null}
+      {review.error ? <ReviewNotice tone="danger">{review.error}</ReviewNotice> : null}
+      <div className="flex flex-wrap gap-2">
+       <Button type="button" variant="primary" pending={review.busy} disabled={!decidable} onClick={() => void decide('retry')}>Retry candidate</Button>
+       <Button type="button" variant="secondary" disabled={!decidable} onClick={() => void decide('exclude')}>Exclude candidate</Button>
+       <Button type="button" variant="ghost" size="sm" disabled={review.busy} onClick={() => resource.refresh()}>Reload latest</Button>
+       {stale && latest ? (
+        <Button type="button" variant="secondary" size="sm" disabled={review.busy} onClick={() => onReviewLatest(latest)}>Review latest receipt</Button>
+       ) : null}
+      </div>
+     </section>
+    </div>
+   ) : null}
+  </WorkspaceOverlay>
+ )
+}
+
+export function PlanProgress({ resource, review }: { resource: Resource<ResearchProgress>; review?: WorkReview }) {
+ const [selected, setSelected] = useState<{ item: ResearchProgress['items'][number]; version: number } | null>(null)
+ const [reason, setReason] = useState('')
+ const [search, setSearch] = useState('')
+ const [limit, setLimit] = useState(50)
+ const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
+ const latest = resource.data?.items.find((item) => item.id === selected?.item.id)
+ const stale = selected !== null && (selected.version !== resource.data?.planVersion || latest?.receiptVersion !== selected.item.receiptVersion)
+ const safe = resource.status === 'ready' && Boolean(resource.data && ['paused','failed'].includes(resource.data.state))
+ const data = resource.status === 'ready' ? resource.data : undefined
+ const terminalWithoutLedger = Boolean(data && ['complete', 'failed'].includes(data.state) && data.items.length === 0)
+ const rows = data?.items.filter((item) => `${item.title} ${item.detail}`.toLowerCase().includes(search.toLowerCase())) ?? []
+ const completed = data?.items.filter((item) => item.state === 'complete').length ?? 0
+ const running = data?.items.filter((item) => item.state === 'running').length ?? 0
+ const attention = data?.items.filter((item) => item.state === 'blocked' || item.state === 'failed').length ?? 0
+ const excluded = data?.items.filter((item) => item.state === 'excluded').length ?? 0
+
+ function toggleExpanded(id: string): void {
+   setExpanded((current) => {
+     const next = new Set(current)
+     if (next.has(id)) next.delete(id)
+     else next.add(id)
+     return next
+   })
+ }
+
+ function openReview(item: ResearchProgress['items'][number]): void {
+   if (!review || !data) return
+   setSelected({ item, version: data.planVersion })
+   setReason('')
+   review.clearError()
+ }
+ return (
+  <section aria-label="Research progress" className="flex min-w-0 flex-col gap-4">
+   <ResourceState resource={resource} label="Research progress" skeleton={<ProgressSkeleton />}>
+    {data ? (
+     <>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+       <SectionTitle>Progress</SectionTitle>
+       <Caption className={cn('tabular-nums', data.state === 'failed' && 'text-danger')}>
+        {data.state === 'complete' ? 'Finished' : data.state === 'failed' ? 'Stopped' : data.estimatedPercent !== null ? `${data.estimatedPercent}% estimated` : 'Not estimated yet'}
+       </Caption>
+      </div>
+      {data.estimatedPercent !== null ? (
+       <ProgressRoot aria-label="Estimated completion" max={100} value={data.estimatedPercent} />
+      ) : null}
+      <div role="group" aria-label="Work counters" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+       <CounterTile label="Completed" value={completed} />
+       <CounterTile label="Running" value={running} />
+       <CounterTile label="Needs attention" value={attention} tone={attention > 0 ? 'warning' : undefined} />
+       <CounterTile label="Excluded" value={excluded} />
+      </div>
+      {data.budgetUsedMs !== undefined ? (
+       <Caption className="tabular-nums">{formatDurationMs(data.budgetUsedMs)} active time across runs</Caption>
+      ) : null}
+      {data.items.length > 0 ? (
+       <>
+        <div className="flex flex-col gap-2">
+         <SearchField value={search} onChange={(value) => { setSearch(value); setLimit(50) }} label="Search work items" />
+         <Caption aria-live="polite" className="tabular-nums">
+          Showing {formatCount(Math.min(limit, rows.length))} of {formatCount(rows.length)} work items
+         </Caption>
+        </div>
+        {rows.length > 0 ? (
+         <List aria-label="Work items">
+          {rows.slice(0, limit).map((item) => {
+           const open = expanded.has(item.id)
+           return (
+            <ListRow key={item.id} density="default" className="items-start">
+             <span aria-hidden className={cn('mt-1.5 size-2 shrink-0 rounded-full', workDot[item.state])} />
+             <span className="min-w-0 flex-1">
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+               <BodySm as="span" className="min-w-0 flex-1 [overflow-wrap:anywhere]">{item.title}</BodySm>
+               {item.state === 'failed' || item.state === 'blocked' ? <WorkStateBadge state={item.state} /> : null}
+              </span>
+              {item.detail ? (
+               <Description as="span" className={cn('mt-0.5 block [overflow-wrap:anywhere]', !open && 'line-clamp-1')}>
+                {item.detail}
+               </Description>
+              ) : null}
+             </span>
+             <span className="flex shrink-0 items-center gap-1">
+              {review && item.kind === 'discovery' && item.id.includes(':intake:') && ['blocked', 'failed'].includes(item.state) && item.receiptVersion ? (
+               <Button type="button" variant="secondary" size="sm" onClick={() => openReview(item)}>Review</Button>
+              ) : null}
+              {item.sourceUrl ? (
+               <IconButton label="Open source" size="icon-sm" render={<a href={safeExternalUrl(item.sourceUrl)} target="_blank" rel="noopener noreferrer" />}>
+                <Icons.openExternal className="size-4" aria-hidden />
+               </IconButton>
+              ) : null}
+              {item.detail ? (
+               <IconButton label={open ? 'Hide details' : 'Show details'} size="icon-sm" aria-expanded={open} onClick={() => toggleExpanded(item.id)}>
+                <Icons.chevronDown className={cn('size-4 transition-transform duration-180', open && 'rotate-180')} aria-hidden />
+               </IconButton>
+              ) : null}
+             </span>
+            </ListRow>
+           )
+          })}
+         </List>
+        ) : (
+         <div className="flex min-w-0 flex-col items-center py-6 text-center">
+          <CardTitle>No matching work items.</CardTitle>
+          <Description className="mt-1 max-w-80">Try a different search.</Description>
+          <div className="mt-4">
+           <Button type="button" variant="ghost" size="sm" onClick={() => { setSearch(''); setLimit(50) }}>Clear search</Button>
+          </div>
+         </div>
+        )}
+        {rows.length > limit ? (
+         <div>
+          <Button type="button" variant="secondary" size="sm" onClick={() => setLimit((value) => value + 50)}>Show more</Button>
+         </div>
+        ) : null}
+       </>
+      ) : (
+       <div className="flex min-w-0 flex-col items-center py-12 text-center">
+        <span className="flex size-10 items-center justify-center rounded-full bg-muted">
+         <Icons.inbox aria-hidden className="size-5 text-muted-foreground" />
+        </span>
+        <CardTitle className="mt-3">{terminalWithoutLedger ? 'No work ledger for this run' : 'No work items yet'}</CardTitle>
+        <Description className="mt-1 max-w-80">
+         {terminalWithoutLedger ? 'No work-item ledger was recorded for this run. Saved companies and conversations remain available.' : 'Work items appear when the approved research starts.'}
+        </Description>
+       </div>
+      )}
+     </>
+    ) : null}
+   </ResourceState>
+   {review ? (
+    <WorkReviewDialog
+     open={selected !== null}
+     onClose={() => { if (!review.busy) setSelected(null) }}
+     selected={selected}
+     latest={latest}
+     stale={stale}
+     safe={safe}
+     resource={resource}
+     review={review}
+     reason={reason}
+     onReasonChange={setReason}
+     onReviewLatest={(item) => {
+       if (!resource.data) return
+       setSelected({ item, version: resource.data.planVersion })
+       review.clearError()
+     }}
+     onDecided={() => { setSelected(null); setReason('') }}
+    />
+   ) : null}
+  </section>
+ )
 }
 export function GlobalContextPanel({ resource, preview, busy, error, onReview, onSave, onDecision }: { resource: Resource<GlobalContext>; preview: Resource<ContextPreview>; busy: boolean; error?: string | null; onReview(id: string | null): void; onSave(sections: Sections, version: number): Promise<boolean>; onDecision(id: string, approve: boolean): Promise<boolean> }) {
  const [editor, setEditor] = useState(false), [history, setHistory] = useState(false), [proposal, setProposal] = useState<string | null>(null)

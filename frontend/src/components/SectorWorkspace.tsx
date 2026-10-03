@@ -54,13 +54,13 @@ export interface ResearchActions {
   busy: boolean; error: string | null
   plan(): void; approve(version: number, contextVersion?: number): void; start(): void; pause(): void; resume(): void; edit(markdown: string): Promise<boolean>
 }
-export function SectorWorkspace({ sector, model, config, actions, dark, onTheme, onBack }: {
-  sector: SectorDetail; model: SectorWorkspaceModel; config: StagingConfig; actions: ResearchActions; dark: boolean; onTheme(): void; onBack(): void
+export function SectorWorkspace({ sector, model, config, actions, dark, onTheme, onBack, initialView }: {
+  sector: SectorDetail; model: SectorWorkspaceModel; config: StagingConfig; actions: ResearchActions; dark: boolean; onTheme(): void; onBack(): void; initialView?: 'chat' | 'plan'
 }) {
   const workReview = useWorkReview(config, model.progress)
   const [retryFile, setRetryFile] = useState<LibraryFile | null>(null)
   const [group, setGroup] = useState<'research' | 'normal'>('research')
-  const [tab, setTab] = useState<'chat' | 'plan'>('chat')
+  const [tab, setTab] = useState<'chat' | 'plan'>(initialView ?? 'chat')
   const [navOpen, setNavOpen] = useState(false), [resourcesOpen, setResourcesOpen] = useState(false), [contextOpen, setContextOpen] = useState(false), [directory, setDirectory] = useState(false), [options, setOptions] = useState(false)
   const [sessionQuery, setSessionQuery] = useState(''), [sessionLimit, setSessionLimit] = useState(50)
   const selected = model.selected

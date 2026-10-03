@@ -9,7 +9,7 @@ export const researchStateLabels: Record<string, string> = {
   planning: 'Planning',
   planned: 'Planned',
   approved: 'Approved',
-  running: 'Running',
+  running: 'In progress',
   paused: 'Paused',
   queued: 'Queued',
   failed: 'Failed',
@@ -168,7 +168,7 @@ export function fileStatusLabel(status: string): string {
 const statusSummaries: Record<string, string> = {
   draft: 'This sector is a draft. Attach context and create a plan when ready.',
   planning: 'Your research agent is drafting the plan.',
-  planned: 'A plan is waiting for your approval.',
+  planned: 'The research plan is ready for review.',
   approved: 'The plan is approved. Start research when ready.',
   running: 'Research is running. Companies appear as the agent finds them.',
   paused: 'Research is paused. Resume to continue where it stopped.',
@@ -197,4 +197,21 @@ const companiesEmpty: Record<string, { title: string; body: string }> = {
 /** First-run companies empty copy per sector state. */
 export function companiesEmptyCopy(state: string): { title: string; body: string } {
   return companiesEmpty[state] ?? { title: 'No companies yet', body: 'Companies appear here as research discovers them.' }
+}
+
+export interface ResearchNextStep {
+  text: string
+  action: 'review-plan' | 'open-workspace'
+  label: string
+}
+
+const nextSteps: Record<string, ResearchNextStep> = {
+  planned: { text: 'A plan is waiting for your approval.', action: 'review-plan', label: 'Review plan' },
+  approved: { text: 'Start research from the workspace.', action: 'open-workspace', label: 'Open workspace' },
+  failed: { text: 'Find out what went wrong.', action: 'open-workspace', label: 'Review in workspace' },
+}
+
+/** Next-step hint for the landing status panel; null when the summary suffices. */
+export function researchNextStep(state: string): ResearchNextStep | null {
+  return nextSteps[state] ?? null
 }

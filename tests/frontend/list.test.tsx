@@ -63,4 +63,15 @@ describe('List and ListRow (plan 2.5.1)', () => {
     container.querySelector('button')?.click()
     expect(onClick).toHaveBeenCalledTimes(1)
   })
+
+  it('passes target and rel to link rows for external sources', () => {
+    render(
+      <List>
+        <ListRow href="https://example.com/roster" target="_blank" rel="noopener noreferrer">Roster</ListRow>
+      </List>,
+    )
+    const link = screen.getByRole('link', { name: 'Roster' })
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+  })
 })

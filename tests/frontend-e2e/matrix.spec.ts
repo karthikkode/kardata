@@ -71,8 +71,9 @@ async function shot(page: Page, name: string, anchors: Locator[]): Promise<void>
 }
 
 async function toDark(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Switch to dark theme' }).click()
-  await expect(page.getByRole('button', { name: 'Switch to light theme' })).toBeVisible()
+  await page.getByRole('button', { name: 'Theme' }).click()
+  await page.getByRole('menuitemradio', { name: 'Dark' }).click()
+  await expect(page.locator('html.dark')).toBeAttached()
 }
 
 async function captureSuite(page: Page, tag: string, dark = false): Promise<void> {
@@ -80,11 +81,11 @@ async function captureSuite(page: Page, tag: string, dark = false): Promise<void
   if (dark) await toDark(page)
   await shot(page, `${tag}-overview`, [
     page.getByRole('heading', { name: 'Overview' }),
-    page.getByRole('region', { name: 'Sector researches' }),
+    page.getByRole('region', { name: 'Recent sectors' }),
   ])
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
   await shot(page, `${tag}-researches`, [page.getByText('Speciality Foods')])
-  await page.getByRole('button', { name: 'Open Speciality Foods' }).click()
+  await page.getByRole('link', { name: /^Speciality Foods/ }).click()
   // The sector route lands on the summary page; chat lives one Open deeper
   // (covered with session/thread/plan detail in workspace.spec.ts).
   await shot(page, `${tag}-detail`, [
@@ -98,7 +99,7 @@ async function captureSuite(page: Page, tag: string, dark = false): Promise<void
   ])
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Models' }).click()
   await shot(page, `${tag}-models`, [page.getByRole('heading', { name: 'Models' })])
-  await page.getByRole('button', { name: 'Open chat' }).click()
+  await page.getByRole('button', { name: 'Ask Karbot' }).click()
   const chat = page.getByRole('complementary', { name: 'Assistant chat' })
   await shot(page, `${tag}-chat`, [chat])
 }
@@ -134,10 +135,10 @@ test('matrix: reduced motion still completes navigation and dock', async ({ page
   await page.goto('/')
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
   await expect(page.getByRole('heading', { name: 'Researches', exact: true })).toBeFocused()
-  await page.getByRole('button', { name: 'Open chat' }).click()
+  await page.getByRole('button', { name: 'Ask Karbot' }).click()
   await expect(page.getByRole('complementary', { name: 'Assistant chat' })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('complementary', { name: 'Assistant chat' })).not.toBeVisible()
-  await expect(page.getByRole('button', { name: 'Open chat' })).toBeFocused()
+  await expect(page.getByRole('button', { name: 'Ask Karbot' })).toBeFocused()
   await shot(page, 'matrix-reduced-motion', [page.getByRole('heading', { name: 'Researches', exact: true })])
 })

@@ -45,6 +45,8 @@ export interface ApiOptions {
   /** How long `loading` routes stay pending. Default 1500ms; audits pass
    * more so the skeleton survives the whole check run. */
   loadingMs?: number
+  /** Companies GET with offset at/above this returns 500 (more-error states). */
+  companiesErrorOffset?: number
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
@@ -376,6 +378,10 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
       if (needle) rows = rows.filter((company) => company.name.toLowerCase().includes(needle))
       const limit = Number(url.searchParams.get('limit') ?? 100)
       const offset = Number(url.searchParams.get('offset') ?? 0)
+      if (options.companiesErrorOffset !== undefined && offset >= options.companiesErrorOffset) {
+        await fail(route, 500, 'internal', 'More companies failed on purpose.')
+        return
+      }
       await ok(route, { companies: rows.slice(offset, offset + limit), total: rows.length })
       return
     }

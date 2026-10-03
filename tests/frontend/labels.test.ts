@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   alertKindLabel, companiesEmptyCopy, companyStageLabel, fileStatusLabel,
-  planSectionLabel, researchStateLabel, runStateLabel, statusSummary,
+  planSectionLabel, researchNextStep, researchStateLabel, runStateLabel, statusSummary,
   toolFamily, toolLabel,
 } from '@/lib/labels'
 
@@ -11,7 +11,7 @@ describe('humanized labels (F12)', () => {
       'draft', 'planning', 'planned', 'approved', 'running',
       'paused', 'queued', 'failed', 'complete',
     ].map(researchStateLabel)).toEqual([
-      'Draft', 'Planning', 'Planned', 'Approved', 'Running',
+      'Draft', 'Planning', 'Planned', 'Approved', 'In progress',
       'Paused', 'Queued', 'Failed', 'Complete',
     ])
     expect(researchStateLabel('mystery_state')).toBe('Mystery state')
@@ -75,7 +75,7 @@ describe('humanized labels (F12)', () => {
       expect(summary.length, state).toBeGreaterThan(10)
       expect(summary.endsWith('.'), state).toBe(true)
     }
-    expect(statusSummary('planned')).toContain('approval')
+    expect(statusSummary('planned')).toContain('review')
     expect(statusSummary('mystery')).toBe('Research status is not available.')
   })
 
@@ -85,5 +85,14 @@ describe('humanized labels (F12)', () => {
     expect(companiesEmptyCopy('running').body).toContain('as research discovers them')
     expect(companiesEmptyCopy('failed').title).toBe('Research stopped')
     expect(companiesEmptyCopy('complete').title).toBe('No companies found')
+  })
+
+  it('offers a next step only where an action exists', () => {
+    expect(researchNextStep('planned')).toEqual({ text: 'A plan is waiting for your approval.', action: 'review-plan', label: 'Review plan' })
+    expect(researchNextStep('approved')).toEqual({ text: 'Start research from the workspace.', action: 'open-workspace', label: 'Open workspace' })
+    expect(researchNextStep('failed')).toEqual({ text: 'Find out what went wrong.', action: 'open-workspace', label: 'Review in workspace' })
+    for (const state of ['draft', 'planning', 'running', 'paused', 'queued', 'complete', 'mystery']) {
+      expect(researchNextStep(state), state).toBeNull()
+    }
   })
 })

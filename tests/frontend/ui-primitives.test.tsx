@@ -27,6 +27,8 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
+import { SelectItem, SelectPopup, SelectRoot, SelectTrigger } from '@/components/ui/select'
+import { useState } from 'react'
 
 describe('owned primitives', () => {
   it('disables a pending button and marks it busy', () => {
@@ -208,5 +210,38 @@ describe('owned primitives', () => {
   it('renders a token separator', () => {
     const { container } = render(<Separator />)
     expect(container.firstElementChild).toHaveAttribute('data-slot', 'separator')
+  })
+
+  it('renders fixed trigger text via valueText', async () => {
+    const user = userEvent.setup()
+    const options = [
+      { value: 'all', label: 'All' },
+      { value: 'failed', label: 'Failed' },
+    ] as const
+    function Harness() {
+      const [value, setValue] = useState<(typeof options)[number]>(options[0])
+      return (
+        <SelectRoot
+          value={value}
+          onValueChange={(next) => {
+            if (next) setValue(next)
+          }}
+        >
+          <SelectTrigger aria-label={`Status: ${value.label}`} valueText={`Status: ${value.label}`} />
+          <SelectPopup>
+            {options.map((option) => (
+              <SelectItem key={option.value} value={option}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </SelectRoot>
+      )
+    }
+    render(<Harness />)
+    expect(screen.getByRole('combobox', { name: 'Status: All' })).toHaveTextContent('Status: All')
+    await user.click(screen.getByRole('combobox', { name: 'Status: All' }))
+    await user.click(screen.getByRole('option', { name: 'Failed' }))
+    expect(screen.getByRole('combobox', { name: 'Status: Failed' })).toHaveTextContent('Status: Failed')
   })
 })

@@ -46,16 +46,19 @@ type ListRowProps = {
   selected?: boolean
   density?: ListDensity
   href?: string
+  /** Anchor-only: external rows open out of the app. */
+  target?: string
+  rel?: string
   onClick?: (event: React.MouseEvent) => void
   children: React.ReactNode
   className?: string
 } & Omit<React.HTMLAttributes<HTMLElement>, 'onClick'>
 
-export function ListRow({ selected = false, density = 'default', href, onClick, children, className, ...rest }: ListRowProps) {
+export function ListRow({ selected = false, density = 'default', href, target, rel, onClick, children, className, ...rest }: ListRowProps) {
   const cls = listRowClassName({ density, interactive: href !== undefined || onClick !== undefined })
   const inner =
     href !== undefined ? (
-      <a href={href} data-list-row="" data-selected={selected || undefined} className={cn(cls, className)}>
+      <a href={href} target={target} rel={rel} data-list-row="" data-selected={selected || undefined} className={cn(cls, className)}>
         {children}
       </a>
     ) : onClick !== undefined ? (

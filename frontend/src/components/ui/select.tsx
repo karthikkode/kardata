@@ -10,7 +10,14 @@ function SelectRoot<T>(props: React.ComponentProps<typeof Select.Root<T>>) {
   return <Select.Root<T> data-slot="select" {...props} />
 }
 
-function SelectTrigger({ className, ...props }: React.ComponentProps<typeof Select.Trigger>) {
+function SelectTrigger({
+  className,
+  valueText,
+  ...props
+}: React.ComponentProps<typeof Select.Trigger> & {
+  /** Fixed trigger text (e.g. "Status: All") instead of the selected item text. */
+  valueText?: React.ReactNode
+}) {
   return (
     <Select.Trigger
       data-slot="select-trigger"
@@ -20,7 +27,13 @@ function SelectTrigger({ className, ...props }: React.ComponentProps<typeof Sele
       )}
       {...props}
     >
-      <Select.Value data-slot="select-value" className="min-w-0 flex-1 truncate text-left" />
+      {valueText !== undefined ? (
+        <span data-slot="select-value" className="min-w-0 flex-1 truncate text-left">
+          {valueText}
+        </span>
+      ) : (
+        <Select.Value data-slot="select-value" className="min-w-0 flex-1 truncate text-left" />
+      )}
       <Select.Icon data-slot="select-icon">
         <ChevronsUpDown aria-hidden />
       </Select.Icon>

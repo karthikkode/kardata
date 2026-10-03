@@ -255,7 +255,11 @@ export async function auditPage(page: Page, options: AuditOptions = {}): Promise
           name,
           width: rect.width,
           height: rect.height,
-          inlineLink: candidate.tagName === 'A' && style.display === 'inline',
+          // Breadcrumb crumbs are inline navigational text (WCAG 2.5.8 inline
+          // exception) whether rendered as links or buttons; scope stays here.
+          inlineLink:
+            (candidate.tagName === 'A' && style.display === 'inline') ||
+            (candidate.tagName === 'BUTTON' && candidate.closest('nav[aria-label="Breadcrumb"]') !== null),
         })
       }
       return out
@@ -276,9 +280,23 @@ export async function auditPage(page: Page, options: AuditOptions = {}): Promise
   if (skipped.has('hover')) checks['hover'] = 'skip'
   else {
     const rowSelector = '[data-list-row]:visible, tbody tr:visible'
-    const row = page.locator(rowSelector).first()
-    if ((await row.count()) === 0) checks['hover'] = 'skip'
+    const candidates = page.locator(rowSelector)
+    // Skeletons are aria-hidden placeholders and colspan state rows are
+    // panels, not hoverable rows: measure the first real data row (views
+    // without one skip the check).
+    let rowIndex = -1
+    for (let i = 0, count = await candidates.count(); i < count; i++) {
+      const measurable = await candidates
+        .nth(i)
+        .evaluate((element) => element.closest('[aria-hidden="true"]') === null && element.querySelector('td[colspan]') === null)
+      if (measurable) {
+        rowIndex = i
+        break
+      }
+    }
+    if (rowIndex === -1) checks['hover'] = 'skip'
     else {
+      const row = candidates.nth(rowIndex)
       checks['hover'] = 'pass'
       await row.hover()
       const measurement = await row.evaluate((element) => {
@@ -288,24 +306,47 @@ export async function auditPage(page: Page, options: AuditOptions = {}): Promise
         const card = element.closest('[data-card]')
         const cardRect = card?.getBoundingClientRect() ?? null
         const cardStyle = card ? getComputedStyle(card) : null
+        const cardBorderLeft = cardStyle ? Number.parseFloat(cardStyle.borderLeftWidth) || 0 : 0
+        const cardPaddingLeft = cardStyle ? Number.parseFloat(cardStyle.paddingLeft) || 0 : 0
+        // First rendered text run: child elements mislead for table rows
+        // (cells start at the row edge; their px-2 padding is inside).
         let textInset: number | null = null
-        for (const child of element.children) {
-          if (!(child instanceof HTMLElement)) continue
-          if (!child.textContent?.trim()) continue
-          const childRect = child.getBoundingClientRect()
-          if (childRect.width === 0 || childRect.height === 0) continue
-          const inset = childRect.left - rect.left
-          textInset = textInset === null ? inset : Math.min(textInset, inset)
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+        let textNode: Node | null = walker.nextNode()
+        while (textNode && textInset === null) {
+          if (textNode.textContent?.trim()) {
+            const range = document.createRange()
+            range.selectNodeContents(textNode)
+            const rects = range.getClientRects()
+            for (let i = 0; i < rects.length; i++) {
+              const textRect = rects[i] as DOMRect
+              if (textRect.width > 0 && textRect.height > 0) {
+                textInset = textRect.left - rect.left
+                break
+              }
+            }
+          }
+          textNode = walker.nextNode()
         }
         return {
           radius: Number.parseFloat(style.borderRadius),
-          insetLeft: cardRect && cardStyle ? rect.left - cardRect.left - Number.parseFloat(cardStyle.paddingLeft) : null,
+          borderWidth: Number.parseFloat(style.borderTopWidth) || 0,
+          // Stacked table rows (390) are self-framed cards spanning the
+          // content width: no card-inset contract, but they must carry
+          // card chrome (border + 8px radius) instead of a bare highlight.
+          stacked: element.tagName === 'TR' && style.display !== 'table-row',
+          // Highlight inset from the card border edge: the 2.5.1 recipe
+          // pulls the list 8px out of the 16px card padding, so the
+          // highlight sits 8px inside the border (never touching it). A
+          // de-chromed wrapper carries no inset contract either.
+          insetLeft: cardRect && (cardBorderLeft > 0 || cardPaddingLeft > 0) ? rect.left - cardRect.left - cardBorderLeft : null,
           textInset,
           dividerOpacity: before.content === 'none' ? null : Number.parseFloat(before.opacity),
         }
       })
-      if (!(measurement.radius >= 4)) { fail('hover', rowSelector, `row radius ${measurement.radius}px`); checks['hover'] = 'fail' }
-      if (measurement.insetLeft !== null && measurement.insetLeft < 3.5) { fail('hover', rowSelector, `row inset ${measurement.insetLeft.toFixed(1)}px from card edge`); checks['hover'] = 'fail' }
+      if (!(measurement.radius >= (measurement.stacked ? 8 : 4))) { fail('hover', rowSelector, `row radius ${measurement.radius}px`); checks['hover'] = 'fail' }
+      if (measurement.stacked && !(measurement.borderWidth >= 1)) { fail('hover', rowSelector, 'stacked row has no card border'); checks['hover'] = 'fail' }
+      if (!measurement.stacked && measurement.insetLeft !== null && measurement.insetLeft < 3.5) { fail('hover', rowSelector, `row inset ${measurement.insetLeft.toFixed(1)}px from card edge`); checks['hover'] = 'fail' }
       if (measurement.textInset !== null && measurement.textInset < 7) { fail('hover', rowSelector, `text ${measurement.textInset.toFixed(1)}px inside highlight`); checks['hover'] = 'fail' }
       if (measurement.dividerOpacity !== null && measurement.dividerOpacity > 0.05) { fail('hover', rowSelector, `divider opacity ${measurement.dividerOpacity} while hovered`); checks['hover'] = 'fail' }
     }
@@ -343,7 +384,9 @@ export async function auditPage(page: Page, options: AuditOptions = {}): Promise
     await page.evaluate(() => {
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
     })
-    await page.locator('[role="tooltip"]').waitFor({ state: 'detached', timeout: 3000 })
+    // Count-based (a bare locator waitFor crashes on 2+ simultaneous
+    // tooltips: one exiting, one open). Still fails loud past 3s.
+    await page.waitForFunction(() => document.querySelectorAll('[role="tooltip"]').length === 0, null, { timeout: 3000 })
   }
 
   // -- check 9: h1 alignment ----------------------------------------------

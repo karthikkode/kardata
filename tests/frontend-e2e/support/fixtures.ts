@@ -471,7 +471,7 @@ function workItems(count: number, seed: number): FixtureWorkItem[] {
       attempts: state === 'complete' ? 1 : 1 + Math.floor(rand() * 3),
       childId: state === 'running' ? `child-${i}` : null,
       evidence: state === 'complete' ? ['Licensed crew named on the roster page.'] : [],
-      detail: state === 'complete' ? 'Accepted after fetched-source review.' : state === 'running' ? 'Reviewer is reading the coverage page.' : state === 'blocked' ? 'Waiting on the coverage page fetch.' : state === 'failed' ? 'The source page did not load.' : 'Excluded as a directory page.',
+      detail: state === 'complete' ? 'Accepted after source review.' : state === 'running' ? 'Reviewer is reading the coverage page.' : state === 'blocked' ? 'Waiting on the coverage page fetch.' : state === 'failed' ? 'The source page did not load.' : 'Excluded as a directory page.',
       ...(state !== 'pending' ? { sourceUrl: `https://example.com/contractor-${i + 1}` } : {}),
     }
   })
@@ -482,7 +482,7 @@ export function progressFor(sectorId: string, variant: 'running' | 'complete' | 
     return { sectorId, state: 'draft', planVersion: 0, items: [], completed: 0, total: 0, unresolved: 0, discoveryClosed: false, estimatedPercent: null }
   }
   if (variant === 'complete') {
-    const items = workItems(40, 77).map((item) => ({ ...item, state: 'complete' as const, detail: 'Accepted after fetched-source review.' }))
+    const items = workItems(40, 77).map((item) => ({ ...item, state: 'complete' as const, detail: 'Accepted after source review.' }))
     return { budgetUsedMs: 11_520_000, sectorId, state: 'complete', planVersion: 3, plan: { latest: planVersions[2] as FixturePlanVersion, versions: planVersions, approvals: [3], approvedVersion: 3 }, items, completed: 40, total: 40, unresolved: 0, discoveryClosed: true, estimatedPercent: 100 }
   }
   if (variant === 'large') {
@@ -491,6 +491,20 @@ export function progressFor(sectorId: string, variant: 'running' | 'complete' | 
     return { budgetUsedMs: 19_200_000, sectorId, state: 'running', planVersion: 3, items, completed, total: 500, unresolved: 12, discoveryClosed: false, estimatedPercent: 71 }
   }
   const items = workItems(40, 79)
+  // The reviewable intake candidate: blocked discovery with a saved
+  // receipt, so PL-09/SL-04 can open from the ledger's Review action.
+  items[35] = {
+    id: 'work-036:intake:parramatta-2',
+    kind: 'discovery',
+    title: 'Screen Parramatta results page 2',
+    receiptVersion: HEX64,
+    state: 'blocked',
+    attempts: 4,
+    childId: 'child-intake-1',
+    evidence: ['https://example.com/contractor-7/roster', 'https://example.com/contractor-7/coverage'],
+    detail: 'The roster page names three electricians but the coverage page has not loaded yet.',
+    sourceUrl: 'https://example.com/contractor-7',
+  }
   const completed = items.filter((item) => item.state === 'complete').length
   return { budgetUsedMs: 11_520_000, sectorId, state: 'running', planVersion: 3, plan: { latest: planVersions[2] as FixturePlanVersion, versions: planVersions, approvals: [3], approvedVersion: 3 }, items, completed, total: 40, unresolved: 3, discoveryClosed: false, estimatedPercent: 62 }
 }

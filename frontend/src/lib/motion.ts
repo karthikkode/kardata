@@ -90,6 +90,12 @@ export const tabIndicatorTransition = {
   ease: [0.16, 1, 0.3, 1] as [number, number, number, number],
 }
 
+/** Sliding sidebar indicator (shared layoutId `nav-active`). */
+export const navIndicatorTransition = {
+  duration: 0.18,
+  ease: [0.16, 1, 0.3, 1] as [number, number, number, number],
+}
+
 type ExitState = 'open' | 'closing' | 'closed'
 
 // Delayed unmount so a closing surface can play its exit keyframes, without

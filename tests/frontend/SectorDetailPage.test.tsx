@@ -466,10 +466,11 @@ describe('Sector open navigation', () => {
     const user = userEvent.setup()
     const { default: App } = await import('@/App')
     render(<App />)
-    await user.click(await screen.findByRole('button', { name: 'Open Pet care' }))
-    // The row opens the summary landing; Open enters the chat workspace.
+    const sectorsPanel = await screen.findByRole('region', { name: 'Recent sectors' })
+    await user.click(await within(sectorsPanel).findByRole('button', { name: /Pet care/ }))
+    // The row opens the summary landing; Open workspace enters the chat workspace.
     expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
-    await user.click(await screen.findByRole('button', { name: 'Open' }))
+    await user.click(await screen.findByRole('button', { name: 'Open workspace' }))
     expect(await screen.findByRole('group', { name: 'Session types' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Back to sector summary' }))
     expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()

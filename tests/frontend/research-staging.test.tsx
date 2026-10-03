@@ -64,7 +64,7 @@ describe('staging research surfaces (F-S2)', () => {
     })
     const { default: App } = await import('@/App')
     render(<App />)
-    expect(await screen.findByText('Server Pet')).toBeInTheDocument()
+    expect(await screen.findAllByText('Server Pet')).toHaveLength(2)
     expect(await screen.findByText('Server West')).toBeInTheDocument()
     // Mock names stay out of the staging render.
     expect(screen.queryByText('Pet care')).not.toBeInTheDocument()
@@ -80,11 +80,13 @@ describe('staging research surfaces (F-S2)', () => {
     const { default: App } = await import('@/App')
     render(<App />)
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: 'Open Server Pet' }))
+    await user.click(
+      await screen.findByRole('button', { name: (name) => name.startsWith('Server Pet Backend') }),
+    )
     // Companies render on the summary landing; chat lives in the workspace.
     expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
     expect(await screen.findByText('Server West')).toBeInTheDocument()
-    await user.click(await screen.findByRole('button', { name: 'Open' }))
+    await user.click(await screen.findByRole('button', { name: 'Open workspace' }))
     expect(await screen.findByRole('group', { name: 'Session types' })).toBeInTheDocument()
     // The sector activity timeline has no renderer in the workspace UX yet;
     // coverage for it lives in RunConsole.test.tsx until it is surfaced.
@@ -101,10 +103,10 @@ describe('staging research surfaces (F-S2)', () => {
     const { default: App } = await import('@/App')
     render(<App />)
     expect(
-      await screen.findByText('Sector researches are not shared with this key.'),
+      await screen.findByText('Recent sectors is not shared with this key. Ask an owner for access, then try again.'),
     ).toBeInTheDocument()
     // The connection-error panel must not appear for a refused key.
-    expect(screen.queryByText('Sector researches did not load.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Recent sectors did not load.')).not.toBeInTheDocument()
   })
 
   it('keeps the connection-error panel for transport failures', async () => {
@@ -116,7 +118,7 @@ describe('staging research surfaces (F-S2)', () => {
     )
     const { default: App } = await import('@/App')
     render(<App />)
-    expect(await screen.findByText('Sector researches did not load.')).toBeInTheDocument()
+    expect(await screen.findByText('Recent sectors did not load.')).toBeInTheDocument()
   })
 
   it('shows the empty first-run copy instead of an error for empty lists', async () => {
@@ -126,8 +128,8 @@ describe('staging research surfaces (F-S2)', () => {
     })
     const { default: App } = await import('@/App')
     render(<App />)
-    expect(await screen.findByText(/No sector researches yet\./)).toBeInTheDocument()
-    expect(screen.queryByText('Sector researches did not load.')).not.toBeInTheDocument()
+    expect(await screen.findByText('No sectors yet')).toBeInTheDocument()
+    expect(screen.queryByText('Recent sectors did not load.')).not.toBeInTheDocument()
   })
 
   it('shows the not-found copy instead of an error for a removed sector', async () => {
@@ -138,10 +140,28 @@ describe('staging research surfaces (F-S2)', () => {
     })
     const { default: App } = await import('@/App')
     render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Open Server Pet' }))
-    expect(
-      await screen.findByText('Sector research not found. It may have been removed.'),
-    ).toBeInTheDocument()
+    fireEvent.click(
+      await screen.findByRole('button', { name: (name) => name.startsWith('Server Pet Backend') }),
+    )
+    expect(await screen.findByRole('heading', { name: 'Sector not found', level: 1 })).toBeInTheDocument()
+    expect(screen.getByText('This sector may have been removed.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Back to researches' })).toBeInTheDocument()
+  })
+
+  it('names a denied sector in the header without repeating the title', async () => {
+    stubFetch((url) => {
+      if (url.endsWith('/v1/sectors')) return { status: 200, payload: { ok: true, data: SECTORS } }
+      if (url.includes('/v1/companies')) return companiesPage()
+      return { status: 403, payload: { ok: false, error: { code: 'permission_denied', message: 'no' } } }
+    })
+    const { default: App } = await import('@/App')
+    render(<App />)
+    fireEvent.click(
+      await screen.findByRole('button', { name: (name) => name.startsWith('Server Pet Backend') }),
+    )
+    expect(await screen.findByRole('heading', { name: 'Access denied', level: 1 })).toBeInTheDocument()
+    expect(screen.getAllByText('Access denied')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
   })
 
   it('shows loading skeletons then the error panel with retry', async () => {
@@ -154,10 +174,10 @@ describe('staging research surfaces (F-S2)', () => {
     render(<App />)
     // The stub fails immediately, so loading flashes past: the error panel
     // is the stable assertion (skeletons are covered on the mock path).
-    expect(await screen.findByText('Sector researches did not load.')).toBeInTheDocument()
+    expect(await screen.findByText('Recent sectors did not load.')).toBeInTheDocument()
     const attempts = failures
     fireEvent.click(screen.getAllByRole('button', { name: 'Try again' })[0])
-    expect(await screen.findByText('Sector researches did not load.')).toBeInTheDocument()
+    expect(await screen.findByText('Recent sectors did not load.')).toBeInTheDocument()
     expect(failures).toBeGreaterThan(attempts)
   })
 })

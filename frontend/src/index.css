@@ -250,6 +250,8 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     font-optical-sizing: auto;
+    /* The top bar sticks: keep focus/anchor scrolls clear of it. */
+    scroll-padding-top: 3.5rem;
   }
   svg.lucide {
     stroke-width: 1.75;
@@ -430,6 +432,8 @@
       display: flex;
       flex-direction: column;
       gap: 4px;
+      /* Rows carry h-9 on desktop; stacked cards size to content. */
+      height: auto;
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 12px;
@@ -449,8 +453,20 @@
       line-height: 16px;
       color: var(--muted-foreground);
     }
-    .v2-table-stack td[data-label='']::before {
+    .v2-table-stack td[data-label='']::before,
+    .v2-table-stack td:not([data-label])::before {
       display: none;
+    }
+    /* State rows (loading/empty/error span every column): block layout,
+       no label gutter, so panels keep their centred shape. */
+    .v2-table-stack td[colspan] {
+      display: block;
+    }
+    /* State rows are not data cards: no nested chrome around the panel. */
+    .v2-table-stack tr:has(td[colspan]) {
+      border: 0;
+      padding: 0;
+      background: transparent;
     }
   }
 }

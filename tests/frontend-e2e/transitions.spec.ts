@@ -36,13 +36,13 @@ async function serveClipsApi(page): Promise<void> {
 test('clip: dock open then close', async ({ page }) => {
   await serveClipsApi(page)
   await page.goto('/')
-  await page.getByRole('button', { name: 'Open chat' }).click()
+  await page.getByRole('button', { name: 'Ask Karbot' }).click()
   const dock = page.getByRole('complementary', { name: 'Assistant chat' })
   await expect(dock).toBeVisible()
   await page.waitForTimeout(400)
   await page.keyboard.press('Escape')
   await expect(dock).not.toBeVisible()
-  await expect(page.getByRole('button', { name: 'Open chat' })).toBeFocused()
+  await expect(page.getByRole('button', { name: 'Ask Karbot' })).toBeFocused()
   await page.waitForTimeout(300)
 })
 
@@ -60,7 +60,7 @@ test('clip: section switch crossfade with heading focus', async ({ page }) => {
 test('clip: chat model menu open then Esc refocus', async ({ page }) => {
   await serveClipsApi(page)
   await page.goto('/')
-  await page.getByRole('button', { name: 'Open chat' }).click()
+  await page.getByRole('button', { name: 'Ask Karbot' }).click()
   const chat = page.getByRole('complementary', { name: 'Assistant chat' })
   await expect(chat).toBeVisible()
   await chat.getByRole('button', { name: 'Choose a model' }).click()

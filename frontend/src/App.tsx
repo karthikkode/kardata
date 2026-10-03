@@ -6,7 +6,7 @@ import { Dashboard, type ResearchList } from './components/Dashboard'
 import { ModelsPanel } from './components/ModelsPanel'
 import { ResearchesPage } from './components/ResearchesPage'
 import { RunsPanel } from './components/RunsPanel'
-import { SectorLanding } from './components/SectorLanding'
+import { SectorLanding, sectorMetaLine } from './components/SectorLanding'
 import { SectorWorkspace } from './components/SectorWorkspace'
 import { useSectorWorkspace } from './data/sector-workspace'
 import { useWorkspaceResource } from './data/useWorkspace'
@@ -32,7 +32,11 @@ import {
 import { useExitState, pageEnter } from './lib/motion'
 import { LazyMotion, MotionConfig, domAnimation } from 'motion/react'
 import { useNavigation } from './lib/useNavigation'
-import { stateLabel } from './components/research-parts'
+import { StateBadge, stateLabel } from './components/research-parts'
+import { CreateSectorDialog } from './components/CreateSectorDialog'
+import { Button } from './components/ui/button'
+import { Icons } from '@/lib/icons'
+import { notify } from './lib/toast'
 import { PageHeader } from './components/shells'
 import { CommandPalette, type PaletteSection } from './components/CommandPalette'
 import { TooltipProvider } from './components/ui/tooltip'
@@ -105,8 +109,9 @@ export default function App() {
     ? nav.section
     : 'Overview'
   const sectorId = section === 'SectorDetail' || section === 'SectorChat' ? nav.sectorId : null
-  const [query, setQuery] = useState('')
-  const { resolved: resolvedTheme, setPreference: setThemePreference } = useTheme()
+  const [createOpen, setCreateOpen] = useState(false)
+  const [progressOpen, setProgressOpen] = useState(false)
+  const { preference: themePreference, resolved: resolvedTheme, setPreference: setThemePreference } = useTheme()
   const dark = resolvedTheme === 'dark'
   const toggleTheme = (): void => setThemePreference(dark ? 'light' : 'dark')
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -126,9 +131,9 @@ export default function App() {
 
   function focusChatToggle() {
     requestAnimationFrame(() => {
-      document
-        .querySelector<HTMLButtonElement>('[aria-label="Open chat"]')
-        ?.focus()
+      // Two labelled toggles exist (desktop + mobile); focus the visible one.
+      const candidates = [...document.querySelectorAll<HTMLButtonElement>('[aria-label="Ask Karbot"]')]
+      candidates.find((el) => el.offsetParent !== null)?.focus()
     })
   }
 
@@ -258,6 +263,7 @@ export default function App() {
     try {
       const sector = await createSector(staging, { name, topic: topic || undefined, state: 'draft' })
       sectors.retry()
+      notify.success('Sector created')
       setNav({ section: 'SectorDetail', sectorId: sector.id })
     } catch (error: unknown) {
       setCreateError(error instanceof Error ? error.message : 'Create failed.')
@@ -279,7 +285,11 @@ export default function App() {
   }, [section])
 
   function goResearches(tab: ResearchList) {
-    setNav({ section: 'Researches', researchTab: tab, sectorId: null })
+    setNav({ section: 'Researches', researchTab: tab, sectorId: null, filterQuery: null, stateFilter: null })
+  }
+
+  function goResearchesFiltered(tab: ResearchList, state: string | null) {
+    setNav({ section: 'Researches', researchTab: tab, sectorId: null, filterQuery: null, stateFilter: state })
   }
 
   function goSector(id: string) {
@@ -287,7 +297,66 @@ export default function App() {
   }
 
   const detail = detailData.detail
-  const heading = section === 'SectorDetail' ? (detail?.name ?? 'Sector research') : section
+  // Header titles come from a label map, never raw section ids; an async
+  // sector title shows a skeleton while it loads, and a missing sector
+  // names itself instead of flashing a raw id.
+  const sectorView = section === 'SectorDetail' || section === 'SectorChat'
+  // Without a detail the header names the state itself; the landing body
+  // below suppresses its own title (hideTitle) instead of repeating it.
+  const sectorFallbackTitle =
+    detailData.status === 'ready'
+      ? 'Sector not found'
+      : detailData.status === 'denied'
+        ? 'Access denied'
+        : detailData.status === 'offline'
+          ? 'You are offline'
+          : detailData.status === 'error'
+            ? 'Sector did not load.'
+            : 'Sector research'
+  const headerTitle = sectorView ? (detail?.name ?? sectorFallbackTitle) : section
+  const headerLoading = sectorView && !detail && detailData.status === 'loading'
+  const headerDescription =
+    !staging
+      ? undefined
+      : sectorView
+        ? (detail?.topic ?? undefined)
+        : section === 'Overview'
+          ? 'Research activity across all sectors.'
+          : section === 'Researches'
+            ? 'Sectors you research and the companies they discover.'
+            : undefined
+  const headerCrumbs =
+    staging && section === 'SectorDetail' && detail
+      ? [
+          { label: 'Researches', onSelect: () => setNav({ section: 'Researches', sectorId: null }) },
+          { label: detail.name },
+        ]
+      : undefined
+  const headerBadge = staging && section === 'SectorDetail' && detail ? <StateBadge state={detail.state} /> : undefined
+  const headerMeta = staging && section === 'SectorDetail' && detail ? sectorMetaLine(detail) : undefined
+  const headerActions =
+    staging && section === 'SectorDetail' && detail ? (
+      <>
+        <Button type="button" variant="secondary" size="sm" onClick={() => setProgressOpen(true)}>
+          <Icons.progress aria-hidden />
+          View progress
+        </Button>
+        <Button
+          type="button"
+          variant="primary"
+          size="sm"
+          onClick={() => setNav({ section: 'SectorChat', sectorId: detail.id, sessionId: null, threadKey: null, view: null })}
+        >
+          Open workspace
+          <Icons.openExternal aria-hidden />
+        </Button>
+      </>
+    ) : staging && (section === 'Overview' || section === 'Researches') ? (
+      <Button type="button" variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
+        <Icons.plus aria-hidden />
+        New sector
+      </Button>
+    ) : undefined
   // Context summary derives from the served sector detail and recomputes
   // whenever its numbers or state change; the chip follows.
   const detailState = detail?.state ?? 'queued'
@@ -305,7 +374,7 @@ export default function App() {
       : []
 
   if (section === 'SectorChat' && detailData.detail && staging && detailData.status !== 'denied') {
-    return <MotionConfig reducedMotion="user"><LazyMotion features={domAnimation}><TooltipProvider delay={400}><SectorWorkspace sector={detailData.detail} model={workspace} config={staging} dark={dark} onTheme={() => toggleTheme()} onBack={() => setNav({ section: 'SectorDetail', sessionId: null, threadKey: null })} actions={{ busy: researchBusy, error: researchError, plan: () => void planCurrentSector(), approve: (version, contextVersion) => void approveCurrentSector(version, contextVersion), start: () => void startCurrentSector(), pause: () => void pauseCurrentSector(), resume: () => void resumeCurrentSector(), edit: editCurrentSectorPlan }} /><AppOverlays
+    return <MotionConfig reducedMotion="user"><LazyMotion features={domAnimation}><TooltipProvider delay={400}><SectorWorkspace sector={detailData.detail} model={workspace} config={staging} dark={dark} onTheme={() => toggleTheme()} initialView={nav.view === 'plan' ? 'plan' : 'chat'} onBack={() => setNav({ section: 'SectorDetail', sessionId: null, threadKey: null, view: null })} actions={{ busy: researchBusy, error: researchError, plan: () => void planCurrentSector(), approve: (version, contextVersion) => void approveCurrentSector(version, contextVersion), start: () => void startCurrentSector(), pause: () => void pauseCurrentSector(), resume: () => void resumeCurrentSector(), edit: editCurrentSectorPlan }} /><AppOverlays
           paletteOpen={paletteOpen}
           onPaletteOpenChange={setPaletteOpen}
           sectors={(sectors.items ?? []).map((sector) => ({ id: sector.id, name: sector.name, topic: sector.topic }))}
@@ -321,15 +390,10 @@ export default function App() {
     <MotionConfig reducedMotion="user">
     <LazyMotion features={domAnimation}>
     <TooltipProvider delay={400}>
-    <div className="flex min-h-screen bg-muted/40 text-foreground">
+    <div className="flex min-h-screen bg-background text-foreground">
       <Sidebar active={section} onSelect={(next) => setNav({ section: next, sectorId: null })} />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar
-          query={query}
-          onQuery={setQuery}
-          dark={dark}
-          showSearch={section === 'Overview'}
-          onTheme={() => toggleTheme()}
           chatOpen={chatOpen}
           onChatToggle={() => {
             if (chatOpen) {
@@ -338,6 +402,9 @@ export default function App() {
               openChat()
             }
           }}
+          onOpenPalette={() => setPaletteOpen(true)}
+          themePreference={themePreference}
+          onThemePreference={setThemePreference}
         />
         {chatDock.mounted ? (
           <ChatPanel
@@ -350,12 +417,23 @@ export default function App() {
             onClose={closeChat}
           />
         ) : null}
-        <main className="flex-1 px-4 py-6 md:px-6 lg:px-8">
+        <main className="flex-1 px-4 pt-6 pb-12 md:px-6 min-[1440px]:px-8">
           <div
             key={section}
-            className={`mx-auto w-full max-w-6xl ${pageEnter}`}
+            className={`mx-auto w-full max-w-page ${pageEnter}`}
           >
-            <PageHeader ref={headingRef} tabIndex={-1} title={heading} className="mb-4" titleClassName="focus:outline-none" />
+            <PageHeader
+              ref={headingRef}
+              tabIndex={-1}
+              title={headerTitle}
+              description={headerDescription}
+              actions={headerActions}
+              badge={headerBadge}
+              crumbs={headerCrumbs}
+              meta={headerMeta}
+              loading={headerLoading}
+              titleClassName="focus:outline-none"
+            />
             {!staging ? (
               <div className="rounded-xl border border-dashed border-border bg-background p-4">
                 <p className="text-sm font-medium">Backend not connected.</p>
@@ -365,25 +443,27 @@ export default function App() {
               </div>
             ) : section === 'Overview' ? (
               <Dashboard
-                query={query}
-                onClearSearch={() => setQuery('')}
                 onViewAll={goResearches}
+                onOpenFiltered={goResearchesFiltered}
                 onOpenSector={goSector}
+                onNewSector={() => setCreateOpen(true)}
                 sectors={sectors}
                 companies={companies}
               />
             ) : section === 'Researches' ? (
               <ResearchesPage
-                key={researchTab}
                 initialTab={researchTab}
                 sectors={sectors}
+                companiesTotal={companies.total}
                 staging={staging}
-                creating={creating}
-                createError={createError}
-                onBack={() => setNav({ section: 'Overview', sectorId: null })}
+                filterQuery={nav.filterQuery ?? null}
+                stateFilter={nav.stateFilter ?? null}
                 onTabChange={(tab) => setNav({ researchTab: tab })}
+                onFiltersChange={(query, state) =>
+                  setNav({ filterQuery: query === '' ? null : query, stateFilter: state === 'all' ? null : state })
+                }
                 onOpenSector={goSector}
-                onCreateSector={createDraftSector}
+                onNewSector={() => setCreateOpen(true)}
               />
             ) : section === 'SectorDetail' || section === 'SectorChat' ? (
               <SectorLanding
@@ -392,23 +472,20 @@ export default function App() {
                 status={detailData.status}
                 config={staging}
                 progress={progress}
-                onOpen={() => setNav({ section: 'SectorChat', sessionId: null, threadKey: null })}
+                progressOpen={progressOpen}
+                onProgressOpenChange={setProgressOpen}
+                onOpen={() => setNav({ section: 'SectorChat', sessionId: null, threadKey: null, view: null })}
+                onReviewPlan={() => setNav({ section: 'SectorChat', sessionId: null, threadKey: null, view: 'plan' })}
                 onRetry={detailData.retry}
                 onBack={() => setNav({ section: 'Researches', sectorId: null })}
               />
             ) : section === 'Agents' ? (
               <>
               <SupervisionAlertsPanel resource={alerts.resource} viewingOlder={alerts.viewingOlder} onOlder={alerts.older} onLatest={alerts.latest} />
-              <RunsPanel
-                config={staging}
-                onBack={() => setNav({ section: 'Overview', sectorId: null })}
-              />
+              <RunsPanel config={staging} />
               </>
             ) : section === 'Models' ? (
-              <ModelsPanel
-                config={staging}
-                onBack={() => setNav({ section: 'Overview', sectorId: null })}
-              />
+              <ModelsPanel config={staging} />
             ) : (
               <div className="rounded-xl border border-dashed border-border bg-background p-4">
                 <p className="text-sm font-medium">Email tracking is not connected yet.</p>
@@ -421,13 +498,21 @@ export default function App() {
         </main>
       </div>
     </div>
+    <CreateSectorDialog
+      creating={creating}
+      createError={createError}
+      onCreate={createDraftSector}
+      open={createOpen}
+      onOpenChange={setCreateOpen}
+      trigger={false}
+    />
     <AppOverlays
           paletteOpen={paletteOpen}
           onPaletteOpenChange={setPaletteOpen}
           sectors={(sectors.items ?? []).map((sector) => ({ id: sector.id, name: sector.name, topic: sector.topic }))}
           onNavigate={(section) => setNav({ section })}
           onSelectSector={goSector}
-          onNewSector={() => setNav({ section: 'Researches' })}
+          onNewSector={() => setCreateOpen(true)}
           onOpenKarbot={() => openChat()}
           onToggleTheme={toggleTheme}
           theme={resolvedTheme}

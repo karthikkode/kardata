@@ -46,7 +46,7 @@ afterEach(() => {
 describe('runs view (no mocks)', () => {
   it('lists real runs with state and no placeholder ratios', async () => {
     stubApi(() => ({ status: 200, payload: { ok: true, data: RUNS } }))
-    render(<RunsPanel config={config} onBack={() => undefined} />)
+    render(<RunsPanel config={config} />)
     expect(await screen.findByText('session-run-9')).toBeInTheDocument()
     expect(screen.getByText('Running')).toBeInTheDocument()
     // The backend reports 0 until it measures ratios: the row must not
@@ -66,7 +66,7 @@ describe('runs view (no mocks)', () => {
       }
       return { status: 200, payload: { ok: true, data: RUNS } }
     })
-    render(<RunsPanel config={config} onBack={() => undefined} />)
+    render(<RunsPanel config={config} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
     await vi.waitFor(() => {
       expect(cancelled).toHaveLength(1)
@@ -75,13 +75,13 @@ describe('runs view (no mocks)', () => {
 
   it('shows the empty copy instead of staged agents', async () => {
     stubApi(() => ({ status: 200, payload: { ok: true, data: [] } }))
-    render(<RunsPanel config={config} onBack={() => undefined} />)
+    render(<RunsPanel config={config} />)
     expect(await screen.findByText(/No runs yet\./)).toBeInTheDocument()
   })
 
   it('shows the denied notice for refused keys', async () => {
     stubApi(() => ({ status: 403, payload: { ok: false, error: { code: 'permission_denied', message: 'no' } } }))
-    render(<RunsPanel config={config} onBack={() => undefined} />)
+    render(<RunsPanel config={config} />)
     expect(await screen.findByText('Agent runs are not shared with this key.')).toBeInTheDocument()
   })
 
@@ -93,7 +93,7 @@ describe('runs view (no mocks)', () => {
         data: [{ ...RUNS[0], id: 'run-cancelling', state: 'CANCELLING' }],
       },
     }))
-    render(<RunsPanel config={config} onBack={() => undefined} />)
+    render(<RunsPanel config={config} />)
     expect(await screen.findByText('run-cancelling')).toBeInTheDocument()
     const pill = screen.getByText('Cancelling')
     expect(
@@ -111,7 +111,7 @@ describe('runs view (no mocks)', () => {
       }
       return { status: 200, payload: { ok: true, data: RUNS } }
     })
-    render(<RunsPanel config={config} onBack={() => undefined} />)
+    render(<RunsPanel config={config} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
     expect(await screen.findByRole('alert')).toHaveTextContent(/Could not cancel run/)
   })

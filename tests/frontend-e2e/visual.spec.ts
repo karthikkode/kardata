@@ -91,7 +91,7 @@ test('visual: overview empty state', async ({ page }) => {
   await page.goto('/')
   await shot(page, 'overview-empty', [
     page.getByRole('heading', { name: 'Overview' }),
-    page.getByText(/No sector researches yet/),
+    page.getByText('No sectors yet'),
   ])
 })
 
@@ -106,7 +106,7 @@ test('visual: sector detail with context drawer content', async ({ page }) => {
   await serveApi(page)
   await page.goto('/')
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
-  await page.getByRole('button', { name: 'Open Speciality Foods' }).click()
+  await page.getByRole('link', { name: /^Speciality Foods/ }).click()
   // The summary landing carries status plus companies; the drawer-era
   // detail/chat headings moved into the workspace (workspace.spec.ts).
   await shot(page, 'sector-detail', [
@@ -118,7 +118,7 @@ test('visual: sector detail with context drawer content', async ({ page }) => {
 test('visual: chat open idle with model picker expanded', async ({ page }) => {
   await serveApi(page)
   await page.goto('/')
-  await page.getByRole('button', { name: 'Open chat' }).click()
+  await page.getByRole('button', { name: 'Ask Karbot' }).click()
   const chat = page.getByRole('complementary', { name: 'Assistant chat' })
   await expect(chat).toBeVisible()
   await chat.getByRole('button', { name: 'Choose a model' }).click()
@@ -135,20 +135,22 @@ test('visual: wave1 sidebar collapsed with disabled emails', async ({ page }) =>
   ])
 })
 
-test('visual: wave1 dashboard filtered counts with clearable search', async ({ page }) => {
+test('visual: wave1 researches filtered counts with clearable search', async ({ page }) => {
   await serveApi(page)
   await page.goto('/')
-  await page.getByLabel('Search researches').fill('Speciality')
+  await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
+  await page.getByLabel('Search sectors').fill('Speciality')
   await shot(page, 'wave1-dashboard-filtered', [
-    page.locator('header').getByRole('button', { name: 'Clear search' }),
-    page.getByText('Showing 1 of 1 matching').first(),
+    page.getByRole('button', { name: 'Clear search' }),
+    page.getByText('1 sector'),
   ])
 })
 
 test('visual: wave2 dark overview with collapsed rail', async ({ page }) => {
   await serveApi(page, [])
   await page.goto('/')
-  await page.getByRole('button', { name: 'Switch to dark theme' }).click()
+  await page.getByRole('button', { name: 'Theme' }).click()
+  await page.getByRole('menuitemradio', { name: 'Dark' }).click()
   await page.getByRole('button', { name: 'Collapse sidebar' }).click()
   await shot(page, 'wave2-dark-collapsed', [
     page.getByRole('heading', { name: 'Overview' }),
@@ -161,7 +163,7 @@ test('visual: wave2 mobile sector detail stacked', async ({ page }) => {
   await serveApi(page)
   await page.goto('/')
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
-  await page.getByRole('button', { name: 'Open Speciality Foods' }).click()
+  await page.getByRole('link', { name: /^Speciality Foods/ }).click()
   await shot(page, 'wave2-mobile-detail', [
     page.getByRole('region', { name: 'Research status' }),
     page.getByRole('button', { name: 'Open', exact: true }),

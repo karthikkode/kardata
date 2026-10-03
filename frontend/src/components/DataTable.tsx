@@ -43,6 +43,7 @@ export function DataTable<T extends object>({
   defaultSort = [],
   onSortChange,
   state = 'ready',
+  rowLimit,
   empty,
   loading,
   error,
@@ -57,6 +58,8 @@ export function DataTable<T extends object>({
   defaultSort?: SortingState
   onSortChange?: (sort: SortingState) => void
   state?: 'ready' | 'loading' | 'error'
+  /** Client-side window: sorts the full data, then shows the first N rows. */
+  rowLimit?: number
   empty: React.ReactNode
   loading?: React.ReactNode
   error?: React.ReactNode
@@ -98,6 +101,8 @@ export function DataTable<T extends object>({
     getSortedRowModel: getSortedRowModel(),
   })
 
+  const sortedRows = table.getRowModel().rows
+  const visibleRows = rowLimit === undefined ? sortedRows : sortedRows.slice(0, rowLimit)
   const body =
     state === 'loading' ? (
       <tr>
@@ -111,14 +116,14 @@ export function DataTable<T extends object>({
           {error}
         </td>
       </tr>
-    ) : table.getRowModel().rows.length === 0 ? (
+    ) : sortedRows.length === 0 ? (
       <tr>
         <td colSpan={columns.length} className="px-2 py-2">
           {empty}
         </td>
       </tr>
     ) : (
-      table.getRowModel().rows.map((row) => {
+      visibleRows.map((row) => {
         const interactive = onSelect !== undefined
         return (
           <tr

@@ -43,7 +43,12 @@ for (const width of [1440,390]) for (const dark of [false,true]) for (const land
     await page.goto(`/?section=${landing ? 'SectorDetail' : 'SectorChat'}&sector=${sectorId}`)
     if (dark) {
       if (!landing && width < 768) await page.getByRole('button', { name: 'Open sessions' }).click()
-      await page.getByRole('button', { name: landing ? 'Switch to dark theme' : 'Use dark theme' }).click()
+      if (landing) {
+        await page.getByRole('button', { name: 'Theme' }).click()
+        await page.getByRole('menuitemradio', { name: 'Dark' }).click()
+      } else {
+        await page.getByRole('button', { name: 'Use dark theme' }).click()
+      }
       if (!landing && width < 768) await page.getByRole('button', { name: 'Close Sessions' }).click()
     }
     if (landing) await page.getByRole('button', { name: 'View progress' }).click()

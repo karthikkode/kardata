@@ -124,4 +124,23 @@ describe('data table (F10)', () => {
     )
     expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
   })
+
+  it('sorts the full data before applying the row limit', () => {
+    render(
+      <DataTable
+        data={ROWS}
+        columns={COLUMNS}
+        rowKey={(row) => row.id}
+        onSelect={() => undefined}
+        defaultSort={[{ id: 'name', desc: false }]}
+        rowLimit={2}
+        empty="empty"
+        ariaLabel="Sectors"
+      />,
+    )
+    // Alpha, Bravo: the window follows the sort, not the input order.
+    expect(names()).toHaveLength(2)
+    expect(names()[0]).toContain('Alpha')
+    expect(names()[1]).toContain('Bravo')
+  })
 })

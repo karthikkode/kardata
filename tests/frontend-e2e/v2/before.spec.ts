@@ -17,6 +17,12 @@ async function legacyTheme(page: Page, theme: ShotTheme): Promise<void> {
 
 const legacy = { applyTheme: legacyTheme }
 
+// Stage-0 BEFORE captures: the v2 shell replaced every legacy anchor
+// (Open chat, Back to Overview, theme toggle), so re-running these
+// against the new UI proves nothing. BEFORE evidence is kept in
+// tests/evidence/ui-revamp-v2/before/.
+test.skip(true, 'Stage-0 BEFORE captures; v2 UI replaced the legacy anchors')
+
 test('BEFORE-overview', async ({ page }) => {
   await serveApi(page)
   await page.goto('/')

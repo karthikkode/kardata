@@ -1,9 +1,11 @@
 import { useState, type ReactNode } from 'react'
 import { Icons } from '@/lib/icons'
+import { companyStageLabel } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 import { researchStages } from '../data/stages'
 import type { CompanyResearch, SectorResearch } from '../data/research'
 import { StatusPill } from './StatusPill'
+import { Badge, type BadgeTone } from './ui/badge'
 import { Button } from './ui/button'
 import { Skeleton } from './ui/skeleton'
 import { IconButton } from './IconButton'
@@ -31,6 +33,35 @@ export const stateTone = {
   failed: 'failed',
   complete: 'ok',
 } as const
+
+/** Badge tone for a research state. Only lifecycle status ever wears a badge. */
+export function stateToBadgeTone(state: keyof typeof stateLabel): BadgeTone {
+  switch (state) {
+    case 'running':
+    case 'planning':
+    case 'approved':
+      return 'info'
+    case 'planned':
+    case 'paused':
+      return 'warning'
+    case 'failed':
+      return 'danger'
+    case 'complete':
+      return 'success'
+    default:
+      return 'neutral'
+  }
+}
+
+/** One subtle status badge with a dot, for the right cluster of overview rows. */
+export function StateBadge({ state }: { state: keyof typeof stateLabel }) {
+  return (
+    <Badge tone={stateToBadgeTone(state)}>
+      <span aria-hidden className="size-1.5 rounded-full bg-current" />
+      {stateLabel[state]}
+    </Badge>
+  )
+}
 
 export const firstRunCopy = {
   sectors:
@@ -89,6 +120,30 @@ function StageDots({ stage }: { stage: CompanyResearch['stage'] }) {
           className={cn(
             'h-1.5 flex-1 rounded-full',
             index <= current ? 'bg-primary' : 'bg-muted',
+          )}
+        />
+      ))}
+    </ol>
+  )
+}
+
+/** Four-segment stage indicator: filled up to the current stage. */
+export function StageSteps({ stage }: { stage: CompanyResearch['stage'] }) {
+  const current = researchStages.findIndex((name) => name === stage)
+  const label = companyStageLabel(stage)
+  return (
+    <ol
+      aria-label={current >= 0 ? `Stage ${current + 1} of ${researchStages.length}: ${label}` : `Stage: ${label}`}
+      className="flex items-center gap-1"
+    >
+      {researchStages.map((name, index) => (
+        <li
+          key={name}
+          title={`Stage ${index + 1} of ${researchStages.length}: ${companyStageLabel(name)}`}
+          aria-current={index === current ? 'step' : undefined}
+          className={cn(
+            'h-1 w-6 rounded-full',
+            current >= 0 && index <= current ? 'bg-primary' : 'bg-surface-active',
           )}
         />
       ))}

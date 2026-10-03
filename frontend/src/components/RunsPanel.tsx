@@ -93,12 +93,10 @@ function RunRow({
 
 export function RunsPanel({
   config,
-  onBack,
 }: {
   /** Null until the staging flag carries credentials: runs are
    * backend-only, so without a config the view explains instead. */
   config: StagingConfig | null
-  onBack: () => void
 }) {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'denied' | 'offline'>('loading')
   const [runs, setRuns] = useState<RunSummary[]>([])
@@ -173,10 +171,6 @@ export function RunsPanel({
 
   return (
     <div className="space-y-6">
-      <Button type="button" variant="ghost" size="sm" onClick={onBack}>
-        <Icons.back className="size-4" aria-hidden />
-        Back to Overview
-      </Button>
       <section
         aria-label="Agent runs"
         className="rounded-xl border border-border bg-background px-4 py-3"

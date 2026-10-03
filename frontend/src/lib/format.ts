@@ -36,6 +36,27 @@ export function relativeAge(at: string, now: number = Date.now()): string {
   return `${Math.floor(months / 12)}y ago`
 }
 
+/** Full timestamp ("3 Sep 2026, 14:05") for tooltips and meta lines. */
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+export function formatFullDate(at: string): string {
+  const date = new Date(at)
+  if (!Number.isFinite(date.getTime())) return 'Unknown'
+  const day = date.getDate()
+  const month = MONTH_NAMES[date.getMonth()]
+  const year = date.getFullYear()
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${day} ${month} ${year}, ${hours}:${minutes}`
+}
+
+/** Short calendar date ("3 Sep 2026") for meta lines. */
+export function formatShortDate(at: string): string {
+  const date = new Date(at)
+  if (!Number.isFinite(date.getTime())) return 'Unknown'
+  return `${date.getDate()} ${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`
+}
+
 /** Active-time duration ("3h 12m") from milliseconds. */
 export function formatDurationMs(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) return 'Unknown'

@@ -3,7 +3,6 @@
 // presence only, never key material) and the session read/write pair for
 // the binding. No fixtures, no guessed models.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Icons } from '@/lib/icons'
 import {
   getSession,
   listProviders,
@@ -200,13 +199,11 @@ function ProviderCard({
 
 export function ModelsPanel({
   config,
-  onBack,
 }: {
   /** Null until the staging flag carries credentials: the catalog and
    * the binding are backend-only, so without a config the view explains
    * instead of inventing providers. */
   config: StagingConfig | null
-  onBack: () => void
 }) {
   const [status, setStatus] = useState<LoadStatus>(() => (config ? 'loading' : 'ready'))
   const [sessions, setSessions] = useState<Session[]>([])
@@ -362,10 +359,6 @@ export function ModelsPanel({
 
   return (
     <div className="space-y-6">
-      <Button type="button" variant="ghost" size="sm" onClick={onBack}>
-        <Icons.back className="size-4" aria-hidden />
-        Back to Overview
-      </Button>
       <section
         aria-label="Models"
         className="rounded-xl border border-border bg-background px-4 py-3"

@@ -59,20 +59,23 @@ for (const dark of [false, true]) {
     await page.setViewportSize({ width: 1440, height: 900 })
     await serveApi(page)
     await page.goto('/')
-    if (dark) await page.getByRole('button', { name: 'Switch to dark theme' }).click()
+    if (dark) {
+      await page.getByRole('button', { name: 'Theme' }).click()
+      await page.getByRole('menuitemradio', { name: 'Dark' }).click()
+    }
     await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
     // Controlled tabs with keyboard behavior and a labeled state selection.
-    await expect(page.getByRole('tab', { name: 'Sectors' })).toHaveAttribute('aria-selected', 'true')
-    await page.getByRole('tab', { name: 'Companies' }).click()
-    await expect(page.getByRole('tab', { name: 'Companies' })).toHaveAttribute('aria-selected', 'true')
-    await page.getByRole('tab', { name: 'Sectors' }).click()
-    await expect(page.getByRole('combobox', { name: 'Filter by state' })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Sectors 1' })).toHaveAttribute('aria-selected', 'true')
+    await page.getByRole('tab', { name: 'Companies 0' }).click()
+    await expect(page.getByRole('tab', { name: 'Companies 0' })).toHaveAttribute('aria-selected', 'true')
+    await page.getByRole('tab', { name: 'Sectors 1' }).click()
+    await expect(page.getByRole('combobox', { name: 'Status: All' })).toBeVisible()
     // Creation dialog: title, labeled fields, sticky footer, Escape return.
     await page.getByRole('button', { name: 'New sector' }).click()
-    const dialog = page.getByRole('dialog', { name: 'New sector draft' })
+    const dialog = page.getByRole('dialog', { name: 'New sector' })
     await expect(dialog.getByLabel('Name')).toBeVisible()
     await expect(dialog.getByLabel('Topic (optional)')).toBeVisible()
-    await expect(dialog.getByRole('button', { name: 'Create draft' })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Create sector' })).toBeVisible()
     await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeVisible()
     await shot(page, `revamp-researches-dialog-${dark ? 'dark' : 'light'}`, [dialog.getByLabel('Name')])
     await page.keyboard.press('Escape')
@@ -88,9 +91,9 @@ test('revamp: overlay exits are armed with ending-style transitions', async ({ p
   await page.goto('/')
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
   await page.getByRole('button', { name: 'New sector' }).click()
-  const dialog = page.getByRole('dialog', { name: 'New sector draft' })
+  const dialog = page.getByRole('dialog', { name: 'New sector' })
   await expect(dialog).toBeVisible()
-  expect(await dialog.evaluate((node) => getComputedStyle(node).transitionDuration)).toBe('0.2s')
+  expect(await dialog.evaluate((node) => getComputedStyle(node).transitionDuration)).toBe('0.18s')
   await page.keyboard.press('Escape')
   await expect(dialog).not.toBeVisible()
 })
@@ -99,7 +102,7 @@ test('revamp: karbot deletion uses the shared alert dialog', async ({ page }) =>
   await page.setViewportSize({ width: 1440, height: 900 })
   await serveApi(page)
   await page.goto('/')
-  await page.getByRole('button', { name: 'Open chat' }).click()
+  await page.getByRole('button', { name: 'Ask Karbot' }).click()
   const chat = page.getByRole('complementary', { name: 'Assistant chat' })
   await expect(chat).toBeVisible()
   await chat.getByRole('button', { name: 'Chat sessions' }).click()
@@ -128,17 +131,16 @@ test('revamp: models selects use the shared selection controls', async ({ page }
   await expect(model).toBeFocused()
 })
 
-test('revamp: overview search hides elsewhere and keeps its query', async ({ page }) => {
+test('revamp: palette opens from every shell page', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await serveApi(page)
   await page.goto('/')
-  const search = page.getByLabel('Search researches')
-  await expect(search).toBeVisible()
-  await search.fill('Speciality')
+  await page.keyboard.press('ControlOrMeta+k')
+  await expect(page.getByRole('dialog', { name: 'Command palette' })).toBeVisible()
+  await page.keyboard.press('Escape')
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
-  await expect(page.getByLabel('Search researches')).toHaveCount(0)
-  await page.getByRole('button', { name: 'Back to Overview' }).click()
-  await expect(page.getByLabel('Search researches')).toHaveValue('Speciality')
+  await page.getByRole('button', { name: /Search\.\.\. Ctrl K/ }).click()
+  await expect(page.getByRole('dialog', { name: 'Command palette' })).toBeVisible()
 })
 
 test('revamp: 200% zoom keeps overview, researches, and dialog inside the viewport', async ({ page }) => {
@@ -150,9 +152,9 @@ test('revamp: 200% zoom keeps overview, researches, and dialog inside the viewpo
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
   await page.getByRole('button', { name: 'New sector' }).click()
-  await expect(page.getByRole('dialog', { name: 'New sector draft' })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'New sector' })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-  await shot(page, 'revamp-zoom-dialog', [page.getByRole('dialog', { name: 'New sector draft' })])
+  await shot(page, 'revamp-zoom-dialog', [page.getByRole('dialog', { name: 'New sector' })])
 })
 
 test('revamp: loaded-list filter timing probe', async ({ page }) => {
@@ -245,11 +247,11 @@ test('revamp: no sustained long tasks and bounded overlay memory', async ({ page
   // (the exit plays) without lingering.
   for (let cycle = 0; cycle < 25; cycle++) {
     await page.getByRole('button', { name: 'New sector' }).click()
-    await expect(page.getByRole('dialog', { name: 'New sector draft' })).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'New sector' })).toBeVisible()
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('dialog', { name: 'New sector draft' })).not.toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'New sector' })).not.toBeVisible()
   }
-  await page.getByRole('button', { name: 'Open chat' }).click()
+  await page.getByRole('button', { name: 'Ask Karbot' }).click()
   const chat = page.getByRole('complementary', { name: 'Assistant chat' })
   await expect(chat).toBeVisible()
   for (let cycle = 0; cycle < 25; cycle++) {
@@ -277,14 +279,14 @@ test('revamp: dialog exit plays before unmount', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
   await page.getByRole('button', { name: 'New sector' }).click()
-  const dialog = page.getByRole('dialog', { name: 'New sector draft' })
+  const dialog = page.getByRole('dialog', { name: 'New sector' })
   await expect(dialog).toBeVisible()
   const t0 = await page.evaluate(() => performance.now())
   await page.keyboard.press('Escape')
   // Detachment, not hiding: Base UI retains the exiting popup through its
   // ending-style transition, so removal must lag the keypress.
   await expect
-    .poll(async () => page.getByRole('dialog', { name: 'New sector draft' }).count(), { timeout: 2000 })
+    .poll(async () => page.getByRole('dialog', { name: 'New sector' }).count(), { timeout: 2000 })
     .toBe(0)
   const elapsed = (await page.evaluate(() => performance.now())) - t0
   console.log(`revamp-dialog-exit-ms: ${elapsed.toFixed(1)}`)

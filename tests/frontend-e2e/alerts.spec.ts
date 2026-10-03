@@ -11,7 +11,10 @@ for (const width of [390, 1440]) for (const dark of [false, true]) test(`alerts 
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data }) })
   })
   await page.goto('/?section=Agents')
-  if (dark) await page.getByRole('button', { name: 'Switch to dark theme' }).click()
+  if (dark) {
+    await page.getByRole('button', { name: 'Theme' }).click()
+    await page.getByRole('menuitemradio', { name: 'Dark' }).click()
+  }
   const panel = page.getByRole('region', { name: 'Supervision alerts', exact: true })
   await expect(panel.getByRole('listitem')).toHaveCount(20)
   await expect(panel.getByText('Current warning · review paused work', { exact: true })).toHaveCount(1)

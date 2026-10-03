@@ -22,6 +22,8 @@ export interface ShotOptions {
   settleMs?: number
   /** Apply the theme. Default: emulateMedia (v2 system preference). */
   applyTheme?: (page: Page, theme: ShotTheme) => Promise<void>
+  /** Runs after anchors settle, before the shutter (e.g. scroll the subject into view at 390). */
+  beforeShot?: (page: Page, width: number, theme: ShotTheme) => Promise<void>
 }
 
 const DEFAULT_HEIGHTS: Record<number, number> = { 1440: 900, 1280: 800, 1279: 800, 1024: 768, 768: 1024, 767: 1024, 390: 844 }
@@ -66,6 +68,7 @@ export async function shot(page: Page, id: string, state: string, options: ShotO
         await page.locator(anchor).first().waitFor({ state: 'visible', timeout: 15_000 })
       }
       await page.waitForTimeout(options.settleMs ?? 400)
+      await options.beforeShot?.(page, width, theme)
       const file = shotPath(id, state, theme, width)
       await page.screenshot({ path: file, animations: 'disabled' })
       files.push(file)

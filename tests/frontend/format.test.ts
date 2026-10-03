@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatCount, formatDurationMs, humanizeKey, relativeAge } from '@/lib/format'
+import { formatCount, formatDurationMs, formatFullDate, formatShortDate, humanizeKey, relativeAge } from '@/lib/format'
 
 describe('humanizeKey', () => {
   it.each([
@@ -55,5 +55,26 @@ describe('formatCount', () => {
   it('groups thousands', () => {
     expect(formatCount(2005)).toBe('2,005')
     expect(formatCount(32)).toBe('32')
+  })
+})
+
+describe('formatFullDate', () => {
+  it('renders a full local timestamp', () => {
+    // No timezone suffix: parsed as local time, so the expectation is stable.
+    expect(formatFullDate('2026-09-03T14:05:00')).toBe('3 Sep 2026, 14:05')
+  })
+
+  it('stays honest on garbage input', () => {
+    expect(formatFullDate('not a date')).toBe('Unknown')
+  })
+})
+
+describe('formatShortDate', () => {
+  it('renders a short local calendar date', () => {
+    expect(formatShortDate('2026-09-03T14:05:00')).toBe('3 Sep 2026')
+  })
+
+  it('stays honest on garbage input', () => {
+    expect(formatShortDate('not a date')).toBe('Unknown')
   })
 })

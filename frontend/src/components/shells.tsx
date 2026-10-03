@@ -5,7 +5,7 @@ import * as React from 'react'
 import { Icons } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import type { Resource } from '@/data/useWorkspace'
-import { Body, Caption, CardTitle, Description, Mono, PageTitle, SectionTitle } from './text'
+import { Body, Caption, CardTitle, Description, Mono, PageDescription, PageTitle, SectionTitle } from './text'
 import { Badge, type BadgeTone } from './ui/badge'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -14,29 +14,78 @@ import { Skeleton } from './ui/skeleton'
 import { noticeEnter } from '@/lib/motion'
 import { IconButton } from './IconButton'
 
-/** PageHeader: title, optional description, actions. Exactly one h1 per view.
- * Forwards its ref to the heading so page replacement can move focus to
- * the new title after commit. */
+/** PageHeader (SH-01): optional breadcrumb row, title row with an
+ * inline status badge and right-aligned actions centred on the title,
+ * then a muted description line. Exactly one h1 per view. Forwards its
+ * ref to the heading so page replacement can move focus to the new
+ * title after commit. `loading` swaps the title text for a skeleton
+ * (async titles never flash a raw id or a fallback string). */
 export const PageHeader = React.forwardRef<
  HTMLHeadingElement,
  {
  title: string
  description?: string
  actions?: React.ReactNode
+ badge?: React.ReactNode
+ crumbs?: Array<{ label: string; onSelect?: () => void }>
+ meta?: string
+ loading?: boolean
  className?: string
  titleClassName?: string
  tabIndex?: number
  } & React.HTMLAttributes<HTMLHeadingElement>
->(function PageHeader({ title, description, actions, className, titleClassName, ...rest }, ref) {
+>(function PageHeader({ title, description, actions, badge, crumbs, meta, loading, className, titleClassName, ...rest }, ref) {
  return (
- <div className={cn('flex flex-wrap items-start justify-between gap-3', className)}>
- <div className="min-w-0">
+ <div className={cn('mb-6', className)}>
+ {crumbs && crumbs.length > 0 ? (
+ <nav aria-label="Breadcrumb" className="mb-1">
+ <ol className="flex min-w-0 flex-wrap items-center gap-1">
+ {crumbs.map((crumb, index) => {
+ const last = index === crumbs.length - 1
+ return (
+ <li key={crumb.label} className="flex min-w-0 items-center gap-1">
+ {index > 0 ? (
+ <span aria-hidden className="text-xs text-foreground-subtle">
+ /
+ </span>
+ ) : null}
+ {last || !crumb.onSelect ? (
+ <span aria-current={last ? 'page' : undefined} className="truncate text-xs text-muted-foreground">
+ {crumb.label}
+ </span>
+ ) : (
+ <button
+ type="button"
+ onClick={crumb.onSelect}
+ className="cursor-pointer truncate text-xs text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+ >
+ {crumb.label}
+ </button>
+ )}
+ </li>
+ )
+ })}
+ </ol>
+ </nav>
+ ) : null}
+ <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-3">
+ <div className="flex min-w-0 items-center gap-2">
  <PageTitle ref={ref} className={titleClassName} {...rest}>
- {title}
+ {loading ? (
+ <>
+ <span className="sr-only">Loading</span>
+ <Skeleton aria-hidden className="h-7 w-48" />
+ </>
+ ) : (
+ title
+ )}
  </PageTitle>
- {description ? <Body className="mt-1 text-muted-foreground">{description}</Body> : null}
+ {badge}
  </div>
- {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
+ {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2 max-sm:w-full">{actions}</div> : null}
+ </div>
+ {description ? <PageDescription className="mt-1 max-w-160">{description}</PageDescription> : null}
+ {meta ? <Caption className="mt-1">{meta}</Caption> : null}
  </div>
  )
 })
@@ -60,19 +109,20 @@ export function SectionCard({
  return (
  <section
  aria-label={title}
- className={cn('flex flex-col overflow-hidden rounded-2xl border border-border bg-background', className)}
+ data-card=""
+ className={cn('flex flex-col overflow-hidden rounded-lg border border-border bg-card', className)}
  >
- <div className="flex shrink-0 flex-wrap items-center gap-2 px-4 py-3 sm:px-6">
+ <div className="flex shrink-0 flex-wrap items-center gap-2 px-4 py-3">
  <SectionTitle className="min-w-0 flex-1">{title}</SectionTitle>
  {metadata}
  {actions}
  </div>
  <Separator />
- <div className="min-w-0 flex-1 px-4 py-4 sm:px-6">{children}</div>
+ <div className="min-w-0 flex-1 px-4 py-2">{children}</div>
  {footer ? (
  <>
  <Separator />
- <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6">
+ <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 px-4 py-3">
  {footer}
  </div>
  </>
@@ -102,6 +152,8 @@ export function ResourceState({
  compact = false,
  skeleton,
  notice,
+ hideTitle = false,
+ deniedBody,
  children,
  className,
 }: {
@@ -117,6 +169,10 @@ export function ResourceState({
  compact?: boolean
  skeleton?: React.ReactNode
  notice?: React.ReactNode
+ /** Skip the state title when the page header already carries it. */
+ hideTitle?: boolean
+ /** Override the denied explanation (default assumes a singular label). */
+ deniedBody?: string
  children?: React.ReactNode
  className?: string
 }) {
@@ -134,9 +190,9 @@ export function ResourceState({
  <span className="flex size-10 items-center justify-center rounded-full bg-muted">
  <Icons.denied aria-hidden className="size-5 text-muted-foreground" />
  </span>
- <CardTitle className="mt-3">Access denied</CardTitle>
- <Description className="mt-1 max-w-80">
- {label} is not shared with this key. Ask an owner for access, then try again.
+ {hideTitle ? null : <CardTitle className="mt-3">Access denied</CardTitle>}
+ <Description className={hideTitle ? 'mt-3 max-w-80' : 'mt-1 max-w-80'}>
+ {deniedBody ?? `${label} is not shared with this key. Ask an owner for access, then try again.`}
  </Description>
  <div className="mt-4">
  <Button variant="secondary" size="sm" onClick={resource.refresh}>
@@ -155,8 +211,8 @@ export function ResourceState({
  <span className="flex size-10 items-center justify-center rounded-full bg-muted">
  <Icons.offline aria-hidden className="size-5 text-muted-foreground" />
  </span>
- <CardTitle className="mt-3">You are offline</CardTitle>
- <Description className="mt-1 max-w-80">No connection. Reconnect and try again.</Description>
+ {hideTitle ? null : <CardTitle className="mt-3">You are offline</CardTitle>}
+ <Description className={hideTitle ? 'mt-3 max-w-80' : 'mt-1 max-w-80'}>No connection. Reconnect and try again.</Description>
  <div className="mt-4">
  <Button variant="secondary" size="sm" onClick={resource.refresh}>
  <Icons.retry aria-hidden />
@@ -175,7 +231,7 @@ export function ResourceState({
  <span className="flex size-10 items-center justify-center rounded-full bg-danger-soft">
  <Icons.alertError aria-hidden className="size-5 text-danger" />
  </span>
- <CardTitle className="mt-3">{resource.error ?? `${label} did not load.`}</CardTitle>
+ {hideTitle ? null : <CardTitle className="mt-3">{resource.error ?? `${label} did not load.`}</CardTitle>}
  <div className="mt-4">
  <Button variant="secondary" size="sm" onClick={resource.refresh}>
  <Icons.retry aria-hidden />
@@ -189,8 +245,8 @@ export function ResourceState({
  if (emptyKind === 'filtered') {
  return (
  <div className={cn(`flex min-w-0 flex-col items-center text-center ${compact ? 'py-6' : 'py-12'}`, className)}>
- <CardTitle>{`No matching ${label.toLowerCase()}.`}</CardTitle>
- <Description className="mt-1 max-w-80">{emptyBody ?? 'Try a different search.'}</Description>
+ {hideTitle ? null : <CardTitle>{`No matching ${label.toLowerCase()}.`}</CardTitle>}
+ <Description className={hideTitle ? 'max-w-80' : 'mt-1 max-w-80'}>{emptyBody ?? 'Try a different search.'}</Description>
  {onClearFilter ? (
  <div className="mt-4">
  <Button variant="ghost" size="sm" onClick={onClearFilter}>
@@ -209,8 +265,8 @@ export function ResourceState({
  {icon}
  </span>
  ) : null}
- <CardTitle className={icon && !compact ? 'mt-3' : undefined}>{emptyTitle ?? `No ${label.toLowerCase()} yet`}</CardTitle>
- {emptyBody ? <Description className="mt-1 max-w-80">{emptyBody}</Description> : null}
+ {hideTitle ? null : <CardTitle className={icon && !compact ? 'mt-3' : undefined}>{emptyTitle ?? `No ${label.toLowerCase()} yet`}</CardTitle>}
+ {emptyBody ? <Description className={hideTitle ? (icon && !compact ? 'mt-3 max-w-80' : 'max-w-80') : 'mt-1 max-w-80'}>{emptyBody}</Description> : null}
  {emptyAction ? <div className="mt-4">{emptyAction}</div> : null}
  </div>
  )

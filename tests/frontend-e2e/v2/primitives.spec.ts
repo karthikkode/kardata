@@ -58,19 +58,19 @@ test('F4-button-focus', async ({ page }) => {
 
 test('F4-input-focus', async ({ page }) => {
   await capture(page, 'F4-input', 'focus', () => gotoResearches(page), () =>
-    page.getByPlaceholder('Type to filter').focus(),
+    page.getByPlaceholder('Search sectors').focus(),
   )
 })
 
 test('F4-input-filled', async ({ page }) => {
   await capture(page, 'F4-input', 'filled', () => gotoResearches(page), () =>
-    page.getByPlaceholder('Type to filter').fill('zzz-no-such-sector').then(() => undefined),
+    page.getByPlaceholder('Search sectors').fill('zzz-no-such-sector').then(() => undefined),
   )
 })
 
 test('F4-select-open', async ({ page }) => {
   await capture(page, 'F4-select', 'open', () => gotoResearches(page), () =>
-    page.locator('[aria-labelledby="researches-state-label"]').click(),
+    page.getByRole('combobox', { name: 'Status: All' }).click(),
   )
 })
 
@@ -100,7 +100,7 @@ test('F4-tooltip', async ({ page }) => {
       await page.goto('/')
       await expect(page.locator('h1:has-text("Overview")')).toBeVisible()
     },
-    () => page.getByRole('button', { name: 'Open chat' }).hover(),
+    () => page.getByRole('button', { name: 'Theme' }).hover(),
     800,
   )
 })
@@ -184,7 +184,7 @@ test('F4-models-controls', async ({ page }) => {
 test('F4-collapsible', async ({ page }) => {
   await serveApi(page)
   await page.goto('/')
-  await page.getByRole('button', { name: 'Open chat' }).click()
+  await page.getByRole('button', { name: 'Ask Karbot' }).click()
   await expect(page.getByRole('complementary', { name: 'Assistant chat' })).toBeVisible()
   const disclosure = page.getByRole('button', { name: /Reasoning|Activity/ }).first()
   if ((await disclosure.count()) === 0) test.skip(true, 'no settled tool/reasoning disclosure in the Karbot fixture thread')

@@ -257,12 +257,12 @@ shells.test.tsx, session-options.test.tsx, workspace-tabs.test.tsx.
 | primitive | adopted in |
 |---|---|
 | button/input/textarea/field | `frontend/src/components/ResearchesPage.tsx`, `frontend/src/components/ResearchPlanEditor.tsx`, `frontend/src/components/ChatPanel.tsx`, `frontend/src/components/TopBar.tsx`, `frontend/src/components/workspace-parts.tsx` |
-| select | `frontend/src/components/ResearchesPage.tsx`, `frontend/src/components/ModelsPanel.tsx` |
+| select | `frontend/src/components/ResearchesPage.tsx`, `frontend/src/components/ModelsPanel.tsx`, `frontend/src/components/CompaniesSection.tsx` |
 | tabs | `frontend/src/components/ResearchesPage.tsx` |
 | dialog/alert-dialog | `frontend/src/components/ResearchesPage.tsx`, `frontend/src/components/ChatPanel.tsx`, `frontend/src/components/SectorWorkspace.tsx`, `frontend/src/components/workspace-parts.tsx` |
 | tooltip | `frontend/src/components/Sidebar.tsx` |
-| collapsible | `frontend/src/components/ChatPanel.tsx`, `frontend/src/components/ResearchPlanEditor.tsx`, `frontend/src/components/workspace-parts.tsx` |
-| progress | `frontend/src/components/workspace-parts.tsx` |
+| collapsible | `frontend/src/components/ChatPanel.tsx`, `frontend/src/components/ResearchPlanEditor.tsx`, `frontend/src/components/workspace-parts.tsx`, `frontend/src/components/SectorLanding.tsx` |
+| progress | `frontend/src/components/workspace-parts.tsx`, `frontend/src/components/SectorLanding.tsx` |
 | badge | `frontend/src/components/StatusPill.tsx`, `frontend/src/components/ModelsPanel.tsx` |
 | skeleton | `frontend/src/components/research-parts.tsx` |
 | checkbox | `frontend/src/components/ModelsPanel.tsx`, `frontend/src/components/workspace-parts.tsx` |
@@ -309,3 +309,37 @@ blocky page-level loading skeletons (page loading states own layout mirroring),
 raw "Filter" stage text + unlabeled bars (Stage 2 RS-05), old "New sector draft"
 dialog copy (Stage 2 RS-06), static hover/focus shots show limited state
 (covered by audit checks 6/8 + unit tests + Stage 8 videos).
+
+## UI v2 Stage 2 shell + Overview + Researches (SH/OV/RS)
+
+| ID | source | states | component tests | browser | evidence | status |
+|---|---|---|---|---|---|---|
+| SH-01 page frame + header | `frontend/src/App.tsx`, `frontend/src/components/shells.tsx` PageHeader | crumbs/badge/loading skeleton, no back links | shells.test.tsx, navigation-url.test.tsx | v2/shell.spec | — | pass (single max-w-page frame, pt-6/pb-12) |
+| SH-02 sidebar | `frontend/src/components/Sidebar.tsx` | expanded/collapsed rail, sliding nav-active, persisted | Sidebar.test.tsx | v2/shell.spec | — | pass (Researches active on sector views; Emails Soon) |
+| SH-03 top bar | `frontend/src/components/TopBar.tsx` | palette trigger, Ask Karbot, theme menu | TopBar.test.tsx | v2/shell.spec | — | pass (Overview search removed) |
+| SH-04 theme menu | `frontend/src/components/ThemeMenu.tsx` | system/light/dark radio | theme-menu.test.tsx | v2/shell.spec | — | pass |
+| SH-05 palette | `frontend/src/components/CommandPalette.tsx` | open/filtered/empty | command-palette.test.tsx | v2/shell.spec | — | pass (trigger in TopBar) |
+| SH-06 toaster | sonner in `frontend/src/App.tsx` | success/error | toast.test.ts | v2/shell.spec | — | pass |
+| SH-07 global app states | `frontend/src/App.tsx` not-connected branch | not-connected | Navigation.test.tsx | v2/shell.spec | — | pass (RS rewrite keeps the branch; SH-07 pass lands in Stage 6) |
+| RS-06 new sector dialog | `frontend/src/components/CreateSectorDialog.tsx` | validation/pending/failure-keeps-draft, controlled triggerless mode | create-sector-dialog.test.tsx | v2/researches.spec | — | pass (single App-owned instance) |
+| OV-01 header | `frontend/src/App.tsx` header config | title/description/action | research-staging.test.tsx | v2/overview.spec | — | pass |
+| OV-02 stat tiles | `frontend/src/components/Dashboard.tsx` | ready/loading/error, count-up, filtered links | Dashboard.test.tsx | v2/overview.spec | — | pass |
+| OV-04 recent sectors | `frontend/src/components/Dashboard.tsx` | rows/skeleton/empty/error/denied/offline | Dashboard.test.tsx, research-presentation.test.tsx | v2/overview.spec | — | pass |
+| OV-05 recent companies | `frontend/src/components/Dashboard.tsx` | rows/skeleton/empty/error/denied/offline | Dashboard.test.tsx, research-presentation.test.tsx | v2/overview.spec | — | pass |
+| RS-01 header | `frontend/src/App.tsx` header config | title/description/action | ResearchesPage.test.tsx | v2/researches.spec | — | pass |
+| RS-02 tabs | `frontend/src/components/ResearchesPage.tsx` | counts, sliding indicator, URL sync | ResearchesPage.test.tsx, navigation-url.test.tsx | v2/researches.spec | — | pass |
+| RS-03 toolbar | `frontend/src/components/ResearchesPage.tsx` | search debounce, status select, live counts | ResearchesPage.test.tsx | v2/researches.spec | — | pass |
+| RS-04 sectors table | `frontend/src/components/ResearchesPage.tsx` + `frontend/src/components/DataTable.tsx` | sort/paging/empty/loading/error/denied/offline | ResearchesPage.test.tsx, data-table.test.tsx | v2/researches.spec | — | pass |
+| RS-05 companies table | `frontend/src/components/ResearchesPage.tsx` + `frontend/src/components/DataTable.tsx` | server paging/more-error, no client sort | ResearchesPage.test.tsx, company-window.test.tsx | v2/researches.spec | — | pass |
+| shared research presentation | `frontend/src/components/research-parts.tsx` StateBadge/StageSteps | tone map, humanized steps | research-presentation.test.tsx | v2/overview.spec, v2/researches.spec | — | pass |
+
+## UI v2 Stage 3 sector landing (SL)
+
+| ID | source | states | component tests | browser | evidence | status |
+|---|---|---|---|---|---|---|
+| SL-01 header | `frontend/src/App.tsx` header config | crumbs/badge/meta/actions, not-found title | sector-workspace.test.tsx (meta line), SectorDetailPage.test.tsx (App flow) | v2/landing.spec | — | pass |
+| SL-02 status panel | `frontend/src/components/SectorLanding.tsx` | summary per state, estimate/finished/stopped/unestimated tiles, next-step routes | sector-workspace.test.tsx | v2/landing.spec | — | pass |
+| SL-03 progress dialog | `frontend/src/components/SectorLanding.tsx` + `frontend/src/components/workspace-parts.tsx` WorkspaceOverlay/PlanProgress | controlled open, condensed plan, footer | sector-workspace.test.tsx, work-review.test.tsx | v2/landing.spec | — | pass |
+| SL-05 companies | `frontend/src/components/CompaniesSection.tsx` | toolbar/paging/poll/empties/more-error/denied | companies-section.test.tsx | v2/landing.spec | — | pass |
+| SL-06 not found/denied | `frontend/src/components/SectorLanding.tsx` | not-found way back, shared notice states | sector-workspace.test.tsx | v2/landing.spec | — | pass |
+| SL view param | `frontend/src/lib/useNavigation.ts` + `frontend/src/components/SectorWorkspace.tsx` initialView | ?view=plan deep link, SectorChat scoping | use-navigation.test.tsx | v2/landing.spec | — | pass |

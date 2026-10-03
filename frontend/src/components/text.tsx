@@ -110,12 +110,19 @@ export const CardTitle = React.forwardRef<
 /** Standard body copy. */
 export const Body = React.forwardRef<
   HTMLParagraphElement,
-  { children: React.ReactNode; className?: string } & SharedAttrs & React.HTMLAttributes<HTMLParagraphElement>
->(function Body({ children, className, ...rest }, ref) {
+  { children: React.ReactNode; className?: string; as?: 'p' | 'span' | 'div' } & SharedAttrs & React.HTMLAttributes<HTMLElement>
+>(function Body({ children, className, as = 'p', ...rest }, ref) {
+  const Tag = as as 'p'
   return (
-    <p ref={ref} data-type="Body" className={cn('text-sm leading-[22px] text-foreground', className)} {...rest}>
+    <Tag
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ref={ref as any}
+      data-type="Body"
+      className={cn('text-sm leading-[22px] text-foreground', className)}
+      {...rest}
+    >
       {children}
-    </p>
+    </Tag>
   )
 })
 
@@ -179,8 +186,8 @@ export const Caption = React.forwardRef<
 /** Form labels and keys in key-value lists. */
 export const Label = React.forwardRef<
   HTMLElement,
-  { children: React.ReactNode; className?: string; as?: 'label' | 'span' } & SharedAttrs & React.HTMLAttributes<HTMLElement>
->(function Label({ children, className, as = 'span', ...rest }, ref) {
+  { children: React.ReactNode; className?: string; as?: 'label' | 'span'; htmlFor?: string } & SharedAttrs & React.HTMLAttributes<HTMLElement>
+>(function Label({ children, className, as = 'span', htmlFor, ...rest }, ref) {
   const Tag = as as 'span'
   return (
     <Tag
@@ -188,6 +195,7 @@ export const Label = React.forwardRef<
       ref={ref as any}
       data-type="Label"
       className={cn('text-ui font-medium text-foreground', className)}
+      {...(as === 'label' && htmlFor ? { htmlFor } : {})}
       {...rest}
     >
       {children}

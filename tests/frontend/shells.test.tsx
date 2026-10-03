@@ -33,6 +33,38 @@ describe('shared shells', () => {
     expect(screen.getByRole('button', { name: 'New sector' })).toBeInTheDocument()
   })
 
+  it('renders breadcrumbs with the current page marked', async () => {
+    const onSelect = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <PageHeader
+        title="Australian electrical contractors"
+        crumbs={[{ label: 'Researches', onSelect }, { label: 'Australian electrical contractors' }]}
+      />,
+    )
+    const nav = screen.getByRole('navigation', { name: 'Breadcrumb' })
+    expect(nav).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Researches' }))
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('Australian electrical contractors', { selector: '[aria-current="page"]' })).toBeInTheDocument()
+  })
+
+  it('renders an inline badge next to the title', () => {
+    render(<PageHeader title="Sector" badge={<span data-testid="header-badge">Running</span>} />)
+    expect(screen.getByTestId('header-badge')).toHaveTextContent('Running')
+  })
+
+  it('shows a title skeleton while loading instead of a fallback string', () => {
+    render(<PageHeader title="Sector research" loading />)
+    expect(screen.getByRole('heading', { level: 1, name: 'Loading' })).toBeInTheDocument()
+    expect(screen.queryByText('Sector research')).not.toBeInTheDocument()
+  })
+
+  it('renders a muted meta line under the description', () => {
+    render(<PageHeader title="Sector" description="Topic." meta="Created 3 Sep 2026 · Updated 2h ago" />)
+    expect(screen.getByText('Created 3 Sep 2026 · Updated 2h ago')).toBeInTheDocument()
+  })
+
   it('groups card content with heading, metadata, and footer', () => {
     render(
       <SectionCard title="Sector researches" metadata={<span>60 total</span>} footer={<span>foot</span>}>
@@ -105,6 +137,43 @@ describe('shared shells', () => {
       </ResourceState>,
     )
     expect(screen.getByRole('alert')).toHaveTextContent('No connection.')
+  })
+
+  it('suppresses the state title when the page header already carries it', () => {
+    const denied: Resource<unknown> = { status: 'denied', refresh: vi.fn() }
+    const { rerender } = render(
+      <ResourceState resource={denied} label="Sector" hideTitle>
+        <p>row</p>
+      </ResourceState>,
+    )
+    expect(screen.queryByText('Access denied')).not.toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Sector is not shared with this key.')
+    const failed: Resource<unknown> = { status: 'error', refresh: vi.fn() }
+    rerender(
+      <ResourceState resource={failed} label="Sector" hideTitle>
+        <p>row</p>
+      </ResourceState>,
+    )
+    expect(screen.queryByText('Sector did not load.')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+    const ready: Resource<unknown> = { status: 'ready', data: [], refresh: vi.fn() }
+    rerender(
+      <ResourceState resource={ready} label="Sector" emptyKind="first" hideTitle emptyTitle="Gone" emptyBody="It was removed.">
+        <p>row</p>
+      </ResourceState>,
+    )
+    expect(screen.queryByText('Gone')).not.toBeInTheDocument()
+    expect(screen.getByText('It was removed.')).toBeInTheDocument()
+  })
+
+  it('overrides the denied explanation for plural labels', () => {
+    const denied: Resource<unknown> = { status: 'denied', refresh: vi.fn() }
+    render(
+      <ResourceState resource={denied} label="Companies" deniedBody="Company data is not shared with this key.">
+        <p>row</p>
+      </ResourceState>,
+    )
+    expect(screen.getByRole('alert')).toHaveTextContent('Company data is not shared with this key.')
   })
 
   it('never renders a failed fetch as empty', () => {
