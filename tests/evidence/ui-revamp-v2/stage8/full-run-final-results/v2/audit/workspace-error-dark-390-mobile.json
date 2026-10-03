@@ -1,0 +1,16 @@
+{
+  "name": "workspace-error-dark-390-mobile",
+  "at": "2026-10-03T18:50:13.581Z",
+  "checks": {
+    "type": "pass",
+    "contrast": "pass",
+    "raw-text": "pass",
+    "overflow": "pass",
+    "targets": "pass",
+    "hover": "skip",
+    "focus": "pass",
+    "alignment": "skip",
+    "plan-rail": "skip"
+  },
+  "violations": []
+}

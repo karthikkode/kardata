@@ -1,0 +1,16 @@
+{
+  "name": "workspace-sessions-denied-dark-1440",
+  "at": "2026-10-03T10:41:57.807Z",
+  "checks": {
+    "type": "pass",
+    "contrast": "pass",
+    "raw-text": "pass",
+    "overflow": "pass",
+    "targets": "pass",
+    "hover": "pass",
+    "focus": "pass",
+    "alignment": "skip",
+    "plan-rail": "skip"
+  },
+  "violations": []
+}

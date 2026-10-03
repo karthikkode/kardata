@@ -30,6 +30,7 @@ tests/evidence/**/*.png
 tests/evidence/**/*.jpg
 tests/evidence/**/*.jpeg
 tests/evidence/**/*.webm
+tests/evidence/**/*.zip
 
 # runtime archive bytes (dev FilesystemTarget default var/archive) and
 # other local runtime output: never commit data the server writes at runtime

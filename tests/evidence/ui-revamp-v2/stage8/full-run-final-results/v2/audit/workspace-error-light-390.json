@@ -1,0 +1,16 @@
+{
+  "name": "workspace-error-light-390",
+  "at": "2026-10-03T18:50:07.918Z",
+  "checks": {
+    "type": "pass",
+    "contrast": "pass",
+    "raw-text": "pass",
+    "overflow": "pass",
+    "targets": "skip",
+    "hover": "skip",
+    "focus": "pass",
+    "alignment": "skip",
+    "plan-rail": "skip"
+  },
+  "violations": []
+}

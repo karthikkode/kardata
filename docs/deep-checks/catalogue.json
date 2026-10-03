@@ -10,7 +10,7 @@
     },
     {
       "path": ".gitignore",
-      "sha256": "647b907f1357b830df15667bedc4030ec30ab687612ecd80488a6633dc27efaf",
+      "sha256": "976dfb123ac74a5127e87eb658dedc024aad0fc9114fc8db08fc7958796a7596",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -8764,24 +8764,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/alerts-alerts-denied-read--69249-overs-without-altering-work-chromium/trace.zip",
-      "sha256": "de5d07a9738000861de01fadea5633e8c8dc9d15e30a305cb6f3218ad92dbc2d",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/alerts-alerts-paging-and-long-references-1440-dark-chromium/error-context.md",
       "sha256": "d05dd5a51c2949881672abb88fbc33c81ececa56823760a4ac204c3764da199b",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/alerts-alerts-paging-and-long-references-1440-dark-chromium/trace.zip",
-      "sha256": "031ad566f21619748acb12f4b39e4df21e6d0ba480f99b47f48b14bad30270f4",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -8796,24 +8780,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/alerts-alerts-paging-and-long-references-1440-light-chromium/trace.zip",
-      "sha256": "5aa5dff7827cbf734cf2c7b4753cacee43c93345a8127604bd6f000a34fdea69",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/alerts-alerts-paging-and-long-references-390-dark-chromium/error-context.md",
       "sha256": "e38ced8bd67d7c9423e540c63b4f194675cfe3d8b8a15920ea339472d19ad16f",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/alerts-alerts-paging-and-long-references-390-dark-chromium/trace.zip",
-      "sha256": "5a5a6815d4496e7199d13f3470d637d43f8e73e7680a42ae0cc83a6377a6f3fb",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -8828,40 +8796,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/alerts-alerts-paging-and-long-references-390-light-chromium/trace.zip",
-      "sha256": "c8bf1290520ae2ad0a22332fe4075e0fc05986112d98cdb124ecad0aee6f7914",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/context-recovery-owner-saf-1ad71-1440px-light-reduced-motion-chromium/trace.zip",
-      "sha256": "65611a7556a994533ba6b59e170fa3210103c5027cca2fe3bee2a921e82e6e10",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/context-recovery-owner-saf-3d82b-d-390px-dark-reduced-motion-chromium/error-context.md",
       "sha256": "d66a120e494324c8a8bacb5e0b18d0c07f45e50aff4f79a1063bacf2b49a815c",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/context-recovery-owner-saf-3d82b-d-390px-dark-reduced-motion-chromium/trace.zip",
-      "sha256": "8b9edcc587d455e7f9a7dee10cdd6b6f50fd1ddbe8d71d891aceaa800b3a1339",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/context-recovery-owner-saf-7729d--390px-light-reduced-motion-chromium/trace.zip",
-      "sha256": "ea14ed3285cbd145dcad000b8b959fb2443298a174245426aa79be6938e21b7e",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -8876,14 +8812,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/context-recovery-owner-saf-9dfb7--1440px-dark-reduced-motion-chromium/trace.zip",
-      "sha256": "9e141d8394204bb9eacfa8bbdc09d48ebfdd706ba22e88da0f4b00b1b0166719",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/context-recovery-receipt-i-9b4d0-n-390px-dark-reduced-motion-chromium/error-context.md",
       "sha256": "92fb35294ee014d0415793ff26a45fe851fcdbdaee7c1acefa7f4a806c573fdf",
       "review": "excluded",
@@ -8892,40 +8820,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/context-recovery-receipt-i-9b4d0-n-390px-dark-reduced-motion-chromium/trace.zip",
-      "sha256": "41a598d0042c03204a3f924b20b325d6eb5895be281acbfb6d78c4fe93158573",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/context-recovery-receipt-i-9f5b6--1440px-dark-reduced-motion-chromium/error-context.md",
       "sha256": "f864bce2b766d6976f64ae8567c3e709812bcadda0b781eb5e357b629f325b8b",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/context-recovery-receipt-i-9f5b6--1440px-dark-reduced-motion-chromium/trace.zip",
-      "sha256": "3977e50c38bfeae5abe1bd73bb4e4747ba21593cba7bd48a2eed38aadb4f09a4",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/context-recovery-receipt-i-b5ea8-1440px-light-reduced-motion-chromium/trace.zip",
-      "sha256": "1693a19ad0e8437c1fb9eccadd17330ec8464c2428dfe7d431def3e7dadd2916",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/context-recovery-receipt-i-b6fd8--390px-light-reduced-motion-chromium/trace.zip",
-      "sha256": "f0777da75f2a10abf446d65dc392cdca4ef25c028eb294dfe99ee39a044d3098",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -8956,14 +8852,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/execution-inspection-execu-08392-gination-long-JSON-keyboard-chromium/trace.zip",
-      "sha256": "facbf87c57e890f8ed2da6a69b87d9b4b7b8ca7c4e79ab6d58be4436e0cbd188",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/execution-inspection-execu-113d3-ection-loading-mobile-state-chromium/attachments/execution-inspection-source-evidence-978e8a6046d844f80974399269fe98ed321aa889.json",
       "sha256": "e46fe82461e6c061ce0f078f043d930786c8bb7c0d896f9e720ef2fa6e914c1d",
       "review": "excluded",
@@ -8982,14 +8870,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/execution-inspection-execu-113d3-ection-loading-mobile-state-chromium/source-evidence.json",
       "sha256": "e46fe82461e6c061ce0f078f043d930786c8bb7c0d896f9e720ef2fa6e914c1d",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/execution-inspection-execu-113d3-ection-loading-mobile-state-chromium/trace.zip",
-      "sha256": "317de740f7abb72da1f91540716cb337c41a28e01702559ef9b7ccf980334e89",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -9020,14 +8900,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/execution-inspection-execu-4b4b9-gination-long-JSON-keyboard-chromium/trace.zip",
-      "sha256": "c9e43dac2d971a88ed48f52c15be1425994347943750a0a6e4c55828bdc893dc",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/execution-inspection-execu-523aa-gination-long-JSON-keyboard-chromium/attachments/execution-inspection-source-evidence-4e329ac942282705463e4c91ca14b53665087523.json",
       "sha256": "e46fe82461e6c061ce0f078f043d930786c8bb7c0d896f9e720ef2fa6e914c1d",
       "review": "excluded",
@@ -9052,14 +8924,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/execution-inspection-execu-523aa-gination-long-JSON-keyboard-chromium/trace.zip",
-      "sha256": "950bc2e3af0b027ca48a3ed485a01974ed967d271566ed190f5cc1d31d875a0b",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/execution-inspection-execu-b2b31-ion-body-error-mobile-state-chromium/attachments/execution-inspection-source-evidence-de610f51a0fd7a5989996b9b35f3862dbb7e37b8.json",
       "sha256": "e46fe82461e6c061ce0f078f043d930786c8bb7c0d896f9e720ef2fa6e914c1d",
       "review": "excluded",
@@ -9070,14 +8934,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/execution-inspection-execu-b2b31-ion-body-error-mobile-state-chromium/source-evidence.json",
       "sha256": "e46fe82461e6c061ce0f078f043d930786c8bb7c0d896f9e720ef2fa6e914c1d",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/execution-inspection-execu-b2b31-ion-body-error-mobile-state-chromium/trace.zip",
-      "sha256": "bc8006525dd1aafe6c90f2420fca8d6bbeea4341886ac08b4daf31baf77c4f4b",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -9108,14 +8964,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/execution-inspection-execu-b8900-ection-offline-mobile-state-chromium/trace.zip",
-      "sha256": "e6b97fbc364c8889e61bd365a16df411a603fa29c602b50450295b957531e409",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/execution-inspection-execu-c046e-pection-denied-mobile-state-chromium/attachments/execution-inspection-source-evidence-aaa9d0b1a57b724f5596ebd0da96ddae68243a5a.json",
       "sha256": "e46fe82461e6c061ce0f078f043d930786c8bb7c0d896f9e720ef2fa6e914c1d",
       "review": "excluded",
@@ -9134,14 +8982,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/execution-inspection-execu-c046e-pection-denied-mobile-state-chromium/source-evidence.json",
       "sha256": "e46fe82461e6c061ce0f078f043d930786c8bb7c0d896f9e720ef2fa6e914c1d",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/execution-inspection-execu-c046e-pection-denied-mobile-state-chromium/trace.zip",
-      "sha256": "968d05a2ee6fa1bd393343bcfe0e9da25851adc3f7323fad51e227cb005a18c2",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -9172,14 +9012,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/execution-inspection-execu-c6d13-gination-long-JSON-keyboard-chromium/trace.zip",
-      "sha256": "3d59e45f3aaf2ba38c0f9815c5ad9426e0ae692d1e89445990a8c8a2b00b75eb",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/execution-inspection-execution-inspection-empty-mobile-state-chromium/attachments/execution-inspection-source-evidence-acb86807201f02ef12402961f8f5c06a0f753aa3.json",
       "sha256": "e46fe82461e6c061ce0f078f043d930786c8bb7c0d896f9e720ef2fa6e914c1d",
       "review": "excluded",
@@ -9190,14 +9022,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/execution-inspection-execution-inspection-empty-mobile-state-chromium/source-evidence.json",
       "sha256": "e46fe82461e6c061ce0f078f043d930786c8bb7c0d896f9e720ef2fa6e914c1d",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/execution-inspection-execution-inspection-empty-mobile-state-chromium/trace.zip",
-      "sha256": "bb01419bfa4e25b94a59308da1fcb4eea691dfaf8ee6d337b21065ecf1159bad",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -9228,24 +9052,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/execution-inspection-execution-inspection-error-mobile-state-chromium/trace.zip",
-      "sha256": "3791fcaa0514ceb804b5d9c5754e58155382edd9f707f5cf85f3a08612490271",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/file-processing-PDF-proces-1f18a-ull-section-access-390-dark-chromium/error-context.md",
       "sha256": "78c7290c2b4d3ef8e0d3c691ae5e1ac6e424e9c8aafaeba1daee49134a17ddd9",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/file-processing-PDF-proces-1f18a-ull-section-access-390-dark-chromium/trace.zip",
-      "sha256": "48e693d98a389389421e4b9b7cef0b388d763e8a5f72df0c32f4b06b4b29b9b1",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -9260,14 +9068,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/file-processing-PDF-proces-3681e-ll-section-access-390-light-chromium/trace.zip",
-      "sha256": "261a95ba23b310bdd1c2fb94b69dd9aa83237a13a948c23832e794548945ae4d",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/file-processing-PDF-proces-63dd9-l-section-access-1440-light-chromium/error-context.md",
       "sha256": "30daf284938bd305b60c0f846c2cd8976e9b06cc50add70a9ff0d2b7a3282f0f",
       "review": "excluded",
@@ -9276,24 +9076,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/file-processing-PDF-proces-63dd9-l-section-access-1440-light-chromium/trace.zip",
-      "sha256": "396a57e22177fa57124568b82a68589e4632602db0f77784153a98412244b5fc",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/file-processing-PDF-proces-9efbc-ll-section-access-1440-dark-chromium/error-context.md",
       "sha256": "d01d6b706dfa8ec5dbcbccf55b944b2eb675203d2eb5638b35170f0cbc5575a7",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/file-processing-PDF-proces-9efbc-ll-section-access-1440-dark-chromium/trace.zip",
-      "sha256": "d5538870bd623cc19fa5e47aaf5d2b3b06b5b5be6d378d43f50fc58bdedf0a9f",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -9324,14 +9108,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-scale-20-1fe27--390px-light-reduced-motion-chromium/trace.zip",
-      "sha256": "d17eca22113a107322d7a0df5bc63207326833e4aaf0492ba9e1c2c7ebcb31a5",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-scale-20-44020--1440px-dark-reduced-motion-chromium/attachments/files-scale-source-evidence-e65f454e795adbf95e83051f08b11cb8874cc9c0.json",
       "sha256": "bfcf19c83fb615b9a7c261ce3835cff32867916c7026d8d7c275cd3b284cef79",
       "review": "excluded",
@@ -9350,14 +9126,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-scale-20-44020--1440px-dark-reduced-motion-chromium/source-evidence.json",
       "sha256": "bfcf19c83fb615b9a7c261ce3835cff32867916c7026d8d7c275cd3b284cef79",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-scale-20-44020--1440px-dark-reduced-motion-chromium/trace.zip",
-      "sha256": "aa0d417de3c9b41b1c48c58eaa377d29f2a46d3350e8b4aa71eb27f247d58f57",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -9388,14 +9156,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-scale-20-6dcc3-1440px-light-reduced-motion-chromium/trace.zip",
-      "sha256": "34f11ba5ea2bf24016fe007f58e8eb22f5c296c07c3dec1333c25eee7e4ce463",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-scale-20-c3e19-s-390px-dark-reduced-motion-chromium/attachments/files-scale-source-evidence-197bae97e8a20caeea838ffce501f5f1e62365a8.json",
       "sha256": "5fefbc9545fa815fc76d50c77ec59cc260da4532a904a5576391cdb01d9d2b37",
       "review": "excluded",
@@ -9420,14 +9180,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-scale-20-c3e19-s-390px-dark-reduced-motion-chromium/trace.zip",
-      "sha256": "3f35a20b273afaccef18341a6149ebb78cd30f411e630d36f12318f16cee7d13",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-state-denied-1440px-chromium/attachments/files-scale-source-evidence-29d04394b091c30cc5506d792df063e305b55cb5.json",
       "sha256": "f4c38c0270ecad5162d59bd0a50a84cd9b53c68f71c6d77ff795c7ce30680f1e",
       "review": "excluded",
@@ -9444,14 +9196,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-state-denied-1440px-chromium/trace.zip",
-      "sha256": "e2e59448fc40f412d6cfc23bc47fb5f8e10e6b110c4609cae4836cd606b98971",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-state-denied-390px-chromium/attachments/files-scale-source-evidence-eaf93f874161b223ec6e63ae9b6773318ae75eea.json",
       "sha256": "2d7e9ff8b0f0aeacb4626ee6aa03bb2c521fce39bc1901f9a203f5dadc141603",
       "review": "excluded",
@@ -9462,14 +9206,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-state-denied-390px-chromium/source-evidence.json",
       "sha256": "2d7e9ff8b0f0aeacb4626ee6aa03bb2c521fce39bc1901f9a203f5dadc141603",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-state-denied-390px-chromium/trace.zip",
-      "sha256": "554462fc1ffc9802a8ab658e57d308b78fe6f8567f302e507ed8b70e4927d2f2",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -9500,14 +9236,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-state-empty-1440px-chromium/trace.zip",
-      "sha256": "577cb6a7fa80a8d20e377ad79095375989f07cf02ce4e0a413c714fea14faaf8",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-state-empty-390px-chromium/attachments/files-scale-source-evidence-e1e48692add808ffd1ecf82bd874c13a5ce8e471.json",
       "sha256": "db604f70c3bb1b368c8b396317a9f79469cfebf75cac470c02cdb46f14c28e69",
       "review": "excluded",
@@ -9532,14 +9260,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-state-empty-390px-chromium/trace.zip",
-      "sha256": "642cf4b750e0d05258ff59ae03a7422bffc2395ef12cbba8e6f5a3a481872958",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-state-error-1440px-chromium/attachments/files-scale-source-evidence-4ba4af3a7e67a132982b5a17b13ad32f1c7a7461.json",
       "sha256": "66d35a56484d39e17aa3e184e880f84f5c451f967dcd7b791d5e34ee18384d05",
       "review": "excluded",
@@ -9550,14 +9270,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-state-error-1440px-chromium/source-evidence.json",
       "sha256": "66d35a56484d39e17aa3e184e880f84f5c451f967dcd7b791d5e34ee18384d05",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-state-error-1440px-chromium/trace.zip",
-      "sha256": "b25c6383ba7f195f3604d1f0ef3a7c09b3156f38b01708e4d8f9875da142996d",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -9580,14 +9292,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-state-error-390px-chromium/trace.zip",
-      "sha256": "b95504bd90b2316c28413d895963c0d6d4532c08a711d6810ae4c1c79bcfb43d",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-state-loading-1440px-chromium/attachments/files-scale-source-evidence-488ea5ae072b43df6f3fef6be2db9ecf76690d16.json",
       "sha256": "a73c36696009d4ae5ee050eaab4952fb1cc77202089315f2eedc4e9a1dac3a15",
       "review": "excluded",
@@ -9598,14 +9302,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-state-loading-1440px-chromium/source-evidence.json",
       "sha256": "a73c36696009d4ae5ee050eaab4952fb1cc77202089315f2eedc4e9a1dac3a15",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-state-loading-1440px-chromium/trace.zip",
-      "sha256": "6cffa2e762eb66a93a30813cef02eebc77a52654792d7451499c6026e89d939a",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -9628,14 +9324,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-state-loading-390px-chromium/trace.zip",
-      "sha256": "7516c1c5a659808c9dfdc65adaba6c964e23556eb0f051ce4603400a88414bef",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-state-offline-1440px-chromium/attachments/files-scale-source-evidence-a077174b0df4eb02b88fb642e4ca0894f17649b8.json",
       "sha256": "c1f9742a062c06ecfe2ad14b633506892e86398a6f83e16fdbf845c90aaf663a",
       "review": "excluded",
@@ -9652,14 +9340,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-state-offline-1440px-chromium/trace.zip",
-      "sha256": "693b0a89c3621b80a1c092a22e7240898ad9267c5ec3a29895da1e633323a1ef",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-state-offline-390px-chromium/attachments/files-scale-source-evidence-d1e3c8bf59550526b024ee677c7b63e93a9f6503.json",
       "sha256": "df99f1f95ccb9b9baeffaf349ec3a19c068e690bfaaacc12cb81b19515be2ffb",
       "review": "excluded",
@@ -9670,14 +9350,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-state-offline-390px-chromium/source-evidence.json",
       "sha256": "df99f1f95ccb9b9baeffaf349ec3a19c068e690bfaaacc12cb81b19515be2ffb",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/files-scale-files-state-offline-390px-chromium/trace.zip",
-      "sha256": "c6e4830fb96c6101b8db4e75a2b01a6a359bee60a6d3a2e93f4a734e8c8e9b65",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -9710,22 +9382,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/matrix-matrix-light-mobile-390-chromium/error-context.md",
       "sha256": "028cb76e61d10e6dafd7559783359047ef9ca30d4a7ef2fe63ae252ce5759030",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/pdf-meta-preflight-provide-d2610-riginal-download-through-UI-chromium/trace.zip",
-      "sha256": "84e3f27de45089cec262c6e37bf429c1f9a1c420189187cc54f1a0605f4d40b8",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/pdf-meta-preflight-real-mi-86f5d-nd-downloads-exact-original-chromium/trace.zip",
-      "sha256": "6d9361b6c2b092299c96823a6d6a8e8e52ec43c32a97902fdc23a2967b4a080b",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -9940,24 +9596,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/work-review-intake-review-1440px-dark-landing-chromium/trace.zip",
-      "sha256": "fb55ce4dfd3534175cd6de9b6ccdb7c32aad8e3e25d5d2712ee792e224c6307d",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/work-review-intake-review-1440px-dark-workspace-chromium/error-context.md",
       "sha256": "ba68e69c94295f28b99738a5fafbdddfa9891c7dec28984fbee67536bbe4ac50",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/work-review-intake-review-1440px-dark-workspace-chromium/trace.zip",
-      "sha256": "0e65182e82a5cb19c77852d9390d1fe5a2f830281e952f481e51f906bec52089",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -9972,24 +9612,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/work-review-intake-review-1440px-light-landing-chromium/trace.zip",
-      "sha256": "4c9e5dca63f962c2dcdf4a634221c2cc0d22936a6fdc0ec868e22265e5c96d51",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/work-review-intake-review-1440px-light-workspace-chromium/error-context.md",
       "sha256": "d12197f111ce16ee89b22c81d2b1fbd0be453a966be82722dcad8d4a88f6b6b0",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/work-review-intake-review-1440px-light-workspace-chromium/trace.zip",
-      "sha256": "eea2c5698d5ecf8e4161b8cfe03588330e8ea49f0de765e9194bbf71d1cce2a0",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10004,24 +9628,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/work-review-intake-review-390px-dark-landing-chromium/trace.zip",
-      "sha256": "084b59f844b687c9244ceb5f7bc4a600d56c542dfa53146dd7e0eaae35c8e3e2",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/work-review-intake-review-390px-dark-workspace-chromium/error-context.md",
       "sha256": "8f7c2b3532b951b607f5c35e32ae19badfd8faf64bdd056194cac3938597a6c9",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/work-review-intake-review-390px-dark-workspace-chromium/trace.zip",
-      "sha256": "5a01c09202214bfd07983a6491e230a212bc22e3a697be2eaaab91df5b8b57bd",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10036,24 +9644,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/work-review-intake-review-390px-light-landing-chromium/trace.zip",
-      "sha256": "9f09fd17e41673bdc726e9feeeafd50bb3420dd71b748faafdd0196ec15bd775",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/work-review-intake-review-390px-light-workspace-chromium/error-context.md",
       "sha256": "7152c04112726f00c093a8cf70f482ab8cf43f60bcd1def0090f163f65042ea6",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/work-review-intake-review-390px-light-workspace-chromium/trace.zip",
-      "sha256": "84096d8a975e8b420efad520e7566e8b9b97d1a8971ccbb4ea05991796a9cdd8",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10068,24 +9660,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-deep-linked-norm-05dad-s-and-context-are-reachable-chromium/trace.zip",
-      "sha256": "ac5c81ef6725791e07ee36983408a70d08aadad4a495933f96b9cafa8e0b7b19",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-exact-workspace--1285b-space-boundary-1280px-light-chromium/error-context.md",
       "sha256": "8f19981eae0abbb6c18a9bed74257b495bfed6d274d3fde2ff20c712d2198847",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-exact-workspace--1285b-space-boundary-1280px-light-chromium/trace.zip",
-      "sha256": "269bcecb0efd6901a80fb1e807a3539bfb9ef2d14268f09ecd876dd40f0da0c3",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10100,40 +9676,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-exact-workspace--1d933-kspace-boundary-1280px-dark-chromium/trace.zip",
-      "sha256": "2146c9709eaf931d9c4c2b439b505efbb6219b36dc8a8f52049cbf283ac70e02",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-exact-workspace--36f94-rkspace-boundary-768px-dark-chromium/error-context.md",
       "sha256": "47decd228608c99f78ea1739eb02b111c1954f8aede2f425b01a18311382756a",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-exact-workspace--36f94-rkspace-boundary-768px-dark-chromium/trace.zip",
-      "sha256": "c3e1a490df043be07a654ad108d26edf917c934f9c353a0931d745a5822520f8",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-exact-workspace--63363-space-boundary-1279px-light-chromium/trace.zip",
-      "sha256": "2e292ad452591c0ffd0d2a67bcc3668348c22d501ed53190d9772d904e43d143",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-exact-workspace--804f4-kspace-boundary-768px-light-chromium/trace.zip",
-      "sha256": "61091e241ff4d8f7546758168770ff9500d3241c0c3004abdd62cfa72dfcce74",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10148,24 +9692,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-exact-workspace--cedf1-rkspace-boundary-767px-dark-chromium/trace.zip",
-      "sha256": "0874a9f579f3a502e94d538a19c947fc925660413a4f77ece4aec158240fb4e7",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-exact-workspace--db15c-kspace-boundary-1279px-dark-chromium/error-context.md",
       "sha256": "56fa467daafee761fe3414d378328672ad18955eec7884fb88c85467f4b66dcd",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-exact-workspace--db15c-kspace-boundary-1279px-dark-chromium/trace.zip",
-      "sha256": "427f89f46f8aab187367c4cf48f7bc052d04b8ff187ab6f2ed7486d8744cd4ca",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10180,24 +9708,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-exact-workspace--f4aa3-kspace-boundary-767px-light-chromium/trace.zip",
-      "sha256": "510061434f760cb4590ce4fa8b26a07b30b02536c6c00a6420939d8071a8aa31",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-failed-plan-edit-37ad0-xpose-exact-executable-work-chromium/error-context.md",
       "sha256": "23d9f3a52119a4d280ac51ee75285fb3c810cf488770a05c9b0d8c20ea7c9e00",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-failed-plan-edit-37ad0-xpose-exact-executable-work-chromium/trace.zip",
-      "sha256": "2de4f99c2e8b5d1146e5336f8c6c55245e12ecf3c8102a64a9219ccb5d9a6b15",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10212,24 +9724,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-file-preview-dow-b3f78-d-returns-focus-to-the-file-chromium/trace.zip",
-      "sha256": "e87012eb90e5f193f93345088243b1fae6d53dc7519c6fb8ac9acf82e9c585c6",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-hardening-surfaces-1440-dark-chromium/error-context.md",
       "sha256": "cb7b36d9efd337296f37abde508d7575ea02e39378bd04ba242436cd3defc789",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-hardening-surfaces-1440-dark-chromium/trace.zip",
-      "sha256": "6859473358f6203410664d3c8ecedf2c390557b87233602f24023b507373238b",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10244,24 +9740,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-hardening-surfaces-1440-light-chromium/trace.zip",
-      "sha256": "dc54d85ed1bb63f019baffc6d3b1ae55f659472210d6f26b5714577afbe29d95",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-hardening-surfaces-390-dark-chromium/error-context.md",
       "sha256": "0b325b5b15a4bb7965f341a5fefb1fc11d7a619acf96124324cc9694113e36c5",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-hardening-surfaces-390-dark-chromium/trace.zip",
-      "sha256": "1462c838b0b125ceb10f0b6c742cd0ecd730d0e0d6960a1c6f98202d4ff9f0e6",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10276,24 +9756,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-hardening-surfaces-390-light-chromium/trace.zip",
-      "sha256": "c80ac3b873b1fa51eb940491285d83b1ed1565e4a812e0abb85ec90025d4f170",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-operation-recovery-1440-dark-chromium/error-context.md",
       "sha256": "739a3a14fbbe9676335720a411a9224d9db4b2157963c8fc3b2eeaa09a0644b7",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-operation-recovery-1440-dark-chromium/trace.zip",
-      "sha256": "fde838f3bfd980598edbbae07b948727a6bf5468236fca483784adcf13c09cb2",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10308,24 +9772,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-operation-recovery-1440-light-chromium/trace.zip",
-      "sha256": "14d383ec57bc357db228994d814a070b5158d494560cefaab0ffa7e01fef07a5",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-operation-recovery-390-dark-chromium/error-context.md",
       "sha256": "e070ece86d6d8aeb6124e380fab2d92c7befa5e6f101c1550e73c08ea0c9766b",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-operation-recovery-390-dark-chromium/trace.zip",
-      "sha256": "b71e1ac54a58d99f105c3b322dababec80674dfcb7d31691dcdac0d751693366",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10340,48 +9788,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-operation-recovery-390-light-chromium/trace.zip",
-      "sha256": "b196a79699dba6869a0bc3e378b801f38c61dcda665a890869ffd7153dd654ca",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-overflow-recover-70c20-consumed-steering-in-the-UI-chromium/trace.zip",
-      "sha256": "891f6e2dbd401ae9ea981f633ab3ebedf34ef68aff5e82702e9dfb4e67a51e8b",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-overflow-recover-8d4f1-s-missed-steering-in-the-UI-chromium/trace.zip",
-      "sha256": "5cc7cf8ae618ea47dba0dea439c9d16272e28c0538572301bf290e09a57c1dd0",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-overflow-recover-b4462-y-and-clears-stale-thinking-chromium/trace.zip",
-      "sha256": "9064ee1e686d30068ae109cb6cb12bb3737c15ec8ffe2b13032683eadf32901c",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-paused-conversat-a1dfc-without-indefinite-thinking-chromium/error-context.md",
       "sha256": "f3ef427b88cc9d3fe94d7c7ae83a5248529ed6f7db1ca6be8930fef7d2bb6a3c",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-paused-conversat-a1dfc-without-indefinite-thinking-chromium/trace.zip",
-      "sha256": "403bffd72eec2fb6107489e9a74d3d745968558ca94f0b81fab1392a08c5390b",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10396,24 +9804,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-paused-research--47a29-serves-an-unsuccessful-edit-chromium/trace.zip",
-      "sha256": "f6ecf4f8e5d5a60e629815cc7287c60c31c43d86321d18c30edaa1f521e90ab1",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-permission-failu-86270-d-of-empty-files-or-context-chromium/error-context.md",
       "sha256": "3dfaa7b8513bb7dfb909d7c90536e871614327118bc35a8a4f8fb21922b2ad2d",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-permission-failu-86270-d-of-empty-files-or-context-chromium/trace.zip",
-      "sha256": "810f04bcb4c403a0a7c24d16b8c64536aec4ed198d7504964c4b250f6d8182b0",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10428,24 +9820,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-plan-approval-context-conflict-1440-dark-chromium/trace.zip",
-      "sha256": "c35fbae5843156e137b1a4611a98e059c79ea744641f194f813096dc0fceb5f5",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-plan-approval-context-conflict-1440-light-chromium/error-context.md",
       "sha256": "0f7e44c73ad5c1e02640679f34011dd17dd17694731a86e703002214e0344443",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-plan-approval-context-conflict-1440-light-chromium/trace.zip",
-      "sha256": "3996f9d5e263a49fd311c9658d7e4e56fb15e0ea45da5ec2be7aa6c16c6b3cd9",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10460,24 +9836,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-plan-approval-context-conflict-390-dark-chromium/trace.zip",
-      "sha256": "3d56fbd180f63cd44601483b35a64d566c267ca8ee5ece8360fa871998bcee51",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-plan-approval-context-conflict-390-light-chromium/error-context.md",
       "sha256": "5cd9b645823de17c50d50422f5314a1cbdd8fec2619a2f1eec4889312b521404",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-plan-approval-context-conflict-390-light-chromium/trace.zip",
-      "sha256": "d9a70adf9af67a29ac5abf8bd70ea1ecc23148e3687f68d8143622d6d5ef8d1b",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10492,24 +9852,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-plan-approval-is-e0ed3-context-authority-is-denied-chromium/trace.zip",
-      "sha256": "8ff137a7d5d3feac229a7df90cc6381084be3ca11f52016eba63efd0149ecfbb",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-plan-approval-st-58c7d-context-becomes-unavailable-chromium/error-context.md",
       "sha256": "6c292db1ec05afa24a4c7ebd6a09cffdda217b98a061ac261ccaad589c11390e",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-plan-approval-st-58c7d-context-becomes-unavailable-chromium/trace.zip",
-      "sha256": "0cf7ea496bd5108f74ce3f900e694a633f538ca9f176dbb24bcbc69638e61de1",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10524,24 +9868,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-retained-discove-4646a--without-a-false-percentage-chromium/trace.zip",
-      "sha256": "9d1d6cea2adf503d0e184d890337027bbf264a3ca5179e2f4f5c14025c024d5e",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-sector-summary-o-21eb8-log-and-dedicated-workspace-chromium/error-context.md",
       "sha256": "ec756768b06b273055c40052cf43d72f7b74e5657157770f49ce49f9787ffbee",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-sector-summary-o-21eb8-log-and-dedicated-workspace-chromium/trace.zip",
-      "sha256": "53f11c6bf3ac1f2daa371da902af93d09f06ceef02a6671481e32f7fd448a9fa",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10556,22 +9884,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-workspace-visual-1440-dark-chromium/trace.zip",
-      "sha256": "e7595c2b3e24b2c0e1c4a39095e61315ca7b11cf34878fdda3a88dc6e7b9c62b",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-workspace-visual-1440-light-chromium/trace.zip",
-      "sha256": "77da6e613193827cfd356f1541c4e3ef971f84c139c62644330c4ded5c91ccb5",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-workspace-visual-390-dark-chromium/error-context.md",
       "sha256": "d3023c95328696c5c073d45c53e6f5dd2a3df870403567742cdfc2efe92d81dc",
       "review": "excluded",
@@ -10580,128 +9892,8 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-workspace-visual-390-dark-chromium/trace.zip",
-      "sha256": "a890446652198b6591208a267df2afebdd5bbc9890f5898ffd0c3e2502a905d1",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/existing-raw/workspace-workspace-visual-390-light-chromium/trace.zip",
-      "sha256": "deedb29d6d6b635f7e6b6f5eafd6fb936220aabffc2e8f08dc47d5408026d9ab",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/existing-run.txt",
       "sha256": "99909ea4e421a387a4ed9c483a0a1bf77d9b1937f20dfd4bdf3de7cb6d2f0ed0",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/alerts-alerts-denied-read--69249-overs-without-altering-work-chromium/trace.zip",
-      "sha256": "0be30510c15e168597b7fc36063e6f07edd3915f87efd85509464bca0be3ef6e",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/alerts-alerts-paging-and-long-references-1440-dark-chromium/trace.zip",
-      "sha256": "c95d574e868f0cfccb3f951767fd159286fceaf4b79030262e2c9223e67196a9",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/alerts-alerts-paging-and-long-references-1440-light-chromium/trace.zip",
-      "sha256": "1555523e3615ffc4c4fd18866be37b1b2761f6f2fc71c6dc0cd26a65c79ff957",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/alerts-alerts-paging-and-long-references-390-dark-chromium/trace.zip",
-      "sha256": "4b9c407fcb6fad4ca06e91f4038d9b3519914bed35783eab79324319391356ee",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/alerts-alerts-paging-and-long-references-390-light-chromium/trace.zip",
-      "sha256": "73e4d716a255585ea2f79c911089d65975e39bba660fdc408ce95ace17d4a003",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/context-recovery-owner-saf-1ad71-1440px-light-reduced-motion-chromium/trace.zip",
-      "sha256": "13f248acd65871b008e903535282e2a7ca0bffb618b9b235b32a4873429e50fc",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/context-recovery-owner-saf-3d82b-d-390px-dark-reduced-motion-chromium/trace.zip",
-      "sha256": "5d0c14ce86741afcec1cd9b25c27e7e41239fcd0bbb4f297a84546f6f00180e2",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/context-recovery-owner-saf-7729d--390px-light-reduced-motion-chromium/trace.zip",
-      "sha256": "7b710379ea1e5a3cb69c777457e2b001163665c830006f6f940f09adeff27281",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/context-recovery-owner-saf-9dfb7--1440px-dark-reduced-motion-chromium/trace.zip",
-      "sha256": "80aa577412d11c8ef7ca44ff5e3985650f208a904e7bc6a024e1bef0d3d40d45",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/context-recovery-receipt-i-9b4d0-n-390px-dark-reduced-motion-chromium/trace.zip",
-      "sha256": "aea56601ed1d25139059465a0ca8d5dd351184ad8da5fa4650e278a8d7bddc16",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/context-recovery-receipt-i-9f5b6--1440px-dark-reduced-motion-chromium/trace.zip",
-      "sha256": "4be7e766d282e05e1be6eeffa1658ff0f3a304c25a34224eb2dfe6dfe1a970ba",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/context-recovery-receipt-i-b5ea8-1440px-light-reduced-motion-chromium/trace.zip",
-      "sha256": "e59aec94951650dec2a1c4a1557c2e443a2ca31ff40c11c4466480d510925e02",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/context-recovery-receipt-i-b6fd8--390px-light-reduced-motion-chromium/trace.zip",
-      "sha256": "90a2e1c7aecdb4665f628b104af75521db8a68c8c35413e376f8183647f3367b",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10724,14 +9916,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/execution-inspection-execu-08392-gination-long-JSON-keyboard-chromium/trace.zip",
-      "sha256": "d181e1734b2438b410da0c6ddb5c47d8950bb624c1911973ce60e46d8c344f5a",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/execution-inspection-execu-113d3-ection-loading-mobile-state-chromium/attachments/execution-inspection-source-evidence-978e8a6046d844f80974399269fe98ed321aa889.json",
       "sha256": "705853de55591b074cf01d29d51de96a3eea2840ef63b2cc18c685b90bdd06f9",
       "review": "excluded",
@@ -10742,14 +9926,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/execution-inspection-execu-113d3-ection-loading-mobile-state-chromium/source-evidence.json",
       "sha256": "705853de55591b074cf01d29d51de96a3eea2840ef63b2cc18c685b90bdd06f9",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/execution-inspection-execu-113d3-ection-loading-mobile-state-chromium/trace.zip",
-      "sha256": "e950019b61c28aa370d9e04301c917a266905547960f9f6aaf32a6cbe5e8e590",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10772,14 +9948,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/execution-inspection-execu-4b4b9-gination-long-JSON-keyboard-chromium/trace.zip",
-      "sha256": "ac14ea8d718f8c389e4a305bc44766a036a10fa47f4fb4036bdd2cbb2037f236",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/execution-inspection-execu-523aa-gination-long-JSON-keyboard-chromium/attachments/execution-inspection-source-evidence-4e329ac942282705463e4c91ca14b53665087523.json",
       "sha256": "705853de55591b074cf01d29d51de96a3eea2840ef63b2cc18c685b90bdd06f9",
       "review": "excluded",
@@ -10790,14 +9958,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/execution-inspection-execu-523aa-gination-long-JSON-keyboard-chromium/source-evidence.json",
       "sha256": "705853de55591b074cf01d29d51de96a3eea2840ef63b2cc18c685b90bdd06f9",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/execution-inspection-execu-523aa-gination-long-JSON-keyboard-chromium/trace.zip",
-      "sha256": "572bc3df988913415db10bd235b1b26022a53665f483c50e875c1dfe0bdd82ed",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10820,14 +9980,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/execution-inspection-execu-b2b31-ion-body-error-mobile-state-chromium/trace.zip",
-      "sha256": "2526e039b4ecbe61048072af791afb30f55cb3685bae58f8a7726495af497aff",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/execution-inspection-execu-b8900-ection-offline-mobile-state-chromium/attachments/execution-inspection-source-evidence-10960437da93900e305df1fb678257360d77ada7.json",
       "sha256": "705853de55591b074cf01d29d51de96a3eea2840ef63b2cc18c685b90bdd06f9",
       "review": "excluded",
@@ -10838,14 +9990,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/execution-inspection-execu-b8900-ection-offline-mobile-state-chromium/source-evidence.json",
       "sha256": "705853de55591b074cf01d29d51de96a3eea2840ef63b2cc18c685b90bdd06f9",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/execution-inspection-execu-b8900-ection-offline-mobile-state-chromium/trace.zip",
-      "sha256": "869d5c0d761a92d480da874f9b45b18209f6992bbe946be236b30afdd31a2816",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10868,14 +10012,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/execution-inspection-execu-c046e-pection-denied-mobile-state-chromium/trace.zip",
-      "sha256": "74b74a1ccc0daed3db710c09a07ad85be00d8c36a53a338a61009eb40d035334",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/execution-inspection-execu-c6d13-gination-long-JSON-keyboard-chromium/attachments/execution-inspection-source-evidence-5cb5a3317ef2029b7147317b63938169db37a847.json",
       "sha256": "6f4cf1655e736d34609a02e5451ea2395e87a8384a2dc1ff50791f0a1ee78503",
       "review": "excluded",
@@ -10886,14 +10022,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/execution-inspection-execu-c6d13-gination-long-JSON-keyboard-chromium/source-evidence.json",
       "sha256": "6f4cf1655e736d34609a02e5451ea2395e87a8384a2dc1ff50791f0a1ee78503",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/execution-inspection-execu-c6d13-gination-long-JSON-keyboard-chromium/trace.zip",
-      "sha256": "355752884b1efe6844bb78266e29538c8a8dd0eabca02634402c8c9fc1349946",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10916,14 +10044,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/execution-inspection-execution-inspection-empty-mobile-state-chromium/trace.zip",
-      "sha256": "6678e843b0ef610605e8f44a39688c6c5537c9a99884231899d395888eacb373",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/execution-inspection-execution-inspection-error-mobile-state-chromium/attachments/execution-inspection-source-evidence-8937af68e32f2c747188d96f246e1bf627b7f2f6.json",
       "sha256": "705853de55591b074cf01d29d51de96a3eea2840ef63b2cc18c685b90bdd06f9",
       "review": "excluded",
@@ -10934,46 +10054,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/execution-inspection-execution-inspection-error-mobile-state-chromium/source-evidence.json",
       "sha256": "705853de55591b074cf01d29d51de96a3eea2840ef63b2cc18c685b90bdd06f9",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/execution-inspection-execution-inspection-error-mobile-state-chromium/trace.zip",
-      "sha256": "6d36139c21998f1c97901e0dcdba4429e703920000f7d53d8c3f1d03b9a61ae9",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/file-processing-PDF-proces-1f18a-ull-section-access-390-dark-chromium/trace.zip",
-      "sha256": "3ee7b657dcd45c086a58e8890e06b6c063a0615bcc1ff2e7bf984bef46a615a2",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/file-processing-PDF-proces-3681e-ll-section-access-390-light-chromium/trace.zip",
-      "sha256": "eb2c25266df2b3ae5cadf055274a3aba6a0773ada1365a8e2bb61442f6c7864c",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/file-processing-PDF-proces-63dd9-l-section-access-1440-light-chromium/trace.zip",
-      "sha256": "bd4715fd495ec75711cb0b94a492216028b8019d1191d37b7ffaefc12948e20d",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/file-processing-PDF-proces-9efbc-ll-section-access-1440-dark-chromium/trace.zip",
-      "sha256": "f99d9b529d2a209b91a788e33a501906bc884f50aec43900b26acc9542f66824",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -10996,14 +10076,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-scale-20-1fe27--390px-light-reduced-motion-chromium/trace.zip",
-      "sha256": "6bc670c3185873536c3ac645b19177798326d4df5648528a252451611dc00226",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-scale-20-44020--1440px-dark-reduced-motion-chromium/attachments/files-scale-source-evidence-e65f454e795adbf95e83051f08b11cb8874cc9c0.json",
       "sha256": "f8624acb731c7ba3f92512d358bb0095ce6de77da2c08c4e3c50dede04062b3f",
       "review": "excluded",
@@ -11014,14 +10086,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-scale-20-44020--1440px-dark-reduced-motion-chromium/source-evidence.json",
       "sha256": "f8624acb731c7ba3f92512d358bb0095ce6de77da2c08c4e3c50dede04062b3f",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-scale-20-44020--1440px-dark-reduced-motion-chromium/trace.zip",
-      "sha256": "eb2c70469df1943e65bf4d7db3c8c2abf534384282bc70016cb399a074f1918f",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -11044,14 +10108,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-scale-20-6dcc3-1440px-light-reduced-motion-chromium/trace.zip",
-      "sha256": "a880d1e627eb1c8124e82b9744571b1fb84b68b6dc03ebe69090a86630ee456b",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-scale-20-c3e19-s-390px-dark-reduced-motion-chromium/attachments/files-scale-source-evidence-197bae97e8a20caeea838ffce501f5f1e62365a8.json",
       "sha256": "c5e0c1c0d55924ee3a5bb80684d28c41ba2aea54498a9ef8de773453b89e13a5",
       "review": "excluded",
@@ -11062,14 +10118,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-scale-20-c3e19-s-390px-dark-reduced-motion-chromium/source-evidence.json",
       "sha256": "c5e0c1c0d55924ee3a5bb80684d28c41ba2aea54498a9ef8de773453b89e13a5",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-scale-20-c3e19-s-390px-dark-reduced-motion-chromium/trace.zip",
-      "sha256": "c61478178db7eadb0239b4b021c2d32e34c80ba9aeef93a1d05c52eb94cc93fe",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -11092,14 +10140,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-state-denied-1440px-chromium/trace.zip",
-      "sha256": "12204f455ae0665bd56287715934af3147482ade03bfc7d9cae9cc60a8db6b92",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-state-denied-390px-chromium/attachments/files-scale-source-evidence-eaf93f874161b223ec6e63ae9b6773318ae75eea.json",
       "sha256": "d08c1be8d917b8fb8f04bb91e09b5ea4efb6ceb0aa1d8126e67ae6835d90f056",
       "review": "excluded",
@@ -11110,14 +10150,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-state-denied-390px-chromium/source-evidence.json",
       "sha256": "d08c1be8d917b8fb8f04bb91e09b5ea4efb6ceb0aa1d8126e67ae6835d90f056",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-state-denied-390px-chromium/trace.zip",
-      "sha256": "9b3d67bff7b97b01824f92102e29fa48f6d08c505f1f1e0142181baac62514eb",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -11140,14 +10172,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-state-empty-1440px-chromium/trace.zip",
-      "sha256": "119bbfdb49a1cf908460b031a57fd904d221846155a0153a8ed43c644ad889f8",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-state-empty-390px-chromium/attachments/files-scale-source-evidence-e1e48692add808ffd1ecf82bd874c13a5ce8e471.json",
       "sha256": "f50c65fdff87bd9f2867dcd4421f7e9e6d6127e5078c705a7ab66f2b01e3448b",
       "review": "excluded",
@@ -11158,14 +10182,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-state-empty-390px-chromium/source-evidence.json",
       "sha256": "f50c65fdff87bd9f2867dcd4421f7e9e6d6127e5078c705a7ab66f2b01e3448b",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-state-empty-390px-chromium/trace.zip",
-      "sha256": "3b9e0995f6d7f156f92e3247d777bc7ac158bbc6aadcb6860dcb7a30c5abed1d",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -11188,14 +10204,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-state-error-1440px-chromium/trace.zip",
-      "sha256": "91661be0c22f094a4eb0a20e6a66e49942c2783ffb19b154ca8271a4ae03be80",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-state-error-390px-chromium/attachments/files-scale-source-evidence-a7dfd086def0c406e1cef6e013e0dc2aebc58e21.json",
       "sha256": "17d8dbfe75894e897c32550a5120f081dd405b6996b5d8da69441d46d5e78dfa",
       "review": "excluded",
@@ -11206,14 +10214,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-state-error-390px-chromium/source-evidence.json",
       "sha256": "17d8dbfe75894e897c32550a5120f081dd405b6996b5d8da69441d46d5e78dfa",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-state-error-390px-chromium/trace.zip",
-      "sha256": "f744b1a0e1ddc579eed4a0ed0b716c0377c693c70cad9329b50d38cf9db04939",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -11236,14 +10236,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-state-loading-1440px-chromium/trace.zip",
-      "sha256": "5b97c0a3f51f74c03b0f7cbb6a39ab5e841875f6698f7f12a94408b9e782cd53",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-state-loading-390px-chromium/attachments/files-scale-source-evidence-6c7f111c987ebc3d630b53af30bcc5654f2f92fa.json",
       "sha256": "36bcb9e11ca677ac26a8accb2a1207cc9cb3bf2e669fc341c0bcf745c2a3fd7e",
       "review": "excluded",
@@ -11254,14 +10246,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-state-loading-390px-chromium/source-evidence.json",
       "sha256": "36bcb9e11ca677ac26a8accb2a1207cc9cb3bf2e669fc341c0bcf745c2a3fd7e",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-state-loading-390px-chromium/trace.zip",
-      "sha256": "45e0a4bac6d5ec19e6b67fcbe173cfe1b63f5be9e8e98b437c04faa74f92a565",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -11284,14 +10268,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-state-offline-1440px-chromium/trace.zip",
-      "sha256": "1bf043075b8ff8008bc1161fdb4e3a18f462b757a31455eba0aff9e877352442",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-state-offline-390px-chromium/attachments/files-scale-source-evidence-d1e3c8bf59550526b024ee677c7b63e93a9f6503.json",
       "sha256": "7f16c5d9940d68761b5075cd4ce7afac3588c0bc89b1ccbc6cb4d112e49c4415",
       "review": "excluded",
@@ -11302,30 +10278,6 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-state-offline-390px-chromium/source-evidence.json",
       "sha256": "7f16c5d9940d68761b5075cd4ce7afac3588c0bc89b1ccbc6cb4d112e49c4415",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/files-scale-files-state-offline-390px-chromium/trace.zip",
-      "sha256": "e21293faade22e91d0e1599e09aa3cfb4ff500b670895db6939759f2c1967f73",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/pdf-meta-preflight-provide-d2610-riginal-download-through-UI-chromium/trace.zip",
-      "sha256": "fe1138d7499af2fbf5a9a4ce81140030a93d6fe26f2f2173f7ebdf90ef5cd585",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/pdf-meta-preflight-real-mi-86f5d-nd-downloads-exact-original-chromium/trace.zip",
-      "sha256": "737a6a7aeac9e80a3b6c53484d23d1c899f95d80e19df256e06eccf453de01c0",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],
@@ -13348,366 +12300,6 @@
       "exports": []
     },
     {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/work-review-intake-review-1440px-dark-landing-chromium/trace.zip",
-      "sha256": "c5ff7866feba3cfe92a000a4d100d93c995d13701da3c486c996c6dd14ccd25e",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/work-review-intake-review-1440px-dark-workspace-chromium/trace.zip",
-      "sha256": "0087939e1213754d3a7063f77d0bed7437e9b4489ae5edfaf214122b9fc95376",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/work-review-intake-review-1440px-light-landing-chromium/trace.zip",
-      "sha256": "1296de561c01b5c78a89ec6fb87963f0c4ba22e6a0d349abf4c4405aff759409",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/work-review-intake-review-1440px-light-workspace-chromium/trace.zip",
-      "sha256": "33077e38ded8e20df15d222d5dd2d801c2577fbe812b300b41ae193dfc3f7809",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/work-review-intake-review-390px-dark-landing-chromium/trace.zip",
-      "sha256": "52573e76b4de11fac452728ef789634b257014a664546aec7de9b36a44111c48",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/work-review-intake-review-390px-dark-workspace-chromium/trace.zip",
-      "sha256": "66352133050e719b7b1ca5e3ae2e486b60100d4718d8310b6109ab9d4ab2a472",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/work-review-intake-review-390px-light-landing-chromium/trace.zip",
-      "sha256": "78835c7a082865f2876342abe66f3b5d5e0b839deae33f83d6ff7c4fdc53ac93",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/work-review-intake-review-390px-light-workspace-chromium/trace.zip",
-      "sha256": "5eb464b5421f9531fe451b2cb8c74936b77ce6c62839ef3208b40dd346cee1c7",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-deep-linked-norm-05dad-s-and-context-are-reachable-chromium/trace.zip",
-      "sha256": "4847913d66e799121d6a574f341d6431cb9a20e2eb2a63f1ec3d716237429024",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-exact-workspace--1285b-space-boundary-1280px-light-chromium/trace.zip",
-      "sha256": "efe26688b3b0ae014f4a3048d300706fda8db556caee033effa3dedde332da32",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-exact-workspace--1d933-kspace-boundary-1280px-dark-chromium/trace.zip",
-      "sha256": "ae77ff29c7efdd094164a7308622a52d4f70cae651654ecdedc1b712bb44d48f",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-exact-workspace--36f94-rkspace-boundary-768px-dark-chromium/trace.zip",
-      "sha256": "88cbecf9cccdc41032b79a0bd083ad1d20b2505d6eef727f85d990d731b96b31",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-exact-workspace--63363-space-boundary-1279px-light-chromium/trace.zip",
-      "sha256": "e92a017810700f89a418fe93a6168261e357059126c2930d4385c5729e1e5268",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-exact-workspace--804f4-kspace-boundary-768px-light-chromium/trace.zip",
-      "sha256": "5bf444e8d2131f0f985a6acf2cfe6c0ad19c62444ef2dff74be34d6a4361897d",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-exact-workspace--cedf1-rkspace-boundary-767px-dark-chromium/trace.zip",
-      "sha256": "1124b755adc984e6a6a7b97d7c3e50870eaa851f0acdf2b5d9b5f630c9fbf719",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-exact-workspace--db15c-kspace-boundary-1279px-dark-chromium/trace.zip",
-      "sha256": "c5e06044c51d7e7816888261cd10e15e2de4da0705ac6acaa2e7c41e4eabefe9",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-exact-workspace--f4aa3-kspace-boundary-767px-light-chromium/trace.zip",
-      "sha256": "d39d4b0f05852a6cca61c4ad18edf70e31ee189f5f7c63f9e5d8f651578e5a08",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-failed-plan-edit-37ad0-xpose-exact-executable-work-chromium/trace.zip",
-      "sha256": "96fc4ad264216ab4bcd6175e049c98d7f35f09fb1b9e078b5c7bffa732744ffc",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-file-preview-dow-b3f78-d-returns-focus-to-the-file-chromium/trace.zip",
-      "sha256": "42154124b51676378cceeb561b9caae6453a37fdacb79e8378337e211019fbf4",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-hardening-surfaces-1440-dark-chromium/trace.zip",
-      "sha256": "2e1c11f754c6ea03814974c4d989077e7b75c8a611a34a29b1cc5817c3b32992",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-hardening-surfaces-1440-light-chromium/trace.zip",
-      "sha256": "c7e28f5f3d100d9eeec44cd0dbad6b48d3121568a609ad00bee3795221c15f98",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-hardening-surfaces-390-dark-chromium/trace.zip",
-      "sha256": "70ff1c2801dfdbffe3f2e8897ea1789acf0a67a1f4bc887355bce4108487615b",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-hardening-surfaces-390-light-chromium/trace.zip",
-      "sha256": "cf244bbe8083b5fe00eef056f26ad5ce55bae5df794f7a6255d98545f91d0471",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-operation-recovery-1440-dark-chromium/trace.zip",
-      "sha256": "27fc8814110f0601ce49cac3358a64222fe55287ae136721054d03cd32dafc04",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-operation-recovery-1440-light-chromium/trace.zip",
-      "sha256": "b7d51a39ab000a30df217b1da2890f42bf1eeba7a47fb042f6d7f5bdbf9c6992",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-operation-recovery-390-dark-chromium/trace.zip",
-      "sha256": "7be7329151b81d0ec5993839e4bfeb55814d0c6c30591946306e8c1ec69ed835",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-operation-recovery-390-light-chromium/trace.zip",
-      "sha256": "3b15ed593f9628064eb05ffff321b1fb5a2b50f34a6d375c9cbe47b01ae30213",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-overflow-recover-70c20-consumed-steering-in-the-UI-chromium/trace.zip",
-      "sha256": "0f8149d75d5d8009ef882af28bb6911630d597fedc6de7f5490e823ed7cd3c4f",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-overflow-recover-8d4f1-s-missed-steering-in-the-UI-chromium/trace.zip",
-      "sha256": "d7fdff5d6b837246a02936342a4a40fa84ef79aa1ce45e0d5cac2cd0d52effb4",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-overflow-recover-b4462-y-and-clears-stale-thinking-chromium/trace.zip",
-      "sha256": "a1081c53650591801d59e53ac554d6cc3cc9832becf909f87a521fb2b27a386a",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-paused-conversat-a1dfc-without-indefinite-thinking-chromium/trace.zip",
-      "sha256": "291ad3b70287f88f91a96208b1c452644508423f23e34cb1aa3ef4c0ebf7dba0",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-paused-research--47a29-serves-an-unsuccessful-edit-chromium/trace.zip",
-      "sha256": "bd34846a47bb9d14e8b30b5064c80f1fa4f5da3c3a4595b7ba4044a53b22fe2d",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-permission-failu-86270-d-of-empty-files-or-context-chromium/trace.zip",
-      "sha256": "7f89227b1cf608c4e9ddadb6b5802a1f3344e2d3ccc5fef5f2cb65b3332b1f86",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-plan-approval-context-conflict-1440-dark-chromium/trace.zip",
-      "sha256": "adc9d3465a4f67b0ec7a6b9e2a6dc492cd69766d7c523d753ea2ccc9f85c7e2c",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-plan-approval-context-conflict-1440-light-chromium/trace.zip",
-      "sha256": "51514b6bd5e3b7bc9d82a85c9d03f4a347e8cd8537aec5c6468067af5d5d081d",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-plan-approval-context-conflict-390-dark-chromium/trace.zip",
-      "sha256": "0ad036df7e998b0269441365c2af849ecc102558f28e9f8f71759073bc33abc6",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-plan-approval-context-conflict-390-light-chromium/trace.zip",
-      "sha256": "115c8abff316a37903b9776f6aaf4db30390597c9ffe85f5aac34d76461ea683",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-plan-approval-is-e0ed3-context-authority-is-denied-chromium/trace.zip",
-      "sha256": "33b1f52fb66bb04d1f93e9640beae4fe56f9727c44af77b3fa615336d6baedd6",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-plan-approval-st-58c7d-context-becomes-unavailable-chromium/trace.zip",
-      "sha256": "4a983a34211a7e13af98395061eac831cd1ceadcbe91876595d03e7dc0f61d1d",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-retained-discove-4646a--without-a-false-percentage-chromium/trace.zip",
-      "sha256": "b5a51e9eeee29b820904737800eccbbf0edb547c1cc3d837bbd4c008116c1851",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-sector-summary-o-21eb8-log-and-dedicated-workspace-chromium/trace.zip",
-      "sha256": "ef491a6fe8a6f0dad6b7836be0f2c44bcab196bb36a8d06c43bdc9736e8ef9d8",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-workspace-visual-1440-dark-chromium/trace.zip",
-      "sha256": "99e60b31262da551ec78499c75e8dd90abeedfc149a26303c7bf21e1455baa22",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-workspace-visual-1440-light-chromium/trace.zip",
-      "sha256": "f9090a6030f7304768f7aa340bf357b4eb8e5298997a1f0df20fd60997f0c514",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-workspace-visual-390-dark-chromium/trace.zip",
-      "sha256": "8730837250d1df7b6e7085ec4d1e95a49472ed1cc6db7a514c2973fa11612e96",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
-      "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final-results/workspace-workspace-visual-390-light-chromium/trace.zip",
-      "sha256": "5e8da641d375ec3b62b261b0c9996dc810d3a3a6f58fb66665a1019e7b506878",
-      "review": "excluded",
-      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
-      "tests": [],
-      "exports": []
-    },
-    {
       "path": "tests/evidence/ui-revamp-v2/stage8/full-run-final.txt",
       "sha256": "ad486ebf8334c6ecf7ecc2042c8b360d3943ca0de564c04fcbbe0551237826fc",
       "review": "excluded",
@@ -13726,6 +12318,14 @@
     {
       "path": "tests/evidence/ui-revamp-v2/stage8/migration-notes.md",
       "sha256": "44466ffcd3408ba9a5a5a18d05eab68c1e033627f323ac3b07dd9cd5da8cd613",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage8/pr-verify.txt",
+      "sha256": "e19a0b4efebbcaef7c06bf75ca0339f70d02b55174b8a6fef0ebad25ef8d4b27",
       "review": "excluded",
       "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
       "tests": [],

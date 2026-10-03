@@ -1,0 +1,16 @@
+{
+  "name": "workspace-local-local-dark-390",
+  "at": "2026-10-03T09:14:45.534Z",
+  "checks": {
+    "type": "pass",
+    "contrast": "pass",
+    "raw-text": "pass",
+    "overflow": "pass",
+    "targets": "skip",
+    "hover": "skip",
+    "focus": "pass",
+    "alignment": "skip",
+    "plan-rail": "skip"
+  },
+  "violations": []
+}

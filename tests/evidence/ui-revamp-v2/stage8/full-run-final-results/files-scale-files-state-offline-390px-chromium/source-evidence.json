@@ -1,0 +1,15 @@
+{
+  "proof": "synthetic HTTP fixture; no live DB, file server, provider or Temporal",
+  "records": 2005,
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "node": "v22.23.3",
+  "at": "2026-10-03T18:43:36.909Z",
+  "sourceHashes": {
+    "frontend/src/components/workspace-parts.tsx": "d1c08900605b4f7dff03116020015d454aabe7a4b5c0f7554e99b1b8df939508",
+    "frontend/src/components/SectorWorkspace.tsx": "4d679495a43446f277f4e4c304d717584acd6568a49a97761b3db8ed82ffdccd",
+    "tests/frontend-e2e/files-scale.spec.ts": "342b732c36d705b551660b66708f8bf40832f6d252a202831ffe78dd6b936b13"
+  }
+}
