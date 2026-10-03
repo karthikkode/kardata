@@ -168,6 +168,10 @@ test('SL-05-empty-finished', async ({ page }) => {
 })
 
 test('SL-05-1000', async ({ page }) => {
+  // Nine growing table renders take 16s+ on a fast machine; slow CI
+  // runners need headroom (PR #37 triage). The counts stay exact;
+  // only the clock is relaxed.
+  test.setTimeout(90_000)
   await serveApi(page)
   await capture(
     page, 'SL-05', '1000',
@@ -176,7 +180,7 @@ test('SL-05-1000', async ({ page }) => {
       const more = page.getByRole('button', { name: 'Show more' })
       for (let shown = 200; shown <= 1000; shown += 100) {
         await more.click()
-        await expect(page.getByText(`Showing ${shown.toLocaleString('en-US')} of 1,240`)).toBeVisible()
+        await expect(page.getByText(`Showing ${shown.toLocaleString('en-US')} of 1,240`)).toBeVisible({ timeout: 15_000 })
       }
     },
     () => page.getByText('Showing 1,000 of 1,240').scrollIntoViewIfNeeded().then(() => undefined),

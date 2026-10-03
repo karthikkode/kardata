@@ -3637,4 +3637,11 @@ the two perf-budget tests (longtask 225ms vs 200ms cap,
 SL-05-1000 30s timeout) because CI runs Playwright's default
 parallel workers while every validated proof is sequential:
 load noise, not product. CI e2e pinned to `--workers=1` with
-the reason in the workflow comment; budgets untouched.
+the reason in the workflow comment; budgets untouched. (4) The
+sequential run failed two more: plan-timeline-dark (Theme menu
+clicked mid-hydration; shell remount detached it under the Dark
+click — fixed with a settled-workspace anchor wait, 10/10
+repeat runs green) and SL-05-1000 (nine growing renders take
+16.5s locally, over 30s on slow runners — fixed with a 90s
+per-test budget + 15s inner expects per the GC-04 precedent;
+counts unchanged).

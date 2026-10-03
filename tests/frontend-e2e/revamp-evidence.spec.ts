@@ -349,6 +349,10 @@ for (const dark of [false, true]) {
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data }) })
     })
     await page.goto(`/?section=SectorChat&sector=${sectorId}`)
+    // Settle the workspace before touching the theme menu: clicking it
+    // mid-hydration lets a shell remount detach the open menu under the
+    // Dark click (CI timeout, PR #37 triage).
+    await expect(page.getByRole('heading', { name: 'Research', exact: true })).toBeVisible()
     if (dark) {
       await page.getByRole('button', { name: 'Theme' }).click()
       await page.getByRole('menuitemradio', { name: 'Dark' }).click()
