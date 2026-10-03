@@ -39,7 +39,11 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
         working-directory: frontend
-      - run: npm run test:e2e
+      # Sequential: the suite's perf budgets (200ms longtask cap,
+      # 1000-row paging inside 30s) are validated on an unloaded
+      # machine; parallel workers on shared runners break them with
+      # load noise, not product regressions (PR #37 triage).
+      - run: npm run test:e2e -- --workers=1
       - uses: actions/upload-artifact@v4
         if: always()
         with:

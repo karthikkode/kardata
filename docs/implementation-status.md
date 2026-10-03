@@ -3616,3 +3616,25 @@ run (stale workers dying on Meta's 402 for the token-count
 endpoint): failed karbot.turn logs now carry errorDetail
 (included in the stage 8 commit); containers rebuilt and a
 live Meta send verified ok (10s, 1 turn).
+
+PR #37 CI triage (2026-10-04, branch ui-revamp-v2): three red
+jobs, all fixed on the correct side. (1) `verify` + first
+`integration` failed in the hardening catalogue test: it
+asserts catalogue == `git ls-files --cached --others`, but the
+regen had baked in 941 untracked evidence files, so CI's clean
+checkout mismatched. Fixed by tracking the 765 text evidence
+files, ignoring `tests/evidence/**/*.zip` (483M of Playwright
+trace archives), and re-running the sanctioned regens; local
+untracked-scannable count is now zero so every worktree scans
+identically. (2) `integration` then failed on files-db.spec
+(unmigrated: it skips without TEST_DATABASE_URL, so the stage-8
+migration never saw it fail). Migrated to the v2 files rail
+(opener + drawer scoping, first-of-two Upload buttons, Download
+menu Original file item, exact-filename preview heading) and
+verified green against a scratch PG DB; agent-context-db passes
+unmodified (Karbot contracts unchanged). (3) `e2e` failed only
+the two perf-budget tests (longtask 225ms vs 200ms cap,
+SL-05-1000 30s timeout) because CI runs Playwright's default
+parallel workers while every validated proof is sequential:
+load noise, not product. CI e2e pinned to `--workers=1` with
+the reason in the workflow comment; budgets untouched.
