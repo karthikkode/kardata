@@ -80,6 +80,42 @@ is [the repo-hardening plan](plans/2026-09-30-repo-hardening.md).
   intercepts `/v1/*` responses. It proves browser rendering and interaction,
   not provider, Temporal, or database connectivity. Live stack checks remain
   separate and must be stated explicitly when skipped.
+- UI revamp v2 specs live in `tests/frontend-e2e/v2/` (one spec per page
+  plus `primitives`, `motion`, and `audit`) and run on owned port 15174:
+  `cd frontend && CHOKIDAR_USEPOLLING=1 KARDATA_E2E_PORT=15174 npx
+  playwright test v2/`. Never run v2 specs against the owner's 5173/5174
+  servers.
+
+## Browser support helpers (v2)
+
+One shared kit in `tests/frontend-e2e/support/`; specs compose it, never
+hand-roll routes or screenshots:
+
+- `fixtures.ts`: one deterministic dataset (8 sectors across all states,
+  2,000 seeded companies, sessions/threads/messages, plans, progress,
+  global context, files, subagents, alerts, runs, providers). Realistic
+  invented names only, never "TEST".
+- `api.ts`: `serveApi(page, overrides?)` intercepts `**/v1/**` with
+  `{ ok: true, data }` envelopes from fixtures; state flags `loading`
+  (delay), `error` (500), `denied` (403), `offline` (abort), `empty`.
+  SSE streams expose a `pushFrame(page, frame)` hook for live-turn
+  scenarios.
+- `shot.ts`: `shot(page, id, state, { widths, themes, anchors })`
+  captures `<ID>-<state>-<theme>-<width>.png` per theme/width (default
+  light/dark x 1440/390) under `frontend/test-results/v2/`, waiting for
+  fonts and network idle with anchors asserted first and animations
+  disabled. `capture.ts` wraps multi-state page captures.
+- `audit.ts`: `auditPage(page)` runs the automated style audit
+  (weights, sizes, overflow, names/targets, contrast, hover geometry,
+  raw-text guard, focus rings, shell alignment, plan-rail clearance)
+  and `writeAuditReport` stores per-page JSON under
+  `frontend/test-results/v2/audit/`; `audit.spec.ts` fails on any
+  violation. `color.ts` holds the contrast math.
+- Playwright wipes `frontend/test-results/` at the start of every run:
+  chain the archive into the same command
+  (`... ; cp test-results/v2/*.png tests/evidence/<area>/`), review
+  from `tests/evidence/`, and never expect two invocations' outputs to
+  both survive.
 
 ## What never counts as verification
 

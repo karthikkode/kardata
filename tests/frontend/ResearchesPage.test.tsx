@@ -1,11 +1,14 @@
-// ResearchesPage proofs. Bundles are backend-shaped rows built inline for
-// rendering: filtering, overflow totals, and tab switches run against the
-// component contract, never a mock origin.
-import { fireEvent, render, screen } from '@testing-library/react'
+// ResearchesPage proofs (RS-02..06). Tabs carry counts; one toolbar
+// drives both tables; company filtering runs server-side with truthful
+// window totals. A URL harness stands in for App navigation state.
+import { fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { useState } from 'react'
 import type { ResearchList } from '@/components/Dashboard'
-import { ResearchesPage } from '@/components/ResearchesPage'
+import { ResearchesPage, type StateFilter } from '@/components/ResearchesPage'
 import type {
+  CompanyResearch,
   ResearchData,
   SectorResearch,
 } from '@/data/research'
@@ -19,10 +22,10 @@ afterEach(() => {
 })
 
 const SECTORS: SectorResearch[] = [
-  { id: 'seed-pet-care', name: 'Pet care', topic: 'D2C pet brands', companiesFound: 2, state: 'running' },
-  { id: 'seed-espresso', name: 'Espresso gear', topic: 'Home brewers', companiesFound: 1, state: 'complete' },
-  { id: 'seed-outdoor', name: 'Outdoor gear', topic: 'Trail equipment', companiesFound: 0, state: 'queued' },
-  { id: 'seed-hifi', name: 'Vintage hi-fi', topic: 'Used receivers', companiesFound: 0, state: 'failed' },
+  { id: 'seed-pet-care', name: 'Pet care', topic: 'D2C pet brands', companiesFound: 2, state: 'running', createdAt: '2026-09-01T09:00:00', updatedAt: '2026-09-30T10:00:00' },
+  { id: 'seed-espresso', name: 'Espresso gear', topic: 'Home brewers', companiesFound: 1, state: 'complete', createdAt: '2026-09-02T09:00:00', updatedAt: '2026-09-28T10:00:00' },
+  { id: 'seed-outdoor', name: 'Outdoor gear', topic: 'Trail equipment', companiesFound: 0, state: 'queued', createdAt: '2026-09-03T09:00:00', updatedAt: '2026-09-29T10:00:00' },
+  { id: 'seed-hifi', name: 'Vintage hi-fi', topic: 'Used receivers', companiesFound: 0, state: 'failed', createdAt: '2026-09-04T09:00:00', updatedAt: '2026-09-27T10:00:00' },
 ]
 
 const COMPANIES: CompanyResearch[] = [
@@ -30,12 +33,15 @@ const COMPANIES: CompanyResearch[] = [
 ]
 
 function overflowSectors(): SectorResearch[] {
+  // Distinct days, newest last: default Updated-desc shows sector 60 first.
   return Array.from({ length: 60 }, (_, index) => ({
     id: `overflow-${index + 1}`,
     name: `Overflow sector ${index + 1}`,
     topic: 'Bulk rows',
     companiesFound: 0,
     state: 'queued' as const,
+    createdAt: '2026-08-01T09:00:00',
+    updatedAt: new Date(2026, 7, 1 + index, 10).toISOString(),
   }))
 }
 
@@ -45,8 +51,7 @@ function bundle<T>(items: T[]): ResearchData<T> {
 
 /** Stubbed server for the companies tab: filters + pages like the backend
  * (query/state/limit/offset params in, {companies, total} out). */
-function stubCompaniesTab(rows: typeof COMPANIES = COMPANIES): void {
-  const all = rows
+function stubCompaniesTab(rows: CompanyResearch[] = COMPANIES): void {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => {
@@ -57,7 +62,7 @@ function stubCompaniesTab(rows: typeof COMPANIES = COMPANIES): void {
         const state = query.searchParams.get('state')
         const limit = Number(query.searchParams.get('limit') ?? '100')
         const offset = Number(query.searchParams.get('offset') ?? '0')
-        const filtered = all.filter(
+        const filtered = rows.filter(
           (row) =>
             (needle === '' || `${row.name} ${row.sectorName}`.toLowerCase().includes(needle)) &&
             (state === null || row.state === state),
@@ -73,73 +78,232 @@ function stubCompaniesTab(rows: typeof COMPANIES = COMPANIES): void {
 function renderPage(
   props: {
     initialTab?: ResearchList
-    sectors?: SectorResearch[]
-    onBack?: () => void
+    sectors?: ResearchData<SectorResearch>
+    companiesTotal?: number
+    withStaging?: boolean
+    filterQuery?: string | null
+    stateFilter?: string | null
+    onTabChange?: (tab: ResearchList) => void
+    onFiltersChange?: (query: string, state: StateFilter) => void
     onOpenSector?: (id: string) => void
-    onCreateSector?: (name: string, topic: string) => void
-    createError?: string | null
+    onNewSector?: () => void
   } = {},
 ) {
   const {
     initialTab = 'sectors',
-    sectors = SECTORS,
-    onBack = noop,
+    sectors = bundle(SECTORS),
+    companiesTotal = COMPANIES.length,
+    withStaging = false,
+    filterQuery = null,
+    stateFilter = null,
+    onTabChange = noop,
+    onFiltersChange,
     onOpenSector = noop,
-    onCreateSector = noop,
-    createError = null,
+    onNewSector = noop,
   } = props
-  return render(
-    <ResearchesPage
-      initialTab={initialTab}
-      sectors={bundle(sectors)}
-      staging={staging}
-      creating={false}
-      createError={createError}
-      onBack={onBack}
-      onOpenSector={onOpenSector}
-      onCreateSector={onCreateSector}
-    />,
-  )
+  // URL harness: without an explicit listener the page behaves like App,
+  // writing debounced filters back into its own props.
+  function Harness() {
+    const [query, setQuery] = useState<string | null>(filterQuery)
+    const [state, setState] = useState<string | null>(stateFilter)
+    return (
+      <ResearchesPage
+        initialTab={initialTab}
+        sectors={sectors}
+        companiesTotal={companiesTotal}
+        staging={withStaging ? staging : null}
+        filterQuery={query}
+        stateFilter={state}
+        onTabChange={onTabChange}
+        onFiltersChange={(nextQuery, nextState) => {
+          setQuery(nextQuery === '' ? null : nextQuery)
+          setState(nextState === 'all' ? null : nextState)
+          onFiltersChange?.(nextQuery, nextState)
+        }}
+        onOpenSector={onOpenSector}
+        onNewSector={onNewSector}
+      />
+    )
+  }
+  return render(<Harness />)
 }
 
-describe('ResearchesPage', () => {
-  it('shows the full list with a truthful total past fifty rows', () => {
-    renderPage({ sectors: overflowSectors() })
-    expect(
-      screen.getByRole('region', { name: 'All sector researches' }),
-    ).toHaveTextContent(/60.*total/)
-    expect(screen.getByText('Overflow sector 60')).toBeInTheDocument()
-  })
+function sectorsTable(): HTMLElement {
+  return screen.getByRole('table', { name: 'Sectors' })
+}
 
-  it('starts on the requested segment', async () => {
+describe('ResearchesPage tabs', () => {
+  it('tabs carry tabular counts and switch without losing the toolbar', async () => {
     stubCompaniesTab()
-    renderPage({ initialTab: 'companies' })
-    expect(
-      screen.getByRole('region', { name: 'All company researches' }),
-    ).toBeInTheDocument()
+    const onTabChange = vi.fn()
+    renderPage({ withStaging: true, onTabChange })
+    expect(screen.getByRole('tab', { name: 'Sectors 4' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Companies 1' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Companies 1' }))
+    expect(onTabChange).toHaveBeenCalledWith('companies')
     expect(await screen.findByText('West Paw')).toBeInTheDocument()
+    expect(screen.getByLabelText('Search companies')).toBeInTheDocument()
+    expect(screen.queryByRole('table', { name: 'Sectors' })).not.toBeInTheDocument()
   })
 
-  it('switches segments', async () => {
-    stubCompaniesTab()
+  it('explains a refused companies key without plural grammar slips', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: false, status: 403, json: async () => ({ ok: false, error: { code: 'permission_denied', message: 'no' } }) })),
+    )
+    renderPage({ initialTab: 'companies', withStaging: true })
+    expect(await screen.findByText('Access denied')).toBeInTheDocument()
+    expect(await screen.findByText('Company data is not shared with this key. Ask an owner for access, then try again.')).toBeInTheDocument()
+  })
+})
+
+describe('ResearchesPage sectors table', () => {
+  it('sorts by updated desc by default and re-sorts by column', () => {
     renderPage()
+    const table = sectorsTable()
+    const order = () => (table.textContent ?? '')
+    // Pet care (30 Sep) before Outdoor gear (29 Sep) before Espresso (28 Sep).
+    expect(order().indexOf('Pet care')).toBeLessThan(order().indexOf('Outdoor gear'))
+    expect(order().indexOf('Outdoor gear')).toBeLessThan(order().indexOf('Espresso gear'))
+    expect(
+      within(table).getByRole('columnheader', { name: /Updated/ }),
+    ).toHaveAttribute('aria-sort', 'descending')
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by Sector' }))
+    const sorted = order()
+    expect(sorted.indexOf('Espresso gear')).toBeLessThan(sorted.indexOf('Outdoor gear'))
+    expect(sorted.indexOf('Outdoor gear')).toBeLessThan(sorted.indexOf('Pet care'))
+  })
+
+  it('opens the sector from a row click or Enter', () => {
+    const onOpenSector = vi.fn()
+    renderPage({ onOpenSector })
+    const table = sectorsTable()
+    const rows = within(table).getAllByRole('link')
+    fireEvent.click(rows[0])
+    expect(onOpenSector).toHaveBeenCalledWith('seed-pet-care')
+    fireEvent.keyDown(rows[1], { key: 'Enter' })
+    expect(onOpenSector).toHaveBeenCalledWith('seed-outdoor')
+  })
+
+  it('shows status badges, tabular counts, and full-date tooltips', () => {
+    renderPage()
+    const table = sectorsTable()
+    expect(within(table).getByText('In progress')).toBeInTheDocument()
+    expect(within(table).getByTitle('30 Sep 2026, 10:00')).toHaveTextContent(/ago|Just now/)
+  })
+
+  it('pages client-side past fifty rows with truthful counts', () => {
+    renderPage({ sectors: bundle(overflowSectors()) })
+    expect(screen.getByText('Overflow sector 60')).toBeInTheDocument()
+    expect(screen.queryByText('Overflow sector 1')).not.toBeInTheDocument()
+    expect(screen.getByText('Showing 50 of 60')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    expect(screen.getByText('Overflow sector 1')).toBeInTheDocument()
+    expect(screen.getByText('Showing 60 of 60')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument()
+  })
+})
+
+describe('ResearchesPage toolbar', () => {
+  it('labels the status trigger and lists every state', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    expect(screen.getByRole('combobox', { name: 'Status: All' })).toHaveTextContent('Status: All')
+    await user.click(screen.getByRole('combobox', { name: 'Status: All' }))
+    for (const label of ['All', 'Planning', 'Planned', 'Approved', 'In progress', 'Failed']) {
+      expect(await screen.findByRole('option', { name: label })).toBeInTheDocument()
+    }
+  })
+
+  it('filters sectors by text then state, and clears back to everything', async () => {
+    const user = userEvent.setup()
+    const onFiltersChange = vi.fn()
+    renderPage({ onFiltersChange })
+    fireEvent.change(screen.getByLabelText('Search sectors'), { target: { value: 'outdoor' } })
+    expect(await screen.findByText('1 sector')).toBeInTheDocument()
+    expect(screen.getByText('Outdoor gear')).toBeInTheDocument()
+    expect(screen.queryByText('Pet care')).not.toBeInTheDocument()
+    expect(onFiltersChange).toHaveBeenCalledWith('outdoor', 'all')
+    await user.click(screen.getByRole('combobox', { name: 'Status: All' }))
+    await user.click(await screen.findByRole('option', { name: 'Failed' }))
+    expect(await screen.findByText('No matching sectors.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(await screen.findByText('4 sectors')).toBeInTheDocument()
     expect(screen.getByText('Pet care')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Companies' }))
-    expect(await screen.findByText('West Paw')).toBeInTheDocument()
-    expect(screen.queryByText('Pet care', { exact: true })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Search sectors')).toHaveValue('')
   })
 
-  it('filters companies server-side with a truthful total', async () => {
+  it('announces result counts politely', () => {
+    renderPage()
+    const count = screen.getByText('4 sectors')
+    expect(count).toHaveAttribute('aria-live', 'polite')
+  })
+
+  it('falls back to All for an unknown state filter', () => {
+    renderPage({ stateFilter: 'mystery' })
+    expect(screen.getByRole('combobox', { name: 'Status: All' })).toBeInTheDocument()
+    expect(screen.getByText('Pet care')).toBeInTheDocument()
+  })
+})
+
+describe('ResearchesPage sectors states', () => {
+  it('shows skeleton rows while loading', () => {
+    renderPage({ sectors: { status: 'loading', items: [], total: 0, retry: noop } })
+    expect(screen.getByRole('status', { name: 'Sectors are loading' })).toBeInTheDocument()
+  })
+
+  it('offers New sector on first run', () => {
+    const onNewSector = vi.fn()
+    renderPage({ sectors: bundle([]), onNewSector })
+    expect(screen.getByText('No sectors yet')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'New sector' }))
+    expect(onNewSector).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries errors without developer copy', () => {
+    const retry = vi.fn()
+    const view = renderPage({ sectors: { status: 'error', items: [], total: 0, retry } })
+    expect(screen.getByText('Sectors did not load.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(retry).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText(/frontend\/\.env/)).not.toBeInTheDocument()
+    view.unmount()
+    renderPage({ sectors: { status: 'denied', items: [], total: 0, retry: noop } })
+    expect(screen.getByText('Access denied')).toBeInTheDocument()
+  })
+})
+
+describe('ResearchesPage companies table', () => {
+  it('renders stage labels with step indicators and one badge per row', async () => {
     stubCompaniesTab()
-    renderPage({ initialTab: 'companies' })
+    renderPage({ initialTab: 'companies', withStaging: true })
     expect(await screen.findByText('West Paw')).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Filter researches'), {
-      target: { value: 'no-such-company' },
-    })
-    expect(await screen.findByText(/No researches match these filters/)).toBeInTheDocument()
+    expect(screen.getByText('Final validation')).toBeInTheDocument()
+    expect(screen.getByLabelText('Stage 4 of 4: Final validation')).toBeInTheDocument()
+    const row = screen.getByText('West Paw').closest('[role="link"]') as HTMLElement
+    expect(within(row).getAllByText('In progress')).toHaveLength(1)
+    // Single row link: the sector renders as text, never a nested link.
+    expect(within(row).queryByRole('link')).not.toBeInTheDocument()
+    expect(row.querySelector('a')).toBeNull()
   })
 
-  it('pages through windows with Show more until the total is reached', async () => {
+  it('opens the owning sector from a company row', async () => {
+    stubCompaniesTab()
+    const onOpenSector = vi.fn()
+    renderPage({ initialTab: 'companies', withStaging: true, onOpenSector })
+    fireEvent.click((await screen.findByText('West Paw')).closest('[role="link"]') as HTMLElement)
+    expect(onOpenSector).toHaveBeenCalledWith('seed-pet-care')
+  })
+
+  it('filters server-side with a truthful total', async () => {
+    stubCompaniesTab()
+    renderPage({ initialTab: 'companies', withStaging: true })
+    expect(await screen.findByText('West Paw')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Search companies'), { target: { value: 'no-such-company' } })
+    expect(await screen.findByText('No matching companies.')).toBeInTheDocument()
+  })
+
+  it('pages through windows until the total is reached', async () => {
     const bulk = Array.from({ length: 250 }, (_, index) => ({
       id: `bulk-${index + 1}`,
       sectorId: 'seed-pet-care',
@@ -149,106 +313,59 @@ describe('ResearchesPage', () => {
       state: 'running' as const,
     }))
     stubCompaniesTab(bulk)
-    renderPage({ initialTab: 'companies' })
+    renderPage({ initialTab: 'companies', withStaging: true, companiesTotal: 250 })
     expect(await screen.findByText('Bulk company 100')).toBeInTheDocument()
     expect(screen.queryByText('Bulk company 101')).not.toBeInTheDocument()
-    expect(screen.getByText('Showing 100 of 250 matching')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Show more/ }))
+    expect(screen.getByText('Showing 100 of 250')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
     expect(await screen.findByText('Bulk company 200')).toBeInTheDocument()
-    expect(screen.getByText('Showing 200 of 250 matching')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Show more/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
     expect(await screen.findByText('Bulk company 250')).toBeInTheDocument()
-    expect(screen.getByText('Showing 250 of 250 matching')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Show more/ })).not.toBeInTheDocument()
+    expect(screen.getByText('Showing 250 of 250')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument()
   })
 
-  it('filters by state and clears back to everything', () => {
-    renderPage()
-    expect(screen.getByText('Pet care')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Failed' }))
-    expect(screen.getByText('Vintage hi-fi')).toBeInTheDocument()
-    expect(screen.queryByText('Pet care')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Paused' }))
-    expect(
-      screen.getByText(/No researches match these filters/),
-    ).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
-    expect(screen.getByText('Pet care')).toBeInTheDocument()
-  })
-
-  it('filters by text', () => {
-    renderPage()
-    fireEvent.change(screen.getByLabelText('Filter researches'), {
-      target: { value: 'outdoor' },
-    })
-    expect(screen.getByText('Outdoor gear')).toBeInTheDocument()
-    expect(screen.queryByText('Pet care')).not.toBeInTheDocument()
-    expect(screen.getByText('Showing 1 of 1 matching')).toBeInTheDocument()
-  })
-
-  it('counts the filtered total past fifty rows, not the base list', () => {
-    renderPage({ sectors: overflowSectors() })
-    fireEvent.change(screen.getByLabelText('Filter researches'), {
-      target: { value: 'Overflow sector 5' },
-    })
-    expect(screen.getByText(/of 11 matching/)).toBeInTheDocument()
-  })
-
-  it('goes back to Overview', () => {
-    const onBack = vi.fn()
-    renderPage({ onBack })
-    fireEvent.click(screen.getByRole('button', { name: 'Back to Overview' }))
-    expect(onBack).toHaveBeenCalledTimes(1)
-  })
-
-  it('creates a sector draft from the sectors tab', () => {
-    const onCreateSector = vi.fn()
-    renderPage({ onCreateSector })
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Speciality foods' } })
-    fireEvent.change(screen.getByLabelText('Topic (optional)'), { target: { value: 'Artisanal' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create draft' }))
-    expect(onCreateSector).toHaveBeenCalledWith('Speciality foods', 'Artisanal')
-  })
-
-  it('requires a name before creating', () => {
-    const onCreateSector = vi.fn()
-    renderPage({ onCreateSector })
-    fireEvent.click(screen.getByRole('button', { name: 'Create draft' }))
-    expect(screen.getByRole('alert')).toHaveTextContent('Name the sector first.')
-    expect(onCreateSector).not.toHaveBeenCalled()
-  })
-
-  it('surfaces a failed create instead of staying silent', () => {
-    renderPage({ createError: 'request failed: POST /v1/sectors' })
-    expect(screen.getByRole('alert')).toHaveTextContent('request failed: POST /v1/sectors')
-  })
-
-  it('shows loading and error states from the bundle', () => {
-    const loading: ResearchData<SectorResearch> = { status: 'loading', items: [], total: 0, retry: noop }
-    const failed: ResearchData<SectorResearch> = { status: 'error', items: [], total: 0, retry: noop }
-    const { rerender } = render(
-      <ResearchesPage
-        initialTab="sectors"
-        sectors={loading}
-        staging={staging}
-        creating={false}
-        onBack={noop}
-        onOpenSector={noop}
-        onCreateSector={noop}
-      />,
+  it('recovers from a failed window with Try again', async () => {
+    let calls = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const text = String(url)
+        if (!text.includes('/v1/companies')) {
+          return { ok: false, status: 404, json: async () => ({ ok: false, error: { code: 'not_found', message: 'no' } }) }
+        }
+        const params = new URL(text, 'https://stub.test').searchParams
+        const offset = Number(params.get('offset') ?? '0')
+        calls += 1
+        if (offset > 0 && calls === 2) {
+          return { ok: false, status: 500, json: async () => ({ ok: false, error: { code: 'overload', message: 'down' } }) }
+        }
+        const window = Array.from({ length: 100 }, (_, index) => ({
+          id: `more-${offset + index + 1}`,
+          sectorId: 'seed-pet-care',
+          sectorName: 'Pet care',
+          name: `More company ${offset + index + 1}`,
+          stage: 'Filter',
+          state: 'running',
+        }))
+        return { ok: true, status: 200, json: async () => ({ ok: true, data: { companies: window, total: 200 } }) }
+      }),
     )
-    expect(screen.getByRole('status', { name: 'Sector researches are loading' })).toBeInTheDocument()
-    rerender(
-      <ResearchesPage
-        initialTab="sectors"
-        sectors={failed}
-        staging={staging}
-        creating={false}
-        onBack={noop}
-        onOpenSector={noop}
-        onCreateSector={noop}
-      />,
-    )
-    expect(screen.getByText('Sector researches did not load.')).toBeInTheDocument()
+    renderPage({ initialTab: 'companies', withStaging: true, companiesTotal: 200 })
+    expect(await screen.findByText('More company 100')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    expect(await screen.findByText('More companies did not load.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText('More company 200')).toBeInTheDocument()
+    expect(screen.getByText('Showing 200 of 200')).toBeInTheDocument()
+  })
+
+  it('offers New sector on first run', async () => {
+    stubCompaniesTab([])
+    const onNewSector = vi.fn()
+    renderPage({ initialTab: 'companies', withStaging: true, companiesTotal: 0, onNewSector })
+    expect(await screen.findByText('No companies yet')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'New sector' }))
+    expect(onNewSector).toHaveBeenCalledTimes(1)
   })
 })

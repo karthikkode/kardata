@@ -50,7 +50,7 @@ test.describe('pilot-01 live UI walk', () => {
 
     await mark('researches-first-paint', async () => {
       await page.goto('/?section=Researches')
-      await expect(page.getByRole('heading', { name: 'Researches' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Researches', exact: true })).toBeVisible()
     })
     await page.screenshot({ path: `${EVIDENCE}/01-researches.png` })
 
@@ -74,9 +74,11 @@ test.describe('pilot-01 live UI walk', () => {
 
     // Touched-surface rigor: the strip in dark theme, then back to light
     // so the rest of the journey keeps its light baseline.
-    await page.getByRole('button', { name: 'Switch to dark theme' }).click()
+    await page.getByRole('button', { name: 'Theme' }).click()
+    await page.getByRole('menuitemradio', { name: 'Dark' }).click()
     await page.screenshot({ path: `${EVIDENCE}/03b-sector-detail-dark.png` })
-    await page.getByRole('button', { name: 'Switch to light theme' }).click()
+    await page.getByRole('button', { name: 'Theme' }).click()
+    await page.getByRole('menuitemradio', { name: 'Light' }).click()
 
     // The pilot fix under test: a draft can start, go running, and pause
     // again — all through the UI against the live stack.

@@ -104,7 +104,7 @@ describe('chat staging (no mocks)', () => {
       return baseHandler(url)
     })
     render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
-    const box = (await screen.findByLabelText('Message the agent')) as HTMLInputElement
+    const box = (await screen.findByLabelText('Message the agent')) as HTMLTextAreaElement
     fireEvent.change(box, { target: { value: '/br' } })
     expect(await screen.findByRole('listbox', { name: 'Invoke a skill' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: '/brainstorm Open product discussion' })).toBeInTheDocument()
@@ -123,13 +123,17 @@ describe('chat staging (no mocks)', () => {
     const send = calls.find((call) => call.url.endsWith('/v1/commands/send'))
     expect(send?.method).toBe('POST')
     expect(send?.body).toBe(JSON.stringify({ threadKey: 's-1', text: 'hello server' }))
-    // Rejected send: the optimistic echo stays hidden and the retry box
-    // shows instead (the text is kept for Try again, not rendered).
-    expect(await screen.findByText('That did not go through. Try again.')).toBeInTheDocument()
-    expect(screen.queryByText('hello server')).not.toBeInTheDocument()
+    // Rejected send: the optimistic echo stays hidden, the failure
+    // notice shows, and the draft is restored for editing (Retry reuses
+    // the pending payload).
+    expect(await screen.findByText('The request failed.')).toBeInTheDocument()
+    expect(within(screen.getByRole('log', { name: 'Chat messages' })).queryByText('hello server')).not.toBeInTheDocument()
+    const restored = (await screen.findByLabelText('Message the agent')) as HTMLTextAreaElement
+    expect(restored).toHaveValue('hello server')
     await vi.waitFor(() => {
       expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled()
     })
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
   })
 
   it('shows offline copy and fires no request when the browser is offline', async () => {
@@ -140,7 +144,7 @@ describe('chat staging (no mocks)', () => {
       const box = await screen.findByLabelText('Message the agent')
       fireEvent.change(box, { target: { value: 'hello offline' } })
       fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
-      expect(await screen.findByText('No connection. Try again.')).toBeInTheDocument()
+      expect(await screen.findByText('No connection.')).toBeInTheDocument()
       expect(calls.some((call) => call.url.endsWith('/v1/commands/send'))).toBe(false)
       expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled()
     } finally {
@@ -158,11 +162,11 @@ describe('chat staging (no mocks)', () => {
         return baseHandler(url)
       })
       render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
-      expect(await screen.findByPlaceholderText('Ask anything')).toBeInTheDocument()
+      expect(await screen.findByPlaceholderText('Ask Karbot...')).toBeInTheDocument()
       const box = screen.getByLabelText('Message the agent')
       fireEvent.change(box, { target: { value: 'offline first' } })
       fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
-      expect(await screen.findByText('No connection. Try again.')).toBeInTheDocument()
+      expect(await screen.findByText('No connection.')).toBeInTheDocument()
       expect(calls.some((call) => call.method === 'POST')).toBe(false)
     } finally {
       online.mockRestore()
@@ -187,7 +191,7 @@ describe('chat staging (no mocks)', () => {
       return baseHandler(url)
     })
     render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
-    expect(await screen.findByPlaceholderText('Ask anything')).toBeInTheDocument()
+    expect(await screen.findByPlaceholderText('Ask Karbot...')).toBeInTheDocument()
     const box = screen.getByLabelText('Message the agent')
     fireEvent.change(box, { target: { value: 'first question' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
@@ -311,11 +315,11 @@ describe('chat staging (no mocks)', () => {
     expect(await screen.findByLabelText('Agent is replying')).toBeInTheDocument()
     // Three dead reconnects, then the wait ends with a visible failure
     // (and the sent text restored for retry) instead of an eternal Replying.
-    expect(await screen.findByRole('alert', undefined, { timeout: 15000 })).toHaveTextContent('That did not go through. Try again.')
+    expect(await screen.findByRole('alert', undefined, { timeout: 15000 })).toHaveTextContent('The reply never arrived.')
     await vi.waitFor(() => expect(screen.queryByLabelText('Agent is replying')).not.toBeInTheDocument())
     const alertBox = screen.getByRole('alert').parentElement
     if (!alertBox) throw new Error('send-failure box missing')
-    expect(within(alertBox).getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+    expect(within(alertBox).getByRole('button', { name: 'Retry' })).toBeInTheDocument()
   })
 
   it('keeps streamed tool identity and state instead of nameless running rows', () => {
@@ -346,9 +350,7 @@ describe('chat staging (no mocks)', () => {
     render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
     await vi.waitFor(() => expect(push).toBeDefined())
     push!({ seq: 1, threadKey: 's-1', type: 'tool', at: '', payload: { runKey: 'r:1', id: 'c1', name: 'db.list_sectors', state: 'running' } })
-    expect(await screen.findByText('Activity')).toBeInTheDocument()
-    expect(screen.getByText('Running')).toBeInTheDocument()
-    expect(screen.getByText('List sectors')).toBeInTheDocument()
+    expect(await screen.findByText('Using Listed sectors...')).toBeInTheDocument()
     expect(screen.queryByText('There are no sectors yet.')).not.toBeInTheDocument()
   })
 
@@ -405,8 +407,7 @@ describe('chat staging (no mocks)', () => {
     render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
     await vi.waitFor(() => expect(push).toBeDefined())
     push!({ seq: 1, threadKey: 's-1', type: 'tool', at: '', payload: { runKey: 'r:1', id: 'c1', name: 'db.list_sectors', state: 'running' } })
-    expect(await screen.findByText('Running')).toBeInTheDocument()
-    expect(screen.getByText(/· 0s/)).toBeInTheDocument()
+    expect(await screen.findByText('Using Listed sectors...')).toBeInTheDocument()
   })
 
   it('groups consecutive tool calls into one collapsible block', async () => {
@@ -428,16 +429,16 @@ describe('chat staging (no mocks)', () => {
       return baseHandler(url)
     })
     render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
-    expect(await screen.findByText('Scan, List sessions')).toBeInTheDocument()
+    expect(await screen.findByText('Used 2 tools')).toBeInTheDocument()
     expect(screen.queryByText('Scan')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Show Scan, List sessions' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show tool activity' }))
     expect(screen.getByText('Scan')).toBeInTheDocument()
-    expect(screen.getByText('List sessions')).toBeInTheDocument()
+    expect(screen.getByText('Listed sessions')).toBeInTheDocument()
     // Chronological order is preserved: tools sit between the user
     // message and the reply, not trailing at the bottom.
     const rows = screen.getByRole('log', { name: 'Chat messages' }).textContent ?? ''
-    expect(rows.indexOf('scan it') < rows.indexOf('Scan, List sessions')).toBe(true)
-    expect(rows.indexOf('Scan, List sessions') < rows.indexOf('found two')).toBe(true)
+    expect(rows.indexOf('scan it') < rows.indexOf('Used 2 tools')).toBe(true)
+    expect(rows.indexOf('Used 2 tools') < rows.indexOf('found two')).toBe(true)
   })
 
   it('renders persisted thinking traces in a collapsible block', async () => {
@@ -457,7 +458,7 @@ describe('chat staging (no mocks)', () => {
     })
     render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
     expect(await screen.findByText('done here')).toBeInTheDocument()
-    const activity = screen.getByRole('button', { name: 'Show Reasoning' })
+    const activity = screen.getByRole('button', { name: 'Show reasoning' })
     fireEvent.click(activity)
     expect(screen.getByText('weighing options')).toBeInTheDocument()
   })
@@ -481,9 +482,11 @@ describe('chat staging (no mocks)', () => {
       return baseHandler(url)
     })
     render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
-    expect(await screen.findByText('Reasoning')).toBeInTheDocument()
+    expect(await screen.findByText('Thinking')).toBeInTheDocument()
+    expect(screen.queryByText('thinking it')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show live reasoning' }))
     expect(screen.getByText('thinking it')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Hide Reasoning' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Hide live reasoning' })).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('renders streamed agent messages and pending deltas', async () => {
@@ -577,10 +580,12 @@ describe('chat staging (no mocks)', () => {
       return baseHandler(url)
     })
     render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete Server chat' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'More actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }))
     // Arm, not fire: no request until confirmed.
     expect(calls.some((call) => call.method === 'DELETE')).toBe(false)
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
+    expect(await screen.findByRole('alertdialog', { name: 'Delete "Server chat"?' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete conversation' }))
     await vi.waitFor(() => {
       expect(calls.some((call) => call.method === 'DELETE' && call.url.includes('/v1/sessions/s-1'))).toBe(true)
     })
@@ -603,7 +608,8 @@ describe('chat staging (no mocks)', () => {
     fireEvent.click(within(menu).getByRole('button', { name: 'Delete Server chat' }))
     // Arm, not fire: no request until the row confirm.
     expect(calls.some((call) => call.method === 'DELETE')).toBe(false)
-    fireEvent.click(within(menu).getByRole('button', { name: 'Confirm delete Server chat' }))
+    expect(await screen.findByRole('alertdialog', { name: 'Delete "Server chat"?' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete conversation' }))
     await vi.waitFor(() => {
       expect(calls.some((call) => call.method === 'DELETE' && call.url.includes('/v1/sessions/s-1'))).toBe(true)
     })
@@ -626,6 +632,31 @@ describe('chat staging (no mocks)', () => {
     expect(await screen.findByText('Server chat')).toBeInTheDocument()
   })
 
+  it('explains a missing backend connection with a reload action', () => {
+    render(<ChatPanel config={null} scope={null} contextSummary={null} onClose={() => undefined} />)
+    expect(screen.getByText('Chat needs a backend connection.')).toBeInTheDocument()
+    expect(screen.getByText('Set the staging API URL and key, then reload.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument()
+  })
+
+  it('shows the scoped context popover for a sector-linked chat', async () => {
+    stubApi((url) => baseHandler(url))
+    render(
+      <ChatPanel
+        config={config}
+        scope={{ id: 'sector-1', name: 'Seed sector' }}
+        contextSummary="Seed sector · 4 found · Running"
+        contextDetails={[{ label: 'Sector', value: 'Seed sector' }]}
+        onClose={() => undefined}
+      />,
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Context' }))
+    expect(await screen.findByRole('region', { name: 'Chat context' })).toBeInTheDocument()
+    expect(screen.getByText('What this chat knows')).toBeInTheDocument()
+    expect(screen.getByText('Seed sector · 4 found · Running')).toBeInTheDocument()
+    expect(screen.getByText('Sector')).toBeInTheDocument()
+  })
+
   it('renames the session through the rename command', async () => {
     const { calls } = stubApi((url, init) => {
       if (url.endsWith('/rename') && init.method === 'POST') {
@@ -637,24 +668,27 @@ describe('chat staging (no mocks)', () => {
       return baseHandler(url)
     })
     render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Rename Server chat' }))
-    const box = screen.getByLabelText('Session name')
+    fireEvent.click(await screen.findByRole('button', { name: 'More actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }))
+    expect(await screen.findByRole('dialog', { name: 'Rename chat' })).toBeInTheDocument()
+    const box = screen.getByLabelText('Chat name')
     expect(box).toHaveValue('Server chat')
     fireEvent.change(box, { target: { value: 'Renamed chat' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save session name' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(await screen.findByText('Renamed chat')).toBeInTheDocument()
     const rename = calls.find((call) => call.url.endsWith('/v1/sessions/s-1/rename'))
     expect(rename?.method).toBe('POST')
     expect(rename?.body).toBe(JSON.stringify({ title: 'Renamed chat' }))
   })
 
-  it('rejects a blank rename without calling the API', async () => {
+  it('disables rename save for a blank name without calling the API', async () => {
     const { calls } = stubApi((url) => baseHandler(url))
     render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Rename Server chat' }))
-    fireEvent.change(screen.getByLabelText('Session name'), { target: { value: '   ' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save session name' }))
-    expect(await screen.findByText('Name cannot be empty.')).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: 'More actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }))
+    expect(await screen.findByRole('dialog', { name: 'Rename chat' })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Chat name'), { target: { value: '   ' } })
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
     expect(calls.some((call) => call.url.endsWith('/rename'))).toBe(false)
   })
 
@@ -670,7 +704,7 @@ describe('chat staging (no mocks)', () => {
     })
     render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
     fireEvent.click(screen.getByRole('button', { name: 'Chat sessions' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'New session' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'New chat' }))
     await vi.waitFor(() => {
       expect(calls.some((call) => call.url.endsWith('/v1/sessions') && call.method === 'POST')).toBe(true)
     })

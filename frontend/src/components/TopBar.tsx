@@ -1,63 +1,61 @@
-import { MessageCircle, Moon, Sun, X } from 'lucide-react'
+// TopBar (SH-03): 48px command bar. Left: a search-styled trigger that
+// opens the command palette (icon-only below 768px). Right: Ask Karbot
+// plus the theme menu (SH-04). Page search lives on the pages, never here.
+import { Icons } from '@/lib/icons'
+import type { ThemePreference } from '@/lib/theme'
+import { IconButton } from './IconButton'
+import { ThemeMenu } from './ThemeMenu'
+import { Kbd } from './text'
 import { Button } from './ui/button'
-import { Input } from './ui/input'
 
 export function TopBar({
-  query,
-  onQuery,
-  dark,
-  onTheme,
   chatOpen,
   onChatToggle,
+  onOpenPalette,
+  themePreference,
+  onThemePreference,
 }: {
-  query: string
-  onQuery: (value: string) => void
-  dark: boolean
-  onTheme: () => void
   chatOpen: boolean
   onChatToggle: () => void
+  onOpenPalette: () => void
+  themePreference: ThemePreference
+  onThemePreference: (next: ThemePreference) => void
 }) {
   return (
-    <header className="flex items-center gap-4 border-b border-border bg-background px-4 py-3 md:px-6">
-      <div className="relative max-w-sm flex-1">
-        <Input
-          aria-label="Search researches"
-          placeholder="Search researches on Overview"
-          value={query}
-          onChange={(event) => onQuery(event.target.value)}
-          className={query ? 'pr-8' : undefined}
-        />
-        {query ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onQuery('')}
-            aria-label="Clear search"
-            className="absolute top-1/2 right-1 -translate-y-1/2"
-          >
-            <X className="size-4" aria-hidden />
-          </Button>
-        ) : null}
-      </div>
+    <header className="sticky top-0 z-10 flex h-12 shrink-0 items-center gap-2 border-b border-border-subtle bg-background px-4">
       <Button
-        variant="outline"
-        size="icon"
-        onClick={onChatToggle}
-        aria-label={chatOpen ? 'Close chat' : 'Open chat'}
-        aria-expanded={chatOpen}
-        className="ml-auto"
+        type="button"
+        variant="secondary"
+        size="sm"
+        onClick={onOpenPalette}
+        aria-keyshortcuts="Control+k Meta+k"
+        className="hidden h-8 min-w-0 flex-1 justify-start px-3 font-normal text-muted-foreground md:flex lg:min-w-60 lg:max-w-sm"
       >
-        <MessageCircle className="size-4" aria-hidden />
+        <Icons.search className="size-4 shrink-0" aria-hidden />
+        <span className="min-w-0 flex-1 truncate text-left">Search...</span>
+        <Kbd className="ml-auto shrink-0">Ctrl K</Kbd>
       </Button>
-      <Button
-        variant="outline"
-        size="icon"
-        onClick={onTheme}
-        aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
-      >
-        {dark ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
-      </Button>
+      <IconButton label="Search" shortcut="Ctrl K" onClick={onOpenPalette} className="md:hidden">
+        <Icons.search className="size-4" aria-hidden />
+      </IconButton>
+      <span className="ml-auto flex items-center gap-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onChatToggle}
+          aria-label="Ask Karbot"
+          aria-expanded={chatOpen}
+          className="hidden h-8 md:inline-flex"
+        >
+          <Icons.karbot className="size-4" aria-hidden />
+          Ask Karbot
+        </Button>
+        <IconButton label="Ask Karbot" onClick={onChatToggle} aria-expanded={chatOpen} className="md:hidden">
+          <Icons.karbot className="size-4" aria-hidden />
+        </IconButton>
+        <ThemeMenu preference={themePreference} onPreference={onThemePreference} />
+      </span>
     </header>
   )
 }

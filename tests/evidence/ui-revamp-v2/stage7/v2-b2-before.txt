@@ -1,0 +1,68 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.1 [39m[90m/home/karthik/projects/kardata_app[39m
+
+ [31m❯[39m tests/backend/karbot.turn.test.ts [2m([22m[2m33 tests[22m[2m | [22m[31m1 failed[39m[2m | [22m[33m31 skipped[39m[2m)[22m[32m 18[2mms[22m[39m
+   [2m[90m↓[39m[22m retains scripted completion complete through the activity input/checkpoint seam
+   [2m[90m↓[39m[22m retains scripted completion incomplete through the activity input/checkpoint seam
+   [2m[90m↓[39m[22m retains scripted completion null through the activity input/checkpoint seam
+   [2m[90m↓[39m[22m executeKarbotTurn [2m(22)[22m
+     [2m[90m↓[39m[22m uses Contributor at high effort for an unbound session
+     [2m[90m↓[39m[22m brainstorm mode adds posture, low effort, temperature, and KB preload
+     [2m[90m↓[39m[22m default mode sends no posture, temperature, or preload
+     [2m[90m↓[39m[22m threads skill prepend and preloaded chunks through the prompt seam in order
+     [2m[90m↓[39m[22m advertises web search, fetch, and browser tools to Karbot
+     [2m[90m↓[39m[22m advertises product tools without operational database plumbing
+     [2m[90m↓[39m[22m uses recent conversation context and keeps the current message once
+     [2m[90m↓[39m[22m streams the fake reply, runs MCP tools, and publishes deltas
+     [2m[90m↓[39m[22m logs first-frame timings for tool, reasoning, and text
+     [2m[90m↓[39m[22m prefers the stored per-session model over env
+     [2m[90m↓[39m[22m streams thinking trace to reasoning frames and the outcome
+     [2m[90m↓[39m[22m carries the stored effort level into the provider request
+     [2m[90m↓[39m[22m contracts house markdown output in the system prompt
+     [2m[90m↓[39m[22m contracts tool-failure honesty in the system prompt
+     [2m[90m↓[39m[22m contracts sector-evidence verification in the system prompt
+     [2m[90m↓[39m[22m keeps logs key-free: no prompt, reply, or token material
+     [2m[90m↓[39m[22m maps resolution failure to a code-only error plus a typed log
+     [2m[90m↓[39m[22m rejects invalid input before touching the provider
+     [2m[90m↓[39m[22m rides sector digest and file units through the prompt seam
+     [2m[90m↓[39m[22m runs general sessions with no sector context
+     [2m[90m↓[39m[22m halts a repeating tool loop and reports a halt notice
+     [2m[90m↓[39m[22m condenses long histories through the adapter summarizer and logs lineage
+   [2m[90m↓[39m[22m sectorMcpClient [2m(2)[22m
+     [2m[90m↓[39m[22m lists only sector tools and blocks the rest without calling through
+     [2m[90m↓[39m[22m every sector tool survives the production stacking order
+   [2m[90m↓[39m[22m research turn wall budget [2m(1)[22m
+     [2m[90m↓[39m[22m allows deep research turns past the old 5-minute cut
+   [2m[90m↓[39m[22m durable normalized execution records [2m(2)[22m
+     [2m[90m↓[39m[22m records the exact refreshed input and source context versions each round
+     [2m[90m↓[39m[22m parks storage failure before provider execution with a recoverable context error
+   [2m[90m↓[39m[22m reply formatting rule (B1) [2m(1)[22m
+     [2m[90m↓[39m[22m writes calm chat prose: no bold lead-ins, no internal names, no em dashes
+   [31m❯[39m sector identity preload (B2) [2m(2)[22m
+[31m     [31m×[31m states the exact sector id to the model for sector-linked sessions[39m[32m 17[2mms[22m[39m
+     [32m✓[39m omits the sector block for general sessions[32m 1[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m tests/backend/karbot.turn.test.ts[2m > [22msector identity preload (B2)[2m > [22mstates the exact sector id to the model for sector-linked sessions
+[31m[1mAssertionError[22m: expected 'You are Karbot, the Kardata assistant…' to contain 'Current sector: "TEST Sector" (sector…'[39m
+
+Expected: [32m"[7mCurrent sector: "TEST Sector" (sector id: sector-9). Use exactly this sector id for every sector tool call; never derive an id from the name[27m."[39m
+Received: [31m"[7mYou are Karbot, the Kardata assistant and universal operational driver. Answer the user’s actual question using the conversation. You have full capability to assist operators across the entire Kardata application: creating and managing sessions, managing sectors, starting, pausing, and resuming research sweeps, querying and attaching documents, inspecting and updating research plans, creating session files and artifacts, delegating subagents, searching the web, and recording findings. Use a tool when current Kardata data or actions are needed; do not call tools for greetings or general discussion. Explain tool results in plain words, distinguish facts from guesses, and say when the available data cannot answer the question. Do not invent research, activity, or progress. Keep replies concise. When a tool call fails, that failure is a source gap: say what failed and what remains unknown, retry at most once with a narrower query, and never fill the gap from parametric knowledge. Product knowledge: when asked about what Kardata sells, pricing, the ideal customer, the research method, or outreach, call db.kb_search first and answer from the ranked chunks, citing each fact as [source_path]. Never answer product questions from memory when the corpus has them. Sector evidence: when asked what a sector contains — files, documents, notes, companies, or state — call db.get_sector or db.list_sector_documents first and answer from the results; when asked to inspect or extract sections from a file, prefer calling db.query_document (summary TOC or targeted chunks) to protect context capacity; when asked to quote or show full text, call db.read_sector_document for that document id and quote its text. The list carries record metadata only, never file text; the injected digest is the header, never the whole detail. Never invent digest versions, document lists, document text, or counts from memory or prior turns. Session files: when requested to write, create, or persist reports, summaries, data tables, or output documents for the operator, call db.create_artifact with the sessionId and filename. The file will immediately be indexed and accessible to the operator in the files menu. Standing facts: Kardata sells a managed data layer; the entry wedge is solving one evidenced problem free, then expanding to the data layer. $3k–$6k/month is an internal targeting band, never a quoted price; the only quotable figure is the one-time diagnostic entry. Research discipline: breadth over fixation (record every evidenced problem, never build whole research around one symptom like out-of-stock ads); a problem counts only with mechanism-or-cost evidence from the company’s own domain; every proposal must survive “would they pay $3–6k/mo to fix this, and what evidence says so?”. Response format: GitHub-flavored Markdown rendered as calm chat prose. Write short plain paragraphs. Use bold at most once per reply and never as a label at the start of a line. Use `-` bullets only for real lists and `|` tables only for two or more comparable items. Use `code` only for literal file names, URLs or commands the user should type, never for ids, tool names or citations. Never mention internal tool names, function names or raw ids; describe what you checked in plain words. Do not use em dashes. No raw HTML, no headings in short replies, no invented metrics[27m."[39m
+
+[36m [2m❯[22m tests/backend/karbot.turn.test.ts:[2m517:20[22m[39m
+    [90m515|[39m     await executeKarbotTurn(input(), world.deps)
+    [90m516|[39m     const prompt = world.adapter.calls[0]?.systemPrompt ?? ''
+    [90m517|[39m     expect(prompt).toContain('Current sector: "TEST Sector" (sector id…
+    [90m   |[39m                    [31m^[39m
+    [90m518|[39m   })
+    [90m519|[39m   it('omits the sector block for general sessions', async () => {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[2m | [22m[33m31 skipped[39m[90m (33)[39m
+[2m   Start at [22m 15:47:38
+[2m   Duration [22m 1.25s[2m (import 60%, transform 38%, tests 2%)[22m
+

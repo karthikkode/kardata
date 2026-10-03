@@ -1,0 +1,16 @@
+{
+  "name": "agents-cancel-cancel-dark-390-mobile",
+  "at": "2026-10-03T10:08:14.978Z",
+  "checks": {
+    "type": "pass",
+    "contrast": "pass",
+    "raw-text": "pass",
+    "overflow": "pass",
+    "targets": "pass",
+    "hover": "skip",
+    "focus": "pass",
+    "alignment": "pass",
+    "plan-rail": "skip"
+  },
+  "violations": []
+}

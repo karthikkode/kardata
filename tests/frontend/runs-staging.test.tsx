@@ -3,7 +3,10 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RunsPanel } from '@/components/RunsPanel'
+import { notify } from '@/lib/toast'
 import type { StagingConfig } from '@/data/staging-api'
+
+vi.mock('@/lib/toast', () => ({ notify: { success: vi.fn(), error: vi.fn() } }))
 
 const config: StagingConfig = { baseUrl: 'https://staging.test', apiKey: 'key' }
 
@@ -46,8 +49,9 @@ afterEach(() => {
 describe('runs view (no mocks)', () => {
   it('lists real runs with state and no placeholder ratios', async () => {
     stubApi(() => ({ status: 200, payload: { ok: true, data: RUNS } }))
-    render(<RunsPanel config={config} onBack={() => undefined} />)
-    expect(await screen.findByText('session-run-9')).toBeInTheDocument()
+    render(<RunsPanel config={config} />)
+    expect(await screen.findByText('session-')).toBeInTheDocument()
+    expect(screen.getByTitle('session-run-9')).toBeInTheDocument()
     expect(screen.getByText('Running')).toBeInTheDocument()
     // The backend reports 0 until it measures ratios: the row must not
     // render them at all, even when the payload carries values.
@@ -57,7 +61,7 @@ describe('runs view (no mocks)', () => {
     expect(screen.queryByText('Subagent 1')).not.toBeInTheDocument()
   })
 
-  it('cancels a running run and reloads', async () => {
+  it('confirms before cancelling a running run, then reloads', async () => {
     const cancelled: string[] = []
     stubApi((url) => {
       if (url.endsWith('/v1/commands/cancel')) {
@@ -66,8 +70,11 @@ describe('runs view (no mocks)', () => {
       }
       return { status: 200, payload: { ok: true, data: RUNS } }
     })
-    render(<RunsPanel config={config} onBack={() => undefined} />)
+    render(<RunsPanel config={config} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
+    expect(await screen.findByRole('alertdialog', { name: 'Cancel this run?' })).toBeInTheDocument()
+    expect(cancelled).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel run' }))
     await vi.waitFor(() => {
       expect(cancelled).toHaveLength(1)
     })
@@ -75,13 +82,13 @@ describe('runs view (no mocks)', () => {
 
   it('shows the empty copy instead of staged agents', async () => {
     stubApi(() => ({ status: 200, payload: { ok: true, data: [] } }))
-    render(<RunsPanel config={config} onBack={() => undefined} />)
-    expect(await screen.findByText(/No runs yet\./)).toBeInTheDocument()
+    render(<RunsPanel config={config} />)
+    expect(await screen.findByText('No runs yet', { exact: true })).toBeInTheDocument()
   })
 
   it('shows the denied notice for refused keys', async () => {
     stubApi(() => ({ status: 403, payload: { ok: false, error: { code: 'permission_denied', message: 'no' } } }))
-    render(<RunsPanel config={config} onBack={() => undefined} />)
+    render(<RunsPanel config={config} />)
     expect(await screen.findByText('Agent runs are not shared with this key.')).toBeInTheDocument()
   })
 
@@ -93,8 +100,8 @@ describe('runs view (no mocks)', () => {
         data: [{ ...RUNS[0], id: 'run-cancelling', state: 'CANCELLING' }],
       },
     }))
-    render(<RunsPanel config={config} onBack={() => undefined} />)
-    expect(await screen.findByText('run-cancelling')).toBeInTheDocument()
+    render(<RunsPanel config={config} />)
+    expect(await screen.findByText('run-canc')).toBeInTheDocument()
     const pill = screen.getByText('Cancelling')
     expect(
       pill.parentElement?.querySelector('[data-tone="paused"]'),
@@ -104,15 +111,18 @@ describe('runs view (no mocks)', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('reports a failed cancel with recovery copy', async () => {
+  it('reports a failed cancel through an error toast', async () => {
     stubApi((url) => {
       if (url.endsWith('/v1/commands/cancel')) {
         return { status: 500, payload: { ok: false, error: { code: 'overload', message: 'down' } } }
       }
       return { status: 200, payload: { ok: true, data: RUNS } }
     })
-    render(<RunsPanel config={config} onBack={() => undefined} />)
+    render(<RunsPanel config={config} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(/Could not cancel run/)
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel run' }))
+    await vi.waitFor(() => {
+      expect(notify.error).toHaveBeenCalledWith(expect.stringMatching(/Could not cancel run/))
+    })
   })
 })

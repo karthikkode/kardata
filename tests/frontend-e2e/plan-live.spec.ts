@@ -45,7 +45,7 @@ test.describe('plan-01 live plan journey', () => {
 
     await mark('researches-first-paint', async () => {
       await page.goto('/?section=Researches')
-      await expect(page.getByRole('heading', { name: 'Researches' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Researches', exact: true })).toBeVisible()
     })
 
     const stamp = Date.now().toString(36)
@@ -75,9 +75,11 @@ test.describe('plan-01 live plan journey', () => {
     await expect(page.getByText('v1')).toBeVisible({ timeout: 15000 })
     await page.screenshot({ path: `${EVIDENCE}/02-planned.png` })
 
-    await page.getByRole('button', { name: 'Switch to dark theme' }).click()
+    await page.getByRole('button', { name: 'Theme' }).click()
+    await page.getByRole('menuitemradio', { name: 'Dark' }).click()
     await page.screenshot({ path: `${EVIDENCE}/02b-planned-dark.png` })
-    await page.getByRole('button', { name: 'Switch to light theme' }).click()
+    await page.getByRole('button', { name: 'Theme' }).click()
+    await page.getByRole('menuitemradio', { name: 'Light' }).click()
 
     writeFileSync(
       `${EVIDENCE}/journey.json`,

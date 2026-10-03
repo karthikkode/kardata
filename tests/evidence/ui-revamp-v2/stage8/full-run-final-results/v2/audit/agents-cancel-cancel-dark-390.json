@@ -1,0 +1,16 @@
+{
+  "name": "agents-cancel-cancel-dark-390",
+  "at": "2026-10-03T18:52:46.479Z",
+  "checks": {
+    "type": "pass",
+    "contrast": "pass",
+    "raw-text": "pass",
+    "overflow": "pass",
+    "targets": "skip",
+    "hover": "pass",
+    "focus": "pass",
+    "alignment": "pass",
+    "plan-rail": "skip"
+  },
+  "violations": []
+}

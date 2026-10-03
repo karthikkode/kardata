@@ -142,22 +142,26 @@ async function thinScrollbar(page: Page, locator: Locator): Promise<void> {
   expect(width).toBe('thin')
 }
 
-test('scrollbars: research overflow list is thin and styled', async ({ page }) => {
+test('scrollbars: researches pages without an inner scroll box', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await serveScrollbarApi(page)
   await page.goto('/')
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
-  const list = page.getByRole('region', { name: 'All sector researches' }).locator('ul.scroll-slim')
-  await expect(page.getByText('Overflow sector 60')).toBeVisible()
-  await thinScrollbar(page, list)
-  await shot(page, 'scroll-researches', [page.getByText('Overflow sector 60')])
+  await expect(page.getByText('Showing 50 of 60')).toBeVisible()
+  // No inner scroll container: the page scrolls and Show more extends it.
+  await expect(page.getByRole('table', { name: 'Sectors' }).locator('.scroll-slim')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Show more' }).click()
+  // Exact: the substring matches sectors 1, 10-19. The last row proves
+  // the window extended past the first fifty.
+  await expect(page.getByText('Overflow sector 60', { exact: true })).toBeVisible()
+  await shot(page, 'scroll-researches', [page.getByText('Showing 60 of 60')])
 })
 
 test('scrollbars: chat list plus table and code scroll in place', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await serveScrollbarApi(page)
   await page.goto('/')
-  await page.getByRole('button', { name: 'Open chat' }).click()
+  await page.getByRole('button', { name: 'Ask Karbot' }).click()
   const chat = page.getByRole('complementary', { name: 'Assistant chat' })
   await expect(chat.getByText('Scroll probe message 1 with enough text to fill the chat list.', { exact: true })).toBeVisible()
   await thinScrollbar(page, chat.locator('[aria-label="Chat messages"]'))
@@ -172,13 +176,16 @@ test('scrollbars: model menu list scrolls without detaching', async ({ page }) =
   await page.setViewportSize({ width: 1440, height: 900 })
   await serveScrollbarApi(page)
   await page.goto('/')
-  await page.getByRole('button', { name: 'Open chat' }).click()
+  await page.getByRole('button', { name: 'Ask Karbot' }).click()
   const chat = page.getByRole('complementary', { name: 'Assistant chat' })
   await chat.getByRole('button', { name: 'Choose a model' }).click()
-  const menu = chat.getByRole('menu', { name: 'Models' })
-  await expect(menu.getByText('scroll-model-20')).toBeVisible()
+  // CP-03: effort models are submenu-trigger menuitems in a menu
+  // portalled to the body; the list inside keeps the thin treatment.
+  const menu = page.getByRole('menu')
+  const last = page.getByRole('menuitem', { name: /scroll-model-20/ })
+  await expect(last).toBeVisible()
   await thinScrollbar(page, menu.locator('.scroll-slim').first())
-  await shot(page, 'scroll-model-menu', [menu.getByText('scroll-model-20')])
+  await shot(page, 'scroll-model-menu', [last])
 })
 
 const WS_AT = '2026-09-30T00:00:00.000Z'
@@ -214,21 +221,24 @@ test('scrollbars: workspace session rail stays thin under overflow', async ({ pa
   await serveWorkspaceApi(page)
   await page.goto(`/?section=SectorChat&sector=${WS_SECTOR.id}&session=${WS_RESEARCH.id}&thread=${WS_RESEARCH.id}`)
   // Sixty chats overflow the rail list (windowed at fifty with Show more).
-  await page.getByRole('button', { name: 'Chats', exact: true }).click()
+  // WS-03: the rail switch is a Session types tablist now.
+  await page.getByRole('tab', { name: /^Chats/ }).click()
+  await expect(page.getByRole('list', { name: 'Chat sessions' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Show more (50 of 60)' })).toBeVisible()
-  const rail = page.getByRole('complementary', { name: 'Sector sessions' }).locator('.scroll-slim.min-h-0.flex-1.space-y-1.overflow-y-auto')
+  const rail = page.getByRole('complementary', { name: 'Sector sessions' }).locator('.scroll-slim').first()
   await expect(rail).toBeVisible()
   await thinScrollbar(page, rail)
   await thinScrollbar(page, page.getByRole('log', { name: 'Conversation messages' }))
-  await shot(page, 'scroll-workspace-rail', [page.getByRole('group', { name: 'Session types' })])
+  await shot(page, 'scroll-workspace-rail', [page.getByRole('tablist', { name: 'Session types' })])
 })
 
 test('scrollbars: dark chat keeps the same thin treatment', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await serveScrollbarApi(page)
   await page.goto('/')
-  await page.getByRole('button', { name: 'Switch to dark theme' }).click()
-  await page.getByRole('button', { name: 'Open chat' }).click()
+  await page.getByRole('button', { name: 'Theme' }).click()
+  await page.getByRole('menuitemradio', { name: 'Dark' }).click()
+  await page.getByRole('button', { name: 'Ask Karbot' }).click()
   const chat = page.getByRole('complementary', { name: 'Assistant chat' })
   await expect(chat.getByText('Scroll probe message 1 with enough text to fill the chat list.', { exact: true })).toBeVisible()
   await thinScrollbar(page, chat.locator('[aria-label="Chat messages"]'))

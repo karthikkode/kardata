@@ -34,6 +34,7 @@ import {
   recordContextMeasurement,
   readActiveExecutionIdentity, recordTurnExecution, workspaceReferenceSnapshot,
   WorkspaceError,
+  getSector,
   getSession,
   getSessionModel,
   publishOutboxFrame,
@@ -153,7 +154,7 @@ export const KARBOT_SYSTEM_PROMPT =
   'Session files: when requested to write, create, or persist reports, summaries, data tables, or output documents for the operator, call db.create_artifact with the sessionId and filename. The file will immediately be indexed and accessible to the operator in the files menu. ' +
   'Standing facts: Kardata sells a managed data layer; the entry wedge is solving one evidenced problem free, then expanding to the data layer. $3k–$6k/month is an internal targeting band, never a quoted price; the only quotable figure is the one-time diagnostic entry. ' +
   'Research discipline: breadth over fixation (record every evidenced problem, never build whole research around one symptom like out-of-stock ads); a problem counts only with mechanism-or-cost evidence from the company’s own domain; every proposal must survive “would they pay $3–6k/mo to fix this, and what evidence says so?”. ' +
-  'Response format: GitHub-flavored Markdown, rendered as rich chat. Short paragraphs; **bold** lead-ins; `-` bullets for lists; `|` tables for two or more counts or comparisons; `` `code` `` for paths, ids, and source citations (citations stay literal bracket text, never links). No raw HTML, no headings in short replies, no invented metrics.'
+  'Response format: GitHub-flavored Markdown rendered as calm chat prose. Write short plain paragraphs. Use bold at most once per reply and never as a label at the start of a line. Use `-` bullets only for real lists and `|` tables only for two or more comparable items. Use `code` only for literal file names, URLs or commands the user should type, never for ids, tool names or citations. Never mention internal tool names, function names or raw ids; describe what you checked in plain words. Do not use em dashes. No raw HTML, no headings in short replies, no invented metrics.'
 
 /** Bounded text history from the thread projection. Tool result payloads are
  * not chat turns and never become free-form instructions in the prompt. */
@@ -246,6 +247,9 @@ export interface KarbotTurnLogFields {
   snapshotHead?: string
   condensedCount?: number
   haltDetail?: string
+  /** Failed turns only: the underlying error message (sliced, never a
+   * stack), so log readers see why without replaying the workflow. */
+  errorDetail?: string
 }
 
 export interface KarbotTurnDeps {
@@ -262,6 +266,9 @@ export interface KarbotTurnDeps {
   /** Sector context references (digest first) for sector chats. Absent
    * means no sector context rides the turn. */
   loadSectorRefs?(sectorId: string): Promise<string[]>
+  /** Sector display name for the identity preload; absent means the
+   * sector id stands in for the name. */
+  loadSectorName?(sectorId: string): Promise<string | undefined>
   loadHistory(threadKey: string): Promise<ChatMessage[]>
   /** KB preload for brainstorm mode: reference chunks matching the turn.
    * Absent means no preload. Never logged; chunks ride the prompt seam. */
@@ -343,7 +350,13 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
     // cannot blow the context window. General sessions skip this entirely.
     const sectorId = await deps.loadSessionSector?.(parsed.sessionId)
     const sectorRefs: string[] = []
-    if (sectorId && deps.loadSectorRefs) sectorRefs.push(...await deps.loadSectorRefs(sectorId))
+    if (sectorId) {
+      // The model must never derive an id from the name: state the exact
+      // id up front, first in the preload.
+      const sectorName = (await deps.loadSectorName?.(sectorId)) ?? sectorId
+      sectorRefs.push(`Current sector: "${sectorName}" (sector id: ${sectorId}). Use exactly this sector id for every sector tool call; never derive an id from the name.`)
+      if (deps.loadSectorRefs) sectorRefs.push(...await deps.loadSectorRefs(sectorId))
+    }
     const firstFrame: { tool?: number; reasoning?: number; delta?: number } = {}
     const stamp = (slot: 'tool' | 'reasoning' | 'delta'): number | undefined => {
       firstFrame[slot] ??= Date.now() - started
@@ -484,12 +497,10 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
     }
   } catch (error) {
     const latencyMs = Date.now() - started
-    deps.log({ op: 'karbot.turn', provider: providerName, ok: false, latencyMs, code: error instanceof OperationRecoveryError ? 'operation_uncertain' : 'provider_failed' })
+    const detail = error instanceof Error ? error.message.slice(0, 200) : 'unknown provider error'
+    deps.log({ op: 'karbot.turn', provider: providerName, ok: false, latencyMs, code: error instanceof OperationRecoveryError ? 'operation_uncertain' : 'provider_failed', errorDetail: detail })
     if (error instanceof ContextFileBlocked || error instanceof ResearchPausedError || error instanceof ContextBudgetError || error instanceof OperationRecoveryError) throw error
-    throw new Error(
-      `karbot turn failed: ${error instanceof Error ? error.message.slice(0, 200) : 'unknown provider error'}`,
-      { cause: error },
-    )
+    throw new Error(`karbot turn failed: ${detail}`, { cause: error })
   }
 }
 
@@ -783,6 +794,7 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
           loadSessionModel: (sessionId) => getSessionModel(pool, sessionId),
           loadSessionSector: async (sessionId) => (await getSession(pool, sessionId))?.sectorId,
           loadSectorRefs: (sectorId) => workspaceReferences(pool, sectorId, undefined, input.threadKey),
+          loadSectorName: async (sectorId) => (await getSector(pool, sectorId))?.name,
           loadHistory: async (threadKey) => {
             const loaded = await localContextMessages(pool, threadKey)
             return loaded.messages

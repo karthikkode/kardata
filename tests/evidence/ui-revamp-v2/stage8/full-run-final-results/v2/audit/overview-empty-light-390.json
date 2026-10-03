@@ -1,0 +1,16 @@
+{
+  "name": "overview-empty-light-390",
+  "at": "2026-10-03T18:45:40.704Z",
+  "checks": {
+    "type": "pass",
+    "contrast": "pass",
+    "raw-text": "pass",
+    "overflow": "pass",
+    "targets": "skip",
+    "hover": "skip",
+    "focus": "pass",
+    "alignment": "pass",
+    "plan-rail": "skip"
+  },
+  "violations": []
+}

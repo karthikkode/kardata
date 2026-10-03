@@ -45,7 +45,9 @@ function stagingStatus(error: unknown): ResearchStatus {
  * disables fetching with an empty ready bundle; callers render the
  * not-configured notice for that case. */
 export function useStagingSectors(config: StagingConfig | null): ResearchData<SectorResearch> {
-  const [status, setStatus] = useState<ResearchStatus>('loading')
+  // A null config starts ready (empty bundle), never stuck loading: the
+  // render reset below only fires when the query key changes.
+  const [status, setStatus] = useState<ResearchStatus>(() => (config ? 'loading' : 'ready'))
   const [items, setItems] = useState<SectorResearch[]>([])
   const [attempt, retry] = useRefetch()
 
@@ -106,7 +108,9 @@ export function useStagingCompanies(
   config: StagingConfig | null,
   filters: CompanyFilters = {},
 ): CompanyData {
-  const [status, setStatus] = useState<ResearchStatus>('loading')
+  // A null config starts ready (empty bundle), never stuck loading: the
+  // render reset below only fires when the query key changes.
+  const [status, setStatus] = useState<ResearchStatus>(() => (config ? 'loading' : 'ready'))
   const [items, setItems] = useState<CompanyResearch[]>([])
   const [total, setTotal] = useState<number | undefined>(undefined)
   const [loadingMore, setLoadingMore] = useState(false)

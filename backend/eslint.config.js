@@ -3,7 +3,9 @@ import tseslint from 'typescript-eslint'
 import { defineConfig } from 'eslint/config'
 
 export default defineConfig([
-  { ignores: ['dist/**', 'node_modules/**', 'coverage/**'] },
+  // Ignored test-evidence output is never linted: generated proof scripts
+  // and captures live under test-results/ (also git-ignored).
+  { ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'test-results/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

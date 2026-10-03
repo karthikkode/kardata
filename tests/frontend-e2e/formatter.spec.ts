@@ -54,7 +54,7 @@ async function serveFormatterApi(page: Page): Promise<void> {
       data = {
         defaultProvider: 'meta',
         providers: [{ name: 'meta', hasKey: true, defaultModel: 'muse-spark-1.3-contributor', models: [
-          { provider: 'meta', model: 'muse-spark-1.3-contributor', displayName: 'muse-spark-1.3-contributor', reasoning: 'native', mode: 'responses', efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'] },
+          { provider: 'meta', model: 'muse-spark-1.3-contributor', displayName: 'Muse Spark 1.3 Contributor', reasoning: 'native', mode: 'responses', efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'] },
         ] }],
       }
     }
@@ -68,7 +68,7 @@ async function shot(page: Page, name: string, anchors: Locator[]): Promise<void>
 }
 
 async function openFormatterChat(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Open chat' }).click()
+  await page.getByRole('button', { name: 'Ask Karbot' }).click()
   const chat = page.getByRole('complementary', { name: 'Assistant chat' })
   await expect(chat.getByText('What files are attached?')).toBeVisible()
   await expect(chat.getByText('Files attached:')).toBeVisible()
@@ -90,7 +90,8 @@ test('formatter: table-heavy reply on dark desktop', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await serveFormatterApi(page)
   await page.goto('/')
-  await page.getByRole('button', { name: 'Switch to dark theme' }).click()
+  await page.getByRole('button', { name: 'Theme' }).click()
+  await page.getByRole('menuitemradio', { name: 'Dark' }).click()
   await openFormatterChat(page)
   const chat = page.getByRole('complementary', { name: 'Assistant chat' })
   await shot(page, 'formatter-dark-1440', [

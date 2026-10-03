@@ -19,7 +19,7 @@ async function serveClipsApi(page): Promise<void> {
       data = {
         defaultProvider: 'meta',
         providers: [{ name: 'meta', hasKey: true, defaultModel: 'muse-spark-1.3-contributor', models: [
-          { provider: 'meta', model: 'muse-spark-1.3-contributor', displayName: 'muse-spark-1.3-contributor', reasoning: 'native', mode: 'responses', efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'] },
+          { provider: 'meta', model: 'muse-spark-1.3-contributor', displayName: 'Muse Spark 1.3 Contributor', reasoning: 'native', mode: 'responses', efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'] },
         ] }],
       }
     } else if (url.endsWith('/v1/sessions')) {
@@ -36,13 +36,13 @@ async function serveClipsApi(page): Promise<void> {
 test('clip: dock open then close', async ({ page }) => {
   await serveClipsApi(page)
   await page.goto('/')
-  await page.getByRole('button', { name: 'Open chat' }).click()
+  await page.getByRole('button', { name: 'Ask Karbot' }).click()
   const dock = page.getByRole('complementary', { name: 'Assistant chat' })
   await expect(dock).toBeVisible()
   await page.waitForTimeout(400)
   await page.keyboard.press('Escape')
   await expect(dock).not.toBeVisible()
-  await expect(page.getByRole('button', { name: 'Open chat' })).toBeFocused()
+  await expect(page.getByRole('button', { name: 'Ask Karbot' })).toBeFocused()
   await page.waitForTimeout(300)
 })
 
@@ -50,7 +50,7 @@ test('clip: section switch crossfade with heading focus', async ({ page }) => {
   await serveClipsApi(page)
   await page.goto('/')
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
-  await expect(page.getByRole('heading', { name: 'Researches' })).toBeFocused()
+  await expect(page.getByRole('heading', { name: 'Researches', exact: true })).toBeFocused()
   await page.waitForTimeout(300)
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Agents' }).click()
   await expect(page.getByRole('heading', { name: 'Agents' })).toBeFocused()
@@ -60,13 +60,17 @@ test('clip: section switch crossfade with heading focus', async ({ page }) => {
 test('clip: chat model menu open then Esc refocus', async ({ page }) => {
   await serveClipsApi(page)
   await page.goto('/')
-  await page.getByRole('button', { name: 'Open chat' }).click()
+  await page.getByRole('button', { name: 'Ask Karbot' }).click()
   const chat = page.getByRole('complementary', { name: 'Assistant chat' })
   await expect(chat).toBeVisible()
   await chat.getByRole('button', { name: 'Choose a model' }).click()
-  await expect(chat.getByRole('menu', { name: 'Models' })).toBeVisible()
+  // CP-03: the Base UI menu portals to the body (unnamed); the search
+  // field proves it opened.
+  const menu = page.getByRole('menu')
+  await expect(menu).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Search models' })).toBeVisible()
   await page.waitForTimeout(300)
   await page.keyboard.press('Escape')
-  await expect(chat.getByRole('menu', { name: 'Models' })).not.toBeVisible()
+  await expect(menu).not.toBeVisible()
   await expect(chat.getByRole('button', { name: 'Choose a model' })).toBeFocused()
 })

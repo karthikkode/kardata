@@ -43,12 +43,13 @@ for (const width of [1440,390]) for (const dark of [false,true]) for (const land
     await page.goto(`/?section=${landing ? 'SectorDetail' : 'SectorChat'}&sector=${sectorId}`)
     if (dark) {
       if (!landing && width < 768) await page.getByRole('button', { name: 'Open sessions' }).click()
-      await page.getByRole('button', { name: landing ? 'Switch to dark theme' : 'Use dark theme' }).click()
-      if (!landing && width < 768) await page.getByRole('button', { name: 'Close Sessions' }).click()
+      await page.getByRole('button', { name: 'Theme' }).click()
+      await page.getByRole('menuitemradio', { name: 'Dark' }).click()
+      if (!landing && width < 768) await page.keyboard.press('Escape')
     }
     if (landing) await page.getByRole('button', { name: 'View progress' }).click()
     else await page.getByRole('tab', { name: 'Plan', exact: true }).click()
-    const trigger = page.getByRole('button', { name: 'Review intake' })
+    const trigger = page.getByRole('button', { name: 'Review', exact: true })
     await trigger.focus(); await page.keyboard.press('Enter')
     const dialog = page.getByRole('dialog', { name: 'Review candidate intake' })
     await expect(dialog).toBeVisible()
@@ -68,7 +69,10 @@ for (const width of [1440,390]) for (const dark of [false,true]) for (const land
     await dialog.getByRole('button', { name: 'Exclude candidate' }).click()
     await expect(dialog).not.toBeVisible()
     await expect(trigger).not.toBeVisible()
-    await expect(page.getByText(/0 of 0 work items completed.*1 candidates excluded/)).toBeVisible()
+    const counters = page.getByRole('group', { name: 'Work counters' })
+    await expect(counters.getByText('Excluded', { exact: true })).toBeVisible()
+    await expect(counters.getByText('1', { exact: true })).toBeVisible()
+    await expect(counters.getByText('Needs attention', { exact: true })).toBeVisible()
     expect(fixture.decisions.at(-1)).toMatchObject({ planVersion: 1, receiptVersion: 'b'.repeat(64), decision: 'exclude', reason: 'TEST reviewed exact saved evidence' })
   })
 }

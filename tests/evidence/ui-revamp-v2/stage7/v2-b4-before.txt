@@ -1,0 +1,81 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.1 [39m[90m/home/karthik/projects/kardata_app[39m
+
+ [31m❯[39m tests/backend/sweep.rules.test.ts [2m([22m[2m17 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 15[2mms[22m[39m
+   [32m✓[39m buildQueryTemplates [2m(4)[22m
+     [32m✓[39m shapes a stable template order from name and topic[32m 3[2mms[22m[39m
+     [32m✓[39m falls back to the name when the topic is empty[32m 1[2mms[22m[39m
+     [32m✓[39m qualifies templates with English-speaking regions by default[32m 1[2mms[22m[39m
+     [32m✓[39m strips TEST scaffolding markers so test sectors search clean subjects[32m 0[2mms[22m[39m
+   [32m✓[39m extractNewDomains [2m(2)[22m
+     [32m✓[39m normalizes domains, drops dupes and non-company hosts[32m 1[2mms[22m[39m
+     [32m✓[39m excludes already-seen domains case-insensitively[32m 0[2mms[22m[39m
+   [32m✓[39m isSweepCancellation [2m(1)[22m
+     [32m✓[39m recognizes bare and activity-wrapped cancellations, nothing else[32m 0[2mms[22m[39m
+   [32m✓[39m sectorSignals [2m(1)[22m
+     [32m✓[39m derives clean match signals from the topic, never the name stamp[32m 0[2mms[22m[39m
+   [32m✓[39m extractNewDomains relevance gate [2m(3)[22m
+     [32m✓[39m keeps signaled candidates across title, snippet, url, and domain tokens[32m 1[2mms[22m[39m
+     [32m✓[39m drops spam with no sector signal anywhere[32m 0[2mms[22m[39m
+     [32m✓[39m stays unfiltered without signals (back-compat)[32m 0[2mms[22m[39m
+   [31m❯[39m basic company-result screening [2m(6)[22m
+     [32m✓[39m does not admit keyword-matching directories, articles, ranked lists or jobs[32m 1[2mms[22m[39m
+     [32m✓[39m rejects non-HTTP search results but does not confuse host suffixes with platform domains[32m 0[2mms[22m[39m
+     [32m✓[39m retains ordinary company/service pages without treating brand words as jobs or lists[32m 0[2mms[22m[39m
+     [32m✓[39m retains the recorded legacy extraction contract when basic screening was not selected[32m 0[2mms[22m[39m
+[31m     [31m×[31m rejects article/guide/news/registration junk that matches signals (B4)[39m[32m 5[2mms[22m[39m
+     [32m✓[39m keeps realistic company names containing guide/news/portal/registration words (B4)[32m 0[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m tests/backend/sweep.rules.test.ts[2m > [22mbasic company-result screening[2m > [22mrejects article/guide/news/registration junk that matches signals (B4)
+[31m[1mAssertionError[22m: expected [ …(5) ] to deeply equal [][39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- [][39m
+[31m+ [[39m
+[31m+   {[39m
+[31m+     "domain": "guides.example",[39m
+[31m+     "name": "SME : Meaning, Benefits & Examples Guide - Aditya Birla Capital",[39m
+[31m+     "url": "https://guides.example/sme-meaning-benefits",[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "domain": "smenews.example",[39m
+[31m+     "name": "SME News: Latest News on SME Sector, Small and Medium-Sized Enterprises",[39m
+[31m+     "url": "https://smenews.example/latest-sme-news",[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "domain": "udyam.example",[39m
+[31m+     "name": "Udyam Registration : Zero cost, No Fee and Free Registration for MSMEs",[39m
+[31m+     "url": "https://udyam.example/free-registration",[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "domain": "licensing.example.gov",[39m
+[31m+     "name": "TEST Electrical Licence Classes",[39m
+[31m+     "url": "https://licensing.example.gov/electrical",[39m
+[31m+   },[39m
+[31m+   {[39m
+[31m+     "domain": "trades.nic.in",[39m
+[31m+     "name": "TEST Electrician Registration",[39m
+[31m+     "url": "https://trades.nic.in/electrician-registration",[39m
+[31m+   },[39m
+[31m+ ][39m
+
+[36m [2m❯[22m tests/backend/sweep.rules.test.ts:[2m165:109[22m[39m
+    [90m163|[39m     ]
+    [90m164|[39m     // Every hit matches a signal, so only the screening rules can rej…
+    [90m165|[39m     expect(extractNewDomains(junk, [], ['sme', 'news', 'registration',…
+    [90m   |[39m                                                                                                             [31m^[39m
+    [90m166|[39m   })
+    [90m167|[39m   it('keeps realistic company names containing guide/news/portal/regis…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m16 passed[39m[22m[90m (17)[39m
+[2m   Start at [22m 15:55:04
+[2m   Duration [22m 139ms[2m (transform 53%, tests 26%, import 17%, worker 4%)[22m
+

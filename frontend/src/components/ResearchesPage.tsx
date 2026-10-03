@@ -1,22 +1,29 @@
-import { useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
-import type { CompanyResearch, ResearchData, SectorResearch } from '../data/research'
+// Researches (RS-01..06): sectors and companies tabs with a shared
+// toolbar (search + status + truthful counts) over framed data tables.
+// Filters live in the URL (?q, ?state): the input drafts locally and
+// syncs back debounced, so Back/Forward and tile deep-links restore the
+// view. Sectors filter client-side; companies filter server-side (the
+// list pages, so local filtering would search a partial window).
+import { useEffect, useMemo, useState } from 'react'
+import { Icons } from '@/lib/icons'
+import { formatCount, formatFullDate, relativeAge } from '@/lib/format'
+import { companyStageLabel, researchStateLabel } from '@/lib/labels'
+import type {
+  CompanyResearch,
+  ResearchData,
+  SectorResearch,
+} from '../data/research'
 import { useStagingCompanies } from '../data/research'
 import type { ResearchState, StagingConfig } from '../data/staging-api'
 import type { ResearchList } from './Dashboard'
-import {
-  CompanyRow,
-  DeniedNotice,
-  firstRunCopy,
-  OverflowList,
-  PanelError,
-  SectorRow,
-  SkeletonRows,
-  stateLabel,
-  UnavailableNotice,
-} from './research-parts'
+import { StageSteps, StateBadge } from './research-parts'
+import { ResourceState, SearchField } from './shells'
+import { Body, BodySm, Caption, Description, Numeric } from './text'
 import { Button } from './ui/button'
-import { Input } from './ui/input'
+import { DataTable, type DataTableColumn } from './DataTable'
+import { Skeleton } from './ui/skeleton'
+import { SelectItem, SelectPopup, SelectRoot, SelectTrigger } from './ui/select'
+import { TabsList, TabsPanel, TabsRoot, TabsTab } from './ui/tabs'
 
 const stateFilters = [
   'draft',
@@ -30,411 +37,438 @@ const stateFilters = [
   'complete',
 ] as const satisfies readonly ResearchState[]
 
-type StateFilter = ResearchState | 'all'
+export type StateFilter = ResearchState | 'all'
 
-function FilterBar({
-  tab,
-  onTab,
-  query,
-  onQuery,
-  active,
-  onActive,
-}: {
-  tab: ResearchList
-  onTab: (tab: ResearchList) => void
-  query: string
-  onQuery: (value: string) => void
-  active: StateFilter
-  onActive: (filter: StateFilter) => void
-}) {
+export type StateOption = { value: StateFilter; label: string }
+
+export const stateOptions: StateOption[] = [
+  { value: 'all', label: 'All' },
+  ...stateFilters.map((state) => ({ value: state as StateFilter, label: researchStateLabel(state) })),
+]
+
+function isStateFilter(value: string | null | undefined): value is StateFilter {
+  return value === 'all' || (stateFilters as readonly string[]).includes(value ?? '')
+}
+
+/** Sectors page client-side past this many rows (page scrolls, no inner box). */
+const SECTOR_WINDOW = 50
+
+const SKELETON_WIDTHS = ['64%', '48%', '72%', '56%', '64%', '48%', '72%', '56%']
+
+function SectorsTableSkeleton() {
   return (
-    <div className="space-y-3">
-      <div role="group" aria-label="Research type" className="flex gap-2">
-        {(
-          [
-            { value: 'sectors', label: 'Sectors' },
-            { value: 'companies', label: 'Companies' },
-          ] as const
-        ).map(({ value, label }) => (
-          <Button
-            key={value}
-            type="button"
-            variant={tab === value ? 'default' : 'outline'}
-            size="sm"
-            aria-pressed={tab === value}
-            onClick={() => onTab(value)}
-          >
-            {label}
-          </Button>
-        ))}
-      </div>
-      <div className="max-w-sm">
-        <label htmlFor="researches-filter" className="mb-1 block text-sm font-medium">
-          Filter researches
-        </label>
-        <Input
-          id="researches-filter"
-          placeholder="Type to filter"
-          value={query}
-          onChange={(event) => onQuery(event.target.value)}
-        />
-      </div>
-      <div role="group" aria-label="Filter by state" className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant={active === 'all' ? 'default' : 'outline'}
-          size="sm"
-          aria-pressed={active === 'all'}
-          onClick={() => onActive('all')}
+    <div role="status" aria-label="Sectors are loading" className="flex min-w-0 flex-col">
+      {SKELETON_WIDTHS.map((width, index) => (
+        <div
+          key={index}
+          className="flex min-h-14 items-center gap-3 border-b border-border-subtle py-2 last:border-b-0"
         >
-          All
-        </Button>
-        {stateFilters.map((state) => (
-          <Button
-            key={state}
-            type="button"
-            variant={active === state ? 'default' : 'outline'}
-            size="sm"
-            aria-pressed={active === state}
-            onClick={() => onActive(active === state ? 'all' : state)}
-          >
-            {stateLabel[state]}
-          </Button>
-        ))}
-      </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <Skeleton className="h-3.5" style={{ width }} />
+            <Skeleton className="h-3 w-1/3" />
+          </div>
+          <Skeleton className="h-5 w-16 rounded-sm" />
+          <Skeleton className="h-3.5 w-10" />
+          <Skeleton className="h-3 w-14" />
+        </div>
+      ))}
     </div>
   )
 }
 
-function FullList({
-  data,
-  tab,
-  query,
-  active,
-  onClear,
-  onOpenSector,
-}: {
-  data: ResearchData<SectorResearch> | ResearchData<CompanyResearch>
-  tab: ResearchList
-  query: string
-  active: StateFilter
-  onClear: () => void
-  onOpenSector: (id: string) => void
-}) {
-  const needle = query.trim().toLowerCase()
-  if (data.status === 'loading') {
-    return (
-      <SkeletonRows
-        label={tab === 'sectors' ? 'Sector researches are loading' : 'Company researches are loading'}
-      />
-    )
-  }
-  if (data.status === 'error') {
-    return (
-      <PanelError
-        heading={
-          tab === 'sectors'
-            ? 'Sector researches did not load.'
-            : 'Company researches did not load.'
-        }
-        detail="Check your connection and try again."
-        onRetry={data.retry}
-      />
-    )
-  }
-  if (data.status === 'denied') {
-    return (
-      <DeniedNotice
-        heading={
-          tab === 'sectors'
-            ? 'Sector researches are not shared with this key.'
-            : 'Company researches are not shared with this key.'
-        }
-      />
-    )
-  }
-  if (data.status === 'offline') {
-    return <UnavailableNotice onRetry={data.retry} />
-  }
-  // Sectors stay client-filtered: the sector list is small and unpaged.
-  const base = (data.items as SectorResearch[]).map((item) => ({
-    id: item.id,
-    text: `${item.name} ${item.topic}`,
-    state: item.state,
-    row: <SectorRow key={item.id} research={item} onOpen={onOpenSector} />,
-  }))
-  const rows = base.filter(
-    (item) =>
-      (!needle || item.text.toLowerCase().includes(needle)) &&
-      (active === 'all' || item.state === active),
-  )
-  const showCount = needle || active !== 'all' || rows.length > 50
-  if (!rows.length) {
-    const filtered = needle || active !== 'all'
-    return (
-      <div className="mt-2 rounded-lg border border-dashed border-border p-4">
-        <p className="text-sm text-muted-foreground">
-          {filtered
-            ? 'No researches match these filters. Clear them to see everything.'
-            : firstRunCopy[tab]}
-        </p>
-        {filtered ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onClear}
-            className="mt-3"
-          >
-            Clear filters
-          </Button>
-        ) : null}
-      </div>
-    )
-  }
+function CompaniesTableSkeleton() {
   return (
-    <>
-      {showCount ? (
-        <p aria-live="polite" className="mb-2 text-xs text-muted-foreground">
-          Showing {Math.min(rows.length, 50)} of {rows.length} matching
-        </p>
-      ) : null}
-      <OverflowList total={rows.length}>{rows.map((item) => item.row)}</OverflowList>
-    </>
-  )
-}
-
-// Companies filter server-side: the company list pages (default window
-// 100), so local filtering would silently search a partial window. The
-// count line reads the server total, never the window length.
-function CompaniesFullList({
-  staging,
-  query,
-  active,
-  onClear,
-}: {
-  staging: StagingConfig | null
-  query: string
-  active: StateFilter
-  onClear: () => void
-}) {
-  const needle = query.trim()
-  const data = useStagingCompanies(staging, {
-    ...(active === 'all' ? {} : { state: active }),
-    ...(needle === '' ? {} : { query: needle }),
-  })
-  if (data.status === 'loading') {
-    return <SkeletonRows label="Company researches are loading" />
-  }
-  if (data.status === 'error') {
-    return (
-      <PanelError
-        heading="Company researches did not load."
-        detail="Check your connection and try again."
-        onRetry={data.retry}
-      />
-    )
-  }
-  if (data.status === 'denied') {
-    return <DeniedNotice heading="Company researches are not shared with this key." />
-  }
-  if (data.status === 'offline') {
-    return <UnavailableNotice onRetry={data.retry} />
-  }
-  const rows = data.items
-  const total = data.total ?? rows.length
-  const filtered = needle !== '' || active !== 'all'
-  const showCount = filtered || rows.length > 50 || total > rows.length
-  const hasMore = rows.length < total
-  if (!rows.length) {
-    return (
-      <div className="mt-2 rounded-lg border border-dashed border-border p-4">
-        <p className="text-sm text-muted-foreground">
-          {filtered
-            ? 'No researches match these filters. Clear them to see everything.'
-            : firstRunCopy.companies}
-        </p>
-        {filtered ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onClear}
-            className="mt-3"
-          >
-            Clear filters
-          </Button>
-        ) : null}
-      </div>
-    )
-  }
-  return (
-    <>
-      {showCount ? (
-        <p aria-live="polite" className="mb-2 text-xs text-muted-foreground">
-          Showing {rows.length} of {total} matching
-        </p>
-      ) : null}
-      <OverflowList total={total}>{rows.map((item) => <CompanyRow key={item.id} research={item} />)}</OverflowList>
-      {hasMore ? (
-        <div className="mt-2 flex justify-center">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={data.showMore}
-            disabled={data.loadingMore}
-          >
-            {data.loadingMore ? 'Loading more…' : `Show more (${rows.length} of ${total})`}
-          </Button>
+    <div role="status" aria-label="Companies are loading" className="flex min-w-0 flex-col">
+      {SKELETON_WIDTHS.map((width, index) => (
+        <div
+          key={index}
+          className="flex min-h-11 items-center gap-3 border-b border-border-subtle py-2 last:border-b-0"
+        >
+          <Skeleton className="h-3.5 min-w-0 flex-1" style={{ maxWidth: width }} />
+          <Skeleton className="hidden h-3 w-24 sm:block" />
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-5 w-16 rounded-sm" />
         </div>
-      ) : null}
-    </>
-  )
-}
-
-function CreateSectorForm({
-  creating,
-  createError,
-  onCreate,
-}: {
-  creating: boolean
-  createError: string | null
-  onCreate: (name: string, topic: string) => void
-}) {
-  const [name, setName] = useState('')
-  const [topic, setTopic] = useState('')
-  const [error, setError] = useState('')
-  return (
-    <form
-      aria-label="Create a sector draft"
-      className="mt-4 rounded-xl border border-dashed border-border p-3"
-      onSubmit={(event) => {
-        event.preventDefault()
-        if (!name.trim()) {
-          setError('Name the sector first.')
-          return
-        }
-        setError('')
-        onCreate(name.trim(), topic.trim())
-      }}
-    >
-      <h2 className="text-sm font-semibold">New sector draft</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Drafts collect context files first; research starts only when you press Start.
-      </p>
-      <div className="mt-2 grid max-w-md gap-2">
-        <div>
-          <label htmlFor="new-sector-name" className="mb-1 block text-sm font-medium">
-            Name
-          </label>
-          <Input
-            id="new-sector-name"
-            placeholder="Speciality foods"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </div>
-        <div>
-          <label htmlFor="new-sector-topic" className="mb-1 block text-sm font-medium">
-            Topic (optional)
-          </label>
-          <Input
-            id="new-sector-topic"
-            placeholder="Artisanal packaged foods"
-            value={topic}
-            onChange={(event) => setTopic(event.target.value)}
-          />
-        </div>
-      </div>
-      {error || createError ? (
-        <p role="alert" className="mt-2 text-sm text-muted-foreground">
-          {error || createError}
-        </p>
-      ) : null}
-      <Button type="submit" variant="default" size="sm" className="mt-2" disabled={creating}>
-        {creating ? 'Creating…' : 'Create draft'}
-      </Button>
-    </form>
+      ))}
+    </div>
   )
 }
 
 export function ResearchesPage({
   initialTab,
   sectors,
+  companiesTotal,
   staging,
-  creating,
-  createError,
-  onBack,
+  filterQuery = null,
+  stateFilter = null,
   onTabChange,
+  onFiltersChange,
   onOpenSector,
-  onCreateSector,
+  onNewSector,
 }: {
   initialTab: ResearchList
   sectors: ResearchData<SectorResearch>
+  /** Unfiltered company total for the tab count (App's bundle; this page's own query is filtered). */
+  companiesTotal?: number
   staging: StagingConfig | null
-  creating: boolean
-  createError: string | null
-  onBack: () => void
+  filterQuery?: string | null
+  stateFilter?: string | null
   onTabChange?: (tab: ResearchList) => void
+  onFiltersChange?: (query: string, state: StateFilter) => void
   onOpenSector: (id: string) => void
-  onCreateSector: (name: string, topic: string) => void
+  onNewSector: () => void
 }) {
   const [tab, setTab] = useState<ResearchList>(initialTab)
-  const [query, setQuery] = useState('')
-  const [active, setActive] = useState<StateFilter>('all')
-  // Tab switches sync to the URL (via App) so refresh keeps the tab.
+  const [prevInitialTab, setPrevInitialTab] = useState(initialTab)
+  // Back/Forward replays the URL into local state without a remount, so
+  // tab focus and the input caret survive navigation.
+  if (initialTab !== prevInitialTab) {
+    setPrevInitialTab(initialTab)
+    setTab(initialTab)
+  }
+  const [draft, setDraft] = useState(filterQuery ?? '')
+  const [prevFilterQuery, setPrevFilterQuery] = useState(filterQuery)
+  if (filterQuery !== prevFilterQuery) {
+    setPrevFilterQuery(filterQuery)
+    setDraft(filterQuery ?? '')
+  }
+  const active: StateFilter = isStateFilter(stateFilter) ? stateFilter : 'all'
+  // One debounce serves the input and the server query: typing never
+  // fires a request per keystroke, and the URL stays the filter truth.
+  useEffect(() => {
+    if (draft === (filterQuery ?? '')) return
+    const timer = setTimeout(() => onFiltersChange?.(draft, active), 250)
+    return () => clearTimeout(timer)
+  }, [draft, active, filterQuery, onFiltersChange])
+
   function changeTab(next: ResearchList): void {
     setTab(next)
     onTabChange?.(next)
   }
+
+  function changeState(next: StateFilter): void {
+    onFiltersChange?.(draft, next)
+  }
+
+  function clearFilters(): void {
+    setDraft('')
+    onFiltersChange?.('', 'all')
+  }
+
+  const needle = (filterQuery ?? '').trim().toLowerCase()
+  const serverNeedle = (filterQuery ?? '').trim()
+  const filtered = needle !== '' || active !== 'all'
+
+  const filteredSectors = useMemo(
+    () =>
+      sectors.items.filter(
+        (sector) =>
+          (!needle || `${sector.name} ${sector.topic}`.toLowerCase().includes(needle)) &&
+          (active === 'all' || sector.state === active),
+      ),
+    [sectors.items, needle, active],
+  )
+  const [visibleSectors, setVisibleSectors] = useState(SECTOR_WINDOW)
+  const [prevWindowKey, setPrevWindowKey] = useState(`${needle} ${active}`)
+  const windowKey = `${needle} ${active}`
+  if (windowKey !== prevWindowKey) {
+    setPrevWindowKey(windowKey)
+    setVisibleSectors(SECTOR_WINDOW)
+  }
+
+  const companies = useStagingCompanies(staging, {
+    ...(active === 'all' ? {} : { state: active }),
+    ...(serverNeedle === '' ? {} : { query: serverNeedle }),
+  })
+  const companyTotal = companies.total ?? companies.items.length
+
+  const sectorColumns: DataTableColumn<SectorResearch>[] = useMemo(
+    () => [
+      {
+        id: 'sector',
+        header: 'Sector',
+        stackedLabel: '',
+        cell: (row) => (
+          <span className="block min-w-0">
+            <Body as="span" title={row.name} className="block truncate font-medium">
+              {row.name}
+            </Body>
+            <Description as="span" title={row.topic} className="block truncate">
+              {row.topic}
+            </Description>
+          </span>
+        ),
+        sortValue: (row) => row.name,
+      },
+      {
+        id: 'status',
+        header: 'Status',
+        cell: (row) => <StateBadge state={row.state} />,
+        sortValue: (row) => researchStateLabel(row.state),
+      },
+      {
+        id: 'companies',
+        header: 'Companies',
+        align: 'right',
+        cell: (row) => <Numeric>{formatCount(row.companiesFound)}</Numeric>,
+        sortValue: (row) => row.companiesFound,
+      },
+      {
+        id: 'updated',
+        header: 'Updated',
+        cell: (row) => (
+          <BodySm as="span" title={formatFullDate(row.updatedAt)} className="text-muted-foreground whitespace-nowrap">
+            {relativeAge(row.updatedAt)}
+          </BodySm>
+        ),
+        sortValue: (row) => {
+          const time = new Date(row.updatedAt).getTime()
+          return Number.isFinite(time) ? time : null
+        },
+      },
+      {
+        id: 'open',
+        header: <span className="sr-only">Open</span>,
+        stackedLabel: '',
+        cell: () => <Icons.chevronRight aria-hidden className="size-4 text-muted-foreground" />,
+      },
+    ],
+    [],
+  )
+
+  // No client sorting: the company list pages server-side, so sorting the
+  // loaded window would lie about the rest. Server sort is a follow-up.
+  const companyColumns: DataTableColumn<CompanyResearch>[] = useMemo(
+    () => [
+      {
+        id: 'company',
+        header: 'Company',
+        stackedLabel: '',
+        cell: (row) => (
+          <Body as="span" title={row.name} className="block truncate font-medium">
+            {row.name}
+          </Body>
+        ),
+      },
+      {
+        id: 'sector',
+        header: 'Sector',
+        cell: (row) => (
+          <BodySm as="span" title={row.sectorName} className="block truncate">
+            {row.sectorName}
+          </BodySm>
+        ),
+      },
+      {
+        id: 'stage',
+        header: 'Stage',
+        cell: (row) => (
+          <span className="flex items-center gap-2">
+            <BodySm as="span" className="whitespace-nowrap">
+              {companyStageLabel(row.stage)}
+            </BodySm>
+            <StageSteps stage={row.stage} />
+          </span>
+        ),
+      },
+      {
+        id: 'status',
+        header: 'Status',
+        cell: (row) => <StateBadge state={row.state} />,
+      },
+      {
+        id: 'open',
+        header: <span className="sr-only">Open</span>,
+        stackedLabel: '',
+        cell: () => <Icons.chevronRight aria-hidden className="size-4 text-muted-foreground" />,
+      },
+    ],
+    [],
+  )
+
+  const sectorsCount = sectors.total ?? sectors.items.length
+  const toolbarCount =
+    tab === 'sectors'
+      ? sectors.status === 'ready'
+        ? `${formatCount(filteredSectors.length)} ${filteredSectors.length === 1 ? 'sector' : 'sectors'}`
+        : null
+      : companies.status === 'ready'
+        ? `${formatCount(companyTotal)} ${companyTotal === 1 ? 'company' : 'companies'}`
+        : null
+
+  const selectedOption = stateOptions.find((option) => option.value === active) ?? stateOptions[0]
+  const newSectorAction = (
+    <Button type="button" variant="primary" size="sm" onClick={onNewSector}>
+      <Icons.plus aria-hidden />
+      New sector
+    </Button>
+  )
+  const hasMoreSectors = filteredSectors.length > visibleSectors
+
   return (
-    <div className="space-y-6">
-      <Button type="button" variant="ghost" size="sm" onClick={onBack}>
-        <ArrowLeft className="size-4" aria-hidden />
-        Back to Overview
-      </Button>
-      {tab === 'sectors' ? (
-        <CreateSectorForm creating={creating} createError={createError} onCreate={onCreateSector} />
-      ) : null}
-      <section
-        aria-label={tab === 'sectors' ? 'All sector researches' : 'All company researches'}
-        className="rounded-xl border border-border bg-background px-4 py-3"
-      >
-        <FilterBar
-          tab={tab}
-          onTab={changeTab}
-          query={query}
-          onQuery={setQuery}
-          active={active}
-          onActive={setActive}
+    <TabsRoot value={tab} onValueChange={(value) => changeTab(value as ResearchList)}>
+      <TabsList aria-label="Research type">
+        <TabsTab value="sectors">
+          Sectors{' '}
+          {sectors.status === 'ready' ? (
+            <Numeric className="font-normal text-muted-foreground">{formatCount(sectorsCount)}</Numeric>
+          ) : null}
+        </TabsTab>
+        <TabsTab value="companies">
+          Companies{' '}
+          {companiesTotal !== undefined ? (
+            <Numeric className="font-normal text-muted-foreground">{formatCount(companiesTotal)}</Numeric>
+          ) : null}
+        </TabsTab>
+      </TabsList>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center">
+        <SearchField
+          value={draft}
+          onChange={setDraft}
+          label={tab === 'sectors' ? 'Search sectors' : 'Search companies'}
+          placeholder={tab === 'sectors' ? 'Search sectors' : 'Search companies'}
+          className="md:w-64 md:shrink-0"
         />
-        <div className="mt-4">
-          {tab === 'sectors' ? (
-            <FullList
-              data={sectors}
-              tab={tab}
-              query={query}
-              active={active}
-              onClear={() => {
-                setQuery('')
-                setActive('all')
-              }}
-              onOpenSector={onOpenSector}
+        <div className="md:w-52 md:shrink-0">
+          <SelectRoot
+            value={selectedOption}
+            onValueChange={(option) => {
+              if (option) changeState(option.value)
+            }}
+          >
+            <SelectTrigger
+              aria-label={`Status: ${selectedOption.label}`}
+              valueText={`Status: ${selectedOption.label}`}
             />
-          ) : (
-            <CompaniesFullList
-              staging={staging}
-              query={query}
-              active={active}
-              onClear={() => {
-                setQuery('')
-                setActive('all')
-              }}
-            />
-          )}
+            <SelectPopup>
+              {stateOptions.map((option) => (
+                <SelectItem key={option.value} value={option}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectPopup>
+          </SelectRoot>
         </div>
-      </section>
-    </div>
+        <div className="md:ml-auto">
+          {toolbarCount ? (
+            <Caption aria-live="polite" className="tabular-nums">
+              {toolbarCount}
+            </Caption>
+          ) : null}
+        </div>
+      </div>
+      <TabsPanel value="sectors">
+        <div data-card="" className="rounded-lg border border-border bg-card px-2 py-2 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
+          <DataTable
+            ariaLabel="Sectors"
+            data={filteredSectors}
+            columns={sectorColumns}
+            rowKey={(row) => row.id}
+            onSelect={(row) => onOpenSector(row.id)}
+            defaultSort={[{ id: 'updated', desc: true }]}
+            state={sectors.status === 'loading' ? 'loading' : sectors.status === 'ready' ? 'ready' : 'error'}
+            rowLimit={filteredSectors.length > SECTOR_WINDOW ? visibleSectors : undefined}
+            loading={<SectorsTableSkeleton />}
+            error={<ResourceState resource={{ status: sectors.status, refresh: sectors.retry }} label="Sectors" />}
+            empty={
+              <ResourceState
+                resource={{ status: 'ready', refresh: sectors.retry }}
+                label="Sectors"
+                emptyKind={filtered ? 'filtered' : 'first'}
+                icon={<Icons.sector aria-hidden />}
+                emptyTitle="No sectors yet"
+                emptyBody="Create a sector to start discovering companies."
+                emptyAction={newSectorAction}
+                onClearFilter={filtered ? clearFilters : undefined}
+                clearLabel="Clear filters"
+              />
+            }
+            footer={
+              filteredSectors.length > SECTOR_WINDOW ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 px-2 pt-2">
+                  <Caption aria-live="polite" className="tabular-nums">
+                    Showing {formatCount(Math.min(visibleSectors, filteredSectors.length))} of{' '}
+                    {formatCount(filteredSectors.length)}
+                  </Caption>
+                  {hasMoreSectors ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setVisibleSectors((value) => value + SECTOR_WINDOW)}
+                    >
+                      Show more
+                    </Button>
+                  ) : null}
+                </div>
+              ) : undefined
+            }
+          />
+        </div>
+      </TabsPanel>
+      <TabsPanel value="companies">
+        <div data-card="" className="rounded-lg border border-border bg-card px-2 py-2 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
+          <DataTable
+            ariaLabel="Companies"
+            data={companies.items}
+            columns={companyColumns}
+            rowKey={(row) => row.id}
+            onSelect={(row) => onOpenSector(row.sectorId)}
+            state={companies.status === 'loading' ? 'loading' : companies.status === 'ready' ? 'ready' : 'error'}
+            loading={<CompaniesTableSkeleton />}
+            error={
+              <ResourceState
+                resource={{ status: companies.status, refresh: companies.retry }}
+                label="Companies"
+                deniedBody="Company data is not shared with this key. Ask an owner for access, then try again."
+              />
+            }
+            empty={
+              <ResourceState
+                resource={{ status: 'ready', refresh: companies.retry }}
+                label="Companies"
+                emptyKind={filtered ? 'filtered' : 'first'}
+                icon={<Icons.company aria-hidden />}
+                emptyTitle="No companies yet"
+                emptyBody="Create a sector to start discovering companies."
+                emptyAction={newSectorAction}
+                onClearFilter={filtered ? clearFilters : undefined}
+                clearLabel="Clear filters"
+              />
+            }
+            footer={
+              companies.status === 'ready' && companies.items.length > 0 ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 px-2 pt-2">
+                  <Caption aria-live="polite" className="tabular-nums">
+                    Showing {formatCount(companies.items.length)} of {formatCount(companyTotal)}
+                  </Caption>
+                  {companies.moreError ? (
+                    <span className="flex flex-wrap items-center gap-2">
+                      <BodySm as="span" className="text-danger">
+                        More companies did not load.
+                      </BodySm>
+                      <Button type="button" variant="ghost" size="sm" onClick={companies.showMore}>
+                        Try again
+                      </Button>
+                    </span>
+                  ) : companies.items.length < companyTotal ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      pending={companies.loadingMore}
+                      disabled={companies.loadingMore}
+                      onClick={companies.showMore}
+                    >
+                      Show more
+                    </Button>
+                  ) : null}
+                </div>
+              ) : undefined
+            }
+          />
+        </div>
+      </TabsPanel>
+    </TabsRoot>
   )
 }

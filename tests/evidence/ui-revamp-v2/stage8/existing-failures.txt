@@ -1,0 +1,94 @@
+alerts.spec.ts | expect(locator).toHaveCount(expected) failed | getByRole('region', { name: 'Supervision alerts', exact: true }).getByRole('listitem') | exp=20 | got=0
+alerts.spec.ts | expect(locator).toHaveCount(expected) failed | getByRole('region', { name: 'Supervision alerts', exact: true }).getByRole('listitem') | exp=20 | got=0
+alerts.spec.ts | expect(locator).toHaveCount(expected) failed | getByRole('region', { name: 'Supervision alerts', exact: true }).getByRole('listitem') | exp=20 | got=0
+alerts.spec.ts | expect(locator).toHaveCount(expected) failed | getByRole('region', { name: 'Supervision alerts', exact: true }).getByRole('listitem') | exp=20 | got=0
+alerts.spec.ts | expect(locator).toBeVisible() failed | getByRole('region', { name: 'Supervision alerts', exact: true }).getByText('Alerts is not  | exp=visible | got=
+context-recovery.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+context-recovery.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+context-recovery.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+context-recovery.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+execution-inspection.spec.ts | expect(locator).toBeVisible() failed | getByRole('dialog', { name: 'Execution records', exact: true }).getByText('20 records on t | exp=visible | got=
+execution-inspection.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+execution-inspection.spec.ts | expect(locator).toBeVisible() failed | getByRole('dialog', { name: 'Execution records', exact: true }).getByText('20 records on t | exp=visible | got=
+execution-inspection.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+execution-inspection.spec.ts | expect(locator).toBeVisible() failed | getByRole('dialog', { name: 'Execution records', exact: true }).getByText('20 records on t | exp=visible | got=
+execution-inspection.spec.ts | expect(locator).toBeVisible() failed | getByRole('dialog', { name: 'Execution records', exact: true }).getByText('20 records on t | exp=visible | got=
+execution-inspection.spec.ts | expect(locator).toBeVisible() failed | getByRole('dialog', { name: 'Execution records', exact: true }).getByText('20 records on t | exp=visible | got=
+execution-inspection.spec.ts | expect(locator).toBeVisible() failed | getByRole('dialog', { name: 'Execution records', exact: true }).getByText('20 records on t | exp=visible | got=
+file-processing.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+file-processing.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+file-processing.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+file-processing.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+files-scale.spec.ts | expect(locator).toBeVisible() failed | getByRole('region', { name: 'Sector files' }).getByText('Showing 50 of 2004 files', { exac | exp=visible | got=
+files-scale.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+files-scale.spec.ts | expect(locator).toBeVisible() failed | getByRole('region', { name: 'Sector files' }).getByText('Showing 50 of 2004 files', { exac | exp=visible | got=
+files-scale.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+files-scale.spec.ts | expect(locator).toBeVisible() failed | getByRole('region', { name: 'Sector files' }).getByText('Upload source material or ask an  | exp=visible | got=
+files-scale.spec.ts | expect(locator).toBeVisible() failed | getByRole('region', { name: 'Sector files' }).getByText('Upload source material or ask an  | exp=visible | got=
+matrix.spec.ts | expect(locator).toBeVisible() failed | getByRole('button', { name: 'Open', exact: true }) | exp=visible | got=
+matrix.spec.ts | expect(locator).toBeVisible() failed | getByRole('button', { name: 'Open', exact: true }) | exp=visible | got=
+matrix.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+matrix.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+polish.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+polish.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+revamp-evidence.spec.ts | locator.click: Error: strict mode violation: getByRole('button', { name: 'New sector' }) resolved to 2 elements: |  | exp= | got=
+revamp-evidence.spec.ts | expect(locator).toBeVisible() failed | getByText('Configured', { exact: true }) | exp=visible | got=
+revamp-evidence.spec.ts | expect(locator).toBeVisible() failed | getByRole('dialog', { name: 'Command palette' }) | exp=visible | got=
+revamp-evidence.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+revamp-evidence.spec.ts | expect(locator).toBeVisible() failed | getByText('Showing 50 of 2005 files') | exp=visible | got=
+revamp-evidence.spec.ts | locator.click: Error: strict mode violation: getByRole('button', { name: 'New sector' }) resolved to 2 elements: |  | exp= | got=
+revamp-evidence.spec.ts | locator.click: Error: strict mode violation: getByRole('button', { name: 'New sector' }) resolved to 2 elements: |  | exp= | got=
+revamp-evidence.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+revamp-evidence.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+revamp-evidence.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+revamp-evidence.spec.ts | expect(locator).toBeVisible() failed | getByRole('menu', { name: 'Models' }) | exp=visible | got=
+scale.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+scale.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+scrollbars.spec.ts | expect(locator).toBeVisible() failed | getByText('Overflow sector 1') | exp=visible | got=
+scrollbars.spec.ts | expect(locator).toBeVisible() failed | getByRole('complementary', { name: 'Assistant chat' }).getByRole('menu', { name: 'Models'  | exp=visible | got=
+scrollbars.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+smoke.spec.ts | expect(locator).toBeVisible() failed | getByRole('complementary', { name: 'Assistant chat' }).getByRole('menu', { name: 'Models'  | exp=visible | got=
+smoke.spec.ts | expect(locator).toBeVisible() failed | getByRole('complementary', { name: 'Assistant chat' }).getByText('List sectors') | exp=visible | got=
+smoke.spec.ts | expect(locator).toBeVisible() failed | getByRole('complementary', { name: 'Assistant chat' }).getByText('Running') | exp=visible | got=
+transitions.spec.ts | expect(locator).toBeVisible() failed | getByRole('complementary', { name: 'Assistant chat' }).getByRole('menu', { name: 'Models'  | exp=visible | got=
+visual.spec.ts | expect(locator).toBeVisible() failed | getByText('Company research has not started yet.') | exp=visible | got=
+visual.spec.ts | expect(locator).toBeVisible() failed | getByRole('complementary', { name: 'Assistant chat' }).getByRole('menu', { name: 'Models'  | exp=visible | got=
+visual.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+work-review.spec.ts | locator.focus: Test timeout of 30000ms exceeded. |  | exp= | got=
+work-review.spec.ts | locator.focus: Test timeout of 30000ms exceeded. |  | exp= | got=
+work-review.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+work-review.spec.ts | locator.focus: Test timeout of 30000ms exceeded. |  | exp= | got=
+work-review.spec.ts | locator.focus: Test timeout of 30000ms exceeded. |  | exp= | got=
+work-review.spec.ts | locator.focus: Test timeout of 30000ms exceeded. |  | exp= | got=
+work-review.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+work-review.spec.ts | locator.focus: Test timeout of 30000ms exceeded. |  | exp= | got=
+workspace.spec.ts | expect(locator).toBeVisible() failed | getByText('Company research has not started yet.') | exp=visible | got=
+workspace.spec.ts | expect(locator).toBeVisible() failed | getByRole('dialog', { name: 'Sessions', exact: true }).getByRole('group', { name: 'Session | exp=visible | got=
+workspace.spec.ts | expect(locator).toBeVisible() failed | getByRole('dialog', { name: 'Sessions', exact: true }).getByRole('group', { name: 'Session | exp=visible | got=
+workspace.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+workspace.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+workspace.spec.ts | expect(locator).toBeVisible() failed | getByRole('complementary', { name: 'Sector resources', includeHidden: true }) | exp=visible | got=hidden
+workspace.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+workspace.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+workspace.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+workspace.spec.ts | locator.fill: Test timeout of 30000ms exceeded. |  | exp= | got=
+workspace.spec.ts | expect(locator).toHaveAttribute(expected) failed | getByRole('button', { name: 'Chats', exact: true }) | exp="true" | got=
+workspace.spec.ts | expect(locator).toBeVisible() failed | getByText('Files is not shared with this key.') | exp=visible | got=hidden
+workspace.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+workspace.spec.ts | expect(locator).toContainText(expected) failed | getByRole('region', { name: 'Executable research work' }) | exp= | got=
+workspace.spec.ts | expect(locator).toBeVisible() failed | getByRole('button', { name: 'Resume conversation' }) | exp=visible | got=
+workspace.spec.ts | expect(locator).toBeVisible() failed | getByRole('dialog', { name: 'Edit research plan' }).getByRole('textbox', { name: 'Plan', e | exp=visible | got=
+workspace.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+workspace.spec.ts | expect(locator).toBeVisible() failed | getByRole('dialog', { name: 'Edit research plan' }).getByRole('textbox', { name: 'Plan', e | exp=visible | got=
+workspace.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+workspace.spec.ts | expect(locator).toBeVisible() failed | getByRole('button', { name: 'Resume conversation' }) | exp=visible | got=
+workspace.spec.ts | expect(locator).toBeVisible() failed | getByRole('button', { name: 'Resume conversation' }) | exp=visible | got=
+workspace.spec.ts | expect(locator).toBeVisible() failed | getByRole('button', { name: 'Resume conversation' }) | exp=visible | got=
+workspace.spec.ts | expect(locator).toBeVisible() failed | getByRole('button', { name: 'Resume conversation' }) | exp=visible | got=
+workspace.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+workspace.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+workspace.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+workspace.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=
+workspace.spec.ts | expect(locator).toBeVisible() failed | getByRole('region', { name: 'Research progress' }).getByText('Estimate pending', { exact:  | exp=visible | got=
+workspace.spec.ts | expect(locator).toBeVisible() failed | getByText('Global context is not shared with this key.') | exp=visible | got=hidden
+workspace.spec.ts | locator.click: Test timeout of 30000ms exceeded. |  | exp= | got=

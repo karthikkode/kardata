@@ -3,7 +3,7 @@
 // token meter, per-file units with include/exclude toggles, user notes with
 // add, and deliberate loading/empty/error/denied states.
 import { useEffect, useState } from 'react'
-import { Check, Copy, Eye, EyeOff, FileText, Minimize2, Plus } from 'lucide-react'
+import { Icons } from '@/lib/icons'
 import {
   compactSectorContext,
   getSectorContext,
@@ -38,8 +38,9 @@ function isSectorContextView(data: unknown): data is SectorContextView {
 }
 
 function MeterBar({ view }: { view: SectorContextView }) {
-  // Model window the meter scales against (muse-spark class, 1M tokens).
-  // Usage reads come from the backend view; only the scale lives here.
+  // Legacy estimated inspection view: usage reads come from the backend
+  // view and the scale below is an estimate only. It is not the active
+  // local-context budget authority.
   const WINDOW_TOKENS = 1_000_000
   const total = view.usage.totalEstimatedTokens
   const percent = ((total / WINDOW_TOKENS) * 100).toFixed(2)
@@ -50,7 +51,8 @@ function MeterBar({ view }: { view: SectorContextView }) {
   ]
   return (
     <div>
-      <div className="relative">
+      <p className="mb-1 text-xs text-muted-foreground">Legacy estimate, not a budget limit.</p>
+      <div>
         <div
           role="img"
           aria-label={`Context meter: ${total} of ${WINDOW_TOKENS} estimated tokens (${percent} percent of context)`}
@@ -60,24 +62,17 @@ function MeterBar({ view }: { view: SectorContextView }) {
             <span
               key={part.label}
               title={`${part.label}: ${part.tokens} tokens`}
-              className="h-full bg-muted-foreground/60 first:bg-foreground"
+              className="h-full bg-muted-foreground first:bg-foreground"
               style={{ width: `${(part.tokens / Math.max(1, WINDOW_TOKENS)) * 100}%` }}
             />
           ))}
         </div>
-        <div
-          className="pointer-events-none absolute inset-y-0 w-0.5 bg-amber-500/80"
-          style={{ left: '60%' }}
-          title="60% compaction threshold"
-          aria-hidden
-        />
       </div>
       <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
         <p>
-          {total.toLocaleString()} / {WINDOW_TOKENS.toLocaleString()} tokens · {percent}% of context · digest{' '}
+          {total.toLocaleString()} / {WINDOW_TOKENS.toLocaleString()} estimated tokens · {percent}% of context · digest{' '}
           {view.digest.version} · {view.segments.references.length} references
         </p>
-        <span className="text-[11px] text-amber-500 dark:text-amber-400">60% compact threshold</span>
       </div>
     </div>
   )
@@ -120,7 +115,7 @@ function FileBlock({
           onClick={() => onToggleUnit(file.id, undefined, !file.excluded)}
           aria-label={file.excluded ? `Include ${file.filename}` : `Exclude ${file.filename}`}
         >
-          {file.excluded ? <Eye className="size-4" aria-hidden /> : <EyeOff className="size-4" aria-hidden />}
+          {file.excluded ? <Icons.reveal className="size-4" aria-hidden /> : <Icons.hide className="size-4" aria-hidden />}
         </Button>
       </div>
       <p className="mt-1 font-mono text-xs text-muted-foreground">
@@ -143,7 +138,7 @@ function FileBlock({
                   onClick={() => onToggleUnit(file.id, unit.ord, !unit.excluded)}
                   aria-label={unit.excluded ? `Include unit ${unit.ord}` : `Exclude unit ${unit.ord}`}
                 >
-                  {unit.excluded ? <Eye className="size-4" aria-hidden /> : <EyeOff className="size-4" aria-hidden />}
+                  {unit.excluded ? <Icons.reveal className="size-4" aria-hidden /> : <Icons.hide className="size-4" aria-hidden />}
                 </Button>
               </div>
               <p className="mt-0.5 whitespace-pre-wrap text-sm">{unit.text}</p>
@@ -276,7 +271,7 @@ export function SectorContextDrawer({
   return (
     <div role="region" aria-label={`Context for ${sectorName}`} className="flex min-h-0 flex-col px-4 py-3">
       <div className="flex items-center gap-2">
-        <h2 className="flex-1 text-base font-semibold">Context</h2>
+        <h2 className="flex-1 text-base font-medium">Context</h2>
         {state.status === 'ready' ? (
           <div className="flex items-center gap-1.5">
             <Button
@@ -287,7 +282,7 @@ export function SectorContextDrawer({
               onClick={() => setShowRaw((prev) => !prev)}
               className="h-7 gap-1 px-2 text-xs"
             >
-              <FileText className="size-3.5" aria-hidden />
+              <Icons.fileDocs className="size-3.5" aria-hidden />
               <span>{showRaw ? 'Structured' : 'Raw Text'}</span>
             </Button>
             <Button
@@ -299,14 +294,14 @@ export function SectorContextDrawer({
               onClick={() => void handleCompact()}
               className="h-7 gap-1 px-2 text-xs text-primary"
             >
-              <Minimize2 className="size-3.5" aria-hidden />
+              <Icons.minimize className="size-3.5" aria-hidden />
               <span>{compacting ? 'Compacting…' : 'Compact Context'}</span>
             </Button>
           </div>
         ) : null}
       </div>
       {compactResult ? (
-        <div className="mt-2 flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs text-primary">
+        <div className="mt-2 flex items-center justify-between rounded-lg border border-primary-border bg-primary-soft px-3 py-1.5 text-xs text-primary">
           <span>{compactResult}</span>
           <button
             type="button"
@@ -332,7 +327,7 @@ export function SectorContextDrawer({
       ) : null}
       {state.status === 'ready' ? (
         <div className="mt-2 min-h-0 flex-1 space-y-4">
-          <div className="sticky top-0 z-10 border-b border-border bg-background/95 py-2 backdrop-blur">
+          <div className="sticky top-0 z-10 border-b border-border bg-background py-2">
             <MeterBar view={state.view} />
           </div>
           {showRaw ? (
@@ -359,7 +354,7 @@ export function SectorContextDrawer({
                   }}
                   className="h-7 gap-1 text-xs"
                 >
-                  {copiedRaw ? <Check className="size-3.5 text-emerald-500" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
+                  {copiedRaw ? <Icons.approve className="size-3.5 text-success" aria-hidden /> : <Icons.copy className="size-3.5" aria-hidden />}
                   <span>{copiedRaw ? 'Copied' : 'Copy'}</span>
                 </Button>
               </div>
@@ -444,7 +439,7 @@ export function SectorContextDrawer({
                   <p className="mt-1 text-sm text-muted-foreground">No tail pinned.</p>
                 )}
               </section>
-              <section aria-label="Add a context note" className="sticky bottom-0 z-10 border-t border-border bg-background/95 py-2 backdrop-blur">
+              <section aria-label="Add a context note" className="sticky bottom-0 z-10 border-t border-border bg-background py-2">
                 <h3 className="text-sm font-medium">Add note</h3>
                 <div className="mt-1 flex gap-2">
                   <Input
@@ -458,7 +453,7 @@ export function SectorContextDrawer({
                     }}
                   />
                   <Button type="button" variant="outline" size="sm" disabled={savingNote || !note.trim()} onClick={() => void addNote()}>
-                    <Plus className="size-4" aria-hidden />
+                    <Icons.plus className="size-4" aria-hidden />
                     Add
                   </Button>
                 </div>

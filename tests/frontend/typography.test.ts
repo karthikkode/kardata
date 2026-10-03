@@ -41,4 +41,15 @@ describe('typography tokens', () => {
       .filter((file) => readFileSync(file, 'utf8').includes('font-family'))
     expect(offenders).toEqual([])
   })
+
+  it('uses no raw text-[ sizes in feature code (shared text primitives own the scale)', () => {
+    // Exempt: owned primitive internals (ui/), the text primitives
+    // themselves, and the relative em code size in Markdown.tsx.
+    const offenders = textFiles(SRC).filter((file) => {
+      if (file.includes('/ui/') || file.endsWith('/text.tsx')) return false
+      if (file.endsWith('Markdown.tsx')) return false
+      return /text-\[/.test(readFileSync(file, 'utf8'))
+    })
+    expect(offenders).toEqual([])
+  })
 })
