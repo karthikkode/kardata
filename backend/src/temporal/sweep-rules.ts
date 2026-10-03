@@ -170,6 +170,23 @@ const NON_COMPANY_DOMAINS = [
   'hotfrog.com.au', 'yelp.com', 'yelp.com.au', 'tripadvisor.com',
 ]
 
+/** Government and reference hosts: never a trading company. */
+const NON_COMPANY_SUFFIXES = [
+  '.gov', '.gov.au', '.gov.in', '.nic.in', '.gov.uk',
+]
+
+/** Article/guide/news/registration shapes that real junk arrives in
+ * (B4). Each must read as editorial content, never a company name:
+ * negative controls pin the near-misses. */
+const ARTICLE_TITLE_RULES = [
+  /\b(meaning|definition)\b.*\b(benefits|examples|guide|types)\b/i,
+  /^\s*(what is|what are|how to|why)\b/i,
+  /\b(latest news|news updates?|breaking news)\b/i,
+  /^\s*[^:|]{0,40}\bnews\s*[:|]/i,
+  /\b(registration|apply online|government scheme|yojana|portal)\b.*\b(free|online|apply|scheme)\b/i,
+  /\b(examples? guide|ultimate guide|complete guide|beginner'?s guide)\b/i,
+]
+
 /** Metadata screening only, not a deep-research verdict or geographic proof.
  * Keep legacy callers unchanged for durable workflow replay. */
 function basicCompanyHit(hit: CandidateHit, domain: string): boolean {
@@ -178,10 +195,13 @@ function basicCompanyHit(hit: CandidateHit, domain: string): boolean {
   const port = authority.split(':')[1]
   if (port && (Number(port) < 1 || Number(port) > 65535)) return false
   if (NON_COMPANY_DOMAINS.some((blocked) => domain === blocked || domain.endsWith(`.${blocked}`))) return false
+  if (NON_COMPANY_SUFFIXES.some((suffix) => domain === suffix.slice(1) || domain.endsWith(suffix))) return false
   const path = /^https?:\/\/[^/?#]+([^?#]*)/i.exec(hit.url.trim())?.[1] ?? ''
   if (/\/(?:blogs?|news|articles?|careers?|jobs?|vacancies|directory|directories|listings?)(?:[/.?#-]|$)/i.test(path)) return false
   if (/\b(?:top|best)\s+\d+\b|\b\d+\s+(?:top|best)\b|\bdirectory\b|\bjob\s+(?:board|listings?)\b|\bjobs\s+(?:in|for)\b|\bvacancies\b/i.test(hit.title)) return false
   if (/\bdirectory of\b|\bbrowse\b.{0,50}\blistings\b|\bjob vacancies\b/i.test(hit.snippet ?? '')) return false
+  const copy = `${hit.title}\n${hit.snippet ?? ''}`
+  if (ARTICLE_TITLE_RULES.some((rule) => rule.test(copy))) return false
   return true
 }
 

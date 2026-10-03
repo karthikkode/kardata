@@ -497,3 +497,28 @@ describe('durable normalized execution records', () => {
     expect(world.adapter.calls).toHaveLength(0)
   })
 })
+
+describe('reply formatting rule (B1)', () => {
+  it('writes calm chat prose: no bold lead-ins, no internal names, no em dashes', () => {
+    expect(KARBOT_SYSTEM_PROMPT).toContain('never as a label')
+    expect(KARBOT_SYSTEM_PROMPT).toContain('Never mention internal tool names')
+    expect(KARBOT_SYSTEM_PROMPT).toContain('Do not use em dashes')
+    expect(KARBOT_SYSTEM_PROMPT).not.toContain('**bold** lead-ins')
+  })
+})
+
+describe('sector identity preload (B2)', () => {
+  it('states the exact sector id to the model for sector-linked sessions', async () => {
+    const world = memoryWorld(new FakeProvider([{ text: 'TEST sector answer' }]))
+    world.deps.loadSessionSector = async () => 'sector-9'
+    world.deps.loadSectorName = async () => 'TEST Sector'
+    await executeKarbotTurn(input(), world.deps)
+    const prompt = world.adapter.calls[0]?.systemPrompt ?? ''
+    expect(prompt).toContain('Current sector: "TEST Sector" (sector id: sector-9). Use exactly this sector id for every sector tool call; never derive an id from the name.')
+  })
+  it('omits the sector block for general sessions', async () => {
+    const world = memoryWorld(new FakeProvider([{ text: 'TEST general answer' }]))
+    await executeKarbotTurn(input(), world.deps)
+    expect(world.adapter.calls[0]?.systemPrompt ?? '').not.toContain('Current sector:')
+  })
+})

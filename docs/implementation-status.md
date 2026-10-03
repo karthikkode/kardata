@@ -3530,3 +3530,20 @@ sequence-first so 8-char short ids differ. Gates green: lint 0 errors,
 typecheck clean, 724 unit passed / 6 skipped, build clean, 37/37 stage
 e2e (agents/models/shell), 4/4 new audit views with zero violations on
 all 24 combos, AG-03 cancel video.
+
+UI v2 stage 7 (2026-10-03, branch ui-revamp-v2): backend B1-B4.
+B1 calm-chat-prose system prompt, B2 sector-identity preload block,
+B3 planningBrief brief format, B4 sweep junk screening (gov/article
+suffix and title rules). Each shipped failing-test-first with
+fail-before/pass-after logs in tests/evidence/ui-revamp-v2/stage7/.
+Red suites were contracts, not baselines: the backend gate opened
+with contract parity, hardening catalogue, and acceptance-matrix
+failures caused by v2 stages 1-6 adding frontend surface
+(CommandPalette, ReasoningControl, new specs/exports) without
+updating the pinned inventories (catalogue.json last generated at
+the waves 8-12 checkpoint). Fixed on the product side:
+ReasoningControl parity entry (presentational, ThreadMessage
+counterpart per the MessageSegment precedent) plus sanctioned
+UPDATE_HARDENING_CATALOG / UPDATE_ACCEPTANCE_SURFACES regens. Gate
+green: backend lint/typecheck clean, 645 passed / 471 skipped / 0
+failed across 86 files.

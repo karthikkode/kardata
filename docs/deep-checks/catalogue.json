@@ -1159,7 +1159,7 @@
     },
     {
       "path": "backend/src/contract.ts",
-      "sha256": "a9fb58cf2e5189e2c7568ba0a63e9dfded0280d4bed0ea5f1344a980f0a56e0a",
+      "sha256": "2a5a0cb1f591f7eca61bbd462025213a56db3de07a358c9a33ae9a41770d03be",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2729,7 +2729,7 @@
     },
     {
       "path": "backend/src/temporal/activities/turn.ts",
-      "sha256": "6e5ec851131680193d65c7b75ab4704e46f8ab4a74ebc63c148bcd109525f52d",
+      "sha256": "708b457e53e00c51a7488f2a65eaeec4061e662eb2a21468ea1d78a07c490b91",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2877,7 +2877,7 @@
     },
     {
       "path": "backend/src/temporal/sweep-rules.ts",
-      "sha256": "cf91b151bf64bb96b497bbf467f06efb60cc09cbf82861592691c28dc929fadb",
+      "sha256": "c1455f06108e6a43006011a9cbaaaa341985369c9f89d3df764b629ccc589b99",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2982,7 +2982,7 @@
     },
     {
       "path": "backend/src/temporal/workflows/plan.ts",
-      "sha256": "5d2e6e2ce5e1988c847af12b396760cbe205d45c64a32959222d08045f10511c",
+      "sha256": "e6733281ad14e9803c2b2c80573cb7c66c935c8ac5e78ded5d4863a844772914",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3460,14 +3460,14 @@
     },
     {
       "path": "frontend/index.html",
-      "sha256": "c489ca10e39dee2c944678c7cbe29c05c1464f0d3ad331829be0616dfe292ada",
+      "sha256": "ef558e87fbf6e0764ebe6206a44fa72b5dd6602d45d8691e28e614031708e29e",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "frontend/package.json",
-      "sha256": "f612d981b5ae0911a0296c0f8eeef59bf6a93a961994ea88272cb534e5ecb281",
+      "sha256": "c2d303ceaa154fdc60b9a193547e9aa394b8badcbef9803602f121b41a07a994",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -3497,7 +3497,7 @@
     },
     {
       "path": "frontend/src/App.tsx",
-      "sha256": "b5df15820f4063373ff7ed8ce044cafdcb64b981eab2791787883b4d738efab0",
+      "sha256": "92820a991160ef9e584f40cc7e1431f80dd6ab912b456de6fc51488a78aab761",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3506,11 +3506,10 @@
     },
     {
       "path": "frontend/src/components/ChatPanel.tsx",
-      "sha256": "c9838564394ce65b1ca2c15729fb0aea1ca8263a3bc73920098261e7f330ef4d",
+      "sha256": "3a87e362e1b0d8be3b3130ddb42e4cac89b43e41ae2d4818d41ad2c6a7f9ba99",
       "review": "pending",
       "tests": [],
       "exports": [
-        "ActivityGroup",
         "ChatFile",
         "ChatMessage",
         "ChatPanel",
@@ -3519,21 +3518,49 @@
         "ChatTool",
         "FilesMenu",
         "MessageSegment",
+        "ReasoningControl",
         "SessionFilesView",
         "SessionsPanel",
-        "ThinkingPlaceholder",
         "groupMessageSegments",
         "mergeChatMessages",
         "messageSeq",
         "sessionAge",
         "toChatMessages",
-        "toLiveMessages",
-        "toolGroupSummary"
+        "toLiveMessages"
+      ]
+    },
+    {
+      "path": "frontend/src/components/CommandPalette.tsx",
+      "sha256": "a117052e93b2482a9bb637e34357666807e1a406f829f7cdf18ebd7dc67569bc",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "CommandPalette",
+        "PaletteSection",
+        "PaletteSector"
+      ]
+    },
+    {
+      "path": "frontend/src/components/CompaniesSection.tsx",
+      "sha256": "9b941dcd5bec834a027833a65790f8ada708bf63950049f8f9fdfdca6d5d6aa4",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "CompaniesSection"
+      ]
+    },
+    {
+      "path": "frontend/src/components/CreateSectorDialog.tsx",
+      "sha256": "ec5702f997de1caeebc3a2947cede00457274cd991f84a86fa8cd00a0f20dd07",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "CreateSectorDialog"
       ]
     },
     {
       "path": "frontend/src/components/Dashboard.tsx",
-      "sha256": "568c3ef81f73b5400b756386c992afd87a3f3999e989a75eead47a6ddb9df493",
+      "sha256": "26d3b3133a0c8439c1661131787a08b531b4c8bbbaf1c4486dfc7429ed2d4a7c",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3542,8 +3569,18 @@
       ]
     },
     {
+      "path": "frontend/src/components/DataTable.tsx",
+      "sha256": "405d9bae32fe0b47cacac3d102517b8a39341696c3367295254ec93be856dc09",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "DataTable",
+        "DataTableColumn"
+      ]
+    },
+    {
       "path": "frontend/src/components/ExecutionInspector.tsx",
-      "sha256": "1dc009ec567da7f87b2a428f5a44489e68d492dd05493a26a0e13556568d593e",
+      "sha256": "1220aee300cef10574fa60f251a36c07c6a6cfe030870c4fc485628f5dd18516",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3561,7 +3598,7 @@
     },
     {
       "path": "frontend/src/components/FileProcessingStatus.tsx",
-      "sha256": "c0127e2d6ef2986e27363b86d098fd6ab39f78b738c3449d5eebd5de11a5b102",
+      "sha256": "6e8001933e15a61ee85084977376f2b34c54601828660eed7e1f47e74ffb2291",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3569,8 +3606,26 @@
       ]
     },
     {
+      "path": "frontend/src/components/FileTypeIcon.tsx",
+      "sha256": "6854870b9d2b20b98bbb888b0f5c5f9bd7b034fb6f9e2521a58e21989c37fcbf",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FileTypeIcon"
+      ]
+    },
+    {
+      "path": "frontend/src/components/IconButton.tsx",
+      "sha256": "977ef865f15afd9cd0eea2828bd20b803e16fe2a3e2082fdf57c2dc26b10601e",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "IconButton"
+      ]
+    },
+    {
       "path": "frontend/src/components/Markdown.tsx",
-      "sha256": "9565e152b2fc8e95a2197ed8b1c918ff29a62de446565ecfa6c818cea1179728",
+      "sha256": "0745f3fc4dae2722d0a140b159d114caa8722ef81c491826b57e47b8698c7b19",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3581,17 +3636,16 @@
     },
     {
       "path": "frontend/src/components/ModelToolbar.tsx",
-      "sha256": "824ecd2c61332d623de1fca7f1273d13c8fc646f18db67030b35655c42699243",
+      "sha256": "e0234a6b748338b1bf8f1ea5cf2e7c62556ab26e93027ebecc712a118fd84b4f",
       "review": "pending",
       "tests": [],
       "exports": [
-        "ModelToolbar",
-        "shouldOpenAbove"
+        "ModelToolbar"
       ]
     },
     {
       "path": "frontend/src/components/ModelsPanel.tsx",
-      "sha256": "2680c721f7fbfb606693fe95681c7b5ce12cb6defdc6a3452b10f132b999457f",
+      "sha256": "12d6233051852f676a823c85383b4e3bf7bbf79d8509d9fe7f370b0c3517f9e8",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3601,30 +3655,35 @@
     },
     {
       "path": "frontend/src/components/ResearchPlanEditor.tsx",
-      "sha256": "ff02f1bccc4c90790c5b9b4c3dc1778b931ab46bcf0042a902794b3c3094e8f7",
+      "sha256": "f65fb2bf6b4050b48eb1243278172ad5926aadfacbdb1e49582aa593f973b304",
       "review": "pending",
       "tests": [],
       "exports": [
         "BriefSection",
         "ExecutablePlanDetails",
+        "NarrativePlanWarning",
         "PlanBriefTimeline",
         "PlanVersionTimeline",
+        "PlanWorkItemRef",
         "ResearchPlanEditor",
         "splitBriefSections"
       ]
     },
     {
       "path": "frontend/src/components/ResearchesPage.tsx",
-      "sha256": "fc0af8d89df740db7fe671bae0e04fd8bf52a6118a86c12e196ca54ffbf6f125",
+      "sha256": "688f50dd4bc6b7b570f9d01605691574045e219bd0c9c5208842f2256766b976",
       "review": "pending",
       "tests": [],
       "exports": [
-        "ResearchesPage"
+        "ResearchesPage",
+        "StateFilter",
+        "StateOption",
+        "stateOptions"
       ]
     },
     {
       "path": "frontend/src/components/RunConsole.tsx",
-      "sha256": "94cacddbc258f271b3a33016b320c60876ae396104af28e7f9173b63cfcec4ba",
+      "sha256": "efd570d4f0fc29c5bfce66206e58729de78b162001609f9955453079f7a1626a",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3633,7 +3692,7 @@
     },
     {
       "path": "frontend/src/components/RunsPanel.tsx",
-      "sha256": "59ea5d24b203b306868473e5e1a65ee65f97b19185de3775feef001a34b82430",
+      "sha256": "09872bf3969d78711fb993c0572b40282bc72858f330640b1fbb86f9ed9db734",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3642,7 +3701,7 @@
     },
     {
       "path": "frontend/src/components/SectorChatPanel.tsx",
-      "sha256": "2fe2b061122387c06b2ae20543958a0ff39b4d94c4c50daee3b11ecc9e015f01",
+      "sha256": "44bf2d11ca0226c3dd764a523fa9c14b8867a64933ff5da8826e74a46a25b542",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3651,7 +3710,7 @@
     },
     {
       "path": "frontend/src/components/SectorContextDrawer.tsx",
-      "sha256": "928ed5614b49f4487d58aa5f5c3d992aca338039d95226e2a47a22c010c284ce",
+      "sha256": "993397ee984dba3b234a1a8c9b6de5439de5411c51b1a0b890b6eaa209a26cb8",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3660,7 +3719,7 @@
     },
     {
       "path": "frontend/src/components/SectorDetailPage.tsx",
-      "sha256": "17b92ae0ec2c839ab71ee60054a87da03ad3efb9f1803e9142e6cc0d4b1a5cda",
+      "sha256": "965b6e53ac79b3a891c51a21542a577936d0905afefdd82e91896225b322c58f",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3671,7 +3730,7 @@
     },
     {
       "path": "frontend/src/components/SectorFilePreview.tsx",
-      "sha256": "6b58f591480bad0780d0324804e4f55179a2d772cef6e32c35fc66b748329e51",
+      "sha256": "f0108c2bb68bdf4644f1d59b58e658f8688a8e11706c883a9fdc0ef981012b3b",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3680,16 +3739,17 @@
     },
     {
       "path": "frontend/src/components/SectorLanding.tsx",
-      "sha256": "be57e730bd7d1510d24e2774ce715d03a0f574608951fc3943ed6d8dcd3e3cf1",
+      "sha256": "970cf7e41d1013d134f96bedfad287be759ea4c24353c382a549b4510cabcb47",
       "review": "pending",
       "tests": [],
       "exports": [
-        "SectorLanding"
+        "SectorLanding",
+        "sectorMetaLine"
       ]
     },
     {
       "path": "frontend/src/components/SectorPlanSection.tsx",
-      "sha256": "190c2b8935072fa6d3137b281e43c478e3905eaf6b70f3a6b08c706059e49197",
+      "sha256": "86b9118736f8520c59710fc5bf13cda6bed7acf26885d89421de94334b15d648",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3698,28 +3758,31 @@
     },
     {
       "path": "frontend/src/components/SectorWorkspace.tsx",
-      "sha256": "113c574498d971b79fd6c59ab7766f188b05bbd8081b0ce117aad19a16cc9fb8",
+      "sha256": "208b000c87d61c7107c878bf045b0f18d2b843abd82e2dd57b62037e2128f40d",
       "review": "pending",
       "tests": [],
       "exports": [
+        "LifecycleButton",
+        "RenameSessionDialog",
         "ResearchActions",
         "SectorWorkspace",
-        "SessionOptions",
+        "WORKSPACE_RAIL_STORAGE_KEY",
         "activateNeighbor"
       ]
     },
     {
       "path": "frontend/src/components/Sidebar.tsx",
-      "sha256": "5a482e677d79b353d16a2358d5eb20ef7f41e7320afb997b7507784aa417d24e",
+      "sha256": "047497adf2dbf52041a21ec2f9a9431108c8bf01eb8cfda7c698cd5aeccf7fda",
       "review": "pending",
       "tests": [],
       "exports": [
+        "SIDEBAR_STORAGE_KEY",
         "Sidebar"
       ]
     },
     {
       "path": "frontend/src/components/StatusPill.tsx",
-      "sha256": "bce4e88d84ba4b5480cb27729a3a89eed4cbb63bb0e6298b2ccb4ff5e0e404d4",
+      "sha256": "34009dbea743d169e92f830464e518b5417a789b18647a304e42425845e5eb48",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3730,7 +3793,7 @@
     },
     {
       "path": "frontend/src/components/SubagentsPanel.tsx",
-      "sha256": "72c6093d412fd0eff7631b1c203f87be12e7125794403adb64299a21faf8ace4",
+      "sha256": "fdbe33d757854669b91804d6d3e4c5b6fc455594a0ea868179b06ab1fe3398f5",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3739,7 +3802,7 @@
     },
     {
       "path": "frontend/src/components/SupervisionAlertsPanel.tsx",
-      "sha256": "33d920dd972fdabcbbf97edaea589fbeb616d4ce95a423c5de7d556612d6b0fc",
+      "sha256": "88ab442e9a649a684ff6818763f98df2927ec86a35b29b73f97e6a8c297c2da7",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3747,8 +3810,17 @@
       ]
     },
     {
+      "path": "frontend/src/components/ThemeMenu.tsx",
+      "sha256": "bf9736b8b5c13a192f98b3a2a7c147e2e635ef87070ebb5c4cd3f41e89fefa61",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ThemeMenu"
+      ]
+    },
+    {
       "path": "frontend/src/components/TopBar.tsx",
-      "sha256": "413d81d60523111c0ddba1d00e4adfb09592b8f1f37bc46e0d5941b3a8470e7d",
+      "sha256": "0a4d95310c752cda3245cd5659f0c23382c2e2e1db55aa258f2cbfc883d3c4eb",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3757,7 +3829,7 @@
     },
     {
       "path": "frontend/src/components/chat-parts.tsx",
-      "sha256": "346c2f90808d5cf3c89f20e68932da5d5055fe1ce6da385502aa8ca1447bf3c8",
+      "sha256": "20a297083c905feb338169978f571cfa9864186efe2e2b660cf71c155e0f91f7",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3780,6 +3852,54 @@
       ]
     },
     {
+      "path": "frontend/src/components/chat/Composer.tsx",
+      "sha256": "e1b2fb504f1a4d3541d2a101c5cd82c909286a458c67f0702ef2ba2591604b83",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "Composer"
+      ]
+    },
+    {
+      "path": "frontend/src/components/chat/ConversationEmpty.tsx",
+      "sha256": "29a4954dd8a13b8d1bc2db7471ea1e03e4a53a3d4eac2543d49637f8b8ac18b6",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ConversationEmpty"
+      ]
+    },
+    {
+      "path": "frontend/src/components/chat/ReasoningDisclosure.tsx",
+      "sha256": "3f6ae5ba5ef21ed3ba415b572dcd3741e1a6f38b0ba9f4a9b9cd6722106a6d7b",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ReasoningDisclosure",
+        "useReasoningOpen"
+      ]
+    },
+    {
+      "path": "frontend/src/components/chat/ThinkingRow.tsx",
+      "sha256": "e8a8a16f454c260f994d1e1c993359f202235e262be484c85ab9efd71187ebe1",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ThinkingRow"
+      ]
+    },
+    {
+      "path": "frontend/src/components/chat/ToolActivity.tsx",
+      "sha256": "8fe8604361457e7218c9fe57e4a05effb0d6f169840e096799eaff7288e9d6e5",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ActivityTool",
+        "ToolActivity",
+        "toolActivitySummary"
+      ]
+    },
+    {
       "path": "frontend/src/components/chat/assistantAdapter.ts",
       "sha256": "8292b989fd7b43d887110c2550e89bf50293c2af1a8a7587fe4a5c39322f5b60",
       "review": "pending",
@@ -3792,8 +3912,30 @@
       ]
     },
     {
+      "path": "frontend/src/components/plan/PlanSteps.tsx",
+      "sha256": "1814fc3088e29b474a139d09f33c8220e7d99a4807cfa0549b37318189343cf3",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "PlanStep",
+        "PlanStepTone",
+        "PlanSteps",
+        "PlanTimelineSkeleton"
+      ]
+    },
+    {
+      "path": "frontend/src/components/plan/PlanTab.tsx",
+      "sha256": "3d076684109b32e0ae3e4898bd7997f141ec0429db6074f1d012f6b530bc1af0",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "PlanEmpty",
+        "ResearchPlanTab"
+      ]
+    },
+    {
       "path": "frontend/src/components/research-parts.tsx",
-      "sha256": "eea97b628002f8225f07ae17b864a9941202df9c47d866eeab47e2f46b227641",
+      "sha256": "cb08eef6bd5bc123755742a0b60da722583e80679744f2762b2b1f5348bb280a",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3804,16 +3946,19 @@
         "PanelError",
         "SectorRow",
         "SkeletonRows",
+        "StageSteps",
+        "StateBadge",
         "ToolRow",
         "UnavailableNotice",
         "firstRunCopy",
         "stateLabel",
+        "stateToBadgeTone",
         "stateTone"
       ]
     },
     {
       "path": "frontend/src/components/shells.tsx",
-      "sha256": "d9c215f887ee99d6eefbadcce17be02b4700a689776b5cc3d11122527f72a668",
+      "sha256": "7998cdb002757bcae85fa5df2b953c1c57a6e26e589b25e77831f6cb8946bf55",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3832,15 +3977,22 @@
     },
     {
       "path": "frontend/src/components/text.tsx",
-      "sha256": "5b22b1869834b1cb2866948aa59026f0e6b18c3cbec9fc3c886b1117982e630f",
+      "sha256": "7d3a8955782ffa0b1f89fe94855f3eff2a87eb9e2550cea8ba9c8aa67fc8494d",
       "review": "pending",
       "tests": [],
       "exports": [
         "Body",
+        "BodySm",
         "Caption",
         "CardTitle",
-        "Eyebrow",
+        "Description",
+        "Display",
+        "Kbd",
+        "Label",
         "Mono",
+        "Numeric",
+        "Overline",
+        "PageDescription",
         "PageTitle",
         "SectionTitle",
         "WorkspaceTitle"
@@ -3848,7 +4000,7 @@
     },
     {
       "path": "frontend/src/components/ui/alert-dialog.tsx",
-      "sha256": "f4e3e85f1aa49f1c0c936d5c25bc7167988505c411697d323a1e64ddfc0ba0d3",
+      "sha256": "1e7e346cfdf095a9f8974de658e530215d61944d4081acf0c22869d0a4ba7d86",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3859,7 +4011,7 @@
     },
     {
       "path": "frontend/src/components/ui/badge.tsx",
-      "sha256": "6586771b96e3306cf1ca2738fce8b64448e409daa2aae4dd62a3bf2bfbdaf03b",
+      "sha256": "c53e6b55f1699ac6caab57c52f3dbde36e5a472b279a09d55b998f44a8e49b86",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3869,7 +4021,7 @@
     },
     {
       "path": "frontend/src/components/ui/button.tsx",
-      "sha256": "b9e17f92bee86d60d00ab9513c731d45713aaeab393e1481f370bec8fcfacdb4",
+      "sha256": "481c03cff6d06cbcfbbcf31363caaaf824942e5e231e2edf3f967b6e9b2d8634",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3879,7 +4031,7 @@
     },
     {
       "path": "frontend/src/components/ui/checkbox.tsx",
-      "sha256": "78a6a6ab7b50f0baf286d3a46d37807c574a00337bbe01b1577fa57c8b82d2d4",
+      "sha256": "a585dac55d30ee058ded490f78866c6b09199bf78d83c24fd6a071109710154e",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3888,7 +4040,7 @@
     },
     {
       "path": "frontend/src/components/ui/collapsible.tsx",
-      "sha256": "61fab18ecea3ff67b9785bb241b893ead1f3759100719b8a8814b6953eaca804",
+      "sha256": "df89bf5795674db6644293525a532d88335bbfedb5035f0adf81f4b703af855b",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3899,7 +4051,7 @@
     },
     {
       "path": "frontend/src/components/ui/dialog.tsx",
-      "sha256": "ccad1511f6cd424fc0602f49302e0e475fc0f8449f32776b5cddb6a544725898",
+      "sha256": "5884c1c517a89a22899dce74ad48e5b0c74b4e2c3a353b03599110fd7fe9099f",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3916,10 +4068,11 @@
     },
     {
       "path": "frontend/src/components/ui/field.tsx",
-      "sha256": "36dbe4bf35a7b43c6766e4b2780bfa28d27ffea57575f5a41b34d7ac68d99a60",
+      "sha256": "42df200dedae93f85dd924c490a5ccf39b135e29dc32e1448da2b9c2be707cf9",
       "review": "pending",
       "tests": [],
       "exports": [
+        "FieldControl",
         "FieldDescription",
         "FieldError",
         "FieldLabel",
@@ -3928,7 +4081,7 @@
     },
     {
       "path": "frontend/src/components/ui/input.tsx",
-      "sha256": "5f67508d18210ef4099fbbcac8bebe32e58f7b6f2eb556e4e4667897a55e08c0",
+      "sha256": "b4d569cc9ff9b80fcc3da3748641d90e54b6a72561ebd953a63ead4d8c5bda82",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3936,26 +4089,46 @@
       ]
     },
     {
+      "path": "frontend/src/components/ui/list.tsx",
+      "sha256": "4ad157efa45f56695280b22c6d972131907fab8ccd66eb964a8054d03642f8fd",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "List",
+        "ListDensity",
+        "ListRow",
+        "listRowClassName",
+        "tableRowClassName"
+      ]
+    },
+    {
       "path": "frontend/src/components/ui/menu.tsx",
-      "sha256": "4f84178dd1d0a85aa9d0d2a37eeed29c241309748e290920699ebbe3dce2d6a7",
+      "sha256": "4e20363ea7ca9a816759997441486e564cfb523bf87ccf2647cdc1f26d65d375",
       "review": "pending",
       "tests": [],
       "exports": [
         "MenuCheckboxItem",
+        "MenuGroup",
         "MenuItem",
         "MenuLabel",
         "MenuPopup",
+        "MenuRadioGroup",
+        "MenuRadioItem",
         "MenuRoot",
         "MenuSeparator",
+        "MenuSubmenuPopup",
+        "MenuSubmenuRoot",
+        "MenuSubmenuTrigger",
         "MenuTrigger"
       ]
     },
     {
       "path": "frontend/src/components/ui/popover.tsx",
-      "sha256": "d882e3591eea4764b3a7d431fc1094465a5292a27d4240ad49654ddd8224b61e",
+      "sha256": "98ccd66a26395ed533dc561a2ba4a677835087bf84bfe6f9a6a87f3821cf9d3d",
       "review": "pending",
       "tests": [],
       "exports": [
+        "PopoverClose",
         "PopoverDescription",
         "PopoverPopup",
         "PopoverRoot",
@@ -3965,7 +4138,7 @@
     },
     {
       "path": "frontend/src/components/ui/progress.tsx",
-      "sha256": "21fc232671ae4c83b79ddcc3008353a78c3cf617d7c52b8387d38d6191cfc5c3",
+      "sha256": "f8867dc59e9472f1ae46d28409a4a5a20d16d26748333056ebc8df74acdd1b03",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3974,7 +4147,7 @@
     },
     {
       "path": "frontend/src/components/ui/searchable.tsx",
-      "sha256": "b1c6d4836f7f55a9afb19944c31548f4e92b05d4926143e06a0d89866d9278ae",
+      "sha256": "7a66cd216a2448fb4c152119a354980333b1ea15996169a608961f6031ec371c",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3989,7 +4162,7 @@
     },
     {
       "path": "frontend/src/components/ui/select.tsx",
-      "sha256": "7714f2fa1c930cf4d29cebc92e2f8c6dc60b9d91d8493486bdeff4f59b9b2e5e",
+      "sha256": "f1061e251d189e0f69461882be1728023021c8a134f2b2b4c8853919b331c134",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4001,7 +4174,7 @@
     },
     {
       "path": "frontend/src/components/ui/separator.tsx",
-      "sha256": "a92a12ab990c8a4a0a0de5e6e245923e5a61006c461052f6b33182130cb64c1c",
+      "sha256": "1e3aeb55171b573c93b826a1605f7ddfbe37864a46ddb7685313a79c76cb6cfd",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4010,7 +4183,7 @@
     },
     {
       "path": "frontend/src/components/ui/skeleton.tsx",
-      "sha256": "42e0902defb68a8147e517a22d8b3af280cc13cddae595ee487f312b88e49c57",
+      "sha256": "c76c44d7fd4d800ef75ac31063377f0926f1b79aaf8c93e32fcce4e014d0f70e",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4019,7 +4192,7 @@
     },
     {
       "path": "frontend/src/components/ui/switch.tsx",
-      "sha256": "34c40af8c9d9be22a496356b891c89687acf06ed493f1b56eff0db0fa64829a7",
+      "sha256": "901d8ce562e5de614030b9c27edc859324f2a852f16c077a941d28e1b8bd4b75",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4028,19 +4201,20 @@
     },
     {
       "path": "frontend/src/components/ui/tabs.tsx",
-      "sha256": "8c9088d56fca7f22b52a59218e700e89a118b010c05b6b31d7930d49a1c2a93e",
+      "sha256": "2c72c156cc41f3a0829382711d174d85ba2570f41a2e24cc9ee1773edba6ca20",
       "review": "pending",
       "tests": [],
       "exports": [
         "TabsList",
         "TabsPanel",
         "TabsRoot",
-        "TabsTab"
+        "TabsTab",
+        "TabsVariant"
       ]
     },
     {
       "path": "frontend/src/components/ui/textarea.tsx",
-      "sha256": "3f02c7f4b10813cc6ab912399a755025821bce6276f0757ee58a59ec690f73e6",
+      "sha256": "bdee58fa4b7104c9429c7edc9a88bcdf3b50b3a9be6c461ecd99dbae1fe00b27",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4050,7 +4224,7 @@
     },
     {
       "path": "frontend/src/components/ui/tooltip.tsx",
-      "sha256": "9fa7291e8dac8d1f9a04b23da63846e59ea7c1b0883d8bab5a48f75fa19f5219",
+      "sha256": "9b4838e9100f0c77aa5904d6c7eaa5ea47aef061a3d5f5dd5c61025cd0402e0f",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4062,16 +4236,21 @@
     },
     {
       "path": "frontend/src/components/workspace-parts.tsx",
-      "sha256": "19c95c2c9e924f6e6b131e01cb813004147c1ab0a4123e76eb8f97b04bef687f",
+      "sha256": "57bf03c9796c722551f96572d599d70bcbf7014a47d91353adc54f2cf3a470ed",
       "review": "pending",
       "tests": [],
       "exports": [
+        "CounterTile",
         "GlobalContextPanel",
         "LocalContextEditor",
         "PlanProgress",
         "ResourceNotice",
+        "WorkReview",
+        "WorkReviewDialog",
+        "WorkReviewSelection",
         "WorkspaceFiles",
-        "WorkspaceOverlay"
+        "WorkspaceOverlay",
+        "fileTypeLabel"
       ]
     },
     {
@@ -4099,7 +4278,7 @@
     },
     {
       "path": "frontend/src/data/research.ts",
-      "sha256": "eeaef0b89c2482c7323f8a234b49be2b213ed20f0fd16221de9a75b54a973720",
+      "sha256": "1f611da6aaf96e2e9b1eda3c1d73fef91f91b4b6c00de97c118d830f5ecf1fac",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4301,10 +4480,19 @@
     },
     {
       "path": "frontend/src/index.css",
-      "sha256": "91fab62635ac617fa55433061078c7e30a6bb4f073a1dcb2d1a3923197c0557c",
+      "sha256": "a1675b11e21a91f281034b85afe3142d59a13454fd808e2b9427113aa6209c26",
       "review": "pending",
       "tests": [],
       "exports": []
+    },
+    {
+      "path": "frontend/src/lib/animate-number.ts",
+      "sha256": "6c4e853d3dfd31f64a500ecd5e0063ecea1f784cdb6768f2000f89d9ab7ab0dd",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "useAnimatedNumber"
+      ]
     },
     {
       "path": "frontend/src/lib/download.ts",
@@ -4316,17 +4504,87 @@
       ]
     },
     {
+      "path": "frontend/src/lib/format.ts",
+      "sha256": "a8fa92164c60539589bfee5a7bd1a3d677b11f5e809a9c480cde6c2d39d214a8",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "formatCount",
+        "formatDurationMs",
+        "formatFullDate",
+        "formatShortDate",
+        "humanizeKey",
+        "relativeAge"
+      ]
+    },
+    {
+      "path": "frontend/src/lib/icons.ts",
+      "sha256": "d8f2fb4e688c9543dbc4132389fe46f19ecdbad69b5196feb1b9b2fa1eeebb82",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FILE_ICON_BY_EXTENSION",
+        "IconName",
+        "Icons",
+        "fileExtension",
+        "fileIcon"
+      ]
+    },
+    {
+      "path": "frontend/src/lib/interaction.ts",
+      "sha256": "48a0e32c0ebb2dbab20b08e475c8e32dab17a303a313f33e59501042e017c6cb",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "focusRing",
+        "focusRingInput",
+        "focusRingInset",
+        "pressRow",
+        "pressable"
+      ]
+    },
+    {
+      "path": "frontend/src/lib/labels.ts",
+      "sha256": "166a9ba1d680c31b914317755c12ad23163fc240ba5eebc5bf4db299da3d9ec4",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ResearchNextStep",
+        "alertKindLabel",
+        "alertKindLabels",
+        "companiesEmptyCopy",
+        "companyStageLabel",
+        "companyStageLabels",
+        "fileStatusLabel",
+        "fileStatusLabels",
+        "planSectionLabel",
+        "planSectionLabels",
+        "researchNextStep",
+        "researchStateLabel",
+        "researchStateLabels",
+        "runStateLabel",
+        "runStateLabels",
+        "statusSummary",
+        "threadStatusLabel",
+        "threadStatusLabels",
+        "toolFamily",
+        "toolLabel"
+      ]
+    },
+    {
       "path": "frontend/src/lib/motion.ts",
-      "sha256": "f7a19bd9dd9d312726a5c887a81f906a83ba5262bbbb40b6496e3619eac3e5ba",
+      "sha256": "0d241e67f8383e21a8d39c8e774881f2c592178632a2a858ed0720c4f1025040",
       "review": "pending",
       "tests": [],
       "exports": [
         "EXIT_MS",
+        "MOTION",
         "POPOVER_MS",
         "dialogEnter",
         "dialogExit",
         "dockEnter",
         "dockExit",
+        "navIndicatorTransition",
         "noticeEnter",
         "pageEnter",
         "pageExit",
@@ -4334,6 +4592,8 @@
         "popoverExit",
         "prefersReducedMotion",
         "rowEnter",
+        "staggerDelay",
+        "tabIndicatorTransition",
         "useExitState"
       ]
     },
@@ -4347,19 +4607,41 @@
       ]
     },
     {
+      "path": "frontend/src/lib/theme.ts",
+      "sha256": "44de7da1fbe01c9ffe45485eca1946bc08ce0d98a392e808884e751f18b8c890",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ResolvedTheme",
+        "THEME_STORAGE_KEY",
+        "ThemePreference",
+        "useTheme"
+      ]
+    },
+    {
+      "path": "frontend/src/lib/toast.ts",
+      "sha256": "e989826835a1419f6a0d382f0e4023ed2251e3fdbec7341b48ebb1ae3c2727fd",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "notify"
+      ]
+    },
+    {
       "path": "frontend/src/lib/useNavigation.ts",
-      "sha256": "4cafe6d17db0fb156b6668e1a8190b8679ae6d33a749b911c966020f60174ec9",
+      "sha256": "a108de30c93dcb294b17ca4c4b539bd5e005ea11f1698d69e519df00396ecdb0",
       "review": "pending",
       "tests": [],
       "exports": [
         "Navigation",
         "parseNavigation",
+        "serializeNavigation",
         "useNavigation"
       ]
     },
     {
       "path": "frontend/src/lib/utils.ts",
-      "sha256": "14300d758170c270c75b057f38fedb3793a5920ea872f0477e29fb131185e8a7",
+      "sha256": "298bbfe7d0fd5ab76b83fcd1f6262a0fb40ca6e8a573542caabae25bc955df46",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4375,7 +4657,7 @@
     },
     {
       "path": "frontend/src/test/setup.ts",
-      "sha256": "281322af0ca705c9e267e2fd7e81e4d5949a78e517f6315519a8ab1c20df149e",
+      "sha256": "8745d5dcec78f6bc5f2e37f312cafb2602f8353e25b7956bdf333f60e5706a12",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4412,7 +4694,7 @@
     },
     {
       "path": "package-lock.json",
-      "sha256": "04e3239b4a273867da4774970ffc27b1f7d77498f3495ef2680f61eb915609a8",
+      "sha256": "80b559f31914065ef3d5e312c29258fbe78e7ee133d9c7968dc31b4fd8def41f",
       "review": "excluded",
       "reason": "Generated npm lock: dependency and integrity review belongs to package manifests.",
       "tests": [],
@@ -4955,7 +5237,7 @@
     },
     {
       "path": "tests/backend/karbot.turn.test.ts",
-      "sha256": "8d161404a6ae478dc20a274b12c78e6f4a872f5973d32f5606598281330753e6",
+      "sha256": "21ed2669f128cddbd746f28a3ec4486ca9b589147ae832443efa7375ba98a613",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5336,7 +5618,7 @@
     },
     {
       "path": "tests/backend/sweep.rules.test.ts",
-      "sha256": "a40990ee2dcc67bdb259b52e73b0923b9ff611d5d04b1026f01e70019f0abfad",
+      "sha256": "6bfe0406bfdd5170be034321ca8283f45d8b8c6812b28f671a428d68fe35f2ab",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5561,7 +5843,7 @@
     },
     {
       "path": "tests/backend/workflows.plan-brief.test.ts",
-      "sha256": "55f09f8a2f98ecd7de0162e22a36de7058911d1e7f6e2a81fce0fc917514bde9",
+      "sha256": "5f808b4bc920c684b51955e029ddd8d578610e4499b0ca4e2ee3a12ae20ed5aa",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5890,15 +6172,567 @@
       "exports": []
     },
     {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-files-files-dark-1440.json",
+      "sha256": "af7b5003f623a956dfdc200601ec534a646f46666878b6f48f8068d4ba3eed63",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-files-files-dark-390-mobile.json",
+      "sha256": "a5bc3890b277d390d45113e71154f082054413cb0618acfdd98e2db0a3228885",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-files-files-dark-390.json",
+      "sha256": "397b38b7ae13f92ef0f5bc5cdc9e0f6804c8a51daa19f49f02b3af0cb49b5c85",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-files-files-light-1440.json",
+      "sha256": "b3613a538d24c9aaa73d052ea3ce8277e7f1c8884692684cb93c16b893a3dc48",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-files-files-light-390-mobile.json",
+      "sha256": "03e61a707d484e3faedb2995c11495421e5482229feeccce0f8e44bc5204e78c",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-files-files-light-390.json",
+      "sha256": "2024f565338e5895e54a997e6c35bd269bb2b2f0d0ab6316c5f02ffb306ed940",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-gc-edit-gc-edit-dark-1440.json",
+      "sha256": "552ad5ed3b50ad9f609623dae0358d17fda6c14a4389e6abb2056fa338dd2da3",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-gc-edit-gc-edit-dark-390-mobile.json",
+      "sha256": "77c4f474bc2a217405645343d99f6cb5c66cfda39f24dd796328646139865720",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-gc-edit-gc-edit-dark-390.json",
+      "sha256": "17a8acd3cf910a07b3b8bf8f43219ea9fb9df7ef92bf2af939aac9a5509bb175",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-gc-edit-gc-edit-light-1440.json",
+      "sha256": "64e046d560bf1e0260adef7107dc34c199ca2327c60f6245d83334874fd2324e",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-gc-edit-gc-edit-light-390-mobile.json",
+      "sha256": "ac208f038228c7b075804f4aff41b97db0d720f66309c5e123b4125038298a49",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-gc-edit-gc-edit-light-390.json",
+      "sha256": "af04177b1c6d40bc1fda322658c4b572bfc67857588ebbff0a52f0ab2df487f8",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-global-global-dark-1440.json",
+      "sha256": "4144ca4925761a088097d731c8f82e83233c71e9197ea39e90f42c68d4b60e69",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-global-global-dark-390-mobile.json",
+      "sha256": "55d4f906edf636a02968ec174f911fe873d4d6293167f5b28ec2cab4471549c9",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-global-global-dark-390.json",
+      "sha256": "8635f67bc624ae8f16f4aec2fccfcb6e47f5b727fe968fce85243bcedf5125ac",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-global-global-light-1440.json",
+      "sha256": "1f503b9e43a72b6e531ee451575275baa867d052e6fbba08f95958d5fcb4f848",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-global-global-light-390-mobile.json",
+      "sha256": "7d53ea6720c3ff5e3f6c5756cb69c7033196be50f95acd7dfd35243b4731baf3",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-global-global-light-390.json",
+      "sha256": "dd95732fb48b94396a27f4b7c8657a7a3292abef86d98e6a4b3a14952bc4a995",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-inspector-inspector-dark-1440.json",
+      "sha256": "c95edf24a27721c3e317f7fba82738f0438fd7f968295888e7cf52b642aff3ce",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-inspector-inspector-dark-390-mobile.json",
+      "sha256": "d4402addb743d1f81f3c907077d1c8ac567f6779225bbe8be472b249800ea85f",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-inspector-inspector-dark-390.json",
+      "sha256": "bd2fcbbc3e54a93a2ac8851c05bf19cd68198f6e0dd5431f5e988857da18336c",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-inspector-inspector-light-1440.json",
+      "sha256": "b2a5c0b594a31064c26e88d67099b531b51bdce32ea9a659fce542de916bacbd",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-inspector-inspector-light-390-mobile.json",
+      "sha256": "b8e9cfa0dc77317385a5850100c5665a5a6a9f9e35a2db81bfdf59b85a44e737",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-inspector-inspector-light-390.json",
+      "sha256": "b9243658b918ccd44bfc79024a4ed2337e97c6fa49673dba59cbf9ee06053cc6",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-local-local-dark-1440.json",
+      "sha256": "5a9fa1643a57601d4baa3294c78c97e2a462a9ec694e849afed1523d9cad2828",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-local-local-dark-390-mobile.json",
+      "sha256": "5f11c28a5db212840f24c1ed396d5c89ae5f25e7e4749446a4f48691a8cec9ca",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-local-local-dark-390.json",
+      "sha256": "6ef72c5849ce9532b30ed450f4d7b6ad38a198c8a9703b954617e6c061a66b1f",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-local-local-light-1440.json",
+      "sha256": "f6bb37b2d1d8c34a2988c1675df1d0e5bfde81342c157c73b1cf9a200190d147",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-local-local-light-390-mobile.json",
+      "sha256": "5fcf25246630c79a16a2eda6629b74cb982bb16fb3f9eca8357e584fa2a96bbc",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-local-local-light-390.json",
+      "sha256": "fe7ca853718157ed14006cdc958fd63957356413036e28c8f366b014cb4551fa",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-plan-plan-dark-1440.json",
+      "sha256": "075738b0ad109c8b978bccd4fbb8b3db8d59c76d61cefb7329acb90191830bd2",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-plan-plan-dark-390-mobile.json",
+      "sha256": "851ea669228e9dd94fbe7058e7810735cbad30378ab704705209945d07b3281d",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-plan-plan-dark-390.json",
+      "sha256": "1fea692ac4da4e5376e09c53d684fa3c2dac5be82b03a92dd6522269d5766ed1",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-plan-plan-light-1440.json",
+      "sha256": "e7002e0ba9f741d37ff664501f29156f9203b3400389c3e2a099b7522891d225",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-plan-plan-light-390-mobile.json",
+      "sha256": "48482db7cb69a22452cffd578f1afcc5daaed79e82cb3148017d3923fa3bdcbc",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage5/audit/workspace-plan-plan-light-390.json",
+      "sha256": "f55ad9868828ec28e11e4e0d45197cb167429b91e94d5dfbf41538f4702bc9e7",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/agents-cancel-cancel-dark-1440.json",
+      "sha256": "cd2cc6948676964596438b32594ac3413993bca5b6499e16333e742ab7f213de",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/agents-cancel-cancel-dark-390-mobile.json",
+      "sha256": "d63b13a029c510ef300bdf0134a3493b039de7224c3a2df4da74267de9689202",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/agents-cancel-cancel-dark-390.json",
+      "sha256": "4bb280f47b6c6b82c0b856e853d192be61c2362f8cafc1231df37e343edc036f",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/agents-cancel-cancel-light-1440.json",
+      "sha256": "e75eab2d7eb1f5e59456b50a93133f9ee1a607a7a04cbfbda8a483165004e27d",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/agents-cancel-cancel-light-390-mobile.json",
+      "sha256": "6ebe2233d1c43a97311d21b68e74897174acdeffe92a55f38e7575dfad437d66",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/agents-cancel-cancel-light-390.json",
+      "sha256": "dd8c7a25988e1037367651c9d5f37a938b2a3e659154f0155bb790934877d39b",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/agents-default-dark-1440.json",
+      "sha256": "747a4a83e9347f7a15d761782a5824e86b6a280a8ba1f87b5314dd894e6f9226",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/agents-default-dark-390-mobile.json",
+      "sha256": "e4efd46b501387ce05ad1b7f3cbf340d54ce27525af3d13b890e1d63c4a40fe0",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/agents-default-dark-390.json",
+      "sha256": "f52e9c62b09b90db5441b00157b50688efbe3a6ccf391b8c0031c00b52078708",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/agents-default-light-1440.json",
+      "sha256": "340abbfbd2d7df42f65344c086faaac1ef6b1b1ec211400bf77e4da658c44f4b",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/agents-default-light-390-mobile.json",
+      "sha256": "4a5feb8167235cdb9a4d0a5f3da13cf9b96b0cf78e928cb859b4b00f52a4cdde",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/agents-default-light-390.json",
+      "sha256": "3de805e084a8b370360c1db02651232c77ec200c2a6203afdd7e239684e0b7d6",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/emails-default-dark-1440.json",
+      "sha256": "78823e8346d06537752b4d4bb6350504f88d3ee603ff153af40dd73f8b543960",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/emails-default-dark-390-mobile.json",
+      "sha256": "0437770dea24534b00e40cf5ab44c1d72f59d9a20c1ee0fc6a1c8f4911245cb3",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/emails-default-dark-390.json",
+      "sha256": "2faa5865fc59d374da8385defe61600001b399c7ca1473ff3de0ae71a31d2607",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/emails-default-light-1440.json",
+      "sha256": "b5a889a23727c42317ce852b6a9f0934b3056be3584e318688e428d2d9321329",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/emails-default-light-390-mobile.json",
+      "sha256": "e79c0e6ffb3ba707c561866ba5328f143a666151c630ebdaf1556380c21d357f",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/emails-default-light-390.json",
+      "sha256": "65dc5f719d1db51affb05d0e5ba0ceece30cbddf1e091a30e1fd8e158b5ef0ab",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/models-default-dark-1440.json",
+      "sha256": "234d03a6f424ef97f5cb80ae84cde68b00e668aff4d5f69a385bf558c423f590",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/models-default-dark-390-mobile.json",
+      "sha256": "585066c150679b4cdfa1a566f930037b010577fb7ea700493621d2e7ee78747f",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/models-default-dark-390.json",
+      "sha256": "e85147e4659e84d77139a3668397f09560d31fa9f4fdf308f62742797b0c2619",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/models-default-light-1440.json",
+      "sha256": "9c3ddba84f1afe096451998ab89a2cf4a564bf92cd1d9bf01db95c81e78bda71",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/models-default-light-390-mobile.json",
+      "sha256": "e49c2634a878adf823cdb40aa67abb70efb7f43d9d60ba0dd4862052fbb395c8",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage6/audit/models-default-light-390.json",
+      "sha256": "1af333bd5d4bc8297890ede10d7b4f1c6eb3e4e90ff9440a8e15b0167a89ac47",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage7/backend-gate.txt",
+      "sha256": "764044dac8c44c65833edc4a9dd496bf652c18cc7e2a4741cae648ea8a64db77",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage7/v2-b1-after.txt",
+      "sha256": "fd5c7fb36308b46444a8eb394f238fb1184e2c35a73fc573a9f210961834a635",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage7/v2-b1-before.txt",
+      "sha256": "965a6bbacf3e1f9671f422523dd9c5f106197c5b31fe04a78b857fbaaab32d6f",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage7/v2-b2-after.txt",
+      "sha256": "23c8eb1317d21c8a54cb4c1e6ec0d1099740e5e272c1a5029e12b3450cfa0ac0",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage7/v2-b2-before.txt",
+      "sha256": "e6c7b5283ddd0d6e7a771a4e066224a36c1adba7b64b2cfe993a88cb202a21a1",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage7/v2-b3-after.txt",
+      "sha256": "d3ac78e1f9f017add495e5914d4dacd19a4c0384fd3921c5832417c8cbffaf55",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage7/v2-b3-before.txt",
+      "sha256": "a1cd733688d6eb1821fe51ce963e9de3881f40232e95851f21b8e5350636838d",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage7/v2-b4-after.txt",
+      "sha256": "792fde9a62d772bcd3161878955b74ef17bc65b0234165e140662d249635ff2c",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/evidence/ui-revamp-v2/stage7/v2-b4-before.txt",
+      "sha256": "0d2fddf279e662b400503a2658954b1aaff462609316e7d8457d400c94fec346",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/frontend-e2e/agent-context-db.spec.ts",
-      "sha256": "8ebe4d881eb272a1308cce4ebaca50f711715c7f62046a05f87c71df861b2e61",
+      "sha256": "0477fa8be50d0626966f052889090a897d7ca5c3a5aabc075ff3e3b17adc8cd6",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend-e2e/alerts.spec.ts",
-      "sha256": "b2bb2263954124d0bf74d97bb9c8db0ea12936f69df5f835f5875b731034be31",
+      "sha256": "bb98ffd0474c39983e9b34eb876f5039cca0128d2560201ac362e651cf97421c",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5940,14 +6774,14 @@
     },
     {
       "path": "tests/frontend-e2e/formatter.spec.ts",
-      "sha256": "5df57bcfd0ff2c31328efd06c200645c1693bfcbd8d998d83f9e3dc9d478b23e",
+      "sha256": "02248c94491c7a9484c25509499637e5dd42725a1f3585f1cedfa25679e3c667",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend-e2e/matrix.spec.ts",
-      "sha256": "cd0bf5788142d38ce6ca077eda244cdd4938d85ffffc6795e145860e3a0d715a",
+      "sha256": "5d901958369570cc5a06381f4c14055d2c44d38437bd17da3de95f35dc03513c",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5961,28 +6795,28 @@
     },
     {
       "path": "tests/frontend-e2e/pilot-live.spec.ts",
-      "sha256": "24645aff3576f5804248527fb704c87707a0ffbf3b5966c94204e2799dae711a",
+      "sha256": "23b43883e993b9849295c382d6b84839f02224d31ad17f5adbd9e0cbcbfc4203",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend-e2e/plan-console.spec.ts",
-      "sha256": "c34f16da17963100389d2d1cbc9f2d7aa7e95b8b11344eb2b46e98de19729186",
+      "sha256": "a1da0c8b264c93b5f1dc98d15f5813022954e8ed6c6314521064cf807f9529a1",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend-e2e/plan-full.spec.ts",
-      "sha256": "1197f31a92d74294928028f32a4f5173affaf12473162678dba546b373adb6c9",
+      "sha256": "510d57798fec1f9ca9b1b361a6852f282faa606bbe077a6ca97453891b10fefa",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend-e2e/plan-live.spec.ts",
-      "sha256": "42ba4aa11e4343c8bce2e51ff08c526be4c59c566940fff9c80cb942570582fa",
+      "sha256": "b20cb8340a3bf60c51dd82c86e27233a52f0be472f9112b20d315879cdec8179",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5996,7 +6830,7 @@
     },
     {
       "path": "tests/frontend-e2e/revamp-evidence.spec.ts",
-      "sha256": "2e8f1b242cc02c3b0c9ddacb822c689bed31ac9f11c23ff98c6eb9cc4984a264",
+      "sha256": "f919ac38768c1e6d0926c894bdb1c26d409bc7487bb4e91ba838d4f0fb963274",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6017,42 +6851,292 @@
     },
     {
       "path": "tests/frontend-e2e/scrollbars.spec.ts",
-      "sha256": "3dc79580854c2579a612930f756bb34b37ad9f9006382acf659a8a2306db13a9",
+      "sha256": "1d42d3ad1e43d3cf0423c207e9acde619900f49345ac01cb798693c15d4460b7",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend-e2e/smoke.spec.ts",
-      "sha256": "1fde68e632fff1b35d783975e269cd75fa725a2c6a0a1a1ca66d2d8c86304b05",
+      "sha256": "6eb131988095fe4fd08bf6b4a2fb4c3392a18a9fd953e8276569df6bd43f1dcd",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
+      "path": "tests/frontend-e2e/support/api.ts",
+      "sha256": "d676cd2863a399841b6fe0c1d581bac02e9a01790e0ea57fd2c551652a8d8d72",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ApiData",
+        "ApiOptions",
+        "RouteKey",
+        "RouteMode",
+        "executablePlan",
+        "pushFrame",
+        "serveApi"
+      ]
+    },
+    {
+      "path": "tests/frontend-e2e/support/audit.ts",
+      "sha256": "7e295275705a2d4b15a376863e5cc32c846c29a8951ec3161ad56edd7d6a052d",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "AuditOptions",
+        "AuditResult",
+        "AuditViolation",
+        "CheckStatus",
+        "auditPage",
+        "formatViolations",
+        "writeAuditReport"
+      ]
+    },
+    {
+      "path": "tests/frontend-e2e/support/capture.ts",
+      "sha256": "0252c5d1cf41b9ceb4b79b06e811915aa12b4f46b58b6b601f739f4039673e0e",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "CAPTURE_THEMES",
+        "CAPTURE_WIDTHS",
+        "CaptureOptions",
+        "capture"
+      ]
+    },
+    {
+      "path": "tests/frontend-e2e/support/color.ts",
+      "sha256": "a17d2cbeab488535e820ccad091bd2926121ae1e2471eccf462f31878ab9115d",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "Rgb",
+        "contrastRatio",
+        "parseCssColor",
+        "parseOklab",
+        "parseOklch",
+        "parseRgb",
+        "relativeLuminance"
+      ]
+    },
+    {
+      "path": "tests/frontend-e2e/support/fixtures.ts",
+      "sha256": "367403aaf14cea7e5603bfc04e0eee7f9f9d6683876e2e712875e0c32cbd3be6",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "FILE_MARKDOWN",
+        "FixtureAlert",
+        "FixtureChange",
+        "FixtureCompany",
+        "FixtureExecutablePlan",
+        "FixtureFile",
+        "FixtureGlobal",
+        "FixtureLocal",
+        "FixtureMessage",
+        "FixturePlanVersion",
+        "FixturePlanView",
+        "FixtureProgress",
+        "FixtureRun",
+        "FixtureSections",
+        "FixtureSector",
+        "FixtureSession",
+        "FixtureThread",
+        "FixtureWorkItem",
+        "HEX64",
+        "LONG_NAME",
+        "ResearchState",
+        "STAGES",
+        "UUID1",
+        "alerts",
+        "allSectors",
+        "artifacts",
+        "companies",
+        "companiesBySector",
+        "executablePlan",
+        "executionBody",
+        "executionPage",
+        "extraChats",
+        "fileUnits",
+        "globalFor",
+        "karbotSessions",
+        "largeLibrary",
+        "libraryFiles",
+        "localFor",
+        "longSector",
+        "mulberry32",
+        "narrativeMarkdown",
+        "newFormatMarkdown",
+        "planVersions",
+        "planView",
+        "progressFor",
+        "providers",
+        "providersEmpty",
+        "providersNoKey",
+        "repeatTo",
+        "runs",
+        "sectorActivity",
+        "sectorById",
+        "sectorSessions",
+        "sectors",
+        "sessionById",
+        "sessionThreads",
+        "skills",
+        "threadMessages"
+      ]
+    },
+    {
+      "path": "tests/frontend-e2e/support/shot.ts",
+      "sha256": "40953c187f4022d645ceeb5e7188402f8b6e42238e78e7f604f476efc2e02157",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "ShotOptions",
+        "ShotTheme",
+        "V2_AUDIT",
+        "V2_OUT",
+        "settleTheme",
+        "shot",
+        "shotPath"
+      ]
+    },
+    {
       "path": "tests/frontend-e2e/transitions.spec.ts",
-      "sha256": "57e96b64389351b030333f96ef4782f5ae9c3bdb34300ede58b67bd48de949e7",
+      "sha256": "22fbc67c8ffcbd15c8a2701388ad18c01b56d58b59958f1d62117cbfceb0cd86",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/v2/agents.spec.ts",
+      "sha256": "245543329ee2372419afb9504de2666343715b42d321f91d144f69c8423337d3",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/v2/audit.spec.ts",
+      "sha256": "fad06559b59df4a3ad4b2c4e39b3c11c3cf73ca5d768b449efc48cfd8e0564a4",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/v2/before.spec.ts",
+      "sha256": "2fb066fe5073dc79754f6dad0fded66e88019fccfa0114f1af7924e837c844bd",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/v2/context.spec.ts",
+      "sha256": "4f4244452a2d349a22ed3ca846f36eac81267e35c4a92bc85eab5763010619f6",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/v2/conversation.spec.ts",
+      "sha256": "db04a942f6c873be175ae9fee73ad9c220ae7c8218b8d502fde18a892ca26f38",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/v2/files.spec.ts",
+      "sha256": "548310635d734a20c27d43846f1058c8b6613122efa82ddb276739f13b05f5b9",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/v2/karbot.spec.ts",
+      "sha256": "5cfbb8b83119817ec6733ce9b3d7e9b28f11d7bda349322be8d2600d13ac90ce",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/v2/landing.spec.ts",
+      "sha256": "c209b18a484a9eed8d62d814ce253cfe881644b72196ccf05c7e6c78c76f0a64",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/v2/models.spec.ts",
+      "sha256": "1bb48901201f686d281a6f1c52de38006bfec9df2a4c63b11dca3f0ca3fab4a2",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/v2/motion.spec.ts",
+      "sha256": "7f361fed997a0d994bbc6f9bcec395b643e2f3ba2c81679559bb44656c92e88e",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/v2/overview.spec.ts",
+      "sha256": "1270e4bd94672e46a2f80d2114bacd0c3e7425253010eb77521355df0c0cbb10",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/v2/plan.spec.ts",
+      "sha256": "2f5b0354112cad73ebb03e1cbbdc8d44c56d0d26ef90822595baf8a2b4b92347",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/v2/primitives.spec.ts",
+      "sha256": "b428832b9653a4d21d34fea21f79550b50859d3c21f101d319307791e278d583",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/v2/researches.spec.ts",
+      "sha256": "940078835f00a0031d4ca4f14424975a0b08cf8503d09f7466544aff7f07059e",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/v2/shell.spec.ts",
+      "sha256": "8ee5ddd728d72f78d043cffe45891436f4196df686894966298be780a9453dc7",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend-e2e/v2/workspace.spec.ts",
+      "sha256": "c22359a6d15893d0c5a28f0129eef0fc1724921e02bef3fc96d73da0bbfe2404",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend-e2e/visual.spec.ts",
-      "sha256": "66fe87353ac9bfe78acc704e8095c7a93d90be04f349302862039d7379ca3ba9",
+      "sha256": "6b9443fe265290d318b9aa7f320981f1fbc9516c2539cdad80e100387e824310",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend-e2e/work-review.spec.ts",
-      "sha256": "4633af008f693b25968a17b680acaaf60747a81bf480434f4a34b9b95847524c",
+      "sha256": "c5cafb2ba4f6b8e2e596a1531eca5b4d844c498dcbd380460beaa393cc2ed850",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend-e2e/workspace.spec.ts",
-      "sha256": "862a1898953a003269ab3ad387fcf265bd9ed900913a67cef43ed1586c91ff52",
+      "sha256": "518e9a626ce5eaba5613c5a7e19ed93606012b9205f5a539e601df6aa2016192",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6066,21 +7150,21 @@
     },
     {
       "path": "tests/frontend/Dashboard.test.tsx",
-      "sha256": "6388306279cd5892fdfc00b43ebd9ed883716a5efb75610fbc256cbf1aa9a206",
+      "sha256": "bd616a2639dc09350769381e9e5560f7457da58779d4b5b1e455c004a779e0a4",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend/FilesMenu.test.tsx",
-      "sha256": "dc1d1587d0b0cc1ebaa7130dfc33329a7ee590471cf7969122eb3fd7da4f74c2",
+      "sha256": "3cfd4ac620476faaf0eb19f4613f859c6848f0441f820763dcfaf36b1537dc4d",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend/Navigation.test.tsx",
-      "sha256": "4c320fb1503e6f737285f6bd043be6dd98c7fa23be4760a8d1a98c2793cece15",
+      "sha256": "d9a4241eb7834b9395c0d33d9c13224841054f1ee332011403fe757514631851",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6094,7 +7178,7 @@
     },
     {
       "path": "tests/frontend/ResearchesPage.test.tsx",
-      "sha256": "4b44d46b996ce229a5a1bb72b8e41b534d953a0baea86efc7bb9fe9dd767800b",
+      "sha256": "4fa26a683cd9ac81fb5bf216918ebc08a49741fbba1a7308321fa4bdf120df46",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6108,7 +7192,7 @@
     },
     {
       "path": "tests/frontend/SectorChatPanel.test.tsx",
-      "sha256": "4a66b1b0e1c079cc96870a27fa667927b3c5dd838cea04e364e859acb886250c",
+      "sha256": "d3da3fad00bf160c5dc07192a1e14e01721314aec0932c214d8308a50e4626d5",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6122,7 +7206,7 @@
     },
     {
       "path": "tests/frontend/SectorDetailPage.test.tsx",
-      "sha256": "76857ea26e7c043f1601fae1f7e73b984dd9ef144e6bda9038f0ba3427e2668f",
+      "sha256": "ac0e3c37cc2fee21a6687a6e318bd8e3c6d93ce1a67bb16636a5cbdaa203c8ec",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6136,7 +7220,7 @@
     },
     {
       "path": "tests/frontend/Sidebar.test.tsx",
-      "sha256": "a5135dbc2533064ad238c5215b81b705cb8147a9ff19bc23ee0c0b1622f5d236",
+      "sha256": "690d88c07e78baf8f5a2014b20b15f0b793a4864855dc72aabb6cd015c11b4b0",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6157,7 +7241,7 @@
     },
     {
       "path": "tests/frontend/TopBar.test.tsx",
-      "sha256": "3dcc14e1ea62f4272551e2cef707a7a7a9411f6da47c90a1c51acd0242bc3ed8",
+      "sha256": "e4b50bd48b38d32f0aab29981a0ebfdc4e209adeddb4f0a87ad9bf89af3e112a",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6165,6 +7249,13 @@
     {
       "path": "tests/frontend/alerts-api.test.ts",
       "sha256": "82a34dccdaf01554bb46df1d0d29e387b4c26ffb369ce010399c251bedda329a",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/animate-number.test.tsx",
+      "sha256": "abc5d57d8b7fa957890383a66d503ba558bb09980be9f1fef00511730a78f965",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6191,15 +7282,50 @@
       "exports": []
     },
     {
+      "path": "tests/frontend/chat-disclosures.test.tsx",
+      "sha256": "a82313a8022646a25a140c1dc1a3fb83e70a0dd6e0e9067397dc330a42fd3c36",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/frontend/chat-parts.test.tsx",
-      "sha256": "3367fe3e2da03d728c5293b191cf7828d787019967769e56e05a22df3174858e",
+      "sha256": "999019fd048a5e00c95d9c2276a04d560c4fc62c51fe159c29c02aaebb968bc2",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend/chat-staging.test.tsx",
-      "sha256": "2d7945a8d376c8c7247c5dde5719b26b51e14a22a3c09d622e0a85e0f336a879",
+      "sha256": "b0f3ec339efa6aa1ce9ae2b67575a0e52c167dffa591004def6c3de12c59710b",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/cn.test.ts",
+      "sha256": "577d7ecb7b1533ace21347b44aac611dbd776c4923934727476aaa323c07b843",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/color.test.ts",
+      "sha256": "44ba117d3e8703c13adb7ad08f33e378d05ef5c5740e98ac33bcbf268b155bc3",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/command-palette.test.tsx",
+      "sha256": "6498a59fb46090c29d8b2c8f9cc2a1e9e2146c697e2f7d4d396a75606d864766",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/companies-section.test.tsx",
+      "sha256": "7c7f8631eeffafdf00c1a639bc15a70d6ecbd1498fc70a940fcece6f73e527e4",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6212,29 +7338,64 @@
       "exports": []
     },
     {
+      "path": "tests/frontend/composer.test.tsx",
+      "sha256": "2a837b8653cd5c5643b0a537f0dfb8dd3ed79e17c5a827ababcc670cd3980499",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/contrast.test.ts",
+      "sha256": "23a1a530d86d9a1390f43656560760a1af3116313c52abe7fa36cfc364a6b321",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/frontend/coverage-registry.md",
-      "sha256": "072a431f8a03e7e33793164eda448d12d0639fbf233b3e22f5de500e5c04b485",
+      "sha256": "7219fc34cb36a872b0133ffaeb0d79cecadc93536eec7167893786f5ebccf22c",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend/coverage-registry.test.ts",
-      "sha256": "7b8ba16473b602567cbb195eb6ae993c840d66ada85a2fe6ca38bcc4e10a9175",
+      "sha256": "4d8b12c2c4561480e9847388781512c7c7bdc779e5810067e407d9b407cc1a5c",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/create-sector-dialog.test.tsx",
+      "sha256": "da66907ccc0abad667a7fe8c52a7cc8b197c6db490fecc6432b26f9f05835b97",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/data-table.test.tsx",
+      "sha256": "84a963a00aeafb7bd0124dfabfdc5a700e09e476fad75c2f33e466224521e5c1",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend/execution-inspection.test.tsx",
-      "sha256": "a3b92c51f5861b5fd3dc4b1159d4622eb4777a0fa5c1a7f57aa2487808770288",
+      "sha256": "3d72670ea019a7cb921869a0435e85abb9110fa64d5c658f964fcb08f270a766",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend/file-processing.test.tsx",
-      "sha256": "63899f21a2360a2437ec8ef58dfe8c20a5d2e22889f14d60afe5850ea85a9fb6",
+      "sha256": "cc2705ce032d2c5b0d3d55f75621023ecfcd8203351b7d2d8e00fb70f74f60bd",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/file-type-icon.test.tsx",
+      "sha256": "1312d0bb52c53f3e58f1bf95c3dcd75a47bd5df8b2d53507afc558430009a078",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6247,8 +7408,50 @@
       "exports": []
     },
     {
+      "path": "tests/frontend/format.test.ts",
+      "sha256": "2d7aac96c41ac2631becd97d0f35846735c0504e67296f76213ad2800ad7e0ee",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/icons.test.ts",
+      "sha256": "723dd82133c4b1d857bfdf719839de8d9c8e4a8ab04094e498188d4ba9262461",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/interaction.test.ts",
+      "sha256": "79f4288fccd6466c4fd1776c906d14bca6fce130b9c921bbe228d7c5a996ef9c",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/labels.test.ts",
+      "sha256": "1a819978eddee3c4b99588345f0debf5140f7403a33f45f717e645259344077f",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/lifecycle-button.test.tsx",
+      "sha256": "e3fbc8db870bb4a6ba01e78eadc507797d23ded0a5f4a2c06da16be3e93a42e8",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/list.test.tsx",
+      "sha256": "cca6f127fe2925e5753c6719f76fd49ff25d087afbe4296554c81ae15cce313c",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/frontend/markdown.test.tsx",
-      "sha256": "3b21ffc103aaed99857190ffd733d01da88ec023422da61319d21c98d843d26a",
+      "sha256": "60c9e692c0a3a8ab90a006043b4807b7d568a58d27c92f290bb3770233b6883c",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6262,28 +7465,28 @@
     },
     {
       "path": "tests/frontend/models-staging.test.tsx",
-      "sha256": "ac091feda9efeb7decf26cbb61adb3929d5be2f350bcff2aa6f881882aac49f6",
+      "sha256": "115de95814391a04834fda8574859351e84f5b1737fdc5c6e125002054926b7a",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend/motion-presets.test.tsx",
-      "sha256": "9f74ac2dbf98aa136e14c47e8648aec6e179dcc10a376c2b3e9b9d31f63e2d83",
+      "sha256": "2522f6f5a403f6be7d5621d9bb3abbbe02b2a957bf627ae3fb66a90dc90d68ed",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend/navigation-url.test.tsx",
-      "sha256": "ab56307e6c948bead9c14c9297e8146c7b2dd7308494649b688c40b90474643e",
+      "sha256": "e6f08de173ef576c58c9429aa01997885144166e4fd35deb140af3607b432041",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend/nested-overlays.test.tsx",
-      "sha256": "7a3ad691d081da1e3c302575842403efaf38314fcddc00db9c490fb64aa34ad1",
+      "sha256": "545a4049a7756fec61ee5d28e6548a2fb7eab10f39cea16ea6c2b8748bcd5d5c",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6310,22 +7513,43 @@
       "exports": []
     },
     {
+      "path": "tests/frontend/plan-steps.test.tsx",
+      "sha256": "ffe045b4957b37530d190cc723f25353bbd43f58b5aa5989ab14b10ca3fefdfc",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/plan-tab.test.tsx",
+      "sha256": "1d6088e0b4fba6e1598e0afea6402fa88e72c0d595edfdae39f9c459ff567b48",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/frontend/research-plan-editor.test.tsx",
-      "sha256": "7cd2f8f2b991f7b08f1fb0c9fa4425106d40df1796a62a514aad7c38b99d8019",
+      "sha256": "32edc928b778cd073ce276ec92a92546343b144c372ed569d57b59fb0f789716",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/research-presentation.test.tsx",
+      "sha256": "bf829779797322d03428b5503d3deb224f7a184b208e72a9a92d01d5a916badc",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend/research-staging.test.tsx",
-      "sha256": "dce12f899ca24c0258743b91ae82fd8d1442af916d072d43c167ba1cb4303711",
+      "sha256": "6c580fd663928090c9bbdcd097858bbf69fde7d9866557caa121cd0d6608b1e6",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend/runs-staging.test.tsx",
-      "sha256": "aa9987cce76a8428e291402d01a95178ce605391513c3b5c877a97ecf05815ab",
+      "sha256": "56e24c7e7f490947266632d79b21ebea78bf3227273cf9d379bd3b08c3bebc2b",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6339,35 +7563,35 @@
     },
     {
       "path": "tests/frontend/sector-file-preview.test.tsx",
-      "sha256": "09b8a662ddc95341861be1382daf33413f75a44fed3160f93656816cf32b443b",
+      "sha256": "ded640d7cb5d579fb4c7aaeb62041ecb65ad25dc604e3038852b4a3eac5d2c13",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend/sector-workspace.test.tsx",
-      "sha256": "b4bf70b9776dcb28ee2d39aeaeba84851f3e5089bd2dc8b58576b3cb16832e60",
+      "sha256": "5bf5c86372fa7c16f53f819c134a99501f35125e48cc26bc9dd99e1c41a99157",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend/session-files.test.tsx",
-      "sha256": "e74e088476bf9ca7e0f7559dcff129c9556ad81fa32252ee592203a4f9591f4f",
+      "sha256": "757e8bc038fc202d93416b3a6a51301061d966fdcfcf5894492671746ff08a48",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend/session-options.test.tsx",
-      "sha256": "9a2ec8a541d0bcca40b51d63c9d08001ac7edaa808ee8db98ef4d5e4ea417b7a",
+      "sha256": "13d737ac4f2db7387f7f893a5bd0c4f369c90726db489b87ea6e9fe0750083f7",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend/shells.test.tsx",
-      "sha256": "1c6be235a126879727be23e1f0d6c5476c6b6145303b9e8a34e99238f113b3d7",
+      "sha256": "a003502d41859942fdc2cc539a98af0784984e9ca573db1e78eaa805966d110d",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6388,14 +7612,49 @@
     },
     {
       "path": "tests/frontend/supervision-alerts.test.tsx",
-      "sha256": "4ca93ec3635db16c9637cab610a470733f4795fff9c6ea8edd540bc84eaeb009",
+      "sha256": "ec8cc487eb5d45334ba94a45230dba1919486a3364dad53c0e691c4123a1dbf1",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend/text-primitives.test.tsx",
-      "sha256": "b6d1f84dd68bb96cf1122224c9fd57cc237dd53bd2db1412162d64d394ea7ef6",
+      "sha256": "d7f10b347ff1070faa0b018f5fb75040c2b87c98c57a8e860fd765b54cfc9a2d",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/theme-menu.test.tsx",
+      "sha256": "69f16d499562d0243b77266a10c67b5622cb3f5962058a5c4d51dded3d12a663",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/theme.test.tsx",
+      "sha256": "c2eaca82bbcf3dccab32ef9d7ecc38d85d2e50804fd094512da2e49bf67c5085",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/toast.test.ts",
+      "sha256": "070ee4acd91d250993d92450b70e3b42b0322186f718a6c3a40ac69b335c9c88",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/tokens.test.ts",
+      "sha256": "47f798be7283570662261debc3632f1f57543ebe9dfd38badfc4179e25821b14",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/type-usage.test.ts",
+      "sha256": "208f2d744ff89bee44877aad31b6e34ed8d4779f5cd2a499400943a3472bb329",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6409,7 +7668,14 @@
     },
     {
       "path": "tests/frontend/ui-primitives.test.tsx",
-      "sha256": "e5c75ef168d21f3a60fb39985d0b9c4e5ad637fd2d9e581e4bc11c18541469d6",
+      "sha256": "cb70c2b46bb47e1841b2effbb98c117f4bff7411d2b9d6f1bade45029c15de81",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/use-navigation.test.tsx",
+      "sha256": "f4cd17b8b11f8c3d08d600e4698cdfc3b4c7874e641651aa1414d5d78e1f99d1",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6423,7 +7689,7 @@
     },
     {
       "path": "tests/frontend/work-review.test.tsx",
-      "sha256": "0648f33f450bd88bc2fa1d881e57eb67cb19f5cda83c1b63b16a45f2868dcaec",
+      "sha256": "1ad8948dcc0c7055c7a83992be82cae7d2921cb6013f610fa921cc555d8310cb",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6437,7 +7703,7 @@
     },
     {
       "path": "tests/frontend/workspace-files-scale.test.tsx",
-      "sha256": "95fb64e4265ed55e44337f32f5ef318948e8434c91062ad65ab22be3f5a62327",
+      "sha256": "dce8279ec66d08e7218f29aba77ad9a5e034c838c4997cb19888a4cf87dc511f",
       "review": "pending",
       "tests": [],
       "exports": []
