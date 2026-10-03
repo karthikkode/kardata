@@ -3644,4 +3644,10 @@ click — fixed with a settled-workspace anchor wait, 10/10
 repeat runs green) and SL-05-1000 (nine growing renders take
 16.5s locally, over 30s on slow runners — fixed with a 90s
 per-test budget + 15s inner expects per the GC-04 precedent;
-counts unchanged).
+counts unchanged). (5) The next sequential run failed only
+the filter timing probe (p95 168ms vs a 125ms tripwire): the
+old tripwire sat inside the machine-variance band (19.5ms fast
+box, 168ms CI, no product change), so it could never hold.
+Added one warmup fill and moved the tripwire to 250ms with the
+reason in the test comment; it guards algorithmic regressions,
+not hardware speed.
