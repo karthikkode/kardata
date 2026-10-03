@@ -119,7 +119,7 @@ Commits on `ui-revamp-v2`:
 - `f983266` UI v2 stage 5: plan-files-context-inspector
 - `0ad4d31` UI v2 stage 6: agents-models-emails-appstates
 - `941458a` UI v2 stage 7: backend B1-B4
-- (stage 8 commit hash appended at commit time)
+- `7366d7d` UI v2 stage 8: sweeps, docs, e2e migration, handoff
 
 How to view:
 
