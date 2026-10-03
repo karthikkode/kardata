@@ -1,7 +1,7 @@
-// URL-driven navigation. Section, open sector, and research tab live in
-// query params (this hook owns only these three keys; any others pass
-// through untouched), so refresh, deep links, and Back/Forward restore the
-// view instead of dropping to home.
+// URL-driven navigation. Section, open sector, research tab, workspace
+// view, and the Researches filters live in query params (this hook owns
+// only these keys; any others pass through untouched), so refresh, deep
+// links, and Back/Forward restore the view instead of dropping to home.
 import { useCallback, useEffect, useState } from 'react'
 import type { ResearchList } from '../components/Dashboard'
 
@@ -11,6 +11,11 @@ export interface Navigation {
   researchTab: ResearchList
   sessionId?: string | null
   threadKey?: string | null
+  /** Workspace chat/plan view (?view), SectorChat only. */
+  view?: string | null
+  /** Researches search text (?q) and state filter (?state). */
+  filterQuery?: string | null
+  stateFilter?: string | null
 }
 
 const DEFAULT_NAVIGATION: Navigation = {
@@ -33,10 +38,11 @@ export function parseNavigation(search: string): Navigation {
   if ((section === 'SectorDetail' || section === 'SectorChat') && !sectorId) {
     return { section: 'Researches', sectorId: null, researchTab: pickTab(params.get('tab')) }
   }
-  return { section, sectorId, researchTab: pickTab(params.get('tab')), ...(params.has('session') ? { sessionId: params.get('session') } : {}), ...(params.has('thread') ? { threadKey: params.get('thread') } : {}) }
+  return { section, sectorId, researchTab: pickTab(params.get('tab')), ...(params.has('session') ? { sessionId: params.get('session') } : {}), ...(params.has('thread') ? { threadKey: params.get('thread') } : {}), ...(params.has('view') ? { view: params.get('view') } : {}), ...(params.has('q') ? { filterQuery: params.get('q') } : {}), ...(params.has('state') ? { stateFilter: params.get('state') } : {}) }
 }
 
-function serialize(nav: Navigation): string {
+/** Serialize navigation to a URL; SectorChat-only keys drop elsewhere. Exported for tests. */
+export function serializeNavigation(nav: Navigation): string {
   const params = new URLSearchParams(window.location.search)
   if (nav.section === DEFAULT_NAVIGATION.section) params.delete('section')
   else params.set('section', nav.section)
@@ -46,15 +52,25 @@ function serialize(nav: Navigation): string {
   else params.delete('session')
   if (nav.threadKey && nav.section === 'SectorChat') params.set('thread', nav.threadKey)
   else params.delete('thread')
+  if (nav.view && nav.section === 'SectorChat') params.set('view', nav.view)
+  else params.delete('view')
   if (nav.researchTab === DEFAULT_NAVIGATION.researchTab) params.delete('tab')
   else params.set('tab', nav.researchTab)
+  if (nav.filterQuery) params.set('q', nav.filterQuery)
+  else params.delete('q')
+  if (nav.stateFilter) params.set('state', nav.stateFilter)
+  else params.delete('state')
   const query = params.toString()
   return `${window.location.pathname}${query ? `?${query}` : ''}`
 }
 
 /** View state synced both ways with the URL. Updates push a history entry
  * (Back/Forward work); popstate re-parses so the back button restores the
- * view. Scenario params are preserved verbatim. */
+ * view. Scenario params are preserved verbatim. Section changes run inside
+ * a View Transition where supported, so the outgoing page crossfades
+ * (non-interactive snapshot) instead of vanishing; otherwise the swap is
+ * instant with the entering content fading in. Reduced motion collapses
+ * both paths via CSS with scroll and focus work intact. */
 export function useNavigation(): [Navigation, (next: Partial<Navigation>) => void] {
   const [nav, setNavState] = useState<Navigation>(() => parseNavigation(window.location.search))
   useEffect(() => {
@@ -67,11 +83,21 @@ export function useNavigation(): [Navigation, (next: Partial<Navigation>) => voi
     }
   }, [])
   const setNav = useCallback((next: Partial<Navigation>) => {
-    setNavState((current) => {
-      const merged = { ...current, ...next }
-      window.history.pushState(null, '', serialize(merged))
-      return merged
-    })
+    const apply = (): void => {
+      setNavState((current) => {
+        const merged = { ...current, ...next }
+        window.history.pushState(null, '', serializeNavigation(merged))
+        return merged
+      })
+    }
+    const documentWithTransition = document as Document & {
+      startViewTransition?: (callback: () => void) => void
+    }
+    if (typeof documentWithTransition.startViewTransition === 'function') {
+      documentWithTransition.startViewTransition(apply)
+    } else {
+      apply()
+    }
   }, [])
   return [nav, setNav]
 }

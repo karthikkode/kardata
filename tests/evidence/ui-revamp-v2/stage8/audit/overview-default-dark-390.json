@@ -1,0 +1,16 @@
+{
+  "name": "overview-default-dark-390",
+  "at": "2026-10-03T10:39:06.433Z",
+  "checks": {
+    "type": "pass",
+    "contrast": "pass",
+    "raw-text": "pass",
+    "overflow": "pass",
+    "targets": "skip",
+    "hover": "pass",
+    "focus": "pass",
+    "alignment": "pass",
+    "plan-rail": "skip"
+  },
+  "violations": []
+}

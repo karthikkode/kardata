@@ -1,0 +1,16 @@
+{
+  "name": "overview-loading-dark-1440",
+  "at": "2026-10-03T18:45:31.725Z",
+  "checks": {
+    "type": "pass",
+    "contrast": "pass",
+    "raw-text": "pass",
+    "overflow": "pass",
+    "targets": "pass",
+    "hover": "skip",
+    "focus": "pass",
+    "alignment": "pass",
+    "plan-rail": "skip"
+  },
+  "violations": []
+}

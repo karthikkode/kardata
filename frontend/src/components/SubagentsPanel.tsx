@@ -1,13 +1,16 @@
 // Session subagent threads, docked just above the composer. Rows come
-// from the backend thread list: status dot, thread key, and queue depth.
-// Stopping cancels the thread's run through the parent. There is no local
-// launching or staged progress: every row on screen was served by the API.
+// from the backend thread list: status dot, humanized name, and one
+// status caption. Stopping cancels the thread's run through the parent.
+// There is no local launching or staged progress: every row on screen
+// was served by the API.
 import { useState } from 'react'
-import { ChevronDown, MessageSquare, Square } from 'lucide-react'
+import { Icons } from '@/lib/icons'
 import { popoverEnter, popoverExit, useExitState } from '@/lib/motion'
 import type { ThreadView } from '../data/staging-api'
 import { toneDot } from './StatusPill'
 import { Button } from './ui/button'
+import { IconButton } from './IconButton'
+import { List, ListRow } from './ui/list'
 
 function toneFor(status: string): 'working' | 'ok' | 'failed' | 'idle' {
   if (/running/i.test(status)) return 'working'
@@ -24,17 +27,27 @@ function labelFor(status: string): string {
   return status
 }
 
-// One thread row: status dot, key, and queue depth. The whole row tags the
-// thread in chat; Stop stays beside it while running. Every row carries an
-// icon that opens the thread's own chat without touching its run.
+// Display name for a thread row: the backend title when set, otherwise a
+// positional fallback. Raw `agent:...` keys never render as text; they
+// survive only in the row tooltip.
+function displayName(thread: ThreadView, index: number): string {
+  return thread.name?.trim() ? thread.name : `Subagent ${index + 1}`
+}
+
+// One thread row: status dot, humanized name, and one status caption. The
+// row uses the shared ListRow recipe (plan 2.5.1) as a non-interactive
+// container: the tag button and the trailing icons stay separate controls
+// because buttons cannot nest. Callbacks still travel by thread key.
 function SubagentRow({
   thread,
+  index,
   active,
   onTagThread,
   onOpenThread,
   onStop,
 }: {
   thread: ThreadView
+  index: number
   active: boolean
   onTagThread?: (key: string) => void
   onOpenThread?: (key: string) => void
@@ -42,54 +55,39 @@ function SubagentRow({
 }) {
   const tone = toneFor(thread.status)
   const running = tone === 'working'
+  const name = displayName(thread, index)
   const caption =
     thread.queueDepth > 0 ? `${thread.queueDepth} queued` : labelFor(thread.status)
   return (
-    <div
-      className={`flex items-center gap-2 rounded-lg px-2 py-1 ${
-        active ? 'bg-muted' : 'hover:bg-muted/60'
-      }`}
-    >
+    <ListRow selected={active} density="dense">
       <button
         type="button"
         onClick={() => onTagThread?.(thread.key)}
-        aria-label={`Chat with ${thread.key}`}
+        aria-label={`Chat with ${name}`}
+        title={thread.key}
         aria-current={active ? 'true' : undefined}
-        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
+        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <span
           aria-hidden
           className={`size-1.5 shrink-0 rounded-full ${toneDot[tone]}`}
         />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm">{thread.key}</span>
+          <span className="block truncate text-sm">{name}</span>
           <span className="block truncate text-xs text-muted-foreground">{caption}</span>
         </span>
-        {running ? (
-          <span className="shrink-0 text-xs text-muted-foreground">Running</span>
-        ) : null}
       </button>
       {running ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`Stop ${thread.key}`}
-          onClick={() => onStop(thread.key)}
+        <IconButton label={`Stop ${name}`} size="icon-sm" type="button" onClick={() => onStop(thread.key)}
         >
-          <Square className="size-4" aria-hidden />
-        </Button>
+          <Icons.stopSquare className="size-4" aria-hidden />
+        </IconButton>
       ) : null}
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        aria-label={`Open ${thread.key} chat`}
-        onClick={() => onOpenThread?.(thread.key)}
+      <IconButton label={`Open ${name} chat`} size="icon-sm" type="button" onClick={() => onOpenThread?.(thread.key)}
       >
-        <MessageSquare className="size-4" aria-hidden />
-      </Button>
-    </div>
+        <Icons.chatMessage className="size-4" aria-hidden />
+      </IconButton>
+    </ListRow>
   )
 }
 
@@ -119,7 +117,9 @@ export function SubagentsPanel({
 
   function stop(key: string) {
     onStopThread?.(key)
-    setAnnouncement(`${key} stopped.`)
+    const at = threads.findIndex((thread) => thread.key === key)
+    const thread = at >= 0 ? threads[at]! : null
+    setAnnouncement(`${thread ? displayName(thread, at) : key} stopped.`)
   }
 
   return (
@@ -139,7 +139,7 @@ export function SubagentsPanel({
           <span aria-hidden className={`size-1.5 rounded-full ${toneDot.working}`} />
         ) : null}
         {threads.length} subagents
-        <ChevronDown
+        <Icons.chevronDown
           className={`size-4 motion-safe:transition-transform ${subagentList.open ? 'rotate-180' : ''}`}
           aria-hidden
         />
@@ -151,16 +151,19 @@ export function SubagentsPanel({
           {threads.length === 0 ? (
             <p className="py-2 text-center text-sm text-muted-foreground">No subagents yet.</p>
           ) : (
-            threads.map((thread) => (
-              <SubagentRow
-                key={thread.key}
-                thread={thread}
-                active={thread.key === taggedKey}
-                onTagThread={onTagThread}
-                onOpenThread={onOpenThread}
-                onStop={stop}
-              />
-            ))
+            <List className="gap-2" aria-label="Subagent threads">
+              {threads.map((thread, index) => (
+                <SubagentRow
+                  key={thread.key}
+                  thread={thread}
+                  index={index}
+                  active={thread.key === taggedKey}
+                  onTagThread={onTagThread}
+                  onOpenThread={onOpenThread}
+                  onStop={stop}
+                />
+              ))}
+            </List>
           )}
         </div>
       ) : null}

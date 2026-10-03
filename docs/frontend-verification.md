@@ -365,3 +365,137 @@ preview was visually inspected. Safe screenshots and transition video are in
 `backend/test-results/preflight-safe-visual-proof/`; raw credential-bearing traces
 remain private and excluded. This is PDF production-path evidence, not a live
 company-discovery campaign or complete OCR-quality evaluation.
+
+## Wave 8 (revamp completion: primitives, shells, prescribed migrations)
+
+Branch `codex/ui-revamp-complete` from `ui-revamp-perfect` head `fdbc9d2`.
+Owned wrappers for all 19 primitives (`frontend/src/components/ui/`) over
+Base UI 1.8.0 plus 9 shared shells (`frontend/src/components/shells.tsx`),
+centralized motion presets (`EXIT_MS`/`POPOVER_MS` + six enter/exit pairs),
+and typed text primitives with ref/ID/tabIndex forwarding. Adopted:
+Researches Tabs/Select/creation-dialog, SearchField unification
+(TopBar/files/sessions/subagents), ConfirmAction deletion in workspace and
+Karbot (row delete touch-visible, 32px), workspace tablist arrows,
+Karbot file targets at 32px with 8px gaps, collapsed-sidebar tooltips, App
+title/gutters/page-enter, legacy drawer estimate labeling with the 60%
+claim and amber removed. ID-to-evidence map:
+`tests/frontend/coverage-registry.md`.
+
+Gates: `npm run lint -w frontend` 0 errors (5 pre-existing warnings),
+`typecheck` clean, `npm test -w frontend` 421 passed / 6 skipped (53
+files), `npm run build -w frontend` clean. Failing-before/passing-after
+pairs observed in-session: kept-mounted panels hid rows (reverted),
+tooltip role + StatusPill structure fixes, drawer meter copy, stale
+tab/select/confirm names moved to the intended contracts
+(`Approve vN`, alert-dialog deletion, tab roles, combobox options).
+Core browser re-verification (smoke/visual/matrix/transitions) re-ran on
+isolated port 15174 with fresh screenshots inspected; full-matrix,
+workspace, states, and plans/scale batches re-ran likewise (live-gated
+plan-02/plan-03 skip explicitly). `npm run pr:verify` remains blocked by
+the pre-existing backend lint on generated
+`backend/test-results/preflight-merged-readonly-ui.mjs` (not this diff).
+
+Explicit follow-ups (not silent): ConversationComposer visual migration for
+both composers, Select-primitive model menus, 200%-zoom/touch-keyboard
+matrices, live DB/Temporal/provider suites, 2,000-company campaign.
+
+## Wave 9 (review remediation: plan, markdown, motion, files, sizing, registry)
+
+Owner review rejected the completion claim with eight blockers; all are
+remediated on `codex/ui-revamp-complete`, each with failing-before evidence:
+
+- Plan presentation: executable queries render as full numbered rows (no
+  truncated chips), acceptance is a neutral decimal list (no checkmarks),
+  the target/cap progress bar is removed (numeric text kept), numeric
+  drafts stay strings until submit (blank never coerces to zero), and
+  field-level errors plus a focused error summary gate submit.
+- Markdown: keyword icons leave ordinary chat (explicit `variant="plan"`
+  only); grouped plan rhythm lives on the renderer, and the dead
+  `.plan-brief` wrapper selectors were deleted.
+- Motion: `LazyMotion features={domAnimation}` wraps both App roots with
+  the lightweight `m` indicator; Base UI primitives carry enter AND exit
+  via `data-starting-style`/`data-ending-style`; WorkspaceOverlay is the
+  shared dialog (native `<dialog>` removed) with a topmost-only Escape
+  guard for sibling overlays (`lib/overlay.ts`, race-hardened); page
+  replacement crossfades through the View Transitions API (instant swap
+  with fade-in where unsupported).
+- Karbot files: preview failure is an alert with retry (never file-body
+  text), downloads fail visibly with dismissal, and stale previews cannot
+  overwrite the current file (request sequencing).
+- Sizing: standard controls 40px, compact 32px with coarse-pointer 40px
+  enlargement, file/row/menu targets at 32px+, timestamp buttons enlarged;
+  TopBar search renders on Overview only with the query preserved.
+- Models panel on shared Select/checkbox with "Configured" (never "Live");
+  settled agent replies gained the specified Copy action with local
+  clipboard-failure reporting (wired in dock, workspace, and legacy).
+- Registry: false rows corrected (`approval.test.ts`, real copy/queries/
+  acceptance/target entries, named FileProcessing rows) and an enforceable
+  gate (`coverage-registry.test.ts`) fails on any unmapped component file.
+- Evidence: `revamp-evidence.spec.ts` extended (exit-transition arming,
+  search scoping, profiling); filter 79/40/36ms, zero sustained long
+  tasks over 200ms across transitions, 0.0% heap growth over 20 dialog
+  cycles (numbers carry host-load noise; bounds hold with margin).
+  Environment note: user inotify instances were exhausted (169/128, mostly
+  editor/servers), so e2e web servers run with `CHOKIDAR_USEPOLLING=1`;
+  counts of inotify pressure belong to the host, not the product.
+- Toolchain: backend eslint now ignores generated `test-results/**`
+  (unblocks the false-red lint); hardening catalogue and acceptance
+  surfaces regenerated through their sanctioned maintenance modes (new
+  entries honestly `pending`); `npm run pr:verify` passes exit 0.
+
+Gates: lint 0 errors, typecheck clean, `npm test -w frontend` 442 passed /
+6 skipped, build clean, browser 126+ passed with 2 live-gated skips.
+
+## Wave 10 (second review remediation + plan timeline redesign)
+
+Owner review round two returned six blockers; all fixed with
+failing-before evidence on `codex/ui-revamp-complete`:
+
+- Overlay registry follows actual open state (reopening re-registers;
+  nothing registers while closed) and refused closes keep registration.
+- WorkspaceOverlay is controlled (`open` + frozen exit content +
+  reopen-cancel) across all 14 sites plus ExecutionInspector and
+  OwnerContextRebuild (nullable-source threading); exits verified in a
+  browser by detachment timing (~120ms) and ending-style assertions.
+- Discovery target distinguishes cleared-populated (field error) from
+  never-set (stays unset, schema-optional); the invariant backstop can
+  only surface as a form error, never a silent default.
+- Structural coverage gate validates test/source existence, per-area ID
+  rows, and primitive adopters; adoption extended to activity
+  disclosures, plan history, file/operation disclosures, textareas,
+  progress, skeletons, StatusBadge, PageHeader, OperationNotice, and the
+  Models selects.
+- Performance per the agreed acceptance: 20-query p95, 50 overlay cycles
+  with a 20% heap bound, dialog-exit detachment timing, and initial
+  2,005-row render timing. Live populated workflows reviewed on the
+  admitted dev server (`live-overview/researches/models-1440.png`, zero
+  page errors).
+- Model menus gained collision-aware placement after a bottom-docked
+  clipping report (unit + viewport-containment browser proof).
+- Plan presentation redesigned to a timeline rail (medallions, numbered
+  query/acceptance rows, stat boxes) in both themes
+  (`revamp-plan-timeline-light/dark.png`), preserving every pinned
+  string, role, and request semantic.
+
+Gates: lint 0 errors, typecheck clean, full unit green, `npm run
+pr:verify` exit 0, browser matrix green with 2 live-gated skips.
+
+## Wave 11 (narrative brief headings)
+
+Owner screenshot of a narrative-only plan showed plain h2 sections with
+no glyphs: the plan Markdown variant applied keyword icons and grouped
+rhythm to h3 only, while briefs use arbitrary valid headings. The variant
+now treats h2 identically (icon + divider + muted body). Pinned by new
+markdown cases (h2 glyph in plan, absent in chat); timeline evidence
+re-captured in both themes.
+
+## Wave 12 (narrative brief timeline)
+
+Owner comparison against the reference design showed the narrative-only
+plan still rendering as flat headings: the plan Markdown variant covered
+h3 but briefs use arbitrary levels. New `PlanBriefTimeline` splits any
+brief into heading-led sections (fences opaque, all lines preserved) and
+renders a medallion timeline shared by workspace, progress dialog, and
+legacy views; unknown sections get the neutral document glyph. Pinned by
+splitter/timeline unit cases plus light/dark browser shots
+(`revamp-plan-brief-light/dark.png`).

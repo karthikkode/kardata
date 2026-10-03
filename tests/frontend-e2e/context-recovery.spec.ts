@@ -46,8 +46,9 @@ async function open(page: Page, width: number, dark: boolean) {
   await expect(page.getByRole('heading', { name: 'Research', exact: true })).toBeVisible()
   if (dark) {
     if (width < 768) await page.getByRole('button', { name: 'Open sessions' }).click()
-    await page.getByRole('button', { name: 'Use dark theme' }).click()
-    if (width < 768) await page.getByRole('button', { name: 'Close Sessions' }).click()
+    await page.getByRole('button', { name: 'Theme' }).click()
+    await page.getByRole('menuitemradio', { name: 'Dark' }).click()
+    if (width < 768) await page.keyboard.press('Escape')
   }
   const context = page.getByRole('button', { name: 'Local context', exact: true })
   await context.focus(); await page.keyboard.press('Enter')
@@ -57,7 +58,7 @@ for (const width of [1440, 390]) for (const dark of [false, true]) {
   test(`receipt inspection ${width}px ${dark ? 'dark' : 'light'}, reduced motion`, async ({ page }, info) => {
     await fixture(page, false)
     const context = await open(page, width, dark)
-    await expect(context.getByText('Operation needs review')).toBeVisible()
+    await expect(context.getByText('An operation needs review')).toBeVisible()
     await context.getByRole('button', { name: 'Inspect receipt' }).click()
     await expect(context.getByText('Result confirmed')).toBeVisible()
     await context.getByText('Operation identity', { exact: true }).click()

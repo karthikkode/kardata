@@ -62,8 +62,9 @@ async function open(page: Page, width: number, dark = false) {
   await expect(page.getByRole('heading', { name: 'Research', exact: true })).toBeVisible()
   if (dark) {
     if (width < 768) await page.getByRole('button', { name: 'Open sessions' }).click()
-    await page.getByRole('button', { name: 'Use dark theme' }).click()
-    if (width < 768) await page.getByRole('button', { name: 'Close Sessions' }).click()
+    await page.getByRole('button', { name: 'Theme' }).click()
+    await page.getByRole('menuitemradio', { name: 'Dark' }).click()
+    if (width < 768) await page.keyboard.press('Escape')
   }
   await page.getByRole('button', { name: 'Local context', exact: true }).click()
   await page.getByRole('textbox', { name: 'Local notes' }).fill('TEST unsaved local draft')
@@ -75,7 +76,7 @@ for (const width of [1440, 390]) for (const dark of [false, true]) {
   test(`execution inspection ${width}px ${dark ? 'dark' : 'light'} pagination/long JSON/keyboard`, async ({ page }, info) => {
     await fixtures(page)
     const dialog = await open(page, width, dark)
-    await expect(dialog.getByText('20 records on this page')).toBeVisible()
+    await expect(dialog.getByText(/20 entries/)).toBeVisible()
     await dialog.getByRole('button', { name: 'Request · Round 1 · #1' }).focus()
     await page.keyboard.press('Enter')
     const json = dialog.getByLabel('Normalized execution JSON')
@@ -91,11 +92,11 @@ for (const width of [1440, 390]) for (const dark of [false, true]) {
     expect(readFileSync((await saved.path())!, 'utf8')).toBe(JSON.stringify(record(1)))
     await page.screenshot({ path: info.outputPath('long-record.png'), animations: 'disabled' })
     await dialog.getByRole('button', { name: 'Next records' }).click()
-    await expect(dialog.getByText('3 records on this page')).toBeVisible()
+    await expect(dialog.getByText(/3 entries/)).toBeVisible()
     await expect(dialog.getByRole('button', { name: 'Next records' })).toBeDisabled()
     await expect(dialog.getByRole('button', { name: 'Previous records' })).toBeEnabled()
     await dialog.getByRole('button', { name: 'Previous records' }).click()
-    await expect(dialog.getByText('20 records on this page')).toBeVisible()
+    await expect(dialog.getByText(/20 entries/)).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.keyboard.press('Escape')
     await expect(page.getByRole('button', { name: 'Execution records', exact: true })).toBeFocused()
@@ -118,6 +119,6 @@ for (const state of ['loading', 'empty', 'denied', 'error', 'offline', 'body-err
     await page.screenshot({ path: info.outputPath(`${state}.png`), animations: 'disabled' })
     await control.ready()
     if (['denied', 'error', 'offline'].includes(state)) await dialog.getByRole('button', { name: 'Try again' }).click()
-    if (['denied', 'error', 'offline', 'loading'].includes(state)) await expect(dialog.getByText('20 records on this page')).toBeVisible()
+    if (['denied', 'error', 'offline', 'loading'].includes(state)) await expect(dialog.getByText(/20 entries/)).toBeVisible()
   })
 }

@@ -65,7 +65,7 @@ test('general Karbot reads own local and authorized sector context through real 
       await route.continue({ url: `${backendUrl}${target.pathname}${target.search}` })
     })
     await page.goto('/')
-    await page.getByRole('button', { name: 'Open chat' }).click()
+    await page.getByRole('button', { name: 'Ask Karbot' }).click()
     const chat = page.getByRole('complementary', { name: 'Assistant chat' })
     await chat.getByRole('textbox', { name: 'Message the agent' }).fill('TEST inspect my local context and the authorized sector')
     await chat.getByRole('button', { name: 'Send message', exact: true }).click()

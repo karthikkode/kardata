@@ -11,9 +11,9 @@ describe('owner intake review', () => {
     const user = userEvent.setup(), decide = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true)
     const review = { busy: false, error: null, clearError: vi.fn(), decide }
     render(<PlanProgress resource={resource} review={review} />)
-    await user.click(screen.getByRole('button', { name: 'Review intake' }))
+    await user.click(screen.getByRole('button', { name: 'Review' }))
     expect(screen.getByRole('dialog', { name: 'Review candidate intake' })).toBeVisible()
-    expect(screen.getByText('Plan v1 · blocked · 3 attempts')).toBeVisible()
+    expect(screen.getByText('Plan v1 · Blocked · 3 attempts')).toBeVisible()
     expect(screen.getByRole('region', { name: 'Saved intake evidence' })).toBeVisible()
     await user.type(screen.getByRole('textbox', { name: 'Owner reason' }), 'TEST owner decision')
     await user.click(screen.getByRole('button', { name: 'Exclude candidate' }))
@@ -25,7 +25,7 @@ describe('owner intake review', () => {
   it('retains draft through stale and denied states; latest receipt must be explicitly reviewed', async () => {
     const user = userEvent.setup(), review = { busy: false, error: 'TEST permission denied', clearError: vi.fn(), decide: vi.fn() }
     const view = render(<PlanProgress resource={resource} review={review} />)
-    await user.click(screen.getByRole('button', { name: 'Review intake' }))
+    await user.click(screen.getByRole('button', { name: 'Review' }))
     await user.type(screen.getByRole('textbox', { name: 'Owner reason' }), 'TEST saved reason')
     view.rerender(<PlanProgress resource={{ ...resource, status: 'denied' }} review={review} />)
     expect(screen.getByRole('textbox', { name: 'Owner reason' })).toHaveValue('TEST saved reason')
@@ -39,7 +39,7 @@ describe('owner intake review', () => {
   it.each(['loading','error','offline'] as const)('retains the review reason through %s and blocks decisions', async (status) => {
     const user = userEvent.setup(), review = { busy: false, error: null, clearError: vi.fn(), decide: vi.fn() }
     const view = render(<PlanProgress resource={resource} review={review} />)
-    await user.click(screen.getByRole('button', { name: 'Review intake' }))
+    await user.click(screen.getByRole('button', { name: 'Review' }))
     await user.type(screen.getByRole('textbox', { name: 'Owner reason' }), 'TEST retained reason')
     view.rerender(<PlanProgress resource={{ ...resource, status, error: 'TEST unavailable' }} review={review} />)
     expect(screen.getByRole('textbox', { name: 'Owner reason' })).toHaveValue('TEST retained reason')
@@ -48,10 +48,13 @@ describe('owner intake review', () => {
   it('cannot decide during saving or on running research', async () => {
     const user = userEvent.setup(), review = { busy: false, error: null, clearError: vi.fn(), decide: vi.fn() }
     const view = render(<PlanProgress resource={resource} review={review} />)
-    await user.click(screen.getByRole('button', { name: 'Review intake' }))
+    await user.click(screen.getByRole('button', { name: 'Review' }))
     await user.type(screen.getByRole('textbox', { name: 'Owner reason' }), 'TEST explicit reason')
     view.rerender(<PlanProgress resource={resource} review={{ ...review, busy: true }} />)
-    expect(screen.getAllByRole('button', { name: 'Saving…' }).every((button) => button.hasAttribute('disabled'))).toBe(true)
+    const retrying = screen.getByRole('button', { name: 'Retry candidate' })
+    expect(retrying).toBeDisabled()
+    expect(retrying).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: 'Exclude candidate' })).toBeDisabled()
     view.rerender(<PlanProgress resource={{ ...resource, data: { ...data, state: 'running' } }} review={review} />)
     expect(screen.getByRole('button', { name: 'Exclude candidate' })).toBeDisabled()
     expect(screen.getByText('Pause research and wait for the candidate child to stop before deciding.')).toBeVisible()

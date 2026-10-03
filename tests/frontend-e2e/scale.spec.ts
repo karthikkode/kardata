@@ -54,20 +54,23 @@ test('scale: 1000 companies walkable through Show more with truthful totals', as
   await serveScaleApi(page)
   await page.goto('/')
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
-  await page.getByRole('button', { name: 'Open Scale sector 1', exact: true }).click()
+  // RS DataTable rows are single router links; SL-05 counts group
+  // thousands and the pager is a plain Show more.
+  await page.getByRole('link', { name: /Scale sector 1/ }).click()
   await expect(page.getByText('Scale company 100')).toBeVisible()
-  await expect(page.getByText('Showing 100 of 1000 companies')).toBeVisible()
+  await expect(page.getByText('Showing 100 of 1,000')).toBeVisible()
 
+  const grouped = (value: number): string => value.toLocaleString('en-AU')
   const started = Date.now()
   for (let shown = 100; shown < 1000; shown += 100) {
-    await page.getByRole('button', { name: `Show more (${shown} of 1000)` }).click()
+    await page.getByRole('button', { name: 'Show more' }).click()
     await expect(page.getByText(`Scale company ${shown + 100}`)).toBeVisible()
-    await expect(page.getByText(`Showing ${shown + 100} of 1000 companies`)).toBeVisible()
+    await expect(page.getByText(`Showing ${grouped(shown + 100)} of 1,000`)).toBeVisible()
   }
   const walkMs = Date.now() - started
   // eslint-disable-next-line no-console
   console.log(`[scale-e2e] thousandWalkMs=${walkMs}`)
-  await expect(page.getByText('Showing 1000 of 1000 companies')).toBeVisible()
+  await expect(page.getByText('Showing 1,000 of 1,000')).toBeVisible()
   await expect(page.getByRole('button', { name: /Show more/ })).toHaveCount(0)
 })
 
@@ -75,10 +78,10 @@ test('scale: polling updates loaded company rows without collapsing the window',
   const refresh = await serveScaleApi(page, true)
   await page.goto('/?section=SectorDetail&sector=sec-scale-1')
   await expect(page.getByText('Scale company 100')).toBeVisible()
-  await page.getByRole('button', { name: 'Show more (100 of 1000)' }).click()
-  await expect(page.getByText('Showing 200 of 1000 companies')).toBeVisible()
+  await page.getByRole('button', { name: 'Show more' }).click()
+  await expect(page.getByText('Showing 200 of 1,000')).toBeVisible()
   refresh()
   await expect(page.getByText('Refreshed company 200')).toBeVisible({ timeout: 10000 })
-  await expect(page.getByText('Showing 200 of 1000 companies')).toBeVisible()
+  await expect(page.getByText('Showing 200 of 1,000')).toBeVisible()
   await page.screenshot({ path: 'test-results/visual/hardening-company-window-poll.png', animations: 'disabled' })
 })

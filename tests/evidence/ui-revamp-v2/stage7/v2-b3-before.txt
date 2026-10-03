@@ -1,0 +1,40 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.1 [39m[90m/home/karthik/projects/kardata_app[39m
+
+ [31m❯[39m tests/backend/workflows.plan-brief.test.ts [2m([22m[2m2 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 7[2mms[22m[39m
+   [31m❯[39m planningBrief [2m(2)[22m
+[31m     [31m×[31m demands the six readable plan sections with evidence-or-uncertain discipline (B3)[39m[32m 6[2mms[22m[39m
+     [32m✓[39m falls back to the name when the topic is empty[32m 0[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m tests/backend/workflows.plan-brief.test.ts[2m > [22mplanningBrief[2m > [22mdemands the six readable plan sections with evidence-or-uncertain discipline (B3)
+[31m[1mAssertionError[22m: expected 'Plan the research for sector "Special…' to contain '## Goal'[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- ## Goal[39m
+[31m+ Plan the research for sector "Speciality foods" (topic: Artisanal packaged foods).[39m
+[31m+ Deep-research first: use the knowledge base and the live web to scope what exists.[39m
+[31m+ Return a plan with exactly these headings: scope, direction shards, query shapes, budgets, risks, open questions.[39m
+[31m+ Every claim needs evidence or an explicit uncertain mark — never invent.[39m
+[31m+ Write the plan as the reply. If you cannot evidence a section, say so under its heading.[39m
+[31m+ Append a research-plan fenced JSON block with exactly: researchDepth ("discovery" for sector discovery; company deep research requires a separately approved phase), discoveryTarget (minimum distinct-company count requested by the owner, 1..2000; do not set it above maxCompanies), discovery (array of {id,title,queries:string[],maxPages:1..10}), companyBrief (instructions to investigate all worthy problems and report evidence), budgets ({maxCompanies:1..2000,maxWallMinutes:1..1440,concurrency:2}), acceptance (nonempty string[]). This is the executable specification the owner will approve. Use real sector queries, bounded budgets and evidence-based completion requirements.[39m
+
+[36m [2m❯[22m tests/backend/workflows.plan-brief.test.ts:[2m10:21[22m[39m
+    [90m  8|[39m     const brief = planningBrief('Speciality foods', 'Artisanal package…
+    [90m  9|[39m     for (const heading of ['## Goal', '## Search directions', '## Step…
+    [90m 10|[39m       expect(brief).toContain(heading)
+    [90m   |[39m                     [31m^[39m
+    [90m 11|[39m     }
+    [90m 12|[39m     expect(brief).toContain('single word')
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (2)[39m
+[2m   Start at [22m 15:49:39
+[2m   Duration [22m 199ms[2m (import 55%, transform 36%, tests 6%, worker 3%)[22m
+

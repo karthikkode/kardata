@@ -331,6 +331,14 @@ describe('executeKarbotTurn', () => {
     ])
   })
 
+  it('logs the provider message with a failed turn so measurement-style outages are diagnosable', async () => {
+    const world = memoryWorld(new FakeProvider([{ error: 'HTTP 402 from provider', retryable: false }]))
+    await expect(executeKarbotTurn(input(), world.deps)).rejects.toThrow('karbot turn failed')
+    expect(world.logs).toEqual([
+      expect.objectContaining({ op: 'karbot.turn', ok: false, code: 'provider_failed', errorDetail: 'HTTP 402 from provider' }),
+    ])
+  })
+
   it('rejects invalid input before touching the provider', async () => {
     const adapter = new FakeProvider([{ text: 'x' }])
     const world = memoryWorld(adapter)
@@ -495,5 +503,30 @@ describe('durable normalized execution records', () => {
     world.deps.persistExecution = async () => { throw new Error('TEST archive failed') }
     await expect(executeKarbotTurn(input(), world.deps)).rejects.toThrow('Execution content could not be durably recorded')
     expect(world.adapter.calls).toHaveLength(0)
+  })
+})
+
+describe('reply formatting rule (B1)', () => {
+  it('writes calm chat prose: no bold lead-ins, no internal names, no em dashes', () => {
+    expect(KARBOT_SYSTEM_PROMPT).toContain('never as a label')
+    expect(KARBOT_SYSTEM_PROMPT).toContain('Never mention internal tool names')
+    expect(KARBOT_SYSTEM_PROMPT).toContain('Do not use em dashes')
+    expect(KARBOT_SYSTEM_PROMPT).not.toContain('**bold** lead-ins')
+  })
+})
+
+describe('sector identity preload (B2)', () => {
+  it('states the exact sector id to the model for sector-linked sessions', async () => {
+    const world = memoryWorld(new FakeProvider([{ text: 'TEST sector answer' }]))
+    world.deps.loadSessionSector = async () => 'sector-9'
+    world.deps.loadSectorName = async () => 'TEST Sector'
+    await executeKarbotTurn(input(), world.deps)
+    const prompt = world.adapter.calls[0]?.systemPrompt ?? ''
+    expect(prompt).toContain('Current sector: "TEST Sector" (sector id: sector-9). Use exactly this sector id for every sector tool call; never derive an id from the name.')
+  })
+  it('omits the sector block for general sessions', async () => {
+    const world = memoryWorld(new FakeProvider([{ text: 'TEST general answer' }]))
+    await executeKarbotTurn(input(), world.deps)
+    expect(world.adapter.calls[0]?.systemPrompt ?? '').not.toContain('Current sector:')
   })
 })

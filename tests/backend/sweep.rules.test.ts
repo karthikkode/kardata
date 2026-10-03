@@ -153,4 +153,26 @@ describe('basic company-result screening', () => {
     expect(extractNewDomains([hit], [], ['payment'])).toHaveLength(1)
     expect(extractNewDomains([hit], [], ['payment'], true)).toHaveLength(0)
   })
+  it('rejects article/guide/news/registration junk that matches signals (B4)', () => {
+    const junk = [
+      { title: 'SME : Meaning, Benefits & Examples Guide - Aditya Birla Capital', url: 'https://guides.example/sme-meaning-benefits' },
+      { title: 'SME News: Latest News on SME Sector, Small and Medium-Sized Enterprises', url: 'https://smenews.example/latest-sme-news' },
+      { title: 'Udyam Registration : Zero cost, No Fee and Free Registration for MSMEs', url: 'https://udyam.example/free-registration' },
+      { title: 'TEST Electrical Licence Classes', url: 'https://licensing.example.gov/electrical' },
+      { title: 'TEST Electrician Registration', url: 'https://trades.nic.in/electrician-registration' },
+    ]
+    // Every hit matches a signal, so only the screening rules can reject.
+    expect(extractNewDomains(junk, [], ['sme', 'news', 'registration', 'electrical', 'electrician'], true)).toEqual([])
+  })
+  it('keeps realistic company names containing guide/news/portal/registration words (B4)', () => {
+    const hits = [
+      { title: "Sparky's Electrical Pty Ltd | Licensed Electricians Sydney", url: 'https://sparkys.example/services', snippet: 'Electrical contractors serving Sydney.' },
+      { title: 'Guide Plumbing & Gas - Brisbane Plumbers', url: 'https://guide-plumbing.example/about', snippet: 'Plumbing and gas fitting across Brisbane.' },
+      { title: 'Breaking Point HVAC | Air Conditioning Melbourne', url: 'https://breaking-point-hvac.example/', snippet: 'HVAC installation and repairs.' },
+      { title: 'NewsAgency Supplies Co', url: 'https://newsagency-supplies.example/', snippet: 'Wholesale trade supplies.' },
+      { title: 'Portal Doors and Windows Perth', url: 'https://portal-doors.example/', snippet: 'Door and window installation.' },
+      { title: 'Apex Registration Plates Pty Ltd', url: 'https://apex-plates.example/', snippet: 'Number plate manufacturing.' },
+    ]
+    expect(extractNewDomains(hits, [], ['electrical', 'plumbing', 'hvac', 'supplies', 'doors', 'plates'], true)).toHaveLength(6)
+  })
 })

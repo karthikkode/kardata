@@ -23,7 +23,7 @@ for (const width of [390, 1440]) for (const dark of [false, true]) test(`PDF pro
     }
     let data: unknown = []
     if (path.includes('/sectors/TEST%20sector') || path.includes('/sectors/TEST sector')) data = sector
-    if (path === '/v1/providers') data = { defaultProvider: 'meta', providers: [{ name: 'meta', hasKey: true, defaultModel: 'muse-spark-1.3-contributor', models: [{ provider: 'meta', model: 'muse-spark-1.3-contributor', displayName: 'muse-spark-1.3-contributor', reasoning: 'native', mode: 'responses', efforts: ['high'] }] }] }
+    if (path === '/v1/providers') data = { defaultProvider: 'meta', providers: [{ name: 'meta', hasKey: true, defaultModel: 'muse-spark-1.3-contributor', models: [{ provider: 'meta', model: 'muse-spark-1.3-contributor', displayName: 'Muse Spark 1.3 Contributor', reasoning: 'native', mode: 'responses', efforts: ['high'] }] }] }
     else if (path.endsWith('/sessions')) data = [session]
     else if (path.endsWith('/global-context')) data = { sectorId: sector.id, version: 0, markdown: '', sections: { scope: 'TEST source scope', decisions: '', findings: '', questions: '' }, researchSessionId: session.id, changes: [] }
     else if (path.endsWith('/files')) data = [{ id: 'TEST pdf', filename: 'TEST mixed images, charts and native text.pdf', status: indexed ? 'indexed' : retried ? 'processing' : 'failed', source: 'Uploaded', hash: 'TEST version', hidden: false, included: false, kind: 'document', processing: indexed ? { ...progress, state: 'complete', revision: 2, completedImages: 24, uncertainImages: 0 } : retried ? { ...progress, state: 'queued', revision: 2 } : progress }]
@@ -39,16 +39,15 @@ for (const width of [390, 1440]) for (const dark of [false, true]) test(`PDF pro
   await page.goto(`/?section=SectorChat&sector=${encodeURIComponent(sector.id)}`)
   await expect(page.getByRole('heading', { name: 'Research', exact: true })).toBeVisible()
   if (dark) {
-    if (width < 768) {
-      await page.getByRole('button', { name: 'Open sessions' }).click()
-      await page.getByRole('button', { name: 'Use dark theme' }).click()
-      await page.keyboard.press('Escape')
-    } else await page.getByRole('button', { name: 'Use dark theme' }).click()
+    if (width < 768) await page.getByRole('button', { name: 'Open sessions' }).click()
+    await page.getByRole('button', { name: 'Theme' }).click()
+    await page.getByRole('menuitemradio', { name: 'Dark' }).click()
+    if (width < 768) await page.keyboard.press('Escape')
   }
   if (width < 1280) await page.getByRole('button', { name: 'Open files and global context' }).click()
   const resources = width < 1280 ? page.getByRole('dialog', { name: 'Files and global context' }) : page.getByRole('complementary', { name: 'Sector resources' })
   await expect(resources.getByText('18 of 24 image analyses saved')).toBeVisible()
-  await resources.getByRole('button', { name: 'Review file retry' }).click()
+  await resources.getByRole('button', { name: 'Review retry', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Review file processing retry' })
   await expect(dialog.getByRole('button', { name: 'Resume file processing' })).toBeDisabled()
   await dialog.getByRole('checkbox').check()
@@ -65,7 +64,8 @@ for (const width of [390, 1440]) for (const dark of [false, true]) test(`PDF pro
   const preview = page.getByRole('dialog', { name: 'File preview' })
   await preview.getByRole('button', { name: 'Browse indexed sections' }).click()
   await expect(preview.getByRole('region', { name: 'Indexed section 1' })).toBeVisible()
-  await expect(preview.getByText(/AI-derived, uncertain/)).toBeVisible()
+  await expect(preview.getByText('Uncertain', { exact: true })).toBeVisible()
+  await expect(preview.getByText('TEST saved chart analysis with exact source placement.')).toBeVisible()
   await preview.getByRole('button', { name: 'Next sections' }).click()
   await expect(preview.getByRole('region', { name: 'Indexed section 21' })).toBeVisible()
   await preview.getByRole('button', { name: 'Previous sections' }).click()

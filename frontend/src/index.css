@@ -1,122 +1,244 @@
+@import 'sonner/dist/styles.css' layer(sonner);
 @import 'tailwindcss';
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 @import "@fontsource-variable/geist-mono";
 
-@custom-variant dark (&:is(.dark *));
+/* UI revamp v2 design tokens (plan section 2). Neutrals carry a faint cool
+   tint (hue 264); every "soft" token is opaque, never alpha. */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-heading: var(--font-sans);
+  --font-sans: 'Geist Variable', sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
+
+  /* Type scale additions (text-xs/sm/base/xl keep Tailwind defaults). */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-ui: 0.8125rem;
+  --text-ui--line-height: 1.25rem;
+  --text-md: 0.9375rem;
+  --text-md--line-height: 1.375rem;
+  --text-display: 1.75rem;
+  --text-display--line-height: 2.25rem;
+
+  /* Layout containers. */
+  --container-page: 75rem;
+  --container-narrow: 48rem;
+  --container-prose-kd: 45rem;
+
+  /* Motion tokens (JS mirror: MOTION in lib/motion.ts). */
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 240ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-soft: cubic-bezier(0.25, 0.1, 0.25, 1);
+
+  /* Elevation (light defaults; .dark overrides below). */
+  --shadow-xs: 0 1px 2px oklch(0.2 0.01 264 / 0.05);
+  --shadow-sm: 0 1px 3px oklch(0.2 0.01 264 / 0.08), 0 1px 2px -1px oklch(0.2 0.01 264 / 0.06);
+  --shadow-md: 0 4px 12px -2px oklch(0.2 0.01 264 / 0.1), 0 2px 4px -2px oklch(0.2 0.01 264 / 0.06);
+  --shadow-lg: 0 16px 40px -8px oklch(0.2 0.01 264 / 0.16), 0 4px 8px -4px oklch(0.2 0.01 264 / 0.06);
+}
 
 @theme inline {
-    --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
-    --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
-    --color-sidebar-ring: var(--sidebar-ring);
-    --color-sidebar-border: var(--sidebar-border);
-    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-    --color-sidebar-accent: var(--sidebar-accent);
-    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-    --color-sidebar-primary: var(--sidebar-primary);
-    --color-sidebar-foreground: var(--sidebar-foreground);
-    --color-sidebar: var(--sidebar);
-    --color-chart-5: var(--chart-5);
-    --color-chart-4: var(--chart-4);
-    --color-chart-3: var(--chart-3);
-    --color-chart-2: var(--chart-2);
-    --color-chart-1: var(--chart-1);
-    --color-ring: var(--ring);
-    --color-input: var(--input);
-    --color-border: var(--border);
-    --color-destructive: var(--destructive);
-    --color-accent-foreground: var(--accent-foreground);
-    --color-accent: var(--accent);
-    --color-muted-foreground: var(--muted-foreground);
-    --color-muted: var(--muted);
-    --color-secondary-foreground: var(--secondary-foreground);
-    --color-secondary: var(--secondary);
-    --color-primary-foreground: var(--primary-foreground);
-    --color-primary: var(--primary);
-    --color-popover-foreground: var(--popover-foreground);
-    --color-popover: var(--popover);
-    --color-card-foreground: var(--card-foreground);
-    --color-card: var(--card);
-    --color-foreground: var(--foreground);
-    --color-background: var(--background);
-    --radius-sm: calc(var(--radius) * 0.6);
-    --radius-md: calc(var(--radius) * 0.8);
-    --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) * 1.4);
-    --radius-2xl: calc(var(--radius) * 1.8);
-    --radius-3xl: calc(var(--radius) * 2.2);
-    --radius-4xl: calc(var(--radius) * 2.6);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border-strong: var(--border-strong);
+  --color-border-subtle: var(--border-subtle);
+  --color-border: var(--border);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-border: var(--primary-border);
+  --color-primary-text: var(--primary-text);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground-disabled: var(--foreground-disabled);
+  --color-foreground-subtle: var(--foreground-subtle);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-hover: var(--muted);
+  --color-surface-active: var(--surface-active);
+  --color-overlay: var(--overlay);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-border: var(--success-border);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-border: var(--warning-border);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-border: var(--danger-border);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-info-border: var(--info-border);
+  --color-codeblock: var(--codeblock);
+  --color-codeblock-foreground: var(--codeblock-foreground);
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
 }
 
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.45 0.22 264);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.55 0.18 264);
-    --chart-1: oklch(0.55 0.22 264);
-    --chart-2: oklch(0.7 0.14 180);
-    --chart-3: oklch(0.75 0.15 80);
-    --chart-4: oklch(0.65 0.2 15);
-    --chart-5: oklch(0.6 0.2 300);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+  color-scheme: light;
+  --background: oklch(0.988 0.002 264);
+  --foreground: oklch(0.21 0.006 264);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.006 264);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.006 264);
+  --surface-raised: oklch(1 0 0);
+  --surface-sunken: oklch(0.975 0.002 264);
+  --secondary: oklch(0.975 0.002 264);
+  --secondary-foreground: oklch(0.21 0.006 264);
+  --muted: oklch(0.962 0.003 264);
+  --muted-foreground: oklch(0.45 0.01 264);
+  --accent: oklch(0.962 0.003 264);
+  --accent-foreground: oklch(0.21 0.006 264);
+  --surface-active: oklch(0.94 0.004 264);
+  --foreground-subtle: oklch(0.5 0.01 264);
+  --foreground-disabled: oklch(0.7 0.006 264);
+  --border-subtle: oklch(0.93 0.004 264);
+  --border: oklch(0.9 0.005 264);
+  --border-strong: oklch(0.84 0.006 264);
+  --input: oklch(0.84 0.006 264);
+  --codeblock: #1B1B18;
+  --codeblock-foreground: #EDEDE6;
+  --primary: oklch(0.51 0.23 274);
+  --primary-foreground: oklch(0.99 0 0);
+  --primary-hover: oklch(0.46 0.22 274);
+  --primary-text: oklch(0.47 0.21 274);
+  --primary-soft: oklch(0.955 0.025 274);
+  --primary-border: oklch(0.85 0.07 274);
+  --ring: oklch(0.58 0.19 274);
+  --success: oklch(0.48 0.12 155);
+  --success-soft: oklch(0.965 0.03 155);
+  --success-border: oklch(0.86 0.07 155);
+  --warning: oklch(0.53 0.13 60);
+  --warning-soft: oklch(0.97 0.04 85);
+  --warning-border: oklch(0.87 0.09 80);
+  --danger: oklch(0.53 0.2 27);
+  --danger-soft: oklch(0.965 0.02 25);
+  --danger-border: oklch(0.87 0.07 25);
+  --info: oklch(0.52 0.14 240);
+  --info-soft: oklch(0.965 0.02 240);
+  --info-border: oklch(0.87 0.06 240);
+  --destructive: oklch(0.55 0.21 27);
+  --destructive-foreground: oklch(0.99 0 0);
+  --overlay: oklch(0.2 0.01 264 / 0.32);
+  --chart-1: oklch(0.55 0.2 274);
+  --chart-2: oklch(0.62 0.11 185);
+  --chart-3: oklch(0.66 0.14 75);
+  --chart-4: oklch(0.6 0.18 15);
+  --chart-5: oklch(0.58 0.18 310);
+  --sidebar: oklch(0.975 0.002 264);
+  --sidebar-foreground: oklch(0.21 0.006 264);
+  --sidebar-primary: oklch(0.51 0.23 274);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.945 0.003 264);
+  --sidebar-accent-foreground: oklch(0.21 0.006 264);
+  --sidebar-active: oklch(0.925 0.004 264);
+  --sidebar-border: oklch(0.9 0.005 264);
+  --sidebar-ring: oklch(0.58 0.19 274);
 }
 
 .dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.78 0.14 264);
-    --primary-foreground: oklch(0.22 0.04 264);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.6 0.15 264);
-    --chart-1: oklch(0.7 0.18 264);
-    --chart-2: oklch(0.75 0.12 180);
-    --chart-3: oklch(0.8 0.13 80);
-    --chart-4: oklch(0.72 0.16 15);
-    --chart-5: oklch(0.7 0.17 300);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+  color-scheme: dark;
+  --background: oklch(0.17 0.004 264);
+  --foreground: oklch(0.95 0.003 264);
+  --card: oklch(0.2 0.004 264);
+  --card-foreground: oklch(0.95 0.003 264);
+  --popover: oklch(0.235 0.004 264);
+  --popover-foreground: oklch(0.95 0.003 264);
+  --surface-raised: oklch(0.235 0.004 264);
+  --surface-sunken: oklch(0.18 0.004 264);
+  --secondary: oklch(0.18 0.004 264);
+  --secondary-foreground: oklch(0.95 0.003 264);
+  --muted: oklch(0.26 0.005 264);
+  --codeblock: #1B1B18;
+  --codeblock-foreground: #EDEDE6;
+  --muted-foreground: oklch(0.75 0.008 264);
+  --accent: oklch(0.26 0.005 264);
+  --accent-foreground: oklch(0.95 0.003 264);
+  --surface-active: oklch(0.29 0.005 264);
+  --foreground-subtle: oklch(0.68 0.008 264);
+  --foreground-disabled: oklch(0.46 0.006 264);
+  --border-subtle: oklch(0.27 0.005 264);
+  --border: oklch(0.31 0.006 264);
+  --border-strong: oklch(0.38 0.006 264);
+  --input: oklch(0.38 0.006 264);
+  --primary: oklch(0.55 0.2 274);
+  --primary-foreground: oklch(0.99 0 0);
+  --primary-hover: oklch(0.6 0.2 274);
+  --primary-text: oklch(0.78 0.12 274);
+  --primary-soft: oklch(0.27 0.06 274);
+  --primary-border: oklch(0.4 0.1 274);
+  --ring: oklch(0.7 0.15 274);
+  --success: oklch(0.78 0.14 155);
+  --success-soft: oklch(0.26 0.04 155);
+  --success-border: oklch(0.38 0.07 155);
+  --warning: oklch(0.82 0.13 80);
+  --warning-soft: oklch(0.27 0.04 75);
+  --warning-border: oklch(0.4 0.07 75);
+  --danger: oklch(0.74 0.16 25);
+  --danger-soft: oklch(0.27 0.05 25);
+  --danger-border: oklch(0.4 0.09 25);
+  --info: oklch(0.78 0.11 240);
+  --info-soft: oklch(0.26 0.04 240);
+  --info-border: oklch(0.38 0.07 240);
+  --destructive: oklch(0.52 0.19 27);
+  --destructive-foreground: oklch(0.99 0 0);
+  --overlay: oklch(0 0 0 / 0.6);
+  --chart-1: oklch(0.7 0.15 274);
+  --chart-2: oklch(0.74 0.11 185);
+  --chart-3: oklch(0.8 0.13 80);
+  --chart-4: oklch(0.72 0.15 15);
+  --chart-5: oklch(0.7 0.14 310);
+  --sidebar: oklch(0.155 0.004 264);
+  --sidebar-foreground: oklch(0.95 0.003 264);
+  --sidebar-primary: oklch(0.55 0.2 274);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.235 0.005 264);
+  --sidebar-accent-foreground: oklch(0.95 0.003 264);
+  --sidebar-active: oklch(0.27 0.005 264);
+  --sidebar-border: oklch(0.31 0.006 264);
+  --sidebar-ring: oklch(0.7 0.15 274);
+  --shadow-xs: 0 1px 2px oklch(0 0 0 / 0.3);
+  --shadow-sm: 0 1px 3px oklch(0 0 0 / 0.4);
+  --shadow-md: 0 4px 12px -2px oklch(0 0 0 / 0.5);
+  --shadow-lg: 0 16px 40px -8px oklch(0 0 0 / 0.65);
 }
 
 @layer base {
@@ -124,13 +246,52 @@
     @apply border-border outline-ring/50;
     scrollbar-width: thin;
     scrollbar-color: color-mix(in oklch, var(--muted-foreground) 45%, transparent) transparent;
-    }
+  }
   body {
     @apply bg-background text-foreground;
-    }
+  }
   html {
     @apply font-sans;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-optical-sizing: auto;
+    /* The top bar sticks: keep focus/anchor scrolls clear of it. */
+    scroll-padding-top: 3.5rem;
+  }
+  svg.lucide {
+    stroke-width: 1.75;
+  }
+  /* Standalone focus recipe (plan 2.5). Containers and inputs override
+     with their own utilities, which beat this base rule. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  /* Touch-sized targets on small screens: every interactive element is at
+     least 40px tall. Checkboxes, radios and switches are measured with
+     their label (the label toggles them), so they keep their geometry. */
+  @media (max-width: 639px) {
+    button,
+    a[href],
+    input,
+    select,
+    textarea,
+    [role='button'],
+    [role='tab'],
+    [role='menuitem'],
+    [role='menuitemcheckbox'],
+    [role='menuitemradio'],
+    [role='option'] {
+      min-height: 40px;
     }
+    input[type='checkbox'],
+    input[type='radio'],
+    [role='checkbox'],
+    [role='switch'] {
+      min-height: auto;
+    }
+  }
   *::-webkit-scrollbar {
     width: 10px;
     height: 10px;
@@ -189,6 +350,208 @@
   .scroll-slim::-webkit-scrollbar-corner {
     background: transparent;
   }
+  /* ListRow dividers (plan 2.5.1): inset top rules aligned with row
+     text, hidden on the first row and around hovered/selected rows. */
+  .v2-list > li > [data-list-row] {
+    position: relative;
+  }
+  .v2-list > li > [data-list-row]::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 8px;
+    right: 8px;
+    height: 1px;
+    background: var(--border-subtle);
+    transition: opacity var(--duration-fast) var(--ease-out-soft);
+  }
+  .v2-list > li:first-child > [data-list-row]::before {
+    display: none;
+  }
+  .v2-list > li > [data-list-row]:hover::before,
+  .v2-list > li:hover + li > [data-list-row]::before,
+  .v2-list > li > [data-list-row][data-selected]::before,
+  .v2-list > li:has(> [data-selected]) + li > [data-list-row]::before {
+    opacity: 0;
+  }
+  /* Skeleton sheen: a translating highlight over an opaque block. */
+  .skeleton-sheen {
+    position: relative;
+    overflow: hidden;
+  }
+  .skeleton-sheen::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    animation: kd-shimmer 1.5s linear infinite;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklch, var(--foreground) 7%, transparent),
+      transparent
+    );
+  }
+  /* Live thinking shimmer (static under reduced motion). */
+  .kd-thinking {
+    animation: kd-think 1.6s ease-in-out infinite;
+  }
+  /* Streaming caret blink. */
+  .kd-caret {
+    animation: kd-blink 1s steps(2) infinite;
+  }
+  /* Indeterminate progress bar (40% bar looping across its track). */
+  .kd-indeterminate-bar {
+    animation: kd-slide-bar 1.2s ease-in-out infinite;
+  }
+  /* Command palette group headings (Overline style, both cmdk slots). */
+  [data-slot='command-group-heading'],
+  [cmdk-group-heading] {
+    padding: 12px 8px 4px;
+    font-size: 11px;
+    line-height: 16px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--foreground-subtle);
+  }
+  /* Toasts centre on small screens. */
+  @media (max-width: 639px) {
+    section[data-sonner-toaster][data-y-position='bottom'] {
+      left: 50% !important;
+      right: auto !important;
+      transform: translateX(-50%) !important;
+    }
+  }
+  /* DataTable stacked cards below sm: the head hides, each row becomes a
+     bordered card, cells pair a muted label with their value. */
+  @media (max-width: 639px) {
+    /* display:table keeps auto layout, where width:100% is a floor: long
+       nowrap truncate content expands the table past the viewport. Block
+       layout constrains it so cells truncate. */
+    .v2-table-stack {
+      display: block;
+      width: 100%;
+    }
+    .v2-table-stack thead {
+      display: none;
+    }
+    .v2-table-stack tbody {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .v2-table-stack tr {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      /* Rows carry h-9 on desktop; stacked cards size to content. */
+      height: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      background: var(--card);
+    }
+    .v2-table-stack td {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0;
+    }
+    .v2-table-stack td::before {
+      content: attr(data-label);
+      flex: none;
+      min-width: 88px;
+      font-size: 12px;
+      line-height: 16px;
+      color: var(--muted-foreground);
+    }
+    .v2-table-stack td[data-label='']::before,
+    .v2-table-stack td:not([data-label])::before {
+      display: none;
+    }
+    /* State rows (loading/empty/error span every column): block layout,
+       no label gutter, so panels keep their centred shape. */
+    .v2-table-stack td[colspan] {
+      display: block;
+    }
+    /* State rows are not data cards: no nested chrome around the panel. */
+    .v2-table-stack tr:has(td[colspan]) {
+      border: 0;
+      padding: 0;
+      background: transparent;
+    }
+  }
+}
+
+@keyframes kd-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes kd-think {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes kd-blink {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes kd-slide-bar {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+/* Page replacement: old content fades out over 120ms; new content fades
+   in and rises 4px over 180ms (see useNavigation). Focus moves to the new
+   heading after commit (see App). Without API support the swap is instant
+   with the entering content fading in via the page preset. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 120ms;
+  animation-timing-function: var(--ease-out-soft);
+}
+::view-transition-old(root) {
+  animation-name: kardata-page-out;
+}
+::view-transition-new(root) {
+  animation-name: kardata-page-in;
+  animation-duration: 180ms;
+  animation-timing-function: var(--ease-out);
+}
+@keyframes kardata-page-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes kardata-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -197,5 +560,23 @@
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+  .kd-thinking {
+    animation: none;
+    opacity: 0.7;
+  }
+  .kd-caret {
+    animation: none;
+    opacity: 1;
+  }
+  .skeleton-sheen::after {
+    display: none;
+  }
+  .kd-indeterminate-bar {
+    animation: none;
   }
 }

@@ -6,10 +6,16 @@ import { FileProcessingRetry } from '@/components/FileProcessingRetry'
 import type { FileProcessingProgress, LibraryFile } from '@/data/workspace-api'
 const progress: FileProcessingProgress = { jobId: 'TEST job', state: 'uncertain', revision: 1, totalImages: 12, completedImages: 5, failedImages: 0, uncertainImages: 1, errorCode: 'provider_outcome_unknown', retryRequiresApproval: true }
 const file: LibraryFile = { id: 'TEST file', filename: 'TEST mixed PDF.pdf', status: 'failed', source: 'upload', hash: 'TEST version', hidden: false, included: false, kind: 'document', processing: progress }
-for (const state of ['queued','processing','paused','failed','uncertain','complete'] as const) it(`shows ${state} from durable file status with honest image counts`, () => {
+for (const state of ['queued','paused','failed','uncertain','complete'] as const) it(`shows ${state} from durable file status with honest image counts`, () => {
   render(<FileProcessingStatus progress={{ ...progress, state }} hidden={false} busy={false} onRetry={vi.fn()} />)
   expect(screen.getByRole('status')).toBeVisible()
   expect(screen.getByText(/5 of 12 image analyses saved/)).toBeVisible()
+  expect(screen.queryByText(/100%/)).not.toBeInTheDocument()
+})
+it('shows processing with the live image count instead of a saved total', () => {
+  render(<FileProcessingStatus progress={{ ...progress, state: 'processing' }} hidden={false} busy={false} onRetry={vi.fn()} />)
+  expect(screen.getByRole('status')).toHaveTextContent('Analysing images 5 of 12')
+  expect(screen.getByRole('progressbar', { name: 'File processing progress' })).toBeVisible()
   expect(screen.queryByText(/100%/)).not.toBeInTheDocument()
 })
 it('does not invent a percentage while pages are being parsed', () => {
@@ -19,9 +25,9 @@ it('does not invent a percentage while pages are being parsed', () => {
 })
 it('hides retry for hidden files and disables repeated busy actions', () => {
   const view = render(<FileProcessingStatus progress={progress} hidden busy={false} onRetry={vi.fn()} />)
-  expect(screen.queryByRole('button', { name: 'Review file retry' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Review retry' })).not.toBeInTheDocument()
   view.rerender(<FileProcessingStatus progress={progress} hidden={false} busy onRetry={vi.fn()} />)
-  expect(screen.getByRole('button', { name: 'Review file retry' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Review retry' })).toBeDisabled()
 })
 it('requires explicit paid-risk approval and preserves the review after a failed resume', async () => {
   const retry = vi.fn(async () => false), close = vi.fn()

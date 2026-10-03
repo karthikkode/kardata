@@ -38,6 +38,11 @@ it.each(['loading', 'error', 'denied', 'offline'] as const)('shows the %s state 
   else expect(screen.getByRole('alert')).toHaveTextContent(status === 'denied' ? 'Execution inspection is not shared' : status === 'offline' ? 'No connection' : 'TEST history unavailable')
   expect(screen.queryByLabelText('Normalized execution JSON')).not.toBeInTheDocument()
 })
+it('labels the selected execution and entry freshness', () => {
+  render(<ExecutionInspector {...props} selectedSeq={12} />)
+  expect(screen.getByText('Execution 12 · Request')).toBeInTheDocument()
+  expect(screen.getByText(/1 entry · updated /)).toBeInTheDocument()
+})
 it('keeps empty history separate from a stored-body failure', () => {
   const view = render(<ExecutionInspector {...props} page={{ ...page, data: { records: [], nextAfterSeq: null } }} />)
   expect(screen.getByText('No execution records have been saved for this conversation.')).toBeInTheDocument()

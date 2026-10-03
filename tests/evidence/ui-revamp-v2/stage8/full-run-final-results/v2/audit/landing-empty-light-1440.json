@@ -1,0 +1,16 @@
+{
+  "name": "landing-empty-light-1440",
+  "at": "2026-10-03T18:48:50.028Z",
+  "checks": {
+    "type": "pass",
+    "contrast": "pass",
+    "raw-text": "pass",
+    "overflow": "pass",
+    "targets": "pass",
+    "hover": "skip",
+    "focus": "pass",
+    "alignment": "pass",
+    "plan-rail": "skip"
+  },
+  "violations": []
+}

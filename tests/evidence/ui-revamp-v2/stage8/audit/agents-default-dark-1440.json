@@ -1,0 +1,16 @@
+{
+  "name": "agents-default-dark-1440",
+  "at": "2026-10-03T10:43:01.569Z",
+  "checks": {
+    "type": "pass",
+    "contrast": "pass",
+    "raw-text": "pass",
+    "overflow": "pass",
+    "targets": "pass",
+    "hover": "pass",
+    "focus": "pass",
+    "alignment": "pass",
+    "plan-rail": "skip"
+  },
+  "violations": []
+}

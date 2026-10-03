@@ -69,7 +69,7 @@ async function serveApi(page: Page, sectors: unknown[] = [SECTOR]): Promise<void
       data = {
         defaultProvider: 'meta',
         providers: [{ name: 'meta', hasKey: true, defaultModel: 'muse-spark-1.3-contributor', models: [
-          { provider: 'meta', model: 'muse-spark-1.3-contributor', displayName: 'muse-spark-1.3-contributor', reasoning: 'native', mode: 'responses', efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'] },
+          { provider: 'meta', model: 'muse-spark-1.3-contributor', displayName: 'Muse Spark 1.3 Contributor', reasoning: 'native', mode: 'responses', efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'] },
         ] }],
       }
     }
@@ -91,7 +91,7 @@ test('visual: overview empty state', async ({ page }) => {
   await page.goto('/')
   await shot(page, 'overview-empty', [
     page.getByRole('heading', { name: 'Overview' }),
-    page.getByText(/No sector researches yet/),
+    page.getByText('No sectors yet'),
   ])
 })
 
@@ -106,23 +106,28 @@ test('visual: sector detail with context drawer content', async ({ page }) => {
   await serveApi(page)
   await page.goto('/')
   await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
-  await page.getByRole('button', { name: 'Open Speciality Foods' }).click()
+  await page.getByRole('link', { name: /^Speciality Foods/ }).click()
   // The summary landing carries status plus companies; the drawer-era
   // detail/chat headings moved into the workspace (workspace.spec.ts).
+  // Draft empty copy is per-state now (companiesEmptyCopy).
   await shot(page, 'sector-detail', [
     page.getByRole('region', { name: 'Research status' }),
-    page.getByText('Company research has not started yet.'),
+    page.getByText('Research has not started'),
   ])
 })
 
 test('visual: chat open idle with model picker expanded', async ({ page }) => {
   await serveApi(page)
   await page.goto('/')
-  await page.getByRole('button', { name: 'Open chat' }).click()
+  await page.getByRole('button', { name: 'Ask Karbot' }).click()
   const chat = page.getByRole('complementary', { name: 'Assistant chat' })
   await expect(chat).toBeVisible()
   await chat.getByRole('button', { name: 'Choose a model' }).click()
-  await shot(page, 'chat-model-picker', [chat.getByRole('menu', { name: 'Models' })])
+  // CP-03: the menu portals to the body; search + the model row prove it.
+  await shot(page, 'chat-model-picker', [
+    page.getByRole('textbox', { name: 'Search models' }),
+    page.getByRole('menuitem', { name: /^Muse Spark 1\.3 Contributor/ }),
+  ])
 })
 
 test('visual: wave1 sidebar collapsed with disabled emails', async ({ page }) => {
@@ -135,20 +140,22 @@ test('visual: wave1 sidebar collapsed with disabled emails', async ({ page }) =>
   ])
 })
 
-test('visual: wave1 dashboard filtered counts with clearable search', async ({ page }) => {
+test('visual: wave1 researches filtered counts with clearable search', async ({ page }) => {
   await serveApi(page)
   await page.goto('/')
-  await page.getByLabel('Search researches').fill('Speciality')
+  await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
+  await page.getByLabel('Search sectors').fill('Speciality')
   await shot(page, 'wave1-dashboard-filtered', [
-    page.locator('header').getByRole('button', { name: 'Clear search' }),
-    page.getByText('Showing 1 of 1 matching').first(),
+    page.getByRole('button', { name: 'Clear search' }),
+    page.getByText('1 sector'),
   ])
 })
 
 test('visual: wave2 dark overview with collapsed rail', async ({ page }) => {
   await serveApi(page, [])
   await page.goto('/')
-  await page.getByRole('button', { name: 'Switch to dark theme' }).click()
+  await page.getByRole('button', { name: 'Theme' }).click()
+  await page.getByRole('menuitemradio', { name: 'Dark' }).click()
   await page.getByRole('button', { name: 'Collapse sidebar' }).click()
   await shot(page, 'wave2-dark-collapsed', [
     page.getByRole('heading', { name: 'Overview' }),
@@ -159,12 +166,12 @@ test('visual: wave2 dark overview with collapsed rail', async ({ page }) => {
 test('visual: wave2 mobile sector detail stacked', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await serveApi(page)
-  await page.goto('/')
-  await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Researches' }).click()
-  await page.getByRole('button', { name: 'Open Speciality Foods' }).click()
+  // Below 768px the sidebar is an icon rail with no accessible names;
+  // deep-link like the v2 audits do. SL-01 actions are labelled now.
+  await page.goto('/?section=SectorDetail&sector=sec-foods')
   await shot(page, 'wave2-mobile-detail', [
     page.getByRole('region', { name: 'Research status' }),
-    page.getByRole('button', { name: 'Open', exact: true }),
+    page.getByRole('button', { name: 'Open workspace' }),
   ])
 })
 

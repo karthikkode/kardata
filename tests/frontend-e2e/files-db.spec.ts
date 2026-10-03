@@ -37,27 +37,41 @@ test('UI upload failure publishes nothing; retry previews and downloads exact by
     await page.goto(`/?section=SectorChat&sector=${sectorId}`)
     await expect(page.getByRole('heading', { name: 'Research', exact: true })).toBeVisible()
     await expect(page.getByRole('alert')).toHaveCount(0)
+    // v2: files live in the right rail (docked complementary at wide
+    // widths, opener button + side dialog below the breakpoint).
+    const opener = page.getByRole('button', { name: 'Open files and global context' })
+    if (await opener.isVisible()) await opener.click()
+    const drawer = page.getByRole('dialog', { name: 'Files and global context' })
+    const files = (await drawer.isVisible()) ? drawer : page.getByRole('complementary', { name: 'Sector resources' })
+    // Empty files: header icon + empty-state button share the name.
+    const uploadTrigger = files.getByRole('button', { name: 'Upload file', exact: true }).first()
+    await expect(uploadTrigger).toBeVisible()
     const upload = async () => {
       const response = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().endsWith(`/sectors/${sectorId}/documents`))
       const chooser = page.waitForEvent('filechooser')
-      await page.getByRole('button', { name: 'Upload file', exact: true }).click()
+      await uploadTrigger.click()
       await (await chooser).setFiles({ name: filename, mimeType: 'text/markdown', buffer: bytes })
       return response
     }
     expect((await upload()).status()).toBe(500)
     await expect(page.getByRole('alert')).toHaveText('The upload did not finish. Choose the file again to retry. Existing files are kept.')
-    await expect(page.getByRole('button', { name: filename, exact: true })).toHaveCount(0)
+    await expect(files.getByRole('button', { name: filename, exact: true })).toHaveCount(0)
     expect((await pool.query('SELECT id FROM sector_documents WHERE sector_id=$1', [sectorId])).rows).toEqual([])
     await page.screenshot({ path: 'test-results/visual/files-db-upload-failure.png', animations: 'disabled' })
     await pool.query('UPDATE test_browser_file_fault SET enabled=false')
     expect((await upload()).status()).toBe(201)
-    const file = page.getByRole('button', { name: filename, exact: true })
+    const file = files.getByRole('button', { name: filename, exact: true })
     await expect(file).toBeVisible()
     await file.click()
     const preview = page.getByRole('dialog', { name: 'File preview' })
-    await expect(preview.getByRole('heading', { name: 'TEST UI retained evidence' })).toBeVisible()
+    // Exact filename: the extracted markdown also renders `# TEST UI
+    // retained evidence` as a heading in the preview body.
+    await expect(preview.getByRole('heading', { name: filename, exact: true })).toBeVisible()
     const downloadEvent = page.waitForEvent('download')
-    await preview.getByRole('button', { name: 'Download original file' }).click()
+    // v2: the preview header carries a Download menu; the original-bytes
+    // path is its Original file item.
+    await preview.getByRole('button', { name: 'Download' }).click()
+    await page.getByRole('menuitem', { name: 'Original file' }).click()
     const download = await downloadEvent
     expect(download.suggestedFilename()).toBe(filename)
     expect(await readFile((await download.path())!)).toEqual(bytes)
