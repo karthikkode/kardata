@@ -805,6 +805,7 @@ function FileDependencyPreview({ resource }: { resource: Resource<ContextPreview
 function ContextEditor({ sections, baseVersion, currentVersion, busy, error, onSave, onClose }: { sections: Sections; baseVersion: number; currentVersion?: number; busy: boolean; error?: string | null; onSave(sections: Sections): Promise<void>; onClose(): void }) {
   const [draft, setDraft] = useState(sections)
   const stale = currentVersion !== undefined && baseVersion !== currentVersion
+  const dirty = (Object.keys(CONTEXT_SECTION_LABELS) as ContextSectionKey[]).some((key) => draft[key] !== sections[key])
   return (
     <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void onSave(draft) }}>
       {(Object.keys(CONTEXT_SECTION_LABELS) as ContextSectionKey[]).map((key) => (
@@ -818,7 +819,7 @@ function ContextEditor({ sections, baseVersion, currentVersion, busy, error, onS
       {error ? <p role="alert" className="rounded-lg bg-muted p-3 text-xs">{error}</p> : null}
       <div className="flex flex-wrap justify-end gap-2">
         <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>Cancel</Button>
-        <Button type="submit" disabled={busy}>Save context</Button>
+        <Button type="submit" disabled={busy || !dirty}>Save context</Button>
       </div>
     </form>
   )

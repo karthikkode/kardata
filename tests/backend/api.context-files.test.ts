@@ -245,6 +245,25 @@ describe.skipIf(!ENABLED)('context file blocks', () => {
     )
   })
 
+  it('records background AI spend as events that survive file removal', async () => {
+    const { recordContextAiUsage, readContextAiUsage, removeContextFileBlock } = await import('../../backend/src/db/index.js')
+    const fresh = `sec-spend-${STAMP}`
+    await createSector(pool, { name: 'Spend sector', topic: 'Spend', scope, sectorId: fresh })
+    await projectNewEvents(pool)
+    const document = await ingestSectorDocument(pool, { sectorId: fresh, filename: 'TEST spend.md', contentBase64: Buffer.from('TEST spend').toString('base64'), scope })
+    await pool.query(`INSERT INTO context_file_blocks (sector_id,file_id,document_id,hash,filename,state,summary,tokens,requested_by,added_version)
+      VALUES ($1,$2,$2,$3,$4,'ready','### TEST spend.md (MD)\n**Overview.** TEST.',30,'TEST',1)`,
+      [fresh, document.id, document.sha256, document.filename])
+    const fileUsage = { kind: 'file-summary' as const, fileId: document.id, inputTokens: 100, outputTokens: 50, model: 'muse-spark-1.3-contributor' }
+    await recordContextAiUsage(pool, { sectorId: fresh, idempotencyKey: `TEST spend file ${STAMP}`, usage: fileUsage, scope })
+    await recordContextAiUsage(pool, { sectorId: fresh, idempotencyKey: `TEST spend compaction ${STAMP}`, usage: { kind: 'compaction' as const, inputTokens: 200, outputTokens: 60, model: 'muse-spark-1.3-contributor' }, scope })
+    await recordContextAiUsage(pool, { sectorId: fresh, idempotencyKey: `TEST spend file ${STAMP}`, usage: fileUsage, scope })
+    expect(await readContextAiUsage(pool, fresh, scope)).toEqual({ calls: 2, inputTokens: 300, outputTokens: 110 })
+    expect((await readGlobalContext(pool, fresh, scope)).usage.aiUsage).toEqual({ calls: 2, inputTokens: 300, outputTokens: 110 })
+    await removeContextFileBlock(pool, { sectorId: fresh, fileId: document.id, scope })
+    expect(await readContextAiUsage(pool, fresh, scope)).toEqual({ calls: 2, inputTokens: 300, outputTokens: 110 })
+  })
+
   it('A9: compaction refuses to touch scope, instructions or files', async () => {
     const { applySystemCompaction } = await import('../../backend/src/db/index.js')
     const seeded = await readGlobalContext(pool, sector, scope)

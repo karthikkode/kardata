@@ -16,7 +16,11 @@ Global context is a versioned document with Scope, Instructions, Decisions,
 Findings and Open questions, plus Files. Owner edits are direct; every
 agent edit needs owner approval, including research-parent edits. Research
 children propose to the research parent, which forwards them as pending
-owner proposals and never approves. Owner decisions and approved scope are
+owner proposals and never approves. Proposals use PATCH semantics: only
+the provided sections change, omitted sections stay byte-identical, and
+an explicit empty string clears. The server stores the merged whole, so
+approval applies a complete document and the review diff shows only real
+changes. Owner decisions and approved scope are
 protected. Optimistic version checks prevent stale approvals. Changes to
 scope/budgets require reapproval before affected work continues.
 
@@ -144,7 +148,11 @@ with no approval; a manual Compact does the same. Compaction may shorten only
 Decisions, Findings and Open questions; Scope, Instructions and all blocks
 stay byte-identical, no number is lost, and the old version stays restorable.
 Compaction history rows carry author `system:compaction`. Any approved version
-restores as a new owner version, text sections only.
+restores as a new owner version, text sections only. Every file-summary and
+compaction provider call also records a `sector.context.ai_usage` event
+(kind, fileId, input/output tokens, model) on the sector partition; the
+events are never deleted, and `usage.aiUsage` sums them, so background
+spend survives file removal.
 
 Each sector chat and the research chat carries a "use global context" switch,
 default on, affecting only that chat's future turns. A rewrite direction opens
@@ -154,8 +162,10 @@ context is unchanged until the owner approves.
 Normal chats read everything in their sector: plan, progress, sibling chats
 and subagent transcripts, through four viewer MCP tools. Writes stay
 isolated: context proposals and subagent spawns only, and subagents cannot
-read sibling threads. In the research chat, `@chat` inserts a
-`[[session:id|title]]` marker; that turn reads the referenced chats and
+read sibling threads. In the research chat, `@chat` inserts `@title`
+while the id mapping stays in composer state; send expands it to a
+`[[session:id|title]]` marker, and deleting the text drops the mapping.
+That turn reads the referenced chats and
 advises, with the plan writer narrowed out of the palette, and the plan
 changes only after the owner confirms in a later message.
 

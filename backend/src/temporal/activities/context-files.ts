@@ -2,10 +2,12 @@
 // Workflow histories contain IDs only; the block row is the provenance.
 import type { ProviderAdapter } from '@kardata/agents'
 import { estimateTokens } from '@kardata/agents'
+import { randomUUID } from 'node:crypto'
+import { Context } from '@temporalio/activity'
 import { z } from 'zod'
 import { workerPoolFromEnv, type TransactableDb } from '../../db/index.js'
 import { listDocumentUnits } from '../../db/document-units.js'
-import { applyReadyContextFileBlock, applySystemCompaction, readGlobalContext, readGlobalContextUsage } from '../../db/workspace.js'
+import { applyReadyContextFileBlock, applySystemCompaction, readGlobalContext, readGlobalContextUsage, recordContextAiUsage } from '../../db/workspace.js'
 import { chunkDocumentUnits, findMissingNumbers, listContextFileBlocks, markContextFileBlockFailed, normalizeSectionsJson, parseJsonObject, readContextFileBlock, validateBlockTemplate } from '../../db/context-files.js'
 import { resolveAdapter } from '../../providers/gateway.js'
 import { TemporalRunsGateway } from '../gateway.js'
@@ -23,6 +25,19 @@ export interface ContextFileActivitiesDeps {
 export const CONTEXT_FILE_MODEL = 'muse-spark-1.3-contributor'
 const CHUNK_TOKENS = 12000
 const logger = createLogger({ op: 'context.file.activity' })
+
+async function recordSpend(db: TransactableDb, sectorId: string, input: { kind: 'file-summary' | 'compaction'; fileId?: string; inputTokens: number; outputTokens: number }): Promise<void> {
+  if (input.inputTokens + input.outputTokens <= 0) return
+  let attempt: string = randomUUID()
+  try {
+    const info = Context.current().info
+    const runId = info.workflowExecution?.runId
+    if (runId) attempt = `${runId}:${info.attempt}`
+  } catch {
+    // No worker context (direct unit-test call): the random key stands.
+  }
+  await recordContextAiUsage(db, { sectorId, idempotencyKey: `ai-usage:${attempt}`, usage: { ...input, model: CONTEXT_FILE_MODEL } })
+}
 
 function fileType(filename: string): string {
   const ext = filename.split('.').pop()?.trim() ?? ''
@@ -96,12 +111,12 @@ export function createContextFileActivities(deps: ContextFileActivitiesDeps) {
           await markContextFileBlockFailed(deps.db, input.sectorId, input.fileId, 'file has no readable units')
           return { applied: false }
         }
+        const spend = { inputTokens: 0, outputTokens: 0 }
         try {
           const pages = units.map((unit) => unit.page).filter((page): page is number => typeof page === 'number')
           const pageLine = pages.length ? `${Math.max(...pages)} pages` : null
           const source = units.map((unit) => unit.text).join('\n')
           const chunks = chunkDocumentUnits(units, CHUNK_TOKENS, estimateTokens)
-          const spend = { inputTokens: 0, outputTokens: 0 }
           let summary: string
           if (chunks.length <= 1) {
             summary = await chat(buildContextFilePrompt(block.filename, source, pageLine), spend)
@@ -133,6 +148,8 @@ export function createContextFileActivities(deps: ContextFileActivitiesDeps) {
         } catch (error) {
           await markContextFileBlockFailed(deps.db, input.sectorId, input.fileId, error instanceof Error ? error.message : 'summarizer failed')
           throw error
+        } finally {
+          await recordSpend(deps.db, input.sectorId, { kind: 'file-summary', fileId: input.fileId, ...spend })
         }
       }, { sectorId: input.sectorId, fileId: input.fileId })
     },
@@ -142,6 +159,7 @@ export function createContextFileActivities(deps: ContextFileActivitiesDeps) {
         // A stale auto trigger stands down; a manual run always compacts.
         if (input.reason === 'auto' && usage.total < usage.budget * 0.7) return { compacted: false }
         const spend = { inputTokens: 0, outputTokens: 0 }
+        try {
         for (let attempt = 0; attempt < 2; attempt++) {
           const context = await readGlobalContext(deps.db, input.sectorId, undefined, false)
           const blocks = await listContextFileBlocks(deps.db, input.sectorId)
@@ -191,6 +209,9 @@ export function createContextFileActivities(deps: ContextFileActivitiesDeps) {
           }
         }
         return { compacted: false }
+        } finally {
+          await recordSpend(deps.db, input.sectorId, { kind: 'compaction', ...spend })
+        }
       }, { sectorId: input.sectorId, reason: input.reason })
     },
   }

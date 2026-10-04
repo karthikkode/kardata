@@ -228,6 +228,19 @@ describe('workspace state and resource interactions', () => {
     expect(screen.getByRole('textbox', { name: 'Decisions' })).toHaveValue('Owner decision and a new decision')
     expect(screen.getByRole('dialog', { name: 'Edit global context' })).toBeInTheDocument()
   })
+  it('disables Save context until a section differs from the loaded one', async () => {
+    const user = userEvent.setup(), onSave = vi.fn(async () => true)
+    const props = { resource: { status: 'ready' as const, data: global, refresh: vi.fn() }, preview: { status: 'loading' as const, refresh: vi.fn() }, busy: false, onReview: vi.fn(), onSave, onDecision: vi.fn(async () => true) }
+    render(<GlobalContextPanel {...props} />)
+    await user.click(screen.getByRole('button', { name: 'Edit global context' }))
+    expect(screen.getByRole('button', { name: 'Save context' })).toBeDisabled()
+    await user.type(screen.getByRole('textbox', { name: 'Decisions' }), ' and a new decision')
+    expect(screen.getByRole('button', { name: 'Save context' })).toBeEnabled()
+    await user.clear(screen.getByRole('textbox', { name: 'Decisions' }))
+    await user.type(screen.getByRole('textbox', { name: 'Decisions' }), 'Owner decision')
+    expect(screen.getByRole('button', { name: 'Save context' })).toBeDisabled()
+    expect(onSave).not.toHaveBeenCalled()
+  })
   it('distinguishes hidden files, search empties and failed extraction', async () => {
     const user = userEvent.setup(), onHide = vi.fn()
     render(<WorkspaceFiles resource={{ status: 'ready', refresh: vi.fn(), data: [

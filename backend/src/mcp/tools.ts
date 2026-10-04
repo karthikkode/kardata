@@ -260,7 +260,7 @@ export function toolCapability(name: McpToolName): ToolCapability {
 export const TOOL_META: Record<McpToolName, { description: string; minRole: Role }> = {
   'db.commit_child_context': { description: 'Research parent: commit a child finding or open question. Scope, decisions and file inclusion require owner approval.', minRole: 'operator' },
   'db.get_global_context': { description: 'Read approved sector shared context. Sector chats use their binding; general Karbot must provide sectorId. Pending updates remain private to their source/research parent.', minRole: 'viewer' },
-  'db.propose_global_context': { description: 'Propose a versioned shared-context edit. Normal chats require owner approval; research children report to their parent.', minRole: 'operator' },
+  'db.propose_global_context': { description: 'Propose a versioned shared-context edit. Send only the sections you change; omitted sections stay unchanged, explicit empty string clears. Normal chats require owner approval; research children report to their parent.', minRole: 'operator' },
   'db.list_sector_files': { description: 'List visible indexed files shared by this sector.', minRole: 'viewer' },
   'db.propose_file_context': { description: 'Request owner approval to include exact file units in global context.', minRole: 'operator' },
   'db.get_local_context': { description: 'Read your own conversation working memory.', minRole: 'viewer' },
@@ -388,7 +388,7 @@ const INVOKERS: Invokers = {
   'db.propose_global_context': async (ctx, args) => {
     const identity = await workspaceIdentity(ctx)
     await assertThreadFileContext(ctx.pool, identity.threadKey, ctx.scope)
-    return proposeGlobalContext(ctx.pool, { ...args, sectorId: identity.sectorId, sourceThread: identity.threadKey, owner: false, trustedResearch: true, scope: ctx.scope, id: scopedIdempotencyKey(ctx, args.idempotencyKey) })
+    return proposeGlobalContext(ctx.pool, { ...args, sectorId: identity.sectorId, sourceThread: identity.threadKey, owner: false, trustedResearch: true, scope: ctx.scope, id: `${identity.sectorId}:${scopedIdempotencyKey(ctx, args.idempotencyKey)}` })
   },
   'db.list_sector_files': async (ctx) => {
     const identity = await workspaceIdentity(ctx)
@@ -688,9 +688,11 @@ const INVOKERS: Invokers = {
     const session = await getSession(ctx.pool, args.sessionId, ctx.scope)
     if (!session) throw new DbContractError(`unknown session ${args.sessionId}`)
     const parentThread = ctx.executionThread ?? args.sessionId
+    const siblings = (await listThreadHeaders(ctx.pool, args.sessionId)).filter((thread) => thread.kind === 'subagent')
     return ctx.delegator.delegateSubagent({
       sessionId: args.sessionId,
       goal,
+      name: `Subagent ${siblings.length + 1}`,
       mode: args.mode ?? 'empty',
       queueCapacity: args.queueCapacity ?? 8,
       onAccepted: async (childId) => {

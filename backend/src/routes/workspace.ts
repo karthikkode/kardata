@@ -5,7 +5,7 @@ import { z } from 'zod'
 import type { Scope, Role } from '../auth/keys.js'
 import { resolveCaller, roleAtLeast } from '../auth/keys.js'
 import {
-  ContextSections, WorkspaceError, createSession, decideContextChange, ensureResearchSession,
+  ContextSections, PartialContextSections, WorkspaceError, createSession, decideContextChange, ensureResearchSession,
   previewContextChange,
   readSectorLibraryFile,
   listSectorLibrary, proposeFileContext, proposeGlobalContext, readGlobalContext, readGlobalContextUsage, readResearchProgress, removeContextFileBlock, restoreGlobalContextVersion,
@@ -69,7 +69,7 @@ export function workspaceRoutes(app: FastifyInstance): void {
     return change
   })
   register('post', '/v1/sectors/:sectorId/global-context/proposals', 'operator', (input) => {
-    const body = z.object({ baseVersion: z.number().int().nonnegative(), sections: ContextSections, sourceThread: z.string().min(1) }).strict().parse(input.body)
+    const body = z.object({ baseVersion: z.number().int().nonnegative(), sections: PartialContextSections, sourceThread: z.string().min(1) }).strict().parse(input.body)
     // Browser proposals never inherit autonomous research authority.
     return proposeGlobalContext(input.pool, { ...body, sectorId: sector(input), owner: false, scope: input.scope })
   })

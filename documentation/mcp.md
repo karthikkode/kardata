@@ -70,7 +70,10 @@ Karbot callers.
   projection writes stay top-tier). `db.append_event` refuses
   `t.approval.*` types at every role — verdicts flow only through
   `POST /v1/commands/approve`. Idempotency tools namespace keys per
-  caller (`<keyId>:<key>`), matching the HTTP wrapper. Denied tool calls
+  caller (`<keyId>:<key>`), matching the HTTP wrapper. Context-change
+  ids additionally namespace per sector
+  (`<sectorId>:<keyId>:<key>`), so identical agent keys in different
+  sectors never collide. Denied tool calls
   answer an MCP `isError` result carrying `permission_denied`, never a throw.
 
 ## Tools

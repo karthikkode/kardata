@@ -212,6 +212,18 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP execution and resource authority over H
     expect(JSON.parse(researchResult.text)).toMatchObject({ state: 'pending', version: null })
     expect((await readGlobalContext(pool, sector, scope)).version).toBe(0)
   })
+  it('scopes proposal idempotency keys per sector so identical agent keys never collide', async () => {
+    const first = await freshContextAuthority()
+    const second = await freshContextAuthority()
+    const args = { baseVersion: 0, sections: sections('TEST same-key insight'), idempotencyKey: 'same-agent-key' }
+    const one = JSON.parse((await call('db.propose_global_context', args, first.normalSession)).text) as { id: string; state: string }
+    expect(one.state).toBe('pending')
+    const two = JSON.parse((await call('db.propose_global_context', args, second.normalSession)).text) as { id: string; state: string }
+    expect(two.state).toBe('pending')
+    expect(two.id).not.toBe(one.id)
+    const replay = JSON.parse((await call('db.propose_global_context', args, first.normalSession)).text) as { id: string }
+    expect(replay.id).toBe(one.id)
+  })
   it('routes research-child updates through the parent to a pending owner proposal', async () => {
     const { sector, normalSession, researchSession } = await freshContextAuthority()
     const childId = `TEST-context-child-${++nonce}`

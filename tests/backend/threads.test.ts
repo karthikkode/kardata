@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import {
   appendEvent,
   getThread,
+  listThreadHeaders,
   listThreads,
   projectBatch,
   readPartition,
@@ -171,6 +172,23 @@ describe.skipIf(!TEST_DATABASE_URL)('transcript projection (B1.2)', () => {
       const result = await rebuildFromEvents(db, events)
       expect(result).toEqual({ applied: 6, ignored: [] })
       expect(await listThreads(db, 's1')).toEqual(incremental)
+    } finally {
+      await db.end()
+    }
+  })
+
+  it('keeps the V2 launch display name on the child header', async () => {
+    const db = pool()
+    try {
+      await db.query("DELETE FROM events WHERE partition = 'session:s1'")
+      await db.query('TRUNCATE thread_messages, threads')
+      await append(db, 't.session.created', { sessionId: 's1', title: 'Scan' }, 'n-session')
+      await append(db, 't.subagent.launched', { childId: 'c9', parentSessionId: 's1', name: 'Pricer', goal: 'g', depth: 0, mode: 'empty', queueCapacity: 8, canDelegate: false }, 'n-launch')
+      await append(db, 't.subagent.launched', { childId: 'c10', parentSessionId: 's1', goal: 'g', depth: 0, mode: 'empty', queueCapacity: 8, canDelegate: false }, 'n-launch-anon')
+      await projectBatch(db, await readPartition(db, 'session:s1'))
+      const headers = await listThreadHeaders(db, 's1')
+      expect(headers.find((header) => header.key === 'agent:c9')?.name).toBe('Pricer')
+      expect(headers.find((header) => header.key === 'agent:c10')?.name).toBeUndefined()
     } finally {
       await db.end()
     }

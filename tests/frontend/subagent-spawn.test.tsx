@@ -79,4 +79,34 @@ describe('owner subagent spawn (A15)', () => {
     const dialog = screen.getByRole('dialog', { name: 'Subagents' })
     expect(within(dialog).getByRole('button', { name: 'New subagent' })).toBeInTheDocument()
   })
+
+  it('shows the given name on the strip with the raw key only in the tooltip', () => {
+    const threads = [{ key: 'agent:child-9', kind: 'subagent', name: 'Pricer', status: 'RUNNING', queueDepth: 0 }]
+    render(<SectorWorkspace sector={sector} model={stubModel({ threads })} config={config} actions={actions} onBack={vi.fn()} />)
+    expect(screen.getByText('Pricer')).toBeInTheDocument()
+    expect(screen.queryByText('agent:child-9')).not.toBeInTheDocument()
+    expect(screen.queryByText('child-9')).not.toBeInTheDocument()
+    expect(screen.getByText('Pricer').closest('button')).toHaveAttribute('title', 'agent:child-9')
+  })
+
+  it('falls back to Subagent N on the strip and directory when the name is missing', async () => {
+    const user = userEvent.setup()
+    const threads = [{ key: 'agent:child-9', kind: 'subagent', status: 'RUNNING', queueDepth: 0 }]
+    render(<SectorWorkspace sector={sector} model={stubModel({ threads })} config={config} actions={actions} onBack={vi.fn()} />)
+    expect(screen.getByText('Subagent 1')).toBeInTheDocument()
+    expect(screen.queryByText('child-9')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'View all 1' }))
+    const dialog = screen.getByRole('dialog', { name: 'Subagents' })
+    expect(within(dialog).getByText('Subagent 1')).toBeInTheDocument()
+    expect(within(dialog).queryByText('child-9')).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Open Subagent 1' })).toHaveAttribute('title', 'agent:child-9')
+  })
+
+  it('treats a stored child id as a missing name', () => {
+    const threads = [{ key: 'agent:child-7c78735b-0d0a', kind: 'subagent', name: 'child-7c78735b-0d0a', status: 'RUNNING', queueDepth: 0 }]
+    render(<SectorWorkspace sector={sector} model={stubModel({ threads })} config={config} actions={actions} onBack={vi.fn()} />)
+    expect(screen.getByText('Subagent 1')).toBeInTheDocument()
+    expect(screen.queryByText('child-7c78735b-0d0a')).not.toBeInTheDocument()
+    expect(screen.getByText('Subagent 1').closest('button')).toHaveAttribute('title', 'agent:child-7c78735b-0d0a')
+  })
 })

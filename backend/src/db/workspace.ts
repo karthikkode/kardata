@@ -31,6 +31,12 @@ export const ContextSections = z.object({
   findings: z.string().max(48000).default(''), questions: z.string().max(24000).default(''),
 }).strict()
 export type ContextSections = z.infer<typeof ContextSections>
+export const PartialContextSections = z.object({
+  scope: z.string().max(24000).optional(), instructions: z.string().max(24000).optional(),
+  decisions: z.string().max(24000).optional(),
+  findings: z.string().max(48000).optional(), questions: z.string().max(24000).optional(),
+}).strict()
+export type PartialContextSections = z.infer<typeof PartialContextSections>
 export interface GlobalContext {
   sectorId: string; version: number; sections: ContextSections; markdown: string
   researchSessionId: string | null; changes: ContextChange[]
@@ -222,7 +228,7 @@ export async function readGlobalContext(db: Db, sectorId: string, scope?: Scope,
     sectorId, version: row.context_version, sections, markdown: formatGlobalContext(sections, views),
     researchSessionId: row.research_session_id, changes: changes.rows.map(changeView),
     files: blocks.map((block) => ({ fileId: block.fileId, filename: block.filename, state: block.state, tokens: block.tokens, summary: block.summary, error: block.error })),
-    usage: globalContextUsageFrom(sections, blocks),
+    usage: { ...globalContextUsageFrom(sections, blocks), aiUsage: await readContextAiUsage(db, sectorId, scope) },
   }
 }
 export async function notifyWorkspace(db: Db, sectorId: string, type: 'context-version' | 'approval' | 'work-progress', payload: unknown): Promise<void> {
@@ -234,11 +240,11 @@ export async function notifyWorkspace(db: Db, sectorId: string, type: 'context-v
   }
 }
 export async function proposeGlobalContext(db: TransactableDb, input: {
-  sectorId: string; baseVersion: number; sections: ContextSections; sourceThread: string; owner: boolean; scope?: Scope; id?: string
+  sectorId: string; baseVersion: number; sections: PartialContextSections; sourceThread: string; owner: boolean; scope?: Scope; id?: string
   fileRef?: NonNullable<ContextChange['fileRef']>
   trustedResearch?: boolean
 }): Promise<ContextChange> {
-  const sections = checked(ContextSections, input.sections)
+  const patch = checked(PartialContextSections, input.sections)
   checked(z.number().int().nonnegative(), input.baseVersion)
   checked(Id, input.sectorId)
   checked(Id, input.sourceThread)
@@ -260,6 +266,12 @@ export async function proposeGlobalContext(db: TransactableDb, input: {
     let state: ContextChange['state'] = input.owner ? 'approved' : input.trustedResearch && identity?.session.id === row.research_session_id && identity.thread.kind === 'subagent' ? 'parent-review' : 'pending'
     const currentSections = checked(ContextSections, row.sections)
     if (!currentSections.scope && row.context_version === 0) { const sector = await requireSector(tx, input.sectorId, input.scope); currentSections.scope = sector.topic || sector.name }
+    // PATCH semantics: provided keys merge onto current; omitted keys
+    // stay byte-identical; explicit '' clears. The stored proposal is
+    // the merged whole, so approval applies a complete document.
+    const sections: ContextSections = { ...currentSections }
+    for (const [key, value] of Object.entries(patch)) if (value !== undefined) sections[key as keyof ContextSections] = value
+    if (!input.fileRef && (['scope','instructions','decisions','findings','questions'] as const).every((key) => sections[key] === currentSections[key])) throw new WorkspaceError('validation_failed', 'Proposal changes no section.')
     const onlyFileInclusion = Boolean(input.fileRef) && (['scope','instructions','decisions','findings','questions'] as const).every((key) => sections[key] === currentSections[key])
     if (identity && input.fileRef && !onlyFileInclusion) await assertThreadFileContext(tx, input.sourceThread, input.scope)
     const sourceRefs = mergeFileRefs(input.owner || onlyFileInclusion ? [] : await threadFileRefs(tx, input.sourceThread, input.scope), input.fileRef ? [input.fileRef] : [])
@@ -340,8 +352,9 @@ export interface GlobalContextUsage {
   total: number; budget: number; method: 'estimated'
   bySection: { scope: number; instructions: number; decisions: number; findings: number; questions: number }
   byFile: Array<{ fileId: string; tokens: number }>
+  aiUsage: { calls: number; inputTokens: number; outputTokens: number }
 }
-export function globalContextUsageFrom(sections: ContextSections, blocks: Array<{ fileId: string; tokens: number }>): GlobalContextUsage {
+export function globalContextUsageFrom(sections: ContextSections, blocks: Array<{ fileId: string; tokens: number }>): Omit<GlobalContextUsage, 'aiUsage'> {
   const bySection = {
     scope: estimateTokens(sections.scope), instructions: estimateTokens(sections.instructions),
     decisions: estimateTokens(sections.decisions), findings: estimateTokens(sections.findings),
@@ -350,6 +363,33 @@ export function globalContextUsageFrom(sections: ContextSections, blocks: Array<
   const byFile = blocks.map((block) => ({ fileId: block.fileId, tokens: block.tokens }))
   const total = bySection.scope + bySection.instructions + bySection.decisions + bySection.findings + bySection.questions + byFile.reduce((sum, file) => sum + file.tokens, 0)
   return { total, budget: GLOBAL_CONTEXT_BUDGET_TOKENS, method: 'estimated', bySection, byFile }
+}
+export const ContextAiUsage = z.object({
+  kind: z.enum(['file-summary', 'compaction']),
+  fileId: z.string().min(1).optional(),
+  inputTokens: z.number().int().nonnegative(),
+  outputTokens: z.number().int().nonnegative(),
+  model: z.string().min(1),
+}).strict()
+export type ContextAiUsage = z.infer<typeof ContextAiUsage>
+// Background AI spend lives on the event log, never on deletable rows:
+// removing a file must not erase what its summary cost.
+export async function recordContextAiUsage(db: Db, input: { sectorId: string; idempotencyKey: string; usage: ContextAiUsage; scope?: Scope }): Promise<void> {
+  await requireSector(db, input.sectorId, input.scope)
+  await appendEvent(db, { idempotencyKey: checked(Id, input.idempotencyKey), partition: `sector:${input.sectorId}`, type: 'sector.context.ai_usage', payload: checked(ContextAiUsage, input.usage) })
+}
+export async function readContextAiUsage(db: Db, sectorId: string, scope?: Scope): Promise<{ calls: number; inputTokens: number; outputTokens: number }> {
+  await requireSector(db, sectorId, scope)
+  const rows = await db.query<{ payload: unknown }>(`SELECT payload FROM events WHERE partition=$1 AND type='sector.context.ai_usage'`, [`sector:${sectorId}`])
+  const total = { calls: 0, inputTokens: 0, outputTokens: 0 }
+  for (const row of rows.rows) {
+    const parsed = ContextAiUsage.safeParse(row.payload)
+    if (!parsed.success) continue
+    total.calls += 1
+    total.inputTokens += parsed.data.inputTokens
+    total.outputTokens += parsed.data.outputTokens
+  }
+  return total
 }
 export async function readGlobalContextUsage(db: Db, sectorId: string, scope?: Scope): Promise<GlobalContextUsage> {
   return (await readGlobalContext(db, sectorId, scope, false)).usage

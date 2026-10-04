@@ -28,6 +28,7 @@ import { AssistantRuntimeAdapter } from './chat/AssistantRuntimeAdapter'
 import { toThreadSegments } from './chat/assistantAdapter'
 import { Markdown } from './Markdown'
 import { SectorFilePreview } from './SectorFilePreview'
+import { subagentDisplayName } from './SubagentsPanel'
 import { ResearchPlanTab } from './plan/PlanTab'
 import { ModelToolbar } from './ModelToolbar'
 import { StateBadge } from './research-parts'
@@ -313,12 +314,12 @@ export function SectorWorkspace({ sector, model, config, actions, onBack, initia
   const planLatest = model.plan.data?.latest
   const planApproved = planLatest != null && model.plan.data?.approvedVersion === planLatest.version
   const subagentStrip = <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle px-4 py-2 sm:px-6"><Icons.agents className="size-4 shrink-0 text-muted-foreground" aria-hidden /><Caption as="span" className="shrink-0">Subagents</Caption>{children.length ? <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">{children.slice(0, 3).map((child, index) => {
-            const name = child.name ?? 'Research agent'
+            const name = subagentDisplayName(child, index)
             const childId = child.key.startsWith('agent:') ? child.key.slice('agent:'.length) : child.key
             const paused = child.status === 'PAUSED'
             return (
               <span key={child.key} className={cn('flex min-w-0 max-w-52 items-center', rowEnter)} style={{ animationDelay: `${staggerDelay(index)}s` }}>
-                <Button type="button" variant="ghost" size="sm" onClick={() => model.openThread(child.key)} title={name} className="min-w-0 flex-1"><span aria-hidden className={cn('size-1.5 shrink-0 rounded-full', child.status === 'RUNNING' ? 'bg-success motion-safe:animate-pulse' : 'bg-muted-foreground')} /><span className="truncate">{name}</span></Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => model.openThread(child.key)} title={child.key} className="min-w-0 flex-1"><span aria-hidden className={cn('size-1.5 shrink-0 rounded-full', child.status === 'RUNNING' ? 'bg-success motion-safe:animate-pulse' : 'bg-muted-foreground')} /><span className="truncate">{name}</span></Button>
                 {paused ? <Badge tone="warning">Paused</Badge> : null}
                 {paused
                   ? <IconButton label={`Resume ${name}`} size="icon-sm" onClick={() => void model.resumeSubagent(childId)}><Icons.play className="size-3.5" aria-hidden /></IconButton>
@@ -475,14 +476,22 @@ function ConversationView({ model, config, onContext }: { model: SectorWorkspace
   )?.key
   const emptyVariant = model.selected?.kind === 'research' && !model.child ? 'research' as const : 'chat' as const
   // @chat references (research main thread only): typing @ offers the
-  // sector chats; picking inserts [[session:id|title]] for the turn.
+  // sector chats; picking inserts @title while the id mapping stays in
+  // composer state, and send expands each @title to
+  // [[session:id|title]]. Deleting the @title text drops its mapping.
   const chatRefEnabled = model.selected?.kind === 'research' && !model.child
   const [chatRefClosed, setChatRefClosed] = useState(false)
   const [chatRefIndex, setChatRefIndex] = useState(0)
-  // A new draft reopens the listbox from the top: adjust during render
-  // (never in an effect) so the compiler sees no cascading setState.
+  const [chatRefMentions, setChatRefMentions] = useState<Array<{ id: string; title: string }>>([])
+  // A new draft reopens the listbox from the top and prunes mappings
+  // whose text is gone: adjust during render (never in an effect) so
+  // the compiler sees no cascading setState.
   const [chatRefDraft, setChatRefDraft] = useState(chat.draft)
-  if (chatRefDraft !== chat.draft) { setChatRefDraft(chat.draft); setChatRefClosed(false); setChatRefIndex(0) }
+  if (chatRefDraft !== chat.draft) {
+    setChatRefDraft(chat.draft); setChatRefClosed(false); setChatRefIndex(0)
+    const pruned = chatRefMentions.filter((mention) => chat.draft.includes(`@${mention.title}`))
+    if (pruned.length !== chatRefMentions.length) setChatRefMentions(pruned)
+  }
   const chatRefMatch = chatRefEnabled && !chatRefClosed ? chat.draft.match(/@([^@\n]*)$/) : null
   const chatRefQuery = (chatRefMatch?.[1] ?? '').toLowerCase()
   const chatRefOptions = chatRefMatch
@@ -491,9 +500,22 @@ function ConversationView({ model, config, onContext }: { model: SectorWorkspace
   const chatRefOpen = chatRefMatch !== null && chatRefOptions.length > 0
   function insertChatRef(pick: { id: string; title: string }) {
     if (!chatRefMatch || chatRefMatch.index === undefined) return
-    chat.setDraft(`${chat.draft.slice(0, chatRefMatch.index)}[[session:${pick.id}|${pick.title}]] `)
+    chat.setDraft(`${chat.draft.slice(0, chatRefMatch.index)}@${pick.title} `)
+    setChatRefMentions((mentions) => [...mentions.filter((mention) => mention.title !== pick.title), { id: pick.id, title: pick.title }])
     setChatRefIndex(0)
     composer.current?.focus()
+  }
+  function expandChatRefs(draft: string): string {
+    let text = draft
+    for (const mention of [...chatRefMentions].sort((a, b) => b.title.length - a.title.length)) {
+      text = text.split(`@${mention.title}`).join(`[[session:${mention.id}|${mention.title}]]`)
+    }
+    return text
+  }
+  function sendChat(steer = false) {
+    const expanded = expandChatRefs(chat.draft)
+    if (expanded === chat.draft) return chat.send(steer)
+    return chat.send(steer, expanded)
   }
   const threadPaused = model.threads.data?.find((thread) => thread.key === model.activeThread)?.status === 'PAUSED'
   const composerPlaceholder = model.child ? 'Steer or message this subagent...' : model.selected?.kind === 'research' ? 'Ask about this research...' : 'Message...'
@@ -504,7 +526,7 @@ function ConversationView({ model, config, onContext }: { model: SectorWorkspace
   const composerError = chat.status === 'ready' && !chat.missedInstructions.length && chat.phase !== 'reconnecting' && chat.phase !== 'failed' && chat.phase !== 'paused' && !threadPaused ? (chat.error ?? null) : null
   return <div className="flex min-h-0 flex-1 flex-col"><div className="relative min-h-0 flex-1"><div ref={listRef} onScroll={() => { onListScroll(); if (listRef.current) scrollPositions.set(model.activeThread ?? '', listRef.current.scrollTop) }} role="log" aria-label="Conversation messages" aria-live="polite" className="scroll-slim h-full overflow-y-auto px-4 py-6 sm:px-8"><div className="mx-auto max-w-prose-kd space-y-6"><ResourceNotice resource={notice} label="Conversation" />{chat.status === 'ready' && chat.messages.length === 0 && !chat.echo ? <ConversationEmpty variant={emptyVariant} onSuggest={(text) => { chat.setDraft(text); composer.current?.focus() }} /> : null}
     {<AssistantRuntimeAdapter messages={toThreadSegments(segments)} isRunning={chat.busy} onSend={() => undefined}><ThreadPrimitive.Root><ThreadPrimitive.Messages>{({ message: runtimeMessage }) => { const segment = segments.find((entry) => entry.key === runtimeMessage.id); if (!segment) return null; const control = segment.key === lastReasoningKey ? { open: reasoningOpen, onOpenChange: setReasoningOpen } : undefined; return 'tools' in segment ? <div key={segment.key} className="space-y-2"><ToolActivity tools={segment.tools} />{segment.reply?.reasoning ? <ReasoningDisclosure reasoning={segment.reply.reasoning} open={control?.open} onOpenChange={control?.onOpenChange} /> : null}{segment.reply ? <AgentBubble copyText={segment.reply.text} timestamp={segment.reply.at} latest={segment.key === lastKey}><Markdown text={segment.reply.text} /></AgentBubble> : null}</div> : segment.message.kind === 'text' ? segment.message.role === 'user' ? <UserBubble key={segment.message.id}>{renderChatRefChips(segment.message.text)}</UserBubble> : <div key={segment.message.id} className="space-y-2">{segment.message.reasoning ? <ReasoningDisclosure reasoning={segment.message.reasoning} open={control?.open} onOpenChange={control?.onOpenChange} /> : null}<AgentBubble copyText={segment.message.text} timestamp={segment.message.at} latest={segment.key === lastKey}><Markdown text={segment.message.text} /></AgentBubble></div> : null }}</ThreadPrimitive.Messages></ThreadPrimitive.Root></AssistantRuntimeAdapter>}
-    {chat.echo ? <UserBubble>{renderChatRefChips(chat.echo)}</UserBubble> : null}{tools.length || chat.live?.pendingReasoning || chat.live?.pendingText ? <div className="space-y-2">{tools.length ? <ToolActivity tools={tools} live /> : null}{chat.live?.pendingReasoning ? <ThinkingRow reasoning={chat.live.pendingReasoning} open={reasoningOpen} onOpenChange={setReasoningOpen} /> : null}{chat.live?.pendingText ? <AgentBubble><Markdown text={chat.live.pendingText} /></AgentBubble> : null}</div> : null}{chat.phase === 'queued' ? <p role="status" className="flex items-center gap-2"><Icons.queued aria-hidden className="size-3.5 text-muted-foreground" /><Caption as="span">Queued, waiting for the agent</Caption></p> : chat.phase === 'reconnecting' ? <div role="status" className="flex gap-2 rounded-md border border-info-border bg-info-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertInfo aria-hidden className="size-4 text-info" /></span><BodySm as="span" className="min-w-0 flex-1">Reconnecting. Your conversation is saved.</BodySm><Button type="button" variant="ghost" size="sm" onClick={chat.retry} className="shrink-0">Reconnect now</Button></div> : chat.phase === 'paused' || threadPaused ? <div role="status" className="flex gap-2 rounded-md border border-warning-border bg-warning-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertWarning aria-hidden className="size-4 text-warning" /></span><BodySm as="span" className="min-w-0 flex-1">This conversation is paused.</BodySm><Button type="button" variant="ghost" size="sm" disabled={Boolean(model.operation)} onClick={() => void model.resume()} className="shrink-0">Resume</Button></div> : chat.phase === 'failed' ? <div role="alert" className="flex gap-2 rounded-md border border-danger-border bg-danger-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertError aria-hidden className="size-4 text-danger" /></span><BodySm as="span" className="min-w-0 flex-1">That reply did not go through.</BodySm><Button type="button" variant="ghost" size="sm" onClick={() => void chat.send()} className="shrink-0">Retry</Button></div> : chat.busy && !chat.live?.pendingText && !tools.length && !chat.live?.pendingReasoning ? <ThinkingRow /> : null}
+    {chat.echo ? <UserBubble>{renderChatRefChips(chat.echo)}</UserBubble> : null}{tools.length || chat.live?.pendingReasoning || chat.live?.pendingText ? <div className="space-y-2">{tools.length ? <ToolActivity tools={tools} live /> : null}{chat.live?.pendingReasoning ? <ThinkingRow reasoning={chat.live.pendingReasoning} open={reasoningOpen} onOpenChange={setReasoningOpen} /> : null}{chat.live?.pendingText ? <AgentBubble><Markdown text={chat.live.pendingText} /></AgentBubble> : null}</div> : null}{chat.phase === 'queued' ? <p role="status" className="flex items-center gap-2"><Icons.queued aria-hidden className="size-3.5 text-muted-foreground" /><Caption as="span">Queued, waiting for the agent</Caption></p> : chat.phase === 'reconnecting' ? <div role="status" className="flex gap-2 rounded-md border border-info-border bg-info-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertInfo aria-hidden className="size-4 text-info" /></span><BodySm as="span" className="min-w-0 flex-1">Reconnecting. Your conversation is saved.</BodySm><Button type="button" variant="ghost" size="sm" onClick={chat.retry} className="shrink-0">Reconnect now</Button></div> : chat.phase === 'paused' || threadPaused ? <div role="status" className="flex gap-2 rounded-md border border-warning-border bg-warning-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertWarning aria-hidden className="size-4 text-warning" /></span><BodySm as="span" className="min-w-0 flex-1">This conversation is paused.</BodySm><Button type="button" variant="ghost" size="sm" disabled={Boolean(model.operation)} onClick={() => void model.resume()} className="shrink-0">Resume</Button></div> : chat.phase === 'failed' ? <div role="alert" className="flex gap-2 rounded-md border border-danger-border bg-danger-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertError aria-hidden className="size-4 text-danger" /></span><BodySm as="span" className="min-w-0 flex-1">That reply did not go through.</BodySm><Button type="button" variant="ghost" size="sm" onClick={() => void sendChat()} className="shrink-0">Retry</Button></div> : chat.busy && !chat.live?.pendingText && !tools.length && !chat.live?.pendingReasoning ? <ThinkingRow /> : null}
   </div></div><AnimatePresence>{showLatest ? <div className="absolute bottom-3 left-1/2 -translate-x-1/2"><m.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18, ease: 'easeOut' }}><Button size="sm" variant="secondary" className="rounded-full shadow-sm" onClick={jumpToLatest}><Icons.latest aria-hidden />Latest</Button></m.div></div> : null}</AnimatePresence></div>
   <ConversationComposer label="Message this conversation" input={<>{model.selected?.useGlobalContext === false ? <button type="button" onClick={() => { void (async () => { if (await model.setUseGlobalContext(true)) notify.success('Global context on for this chat') })() }} className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-surface-sunken px-2.5 py-1" aria-label="Global context off. Turn it back on."><Icons.globalContext aria-hidden className="size-3.5 text-muted-foreground" /><Caption as="span">Global context off</Caption></button> : null}<QueueDisclosure model={model} /><Composer
     id="workspace-composer"
@@ -521,7 +543,7 @@ function ConversationView({ model, config, onContext }: { model: SectorWorkspace
           if (picked) { event.preventDefault(); insertChatRef(picked); return }
         }
       }
-      if (event.key === 'Enter' && !event.shiftKey && !chat.busy) { event.preventDefault(); void chat.send() }
+      if (event.key === 'Enter' && !event.shiftKey && !chat.busy) { event.preventDefault(); void sendChat() }
     }}
     listboxes={chatRefOpen ? (
       <ul
@@ -553,10 +575,10 @@ function ConversationView({ model, config, onContext }: { model: SectorWorkspace
     disabled={!model.activeThread || chat.status === 'denied'}
     textareaRef={composer}
     left={<><IconButton label="Local context" onClick={onContext}><Icons.localContext className="size-4" aria-hidden /></IconButton>{model.selected ? <ModelToolbar config={config} sessionId={model.selected.id} bare /> : null}</>}
-    right={chat.busy ? <><Button type="button" variant="primary" size="sm" disabled={!chat.draft.trim()} onClick={() => void chat.send(true)}><Icons.steer className="size-3.5" aria-hidden />Steer</Button><Button type="button" variant="secondary" size="sm" disabled={!chat.draft.trim()} onClick={() => void chat.send()}>Queue</Button><IconButton label="Stop agent" disabled={Boolean(model.operation)} onClick={() => void model.stop()} className="text-danger hover:text-danger"><Icons.stopRun className="size-4" aria-hidden /></IconButton></> : <IconButton label="Send message" shortcut="Enter" variant="default" size="icon-sm" disabled={!chat.draft.trim() || !model.activeThread} onClick={() => void chat.send()} className="rounded-full"><Icons.send className="size-4" aria-hidden /></IconButton>}
+    right={chat.busy ? <><Button type="button" variant="primary" size="sm" disabled={!chat.draft.trim()} onClick={() => void sendChat(true)}><Icons.steer className="size-3.5" aria-hidden />Steer</Button><Button type="button" variant="secondary" size="sm" disabled={!chat.draft.trim()} onClick={() => void sendChat()}>Queue</Button><IconButton label="Stop agent" disabled={Boolean(model.operation)} onClick={() => void model.stop()} className="text-danger hover:text-danger"><Icons.stopRun className="size-4" aria-hidden /></IconButton></> : <IconButton label="Send message" shortcut="Enter" variant="default" size="icon-sm" disabled={!chat.draft.trim() || !model.activeThread} onClick={() => void sendChat()} className="rounded-full"><Icons.send className="size-4" aria-hidden /></IconButton>}
     error={composerError}
-    onRetry={() => void chat.send()}
-  />{chat.missedInstructions.length ? <section aria-label="Unapplied steering" className="mt-2 flex gap-2 rounded-md border border-info-border bg-info-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertInfo aria-hidden className="size-4 text-info" /></span><div className="min-w-0 flex-1"><BodySm as="p">Steering saved for your next turn</BodySm>{chat.missedInstructions.map((text, index) => <BodySm as="p" key={index} className="mt-1 border-l-2 border-border-strong pl-2 whitespace-pre-wrap break-words text-muted-foreground">“{text}”</BodySm>)}</div><Button type="button" variant="ghost" size="sm" onClick={() => void chat.send()} className="shrink-0">Send now</Button></section> : null}</>} /></div>
+    onRetry={() => void sendChat()}
+  />{chat.missedInstructions.length ? <section aria-label="Unapplied steering" className="mt-2 flex gap-2 rounded-md border border-info-border bg-info-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertInfo aria-hidden className="size-4 text-info" /></span><div className="min-w-0 flex-1"><BodySm as="p">Steering saved for your next turn</BodySm>{chat.missedInstructions.map((text, index) => <BodySm as="p" key={index} className="mt-1 border-l-2 border-border-strong pl-2 whitespace-pre-wrap break-words text-muted-foreground">“{text}”</BodySm>)}</div><Button type="button" variant="ghost" size="sm" onClick={() => void sendChat()} className="shrink-0">Send now</Button></section> : null}</>} /></div>
 }
 function AgentDirectory({ model, onOpen, onSpawn, onStop }: { model: SectorWorkspaceModel; onOpen(key: string): void; onSpawn(): void; onStop(key: string, name: string): void }) {
   function childId(key: string) {
@@ -573,8 +595,8 @@ function AgentDirectory({ model, onOpen, onSpawn, onStop }: { model: SectorWorks
       <ResourceNotice resource={model.threads} label="Subagents" />
       <Caption>Showing {Math.min(limit, rows.length)} of {rows.length}</Caption>
       <List aria-label="Subagents">
-        {rows.slice(0, limit).map((thread) => {
-          const name = thread.name ?? 'Research agent'
+        {rows.slice(0, limit).map((thread, index) => {
+          const name = subagentDisplayName(thread, index)
           const paused = thread.status === 'PAUSED'
           return (
             <li key={thread.key} className="flex items-center gap-1">
@@ -582,6 +604,7 @@ function AgentDirectory({ model, onOpen, onSpawn, onStop }: { model: SectorWorks
                 type="button"
                 data-list-row=""
                 aria-label={`Open ${name}`}
+                title={thread.key}
                 onClick={() => onOpen(thread.key)}
                 className={`${listRowClassName({ density: 'default' })} min-w-0 flex-1`}
               >

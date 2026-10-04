@@ -1,5 +1,20 @@
 # Implementation status
 
+Sector backend v1, stage 4 (2026-10-04, uncommitted on `sector-backend-v1`):
+B4 walkthrough green (run 12, 2.4 min, 15/15 steps, 16 screenshots opened
+and confirmed), CORS `Idempotency-Key` fix, per-sector context-change ids,
+final gate in progress. Findings: (1) proposal idempotency ids were scoped
+`<keyId>:<key>`, so the same model-generated key in two sectors collided
+globally (`conflict: context change id collision`, killed B4 step 9 in two
+runs); ids are now `<sectorId>:<keyId>:<key>`, pinned by a cross-sector
+same-key unit test with same-sector replay. (2) The B4 spec seeds context
+sections mid-run, so a stale-version theory for step 9 was disproven from
+execution records before the real collision cause surfaced. (3) Rewrite
+chats answer every message with a short context note, so queue/stop steps
+run in a fresh normal chat. (4) Approving an agent proposal replaces all
+sections wholesale: a proposal that fills only Instructions wipes the other
+sections (per-spec shape, owner decision whether to merge instead).
+
 Sector backend v1, stage 3 (2026-10-04, uncommitted on `sector-backend-v1`):
 sector read tools (`db.get_sector_plan`, `db.get_research_progress`,
 `db.list_sector_sessions`, `db.read_sector_thread`), `@chat` markers with

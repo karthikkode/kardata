@@ -56,7 +56,7 @@ const pricing = session({ id: 'chat-2', title: 'Pricing chat' })
 const hiring = session({ id: 'chat-3', title: 'Hiring notes' })
 
 describe('research @chat references (A14)', () => {
-  it('offers the Chats group in the research composer and inserts the marker', async () => {
+  it('offers the Chats group in the research composer and inserts @title', async () => {
     const user = userEvent.setup()
     render(<Harness selected={research} sessions={[research, pricing, hiring]} />)
     const box = screen.getByRole('textbox', { name: 'Message this conversation' })
@@ -67,7 +67,42 @@ describe('research @chat references (A14)', () => {
     expect(within(listbox).getByRole('option', { name: 'Hiring notes' })).toBeInTheDocument()
     expect(within(listbox).queryByRole('option', { name: 'Research' })).not.toBeInTheDocument()
     await user.click(within(listbox).getByRole('option', { name: 'Pricing chat' }))
-    expect(box).toHaveValue('[[session:chat-2|Pricing chat]] ')
+    expect(box).toHaveValue('@Pricing chat ')
+  })
+
+  it('converts @title to the marker on send', async () => {
+    const user = userEvent.setup()
+    const send = vi.fn()
+    function SendHarness() {
+      const [draft, setDraft] = useState('')
+      const model = stubModel(research, [research, pricing, hiring], { draft, setDraft, send })
+      return <SectorWorkspace sector={sector} model={model} config={config} actions={actions} onBack={vi.fn()} />
+    }
+    render(<SendHarness />)
+    const box = screen.getByRole('textbox', { name: 'Message this conversation' })
+    await user.type(box, '@')
+    await user.click(within(screen.getByRole('listbox', { name: 'Mention a chat' })).getByRole('option', { name: 'Pricing chat' }))
+    await user.click(screen.getByRole('button', { name: 'Send message' }))
+    expect(send).toHaveBeenCalledWith(false, '[[session:chat-2|Pricing chat]] ')
+  })
+
+  it('drops the mapping when the @title text is deleted', async () => {
+    const user = userEvent.setup()
+    const send = vi.fn()
+    function SendHarness() {
+      const [draft, setDraft] = useState('')
+      const model = stubModel(research, [research, pricing, hiring], { draft, setDraft, send })
+      return <SectorWorkspace sector={sector} model={model} config={config} actions={actions} onBack={vi.fn()} />
+    }
+    render(<SendHarness />)
+    const box = screen.getByRole('textbox', { name: 'Message this conversation' })
+    await user.type(box, '@')
+    await user.click(within(screen.getByRole('listbox', { name: 'Mention a chat' })).getByRole('option', { name: 'Pricing chat' }))
+    await user.clear(box)
+    await user.type(box, 'plain hello')
+    await user.click(screen.getByRole('button', { name: 'Send message' }))
+    expect(send).toHaveBeenCalledWith(false)
+    expect(send).not.toHaveBeenCalledWith(false, expect.stringContaining('[[session:'))
   })
 
   it('filters chats by typed title', async () => {

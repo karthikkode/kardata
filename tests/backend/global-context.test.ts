@@ -2,7 +2,7 @@
 // migration-free defaults, usage sums. Isolated Postgres.
 import { Pool } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { ContextSections, createSector, createSession, formatGlobalContext, proposeGlobalContext, readGlobalContext, readSessionSettings, setUseGlobalContext } from '../../backend/src/db/index.js'
+import { ContextSections, createSector, createSession, decideContextChange, formatGlobalContext, proposeGlobalContext, readGlobalContext, readSessionSettings, setUseGlobalContext } from '../../backend/src/db/index.js'
 import { turnContextSnapshot, turnSectorRefs } from '../../backend/src/temporal/activities/turn.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
@@ -48,6 +48,42 @@ describe.skipIf(!TEST_DATABASE_URL)('global context sections (A4)', () => {
     expect(await readSessionSettings(pool, sessionId)).toEqual({ useGlobalContext: false, purpose: 'chat' })
     expect(await turnSectorRefs(pool, sessionId, sectorId, sessionId)).toEqual([])
     expect(await turnContextSnapshot(pool, sessionId, sectorId, sessionId)).toEqual({ references: [], contextVersion: null })
+  })
+
+  it('merges a partial agent proposal onto current sections, never wiping omissions', async () => {
+    const { sectorId } = await createSector(pool, { name: 'TEST patch', topic: 'TEST patch', scope })
+    await projectNewEvents(pool)
+    const full = { scope: 'S', instructions: 'I', decisions: 'D', findings: 'F', questions: 'Q' }
+    await proposeGlobalContext(pool, { sectorId, baseVersion: 0, sections: full, sourceThread: 'TEST owner', owner: true, scope })
+    const sessionId = (await createSession(pool, 'TEST patch chat', scope, sectorId)).id
+    await projectNewEvents(pool)
+    const proposal = await proposeGlobalContext(pool, { sectorId, baseVersion: 1, sections: { instructions: 'I2' }, sourceThread: sessionId, owner: false, scope })
+    expect(proposal.state).toBe('pending')
+    expect(proposal.sections).toEqual({ ...full, instructions: 'I2' })
+    const decided = await decideContextChange(pool, { sectorId, id: proposal.id, approve: true, scope })
+    expect(decided.state).toBe('approved')
+    expect((await readGlobalContext(pool, sectorId, scope)).sections).toEqual({ ...full, instructions: 'I2' })
+  })
+
+  it('clears a section only on explicit empty string, keeping omissions', async () => {
+    const { sectorId } = await createSector(pool, { name: 'TEST clear', topic: 'TEST clear', scope })
+    await projectNewEvents(pool)
+    const full = { scope: 'S', instructions: 'I', decisions: 'D', findings: 'F', questions: 'Q' }
+    await proposeGlobalContext(pool, { sectorId, baseVersion: 0, sections: full, sourceThread: 'TEST owner', owner: true, scope })
+    const sessionId = (await createSession(pool, 'TEST clear chat', scope, sectorId)).id
+    await projectNewEvents(pool)
+    const proposal = await proposeGlobalContext(pool, { sectorId, baseVersion: 1, sections: { findings: '' }, sourceThread: sessionId, owner: false, scope })
+    await decideContextChange(pool, { sectorId, id: proposal.id, approve: true, scope })
+    expect((await readGlobalContext(pool, sectorId, scope)).sections).toEqual({ ...full, findings: '' })
+  })
+
+  it('rejects a proposal that changes no section', async () => {
+    const { sectorId } = await createSector(pool, { name: 'TEST noop', topic: 'TEST noop', scope })
+    await projectNewEvents(pool)
+    await proposeGlobalContext(pool, { sectorId, baseVersion: 0, sections: { scope: 'S' }, sourceThread: 'TEST owner', owner: true, scope })
+    const sessionId = (await createSession(pool, 'TEST noop chat', scope, sectorId)).id
+    await projectNewEvents(pool)
+    await expect(proposeGlobalContext(pool, { sectorId, baseVersion: 1, sections: {}, sourceThread: sessionId, owner: false, scope })).rejects.toMatchObject({ code: 'validation_failed' })
   })
 
   it('reads a migration-free old row with instructions defaulted', async () => {

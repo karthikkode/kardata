@@ -86,7 +86,11 @@ The owner spawns a child from the UI with a goal and optional name
 (`POST /v1/sessions/{id}/subagents`, operator, 409 past 50 in flight);
 parents spawn through `db.delegate_subagent` with the same inheritance
 (see agents-context.md). Either way the inherited text is stored before
-the goal message is processed.
+the goal message is processed. The display name is the given name, else
+`Subagent N` by spawn order (both spawn paths default it); the launch
+event records it and the thread header serves it. Strip chips, the
+directory and the dock rows show the name (positional `Subagent N`
+fallback when missing); the raw `agent:` key appears only in tooltips.
 
 Pause and resume are per child: the route writes `thread_control`,
 then signals `childPause`/`childResume`. A paused loop waits before

@@ -155,9 +155,10 @@ async function applyEvent(db: Db, event: StoredEvent): Promise<boolean> {
     }
     case 't.subagent.launched': {
       const first = SubagentLaunched.safeParse(event.payload)
-      const sessionId = first.success ? first.data.sessionId : SubagentLaunchedV2.parse(event.payload).parentSessionId
-      const childId = first.success ? first.data.childId : SubagentLaunchedV2.parse(event.payload).childId
-      const name = first.success ? first.data.name : childId
+      const parsed = first.success ? first.data : SubagentLaunchedV2.parse(event.payload)
+      const sessionId = 'sessionId' in parsed ? parsed.sessionId : parsed.parentSessionId
+      const childId = parsed.childId
+      const name = parsed.name ?? null
       const threadKey = `agent:${childId}`
       await db.query(
         `INSERT INTO threads (key, session_id, kind, status, updated_at)

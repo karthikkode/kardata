@@ -31,8 +31,13 @@ function labelFor(status: string): string {
 // Display name for a thread row: the backend title when set, otherwise a
 // positional fallback. Raw `agent:...` keys never render as text; they
 // survive only in the row tooltip.
+export function subagentDisplayName(thread: Pick<ThreadView, 'name'>, index: number): string {
+  const name = thread.name?.trim() ?? ''
+  if (!name || /^child-[0-9a-f-]+$/i.test(name)) return `Subagent ${index + 1}`
+  return name
+}
 function displayName(thread: ThreadView, index: number): string {
-  return thread.name?.trim() ? thread.name : `Subagent ${index + 1}`
+  return subagentDisplayName(thread, index)
 }
 
 // One thread row: status dot, humanized name, and one status caption. The

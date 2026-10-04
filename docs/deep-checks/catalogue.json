@@ -1963,7 +1963,7 @@
     },
     {
       "path": "backend/src/db/threads.ts",
-      "sha256": "5a3b5b147758f9596154726e1c35050a2c790a346bac24cd692d3975aae4e7d5",
+      "sha256": "64ae6b41dc8fd45c1cd73d5aac8cfeed11d798a4f75758d2f9f9f7fb6cc8eb19",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1996,10 +1996,11 @@
     },
     {
       "path": "backend/src/db/workspace.ts",
-      "sha256": "8eefaee929079f9e0f9c67b8298e8d08dca156977c832eac3de047388208b34b",
+      "sha256": "6547fbbe59732b2f18aefc5cebe22a78cbfc6371425a52c540ea3f8b636c92dc",
       "review": "pending",
       "tests": [],
       "exports": [
+        "ContextAiUsage",
         "ContextChange",
         "ContextFileBlockView",
         "ContextSections",
@@ -2007,6 +2008,7 @@
         "GlobalContext",
         "GlobalContextUsage",
         "LibraryFile",
+        "PartialContextSections",
         "SectorSessionView",
         "SessionSettings",
         "ThreadContext",
@@ -2038,6 +2040,7 @@
         "previewContextChange",
         "proposeFileContext",
         "proposeGlobalContext",
+        "readContextAiUsage",
         "readDiscoveryPublicationState",
         "readGlobalContext",
         "readGlobalContextUsage",
@@ -2052,6 +2055,7 @@
         "readThreadContext",
         "readTurnContinuation",
         "rebuildThreadContext",
+        "recordContextAiUsage",
         "recordContextMeasurement",
         "recordResearchBudget",
         "recordResearchWork",
@@ -2090,7 +2094,7 @@
     },
     {
       "path": "backend/src/http/cors.ts",
-      "sha256": "4188e61dbdf375880dcf1da93c36c78795a6a4e5d7658f627c666bd146bd5654",
+      "sha256": "7ae5ab54a7664a0e584378936672faa1b685ea1a22bdabcf07955f04195655fc",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2135,7 +2139,7 @@
     },
     {
       "path": "backend/src/mcp/schemas.ts",
-      "sha256": "a84b071f23a360ea0f39f8fc0f1742cdf94e627d48a5c31fc338839d0b77695b",
+      "sha256": "17694c351ad7fcc8b956e5cb8411857127a0ccd6412c2f9d86bec397ccb6982f",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2146,7 +2150,7 @@
     },
     {
       "path": "backend/src/mcp/tools.ts",
-      "sha256": "325cdb2a4810912172198059a6a67be8c24a6617558ebee19091116841256ad0",
+      "sha256": "7f01c680c530bd2ab17ebb4fa4e6c5017ab3f4fbe8cd4af88ff86083ce56f327",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2544,7 +2548,7 @@
     },
     {
       "path": "backend/src/routes/workspace.ts",
-      "sha256": "4cdcc525bd2605d6858d81ae075aaeba80e73ee4de09c1635aa502fa97037d53",
+      "sha256": "81745b91e2baf52c153483b391d396cabef7d2b0352392e5c179cca4d596b3fb",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2583,7 +2587,7 @@
     },
     {
       "path": "backend/src/temporal/activities/context-files.ts",
-      "sha256": "9fe677cf21285bcd168564a79ee130f49d486a8999376c4ae52cdc97aa11c455",
+      "sha256": "224d0f3b6d7c8a7e7c79a3bc9850f352f2d16c4175cff5a8e75e643e80c97699",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3209,7 +3213,7 @@
     },
     {
       "path": "backend/src/threads/project.ts",
-      "sha256": "b411fa15077bb973f43fb9fe1577e94c12faf6049fcf4b3a595bc9de877f4c7a",
+      "sha256": "8083e3189dffe6821291a49656d44eabba0a0009833062bc66d6d715fc6f72a0",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3607,7 +3611,7 @@
     },
     {
       "path": "frontend/playwright.config.ts",
-      "sha256": "6349035ad454e624b3cc2c8a0d82761baa21835e6fe3605310a8358d4f528626",
+      "sha256": "5ac0f5080d18c8b00c9b787473eedf305eede8eee54a09c74ac77ef409d42c86",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3891,7 +3895,7 @@
     },
     {
       "path": "frontend/src/components/SectorWorkspace.tsx",
-      "sha256": "ad86ce403fe9244b37584ce24c1292ac03e133698eedac892eede968ad9e0acf",
+      "sha256": "a106272b18d6d5232d0edb68fa489f14b6ebc9051c7b1fd2d0f59f09b315485c",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3927,11 +3931,12 @@
     },
     {
       "path": "frontend/src/components/SubagentsPanel.tsx",
-      "sha256": "b0b13a733965b6c03d0635b845b4360f9689acef5dbc2b2c4c27f4eab62523df",
+      "sha256": "c7991cfd36374c632a923d54eba0a9c946e08522646580da7944c5575fd218b2",
       "review": "pending",
       "tests": [],
       "exports": [
-        "SubagentsPanel"
+        "SubagentsPanel",
+        "subagentDisplayName"
       ]
     },
     {
@@ -4567,7 +4572,7 @@
     },
     {
       "path": "frontend/src/data/useWorkspace.ts",
-      "sha256": "b5a0add1f9e8e12c01892c0d0e8fb409e5b8081010e2267e081f892b37775b76",
+      "sha256": "b8e8d32204d04b40768f07996d084d959053d4080fdc2cdca6df5149b191f68c",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4879,14 +4884,14 @@
     },
     {
       "path": "tests/backend/api.context-files.test.ts",
-      "sha256": "7d3176d28ee3369ee79bbe2b1b08dd28791075ced4fcf93f399b79084145096c",
+      "sha256": "f1dc575310782465940013e2f4b76ae67e76ae3a34bb57d9f4a6fc3cb9558174",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/backend/api.cors.test.ts",
-      "sha256": "f7feff9f8cf5528bc0ffd549c1b22997f7a88111a61ffdfc1b1cc1b572cd4901",
+      "sha256": "177df6f2e0f29b94d54c9745383c49a9cb8b0998e6a3c2e9544fe043572bc4cb",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5386,7 +5391,7 @@
     },
     {
       "path": "tests/backend/global-context.test.ts",
-      "sha256": "62f866fbb14a04edbdee16ad7e00b194a2ff8782c8f97e64b0dc4fe091f750f6",
+      "sha256": "5dd8cff0f99855c2755bb1630c7fa75609f990b32e5f97bacf1b7b132d53e329",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5530,7 +5535,7 @@
     },
     {
       "path": "tests/backend/mcp.authority.test.ts",
-      "sha256": "cdf4330de649ede5adc213c93baacf9e0d65b4f142ca279b89201242ec00017c",
+      "sha256": "6a41188a3e4df558293de23016019f7d76972cc7573a99c73b62dd5a916bcf51",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6031,7 +6036,7 @@
     },
     {
       "path": "tests/backend/threads.test.ts",
-      "sha256": "244b81ae693bf642a7a37d1185da11053e3c491577a09021438de7b3b245aab8",
+      "sha256": "34d0c962ec806a4b7bdc4fd9ae8a31c2d6b5813870b1d39aee4dae4179033605",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -12681,6 +12686,13 @@
       "exports": []
     },
     {
+      "path": "tests/frontend-e2e/live/sector.live.spec.ts",
+      "sha256": "24a4c2cf7c9bdeb1672eed046d41431d1c55936829a8750b184f430ac097bc1d",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/frontend-e2e/matrix.spec.ts",
       "sha256": "bd8c1e0be885e64a79a2c3520c39e9a767dd5ddb56652fab2b83ac3661343b94",
       "review": "pending",
@@ -13198,7 +13210,7 @@
     },
     {
       "path": "tests/frontend/chat-refs.test.tsx",
-      "sha256": "c09df9849e294ce52f2ff3dcb4cf41c18cc29e2ac4a7c6ddbba4494181a88003",
+      "sha256": "3b7754fe97109b42a30fbf68be47383b2ec9890fbb56e09c59c1b518054177b0",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -13562,7 +13574,7 @@
     },
     {
       "path": "tests/frontend/subagent-spawn.test.tsx",
-      "sha256": "cbbabba725f3af88532dcec422adc35f300115eafdffe062236a2c039bd670f1",
+      "sha256": "a3a827cfb1912b6bb04005139c046eee6bb60e168b7484e7c3b0138c0856340b",
       "review": "pending",
       "tests": [],
       "exports": []
