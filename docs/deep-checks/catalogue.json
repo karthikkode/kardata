@@ -3,7 +3,7 @@
   "files": [
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "bbc0be33bdec3a11879b975b95c5ee88bf52bd0c3d85414bea5f24a3318fe4f8",
+      "sha256": "7f8a71a7d7c43c82ea81fa4a1da4039c3d7f9e5285bc55a7af25252a3d912b1c",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -3339,7 +3339,7 @@
     },
     {
       "path": "deployment/Dockerfile",
-      "sha256": "ebf406eda2bcb8c7104b13b74d9f98c54089e30930456d94b62623408d3f56cd",
+      "sha256": "6a774b0ac1d6f785a0e3a08529a5a266bbca70256b8851bf35f82f491cece4ba",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -3353,7 +3353,7 @@
     },
     {
       "path": "deployment/compose.yaml",
-      "sha256": "25e601f46b1c50f0ff773690dd2e882c35046bc166bc5529727c8452d73ee348",
+      "sha256": "08e37d6f5d638b18331f69fd2841b464a6633193d07a08d695a8784c685c8289",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -3417,6 +3417,27 @@
     {
       "path": "deployment/promtail.yaml",
       "sha256": "b0cfb573d6d2b891b7e444e43676c32f4b6f5a3e998bb27a6cbf789e139c258b",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "deployment/scripts/stack-lib.mjs",
+      "sha256": "cb2adcfc7c07461191780d8fef26fa932ce492a9ac0cf1d4a81cfc475504f696",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "countRepoTools",
+        "fleetVerdict",
+        "formatVerdict",
+        "freshnessVerdict",
+        "parityVerdict",
+        "parseEnvFile"
+      ]
+    },
+    {
+      "path": "deployment/scripts/stack.mjs",
+      "sha256": "a60cfb82b3015875943a14e7cb7ab45b08d9e7323cb4658050f590f8b1816156",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4702,7 +4723,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "4c3bace4c49a13d44b669eebafe8e6a47e0699a02bb81b838ddadcd35dbbf77f",
+      "sha256": "ea976afbc47765ac67124f35d126d7a957f7a0e718616e5a4a8ab242eda176b0",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5605,6 +5626,13 @@
     {
       "path": "tests/backend/soak.report.md",
       "sha256": "932c309151f3b67b8339f146f8f4f07a7aa8a90acb818f2914d00dacf1a1a62e",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/stack.test.ts",
+      "sha256": "16ebf47ce6bc96e03d5a8cb393b9e32f85fc62e5fbd3232ffdb6ff2c37b6d280",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -12368,7 +12396,7 @@
     },
     {
       "path": "tests/frontend-e2e/files-db.spec.ts",
-      "sha256": "c26ca0b8c704575c348b3825911d99327e0dc168482cd32929133c3fa7669fb4",
+      "sha256": "463715fab39962575c01a2ef6432e45c24a1b0a7d2b11d796f4cb2b7a381f7bc",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -12438,7 +12466,7 @@
     },
     {
       "path": "tests/frontend-e2e/revamp-evidence.spec.ts",
-      "sha256": "04fb45652422946ed74696a5b3e464ce006efd79facca0df91ede293f5148b39",
+      "sha256": "c3022e50d16f462eb55b83b9a18dce9bd051404d46195fa927e5b7c0271e536e",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -12667,7 +12695,7 @@
     },
     {
       "path": "tests/frontend-e2e/v2/landing.spec.ts",
-      "sha256": "c209b18a484a9eed8d62d814ce253cfe881644b72196ccf05c7e6c78c76f0a64",
+      "sha256": "f220560bf60ad5dd0ee0b7b3a176081a42fb5874e624cb3316264fc9241d8839",
       "review": "pending",
       "tests": [],
       "exports": []

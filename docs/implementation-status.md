@@ -3651,3 +3651,20 @@ box, 168ms CI, no product change), so it could never hold.
 Added one warmup fill and moved the tripwire to 250ms with the
 reason in the test comment; it guards algorithmic regressions,
 not hardware speed.
+
+Smooth local deploy (branch ops/smooth-deploy): one-command
+platform behind `npm run stack:*`, implemented in
+`deployment/scripts/stack.mjs` (+ pure `stack-lib.mjs`, 11
+unit tests in tests/backend/stack.test.ts). `stack:deploy`
+rebuilds backend+worker from HEAD (new `org.kardata.git-sha`
+image label via `GIT_SHA` build arg), boots, waits for
+health, fails on worker/backend `[FATAL]`, and verifies MCP
+`tools/list` parity against the repo count. `stack:doctor`
+fails on duplicate fleets (with sudo-aware kill commands)
+and image/HEAD SHA drift; `stack:worker:host` stops the
+compose worker before starting the laptop one and
+`stack:worker:compose` refuses while a host worker polls, so
+the one-fleet rule is enforced, not just documented.
+Verified live: doctor flags the machine's real duplicate
+fleet (compose + 2 root host workers) and exits 1; deploy
+run green end to end (health + 74/74 parity).

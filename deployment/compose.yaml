@@ -86,6 +86,8 @@ services:
     build:
       context: ..
       dockerfile: deployment/Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
     # Provider keys live in gitignored agents/.env (same keys the harness
     # live probes use). Compose reads values only; nothing is committed.
     env_file:
@@ -132,6 +134,8 @@ services:
     build:
       context: ..
       dockerfile: deployment/Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
     entrypoint: ['sh', '/worker-entrypoint.sh']
     env_file:
       - ../agents/.env

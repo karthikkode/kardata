@@ -16,6 +16,10 @@ RUN npm run build --workspace @kardata/backend
 
 # Debian/glibc runtime: the Temporal core-bridge native module links glibc.
 FROM node:22-slim
+# Source SHA the image was built from; stack:status/doctor compare it
+# against HEAD so stale images fail loudly instead of silently.
+ARG GIT_SHA=unknown
+LABEL org.kardata.git-sha=$GIT_SHA
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json package-lock.json ./
