@@ -467,3 +467,29 @@ order, IDs, ages and payloads. Commit/rollback/release governs only setup; the
 actual sweep, projection, metrics, budget and timing assertions run unchanged.
 Fresh empty clones need no prior-run delete/truncate resets. Fixture commit costs
 are outside the measured pipeline and do not imply live fleet throughput.
+
+## Live Meta suite (sector backend v1)
+
+`tests/backend/live/` proves sector features against the real Meta provider on
+an isolated stack: per-suite databases (`kardata_live_<suite>`), the
+`kardata-live` Temporal namespace (the owner's workers on `default` never see
+these tasks), the app with auth on port 3102, and in-process lane workers from
+the same `createDevWorkers` factory as the dev worker. It never touches the
+owner's `kardata` database, compose containers, or ports 5173/5174/3001.
+
+Run command (keys load from `agents/.env`, never printed):
+
+```
+set -a; . agents/.env; set +a; KARDATA_LIVE_META=1 KARDATA_TEMPORAL_TEST=1 TEST_DATABASE_URL=<compose pg url>/kardata npm test -w @kardata/backend -- live/ --no-file-parallelism
+```
+
+Files run sequentially (`--no-file-parallelism`): 10 min per test, 30 min per
+file. Re-run one test with `-t "<ID>"`. Spend is read back from the archived
+execution records via the harness `spend()` helper and reported per test.
+
+The live browser stack (`scripts/live-stack.sh`, stop with
+`scripts/live-stack-stop.sh`, which kills only its recorded PIDs) serves the
+same isolated namespace/database on backend port 3101 for the
+`tests/frontend-e2e/live/*.live.spec.ts` specs (gated by `KARDATA_LIVE_UI=1`,
+Vite on 15174, no route interception). Live screenshots go to
+`tests/evidence/sector-backend-v1/` and are not committed.

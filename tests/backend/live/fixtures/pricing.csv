@@ -1,0 +1,21 @@
+sku,item,unit_price_usd,stock,vendor,lead_days
+HC-001,Porcelain crown kit,184.50,120,Harbourlight Dental,3
+HC-002,Implant torque wrench,96.00,45,Harbourlight Dental,5
+BP-101,Copper elbow 22mm,4.25,2000,Beacon Plumbing Co,1
+BP-102,Boiler service kit,88.90,310,Beacon Plumbing Co,2
+BP-103,Smart thermostat,142.00,88,Beacon Plumbing Co,4
+NB-201,Sourdough starter culture,12.75,500,Northwind Bakery,7
+NB-202,Deck oven stone,210.40,22,Northwind Bakery,14
+HC-003,Dental chair tubing set,64.30,140,Harbourlight Dental,6
+BP-104,Pressure gauge 0-10bar,28.60,420,Beacon Plumbing Co,1
+BP-105,Pipe insulation roll,19.95,760,Beacon Plumbing Co,1
+NB-203,Flour sifter commercial,74.20,65,Northwind Bakery,9
+HC-004,LED curing light,132.80,52,Harbourlight Dental,4
+BP-106,Drain camera 30m,349.00,18,Beacon Plumbing Co,11
+NB-204,Proofing basket set,26.40,230,Northwind Bakery,5
+HC-005,Autoclave tray large,58.10,95,Harbourlight Dental,3
+BP-107,Water softener salt 25kg,16.80,940,Beacon Plumbing Co,2
+NB-205,Baguette scoring lame,9.60,610,Northwind Bakery,3
+HC-006,X-ray apron 0.5mm,112.25,38,Harbourlight Dental,8
+BP-108,Stopcock brass 15mm,7.45,1500,Beacon Plumbing Co,1
+NB-206,Wooden peel 90cm,34.90,120,Northwind Bakery,6

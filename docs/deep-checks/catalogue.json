@@ -24,7 +24,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "6f413a5d65ad122a127a6748f3f4592dea303cbe96cf0c8a1b7b38303144fbe9",
+      "sha256": "093a5e09158a736f2a111c5d774384c3b0957517f03425fadfcedbe4f23d21ae",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -2774,10 +2774,14 @@
     },
     {
       "path": "backend/src/temporal/dev-worker.ts",
-      "sha256": "b110c5930501b313ca36ec8768e3e0b835b9b4066db738514216e90f80e63b48",
+      "sha256": "81a61fb0b261a1958304a758dc0c52a77e10e111fc5b27a688b2fd3282eaa1fa",
       "review": "pending",
       "tests": [],
-      "exports": []
+      "exports": [
+        "DevWorkerBundles",
+        "DevWorkers",
+        "createDevWorkers"
+      ]
     },
     {
       "path": "backend/src/temporal/discovery-acceptance.ts",
@@ -4949,7 +4953,7 @@
     },
     {
       "path": "tests/backend/db-helper.ts",
-      "sha256": "5fd75603566c7a0c3930c7fa29b4c9789c77fdc9bf9cd3cf298ea9bdd4ee6232",
+      "sha256": "f613c116ece6d0bfd0a7f55eaf94e174b981e7c81e0613a45a37b547575d885b",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -5289,6 +5293,52 @@
     {
       "path": "tests/backend/ledger.test.ts",
       "sha256": "4657d7ac9dfd4b1091afa05bad23571ad21893947da4f6d6db61ae9d51a8c351",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/live/fixtures/market-notes.md",
+      "sha256": "921e4e1e5f7ebd58c4fa084b958c24c78f0a8fbba5df3dc1883cbe545011d89e",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/live/fixtures/pricing.csv",
+      "sha256": "87ae76f52544c8a6b92a5c2e83139cde293d467cea3a541b07f6983925c1034b",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/live/fixtures/report.pdf",
+      "sha256": "679a5187b931193bb2dc5fa8ee558ae14fdc6b159f6de21e6601321e0e6368de",
+      "review": "excluded",
+      "reason": "Test evidence/data: validate provenance and consumers; not owned runtime behavior.",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/live/harness.ts",
+      "sha256": "363a908c70d61a6ba6ab5e4560a997f66bb786995820c26270650d2ea4dd3720",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "LIVE_META_ENABLED",
+        "LIVE_NAMESPACE",
+        "LIVE_PORT",
+        "LiveApiResult",
+        "LiveExecutionRequest",
+        "LiveStack",
+        "startLiveStack"
+      ]
+    },
+    {
+      "path": "tests/backend/live/stage0.live.test.ts",
+      "sha256": "293d491876bb68c89eb9b929b0807ece363ef76cdb9ff0c55e1369266a5f9a4c",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5922,7 +5972,7 @@
     },
     {
       "path": "tests/backend/workflows.sweep.test.ts",
-      "sha256": "1c77417c22fd5f3fc469d1ed1b5ce45c2376b8f041891604d69a969e04958f46",
+      "sha256": "8125c7f79947d81028b4fb9394bedd51246ad4c90776da1eabc5398ad5c88004",
       "review": "pending",
       "tests": [],
       "exports": []

@@ -14,8 +14,10 @@ export const TEST_DATABASE_URL = process.env['TEST_DATABASE_URL']
 export const TEMPLATE_RUN_ENV = 'KARDATA_TEST_DB_RUN_ID'
 
 export function derivedUrl(dbName: string): string {
-  if (!/^kardata_test_[a-z0-9_]+$/.test(dbName) || dbName.length > 63) {
-    throw new Error('Expected an isolated test database name (kardata_test_<suite>, at most 63 characters)')
+  // kardata_live_<suite> is the live-Meta suite prefix (tests/backend/live):
+  // same isolation guarantees as kardata_test_, never a real database name.
+  if (!/^kardata_(test|live)_[a-z0-9_]+$/.test(dbName) || dbName.length > 63) {
+    throw new Error('Expected an isolated test database name (kardata_test_<suite> or kardata_live_<suite>, at most 63 characters)')
   }
   if (!TEST_DATABASE_URL) throw new Error('TEST_DATABASE_URL is required for live database tests')
   const url = new URL(TEST_DATABASE_URL)

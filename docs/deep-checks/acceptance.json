@@ -10530,6 +10530,27 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/temporal/dev-worker.ts#createDevWorkers",
+      "source": "backend/src/temporal/dev-worker.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/dev-worker.ts#DevWorkerBundles",
+      "source": "backend/src/temporal/dev-worker.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/dev-worker.ts#DevWorkers",
+      "source": "backend/src/temporal/dev-worker.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/temporal/discovery-acceptance.ts#discoverySample",
       "source": "backend/src/temporal/discovery-acceptance.ts",
       "kind": "export",

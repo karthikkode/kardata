@@ -1,5 +1,18 @@
 # Implementation status
 
+Sweep workflow suite red on clean main (2026-10-04, `workflows.sweep.test.ts`
+2 failed: expected 2 companies got 1, expected 0 got 7). Root cause: the
+suite's local search stub serves on 127.0.0.1, but the hardened
+public-URL guard admits no loopback destination, so the keyed leg threw
+`blocked`, the facade swallowed the RetrievalError, and the sweep fell
+through to the LIVE keyless leg (recorded rows were Merriam-Webster,
+Reddit, Britannica, IBM, NASA: open-internet data in a suite whose
+contract is "real HTTP, no open internet"). Product behavior (guard plus
+fallthrough) is pinned and correct; the test was fixed to use the
+documented injectable-leg contract: the keyed leg does real HTTP against
+the stub, keyless returns nothing, the browser leg throws. Suite green
+(3/3). No production code changed.
+
 Library-spike verdicts on `ui-revamp-perfect` (frontend-only, measured, not assumed).
 Streamdown 2.7.0: typecheck clean, 4/5 markdown tests green; the hostile-output
 case differs (link dropped versus the pinned inert `#` anchor, both inert) and
