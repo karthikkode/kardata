@@ -159,6 +159,13 @@ Legend: L/D = light/dark, viewports 390/1440 unless noted, RM = reduced motion.
 | GC-05 approval | consequences, stale guard | approval.test.ts | — | pass |
 | GC-06 history | bounded revisions | sector-workspace.test.tsx | — | pass |
 | GC-07 file preview | hashes + 50-unit windows | sector-file-preview.test.tsx | file-processing | pass |
+| GC-08 instructions | Overline + edit/diff fields | context-file-blocks.test.tsx | — | pass |
+| GC-09 switch | menu toggle, off chip | session-global-context.test.tsx | — | pass |
+| GC-10 file blocks | states/badges/expand/remove | context-file-blocks.test.tsx | — | pass |
+| GC-11 usage bar | tones ≥70%/≥100%, breakdown | context-file-blocks.test.tsx | — | pass |
+| GC-12 compact/restore | menu, labels, confirm | context-file-blocks.test.tsx | — | pass |
+| GC-13 rewrite | dialog, navigate | context-file-blocks.test.tsx | — | pass |
+| GC-14 full viewer | six headings, copy | context-file-blocks.test.tsx | — | pass |
 
 ## Local context/compaction/inspection (LC) — LocalContextEditor, ExecutionInspector
 

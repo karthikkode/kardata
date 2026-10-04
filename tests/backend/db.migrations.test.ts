@@ -17,7 +17,7 @@ async function tables(client: Client): Promise<string[]> {
 
 describe('migrations (B0.3)', () => {
   it('lists migration files in version order', () => {
-    expect(migrationFiles(DIR)).toEqual(['0001_init.sql', '0002_ledger_event_seq.sql', '0003_projection_checkpoints.sql', '0004_outbox_notify.sql', '0005_api_keys.sql', '0006_rate_idempotency.sql', '0007_sector_domain.sql', '0008_knowledge_ledger.sql', '0009_sector_drafts.sql', '0010_sector_document_units.sql', '0011_sector_context_selection.sql', '0012_sector_research_session.sql', '0013_sector_planning_states.sql', '0014_sector_workspace.sql', '0015_workspace_file_index.sql', '0016_turn_continuations.sql', '0017_workspace_measurements.sql', '0018_workspace_hardening.sql', '0019_turn_attempt_leases.sql', '0020_context_file_dependencies.sql', '0021_execution_epochs.sql', '0022_intake_review.sql', '0023_file_processing.sql'])
+    expect(migrationFiles(DIR)).toEqual(['0001_init.sql', '0002_ledger_event_seq.sql', '0003_projection_checkpoints.sql', '0004_outbox_notify.sql', '0005_api_keys.sql', '0006_rate_idempotency.sql', '0007_sector_domain.sql', '0008_knowledge_ledger.sql', '0009_sector_drafts.sql', '0010_sector_document_units.sql', '0011_sector_context_selection.sql', '0012_sector_research_session.sql', '0013_sector_planning_states.sql', '0014_sector_workspace.sql', '0015_workspace_file_index.sql', '0016_turn_continuations.sql', '0017_workspace_measurements.sql', '0018_workspace_hardening.sql', '0019_turn_attempt_leases.sql', '0020_context_file_dependencies.sql', '0021_execution_epochs.sql', '0022_intake_review.sql', '0023_file_processing.sql', '0024_sector_model_v1.sql'])
   })
 
   describe.skipIf(!DB)('against Postgres', () => {
@@ -34,7 +34,7 @@ describe('migrations (B0.3)', () => {
       const connectionString = await ensureTestDb('kardata_test_migrations_up')
       await migrate(connectionString, DIR, 'down')
       const applied = await migrate(connectionString, DIR, 'up')
-      expect(applied).toEqual(['up:0001_init', 'up:0002_ledger_event_seq', 'up:0003_projection_checkpoints', 'up:0004_outbox_notify', 'up:0005_api_keys', 'up:0006_rate_idempotency', 'up:0007_sector_domain', 'up:0008_knowledge_ledger', 'up:0009_sector_drafts', 'up:0010_sector_document_units', 'up:0011_sector_context_selection', 'up:0012_sector_research_session', 'up:0013_sector_planning_states', 'up:0014_sector_workspace', 'up:0015_workspace_file_index', 'up:0016_turn_continuations', 'up:0017_workspace_measurements', 'up:0018_workspace_hardening', 'up:0019_turn_attempt_leases', 'up:0020_context_file_dependencies', 'up:0021_execution_epochs', 'up:0022_intake_review', 'up:0023_file_processing'])
+      expect(applied).toEqual(['up:0001_init', 'up:0002_ledger_event_seq', 'up:0003_projection_checkpoints', 'up:0004_outbox_notify', 'up:0005_api_keys', 'up:0006_rate_idempotency', 'up:0007_sector_domain', 'up:0008_knowledge_ledger', 'up:0009_sector_drafts', 'up:0010_sector_document_units', 'up:0011_sector_context_selection', 'up:0012_sector_research_session', 'up:0013_sector_planning_states', 'up:0014_sector_workspace', 'up:0015_workspace_file_index', 'up:0016_turn_continuations', 'up:0017_workspace_measurements', 'up:0018_workspace_hardening', 'up:0019_turn_attempt_leases', 'up:0020_context_file_dependencies', 'up:0021_execution_epochs', 'up:0022_intake_review', 'up:0023_file_processing', 'up:0024_sector_model_v1'])
       // Second up is a no-op.
       expect(await migrate(connectionString, DIR, 'up')).toEqual([])
 
@@ -42,7 +42,7 @@ describe('migrations (B0.3)', () => {
       await client.connect()
       try {
         expect(await tables(client)).toEqual(
-          expect.arrayContaining(['events', 'heartbeats', 'outbox', 'threads', 'thread_messages', 'ledger_entries', 'projection_checkpoints', 'api_keys', 'rate_windows', 'idempotency_records', 'schema_migrations', 'sectors', 'companies', 'kb_documents', 'kb_chunks', 'ledger_companies', 'ledger_problems', 'sector_documents', 'sector_document_units', 'sector_context_selection', 'sector_context_notes', 'sector_workspace', 'workspace_changes', 'thread_context', 'workspace_files', 'research_work', 'thread_instructions', 'file_processing_jobs', 'file_processing_images', 'file_processing_attempts']),
+          expect.arrayContaining(['events', 'heartbeats', 'outbox', 'threads', 'thread_messages', 'ledger_entries', 'projection_checkpoints', 'api_keys', 'rate_windows', 'idempotency_records', 'schema_migrations', 'sectors', 'companies', 'kb_documents', 'kb_chunks', 'ledger_companies', 'ledger_problems', 'sector_documents', 'sector_document_units', 'sector_context_selection', 'sector_context_notes', 'sector_workspace', 'workspace_changes', 'thread_context', 'workspace_files', 'research_work', 'thread_instructions', 'file_processing_jobs', 'file_processing_images', 'file_processing_attempts', 'session_settings', 'context_file_blocks']),
         )
         await client.query(
           "INSERT INTO events (idempotency_key, partition, type) VALUES ('k1', 'p1', 't.run.started')",
@@ -59,6 +59,7 @@ describe('migrations (B0.3)', () => {
       const connectionString = await ensureTestDb('kardata_test_migrations_roundtrip')
       // ensureTestDb already supplies a validated, migrated empty schema.
       expect(await migrate(connectionString, DIR, 'down')).toEqual([
+        'down:0024_sector_model_v1',
         'down:0023_file_processing',
         'down:0022_intake_review',
         'down:0021_execution_epochs',
@@ -90,7 +91,7 @@ describe('migrations (B0.3)', () => {
       } finally {
         await client.end()
       }
-      expect(await migrate(connectionString, DIR, 'up')).toEqual(['up:0001_init', 'up:0002_ledger_event_seq', 'up:0003_projection_checkpoints', 'up:0004_outbox_notify', 'up:0005_api_keys', 'up:0006_rate_idempotency', 'up:0007_sector_domain', 'up:0008_knowledge_ledger', 'up:0009_sector_drafts', 'up:0010_sector_document_units', 'up:0011_sector_context_selection', 'up:0012_sector_research_session', 'up:0013_sector_planning_states', 'up:0014_sector_workspace', 'up:0015_workspace_file_index', 'up:0016_turn_continuations', 'up:0017_workspace_measurements', 'up:0018_workspace_hardening', 'up:0019_turn_attempt_leases', 'up:0020_context_file_dependencies', 'up:0021_execution_epochs', 'up:0022_intake_review', 'up:0023_file_processing'])
+      expect(await migrate(connectionString, DIR, 'up')).toEqual(['up:0001_init', 'up:0002_ledger_event_seq', 'up:0003_projection_checkpoints', 'up:0004_outbox_notify', 'up:0005_api_keys', 'up:0006_rate_idempotency', 'up:0007_sector_domain', 'up:0008_knowledge_ledger', 'up:0009_sector_drafts', 'up:0010_sector_document_units', 'up:0011_sector_context_selection', 'up:0012_sector_research_session', 'up:0013_sector_planning_states', 'up:0014_sector_workspace', 'up:0015_workspace_file_index', 'up:0016_turn_continuations', 'up:0017_workspace_measurements', 'up:0018_workspace_hardening', 'up:0019_turn_attempt_leases', 'up:0020_context_file_dependencies', 'up:0021_execution_epochs', 'up:0022_intake_review', 'up:0023_file_processing', 'up:0024_sector_model_v1'])
     })
   })
 

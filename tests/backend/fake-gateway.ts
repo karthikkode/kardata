@@ -39,9 +39,10 @@ export class FakeRunsGateway implements RunsGateway {
 
   async send(threadKey: string, text: string): Promise<CommandResult> {
     const target = await this.resolveTarget(threadKey, text, 'runSend')
-    // Like production describe-then-signal: session targets need a live run.
+    // Like production signalWithStart: a first session send starts the run.
     if (target.workflowId.startsWith('session-run-') && !this.runs.has(target.workflowId)) {
-      throw new RunNotFound(`no such run ${target.workflowId}`)
+      const sessionId = target.workflowId.slice('session-run-'.length)
+      this.addRun({ id: target.workflowId, sessionId, threadKey: sessionId, state: 'RUNNING', budgetUsedRatio: 0, contextUsedRatio: 0, updatedAt: new Date().toISOString() })
     }
     this.signals.push({ workflowId: target.workflowId, signal: target.signal, args: [text] })
     return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
@@ -58,6 +59,27 @@ export class FakeRunsGateway implements RunsGateway {
 
   async startSectorPlan(sectorId: string): Promise<CommandResult> {
     this.startedPlans.push(sectorId)
+    return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
+  }
+
+  readonly startedFileSummaries: Array<{ sectorId: string; fileId: string; hash: string }> = []
+
+  async startContextFileSummary(sectorId: string, fileId: string, hash: string): Promise<CommandResult> {
+    this.startedFileSummaries.push({ sectorId, fileId, hash })
+    return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
+  }
+
+  readonly cancelledFileSummaries: Array<{ sectorId: string; fileId: string; hash: string }> = []
+
+  async cancelContextFileSummary(sectorId: string, fileId: string, hash: string): Promise<CommandResult> {
+    this.cancelledFileSummaries.push({ sectorId, fileId, hash })
+    return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
+  }
+
+  readonly startedCompactions: Array<{ sectorId: string; reason: 'auto' | 'manual' }> = []
+
+  async startContextCompaction(sectorId: string, reason: 'auto' | 'manual'): Promise<CommandResult> {
+    this.startedCompactions.push({ sectorId, reason })
     return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
   }
 

@@ -133,7 +133,7 @@ export async function startLiveStack(suite: string): Promise<LiveStack> {
       headers: {
         authorization: `Bearer ${ownerKey}`,
         'idempotency-key': randomUUID(),
-        'content-type': 'application/json',
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     })

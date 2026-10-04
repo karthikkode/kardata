@@ -97,6 +97,17 @@ export interface Session {
   sectorId?: string
   /** Latest stored selection; absent until the caller sets one. */
   model?: SessionModelSelection
+  /** Per-chat global context switch; absent means on. */
+  useGlobalContext?: boolean
+}
+
+/** Set the per-chat global context switch (operator+). */
+export function setSessionSettings(
+  config: StagingConfig,
+  sessionId: string,
+  value: boolean,
+): Promise<{ useGlobalContext: boolean; purpose: string }> {
+  return request(config, 'PATCH', `/v1/sessions/${encodeURIComponent(sessionId)}/settings`, { useGlobalContext: value }, crypto.randomUUID())
 }
 
 export interface ThreadView {

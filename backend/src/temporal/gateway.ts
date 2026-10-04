@@ -81,6 +81,15 @@ export interface RunsGateway {
   /** Start the sector planning run: one workflow per sector, idempotent
    * by workflow id like sweeps. */
   startSectorPlan(sectorId: string, scope?: { tenantId: string; projectId: string | null }): Promise<CommandResult>
+  /** Start one context-file summary: idempotent by workflow id, so a
+   * re-approval while summarizing reuses the running workflow. */
+  startContextFileSummary(sectorId: string, fileId: string, hash: string): Promise<CommandResult>
+  /** Cancel one context-file summary. Best effort: an already-closed
+   * run accepts quietly. */
+  cancelContextFileSummary(sectorId: string, fileId: string, hash: string): Promise<CommandResult>
+  /** Start global-context compaction: one workflow per sector, so a
+   * second trigger while one runs is accepted, not duplicated. */
+  startContextCompaction(sectorId: string, reason: 'auto' | 'manual'): Promise<CommandResult>
   /** Halt the sector's sweep workflow. An already-closed run accepts
    * quietly (nothing to halt); only an unreachable worker throws. */
   cancelSectorSweep(sectorId: string): Promise<CommandResult>
@@ -95,6 +104,11 @@ export interface RunsGateway {
 }
 
 export const SESSION_PREFIX = 'session-run-'
+
+/** Single-flight key: one compaction workflow per sector at a time. */
+export function contextCompactionWorkflowId(sectorId: string): string {
+  return `context-compaction-${sectorId}`
+}
 
 const researchGatewayLogger = createLogger({ op: 'research.execution.transition' })
 export interface ApprovedCoordinatorHandle {
@@ -536,6 +550,52 @@ export class TemporalRunsGateway implements RunsGateway {
       throw error
       }
     })
+    return { commandId: commandId(), state: 'accepted' }
+  }
+
+  /** Context file summary: one workflow per sector, file and content
+   * hash. A re-add while summarizing reuses the running workflow; a
+   * retry after the file changed starts a new hash-suffixed workflow. */
+  async startContextFileSummary(sectorId: string, fileId: string, hash: string): Promise<CommandResult> {
+    const client = await this.client()
+    const workflowId = `context-file-${sectorId}-${fileId}-${hash.slice(0, 8)}`
+    try {
+      await client.workflow.start('contextFileSummary', {
+        workflowId,
+        taskQueue: laneConfig('research').taskQueue,
+        args: [{ sectorId, fileId, hash }],
+      })
+    } catch (error) {
+      if (error instanceof WorkflowExecutionAlreadyStartedError) return { commandId: commandId(), state: 'accepted' }
+      throw error
+    }
+    return { commandId: commandId(), state: 'accepted' }
+  }
+
+  async cancelContextFileSummary(sectorId: string, fileId: string, hash: string): Promise<CommandResult> {
+    const client = await this.client()
+    const handle = client.workflow.getHandle(`context-file-${sectorId}-${fileId}-${hash.slice(0, 8)}`)
+    try {
+      await handle.cancel()
+    } catch (error) {
+      if (error instanceof WorkflowNotFoundError) return { commandId: commandId(), state: 'accepted' }
+      throw error
+    }
+    return { commandId: commandId(), state: 'accepted' }
+  }
+
+  async startContextCompaction(sectorId: string, reason: 'auto' | 'manual'): Promise<CommandResult> {
+    const client = await this.client()
+    try {
+      await client.workflow.start('globalContextCompaction', {
+        workflowId: contextCompactionWorkflowId(sectorId),
+        taskQueue: laneConfig('research').taskQueue,
+        args: [{ sectorId, reason }],
+      })
+    } catch (error) {
+      if (error instanceof WorkflowExecutionAlreadyStartedError) return { commandId: commandId(), state: 'accepted' }
+      throw error
+    }
     return { commandId: commandId(), state: 'accepted' }
   }
 

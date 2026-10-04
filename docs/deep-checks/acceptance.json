@@ -4433,7 +4433,28 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/context-files.ts#chunkDocumentUnits",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/context-files.ts#ContextFileBlock",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/context-files.ts#ContextFileBlocked",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/context-files.ts#ContextFileBlockState",
       "source": "backend/src/db/context-files.ts",
       "kind": "export",
       "features": [],
@@ -4447,7 +4468,42 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/context-files.ts#extractNumberTokens",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/context-files.ts#findMissingNumbers",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/context-files.ts#inheritThreadFileRefs",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/context-files.ts#insertContextFileBlock",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/context-files.ts#listContextFileBlocks",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/context-files.ts#markContextFileBlockFailed",
       "source": "backend/src/db/context-files.ts",
       "kind": "export",
       "features": [],
@@ -4461,6 +4517,27 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/context-files.ts#normalizeSectionsJson",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/context-files.ts#parseJsonObject",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/context-files.ts#readContextFileBlock",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/context-files.ts#recordThreadFileExposure",
       "source": "backend/src/db/context-files.ts",
       "kind": "export",
@@ -4468,7 +4545,21 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/context-files.ts#resetContextFileBlock",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/context-files.ts#threadFileRefs",
+      "source": "backend/src/db/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/context-files.ts#validateBlockTemplate",
       "source": "backend/src/db/context-files.ts",
       "kind": "export",
       "features": [],
@@ -8052,6 +8143,20 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/workspace.ts#applyReadyContextFileBlock",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/workspace.ts#applySystemCompaction",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/workspace.ts#assertFileVisible",
       "source": "backend/src/db/workspace.ts",
       "kind": "export",
@@ -8115,6 +8220,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/workspace.ts#ContextFileBlockView",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/workspace.ts#ContextSections",
       "source": "backend/src/db/workspace.ts",
       "kind": "export",
@@ -8157,7 +8269,28 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/workspace.ts#GLOBAL_CONTEXT_BUDGET_TOKENS",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/workspace.ts#GlobalContext",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/workspace.ts#GlobalContextUsage",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/workspace.ts#globalContextUsageFrom",
       "source": "backend/src/db/workspace.ts",
       "kind": "export",
       "features": [],
@@ -8234,6 +8367,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/workspace.ts#readGlobalContextUsage",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/workspace.ts#readResearchBudget",
       "source": "backend/src/db/workspace.ts",
       "kind": "export",
@@ -8263,6 +8403,13 @@
     },
     {
       "id": "backend/src/db/workspace.ts#readSectorLibraryFile",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/workspace.ts#readSessionSettings",
       "source": "backend/src/db/workspace.ts",
       "kind": "export",
       "features": [],
@@ -8318,6 +8465,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/workspace.ts#removeContextFileBlock",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/workspace.ts#requireSector",
       "source": "backend/src/db/workspace.ts",
       "kind": "export",
@@ -8353,6 +8507,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/workspace.ts#restoreGlobalContextVersion",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/workspace.ts#retainCompatibleDiscovery",
       "source": "backend/src/db/workspace.ts",
       "kind": "export",
@@ -8381,7 +8542,28 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/workspace.ts#SessionSettings",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/workspace.ts#setFileVisibility",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/workspace.ts#setSessionPurpose",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/workspace.ts#setUseGlobalContext",
       "source": "backend/src/db/workspace.ts",
       "kind": "export",
       "features": [],
@@ -9732,6 +9914,62 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/temporal/activities/context-files.ts#buildContextFilePrompt",
+      "source": "backend/src/temporal/activities/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/context-files.ts#compactGlobalContextActivity",
+      "source": "backend/src/temporal/activities/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/context-files.ts#CONTEXT_FILE_MODEL",
+      "source": "backend/src/temporal/activities/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/context-files.ts#ContextCompactionInput",
+      "source": "backend/src/temporal/activities/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/context-files.ts#ContextFileActivitiesDeps",
+      "source": "backend/src/temporal/activities/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/context-files.ts#ContextFileSummaryInput",
+      "source": "backend/src/temporal/activities/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/context-files.ts#createContextFileActivities",
+      "source": "backend/src/temporal/activities/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/context-files.ts#summarizeContextFileActivity",
+      "source": "backend/src/temporal/activities/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/temporal/activities/coordinator.ts#CoordinatorInput",
       "source": "backend/src/temporal/activities/coordinator.ts",
       "kind": "export",
@@ -10362,6 +10600,20 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/temporal/activities/turn.ts#CONTEXT_PROPOSAL_NUDGE",
+      "source": "backend/src/temporal/activities/turn.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/turn.ts#CONTEXT_REWRITE_PREAMBLE",
+      "source": "backend/src/temporal/activities/turn.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/temporal/activities/turn.ts#executeKarbotTurn",
       "source": "backend/src/temporal/activities/turn.ts",
       "kind": "export",
@@ -10502,6 +10754,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/temporal/activities/turn.ts#turnContextSnapshot",
+      "source": "backend/src/temporal/activities/turn.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/temporal/activities/turn.ts#TurnInput",
       "source": "backend/src/temporal/activities/turn.ts",
       "kind": "export",
@@ -10517,6 +10776,13 @@
     },
     {
       "id": "backend/src/temporal/activities/turn.ts#turnPalette",
+      "source": "backend/src/temporal/activities/turn.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/turn.ts#turnSectorRefs",
       "source": "backend/src/temporal/activities/turn.ts",
       "kind": "export",
       "features": [],
@@ -10615,6 +10881,13 @@
     },
     {
       "id": "backend/src/temporal/gateway.ts#CommandResult",
+      "source": "backend/src/temporal/gateway.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/gateway.ts#contextCompactionWorkflowId",
       "source": "backend/src/temporal/gateway.ts",
       "kind": "export",
       "features": [],
@@ -10964,6 +11237,20 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/temporal/workflows/context-files.ts#contextFileSummary",
+      "source": "backend/src/temporal/workflows/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/workflows/context-files.ts#globalContextCompaction",
+      "source": "backend/src/temporal/workflows/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/temporal/workflows/coordinator.ts#companyResearch",
       "source": "backend/src/temporal/workflows/coordinator.ts",
       "kind": "export",
@@ -11120,6 +11407,13 @@
     {
       "id": "backend/src/temporal/workflows/reconciliation.ts#executionReconciliation",
       "source": "backend/src/temporal/workflows/reconciliation.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/workflows/research-bundle.ts#*:./context-files.js",
+      "source": "backend/src/temporal/workflows/research-bundle.ts",
       "kind": "export",
       "features": [],
       "status": "pending"
@@ -13995,6 +14289,13 @@
       "status": "pending"
     },
     {
+      "id": "frontend/src/data/staging-api.ts#setSessionSettings",
+      "source": "frontend/src/data/staging-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "frontend/src/data/staging-api.ts#SkillSummary",
       "source": "frontend/src/data/staging-api.ts",
       "kind": "export",
@@ -14114,6 +14415,20 @@
       "status": "pending"
     },
     {
+      "id": "frontend/src/data/workspace-api.ts#addFileToGlobalContext",
+      "source": "frontend/src/data/workspace-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/data/workspace-api.ts#compactGlobalContext",
+      "source": "frontend/src/data/workspace-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "frontend/src/data/workspace-api.ts#compactLocalContext",
       "source": "frontend/src/data/workspace-api.ts",
       "kind": "export",
@@ -14122,6 +14437,13 @@
     },
     {
       "id": "frontend/src/data/workspace-api.ts#ContextChange",
+      "source": "frontend/src/data/workspace-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/data/workspace-api.ts#ContextFileBlock",
       "source": "frontend/src/data/workspace-api.ts",
       "kind": "export",
       "features": [],
@@ -14247,6 +14569,13 @@
       "status": "pending"
     },
     {
+      "id": "frontend/src/data/workspace-api.ts#GlobalContextUsage",
+      "source": "frontend/src/data/workspace-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "frontend/src/data/workspace-api.ts#hideSectorFile",
       "source": "frontend/src/data/workspace-api.ts",
       "kind": "export",
@@ -14310,7 +14639,21 @@
       "status": "pending"
     },
     {
+      "id": "frontend/src/data/workspace-api.ts#removeGlobalContextFile",
+      "source": "frontend/src/data/workspace-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "frontend/src/data/workspace-api.ts#ResearchProgress",
+      "source": "frontend/src/data/workspace-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/data/workspace-api.ts#restoreGlobalContext",
       "source": "frontend/src/data/workspace-api.ts",
       "kind": "export",
       "features": [],
@@ -14353,6 +14696,20 @@
     },
     {
       "id": "frontend/src/data/workspace-api.ts#SectorFileBody",
+      "source": "frontend/src/data/workspace-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/data/workspace-api.ts#startGlobalContextRewrite",
+      "source": "frontend/src/data/workspace-api.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/data/workspace-api.ts#summarizeGlobalContextFile",
       "source": "frontend/src/data/workspace-api.ts",
       "kind": "export",
       "features": [],

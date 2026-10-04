@@ -17,7 +17,7 @@ describe('template identity', () => {
     const identity = templateIdentity('a'.repeat(32))
     expect(identity).toEqual(templateIdentity('a'.repeat(32)))
     expect(identity.name.length).toBeLessThanOrEqual(63)
-    expect(identity.versions).toHaveLength(23)
+    expect(identity.versions).toHaveLength(24)
     expect(identity.marker).toMatch(/^kardata-test-template:v1:a{32}:[a-f0-9]{64}$/)
     expect(templateIdentity('b'.repeat(32)).marker).not.toBe(identity.marker)
   })

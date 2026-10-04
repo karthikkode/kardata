@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
-import { apiErrorStatus, attachSectorDocument, cancelRun, createSession, deleteSession, listSessions, listThreads, readSectorPlan, renameSession, resumeRun, StagingApiError, type StagingConfig } from './staging-api'
-import { rebuildLocalContext, inspectThreadOperation, compactLocalContext, decideGlobalContext, ensureResearchSession, getContextPreview, getGlobalContext, getLocalContext, getResearchProgress, getSectorFileBody, getSectorFiles, hideSectorFile, includeSectorFile, saveGlobalContext, saveLocalContext, retryFileProcessing, getFileUnitsPage, type Sections } from './workspace-api'
+import { apiErrorStatus, attachSectorDocument, cancelRun, createSession, deleteSession, listSessions, listThreads, readSectorPlan, renameSession, resumeRun, setSessionSettings, StagingApiError, type StagingConfig } from './staging-api'
+import { rebuildLocalContext, inspectThreadOperation, compactLocalContext, compactGlobalContext, restoreGlobalContext, startGlobalContextRewrite, decideGlobalContext, ensureResearchSession, getContextPreview, getGlobalContext, getLocalContext, getResearchProgress, getSectorFileBody, getSectorFiles, hideSectorFile, addFileToGlobalContext, summarizeGlobalContextFile, removeGlobalContextFile, saveGlobalContext, saveLocalContext, retryFileProcessing, getFileUnitsPage, type Sections } from './workspace-api'
 import { useWorkspaceConversation, useWorkspaceResource } from './useWorkspace'
 import { getExecutionRecord, listExecutionRecords } from './workspace-api'
 
@@ -76,14 +76,29 @@ export function useSectorWorkspace(config: StagingConfig | null, sectorId: strin
     openThread: (key: string) => { if (selected) onNavigate(selected.id, key) },
     createChat: () => act('create', async (cfg) => { const session = await createSession(cfg, 'New conversation', sectorId ?? undefined); if (sessions.acknowledge([...(sessions.data ?? []), { ...session, kind: 'normal' as const }])) onNavigate(session.id, session.id) }),
     renameChat: (title: string) => act('rename', async (cfg) => { if (selected) await renameSession(cfg, selected.id, title); sessions.refresh() }),
+    setUseGlobalContext: (value: boolean) => act('settings', async (cfg) => { if (selected) await setSessionSettings(cfg, selected.id, value); sessions.refresh() }),
     deleteChat: () => act('delete', async (cfg) => { if (!selected || selected.kind === 'research') return; await deleteSession(cfg, selected.id); sessions.refresh(); const research = sessions.data?.find((session) => session.kind === 'research'); if (research) onNavigate(research.id, research.id) }),
     stop: () => act('stop', async (cfg) => { if (activeThread) await cancelRun(cfg, child ? child.key.replace(/^agent:/, '') : `session-run-${selected?.id}`); chat.stopped() }),
     resume: () => act('resume', async (cfg) => { if (activeThread) await resumeRun(cfg, child ? child.key.replace(/^agent:/, '') : `session-run-${selected?.id}`); threads.refresh(); local.refresh() }),
     saveGlobal: (sections: Sections, baseVersion: number) => act('global', async (cfg) => { if (!sectorId) return; await saveGlobalContext(cfg, sectorId, baseVersion, sections); global.refresh() }),
+    compactGlobal: () => act('global', async (cfg) => { if (!sectorId) return; await compactGlobalContext(cfg, sectorId); global.refresh() }),
+    restoreGlobal: (version: number) => act('global', async (cfg) => { if (!sectorId) return; await restoreGlobalContext(cfg, sectorId, version); global.refresh() }),
+    startRewrite: (instruction: string) => (async () => {
+      let sessionId: string | null = null
+      const ok = await act('global', async (cfg) => {
+        if (!sectorId) return
+        sessionId = (await startGlobalContextRewrite(cfg, sectorId, instruction)).sessionId
+        sessions.refresh()
+      })
+      if (ok && sessionId) onNavigate(sessionId, sessionId)
+      return ok
+    })(),
     decide: (id: string, approve: boolean) => act('approval', async (cfg) => { if (!sectorId) return; await decideGlobalContext(cfg, sectorId, id, approve); global.refresh(); files.refresh() }),
     retryFile: (fileId: string, jobId: string, revision: number, allowDuplicatePaid: boolean) => act('file-retry', async (cfg) => { if (!sectorId) return; await retryFileProcessing(cfg, sectorId, fileId, jobId, revision, allowDuplicatePaid); files.refresh() }),
     hideFile: (id: string, hidden: boolean) => act('file', async (cfg) => { if (!sectorId) return; await hideSectorFile(cfg, sectorId, id, hidden); files.refresh() }),
-    includeFile: (id: string) => act('file', async (cfg) => { if (!sectorId || !global.data || !activeThread) return; await includeSectorFile(cfg, sectorId, id, global.data.version, activeThread); global.refresh() }),
+    includeFile: (id: string) => act('file', async (cfg) => { if (!sectorId) return; await addFileToGlobalContext(cfg, sectorId, id); global.refresh(); files.refresh() }),
+    summarizeFile: (id: string) => act('file', async (cfg) => { if (!sectorId) return; await summarizeGlobalContextFile(cfg, sectorId, id); global.refresh() }),
+    removeFile: (id: string) => act('file', async (cfg) => { if (!sectorId) return; await removeGlobalContextFile(cfg, sectorId, id); global.refresh(); files.refresh() }),
     upload: (file: File) => act('upload', async (cfg) => {
       if (!sectorId) return
       if (file.size > 8 * 1024 * 1024) throw new Error('This file is larger than 8 MB. Choose a smaller file.')

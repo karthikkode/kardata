@@ -82,7 +82,7 @@ describe.skipIf(!TEST_DATABASE_URL)('execution record durable ownership', () => 
         // Fault at the actual DB read boundary, after old rows are captured.
         if (sql === 'SELECT * FROM sector_workspace WHERE sector_id=$1' && !edited) {
           edited = true
-          await proposeGlobalContext(pool, { sectorId, sourceThread: session.id, owner: true, baseVersion: 0, sections: { scope: 'TEST scope', decisions: '', findings: 'TEST fresh owner finding', questions: '' } })
+          await proposeGlobalContext(pool, { sectorId, sourceThread: session.id, owner: true, baseVersion: 0, sections: { scope: 'TEST scope', instructions: '', decisions: '', findings: 'TEST fresh owner finding', questions: '' } })
         }
         return { rows: result.rows as R[], rowCount: result.rowCount }
       } }

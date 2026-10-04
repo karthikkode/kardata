@@ -11,9 +11,11 @@ import {
   getSector,
   getSession,
   listSessions,
+  readSessionSettings,
   renameSession,
   setSessionModel,
   sessionKind,
+  setUseGlobalContext,
   WorkspaceError,
   researchSessionBinding,
 } from '../db/index.js'
@@ -33,6 +35,8 @@ const SetSessionModelBody = z.object({
   effort: z.string().min(1).optional(),
 });
 
+const SetSessionSettingsBody = z.object({ useGlobalContext: z.boolean() });
+
 export function sessionRoutes(app: FastifyInstance, catalog: ModelCatalog): void {
   route(app, 'get', '/v1/sessions', async (request, reply, app) => {
     const pool = requirePool(app, reply)
@@ -45,7 +49,8 @@ export function sessionRoutes(app: FastifyInstance, catalog: ModelCatalog): void
     }
     const sessions = await listSessions(pool, auth.scope, query.sectorId)
     const research = query.sectorId ? await researchSessionBinding(pool, query.sectorId) : null
-    return { ok: true, data: sessions.map((session) => ({ ...session, kind: session.id === research ? 'research' : 'normal' })) }
+    const settings = new Map(await Promise.all(sessions.map(async (session) => [session.id, await readSessionSettings(pool, session.id)] as const)))
+    return { ok: true, data: sessions.map((session) => ({ ...session, kind: session.id === research ? 'research' : 'normal', useGlobalContext: settings.get(session.id)?.useGlobalContext ?? true })) }
   })
 
   route(app, 'post', '/v1/sessions', async (request, reply, app) => {
@@ -78,7 +83,28 @@ export function sessionRoutes(app: FastifyInstance, catalog: ModelCatalog): void
     const params = request.params as { sessionId: string }
     const session = await getSession(pool, params.sessionId, auth.scope)
     if (!session) return sendError(reply, 404, 'not_found', `no such session ${params.sessionId}`)
-    return { ok: true, data: { ...session, kind: await sessionKind(pool, session.id) } }
+    const settings = await readSessionSettings(pool, session.id)
+    return { ok: true, data: { ...session, kind: await sessionKind(pool, session.id), useGlobalContext: settings.useGlobalContext } }
+  })
+
+  route(app, 'patch', '/v1/sessions/:sessionId/settings', async (request, reply, app) => {
+    const pool = requirePool(app, reply)
+    if (!pool) return undefined
+    const auth = await authorize(app, request, reply, 'operator')
+    if (!auth) return undefined
+    const params = request.params as { sessionId: string }
+    const body = parseInput(SetSessionSettingsBody, request.body, reply)
+    if (!body) return undefined
+    return withIdempotency(request, reply, pool, auth.keyId, async () => {
+      const settings = await setUseGlobalContext(pool, params.sessionId, body.useGlobalContext, auth.scope)
+      if (!settings) {
+        return {
+          status: 404,
+          body: { ok: false, error: { code: 'not_found', message: `no such session ${params.sessionId}` } },
+        }
+      }
+      return { status: 200, body: { ok: true, data: settings } }
+    })
   })
 
   route(app, 'patch', '/v1/sessions/:sessionId/model', async (request, reply, app) => {

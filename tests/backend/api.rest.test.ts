@@ -267,12 +267,19 @@ describe.skipIf(!ENABLED)('REST parity (B3.1)', () => {
     expect(mention.statusCode).toBe(202)
     expect(runs.signals.at(-1)).toMatchObject({ workflowId: 'c1', signal: 'childMessage' })
 
-    const noRun = await app.inject({
+    const firstSend = await app.inject({
       method: 'POST',
       url: '/v1/commands/send',
       payload: { threadKey: 's-c', text: 'hello?' },
     })
-    expect(noRun.statusCode).toBe(404)
+    expect(firstSend.statusCode).toBe(202)
+    const started = await app.inject({ method: 'GET', url: '/v1/runs/session-run-s-c' })
+    expect(started.statusCode).toBe(200)
+    expect((started.json() as { data: Record<string, unknown> }).data).toMatchObject({
+      id: 'session-run-s-c',
+      sessionId: 's-c',
+      state: 'RUNNING',
+    })
 
     const noThread = await app.inject({
       method: 'POST',

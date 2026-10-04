@@ -1,5 +1,29 @@
 # Implementation status
 
+Stage-2 gate reds root-caused (2026-10-04, `sector-backend-v1`, uncommitted).
+(1) `api.rest.test.ts` pinned 404 for a first send to a run-less session, but
+production `signalTarget` (`backend/src/temporal/gateway.ts`) explicitly
+signalWithStarts session targets ("absent workflows start instead of
+404ing"); the fake's old describe-then-signal comment was stale. The test was
+the wrong side: it now pins 202 plus a RUNNING `session-run-s-c`, matching
+production. (2) `workflows.loopguards.test.ts` missed its suspended event
+twice under full-suite load while passing 4/4 in isolation: the query state
+turns suspended before the `t.research.suspended` event row lands, and the
+test read events once with no wait. Test-side race, fixed with the same
+waitFor-event pattern the file already uses for `resume_denied`; no product
+code touched research loop guards.
+
+Sector backend v1, stage 2 (2026-10-04, uncommitted work-in-progress on
+`sector-backend-v1`): five text sections (Scope, Instructions, Decisions,
+Findings, Open questions) plus AI file blocks, per-chat "use global context"
+switch, 30k estimated budget with per-section/per-file breakdown, system
+compaction (auto at 70%, manual, restore), and `Context rewrite:` tracked
+chats. Live-verified with real Meta on isolated `kardata-live` /
+`kardata_live_*`: L-A4/A5, L-A6 (md+pdf blocks, numeric coverage), L-A7
+(removal, sub-500ms), L-A8 (usage math). Compaction live proof pending:
+first Meta attempt returned section arrays instead of strings; the prompt was
+hardened (explicit shape, strip, normalize) and re-run awaits DB recovery.
+
 Sweep workflow suite red on clean main (2026-10-04, `workflows.sweep.test.ts`
 2 failed: expected 2 companies got 1, expected 0 got 7). Root cause: the
 suite's local search stub serves on 127.0.0.1, but the hardened

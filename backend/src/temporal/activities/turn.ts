@@ -41,9 +41,10 @@ import {
   recordHeartbeat,
   searchKb,
   workerPoolFromEnv,
+  type Db,
   type SessionModelSelection,
 } from '../../db/index.js'
-import { sessionKind } from '../../db/workspace.js'
+import { readSessionSettings, sessionKind } from '../../db/workspace.js'
 import { projectNewEvents } from '../../projector.js'
 import { localContextMessages } from '../../context.js'
 import { findModel } from '../../providers/registry.js'
@@ -156,6 +157,10 @@ export const KARBOT_SYSTEM_PROMPT =
   'Standing facts: Kardata sells a managed data layer; the entry wedge is solving one evidenced problem free, then expanding to the data layer. $3k–$6k/month is an internal targeting band, never a quoted price; the only quotable figure is the one-time diagnostic entry. ' +
   'Research discipline: breadth over fixation (record every evidenced problem, never build whole research around one symptom like out-of-stock ads); a problem counts only with mechanism-or-cost evidence from the company’s own domain; every proposal must survive “would they pay $3–6k/mo to fix this, and what evidence says so?”. ' +
   'Response format: GitHub-flavored Markdown rendered as calm chat prose. Write short plain paragraphs. Use bold at most once per reply and never as a label at the start of a line. Use `-` bullets only for real lists and `|` tables only for two or more comparable items. Use `code` only for literal file names, URLs or commands the user should type, never for ids, tool names or citations. Never mention internal tool names, function names or raw ids; describe what you checked in plain words. Do not use em dashes. No raw HTML, no headings in short replies, no invented metrics.'
+export const CONTEXT_REWRITE_PREAMBLE =
+  "You are rewriting this sector's global context per the owner's instruction. Read it with db.get_global_context. Research with web_search/web_fetch if the instruction needs new facts. Rewrite Decisions, Findings, Open questions and, if the instruction asks, Instructions; keep Scope unless told otherwise; never touch Files. Submit exactly one db.propose_global_context against the current version, then summarize what you changed and why in plain words."
+export const CONTEXT_PROPOSAL_NUDGE =
+  'When the owner gives a direction that should guide all future work in this sector (what to focus on, avoid, or prefer), call db.propose_global_context adding it to Instructions (or to Decisions for a settled choice), against the current version, then tell the owner a proposal is waiting for approval. Never claim it is applied.'
 
 /** Bounded text history from the thread projection. Tool result payloads are
  * not chat turns and never become free-form instructions in the prompt. */
@@ -259,11 +264,13 @@ export interface KarbotTurnDeps {
   signal?: AbortSignal
   loadContinuation?(): Promise<{ messages: ChatMessage[]; runKey: string; sources: Array<{ url: string; text: string }>; meta: { round: number; usage: Usage; toolCalls: number; elapsedMs: number; blockedOperations?: RecoveryOperation[]; pendingResponse?: PendingProviderResponse } } | undefined>
   checkpoint?(messages: ChatMessage[], round: number, usage: Usage, toolCalls: number, sources: Array<{ url: string; text: string }>, blockedOperations?: RecoveryOperation[], pendingResponse?: PendingProviderResponse): Promise<void>
-  refreshContext?(round: number): Promise<{ references: string[]; notes: string; steering: string[]; paused?: boolean; contextVersion?: number; planVersion?: number | null; localVersion?: number }>
+  refreshContext?(round: number): Promise<{ references: string[]; notes: string; steering: string[]; paused?: boolean; contextVersion?: number | null; planVersion?: number | null; localVersion?: number }>
   persistSummary?(summary: string, coveredSeq: number): Promise<void>
   loadSessionModel(sessionId: string): Promise<SessionModelSelection | undefined>
   /** Owning sector for sector chats; absent for general Karbot sessions. */
   loadSessionSector?(sessionId: string): Promise<string | undefined>
+  /** Chat purpose (chat or context-rewrite); absent means chat. */
+  loadSessionPurpose?(sessionId: string): Promise<string | undefined>
   /** Sector context references (digest first) for sector chats. Absent
    * means no sector context rides the turn. */
   loadSectorRefs?(sectorId: string): Promise<string[]>
@@ -356,6 +363,7 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
       // id up front, first in the preload.
       const sectorName = (await deps.loadSectorName?.(sectorId)) ?? sectorId
       sectorRefs.push(`Current sector: "${sectorName}" (sector id: ${sectorId}). Use exactly this sector id for every sector tool call; never derive an id from the name.`)
+      sectorRefs.push(CONTEXT_PROPOSAL_NUDGE)
       if (deps.loadSectorRefs) sectorRefs.push(...await deps.loadSectorRefs(sectorId))
     }
     const firstFrame: { tool?: number; reasoning?: number; delta?: number } = {}
@@ -366,8 +374,10 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
     // Round-2+ rebuilds pin the brainstorm preload and the sector id
     // line: refreshed references alone would drop them after round 1.
     const pinned = [...preload, ...sectorRefs.slice(0, 1)]
+    const prepend = [...(parsed.systemPrepend ?? [])]
+    if ((await deps.loadSessionPurpose?.(parsed.sessionId)) === 'context-rewrite') prepend.push(CONTEXT_REWRITE_PREAMBLE)
     const systemPrompt = composeSystemPrompt(KARBOT_SYSTEM_PROMPT, {
-      prepend: parsed.systemPrepend,
+      prepend,
       modePrompt: parsed.mode ? modePromptFor(parsed.mode) : undefined,
       preload: [...preload, ...(parsed.preloadChunks ?? []), ...sectorRefs],
     })
@@ -411,7 +421,7 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
         const refreshed = await deps.refreshContext?.(round)
         boundary = refreshed ? { contextVersion: refreshed.contextVersion, planVersion: refreshed.planVersion, localVersion: refreshed.localVersion } : {}
         if (refreshed?.paused) throw new ResearchPausedError('Research paused at a safe provider boundary.')
-        const prompt = refreshed ? composeSystemPrompt(KARBOT_SYSTEM_PROMPT, { prepend: parsed.systemPrepend, modePrompt: parsed.mode ? modePromptFor(parsed.mode) : undefined, preload: [...pinned, ...(parsed.preloadChunks ?? []), ...refreshed.references, ...(refreshed.notes ? [`Local notes:\n${refreshed.notes}`] : [])] }) : current.systemPrompt
+        const prompt = refreshed ? composeSystemPrompt(KARBOT_SYSTEM_PROMPT, { prepend, modePrompt: parsed.mode ? modePromptFor(parsed.mode) : undefined, preload: [...pinned, ...(parsed.preloadChunks ?? []), ...refreshed.references, ...(refreshed.notes ? [`Local notes:\n${refreshed.notes}`] : [])] }) : current.systemPrompt
         const messages = [...current.messages, ...(refreshed?.steering ?? []).map((text) => ({ role: 'user' as const, text: `Owner steering:\n${text}` }))]
         const profile = parsed.recovery?.selection.provider === 'meta' && parsed.recovery.selection.model ? findModel('meta', parsed.recovery.selection.model) : stored ? findModel(stored.provider, stored.model) : findModel('meta', 'muse-spark-1.3-contributor')
         const compacted = await compactContext({ provider: adapter, system: prompt, messages, tools: current.tools, window: profile?.contextWindow, signal: deps.signal, reasoningEffort: profile?.efforts.includes('low') ? 'low' : undefined, onMeasurement: deps.measureContext })
@@ -744,6 +754,26 @@ export function selectTurnContinuation(saved: Awaited<ReturnType<typeof readTurn
   return saved?.runKey === input.runKey && saved.user === input.text ? saved : undefined
 }
 
+/** Round-1 sector references for a turn, gated on the chat's "use
+ * global context" switch (off means no global text at all). */
+export async function turnSectorRefs(pool: Db, sessionId: string, sectorId: string, threadKey: string): Promise<string[]> {
+  const settings = await readSessionSettings(pool, sessionId)
+  return settings.useGlobalContext ? workspaceReferences(pool, sectorId, undefined, threadKey) : []
+}
+
+/** Round-2+ reference snapshot for a turn. With the switch off the
+ * boundary records no references and a null context version. */
+export async function turnContextSnapshot(
+  pool: Db,
+  sessionId: string,
+  sectorId: string | undefined,
+  threadKey: string,
+): Promise<{ references: string[]; contextVersion: number | null; planVersion?: number | null }> {
+  const settings = await readSessionSettings(pool, sessionId)
+  if (!settings.useGlobalContext || !sectorId) return { references: [], contextVersion: null }
+  return workspaceReferenceSnapshot(pool, sectorId, threadKey)
+}
+
 export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOutcome> {
   const context = Context.current()
   input = KarbotTurnInput.parse(input)
@@ -826,7 +856,8 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
           },
           loadSessionModel: (sessionId) => getSessionModel(pool, sessionId),
           loadSessionSector: async (sessionId) => (await getSession(pool, sessionId))?.sectorId,
-          loadSectorRefs: (sectorId) => workspaceReferences(pool, sectorId, undefined, input.threadKey),
+          loadSessionPurpose: async (sessionId) => (await readSessionSettings(pool, sessionId)).purpose,
+          loadSectorRefs: (sectorId) => turnSectorRefs(pool, input.sessionId, sectorId, input.threadKey),
           loadSectorName: async (sectorId) => (await getSector(pool, sectorId))?.name,
           loadHistory: async (threadKey) => {
             const loaded = await localContextMessages(pool, threadKey)
@@ -838,7 +869,7 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
             const session = await getSession(pool, input.sessionId)
             const local = await readThreadContext(pool, input.threadKey)
             const snapshot = await (async () => {
-              try { return session?.sectorId ? await workspaceReferenceSnapshot(pool, session.sectorId, input.threadKey) : { references: [] } }
+              try { return await turnContextSnapshot(pool, input.sessionId, session?.sectorId, input.threadKey) }
               catch (error) {
                 if (error instanceof WorkspaceError && error.code === 'conflict') throw new ContextBudgetError('Shared context could not settle at this provider boundary. Retry after the edits settle.', { cause: error })
                 throw error

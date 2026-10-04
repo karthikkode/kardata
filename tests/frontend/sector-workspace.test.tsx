@@ -5,12 +5,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { SectorLanding } from '@/components/SectorLanding'
 import { GlobalContextPanel, LocalContextEditor, PlanProgress, ResourceNotice, WorkspaceFiles } from '@/components/workspace-parts'
 import type { SectorDetail } from '@/data/staging-api'
-import type { GlobalContext, ResearchProgress } from '@/data/workspace-api'
+import type { GlobalContext, GlobalContextUsage, ResearchProgress } from '@/data/workspace-api'
 import type { Resource } from '@/data/useWorkspace'
 
 const sector: SectorDetail = { id: 'test-sector', name: 'TEST sector', topic: 'Topic', state: 'draft', companiesFound: 0, companies: [], companiesTotal: 0, activity: [], activityTotal: 0, researchSessionId: null, createdAt: '2026-09-30', updatedAt: '2026-09-30' }
 const progress: Resource<ResearchProgress> = { status: 'ready', refresh: vi.fn(), data: { sectorId: sector.id, state: 'draft', planVersion: 0, items: [], completed: 0, total: 0, unresolved: 0, discoveryClosed: false, estimatedPercent: null } }
-const global: GlobalContext = { sectorId: sector.id, version: 1, researchSessionId: 'research', sections: { scope: 'Scope text', decisions: 'Owner decision', findings: '', questions: '' }, markdown: '## Scope\nScope text', changes: [] }
+const usage: GlobalContextUsage = { total: 10, budget: 30000, method: 'estimated', bySection: { scope: 3, instructions: 0, decisions: 7, findings: 0, questions: 0 }, byFile: [] }
+const global: GlobalContext = { sectorId: sector.id, version: 1, researchSessionId: 'research', sections: { scope: 'Scope text', instructions: '', decisions: 'Owner decision', findings: '', questions: '' }, markdown: '## Scope\nScope text', changes: [], files: [], usage }
 it('shows recorded research time without treating it as completion', () => {
   render(<PlanProgress resource={{ ...progress, data: { ...progress.data!, budgetUsedMs: 90_000 } }} />)
   expect(screen.getByText('1m active time across runs')).toBeInTheDocument()
@@ -334,7 +335,17 @@ describe('global context panel v2', () => {
     expect(screen.getByText('v1')).toBeInTheDocument()
     expect(screen.getByText('Scope text')).toBeInTheDocument()
     expect(screen.getByText('Owner decision')).toBeInTheDocument()
-    expect(screen.getAllByText('Not set yet')).toHaveLength(2)
+    expect(screen.getAllByText('Not set yet')).toHaveLength(3)
+  })
+  it('renders the instructions block between scope and decisions', async () => {
+    const user = userEvent.setup()
+    renderPanel({ ...global, sections: { ...global.sections, instructions: 'Focus on commercial clients' } })
+    const labels = screen.getAllByText(/^(Scope|Instructions|Decisions|Findings|Open questions)$/).map((element) => element.textContent)
+    expect(labels).toEqual(['Scope', 'Instructions', 'Decisions', 'Findings', 'Open questions'])
+    expect(screen.getByText('Focus on commercial clients')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Edit global context' }))
+    expect(screen.getByRole('textbox', { name: 'Instructions' })).toHaveValue('Focus on commercial clients')
+    expect(screen.getByText('How agents should work, for example what to focus on or avoid.')).toBeInTheDocument()
   })
   it('lists pending updates with a review action each', async () => {
     const user = userEvent.setup(), onReview = vi.fn()

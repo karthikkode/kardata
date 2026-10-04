@@ -37,6 +37,7 @@ import * as coordinatorActivities from './activities/coordinator.js'
 import { reconciliationPageActivity } from './activities/reconciliation.js'
 import { ensureExecutionReconciliation, ensureFileAdmissionReconciliation } from './reconciliation-start.js'
 import { fileAdmissionPageActivity } from './activities/file-admission.js'
+import { compactGlobalContextActivity, summarizeContextFileActivity } from './activities/context-files.js'
 import { prepareExecutionIntentActivity,settlePreparedExecutionIntentActivity,originalRecoveryReadyActivity } from './activities/execution-epochs.js'
 
 export interface DevWorkerBundles {
@@ -77,6 +78,8 @@ export async function createDevWorkers(connection: NativeConnection, bundles: De
       failFileProcessingActivity: fileProcessingActivities.failFileProcessingActivity,
       reconciliationPageActivity,
       fileAdmissionPageActivity,
+      summarizeContextFileActivity,
+      compactGlobalContextActivity,
       prepareExecutionIntentActivity,
       settlePreparedExecutionIntentActivity,
       loadSweepContextActivity,

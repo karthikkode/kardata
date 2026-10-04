@@ -1222,18 +1222,31 @@
     },
     {
       "path": "backend/src/db/context-files.ts",
-      "sha256": "0e251063bd67bc03dd6cf573000329712e56622dbae7776b5ce88472a90cf36c",
+      "sha256": "4991cc5730d7eb3885fd58e6a8d7f5124bd10c85f03fca69618a7283dfcdadad",
       "review": "pending",
       "tests": [],
       "exports": [
+        "ContextFileBlock",
+        "ContextFileBlockState",
         "ContextFileBlocked",
         "ContextFileRef",
         "agentHistoryBoundary",
         "assertThreadFileContext",
+        "chunkDocumentUnits",
+        "extractNumberTokens",
+        "findMissingNumbers",
         "inheritThreadFileRefs",
+        "insertContextFileBlock",
+        "listContextFileBlocks",
+        "markContextFileBlockFailed",
         "mergeFileRefs",
+        "normalizeSectionsJson",
+        "parseJsonObject",
+        "readContextFileBlock",
         "recordThreadFileExposure",
+        "resetContextFileBlock",
         "threadFileRefs",
+        "validateBlockTemplate",
         "validateFileRefs"
       ]
     },
@@ -1981,17 +1994,23 @@
     },
     {
       "path": "backend/src/db/workspace.ts",
-      "sha256": "4b7ce16b332099a9154f10ad91e21ffc5dab36d10de854b0563850ad43f12dae",
+      "sha256": "38905a1e8a6da543c9e61ca674f9aba36cd70e206935260545ba113bb3e581c4",
       "review": "pending",
       "tests": [],
       "exports": [
         "ContextChange",
+        "ContextFileBlockView",
         "ContextSections",
+        "GLOBAL_CONTEXT_BUDGET_TOKENS",
         "GlobalContext",
+        "GlobalContextUsage",
         "LibraryFile",
+        "SessionSettings",
         "ThreadContext",
         "TurnContinuation",
         "WorkspaceError",
+        "applyReadyContextFileBlock",
+        "applySystemCompaction",
         "assertFileVisible",
         "assertGlobalFileContext",
         "beginThreadTurn",
@@ -2005,6 +2024,7 @@
         "ensureResearchSession",
         "finishSteering",
         "formatGlobalContext",
+        "globalContextUsageFrom",
         "hiddenFileIds",
         "indexSectorArtifact",
         "listSectorLibrary",
@@ -2014,11 +2034,13 @@
         "proposeGlobalContext",
         "readDiscoveryPublicationState",
         "readGlobalContext",
+        "readGlobalContextUsage",
         "readResearchBudget",
         "readResearchCoordinatorProgress",
         "readResearchProgress",
         "readResearchWorkItem",
         "readSectorLibraryFile",
+        "readSessionSettings",
         "readSteeringReceiptsPage",
         "readThreadContext",
         "readTurnContinuation",
@@ -2026,16 +2048,20 @@
         "recordContextMeasurement",
         "recordResearchBudget",
         "recordResearchWork",
+        "removeContextFileBlock",
         "requireSector",
         "requireThread",
         "researchIntakeReceipts",
         "researchSessionBinding",
         "researchThreadState",
+        "restoreGlobalContextVersion",
         "retainCompatibleDiscovery",
         "saveThreadContext",
         "saveTurnContinuation",
         "sessionKind",
         "setFileVisibility",
+        "setSessionPurpose",
+        "setUseGlobalContext",
         "workspaceReferenceSnapshot",
         "workspaceReferences",
         "workspaceTransaction"
@@ -2482,7 +2508,7 @@
     },
     {
       "path": "backend/src/routes/sessions.ts",
-      "sha256": "a4bf84555e08a59de1769a0005877e39518488c6513a9ea19196c67ab8fa182b",
+      "sha256": "e2d9edce850bed7c5602a6e6d287a6f56db9f781e80c7716beba8a8131b1ab7e",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2509,7 +2535,7 @@
     },
     {
       "path": "backend/src/routes/workspace.ts",
-      "sha256": "c0e88a0f7447a694b96fb92f4aa340517e787c8ccbaf8e516c2932e045206405",
+      "sha256": "4cdcc525bd2605d6858d81ae075aaeba80e73ee4de09c1635aa502fa97037d53",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2547,8 +2573,24 @@
       ]
     },
     {
+      "path": "backend/src/temporal/activities/context-files.ts",
+      "sha256": "9fe677cf21285bcd168564a79ee130f49d486a8999376c4ae52cdc97aa11c455",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "CONTEXT_FILE_MODEL",
+        "ContextCompactionInput",
+        "ContextFileActivitiesDeps",
+        "ContextFileSummaryInput",
+        "buildContextFilePrompt",
+        "compactGlobalContextActivity",
+        "createContextFileActivities",
+        "summarizeContextFileActivity"
+      ]
+    },
+    {
       "path": "backend/src/temporal/activities/coordinator.ts",
-      "sha256": "102b7895ea1fa1ea15d139cbd06bb2d09202823bff768635d17327aca716ce68",
+      "sha256": "21d7424fe984117c28132dd1e3295a3f1a2ce2c675b615e202795292e352a6b2",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2729,11 +2771,13 @@
     },
     {
       "path": "backend/src/temporal/activities/turn.ts",
-      "sha256": "f8674198371e74060ec8f32f6846460ba9576d76f8085e7567d6fefb9b2f0c80",
+      "sha256": "498194c3493cd1042f66788c4e17aa0c98203afc17a394efc17b6d43c6a5505e",
       "review": "pending",
       "tests": [],
       "exports": [
         "AppendEventInput",
+        "CONTEXT_PROPOSAL_NUDGE",
+        "CONTEXT_REWRITE_PREAMBLE",
         "ChildTurnInput",
         "KARBOT_SYSTEM_PROMPT",
         "KarbotTurnDeps",
@@ -2760,7 +2804,9 @@
         "runTurnActivity",
         "sectorMcpClient",
         "selectTurnContinuation",
-        "turnPalette"
+        "turnContextSnapshot",
+        "turnPalette",
+        "turnSectorRefs"
       ]
     },
     {
@@ -2777,7 +2823,7 @@
     },
     {
       "path": "backend/src/temporal/dev-worker.ts",
-      "sha256": "81a61fb0b261a1958304a758dc0c52a77e10e111fc5b27a688b2fd3282eaa1fa",
+      "sha256": "f2a0cec31febd83ddaeb95099872c2861bacf5f4cb57f70c042af2ce87bf0bb7",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2807,7 +2853,7 @@
     },
     {
       "path": "backend/src/temporal/gateway.ts",
-      "sha256": "ab5d61ad99364de0d2280da441311137a41d882d0b4d8737fa43ce667090258b",
+      "sha256": "cc5a636adefaa14fd469a2664a09bb7dfef1f36ec58971da49efe681c13a586d",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2828,6 +2874,7 @@
         "TemporalRunsGateway",
         "ThreadNotAccepting",
         "buildSessionSignalStart",
+        "contextCompactionWorkflowId",
         "delegationWorkflowId",
         "ensureApprovedCoordinator",
         "signalRunCancel"
@@ -2931,6 +2978,16 @@
       ]
     },
     {
+      "path": "backend/src/temporal/workflows/context-files.ts",
+      "sha256": "b972b3cb085fc3a9e32544be11d9813b6ed928ca95646fd01752c25515995d2d",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "contextFileSummary",
+        "globalContextCompaction"
+      ]
+    },
+    {
       "path": "backend/src/temporal/workflows/coordinator.ts",
       "sha256": "5340e5d8e49709562dd19448a6004f808b110ffad58864abddb6cbb16eebf2b7",
       "review": "pending",
@@ -3011,10 +3068,11 @@
     },
     {
       "path": "backend/src/temporal/workflows/research-bundle.ts",
-      "sha256": "f0f2183fbe9ba9624c940097db45a29d1b7d370c33490bc564e95900d46c0bad",
+      "sha256": "7fc120ba95c8de493e0b818ad2d41331273a55cd03613df0c2a5f4a6dabfd53c",
       "review": "pending",
       "tests": [],
       "exports": [
+        "*:./context-files.js",
         "*:./coordinator.js",
         "*:./file-admission.js",
         "*:./file-processing.js",
@@ -3340,6 +3398,13 @@
     {
       "path": "db/migrations/0023_file_processing.sql",
       "sha256": "da19c870899e4f3b1999c0b937567e1331390108896210f11cbac4cf6fcdced2",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "db/migrations/0024_sector_model_v1.sql",
+      "sha256": "8c5361f1148920cc1e6e7f378dac31ae2ca29474b0d3abaf5e710fb150a6f20d",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -3802,7 +3867,7 @@
     },
     {
       "path": "frontend/src/components/SectorWorkspace.tsx",
-      "sha256": "4d679495a43446f277f4e4c304d717584acd6568a49a97761b3db8ed82ffdccd",
+      "sha256": "017ff25b5591480a25ae750ba23c1192946e52dd83bcd8f2d986528e28c2631e",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4280,7 +4345,7 @@
     },
     {
       "path": "frontend/src/components/workspace-parts.tsx",
-      "sha256": "d1c08900605b4f7dff03116020015d454aabe7a4b5c0f7554e99b1b8df939508",
+      "sha256": "c0b655237526b5891dac396c648aea946247bbe2da71e5210fb54caf420945a0",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4343,7 +4408,7 @@
     },
     {
       "path": "frontend/src/data/sector-workspace.ts",
-      "sha256": "cbad9910b7d2c98bc3eb8768f4d194af926740c150c0024ec13ccce54fbc697d",
+      "sha256": "bcfaa04a63e3e6eae610d94cecb129f80919eebd30297104426f9e49cc4b1e67",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4363,7 +4428,7 @@
     },
     {
       "path": "frontend/src/data/staging-api.ts",
-      "sha256": "411255822b6dc50deea1ced04decd1e7084982de460d45307b387ae358d77939",
+      "sha256": "032193493157eeaec9669e812e007c147535fb52920f07b54f58156591e2517a",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4452,6 +4517,7 @@
         "resumeSector",
         "sendThreadText",
         "setSessionModel",
+        "setSessionSettings",
         "stagingConfig",
         "stagingEnabled",
         "startSector",
@@ -4481,11 +4547,12 @@
     },
     {
       "path": "frontend/src/data/workspace-api.ts",
-      "sha256": "e4395c81d7eaf06736720beb5e24c882fa2daed75a417a5e85adbff9c11deb89",
+      "sha256": "884512125cd8a62d267cde79271f1e151d4da482f52f70bb173aa9118af5d81e",
       "review": "pending",
       "tests": [],
       "exports": [
         "ContextChange",
+        "ContextFileBlock",
         "ContextPreview",
         "ExecutionRecordBody",
         "ExecutionRecordMetadata",
@@ -4493,12 +4560,15 @@
         "FileProcessingProgress",
         "FileUnitsPage",
         "GlobalContext",
+        "GlobalContextUsage",
         "LibraryFile",
         "LocalContext",
         "OperationReceipt",
         "ResearchProgress",
         "Sections",
         "SectorFileBody",
+        "addFileToGlobalContext",
+        "compactGlobalContext",
         "compactLocalContext",
         "decideGlobalContext",
         "ensureResearchSession",
@@ -4516,10 +4586,14 @@
         "listExecutionRecords",
         "proposeGlobalContext",
         "rebuildLocalContext",
+        "removeGlobalContextFile",
+        "restoreGlobalContext",
         "retryFileProcessing",
         "reviewResearchWork",
         "saveGlobalContext",
-        "saveLocalContext"
+        "saveLocalContext",
+        "startGlobalContextRewrite",
+        "summarizeGlobalContextFile"
       ]
     },
     {
@@ -4773,6 +4847,13 @@
       "exports": []
     },
     {
+      "path": "tests/backend/api.context-files.test.ts",
+      "sha256": "7d3176d28ee3369ee79bbe2b1b08dd28791075ced4fcf93f399b79084145096c",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/backend/api.cors.test.ts",
       "sha256": "f7feff9f8cf5528bc0ffd549c1b22997f7a88111a61ffdfc1b1cc1b572cd4901",
       "review": "pending",
@@ -4844,7 +4925,7 @@
     },
     {
       "path": "tests/backend/api.session-sector.test.ts",
-      "sha256": "e030cf5d6a367838cea6a713666455c7a76c9a40c7cd4f21ccdd59576bdb9f20",
+      "sha256": "29d07c9a6efb49f0cc65ec97773d76c0a7cca739a48a04366db635749d057e58",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4934,6 +5015,13 @@
       "exports": []
     },
     {
+      "path": "tests/backend/context-files.test.ts",
+      "sha256": "6d562ca103d7350963a48e0fb867b50ba74395102afbd05ef311a1995690ec44",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/backend/context.compaction-recovery.test.ts",
       "sha256": "f4725f5fec3687a42cb6b1a02005c67d61c34c5bf87ff57eeda4c0152b5729fd",
       "review": "pending",
@@ -4979,14 +5067,14 @@
     },
     {
       "path": "tests/backend/db-template-unit.test.ts",
-      "sha256": "dbd98d5fd56bf565db8bd8c45e024a5626e217e5401299522599f7190d5a6e9c",
+      "sha256": "1b0c89438e6da6907f3da0f1c43a4e2295f6b69a7456a490f6c9fcc365fb7081",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/backend/db-template.test.ts",
-      "sha256": "f859f911bb726902a4426ca1378e9de7612227772aa1a599d3d17c416d06dbd4",
+      "sha256": "7e1792b792cc7e34a6fd9531357500091d6bba7d230e8476ace37b84475a2ab5",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5063,7 +5151,7 @@
     },
     {
       "path": "tests/backend/db.migrations.test.ts",
-      "sha256": "a9fd5da10e907a1456f0f802197f06073c8496b5a9db2ca55d675b02eceeb77b",
+      "sha256": "f4d72de4804f82db4dd8e7b9879125d21b1785b84119ef594fe148ac801a304f",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5170,7 +5258,7 @@
     },
     {
       "path": "tests/backend/execution-records.test.ts",
-      "sha256": "017ba652f1af3771abe062a3d44b132f3c591b595c448f8c8d452ba0d455c888",
+      "sha256": "9783df23f960ac4a8cf09e96fe4d4221d380c59c41be21f55f6064af60987e45",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5184,7 +5272,7 @@
     },
     {
       "path": "tests/backend/fake-gateway.ts",
-      "sha256": "995c196d5c0110691074ef8eb3a8fa3ebb2e6fe969dfd2cca4505b8e321a1cfa",
+      "sha256": "bc3b671fef5f5aafb617cc363c8fab0701be1cfd71cfb5c3299d246e7a46d390",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -5245,6 +5333,13 @@
       ]
     },
     {
+      "path": "tests/backend/global-context.test.ts",
+      "sha256": "62f866fbb14a04edbdee16ad7e00b194a2ff8782c8f97e64b0dc4fe091f750f6",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/backend/hardening.acceptance.test.ts",
       "sha256": "acdfb4ce8672668261ec6604baaebe398a0e19b8d7d570bf29b5903a345ee5a2",
       "review": "pending",
@@ -5281,7 +5376,7 @@
     },
     {
       "path": "tests/backend/karbot.turn.test.ts",
-      "sha256": "2df1915a14eb496222eecb286f15fee48c264970916208fdf1ba70db4f6ef1ae",
+      "sha256": "91429ceadc5a712ad2bcdcc72156edebaad4c522f8eec907d053a7b99d0e0174",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5326,7 +5421,7 @@
     },
     {
       "path": "tests/backend/live/harness.ts",
-      "sha256": "ad7462cda3b75ed590959d1128d720ecda4cdd1d2216a57acb65b4a0c9e1c1dd",
+      "sha256": "4f83a16c59e4ff15375c455f2659aa5a67954f66921b985aaaef0d4b19f9a025",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -5349,6 +5444,13 @@
     {
       "path": "tests/backend/live/stage1.live.test.ts",
       "sha256": "582b47032ccd033629619ddb34bd424fe774d8a5cc1cc997d1a37cf96a07c512",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/live/stage2.live.test.ts",
+      "sha256": "4cbedad04fbb24bdf5ac3ee61e3c75f977c049ef133a93359f3b3e6870b1c6e1",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -13057,6 +13159,13 @@
       "exports": []
     },
     {
+      "path": "tests/frontend/context-file-blocks.test.tsx",
+      "sha256": "1a1ecc313a0a5ef43c85c8dd08fe8fdcf0cf9d4fb59d4c3b441b1fa82726de88",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/frontend/contrast.test.ts",
       "sha256": "23a1a530d86d9a1390f43656560760a1af3116313c52abe7fa36cfc364a6b321",
       "review": "pending",
@@ -13065,7 +13174,7 @@
     },
     {
       "path": "tests/frontend/coverage-registry.md",
-      "sha256": "f2c0c98ca604a4f785b7c3025711eda6cb0d0c821953ca2c30ec6cb6a47137d0",
+      "sha256": "ab92f06462dbae46950e3d0d95bb350691040d723159fb8a3e756d921a93f82b",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -13233,7 +13342,7 @@
     },
     {
       "path": "tests/frontend/plan-tab.test.tsx",
-      "sha256": "1d6088e0b4fba6e1598e0afea6402fa88e72c0d595edfdae39f9c459ff567b48",
+      "sha256": "12078825cc289f376c751a49381d9f0e1ba69376d20a6b38182e5731ed96130d",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -13282,7 +13391,7 @@
     },
     {
       "path": "tests/frontend/sector-workspace.test.tsx",
-      "sha256": "44deb26c745ea8966fb5f768a7e19c877dddca125124b0a98b7433faa9001225",
+      "sha256": "9763e03ba51e07b394f98f6871b565e81703ca5755f4e9a52bd3bab6078b3e2f",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -13290,6 +13399,13 @@
     {
       "path": "tests/frontend/session-files.test.tsx",
       "sha256": "757e8bc038fc202d93416b3a6a51301061d966fdcfcf5894492671746ff08a48",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/session-global-context.test.tsx",
+      "sha256": "1eb64870f803a177255ae22852830e1eb0a4496519cc3f7a011bbfe032af43b4",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -13422,7 +13538,7 @@
     },
     {
       "path": "tests/frontend/workspace-session-creation.test.tsx",
-      "sha256": "e90797d80e3dafdc10d2bc7a5edc376a2055f3d1213229846e0651a102b74e10",
+      "sha256": "83b60d1d7ca1151ce9de4e4ab311db2b683fc5c219cadc6e48fe91d37ad982a5",
       "review": "pending",
       "tests": [],
       "exports": []

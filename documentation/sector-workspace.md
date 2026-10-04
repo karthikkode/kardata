@@ -12,12 +12,12 @@ Open enters the three-column workspace (240px sessions, flexible chat,
 below 1280px and 768px respectively. Research Chat/Plan tabs and landing
 progress use the same plan and progress data.
 
-Global context is a versioned document with Scope, Decisions, Findings and
-Open questions. Owner edits are direct; every agent edit needs owner
-approval, including research-parent edits. Research children propose to
-the research parent, which forwards them as pending owner proposals and
-never approves. Owner decisions and approved scope are protected.
-Optimistic version checks prevent stale approvals. Changes to
+Global context is a versioned document with Scope, Instructions, Decisions,
+Findings and Open questions, plus Files. Owner edits are direct; every
+agent edit needs owner approval, including research-parent edits. Research
+children propose to the research parent, which forwards them as pending
+owner proposals and never approves. Owner decisions and approved scope are
+protected. Optimistic version checks prevent stale approvals. Changes to
 scope/budgets require reapproval before affected work continues.
 
 Local context belongs to one thread (parent or child). Durable compaction
@@ -120,3 +120,33 @@ New coordinated executions opt into the strengthened gate through a workflow
 patch; old histories keep their recorded extraction contract until explicit
 pause/review/start adoption. This metadata gate alone does not establish company
 identity/geography; fetched-source validation remains an acceptance requirement.
+
+## Sector backend v1 additions (2026-10-04)
+
+Files join global context as one standardized AI summary block each, never as
+raw unit lines (pre-block approvals keep raw injection under a `legacy` state
+until summarized). Approving an agent file proposal inserts a `summarizing`
+block and starts the summary workflow; the context version bumps exactly once,
+when the summary lands. The owner add refuses with 409 when usage is already
+at budget. Every number, date, currency and unit from the source must appear
+in the summary, main text or an appended Additional figures section.
+
+Removing a file deletes its block instantly with no AI call, clears its
+inclusion flag and approval link, strips it from every section file-ref list,
+bumps the version and records an owner-approved history row. A summary still
+in flight is cancelled best effort; a late completion finds no row and stays
+out. This replaces the former raw-units provenance for files: the block row
+is the provenance record.
+
+Usage is estimated (4 chars per token), never provider-billed: 30,000 budget,
+per-section and per-file breakdown. At 70% the context auto-compacts silently
+with no approval; a manual Compact does the same. Compaction may shorten only
+Decisions, Findings and Open questions; Scope, Instructions and all blocks
+stay byte-identical, no number is lost, and the old version stays restorable.
+Compaction history rows carry author `system:compaction`. Any approved version
+restores as a new owner version, text sections only.
+
+Each sector chat and the research chat carries a "use global context" switch,
+default on, affecting only that chat's future turns. A rewrite direction opens
+a tracked `Context rewrite:` chat that ends in one pending proposal; the
+context is unchanged until the owner approves.

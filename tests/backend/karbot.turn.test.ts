@@ -148,6 +148,27 @@ describe('executeKarbotTurn', () => {
     expect(preloadCalls).toBe(0)
   })
 
+  it('A10: prepends the rewrite brief only for context-rewrite sessions', async () => {
+    const rewrite = memoryWorld(new FakeProvider([{ text: 'done' }]))
+    rewrite.deps.loadSessionPurpose = async () => 'context-rewrite'
+    await executeKarbotTurn(input(), rewrite.deps)
+    expect(rewrite.adapter.calls[0]?.systemPrompt).toContain('You are rewriting this sector')
+    const normal = memoryWorld(new FakeProvider([{ text: 'done' }]))
+    normal.deps.loadSessionPurpose = async () => 'chat'
+    await executeKarbotTurn(input(), normal.deps)
+    expect(normal.adapter.calls[0]?.systemPrompt).not.toContain('You are rewriting this sector')
+  })
+
+  it('A12: nudges sector sessions to propose context updates, and only them', async () => {
+    const sector = memoryWorld(new FakeProvider([{ text: 'done' }]))
+    sector.deps.loadSessionSector = async () => 'sec-1'
+    await executeKarbotTurn(input(), sector.deps)
+    expect(sector.adapter.calls[0]?.systemPrompt).toContain('call db.propose_global_context adding it to Instructions')
+    const general = memoryWorld(new FakeProvider([{ text: 'done' }]))
+    await executeKarbotTurn(input(), general.deps)
+    expect(general.adapter.calls[0]?.systemPrompt).not.toContain('call db.propose_global_context adding it to Instructions')
+  })
+
   it('threads skill prepend and preloaded chunks through the prompt seam in order', async () => {
     const world = memoryWorld(new FakeProvider([{ text: 'ready' }]))
     await executeKarbotTurn(
