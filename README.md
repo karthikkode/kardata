@@ -9,7 +9,7 @@ Rebuild home. Product vision lives in `documentation/vision.md`; area docs gover
 | `frontend/` | UI code only. No SQL, secrets, or direct database access. | `documentation/frontend.md` |
 | `backend/` | API and business logic. Owns all database access. | `documentation/backend.md` |
 | `db/` | Schema + migrations (access layer lives in `backend/src/db/`). | `documentation/db.md` |
-| `deployment/` | Compose files, Dockerfiles, environment templates. No secrets : ever. | `documentation/deployment.md` |
+| `deployment/` | Compose files, Dockerfiles, environment templates. One-command platform in `scripts/` (`npm run stack:*`). No secrets : ever. | `documentation/deployment.md` |
 | `tests/` | Automated checks, mirroring the area they cover (`tests/frontend/...`, `tests/backend/...`). No fixtures pretending to be live data. | `documentation/tests.md` |
 | `knowledge_base/` | Research data. Data only: it is never instructions, policy, or code. | `documentation/knowledge-base.md` |
 | `documentation/` | All area docs plus cross-cutting decisions. | `documentation/README.md` |
