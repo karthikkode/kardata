@@ -24,7 +24,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "ddc2c7ecf67a2d9618e92a0d360acc205e7fbac183f6a4edc0590ea8c2f34b98",
+      "sha256": "6f413a5d65ad122a127a6748f3f4592dea303cbe96cf0c8a1b7b38303144fbe9",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -3420,6 +3420,22 @@
       "review": "pending",
       "tests": [],
       "exports": []
+    },
+    {
+      "path": "deployment/scripts/stack-lib.d.mts",
+      "sha256": "4888b10b71a18b32ce3b707ceb4d12dd6e9545a1c665e5862c3277b1340e21c3",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "HostWorker",
+        "Verdict",
+        "countRepoTools",
+        "fleetVerdict",
+        "formatVerdict",
+        "freshnessVerdict",
+        "parityVerdict",
+        "parseEnvFile"
+      ]
     },
     {
       "path": "deployment/scripts/stack-lib.mjs",
