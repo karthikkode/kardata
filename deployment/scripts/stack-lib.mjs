@@ -28,13 +28,21 @@ export function countRepoTools(schemasTs) {
 }
 
 /**
- * One-fleet rule: the compose worker and a host worker poll the same
- * turn queue, so both running at once fails turns at random.
+ * One-fleet rule: every worker polls the same turn queue, so any two
+ * pollers (compose+host or host+host) fail turns at random.
  * hostWorkers: [{ pid, user, cmd }]. Returns { level, detail, fix }.
  */
 export function fleetVerdict({ hostWorkers, composeWorkerRunning }) {
   if (!composeWorkerRunning && hostWorkers.length === 0) {
     return { level: 'warn', detail: 'no worker fleet is polling (sends will stall)', fix: ['npm run stack:worker:compose   # start the compose fleet'] }
+  }
+  if (hostWorkers.length > 1) {
+    const kills = hostWorkers.map((p) => `${p.user === 'root' ? 'sudo ' : ''}kill ${p.pid}  # ${p.cmd.slice(0, 60)}`)
+    return {
+      level: 'fail',
+      detail: `duplicate fleet: ${hostWorkers.length} host workers poll the same queue${composeWorkerRunning ? ' (plus the compose worker)' : ''}`,
+      fix: [...kills.slice(1), 'npm run stack:doctor   # re-check, then retry'],
+    }
   }
   if (composeWorkerRunning && hostWorkers.length > 0) {
     const kills = hostWorkers.map((p) => `${p.user === 'root' ? 'sudo ' : ''}kill ${p.pid}  # ${p.cmd.slice(0, 60)}`)
@@ -68,6 +76,7 @@ export function freshnessVerdict({ service, labelSha, headSha, headSubject }) {
 /** MCP parity: the wire must serve exactly the repo's tool count. */
 export function parityVerdict({ served, repo }) {
   if (served === null) return { level: 'warn', detail: 'parity unchecked (no service key available)', fix: [] }
+  if (served < 0) return { level: 'fail', detail: 'MCP unreachable (tools/list failed); is the backend up?', fix: ['npm run stack:status   # check backend health first'] }
   if (served === repo) return { level: 'pass', detail: `MCP serves ${served}/${repo} repo tools`, fix: [] }
   return { level: 'fail', detail: `MCP serves ${served} tools but the repo defines ${repo} (stale image)`, fix: ['npm run stack:deploy   # rebuild from current source'] }
 }

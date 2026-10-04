@@ -54,6 +54,19 @@ describe('fleetVerdict', () => {
     expect(verdict.fix[0]).toMatch(/^sudo kill 79961/)
   })
 
+  it('fails on two host workers even with compose down', () => {
+    const verdict = fleetVerdict({
+      hostWorkers: [
+        { pid: '1', user: 'k', cmd: 'dev-worker' },
+        { pid: '2', user: 'k', cmd: 'dev-worker' },
+      ],
+      composeWorkerRunning: false,
+    })
+    expect(verdict.level).toBe('fail')
+    expect(verdict.detail).toContain('2 host workers')
+    expect(verdict.fix[0]).toMatch(/^kill 2/)
+  })
+
   it('warns when nothing polls', () => {
     const verdict = fleetVerdict({ hostWorkers: [], composeWorkerRunning: false })
     expect(verdict.level).toBe('warn')
@@ -84,6 +97,13 @@ describe('parityVerdict', () => {
     expect(parityVerdict({ served: 74, repo: 74 }).level).toBe('pass')
     expect(parityVerdict({ served: 55, repo: 74 }).level).toBe('fail')
     expect(parityVerdict({ served: null, repo: 74 }).level).toBe('warn')
+  })
+
+  it('fails as unreachable, not count drift, on the -1 sentinel', () => {
+    const verdict = parityVerdict({ served: -1, repo: 74 })
+    expect(verdict.level).toBe('fail')
+    expect(verdict.detail).toContain('unreachable')
+    expect(verdict.fix[0]).toContain('stack:status')
   })
 })
 

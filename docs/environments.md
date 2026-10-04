@@ -82,10 +82,11 @@ All workspaces: `npm run lint`, `npm run typecheck`, `npm test`.
 - One worker fleet at a time: the compose worker and a laptop
   worker poll the same `kardata-turn-v1` queue, so a forgotten
   local worker steals turns at random. The stack scripts enforce
-  this: `npm run stack:worker:host` stops the compose worker
-  before starting the laptop one, `npm run stack:worker:compose`
-  refuses while a host worker polls, and `npm run stack:doctor`
-  fails on a duplicate fleet with the exact kill commands.
+  this: `npm run stack:worker:host` refuses while a host worker
+  polls and stops the compose worker before starting the laptop
+  one, `npm run stack:worker:compose` refuses while a host worker
+  polls, and `npm run stack:doctor` fails on any duplicate fleet
+  (compose+host or host+host) with the exact kill commands.
   After rotating the token, recreate
   the worker (`docker compose up -d --force-recreate worker`): a plain
   restart keeps the stale credential and every tool-requiring turn it picks

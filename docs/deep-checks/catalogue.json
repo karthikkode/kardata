@@ -3439,7 +3439,7 @@
     },
     {
       "path": "deployment/scripts/stack-lib.mjs",
-      "sha256": "cb2adcfc7c07461191780d8fef26fa932ce492a9ac0cf1d4a81cfc475504f696",
+      "sha256": "54c17546429550306e6751af2c01ad5968ba7f5064175c6e64b98d7ad1b3cc86",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3453,7 +3453,7 @@
     },
     {
       "path": "deployment/scripts/stack.mjs",
-      "sha256": "a60cfb82b3015875943a14e7cb7ab45b08d9e7323cb4658050f590f8b1816156",
+      "sha256": "eba8a3771f4a5644001d2904857c9a5944e6b7b74e9bf98b8e5386a77fd940ca",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5648,7 +5648,7 @@
     },
     {
       "path": "tests/backend/stack.test.ts",
-      "sha256": "16ebf47ce6bc96e03d5a8cb393b9e32f85fc62e5fbd3232ffdb6ff2c37b6d280",
+      "sha256": "681586d9e7dfe5e3cdf75f49a9b372a78124c1453e0d6a146d83b9eec0fcda37",
       "review": "pending",
       "tests": [],
       "exports": []

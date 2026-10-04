@@ -232,17 +232,24 @@ async function cmdDoctor() {
 }
 
 async function cmdWorkerHost() {
-  // Mutual exclusion: the compose worker stops before the host one starts,
-  // so the two can never double-poll the turn queue.
+  // Mutual exclusion both ways: refuse while a host worker already polls,
+  // and stop the compose worker before the host one starts, so two
+  // pollers can never double-poll the turn queue.
+  const procs = (await hostStackProcs()).filter((p) => isWorkerCmd(p.cmd))
+  if (procs.length > 0) {
+    console.error('stack: refusing to start a second host worker (one already polls):')
+    for (const p of procs) console.error(`  $ ${p.user === 'root' ? 'sudo ' : ''}kill ${p.pid}  # ${p.cmd.slice(0, 70)}`)
+    process.exit(1)
+  }
   await run('docker', ['compose', '-f', COMPOSE, 'stop', 'worker'], { env: composeEnv() })
   const envFile = join(ROOT, 'agents', '.env')
   const fileEnv = existsSync(envFile) ? parseEnvFile(readFileSync(envFile, 'utf8')) : {}
   const env = {
     ...process.env,
     ...fileEnv,
-    DATABASE_URL: process.env['DATABASE_URL'] ?? `postgresql://kardata:kardata-dev@127.0.0.1:${PG_PORT}/kardata`,
-    TEMPORAL_ADDRESS: process.env['TEMPORAL_ADDRESS'] ?? 'localhost:7233',
-    KARDATA_MCP_URL: process.env['KARDATA_MCP_URL'] ?? 'http://127.0.0.1:3001/mcp',
+    DATABASE_URL: process.env['DATABASE_URL'] ?? fileEnv['DATABASE_URL'] ?? `postgresql://kardata:kardata-dev@127.0.0.1:${PG_PORT}/kardata`,
+    TEMPORAL_ADDRESS: process.env['TEMPORAL_ADDRESS'] ?? fileEnv['TEMPORAL_ADDRESS'] ?? 'localhost:7233',
+    KARDATA_MCP_URL: process.env['KARDATA_MCP_URL'] ?? fileEnv['KARDATA_MCP_URL'] ?? 'http://127.0.0.1:3001/mcp',
   }
   console.log('stack: compose worker stopped; starting host worker (Ctrl-C to stop, then run stack:worker:compose)')
   const child = spawn('node', ['backend/dist/temporal/dev-worker.js'], { cwd: ROOT, env, stdio: 'inherit' })
@@ -272,7 +279,7 @@ const commands = {
   deploy: ['rebuild backend+worker from HEAD, boot, verify health + MCP parity', cmdDeploy],
   status: ['stack state + image freshness vs HEAD', cmdStatus],
   doctor: ['fail on duplicate fleets / stale images; warn + fixes otherwise', cmdDoctor],
-  'worker:host': ['stop compose worker, run the laptop worker in the foreground', cmdWorkerHost],
+  'worker:host': ['refuse if a host worker polls, else stop compose worker and run the laptop one', cmdWorkerHost],
   'worker:compose': ['refuse if a host worker polls, else start the compose worker', cmdWorkerCompose],
 }
 
