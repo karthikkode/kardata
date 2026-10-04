@@ -80,8 +80,14 @@ All workspaces: `npm run lint`, `npm run typecheck`, `npm test`.
   `agents/.env` (it calls back into backend `/mcp` with an API key) and
   `KARDATA_WEB_SEARCH_KEY` for live sweeps.
 - One worker fleet at a time: the compose worker and a laptop
-  `npm run worker` poll the same `kardata-turn-v1` queue, so a forgotten
-  local worker steals turns at random. After rotating the token, recreate
+  worker poll the same `kardata-turn-v1` queue, so a forgotten
+  local worker steals turns at random. The stack scripts enforce
+  this: `npm run stack:worker:host` refuses while a host worker
+  polls and stops the compose worker before starting the laptop
+  one, `npm run stack:worker:compose` refuses while a host worker
+  polls, and `npm run stack:doctor` fails on any duplicate fleet
+  (compose+host or host+host) with the exact kill commands.
+  After rotating the token, recreate
   the worker (`docker compose up -d --force-recreate worker`): a plain
   restart keeps the stale credential and every tool-requiring turn it picks
   up fails with `mcp request ... failed with HTTP 403`, surfacing in chat
@@ -162,18 +168,32 @@ Three host values, all optional in dev:
 
 ## Compose platform (B0.4)
 
-- Boot: `docker compose -f deployment/compose.yaml up -d` (cold boot to
-  green in ~1 min; Loki needs ~30 s ring-join settle, smoke probes poll).
-- On this machine host 5432 is held by another Postgres, so the boot
-  command is `KARDATA_PG_PORT=5433 docker compose -f
-  deployment/compose.yaml up -d --build db backend worker` (add remaining
-  services as needed). Plain `up` bounces `db`, which dies on the port
-  conflict and takes backend+worker down with it (observed 2026-09-28;
-  volumes untouched, data safe). Rebuild `backend`/`worker` from current
-  code whenever the repo moves — a stale image silently drops new MCP
-  tools on the wire (observed: 55 vs 59 tools). After every rebuild,
-  verify parity: `tools/list` over `/mcp` must serve the repo count
-  (`grep -c "^  '" backend/src/mcp/schemas.ts` inside TOOL_SCHEMAS).
+- Boot: `npm run stack:up` (db, temporal, browser, backend,
+  worker; cold boot to green in ~1 min). Telemetry + temporal-ui
+  are opt-in via `npm run stack:obs` (Loki needs ~30 s ring-join
+  settle, smoke probes poll); on machines where a second stack
+  already holds 3000/3100/8080/9090 (e.g. preflight here) `obs`
+  fails to bind by design — the app services are unaffected.
+  Raw form: `docker compose -f deployment/compose.yaml up -d
+  <services>`.
+- Deploy after every repo move or branch switch: `npm run
+  stack:deploy` — rebuilds `backend`/`worker` from HEAD (stamped
+  with the source SHA), boots, waits for health, fails on worker
+  `[FATAL]`, and verifies MCP parity. A stale image silently
+  drops new MCP tools on the wire (observed: 55 vs 59 tools) or
+  dies on endpoints the code already handles (observed: stale
+  worker throwing on Meta's 402 for the token-count endpoint);
+  `npm run stack:doctor` fails on image/HEAD SHA drift so it
+  cannot go unnoticed.
+- On this machine host 5432 is held by another Postgres; the
+  stack scripts default to `KARDATA_PG_PORT=5433` (override via
+  env). Plain `up` without it bounces `db`, which dies on the
+  port conflict and takes backend+worker down with it (observed
+  2026-09-28; volumes untouched, data safe).
+- Diagnose: `npm run stack:status` (state + freshness vs HEAD),
+  `npm run stack:doctor` (duplicate fleets, stale images, MCP
+  parity, with fix commands). Stop: `npm run stack:down`
+  (volumes kept; never `down -v`).
 - Services: `db` (Postgres 16, :5432), `temporal` (:7233), `temporal-ui`
   (:8080), `backend` (:3001, self-migrates on boot, fails closed without DB),
   `loki` (:3100), `promtail`, `prometheus` (:9090), `grafana` (:3000,

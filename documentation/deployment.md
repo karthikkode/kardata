@@ -13,6 +13,12 @@ Compose files, Dockerfiles, environment templates. No secrets: ever
   serves).
 - `deployment/backend-entrypoint.sh` — `migrate up`, then exec server.
   Fail closed: no server without a migrated database.
+- `deployment/scripts/stack.mjs` (+ pure `stack-lib.mjs`) — one-command
+  local platform behind `npm run stack:*` (up/down/deploy/status/
+  doctor/obs/worker:host/worker:compose). Deploy stamps images with the
+  source SHA (`org.kardata.git-sha` label via `GIT_SHA` build arg);
+  doctor fails on duplicate fleets and SHA drift. Commands and
+  rituals live in `docs/environments.md`.
 - `deployment/loki.yaml`, `promtail.yaml`, `prometheus.yaml`,
   `grafana-provisioning/` — telemetry configs. Prometheus scrapes the
   backend `/metrics` (requests, fleet gauges, pool pressure) plus
