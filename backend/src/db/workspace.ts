@@ -170,7 +170,10 @@ export async function proposeGlobalContext(db: TransactableDb, input: {
     if (old.rows[0]) return changeView(old.rows[0])
     if (row.context_version !== input.baseVersion) throw new WorkspaceError('conflict', 'Global context changed. Review the latest version.')
     const researchParent = input.trustedResearch === true && identity?.session.id === row.research_session_id && identity.thread.kind === 'session'
-    let state: ContextChange['state'] = input.owner || researchParent ? 'approved' : input.trustedResearch && identity?.session.id === row.research_session_id && identity.thread.kind === 'subagent' ? 'parent-review' : 'pending'
+    // Every agent write needs owner approval: only the owner approves
+    // directly. Research subagents land in parent-review first; the
+    // parent commit forwards them as pending owner proposals.
+    let state: ContextChange['state'] = input.owner ? 'approved' : input.trustedResearch && identity?.session.id === row.research_session_id && identity.thread.kind === 'subagent' ? 'parent-review' : 'pending'
     const currentSections = checked(ContextSections, row.sections)
     if (!currentSections.scope && row.context_version === 0) { const sector = await requireSector(tx, input.sectorId, input.scope); currentSections.scope = sector.topic || sector.name }
     const onlyFileInclusion = Boolean(input.fileRef) && (['scope','decisions','findings','questions'] as const).every((key) => sections[key] === currentSections[key])
@@ -178,11 +181,6 @@ export async function proposeGlobalContext(db: TransactableDb, input: {
     const sourceRefs = mergeFileRefs(input.owner || onlyFileInclusion ? [] : await threadFileRefs(tx, input.sourceThread, input.scope), input.fileRef ? [input.fileRef] : [])
     await validateFileRefs(tx, input.sectorId, sourceRefs, input.scope)
     if (sourceRefs.length) state = 'pending'
-    if (researchParent && !input.owner) {
-      const current = checked(ContextSections, row.sections)
-      if (!current.scope && row.context_version === 0) { const sector = await requireSector(tx, input.sectorId, input.scope); current.scope = sector.topic || sector.name }
-      if (sections.scope !== current.scope || sections.decisions !== current.decisions) state = 'pending'
-    }
     const version = state === 'approved' ? row.context_version + 1 : null
     const author = input.owner ? 'owner' : researchParent ? 'research' : 'session'
     // Idempotent replay: same id replays the first row (appendEvent idiom).
@@ -488,9 +486,10 @@ export async function commitChildContext(db: TransactableDb, threadKey: string, 
   if (committed.rows[0]) return changeView(committed.rows[0])
   const preview = await previewContextChange(db, session.sectorId, id, scope)
   if (preview.change.state !== 'parent-review' || preview.change.fileRef || preview.change.sourceRefs?.length) throw new WorkspaceError('permission_denied', 'This update requires owner approval.')
-  const result = await proposeGlobalContext(db, { sectorId: session.sectorId, baseVersion: preview.change.baseVersion, sections: preview.change.sections, sourceThread: threadKey, owner: false, trustedResearch: true, scope, id: `parent-commit:${id}` })
-  if (result.state === 'approved') await db.query("UPDATE workspace_changes SET state='approved',version=$2 WHERE id=$1 AND state='parent-review'", [id, result.version])
-  return result
+  // The parent commit forwards the child update as a NEW pending owner
+  // proposal. It never approves: the child row stays parent-review until
+  // the owner decides the forwarded proposal.
+  return proposeGlobalContext(db, { sectorId: session.sectorId, baseVersion: preview.change.baseVersion, sections: preview.change.sections, sourceThread: threadKey, owner: false, trustedResearch: true, scope, id: `parent-commit:${id}` })
 }
 
 const ResearchBudget = z.object({ runId: Id, spentMs: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER) }).strict()

@@ -42,6 +42,13 @@ Unattributed fleet notifications are denied to scoped callers. Generated files
 record their verified source thread. The HTTP/DB authority matrix is maintained
 in `tests/backend/mcp.authority.test.ts`.
 
+Plan lock (sector backend v1): `db.update_sector_plan` requires a
+research-session main-thread execution; normal chats, research subagents
+and Karbot get `permission_denied`. Palettes: the research parent sees
+RESEARCH_TOOLS (SECTOR_TOOLS plus the plan writer), other sector chats
+see SECTOR_TOOLS, Karbot sees PRODUCT_TOOLS. `planSectorResearch`
+likewise requires the sector's bound research session.
+
 - Keyed mode resolves the caller with the shared `resolveCaller` gate
   (absent/unknown/under-viewer callers 403 `permission_denied`) and
   binds the tenant/project scope plus role into every tool call. Open

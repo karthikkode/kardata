@@ -13,11 +13,12 @@ below 1280px and 768px respectively. Research Chat/Plan tabs and landing
 progress use the same plan and progress data.
 
 Global context is a versioned document with Scope, Decisions, Findings and
-Open questions. Owner edits are direct; normal-session edits need owner
-approval. Research children propose to the research parent, which commits
-autonomously. Owner decisions and approved scope are protected. Optimistic
-version checks prevent stale approvals. Changes to scope/budgets require
-reapproval before affected work continues.
+Open questions. Owner edits are direct; every agent edit needs owner
+approval, including research-parent edits. Research children propose to
+the research parent, which forwards them as pending owner proposals and
+never approves. Owner decisions and approved scope are protected.
+Optimistic version checks prevent stale approvals. Changes to
+scope/budgets require reapproval before affected work continues.
 
 Local context belongs to one thread (parent or child). Durable compaction
 links summaries to covered history and leaves transcripts immutable.
@@ -36,7 +37,9 @@ dependencies, budgets and acceptance. Work is durable and retry-idempotent,
 with two company researchers per sector. Completion estimates remain unknown
 until discovery closes the queue. Blocked/failed work cannot count complete.
 Steering and context changes apply before the next provider round after
-in-flight work settles; next-turn sending is a separate action.
+in-flight work settles; next-turn sending is a separate action. Only the
+research conversation's main agent and the owner's Edit plan button may
+write the plan; normal chats, all subagents and Karbot cannot.
 
 Additive migrations preserve all sessions, files, plans and history. Existing
 Temporal histories retain their contract; new coordination requires an

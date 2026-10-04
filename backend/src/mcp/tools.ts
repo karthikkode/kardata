@@ -1,5 +1,5 @@
 import { agentHistoryBoundary, ContextFileBlocked, recordThreadFileExposure, assertThreadFileContext, validateFileRefs } from '../db/context-files.js'
-import { assertGlobalFileContext } from '../db/workspace.js'
+import { assertGlobalFileContext, sessionKind } from '../db/workspace.js'
 // MCP tool bindings (Phase 2). Each tool wires one semantic operation
 // from the binding table in documentation/db.md — the server adds
 // auth, transport, and tool schemas, never SQL. Projector-only
@@ -764,6 +764,12 @@ export async function invokeTool(
     }
     if (ctx.executionThread) {
       const actor = await requireThread(ctx.pool, ctx.executionThread, ctx.scope)
+      if (name === 'db.update_sector_plan') {
+        const kind = await sessionKind(ctx.pool, actor.session.id)
+        if (kind !== 'research' || actor.thread.kind !== 'session') {
+          throw new McpToolError('permission_denied', 'Only the research conversation can change the plan. Suggest the change to the owner instead.')
+        }
+      }
       if (['db.get_thread', 'db.read_outbox'].includes(name)) await assertThreadFileContext(ctx.pool, (parsed.data as { threadKey: string }).threadKey, ctx.scope)
       if (name === 'db.delegate_subagent' && actor.thread.kind === 'subagent') throw new McpToolError('permission_denied', 'Leaf subagents cannot delegate further.')
       if (name === 'db.rename_session' && actor.thread.kind === 'subagent') throw new McpToolError('permission_denied', 'Conversation naming belongs to the parent or owner.')

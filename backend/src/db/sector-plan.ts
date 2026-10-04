@@ -5,11 +5,11 @@
 // is a conflict; a plan run that never starts compensates back so a
 // retry stays a plan instead of a 409 dead end.
 import { z } from 'zod'
-import { readGlobalContext, retainCompatibleDiscovery, workspaceTransaction } from './workspace.js'
+import { readGlobalContext, researchSessionBinding, retainCompatibleDiscovery, workspaceTransaction } from './workspace.js'
 import { readSectorExecutionState } from './sectors.js'
 import type { TransactableDb } from './checkpoints.js'
 import type { Scope } from '../auth/keys.js'
-import { DbContractError } from './errors.js'
+import { DbContractError, WorkspaceError } from './errors.js'
 import { parseExecutablePlan, visiblePlan, type ExecutablePlan } from '../temporal/research-plan.js'
 import { appendEvent, getSession, readPartition, type Db } from './events.js'
 import {
@@ -217,6 +217,11 @@ export async function planSectorResearch(
   if (!session) throw new SectorPlanError('not_found', `no such session ${sessionId}`)
   if (session.sectorId !== sectorId) {
     throw new SectorPlanError('conflict', `session ${sessionId} is not a ${sectorId} chat`)
+  }
+  // Only the sector's research conversation may own the plan run: normal
+  // chats cannot claim it. The owner route passes the research session.
+  if (sessionId !== (await researchSessionBinding(db, sectorId))) {
+    throw new WorkspaceError('permission_denied', 'Only the research conversation can change the plan.')
   }
   // Fail closed after the reads: no state changes before this line, so a
   // runner-less caller can never half-plan a sector.

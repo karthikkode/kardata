@@ -43,6 +43,7 @@ import {
   workerPoolFromEnv,
   type SessionModelSelection,
 } from '../../db/index.js'
+import { sessionKind } from '../../db/workspace.js'
 import { projectNewEvents } from '../../projector.js'
 import { localContextMessages } from '../../context.js'
 import { findModel } from '../../providers/registry.js'
@@ -362,6 +363,9 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
       firstFrame[slot] ??= Date.now() - started
       return firstFrame[slot]
     }
+    // Round-2+ rebuilds pin the brainstorm preload and the sector id
+    // line: refreshed references alone would drop them after round 1.
+    const pinned = [...preload, ...sectorRefs.slice(0, 1)]
     const systemPrompt = composeSystemPrompt(KARBOT_SYSTEM_PROMPT, {
       prepend: parsed.systemPrepend,
       modePrompt: parsed.mode ? modePromptFor(parsed.mode) : undefined,
@@ -407,7 +411,7 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
         const refreshed = await deps.refreshContext?.(round)
         boundary = refreshed ? { contextVersion: refreshed.contextVersion, planVersion: refreshed.planVersion, localVersion: refreshed.localVersion } : {}
         if (refreshed?.paused) throw new ResearchPausedError('Research paused at a safe provider boundary.')
-        const prompt = refreshed ? composeSystemPrompt(KARBOT_SYSTEM_PROMPT, { prepend: parsed.systemPrepend, modePrompt: parsed.mode ? modePromptFor(parsed.mode) : undefined, preload: [...(parsed.preloadChunks ?? []), ...refreshed.references, ...(refreshed.notes ? [`Local notes:\n${refreshed.notes}`] : [])] }) : current.systemPrompt
+        const prompt = refreshed ? composeSystemPrompt(KARBOT_SYSTEM_PROMPT, { prepend: parsed.systemPrepend, modePrompt: parsed.mode ? modePromptFor(parsed.mode) : undefined, preload: [...pinned, ...(parsed.preloadChunks ?? []), ...refreshed.references, ...(refreshed.notes ? [`Local notes:\n${refreshed.notes}`] : [])] }) : current.systemPrompt
         const messages = [...current.messages, ...(refreshed?.steering ?? []).map((text) => ({ role: 'user' as const, text: `Owner steering:\n${text}` }))]
         const profile = parsed.recovery?.selection.provider === 'meta' && parsed.recovery.selection.model ? findModel('meta', parsed.recovery.selection.model) : stored ? findModel(stored.provider, stored.model) : findModel('meta', 'muse-spark-1.3-contributor')
         const compacted = await compactContext({ provider: adapter, system: prompt, messages, tools: current.tools, window: profile?.contextWindow, signal: deps.signal, reasoningEffort: profile?.efforts.includes('low') ? 'low' : undefined, onMeasurement: deps.measureContext })
@@ -571,6 +575,8 @@ function karbotMcpClient(input: {
   toolAllow?: string[]
   /** Sector chats narrow to the sector palette on top of everything else. */
   sectorScoped?: boolean
+  /** The research conversation's main agent: the only research writer. */
+  researchParent?: boolean
 }): TurnRunnerMcpClient {
   const endpoint = input.mcpEndpoint ?? process.env['KARDATA_MCP_URL']
   const token = input.mcpToken ?? process.env['KARDATA_MCP_TOKEN']
@@ -578,14 +584,11 @@ function karbotMcpClient(input: {
   // Effective palette, narrowest first: the grant travels to the server on
   // x-kardata-tool-grant, where role floors still apply per call — so the
   // server enforces exactly what the turn prompt was shaped with.
-  const grant = [...PRODUCT_TOOLS].filter(
-    (name) =>
-      (input.sectorScoped !== true || SECTOR_TOOLS.has(name)) &&
-      (input.toolAllow === undefined || input.toolAllow.includes(name)),
-  )
+  const grant = turnPalette(input)
   const execution = input.threadKey ? { threadKey: input.threadKey, signature: createHmac('sha256', token).update(input.threadKey).digest('hex') } : undefined
-  const client = productMcpClient(new StreamableMcpClient({ endpoint, token, grant, execution, signal: input.signal }))
-  const scoped = input.sectorScoped === true ? sectorMcpClient(client) : client
+  const transport = new StreamableMcpClient({ endpoint, token, grant, execution, signal: input.signal })
+  const client = productMcpClient(transport)
+  const scoped = input.researchParent === true ? researchMcpClient(transport) : input.sectorScoped === true ? sectorMcpClient(client) : client
   if (input.toolAllow === undefined) return scoped
   // Skill-scoped grant: intersect the palette with the skill's declared
   // tools. The server re-enforces the same grant from the header, so the
@@ -621,7 +624,6 @@ export const PRODUCT_TOOLS: ReadonlySet<string> = new Set([
   'db.attach_sector_document', 'db.list_sector_documents', 'db.read_sector_document', 'db.query_document',
   'db.list_artifacts', 'db.create_artifact', 'db.list_tenant_artifacts', 'db.reference_artifact',
   'db.kb_search',
-  'db.update_sector_plan',
   'db.ledger_upsert_company', 'db.ledger_get_company', 'db.ledger_list_companies',
   'db.ledger_record_problem', 'db.ledger_list_problems',
   // Hound at fullest: live web search (keyed, else keyless pool), page
@@ -675,7 +677,6 @@ export const SECTOR_TOOLS: ReadonlySet<string> = new Set([
   'db.create_artifact',
   'db.reference_artifact',
   'db.kb_search',
-  'db.update_sector_plan',
   // Web retrieval reads the public web, not our database: search and
   // fetch stay readable in sector scope so sector research skills can
   // discover companies from chat. Browser action stays Karbot-only
@@ -698,6 +699,38 @@ export function sectorMcpClient(client: TurnRunnerMcpClient): TurnRunnerMcpClien
       return client.callTool(name, args, operationId)
     },
   }
+}
+
+// Research-parent palette: SECTOR_TOOLS plus the plan writer. Only the
+// research conversation's main agent ever sees this palette (normal chats,
+// subagents and Karbot cannot write the plan). Stacked directly on the
+// transport, never on productMcpClient: the plan writer is deliberately
+// not a Karbot tool, so the Karbot wrapper would list-but-never-run it.
+// The server grant plus invokeTool hold the boundary instead.
+export const RESEARCH_TOOLS: ReadonlySet<string> = new Set([...SECTOR_TOOLS, 'db.update_sector_plan'])
+
+export function researchMcpClient(client: TurnRunnerMcpClient): TurnRunnerMcpClient {
+  return {
+    authorityId: client.authorityId,
+    async listTools() {
+      return (await client.listTools()).filter((tool) => RESEARCH_TOOLS.has(tool.name))
+    },
+    async callTool(name, args, operationId) {
+      if (!RESEARCH_TOOLS.has(name)) return { content: `tool '${name}' is unavailable to the research conversation`, isError: true }
+      return client.callTool(name, args, operationId)
+    },
+  }
+}
+
+/** Effective tool palette for a turn: research parents get RESEARCH_TOOLS,
+ * other sector chats get SECTOR_TOOLS, Karbot gets PRODUCT_TOOLS. A skill
+ * grant narrows further. The grant travels to the server, where role
+ * floors still apply per call. */
+export function turnPalette(input: { sectorScoped?: boolean; researchParent?: boolean; toolAllow?: string[] }): string[] {
+  const base = input.researchParent === true ? RESEARCH_TOOLS : input.sectorScoped === true ? SECTOR_TOOLS : PRODUCT_TOOLS
+  if (input.toolAllow === undefined) return [...base]
+  const allow = new Set(input.toolAllow)
+  return [...base].filter((name) => allow.has(name))
 }
 
 /** Keep the original transport identity; effective names can only narrow. */
@@ -842,7 +875,12 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
             await projectNewEvents(pool)
             const session = await getSession(pool, input.sessionId)
             if (!session) throw new Error('Turn session is unavailable')
-            const original = karbotMcpClient({ ...input, signal: abort.signal, sectorScoped: session.sectorId !== undefined && session.sectorId !== null })
+            const sectorScoped = session.sectorId !== undefined && session.sectorId !== null
+            // Only the research conversation's main agent writes the plan:
+            // research session plus the session thread itself (never a
+            // subagent thread). A failed lookup never widens the palette.
+            const researchParent = sectorScoped && input.threadKey === input.sessionId && (await sessionKind(pool, session.id).catch(() => 'normal' as const)) === 'research'
+            const original = karbotMcpClient({ ...input, signal: abort.signal, sectorScoped, researchParent })
             if (!input.recovery) return original
             return freezeOriginalPalette(original, input.recovery.allowedTools)
 

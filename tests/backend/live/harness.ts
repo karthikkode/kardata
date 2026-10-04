@@ -51,6 +51,7 @@ export interface LiveStack {
   messages(threadKey: string): Promise<Array<Record<string, unknown>>>
   executionRequests(threadKey: string): Promise<LiveExecutionRequest[]>
   executionResponses(threadKey: string): Promise<LiveExecutionRequest[]>
+  toolResults(threadKey: string): Promise<LiveExecutionRequest[]>
   spend(): Promise<{ inputTokens: number; outputTokens: number }>
   close(): Promise<void>
 }
@@ -232,5 +233,5 @@ export async function startLiveStack(suite: string): Promise<LiveStack> {
     }
   }
 
-  return { app, pool, ownerKey, api, waitFor, messages, executionRequests: (t) => executionRecords(t, 'request'), executionResponses: (t) => executionRecords(t, 'response'), spend, close }
+  return { app, pool, ownerKey, api, waitFor, messages, executionRequests: (t) => executionRecords(t, 'request'), executionResponses: (t) => executionRecords(t, 'response'), toolResults: (t) => executionRecords(t, 'tool-result'), spend, close }
 }

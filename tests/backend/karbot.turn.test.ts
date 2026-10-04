@@ -8,6 +8,8 @@ import {
   KARBOT_SYSTEM_PROMPT,
   productMcpClient,
   RESEARCH_TURN_WALL_MS,
+  researchMcpClient,
+  RESEARCH_TOOLS,
   sectorMcpClient,
   SECTOR_TOOLS,
   type KarbotTurnDeps,
@@ -473,6 +475,40 @@ describe('sectorMcpClient', () => {
     }
     expect(seen.sort()).toEqual([...SECTOR_TOOLS].sort())
   })
+
+  it('every research tool runs on the research stacking order', async () => {
+    // Research stacks researchMcpClient(transport) directly: the plan
+    // writer is not a Karbot tool, so productMcpClient would list it
+    // (via the grant) but never run it. Every RESEARCH_TOOL must list
+    // and run; anything else must refuse.
+    const seen: string[] = []
+    const transport: TurnRunnerMcpClient = {
+      async listTools() {
+        return [...RESEARCH_TOOLS].map(
+          (name): ToolDefinition => ({
+            name,
+            description: name,
+            parameters: { type: 'object', properties: {}, additionalProperties: false },
+          }),
+        )
+      },
+      async callTool(name: string) {
+        seen.push(name)
+        return { content: `rows for ${name}` }
+      },
+    }
+    const stacked = researchMcpClient(transport)
+    const listed = (await stacked.listTools()).map((tool) => tool.name).sort()
+    expect(listed).toEqual([...RESEARCH_TOOLS].sort())
+    expect(listed).toContain('db.update_sector_plan')
+    for (const name of RESEARCH_TOOLS) {
+      const result = await stacked.callTool(name, {})
+      expect(result.isError !== true, name).toBe(true)
+    }
+    expect(seen.sort()).toEqual([...RESEARCH_TOOLS].sort())
+    const refused = await stacked.callTool('db.ledger_record_problem', {})
+    expect(refused.isError).toBe(true)
+  })
 })
 
 describe('research turn wall budget', () => {
@@ -528,5 +564,21 @@ describe('sector identity preload (B2)', () => {
     const world = memoryWorld(new FakeProvider([{ text: 'TEST general answer' }]))
     await executeKarbotTurn(input(), world.deps)
     expect(world.adapter.calls[0]?.systemPrompt ?? '').not.toContain('Current sector:')
+  })
+  it('keeps the exact sector id line on round 2 and later', async () => {
+    const world = memoryWorld(
+      new FakeProvider([
+        { text: 'checking ', toolCalls: [{ id: 'c1', name: 'db.list_sessions', args: {} }] },
+        { text: 'TEST sector answer' },
+      ]),
+    )
+    world.deps.loadSessionSector = async () => 'sector-9'
+    world.deps.loadSectorName = async () => 'TEST Sector'
+    world.deps.refreshContext = async () => ({ references: ['TEST refreshed'], notes: '', steering: [], contextVersion: 1, planVersion: null, localVersion: 0 })
+    await executeKarbotTurn(input(), world.deps)
+    expect(world.adapter.calls).toHaveLength(2)
+    const line = 'Current sector: "TEST Sector" (sector id: sector-9). Use exactly this sector id for every sector tool call; never derive an id from the name.'
+    expect(world.adapter.calls[0]?.systemPrompt ?? '').toContain(line)
+    expect(world.adapter.calls[1]?.systemPrompt ?? '').toContain(line)
   })
 })

@@ -10432,7 +10432,21 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/temporal/activities/turn.ts#RESEARCH_TOOLS",
+      "source": "backend/src/temporal/activities/turn.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/temporal/activities/turn.ts#RESEARCH_TURN_WALL_MS",
+      "source": "backend/src/temporal/activities/turn.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/turn.ts#researchMcpClient",
       "source": "backend/src/temporal/activities/turn.ts",
       "kind": "export",
       "features": [],
@@ -10496,6 +10510,13 @@
     },
     {
       "id": "backend/src/temporal/activities/turn.ts#TurnOutcome",
+      "source": "backend/src/temporal/activities/turn.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/turn.ts#turnPalette",
       "source": "backend/src/temporal/activities/turn.ts",
       "kind": "export",
       "features": [],

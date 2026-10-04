@@ -1873,7 +1873,7 @@
     },
     {
       "path": "backend/src/db/sector-plan.ts",
-      "sha256": "a8e64fde3c4a0d796d1dde1dc2ccbac6ad71a8bc9c2c49f2b031d5bdcee3f13a",
+      "sha256": "41e89ae9163ff3f3b35e37aa66c0817f0bf33df7d43d1dfb0d5ea8ef9a929a9d",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1981,7 +1981,7 @@
     },
     {
       "path": "backend/src/db/workspace.ts",
-      "sha256": "88f3d7bf3a9b183a01a856f895fd2466295f1bc4d0e392210aea111905f8f69f",
+      "sha256": "4b7ce16b332099a9154f10ad91e21ffc5dab36d10de854b0563850ad43f12dae",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2111,7 +2111,7 @@
     },
     {
       "path": "backend/src/mcp/tools.ts",
-      "sha256": "7f0c234b0fc2bfd4671279bf129e023eb828d49ac0888325ab81ea31c434bd80",
+      "sha256": "1a75630e1443c9ee0ae4c5c4ca871c0a74af46e1a2df8da4d4b78a8510ad8764",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2729,7 +2729,7 @@
     },
     {
       "path": "backend/src/temporal/activities/turn.ts",
-      "sha256": "1089208edcc26a3d98afb704fd4b28862542ad42810d3439f35a94cf1dcddcc3",
+      "sha256": "f8674198371e74060ec8f32f6846460ba9576d76f8085e7567d6fefb9b2f0c80",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2741,6 +2741,7 @@
         "KarbotTurnLogFields",
         "McpAuthProbe",
         "PRODUCT_TOOLS",
+        "RESEARCH_TOOLS",
         "RESEARCH_TURN_WALL_MS",
         "ResearchPausedError",
         "SECTOR_TOOLS",
@@ -2754,10 +2755,12 @@
         "freezeOriginalPalette",
         "karbotTurnActivity",
         "productMcpClient",
+        "researchMcpClient",
         "runChildTurnActivity",
         "runTurnActivity",
         "sectorMcpClient",
-        "selectTurnContinuation"
+        "selectTurnContinuation",
+        "turnPalette"
       ]
     },
     {
@@ -5278,7 +5281,7 @@
     },
     {
       "path": "tests/backend/karbot.turn.test.ts",
-      "sha256": "58da6019b03caa386b8e985377cbfb5d4c9ec2a3f67f9925631cc94a6f87e1b0",
+      "sha256": "2df1915a14eb496222eecb286f15fee48c264970916208fdf1ba70db4f6ef1ae",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5323,7 +5326,7 @@
     },
     {
       "path": "tests/backend/live/harness.ts",
-      "sha256": "363a908c70d61a6ba6ab5e4560a997f66bb786995820c26270650d2ea4dd3720",
+      "sha256": "ad7462cda3b75ed590959d1128d720ecda4cdd1d2216a57acb65b4a0c9e1c1dd",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -5344,6 +5347,13 @@
       "exports": []
     },
     {
+      "path": "tests/backend/live/stage1.live.test.ts",
+      "sha256": "582b47032ccd033629619ddb34bd424fe774d8a5cc1cc997d1a37cf96a07c512",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/backend/logging.test.ts",
       "sha256": "32e78061acc1b58c38592c2b11c0ffbc053f58301643eeeb489e5d64e9ec24cf",
       "review": "pending",
@@ -5359,7 +5369,7 @@
     },
     {
       "path": "tests/backend/mcp.authority.test.ts",
-      "sha256": "2f950887d5d634b2b8b80f0beb46a5d87309b39ba27b1bdb8d012a9ecf88c9cd",
+      "sha256": "1ba2fa72bd93da34a6da8fcf9059695fbc28cf582ee346bf4f6b7442047b8af2",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5656,7 +5666,7 @@
     },
     {
       "path": "tests/backend/sector-plan.test.ts",
-      "sha256": "3622d25508da2ec3aa69b2fefb3f9df46728eb9600c760d7f007790d746d5402",
+      "sha256": "ff1f8c2a5fd735f4b08e42241b702e7cfc7cb26eb02203b7b891db864dcbf992",
       "review": "pending",
       "tests": [],
       "exports": []
