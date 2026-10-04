@@ -371,6 +371,22 @@ export async function getThread(db: Db, threadKey: string): Promise<ThreadView |
   }
 }
 
+/** Bounded cross-chat read: the full getThread shape with messages
+ * sliced to seq > fromSeq, at most limit (default 100). Reads only. */
+export async function readSectorThread(
+  db: Db,
+  threadKey: string,
+  opts: { fromSeq?: number; limit?: number } = {},
+): Promise<ThreadView | undefined> {
+  const fromSeq = opts.fromSeq ?? 0
+  const limit = opts.limit ?? 100
+  if (!Number.isInteger(fromSeq) || fromSeq < 0) throw new DbContractError('fromSeq must be a non-negative integer')
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new DbContractError('limit must be an integer 1..100')
+  const thread = await getThread(db, threadKey)
+  if (!thread) return undefined
+  return { ...thread, messages: thread.messages.filter((message) => message.seq > fromSeq).slice(0, limit) }
+}
+
 export async function getThreadHeader(db: Db, threadKey: string): Promise<ThreadView | undefined> {
   if (!ThreadKeySchema.safeParse(threadKey).success) throw new DbContractError('threadKey must be non-empty')
   const { rows } = await db.query<ThreadRow>('SELECT * FROM threads WHERE key = $1', [threadKey])

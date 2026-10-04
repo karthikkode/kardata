@@ -6,11 +6,14 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import {
+  buildInheritedContext,
   createSession,
   deleteSession,
   getSector,
   getSession,
   listSessions,
+  listThreadHeaders,
+  saveInheritedContext,
   readSessionSettings,
   renameSession,
   setSessionModel,
@@ -36,6 +39,8 @@ const SetSessionModelBody = z.object({
 });
 
 const SetSessionSettingsBody = z.object({ useGlobalContext: z.boolean() });
+
+const SpawnSubagentBody = z.object({ goal: z.string().min(1).max(4000), name: z.string().min(1).max(60).optional() });
 
 export function sessionRoutes(app: FastifyInstance, catalog: ModelCatalog): void {
   route(app, 'get', '/v1/sessions', async (request, reply, app) => {
@@ -104,6 +109,53 @@ export function sessionRoutes(app: FastifyInstance, catalog: ModelCatalog): void
         }
       }
       return { status: 200, body: { ok: true, data: settings } }
+    })
+  })
+
+  route(app, 'post', '/v1/sessions/:sessionId/subagents', async (request, reply, app) => {
+    const pool = requirePool(app, reply)
+    if (!pool) return undefined
+    const auth = await authorize(app, request, reply, 'operator')
+    if (!auth) return undefined
+    const runs = requireRuns(app, reply)
+    if (!runs) return undefined
+    const params = request.params as { sessionId: string }
+    const body = parseInput(SpawnSubagentBody, request.body, reply)
+    if (!body) return undefined
+    return withIdempotency(request, reply, pool, auth.keyId, async () => {
+      const session = await getSession(pool, params.sessionId, auth.scope)
+      if (!session) {
+        return {
+          status: 404,
+          body: { ok: false, error: { code: 'not_found', message: `no such session ${params.sessionId}` } },
+        }
+      }
+      const children = (await listThreadHeaders(pool, params.sessionId)).filter((thread) => thread.kind === 'subagent')
+      if (children.filter((thread) => ['RUNNING', 'QUEUED', 'PAUSED'].includes(thread.status)).length >= 50) {
+        return {
+          status: 409,
+          body: { ok: false, error: { code: 'conflict', message: 'Max in-flight subagents reached for this chat.' } },
+        }
+      }
+      const name = body.name ?? `Subagent ${children.length + 1}`
+      const goal = body.goal.trim()
+      if (!goal) {
+        return {
+          status: 400,
+          body: { ok: false, error: { code: 'validation_failed', message: 'goal must be a non-empty string' } },
+        }
+      }
+      const child = await runs.delegateSubagent({
+        sessionId: params.sessionId,
+        goal,
+        name,
+        mode: 'empty',
+        queueCapacity: 8,
+        onAccepted: async (childId) => {
+          await saveInheritedContext(pool, `agent:${childId}`, await buildInheritedContext(pool, params.sessionId))
+        },
+      })
+      return { status: 201, body: { ok: true, data: { childId: child.childId, threadKey: `agent:${child.childId}` } } }
     })
   })
 

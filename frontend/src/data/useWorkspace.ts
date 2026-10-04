@@ -3,7 +3,7 @@ import { apiErrorStatus, followThread, listMessages, sendThreadText, steerThread
 import { mergeChatMessages, messageSeq, toChatMessages } from '../components/ChatPanel'
 
 export interface Resource<T> { data?: T; status: 'loading' | 'ready' | 'error' | 'denied' | 'offline'; error?: string; refresh(): void; acknowledge?(data: T): boolean }
-export function useWorkspaceResource<T>(config: StagingConfig | null, key: string | null, load: (config: StagingConfig) => Promise<T>, poll = false): Resource<T> & { acknowledge(data: T): boolean } {
+export function useWorkspaceResource<T>(config: StagingConfig | null, key: string | null, load: (config: StagingConfig) => Promise<T>, poll: boolean | number = false): Resource<T> & { acknowledge(data: T): boolean } {
   const [state, setState] = useState<Omit<Resource<T>, 'refresh'>>({ status: config ? 'loading' : 'offline' })
   const [attempt, setAttempt] = useState(0)
   const loadRef = useRef(load)
@@ -23,7 +23,7 @@ export function useWorkspaceResource<T>(config: StagingConfig | null, key: strin
   }, [config, key, attempt])
   useEffect(() => {
     if (!poll || !config || !key) return
-    const timer = setInterval(() => setAttempt((value) => value + 1), 5000)
+    const timer = setInterval(() => setAttempt((value) => value + 1), typeof poll === 'number' ? poll : 5000)
     return () => clearInterval(timer)
   }, [poll, config, key])
   return { ...state, refresh: useCallback(() => setAttempt((value) => value + 1), []), acknowledge: useCallback((data: T) => {

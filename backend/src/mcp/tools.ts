@@ -38,6 +38,7 @@ import {
   listHeartbeats,
   listSectorCompanies,
   listSectorDocuments,
+  listSectorSessions,
   listSectors,
   listSessions,
   listTenantArtifacts,
@@ -49,7 +50,10 @@ import {
   readEventsAfter,
   readOutboxBacklog,
   readPartition,
+  readResearchProgress,
   readSectorDocument,
+  readSectorPlan,
+  readSectorThread,
   recordHeartbeat,
   recordLedgerProblem,
   deleteSession,
@@ -60,6 +64,8 @@ import {
   releaseIdempotency,
   pauseSectorSweep,
   resolveArtifactScope,
+  buildInheritedContext,
+  saveInheritedContext,
   resumeSectorSweep,
   cancelThreadRun,
   pauseThreadRun,
@@ -175,6 +181,10 @@ export const TOOL_LAYER: Record<McpToolName, string> = {
   'db.list_tenant_artifacts': 'listTenantArtifacts',
   'db.find_launch_parent': 'findLaunchParentWorkflowId',
   'db.get_thread': 'getThread',
+  'db.get_sector_plan': 'readSectorPlan',
+  'db.get_research_progress': 'readResearchProgress',
+  'db.list_sector_sessions': 'listSectorSessions',
+  'db.read_sector_thread': 'readSectorThread',
   'db.list_threads': 'listThreadHeaders',
   'db.send_message': 'sendThreadMessage',
   'db.steer_thread': 'steerThread',
@@ -287,6 +297,10 @@ export const TOOL_META: Record<McpToolName, { description: string; minRole: Role
   'db.list_tenant_artifacts': { description: 'Tenant attach discovery across sessions.', minRole: 'viewer' },
   'db.find_launch_parent': { description: 'Finished-child steer routing lookup.', minRole: 'viewer' },
   'db.get_thread': { description: 'Read one projected thread.', minRole: 'viewer' },
+  'db.get_sector_plan': { description: 'Read the research plan.', minRole: 'viewer' },
+  'db.get_research_progress': { description: 'Checked research progress.', minRole: 'viewer' },
+  'db.list_sector_sessions': { description: 'Listed chats in this sector.', minRole: 'viewer' },
+  'db.read_sector_thread': { description: 'Read a chat.', minRole: 'viewer' },
   'db.list_threads': { description: 'List projected threads for a session.', minRole: 'viewer' },
   'db.send_message': { description: 'Queue a message onto a thread (runSend): accepted, or missed_steer when nothing listens. Sensitive: approver plus user confirmation.', minRole: 'approver' },
   'db.steer_thread': { description: 'Interrupt a running turn with new direction (runSteer). Sensitive: approver plus user confirmation.', minRole: 'approver' },
@@ -545,6 +559,22 @@ const INVOKERS: Invokers = {
     }
     return target
   },
+  'db.get_sector_plan': async (ctx) => {
+    const identity = await workspaceIdentity(ctx)
+    return readSectorPlan(ctx.pool, identity.sectorId, ctx.scope)
+  },
+  'db.get_research_progress': async (ctx) => {
+    const identity = await workspaceIdentity(ctx)
+    return readResearchProgress(ctx.pool, identity.sectorId, ctx.scope)
+  },
+  'db.list_sector_sessions': async (ctx) => {
+    const identity = await workspaceIdentity(ctx)
+    return listSectorSessions(ctx.pool, identity.sectorId, ctx.scope)
+  },
+  'db.read_sector_thread': async (ctx, args) => {
+    await workspaceIdentity(ctx)
+    return readSectorThread(ctx.pool, args.threadKey, { fromSeq: args.fromSeq, limit: args.limit })
+  },
   'db.list_threads': (ctx, args) => listThreadHeaders(ctx.pool, args.sessionId),
   'db.send_message': async (ctx, args) => {
     try {
@@ -657,11 +687,15 @@ const INVOKERS: Invokers = {
     if (!goal) throw new DbContractError('goal must be a non-empty string')
     const session = await getSession(ctx.pool, args.sessionId, ctx.scope)
     if (!session) throw new DbContractError(`unknown session ${args.sessionId}`)
+    const parentThread = ctx.executionThread ?? args.sessionId
     return ctx.delegator.delegateSubagent({
       sessionId: args.sessionId,
       goal,
       mode: args.mode ?? 'empty',
       queueCapacity: args.queueCapacity ?? 8,
+      onAccepted: async (childId) => {
+        await saveInheritedContext(ctx.pool, `agent:${childId}`, await buildInheritedContext(ctx.pool, parentThread))
+      },
     })
   },
   // Retrieval tools route through the browser-pool facade (single entry:
@@ -754,7 +788,7 @@ export async function invokeTool(
       const where = first ? [...first.path.map(String), first.message].join(': ') : 'invalid input'
       throw new McpToolError('validation_failed', `${name}: ${where}`)
     }
-    if (ctx.scope && ['db.get_thread', 'db.send_message', 'db.steer_thread', 'db.read_outbox'].includes(name)) {
+    if (ctx.scope && ['db.get_thread', 'db.read_sector_thread', 'db.send_message', 'db.steer_thread', 'db.read_outbox'].includes(name)) {
       await requireThread(ctx.pool, (parsed.data as { threadKey: string }).threadKey, ctx.scope)
     }
     if (ctx.scope && name === 'db.subscribe_outbox') throw new McpToolError('permission_denied', 'Unattributed fleet notifications are unavailable to scoped callers.')
@@ -770,7 +804,7 @@ export async function invokeTool(
           throw new McpToolError('permission_denied', 'Only the research conversation can change the plan. Suggest the change to the owner instead.')
         }
       }
-      if (['db.get_thread', 'db.read_outbox'].includes(name)) await assertThreadFileContext(ctx.pool, (parsed.data as { threadKey: string }).threadKey, ctx.scope)
+      if (['db.get_thread', 'db.read_sector_thread', 'db.read_outbox'].includes(name)) await assertThreadFileContext(ctx.pool, (parsed.data as { threadKey: string }).threadKey, ctx.scope)
       if (name === 'db.delegate_subagent' && actor.thread.kind === 'subagent') throw new McpToolError('permission_denied', 'Leaf subagents cannot delegate further.')
       if (name === 'db.rename_session' && actor.thread.kind === 'subagent') throw new McpToolError('permission_denied', 'Conversation naming belongs to the parent or owner.')
       if (name === 'db.delete_session') throw new McpToolError('permission_denied', 'Conversation deletion requires owner confirmation in the UI.')
@@ -795,7 +829,7 @@ export async function invokeTool(
         if (typeof args['threadKey'] === 'string') {
           const target = await requireThread(ctx.pool, args['threadKey'], ctx.scope)
           if (target.session.sectorId !== sectorId) throw new McpToolError('permission_denied', 'Thread is outside this sector.')
-          if (target.session.id !== actor.session.id || (actor.thread.kind === 'subagent' && target.thread.key !== actor.thread.key)) throw new McpToolError('permission_denied', 'Local conversations are isolated. Use shared context to communicate.')
+          if (name !== 'db.read_sector_thread' && (target.session.id !== actor.session.id || (actor.thread.kind === 'subagent' && target.thread.key !== actor.thread.key))) throw new McpToolError('permission_denied', 'Local conversations are isolated. Use shared context to communicate.')
         }
         if (['db.list_sessions','db.list_companies','db.research_health','db.query_document'].includes(name)) args['sectorId'] = sectorId
         if (name === 'db.create_artifact') args['producedBy'] = ctx.executionThread

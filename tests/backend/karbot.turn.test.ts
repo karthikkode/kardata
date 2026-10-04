@@ -6,6 +6,7 @@ import {
   executeKarbotTurn,
   chatHistory,
   KARBOT_SYSTEM_PROMPT,
+  parseChatRefs,
   productMcpClient,
   RESEARCH_TURN_WALL_MS,
   researchMcpClient,
@@ -167,6 +168,16 @@ describe('executeKarbotTurn', () => {
     const general = memoryWorld(new FakeProvider([{ text: 'done' }]))
     await executeKarbotTurn(input(), general.deps)
     expect(general.adapter.calls[0]?.systemPrompt).not.toContain('call db.propose_global_context adding it to Instructions')
+  })
+
+  it('A14: parses [[session:id|title]] chat markers', async () => {
+    expect(parseChatRefs('plain text')).toEqual([])
+    expect(parseChatRefs('see [[session:abc-123|Pricing chat]] please')).toEqual([{ sessionId: 'abc-123', title: 'Pricing chat' }])
+    expect(parseChatRefs('[[session:a|One]] and [[session:b|Two]]')).toEqual([
+      { sessionId: 'a', title: 'One' },
+      { sessionId: 'b', title: 'Two' },
+    ])
+    expect(parseChatRefs('@name stays untouched')).toEqual([])
   })
 
   it('threads skill prepend and preloaded chunks through the prompt seam in order', async () => {
@@ -585,6 +596,19 @@ describe('sector identity preload (B2)', () => {
     const world = memoryWorld(new FakeProvider([{ text: 'TEST general answer' }]))
     await executeKarbotTurn(input(), world.deps)
     expect(world.adapter.calls[0]?.systemPrompt ?? '').not.toContain('Current sector:')
+  })
+  it('A15: carries inherited parent context on every round', async () => {
+    const world = memoryWorld(
+      new FakeProvider([
+        { text: 'checking ', toolCalls: [{ id: 'c1', name: 'db.list_sessions', args: {} }] },
+        { text: 'TEST child answer' },
+      ]),
+    )
+    world.deps.loadInheritedContext = async () => ['Inherited from parent:\nParent summary:\ncode word HARBOUR-42']
+    await executeKarbotTurn(input(), world.deps)
+    expect(world.adapter.calls).toHaveLength(2)
+    expect(world.adapter.calls[0]?.systemPrompt ?? '').toContain('Inherited from parent:\nParent summary:\ncode word HARBOUR-42')
+    expect(world.adapter.calls[1]?.systemPrompt ?? '').toContain('Inherited from parent:\nParent summary:\ncode word HARBOUR-42')
   })
   it('keeps the exact sector id line on round 2 and later', async () => {
     const world = memoryWorld(

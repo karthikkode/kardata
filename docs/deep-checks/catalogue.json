@@ -115,7 +115,7 @@
     },
     {
       "path": "agents/src/compaction.test.ts",
-      "sha256": "a37568afc5b324e3bdc1881a198cb505a280f339755d424d8179d34ea85512eb",
+      "sha256": "6e54657410bdca9d074615023384edcfcf6db5436927189bd405096f22d7565d",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -1435,7 +1435,7 @@
     },
     {
       "path": "backend/src/db/index.ts",
-      "sha256": "abaec2f18f70e70462c041c33fde247efa681752c71ced7367135ab3301a57b3",
+      "sha256": "79deb07c77b4c93bbbe6c31c54129d083ecacfa19260095bb86f935aeb90c982",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1619,6 +1619,7 @@
         "readSectorDocumentUnitsPage",
         "readSectorExecutionState",
         "readSectorPlan",
+        "readSectorThread",
         "readThreadExecutionReference",
         "rebuildFromEvents",
         "rebuildLedger",
@@ -1962,7 +1963,7 @@
     },
     {
       "path": "backend/src/db/threads.ts",
-      "sha256": "6336fe5eed1b653207bcbd578ea32847b0338cf0c63cd423b4bbc4a6a1028359",
+      "sha256": "5a3b5b147758f9596154726e1c35050a2c790a346bac24cd692d3975aae4e7d5",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -1975,6 +1976,7 @@
         "listThreads",
         "pauseThreadRun",
         "projectBatch",
+        "readSectorThread",
         "rebuildFromEvents",
         "resumeThreadRun",
         "sendThreadMessage",
@@ -1994,7 +1996,7 @@
     },
     {
       "path": "backend/src/db/workspace.ts",
-      "sha256": "38905a1e8a6da543c9e61ca674f9aba36cd70e206935260545ba113bb3e581c4",
+      "sha256": "8eefaee929079f9e0f9c67b8298e8d08dca156977c832eac3de047388208b34b",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2005,6 +2007,7 @@
         "GlobalContext",
         "GlobalContextUsage",
         "LibraryFile",
+        "SectorSessionView",
         "SessionSettings",
         "ThreadContext",
         "TurnContinuation",
@@ -2014,6 +2017,7 @@
         "assertFileVisible",
         "assertGlobalFileContext",
         "beginThreadTurn",
+        "buildInheritedContext",
         "clearTurnContinuation",
         "closeDiscovery",
         "commitChildContext",
@@ -2027,7 +2031,9 @@
         "globalContextUsageFrom",
         "hiddenFileIds",
         "indexSectorArtifact",
+        "isThreadPaused",
         "listSectorLibrary",
+        "listSectorSessions",
         "notifyWorkspace",
         "previewContextChange",
         "proposeFileContext",
@@ -2035,6 +2041,7 @@
         "readDiscoveryPublicationState",
         "readGlobalContext",
         "readGlobalContextUsage",
+        "readInheritedContext",
         "readResearchBudget",
         "readResearchCoordinatorProgress",
         "readResearchProgress",
@@ -2056,11 +2063,13 @@
         "researchThreadState",
         "restoreGlobalContextVersion",
         "retainCompatibleDiscovery",
+        "saveInheritedContext",
         "saveThreadContext",
         "saveTurnContinuation",
         "sessionKind",
         "setFileVisibility",
         "setSessionPurpose",
+        "setThreadPaused",
         "setUseGlobalContext",
         "workspaceReferenceSnapshot",
         "workspaceReferences",
@@ -2126,7 +2135,7 @@
     },
     {
       "path": "backend/src/mcp/schemas.ts",
-      "sha256": "2bf96439b9dc65edb4c29c1ae88b35f9bc815abf4accee8f571f04fb6b7d4720",
+      "sha256": "a84b071f23a360ea0f39f8fc0f1742cdf94e627d48a5c31fc338839d0b77695b",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2137,7 +2146,7 @@
     },
     {
       "path": "backend/src/mcp/tools.ts",
-      "sha256": "1a75630e1443c9ee0ae4c5c4ca871c0a74af46e1a2df8da4d4b78a8510ad8764",
+      "sha256": "325cdb2a4810912172198059a6a67be8c24a6617558ebee19091116841256ad0",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2508,7 +2517,7 @@
     },
     {
       "path": "backend/src/routes/sessions.ts",
-      "sha256": "e2d9edce850bed7c5602a6e6d287a6f56db9f781e80c7716beba8a8131b1ab7e",
+      "sha256": "322abbf9784bca2678d96cae291a3d94c99c058d8c04d213f54721b57a59f322",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2526,7 +2535,7 @@
     },
     {
       "path": "backend/src/routes/threads.ts",
-      "sha256": "5cc8a39aefb16c1c7688227ae58b3a285ade3019a04dcfd05ab38da80e0f97a9",
+      "sha256": "0cb380dd9fd9ff5b7f4d5b19008b3090bf4505a12886445465611bfeaee9b237",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2771,7 +2780,7 @@
     },
     {
       "path": "backend/src/temporal/activities/turn.ts",
-      "sha256": "498194c3493cd1042f66788c4e17aa0c98203afc17a394efc17b6d43c6a5505e",
+      "sha256": "5567158ce0fb666020bf7364d37bcacaa64ef2b00108212d9ed33f2b03046c15",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2798,8 +2807,10 @@
         "executeKarbotTurn",
         "freezeOriginalPalette",
         "karbotTurnActivity",
+        "parseChatRefs",
         "productMcpClient",
         "researchMcpClient",
+        "resolveChatRefTurn",
         "runChildTurnActivity",
         "runTurnActivity",
         "sectorMcpClient",
@@ -2853,7 +2864,7 @@
     },
     {
       "path": "backend/src/temporal/gateway.ts",
-      "sha256": "cc5a636adefaa14fd469a2664a09bb7dfef1f36ec58971da49efe681c13a586d",
+      "sha256": "095d02ab2a05b62dba7002ae2f6e8b3cc89d75c0944be26edd841e904b82fff2",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3028,6 +3039,19 @@
       ]
     },
     {
+      "path": "backend/src/temporal/workflows/inbox-queue.ts",
+      "sha256": "33f0dba102b84360814b52a0b3947257592d706d32498bf3840bf0203d4eba55",
+      "review": "pending",
+      "tests": [],
+      "exports": [
+        "QueueItemView",
+        "normalizeQueueItem",
+        "queueItemsQuery",
+        "queueRemoveUpdate",
+        "queueReorderUpdate"
+      ]
+    },
+    {
       "path": "backend/src/temporal/workflows/loopguards.ts",
       "sha256": "ecde40cf276e20ab04d70a26325e494e8d03de6fb13e60b963edf9779b1fbe21",
       "review": "pending",
@@ -3046,7 +3070,7 @@
     },
     {
       "path": "backend/src/temporal/workflows/plan.ts",
-      "sha256": "e6733281ad14e9803c2b2c80573cb7c66c935c8ac5e78ded5d4863a844772914",
+      "sha256": "4a40527a08f5783a0f4dfa80ffa7a20f99e9e8bc7a63d42fcda51752afd615bc",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3099,7 +3123,7 @@
     },
     {
       "path": "backend/src/temporal/workflows/resumable-turn.ts",
-      "sha256": "add0105d2a23143dd5f87315c6dd6551a4a0d0f66404d0367b80040687d0c561",
+      "sha256": "52ff081aed52374cbf734d093837412936014098996f05137a03b9dbdcb8709b",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3108,7 +3132,7 @@
     },
     {
       "path": "backend/src/temporal/workflows/run.ts",
-      "sha256": "a4c7f8cf0cc8a0f1e5f07c6eab476ffb2b56cb26a90ab758cbdf2abc1c499e31",
+      "sha256": "d4a77391091f89a7def194d942e9bb1aaadb4673cbcb0fa5c849bf1bbbda5e24",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3128,7 +3152,7 @@
     },
     {
       "path": "backend/src/temporal/workflows/subagents.ts",
-      "sha256": "b4331b5aaf66106fa65360eacd32073ff2efe1d17ef386f9dcff00822579f38e",
+      "sha256": "e57e180941600e6293802c63c5b893797f5a81a2b102321a4a6828fb331ec3b3",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3404,7 +3428,7 @@
     },
     {
       "path": "db/migrations/0024_sector_model_v1.sql",
-      "sha256": "8c5361f1148920cc1e6e7f378dac31ae2ca29474b0d3abaf5e710fb150a6f20d",
+      "sha256": "930bb962ed75b44a686d8c411e9fc245da2507c71473c92c95125dbe8142caef",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -3615,7 +3639,7 @@
     },
     {
       "path": "frontend/src/components/ChatPanel.tsx",
-      "sha256": "888ea235b3510bb067f46b8eb0123db7a38f8ab42e5070036ce8a31f21c04f5d",
+      "sha256": "3945213ad6e16b2316c36389fe13e72335159d70e334ad1c4d5048fd779c2f83",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3867,7 +3891,7 @@
     },
     {
       "path": "frontend/src/components/SectorWorkspace.tsx",
-      "sha256": "017ff25b5591480a25ae750ba23c1192946e52dd83bcd8f2d986528e28c2631e",
+      "sha256": "ad86ce403fe9244b37584ce24c1292ac03e133698eedac892eede968ad9e0acf",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3875,6 +3899,7 @@
         "RenameSessionDialog",
         "ResearchActions",
         "SectorWorkspace",
+        "SpawnSubagentDialog",
         "WORKSPACE_RAIL_STORAGE_KEY",
         "activateNeighbor"
       ]
@@ -3902,7 +3927,7 @@
     },
     {
       "path": "frontend/src/components/SubagentsPanel.tsx",
-      "sha256": "9efb21e7fe0259c453e9af33ab91aa2cede29712e919de2d12f7b200881113c0",
+      "sha256": "b0b13a733965b6c03d0635b845b4360f9689acef5dbc2b2c4c27f4eab62523df",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4345,7 +4370,7 @@
     },
     {
       "path": "frontend/src/components/workspace-parts.tsx",
-      "sha256": "c0b655237526b5891dac396c648aea946247bbe2da71e5210fb54caf420945a0",
+      "sha256": "2b686c183ae8a6d51a4a10eec08cf5b47a546396563fc76b55676ef5eed07432",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4408,7 +4433,7 @@
     },
     {
       "path": "frontend/src/data/sector-workspace.ts",
-      "sha256": "bcfaa04a63e3e6eae610d94cecb129f80919eebd30297104426f9e49cc4b1e67",
+      "sha256": "71ca5380feb72708f6e2318559b36c0a4f79744c63e3824e8a4692e9a78cfa0d",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4428,7 +4453,7 @@
     },
     {
       "path": "frontend/src/data/staging-api.ts",
-      "sha256": "032193493157eeaec9669e812e007c147535fb52920f07b54f58156591e2517a",
+      "sha256": "977889acf636ce4cf1760cc0609f845eeeff3c31dc2c21b749bfc8102f322846",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4456,6 +4481,7 @@
         "ProviderEntrySchema",
         "ProviderModel",
         "ProviderModelSchema",
+        "QueuedMessage",
         "ResearchState",
         "RunState",
         "RunSummary",
@@ -4503,14 +4529,18 @@
         "listSessions",
         "listSkills",
         "listTenantArtifacts",
+        "listThreadQueue",
         "listThreads",
         "openThreadStream",
         "patchSectorContext",
+        "pauseRun",
         "pauseSector",
         "planSector",
         "readSectorPlan",
         "referenceArtifact",
+        "removeQueuedMessage",
         "renameSession",
+        "reorderThreadQueue",
         "request",
         "restartSector",
         "resumeRun",
@@ -4518,6 +4548,7 @@
         "sendThreadText",
         "setSessionModel",
         "setSessionSettings",
+        "spawnSessionSubagent",
         "stagingConfig",
         "stagingEnabled",
         "startSector",
@@ -4536,7 +4567,7 @@
     },
     {
       "path": "frontend/src/data/useWorkspace.ts",
-      "sha256": "4d6ed4d37418bca34d42d6ec65cdba21ce03e1f25ac6de20c452cc82ea904b8f",
+      "sha256": "b5a0add1f9e8e12c01892c0d0e8fb409e5b8081010e2267e081f892b37775b76",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4637,7 +4668,7 @@
     },
     {
       "path": "frontend/src/lib/icons.ts",
-      "sha256": "d8f2fb4e688c9543dbc4132389fe46f19ecdbad69b5196feb1b9b2fa1eeebb82",
+      "sha256": "cc2bd56d4a5bbee54ca0e0810c20ef36211a957ce12fdff538f9d6c8b68529f5",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4663,7 +4694,7 @@
     },
     {
       "path": "frontend/src/lib/labels.ts",
-      "sha256": "166a9ba1d680c31b914317755c12ad23163fc240ba5eebc5bf4db299da3d9ec4",
+      "sha256": "f81f314bd6774e5f039c18bab5f67460a1ebf82d653bfdbd9fc7d3e36c529a7f",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4882,8 +4913,15 @@
       "exports": []
     },
     {
+      "path": "tests/backend/api.queue.test.ts",
+      "sha256": "1f66e8a8d9151b5d69ca109987bb1ccdcaab914acf07e1024c664f9f34ef6539",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/backend/api.rest.test.ts",
-      "sha256": "9809166d8f152366e8b52e33bfceb96b5f33b59b64737831a7da3824a5656fa5",
+      "sha256": "522587f6eeaf8c6dfb84911d7132d179f7d70a6e390560bd252c26a58dd6519d",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -4933,6 +4971,13 @@
     {
       "path": "tests/backend/api.sse.test.ts",
       "sha256": "b108144762d68d9d287826a180ad80b58a362418f8a7ff866e786c5148ee6276",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/api.subagents.test.ts",
+      "sha256": "d1a65a5b1d2855afbee07ace218ebcf5ed427d76bb4ad6c3fef81582832fdd67",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5003,6 +5048,13 @@
     {
       "path": "tests/backend/browser.proxy.test.ts",
       "sha256": "2aac84293251eca52b73ce063d0c1e50894a61914e3cd95ff7a8bf8a024df2d4",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/chat-refs.test.ts",
+      "sha256": "10b79b154a72f882a276a41e747a469e71f650904fa86434e847c28ca42ba292",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5272,7 +5324,7 @@
     },
     {
       "path": "tests/backend/fake-gateway.ts",
-      "sha256": "bc3b671fef5f5aafb617cc363c8fab0701be1cfd71cfb5c3299d246e7a46d390",
+      "sha256": "64883e1272a402e0d762a56aab27d0fbe17843c9387f96a88b69b065d36fe1d4",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -5376,7 +5428,7 @@
     },
     {
       "path": "tests/backend/karbot.turn.test.ts",
-      "sha256": "91429ceadc5a712ad2bcdcc72156edebaad4c522f8eec907d053a7b99d0e0174",
+      "sha256": "b90cf266fe4f7970d9920aa4590ce85570bcf6cc7cc01fc0de7594b6945f3ea6",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5456,6 +5508,13 @@
       "exports": []
     },
     {
+      "path": "tests/backend/live/stage3.live.test.ts",
+      "sha256": "372d8ee87590b4ccfbb41563d57b11878f8467032a3d9ab9c1aab2ca95d11010",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/backend/logging.test.ts",
       "sha256": "32e78061acc1b58c38592c2b11c0ffbc053f58301643eeeb489e5d64e9ec24cf",
       "review": "pending",
@@ -5471,7 +5530,7 @@
     },
     {
       "path": "tests/backend/mcp.authority.test.ts",
-      "sha256": "1ba2fa72bd93da34a6da8fcf9059695fbc28cf582ee346bf4f6b7442047b8af2",
+      "sha256": "cdf4330de649ede5adc213c93baacf9e0d65b4f142ca279b89201242ec00017c",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5520,7 +5579,7 @@
     },
     {
       "path": "tests/backend/mcp.tools.test.ts",
-      "sha256": "9296361ff2575f5fb398b9e6c07e9205450179b28e7501b7e6c5146362ea34a3",
+      "sha256": "e2c89a64a911c79970ab83cbe7d93dea7a00773e25930a6b05cd41a6e9d21c81",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5817,7 +5876,21 @@
     },
     {
       "path": "tests/backend/subagent-delegate.test.ts",
-      "sha256": "4c7aaac01cbc64d5f63f447b578b5475d366f75aff8193810934b79d36a8203c",
+      "sha256": "4d2ad92548e750deee90d10275d23127a6718578f822f718082998a4980c5daf",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/subagent-inherit.test.ts",
+      "sha256": "7647c54afa82498c54ae0f011c77d43f5c2cf891ea4ede343abbf7f7271dc558",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/subagent-pause.test.ts",
+      "sha256": "37d7eab3ee8061a8507d1f933affaf52a2629cfdb6a848859d423c0f03a3cbe6",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6041,15 +6114,22 @@
       "exports": []
     },
     {
+      "path": "tests/backend/workflows.inbox-queue.test.ts",
+      "sha256": "496bee71c5f1e489e071c08b97839f145c986306a29ab9098c6b87309d061a27",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/backend/workflows.loopguards.test.ts",
-      "sha256": "6d265f1b86b17c14e66dad8c3b4d533191e9b01e09f4c0c35d9f2fce00b272b3",
+      "sha256": "2982ac3cc45a687b420b2f339b3fd755fbaf536215bbba03fdef6958f93828e6",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/backend/workflows.plan-brief.test.ts",
-      "sha256": "5f808b4bc920c684b51955e029ddd8d578610e4499b0ca4e2ee3a12ae20ed5aa",
+      "sha256": "fbcf3f9622be2204d1e52ed67c8dcdfba93ced814817fdf1b461bae1c6066987",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6071,6 +6151,13 @@
     {
       "path": "tests/backend/workflows.run.test.ts",
       "sha256": "5e7eac5149854f0af65dd732f53db0d43f7ca7f1e493ea64da5126662efc7b0e",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/backend/workflows.subagent-pause.test.ts",
+      "sha256": "db3cede29810e0e7c97d12b98ded63f1737271401f0e6549de29a8c2f555c4af",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -13110,6 +13197,13 @@
       "exports": []
     },
     {
+      "path": "tests/frontend/chat-refs.test.tsx",
+      "sha256": "c09df9849e294ce52f2ff3dcb4cf41c18cc29e2ac4a7c6ddbba4494181a88003",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/frontend/chat-staging.test.tsx",
       "sha256": "b0f3ec339efa6aa1ce9ae2b67575a0e52c167dffa591004def6c3de12c59710b",
       "review": "pending",
@@ -13174,7 +13268,7 @@
     },
     {
       "path": "tests/frontend/coverage-registry.md",
-      "sha256": "ab92f06462dbae46950e3d0d95bb350691040d723159fb8a3e756d921a93f82b",
+      "sha256": "c45f030662f5b3d9ed86a736e48d546de6dbc38ef126fd12129462a9bf6def65",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -13348,6 +13442,13 @@
       "exports": []
     },
     {
+      "path": "tests/frontend/queue.test.tsx",
+      "sha256": "c923668f17522babc8636448376cf3137d02ba24bf769153f94248b1b47457a7",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/frontend/research-plan-editor.test.tsx",
       "sha256": "20d76d6aa9c872f970680637ad6797a72a28dab25ba771ef8aec3a578d856b5d",
       "review": "pending",
@@ -13405,7 +13506,7 @@
     },
     {
       "path": "tests/frontend/session-global-context.test.tsx",
-      "sha256": "1eb64870f803a177255ae22852830e1eb0a4496519cc3f7a011bbfe032af43b4",
+      "sha256": "da142755b12dd346b65fb1fd84003577303f75e0793a8ddb07f7d404274951b2",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -13434,6 +13535,34 @@
     {
       "path": "tests/frontend/staging-sectors.test.ts",
       "sha256": "d5e7bdacf57e9ac629405435407cf264a69c2c12edb4272fbc5b17f30bba18a2",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/stop-controls.test.tsx",
+      "sha256": "bf2ec2cb7ce9ce4b2af2bc0e94445e04411a4b3e91f43b97ba4f9ececbe65d01",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/stop-model.test.tsx",
+      "sha256": "c67df3806eb8ceae76bd1449aa2c226655f577cb4087953959db4e26d8e3797d",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/subagent-controls.test.tsx",
+      "sha256": "7c1b37eb196404c40b9302f516c8831a5c83d5ef3c6c36f6d334203c0d947d31",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
+      "path": "tests/frontend/subagent-spawn.test.tsx",
+      "sha256": "cbbabba725f3af88532dcec422adc35f300115eafdffe062236a2c039bd670f1",
       "review": "pending",
       "tests": [],
       "exports": []

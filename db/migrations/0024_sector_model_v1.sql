@@ -45,7 +45,19 @@ ALTER TABLE workspace_changes ADD CONSTRAINT workspace_changes_author_check CHEC
 ALTER TABLE workspace_changes ADD COLUMN input_tokens integer NOT NULL DEFAULT 0;
 ALTER TABLE workspace_changes ADD COLUMN output_tokens integer NOT NULL DEFAULT 0;
 
+-- A15: subagent inheritance brief, written at spawn before the goal.
+ALTER TABLE thread_context ADD COLUMN inherited text NOT NULL DEFAULT '';
+
+-- A16: owner pause flag per thread, read at every provider boundary.
+CREATE TABLE thread_control (
+  thread_key text PRIMARY KEY,
+  paused boolean NOT NULL DEFAULT false,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- migrate:down
+DROP TABLE thread_control;
+ALTER TABLE thread_context DROP COLUMN inherited;
 ALTER TABLE workspace_changes DROP COLUMN output_tokens;
 ALTER TABLE workspace_changes DROP COLUMN input_tokens;
 ALTER TABLE workspace_changes DROP CONSTRAINT workspace_changes_author_check;

@@ -37,7 +37,7 @@ import type { ContextChange, ContextFileBlock, ContextPreview, GlobalContext, Gl
 import { IconButton } from './IconButton'
 import { ConfirmAction } from './ui/alert-dialog'
 
-export function WorkspaceOverlay({ title, titleBadge, children, onClose, side = false, footer, open = true, size = 'default', popupClassName, initialFocus }: { title: string; titleBadge?: ReactNode; children: ReactNode; onClose(): void; side?: boolean; footer?: ReactNode; open?: boolean; size?: 'default' | 'large' | 'small'; popupClassName?: string; initialFocus?: React.RefObject<HTMLInputElement | null> }) {
+export function WorkspaceOverlay({ title, titleBadge, children, onClose, side = false, footer, open = true, size = 'default', popupClassName, initialFocus }: { title: string; titleBadge?: ReactNode; children: ReactNode; onClose(): void; side?: boolean; footer?: ReactNode; open?: boolean; size?: 'default' | 'large' | 'small'; popupClassName?: string; initialFocus?: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null> }) {
  // Single overlay ownership: the shared dialog owns the focus trap, Esc,
  // and trigger restoration. The root stays mounted through a controlled
  // closing so Base UI can retain and animate the exiting popup before

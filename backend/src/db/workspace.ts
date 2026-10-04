@@ -106,6 +106,27 @@ export async function sessionKind(db: Db, sessionId: string): Promise<'research'
   const { rows } = await db.query('SELECT sector_id FROM sector_workspace WHERE research_session_id=$1', [sessionId])
   return rows.length ? 'research' : 'normal'
 }
+export interface SectorSessionView {
+  id: string
+  kind: 'research' | 'normal'
+  title: string
+  updatedAt: string
+  threadKeys: string[]
+}
+
+/** Every session of a sector with its thread keys, including agent:*
+ * subagent threads. Sector chats read siblings through this. */
+export async function listSectorSessions(db: Db, sectorId: string, scope?: Scope): Promise<SectorSessionView[]> {
+  checked(Id, sectorId)
+  const sessions = await listSessions(db, scope, sectorId)
+  const views: SectorSessionView[] = []
+  for (const session of sessions) {
+    const headers = await listThreadHeaders(db, session.id)
+    views.push({ id: session.id, kind: await sessionKind(db, session.id), title: session.title, updatedAt: session.updatedAt, threadKeys: headers.map((header) => header.key) })
+  }
+  return views
+}
+
 export async function researchSessionBinding(db: Db, sectorId: string): Promise<string | null> {
   checked(Id, sectorId)
   return (await workspaceRow(db, sectorId)).research_session_id
@@ -428,6 +449,71 @@ export async function restoreGlobalContextVersion(db: TransactableDb, input: { s
     return { version, sections }
   })
 }
+const INHERITED_MESSAGE_CAP = 20
+const INHERITED_TOKEN_CAP = 12000
+
+/** Spawn-time brief for a child: the parent summary plus its recent
+ * user/agent messages as Owner:/Agent: lines, capped at 12k estimated
+ * tokens by dropping the oldest messages first. */
+export async function buildInheritedContext(db: Db, parentThreadKey: string): Promise<string> {
+  await requireThread(db, parentThreadKey)
+  const local = await readThreadContext(db, parentThreadKey)
+  const { rows } = await db.query<{ payload: unknown }>(
+    `SELECT payload FROM thread_messages WHERE thread_key=$1 AND kind='text' ORDER BY seq DESC LIMIT 40`,
+    [parentThreadKey],
+  )
+  const lines: string[] = []
+  for (const row of [...rows].reverse()) {
+    if (typeof row.payload !== 'object' || row.payload === null) continue
+    const payload = row.payload as Record<string, unknown>
+    if (typeof payload['text'] !== 'string') continue
+    if (payload['role'] === 'user') lines.push(`Owner: ${payload['text']}`)
+    else if (payload['role'] === 'agent') lines.push(`Agent: ${payload['text']}`)
+  }
+  const recent = lines.slice(-INHERITED_MESSAGE_CAP)
+  const render = () => `Parent summary:\n${local.summary}\nRecent parent messages:\n${recent.join('\n')}`
+  let body = render()
+  while (recent.length > 0 && estimateTokens(body) > INHERITED_TOKEN_CAP) {
+    recent.shift()
+    body = render()
+  }
+  return body
+}
+
+/** Bare upsert: the child thread row may not have projected yet when the
+ * brief lands between parent acceptance and the goal signal. */
+export async function saveInheritedContext(db: Db, childThreadKey: string, inherited: string): Promise<void> {
+  if (!childThreadKey) throw new DbContractError('childThreadKey must be a non-empty string')
+  await db.query(
+    `INSERT INTO thread_context(thread_key,inherited) VALUES($1,$2)
+     ON CONFLICT(thread_key) DO UPDATE SET inherited=$2`,
+    [childThreadKey, inherited],
+  )
+}
+
+/** Owner pause flag: written by pause/resume runs, read at every
+ * provider boundary. Missing row means running. */
+export async function setThreadPaused(db: Db, threadKey: string, paused: boolean): Promise<void> {
+  if (!threadKey) throw new DbContractError('threadKey must be a non-empty string')
+  await db.query(
+    `INSERT INTO thread_control(thread_key,paused,updated_at) VALUES($1,$2,now())
+     ON CONFLICT(thread_key) DO UPDATE SET paused=$2,updated_at=now()`,
+    [threadKey, paused],
+  )
+}
+
+export async function isThreadPaused(db: Db, threadKey: string): Promise<boolean> {
+  const researchState = await researchThreadState(db, threadKey).catch(() => null)
+  if (researchState === 'paused' || researchState === 'planning' || researchState === 'planned') return true
+  const { rows } = await db.query<{ paused: boolean }>('SELECT paused FROM thread_control WHERE thread_key=$1', [threadKey])
+  return rows[0]?.paused ?? false
+}
+
+export async function readInheritedContext(db: Db, threadKey: string): Promise<string> {
+  const { rows } = await db.query<{ inherited: string }>('SELECT inherited FROM thread_context WHERE thread_key=$1', [threadKey])
+  return rows[0]?.inherited ?? ''
+}
+
 export async function readThreadContext(db: Db, threadKey: string, scope?: Scope): Promise<ThreadContext> {
   await requireThread(db, threadKey, scope)
   const { rows } = await db.query<{ notes: string; summary: string; covered_seq: number | string; version: number; usage: ThreadContext['usage']; working_user: string | null; working_meta: TurnContinuation['meta'] | null }>('SELECT * FROM thread_context WHERE thread_key=$1', [threadKey])

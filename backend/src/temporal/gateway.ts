@@ -33,7 +33,7 @@ import { createLogger, logOp } from '../observability/logging.js'
 import { projectNewEvents } from '../projector.js'
 import { loadOriginalTurnRecovery } from './turn-recovery.js'
 import { defaultPayloadConverter } from '@temporalio/common'
-import { getThread, listThreads, listThreadHeaders } from '../db/index.js'
+import { getThread, listThreads, listThreadHeaders, requireThread, setThreadPaused, WorkspaceError } from '../db/index.js'
 
 export type RunState = 'IDLE' | 'RUNNING' | 'PAUSED' | 'SUSPENDED' | 'CANCELLING' | 'FINISHED' | 'ERROR'
 
@@ -101,6 +101,9 @@ export interface RunsGateway {
   pauseRun(runId: string): Promise<CommandResult>
   resumeRun(runId: string, extendedBudgetMs?: number): Promise<CommandResult>
   cancelRun(runId: string): Promise<CommandResult>
+  listQueue(threadKey: string): Promise<Array<{ id: string; text: string; queuedAt: number }>>
+  removeQueued(threadKey: string, id: string): Promise<boolean>
+  reorderQueue(threadKey: string, ids: string[]): Promise<void>
 }
 
 export const SESSION_PREFIX = 'session-run-'
@@ -148,6 +151,11 @@ export function delegationWorkflowId(sessionId: string): string {
 export interface DelegateSubagentInput {
   sessionId: string
   goal: string
+  /** Owner-given display name; forwarded to the launch event. */
+  name?: string
+  /** Runs after parent acceptance, before the goal signal: the caller's
+   * seam for the spawn-time inherited-context write. */
+  onAccepted?: (childId: string) => Promise<void>
   mode: 'empty' | 'fork'
   queueCapacity: number
   /** Test-only scripted fake steps for the child turn. Never set in
@@ -491,6 +499,7 @@ export class TemporalRunsGateway implements RunsGateway {
         {
           childId,
           goal: input.goal,
+          ...(input.name === undefined ? {} : { name: input.name }),
           depth: 0,
           mode: input.mode,
           maxDepth: 0,
@@ -522,6 +531,7 @@ export class TemporalRunsGateway implements RunsGateway {
       }
       await sleep(500)
     }
+    await input.onAccepted?.(childId)
     await client.workflow.getHandle(childId).signal('childMessage', input.goal)
     return { childId, commandId: commandId() }
   }
@@ -651,8 +661,13 @@ export class TemporalRunsGateway implements RunsGateway {
   async pauseRun(runId: string): Promise<CommandResult> {
     // Guarded runs have no pause signal by design: the loop/unit/run guards
     // suspend them, and resumeRun (approved guardResume) is the way back.
-    const type = await this.requireType(runId, ['sessionRun', 'researchRun'])
+    const type = await this.requireType(runId, ['sessionRun', 'researchRun', 'subagentRun'])
     const client = await this.client()
+    if (type === 'subagentRun') {
+      await setThreadPaused(this.pool, `agent:${runId}`, true)
+      await client.workflow.getHandle(runId).signal('childPause')
+      return { commandId: commandId(), state: 'accepted' }
+    }
     await client.workflow.getHandle(runId).signal(type === 'sessionRun' ? 'runPause' : 'researchPause')
     return { commandId: commandId(), state: 'accepted' }
   }
@@ -687,7 +702,10 @@ export class TemporalRunsGateway implements RunsGateway {
     }
     if (type === 'sessionRun') await handle.signal('runResume')
     else if (type === 'researchRun') await handle.signal('researchResume')
-    else if (type === 'companyResearch' || type === 'subagentRun') await handle.signal('childResume')
+    else if (type === 'subagentRun') {
+      await setThreadPaused(this.pool, `agent:${runId}`, false)
+      await handle.signal('childResume')
+    } else if (type === 'companyResearch') await handle.signal('childResume')
     else await handle.signal('guardResume', { approved: true, extendRunMs: extendedBudgetMs })
     return { commandId: commandId(), state: 'accepted' }
   }
@@ -700,6 +718,51 @@ export class TemporalRunsGateway implements RunsGateway {
     else if (type === 'subagentRun') { await handle.signal('childCancel'); await handle.signal('childFinish') }
     else await signalRunCancel(handle, runId)
     return { commandId: commandId(), state: 'accepted' }
+  }
+
+  /** Resolve a thread to its run workflow: session threads to
+   * session-run-<sessionId>, agent:<childId> to the child. */
+  private async queueWorkflowId(threadKey: string): Promise<string> {
+    const identity = await requireThread(this.pool, threadKey)
+    return identity.thread.kind === 'subagent' ? threadKey.slice('agent:'.length) : `${SESSION_PREFIX}${identity.session.id}`
+  }
+
+  async listQueue(threadKey: string): Promise<Array<{ id: string; text: string; queuedAt: number }>> {
+    const workflowId = await this.queueWorkflowId(threadKey)
+    const client = await this.client()
+    try {
+      return await client.workflow.getHandle(workflowId).query<Array<{ id: string; text: string; queuedAt: number }>>('queueItems')
+    } catch (error) {
+      if (error instanceof WorkflowNotFoundError) throw new RunNotFound(`no such run ${workflowId}`)
+      throw error
+    }
+  }
+
+  async removeQueued(threadKey: string, id: string): Promise<boolean> {
+    const workflowId = await this.queueWorkflowId(threadKey)
+    const client = await this.client()
+    try {
+      return await client.workflow.getHandle(workflowId).executeUpdate<boolean, [string]>('queueRemove', { args: [id] })
+    } catch (error) {
+      if (error instanceof WorkflowNotFoundError) throw new RunNotFound(`no such run ${workflowId}`)
+      throw error
+    }
+  }
+
+  async reorderQueue(threadKey: string, ids: string[]): Promise<void> {
+    const workflowId = await this.queueWorkflowId(threadKey)
+    const client = await this.client()
+    try {
+      await client.workflow.getHandle(workflowId).executeUpdate<boolean, [string[]]>('queueReorder', { args: [ids] })
+    } catch (error) {
+      if (error instanceof WorkflowNotFoundError) throw new RunNotFound(`no such run ${workflowId}`)
+      // The workflow rejects non-exact id sets with QueueMismatch; the
+      // message is the stable contract across the update boundary.
+      if (error instanceof Error && error.message.includes('Queue ids must exactly match')) {
+        throw new WorkspaceError('validation_failed', 'Queue ids must exactly match the current queue.')
+      }
+      throw error
+    }
   }
 
   private describeRun(

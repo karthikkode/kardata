@@ -150,3 +150,21 @@ Each sector chat and the research chat carries a "use global context" switch,
 default on, affecting only that chat's future turns. A rewrite direction opens
 a tracked `Context rewrite:` chat that ends in one pending proposal; the
 context is unchanged until the owner approves.
+
+Normal chats read everything in their sector: plan, progress, sibling chats
+and subagent transcripts, through four viewer MCP tools. Writes stay
+isolated: context proposals and subagent spawns only, and subagents cannot
+read sibling threads. In the research chat, `@chat` inserts a
+`[[session:id|title]]` marker; that turn reads the referenced chats and
+advises, with the plan writer narrowed out of the palette, and the plan
+changes only after the owner confirms in a later message.
+
+Subagents spawn from the UI or from a parent agent with inherited context:
+the parent's summary plus its recent messages, capped at 12,000 estimated
+tokens and written before the goal is processed. The owner route caps at 50
+in flight (409 past it). Each subagent pauses and resumes individually; a
+mid-turn pause parks at the next provider round boundary, keeps the
+checkpoint, and resumes from it. Waiting inbox messages list with stable ids
+under `GET /v1/threads/{key}/queue`; the running item is never listed, and
+reorder requires exactly the current set. Stop (header, every running
+subagent row, Runs) confirms with "Stop this agent?" and toasts "Stopped".

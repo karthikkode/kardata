@@ -30,7 +30,7 @@ import {
 import {
   appendEvent,
   beginThreadTurn, consumeSteering, finishSteering, readThreadContext, saveThreadContext, workspaceReferences,
-  readTurnContinuation, saveTurnContinuation, clearTurnContinuation, researchThreadState,
+  readTurnContinuation, saveTurnContinuation, clearTurnContinuation,
   recordContextMeasurement,
   readActiveExecutionIdentity, recordTurnExecution, workspaceReferenceSnapshot,
   WorkspaceError,
@@ -44,7 +44,7 @@ import {
   type Db,
   type SessionModelSelection,
 } from '../../db/index.js'
-import { readSessionSettings, sessionKind } from '../../db/workspace.js'
+import { isThreadPaused, readInheritedContext, readSessionSettings, sessionKind } from '../../db/workspace.js'
 import { projectNewEvents } from '../../projector.js'
 import { localContextMessages } from '../../context.js'
 import { findModel } from '../../providers/registry.js'
@@ -162,6 +162,55 @@ export const CONTEXT_REWRITE_PREAMBLE =
 export const CONTEXT_PROPOSAL_NUDGE =
   'When the owner gives a direction that should guide all future work in this sector (what to focus on, avoid, or prefer), call db.propose_global_context adding it to Instructions (or to Decisions for a settled choice), against the current version, then tell the owner a proposal is waiting for approval. Never claim it is applied.'
 
+const CHAT_REF_PATTERN = /\[\[session:([^|\]]+)\|([^\]]*)\]\]/g
+
+/** Research-chat @chat markers. @name is untouched: the gateway routes
+ * it to subagents, so references travel as [[session:id|title]]. */
+export function parseChatRefs(text: string): Array<{ sessionId: string; title: string }> {
+  const refs: Array<{ sessionId: string; title: string }> = []
+  for (const match of text.matchAll(CHAT_REF_PATTERN)) {
+    refs.push({ sessionId: match[1] ?? '', title: match[2] ?? '' })
+  }
+  return refs
+}
+
+/** Marker-turn override for the research chat: referenced chats resolve
+ * to a preload chunk and the grant drops the plan writer for this turn
+ * only. Unknown or cross-sector ids drop with a note. Anything else —
+ * plain text, normal chats, subagent threads — returns null (no turn
+ * override). Re-derived on every attempt, so recovery replays it. */
+export async function resolveChatRefTurn(
+  pool: Db,
+  input: { sessionId: string; threadKey: string; text: string },
+): Promise<{ toolAllow: string[]; chunks: string[] } | null> {
+  if (parseChatRefs(input.text).length === 0) return null
+  if (input.threadKey !== input.sessionId) return null
+  const session = await getSession(pool, input.sessionId).catch(() => null)
+  if (!session?.sectorId) return null
+  const kind = await sessionKind(pool, session.id).catch(() => 'normal' as const)
+  if (kind !== 'research') return null
+  const seen = new Set<string>()
+  const refs: Array<{ sessionId: string; title: string }> = []
+  let unknown = false
+  for (const marker of parseChatRefs(input.text)) {
+    if (seen.has(marker.sessionId)) continue
+    seen.add(marker.sessionId)
+    const target = await getSession(pool, marker.sessionId).catch(() => null)
+    if (!target || target.sectorId !== session.sectorId) {
+      unknown = true
+      continue
+    }
+    refs.push({ sessionId: target.id, title: target.title || marker.title })
+  }
+  const chunks: string[] = []
+  if (refs.length > 0) {
+    const listed = refs.map((ref) => `${ref.title} (session ${ref.sessionId})`).join(', ')
+    chunks.push(`The owner referenced these chats: ${listed}. Read each with db.read_sector_thread, summarize what matters for the research plan, and advise whether the plan should change and how. Do not change the plan in this turn; ask the owner to confirm first.`)
+  }
+  if (unknown) chunks.push('Referenced chat not found')
+  return { toolAllow: [...RESEARCH_TOOLS].filter((name) => name !== 'db.update_sector_plan'), chunks }
+}
+
 /** Bounded text history from the thread projection. Tool result payloads are
  * not chat turns and never become free-form instructions in the prompt. */
 export function chatHistory(messages: Array<{ kind: string; payload: unknown }>, latestText: string): ChatMessage[] {
@@ -277,6 +326,10 @@ export interface KarbotTurnDeps {
   /** Sector display name for the identity preload; absent means the
    * sector id stands in for the name. */
   loadSectorName?(sectorId: string): Promise<string | undefined>
+  /** Spawn-time parent brief for subagent threads; absent or empty means
+   * no inheritance rides the turn. Pinned across rounds like the sector
+   * id line. */
+  loadInheritedContext?(threadKey: string): Promise<string[]>
   loadHistory(threadKey: string): Promise<ChatMessage[]>
   /** KB preload for brainstorm mode: reference chunks matching the turn.
    * Absent means no preload. Never logged; chunks ride the prompt seam. */
@@ -371,15 +424,17 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
       firstFrame[slot] ??= Date.now() - started
       return firstFrame[slot]
     }
-    // Round-2+ rebuilds pin the brainstorm preload and the sector id
-    // line: refreshed references alone would drop them after round 1.
-    const pinned = [...preload, ...sectorRefs.slice(0, 1)]
+    // Round-2+ rebuilds pin the brainstorm preload, the sector id
+    // line and the inheritance brief: refreshed references alone would
+    // drop them after round 1.
+    const inherited = (await deps.loadInheritedContext?.(parsed.threadKey)) ?? []
+    const pinned = [...preload, ...sectorRefs.slice(0, 1), ...inherited]
     const prepend = [...(parsed.systemPrepend ?? [])]
     if ((await deps.loadSessionPurpose?.(parsed.sessionId)) === 'context-rewrite') prepend.push(CONTEXT_REWRITE_PREAMBLE)
     const systemPrompt = composeSystemPrompt(KARBOT_SYSTEM_PROMPT, {
       prepend,
       modePrompt: parsed.mode ? modePromptFor(parsed.mode) : undefined,
-      preload: [...preload, ...(parsed.preloadChunks ?? []), ...sectorRefs],
+      preload: [...preload, ...(parsed.preloadChunks ?? []), ...sectorRefs, ...inherited],
     })
     // Spend guards for the live turn. Cost stays untracked until a price
     // table lands (no price source exists yet), so maxCost never trips;
@@ -623,6 +678,7 @@ function karbotMcpClient(input: {
 export const PRODUCT_TOOLS: ReadonlySet<string> = new Set([
   'db.commit_child_context',
   'db.get_global_context', 'db.propose_global_context', 'db.list_sector_files', 'db.propose_file_context', 'db.get_local_context',
+  'db.get_sector_plan', 'db.get_research_progress', 'db.list_sector_sessions', 'db.read_sector_thread',
   'db.create_session',
   'db.list_sessions', 'db.get_session', 'db.get_thread', 'db.send_message', 'db.steer_thread', 'db.research_health',
   'db.pause_run', 'db.resume_run', 'db.cancel_run',
@@ -696,6 +752,12 @@ export const SECTOR_TOOLS: ReadonlySet<string> = new Set([
   // Own-sector monitoring stays readable here; steering other sessions is
   // Karbot-only (send/steer need approver + confirmation anyway).
   'db.research_health',
+  // Normal chats read everything in their sector: plan, progress,
+  // sibling chats and subagent transcripts. Writes stay isolated.
+  'db.get_sector_plan',
+  'db.get_research_progress',
+  'db.list_sector_sessions',
+  'db.read_sector_thread',
 ])
 
 export function sectorMcpClient(client: TurnRunnerMcpClient): TurnRunnerMcpClient {
@@ -826,6 +888,11 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
         const continuation = selectTurnContinuation(existing, input)
         const sourceRefs = new Map((continuation?.sources ?? []).map((source) => [source.hash, source]))
         abort.signal.throwIfAborted()
+        const chatRef = await resolveChatRefTurn(pool, { sessionId: input.sessionId, threadKey: input.threadKey, text: input.text })
+        if (chatRef) {
+          const narrowed = input.toolAllow ? chatRef.toolAllow.filter((name) => input.toolAllow!.includes(name)) : chatRef.toolAllow
+          input = KarbotTurnInput.parse({ ...input, toolAllow: narrowed, preloadChunks: [...(input.preloadChunks ?? []), ...chatRef.chunks] })
+        }
         const outcome = await executeKarbotTurn(input, {
           persistExecution: async (round, kind, record) => {
             abort.signal.throwIfAborted()
@@ -857,6 +924,10 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
           loadSessionModel: (sessionId) => getSessionModel(pool, sessionId),
           loadSessionSector: async (sessionId) => (await getSession(pool, sessionId))?.sectorId,
           loadSessionPurpose: async (sessionId) => (await readSessionSettings(pool, sessionId)).purpose,
+          loadInheritedContext: async (threadKey) => {
+            const inherited = await readInheritedContext(pool, threadKey)
+            return inherited ? [`Inherited from parent:\n${inherited}`] : []
+          },
           loadSectorRefs: (sectorId) => turnSectorRefs(pool, input.sessionId, sectorId, input.threadKey),
           loadSectorName: async (sectorId) => (await getSector(pool, sectorId))?.name,
           loadHistory: async (threadKey) => {
@@ -875,8 +946,8 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
                 throw error
               }
             })()
-            const researchState = await researchThreadState(pool, input.threadKey)
-            return { ...snapshot, localVersion: local.version, notes: local.notes, steering: await consumeSteering(pool, input.threadKey, continuation?.runKey ?? input.runKey, round, lease), paused: researchState === 'paused' || researchState === 'planning' || researchState === 'planned' }
+            const paused = await isThreadPaused(pool, input.threadKey)
+            return { ...snapshot, localVersion: local.version, notes: local.notes, steering: await consumeSteering(pool, input.threadKey, continuation?.runKey ?? input.runKey, round, lease), paused }
           },
           persistSummary: async (summary, coveredSeq) => {
             abort.signal.throwIfAborted()

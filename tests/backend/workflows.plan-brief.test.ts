@@ -11,6 +11,10 @@ describe('planningBrief', () => {
     }
     expect(brief).toContain('single word')
     expect(brief).toContain('research-plan')
+    // Live Meta fenced a valid spec as ```json and failed artifact parsing;
+    // the brief now names the exact fence and forbids the json fallback.
+    expect(brief).toContain('```research-plan')
+    expect(brief).toContain('never ```json')
     expect(brief).toContain('uncertain')
     expect(brief).toContain('Speciality foods')
   })

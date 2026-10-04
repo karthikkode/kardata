@@ -182,6 +182,10 @@ adds auth, transport, and tool schemas, never SQL.
 | `db.list_tenant_artifacts` | `listTenantArtifacts` | tenant attach discovery |
 | `db.find_launch_parent` | `findLaunchParentWorkflowId` | finished-child steer routing |
 | `db.get_thread` / `db.list_threads` | `getThread` / `listThreads` | projection reads |
+| `db.get_sector_plan` | `readSectorPlan` | bound-sector plan for sector chats; Karbot denied |
+| `db.get_research_progress` | `readResearchProgress` | bound-sector progress for sector chats; Karbot denied |
+| `db.list_sector_sessions` | `listSectorSessions` | sector chats with kind/title/updatedAt/threadKeys incl. agent:* |
+| `db.read_sector_thread` | `readSectorThread` | bounded cross-chat read (fromSeq/limit ≤ 100); subagents stay isolated |
 | `db.project_batch` | `projectBatch` | projector use; not for ad-hoc writes |
 | `db.record_heartbeat` / `db.list_heartbeats` | `recordHeartbeat` / `listHeartbeats` | liveness signal |
 | `db.read_outbox` | `readOutboxBacklog` / `latestOutboxSeq` | stream replay |

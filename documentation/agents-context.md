@@ -178,3 +178,10 @@ directions via `db.propose_global_context` (never claiming they are applied),
 and a rewrite brief for `context-rewrite` chats that ends in exactly one
 pending proposal. Agent file proposals still travel the pending-approval path;
 approval starts summarization instead of including raw units.
+
+Spawned children inherit the parent's context: `thread_context.inherited`
+holds the parent summary plus its last 20 user/agent messages as Owner/Agent
+lines, capped at 12,000 estimated tokens by dropping the oldest first. The
+write lands between parent acceptance and the goal signal, so the child's
+first turn already carries it as an `Inherited from parent` preload on every
+round. Global context arrives through the parent session's own switch.

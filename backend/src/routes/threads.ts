@@ -8,7 +8,7 @@ import { projectNewEvents } from '../projector.js'
 import { openThreadStream } from '../streams/outbox.js'
 import { getThread, listThreadHeaders, readSteeringReceiptsPage } from '../db/index.js'
 import { toApiMessage, toApiThread } from '../threads/views.js'
-import { authorize, parseInput, requirePool, requireSessionScope, route, sendError } from './http.js'
+import { authorize, parseInput, requirePool, requireRuns, requireSessionScope, route, sendError, withIdempotency } from './http.js'
 import { corsHeadersFor, parseCorsOrigins } from '../http/cors.js'
 
 const MessagesQuery = z.object({
@@ -19,6 +19,8 @@ const MessagesQuery = z.object({
 const StreamQuery = z.object({
   lastSeq: z.coerce.number().int().min(0).default(0),
 })
+
+const ReorderBody = z.object({ itemIds: z.array(z.string().min(1)).min(1).max(100) })
 
 export function threadRoutes(app: FastifyInstance): void {
   route(app, 'get', '/v1/sessions/:sessionId/threads', async (request, reply, app) => {
@@ -63,6 +65,60 @@ export function threadRoutes(app: FastifyInstance): void {
     const data = page.map(toApiMessage).filter((message) => message !== undefined)
     const last = page[page.length - 1]
     return { ok: true, data, nextAfterSeq: last ? last.seq : query.afterSeq }
+  })
+
+  route(app, 'get', '/v1/threads/:threadKey/queue', async (request, reply, app) => {
+    const pool = requirePool(app, reply)
+    if (!pool) return undefined
+    const auth = await authorize(app, request, reply, 'viewer')
+    if (!auth) return undefined
+    const runs = requireRuns(app, reply)
+    if (!runs) return undefined
+    await projectNewEvents(pool)
+    const params = request.params as { threadKey: string }
+    const thread = await getThread(pool, params.threadKey)
+    if (!thread) return sendError(reply, 404, 'not_found', `no such thread ${params.threadKey}`)
+    if (!(await requireSessionScope(pool, thread.sessionId, auth.scope, reply))) return undefined
+    return { ok: true, data: await runs.listQueue(params.threadKey) }
+  })
+
+  route(app, 'delete', '/v1/threads/:threadKey/queue/:itemId', async (request, reply, app) => {
+    const pool = requirePool(app, reply)
+    if (!pool) return undefined
+    const auth = await authorize(app, request, reply, 'operator')
+    if (!auth) return undefined
+    const runs = requireRuns(app, reply)
+    if (!runs) return undefined
+    await projectNewEvents(pool)
+    const params = request.params as { threadKey: string; itemId: string }
+    const thread = await getThread(pool, params.threadKey)
+    if (!thread) return sendError(reply, 404, 'not_found', `no such thread ${params.threadKey}`)
+    if (!(await requireSessionScope(pool, thread.sessionId, auth.scope, reply))) return undefined
+    return withIdempotency(request, reply, pool, auth.keyId, async () => {
+      const removed = await runs.removeQueued(params.threadKey, params.itemId)
+      if (!removed) return { status: 404, body: { ok: false, error: { code: 'not_found', message: `no such queued item ${params.itemId}` } } }
+      return { status: 200, body: { ok: true, data: { removed: true } } }
+    })
+  })
+
+  route(app, 'post', '/v1/threads/:threadKey/queue/reorder', async (request, reply, app) => {
+    const pool = requirePool(app, reply)
+    if (!pool) return undefined
+    const auth = await authorize(app, request, reply, 'operator')
+    if (!auth) return undefined
+    const runs = requireRuns(app, reply)
+    if (!runs) return undefined
+    const body = parseInput(ReorderBody, request.body, reply)
+    if (!body) return undefined
+    await projectNewEvents(pool)
+    const params = request.params as { threadKey: string }
+    const thread = await getThread(pool, params.threadKey)
+    if (!thread) return sendError(reply, 404, 'not_found', `no such thread ${params.threadKey}`)
+    if (!(await requireSessionScope(pool, thread.sessionId, auth.scope, reply))) return undefined
+    return withIdempotency(request, reply, pool, auth.keyId, async () => {
+      await runs.reorderQueue(params.threadKey, body.itemIds)
+      return { status: 200, body: { ok: true, data: { reordered: true } } }
+    })
   })
 
   route(app, 'get', '/v1/threads/:threadKey/steering-receipts', async (request, reply, app) => {

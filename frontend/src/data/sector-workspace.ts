@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { apiErrorStatus, attachSectorDocument, cancelRun, createSession, deleteSession, listSessions, listThreads, readSectorPlan, renameSession, resumeRun, setSessionSettings, StagingApiError, type StagingConfig } from './staging-api'
+import { apiErrorStatus, attachSectorDocument, cancelRun, createSession, deleteSession, listSessions, listThreadQueue, listThreads, pauseRun, readSectorPlan, removeQueuedMessage, renameSession, reorderThreadQueue, resumeRun, setSessionSettings, spawnSessionSubagent, StagingApiError, type StagingConfig } from './staging-api'
 import { rebuildLocalContext, inspectThreadOperation, compactLocalContext, compactGlobalContext, restoreGlobalContext, startGlobalContextRewrite, decideGlobalContext, ensureResearchSession, getContextPreview, getGlobalContext, getLocalContext, getResearchProgress, getSectorFileBody, getSectorFiles, hideSectorFile, addFileToGlobalContext, summarizeGlobalContextFile, removeGlobalContextFile, saveGlobalContext, saveLocalContext, retryFileProcessing, getFileUnitsPage, type Sections } from './workspace-api'
 import { useWorkspaceConversation, useWorkspaceResource } from './useWorkspace'
 import { getExecutionRecord, listExecutionRecords } from './workspace-api'
@@ -48,6 +48,16 @@ export function useSectorWorkspace(config: StagingConfig | null, sectorId: strin
   const preview = useWorkspaceResource(config, proposalId && sectorId ? `proposal:${sectorId}:${proposalId}` : null, (cfg) => getContextPreview(cfg, sectorId ?? '', proposalId ?? ''))
   const operationReceipt = useWorkspaceResource(config, inspection?.thread === activeThread ? `operation:${activeThread}:${inspection.operationId}` : null, (cfg) => inspectThreadOperation(cfg, activeThread ?? '', inspection?.operationId ?? ''))
   const chat = useWorkspaceConversation(config, activeThread)
+  // No running workflow answers 404: an idle thread simply has no queue.
+  // Poll every 3 s while a run is active so the disclosure tracks drains.
+  const queue = useWorkspaceResource(config, activeThread, async (cfg) => {
+    try {
+      return await listThreadQueue(cfg, activeThread ?? '')
+    } catch (error) {
+      if (error instanceof StagingApiError && error.status === 404) return []
+      throw error
+    }
+  }, chat.busy ? 3000 : false)
   const currentExecution = execution?.thread === activeThread ? execution : null
   const executionPage = useWorkspaceResource(config, currentExecution ? `execution-page:${activeThread}:${currentExecution.afterSeq}` : null, (cfg) => listExecutionRecords(cfg, activeThread ?? '', currentExecution?.afterSeq ?? 0))
   const executionBody = useWorkspaceResource(config, currentExecution?.seq ? `execution-record:${activeThread}:${currentExecution.seq}` : null, (cfg) => getExecutionRecord(cfg, activeThread ?? '', currentExecution?.seq ?? 0))
@@ -76,9 +86,29 @@ export function useSectorWorkspace(config: StagingConfig | null, sectorId: strin
     openThread: (key: string) => { if (selected) onNavigate(selected.id, key) },
     createChat: () => act('create', async (cfg) => { const session = await createSession(cfg, 'New conversation', sectorId ?? undefined); if (sessions.acknowledge([...(sessions.data ?? []), { ...session, kind: 'normal' as const }])) onNavigate(session.id, session.id) }),
     renameChat: (title: string) => act('rename', async (cfg) => { if (selected) await renameSession(cfg, selected.id, title); sessions.refresh() }),
+    spawnSubagent: (goal: string, name?: string) => act('spawn', async (cfg) => { if (selected) await spawnSessionSubagent(cfg, selected.id, name ? { goal, name } : { goal }); threads.refresh() }),
+    pauseSubagent: (childId: string) => act('pause', async (cfg) => { await pauseRun(cfg, childId); threads.refresh() }),
+    resumeSubagent: (childId: string) => act('resume', async (cfg) => { await resumeRun(cfg, childId); threads.refresh() }),
+    queue,
+    removeQueued: (id: string) => (async () => {
+      const before = queue.data ?? []
+      queue.acknowledge(before.filter((item) => item.id !== id))
+      const ok = await act('queue', async (cfg) => { if (activeThread) await removeQueuedMessage(cfg, activeThread, id); queue.refresh() })
+      if (!ok) queue.acknowledge(before)
+      return ok
+    })(),
+    reorderQueue: (ids: string[]) => (async () => {
+      const before = queue.data ?? []
+      const byId = new Map(before.map((item) => [item.id, item]))
+      queue.acknowledge(ids.map((id) => byId.get(id)).filter((item) => item !== undefined))
+      const ok = await act('queue', async (cfg) => { if (activeThread) await reorderThreadQueue(cfg, activeThread, ids); queue.refresh() })
+      if (!ok) queue.acknowledge(before)
+      return ok
+    })(),
     setUseGlobalContext: (value: boolean) => act('settings', async (cfg) => { if (selected) await setSessionSettings(cfg, selected.id, value); sessions.refresh() }),
     deleteChat: () => act('delete', async (cfg) => { if (!selected || selected.kind === 'research') return; await deleteSession(cfg, selected.id); sessions.refresh(); const research = sessions.data?.find((session) => session.kind === 'research'); if (research) onNavigate(research.id, research.id) }),
     stop: () => act('stop', async (cfg) => { if (activeThread) await cancelRun(cfg, child ? child.key.replace(/^agent:/, '') : `session-run-${selected?.id}`); chat.stopped() }),
+    stopSubagent: (childId: string) => act('stop', async (cfg) => { await cancelRun(cfg, childId); threads.refresh(); if (activeThread === `agent:${childId}`) chat.stopped() }),
     resume: () => act('resume', async (cfg) => { if (activeThread) await resumeRun(cfg, child ? child.key.replace(/^agent:/, '') : `session-run-${selected?.id}`); threads.refresh(); local.refresh() }),
     saveGlobal: (sections: Sections, baseVersion: number) => act('global', async (cfg) => { if (!sectorId) return; await saveGlobalContext(cfg, sectorId, baseVersion, sections); global.refresh() }),
     compactGlobal: () => act('global', async (cfg) => { if (!sectorId) return; await compactGlobalContext(cfg, sectorId); global.refresh() }),

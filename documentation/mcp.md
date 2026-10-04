@@ -49,6 +49,17 @@ RESEARCH_TOOLS (SECTOR_TOOLS plus the plan writer), other sector chats
 see SECTOR_TOOLS, Karbot sees PRODUCT_TOOLS. `planSectorResearch`
 likewise requires the sector's bound research session.
 
+Sector reads (sector backend v1): `db.get_sector_plan`,
+`db.get_research_progress`, `db.list_sector_sessions` and
+`db.read_sector_thread` are viewer tools on both SECTOR_TOOLS and
+RESEARCH_TOOLS, so normal chats read the plan, progress, sibling chats
+and subagent transcripts. The sector check still applies;
+`db.read_sector_thread` is exempt from the local-conversation isolation
+rule but stays denied to subagent actors reading siblings. The four
+also ride PRODUCT_TOOLS for the stacking contract (sectorMcpClient sits
+over productMcpClient); server-side workspace identity still denies
+Karbot callers.
+
 - Keyed mode resolves the caller with the shared `resolveCaller` gate
   (absent/unknown/under-viewer callers 403 `permission_denied`) and
   binds the tenant/project scope plus role into every tool call. Open

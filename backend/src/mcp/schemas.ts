@@ -195,6 +195,14 @@ export const TOOL_SCHEMAS = {
   'db.get_thread': z.object({
     threadKey: NonEmpty,
   }),
+  'db.get_sector_plan': z.object({}).strict(),
+  'db.get_research_progress': z.object({}).strict(),
+  'db.list_sector_sessions': z.object({}).strict(),
+  'db.read_sector_thread': z.object({
+    threadKey: NonEmpty,
+    fromSeq: AfterSeq.optional(),
+    limit: z.number().int().min(1).max(100).optional(),
+  }).strict(),
   'db.send_message': z.object({
     threadKey: NonEmpty,
     text: z.string().min(1).max(8000),

@@ -20,6 +20,8 @@ import {
   getArtifactBody,
   listMessages,
   listRuns,
+  pauseRun,
+  resumeRun,
   listSessionArtifacts,
   listSessions,
   listSkills,
@@ -1418,6 +1420,26 @@ export function ChatPanel({
     }
   }
 
+  function pauseThread(key: string) {
+    if (!config) return
+    const run = runs.find((entry) => entry.threadKey === key)
+    if (run) {
+      pauseRun(config, run.id)
+        .then(() => setThreadsAttempt((attempt) => attempt + 1))
+        .catch(() => undefined)
+    }
+  }
+
+  function resumeThread(key: string) {
+    if (!config) return
+    const run = runs.find((entry) => entry.threadKey === key)
+    if (run) {
+      resumeRun(config, run.id)
+        .then(() => setThreadsAttempt((attempt) => attempt + 1))
+        .catch(() => undefined)
+    }
+  }
+
   function insertMention(pick: { name: string }) {
     if (!mentionMatch || mentionMatch.index === undefined) return
     setDraft(`${draft.slice(0, mentionMatch.index)}@${pick.name} `)
@@ -1897,6 +1919,8 @@ export function ChatPanel({
             onTagThread={tagThread}
             onOpenThread={openThreadChat}
             onStopThread={stopThread}
+            onPauseThread={pauseThread}
+            onResumeThread={resumeThread}
           /> : null}
           <ConversationComposer label="Message the agent" surface="bg-popover" input={<form
             onSubmit={(event) => {

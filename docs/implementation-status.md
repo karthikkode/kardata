@@ -1,5 +1,34 @@
 # Implementation status
 
+Sector backend v1, stage 3 (2026-10-04, uncommitted on `sector-backend-v1`):
+sector read tools (`db.get_sector_plan`, `db.get_research_progress`,
+`db.list_sector_sessions`, `db.read_sector_thread`), `@chat` markers with
+same-turn plan narrowing, owner/parent spawn with inherited context, per-child
+pause/resume with mid-turn checkpoint park, inbox queue view/edit with stable
+ids, and confirmed stop on header/rows/runs. Findings while building: (1)
+children never parked `ResearchPaused` before, so a mid-turn pause would have
+failed the turn; `resumableTurn` now parks `pause` and resumes from the
+checkpoint (`subagent-pause-v1`). (2) `sessionRun` ends `error` on any turn
+error, so workflow-test turn stubs must return the full outcome shape
+(`toolCalls`), not just a reply. (3) Queue workflow assertions must poll
+`>=` counts: after release the stub answers instantly and two turns can land
+between 200 ms polls. (4) Gated turn stubs must heartbeat (5 s cadence, 20 s
+turn-lane timeout) or the attempt times out and retries. Live proof all
+green with real Meta (tries=1 each): L-A13..L-A18, L-PLAN, L-LOCAL.
+Live failures root-caused, all test-side or prompt-level, product correct
+throughout: (a) L-A14/L-PLAN sectors missed their lifecycle state
+(DB `createSector` defaults to `queued`; the plan tool and POST /plan
+rightly refused); (b) L-LOCAL's giant blobs tripped the deliberate
+short-history compaction refusal (<4 messages parks rather than dropping
+user content), now unit-pinned; smaller parts compact normally; (c) the
+planning turn wrote a valid spec as ```json, failing artifact parsing;
+the brief now names the exact ```research-plan fence (brief unit test
+updated). Passing spend in318109/out48290; failed attempts
+in105080/out11702. Stage gate: backend 1159/1159, agents 284/284, frontend
+772/772 on re-run; one `sector-workspace` thousand-item render hit its 5 s
+budget mid-gate and passed 60/60 alone and 772/772 on re-run (load flake,
+outside the stage-3 paths).
+
 Stage-2 gate reds root-caused (2026-10-04, `sector-backend-v1`, uncommitted).
 (1) `api.rest.test.ts` pinned 404 for a first send to a run-less session, but
 production `signalTarget` (`backend/src/temporal/gateway.ts`) explicitly
@@ -13,16 +42,17 @@ test read events once with no wait. Test-side race, fixed with the same
 waitFor-event pattern the file already uses for `resume_denied`; no product
 code touched research loop guards.
 
-Sector backend v1, stage 2 (2026-10-04, uncommitted work-in-progress on
+Sector backend v1, stage 2 (2026-10-04, committed `ebb74c0` on
 `sector-backend-v1`): five text sections (Scope, Instructions, Decisions,
 Findings, Open questions) plus AI file blocks, per-chat "use global context"
 switch, 30k estimated budget with per-section/per-file breakdown, system
 compaction (auto at 70%, manual, restore), and `Context rewrite:` tracked
 chats. Live-verified with real Meta on isolated `kardata-live` /
 `kardata_live_*`: L-A4/A5, L-A6 (md+pdf blocks, numeric coverage), L-A7
-(removal, sub-500ms), L-A8 (usage math). Compaction live proof pending:
-first Meta attempt returned section arrays instead of strings; the prompt was
-hardened (explicit shape, strip, normalize) and re-run awaits DB recovery.
+(removal, sub-500ms), L-A8 (usage math), L-A9 (auto-compaction + restore),
+L-A10 (rewrite), L-A2/A12 (pending proposals). First compaction attempt
+returned section arrays instead of strings; the prompt was hardened
+(explicit shape, strip, normalize) and the re-run passed.
 
 Sweep workflow suite red on clean main (2026-10-04, `workflows.sweep.test.ts`
 2 failed: expected 2 companies got 1, expected 0 got 7). Root cause: the
