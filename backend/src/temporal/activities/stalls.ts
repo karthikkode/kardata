@@ -13,7 +13,7 @@ import {
   type RunObservation,
   type StallThresholds,
 } from '../../observability/stalls.js'
-import { SESSION_PREFIX } from '../gateway.js'
+import { SESSION_PREFIX } from '../runs-gateway.js'
 import { workerPoolFromEnv } from '../../db/index.js'
 import { createLogger, logOp } from '../../observability/logging.js'
 

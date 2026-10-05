@@ -18,7 +18,7 @@ import {
   KarbotTurnInput as KarbotTurnInputSchema,
   type KarbotTurnLogFields,
 } from '../../backend/src/temporal/activities/turn.js'
-import type { ProviderSelection } from '../../backend/src/providers/gateway.js'
+import type { ProviderSelection } from '../../backend/src/providers/provider-gateway.js'
 import type { SessionModelSelection } from '../../backend/src/db/index.js'
 import {
   FakeProvider,

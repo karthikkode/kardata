@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { WorkflowNotFoundError, type Connection } from '@temporalio/client'
-import { TemporalRunsGateway } from '../../backend/src/temporal/gateway.js'
+import { TemporalRunsGateway } from '../../backend/src/temporal/runs-gateway.js'
 import type { TransactableDb } from '../../backend/src/db/index.js'
 
 const fixture = vi.hoisted(() => ({ describe: vi.fn(), list: vi.fn(), headers: vi.fn() }))

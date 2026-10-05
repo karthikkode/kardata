@@ -17,7 +17,7 @@ import { planPdfExtraction } from '../../db/pdf-extraction.js'
 import { sha256Hex, chunkTextUnits } from '../../db/file-pipeline.js'
 import { WorkspaceError } from '../../db/errors.js'
 import { documentImageRequest, DOCUMENT_IMAGE_PROMPT_VERSION } from '../../ocr.js'
-import { resolveAdapter } from '../../providers/gateway.js'
+import { resolveAdapter } from '../../providers/provider-gateway.js'
 import { findModel } from '../../providers/registry.js'
 import { createLogger, logOp } from '../../observability/logging.js'
 

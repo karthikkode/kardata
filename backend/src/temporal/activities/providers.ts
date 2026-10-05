@@ -24,7 +24,7 @@ import {
   type ChatOutcome,
   type EffectiveSelection,
   type ProviderSelection,
-} from '../../providers/gateway.js'
+} from '../../providers/provider-gateway.js'
 import type { FakeStep, LiveProviderConfig, ProviderRequest } from '@kardata/agents'
 import { workerPoolFromEnv } from '../../db/index.js'
 

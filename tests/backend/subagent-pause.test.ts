@@ -6,7 +6,7 @@
 import { Pool } from 'pg'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { isThreadPaused, setThreadPaused } from '../../backend/src/db/index.js'
-import { TemporalRunsGateway } from '../../backend/src/temporal/gateway.js'
+import { TemporalRunsGateway } from '../../backend/src/temporal/runs-gateway.js'
 import type { TransactableDb } from '../../backend/src/db/index.js'
 import type { Connection } from '@temporalio/client'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'

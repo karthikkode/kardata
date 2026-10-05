@@ -4,7 +4,7 @@ import {
   resolveAdapter,
   resolveEffectiveSelection,
   resolveSelection,
-} from '../../backend/src/providers/gateway.js'
+} from '../../backend/src/providers/provider-gateway.js'
 import { executeProviderChat } from '../../backend/src/temporal/activities/providers.js'
 import type { LiveProviderConfig } from '@kardata/agents'
 

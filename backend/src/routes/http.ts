@@ -19,8 +19,8 @@ import {
 } from '../db/index.js'
 import { mutationFingerprint, rateBucket } from '../http/limits.js'
 import { getSession } from '../db/index.js'
-import type { RunsGateway } from '../temporal/gateway.js'
-import { RunNotFound, ThreadNotAccepting } from '../temporal/gateway.js'
+import type { RunsGateway } from '../temporal/runs-gateway.js'
+import { RunNotFound, ThreadNotAccepting } from '../temporal/runs-gateway.js'
 
 export type ErrorCode =
   | 'not_found'

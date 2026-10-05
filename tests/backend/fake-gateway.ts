@@ -11,7 +11,7 @@ import {
   type RunInfo,
   type RunsGateway,
   type SkillInvocation,
-} from '../../backend/src/temporal/gateway.js'
+} from '../../backend/src/temporal/runs-gateway.js'
 import { getThread, listThreads, requireThread, setThreadPaused, WorkspaceError } from '../../backend/src/db/index.js'
 
 export class FakeRunsGateway implements RunsGateway {

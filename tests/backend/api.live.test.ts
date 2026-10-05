@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { buildApp } from '../../backend/src/app.js'
 import { appendEventActivity, karbotTurnActivity } from '../../backend/src/temporal/activities/turn.js'
 import { connectClient, connectWorker, temporalNamespace } from '../../backend/src/temporal/connection.js'
-import { TemporalRunsGateway } from '../../backend/src/temporal/gateway.js'
+import { TemporalRunsGateway } from '../../backend/src/temporal/runs-gateway.js'
 import { createLaneWorker } from '../../backend/src/temporal/worker.js'
 import { ensureTestDb } from './db-helper.js'
 

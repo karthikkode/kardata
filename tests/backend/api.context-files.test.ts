@@ -334,7 +334,7 @@ describe.skipIf(!ENABLED)('context file blocks', () => {
   })
 
   it('A9: manual compact starts the single-flight workflow', async () => {
-    const { contextCompactionWorkflowId } = await import('../../backend/src/temporal/gateway.js')
+    const { contextCompactionWorkflowId } = await import('../../backend/src/temporal/runs-gateway.js')
     expect(contextCompactionWorkflowId(sector)).toBe(`context-compaction-${sector}`)
     const starts = runs.startedCompactions.length
     const first = await app.inject({ method: 'POST', url: `/v1/sectors/${sector}/global-context/compact`, headers: authHeader(KEYS.approver.presented) })

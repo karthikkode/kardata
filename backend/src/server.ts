@@ -6,7 +6,7 @@ import { buildApp } from './app.js'
 import { createDbPool, serverPoolBudget } from './db/index.js'
 import { createLogger } from './observability/logging.js'
 import { ensureTracing, wrapPool } from './observability/tracing.js'
-import { TemporalRunsGateway } from './temporal/gateway.js'
+import { TemporalRunsGateway } from './temporal/runs-gateway.js'
 
 const port = Number(process.env['PORT'] ?? 3001)
 const connectionString = process.env['DATABASE_URL']

@@ -1,6 +1,6 @@
 import { CancelledFailure, WorkflowFailedError } from '@temporalio/client'
 import { describe, expect, it, vi } from 'vitest'
-import { ensureApprovedCoordinator, type ApprovedCoordinatorHandle } from '../../backend/src/temporal/gateway.js'
+import { ensureApprovedCoordinator, type ApprovedCoordinatorHandle } from '../../backend/src/temporal/runs-gateway.js'
 
 function handle(paused: boolean, planVersion = 1): ApprovedCoordinatorHandle {
   return { workflowId: 'TEST coordinator', query: async () => ({ paused, planVersion }), signal: vi.fn(), cancel: vi.fn(), result: async () => 'cancelled' }

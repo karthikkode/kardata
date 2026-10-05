@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../backend/src/app.js'
 import { hashKey } from '../../backend/src/auth/keys.js'
 import { createLogger } from '../../backend/src/observability/logging.js'
-import type { RunInfo } from '../../backend/src/temporal/gateway.js'
+import type { RunInfo } from '../../backend/src/temporal/runs-gateway.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import { FakeRunsGateway } from './fake-gateway.js'
 

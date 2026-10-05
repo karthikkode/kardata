@@ -13,7 +13,7 @@ import {
   retryFileProcessingJob, fileProcessingProgress, failFileProcessingJob,
   readSectorDocumentUnitsPage,
 } from '../db/index.js'
-import type { RunsGateway } from '../temporal/gateway.js'
+import type { RunsGateway } from '../temporal/runs-gateway.js'
 import { insertContextFileBlock, readContextFileBlock, resetContextFileBlock } from '../db/context-files.js'
 import { compactOwnerThread } from '../context.js'
 import { projectNewEvents } from '../projector.js'

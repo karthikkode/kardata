@@ -92,7 +92,7 @@ the error path: 401 maps to non-retryable `ProviderError`.
 
 ## Backend conformance (B4.1)
 
-The backend reaches providers only through `backend/src/providers/gateway.ts`
+The backend reaches providers only through `backend/src/providers/provider-gateway.ts`
 (Meta in the product, fake in tests; default Meta) and `providerChatActivity` in
 `backend/src/temporal/activities/providers.ts`. Rules the backend adds on
 top of the agents contract:

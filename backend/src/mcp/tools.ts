@@ -87,7 +87,7 @@ import {
   upsertLedgerCompany,
   updateSectorPlan,
 } from '../db/index.js'
-import { RunNotFound, ThreadNotAccepting, type SubagentDelegator } from '../temporal/gateway.js'
+import { RunNotFound, ThreadNotAccepting, type SubagentDelegator } from '../temporal/runs-gateway.js'
 import { TOOL_NAMES, TOOL_SCHEMAS, type McpToolName } from './schemas.js'
 import {
   pooledBrowserAct,

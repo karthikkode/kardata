@@ -13,7 +13,7 @@ import { hashKey } from '../../backend/src/auth/keys.js'
 import { appendEvent, createSector, ensureResearchSession, listSectorDocuments, listSectorLibrary, readGlobalContext, readPartition, registerApiKey } from '../../backend/src/db/index.js'
 import { listSectorFileProcessing } from '../../backend/src/db/file-jobs.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
-import type { RunsGateway } from '../../backend/src/temporal/gateway.js'
+import type { RunsGateway } from '../../backend/src/temporal/runs-gateway.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import { testPdf } from './pdf-fixtures.js'
 

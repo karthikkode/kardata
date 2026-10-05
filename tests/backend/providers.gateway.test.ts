@@ -12,7 +12,7 @@ import {
   resolveSelection,
   streamChat,
   type ChatLogFields,
-} from '../../backend/src/providers/gateway.js'
+} from '../../backend/src/providers/provider-gateway.js'
 import {
   executeProviderChat,
   type ProviderChatDeps,

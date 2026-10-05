@@ -14,7 +14,7 @@ import type { Db } from '../db/index.js'
 import { Counter, Gauge, Histogram, Registry, collectDefaultMetrics } from 'prom-client'
 import { listHeartbeats, poolStats } from '../db/index.js'
 import { DEFAULT_STALL_THRESHOLDS } from './stalls.js'
-import type { RunsGateway } from '../temporal/gateway.js'
+import type { RunsGateway } from '../temporal/runs-gateway.js'
 
 export type { TelemetryOptions }
 

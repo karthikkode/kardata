@@ -15,7 +15,7 @@ import { projectNewEvents } from '../projector.js'
 import { getThread } from '../db/index.js'
 import type { Scope } from '../auth/keys.js'
 import { parseSlashCommand, resolveSlashCommand } from '../skills.js'
-import type { RunsGateway } from '../temporal/gateway.js'
+import type { RunsGateway } from '../temporal/runs-gateway.js'
 import { authorize, parseInput, requirePool, requireRuns, route, sessionVisible, withIdempotency, type IdempotentOutcome } from './http.js'
 import { runVisible } from './runs.js'
 

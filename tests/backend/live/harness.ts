@@ -19,7 +19,7 @@ import { readExecutionRecord, resolveArchiveTarget } from '../../../backend/src/
 import { hashKey } from '../../../backend/src/auth/keys.js'
 import { connectWorker } from '../../../backend/src/temporal/connection.js'
 import { createDevWorkers } from '../../../backend/src/temporal/dev-worker.js'
-import { TemporalRunsGateway } from '../../../backend/src/temporal/gateway.js'
+import { TemporalRunsGateway } from '../../../backend/src/temporal/runs-gateway.js'
 import { ensureTestDb } from '../db-helper.js'
 import { BATTERY_PORT, BROWSER_STACK_PORT, assertBrowserStackDown, probeHealthz } from './guard.js'
 

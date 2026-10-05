@@ -53,7 +53,7 @@ import {
   resolveEffectiveSelection,
   resolveSelection,
   type ProviderSelection,
-} from '../../providers/gateway.js'
+} from '../../providers/provider-gateway.js'
 import { archiveResearchOutcome, hydrateResearchSources, persistResearchSource, persistExecutionRecord, resolveArchiveTarget, type ArchivedResearchSource } from '../../archive/targets.js'
 
 export class ResearchPausedError extends Error {}

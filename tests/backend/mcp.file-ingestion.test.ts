@@ -5,7 +5,7 @@ import { invokeTool, type McpToolContext } from '../../backend/src/mcp/tools.js'
 import { testPdf } from './pdf-fixtures.js'
 import type { ArchiveTarget } from '../../backend/src/archive/targets.js'
 import { buildApp } from '../../backend/src/app.js'
-import type { RunsGateway } from '../../backend/src/temporal/gateway.js'
+import type { RunsGateway } from '../../backend/src/temporal/runs-gateway.js'
 
 const fixture = vi.hoisted(() => ({ state: 'queued', status: 'processing', units: 0, errorCode: null as string | null, create: vi.fn(), read: vi.fn(), fail: vi.fn(), list: vi.fn(), count: vi.fn(), ingest: vi.fn(), thread: vi.fn() }))
 vi.mock('../../backend/src/db/index.js', async (original) => {

@@ -8,7 +8,7 @@ import { Pool } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../backend/src/app.js'
 import { appendEvent } from '../../backend/src/db/index.js'
-import type { RunInfo } from '../../backend/src/temporal/gateway.js'
+import type { RunInfo } from '../../backend/src/temporal/runs-gateway.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import { FakeRunsGateway } from './fake-gateway.js'
 
