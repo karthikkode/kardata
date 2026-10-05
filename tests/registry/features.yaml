@@ -725,247 +725,247 @@
   layer: backend
   surface: backend/src/temporal/activities/context-files.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.context_files.CONTEXT_FILE_MODEL
   layer: backend
   surface: backend/src/temporal/activities/context-files.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.context_files.buildContextFilePrompt
   layer: backend
   surface: backend/src/temporal/activities/context-files.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: backend.activity.context_files.chatWithTimeout
   layer: backend
   surface: backend/src/temporal/activities/context-files.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.context_files.compactGlobalContextActivity
   layer: backend
   surface: backend/src/temporal/activities/context-files.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: backend.activity.context_files.createContextFileActivities
   layer: backend
   surface: backend/src/temporal/activities/context-files.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: backend.activity.context_files.summarizeContextFileActivity
   layer: backend
   surface: backend/src/temporal/activities/context-files.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: backend.activity.coordinator.evidenceVerdict
   layer: backend
   surface: backend/src/temporal/activities/coordinator.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.coordinator.loadCoordinatorActivity
   layer: backend
   surface: backend/src/temporal/activities/coordinator.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: backend.activity.coordinator.prepareExecutionIntentActivity
   layer: backend
   surface: backend/src/temporal/activities/coordinator.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.coordinator.prepareResearchTurnRecoveryActivity
   layer: backend
   surface: backend/src/temporal/activities/coordinator.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.coordinator.researchBudgetActivity
   layer: backend
   surface: backend/src/temporal/activities/coordinator.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.coordinator.researchCheckpointActivity
   layer: backend
   surface: backend/src/temporal/activities/coordinator.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.coordinator.researchDiscoveryAcceptanceActivity
   layer: backend
   surface: backend/src/temporal/activities/coordinator.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: backend.activity.coordinator.researchDiscoveryClosedActivity
   layer: backend
   surface: backend/src/temporal/activities/coordinator.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.coordinator.researchIntakeActivity
   layer: backend
   surface: backend/src/temporal/activities/coordinator.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.coordinator.researchLifecycleActivity
   layer: backend
   surface: backend/src/temporal/activities/coordinator.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.coordinator.researchSearchActivity
   layer: backend
   surface: backend/src/temporal/activities/coordinator.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.coordinator.researchVerdictActivity
   layer: backend
   surface: backend/src/temporal/activities/coordinator.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.coordinator.researchWorkItemActivity
   layer: backend
   surface: backend/src/temporal/activities/coordinator.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.coordinator.settlePreparedExecutionIntentActivity
   layer: backend
   surface: backend/src/temporal/activities/coordinator.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.execution_epochs.originalRecoveryReadyActivity
   layer: backend
   surface: backend/src/temporal/activities/execution-epochs.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.execution_epochs.prepareExecutionIntentActivity
   layer: backend
   surface: backend/src/temporal/activities/execution-epochs.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.execution_epochs.prepareResearchTurnRecoveryActivity
   layer: backend
   surface: backend/src/temporal/activities/execution-epochs.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.execution_epochs.settlePreparedExecutionIntentActivity
   layer: backend
   surface: backend/src/temporal/activities/execution-epochs.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.file_admission.fileAdmissionPageActivity
   layer: backend
   surface: backend/src/temporal/activities/file-admission.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.file_admission.inspectFileAdmissionOwner
   layer: backend
   surface: backend/src/temporal/activities/file-admission.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.file_admission.reconcileFileAdmissionPage
   layer: backend
   surface: backend/src/temporal/activities/file-admission.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.file_processing.createFileProcessingActivities
   layer: backend
   surface: backend/src/temporal/activities/file-processing.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.file_processing.failFileProcessingActivity
   layer: backend
   surface: backend/src/temporal/activities/file-processing.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.file_processing.finalizeFileProcessingActivity
   layer: backend
   surface: backend/src/temporal/activities/file-processing.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.file_processing.nextFileImageActivity
   layer: backend
   surface: backend/src/temporal/activities/file-processing.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.file_processing.prepareFileProcessingActivity
   layer: backend
   surface: backend/src/temporal/activities/file-processing.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.file_processing.processFileImageActivity
   layer: backend
   surface: backend/src/temporal/activities/file-processing.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.plan.PlanVersion
   layer: backend
   surface: backend/src/temporal/activities/plan.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.plan.SectorPlan
   layer: backend
   surface: backend/src/temporal/activities/plan.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.plan.readSectorPlanActivity
   layer: backend
   surface: backend/src/temporal/activities/plan.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.plan.setPlanStateActivity
   layer: backend
   surface: backend/src/temporal/activities/plan.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.plan.writePlanArtifactActivity
   layer: backend
   surface: backend/src/temporal/activities/plan.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.providers.PROVIDER_ERROR_EVENT
   layer: backend
   surface: backend/src/temporal/activities/providers.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.providers.executeProviderChat
   layer: backend
   surface: backend/src/temporal/activities/providers.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.providers.providerChatActivity
   layer: backend
@@ -977,7 +977,7 @@
   layer: backend
   surface: backend/src/temporal/activities/reconciliation.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.reconciliation.reconcilePage
   layer: backend
@@ -990,91 +990,91 @@
   layer: backend
   surface: backend/src/temporal/activities/reconciliation.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.research.STAGE_MS
   layer: backend
   surface: backend/src/temporal/activities/research.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.research.runResearchStageActivity
   layer: backend
   surface: backend/src/temporal/activities/research.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.research.scriptedFindings
   layer: backend
   surface: backend/src/temporal/activities/research.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.research.workWithHeartbeats
   layer: backend
   surface: backend/src/temporal/activities/research.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.sweep.linksFromSnapshot
   layer: backend
   surface: backend/src/temporal/activities/sweep.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.sweep.loadSweepContextActivity
   layer: backend
   surface: backend/src/temporal/activities/sweep.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.sweep.recordSweepCompanyActivity
   layer: backend
   surface: backend/src/temporal/activities/sweep.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.sweep.searchWebPageActivity
   layer: backend
   surface: backend/src/temporal/activities/sweep.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.sweep.setSweepStateActivity
   layer: backend
   surface: backend/src/temporal/activities/sweep.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.tools.DEFAULT_TOOL_TIMEOUT_MS
   layer: backend
   surface: backend/src/temporal/activities/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: backend.activity.tools.SENSITIVE_TOOLS
   layer: backend
   surface: backend/src/temporal/activities/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: backend.activity.tools.TOOL_APPROVAL_EVENT
   layer: backend
   surface: backend/src/temporal/activities/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: backend.activity.tools.TOOL_EXECUTED_EVENT
   layer: backend
   surface: backend/src/temporal/activities/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: backend.activity.tools.TOOL_TIMEOUT_EVENT
   layer: backend
   surface: backend/src/temporal/activities/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: backend.activity.tools.emptyTaskSnapshot
   layer: backend
@@ -1086,7 +1086,7 @@
   layer: backend
   surface: backend/src/temporal/activities/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: backend.activity.tools.toolCallActivity
   layer: backend
@@ -1098,301 +1098,301 @@
   layer: backend
   surface: backend/src/temporal/activities/turn-prompts.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.turn_prompts.CONTEXT_REWRITE_PREAMBLE
   layer: backend
   surface: backend/src/temporal/activities/turn-prompts.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.turn_prompts.KARBOT_SYSTEM_PROMPT
   layer: backend
   surface: backend/src/temporal/activities/turn-prompts.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.karbot_turn_input.KarbotTurnInput
   layer: backend
   surface: backend/src/temporal/activities/karbot-turn-input.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.turn_prompts.PLANNING_ROUND_TIMEOUT_MS
   layer: backend
   surface: backend/src/temporal/activities/turn-prompts.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.turn_palettes.PRODUCT_TOOLS
   layer: backend
   surface: backend/src/temporal/activities/turn-palettes.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: backend.activity.turn_palettes.RESEARCH_TOOLS
   layer: backend
   surface: backend/src/temporal/activities/turn-palettes.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.turn_prompts.RESEARCH_TURN_WALL_MS
   layer: backend
   surface: backend/src/temporal/activities/turn-prompts.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.turn.ResearchPausedError
   layer: backend
   surface: backend/src/temporal/activities/turn.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.turn_palettes.SECTOR_TOOLS
   layer: backend
   surface: backend/src/temporal/activities/turn-palettes.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.turn_prompts.TURN_HEARTBEAT_MS
   layer: backend
   surface: backend/src/temporal/activities/turn-prompts.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.turn.appendEventActivity
   layer: backend
   surface: backend/src/temporal/activities/turn.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.turn_chatrefs.chatHistory
   layer: backend
   surface: backend/src/temporal/activities/turn-chatrefs.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.turn.checkWorkerMcpAuth
   layer: backend
   surface: backend/src/temporal/activities/turn.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.turn.executeKarbotTurn
   layer: backend
   surface: backend/src/temporal/activities/turn.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.turn_palettes.freezeOriginalPalette
   layer: backend
   surface: backend/src/temporal/activities/turn-palettes.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.turn.karbotTurnActivity
   layer: backend
   surface: backend/src/temporal/activities/turn.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.turn_chatrefs.parseChatRefs
   layer: backend
   surface: backend/src/temporal/activities/turn-chatrefs.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.turn_palettes.productMcpClient
   layer: backend
   surface: backend/src/temporal/activities/turn-palettes.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: backend.activity.turn_palettes.researchMcpClient
   layer: backend
   surface: backend/src/temporal/activities/turn-palettes.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.turn_chatrefs.resolveChatRefTurn
   layer: backend
   surface: backend/src/temporal/activities/turn-chatrefs.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: backend.activity.turn_palettes.sectorMcpClient
   layer: backend
   surface: backend/src/temporal/activities/turn-palettes.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: backend.activity.turn.selectTurnContinuation
   layer: backend
   surface: backend/src/temporal/activities/turn.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.turn.turnContextSnapshot
   layer: backend
   surface: backend/src/temporal/activities/turn.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: backend.activity.turn_palettes.turnPalette
   layer: backend
   surface: backend/src/temporal/activities/turn-palettes.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: backend.activity.turn_prompts.turnRoundTimeoutMs
   layer: backend
   surface: backend/src/temporal/activities/turn-prompts.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.turn.turnSectorRefs
   layer: backend
   surface: backend/src/temporal/activities/turn.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: backend.workflow.context_files.contextFileSummary
   layer: backend
   surface: backend/src/temporal/workflows/context-files.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.context_files.globalContextCompaction
   layer: backend
   surface: backend/src/temporal/workflows/context-files.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.coordinator.companyResearch
   layer: backend
   surface: backend/src/temporal/workflows/coordinator.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.coordinator.coordinatorPause
   layer: backend
   surface: backend/src/temporal/workflows/coordinator.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.coordinator.coordinatorResume
   layer: backend
   surface: backend/src/temporal/workflows/coordinator.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.coordinator.coordinatorState
   layer: backend
   surface: backend/src/temporal/workflows/coordinator.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.coordinator.sectorCoordinator
   layer: backend
   surface: backend/src/temporal/workflows/coordinator.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.epoch_start.withPreparedExecution
   layer: backend
   surface: backend/src/temporal/workflows/epoch-start.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.file_admission.fileAdmissionReconciliation
   layer: backend
   surface: backend/src/temporal/workflows/file-admission.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.file_processing.fileProcessing
   layer: backend
   surface: backend/src/temporal/workflows/file-processing.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.inbox_queue.normalizeQueueItem
   layer: backend
   surface: backend/src/temporal/workflows/inbox-queue.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.inbox_queue.queueItemsQuery
   layer: backend
   surface: backend/src/temporal/workflows/inbox-queue.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.inbox_queue.queueRemoveUpdate
   layer: backend
   surface: backend/src/temporal/workflows/inbox-queue.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.inbox_queue.queueReorderUpdate
   layer: backend
   surface: backend/src/temporal/workflows/inbox-queue.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.plan.planProgressQuery
   layer: backend
   surface: backend/src/temporal/workflows/plan.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.plan.planningBrief
   layer: backend
   surface: backend/src/temporal/workflows/plan.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.plan.sectorPlan
   layer: backend
   surface: backend/src/temporal/workflows/plan.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.reconciliation.executionReconciliation
   layer: backend
   surface: backend/src/temporal/workflows/reconciliation.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.research.assembleFindingsReport
   layer: backend
   surface: backend/src/temporal/workflows/research.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.research.researchPauseSignal
   layer: backend
   surface: backend/src/temporal/workflows/research.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.research.researchResumeSignal
   layer: backend
   surface: backend/src/temporal/workflows/research.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.research.researchRun
   layer: backend
   surface: backend/src/temporal/workflows/research.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.research.researchStateQuery
   layer: backend
   surface: backend/src/temporal/workflows/research.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.research_bundle._
   layer: backend
@@ -1404,187 +1404,187 @@
   layer: backend
   surface: backend/src/temporal/workflows/resumable-turn.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.run.DEFAULT_IDLE_TIMEOUT_MS
   layer: backend
   surface: backend/src/temporal/workflows/run.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.run.cancelSignal
   layer: backend
   surface: backend/src/temporal/workflows/run.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.run.pauseSignal
   layer: backend
   surface: backend/src/temporal/workflows/run.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.run.resumeSignal
   layer: backend
   surface: backend/src/temporal/workflows/run.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.run.sendSignal
   layer: backend
   surface: backend/src/temporal/workflows/run.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.run.sessionRun
   layer: backend
   surface: backend/src/temporal/workflows/run.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.run.skillSignal
   layer: backend
   surface: backend/src/temporal/workflows/run.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.run.stateQuery
   layer: backend
   surface: backend/src/temporal/workflows/run.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.run.steerSignal
   layer: backend
   surface: backend/src/temporal/workflows/run.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.subagents.DEFAULT_CHILD_FINISH_TIMEOUT_MS
   layer: backend
   surface: backend/src/temporal/workflows/subagents.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.subagents.DEFAULT_MAX_IN_FLIGHT_CHILDREN
   layer: backend
   surface: backend/src/temporal/workflows/subagents.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.subagents.DEFAULT_PARENT_IDLE_TIMEOUT_MS
   layer: backend
   surface: backend/src/temporal/workflows/subagents.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.subagents.childCanDelegateQuery
   layer: backend
   surface: backend/src/temporal/workflows/subagents.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.subagents.childCancelSignal
   layer: backend
   surface: backend/src/temporal/workflows/subagents.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.subagents.childFinishSignal
   layer: backend
   surface: backend/src/temporal/workflows/subagents.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.subagents.childMessageSignal
   layer: backend
   surface: backend/src/temporal/workflows/subagents.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.subagents.childRedirectSignal
   layer: backend
   surface: backend/src/temporal/workflows/subagents.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.subagents.childStateQuery
   layer: backend
   surface: backend/src/temporal/workflows/subagents.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.subagents.childSummaryQuery
   layer: backend
   surface: backend/src/temporal/workflows/subagents.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.subagents.delegateParent
   layer: backend
   surface: backend/src/temporal/workflows/subagents.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.subagents.parentDelegateSignal
   layer: backend
   surface: backend/src/temporal/workflows/subagents.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.subagents.parentFinishSignal
   layer: backend
   surface: backend/src/temporal/workflows/subagents.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.subagents.parentNoteDoneSignal
   layer: backend
   surface: backend/src/temporal/workflows/subagents.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.subagents.parentRecoverSignal
   layer: backend
   surface: backend/src/temporal/workflows/subagents.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.subagents.parentStateQuery
   layer: backend
   surface: backend/src/temporal/workflows/subagents.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.subagents.parentSteerSignal
   layer: backend
   surface: backend/src/temporal/workflows/subagents.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.subagents.subagentRun
   layer: backend
   surface: backend/src/temporal/workflows/subagents.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.sweep.DEFAULT_MAX_PAGES_PER_TEMPLATE
   layer: backend
   surface: backend/src/temporal/workflows/sweep.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.sweep.sectorSweep
   layer: backend
   surface: backend/src/temporal/workflows/sweep.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.sweep.sweepProgressQuery
   layer: backend
   surface: backend/src/temporal/workflows/sweep.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.turn_bundle._
   layer: backend
@@ -1596,7 +1596,7 @@
   layer: backend
   surface: backend/src/temporal/workflows/turn-bundle.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.alerts.SupervisionAlert
   layer: db
@@ -5381,7 +5381,7 @@
   layer: backend
   surface: backend/src/temporal/activities/turn.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.errors.Id
   layer: db
@@ -5459,7 +5459,7 @@
   layer: backend
   surface: backend/src/temporal/workflows/inbox-queue.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.reconciliation.SUPERVISION_NUDGE
   layer: backend
@@ -5727,25 +5727,25 @@
   layer: backend
   surface: backend/src/temporal/workflows/subagents.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.can.CAN_DEFAULT_BYTE_LIMIT
   layer: backend
   surface: backend/src/temporal/workflows/can.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.can.CAN_DEFAULT_EVENT_LIMIT
   layer: backend
   surface: backend/src/temporal/workflows/can.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.workflow.can.shouldContinueAsNew
   layer: backend
   surface: backend/src/temporal/workflows/can.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.index.validatePoolBudget
   layer: db

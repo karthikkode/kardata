@@ -65,7 +65,7 @@ function types(records: unknown[]): unknown[] {
   return (records as Array<{ type: string }>).map((record) => record.type)
 }
 
-describe('tool activities (B4.2)', () => {
+describe('tool activities (B4.2) [F:backend.activity.tools.executeToolCall] [F:backend.activity.tools.TOOL_APPROVAL_EVENT] [F:backend.activity.tools.TOOL_EXECUTED_EVENT] [F:backend.activity.tools.TOOL_TIMEOUT_EVENT] [F:backend.activity.tools.DEFAULT_TOOL_TIMEOUT_MS] [F:backend.activity.tools.SENSITIVE_TOOLS] [F:backend.activity.turn.sleep]', () => {
   it('executes a read and records the outcome with snapshots', async () => {
     const d = memoryDeps()
     const outcome = await executeToolCall(input(), d)

@@ -104,7 +104,7 @@ afterEach(() => {
   else process.env[ENV_KEY] = savedEnv
 })
 
-describe('executeKarbotTurn', () => {
+describe('executeKarbotTurn [F:backend.activity.turn.executeKarbotTurn] [F:backend.activity.karbot_turn_input.KarbotTurnInput] [F:backend.activity.turn_chatrefs.chatHistory] [F:backend.activity.turn_chatrefs.parseChatRefs] [F:backend.activity.turn_prompts.KARBOT_SYSTEM_PROMPT] [F:backend.activity.turn_prompts.RESEARCH_TURN_WALL_MS] [F:backend.activity.turn_palettes.productMcpClient] [F:backend.activity.turn_palettes.researchMcpClient] [F:backend.activity.turn_palettes.RESEARCH_TOOLS] [F:backend.activity.turn_palettes.sectorMcpClient] [F:backend.activity.turn_palettes.SECTOR_TOOLS] [F:backend.activity.turn_prompts.CONTEXT_PROPOSAL_NUDGE] [F:backend.activity.turn_prompts.CONTEXT_REWRITE_PREAMBLE] [F:backend.activity.turn_palettes.PRODUCT_TOOLS] [F:backend.activity.turn.ResearchPausedError] [F:backend.activity.turn.sleep]', () => {
   it('uses Contributor at high effort for an unbound session', async () => {
     process.env[ENV_KEY] = 'meta'
     const world = memoryWorld(new FakeProvider([{ text: 'ready' }]))

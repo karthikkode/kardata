@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { acquireMetaPermit, DbContractError, ensureMetaPermits, MetaPermitTimeout, resolveMetaMax, withMetaPermit } from '../../backend/src/db/index.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('meta permit limiter', () => {
+describe.skipIf(!TEST_DATABASE_URL)('meta permit limiter [F:backend.activity.turn.sleep]', () => {
   let pool: Pool
   beforeAll(async () => {
     pool = new Pool({ connectionString: await ensureTestDb('kardata_test_meta_limiter'), max: 5 })

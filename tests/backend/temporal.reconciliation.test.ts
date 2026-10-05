@@ -17,7 +17,7 @@ const enabled = process.env['KARDATA_TEMPORAL_TEST'] === '1' && !!TEST_DATABASE_
 const workflows = join(dirname(fileURLToPath(import.meta.url)), '../../backend/src/temporal/workflows/reconciliation.ts')
 const probes = join(dirname(fileURLToPath(import.meta.url)), 'temporal/probe-workflows.ts')
 
-describe.skipIf(!enabled)('durable execution reconciliation over real Temporal and isolated Postgres', () => {
+describe.skipIf(!enabled)('durable execution reconciliation over real Temporal and isolated Postgres [F:backend.activity.reconciliation.inspectWorkflowOwner] [F:backend.workflow.reconciliation.executionReconciliation] [F:backend.activity.reconciliation.reconciliationPageActivity] [F:backend.activity.turn.sleep]', () => {
   beforeAll(() => { Runtime.install({ logger: createWorkerLogger() }) })
   it('recovers after exhausted page retries, retains the cursor, and never parks a running owner', async () => {
     const pool = new Pool({ connectionString: await ensureTestDb('kardata_test_reconcile_temporal') })

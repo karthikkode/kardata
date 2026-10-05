@@ -26,7 +26,7 @@ import { testPdf } from './pdf-fixtures.js'
 const scope = { tenantId: 'TEST file recovery owner', projectId: null }
 const digest = (body: string | Uint8Array) => createHash('sha256').update(body).digest('hex')
 
-describe('bounded file archive exchanges', () => {
+describe('bounded file archive exchanges [F:backend.activity.file_processing.createFileProcessingActivities]', () => {
   it('rejects cancellation before the queued target dispatch without starting a write', async () => {
     const write = vi.fn(async () => undefined), abort = new AbortController()
     const bounded = withArchiveDeadline({ write, async read() { return undefined }, async list() { return [] } }, 10)

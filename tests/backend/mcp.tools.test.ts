@@ -256,7 +256,7 @@ const EXPECTED_TOOLS: McpToolName[] = [
   'browser_screenshot',
 ]
 
-describe('mcp tool parity (Phase 2)', () => {
+describe('mcp tool parity (Phase 2) [F:backend.activity.tools.SENSITIVE_TOOLS]', () => {
   it('registers exactly one tool per binding-table row (projector-only excluded)', () => {
     expect([...TOOL_NAMES].sort()).toEqual([...EXPECTED_TOOLS].sort())
     expect(Object.keys(TOOL_META).sort()).toEqual([...EXPECTED_TOOLS].sort())

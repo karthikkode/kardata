@@ -44,7 +44,7 @@ async function waitFor(what: () => Promise<boolean>, timeoutMs: number, name: st
   }
 }
 
-describe.skipIf(!ENABLED)('delegation door (db.delegate_subagent gateway)', () => {
+describe.skipIf(!ENABLED)('delegation door (db.delegate_subagent gateway) [F:backend.activity.turn.appendEventActivity] [F:backend.activity.turn.karbotTurnActivity]', () => {
   let connection: NativeConnection
   let client: WorkflowClient
   let url = ''

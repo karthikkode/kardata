@@ -13,7 +13,7 @@ import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
 const ENABLED = TEST_DATABASE_URL !== undefined && TEST_DATABASE_URL !== ''
 
-describe.skipIf(!ENABLED)('mcp document read-back', () => {
+describe.skipIf(!ENABLED)('mcp document read-back [F:backend.activity.turn_palettes.productMcpClient] [F:backend.activity.turn_palettes.sectorMcpClient] [F:backend.activity.tools.SENSITIVE_TOOLS] [F:backend.activity.turn_palettes.PRODUCT_TOOLS]', () => {
   let pool: Pool
   const sectorId = 'sec-readback'
   const scope = { tenantId: 'tenant-readback', projectId: null }

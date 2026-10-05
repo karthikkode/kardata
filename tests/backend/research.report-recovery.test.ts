@@ -19,7 +19,7 @@ vi.mock('../../backend/src/db/index.js', async (original) => {
     return actual.recordResearchWork(...args)
   } }
 })
-describe.skipIf(!TEST_DATABASE_URL)('research report attempt recovery', () => {
+describe.skipIf(!TEST_DATABASE_URL)('research report attempt recovery [F:backend.activity.coordinator.researchDiscoveryAcceptanceActivity]', () => {
   let pool: Pool, archive: FilesystemTarget, sectorId: string, sessionId: string
   const scope = { tenantId: 'test-report-recovery', projectId: null }
   beforeAll(async () => {

@@ -36,7 +36,7 @@ const WORKFLOWS_PATH = join(
   'sweep.ts',
 )
 
-describe.skipIf(!ENABLED)('sector sweep workflow (Phase 6)', () => {
+describe.skipIf(!ENABLED)('sector sweep workflow (Phase 6) [F:backend.activity.sweep.searchWebPageActivity] [F:backend.activity.sweep.loadSweepContextActivity] [F:backend.activity.sweep.recordSweepCompanyActivity] [F:backend.activity.sweep.setSweepStateActivity] [F:backend.workflow.sweep.sectorSweep] [F:backend.workflow.sweep.DEFAULT_MAX_PAGES_PER_TEMPLATE] [F:backend.workflow.sweep.sweepProgressQuery]', () => {
   let connection: NativeConnection
   let client: WorkflowClient
   let url = ''

@@ -35,7 +35,7 @@ const WORKFLOWS_PATH = join(
   'plan.ts',
 )
 
-describe.skipIf(!ENABLED)('sector plan workflow (P2)', () => {
+describe.skipIf(!ENABLED)('sector plan workflow (P2) [F:backend.activity.turn.appendEventActivity] [F:backend.activity.turn.karbotTurnActivity] [F:backend.workflow.plan.planningBrief] [F:backend.activity.sweep.loadSweepContextActivity] [F:backend.activity.plan.readSectorPlanActivity] [F:backend.activity.plan.setPlanStateActivity] [F:backend.activity.plan.writePlanArtifactActivity] [F:backend.workflow.plan.sectorPlan] [F:backend.activity.plan.SectorPlan] [F:backend.workflow.plan.planProgressQuery] [F:backend.activity.plan.PlanVersion]', () => {
   let connection: NativeConnection
   let client: WorkflowClient
   let url = ''

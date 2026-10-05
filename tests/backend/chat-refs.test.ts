@@ -9,7 +9,7 @@ import { resolveChatRefTurn } from '../../backend/src/temporal/activities/turn-c
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('research @chat references (A14)', () => {
+describe.skipIf(!TEST_DATABASE_URL)('research @chat references (A14) [F:backend.activity.turn_chatrefs.resolveChatRefTurn]', () => {
   let pool: Pool
   const scope = { tenantId: 'test-chat-refs', projectId: null }
   let sectorId: string, research: string, normal: string

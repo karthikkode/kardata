@@ -34,7 +34,7 @@ const ENABLED = process.env['KARDATA_TEMPORAL_TEST'] === '1' && !!TEST_DATABASE_
 const WORKFLOWS_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'backend', 'src', 'temporal', 'workflows', 'turn-bundle.ts')
 const TRACE_ID = 'd'.repeat(32)
 
-describe.skipIf(!ENABLED)('trace continuity across Temporal, provider, MCP and DB (P3.2.6)', () => {
+describe.skipIf(!ENABLED)('trace continuity across Temporal, provider, MCP and DB (P3.2.6) [F:backend.activity.turn.appendEventActivity] [F:backend.activity.turn.karbotTurnActivity] [F:backend.activity.turn.executeKarbotTurn] [F:backend.workflow.run.sessionRun] [F:backend.activity.turn_prompts.CONTEXT_PROPOSAL_NUDGE] [F:backend.activity.turn_prompts.CONTEXT_REWRITE_PREAMBLE] [F:backend.activity.turn.ResearchPausedError] [F:backend.workflow.inbox_queue.normalizeQueueItem] [F:backend.workflow.inbox_queue.queueItemsQuery] [F:backend.workflow.inbox_queue.queueRemoveUpdate] [F:backend.workflow.inbox_queue.queueReorderUpdate] [F:backend.workflow.resumable_turn.resumableTurn] [F:backend.workflow.run.DEFAULT_IDLE_TIMEOUT_MS] [F:backend.workflow.run.cancelSignal] [F:backend.workflow.run.pauseSignal] [F:backend.workflow.run.resumeSignal] [F:backend.workflow.run.sendSignal] [F:backend.workflow.run.skillSignal] [F:backend.workflow.run.stateQuery] [F:backend.workflow.run.steerSignal] [F:backend.activity.turn.sleep] [F:backend.workflow.inbox_queue.registerQueueHandlers]', () => {
   let connection: NativeConnection
   let client: WorkflowClient
   let worker: Worker

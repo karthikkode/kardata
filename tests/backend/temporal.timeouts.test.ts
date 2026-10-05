@@ -20,7 +20,7 @@ function toMs(value: string | number): number {
   return amount * 3_600_000
 }
 
-describe('timeout table (B2.3)', () => {
+describe('timeout table (B2.3) [F:backend.activity.turn_prompts.TURN_HEARTBEAT_MS]', () => {
   it('covers every lane', () => {
     for (const lane of LANES) {
       expect(() => laneTimeouts(lane)).not.toThrow()

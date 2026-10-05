@@ -32,7 +32,7 @@ const workflowsPath = join(dirname(fileURLToPath(import.meta.url)), '../../backe
 const workflowId = (jobId: string, revision: number) => `TEST-file-owner-${jobId}-r${revision}`
 const replies: FakeStep[] = [{ text: 'TEST SDK first image description' }, { text: 'TEST SDK second image description' }]
 
-describe.skipIf(!enabled)('actual file-processing SDK owner lifecycle', () => {
+describe.skipIf(!enabled)('actual file-processing SDK owner lifecycle [F:backend.activity.file_processing.createFileProcessingActivities] [F:backend.workflow.file_processing.fileProcessing] [F:backend.activity.file_processing.failFileProcessingActivity] [F:backend.activity.file_processing.finalizeFileProcessingActivity] [F:backend.activity.file_processing.nextFileImageActivity] [F:backend.activity.file_processing.prepareFileProcessingActivity] [F:backend.activity.file_processing.processFileImageActivity] [F:backend.activity.turn.sleep]', () => {
   beforeAll(() => Runtime.install({ logger: createWorkerLogger(), telemetryOptions: { logging: workerLoggingOptions() } }))
 
   async function fixture(steps: FakeStep[] = replies, options: { holdFirst?: boolean; lostArchiveAck?: boolean; slowReadMs?: number; slowReadActivity?: 'prepareFileProcessingActivity' | 'finalizeFileProcessingActivity' } = {}) {

@@ -63,7 +63,7 @@ async function waitFor(condition: () => Promise<boolean>, timeoutMs: number, wha
   }
 }
 
-describe.skipIf(!ENABLED)('subagent child workflows (B2.4)', () => {
+describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.turn.appendEventActivity] [F:backend.activity.turn.karbotTurnActivity] [F:backend.workflow.subagents.delegateParent] [F:backend.activity.coordinator.prepareExecutionIntentActivity] [F:backend.activity.coordinator.settlePreparedExecutionIntentActivity] [F:backend.activity.execution_epochs.originalRecoveryReadyActivity] [F:backend.activity.execution_epochs.prepareExecutionIntentActivity] [F:backend.activity.execution_epochs.settlePreparedExecutionIntentActivity] [F:backend.workflow.epoch_start.withPreparedExecution] [F:backend.workflow.subagents.DEFAULT_CHILD_FINISH_TIMEOUT_MS] [F:backend.workflow.subagents.DEFAULT_MAX_IN_FLIGHT_CHILDREN] [F:backend.workflow.subagents.DEFAULT_PARENT_IDLE_TIMEOUT_MS] [F:backend.workflow.subagents.childCanDelegateQuery] [F:backend.workflow.subagents.childCancelSignal] [F:backend.workflow.subagents.childFinishSignal] [F:backend.workflow.subagents.childMessageSignal] [F:backend.workflow.subagents.childRedirectSignal] [F:backend.workflow.subagents.childStateQuery] [F:backend.workflow.subagents.childSummaryQuery] [F:backend.workflow.subagents.parentDelegateSignal] [F:backend.workflow.subagents.parentFinishSignal] [F:backend.workflow.subagents.parentNoteDoneSignal] [F:backend.workflow.subagents.parentRecoverSignal] [F:backend.workflow.subagents.parentStateQuery] [F:backend.workflow.subagents.parentSteerSignal] [F:backend.workflow.subagents.DEFAULT_MAX_QUEUED_CHILDREN]', () => {
   let connection: NativeConnection
   let client: WorkflowClient
   let url = ''

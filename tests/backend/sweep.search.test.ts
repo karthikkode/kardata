@@ -43,7 +43,7 @@ function routeDouble(routes: Array<{ match: string; status: number; body: string
   }) as typeof fetch
 }
 
-describe('keylessSearch', () => {
+describe('keylessSearch [F:backend.activity.sweep.linksFromSnapshot] [F:backend.activity.sweep.searchWebPageActivity]', () => {
   it('parses DDG anchors, decodes wrapped URLs, drops internal links', async () => {
     const hits = await keylessSearch('acme foods', {
       fetchImpl: routeDouble([{ match: 'duckduckgo', status: 200, body: DDG_HTML }]),

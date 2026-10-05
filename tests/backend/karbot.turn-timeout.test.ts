@@ -20,7 +20,7 @@ import { PLANNING_ROUND_TIMEOUT_MS, turnRoundTimeoutMs } from '../../backend/src
 import { type KarbotTurnDeps } from '../../backend/src/temporal/activities/karbot-turn-input.js'
 import { FakeProvider } from '@kardata/agents'
 
-describe('turnRoundTimeoutMs', () => {
+describe('turnRoundTimeoutMs [F:backend.activity.turn.executeKarbotTurn] [F:backend.activity.turn_prompts.PLANNING_ROUND_TIMEOUT_MS] [F:backend.activity.turn_prompts.turnRoundTimeoutMs] [F:backend.activity.turn_prompts.CONTEXT_PROPOSAL_NUDGE] [F:backend.activity.turn_prompts.CONTEXT_REWRITE_PREAMBLE] [F:backend.activity.turn.ResearchPausedError] [F:backend.activity.turn.sleep]', () => {
   it('gives sectorPlan workflow runKeys the 180 s planning budget', () => {
     expect(turnRoundTimeoutMs({ runKey: 'plan:sector-1:v3' })).toBe(180_000)
     expect(PLANNING_ROUND_TIMEOUT_MS).toBe(180_000)

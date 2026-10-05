@@ -74,7 +74,7 @@ function input(overrides: Partial<ProviderChatInput> = {}): ProviderChatInput {
   }
 }
 
-describe('provider gateway (B4.1)', () => {
+describe('provider gateway (B4.1) [F:backend.activity.providers.executeProviderChat] [F:backend.activity.providers.PROVIDER_ERROR_EVENT] [F:backend.activity.turn.sleep]', () => {
   it('uses Responses for reasoning-capable Meta models', () => {
     const config = { ...NO_KEYS, metaApiKey: 'test' }
     const reasoning = resolveAdapter('meta', { config, model: 'muse-spark-1.3-contributor' })

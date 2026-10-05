@@ -16,7 +16,7 @@ import { karbotTurnActivity, type TurnOutcome } from '../../backend/src/temporal
 import { type KarbotTurnInput } from '../../backend/src/temporal/activities/karbot-turn-input.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('uncertain mutation recovery over real HTTP', () => {
+describe.skipIf(!TEST_DATABASE_URL)('uncertain mutation recovery over real HTTP [F:backend.activity.turn.karbotTurnActivity]', () => {
   let pool: Pool, app: FastifyInstance, endpoint: string
   const scope = { tenantId: 'test-mutation-recovery', projectId: null }
   const credential = 'TEST operation recovery worker credential'

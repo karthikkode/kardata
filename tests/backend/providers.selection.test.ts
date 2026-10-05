@@ -15,7 +15,7 @@ const NO_KEY: LiveProviderConfig = {
   metaBaseUrl: 'https://api.meta.ai/v1',
 }
 
-describe('Meta-only per-message selection', () => {
+describe('Meta-only per-message selection [F:backend.activity.providers.executeProviderChat] [F:backend.activity.providers.PROVIDER_ERROR_EVENT] [F:backend.activity.turn.sleep]', () => {
   it('defaults to Meta Contributor at high effort', () => {
     expect(resolveSelection(undefined)).toBe('meta')
     expect(resolveEffectiveSelection({}, { envValue: undefined, env: {} })).toMatchObject({

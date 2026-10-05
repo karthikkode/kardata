@@ -17,7 +17,7 @@ import { karbotTurnActivity, type TurnOutcome } from '../../backend/src/temporal
 import { type KarbotTurnInput } from '../../backend/src/temporal/activities/karbot-turn-input.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('paid provider response recording recovery', () => {
+describe.skipIf(!TEST_DATABASE_URL)('paid provider response recording recovery [F:backend.activity.turn.karbotTurnActivity]', () => {
   let pool: Pool, app: FastifyInstance, endpoint: string
   const token = 'TEST paid response worker credential'
   const scope = { tenantId: 'TEST paid response recovery', projectId: null }

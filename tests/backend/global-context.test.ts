@@ -9,7 +9,7 @@ import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
 const scope = { tenantId: 'TEST global context', projectId: null }
 
-describe.skipIf(!TEST_DATABASE_URL)('global context sections (A4)', () => {
+describe.skipIf(!TEST_DATABASE_URL)('global context sections (A4) [F:backend.activity.turn.turnContextSnapshot] [F:backend.activity.turn.turnSectorRefs]', () => {
   let pool: Pool
   beforeAll(async () => {
     pool = new Pool({ connectionString: await ensureTestDb('kardata_test_global_context'), max: 5 })

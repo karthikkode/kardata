@@ -67,7 +67,7 @@ function stubDb(
 
 const SCOPE = { tenantId: 't', projectId: null }
 
-describe('startSectorResearch', () => {
+describe('startSectorResearch [F:backend.activity.tools.SENSITIVE_TOOLS]', () => {
   it('moves approved -> queued and starts the sweep', async () => {
     const state = { name: 'Optics', topic: 'Lenses', state: 'approved' }
     const captured: Captured[] = []

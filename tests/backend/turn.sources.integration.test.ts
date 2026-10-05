@@ -14,7 +14,7 @@ import { type KarbotTurnInput } from '../../backend/src/temporal/activities/karb
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('production turn source receipts', () => {
+describe.skipIf(!TEST_DATABASE_URL)('production turn source receipts [F:backend.activity.turn.karbotTurnActivity]', () => {
   let pool: Pool, server: Server, endpoint: string
   const text = 'TEST Australian company evidence '.repeat(100)
   beforeAll(async () => {

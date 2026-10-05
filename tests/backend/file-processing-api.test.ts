@@ -28,7 +28,7 @@ async function fixture(){
  expect(response.statusCode).toBe(201)
  return {pool,archive,runs,app,sectorId,bytes,file:response.json().data}
 }
-describe.skipIf(!TEST_DATABASE_URL)('PDF processing HTTP contracts [F:http.attachSectorDocument] [F:http.listSectorFiles] [F:http.getSectorFileBody] [F:http.getSectorFileUnits] [F:http.retryFileProcessing]',()=>{
+describe.skipIf(!TEST_DATABASE_URL)('PDF processing HTTP contracts [F:http.attachSectorDocument] [F:http.listSectorFiles] [F:http.getSectorFileBody] [F:http.getSectorFileUnits] [F:http.retryFileProcessing] [F:backend.activity.file_admission.reconcileFileAdmissionPage]',()=>{
  it('retains original bytes, queues promptly and exposes only scoped public progress',async()=>{
   const f=await fixture()
   try{

@@ -10,7 +10,7 @@ import { projectNewEvents } from '../../backend/src/projector.js'
 import { loadCoordinatorActivity, type CoordinatorInput } from '../../backend/src/temporal/activities/coordinator.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('research coordinator transport budget', () => {
+describe.skipIf(!TEST_DATABASE_URL)('research coordinator transport budget [F:backend.activity.coordinator.loadCoordinatorActivity]', () => {
   let pool: Pool
   beforeAll(async () => { const url = await ensureTestDb('kardata_test_research_transport'); pool = new Pool({ connectionString: url, max: 5 }); vi.stubEnv('DATABASE_URL', url) })
   afterAll(async () => { await pool?.end(); vi.unstubAllEnvs() })

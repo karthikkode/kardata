@@ -10,7 +10,7 @@ import { hashKey } from '../../backend/src/auth/keys.js'
 import { FakeRunsGateway } from './fake-gateway.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('MCP execution and resource authority over HTTP [F:http.mcpRpc]', () => {
+describe.skipIf(!TEST_DATABASE_URL)('MCP execution and resource authority over HTTP [F:http.mcpRpc] [F:backend.activity.turn_palettes.turnPalette]', () => {
   let pool: Pool, app: FastifyInstance, runs: FakeRunsGateway
   let normal: string, research: string, foreign: string, sectorId: string, general: string
   const scope = { tenantId: 'test-authority', projectId: null }

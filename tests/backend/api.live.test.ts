@@ -41,7 +41,7 @@ async function waitFor(condition: () => Promise<boolean>, timeoutMs: number, wha
   }
 }
 
-describe.skipIf(!ENABLED)('live API over Temporal (B3.1) [F:http.sendMessage] [F:http.listMessages] [F:http.getRun] [F:http.pauseRun]', () => {
+describe.skipIf(!ENABLED)('live API over Temporal (B3.1) [F:http.sendMessage] [F:http.listMessages] [F:http.getRun] [F:http.pauseRun] [F:backend.activity.turn.appendEventActivity] [F:backend.activity.turn.karbotTurnActivity] [F:backend.workflow.run.sessionRun] [F:backend.workflow.inbox_queue.normalizeQueueItem] [F:backend.workflow.inbox_queue.queueItemsQuery] [F:backend.workflow.inbox_queue.queueRemoveUpdate] [F:backend.workflow.inbox_queue.queueReorderUpdate] [F:backend.workflow.resumable_turn.resumableTurn] [F:backend.workflow.run.DEFAULT_IDLE_TIMEOUT_MS] [F:backend.workflow.run.cancelSignal] [F:backend.workflow.run.pauseSignal] [F:backend.workflow.run.resumeSignal] [F:backend.workflow.run.sendSignal] [F:backend.workflow.run.skillSignal] [F:backend.workflow.run.stateQuery] [F:backend.workflow.run.steerSignal] [F:backend.workflow.inbox_queue.registerQueueHandlers]', () => {
   let connection: NativeConnection
   let client: WorkflowClient
   let pool: Pool

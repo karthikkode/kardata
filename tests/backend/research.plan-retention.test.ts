@@ -12,7 +12,7 @@ const scope = { tenantId: 'TEST plan retention', projectId: null }
 const executable = { researchDepth: 'discovery' as const, discoveryTarget: 1, discovery: [{ id: 'au', title: 'TEST Australian discovery', queries: ['TEST Australian services'], maxPages: 1 }], companyBrief: 'TEST verify sources', budgets: { maxCompanies: 2, maxWallMinutes: 60, concurrency: 2 as const }, acceptance: ['TEST source-backed Australian companies'] }
 const markdown = (plan = executable) => `# TEST plan\n\n\`\`\`research-plan\n${JSON.stringify(plan)}\n\`\`\``
 
-describe.skipIf(!TEST_DATABASE_URL)('approved revision retention', () => {
+describe.skipIf(!TEST_DATABASE_URL)('approved revision retention [F:backend.activity.plan.SectorPlan]', () => {
   let pool: Pool
   beforeAll(async () => { pool = new Pool({ connectionString: await ensureTestDb('kardata_test_plan_retention'), max: 5 }) })
   afterAll(async () => { await pool?.end() })
