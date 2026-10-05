@@ -1,6 +1,6 @@
 import { Pool } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createSector, createSession } from '../../backend/src/db/index.js'
+import { claimMonitorTick, createSector, createSession, finishMonitor, getMonitor, releaseMonitorTick } from '../../backend/src/db/index.js'
 import { invokeTool } from '../../backend/src/mcp/tools.js'
 import type { McpToolContext } from '../../backend/src/mcp/tools-types.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
@@ -59,5 +59,17 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP monitor tools [F:mcp.ops.start_monitor]
   it('fails closed without a monitor runner', async () => {
     const bare: McpToolContext = { pool, scope, role: 'operator', keyId: 'test-ops-key', executionThread: karbotSession }
     await expect(invokeTool('ops.start_monitor', bare, { sectorId: sectorA, everyMinutes: 5, brief: 'x' })).rejects.toThrow('no monitor runner attached')
+  })
+
+  it('the overlap guard skips a tick while the previous one runs', async () => {
+    const started = await invokeTool('ops.start_monitor', karbot(), { sectorId: sectorA, everyMinutes: 5, brief: 'overlap probe' }) as { id: string }
+    expect(await claimMonitorTick(pool, started.id)).not.toBeNull()
+    expect(await claimMonitorTick(pool, started.id)).toBeNull()
+    await releaseMonitorTick(pool, started.id)
+    expect(await claimMonitorTick(pool, started.id)).not.toBeNull()
+    await releaseMonitorTick(pool, started.id)
+    await finishMonitor(pool, started.id)
+    expect(await claimMonitorTick(pool, started.id)).toBeNull()
+    expect((await getMonitor(pool, started.id))?.stoppedAt).not.toBeNull()
   })
 })
