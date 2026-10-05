@@ -1,7 +1,6 @@
 // Thread workspace: inherited context, pause flags, thread context,
 // steering queue, turn lifecycle, continuations, and compaction.
-import { bindExecutionEpoch, recoveryCheckpointHash, type EpochOwnership } from './execution-epochs.js'
-import type { PendingProviderResponse, RecoveryOperation } from '@kardata/agents'
+import { bindExecutionEpoch, recoveryCheckpointHash, type EpochOwnership, type TurnContinuation } from './execution-epochs.js'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import type { Scope } from '../auth/types.js'
@@ -9,7 +8,7 @@ import { appendEvent, type Db } from './events.js'
 import { type TransactableDb } from './checkpoints.js'
 import { checked, DbContractError, Id, WorkspaceError } from './errors.js'
 import { publishOutboxFrame } from './outbox.js'
-import type { ChatMessage, Usage } from '@kardata/agents'
+import type { ChatMessage } from '@kardata/agents'
 import { estimateTokens } from '@kardata/agents'
 import { assertThreadFileContext, ContextFileBlocked, threadFileRefs, validateFileRefs } from './context-files.js'
 
@@ -198,7 +197,6 @@ export async function finishSteering(db: TransactableDb, threadKey: string, runK
   })
 }
 
-export interface TurnContinuation { user: string; messages: ChatMessage[]; runKey: string; sources: Array<{ url: string; key: string; hash: string }>; meta: { round: number; usage: Usage; toolCalls: number; elapsedMs: number; blockedOperations?: RecoveryOperation[]; pendingResponse?: PendingProviderResponse } }
 export async function readTurnContinuation(db: Db, threadKey: string): Promise<TurnContinuation | undefined> {
   checked(Id, threadKey)
   const { rows } = await db.query<{ working_user: string | null; working_messages: ChatMessage[] | null; working_run: string | null; working_sources: TurnContinuation['sources']; working_meta: TurnContinuation['meta'] }>('SELECT working_user,working_messages,working_run,working_sources,working_meta FROM thread_context WHERE thread_key=$1', [threadKey])
