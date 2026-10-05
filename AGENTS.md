@@ -143,6 +143,8 @@ Need → the one place. Build new only when no row fits.
 | E2E fixtures | `tests/frontend-e2e/support/fixtures.ts` |
 | Research cassettes | `agents/src/fixtures/` (packs; test data, never corpus) |
 
+Ad-hoc is allowed only for throwaway proofs under the ignored `test-results/`.
+
 ## Deep-check conventions (every change, every agent)
 
 - Cross-module calls are observable at their boundaries: the MCP tool
