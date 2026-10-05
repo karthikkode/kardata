@@ -75,6 +75,7 @@ export const ThreadState = z.object({
   threadKey: z.string().min(1),
   status: z.string().min(1),
   acceptingSteer: z.boolean().optional(),
+  reasonCode: z.string().optional(),
 })
 
 export interface ChildRef {

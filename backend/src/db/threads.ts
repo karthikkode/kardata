@@ -185,7 +185,7 @@ async function applyEvent(db: Db, event: ProjectableEvent): Promise<boolean> {
       const payload = SubagentCompleted.parse(event.payload)
       const completedKey = `agent:${payload.summary.id}`
       await db.query(
-        "UPDATE threads SET status = 'FINISHED', accepting_steer = FALSE, updated_at = $2::timestamptz WHERE key = $1",
+        "UPDATE threads SET status = 'FINISHED', accepting_steer = FALSE, state_reason = NULL, updated_at = $2::timestamptz WHERE key = $1",
         [completedKey, at],
       )
       await publishState(db, completedKey)
@@ -277,7 +277,7 @@ async function applyEvent(db: Db, event: ProjectableEvent): Promise<boolean> {
     case 't.thread.finished': {
       const payload = ThreadFinished.parse(event.payload)
       await db.query(
-        "UPDATE threads SET status = 'FINISHED', accepting_steer = FALSE, updated_at = $2::timestamptz WHERE key = $1",
+        "UPDATE threads SET status = 'FINISHED', accepting_steer = FALSE, state_reason = NULL, updated_at = $2::timestamptz WHERE key = $1",
         [payload.threadKey, at],
       )
       await publishState(db, payload.threadKey)
@@ -285,10 +285,11 @@ async function applyEvent(db: Db, event: ProjectableEvent): Promise<boolean> {
     }
     case 't.thread.state': {
       const payload = ThreadState.parse(event.payload)
-      await db.query('UPDATE threads SET status = $2, updated_at = $3::timestamptz WHERE key = $1', [
+      await db.query('UPDATE threads SET status = $2, state_reason = $4, updated_at = $3::timestamptz WHERE key = $1', [
         payload.threadKey,
         payload.status,
         at,
+        payload.reasonCode ?? null,
       ])
       if (payload.acceptingSteer !== undefined) {
         await db.query('UPDATE threads SET accepting_steer = $2, updated_at = $3::timestamptz WHERE key = $1', [

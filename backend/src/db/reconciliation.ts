@@ -226,7 +226,7 @@ async function writeCancel(tx: Db, key: string, partition: string, candidate: Re
 async function writeFail(tx: Db, key: string, partition: string, candidate: ReconciliationCandidate, finding: ReconciliationFinding): Promise<void> {
   await appendEvent(tx, { idempotencyKey: `${key}:message`, partition, type: 't.message.appended', payload: { threadKey: candidate.threadKey, kind: 'tool', message: { id: key, name: 'execution.recovery', state: 'failed', detail: finding.reason } } })
   await tx.query('UPDATE thread_context SET active_run=NULL,active_lease=NULL,active_epoch=NULL,active_workflow_id=NULL,active_execution_id=NULL WHERE thread_key=$1', [candidate.threadKey])
-  await appendEvent(tx, { idempotencyKey: `${key}:state`, partition, type: 't.thread.state', payload: { threadKey: candidate.threadKey, status: 'ERROR', acceptingSteer: false, recoveryEpoch: candidate.activeEpoch ?? undefined, reason: finding.reason } })
+  await appendEvent(tx, { idempotencyKey: `${key}:state`, partition, type: 't.thread.state', payload: { threadKey: candidate.threadKey, status: 'ERROR', acceptingSteer: false, recoveryEpoch: candidate.activeEpoch ?? undefined, reason: finding.reason, reasonCode: finding.kind } })
   await raiseAlert(tx, { kind: finding.kind, severity: 'high', subject: `Thread failed on ${candidate.threadKey}: ${finding.reason}`, threadKey: candidate.threadKey })
   if (!candidate.threadKey.startsWith('agent:')) return
   const parent = await parentThreadKey(tx, candidate.threadKey)
