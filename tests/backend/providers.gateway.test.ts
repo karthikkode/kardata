@@ -12,8 +12,10 @@ import {
   resolveAdapter,
   resolveSelection,
   streamChat,
+  wrapAdapterWithPermit,
   type ChatLogFields,
 } from '../../backend/src/providers/provider-gateway.js'
+import { MetaPermitTimeout } from '../../backend/src/db/index.js'
 import {
   executeProviderChat,
   type ProviderChatDeps,
@@ -355,6 +357,91 @@ describe('provider gateway (B4.1)', () => {
       outcome: 'error',
       code: 'provider_timeout',
     })
+  })
+})
+
+describe('fleet meta permit (P4.2)', () => {
+  function stubAdapter(events: string[], fail?: Error): ProviderAdapter {
+    return {
+      providerName: 'meta',
+      chat: async () => {
+        events.push('chat')
+        if (fail) throw fail
+        return { text: 'hi', toolCalls: [], usage: emptyUsage(), completion: 'complete' as const }
+      },
+      chatStream: async function* () {
+        events.push('stream')
+        if (fail) throw fail
+        yield { kind: 'text_delta' as const, text: 'hi' }
+        yield { kind: 'done' as const, usage: emptyUsage() }
+      },
+    }
+  }
+
+  function acquireSpy(events: string[]): { acquire: () => Promise<() => Promise<void>>; released: () => number } {
+    let released = 0
+    return {
+      released: () => released,
+      acquire: async () => {
+        events.push('acquire')
+        return async () => {
+          events.push('release')
+          released += 1
+        }
+      },
+    }
+  }
+
+  it('holds the permit exactly across one chat call', async () => {
+    const events: string[] = []
+    const spy = acquireSpy(events)
+    const wrapped = wrapAdapterWithPermit(stubAdapter(events), spy.acquire)
+    const response = await wrapped.chat(request())
+    expect(response.text).toBe('hi')
+    expect(events).toEqual(['acquire', 'chat', 'release'])
+  })
+
+  it('holds the permit across stream consumption and releases after', async () => {
+    const events: string[] = []
+    const spy = acquireSpy(events)
+    const wrapped = wrapAdapterWithPermit(stubAdapter(events), spy.acquire)
+    let text = ''
+    for await (const event of wrapped.chatStream(request())) {
+      if (event.kind === 'text_delta') text += event.text
+    }
+    expect(text).toBe('hi')
+    expect(events).toEqual(['acquire', 'stream', 'release'])
+  })
+
+  it('releases the permit when the call fails', async () => {
+    const events: string[] = []
+    const spy = acquireSpy(events)
+    const wrapped = wrapAdapterWithPermit(stubAdapter(events, new Error('vendor down')), spy.acquire)
+    await expect(wrapped.chat(request())).rejects.toThrow('vendor down')
+    expect(spy.released()).toBe(1)
+  })
+
+  it('executeProviderChat skips the permit for scripted fake steps', async () => {
+    const d = deps()
+    let acquired = 0
+    const outcome = await executeProviderChat(input({ fakeSteps: [{ text: 'hi' }] }), {
+      ...d,
+      permit: async () => {
+        acquired += 1
+        return async () => undefined
+      },
+    })
+    expect(outcome.ok).toBe(true)
+    expect(acquired).toBe(0)
+  })
+
+  it('a permit timeout throws past the outcome so the activity retries', async () => {
+    const d = deps()
+    await expect(executeProviderChat(
+      input({ provider: 'meta' }),
+      { ...d, permit: async () => { throw new MetaPermitTimeout('TEST no permit') } },
+    )).rejects.toBeInstanceOf(MetaPermitTimeout)
+    expect(d.events).toHaveLength(0)
   })
 })
 

@@ -5,7 +5,7 @@ import { inheritThreadFileRefs, assertThreadFileContext, ContextFileBlocked } fr
 // hold the input schema (karbot-turn-input), prompts (turn-prompts),
 // palettes (turn-palettes), and chat refs (turn-chatrefs).
 
-import { createHash, createHmac } from 'node:crypto'
+import { createHash, createHmac, randomUUID } from 'node:crypto'
 import { ApplicationFailure, Context } from '@temporalio/activity'
 import { z } from 'zod'
 import { activityLogFields, ambientTraceparent } from '../../observability/temporal-tracing.js'
@@ -41,6 +41,7 @@ import {
   searchKb,
   workerPoolFromEnv,
   sessionKind,
+  acquireMetaPermit,
   type Db,
 } from '../../db/index.js'
 import { isThreadPaused, readInheritedContext } from '../../db/workspace-threads.js'
@@ -54,6 +55,7 @@ import {
   resolveAdapter,
   resolveEffectiveSelection,
   resolveSelection,
+  wrapAdapterWithPermit,
 } from '../../providers/provider-gateway.js'
 import { archiveResearchOutcome, hydrateResearchSources, persistResearchSource, persistExecutionRecord, resolveArchiveTarget, type ArchivedResearchSource } from '../../archive/targets.js'
 
@@ -683,8 +685,11 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
               return []
             }
           },
-          resolveTurnAdapter: (selection, options) =>
-            resolveAdapter(selection, { fakeSteps: options.fakeSteps, model: options.model }),
+          resolveTurnAdapter: (selection, options) => {
+            const adapter = resolveAdapter(selection, { fakeSteps: options.fakeSteps, model: options.model })
+            if (adapter.providerName !== 'meta') return adapter
+            return wrapAdapterWithPermit(adapter, () => acquireMetaPermit(pool, `${input.runKey}:${randomUUID()}`))
+          },
           // Sector-linked sessions get the sector palette on top of the
           // Karbot palette (and any skill grant): the same MCP, not all the
           // access. The narrowed palette travels to the server on the grant

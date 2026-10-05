@@ -12,7 +12,8 @@
 // heartbeat loop for long provider calls.
 import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
 import { Context } from '@temporalio/activity'
-import { appendEvent, publishOutboxFrame, recordHeartbeat } from '../../db/index.js'
+import { randomUUID } from 'node:crypto'
+import { acquireMetaPermit, appendEvent, MetaPermitTimeout, publishOutboxFrame, recordHeartbeat } from '../../db/index.js'
 import { TRACER_NAME, startSpan } from '../../observability/tracing.js'
 import { activityLogFields } from '../../observability/temporal-tracing.js'
 import {
@@ -65,6 +66,8 @@ export interface ProviderChatDeps {
   }): Promise<void>
   /** Delta sink for streamed chats; unit deps record in memory. */
   publishDelta(input: { threadKey: string; runKey: string; text: string }): Promise<void>
+  /** Fleet Meta permit; absent in unit deps. Only used for live Meta calls. */
+  permit?(): Promise<() => Promise<void>>
 }
 
 /** Pure core: resolve → guarded chat → typed error event on failure. The
@@ -76,6 +79,16 @@ export async function executeProviderChat(
   deps: ProviderChatDeps,
 ): Promise<ChatOutcome> {
   let outcome: ChatOutcome
+  // Fleet permit first (live Meta only): a permit timeout throws past the
+  // outcome below so the activity retries instead of failing honestly.
+  let releasePermit: (() => Promise<void>) | undefined
+  try {
+    if (input.fakeSteps === undefined && deps.permit && resolveSelection(input.provider) === 'meta') {
+      releasePermit = await deps.permit()
+    }
+  } catch (error) {
+    if (error instanceof MetaPermitTimeout) throw error
+  }
   try {
     const selection = resolveSelection(input.provider)
     // A pinned model goes through strict per-message resolution (session
@@ -123,6 +136,8 @@ export async function executeProviderChat(
       detail: error instanceof Error ? error.message.slice(0, 500) : 'unknown provider error',
     }
     deps.log({ op: 'provider.chat', provider: input.provider, ok: false, latencyMs: 0, code, latency_ms: 0, outcome: 'error' })
+  } finally {
+    await releasePermit?.()
   }
   if (!outcome.ok) {
     await deps.appendErrorEvent({
@@ -178,6 +193,7 @@ export async function providerChatActivity(input: ProviderChatInput): Promise<Ch
     const outcome = await Promise.race([
       executeProviderChat(input, {
         log: (fields) => context.log.info('provider.chat', { ...activityLogFields({ sessionId: input.sessionId }), ...fields }),
+        permit: () => acquireMetaPermit(pool, `provider-chat:${input.sessionId}:${randomUUID()}`),
         appendErrorEvent: async (event) => {
           await appendEvent(pool, event)
         },

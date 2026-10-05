@@ -361,6 +361,36 @@ function chatCallFailure(
 /** One guarded model call. Logs shapes/counters only; the timeout wins the
  * race (the underlying call is left to settle — activity cancellation is
  * Temporal's path, not a dangling-fetch hunt). */
+/** Wraps an adapter so every model call holds a fleet Meta permit for
+ * exactly the call: acquire runs per call and its release fires when the
+ * response (or stream) settles, even on error or early break. Token
+ * counting stays permit-free: it never touches the vendor. */
+export function wrapAdapterWithPermit(
+  adapter: ProviderAdapter,
+  acquire: () => Promise<() => Promise<void>>,
+): ProviderAdapter {
+  return {
+    ...(adapter.countInputTokens ? { countInputTokens: adapter.countInputTokens.bind(adapter) } : {}),
+    providerName: adapter.providerName,
+    chat: async (request) => {
+      const release = await acquire()
+      try {
+        return await adapter.chat(request)
+      } finally {
+        await release()
+      }
+    },
+    chatStream: async function* (request) {
+      const release = await acquire()
+      try {
+        yield* adapter.chatStream(request)
+      } finally {
+        await release()
+      }
+    },
+  }
+}
+
 export async function chatOnce(
   adapter: ProviderAdapter,
   request: ProviderRequest,

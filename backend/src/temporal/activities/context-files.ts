@@ -6,11 +6,11 @@ import { randomUUID } from 'node:crypto'
 import { Context } from '@temporalio/activity'
 import { z } from 'zod'
 import { appendProviderRoundEvent } from '../../db/execution-rounds.js'
-import { workerPoolFromEnv, type TransactableDb } from '../../db/index.js'
+import { acquireMetaPermit, workerPoolFromEnv, type TransactableDb } from '../../db/index.js'
 import { listDocumentUnits } from '../../db/document-units.js'
 import { applyReadyContextFileBlock, applySystemCompaction, readGlobalContext, readGlobalContextUsage, recordContextAiUsage } from '../../db/workspace-global-context.js'
 import { chunkDocumentUnits, findMissingNumbers, listContextFileBlocks, markContextFileBlockFailed, normalizeSectionsJson, parseJsonObject, readContextFileBlock, validateBlockTemplate } from '../../db/context-files.js'
-import { providerRoundFields, resolveAdapter } from '../../providers/provider-gateway.js'
+import { providerRoundFields, resolveAdapter, wrapAdapterWithPermit } from '../../providers/provider-gateway.js'
 import { TemporalRunsGateway } from '../runs-gateway.js'
 import { WorkspaceError } from '../../db/errors.js'
 import { createLogger, logOp } from '../../observability/logging.js'
@@ -291,7 +291,7 @@ function production() {
   const db = workerPoolFromEnv()
   return createContextFileActivities({
     db,
-    provider: (model) => resolveAdapter('meta', { model }),
+    provider: (model) => wrapAdapterWithPermit(resolveAdapter('meta', { model }), () => acquireMetaPermit(db, `context-file:${randomUUID()}`)),
     startCompaction: (sectorId) => new TemporalRunsGateway(db).startContextCompaction(sectorId, 'auto').then(() => undefined),
   })
 }

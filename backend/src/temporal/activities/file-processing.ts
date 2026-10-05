@@ -1,12 +1,12 @@
 // File-owned work on the existing worker. Workflow histories contain IDs only.
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
 import { Context } from '@temporalio/activity'
 import type { ProviderAdapter, ProviderResponse } from '@kardata/agents'
 import { assembledTokens, measureInputTokens } from '@kardata/agents'
 import { z } from 'zod'
 import { resolveArchiveTarget, withArchiveDeadline, type ArchiveTarget } from '../../archive/targets.js'
 import { appendProviderRoundEvent } from '../../db/execution-rounds.js'
-import { workerPoolFromEnv, type TransactableDb } from '../../db/index.js'
+import { acquireMetaPermit, workerPoolFromEnv, type TransactableDb } from '../../db/index.js'
 import {
   readFileProcessingJob, registerFileImages, claimFileImage,
   readFileImage, readFileImageAttempt, readCurrentFileImageAttempt, readNextFileImage, readFileJobBoundary, pauseFileProcessingJob, beginFileProcessingJob, markFileImageRequestStarted,
@@ -18,7 +18,7 @@ import { planPdfExtraction } from '../../db/pdf-extraction.js'
 import { sha256Hex, chunkTextUnits } from '../../db/file-pipeline.js'
 import { WorkspaceError } from '../../db/errors.js'
 import { documentImageRequest, DOCUMENT_IMAGE_PROMPT_VERSION } from '../../ocr.js'
-import { providerRoundFields, resolveAdapter } from '../../providers/provider-gateway.js'
+import { providerRoundFields, resolveAdapter, wrapAdapterWithPermit } from '../../providers/provider-gateway.js'
 import { findModel } from '../../providers/registry.js'
 import { createLogger, logOp } from '../../observability/logging.js'
 import { activityLogFields } from '../../observability/temporal-tracing.js'
@@ -287,10 +287,11 @@ export function createFileProcessingActivities(deps: FileProcessingDependencies)
 }
 
 function production() {
+  const db = workerPoolFromEnv()
   return createFileProcessingActivities({
-    db: workerPoolFromEnv(), archive: resolveArchiveTarget(), provider: (model) => {
+    db, archive: resolveArchiveTarget(), provider: (model) => {
       if (process.env['KARDATA_OCR_DISABLED']?.trim() === '1') throw new WorkspaceError('permission_denied', 'AI image processing is disabled by the owner.')
-      return resolveAdapter('meta', { model })
+      return wrapAdapterWithPermit(resolveAdapter('meta', { model }), () => acquireMetaPermit(db, `file-image:${randomUUID()}`))
     },
     modelWindow: (model) => {
       const window = findModel('meta', model)?.contextWindow

@@ -5651,3 +5651,63 @@
   tiers:
     - db
   states: []
+- id: db.index.MetaPermitTimeout
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.acquireMetaPermit
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.ensureMetaPermits
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.resolveMetaMax
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.withMetaPermit
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.meta_limiter.MetaPermitTimeout
+  layer: db
+  surface: backend/src/db/meta-limiter.ts
+  tiers:
+    - todo
+  states: []
+- id: db.meta_limiter.acquireMetaPermit
+  layer: db
+  surface: backend/src/db/meta-limiter.ts
+  tiers:
+    - todo
+  states: []
+- id: db.meta_limiter.ensureMetaPermits
+  layer: db
+  surface: backend/src/db/meta-limiter.ts
+  tiers:
+    - todo
+  states: []
+- id: db.meta_limiter.resolveMetaMax
+  layer: db
+  surface: backend/src/db/meta-limiter.ts
+  tiers:
+    - todo
+  states: []
+- id: db.meta_limiter.withMetaPermit
+  layer: db
+  surface: backend/src/db/meta-limiter.ts
+  tiers:
+    - todo
+  states: []
