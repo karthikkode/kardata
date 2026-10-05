@@ -157,6 +157,20 @@ export const KARBOT_SYSTEM_PROMPT =
   'Standing facts: Kardata sells a managed data layer; the entry wedge is solving one evidenced problem free, then expanding to the data layer. $3k–$6k/month is an internal targeting band, never a quoted price; the only quotable figure is the one-time diagnostic entry. ' +
   'Research discipline: breadth over fixation (record every evidenced problem, never build whole research around one symptom like out-of-stock ads); a problem counts only with mechanism-or-cost evidence from the company’s own domain; every proposal must survive “would they pay $3–6k/mo to fix this, and what evidence says so?”. ' +
   'Response format: GitHub-flavored Markdown rendered as calm chat prose. Write short plain paragraphs. Use bold at most once per reply and never as a label at the start of a line. Use `-` bullets only for real lists and `|` tables only for two or more comparable items. Use `code` only for literal file names, URLs or commands the user should type, never for ids, tool names or citations. Never mention internal tool names, function names or raw ids; describe what you checked in plain words. Do not use em dashes. No raw HTML, no headings in short replies, no invented metrics.'
+/** Per-round provider-call budget for planning-grade turns (sectorPlan
+ * workflow runs and research-session plan turns), whose long generations
+ * trip the 60 s chat default. Chat turns keep the default unless proven
+ * the same timeout. */
+export const PLANNING_ROUND_TIMEOUT_MS = 180_000
+const CHAT_ROUND_TIMEOUT_MS = 60_000
+
+/** Timeout for one turn: planning work (plan:* runKeys from the
+ * sectorPlan workflow, or any turn in the research session) gets the
+ * 180 s budget; everything else keeps 60 s. */
+export function turnRoundTimeoutMs(input: { runKey: string; sessionKind?: string }): number {
+  if (input.runKey.startsWith('plan:') || input.sessionKind === 'research') return PLANNING_ROUND_TIMEOUT_MS
+  return CHAT_ROUND_TIMEOUT_MS
+}
 export const CONTEXT_REWRITE_PREAMBLE =
   "You are rewriting this sector's global context per the owner's instruction. Read it with db.get_global_context. Research with web_search/web_fetch if the instruction needs new facts. Rewrite Decisions, Findings, Open questions and, if the instruction asks, Instructions; keep Scope unless told otherwise; never touch Files. Submit exactly one db.propose_global_context against the current version, then summarize what you changed and why in plain words."
 export const CONTEXT_PROPOSAL_NUDGE =
@@ -320,6 +334,8 @@ export interface KarbotTurnDeps {
   loadSessionSector?(sessionId: string): Promise<string | undefined>
   /** Chat purpose (chat or context-rewrite); absent means chat. */
   loadSessionPurpose?(sessionId: string): Promise<string | undefined>
+  /** Session kind (research or normal); absent means chat budget. */
+  loadSessionKind?(sessionId: string): Promise<string | undefined>
   /** Sector context references (digest first) for sector chats. Absent
    * means no sector context rides the turn. */
   loadSectorRefs?(sectorId: string): Promise<string[]>
@@ -352,6 +368,8 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
   const parsed = KarbotTurnInput.parse(input)
   const started = Date.now()
   const stored = await deps.loadSessionModel(parsed.sessionId)
+  const turnSessionKind = await deps.loadSessionKind?.(parsed.sessionId).catch(() => undefined)
+  const timeoutMs = turnRoundTimeoutMs({ runKey: parsed.runKey, ...(turnSessionKind === undefined ? {} : { sessionKind: turnSessionKind }) })
   let adapter: ProviderAdapter
   let providerName: string
   let model: string | null = null
@@ -424,17 +442,17 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
       firstFrame[slot] ??= Date.now() - started
       return firstFrame[slot]
     }
-    // Round-2+ rebuilds pin the brainstorm preload, the sector id
-    // line and the inheritance brief: refreshed references alone would
-    // drop them after round 1.
+    // Round-2+ rebuilds pin the inheritance brief first, then the
+    // brainstorm preload and the sector id line: refreshed references
+    // alone would drop them after round 1.
     const inherited = (await deps.loadInheritedContext?.(parsed.threadKey)) ?? []
-    const pinned = [...preload, ...sectorRefs.slice(0, 1), ...inherited]
+    const pinned = [...inherited, ...preload, ...sectorRefs.slice(0, 1)]
     const prepend = [...(parsed.systemPrepend ?? [])]
     if ((await deps.loadSessionPurpose?.(parsed.sessionId)) === 'context-rewrite') prepend.push(CONTEXT_REWRITE_PREAMBLE)
     const systemPrompt = composeSystemPrompt(KARBOT_SYSTEM_PROMPT, {
       prepend,
       modePrompt: parsed.mode ? modePromptFor(parsed.mode) : undefined,
-      preload: [...preload, ...(parsed.preloadChunks ?? []), ...sectorRefs, ...inherited],
+      preload: [...inherited, ...preload, ...(parsed.preloadChunks ?? []), ...sectorRefs],
     })
     // Spend guards for the live turn. Cost stays untracked until a price
     // table lands (no price source exists yet), so maxCost never trips;
@@ -469,6 +487,7 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
       operationKey: continuation?.runKey ?? parsed.runKey,
       resume: continuation?.meta,
       signal: deps.signal,
+      timeoutMs,
       ...(deps.persistExecution ? { onProviderRequest: (round: number, request: Omit<import('@kardata/agents').ProviderRequest, 'signal'>) => persist(round, 'request', request), onProviderResponse: (round: number, response: PendingProviderResponse['response'], original?: Record<string, unknown>) => persist(round, 'response', response, original) } : {}),
       onToolResult: (round, call, outcome, operationId) => persist(round, 'tool-result', { call, outcome, ...(operationId ? { operationId } : {}) }),
       onCheckpoint: (messages, round, usage, toolCalls, blockedOperations, pendingResponse) => deps.checkpoint?.(messages, round, usage, toolCalls, sources, blockedOperations, pendingResponse ? { ...pendingResponse, metadata: pendingResponse.metadata ?? { version: 1, provider: providerName, model, round, boundary } } : undefined) ?? Promise.resolve(),
@@ -924,9 +943,14 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
           loadSessionModel: (sessionId) => getSessionModel(pool, sessionId),
           loadSessionSector: async (sessionId) => (await getSession(pool, sessionId))?.sectorId,
           loadSessionPurpose: async (sessionId) => (await readSessionSettings(pool, sessionId)).purpose,
+          loadSessionKind: async (sessionId) => sessionKind(pool, sessionId).catch(() => 'normal' as const),
           loadInheritedContext: async (threadKey) => {
             const inherited = await readInheritedContext(pool, threadKey)
-            return inherited ? [`Inherited from parent:\n${inherited}`] : []
+            return inherited
+              ? [
+                  `Context from your parent conversation (authoritative for anything said there):\n${inherited}\nIf the goal refers to something from the parent conversation, answer from this context first.`,
+                ]
+              : []
           },
           loadSectorRefs: (sectorId) => turnSectorRefs(pool, input.sessionId, sectorId, input.threadKey),
           loadSectorName: async (sectorId) => (await getSector(pool, sectorId))?.name,

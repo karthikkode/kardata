@@ -1,6 +1,6 @@
 // Sector context file summarizer: one standardized AI block per file.
 // Workflow histories contain IDs only; the block row is the provenance.
-import type { ProviderAdapter } from '@kardata/agents'
+import type { ProviderAdapter, ProviderRequest, ProviderResponse } from '@kardata/agents'
 import { estimateTokens } from '@kardata/agents'
 import { randomUUID } from 'node:crypto'
 import { Context } from '@temporalio/activity'
@@ -23,6 +23,22 @@ export interface ContextFileActivitiesDeps {
 }
 
 export const CONTEXT_FILE_MODEL = 'muse-spark-1.3-contributor'
+/** Budget for one file-summary or compaction provider call. The 60 s
+ * turn default trips on long generations; background context calls get
+ * the same 180 s budget as planning turns. */
+export const CONTEXT_FILE_CALL_TIMEOUT_MS = 180_000
+
+/** adapter.chat with a wall-clock budget: aborts the call when the
+ * budget elapses so a hung provider cannot stall the activity. */
+export async function chatWithTimeout(adapter: ProviderAdapter, request: ProviderRequest, timeoutMs: number = CONTEXT_FILE_CALL_TIMEOUT_MS): Promise<ProviderResponse> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(new Error(`provider call timed out after ${timeoutMs}ms`)), timeoutMs)
+  try {
+    return await adapter.chat({ ...request, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
 const CHUNK_TOKENS = 12000
 const logger = createLogger({ op: 'context.file.activity' })
 
@@ -95,7 +111,7 @@ ${partials.join('\n\n---\n\n')}`
 export function createContextFileActivities(deps: ContextFileActivitiesDeps) {
   async function chat(text: string, spend: { inputTokens: number; outputTokens: number }, systemPrompt = 'You summarize files into standardized context blocks. Reply with only the requested block or notes.'): Promise<string> {
     const adapter = deps.provider(CONTEXT_FILE_MODEL)
-    const response = await adapter.chat({ systemPrompt, messages: [{ role: 'user', text }], tools: [], toolChoice: { mode: 'none' } })
+    const response = await chatWithTimeout(adapter, { systemPrompt, messages: [{ role: 'user', text }], tools: [], toolChoice: { mode: 'none' } })
     spend.inputTokens += response.usage.inputTokens
     spend.outputTokens += response.usage.outputTokens
     return response.text

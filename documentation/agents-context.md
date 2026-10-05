@@ -183,5 +183,11 @@ Spawned children inherit the parent's context: `thread_context.inherited`
 holds the parent summary plus its last 20 user/agent messages as Owner/Agent
 lines, capped at 12,000 estimated tokens by dropping the oldest first. The
 write lands between parent acceptance and the goal signal, so the child's
-first turn already carries it as an `Inherited from parent` preload on every
-round. Global context arrives through the parent session's own switch.
+first turn already carries it on every round as the FIRST preload entry,
+immediately after the system prompt and before global context, under the
+heading `Context from your parent conversation (authoritative for anything
+said there)` with the rule to answer from it first when the goal refers to
+the parent conversation. Global context arrives through the parent
+session's own switch. Parents are told (in the `db.delegate_subagent`
+description) to write self-contained goals and never point children at
+global context for conversation facts.

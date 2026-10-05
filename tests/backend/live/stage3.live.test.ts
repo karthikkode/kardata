@@ -181,6 +181,7 @@ describe.skipIf(!LIVE_META_ENABLED)('live stage 3 (reads, chat refs, subagent co
     expect(spawned.status).toBe(201)
     const childThreadKey = dataOf(spawned.body)['threadKey'] as string
     const ownerReply = await waitChildReply(stack, childThreadKey)
+    if (process.env['L_A15_SINGLE_CHILD'] === '1') console.log(`L-A15-SINGLE ownerReplyHasCode=${ownerReply.includes('HARBOUR-42')}`)
     expect(ownerReply).toContain('HARBOUR-42')
     const inherited = await stack.pool.query<{ inherited: string }>('SELECT inherited FROM thread_context WHERE thread_key=$1', [childThreadKey])
     expect(inherited.rows[0]?.inherited ?? '').toContain('HARBOUR-42')
@@ -194,12 +195,13 @@ describe.skipIf(!LIVE_META_ENABLED)('live stage 3 (reads, chat refs, subagent co
     let tries = 0
     let childKey = ''
     const seen = new Set(threadsBefore)
-    for (const wording of wordings) {
+    const single = process.env['L_A15_SINGLE_CHILD'] === '1'
+    for (const wording of single ? wordings.slice(0, 1) : wordings) {
       tries += 1
       await sendAndWaitReply(stack, parentId, wording)
       const fresh = (await threadsOf(stack, parentId)).map((thread) => thread.key).filter((key) => !seen.has(key) && key.startsWith('agent:'))
       for (const key of fresh) seen.add(key)
-      for (const key of fresh) {
+      for (const key of single ? fresh.slice(0, 1) : fresh) {
         const stored = await stack.pool.query<{ inherited: string }>('SELECT inherited FROM thread_context WHERE thread_key=$1', [key])
         expect(stored.rows[0]?.inherited ?? '').toContain('HARBOUR-42')
         const reply = await waitChildReply(stack, key)
@@ -208,8 +210,9 @@ describe.skipIf(!LIVE_META_ENABLED)('live stage 3 (reads, chat refs, subagent co
           break
         }
       }
-      if (childKey) break
+      if (childKey || single) break
     }
+    if (single) console.log(`L-A15-SINGLE parentReplyHasCode=${childKey !== ''} tries=${tries}`)
     expect(childKey).not.toBe('')
     logSpend('L-A15', `tries=${tries}`, spendBefore, await stack.spend())
   }, 600_000)

@@ -520,9 +520,9 @@ None. Every A-item shipped, every live test passes, B4 green.
 - Exhaustive scenario testing (Phase 2, separate plan).
 - Fence robustness: consider accepting an ExecutablePlan-shaped
   ```json block as a fallback instead of failing the plan run.
-- Round budget for long generations (bug 16): plan briefs and
-  long analyses live close to the pre-existing 60 s per-round
-  total timeout; consider a higher budget for known-long turns.
+- (Fixed in sector-backend-v1.1, see section 10: planning
+  turns, file summaries and compaction now get 180 s; chat
+  keeps 60 s.)
 - Live-namespace hygiene (bugs 13/17): terminate test-residue
   workflows before reusing a live DB; never run the B2 stack
   concurrently with the backend live battery.
@@ -561,3 +561,95 @@ None. Every A-item shipped, every live test passes, B4 green.
    old raw-marker complaint is fixed.
 10. Screenshots are asserted by hand (opened, not pixel-pinned);
     visual regressions rely on future eyes.
+
+## 10. Follow-up sector-backend-v1.1 (two fixes, on main)
+
+Branch `sector-backend-v1.1` (from `main @ 66ba3ce`).
+Commit: `(hash appended at commit time)`.
+Never pushed, never merged (merge needs the owner).
+
+### Fix 1: subagents use inherited context, reliably
+
+Before, the parent-spawned child in L-A15 ignored its inherited
+brief on 2 of 3 tries. The inherited text now rides as the FIRST
+preload entry, immediately after the system prompt and before
+global context, under the heading `Context from your parent
+conversation (authoritative for anything said there)` with the
+rule "If the goal refers to something from the parent
+conversation, answer from this context first."
+(`backend/src/temporal/activities/turn.ts`, `loadInheritedContext`;
+pinned/preload order `[...inherited, ...preload, ...sectorRefs]`.)
+The `db.delegate_subagent` tool description now tells parent
+agents to write self-contained goals and never point children at
+global context for conversation facts.
+(`backend/src/mcp/tools.ts`.) Spec:
+`documentation/agents-context.md`.
+
+Unit (failing first, then green): `tests/backend/karbot.turn.test.ts`
++ `tests/backend/subagent-delegate.test.ts`, 47/47 pass,
+including multi-round ordering vs refreshed refs and initial-load
+ordering vs sector refs.
+
+Live proof (L-A15 with ONE child per run, 5 runs; pass bar 4/5
+parent + 5/5 owner):
+
+| Run | Owner child | Parent child | tries | input | output |
+|---|---|---|---|---|---|
+| 1 | code word | code word | 1 | 35841 | 4461 |
+| 2 | code word | code word | 1 | 47274 | 5930 |
+| 3 | code word | code word | 1 | 49518 | 13484 |
+| 4 | code word | code word | 1 | 40724 | 10642 |
+| 5 | code word | code word | 1 | 41096 | 8570 |
+
+5/5 on both legs. Fix 1 live spend: input 214453,
+output 43087.
+
+### Fix 2: 180 s budget for planning turns, summaries, compaction
+
+The 60 s per-round total timeout (bug 16) lives in
+`agents/src/turnRunner.ts` (`DEFAULT_TIMEOUT_MS`, applied per
+provider call in the round loop); the turn activity never passed
+`timeoutMs`, so every turn shared it. `turnRoundTimeoutMs` in
+`backend/src/temporal/activities/turn.ts` now chooses per turn
+kind: sectorPlan workflow `plan:*` runKeys and research-session
+turns get 180 s (`PLANNING_ROUND_TIMEOUT_MS`); chat turns keep
+60 s. File-summary and compaction calls funnel through one chat
+helper, now wrapped with `chatWithTimeout` at 180 s
+(`CONTEXT_FILE_CALL_TIMEOUT_MS` in
+`backend/src/temporal/activities/context-files.ts`). Chat and
+planning share the same runner timeout; chat stays at 60 s by
+choice, not by mechanism. Spec:
+`documentation/agents-providers.md`.
+
+Unit (failing first, then green):
+`tests/backend/karbot.turn-timeout.test.ts` (7 tests: pure
+chooser per kind + a `runKarbotTurn` spy proving the wired
+value) and 3 `chatWithTimeout` cases in
+`tests/backend/context-files.test.ts` (180 s default,
+passthrough, abort on budget). Focused files:
+`karbot.turn` + `subagent-delegate` + `context-files` +
+`karbot.turn-timeout` = 67/67 pass; backend typecheck clean.
+
+Live proof (L-PLAN 3 times in a row, all must pass):
+
+| Run | Result | Test time | tries | input | output | slowest round |
+|---|---|---|---|---|---|---|
+| 1 | pass | 161.0 s | 1 | 38390 | 10416 | 27.7 s |
+| 2 | pass | 139.0 s | 1 | 28467 | 9435 | 15.9 s |
+| 3 | pass | 110.2 s | 1 | 31924 | 7910 | 19.1 s |
+
+3/3 pass. Honest note: these ran in a fast window (slowest
+single round 27.7 s, under the old ceiling), so they prove the
+180 s path works end to end, not that the old ceiling tripped.
+The motive stands on bug 16 (60 s timeouts seen in a slow
+window) plus a 50.9 s slowest round seen on an older L-PLAN DB.
+Fix 2 live spend: input 98781, output 27761.
+
+Environment note: run 1's first attempt died mid-run when the
+whole docker daemon restarted (`kardata-db-1`/`kardata-temporal-1`
+have restart policy `no` and stayed down; backend/worker
+crash-looped). `docker start` on those two containers restored
+the stack (volumes untouched); all services healthy before the
+re-run. That attempt does not count in the 3/3.
+
+Follow-up live spend total: input 313234, output 70848.

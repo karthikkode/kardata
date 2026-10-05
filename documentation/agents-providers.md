@@ -110,6 +110,15 @@ top of the agents contract:
   unknown transport errors default to retryable under Temporal's retry
   policy. The 401 sniff is substring-based; re-check it when an adapter
   rewords auth errors.
+- The per-round provider-call budget (`timeoutMs` in
+  `agents/src/turnRunner.ts`, default 60 s) is chosen per turn kind by
+  `turnRoundTimeoutMs` in `backend/src/temporal/activities/turn.ts`:
+  planning-grade turns (sectorPlan workflow `plan:*` runKeys and
+  research-session turns) get 180 s (`PLANNING_ROUND_TIMEOUT_MS`);
+  chat turns keep 60 s. File-summary and compaction calls use the
+  same 180 s through `chatWithTimeout` in
+  `backend/src/temporal/activities/context-files.ts`
+  (`CONTEXT_FILE_CALL_TIMEOUT_MS`).
 - `probeProvider` repeats the agents probe round trip (forced ping tool,
   usage counters) through the backend path; the live backend cases assert
   the same shape as the direct probe and skip without keys.

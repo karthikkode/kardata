@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PoolClient } from 'pg'
 import type { TransactableDb } from '../../backend/src/db/index.js'
-import { invokeTool, McpToolError } from '../../backend/src/mcp/tools.js'
+import { invokeTool, McpToolError, TOOL_META } from '../../backend/src/mcp/tools.js'
 
 function stubDb(sessions: Array<{ id: string; sector: string | null }>): TransactableDb {
   return {
@@ -45,6 +45,11 @@ function delegatorDouble(seen: Array<Record<string, unknown>>) {
 }
 
 describe('db.delegate_subagent', () => {
+  it('tells parents to write self-contained goals, not global-context pointers', () => {
+    const description = TOOL_META['db.delegate_subagent'].description
+    expect(description).toContain('self-contained')
+    expect(description).toContain('global context')
+  })
   it('validates goal and session before any delegation', async () => {
     const db = stubDb([{ id: 's-1', sector: null }])
     const seen: Array<Record<string, unknown>> = []

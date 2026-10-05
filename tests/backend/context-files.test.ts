@@ -86,3 +86,27 @@ describe('validateBlockTemplate', () => {
     expect(issues.some((issue) => issue.includes('Key facts') && issue.includes('order'))).toBe(true)
   })
 })
+
+describe('chatWithTimeout', () => {
+  const request = { systemPrompt: 'sys', messages: [{ role: 'user' as const, text: 'hi' }], tools: [], toolChoice: { mode: 'none' as const } }
+  it('defaults file-summary and compaction calls to 180 s', async () => {
+    const { CONTEXT_FILE_CALL_TIMEOUT_MS } = await import('../../backend/src/temporal/activities/context-files.js')
+    expect(CONTEXT_FILE_CALL_TIMEOUT_MS).toBe(180_000)
+  })
+  it('passes responses through', async () => {
+    const { chatWithTimeout } = await import('../../backend/src/temporal/activities/context-files.js')
+    const adapter = { chat: async () => ({ text: 'ok', usage: { inputTokens: 3, outputTokens: 1 } }) }
+    const response = await chatWithTimeout(adapter as never, { ...request, messages: [...request.messages] }, 1000)
+    expect(response.text).toBe('ok')
+  })
+  it('aborts a hung call after the budget', async () => {
+    const { chatWithTimeout } = await import('../../backend/src/temporal/activities/context-files.js')
+    const adapter = {
+      chat: (input: { signal?: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          input.signal?.addEventListener('abort', () => reject(input.signal?.reason ?? new Error('aborted')), { once: true })
+        }),
+    }
+    await expect(chatWithTimeout(adapter as never, { ...request, messages: [...request.messages] }, 30)).rejects.toThrow()
+  })
+})

@@ -1,5 +1,25 @@
 # Implementation status
 
+Sector-backend-v1.1 follow-up (2026-10-05, branch
+`sector-backend-v1.1` from main, unmerged): two fixes, each
+failing-test-first with live proof. (1) Inherited context
+reliability: the spawn brief now rides first after the system
+prompt under `Context from your parent conversation
+(authoritative for anything said there)` with an answer-first
+rule, and `db.delegate_subagent` mandates self-contained goals;
+L-A15 single-child x5 green 5/5 on both legs (all tries=1).
+(2) Per-kind round budget: planning turns (`plan:*` runKeys,
+research sessions), file summaries and compaction get 180 s,
+chat keeps 60 s (`turnRoundTimeoutMs`,
+`CONTEXT_FILE_CALL_TIMEOUT_MS`); L-PLAN x3 green (161/139/110 s,
+tries=1, slowest round 27.7 s, fast window). Unit 67/67 on the
+four touched files, backend typecheck clean. Full gates
+(pr:verify, DB suite, Playwright) not re-run: out of the
+follow-up scope, no product-surface change outside the two
+fixes. Env note: a docker daemon restart mid-proof left db and
+temporal down (restart policy `no`); `docker start` restored
+them, volumes untouched.
+
 Sector backend v1, stage 4 FINAL (2026-10-05, `sector-backend-v1`,
 merged to main): pr:verify exit 0, DB suite 1165/56/0, Playwright
 485/23/0, backend live 18/18, B4 green (2.8m, 16 shots opened).

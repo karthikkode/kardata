@@ -604,11 +604,32 @@ describe('sector identity preload (B2)', () => {
         { text: 'TEST child answer' },
       ]),
     )
-    world.deps.loadInheritedContext = async () => ['Inherited from parent:\nParent summary:\ncode word HARBOUR-42']
+    const brief = 'Context from your parent conversation (authoritative for anything said there):\nParent summary:\ncode word HARBOUR-42\nIf the goal refers to something from the parent conversation, answer from this context first.'
+    world.deps.loadInheritedContext = async () => [brief]
+    world.deps.loadSessionSector = async () => 'sector-9'
+    world.deps.loadSectorName = async () => 'TEST Sector'
+    world.deps.refreshContext = async () => ({ references: ['TEST refreshed'], notes: '', steering: [], contextVersion: 1, planVersion: null, localVersion: 0 })
     await executeKarbotTurn(input(), world.deps)
     expect(world.adapter.calls).toHaveLength(2)
-    expect(world.adapter.calls[0]?.systemPrompt ?? '').toContain('Inherited from parent:\nParent summary:\ncode word HARBOUR-42')
-    expect(world.adapter.calls[1]?.systemPrompt ?? '').toContain('Inherited from parent:\nParent summary:\ncode word HARBOUR-42')
+    for (const call of world.adapter.calls) {
+      const prompt = call?.systemPrompt ?? ''
+      expect(prompt).toContain(brief)
+      expect(prompt).toContain(`Reference material (authoritative for this turn):\n${brief}`)
+      expect(prompt.indexOf(brief)).toBeLessThan(prompt.indexOf('TEST refreshed'))
+    }
+  })
+  it('A15: inherited brief leads the initial preload when context never refreshes', async () => {
+    const world = memoryWorld(new FakeProvider([{ text: 'TEST child answer' }]))
+    const brief = 'Context from your parent conversation (authoritative for anything said there):\nParent summary:\ncode word HARBOUR-42\nIf the goal refers to something from the parent conversation, answer from this context first.'
+    world.deps.loadInheritedContext = async () => [brief]
+    world.deps.loadSessionSector = async () => 'sector-9'
+    world.deps.loadSectorName = async () => 'TEST Sector'
+    world.deps.loadSectorRefs = async () => ['TEST global context reference']
+    await executeKarbotTurn(input(), world.deps)
+    expect(world.adapter.calls).toHaveLength(1)
+    const prompt = world.adapter.calls[0]?.systemPrompt ?? ''
+    expect(prompt).toContain(`Reference material (authoritative for this turn):\n${brief}`)
+    expect(prompt.indexOf(brief)).toBeLessThan(prompt.indexOf('TEST global context reference'))
   })
   it('keeps the exact sector id line on round 2 and later', async () => {
     const world = memoryWorld(

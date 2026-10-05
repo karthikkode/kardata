@@ -328,7 +328,7 @@ export const TOOL_META: Record<McpToolName, { description: string; minRole: Role
   },
   'db.delegate_subagent': {
     description:
-      'Launch a leaf subagent researcher on a session goal (Karbot-only, operator). The child researches independently and reports back; collect via session threads. Pilot children never delegate further.',
+      'Launch a leaf subagent researcher on a session goal (Karbot-only, operator). The child researches independently and reports back; collect via session threads. Pilot children never delegate further. Write self-contained goals carrying the facts the child needs; never point the child at global context for anything said in this conversation (the child inherits this conversation separately).',
     minRole: 'operator',
   },
   'web_search': { description: 'Web search (needs KARDATA_WEB_SEARCH_KEY, fails closed without it).', minRole: 'viewer' },
