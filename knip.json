@@ -8,7 +8,7 @@
       "paths": {
         "@/*": ["./frontend/src/*"]
       },
-      "ignoreDependencies": ["pg", "fastify", "zod", "unpdf", "sharp", "@opentelemetry/api", "@temporalio/activity", "@temporalio/client", "@temporalio/common", "@temporalio/proto", "@temporalio/testing", "@temporalio/worker", "@temporalio/workflow", "playwright-core", "react", "@testing-library/react", "@testing-library/user-event", "@playwright/test", "sonner", "lucide-react", "@assistant-ui/react"],
+      "ignoreDependencies": ["pg", "fastify", "zod", "unpdf", "sharp", "@opentelemetry/api", "@temporalio/activity", "@temporalio/client", "@temporalio/common", "@temporalio/proto", "@temporalio/testing", "@temporalio/worker", "@temporalio/workflow", "playwright-core", "react", "@testing-library/react", "@testing-library/user-event", "@playwright/test", "sonner", "lucide-react", "@assistant-ui/react", "@axe-core/playwright"],
       "project": ["scripts/*.mjs", "deployment/scripts/*.mjs", "tests/**/*.ts"]
     },
     "agents": {
@@ -22,7 +22,7 @@
     "frontend": {
       "entry": ["src/main.tsx", "src/test/**", "src/**/*.test.{ts,tsx}", "*.config.ts"],
       "project": ["src/**/*.{ts,tsx}", "*.config.ts"],
-      "ignoreDependencies": ["@fontsource-variable/geist", "@fontsource-variable/geist-mono", "shadcn", "tw-animate-css", "tailwindcss"]
+      "ignoreDependencies": ["@fontsource-variable/geist", "@fontsource-variable/geist-mono", "shadcn", "tw-animate-css", "tailwindcss", "@tanstack/react-virtual"]
     }
   }
 }
