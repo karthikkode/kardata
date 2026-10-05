@@ -33,8 +33,13 @@ export interface MatrixCase {
   route: string
   anchors: MatrixAnchor[]
   setup?: MatrixSetup[]
+  postAnchors?: MatrixAnchor[]
+  emptyAnchors?: MatrixAnchor[]
+  /** Focus-state subject (default anchors[0]); leaves focus directly. */
+  focusSubject?: MatrixAnchor
   primary: RouteKey
   secondary?: RouteKey
+  envBasis?: MatrixDataState
 }
 
 const WIDTHS: Record<string, number> = { w1280: 1280, w768: 768, w390: 390 }
@@ -114,19 +119,26 @@ async function assertContained(page: Page, anchors: MatrixAnchor[]): Promise<voi
 }
 
 /**
- * Keyboard focus tabs into the subject and renders a visible indicator.
- * Tabs from the top (like a keyboard user) instead of focusing the anchor
- * directly, since anchors are often non-focusable regions.
+ * Keyboard focus reaches the subject and renders a visible indicator.
+ * Focusable leaves focus directly; containers tab in from the top like a
+ * keyboard user; both must show an outline or ring.
  */
 async function assertFocusVisible(page: Page, subject: Locator): Promise<void> {
   const handle = await subject.elementHandle()
   expect(handle, 'focus subject resolves').not.toBeNull()
-  let inside = false
+  await subject.focus().catch(() => undefined)
+  let inside = await page.evaluate(
+    (root) => root === document.activeElement || root.contains(document.activeElement),
+    handle,
+  )
   for (let i = 0; i < 30 && !inside; i++) {
     await page.keyboard.press('Tab')
-    inside = await page.evaluate((root) => root.contains(document.activeElement), handle)
+    inside = await page.evaluate(
+      (root) => root === document.activeElement || root.contains(document.activeElement),
+      handle,
+    )
   }
-  expect(inside, 'tab reaches the subject').toBe(true)
+  expect(inside, 'focus reaches the subject').toBe(true)
   const visible = await page.evaluate(() => {
     const el = document.activeElement as HTMLElement | null
     if (!el || el === document.body) return 'nothing focused'
@@ -168,7 +180,7 @@ function fileSafe(id: string): string {
 export async function runMatrixState(page: Page, mc: MatrixCase, state: MatrixState): Promise<void> {
   if (mc.anchors.length === 0) throw new Error(`matrix case ${mc.id} needs at least one anchor`)
   const env = isEnvState(state)
-  const dataState: MatrixDataState = env ? 'typical' : state
+  const dataState: MatrixDataState = env ? (mc.envBasis ?? 'typical') : state
   const width = typeof state === 'string' && WIDTHS[state] ? WIDTHS[state] : 1440
   const errors: string[] = []
   page.on('console', (msg) => {
@@ -195,11 +207,15 @@ export async function runMatrixState(page: Page, mc: MatrixCase, state: MatrixSt
     else if (step.press) await page.keyboard.press(step.press)
   }
   for (const anchor of mc.anchors) await expect(anchorLocator(page, anchor)).toBeVisible({ timeout: 15000 })
+  for (const anchor of mc.postAnchors ?? []) await expect(anchorLocator(page, anchor)).toBeVisible({ timeout: 15000 })
 
   await assertNoOverflow(page)
   await assertTruncationTitles(page)
   if (state === 'w390') await assertContained(page, mc.anchors)
-  if (state === 'focus') await assertFocusVisible(page, anchorLocator(page, mc.anchors[0] as MatrixAnchor))
+  if (state === 'focus') {
+    const subject = mc.focusSubject ?? (mc.anchors[0] as MatrixAnchor)
+    await assertFocusVisible(page, anchorLocator(page, subject))
+  }
   await runAxe(page)
   await matrixShot(page, `${fileSafe(mc.id)}-${state}`)
   expect(errors, `console errors: ${errors.join(' | ')}`).toEqual([])
