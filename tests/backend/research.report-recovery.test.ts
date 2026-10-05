@@ -8,7 +8,7 @@ import { FilesystemTarget } from '../../backend/src/archive/targets.js'
 import { approveSectorPlan, createSector, ensureResearchSession, listArtifacts, readResearchProgress, readSectorLibraryFile, recordPlanVersion, recordResearchWork, setSectorState } from '../../backend/src/db/index.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { researchDiscoveryAcceptanceActivity } from '../../backend/src/temporal/activities/coordinator.js'
-import type { WorkItem } from '../../backend/src/temporal/research-plan.js'
+import type { WorkItem } from '../../backend/src/research-plan.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
 const faults = vi.hoisted(() => ({ checkpoint: false }))

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ExecutablePlan, parseExecutablePlan } from '../../backend/src/temporal/research-plan.js'
+import { ExecutablePlan, parseExecutablePlan } from '../../backend/src/research-plan.js'
 
 const plan = { researchDepth: 'discovery', discoveryTarget: 2000, discovery: [{ id: 'australia', title: 'Australian SMEs', queries: ['Australian manufacturing SMEs'], maxPages: 2 }], companyBrief: 'Verify identities and provenance', budgets: { maxCompanies: 2000, maxWallMinutes: 60, concurrency: 2 }, acceptance: ['Source-backed company identities'] }
 describe('executable approval contract', () => {

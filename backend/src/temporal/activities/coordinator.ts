@@ -8,12 +8,12 @@ import { appendEvent, closeDiscovery, createArtifact, ensureResearchSession, get
 import { projectNewEvents } from '../../projector.js'
 import { createLogger, logOp } from '../../observability/logging.js'
 import { extractNewDomains, sectorSignals } from '../sweep-rules.js'
-import type { WorkItem } from '../research-plan.js'
+import type { WorkItem } from '../../research-plan.js'
 import { recordSweepCompanyActivity, searchWebPageActivity } from './sweep.js'
 import type { TurnOutcome } from './turn.js'
 import { validateDiscoveryIntake } from '../discovery-intake.js'
 import type { CandidateCompany } from '../sweep-rules.js'
-import { discoverySample, validateDiscoveryAcceptance } from '../discovery-acceptance.js'
+import { discoverySample, validateDiscoveryAcceptance } from '../../discovery-acceptance.js'
 
 export interface CoordinatorInput { sectorId: string; scope?: Scope; /** Isolated harness queue override; never accepted by product APIs. */ turnTaskQueue?: string; /** Internal versioned transport; never accepted by product APIs. */ compactState?: boolean; statusOnly?: boolean; recoveryAfter?: string; recoveryDone?: boolean; pinnedVersion?: number; /** Harness-only history boundary override. */ historyEventLimit?: number }
 const logger = createLogger({ op: 'research.coordinator' })

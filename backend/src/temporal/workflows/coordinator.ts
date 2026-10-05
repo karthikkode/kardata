@@ -5,12 +5,12 @@ import type { TurnOutcome } from '../activities/turn.js'
 import type * as activities from '../activities/coordinator.js'
 import type * as turnActivities from '../activities/turn.js'
 import type { CandidateCompany } from '../sweep-rules.js'
-import type { WorkItem } from '../research-plan.js'
+import type { WorkItem } from '../../research-plan.js'
 import { laneConfig } from '../lanes.js'
 import { activityOptions } from '../timeouts.js'
 import { isSweepCancellation } from '../sweep-rules.js'
 import { validateDiscoveryIntake } from '../discovery-intake.js'
-import { discoverySample, validateDiscoveryAcceptance } from '../discovery-acceptance.js'
+import { discoverySample, validateDiscoveryAcceptance } from '../../discovery-acceptance.js'
 
 const research = proxyActivities<typeof activities>(activityOptions('research'))
 export const coordinatorPause = defineSignal('coordinatorPause')

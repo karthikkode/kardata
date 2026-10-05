@@ -15,7 +15,7 @@ import { activityOptions } from '../timeouts.js'
 import type * as planActivitiesModule from '../activities/plan.js'
 import type * as sweepActivitiesModule from '../activities/sweep.js'
 import type * as turnActivitiesModule from '../activities/turn.js'
-import { visiblePlan } from '../research-plan.js'
+import { visiblePlan } from '../../research-plan.js'
 
 const plan = proxyActivities<typeof planActivitiesModule>(activityOptions('research'))
 const sweep = proxyActivities<typeof sweepActivitiesModule>(activityOptions('research'))

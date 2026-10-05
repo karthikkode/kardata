@@ -13,7 +13,7 @@ import {
   type SectorPlan,
 } from '../../db/index.js'
 import { projectNewEvents } from '../../projector.js'
-import { parseExecutablePlan } from '../research-plan.js'
+import { parseExecutablePlan } from '../../research-plan.js'
 
 const SectorId = z.string().min(1)
 

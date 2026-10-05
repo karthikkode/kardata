@@ -10,7 +10,7 @@ import { bundleWorkflowCode, Worker, type NativeConnection, type WorkflowBundle 
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { connectClient, connectWorker } from '../../backend/src/temporal/connection.js'
 import { laneConfig } from '../../backend/src/temporal/lanes.js'
-import type { WorkItem } from '../../backend/src/temporal/research-plan.js'
+import type { WorkItem } from '../../backend/src/research-plan.js'
 
 const BASELINE = 'e454d44e1625c28b117a227c0650a891532cd39f'
 const ROOT = resolve(import.meta.dirname, '../..')

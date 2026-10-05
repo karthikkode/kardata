@@ -12,7 +12,7 @@ import { readSectorExecutionState } from './sectors.js'
 import type { TransactableDb } from './checkpoints.js'
 import type { Scope } from '../auth/types.js'
 import { DbContractError, WorkspaceError } from './errors.js'
-import { parseExecutablePlan, visiblePlan, type ExecutablePlan } from '../temporal/research-plan.js'
+import { parseExecutablePlan, visiblePlan, type ExecutablePlan } from '../research-plan.js'
 import { appendEvent, readPartition, type Db } from './events.js'
 import { getSession } from './sessions.js'
 import {
