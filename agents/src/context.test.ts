@@ -6,8 +6,10 @@ import {
   createSnapshot,
   describeCachePolicy,
   describeSegments,
+  estimateMessageTokens,
   estimateMessagesTokens,
   estimateTokens,
+  formatReference,
   partitionHistory,
   type AssembleInput,
 } from './context.js'
@@ -35,7 +37,7 @@ function input(): AssembleInput {
   }
 }
 
-describe('assembleContext', () => {
+describe('assembleContext [F:agents.context.assembleContext] [F:agents.context.canonicalRequestBytes]', () => {
   it('orders stable prefix first and volatile tail last', () => {
     const request = assembleContext(input())
     expect(request.systemPrompt).toContain('You are Karbot.')
@@ -50,7 +52,7 @@ describe('assembleContext', () => {
   })
 })
 
-describe('describeCachePolicy', () => {
+describe('describeCachePolicy [F:agents.context.describeCachePolicy]', () => {
   it('states documented rules, Meta automatic', () => {
     expect(describeCachePolicy('anthropic')).toMatchObject({
       known: true,
@@ -62,7 +64,7 @@ describe('describeCachePolicy', () => {
   })
 })
 
-describe('partitionHistory', () => {
+describe('partitionHistory [F:agents.context.partitionHistory]', () => {
   it('splits stable prefix from volatile tail', () => {
     const messages: ChatMessage[] = [
       { role: 'user', text: 'a' },
@@ -75,7 +77,7 @@ describe('partitionHistory', () => {
   })
 })
 
-describe('createSnapshot', () => {
+describe('createSnapshot [F:agents.context.createSnapshot]', () => {
   it('hashes identically for identical requests and differs on change', () => {
     const versions = { tools: { b: '1', a: '1' }, prompt: 'p1', policy: 'pol1' }
     const first = createSnapshot(assembleContext(input()), versions)
@@ -95,7 +97,7 @@ describe('createSnapshot', () => {
   })
 })
 
-describe('condense', () => {
+describe('condense [F:agents.condense.condense]', () => {
   function messages(): ChatMessage[] {
     return [
       { role: 'system', text: 'sys' },
@@ -162,7 +164,7 @@ describe('condense', () => {
   })
 })
 
-describe('UnitLedger', () => {
+describe('UnitLedger [F:agents.condense.UnitLedger]', () => {
   it('attributes per-unit cost and rolls up run totals', () => {
     const ledger = new UnitLedger()
     ledger.record(
@@ -181,7 +183,7 @@ describe('UnitLedger', () => {
   })
 })
 
-describe('estimateTokens', () => {
+describe('estimateTokens [F:agents.context.estimateTokens] [F:agents.context.estimateMessagesTokens]', () => {
   it('estimates roughly four characters per token and zero for empty text', () => {
     expect(estimateTokens(undefined)).toBe(0)
     expect(estimateTokens('')).toBe(0)
@@ -199,7 +201,25 @@ describe('estimateTokens', () => {
   })
 })
 
-describe('describeSegments', () => {
+describe('estimateMessageTokens [F:agents.context.estimateMessageTokens]', () => {
+  it('sums text, tool payloads, and image estimates for one message', () => {
+    const message: ChatMessage = { role: 'user', text: 'abcd' }
+    expect(estimateMessageTokens(message)).toBe(estimateTokens('abcd'))
+    const toolCall = { id: 'c1', name: 'db.list_sessions', args: {} }
+    const withCalls: ChatMessage = { role: 'assistant', toolCalls: [toolCall] }
+    expect(estimateMessageTokens(withCalls)).toBe(estimateTokens(JSON.stringify([toolCall])))
+    const withImages: ChatMessage = { role: 'user', text: '', images: [{ mediaType: 'image/png', base64: 'a' }, { mediaType: 'image/png', base64: 'b' }] }
+    expect(estimateMessageTokens(withImages)).toBe(2 * 1500)
+  })
+})
+
+describe('formatReference [F:agents.context.formatReference]', () => {
+  it('renders the shared drawer citation shape', () => {
+    expect(formatReference('doc-1', 3, 'TEST excerpt')).toBe('[doc-1:3] TEST excerpt')
+  })
+})
+
+describe('describeSegments [F:agents.context.describeSegments]', () => {
   it('reports per-segment message counts and estimated tokens', () => {
     const usage = describeSegments(input())
     expect(usage.history.messages).toBe(1)
@@ -215,7 +235,7 @@ describe('describeSegments', () => {
   })
 })
 
-describe('assembleReferences', () => {
+describe('assembleReferences [F:agents.context.assembleReferences]', () => {
   it('sorts by document then ord and drops exact duplicates', () => {
     const refs = assembleReferences([
       { documentId: 'b', ord: 1, text: 'two' },

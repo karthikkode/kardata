@@ -9,6 +9,7 @@ import { FakeProvider } from './fake.js'
 import { emptyUsage, type ProviderAdapter, type ToolDefinition } from './providers.js'
 import {
   createClosedMcpClient,
+  OperationRecoveryError,
   runKarbotTurn,
   StreamableMcpClient,
   toolOperationId,
@@ -43,7 +44,7 @@ function memorySink(): { deltas: string[]; sink: { onDelta(text: string): void }
   return { deltas, sink: { onDelta: (text: string): void => void deltas.push(text) } }
 }
 
-describe('runKarbotTurn', () => {
+describe('runKarbotTurn [F:agents.turnRunner.runKarbotTurn]', () => {
   it.each([false, true])('does not publish a late tool completion or checkpoint after owner cancellation (resumed=%s)', async (resumed) => {
     const abort = new AbortController()
     let release: (value: { content: string }) => void = () => undefined
@@ -463,7 +464,7 @@ describe('runKarbotTurn harness', () => {
   })
 })
 
-describe('StreamableMcpClient', () => {
+describe('StreamableMcpClient [F:agents.turnRunner.StreamableMcpClient]', () => {
   it.each(['headers', 'body'])('bounds a hung %s response and aborts transport', async (stage) => {
     let transportSignal: AbortSignal | undefined
     const client = new StreamableMcpClient({ endpoint: 'https://mcp.internal/mcp', token: 'test-token', timeoutMs: 10,
@@ -622,7 +623,7 @@ describe('StreamableMcpClient', () => {
   })
 })
 
-describe('createClosedMcpClient', () => {
+describe('createClosedMcpClient [F:agents.turnRunner.createClosedMcpClient]', () => {
   it('lists no tools and reports calls unavailable', async () => {
     const client = createClosedMcpClient('mcp unconfigured')
     expect(await client.listTools()).toEqual([])
@@ -665,7 +666,7 @@ describe('uncertain mutation recovery', () => {
     expect(provider.calls).toHaveLength(0)
     expect(result.recoveryHalt).toHaveLength(1)
   })
-  it('keys operations by run, round, and call index with bounded long identities', () => {
+  it('keys operations by run, round, and call index with bounded long identities [F:agents.turnRunner.toolOperationId]', () => {
     expect(toolOperationId('run', 1, 0)).toBe('run:1:0')
     expect(toolOperationId('run', 2, 3)).toBe('run:2:3')
     const first = toolOperationId('x'.repeat(200), 1, 0)
@@ -683,6 +684,17 @@ describe('uncertain mutation recovery', () => {
   })
 })
 
+
+describe('OperationRecoveryError [F:agents.turnRunner.OperationRecoveryError]', () => {
+  it('carries the operation_uncertain code with its operations', () => {
+    const operations = [{ operationId: 'TEST op', call: { id: 'c1', name: 'db.create_session', args: {} }, reason: 'TEST lost' }]
+    const error = new OperationRecoveryError(operations)
+    expect(error).toBeInstanceOf(Error)
+    expect(error.name).toBe('OperationRecoveryError')
+    expect(error.code).toBe('operation_uncertain')
+    expect(error.operations).toBe(operations)
+  })
+})
 
 describe('mutation transport certainty', () => {
   function clientFor(readOnly: boolean, response: 'lost' | 'uncertain' | 'before' | 'malformed' | 'read-error') {

@@ -82,7 +82,7 @@ describe('provider terminal completion evidence', () => {
   })
 })
 
-describe('input-token endpoint availability', () => {
+describe('input-token endpoint availability [F:agents.providers.ProviderError] [F:agents.providers.TokenCountUnavailableError]', () => {
   it('bounds billing-error JSON before classifying its whitelisted code', async () => {
     let cancelled = false
     const stream = new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode('A'.repeat(64 * 1024 + 1))) }, cancel() { cancelled = true } })
@@ -112,7 +112,7 @@ describe('input-token endpoint availability', () => {
   })
 })
 
-describe('MetaAdapter', () => {
+describe('MetaAdapter [F:agents.meta.MetaAdapter] [F:agents.transport.chatCompletions] [F:agents.transport.chatCompletionsStream] [F:agents.responses.responsesCall] [F:agents.responses.responsesInputTokens] [F:agents.responses.responsesStream]', () => {
   it.each([false, true])('clamps Meta Responses none to auto without adding tools (stream=%s)', async (stream) => {
     let body: Record<string, unknown> | undefined
     const adapter = new MetaAdapter({ apiKey: 'TEST key', model: 'TEST model', mode: 'responses', fetchFn: async (_url, init) => {
@@ -288,7 +288,7 @@ describe('MetaAdapter', () => {
   })
 })
 
-describe('OpenAICompatAdapter', () => {
+describe('OpenAICompatAdapter [F:agents.openai_compat.OpenAICompatAdapter]', () => {
   it('binds a third provider with config only', async () => {
     const adapter = new OpenAICompatAdapter({
       apiKey: 'test',
@@ -301,7 +301,7 @@ describe('OpenAICompatAdapter', () => {
     expect(response.toolCalls).toEqual([])
   })
 
-describe('incremental SSE streaming', () => {
+describe('incremental SSE streaming [F:agents.transport.readSseData]', () => {
   it('yields chat deltas before the provider stream closes', async () => {
     const encoder = new TextEncoder()
     let push!: (bytes: Uint8Array) => void

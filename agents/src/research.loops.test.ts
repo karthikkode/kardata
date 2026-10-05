@@ -69,7 +69,7 @@ function freshSteps(docId: string, excerpt: string) {
   ]
 }
 
-describe('StageMonitor', () => {
+describe('StageMonitor [F:agents.research.StageMonitor]', () => {
   it('blocks after maxFruitlessUnits acting-but-fruitless units', () => {
     const monitor = new StageMonitor(2)
     expect(monitor.noteUnit(2, 1)).toBe('ok')

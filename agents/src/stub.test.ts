@@ -19,7 +19,7 @@ const chatBody = {
   usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
 }
 
-describe('startStubEndpoint', () => {
+describe('startStubEndpoint [F:agents.stub.startStubEndpoint]', () => {
   it('serves a scripted chat completion over real HTTP', async () => {
     stub = await startStubEndpoint({ '/chat/completions': { kind: 'json', body: chatBody } })
     const adapter = new OpenAICompatAdapter({ apiKey: 'x', model: 'stub', baseUrl: stub.url })

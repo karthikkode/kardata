@@ -10,6 +10,7 @@ import { runResearchWorkflow } from './research.js'
 import {
   CassetteRetriever,
   createResearchPack,
+  hashScope,
   validateResearchPack,
   type ResearchPack,
 } from './researchPack.js'
@@ -38,7 +39,15 @@ function registry(): ToolRegistry {
   return tools
 }
 
-describe('research pack cassette (record-once, replay-forever)', () => {
+describe('hashScope [F:agents.researchPack.hashScope]', () => {
+  it('hashes scopes deterministically and distinctly', () => {
+    expect(hashScope('TEST scope')).toMatch(/^[a-f0-9]{64}$/)
+    expect(hashScope('TEST scope')).toBe(hashScope('TEST scope'))
+    expect(hashScope('TEST scope')).not.toBe(hashScope('TEST other scope'))
+  })
+})
+
+describe('research pack cassette (record-once, replay-forever) [F:agents.researchPack.CassetteRetriever] [F:agents.researchPack.createResearchPack] [F:agents.researchPack.validateResearchPack]', () => {
   it('replays the checked-in acme pack with the network cut: findings and report are byte-identical', async () => {
     const pack = loadPack('research-fintech-acme.json')
     expect(() => validateResearchPack(pack)).not.toThrow()

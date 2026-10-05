@@ -14,7 +14,7 @@ const FIELDS: ResearchFieldDef[] = [
   { name: 'problem_mechanism', description: 'Specific improvable mechanism', detailLevel: 'moderate' },
 ]
 
-describe('buildOutline', () => {
+describe('buildOutline [F:agents.research.buildOutline]', () => {
   it('builds a versioned outline with items, fields, and batch config', () => {
     const outline = buildOutline({
       topic: 'Speciality foods',
@@ -65,7 +65,7 @@ describe('uncertain findings', () => {
   })
 })
 
-describe('validateFindingsCoverage', () => {
+describe('validateFindingsCoverage [F:agents.research.validateFindingsCoverage]', () => {
   it('requires every field covered unless marked uncertain, never passing vacuously', () => {
     const fields: ResearchFieldDef[] = [
       { name: 'scale_signal', description: 's', detailLevel: 'brief' },

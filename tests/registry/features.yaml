@@ -5,709 +5,721 @@
   layer: agents
   surface: agents/src/budgets.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.budgets.RepetitionTracker
   layer: agents
   surface: agents/src/budgets.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.budgets.fingerprintAction
   layer: agents
   surface: agents/src/budgets.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.clock.frozenClock
   layer: agents
   surface: agents/src/clock.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.clock.seededRng
   layer: agents
   surface: agents/src/clock.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.clock.systemClock
   layer: agents
   surface: agents/src/clock.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.compaction.ContextBudgetError
   layer: agents
   surface: agents/src/compaction.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.compaction.DEFAULT_INPUT_BUDGET
   layer: agents
   surface: agents/src/compaction.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: module constant, no behavior
 - id: agents.compaction.OUTPUT_RESERVE
   layer: agents
   surface: agents/src/compaction.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: module constant, no behavior
 - id: agents.compaction.assembledTokens
   layer: agents
   surface: agents/src/compaction.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.compaction.compactContext
   layer: agents
   surface: agents/src/compaction.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.compaction.contextInputBudget
   layer: agents
   surface: agents/src/compaction.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.compaction.measureInputTokens
   layer: agents
   surface: agents/src/compaction.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.condense.UnitLedger
   layer: agents
   surface: agents/src/condense.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.condense.condense
   layer: agents
   surface: agents/src/condense.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.config.applyDotEnv
   layer: agents
   surface: agents/src/config.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.config.parseDotEnv
   layer: agents
   surface: agents/src/config.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.config.readLiveConfig
   layer: agents
   surface: agents/src/config.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.context.IMAGE_ESTIMATE_TOKENS
   layer: agents
   surface: agents/src/context.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: module constant, no behavior
 - id: agents.context.TOKEN_ESTIMATE_CHARS_PER_TOKEN
   layer: agents
   surface: agents/src/context.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: module constant, no behavior
 - id: agents.context.assembleContext
   layer: agents
   surface: agents/src/context.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.context.assembleReferences
   layer: agents
   surface: agents/src/context.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.context.canonicalRequestBytes
   layer: agents
   surface: agents/src/context.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.context.createSnapshot
   layer: agents
   surface: agents/src/context.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.context.describeCachePolicy
   layer: agents
   surface: agents/src/context.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.context.describeSegments
   layer: agents
   surface: agents/src/context.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.context.estimateMessageTokens
   layer: agents
   surface: agents/src/context.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.context.estimateMessagesTokens
   layer: agents
   surface: agents/src/context.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.context.estimateTokens
   layer: agents
   surface: agents/src/context.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.context.formatReference
   layer: agents
   surface: agents/src/context.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.context.partitionHistory
   layer: agents
   surface: agents/src/context.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.domain.DOCUMENT_FIXTURES
   layer: agents
   surface: agents/src/domain.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: module constant, no behavior
 - id: agents.domain.domainTools
   layer: agents
   surface: agents/src/domain.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.epochs.IdempotencyLog
   layer: agents
   surface: agents/src/epochs.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.epochs.cancelRun
   layer: agents
   surface: agents/src/epochs.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.epochs.pauseRun
   layer: agents
   surface: agents/src/epochs.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.epochs.resumeRun
   layer: agents
   surface: agents/src/epochs.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.fake.FakeProvider
   layer: agents
   surface: agents/src/fake.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.fake.isFakeError
   layer: agents
   surface: agents/src/fake.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.gates.TripwireError
   layer: agents
   surface: agents/src/gates.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.gates.assertNoTripwire
   layer: agents
   surface: agents/src/gates.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.gates.checkBudgetsClear
   layer: agents
   surface: agents/src/gates.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.gates.checkSubmissionShape
   layer: agents
   surface: agents/src/gates.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.gates.checkSubmitterScope
   layer: agents
   surface: agents/src/gates.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.gates.checkTodosComplete
   layer: agents
   surface: agents/src/gates.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.gates.runGateChain
   layer: agents
   surface: agents/src/gates.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.gates.runRubric
   layer: agents
   surface: agents/src/gates.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.index._
   layer: agents
   surface: agents/src/index.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: barrel re-export cluster
 - id: agents.loop.IllegalTransitionError
   layer: agents
   surface: agents/src/loop.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.loop.RUN_STATES
   layer: agents
   surface: agents/src/loop.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: module constant, no behavior
 - id: agents.loop.createRun
   layer: agents
   surface: agents/src/loop.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.loop.isLegalTransition
   layer: agents
   surface: agents/src/loop.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.loop.transition
   layer: agents
   surface: agents/src/loop.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.manifest.validateManifest
   layer: agents
   surface: agents/src/manifest.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.meta.MetaAdapter
   layer: agents
   surface: agents/src/meta.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.metrics.MetricsBoard
   layer: agents
   surface: agents/src/metrics.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.openai_compat.OpenAICompatAdapter
   layer: agents
   surface: agents/src/openai-compat.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.planning.PLAN_WRITE_TOOLS
   layer: agents
   surface: agents/src/planning.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: module constant, no behavior
 - id: agents.planning.PlanStore
   layer: agents
   surface: agents/src/planning.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.planning.planTools
   layer: agents
   surface: agents/src/planning.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.planning.suppressDuplicatePlanWrites
   layer: agents
   surface: agents/src/planning.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.preflight.freezeBrief
   layer: agents
   surface: agents/src/preflight.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.preflight.runPreflight
   layer: agents
   surface: agents/src/preflight.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.prompt.BRAINSTORM_MODE_PROMPT
   layer: agents
   surface: agents/src/prompt.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: module constant, no behavior
 - id: agents.prompt.PLAN_MODE_PROMPT
   layer: agents
   surface: agents/src/prompt.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: module constant, no behavior
 - id: agents.prompt.composeSystemPrompt
   layer: agents
   surface: agents/src/prompt.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.prompt.modePromptFor
   layer: agents
   surface: agents/src/prompt.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.providers.DeltaAccumulator
   layer: agents
   surface: agents/src/providers.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.providers.ProviderError
   layer: agents
   surface: agents/src/providers.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.providers.TokenCountUnavailableError
   layer: agents
   surface: agents/src/providers.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.providers.emptyUsage
   layer: agents
   surface: agents/src/providers.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.queue.BoundedQueue
   layer: agents
   surface: agents/src/queue.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.replay.LearningStore
   layer: agents
   surface: agents/src/replay.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.replay.assertReplayMatches
   layer: agents
   surface: agents/src/replay.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.replay.extractCalls
   layer: agents
   surface: agents/src/replay.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.research.StageMonitor
   layer: agents
   surface: agents/src/research.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.research.StubRetriever
   layer: agents
   surface: agents/src/research.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.research.assembleReport
   layer: agents
   surface: agents/src/research.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.research.buildOutline
   layer: agents
   surface: agents/src/research.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.research.captureFinding
   layer: agents
   surface: agents/src/research.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.research.runResearchWorkflow
   layer: agents
   surface: agents/src/research.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.research.validateFindingsCoverage
   layer: agents
   surface: agents/src/research.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.researchPack.CassetteRetriever
   layer: agents
   surface: agents/src/researchPack.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.researchPack.createResearchPack
   layer: agents
   surface: agents/src/researchPack.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.researchPack.hashScope
   layer: agents
   surface: agents/src/researchPack.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.researchPack.validateResearchPack
   layer: agents
   surface: agents/src/researchPack.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.responses.responsesCall
   layer: agents
   surface: agents/src/responses.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.responses.responsesInputTokens
   layer: agents
   surface: agents/src/responses.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.responses.responsesStream
   layer: agents
   surface: agents/src/responses.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.router.NoSatisfyingRouteError
   layer: agents
   surface: agents/src/router.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.router.RateLimiter
   layer: agents
   surface: agents/src/router.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.router.Router
   layer: agents
   surface: agents/src/router.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.skills.getSkill
   layer: agents
   surface: agents/src/skills.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.skills.isValidSkillName
   layer: agents
   surface: agents/src/skills.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.skills.listSkills
   layer: agents
   surface: agents/src/skills.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.stub.startStubEndpoint
   layer: agents
   surface: agents/src/stub.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.subagents.SubagentManager
   layer: agents
   surface: agents/src/subagents.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.supervision.AuditLog
   layer: agents
   surface: agents/src/supervision.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.supervision.HeartbeatMonitor
   layer: agents
   surface: agents/src/supervision.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.supervision.decide
   layer: agents
   surface: agents/src/supervision.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.supervision.sweep
   layer: agents
   surface: agents/src/supervision.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.tasks.TaskLedger
   layer: agents
   surface: agents/src/tasks.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.tasks.taskTools
   layer: agents
   surface: agents/src/tasks.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.tools.ToolRegistry
   layer: agents
   surface: agents/src/tools.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.tools.dispatch
   layer: agents
   surface: agents/src/tools.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.tools.validateArgs
   layer: agents
   surface: agents/src/tools.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.transcript.TRANSCRIPT_VERSION
   layer: agents
   surface: agents/src/transcript.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: module constant, no behavior
 - id: agents.transcript.TranscriptWriter
   layer: agents
   surface: agents/src/transcript.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.transport.chatCompletions
   layer: agents
   surface: agents/src/transport.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.transport.chatCompletionsStream
   layer: agents
   surface: agents/src/transport.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.transport.readSseData
   layer: agents
   surface: agents/src/transport.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.turn.runTurn
   layer: agents
   surface: agents/src/turn.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.turnRunner.MCP_TOOL_GRANT_HEADER
   layer: agents
   surface: agents/src/turnRunner.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: module constant, no behavior
 - id: agents.turnRunner.OperationRecoveryError
   layer: agents
   surface: agents/src/turnRunner.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.turnRunner.StreamableMcpClient
   layer: agents
   surface: agents/src/turnRunner.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.turnRunner.createClosedMcpClient
   layer: agents
   surface: agents/src/turnRunner.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.turnRunner.runKarbotTurn
   layer: agents
   surface: agents/src/turnRunner.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.turnRunner.toolOperationId
   layer: agents
   surface: agents/src/turnRunner.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.context_files.CONTEXT_FILE_CALL_TIMEOUT_MS
   layer: backend
@@ -5351,19 +5363,19 @@
   layer: agents
   surface: agents/src/http.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.http.defaultFetchFn
   layer: agents
   surface: agents/src/http.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.http.postWithDeadline
   layer: agents
   surface: agents/src/http.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: backend.activity.turn.sleep
   layer: backend

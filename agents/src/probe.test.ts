@@ -19,7 +19,7 @@ try {
 const config = readLiveConfig()
 const LIVE_TIMEOUT_MS = 120_000
 
-describe('parseDotEnv', () => {
+describe('parseDotEnv [F:agents.config.parseDotEnv] [F:agents.config.applyDotEnv] [F:agents.config.readLiveConfig]', () => {
   it('parses values, strips quotes, skips comments, keeps env wins', () => {
     const parsed = parseDotEnv('# comment\nA=1\nB="two"\nC=\'three\'\nBAD LINE\n1X=y\n')
     expect(parsed).toEqual({ A: '1', B: 'two', C: 'three' })

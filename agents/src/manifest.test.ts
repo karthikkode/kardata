@@ -14,7 +14,7 @@ const valid: Manifest = {
   ],
 }
 
-describe('validateManifest', () => {
+describe('validateManifest [F:agents.manifest.validateManifest]', () => {
   it('accepts a complete pin', () => {
     expect(validateManifest(valid)).toEqual([])
   })

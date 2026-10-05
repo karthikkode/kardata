@@ -19,7 +19,7 @@ function limits(overrides: Partial<BudgetLimits> = {}): BudgetLimits {
   }
 }
 
-describe('BudgetTracker', () => {
+describe('BudgetTracker [F:agents.budgets.BudgetTracker]', () => {
   it('trips nothing on a fresh tracker', () => {
     const tracker = new BudgetTracker(limits(), frozenClock(0))
     expect(tracker.tripped()).toEqual([])
@@ -65,7 +65,7 @@ describe('BudgetTracker', () => {
   })
 })
 
-describe('RepetitionTracker', () => {
+describe('RepetitionTracker [F:agents.budgets.RepetitionTracker] [F:agents.budgets.fingerprintAction]', () => {
   it('escalates warn, replan, blocked', () => {
     const tracker = new RepetitionTracker()
     const fp = fingerprintAction('read_file', { path: 'a.ts' })

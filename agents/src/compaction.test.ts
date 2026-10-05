@@ -4,7 +4,7 @@ import { assembledTokens, compactContext, contextInputBudget, ContextBudgetError
 import { TokenCountUnavailableError, ProviderError, type ChatMessage, type ProviderAdapter } from './providers.js'
 import { MetaAdapter } from './meta.js'
 
-describe('independent compaction', () => {
+describe('independent compaction [F:agents.compaction.ContextBudgetError] [F:agents.compaction.assembledTokens] [F:agents.compaction.compactContext] [F:agents.compaction.contextInputBudget] [F:agents.compaction.measureInputTokens]', () => {
   it('uses a caller conservative whole-request estimate only for typed counting unavailability', async () => {
     const fake = new FakeProvider([]), request = { systemPrompt: 'TEST', messages: [], tools: [], toolChoice: { mode: 'none' as const } }
     const provider = { ...fake, providerName: 'TEST', chat: fake.chat.bind(fake), chatStream: fake.chatStream.bind(fake), countInputTokens: async () => { throw new TokenCountUnavailableError('billing_not_configured', 402) } }

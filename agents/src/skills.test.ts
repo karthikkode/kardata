@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { getSkill, isValidSkillName, listSkills } from './skills.js'
 
-describe('skill registry', () => {
+describe('skill registry [F:agents.skills.getSkill] [F:agents.skills.isValidSkillName] [F:agents.skills.listSkills]', () => {
   it('lists the built-in skills with valid names', () => {
     const names = listSkills().map((skill) => skill.name)
     expect(names).toContain('brainstorm')

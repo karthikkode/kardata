@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { frozenClock } from './clock.js'
 import { TranscriptWriter } from './transcript.js'
-import { assertReplayMatches, LearningStore } from './replay.js'
+import { assertReplayMatches, extractCalls, LearningStore } from './replay.js'
 
-describe('TranscriptWriter', () => {
+describe('TranscriptWriter [F:agents.transcript.TranscriptWriter]', () => {
   it('round-trips JSONL byte-identically with sequences and timestamps', () => {
     const clock = frozenClock(5_000)
     const writer = new TranscriptWriter('run-1', clock)
@@ -38,7 +38,7 @@ describe('TranscriptWriter', () => {
   })
 })
 
-describe('assertReplayMatches', () => {
+describe('assertReplayMatches [F:agents.replay.assertReplayMatches]', () => {
   function lines() {
     const writer = new TranscriptWriter('run-1', frozenClock(0))
     writer.append('session', {})
@@ -75,7 +75,24 @@ describe('assertReplayMatches', () => {
   })
 })
 
-describe('LearningStore', () => {
+describe('extractCalls [F:agents.replay.extractCalls]', () => {
+  it('keeps tool_call lines in order and rejects nameless ones', () => {
+    const writer = new TranscriptWriter('run-1', frozenClock(0))
+    writer.append('session', {})
+    writer.append('tool_call', { name: 'read', args: { path: 'a' } })
+    writer.append('tool_result', { name: 'read' })
+    writer.append('tool_call', { name: 'edit' })
+    expect(extractCalls(writer.all())).toEqual([
+      { name: 'read', args: { path: 'a' } },
+      { name: 'edit', args: {} },
+    ])
+    const broken = new TranscriptWriter('run-2', frozenClock(0))
+    broken.append('tool_call', { args: {} })
+    expect(() => extractCalls(broken.all())).toThrow('has no name')
+  })
+})
+
+describe('LearningStore [F:agents.replay.LearningStore]', () => {
   it('proposes, promotes, rejects, and refuses double transitions', () => {
     const store = new LearningStore()
     const candidate = store.propose('run-1:turn-3', 'prefer snippet search first')

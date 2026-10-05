@@ -6,7 +6,7 @@ function manager(limits = { maxDepth: 1, maxConcurrent: 5 }): SubagentManager {
   return new SubagentManager(limits, frozenClock(0))
 }
 
-describe('SubagentManager lifecycle', () => {
+describe('SubagentManager lifecycle [F:agents.subagents.SubagentManager]', () => {
   it('launches, messages, finishes, and collects summaries only', () => {
     const subagents = manager()
     const child = subagents.launch('research acme')
