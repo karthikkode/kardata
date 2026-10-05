@@ -137,4 +137,44 @@ describe.skipIf(!ENABLED)('delegation door (db.delegate_subagent gateway)', () =
       await pool.end()
     }
   }, 180_000)
+
+  it('queues the over-cap delegation and refuses past the queue cap fast', async () => {
+    const previousFlight = process.env['KARDATA_MAX_CHILDREN_IN_FLIGHT']
+    const previousQueued = process.env['KARDATA_MAX_CHILDREN_QUEUED']
+    process.env['KARDATA_MAX_CHILDREN_IN_FLIGHT'] = '1'
+    process.env['KARDATA_MAX_CHILDREN_QUEUED'] = '1'
+    try {
+      const sessionId = `door-queue-${Date.now()}`
+      const door = (goal: string) => gateway.delegateSubagent({
+        sessionId,
+        goal,
+        mode: 'empty',
+        queueCapacity: 8,
+        fakeSteps: [{ text: `${goal} reply` }],
+        taskQueue: taskQueue(),
+      })
+      const first = await door('first queued goal')
+      expect(first.queued).toBe(false)
+      const second = await door('second queued goal')
+      expect(second.queued).toBe(true)
+      // Past both caps: an immediate conflict, never the 30 s poll.
+      const started = Date.now()
+      await expect(door('third queued goal')).rejects.toThrow('child queue full (1 waiting)')
+      expect(Date.now() - started).toBeLessThan(10_000)
+      // Finishing the first promotes the second with its goal fed.
+      await client.workflow.getHandle(first.childId).signal('childFinish')
+      const parentHandle = client.workflow.getHandle(delegationWorkflowId(sessionId))
+      await parentHandle.signal('parentNoteDone', { childId: first.childId, status: 'finished' })
+      await waitFor(async () => {
+        const state = (await parentHandle.query('parentState')) as { children: Array<{ childId: string }> }
+        return state.children.some((child) => child.childId === second.childId)
+      }, 30_000, 'queued child to launch')
+      await client.workflow.getHandle(second.childId).signal('childFinish')
+    } finally {
+      if (previousFlight === undefined) delete process.env['KARDATA_MAX_CHILDREN_IN_FLIGHT']
+      else process.env['KARDATA_MAX_CHILDREN_IN_FLIGHT'] = previousFlight
+      if (previousQueued === undefined) delete process.env['KARDATA_MAX_CHILDREN_QUEUED']
+      else process.env['KARDATA_MAX_CHILDREN_QUEUED'] = previousQueued
+    }
+  }, 180_000)
 })

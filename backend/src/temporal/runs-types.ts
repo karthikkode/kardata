@@ -28,6 +28,11 @@ export class RunNotFound extends Error {}
 /** Thread exists but cannot take steer right now. Routes answer 409. */
 export class ThreadNotAccepting extends Error {}
 
+/** Delegation refused before signalling: the durable child queue is full.
+ * Extends ThreadNotAccepting so routes answer 409 and tools report
+ * conflict, immediately instead of after the 30 s acceptance poll. */
+export class ChildQueueFull extends ThreadNotAccepting {}
+
 /** Resolved skill invocation: prompt and tool grant travel with the text
  * so the workflow needs no skill-registry import (workflows never import
  * the agents barrel, which pulls node:http). */
@@ -105,6 +110,8 @@ export interface DelegateSubagentInput {
 export interface DelegatedChild {
   childId: string
   commandId: string
+  /** True when the child waits in the durable queue instead of running. */
+  queued: boolean
 }
 
 /** Narrow delegation capability for MCP tool contexts: the full gateway

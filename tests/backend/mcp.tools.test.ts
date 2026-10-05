@@ -25,6 +25,7 @@ import * as retrievalBrowser from '../../backend/src/retrieval/browser.js'
 import * as retrievalWeb from '../../backend/src/retrieval/web.js'
 import { createMcpServer, invokeTool, TOOL_LAYER, TOOL_META, toolCapability, PLATFORM_INTERNAL_TOOLS } from '../../backend/src/mcp/tools.js'
 import { McpToolError } from '../../backend/src/mcp/tools-types.js'
+import { ChildQueueFull } from '../../backend/src/temporal/runs-types.js'
 import { TOOL_NAMES, type McpToolName } from '../../backend/src/mcp/schemas.js'
 import type { TransactableDb } from '../../backend/src/db/index.js'
 
@@ -1048,5 +1049,29 @@ describe.skipIf(!TEST_DATABASE_URL)('mcp research health over live db', () => {
     } finally {
       await pool.end()
     }
+  })
+})
+
+describe('delegate queue-full mapping (P4.2)', () => {
+  it('db.delegate_subagent maps a full queue to a conflict tool error', async () => {
+    const { db } = makeFake(async (text: string) => {
+      if (text.includes('FROM created c')) {
+        return { rowCount: 1, rows: [{ id: 's-1', title: 'Chat', sector: null, created_at: '2026-01-01T00:00:00.000Z', updated_at: '2026-01-01T00:00:00.000Z' }] } as never
+      }
+      return { rowCount: 0, rows: [] } as never
+    })
+    const failure = await invokeTool(
+      'db.delegate_subagent',
+      {
+        pool: db, scope: SCOPE, role: 'operator', keyId: 'key-a',
+        delegator: { delegateSubagent: async () => { throw new ChildQueueFull('child queue full (1 waiting)') } },
+      },
+      { sessionId: 's-1', goal: 'research the question' },
+    ).then(
+      () => undefined,
+      (error: unknown) => error,
+    )
+    expect(failure).toBeInstanceOf(McpToolError)
+    expect((failure as McpToolError).code).toBe('conflict')
   })
 })

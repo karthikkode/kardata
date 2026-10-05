@@ -130,6 +130,7 @@ export class FakeRunsGateway implements RunsGateway {
   async delegateSubagent(input: { sessionId: string; goal: string; mode: string; queueCapacity: number; name?: string; onAccepted?: (childId: string) => Promise<void> }): Promise<{
     childId: string
     commandId: string
+    queued: boolean
   }> {
     const childId = `child-fake-${this.delegated.length + 1}`
     const { onAccepted, ...recorded } = input
@@ -137,7 +138,7 @@ export class FakeRunsGateway implements RunsGateway {
     this.delegationOrder.push(`accepted:${childId}`)
     await onAccepted?.(childId)
     this.delegationOrder.push(`goal:${childId}`)
-    return { childId, commandId: `cmd-${randomUUID()}` }
+    return { childId, commandId: `cmd-${randomUUID()}`, queued: false }
   }
 
   async sendSkill(threadKey: string, invocation: SkillInvocation): Promise<CommandResult> {

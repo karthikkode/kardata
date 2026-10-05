@@ -97,7 +97,12 @@ export interface NoteDoneRequest {
 
 export interface ParentState {
   sessionId: string
-  children: Array<{ childId: string; status: ChildStatus | 'running' }>
+  children: Array<{ childId: string; status: ChildStatus | 'running'; goalFed: boolean }>
+  /** Accepted but unstarted children, in promotion order. */
+  queued: string[]
+  /** Latest rejections, newest last (cap 20): lets the gateway fail a
+   * queue-full racer fast instead of after the 30 s acceptance poll. */
+  rejected: Array<{ childId: string; reason: string }>
 }
 
 export const parentDelegateSignal = defineSignal<[DelegateRequest]>('parentDelegate')
@@ -139,10 +144,13 @@ export interface DelegateParentInput {
    * running children and completes the parent instead of wedging it open.
    * Defaults to 24 h. */
   parentIdleTimeoutMs?: number
-  /** Fan-out cap: delegations arriving while this many children run reject
-   * as `t.subagent.rejected` instead of starting (backpressure, never a
-   * wedged queue). Defaults to 50. */
+  /** Fan-out cap: delegations arriving while this many children run wait
+   * in the durable queue instead of starting. Defaults to 50. */
   maxInFlight?: number
+  /** Queue cap: delegations arriving while this many children wait reject
+   * immediately as `t.subagent.rejected` (the gateway refuses before
+   * signalling, so callers see a 409, never a timeout). Defaults to 2000. */
+  maxQueued?: number
 }
 
 /** Default idle close for delegation parents. */
@@ -151,11 +159,22 @@ export const DEFAULT_PARENT_IDLE_TIMEOUT_MS = 24 * 3_600_000
 /** Default fan-out cap for delegation parents. */
 export const DEFAULT_MAX_IN_FLIGHT_CHILDREN = 50
 
+/** Default durable-queue cap for delegation parents. */
+export const DEFAULT_MAX_QUEUED_CHILDREN = 2000
+
 export async function delegateParent(input: DelegateParentInput): Promise<string> {
   const partition = `session:${input.sessionId}`
   const delegations: DelegateRequest[] = []
   const steers: SteerRequest[] = []
-  const children = new Map<string, { status: ChildStatus | 'running'; handle?: ChildWorkflowHandle<typeof subagentRun> }>()
+  const waiting: DelegateRequest[] = []
+  const queuedNotified = new Set<string>()
+  const promoted = new Set<string>()
+  const rejections: Array<{ childId: string; reason: string }> = []
+  function noteRejection(childId: string, reason: string): void {
+    rejections.push({ childId, reason })
+    if (rejections.length > 20) rejections.shift()
+  }
+  const children = new Map<string, { status: ChildStatus | 'running'; goalFed: boolean; handle?: ChildWorkflowHandle<typeof subagentRun> }>()
   let nonce = 0
   let finishRequested = false
 
@@ -176,6 +195,14 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
   setHandler(parentNoteDoneSignal, (request: NoteDoneRequest) => {
     const record = children.get(request.childId)
     if (record) record.status = request.status
+    // A freed slot promotes the head of the durable queue: the promotion
+    // lands in delegations so the wait below wakes on the same predicate.
+    // Spurious promotions self-correct (the launch re-checks the cap).
+    const next = waiting.shift()
+    if (next) {
+      promoted.add(next.childId)
+      delegations.push(next)
+    }
     log.info('signal received', { signal: 'parentNoteDone', childId: request.childId, status: request.status })
   })
   setHandler(parentFinishSignal, () => {
@@ -184,7 +211,9 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
   })
   setHandler(parentStateQuery, () => ({
     sessionId: input.sessionId,
-    children: [...children.entries()].map(([childId, record]) => ({ childId, status: record.status })),
+    children: [...children.entries()].map(([childId, record]) => ({ childId, status: record.status, goalFed: record.goalFed })),
+    queued: waiting.map((request) => request.childId),
+    rejected: [...rejections],
   }))
 
   nonce += 1
@@ -257,11 +286,12 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
       if (!(await execution.originalRecoveryReadyActivity({ threadKey: `agent:${request.childId}`,sessionId: input.sessionId,checkpointHash: request.recovery.checkpointHash }))) continue
       children.delete(request.childId)
     }
-    if (existing?.status === 'running' && !request.recovery) {
+    if ((existing?.status === 'running' || waiting.some((queued) => queued.childId === request.childId)) && !request.recovery) {
       // A duplicate workflowId would throw inside startChild and fail the
-      // parent: reject the duplicate as an event and keep the running child.
-      // Finished children may relaunch under the same id (server reuses the
-      // id once the previous run closes), so only running duplicates reject.
+      // parent: reject the duplicate as an event and keep the running (or
+      // waiting) child. Finished children may relaunch under the same id
+      // (server reuses the id once the previous run closes), so only
+      // running or waiting duplicates reject.
       nonce += 1
       await childActivities.appendEventActivity({
         idempotencyKey: idempotencyKey(partition, 'rejected', nonce),
@@ -275,6 +305,7 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
           reason: 'duplicate delegation for a running child',
         },
       })
+      noteRejection(request.childId, 'duplicate delegation for a running child')
       continue
     }
     if (!request.goal.trim() || request.depth > request.maxDepth) {
@@ -291,24 +322,59 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
           reason: !request.goal.trim() ? 'delegation needs a non-empty goal' : `depth exceeds max ${request.maxDepth}`,
         },
       })
+      noteRejection(request.childId, !request.goal.trim() ? 'delegation needs a non-empty goal' : `depth exceeds max ${request.maxDepth}`)
       continue
     }
     const maxInFlight = input.maxInFlight ?? DEFAULT_MAX_IN_FLIGHT_CHILDREN
+    const maxQueued = input.maxQueued ?? DEFAULT_MAX_QUEUED_CHILDREN
     const running = [...children.values()].filter((record) => record.status === 'running').length
     if (running >= maxInFlight) {
-      nonce += 1
-      await childActivities.appendEventActivity({
-        idempotencyKey: idempotencyKey(partition, 'rejected', nonce),
-        partition,
-        type: 't.subagent.rejected',
-        payload: {
-          childId: request.childId,
-          goal: request.goal,
-          depth: request.depth,
-          maxDepth: request.maxDepth,
-          reason: `max in-flight children ${maxInFlight} reached`,
-        },
-      })
+      if (!patched('child-queue-v1')) {
+        // Pre-4.2.3 histories: over-cap rejected instead of queueing.
+        nonce += 1
+        await childActivities.appendEventActivity({
+          idempotencyKey: idempotencyKey(partition, 'rejected', nonce),
+          partition,
+          type: 't.subagent.rejected',
+          payload: {
+            childId: request.childId,
+            goal: request.goal,
+            depth: request.depth,
+            maxDepth: request.maxDepth,
+            reason: `max in-flight children ${maxInFlight} reached`,
+          },
+        })
+        noteRejection(request.childId, `max in-flight children ${maxInFlight} reached`)
+        continue
+      }
+      if (waiting.length >= maxQueued) {
+        nonce += 1
+        await childActivities.appendEventActivity({
+          idempotencyKey: idempotencyKey(partition, 'rejected', nonce),
+          partition,
+          type: 't.subagent.rejected',
+          payload: {
+            childId: request.childId,
+            goal: request.goal,
+            depth: request.depth,
+            maxDepth: request.maxDepth,
+            reason: `child queue full (${maxQueued} waiting)`,
+          },
+        })
+        noteRejection(request.childId, `child queue full (${maxQueued} waiting)`)
+        continue
+      }
+      waiting.push(request)
+      if (!queuedNotified.has(request.childId)) {
+        queuedNotified.add(request.childId)
+        nonce += 1
+        await childActivities.appendEventActivity({
+          idempotencyKey: idempotencyKey(partition, 'queued', nonce),
+          partition,
+          type: 't.subagent.queued',
+          payload: { childId: request.childId, goal: request.goal, depth: request.depth, position: waiting.length },
+        })
+      }
       continue
     }
     nonce += 1
@@ -342,7 +408,12 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
       }
       throw error
     }
-    children.set(request.childId, { status: 'running', handle })
+    // Promoted launches feed the goal parent-side: the gateway returns
+    // queued without signalling, so the parent owns the first work item.
+    // Direct launches leave the feed to the gateway (goalFed false).
+    const fed = promoted.delete(request.childId)
+    if (fed) await handle.signal(childMessageSignal, request.goal)
+    children.set(request.childId, { status: 'running', goalFed: fed, handle })
   }
 }
 

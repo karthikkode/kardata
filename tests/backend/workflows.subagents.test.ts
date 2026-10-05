@@ -380,7 +380,7 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4)', () => {
     expect(await parent.handle.result()).toBe('done')
   }, 180_000)
 
-  it('delegations past max in-flight reject as events instead of starting', async () => {
+  it('over-cap delegations queue durably and launch on promotion', async () => {
     const sessionId = `cap-${Date.now()}`
     const workflowId = `subagents-parent-${sessionId}`
     const parent = await client.workflow.start('delegateParent', {
@@ -397,13 +397,73 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4)', () => {
     const first = `sag-cap-a-${stamp}`
     const second = `sag-cap-b-${stamp}`
     const third = `sag-cap-c-${stamp}`
-    await parent.signal('parentDelegate', delegate(first, 'first goal'))
-    await parent.signal('parentDelegate', delegate(second, 'second goal'))
+    const steps = (text: string) => ({ fakeSteps: [{ text }] })
+    await parent.signal('parentDelegate', delegate(first, 'first goal', steps('first reply')))
+    await parent.signal('parentDelegate', delegate(second, 'second goal', steps('second reply')))
     await launchedRecord(sessionId, first)
     await launchedRecord(sessionId, second)
 
-    // Two running children fill the cap: the third rejects with its reason
-    // and never launches, while the parent and both children keep running.
+    // Two running children fill the cap: the third queues (event plus
+    // queryable position) instead of rejecting or starting.
+    await parent.signal('parentDelegate', delegate(third, 'third goal', steps('third reply')))
+    await waitFor(
+      async () => (await events(`session:${sessionId}`)).some((event) => event.type === 't.subagent.queued' && event.payload['childId'] === third),
+      30_000,
+      'queue record',
+    )
+    const queued = ((await parent.query('parentState')) as { queued: string[] }).queued
+    expect(queued).toContain(third)
+    expect((await events(`session:${sessionId}`)).filter((event) => event.type === 't.subagent.launched')).toHaveLength(2)
+
+    // Finishing the first child promotes the third: it launches with its
+    // goal fed parent-side, so its partition carries the goal text.
+    await client.workflow.getHandle(first).signal('childFinish')
+    expect(await client.workflow.getHandle(first).result()).toBe('finished')
+    await parent.signal('parentNoteDone', { childId: first, status: 'finished' })
+    await launchedRecord(sessionId, third)
+    await waitFor(
+      async () => (await events(`child:${third}`)).some((event) => JSON.stringify(event.payload).includes('third goal')),
+      30_000,
+      'promoted goal feed',
+    )
+
+    for (const childId of [second, third]) {
+      await client.workflow.getHandle(childId).signal('childFinish')
+      expect(await client.workflow.getHandle(childId).result()).toBe('finished')
+      await parent.signal('parentNoteDone', { childId, status: 'finished' })
+    }
+    await parent.signal('parentFinish')
+    expect(await parent.result()).toBe('done')
+  }, 180_000)
+
+  it('delegations past the queue cap reject with the queue-full reason', async () => {
+    const sessionId = `qfull-${Date.now()}`
+    const workflowId = `subagents-parent-${sessionId}`
+    const parent = await client.workflow.start('delegateParent', {
+      taskQueue: taskQueue(),
+      workflowId,
+      args: [{ sessionId, maxInFlight: 1, maxQueued: 1 }],
+    })
+    await waitFor(
+      async () => (await events(`session:${sessionId}`)).some((event) => event.type === 't.session.created'),
+      30_000,
+      'parent to start',
+    )
+    const stamp = Date.now()
+    const first = `sag-qf-a-${stamp}`
+    const second = `sag-qf-b-${stamp}`
+    const third = `sag-qf-c-${stamp}`
+    await parent.signal('parentDelegate', delegate(first, 'first goal', { fakeSteps: [{ text: 'first reply' }] }))
+    await launchedRecord(sessionId, first)
+    await parent.signal('parentDelegate', delegate(second, 'second goal', { fakeSteps: [{ text: 'second reply' }] }))
+    await waitFor(
+      async () => (await events(`session:${sessionId}`)).some((event) => event.type === 't.subagent.queued' && event.payload['childId'] === second),
+      30_000,
+      'queue record',
+    )
+
+    // One running plus one waiting fills both caps: the third rejects with
+    // the queue-full reason, visible on the event and the query.
     await parent.signal('parentDelegate', delegate(third, 'third goal'))
     let reasons: string[] = []
     await waitFor(
@@ -414,17 +474,19 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4)', () => {
         return reasons.length >= 1
       },
       30_000,
-      'cap rejection',
+      'queue-full rejection',
     )
-    expect(reasons).toContain('max in-flight children 2 reached')
-    const launches = (await events(`session:${sessionId}`)).filter((event) => event.type === 't.subagent.launched')
-    expect(launches).toHaveLength(2)
+    expect(reasons).toContain('child queue full (1 waiting)')
+    const state = (await parent.query('parentState')) as { rejected: Array<{ childId: string; reason: string }> }
+    expect(state.rejected).toContainEqual({ childId: third, reason: 'child queue full (1 waiting)' })
 
-    for (const childId of [first, second]) {
-      await client.workflow.getHandle(childId).signal('childFinish')
-      expect(await client.workflow.getHandle(childId).result()).toBe('finished')
-      await parent.signal('parentNoteDone', { childId, status: 'finished' })
-    }
+    await client.workflow.getHandle(first).signal('childFinish')
+    expect(await client.workflow.getHandle(first).result()).toBe('finished')
+    await parent.signal('parentNoteDone', { childId: first, status: 'finished' })
+    await launchedRecord(sessionId, second)
+    await client.workflow.getHandle(second).signal('childFinish')
+    expect(await client.workflow.getHandle(second).result()).toBe('finished')
+    await parent.signal('parentNoteDone', { childId: second, status: 'finished' })
     await parent.signal('parentFinish')
     expect(await parent.result()).toBe('done')
   }, 180_000)

@@ -445,16 +445,21 @@ export const INVOKERS: Invokers = {
     if (!session) throw new DbContractError(`unknown session ${args.sessionId}`)
     const parentThread = ctx.executionThread ?? args.sessionId
     const siblings = (await listThreadHeaders(ctx.pool, args.sessionId)).filter((thread) => thread.kind === 'subagent')
-    return ctx.delegator.delegateSubagent({
-      sessionId: args.sessionId,
-      goal,
-      name: `Subagent ${siblings.length + 1}`,
-      mode: args.mode ?? 'empty',
-      queueCapacity: args.queueCapacity ?? 8,
-      onAccepted: async (childId) => {
-        await saveInheritedContext(ctx.pool, `agent:${childId}`, await buildInheritedContext(ctx.pool, parentThread))
-      },
-    })
+    try {
+      return await ctx.delegator.delegateSubagent({
+        sessionId: args.sessionId,
+        goal,
+        name: `Subagent ${siblings.length + 1}`,
+        mode: args.mode ?? 'empty',
+        queueCapacity: args.queueCapacity ?? 8,
+        onAccepted: async (childId) => {
+          await saveInheritedContext(ctx.pool, `agent:${childId}`, await buildInheritedContext(ctx.pool, parentThread))
+        },
+      })
+    } catch (error: unknown) {
+      if (error instanceof ThreadNotAccepting) throw new McpToolError('conflict', error.message)
+      throw error
+    }
   },
   // Retrieval tools route through the browser-pool facade (single entry:
   // bounded 0-16 slots, query/document caches, tiered fallback). Tool

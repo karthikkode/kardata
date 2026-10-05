@@ -30,7 +30,7 @@ export function spawnSessionSubagent(
   config: StagingConfig,
   sessionId: string,
   body: { goal: string; name?: string },
-): Promise<{ childId: string; threadKey: string }> {
+): Promise<{ childId: string; threadKey: string; queued?: boolean }> {
   return request(config, 'POST', `/v1/sessions/${encodeURIComponent(sessionId)}/subagents`, body, crypto.randomUUID())
 }
 

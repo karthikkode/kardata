@@ -48,6 +48,7 @@ import {
 import {
   SESSION_PREFIX,
   SESSION_WORKFLOW_TYPE,
+  ChildQueueFull,
   RunNotFound,
   ThreadNotAccepting,
   type CommandResult,
@@ -58,6 +59,20 @@ import {
   type RunsGateway,
   type SkillInvocation,
 } from './runs-types.js'
+
+/** Delegation caps from the environment (Node side only: workflows take
+ * them via DelegateParentInput). Invalid values fail the delegation fast
+ * with the variable named. */
+export function childCapsFromEnv(env: NodeJS.ProcessEnv = process.env): { maxInFlight: number; maxQueued: number } {
+  const parse = (name: 'KARDATA_MAX_CHILDREN_IN_FLIGHT' | 'KARDATA_MAX_CHILDREN_QUEUED', fallback: number): number => {
+    const raw = env[name]
+    if (raw === undefined || raw === '') return fallback
+    const value = Number(raw)
+    if (!Number.isInteger(value) || value < 1) throw new Error(`${name} must be a positive integer, got ${JSON.stringify(raw)}`)
+    return value
+  }
+  return { maxInFlight: parse('KARDATA_MAX_CHILDREN_IN_FLIGHT', 50), maxQueued: parse('KARDATA_MAX_CHILDREN_QUEUED', 2000) }
+}
 
 export class TemporalRunsGateway implements RunsGateway {
   private clientPromise: Promise<Client> | undefined
@@ -276,16 +291,29 @@ export class TemporalRunsGateway implements RunsGateway {
     return { commandId: commandId(), state: 'accepted' }
   }
 
-  /** Delegation door: signal-with-start the session's parent (first
-   * delegation creates it), wait for the child to start, then feed the
-   * goal as its first work item — a launched child with an empty inbox
-   * would idle forever. The child id is caller-generated — workflows
+  /** Delegation door: refuse fast when the durable queue is full (409,
+   * never the 30 s poll), else signal-with-start the session's parent
+   * (first delegation creates it), wait for the child to start or queue,
+   * then feed the goal as its first work item unless the parent already
+   * fed it on promotion. The child id is caller-generated — workflows
    * never mint ids — so the caller learns it synchronously for
    * collect/steer. Depth 0 and maxDepth 0 keep pilot children leaf
    * researchers. */
   async delegateSubagent(input: DelegateSubagentInput): Promise<DelegatedChild> {
     const childId = `child-${randomUUID()}`
     const client = await this.client()
+    const caps = childCapsFromEnv()
+    const parent = client.workflow.getHandle(delegationWorkflowId(input.sessionId))
+    try {
+      const before = (await parent.query('parentState')) as { queued?: string[] }
+      if ((before.queued ?? []).length >= caps.maxQueued) {
+        throw new ChildQueueFull(`child queue full (${caps.maxQueued} waiting); retry after children complete`)
+      }
+    } catch (error) {
+      if (error instanceof ChildQueueFull) throw error
+      // Parent not running yet (or unreachable mid-start): the queue is
+      // empty by definition, so the delegation below proceeds.
+    }
     await withAmbientTrace(() => client.workflow.signalWithStart('delegateParent', {
       workflowId: delegationWorkflowId(input.sessionId),
       taskQueue: input.taskQueue ?? laneConfig('turn').taskQueue,
@@ -302,33 +330,44 @@ export class TemporalRunsGateway implements RunsGateway {
           ...(input.fakeSteps === undefined ? {} : { fakeSteps: input.fakeSteps }),
         },
       ],
-      args: [{ sessionId: input.sessionId,ownerEpochProtocol: true }],
+      args: [{ sessionId: input.sessionId,ownerEpochProtocol: true,maxInFlight: caps.maxInFlight,maxQueued: caps.maxQueued }],
     }))
-    // The parent starts the child asynchronously (duplicate ids and a
-    // full fan-out reject instead of starting): poll its state, then feed
-    // the goal. A rejection surfaces here as a timeout, never a silent
-    // idle child.
-    const parent = client.workflow.getHandle(delegationWorkflowId(input.sessionId))
+    // The parent starts the child asynchronously: duplicate ids reject
+    // instead of starting (a timeout here, never a silent idle child),
+    // while over-cap delegations queue durably until a slot frees. A
+    // queue-full racer that slipped the pre-check fails fast on the
+    // parent's rejection list instead of waiting out the deadline.
     const deadline = Date.now() + 30_000
     for (;;) {
       try {
         const state = (await parent.query('parentState')) as {
-          children: Array<{ childId: string }>
+          children: Array<{ childId: string; goalFed?: boolean }>
+          queued?: string[]
+          rejected?: Array<{ childId: string; reason: string }>
         }
-        if (state.children.some((child) => child.childId === childId)) break
-      } catch {
+        const launched = state.children.find((child) => child.childId === childId)
+        if (launched) {
+          await input.onAccepted?.(childId)
+          if (!launched.goalFed) await client.workflow.getHandle(childId).signal('childMessage', input.goal)
+          return { childId, commandId: commandId(), queued: false }
+        }
+        const refusal = (state.rejected ?? []).find((entry) => entry.childId === childId)
+        if (refusal && refusal.reason.startsWith('child queue full')) throw new ChildQueueFull(refusal.reason)
+        if ((state.queued ?? []).includes(childId)) {
+          await input.onAccepted?.(childId)
+          return { childId, commandId: commandId(), queued: true }
+        }
+      } catch (error) {
+        if (error instanceof ChildQueueFull) throw error
         // Parent not yet picked up: keep polling until the deadline.
       }
       if (Date.now() > deadline) {
         throw new Error(
-          `delegation ${childId} not accepted (duplicate id or max in-flight children reached?)`,
+          `delegation ${childId} not accepted (duplicate id?)`,
         )
       }
       await sleep(500)
     }
-    await input.onAccepted?.(childId)
-    await client.workflow.getHandle(childId).signal('childMessage', input.goal)
-    return { childId, commandId: commandId() }
   }
 
   /** Sector plan start: one workflow per sector, idempotent by
@@ -490,7 +529,7 @@ export class TemporalRunsGateway implements RunsGateway {
         const payload=attrs?.input?.payloads?.[0]
         const original=payload ? defaultPayloadConverter.fromPayload<Record<string,unknown>>(payload) : undefined
         if (!original || original['childId']!==runId || original['parentSessionId']!==thread.sessionId || attrs?.parentWorkflowExecution?.workflowId!==delegationWorkflowId(thread.sessionId)) throw new ThreadNotAccepting('The child lacks a validated parent contract. Review its parent before restarting.')
-        await client.workflow.signalWithStart('delegateParent',{ workflowId: delegationWorkflowId(thread.sessionId),taskQueue: laneConfig('turn').taskQueue,signal: 'parentRecover',signalArgs: [{ ...original,recovery }],args: [{ sessionId: thread.sessionId,ownerEpochProtocol: true }] })
+        await client.workflow.signalWithStart('delegateParent',{ workflowId: delegationWorkflowId(thread.sessionId),taskQueue: laneConfig('turn').taskQueue,signal: 'parentRecover',signalArgs: [{ ...original,recovery }],args: [{ sessionId: thread.sessionId,ownerEpochProtocol: true,...childCapsFromEnv() }] })
         return { commandId: commandId(),state: 'accepted' }
       }
       if (type==='companyResearch') throw new ThreadNotAccepting('Resume the approved sector research to retry this stopped child with its original checkpoint. Its evidence is retained.')

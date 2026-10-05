@@ -5711,3 +5711,9 @@
   tiers:
     - todo
   states: []
+- id: backend.workflow.subagents.DEFAULT_MAX_QUEUED_CHILDREN
+  layer: backend
+  surface: backend/src/temporal/workflows/subagents.ts
+  tiers:
+    - todo
+  states: []
