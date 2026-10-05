@@ -5,7 +5,7 @@
 // include units, never raw bytes. Pure extraction is unit-tested without a
 // database.
 import { z } from 'zod'
-import type { Scope } from '../auth/keys.js'
+import type { Scope } from '../auth/types.js'
 import { DbContractError, WorkspaceError } from './errors.js'
 import { assertFileVisible, hiddenFileIds } from './workspace-library.js'
 import type { ArchiveTarget } from '../archive/targets.js'

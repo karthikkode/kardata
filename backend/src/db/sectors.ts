@@ -5,7 +5,7 @@
 // project) is visible.
 import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import type { Scope } from '../auth/keys.js'
+import type { Scope } from '../auth/types.js'
 import { appendEvent, findEventByKey, readPartition } from './events.js'
 import { DbContractError } from './errors.js'
 import type { Db } from './events.js'

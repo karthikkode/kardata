@@ -9,7 +9,8 @@ import type { Logger } from 'pino'
 import type { ArchiveTarget } from '../archive/targets.js'
 import type { Db, TransactableDb } from '../db/index.js'
 import { z } from 'zod'
-import { resolveCaller, roleAtLeast, type Role, type Scope } from '../auth/keys.js'
+import type { Role, Scope } from '../auth/types.js'
+import { resolveCaller, roleAtLeast } from '../auth/keys.js'
 import {
   checkRate,
   WorkspaceError,

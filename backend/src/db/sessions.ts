@@ -3,7 +3,7 @@
 // t.session.created, freshness from the latest partition event.
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import type { Scope } from '../auth/keys.js'
+import type { Scope } from '../auth/types.js'
 import { DbContractError } from './errors.js'
 import { sessionKind, WorkspaceError } from './workspace.js'
 

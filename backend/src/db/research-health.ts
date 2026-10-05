@@ -6,7 +6,7 @@
 // do not attribute to a sector, and reporting them here once flagged a
 // running sector stale-free on another sector's beats. No writes.
 import { z } from 'zod'
-import type { Scope } from '../auth/keys.js'
+import type { Scope } from '../auth/types.js'
 import { DbContractError } from './errors.js'
 import type { Db } from './events.js'
 import { listSessions } from './sessions.js'

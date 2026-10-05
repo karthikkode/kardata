@@ -4,7 +4,7 @@ import { bindExecutionEpoch, recoveryCheckpointHash, type EpochOwnership } from 
 import type { PendingProviderResponse, RecoveryOperation } from '@kardata/agents'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import type { Scope } from '../auth/keys.js'
+import type { Scope } from '../auth/types.js'
 import { appendEvent, type Db } from './events.js'
 import { type TransactableDb } from './checkpoints.js'
 import { DbContractError, WorkspaceError } from './errors.js'

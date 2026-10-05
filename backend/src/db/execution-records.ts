@@ -4,7 +4,7 @@ import { requireThread, workspaceTransaction } from './workspace.js'
 import type { TransactableDb } from './checkpoints.js'
 import { DbContractError, WorkspaceError } from './errors.js'
 import { createLogger, logOp } from '../observability/logging.js'
-import type { Scope } from '../auth/keys.js'
+import type { Scope } from '../auth/types.js'
 import { createHash } from 'node:crypto'
 const logger = createLogger({ op: 'execution.record' })
 

@@ -2,7 +2,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
-import type { Scope } from '../auth/keys.js';
+import type { Scope } from '../auth/types.js';
 import { ResearchSourceError, withArchiveDeadline, type ArchiveTarget } from '../archive/targets.js';
 import { createLogger, logOp } from '../observability/logging.js';
 import { appendEvent, type Db } from './events.js';

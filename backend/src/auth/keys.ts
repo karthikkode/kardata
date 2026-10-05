@@ -7,8 +7,9 @@
 // distinguish missing keys from wrong roles.
 import { createHash } from 'node:crypto'
 import { type Db, findKeyByHash } from '../db/index.js'
+import type { Role, Scope } from './types.js'
 
-export type Role = 'viewer' | 'operator' | 'approver'
+export type { Role, Scope } from './types.js'
 
 const LEVELS: Record<Role, number> = { viewer: 1, operator: 2, approver: 3 }
 
@@ -17,14 +18,6 @@ export interface Caller {
   tenantId: string
   projectId: string | null
   role: Role
-}
-
-/** Effective data scope: the caller's tenant, plus the selected project.
- * X-Project selects within the key's project binding; selecting outside it
- * is denied. A null project means all of the tenant's projects. */
-export interface Scope {
-  tenantId: string
-  projectId: string | null
 }
 
 export function hashKey(presented: string): string {

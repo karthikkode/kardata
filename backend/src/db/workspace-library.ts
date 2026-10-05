@@ -1,7 +1,7 @@
 // Sector file library: reads, visibility, and artifact indexing.
 import { serveArtifact } from '../artifacts/pipeline.js'
 import type { ArchiveTarget } from '../archive/targets.js'
-import type { Scope } from '../auth/keys.js'
+import type { Scope } from '../auth/types.js'
 import { appendEvent, findEventByKey, type Db } from './events.js'
 import { listArtifacts, resolveArtifactScope } from './event-artifacts.js'
 import { listSessions } from './sessions.js'

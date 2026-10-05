@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Scope } from '../auth/keys.js'
+import type { Scope } from '../auth/types.js'
 import { createSession, getSession, listSessions } from './sessions.js'
 import { readPartition, type Db } from './events.js'
 import { getSector } from './sectors.js'

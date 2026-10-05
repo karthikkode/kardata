@@ -3,7 +3,7 @@
 // watchers via notifyWorkspace.
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import type { Scope } from '../auth/keys.js'
+import type { Scope } from '../auth/types.js'
 import { appendEvent, type Db } from './events.js'
 import { listSessions } from './sessions.js'
 import { listThreadHeaders } from './threads.js'

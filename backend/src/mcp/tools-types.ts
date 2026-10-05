@@ -2,7 +2,7 @@
 // skill-scoped grant. Imported by both the dispatcher (tools.ts) and
 // the handler table (tool-invokers.ts).
 import type { Logger } from 'pino'
-import type { Role, Scope } from '../auth/keys.js'
+import type { Role, Scope } from '../auth/types.js'
 import { DbContractError, type SectorSweepRunner, type ThreadMessenger, type TransactableDb } from '../db/index.js'
 import { type SubagentDelegator } from '../temporal/runs-types.js'
 import type { ArchiveTarget } from '../archive/targets.js'

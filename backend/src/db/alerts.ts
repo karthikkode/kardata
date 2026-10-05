@@ -1,6 +1,6 @@
 // Scoped durable supervision delivery. No fleet or execution payload escapes.
 import { z } from 'zod'
-import type { Scope } from '../auth/keys.js'
+import type { Scope } from '../auth/types.js'
 import { createLogger, logOp } from '../observability/logging.js'
 import { DbContractError } from './errors.js'
 import type { Db } from './events.js'

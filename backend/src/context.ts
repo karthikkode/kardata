@@ -1,7 +1,7 @@
 import { compactContext, composeSystemPrompt, type ChatMessage, type ProviderAdapter, type ToolDefinition } from '@kardata/agents'
 import { assertThreadFileContext } from './db/context-files.js'
 import { z } from 'zod'
-import type { Scope } from './auth/keys.js'
+import type { Scope } from './auth/types.js'
 import { commitThreadCompaction, getSessionModel, getThread, readThreadContext, readTurnContinuation, requireThread, workspaceReferences, type TransactableDb } from './db/index.js'
 import { resolveAdapter, resolveEffectiveSelection } from './providers/provider-gateway.js'
 import { findModel } from './providers/registry.js'

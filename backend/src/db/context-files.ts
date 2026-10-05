@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 // Server-derived provenance. Agent text and arguments never grant inclusion.
 import { z } from 'zod'
-import type { Scope } from '../auth/keys.js'
+import type { Scope } from '../auth/types.js'
 import { appendEvent, type Db } from './events.js'
 import { listArtifacts } from './event-artifacts.js'
 import type { TransactableDb } from './checkpoints.js'

@@ -2,7 +2,7 @@ import { WorkReviewDecision, reviewResearchWork } from '../db/work-review.js'
 import { rebuildThreadContext } from '../db/workspace-threads.js'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import type { Scope, Role } from '../auth/keys.js'
+import type { Scope, Role } from '../auth/types.js'
 import { resolveCaller, roleAtLeast } from '../auth/keys.js'
 import {
   ContextSections, PartialContextSections, WorkspaceError, createSession, decideContextChange, ensureResearchSession,

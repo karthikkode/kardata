@@ -13,7 +13,7 @@ import {
   type ArtifactScope,
 } from '../artifacts/pipeline.js'
 import { resolveArchiveTarget, type ArchiveTarget } from '../archive/targets.js'
-import type { Scope } from '../auth/keys.js'
+import type { Scope } from '../auth/types.js'
 import { createLogger, logOp } from '../observability/logging.js'
 import { ArtifactImportTimeout, DbContractError } from './errors.js'
 import { assertFileVisible, hiddenFileIds, indexSectorArtifact } from './workspace-library.js'

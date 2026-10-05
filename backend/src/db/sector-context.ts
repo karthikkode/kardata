@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto'
 import { assembleReferences, describeSegments, type ContextUsage } from '@kardata/agents'
 import { z } from 'zod'
-import type { Scope } from '../auth/keys.js'
+import type { Scope } from '../auth/types.js'
 import { DbContractError } from './errors.js'
 import type { Db } from './events.js'
 import { listDocumentUnits } from './document-units.js'

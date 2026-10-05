@@ -2,7 +2,7 @@
 // and reference snapshots for turns.
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
-import type { Scope } from '../auth/keys.js'
+import type { Scope } from '../auth/types.js'
 import { appendEvent, findEventByKey, type Db } from './events.js'
 import { type TransactableDb } from './checkpoints.js'
 import { DbContractError, WorkspaceError } from './errors.js'
