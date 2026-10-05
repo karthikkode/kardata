@@ -3843,3 +3843,13 @@ the one-fleet rule is enforced, not just documented.
 Verified live: doctor flags the machine's real duplicate
 fleet (compose + 2 root host workers) and exits 1; deploy
 run green end to end (health + 74/74 parity).
+
+## 2026-10-05 — Phase 5 MCP/Karbot (branch p2-5-mcp, unmerged)
+19 new tools (97 total): 4 db reads + propose take optional sectorId;
+ops runs/queue (5), obs (5), control incl. companyResearch pause (3),
+spawn/restart, request_plan, monitors (3) via durable karbotMonitor
+workflow. Palettes: Karbot all, sector-bound reads+spawn, research+plan.
+Parity scripted (69 ops: 45 mapped, 24 owner-only, 6 DEV). Registry 1009
+entries, enforce-simulated clean outside frontend. No suites run (D1):
+sector/runs/obs/control/monitor/palette/parity/live L-K1..K3 tests are
+written-but-unrun static signal only.
