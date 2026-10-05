@@ -26,6 +26,10 @@ services:
       interval: 5s
       timeout: 3s
       retries: 12
+    # Data lives in the pgdata volume: safe to restart with the daemon,
+    # so a power cut or docker restart self-heals instead of wedging
+    # backend+worker in a crash loop (observed 2026-10-05).
+    restart: unless-stopped
 
   temporal:
     image: temporalio/auto-setup@sha256:b1edc1e20002d958c8182f2ae08dee877a125083683a627a44917683419ba6a8
@@ -41,6 +45,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    restart: unless-stopped
 
   temporal-ui:
     image: temporalio/ui@sha256:ff0943fe532b8e33c46cd28b29e81e0ce0b6f55b9ee50a38ef1b437cc4de3fa5
@@ -60,8 +65,8 @@ services:
   browser:
     image: zenika/alpine-chrome@sha256:eb3378c1ed0079f94db054a5fe1aaa790a254ec0d6bbc67eda052420d86a179d
     # The sidecar died mid-pilot (exit 132) and stayed dead: no service
-    # here had a restart policy. Our three services restart unless
-    # explicitly stopped; infra (db, temporal, observability) keeps its
+    # here had a restart policy. App services plus db and temporal
+    # restart unless explicitly stopped; observability keeps its
     # operator-managed lifecycle untouched.
     restart: unless-stopped
     command:

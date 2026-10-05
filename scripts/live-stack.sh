@@ -16,6 +16,14 @@ ARCHIVE_DIR="${TMPDIR:-/tmp}/kardata-live-archive"
 mkdir -p "$LIVE_DIR" "$ARCHIVE_DIR"
 export PATH="/home/karthik/.nvm/versions/node/v22.23.3/bin:$PATH"
 
+# Refuse while the live battery runs: its in-process app holds 3102 and
+# both poll kardata-live, so a second starter steals activities and fails
+# them against the wrong database (sector-backend-v1 handoff bug 13).
+if node -e "fetch('http://127.0.0.1:3102/healthz',{signal:AbortSignal.timeout(2000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null; then
+  echo "live battery is running (port 3102); wait for it before starting the browser stack" >&2
+  exit 1
+fi
+
 # Provider keys etc. from agents/.env, without printing them. Parsed with
 # node (shell sourcing breaks on space-containing values); nothing is echoed.
 eval "$(node --input-type=module -e "

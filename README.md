@@ -63,8 +63,9 @@ The test contract and fixture rules live in `documentation/tests.md`.
 ## Status
 
 Repo-wide hardening is in progress on a separate branch. Approved contract:
-`documentation/plans/2026-09-30-repo-hardening.md`; operational file/feature
-inventory and runnable acceptance gate: `docs/deep-checks/README.md`. Pending
+`documentation/plans/2026-09-30-repo-hardening.md`. The file/feature
+inventories retired 2026-10-05 (`docs/deep-checks/README.md`); the runnable
+gate is `npm run pr:verify` plus CI. Pending
 reviews and live-pilot gaps are explicit and do not count as completed capability.
 The final UI-driven campaign and basic-filtering contract are in
 `documentation/plans/2026-10-01-final-acceptance.md`; its functionality/scenario

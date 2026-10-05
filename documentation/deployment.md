@@ -15,7 +15,7 @@ Compose files, Dockerfiles, environment templates. No secrets: ever
   Fail closed: no server without a migrated database.
 - `deployment/scripts/stack.mjs` (+ pure `stack-lib.mjs`) — one-command
   local platform behind `npm run stack:*` (up/down/deploy/status/
-  doctor/obs/worker:host/worker:compose). Deploy stamps images with the
+  doctor/obs/worker:host/worker:compose/clean). Deploy stamps images with the
   source SHA (`org.kardata.git-sha` label via `GIT_SHA` build arg);
   doctor fails on duplicate fleets and SHA drift. Commands and
   rituals live in `docs/environments.md`.
@@ -45,6 +45,26 @@ Boot, probe, migrate, and teardown commands live in `docs/environments.md`.
 Prod topology is self-hosted; connection budget math lives in
 `documentation/db.md` (process × max vs `max_connections`). Compose is
 dev/staging, not prod; its Postgres flags are dev values.
+
+`db` and `temporal` restart `unless-stopped` (data lives in volumes), so a
+power cut or daemon restart self-heals the stack instead of wedging
+backend+worker in a crash loop. Pinned by `deployment.capacity.test.ts`.
+
+The live battery and the live browser stack refuse to run concurrently:
+the harness probes the stack's port 3101 before creating its database,
+and `live-stack.sh` probes the battery's port 3102 before migrating.
+Either side exits with the fix; neither kills the other.
+
+`scripts/with-env.mjs` runs a command with `agents/.env` merged in
+(explicit env wins, values never printed). It replaces
+`set -a; . agents/.env`, which breaks on values holding `|`.
+
+`npm run stack:clean` stops the recorded live-stack PIDs, then reaps
+stale test servers/workers that are provably owned (caller user, under
+the repo, vite on 15173/15174 or playwright/vitest workers). Browsers,
+foreign checkouts, other users, and the owner's dev servers print as
+kill hints and are never auto-killed. Selection logic is pure in
+`stack-lib.mjs`, pinned by `tests/backend/stack.test.ts`.
 
 The existing worker now initializes Temporal SDK logging/metrics before its
 connection. SDK metrics bind port 9464 by default; Prometheus uses the worker

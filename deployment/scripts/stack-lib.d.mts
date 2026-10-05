@@ -10,6 +10,13 @@ export interface Verdict {
   fix: string[]
 }
 
+export interface HostProc {
+  pid: string
+  user: string
+  cwd: string
+  cmd: string
+}
+
 export function parseEnvFile(text: string): Record<string, string>
 export function countRepoTools(schemasTs: string): number
 export function fleetVerdict(args: {
@@ -24,3 +31,7 @@ export function freshnessVerdict(args: {
 }): Verdict
 export function parityVerdict(args: { served: number | null; repo: number }): Verdict
 export function formatVerdict(name: string, verdict: Verdict): string
+export function ownedTestProcs(
+  processes: HostProc[],
+  args: { repoRoot: string; user: string },
+): { kill: HostProc[]; notes: string[] }

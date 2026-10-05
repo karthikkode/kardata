@@ -1,5 +1,18 @@
 # Implementation status
 
+Simple merges + deploys (2026-10-05, branch `simple-merge-deploy`):
+retired the file catalogue + functionality matrix (archived with the old
+README, hardening tests deleted, regen instructions scrubbed) so file
+add/remove no longer reds `pr:verify`; pr-checklist is two-tier (Tier B
+silent when untouched, rule 8 kept per owner); db/temporal restart
+unless-stopped (pinned by capacity test); live battery and browser stack
+refuse concurrency via port probes both ways; `scripts/with-env.mjs`
+replaces `set -a` sourcing (node owns `--env-file`, hence `--file`);
+`stack:clean` reaps owned stale test procs only. AGENTS.md gains
+Forbidden work. Narrow-pattern hits remain only in dated history
+(status, preflight review). Gate: `pr:verify` exit 0 (frontend 778/6,
+agents 282/2, backend 694/545, build green); compose config valid.
+
 Sector-backend-v1.1 follow-up (2026-10-05, branch
 `sector-backend-v1.1` from main, unmerged): two fixes, each
 failing-test-first with live proof. (1) Inherited context

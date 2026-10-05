@@ -46,10 +46,7 @@ and [template database rules](https://www.postgresql.org/docs/16/manage-ag-templ
 Workflow queries and persisted thread state are separate observation boundaries:
 recovery tests wait for both within their existing deadline before sending Resume.
 Projector catch-up alone cannot prove that an in-flight event activity committed.
-Routine tests write evidence to ignored test-results directories. Catalogue
-refresh is an explicit maintenance command, never an ordinary test side effect.
-The operational feature/review map and release gate are described in
-[the hardening catalogue](../docs/deep-checks/README.md).
+Routine tests write evidence to ignored test-results directories.
 Destructive recovery drills must use isolated test resources; the UI-driven
 Meta pilot preserves its research records. The approved hardening contract
 is [the repo-hardening plan](plans/2026-09-30-repo-hardening.md).
@@ -207,14 +204,11 @@ new browser request/DB listener, retained draft, one terminal answer, and cleare
 Stop control. Database cleanup failures and disconnect-during-backlog races have
 focused maintained regressions; the existing independent review remains required.
 
-Final acceptance uses both maintained hardening suites. Export enumeration includes
-interfaces/types/defaults/barrels as declarations; wildcard entries identify their
-source module rather than inventing resolved runtime capability. The functionality
-matrix also records OpenAPI/MCP/UI surfaces. Explicit maintenance regenerates only
-the pending enumeration; ordinary tests never rewrite records or declare coverage.
-Enabled release checks require reviewed mappings and verified/excluded scenarios,
-with resolvable structured artifact and tested-source hashes. Independent evidence
-review remains mandatory. See docs/deep-checks/README.md for the complete command.
+The file catalogue and functionality matrix retired 2026-10-05
+(see `docs/deep-checks/README.md`): every edit had reset reviews to
+`pending`, taxing each change with regen commits for a gate that stayed
+permanently red. The release gate is `npm run pr:verify` plus CI;
+independent evidence review remains mandatory.
 
 `browser.isolation.test.ts` exercises all foreign-owner browser operations, scoped
 MCP key/tenant isolation, UUID session identities, and page/snapshot/close failure
@@ -302,8 +296,7 @@ Live-DB backend suites run at two file workers against the established local
 100-connection budget. Databases remain independent. Within-file concurrent
 migrators, transaction contention and explicit stress tiers retain their original
 fan-out; no timeout/test assertion is relaxed. Unit-only file scheduling is
-unchanged. Refresh the catalogue first, then the dependent acceptance matrix in
-separate invocations; loading both refreshes concurrently can read old inventory.
+unchanged.
 
 `TEST_DATABASE_URL=... npm test -w @kardata/backend -- mcp.operation-receipts.test.ts`
 uses an isolated database and actual HTTP/MCP dispatch to fail response-cache
@@ -477,20 +470,22 @@ these tasks), the app with auth on port 3102, and in-process lane workers from
 the same `createDevWorkers` factory as the dev worker. It never touches the
 owner's `kardata` database, compose containers, or ports 5173/5174/3001.
 
-Run command (keys load from `agents/.env`, never printed):
+Run command (keys load from `agents/.env` via the loader, never printed;
+never `set -a; . agents/.env` — values holding `|` break shell sourcing):
 
 ```
-set -a; . agents/.env; set +a; KARDATA_LIVE_META=1 KARDATA_TEMPORAL_TEST=1 TEST_DATABASE_URL=<compose pg url>/kardata npm test -w @kardata/backend -- live/ --no-file-parallelism
+KARDATA_LIVE_META=1 KARDATA_TEMPORAL_TEST=1 TEST_DATABASE_URL=<compose pg url>/kardata node scripts/with-env.mjs npm test -w @kardata/backend -- live/ --no-file-parallelism
 ```
 
 Files run sequentially (`--no-file-parallelism`): 10 min per test, 30 min per
 file. Re-run one test with `-t "<ID>"`. Spend is read back from the archived
 execution records via the harness `spend()` helper and reported per test.
-Never run the browser stack below concurrently with this suite: both poll
-the same namespace and task queues, so the stack worker steals suite
-activities and fails them against the wrong database (handoff bug 13).
-Terminate namespace residue (`temporal workflow terminate` on test
-workflows) before reusing a live database, or orphaned events wedge
+The battery and the browser stack below refuse to run concurrently:
+each probes the other's port (3102/3101) and exits before doing any work,
+because both poll the same namespace and the second starter's worker
+steals activities and fails them against the wrong database (sector-backend-v1
+handoff bug 13). Terminate namespace residue (`temporal workflow terminate`
+on test workflows) before reusing a live database, or orphaned events wedge
 the projector (handoff bug 17).
 
 The live browser stack (`scripts/live-stack.sh`, stop with

@@ -21,11 +21,12 @@ import { connectWorker } from '../../../backend/src/temporal/connection.js'
 import { createDevWorkers } from '../../../backend/src/temporal/dev-worker.js'
 import { TemporalRunsGateway } from '../../../backend/src/temporal/gateway.js'
 import { ensureTestDb } from '../db-helper.js'
+import { BATTERY_PORT, BROWSER_STACK_PORT, assertBrowserStackDown, probeHealthz } from './guard.js'
 
 export const LIVE_META_ENABLED =
   process.env['KARDATA_LIVE_META'] === '1' && typeof process.env['TEST_DATABASE_URL'] === 'string'
 
-export const LIVE_PORT = 3102
+export const LIVE_PORT = BATTERY_PORT
 export const LIVE_NAMESPACE = 'kardata-live'
 const ADDRESS = process.env['KARDATA_TEMPORAL_ADDRESS'] ?? 'localhost:7233'
 
@@ -81,6 +82,7 @@ function loadLiveKeys(): void {
 
 export async function startLiveStack(suite: string): Promise<LiveStack> {
   loadLiveKeys()
+  await assertBrowserStackDown(() => probeHealthz(BROWSER_STACK_PORT))
   const url = await ensureTestDb(`kardata_live_${suite}`)
   const prevEnv = {
     TEMPORAL_NAMESPACE: process.env['TEMPORAL_NAMESPACE'],

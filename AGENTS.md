@@ -71,6 +71,23 @@ No change merges until `documentation/pr-checklist.md` is pasted into the
 change description with every applicable item checked and its proof attached.
 An unchecked item blocks merge. Skipped verification is stated, never silent.
 
+## Forbidden work
+
+Efficiency rules. The agent must NOT:
+
+- Hash files, keep per-file review records, or build/refresh generated
+  inventories with review statuses. The retired catalogue/acceptance
+  matrices stay retired; `docs/deep-checks/archive/` is read-only history.
+- Regenerate anything as a test side effect. Ordinary tests never rewrite
+  tracked files.
+- Write long prose where a short record does: handoffs stay tight,
+  status entries stay dated and brief, area-doc edits state only the
+  new behavior.
+- Re-run full suites while building. Run the related tests for the
+  touched files; the full gates run once on the final code.
+- Add scripts, wrappers, or helpers when extending an existing entry
+  point (`npm run stack:*`, `package.json` scripts) does the job.
+
 ## Deep-check conventions (every change, every agent)
 
 - Cross-module calls are observable at their boundaries: the MCP tool

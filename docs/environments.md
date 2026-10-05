@@ -193,7 +193,12 @@ Three host values, all optional in dev:
 - Diagnose: `npm run stack:status` (state + freshness vs HEAD),
   `npm run stack:doctor` (duplicate fleets, stale images, MCP
   parity, with fix commands). Stop: `npm run stack:down`
-  (volumes kept; never `down -v`).
+  (volumes kept; never `down -v`). Stale test processes:
+  `npm run stack:clean` (live stack plus owned vite/playwright
+  leftovers only; the owner's dev servers are never touched).
+- `db` and `temporal` restart with the daemon (`unless-stopped`,
+  data in volumes), so a power cut self-heals; confirm with
+  `npm run stack:status` before redeploying.
 - Services: `db` (Postgres 16, :5432), `temporal` (:7233), `temporal-ui`
   (:8080), `backend` (:3001, self-migrates on boot, fails closed without DB),
   `loki` (:3100), `promtail`, `prometheus` (:9090), `grafana` (:3000,

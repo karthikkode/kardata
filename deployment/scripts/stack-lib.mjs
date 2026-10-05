@@ -81,6 +81,41 @@ export function parityVerdict({ served, repo }) {
   return { level: 'fail', detail: `MCP serves ${served} tools but the repo defines ${repo} (stale image)`, fix: ['npm run stack:deploy   # rebuild from current source'] }
 }
 
+/**
+ * Owned test-process selection for `stack:clean`. A process is killed only
+ * when all three hold: it runs as the caller, it sits under the repo root
+ * (command path or working directory), and it has an owned test shape —
+ * vite on the owned test ports (15173/15174) or a playwright/vitest worker.
+ * Browsers and other-user matches are notes with kill hints, never
+ * automatic kills; the owner's dev servers (5173/5174) never match.
+ * processes: [{ pid, user, cwd, cmd }]. Returns { kill, notes }.
+ */
+export function ownedTestProcs(processes, { repoRoot, user }) {
+  const kill = []
+  const notes = []
+  const hint = (proc) => `${proc.user === 'root' && user !== 'root' ? 'sudo ' : ''}kill ${proc.pid}  # ${proc.cmd.slice(0, 70)}`
+  for (const proc of processes) {
+    const underRepo = proc.cmd.includes(repoRoot) || proc.cwd === repoRoot || proc.cwd.startsWith(`${repoRoot}/`)
+    const ownedShape =
+      (/vite/.test(proc.cmd) && /1517[34]/.test(proc.cmd)) ||
+      proc.cmd.includes('playwright/lib/worker') ||
+      proc.cmd.includes('playwright-core/lib/worker') ||
+      /\/vitest\//.test(proc.cmd)
+    if (!underRepo || !ownedShape) {
+      if (/chrome-headless-shell|chrome --headless/.test(proc.cmd)) {
+        notes.push(`browser leftover pid ${proc.pid}: not auto-killed; $ ${hint(proc)}`)
+      }
+      continue
+    }
+    if (proc.user !== user) {
+      notes.push(`owned test shape, other user (${proc.user}) pid ${proc.pid}: not auto-killed; $ ${hint(proc)}`)
+      continue
+    }
+    kill.push(proc)
+  }
+  return { kill, notes }
+}
+
 /** Render one verdict line: [PASS|WARN|FAIL] detail (+ indented fix lines). */
 export function formatVerdict(name, verdict) {
   const tag = verdict.level.toUpperCase().padEnd(4)

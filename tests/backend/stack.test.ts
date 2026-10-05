@@ -6,6 +6,7 @@ import {
   fleetVerdict,
   formatVerdict,
   freshnessVerdict,
+  ownedTestProcs,
   parityVerdict,
   parseEnvFile,
 } from '../../deployment/scripts/stack-lib.mjs'
@@ -104,6 +105,53 @@ describe('parityVerdict', () => {
     expect(verdict.level).toBe('fail')
     expect(verdict.detail).toContain('unreachable')
     expect(verdict.fix[0]).toContain('stack:status')
+  })
+})
+
+describe('ownedTestProcs', () => {
+  const ROOT = '/home/karthik/projects/kardata_app'
+  const ME = 'karthik'
+
+  it('kills own-user repo vite on the owned test ports', () => {
+    const { kill, notes } = ownedTestProcs(
+      [
+        { pid: '83218', user: 'karthik', cwd: ROOT, cmd: 'sh -c vite --port 15173 --host 127.0.0.1 --strictPort' },
+        { pid: '83219', user: 'karthik', cwd: ROOT, cmd: `node ${ROOT}/node_modules/.bin/vite --port 15174 --host 127.0.0.1 --strictPort` },
+      ],
+      { repoRoot: ROOT, user: ME },
+    )
+    expect(kill.map((p) => p.pid)).toEqual(['83218', '83219'])
+    expect(notes).toEqual([])
+  })
+
+  it('kills own-user playwright workers under the repo', () => {
+    const { kill } = ownedTestProcs(
+      [{ pid: '90001', user: 'karthik', cwd: ROOT, cmd: `node ${ROOT}/node_modules/playwright-core/lib/worker.js` }],
+      { repoRoot: ROOT, user: ME },
+    )
+    expect(kill.map((p) => p.pid)).toEqual(['90001'])
+  })
+
+  it('never touches the owner dev server, foreign checkouts, or other users', () => {
+    const { kill, notes } = ownedTestProcs(
+      [
+        { pid: '100', user: 'karthik', cwd: ROOT, cmd: `node ${ROOT}/node_modules/.bin/vite --port 5174` },
+        { pid: '101', user: 'karthik', cwd: '/tmp/other', cmd: 'node /tmp/other/node_modules/.bin/vite --port 15173' },
+        { pid: '102', user: 'root', cwd: ROOT, cmd: `node ${ROOT}/node_modules/.bin/vite --port 15173` },
+      ],
+      { repoRoot: ROOT, user: ME },
+    )
+    expect(kill).toEqual([])
+    expect(notes.join('\n')).toContain('102')
+  })
+
+  it('notes browser leftovers with a kill hint instead of killing them', () => {
+    const { kill, notes } = ownedTestProcs(
+      [{ pid: '91000', user: 'karthik', cwd: ROOT, cmd: 'chrome-headless-shell --disable-gpu --headless' }],
+      { repoRoot: ROOT, user: ME },
+    )
+    expect(kill).toEqual([])
+    expect(notes.join('\n')).toMatch(/kill 91000/)
   })
 })
 
