@@ -587,7 +587,17 @@ export const INVOKERS: Invokers = {
     }
     const page = await listSupervisionAlerts(ctx.pool, ctx.scope, args.beforeSeq ?? Number.MAX_SAFE_INTEGER, args.limit ?? 20)
     if (!sectorId) return page
-    return { items: page.items.filter((item) => item.sectorId === sectorId), nextBeforeSeq: page.nextBeforeSeq }
+    const sectors = new Map<string, string | undefined>()
+    const items: typeof page.items = []
+    for (const item of page.items) {
+      let itemSector = item.sectorId
+      if (!itemSector && item.sessionId) {
+        if (!sectors.has(item.sessionId)) sectors.set(item.sessionId, (await getSession(ctx.pool, item.sessionId, ctx.scope))?.sectorId)
+        itemSector = sectors.get(item.sessionId) ?? null
+      }
+      if (itemSector === sectorId) items.push(item)
+    }
+    return { items, nextBeforeSeq: page.nextBeforeSeq }
   },
   'ops.thread_health': (ctx, args) => threadHealth(ctx.pool, args.threadKey, ctx.scope),
   'ops.cost': async (ctx, args) => {
