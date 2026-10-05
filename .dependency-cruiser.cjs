@@ -2,6 +2,12 @@
 // with its tsconfig (see quality:deps), so all
 // paths below are cwd-relative (Phase 1 used workspace-prefixed paths
 // that never matched; P2 fixed them).
+const { frontendDirectApi } = require('./quality-allowlist.json')
+// Grandfathered direct data/api importers (P3): exact repo-root-relative
+// allowlist paths, re-rooted to the frontend cwd and suffix-anchored.
+const grandfatheredApiImporters = frontendDirectApi[0].files.map(
+  (file) => `${file.replace(/^frontend\//, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
+)
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
   forbidden: [
@@ -15,9 +21,9 @@ module.exports = {
     {
       name: 'frontend-no-direct-api',
       severity: 'error',
-      comment: 'Components use data/api/* resource modules (P2 HTTP surface); new root data/*-api files are banned. (P2 deviation: the Phase 1 hooks-only rule conflicts with the approved per-resource api design; only 3 hooks exist and the 27 value imports are one-shot commands, so a ~20-hook refactor is beyond consolidation scope. Sprawl stays dead via the single client + the raw-fetch eslint ban.)',
-      from: { path: 'src/components' },
-      to: { path: 'src/data/[^/]*-api' },
+      comment: 'Hooks-only (restored P3): components reach data through data/use*.ts hooks. 27 grandfathered files in quality-allowlist.json (frontendDirectApi); Phase 6 converts them while building the per-endpoint failure matrix.',
+      from: { path: 'src/components', pathNot: grandfatheredApiImporters },
+      to: { path: 'src/data/api|src/data/[^/]*-api' },
     },
     {
       name: 'backend-no-pg-outside-db',
