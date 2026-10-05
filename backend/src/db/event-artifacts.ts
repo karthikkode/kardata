@@ -15,10 +15,9 @@ import {
 import { resolveArchiveTarget, type ArchiveTarget } from '../archive/targets.js'
 import type { Scope } from '../auth/types.js'
 import { createLogger, logOp } from '../observability/logging.js'
-import { ArtifactImportTimeout, DbContractError } from './errors.js'
-import { indexSectorArtifact } from './workspace-library.js'
-import { assertFileVisible, hiddenFileIds } from './sector-documents.js'
-import { WorkspaceError } from './workspace.js'
+import { ArtifactImportTimeout, checked, DbContractError, Id } from './errors.js'
+import { assertFileVisible, hiddenFileIds, ingestSectorDocument } from './sector-documents.js'
+import { requireSector, WorkspaceError } from './workspace.js'
 
 import {
   KeySchema,
@@ -28,6 +27,17 @@ import {
   type Db,
 } from './events.js'
 import { getSession, listSessions } from './sessions.js'
+
+export async function indexSectorArtifact(db: Db, sectorId: string, artifactId: string, name: string, body: string, scope?: Scope): Promise<void> {
+  checked(Id, sectorId)
+  checked(Id, artifactId)
+  if (typeof name !== 'string' || !name) throw new DbContractError('name must be a non-empty string')
+  if (typeof body !== 'string' || !body) throw new DbContractError('body must be a non-empty string')
+  await requireSector(db, sectorId, scope)
+  const filename = /\.(md|txt|csv|json)$/i.test(name) ? name : `${name}.txt`
+  const doc = await ingestSectorDocument(db, { sectorId, filename, contentBase64: Buffer.from(body).toString('base64'), source: 'artifact', scope })
+  await db.query('INSERT INTO workspace_files(sector_id,file_id,document_id) VALUES($1,$2,$3) ON CONFLICT(sector_id,file_id) DO UPDATE SET document_id=$3', [sectorId, artifactId, doc.id])
+}
 
 export interface ArtifactSummary {
   artifactId: string

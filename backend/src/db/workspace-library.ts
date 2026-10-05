@@ -5,8 +5,8 @@ import type { Scope } from '../auth/types.js'
 import { appendEvent, findEventByKey, type Db } from './events.js'
 import { listArtifacts, resolveArtifactScope } from './event-artifacts.js'
 import { listSessions } from './sessions.js'
-import { checked, DbContractError, Id, WorkspaceError } from './errors.js'
-import { assertFileVisible, ingestSectorDocument, listSectorDocuments, readOriginalSectorDocument } from './sector-documents.js'
+import { checked, Id, WorkspaceError } from './errors.js'
+import { assertFileVisible, listSectorDocuments, readOriginalSectorDocument } from './sector-documents.js'
 import { listSectorFileProcessing, type FileProcessingProgress } from './file-jobs.js'
 import { createLogger, logOp } from '../observability/logging.js'
 
@@ -73,13 +73,3 @@ export async function listSectorLibrary(db: Db, sectorId: string, scope?: Scope)
   return [...files.values()].sort((a, b) => (arrivedAt.get(b.id) ?? 0) - (arrivedAt.get(a.id) ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 }
 
-export async function indexSectorArtifact(db: Db, sectorId: string, artifactId: string, name: string, body: string, scope?: Scope): Promise<void> {
-  checked(Id, sectorId)
-  checked(Id, artifactId)
-  if (typeof name !== 'string' || !name) throw new DbContractError('name must be a non-empty string')
-  if (typeof body !== 'string' || !body) throw new DbContractError('body must be a non-empty string')
-  await requireSector(db, sectorId, scope)
-  const filename = /\.(md|txt|csv|json)$/i.test(name) ? name : `${name}.txt`
-  const doc = await ingestSectorDocument(db, { sectorId, filename, contentBase64: Buffer.from(body).toString('base64'), source: 'artifact', scope })
-  await db.query('INSERT INTO workspace_files(sector_id,file_id,document_id) VALUES($1,$2,$3) ON CONFLICT(sector_id,file_id) DO UPDATE SET document_id=$3', [sectorId, artifactId, doc.id])
-}

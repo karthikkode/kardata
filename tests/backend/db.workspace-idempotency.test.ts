@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import type { PoolClient } from 'pg'
 import { DbContractError, type TransactableDb } from '../../backend/src/db/index.js'
 import { commitChildContext, proposeFileContext } from '../../backend/src/db/workspace-global-context.js'
-import { indexSectorArtifact } from '../../backend/src/db/workspace-library.js'
+import { indexSectorArtifact } from '../../backend/src/db/event-artifacts.js'
 import { workspaceReferences } from '../../backend/src/db/workspace-research.js'
 
 const SECTIONS = { scope: 'Widgets', decisions: '', findings: '', questions: '' }

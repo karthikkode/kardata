@@ -3775,9 +3775,9 @@
   tiers:
     - todo
   states: []
-- id: db.workspace_library.indexSectorArtifact
+- id: db.event_artifacts.indexSectorArtifact
   layer: db
-  surface: backend/src/db/workspace-library.ts
+  surface: backend/src/db/event-artifacts.ts
   tiers:
     - todo
   states: []
