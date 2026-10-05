@@ -562,6 +562,44 @@ describe('StreamableMcpClient', () => {
     }
   })
 
+  it('sends the traceparent thunk value on every exchange, omits it when empty', async () => {
+    const seen: Array<Record<string, string>> = []
+    const fetchFn = async (_url: string, init: { headers: Record<string, string> }) => {
+      seen.push(init.headers)
+      return { ok: true, status: 200, text: async () => JSON.stringify({ jsonrpc: '2.0', id: 1, result: { tools: [] } }) }
+    }
+    let current: string | undefined = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
+    const traced = new StreamableMcpClient({
+      endpoint: 'https://mcp.internal/mcp',
+      token: 'scoped-token',
+      traceparent: () => current,
+      fetchFn,
+    })
+    await traced.listTools()
+    // initialize, notifications/initialized, tools/list: the thunk is
+    // read fresh per exchange, so mid-turn trace changes propagate.
+    expect(seen).toHaveLength(3)
+    for (const headers of seen) {
+      expect(headers['traceparent']).toBe('00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01')
+    }
+    current = undefined
+    const untraced = new StreamableMcpClient({
+      endpoint: 'https://mcp.internal/mcp',
+      token: 'scoped-token',
+      traceparent: () => current,
+      fetchFn,
+    })
+    await untraced.listTools()
+    for (const headers of seen.slice(3)) {
+      expect(headers).not.toHaveProperty('traceparent')
+    }
+    const absent = new StreamableMcpClient({ endpoint: 'https://mcp.internal/mcp', token: 'scoped-token', fetchFn })
+    await absent.listTools()
+    for (const headers of seen.slice(6)) {
+      expect(headers).not.toHaveProperty('traceparent')
+    }
+  })
+
   it('reads SSE streams and surfaces tool errors without the token', async () => {
     const client = new StreamableMcpClient({
       endpoint: 'https://mcp.internal/mcp',

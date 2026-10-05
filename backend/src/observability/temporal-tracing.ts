@@ -24,7 +24,7 @@ import { randomBytes } from 'node:crypto'
 import { createRequire } from 'node:module'
 import type { Logger } from 'pino'
 import type { LogContext } from './logging.js'
-import { newTraceId } from './trace.js'
+import { injectTraceparent, newTraceId } from './trace.js'
 import { createJsonlSpanProcessor, currentTraceId } from './tracing.js'
 
 const INVALID_TRACE_ID = '0'.repeat(32)
@@ -94,6 +94,14 @@ export function withTraceContext<T>(traceId: string, fn: () => T): T {
 export function activeTraceId(): string | undefined {
   const id = trace.getSpanContext(context.active())?.traceId
   return id !== undefined && id !== INVALID_TRACE_ID ? id : undefined
+}
+
+/** Outgoing W3C traceparent for worker→server calls, from the ambient
+ * activity trace. Undefined outside a traced context: callers then send
+ * no header and the server mints its own trace (never an orphan id). */
+export function ambientTraceparent(): string | undefined {
+  const traceId = activeTraceId()
+  return traceId === undefined ? undefined : injectTraceparent({ traceId })
 }
 
 /** Wrap a workflow start so the client interceptor injects a trace: the

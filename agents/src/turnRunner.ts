@@ -516,6 +516,11 @@ export interface StreamableMcpClientOptions {
    * intersects it with role floors, so a grant can only narrow, never
    * widen. Absent means no narrowing (role floors still apply). */
   grant?: readonly string[]
+  /** Outgoing W3C traceparent, read fresh on every exchange: a thunk
+   * because the ambient activity trace is set per invocation, not per
+   * client. Undefined (or returning undefined) sends no header and the
+   * server mints its own trace. */
+  traceparent?: () => string | undefined
 }
 
 /** Request header carrying the tool grant (see StreamableMcpClientOptions.grant). */
@@ -559,6 +564,7 @@ export class StreamableMcpClient implements TurnRunnerMcpClient {
   private readonly grant: readonly string[] | undefined
   private readonly execution: StreamableMcpClientOptions['execution']
   private readonly signal: AbortSignal | undefined
+  private readonly traceparent: (() => string | undefined) | undefined
   private readonly timeoutMs: number
   private initialized = false
   private nextId = 1
@@ -576,6 +582,7 @@ export class StreamableMcpClient implements TurnRunnerMcpClient {
     this.fetchFn = options.fetchFn ?? defaultFetchFn
     this.execution = options.execution
     this.signal = options.signal
+    this.traceparent = options.traceparent
     this.timeoutMs = options.timeoutMs ?? 60_000
     if (!Number.isFinite(this.timeoutMs) || this.timeoutMs <= 0) throw new TypeError('timeoutMs must be positive and finite')
     const grant = (options.grant ?? []).map((name) => name.trim()).filter((name) => name.length > 0)
@@ -585,6 +592,7 @@ export class StreamableMcpClient implements TurnRunnerMcpClient {
 
   private async rpc(method: string, params: Record<string, unknown>, operationId?: string): Promise<unknown> {
     const describe = `mcp request '${method}'`
+    const traceparent = this.traceparent?.()
     let text: string
     try {
       text = await postWithDeadline({
@@ -596,6 +604,7 @@ export class StreamableMcpClient implements TurnRunnerMcpClient {
             'content-type': 'application/json',
             accept: 'application/json, text/event-stream',
             authorization: `Bearer ${this.token}`,
+            ...(traceparent ? { traceparent } : {}),
             ...(operationId ? { 'idempotency-key': operationId } : {}),
             ...(this.execution ? { 'x-kardata-thread': this.execution.threadKey, 'x-kardata-execution': this.execution.signature } : {}),
             ...(this.grant ? { [MCP_TOOL_GRANT_HEADER]: this.grant.join(',') } : {}),

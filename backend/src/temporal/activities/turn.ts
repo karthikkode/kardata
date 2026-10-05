@@ -8,7 +8,7 @@ import { inheritThreadFileRefs, assertThreadFileContext, ContextFileBlocked } fr
 import { createHash, createHmac } from 'node:crypto'
 import { ApplicationFailure, Context } from '@temporalio/activity'
 import { z } from 'zod'
-import { activityLogFields } from '../../observability/temporal-tracing.js'
+import { activityLogFields, ambientTraceparent } from '../../observability/temporal-tracing.js'
 import {
   BudgetTracker,
   composeSystemPrompt,
@@ -474,7 +474,7 @@ function karbotMcpClient(input: {
   // server enforces exactly what the turn prompt was shaped with.
   const grant = turnPalette(input)
   const execution = input.threadKey ? { threadKey: input.threadKey, signature: createHmac('sha256', token).update(input.threadKey).digest('hex') } : undefined
-  const transport = new StreamableMcpClient({ endpoint, token, grant, execution, signal: input.signal })
+  const transport = new StreamableMcpClient({ endpoint, token, grant, execution, signal: input.signal, traceparent: ambientTraceparent })
   const client = productMcpClient(transport)
   const scoped = input.researchParent === true ? researchMcpClient(transport) : input.sectorScoped === true ? sectorMcpClient(client) : client
   if (input.toolAllow === undefined) return scoped

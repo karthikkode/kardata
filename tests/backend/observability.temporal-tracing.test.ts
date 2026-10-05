@@ -8,6 +8,7 @@ import {
   activeTraceId,
   activityLogContext,
   activityLogFields,
+  ambientTraceparent,
   ensureTemporalTracing,
   temporalActivityInfo,
   temporalActivityInterceptorFactories,
@@ -47,6 +48,13 @@ describe('trace context helpers (P3.2)', () => {
     ensureTemporalTracing()
     const minted = withAmbientTrace(() => activeTraceId())
     expect(minted).toMatch(/^[0-9a-f]{32}$/)
+  })
+
+  it('emits a W3C traceparent for the ambient trace, none outside it (P3.2.5)', () => {
+    ensureTemporalTracing()
+    expect(ambientTraceparent()).toBeUndefined()
+    const header = withTraceContext(TRACE_ID, () => ambientTraceparent())
+    expect(header).toMatch(/^00-aaaaaaaaaaaaaaaa-[0-9a-f]{16}-01$/)
   })
 })
 
