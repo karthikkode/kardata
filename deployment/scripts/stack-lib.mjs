@@ -1,6 +1,12 @@
 // Pure helpers for deployment/scripts/stack.mjs. No side effects here:
 // every function takes observed facts and returns a verdict, so the
 // whole module is unit-testable without docker (tests/backend/stack.test.ts).
+import { posix } from 'node:path'
+
+/** Resolve a target against the repo root, collapsing `.` and `..`. */
+function resolvePath(repoRoot, target) {
+  return posix.resolve(repoRoot, target)
+}
 
 /** Parse a KEY=value env file. Skips blanks/comments, strips quotes. */
 export function parseEnvFile(text) {
@@ -118,14 +124,20 @@ export function ownedTestProcs(processes, { repoRoot, user }) {
 
 /**
  * Refuse to delete the pilot archive (`var/pilot/archive`): runs are kept
- * forever, and no stack command may remove them. Throws on the archive or
- * anything inside it; allows everything else. Phase 8 wires this into
+ * forever, and no stack command may remove them. The target resolves first,
+ * so `..` traversal cannot dodge the check. Throws on the archive, anything
+ * inside it, and any ancestor of it (var/pilot, var, the repo root):
+ * deleting those deletes the archive too. Phase 8 wires this into
  * `pilot down`; until then it has no caller (knip baseline notes it).
  */
 export function assertDeletablePath(target, { repoRoot }) {
-  const resolved = target.startsWith('/') ? target : `${repoRoot}/${target}`
+  const resolved = resolvePath(repoRoot, target)
   const archive = `${repoRoot}/var/pilot/archive`
-  if (resolved === archive || resolved.startsWith(`${archive}/`)) {
+  const nested =
+    resolved === archive ||
+    resolved.startsWith(`${archive}/`) ||
+    archive.startsWith(`${resolved}/`)
+  if (nested) {
     throw new Error(`stack refuses to delete the pilot archive: ${target}`)
   }
 }

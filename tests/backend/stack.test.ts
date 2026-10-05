@@ -164,6 +164,19 @@ describe('assertDeletablePath', () => {
     expect(() => assertDeletablePath('var/pilot/archive/run-1', { repoRoot: ROOT })).toThrow('refuses to delete')
   })
 
+  it('refuses ancestors of the archive', () => {
+    expect(() => assertDeletablePath('var/pilot', { repoRoot: ROOT })).toThrow('refuses to delete')
+    expect(() => assertDeletablePath('var', { repoRoot: ROOT })).toThrow('refuses to delete')
+    expect(() => assertDeletablePath('.', { repoRoot: ROOT })).toThrow('refuses to delete')
+    expect(() => assertDeletablePath(ROOT, { repoRoot: ROOT })).toThrow('refuses to delete')
+  })
+
+  it('resolves `..` before deciding', () => {
+    expect(() => assertDeletablePath('var/pilot/archive/../../..', { repoRoot: ROOT })).toThrow('refuses to delete')
+    expect(() => assertDeletablePath('var/pilot/worktrees/../archive', { repoRoot: ROOT })).toThrow('refuses to delete')
+    expect(() => assertDeletablePath('var/pilot/archive/../worktrees/rc1', { repoRoot: ROOT })).not.toThrow()
+  })
+
   it('allows siblings and unrelated paths', () => {
     expect(() => assertDeletablePath('var/pilot/worktrees/rc1', { repoRoot: ROOT })).not.toThrow()
     expect(() => assertDeletablePath('/tmp/kardata-live', { repoRoot: ROOT })).not.toThrow()
