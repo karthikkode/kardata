@@ -24,6 +24,7 @@ import {
   systemClock,
   type ProviderAdapter,
   type TurnRunnerMcpClient,
+  type Usage,
 } from '@kardata/agents'
 import {
   appendEvent,
@@ -48,6 +49,7 @@ import { projectNewEvents } from '../../projector.js'
 import { localContextMessages } from '../../context.js'
 import { findModel } from '../../providers/registry.js'
 import {
+  providerRoundFields,
   resolveAdapter,
   resolveEffectiveSelection,
   resolveSelection,
@@ -170,6 +172,12 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
       { cause: error },
     )
   }
+  // Per-round provider log (P3.2.4). Request/response pairs bracket one
+  // model call; a response without a preceding request is a resumed
+  // replay, not a call, so it persists without logging. Rounds still
+  // open when the turn throws are swept as errors in the catch below.
+  const roundStarted = new Map<number, number>()
+  let roundSectorId: string | undefined
   try {
     const continuation = await deps.loadContinuation?.()
     const history = continuation?.messages ?? await deps.loadHistory(parsed.threadKey)
@@ -184,6 +192,7 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
     // units join the prompt seam after KB preload, capped so one turn
     // cannot blow the context window. General sessions skip this entirely.
     const sectorId = await deps.loadSessionSector?.(parsed.sessionId)
+    roundSectorId = sectorId
     const sectorRefs: string[] = []
     if (sectorId) {
       // The model must never derive an id from the name: state the exact
@@ -237,6 +246,7 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
       try { const record = original && typeof original['serializedRecord'] === 'string' ? { ...JSON.parse(original['serializedRecord']) as Record<string, unknown>, preserveProducer: true } : original ? { ...original, data } : { version: 1, provider: providerName, model, round, boundary, data }; await deps.persistExecution?.(round, kind, record) }
       catch (error) { throw new ContextBudgetError('Execution content could not be durably recorded. Retry after storage recovers.', { cause: error }) }
     }
+    const roundBase = { provider: providerName, ...(model ? { model } : {}), ...(sectorId ? { sectorId } : {}) }
     const result = await runKarbotTurn({
       maxTurns: 10,
       maxOutputTokens: 16_384,
@@ -244,7 +254,20 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
       resume: continuation?.meta,
       signal: deps.signal,
       timeoutMs,
-      ...(deps.persistExecution ? { onProviderRequest: (round: number, request: Omit<import('@kardata/agents').ProviderRequest, 'signal'>) => persist(round, 'request', request), onProviderResponse: (round: number, response: PendingProviderResponse['response'], original?: Record<string, unknown>) => persist(round, 'response', response, original) } : {}),
+      onProviderRequest: (round: number, request: Omit<import('@kardata/agents').ProviderRequest, 'signal'>) => {
+        roundStarted.set(round, Date.now())
+        if (deps.persistExecution) return persist(round, 'request', request)
+        return Promise.resolve()
+      },
+      onProviderResponse: (round: number, response: PendingProviderResponse['response'], original?: Record<string, unknown>) => {
+        const startedAt = roundStarted.get(round)
+        if (startedAt !== undefined) {
+          roundStarted.delete(round)
+          deps.log(providerRoundFields({ ...roundBase, round, latencyMs: Date.now() - startedAt, usage: response.usage, outcome: 'ok' }))
+        }
+        if (deps.persistExecution) return persist(round, 'response', response, original)
+        return Promise.resolve()
+      },
       onToolResult: (round, call, outcome, operationId) => persist(round, 'tool-result', { call, outcome, ...(operationId ? { operationId } : {}) }),
       onCheckpoint: (messages, round, usage, toolCalls, blockedOperations, pendingResponse) => deps.checkpoint?.(messages, round, usage, toolCalls, sources, blockedOperations, pendingResponse ? { ...pendingResponse, metadata: pendingResponse.metadata ?? { version: 1, provider: providerName, model, round, boundary } } : undefined) ?? Promise.resolve(),
       beforeRound: async (round, current) => {
@@ -254,8 +277,29 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
         const prompt = refreshed ? composeSystemPrompt(KARBOT_SYSTEM_PROMPT, { prepend, modePrompt: parsed.mode ? modePromptFor(parsed.mode) : undefined, preload: [...pinned, ...(parsed.preloadChunks ?? []), ...refreshed.references, ...(refreshed.notes ? [`Local notes:\n${refreshed.notes}`] : [])] }) : current.systemPrompt
         const messages = [...current.messages, ...(refreshed?.steering ?? []).map((text) => ({ role: 'user' as const, text: `Owner steering:\n${text}` }))]
         const profile = parsed.recovery?.selection.provider === 'meta' && parsed.recovery.selection.model ? findModel('meta', parsed.recovery.selection.model) : stored ? findModel(stored.provider, stored.model) : findModel('meta', 'muse-spark-1.3-contributor')
-        const compacted = await compactContext({ provider: adapter, system: prompt, messages, tools: current.tools, window: profile?.contextWindow, signal: deps.signal, reasoningEffort: profile?.efforts.includes('low') ? 'low' : undefined, onMeasurement: deps.measureContext })
+        // Measuring delegate (not a spread: class adapters keep their
+        // prototype). Captures the summary call's usage for the round log.
+        let compactionUsage: Usage | undefined
+        const compactStarted = Date.now()
+        const measuringAdapter: ProviderAdapter = {
+          ...(adapter.countInputTokens ? { countInputTokens: adapter.countInputTokens.bind(adapter) } : {}),
+          providerName: adapter.providerName,
+          chat: async (request) => {
+            const response = await adapter.chat(request)
+            compactionUsage = response.usage
+            return response
+          },
+          chatStream: (request) => adapter.chatStream(request),
+        }
+        let compacted: Awaited<ReturnType<typeof compactContext>>
+        try {
+          compacted = await compactContext({ provider: measuringAdapter, system: prompt, messages, tools: current.tools, window: profile?.contextWindow, signal: deps.signal, reasoningEffort: profile?.efforts.includes('low') ? 'low' : undefined, onMeasurement: deps.measureContext })
+        } catch (error) {
+          deps.log(providerRoundFields({ ...roundBase, latencyMs: Date.now() - compactStarted, ...(compactionUsage ? { usage: compactionUsage } : {}), outcome: 'error', code: 'provider_failed' }))
+          throw error
+        }
         if (compacted.needed) {
+          deps.log(providerRoundFields({ ...roundBase, latencyMs: Date.now() - compactStarted, ...(compactionUsage ? { usage: compactionUsage } : {}), outcome: 'ok' }))
           compactedCount++
           if (compacted.summary.coveredSeq !== undefined) await deps.persistSummary?.(compacted.summary.summaryText, compacted.summary.coveredSeq)
           return { systemPrompt: prompt, messages: compacted.view }
@@ -342,7 +386,11 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
   } catch (error) {
     const latencyMs = Date.now() - started
     const detail = error instanceof Error ? error.message.slice(0, 200) : 'unknown provider error'
-    deps.log({ op: 'karbot.turn', provider: providerName, ok: false, latencyMs, code: error instanceof OperationRecoveryError ? 'operation_uncertain' : 'provider_failed', errorDetail: detail })
+    const roundCode = error instanceof OperationRecoveryError ? 'operation_uncertain' : 'provider_failed'
+    const roundBase = { provider: providerName, ...(model ? { model } : {}), ...(roundSectorId ? { sectorId: roundSectorId } : {}) }
+    for (const [round, startedAt] of roundStarted) deps.log(providerRoundFields({ ...roundBase, round, latencyMs: Date.now() - startedAt, outcome: 'error', code: roundCode }))
+    roundStarted.clear()
+    deps.log({ op: 'karbot.turn', provider: providerName, ok: false, latencyMs, code: roundCode, errorDetail: detail })
     if (error instanceof ContextFileBlocked || error instanceof ResearchPausedError || error instanceof ContextBudgetError || error instanceof OperationRecoveryError) throw error
     throw new Error(`karbot turn failed: ${detail}`, { cause: error })
   }

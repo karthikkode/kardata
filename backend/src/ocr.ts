@@ -5,6 +5,11 @@
 // measured); the uncertain mechanism stays for dedicated OCR endpoints.
 import type { ProviderAdapter, ProviderRequest } from '@kardata/agents'
 import type { OcrAdapter } from './db/file-pipeline.js'
+import { createLogger } from './observability/logging.js'
+import { activityLogFields } from './observability/temporal-tracing.js'
+import { providerRoundFields } from './providers/provider-gateway.js'
+
+const logger = createLogger({ op: 'ocr.transcribe' })
 
 /** Standing prior for model transcripts: high but explicitly unmeasured. */
 export const MODEL_OCR_CONFIDENCE = 0.9
@@ -15,18 +20,26 @@ const TRANSCRIBE_SYSTEM =
 export function createModelOcrAdapter(adapter: ProviderAdapter): OcrAdapter {
   return {
     async recognize(image: Uint8Array, mediaType: string) {
-      const response = await adapter.chat({
-        systemPrompt: TRANSCRIBE_SYSTEM,
-        messages: [
-          {
-            role: 'user',
-            text: 'Transcribe this image.',
-            images: [{ mediaType, base64: Buffer.from(image).toString('base64') }],
-          },
-        ],
-        tools: [],
-        toolChoice: { mode: 'none' },
-      })
+      const started = Date.now()
+      let response
+      try {
+        response = await adapter.chat({
+          systemPrompt: TRANSCRIBE_SYSTEM,
+          messages: [
+            {
+              role: 'user',
+              text: 'Transcribe this image.',
+              images: [{ mediaType, base64: Buffer.from(image).toString('base64') }],
+            },
+          ],
+          tools: [],
+          toolChoice: { mode: 'none' },
+        })
+      } catch (error) {
+        logger.error({ ...activityLogFields(), ...providerRoundFields({ provider: adapter.providerName, latencyMs: Date.now() - started, outcome: 'error', code: 'provider_failed' }) })
+        throw error
+      }
+      logger.info({ ...activityLogFields(), ...providerRoundFields({ provider: adapter.providerName, latencyMs: Date.now() - started, usage: response.usage, outcome: 'ok' }) })
       const text = response.text.trim()
       if (!text) throw new Error('vision model returned no transcript')
       return { text, confidence: MODEL_OCR_CONFIDENCE }

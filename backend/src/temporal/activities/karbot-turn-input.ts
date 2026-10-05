@@ -10,7 +10,7 @@ import type {
   Usage,
 } from '@kardata/agents'
 import type { SessionModelSelection } from '../../db/index.js'
-import type { ProviderSelection } from '../../providers/provider-gateway.js'
+import type { ProviderRoundLogFields, ProviderSelection } from '../../providers/provider-gateway.js'
 
 const FakeToolCallSchema = z.object({
   id: z.string().min(1),
@@ -127,5 +127,5 @@ export interface KarbotTurnDeps {
   publishDelta(input: { threadKey: string; runKey: string; text: string }): Promise<void>
   publishReasoning(input: { threadKey: string; runKey: string; text: string }): Promise<void>
   publishTool(input: { threadKey: string; runKey: string; id: string; name: string; state: 'running' | 'done' | 'failed' }): Promise<void>
-  log(fields: KarbotTurnLogFields): void
+  log(fields: KarbotTurnLogFields | ProviderRoundLogFields): void
 }

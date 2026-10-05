@@ -205,6 +205,47 @@ export type ChatOutcome =
       detail: string
     }
 
+/** One provider round (P3.2.4): every model call logs these fields, on
+ * `provider.round` lines from turn loops and direct callers, and flattened
+ * onto the legacy `provider.chat` gateway lines. cached_tokens is the
+ * prompt-cache read count; model/round/tokens stay absent when unknown. */
+export interface ProviderRoundLogFields {
+  op: 'provider.round'
+  provider: string
+  model?: string
+  round?: number
+  latency_ms: number
+  input_tokens?: number
+  output_tokens?: number
+  cached_tokens?: number
+  outcome: 'ok' | 'error'
+  code?: string
+  sector_id?: string
+}
+
+export function providerRoundFields(input: {
+  provider: string
+  model?: string
+  round?: number
+  latencyMs: number
+  usage?: Usage
+  outcome: 'ok' | 'error'
+  code?: string
+  sectorId?: string
+}): ProviderRoundLogFields {
+  return {
+    op: 'provider.round',
+    provider: input.provider,
+    ...(input.model ? { model: input.model } : {}),
+    ...(input.round !== undefined ? { round: input.round } : {}),
+    latency_ms: input.latencyMs,
+    ...(input.usage ? { input_tokens: input.usage.inputTokens, output_tokens: input.usage.outputTokens, cached_tokens: input.usage.cacheReadTokens } : {}),
+    outcome: input.outcome,
+    ...(input.code ? { code: input.code } : {}),
+    ...(input.sectorId ? { sector_id: input.sectorId } : {}),
+  }
+}
+
 export interface ChatLogFields {
   op: 'provider.chat'
   provider: string
@@ -212,6 +253,13 @@ export interface ChatLogFields {
   latencyMs: number
   usage?: Usage
   code?: ProviderFailureCode
+  model?: string
+  round?: number
+  latency_ms: number
+  input_tokens?: number
+  output_tokens?: number
+  cached_tokens?: number
+  outcome: 'ok' | 'error'
 }
 
 const UNAUTHORIZED = /401|unauthorized|invalid api key|authentication/i
@@ -247,7 +295,14 @@ function toFailure(
   }
 }
 
-type ChatCallOptions = { timeoutMs?: number; log?: (fields: ChatLogFields) => void }
+type ChatCallOptions = { timeoutMs?: number; model?: string; round?: number; log?: (fields: ChatLogFields) => void }
+
+function roundExtras(options: ChatCallOptions): Pick<ChatLogFields, 'model' | 'round'> {
+  return {
+    ...(options.model ? { model: options.model } : {}),
+    ...(options.round !== undefined ? { round: options.round } : {}),
+  }
+}
 
 function logChatSuccess(
   options: ChatCallOptions,
@@ -261,6 +316,12 @@ function logChatSuccess(
     ok: true,
     latencyMs,
     usage,
+    ...roundExtras(options),
+    latency_ms: latencyMs,
+    input_tokens: usage.inputTokens,
+    output_tokens: usage.outputTokens,
+    cached_tokens: usage.cacheReadTokens,
+    outcome: 'ok',
   })
 }
 
@@ -273,7 +334,7 @@ function chatCallFailure(
 ): Extract<ChatOutcome, { ok: false }> {
   const latencyMs = Date.now() - started
   if (error === CHAT_TIMEOUT) {
-    options.log?.({ op: 'provider.chat', provider: adapter.providerName, ok: false, latencyMs, code: 'provider_timeout' })
+    options.log?.({ op: 'provider.chat', provider: adapter.providerName, ok: false, latencyMs, code: 'provider_timeout', ...roundExtras(options), latency_ms: latencyMs, outcome: 'error' })
     return {
       ok: false,
       providerName: adapter.providerName,
@@ -290,6 +351,9 @@ function chatCallFailure(
     ok: false,
     latencyMs,
     code: failure.code,
+    ...roundExtras(options),
+    latency_ms: latencyMs,
+    outcome: 'error',
   })
   return failure
 }
@@ -300,7 +364,7 @@ function chatCallFailure(
 export async function chatOnce(
   adapter: ProviderAdapter,
   request: ProviderRequest,
-  options: { timeoutMs?: number; log?: (fields: ChatLogFields) => void } = {},
+  options: ChatCallOptions = {},
 ): Promise<ChatOutcome> {
   const timeoutMs = options.timeoutMs ?? 60_000
   const started = Date.now()
@@ -331,6 +395,8 @@ export async function chatOnce(
 
 export interface StreamChatOptions {
   timeoutMs?: number
+  model?: string
+  round?: number
   log?: (fields: ChatLogFields) => void
   /** Called once per text delta, in stream order. Throwing aborts the read. */
   onDelta?: (text: string) => void | Promise<void>

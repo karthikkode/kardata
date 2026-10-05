@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 import {
   chatOnce,
   probeProvider,
+  providerRoundFields,
   resolveAdapter,
   resolveSelection,
   streamChat,
@@ -292,6 +293,68 @@ describe('provider gateway (B4.1)', () => {
     }
     const outcome = await streamChat(hanging, request(), { timeoutMs: 30 })
     expect(outcome).toMatchObject({ ok: false, code: 'provider_timeout', retryable: true })
+  })
+
+  it('emits P3.2.4 round fields on every gateway chat line', async () => {
+    const d = deps()
+    await executeProviderChat(input({ fakeSteps: [{ text: 'hi' }] }), d)
+    expect(d.logs).toHaveLength(1)
+    expect(d.logs[0]).toMatchObject({
+      op: 'provider.chat',
+      provider: 'fake',
+      ok: true,
+      latency_ms: expect.any(Number),
+      input_tokens: expect.any(Number),
+      output_tokens: expect.any(Number),
+      cached_tokens: expect.any(Number),
+      outcome: 'ok',
+    })
+    // Fake rejects pinned models, so the unpinned line carries no model key.
+    expect('model' in (d.logs[0] as object)).toBe(false)
+  })
+
+  it('passes model and round through to the chat line', async () => {
+    const stub: ProviderAdapter = {
+      providerName: 'stub',
+      chat: async () => ({ text: 'hi', reasoning: '', toolCalls: [], usage: emptyUsage() }),
+      chatStream: () => {
+        throw new Error('chatOnce test must not stream')
+      },
+    }
+    const d = deps()
+    await chatOnce(stub, request(), { model: 'm-stub', round: 3, log: d.log })
+    expect(d.logs).toHaveLength(1)
+    expect(d.logs[0]).toMatchObject({ op: 'provider.chat', model: 'm-stub', round: 3, outcome: 'ok' })
+  })
+
+  it('builds provider.round lines with optional model/round/tokens', () => {
+    expect(
+      providerRoundFields({
+        provider: 'meta',
+        model: 'm',
+        round: 2,
+        latencyMs: 41,
+        usage: { ...emptyUsage(), inputTokens: 10, outputTokens: 4 },
+        outcome: 'ok',
+      }),
+    ).toEqual({
+      op: 'provider.round',
+      provider: 'meta',
+      model: 'm',
+      round: 2,
+      latency_ms: 41,
+      input_tokens: 10,
+      output_tokens: 4,
+      cached_tokens: 0,
+      outcome: 'ok',
+    })
+    expect(providerRoundFields({ provider: 'meta', latencyMs: 3, outcome: 'error', code: 'provider_timeout' })).toEqual({
+      op: 'provider.round',
+      provider: 'meta',
+      latency_ms: 3,
+      outcome: 'error',
+      code: 'provider_timeout',
+    })
   })
 })
 

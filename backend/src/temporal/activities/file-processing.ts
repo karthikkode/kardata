@@ -17,7 +17,7 @@ import { planPdfExtraction } from '../../db/pdf-extraction.js'
 import { sha256Hex, chunkTextUnits } from '../../db/file-pipeline.js'
 import { WorkspaceError } from '../../db/errors.js'
 import { documentImageRequest, DOCUMENT_IMAGE_PROMPT_VERSION } from '../../ocr.js'
-import { resolveAdapter } from '../../providers/provider-gateway.js'
+import { providerRoundFields, resolveAdapter } from '../../providers/provider-gateway.js'
 import { findModel } from '../../providers/registry.js'
 import { createLogger, logOp } from '../../observability/logging.js'
 import { activityLogFields } from '../../observability/temporal-tracing.js'
@@ -224,7 +224,15 @@ export function createFileProcessingActivities(deps: FileProcessingDependencies)
           await markFileImageRequestStarted(deps.db, input.jobId, input.imageId, claim.attempt, lease, input.revision)
           dispatched = true
           const serialized = await abortableFileWork(async () => {
-            const response: ProviderResponse = await adapter.chat(request)
+            const roundStarted = Date.now()
+            let response: ProviderResponse
+            try {
+              response = await adapter.chat(request)
+            } catch (error) {
+              logger.error({ ...activityLogFields(), ...providerRoundFields({ provider: adapter.providerName, model: current.model, latencyMs: Date.now() - roundStarted, outcome: 'error', code: error instanceof Error && 'code' in error && typeof error.code === 'string' ? error.code : 'provider_failed' }), jobId: input.jobId, imageId: input.imageId })
+              throw error
+            }
+            logger.info({ ...activityLogFields(), ...providerRoundFields({ provider: adapter.providerName, model: current.model, latencyMs: Date.now() - roundStarted, usage: response.usage, outcome: 'ok' }), jobId: input.jobId, imageId: input.imageId })
             const serialized = JSON.stringify(response)
             if (Buffer.byteLength(serialized) > MAX_REPLY_BYTES) throw new WorkspaceError('conflict', 'Image provider reply exceeds its storage budget.')
             // Independent durable stores: failure in one must not prevent trying

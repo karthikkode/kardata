@@ -9,7 +9,7 @@ import { workerPoolFromEnv, type TransactableDb } from '../../db/index.js'
 import { listDocumentUnits } from '../../db/document-units.js'
 import { applyReadyContextFileBlock, applySystemCompaction, readGlobalContext, readGlobalContextUsage, recordContextAiUsage } from '../../db/workspace-global-context.js'
 import { chunkDocumentUnits, findMissingNumbers, listContextFileBlocks, markContextFileBlockFailed, normalizeSectionsJson, parseJsonObject, readContextFileBlock, validateBlockTemplate } from '../../db/context-files.js'
-import { resolveAdapter } from '../../providers/provider-gateway.js'
+import { providerRoundFields, resolveAdapter } from '../../providers/provider-gateway.js'
 import { TemporalRunsGateway } from '../runs-gateway.js'
 import { WorkspaceError } from '../../db/errors.js'
 import { createLogger, logOp } from '../../observability/logging.js'
@@ -110,12 +110,20 @@ ${partials.join('\n\n---\n\n')}`
 }
 
 export function createContextFileActivities(deps: ContextFileActivitiesDeps) {
-  async function chat(text: string, spend: { inputTokens: number; outputTokens: number }, systemPrompt = 'You summarize files into standardized context blocks. Reply with only the requested block or notes.'): Promise<string> {
+  async function chat(text: string, spend: { inputTokens: number; outputTokens: number }, ids: { sectorId: string; fileId?: string }, systemPrompt = 'You summarize files into standardized context blocks. Reply with only the requested block or notes.'): Promise<string> {
     const adapter = deps.provider(CONTEXT_FILE_MODEL)
-    const response = await chatWithTimeout(adapter, { systemPrompt, messages: [{ role: 'user', text }], tools: [], toolChoice: { mode: 'none' } })
-    spend.inputTokens += response.usage.inputTokens
-    spend.outputTokens += response.usage.outputTokens
-    return response.text
+    const started = Date.now()
+    const codeOf = (error: unknown): string => error instanceof Error && 'code' in error && typeof error.code === 'string' ? error.code : 'provider_failed'
+    try {
+      const response = await chatWithTimeout(adapter, { systemPrompt, messages: [{ role: 'user', text }], tools: [], toolChoice: { mode: 'none' } })
+      spend.inputTokens += response.usage.inputTokens
+      spend.outputTokens += response.usage.outputTokens
+      logger.info({ ...activityLogFields({ sectorId: ids.sectorId }), ...providerRoundFields({ provider: adapter.providerName, model: CONTEXT_FILE_MODEL, latencyMs: Date.now() - started, usage: response.usage, outcome: 'ok' }), ...(ids.fileId ? { fileId: ids.fileId } : {}) })
+      return response.text
+    } catch (error) {
+      logger.error({ ...activityLogFields({ sectorId: ids.sectorId }), ...providerRoundFields({ provider: adapter.providerName, model: CONTEXT_FILE_MODEL, latencyMs: Date.now() - started, outcome: 'error', code: codeOf(error) }), ...(ids.fileId ? { fileId: ids.fileId } : {}) })
+      throw error
+    }
   }
   return {
     async summarizeContextFileActivity(input: ContextFileSummaryInput): Promise<{ applied: boolean }> {
@@ -136,11 +144,11 @@ export function createContextFileActivities(deps: ContextFileActivitiesDeps) {
           const chunks = chunkDocumentUnits(units, CHUNK_TOKENS, estimateTokens)
           let summary: string
           if (chunks.length <= 1) {
-            summary = await chat(buildContextFilePrompt(block.filename, source, pageLine), spend)
+            summary = await chat(buildContextFilePrompt(block.filename, source, pageLine), spend, { sectorId: input.sectorId, fileId: input.fileId })
           } else {
             const partials: string[] = []
-            for (const [index, chunk] of chunks.entries()) partials.push(await chat(buildPartialPrompt(block.filename, chunk.map((unit) => unit.text).join('\n'), index, chunks.length), spend))
-            summary = await chat(buildMergePrompt(block.filename, partials, pageLine), spend)
+            for (const [index, chunk] of chunks.entries()) partials.push(await chat(buildPartialPrompt(block.filename, chunk.map((unit) => unit.text).join('\n'), index, chunks.length), spend, { sectorId: input.sectorId, fileId: input.fileId }))
+            summary = await chat(buildMergePrompt(block.filename, partials, pageLine), spend, { sectorId: input.sectorId, fileId: input.fileId })
           }
           // One deterministic repair round: missing numbers plus template issues.
           const missing = findMissingNumbers(source, summary)
@@ -150,7 +158,7 @@ export function createContextFileActivities(deps: ContextFileActivitiesDeps) {
             for (const entry of missing) repair.push(`- Missing exact value ${entry.token} (source context: "${entry.snippet}")`)
             for (const issue of templateIssues) repair.push(`- Template: ${issue}`)
             repair.push(`\nCurrent block:\n${summary}`)
-            summary = await chat(repair.join('\n'), spend)
+            summary = await chat(repair.join('\n'), spend, { sectorId: input.sectorId, fileId: input.fileId })
           }
           const stillMissing = findMissingNumbers(source, summary)
           if (stillMissing.length > 0) {
@@ -183,10 +191,10 @@ export function createContextFileActivities(deps: ContextFileActivitiesDeps) {
           const source = [context.sections.decisions, context.sections.findings, context.sections.questions].join('\n\n')
           const system = 'You compact context sections. Reply with only a valid JSON object of the requested shape, no prose and no fences.'
           const shape = 'Return a JSON object with exactly three string keys: {"decisions": "...", "findings": "...", "questions": "..."}. Each value is one Markdown string, never an array.'
-          const reply = await chat(`Shorten these sections to at most half their tokens. Keep every decision, every number, every company name and every open question; merge duplicates; remove filler. ${shape}\n\nDecisions:\n${context.sections.decisions}\n\nFindings:\n${context.sections.findings}\n\nOpen questions:\n${context.sections.questions}`, spend, system)
+          const reply = await chat(`Shorten these sections to at most half their tokens. Keep every decision, every number, every company name and every open question; merge duplicates; remove filler. ${shape}\n\nDecisions:\n${context.sections.decisions}\n\nFindings:\n${context.sections.findings}\n\nOpen questions:\n${context.sections.questions}`, spend, { sectorId: input.sectorId }, system)
           let sections = CompactedSections.safeParse(normalizeSectionsJson(parseJsonObject(reply)))
           if (!sections.success) {
-            const retry = await chat(`Return ONLY valid JSON with the same shortened content. ${shape} No prose, no fences.\n\nPrevious reply:\n${reply}`, spend, system)
+            const retry = await chat(`Return ONLY valid JSON with the same shortened content. ${shape} No prose, no fences.\n\nPrevious reply:\n${reply}`, spend, { sectorId: input.sectorId }, system)
             sections = CompactedSections.safeParse(normalizeSectionsJson(parseJsonObject(retry)))
           }
           if (!sections.success) {
@@ -196,7 +204,7 @@ export function createContextFileActivities(deps: ContextFileActivitiesDeps) {
           const compacted = { ...sections.data }
           const missing = findMissingNumbers(source, [compacted.decisions, compacted.findings, compacted.questions].join('\n\n'))
           if (missing.length > 0) {
-            const repair = await chat(`These exact values from the source are missing from your shortened sections; reply with the full corrected JSON only, same shape (three string keys, never arrays):\n${missing.map((entry) => `- ${entry.token} (source context: "${entry.snippet}")`).join('\n')}\n\nCurrent JSON:\n${JSON.stringify(compacted)}`, spend, system)
+            const repair = await chat(`These exact values from the source are missing from your shortened sections; reply with the full corrected JSON only, same shape (three string keys, never arrays):\n${missing.map((entry) => `- ${entry.token} (source context: "${entry.snippet}")`).join('\n')}\n\nCurrent JSON:\n${JSON.stringify(compacted)}`, spend, { sectorId: input.sectorId }, system)
             const repaired = CompactedSections.safeParse(normalizeSectionsJson(parseJsonObject(repair)))
             if (repaired.success) Object.assign(compacted, repaired.data)
           }

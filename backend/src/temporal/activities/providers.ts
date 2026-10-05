@@ -97,6 +97,7 @@ export async function executeProviderChat(
       const { threadKey, runKey } = input.stream
       outcome = await streamChat(adapter, input.request, {
         timeoutMs: input.timeoutMs,
+        ...(effective.model === undefined ? {} : { model: effective.model }),
         log: deps.log,
         onDelta: async (text) => {
           await deps.publishDelta({ threadKey, runKey, text })
@@ -105,6 +106,7 @@ export async function executeProviderChat(
     } else {
       outcome = await chatOnce(adapter, input.request, {
         timeoutMs: input.timeoutMs,
+        ...(effective.model === undefined ? {} : { model: effective.model }),
         log: deps.log,
       })
     }
@@ -120,7 +122,7 @@ export async function executeProviderChat(
       latencyMs: 0,
       detail: error instanceof Error ? error.message.slice(0, 500) : 'unknown provider error',
     }
-    deps.log({ op: 'provider.chat', provider: input.provider, ok: false, latencyMs: 0, code })
+    deps.log({ op: 'provider.chat', provider: input.provider, ok: false, latencyMs: 0, code, latency_ms: 0, outcome: 'error' })
   }
   if (!outcome.ok) {
     await deps.appendErrorEvent({
