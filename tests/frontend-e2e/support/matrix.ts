@@ -2,7 +2,8 @@
 // Each state asserts all seven checks: no horizontal overflow, 390
 // containment, truncation titles, visible focus (focus state), zero console
 // errors, zero serious axe violations, and a pixel shot (toHaveScreenshot
-// by default; MATRIX_SHOTS=1 writes grading PNGs + manifest for ui:review).
+// by default; MATRIX_SHOTS=1 writes grading PNGs + manifest.jsonl, which
+// scripts/ui-review.mjs assembles into manifest.json).
 import { appendFileSync, mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -47,7 +48,7 @@ const HEIGHTS: Record<number, number> = { 1440: 900, 1280: 800, 768: 1024, 390: 
 
 const supportDir = dirname(fileURLToPath(import.meta.url))
 const SHOTS_DIR = resolve(supportDir, '../../../frontend/test-results/ui-review')
-const MANIFEST = resolve(SHOTS_DIR, 'manifest.json')
+const MANIFEST = resolve(SHOTS_DIR, 'manifest.jsonl')
 
 function shotsMode(): boolean {
   return process.env.MATRIX_SHOTS === '1'
@@ -156,7 +157,8 @@ async function runAxe(page: Page): Promise<void> {
   expect(serious.map((v) => `${v.id}: ${v.nodes.length} nodes`), 'serious axe violations').toEqual([])
 }
 
-async function matrixShot(page: Page, shotName: string): Promise<void> {
+async function matrixShot(page: Page, id: string, state: MatrixState): Promise<void> {
+  const shotName = `${fileSafe(id)}-${state}`
   // Pinned-font wait (repo convention): the bundled variable font must be
   // loaded before the shutter; time is already frozen by the harness clock.
   await page.evaluate(() => document.fonts.ready.then(() => undefined)).catch(() => undefined)
@@ -164,7 +166,7 @@ async function matrixShot(page: Page, shotName: string): Promise<void> {
     mkdirSync(SHOTS_DIR, { recursive: true })
     const file = resolve(SHOTS_DIR, `${shotName}.png`)
     await page.screenshot({ path: file, animations: 'disabled' })
-    appendFileSync(MANIFEST, `${file}\n`)
+    appendFileSync(MANIFEST, `${JSON.stringify({ file, id, state })}\n`)
     return
   }
   await expect(page).toHaveScreenshot(`${shotName}.png`, {
@@ -217,6 +219,6 @@ export async function runMatrixState(page: Page, mc: MatrixCase, state: MatrixSt
     await assertFocusVisible(page, anchorLocator(page, subject))
   }
   await runAxe(page)
-  await matrixShot(page, `${fileSafe(mc.id)}-${state}`)
+  await matrixShot(page, mc.id, state)
   expect(errors, `console errors: ${errors.join(' | ')}`).toEqual([])
 }
