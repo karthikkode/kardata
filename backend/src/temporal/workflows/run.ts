@@ -11,7 +11,6 @@
 import {
   ActivityFailure,
   CancelledFailure,
-  ApplicationFailure,
   CancellationScope,
   condition,
   defineQuery,
@@ -28,7 +27,7 @@ import type { FakeStep } from '@kardata/agents'
 import { activityOptions } from '../timeouts.js'
 import type * as activities from '../activities/turn.js'
 import { resumableTurn } from './resumable-turn.js'
-import { normalizeQueueItem, queueItemsQuery, queueRemoveUpdate, queueReorderUpdate } from './inbox-queue.js'
+import { registerQueueHandlers } from './inbox-queue.js'
 import type { OriginalTurnRecovery } from '../turn-recovery.js'
 
 export interface SessionRunInput {
@@ -130,29 +129,7 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
     }))
     log.info('signal received', { signal: 'runSkill', pending: inbox.length })
   })
-  setHandler(queueItemsQuery, () => inbox.map((item, index) => normalizeQueueItem(item, index)))
-  setHandler(queueRemoveUpdate, (id: string) => {
-    const at = inbox.findIndex((item, index) => normalizeQueueItem(item, index).id === id)
-    if (at < 0) return false
-    inbox.splice(at, 1)
-    return true
-  })
-  setHandler(queueReorderUpdate, (ids: string[]) => {
-    const current = inbox.map((item, index) => normalizeQueueItem(item, index))
-    const known = new Set(current.map((item) => item.id))
-    if (ids.length !== current.length || new Set(ids).size !== ids.length || !ids.every((id) => known.has(id))) {
-      throw ApplicationFailure.nonRetryable('Queue ids must exactly match the current queue.', 'QueueMismatch')
-    }
-    const byId = new Map(current.map((item, index) => [item.id, index] as const))
-    const entries = inbox.slice()
-    inbox.length = 0
-    for (const id of ids) {
-      const at = byId.get(id)
-      const entry = at === undefined ? undefined : entries[at]
-      if (entry) inbox.push(entry)
-    }
-    return true
-  })
+  registerQueueHandlers(inbox)
   setHandler(pauseSignal, () => {
     if (currentState() === 'RUNNING') setState('PAUSED')
     log.info('signal received', { signal: 'runPause', state: currentState() })

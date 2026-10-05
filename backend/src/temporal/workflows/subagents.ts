@@ -17,7 +17,6 @@
 import {
   ActivityFailure,
   CancelledFailure,
-  ApplicationFailure,
   CancellationScope,
   condition,
   defineQuery,
@@ -32,7 +31,7 @@ import {
   workflowInfo,
   type ChildWorkflowHandle,
 } from '@temporalio/workflow'
-import { normalizeQueueItem, queueItemsQuery, queueRemoveUpdate, queueReorderUpdate } from './inbox-queue.js'
+import { registerQueueHandlers } from './inbox-queue.js'
 import { resumableTurn } from './resumable-turn.js'
 import { withPreparedExecution } from './epoch-start.js'
 import { WorkflowExecutionAlreadyStartedError } from '@temporalio/common'
@@ -435,29 +434,7 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
     lastTool: threadLength > 0 ? 'domain.scan' : undefined,
   }))
   setHandler(childSummaryQuery, () => summary())
-  setHandler(queueItemsQuery, () => inbox.map((item, index) => normalizeQueueItem(item, index)))
-  setHandler(queueRemoveUpdate, (id: string) => {
-    const at = inbox.findIndex((item, index) => normalizeQueueItem(item, index).id === id)
-    if (at < 0) return false
-    inbox.splice(at, 1)
-    return true
-  })
-  setHandler(queueReorderUpdate, (ids: string[]) => {
-    const current = inbox.map((item, index) => normalizeQueueItem(item, index))
-    const known = new Set(current.map((item) => item.id))
-    if (ids.length !== current.length || new Set(ids).size !== ids.length || !ids.every((id) => known.has(id))) {
-      throw ApplicationFailure.nonRetryable('Queue ids must exactly match the current queue.', 'QueueMismatch')
-    }
-    const byId = new Map(current.map((item, index) => [item.id, index] as const))
-    const entries = inbox.slice()
-    inbox.length = 0
-    for (const id of ids) {
-      const at = byId.get(id)
-      const entry = at === undefined ? undefined : entries[at]
-      if (entry !== undefined) inbox.push(entry)
-    }
-    return true
-  })
+  registerQueueHandlers(inbox)
   // Fork children continue the parent conversation and must not delegate;
   // deeper nesting stops at the launch cap. Mirrors canDelegate.
   setHandler(childCanDelegateQuery, () => input.mode !== 'fork' && input.depth + 1 <= input.maxDepth)
