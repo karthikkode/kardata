@@ -20,7 +20,7 @@ never merged. One commit per stage:
 | 2 | `ebb74c0` | Sector backend stage 2: global context model, files, budget, compaction, rewrite |
 | 3 | `429e6bf` | Sector backend stage 3: sector reads, @chat, subagent control |
 | R4 | `6b66af8` | Round-4 fixes: PATCH proposals, subagent names, @title composer, ai_usage spend, CORS, per-sector ids |
-| 4 | TBD-hash | Sector backend stage 4: e2e compat, live re-runs, walkthrough, handoff, final gate |
+| 4 | `a12fc01` | Sector backend stage 4: e2e compat, live re-runs, walkthrough, handoff, final gate |
 
 What shipped: the plan write lock (research parent only), owner approval
 for every agent context write, the six-part global context model with
