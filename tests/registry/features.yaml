@@ -5346,3 +5346,69 @@
   tiers:
     - todo
   states: []
+- id: frontend.src.components.chat.ChatComposer
+  layer: frontend
+  surface: frontend/src/components/chat/ChatComposer.tsx
+  tiers:
+    - todo
+  states: []
+- id: frontend.src.components.chat.ChatHeader
+  layer: frontend
+  surface: frontend/src/components/chat/ChatHeader.tsx
+  tiers:
+    - todo
+  states: []
+- id: frontend.src.components.chat.ChatLog
+  layer: frontend
+  surface: frontend/src/components/chat/ChatLog.tsx
+  tiers:
+    - todo
+  states: []
+- id: frontend.src.components.chat.ChatStates
+  layer: frontend
+  surface: frontend/src/components/chat/ChatStates.tsx
+  tiers:
+    - todo
+  states: []
+- id: frontend.src.components.chat.FilesMenu
+  layer: frontend
+  surface: frontend/src/components/chat/FilesMenu.tsx
+  tiers:
+    - todo
+  states: []
+- id: frontend.src.components.chat.MessageBubble
+  layer: frontend
+  surface: frontend/src/components/chat/MessageBubble.tsx
+  tiers:
+    - todo
+  states: []
+- id: frontend.src.components.chat.SessionFiles
+  layer: frontend
+  surface: frontend/src/components/chat/SessionFiles.tsx
+  tiers:
+    - todo
+  states: []
+- id: frontend.src.components.chat.SessionsPanel
+  layer: frontend
+  surface: frontend/src/components/chat/SessionsPanel.tsx
+  tiers:
+    - todo
+  states: []
+- id: frontend.src.components.chat.messages
+  layer: frontend
+  surface: frontend/src/components/chat/messages.ts
+  tiers:
+    - todo
+  states: []
+- id: frontend.src.components.chat.useChatScroll
+  layer: frontend
+  surface: frontend/src/components/chat/useChatScroll.ts
+  tiers:
+    - todo
+  states: []
+- id: frontend.src.components.chat.useChatSync
+  layer: frontend
+  surface: frontend/src/components/chat/useChatSync.ts
+  tiers:
+    - todo
+  states: []

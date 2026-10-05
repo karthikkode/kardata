@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiErrorStatus, followThread, listMessages, sendThreadText, steerThread, type LiveThread, type StagingConfig } from './staging-api'
-import { mergeChatMessages, messageSeq, toChatMessages } from '../components/ChatPanel'
+import { mergeChatMessages, messageSeq, toChatMessages } from '../components/chat/messages'
 
 export interface Resource<T> { data?: T; status: 'loading' | 'ready' | 'error' | 'denied' | 'offline'; error?: string; refresh(): void; acknowledge?(data: T): boolean }
 export function useWorkspaceResource<T>(config: StagingConfig | null, key: string | null, load: (config: StagingConfig) => Promise<T>, poll: boolean | number = false): Resource<T> & { acknowledge(data: T): boolean } {

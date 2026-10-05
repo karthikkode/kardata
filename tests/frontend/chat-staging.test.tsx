@@ -3,7 +3,8 @@
 // No fixture imports: the mock sessions, files, and agents must not appear.
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ChatPanel, mergeChatMessages, toChatMessages, toLiveMessages } from '@/components/ChatPanel'
+import { ChatPanel } from '@/components/ChatPanel'
+import { mergeChatMessages, toChatMessages, toLiveMessages } from '@/components/chat/messages'
 import type { StagingConfig } from '@/data/staging-api'
 
 const config: StagingConfig = { baseUrl: 'https://staging.test', apiKey: 'key' }

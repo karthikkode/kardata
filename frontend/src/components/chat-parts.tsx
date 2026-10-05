@@ -7,7 +7,7 @@ import { Icons } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { formatFullDate } from '../lib/format'
 import { notify } from '../lib/toast'
-import { sessionAge } from './ChatPanel'
+import { sessionAge } from './chat/messages'
 import { Caption } from './text'
 import { Button } from './ui/button'
 

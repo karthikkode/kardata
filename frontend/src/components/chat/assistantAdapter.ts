@@ -6,7 +6,7 @@ import type {
   ThreadAssistantMessagePart,
   ThreadMessage,
 } from '@assistant-ui/react'
-import type { ChatMessage, ChatTool } from '../ChatPanel'
+import type { ChatMessage, ChatTool } from './messages'
 
 export interface PendingParts {
   pendingText: string | null

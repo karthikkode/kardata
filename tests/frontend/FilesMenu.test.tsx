@@ -3,7 +3,8 @@
 // backend endpoint, so no upload row exists.
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { FilesMenu, type ChatFile } from '@/components/ChatPanel'
+import { FilesMenu } from '@/components/chat/FilesMenu'
+import type { ChatFile } from '@/components/chat/messages'
 
 const noop = () => {}
 

@@ -2,7 +2,7 @@
 // transport. Fails if mapping drops rows, reorders, or loses pending parts.
 import { describe, expect, it } from 'vitest'
 import { toThreadMessages } from '@/components/chat/assistantAdapter'
-import type { ChatMessage } from '@/components/ChatPanel'
+import type { ChatMessage } from '@/components/chat/messages'
 
 function textOf(part: unknown): string | undefined {
   return typeof part === 'object' && part !== null && 'text' in part
@@ -71,7 +71,7 @@ describe('assistant adapter mapping', () => {
 describe('assistant segment mapping', () => {
   it('keeps tool-plus-reply groups in one runtime message in order', async () => {
     const { toThreadSegments } = await import('@/components/chat/assistantAdapter')
-    const { groupMessageSegments } = await import('@/components/ChatPanel')
+    const { groupMessageSegments } = await import('@/components/chat/messages')
     const segments = groupMessageSegments([
       { id: 'm:1', kind: 'text', role: 'user', text: 'go' },
       { id: 'm:2', kind: 'tool', name: 'db.kb_search', detail: '', state: 'done' },
