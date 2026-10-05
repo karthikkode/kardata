@@ -15,6 +15,10 @@ export const PRODUCT_TOOLS: ReadonlySet<string> = new Set([
   'db.create_session',
   'db.list_sessions', 'db.get_session', 'db.get_thread', 'db.send_message', 'db.steer_thread', 'db.research_health',
   'db.pause_run', 'db.resume_run', 'db.cancel_run',
+  'db.request_plan',
+  'ops.list_runs', 'ops.get_run', 'ops.thread_queue', 'ops.queue_remove', 'ops.queue_reorder',
+  'ops.list_alerts', 'ops.thread_health', 'ops.cost', 'ops.sector_evaluation', 'ops.recent_activity',
+  'ops.pause_run', 'ops.resume_run', 'ops.cancel_run', 'ops.spawn_subagent', 'ops.restart_sector_research',
   'db.rename_session', 'db.delete_session',
   'db.list_sectors', 'db.get_sector', 'db.sector_activity',
   'db.list_companies', 'db.list_sector_companies',
@@ -91,6 +95,12 @@ export const SECTOR_TOOLS: ReadonlySet<string> = new Set([
   'db.get_research_progress',
   'db.list_sector_sessions',
   'db.read_sector_thread',
+  // Own-sector ops reads plus spawning under own threads; queue and run
+  // controls stay Karbot-only.
+  'ops.thread_health',
+  'ops.cost',
+  'ops.list_alerts',
+  'ops.spawn_subagent',
 ])
 
 export function sectorMcpClient(client: TurnRunnerMcpClient): TurnRunnerMcpClient {
