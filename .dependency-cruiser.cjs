@@ -1,5 +1,7 @@
 // dependency-cruiser rules (Phase 1: warn = report mode; Phase 2 flips to
-// error). Run per workspace with its tsconfig (see quality:deps).
+// error). Run per workspace with its tsconfig (see quality:deps), so all
+// paths below are cwd-relative (Phase 1 used workspace-prefixed paths
+// that never matched; P2 fixed them).
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
   forbidden: [
@@ -14,29 +16,29 @@ module.exports = {
       name: 'frontend-no-direct-api',
       severity: 'warn',
       comment: 'Components reach data only through data/use*.ts hooks.',
-      from: { path: 'frontend/src/components' },
-      to: { path: 'frontend/src/data/[^/]*-api|frontend/src/data/api/' },
+      from: { path: 'src/components' },
+      to: { path: 'src/data/[^/]*-api|src/data/api/' },
     },
     {
       name: 'backend-no-pg-outside-db',
       severity: 'warn',
       comment: 'Only backend/src/db/** may import pg (mirrors the eslint ban).',
-      from: { path: 'backend/src/(routes|mcp)' },
+      from: { path: 'src/(routes|mcp)' },
       to: { path: '^pg$' },
     },
     {
       name: 'agents-no-backend',
       severity: 'warn',
       comment: 'agents/ is the pure domain core; backend adapts it, never the reverse.',
-      from: { path: 'agents/src' },
+      from: { path: 'src' },
       to: { path: 'backend/src' },
     },
     {
       name: 'db-no-upward-imports',
       severity: 'warn',
       comment: 'The db layer never imports routes, mcp, or temporal.',
-      from: { path: 'backend/src/db' },
-      to: { path: 'backend/src/(routes|mcp|temporal)' },
+      from: { path: 'src/db' },
+      to: { path: 'src/(routes|mcp|temporal)' },
     },
   ],
   options: {
