@@ -32,9 +32,11 @@ export default defineConfig({
     // land in coverage/ (gitignored). Run with `npm run test:coverage`.
     coverage: {
       provider: 'istanbul',
-      reporter: ['text', 'html'],
+      reporter: ['text', 'html', 'json-summary'],
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/**/*.test.{ts,tsx}', 'src/test/**'],
+      // Phase 7 gate: lines >= 75% (ratchet up only).
+      thresholds: { lines: 75 },
     },
   },
 })
