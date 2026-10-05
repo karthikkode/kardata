@@ -24,6 +24,7 @@ import {
 } from '../threads/project.js'
 import { DbContractError } from './errors.js'
 import type { Db, ProjectableEvent, StoredEvent } from './events.js'
+import { projectProviderRound, projectToolCall } from './execution-rounds.js'
 import { publishOutboxFrame } from './outbox.js'
 import { projectSectorEvent } from './sectors.js'
 
@@ -306,6 +307,12 @@ async function applyEvent(db: Db, event: ProjectableEvent): Promise<boolean> {
     case 'company.stage_changed':
     case 'company.state_changed': {
       return projectSectorEvent(db, event)
+    }
+    case 't.provider.round': {
+      return projectProviderRound(db, event)
+    }
+    case 't.tool.call': {
+      return projectToolCall(db, event)
     }
     default:
       return false

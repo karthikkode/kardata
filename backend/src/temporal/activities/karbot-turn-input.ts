@@ -10,6 +10,7 @@ import type {
   Usage,
 } from '@kardata/agents'
 import type { SessionModelSelection } from '../../db/index.js'
+import type { ProviderRoundInput, ToolCallInput } from '../../db/execution-rounds.js'
 import type { ProviderRoundLogFields, ProviderSelection } from '../../providers/provider-gateway.js'
 
 const FakeToolCallSchema = z.object({
@@ -22,6 +23,7 @@ const FakeStepSchema = z.union([
   z.object({
     text: z.string(),
     toolCalls: FakeToolCallSchema.array().optional(),
+    usage: z.object({ inputTokens: z.number().int().nonnegative().optional(), outputTokens: z.number().int().nonnegative().optional(), cacheReadTokens: z.number().int().nonnegative().optional(), cacheWriteTokens: z.number().int().nonnegative().optional(), cacheHitTokens: z.number().int().nonnegative().optional(), cacheMissTokens: z.number().int().nonnegative().optional() }).optional(),
     completion: z.enum(['complete', 'incomplete']).nullable().optional(),
     delayMs: z.number().int().min(0).optional(),
   }),
@@ -92,6 +94,14 @@ export interface KarbotTurnLogFields {
 
 export interface KarbotTurnDeps {
   persistExecution?(round: number, kind: 'request' | 'response' | 'tool-result', record: Record<string, unknown>): Promise<void>
+  /** Round/tool-call journal for execution_rounds/tool_calls. Never throws:
+   * the execution journal stays the fail-closed store; a failed round
+   * append is a warn-logged gap, never a turn failure. Refs are filled by
+   * the activity from its persist stash. */
+  recordRound?(round: ProviderRoundInput): Promise<void>
+  recordToolCall?(call: ToolCallInput): Promise<void>
+  /** Activity attempt for round attribution; absent means 1. */
+  attempt?: number
   measureContext?(usage: { inputTokens: number; budget: number; window: number; method: 'exact' | 'estimated' }): Promise<void>
   signal?: AbortSignal
   loadContinuation?(): Promise<{ messages: ChatMessage[]; runKey: string; sources: Array<{ url: string; text: string }>; meta: { round: number; usage: Usage; toolCalls: number; elapsedMs: number; blockedOperations?: RecoveryOperation[]; pendingResponse?: PendingProviderResponse } } | undefined>

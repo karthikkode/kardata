@@ -1,7 +1,7 @@
 // Worker MCP credential self-check: a rotated-but-not-recreated token must
 // fail loudly at boot, never as cryptic per-turn 403s. Hermetic.
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { checkWorkerMcpAuth } from '../../backend/src/temporal/activities/turn.js'
+import { checkWorkerMcpAuth } from '../../backend/src/temporal/activities/worker-mcp-auth.js'
 
 afterEach(() => {
   vi.unstubAllEnvs()

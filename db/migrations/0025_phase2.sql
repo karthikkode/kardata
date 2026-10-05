@@ -27,8 +27,62 @@ CREATE TABLE IF NOT EXISTS alerts (
 CREATE INDEX IF NOT EXISTS alerts_unresolved_idx ON alerts (resolved_at, created_at DESC);
 CREATE INDEX IF NOT EXISTS alerts_thread_idx ON alerts (thread_key, created_at DESC);
 
+-- P3.5 queryable rounds and tool calls, projected from t.provider.round
+-- and t.tool.call events. One row per provider call (retries are separate
+-- attempts); resumed replays record no round (no call was made).
+CREATE TABLE IF NOT EXISTS execution_rounds (
+  id bigserial PRIMARY KEY,
+  trace_id text,
+  run_id text NOT NULL,
+  thread_key text NOT NULL,
+  session_id text,
+  sector_id text,
+  parent_thread_key text,
+  kind text NOT NULL,
+  round int NOT NULL,
+  attempt int NOT NULL,
+  model text NOT NULL,
+  provider text NOT NULL,
+  started_at timestamptz NOT NULL,
+  finished_at timestamptz,
+  latency_ms int,
+  input_tokens int,
+  output_tokens int,
+  cached_tokens int,
+  outcome text NOT NULL,
+  error_code text,
+  request_ref text,
+  response_ref text,
+  context_version int,
+  plan_version int,
+  UNIQUE (run_id, thread_key, round, attempt)
+);
+CREATE TABLE IF NOT EXISTS tool_calls (
+  id bigserial PRIMARY KEY,
+  round_id bigint REFERENCES execution_rounds(id),
+  thread_key text NOT NULL,
+  tool text NOT NULL,
+  args_hash text NOT NULL,
+  args_ref text,
+  result_ref text,
+  outcome text NOT NULL,
+  latency_ms int,
+  error_code text,
+  at timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS execution_rounds_thread_round_idx ON execution_rounds (thread_key, round);
+CREATE INDEX IF NOT EXISTS execution_rounds_sector_started_idx ON execution_rounds (sector_id, started_at);
+CREATE INDEX IF NOT EXISTS execution_rounds_trace_idx ON execution_rounds (trace_id);
+CREATE INDEX IF NOT EXISTS tool_calls_thread_at_idx ON tool_calls (thread_key, at);
+
 -- migrate:down
 
+DROP INDEX IF EXISTS tool_calls_thread_at_idx;
+DROP INDEX IF EXISTS execution_rounds_trace_idx;
+DROP INDEX IF EXISTS execution_rounds_sector_started_idx;
+DROP INDEX IF EXISTS execution_rounds_thread_round_idx;
+DROP TABLE IF EXISTS tool_calls;
+DROP TABLE IF EXISTS execution_rounds;
 DROP INDEX IF EXISTS alerts_thread_idx;
 DROP INDEX IF EXISTS alerts_unresolved_idx;
 DROP TABLE IF EXISTS alerts;

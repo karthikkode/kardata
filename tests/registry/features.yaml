@@ -5514,3 +5514,57 @@
   tiers:
     - todo
   states: []
+- id: backend.activity.turn_rounds.createRoundRecorder
+  layer: backend
+  surface: backend/src/temporal/activities/turn-rounds.ts
+  tiers:
+    - todo
+  states: []
+- id: backend.activity.turn_rounds.roundOutcomeFor
+  layer: backend
+  surface: backend/src/temporal/activities/turn-rounds.ts
+  tiers:
+    - todo
+  states: []
+- id: backend.activity.turn_rounds.stashToolRef
+  layer: backend
+  surface: backend/src/temporal/activities/turn-rounds.ts
+  tiers:
+    - todo
+  states: []
+- id: backend.activity.turn_rounds.turnKindForRun
+  layer: backend
+  surface: backend/src/temporal/activities/turn-rounds.ts
+  tiers:
+    - todo
+  states: []
+- id: backend.activity.worker_mcp_auth.checkWorkerMcpAuth
+  layer: backend
+  surface: backend/src/temporal/activities/worker-mcp-auth.ts
+  tiers:
+    - todo
+  states: []
+- id: db.execution_rounds.appendProviderRoundEvent
+  layer: db
+  surface: backend/src/db/execution-rounds.ts
+  tiers:
+    - todo
+  states: []
+- id: db.execution_rounds.appendToolCallEvent
+  layer: db
+  surface: backend/src/db/execution-rounds.ts
+  tiers:
+    - todo
+  states: []
+- id: db.execution_rounds.projectProviderRound
+  layer: db
+  surface: backend/src/db/execution-rounds.ts
+  tiers:
+    - todo
+  states: []
+- id: db.execution_rounds.projectToolCall
+  layer: db
+  surface: backend/src/db/execution-rounds.ts
+  tiers:
+    - todo
+  states: []

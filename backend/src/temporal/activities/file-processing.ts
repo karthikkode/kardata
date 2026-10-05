@@ -5,6 +5,7 @@ import type { ProviderAdapter, ProviderResponse } from '@kardata/agents'
 import { assembledTokens, measureInputTokens } from '@kardata/agents'
 import { z } from 'zod'
 import { resolveArchiveTarget, withArchiveDeadline, type ArchiveTarget } from '../../archive/targets.js'
+import { appendProviderRoundEvent } from '../../db/execution-rounds.js'
 import { workerPoolFromEnv, type TransactableDb } from '../../db/index.js'
 import {
   readFileProcessingJob, registerFileImages, claimFileImage,
@@ -211,7 +212,8 @@ export function createFileProcessingActivities(deps: FileProcessingDependencies)
           if (current.promptVersion !== DOCUMENT_IMAGE_PROMPT_VERSION || current.provider !== 'meta') throw new WorkspaceError('conflict', 'File image processing contract is unavailable.')
           const adapter = deps.provider(current.model)
           const controller = new AbortController(), signal = context.signal ? AbortSignal.any([controller.signal, context.signal]) : controller.signal
-          timeout = setTimeout(() => controller.abort(), providerDeadlineMs)
+          let providerTimedOut = false
+          timeout = setTimeout(() => { providerTimedOut = true; controller.abort() }, providerDeadlineMs)
           heartbeat = setInterval(() => { try { context.heartbeat('image') } catch (error) { controller.abort(error) } }, 5_000)
           const request = documentImageRequest(png, signal, image.role ?? 'embedded')
           const inputBudget = Math.min(80_000, Math.min(100_000, deps.modelWindow?.(current.model) ?? 100_000) - 16384)
@@ -223,6 +225,20 @@ export function createFileProcessingActivities(deps: FileProcessingDependencies)
           signal.throwIfAborted()
           await markFileImageRequestStarted(deps.db, input.jobId, input.imageId, claim.attempt, lease, input.revision)
           dispatched = true
+          const recordImageRound = async (outcome: 'ok' | 'error' | 'timeout' | 'cancelled', startedAt: number, usage?: ProviderResponse['usage'], errorCode?: string): Promise<void> => {
+            const finishedAt = Date.now()
+            try {
+              await appendProviderRoundEvent(deps.db, `sector:${current.sectorId}`, `provider-round:file-image:${input.jobId}:${input.imageId}:${claim.attempt}`, {
+                runId: `file-image:${input.jobId}:${input.imageId}`, threadKey: `file:${current.sectorId}:${current.documentId}`, sessionId: null, sectorId: current.sectorId, turnKind: 'file-summary',
+                round: 1, attempt: claim.attempt, model: current.model, provider: adapter.providerName,
+                startedAt: new Date(startedAt).toISOString(), finishedAt: new Date(finishedAt).toISOString(), latencyMs: finishedAt - startedAt,
+                inputTokens: usage?.inputTokens ?? null, outputTokens: usage?.outputTokens ?? null, cachedTokens: usage?.cacheReadTokens ?? null,
+                outcome, ...(errorCode ? { errorCode } : {}),
+              })
+            } catch (error) {
+              logger.warn({ event: 'file.processing.round_record_failed', ...activityLogFields(), code: error instanceof Error ? error.name : 'unknown', jobId: input.jobId, imageId: input.imageId })
+            }
+          }
           const serialized = await abortableFileWork(async () => {
             const roundStarted = Date.now()
             let response: ProviderResponse
@@ -230,9 +246,12 @@ export function createFileProcessingActivities(deps: FileProcessingDependencies)
               response = await adapter.chat(request)
             } catch (error) {
               logger.error({ ...activityLogFields(), ...providerRoundFields({ provider: adapter.providerName, model: current.model, latencyMs: Date.now() - roundStarted, outcome: 'error', code: error instanceof Error && 'code' in error && typeof error.code === 'string' ? error.code : 'provider_failed' }), jobId: input.jobId, imageId: input.imageId })
+              const cancelled = context.signal?.aborted === true && !providerTimedOut
+              await recordImageRound(cancelled ? 'cancelled' : providerTimedOut ? 'timeout' : 'error', roundStarted, undefined, cancelled ? 'turn_cancelled' : providerTimedOut ? 'provider_timeout' : error instanceof Error && 'code' in error && typeof error.code === 'string' ? error.code : 'provider_failed')
               throw error
             }
             logger.info({ ...activityLogFields(), ...providerRoundFields({ provider: adapter.providerName, model: current.model, latencyMs: Date.now() - roundStarted, usage: response.usage, outcome: 'ok' }), jobId: input.jobId, imageId: input.imageId })
+            await recordImageRound('ok', roundStarted, response.usage)
             const serialized = JSON.stringify(response)
             if (Buffer.byteLength(serialized) > MAX_REPLY_BYTES) throw new WorkspaceError('conflict', 'Image provider reply exceeds its storage budget.')
             // Independent durable stores: failure in one must not prevent trying

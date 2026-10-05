@@ -33,7 +33,8 @@ import {
   setPlanStateActivity,
   writePlanArtifactActivity,
 } from './activities/plan.js'
-import { appendEventActivity, checkWorkerMcpAuth, karbotTurnActivity } from './activities/turn.js'
+import { appendEventActivity, karbotTurnActivity } from './activities/turn.js'
+import { checkWorkerMcpAuth } from './activities/worker-mcp-auth.js'
 import { connectWorker, temporalNamespace } from './connection.js'
 import { createLaneWorker } from './worker.js'
 import * as coordinatorActivities from './activities/coordinator.js'

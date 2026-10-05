@@ -45,6 +45,7 @@ import {
 } from '../../db/index.js'
 import { isThreadPaused, readInheritedContext } from '../../db/workspace-threads.js'
 import { readSessionSettings } from '../../db/workspace.js'
+import { createRoundRecorder, roundOutcomeFor, stashToolRef, turnKindForRun } from './turn-rounds.js'
 import { projectNewEvents } from '../../projector.js'
 import { localContextMessages } from '../../context.js'
 import { findModel } from '../../providers/registry.js'
@@ -125,6 +126,7 @@ export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurnDeps): Promise<TurnOutcome> {
   const parsed = KarbotTurnInput.parse(input)
   const started = Date.now()
+  const attempt = deps.attempt ?? 1
   const stored = await deps.loadSessionModel(parsed.sessionId)
   const turnSessionKind = await deps.loadSessionKind?.(parsed.sessionId).catch(() => undefined)
   const timeoutMs = turnRoundTimeoutMs({ runKey: parsed.runKey, ...(turnSessionKind === undefined ? {} : { sessionKind: turnSessionKind }) })
@@ -178,6 +180,8 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
   // open when the turn throws are swept as errors in the catch below.
   const roundStarted = new Map<number, number>()
   let roundSectorId: string | undefined
+  let runId = parsed.runKey
+  let turnKind = turnKindForRun(parsed.threadKey, parsed.runKey, turnSessionKind)
   try {
     const continuation = await deps.loadContinuation?.()
     const history = continuation?.messages ?? await deps.loadHistory(parsed.threadKey)
@@ -241,6 +245,10 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
     const snapshotHashes: string[] = []
     let compactedCount = 0
     const sources: Array<{ url: string; text: string }> = continuation?.sources ?? []
+    runId = continuation?.runKey ?? parsed.runKey
+    turnKind = turnKindForRun(parsed.threadKey, runId, turnSessionKind)
+    const modelName = model ?? 'unknown'
+    const toolLatencies = new Map<string, number>()
     let boundary: Record<string, unknown> = {}
     const persist = async (round: number, kind: 'request' | 'response' | 'tool-result', data: unknown, original?: Record<string, unknown>, roundKind: 'turn' | 'compaction' = 'turn') => {
       try { const record = original && typeof original['serializedRecord'] === 'string' ? { ...JSON.parse(original['serializedRecord']) as Record<string, unknown>, preserveProducer: true } : original ? { ...original, data } : { version: 1, provider: providerName, model, round, boundary, roundKind, data }; await deps.persistExecution?.(round, kind, record) }
@@ -264,11 +272,41 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
         if (startedAt !== undefined) {
           roundStarted.delete(round)
           deps.log(providerRoundFields({ ...roundBase, round, latencyMs: Date.now() - startedAt, usage: response.usage, outcome: 'ok' }))
+          if (deps.recordRound) {
+            const finishedAt = Date.now()
+            const record = async () => {
+              if (deps.persistExecution) await persist(round, 'response', response, original)
+              await deps.recordRound!({
+                runId, threadKey: parsed.threadKey, sessionId: parsed.sessionId, ...(roundSectorId ? { sectorId: roundSectorId } : {}),
+                turnKind, round, attempt, model: modelName, provider: providerName,
+                startedAt: new Date(startedAt).toISOString(), finishedAt: new Date(finishedAt).toISOString(), latencyMs: finishedAt - startedAt,
+                inputTokens: response.usage.inputTokens, outputTokens: response.usage.outputTokens, cachedTokens: response.usage.cacheReadTokens,
+                outcome: 'ok', ...(typeof boundary['contextVersion'] === 'number' ? { contextVersion: boundary['contextVersion'] } : {}),
+                ...(typeof boundary['planVersion'] === 'number' || boundary['planVersion'] === null ? { planVersion: boundary['planVersion'] } : {}),
+              })
+            }
+            return record()
+          }
         }
         if (deps.persistExecution) return persist(round, 'response', response, original)
         return Promise.resolve()
       },
-      onToolResult: (round, call, outcome, operationId) => persist(round, 'tool-result', { call, outcome, ...(operationId ? { operationId } : {}) }),
+      onToolResult: (round, call, outcome, operationId) => {
+        const latencyMs = operationId ? toolLatencies.get(operationId) : undefined
+        if (operationId) toolLatencies.delete(operationId)
+        const record = async () => {
+          if (deps.persistExecution) await persist(round, 'tool-result', { call, outcome, ...(operationId ? { operationId } : {}) })
+          if (deps.recordToolCall) {
+            await deps.recordToolCall({
+              runId, threadKey: parsed.threadKey, round, attempt, callId: call.id, tool: call.name,
+              argsHash: createHash('sha256').update(JSON.stringify(call.args)).digest('hex'),
+              outcome: outcome.isError ? 'error' : 'ok', latencyMs: latencyMs ?? null,
+              ...(outcome.isError ? { errorCode: 'tool_error' } : {}), at: new Date().toISOString(),
+            })
+          }
+        }
+        return record()
+      },
       onCheckpoint: (messages, round, usage, toolCalls, blockedOperations, pendingResponse) => deps.checkpoint?.(messages, round, usage, toolCalls, sources, blockedOperations, pendingResponse ? { ...pendingResponse, metadata: pendingResponse.metadata ?? { version: 1, provider: providerName, model, round, boundary } } : undefined) ?? Promise.resolve(),
       beforeRound: async (round, current) => {
         const refreshed = await deps.refreshContext?.(round)
@@ -296,6 +334,20 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
           compacted = await compactContext({ provider: measuringAdapter, system: prompt, messages, tools: current.tools, window: profile?.contextWindow, signal: deps.signal, reasoningEffort: profile?.efforts.includes('low') ? 'low' : undefined, onMeasurement: deps.measureContext })
         } catch (error) {
           deps.log(providerRoundFields({ ...roundBase, latencyMs: Date.now() - compactStarted, ...(compactionUsage ? { usage: compactionUsage } : {}), outcome: 'error', code: 'provider_failed' }))
+          // Budget errors mean no provider call was made (measurement or
+          // pinned-context refusal): no round row. Real call failures journal
+          // an error round before the turn aborts.
+          if (deps.recordRound && !(error instanceof ContextBudgetError)) {
+            const finishedAt = Date.now()
+            const mapped = roundOutcomeFor(error, deps.signal)
+            await deps.recordRound({
+              runId: `${runId}:compaction`, threadKey: parsed.threadKey, sessionId: parsed.sessionId, ...(roundSectorId ? { sectorId: roundSectorId } : {}),
+              turnKind: 'compaction', round, attempt, model: modelName, provider: providerName,
+              startedAt: new Date(compactStarted).toISOString(), finishedAt: new Date(finishedAt).toISOString(), latencyMs: finishedAt - compactStarted,
+              inputTokens: compactionUsage?.inputTokens ?? null, outputTokens: compactionUsage?.outputTokens ?? null, cachedTokens: compactionUsage?.cacheReadTokens ?? null,
+              outcome: mapped.outcome, errorCode: mapped.errorCode,
+            })
+          }
           throw error
         }
         if (compacted.needed) {
@@ -304,6 +356,16 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
           if (deps.persistExecution) {
             await persist(round, 'request', { systemPrompt: prompt, messages, toolNames: current.tools.map((tool) => tool.name), window: profile?.contextWindow }, undefined, 'compaction')
             await persist(round, 'response', { summaryText: compacted.summary.summaryText, coveredSeq: compacted.summary.coveredSeq, usage: compactionUsage }, undefined, 'compaction')
+          }
+          if (deps.recordRound) {
+            const finishedAt = Date.now()
+            await deps.recordRound({
+              runId: `${runId}:compaction`, threadKey: parsed.threadKey, sessionId: parsed.sessionId, ...(roundSectorId ? { sectorId: roundSectorId } : {}),
+              turnKind: 'compaction', round, attempt, model: modelName, provider: providerName,
+              startedAt: new Date(compactStarted).toISOString(), finishedAt: new Date(finishedAt).toISOString(), latencyMs: finishedAt - compactStarted,
+              inputTokens: compactionUsage?.inputTokens ?? null, outputTokens: compactionUsage?.outputTokens ?? null, cachedTokens: compactionUsage?.cacheReadTokens ?? null,
+              outcome: 'ok',
+            })
           }
           if (compacted.summary.coveredSeq !== undefined) await deps.persistSummary?.(compacted.summary.summaryText, compacted.summary.coveredSeq)
           return { systemPrompt: prompt, messages: compacted.view }
@@ -315,7 +377,9 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
         authorityId: deps.mcp.authorityId,
         listTools: () => deps.mcp.listTools(),
         callTool: async (name, args, operationId) => {
+          const callStarted = Date.now()
           const result = await deps.mcp.callTool(name, args, operationId)
+          if (operationId) toolLatencies.set(operationId, Date.now() - callStarted)
           if (name === 'web_fetch' && !result.isError) {
             const source = z.object({ url: z.string().url(), text: z.string().min(1) }).safeParse((() => { try { return JSON.parse(result.content) as unknown } catch { return null } })())
             if (source.success) sources.push(source.data)
@@ -392,71 +456,24 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
     const detail = error instanceof Error ? error.message.slice(0, 200) : 'unknown provider error'
     const roundCode = error instanceof OperationRecoveryError ? 'operation_uncertain' : 'provider_failed'
     const roundBase = { provider: providerName, ...(model ? { model } : {}), ...(roundSectorId ? { sectorId: roundSectorId } : {}) }
-    for (const [round, startedAt] of roundStarted) deps.log(providerRoundFields({ ...roundBase, round, latencyMs: Date.now() - startedAt, outcome: 'error', code: roundCode }))
+    const mapped = roundOutcomeFor(error, deps.signal)
+    for (const [round, startedAt] of roundStarted) {
+      deps.log(providerRoundFields({ ...roundBase, round, latencyMs: Date.now() - startedAt, outcome: 'error', code: roundCode }))
+      if (deps.recordRound) {
+        const finishedAt = Date.now()
+        await deps.recordRound({
+          runId, threadKey: parsed.threadKey, sessionId: parsed.sessionId, ...(roundSectorId ? { sectorId: roundSectorId } : {}),
+          turnKind, round, attempt, model: model ?? 'unknown', provider: providerName,
+          startedAt: new Date(startedAt).toISOString(), finishedAt: new Date(finishedAt).toISOString(), latencyMs: finishedAt - startedAt,
+          inputTokens: null, outputTokens: null, cachedTokens: null, outcome: mapped.outcome, errorCode: mapped.errorCode,
+        })
+      }
+    }
     roundStarted.clear()
     deps.log({ op: 'karbot.turn', provider: providerName, ok: false, latencyMs, code: roundCode, errorDetail: detail })
     if (error instanceof ContextFileBlocked || error instanceof ResearchPausedError || error instanceof ContextBudgetError || error instanceof OperationRecoveryError) throw error
     throw new Error(`karbot turn failed: ${detail}`, { cause: error })
   }
-}
-
-export interface McpAuthProbe {
-  endpoint: string
-  fetchFn: (
-    url: string,
-    init: { method: string; headers: Record<string, string>; body: string },
-  ) => Promise<{ ok: boolean; status: number }>
-}
-
-/** Boot self-check: verifies the worker's MCP credential resolves before
- * polling, so a rotated-but-not-recreated token fails loudly here instead
- * of as cryptic per-turn 403s. Pure outcome, never throws, never carries
- * the token anywhere except the request header. Workers keep polling on a
- * negative result (tool-less turns still answer from digests); the log line
- * is the signal, and it names the remediation. */
-export async function checkWorkerMcpAuth(input: {
-  mcpEndpoint?: string
-  mcpToken?: string
-  threadKey?: string
-  fetchFn?: McpAuthProbe['fetchFn']
-}): Promise<{ ok: true } | { ok: false; reason: string }> {
-  const endpoint = input.mcpEndpoint ?? process.env['KARDATA_MCP_URL']
-  const token = input.mcpToken ?? process.env['KARDATA_MCP_TOKEN']
-  if (!endpoint || !token) {
-    return { ok: false, reason: 'mcp unconfigured (KARDATA_MCP_URL/TOKEN absent): turns run without tools' }
-  }
-  const fetchFn = input.fetchFn ?? fetch
-  let status: number
-  try {
-    const response = await fetchFn(endpoint, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json, text/event-stream',
-        authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'initialize',
-        params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'karbot-turn', version: '3' } },
-      }),
-    })
-    status = response.status
-    if (response.ok) return { ok: true }
-  } catch {
-    return { ok: false, reason: `mcp unreachable at the worker endpoint: turns run without tools` }
-  }
-  if (status === 403) {
-    return {
-      ok: false,
-      reason:
-        'mcp credential rejected (HTTP 403): the worker token does not resolve. ' +
-        'Recreate the worker after rotating agents/.env (docker compose up -d --force-recreate worker); ' +
-        'a restart alone keeps the stale credential. Tool-requiring turns will fail until then.',
-    }
-  }
-  return { ok: false, reason: `mcp healthcheck failed (HTTP ${status}): turns run without tools` }
 }
 
 function karbotMcpClient(input: {
@@ -580,15 +597,23 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
           const narrowed = input.toolAllow ? chatRef.toolAllow.filter((name) => input.toolAllow!.includes(name)) : chatRef.toolAllow
           input = KarbotTurnInput.parse({ ...input, toolAllow: narrowed, preloadChunks: [...(input.preloadChunks ?? []), ...chatRef.chunks] })
         }
+        const roundPartition = input.threadKey.startsWith('agent:') ? `child:${input.threadKey.slice(6)}` : `session:${input.sessionId}`
+        const recorder = createRoundRecorder(pool, roundPartition, (event, detail) => context.log.warn(event, { ...detail, ...activityLogFields({ threadKey: input.threadKey, sessionId: input.sessionId }) }))
         const outcome = await executeKarbotTurn(input, {
+          attempt: context.info.attempt,
           persistExecution: async (round, kind, record) => {
             abort.signal.throwIfAborted()
             const { data, preserveProducer, ...envelope } = record
             const original = preserveProducer ? { ...envelope, data } : { ...producer, ...envelope, data }
             const ref = await persistExecutionRecord(archive, input.sessionId, original, abort.signal)
             abort.signal.throwIfAborted()
-            await recordTurnExecution(pool, { sessionId: input.sessionId, threadKey: input.threadKey, runKey: continuation?.runKey ?? input.runKey, lease, round, kind, ...(record['roundKind'] === 'compaction' ? { roundKind: 'compaction' as const } : { roundKind: 'turn' as const }), ref, ...(actual ? { workflowId: actual.workflowId, executionId: actual.runId } : {}) })
+            const roundKind = record['roundKind'] === 'compaction' ? 'compaction' as const : 'turn' as const
+            recorder.refs.set(`${round}:${kind}:${roundKind}`, ref.key)
+            if (kind === 'tool-result') stashToolRef(recorder.refs, record, ref.key)
+            await recordTurnExecution(pool, { sessionId: input.sessionId, threadKey: input.threadKey, runKey: continuation?.runKey ?? input.runKey, lease, round, kind, roundKind, ref, ...(actual ? { workflowId: actual.workflowId, executionId: actual.runId } : {}) })
           },
+          recordRound: (fields) => recorder.recordRound(fields),
+          recordToolCall: (fields) => recorder.recordToolCall(fields),
           measureContext: (usage) => recordContextMeasurement(pool, input.threadKey, usage),
           signal: abort.signal,
           loadContinuation: async () => {
