@@ -1,13 +1,32 @@
-// F6-F7 infrastructure-cut drills (pg via Toxiproxy; F8 extends this
-// file). One file so proxy ports stay sequential: vitest may run files in
-// parallel, and the toxiproxy listen ports are fixed. Drills skip without
+// F6-F8 infrastructure-cut drills (pg + Temporal via Toxiproxy). One file
+// so proxy ports stay sequential: vitest may run files in parallel, and the
+// toxiproxy listen ports are fixed. Drills skip without
 // KARDATA_TEMPORAL_TEST, TEST_DATABASE_URL, or TOXIPROXY_URL.
 import { randomUUID } from 'node:crypto'
 import { get } from 'node:http'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { Context } from '@temporalio/activity'
+import { Client as WorkflowClient } from '@temporalio/client'
+import type { NativeConnection, Worker } from '@temporalio/worker'
+import {
+  emptyUsage,
+  type ProviderAdapter,
+  type StreamEvent,
+  type ToolDefinition,
+  type TurnRunnerMcpClient,
+} from '@kardata/agents'
 import type { FastifyInstance } from 'fastify'
 import { Pool } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../backend/src/app.js'
+import { appendEventActivity, executeKarbotTurn } from '../../backend/src/temporal/activities/turn.js'
+import { createRoundRecorder } from '../../backend/src/temporal/activities/turn-rounds.js'
+import type { KarbotTurnDeps, KarbotTurnInput } from '../../backend/src/temporal/activities/karbot-turn-input.js'
+import { connectClient, connectWorker, temporalNamespace } from '../../backend/src/temporal/connection.js'
+import { TemporalRunsGateway } from '../../backend/src/temporal/runs-gateway.js'
+import { SESSION_PREFIX } from '../../backend/src/temporal/runs-types.js'
+import { createLaneWorker } from '../../backend/src/temporal/worker.js'
 import {
   appendEvent as appendDbEvent,
   createSector,
@@ -27,11 +46,14 @@ import {
   setProxyEnabled,
   sleep,
   TOXI_PG_PORT,
+  TOXI_TEMPORAL_PORT,
   TOXIPROXY_URL,
   upstreamOf,
 } from './toxiproxy.js'
 
 const ENABLED = process.env['KARDATA_TEMPORAL_TEST'] === '1'
+const ADDRESS = process.env['KARDATA_TEMPORAL_ADDRESS'] ?? 'localhost:7233'
+const RUN_WORKFLOWS_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'backend', 'src', 'temporal', 'workflows', 'run.ts')
 
 interface SseFrame {
   seq: number
@@ -72,7 +94,7 @@ function readSse(port: number, threadKey: string, lastSeq: number, onFrame: (fra
   return { frames, closed, destroy: () => request.destroy() }
 }
 
-describe.skipIf(!ENABLED || !TEST_DATABASE_URL || !TOXIPROXY_URL)('infrastructure cuts F6-F7', () => {
+describe.skipIf(!ENABLED || !TEST_DATABASE_URL || !TOXIPROXY_URL)('infrastructure cuts F6-F8', () => {
   let databaseUrl = ''
   let upstream = { host: '', port: 0 }
 
@@ -81,11 +103,13 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL || !TOXIPROXY_URL)('infrastructur
     upstream = upstreamOf(databaseUrl, 5432)
     await deleteProxy('fault-pg-f6')
     await deleteProxy('fault-pg-f7')
+    await deleteProxy('fault-temporal-f8')
   }, 120_000)
 
   afterAll(async () => {
     await deleteProxy('fault-pg-f6').catch(() => undefined)
     await deleteProxy('fault-pg-f7').catch(() => undefined)
+    await deleteProxy('fault-temporal-f8').catch(() => undefined)
   })
 
   async function seedSession(pool: Pool): Promise<string> {
@@ -228,4 +252,141 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL || !TOXIPROXY_URL)('infrastructur
       await direct.end()
     }
   }, 120_000)
+
+  it('F8: 30 s Temporal cut 503s starts, running work resumes after', async () => {
+    const savedTemporal = process.env['TEMPORAL_ADDRESS']
+    const savedProvider = process.env['KARDATA_PROVIDER']
+    const savedDb = process.env['DATABASE_URL']
+    const separator = ADDRESS.lastIndexOf(':')
+    const upstreamHost = ADDRESS.slice(0, separator)
+    const upstreamPort = Number(ADDRESS.slice(separator + 1))
+    await createProxy('fault-temporal-f8', TOXI_TEMPORAL_PORT, upstreamHost, upstreamPort)
+    process.env['TEMPORAL_ADDRESS'] = `127.0.0.1:${TOXI_TEMPORAL_PORT}`
+    process.env['DATABASE_URL'] = databaseUrl
+    process.env['KARDATA_PROVIDER'] = 'fake'
+    const pool = new Pool({ connectionString: databaseUrl })
+    let connection: NativeConnection | undefined
+    let worker: Worker | undefined
+    let run: Promise<void> | undefined
+    const mcp: TurnRunnerMcpClient = {
+      async listTools(): Promise<ToolDefinition[]> { return [] },
+      async callTool(name: string): Promise<{ content: string; isError?: boolean }> { return { content: `TEST unexpected tool ${name}`, isError: true } },
+    }
+    const deps: KarbotTurnDeps = {
+      loadSessionModel: async () => undefined,
+      loadHistory: async () => [],
+      resolveTurnAdapter: (): ProviderAdapter => ({
+        providerName: 'TEST-cut',
+        chat: async () => ({ text: 'TEST unexpected chat', reasoning: '', toolCalls: [], usage: emptyUsage(), completion: 'complete' }),
+        chatStream: async function* (): AsyncIterable<StreamEvent> {
+          await sleep(35_000)
+          yield { kind: 'text_delta', text: 'TEST cut survivor' }
+          yield { kind: 'done', usage: emptyUsage(), completion: 'complete' }
+        },
+      }),
+      mcp,
+      publishDelta: async () => {},
+      publishReasoning: async () => {},
+      publishTool: async () => {},
+      log: () => {},
+    }
+    try {
+      const sessionId = await seedSession(pool)
+      connection = await connectWorker()
+      const client = new WorkflowClient({ connection: await connectClient() })
+      worker = await createLaneWorker({
+        lane: 'turn',
+        connection,
+        namespace: temporalNamespace(),
+        workflowsPath: RUN_WORKFLOWS_PATH,
+        taskQueue: 'kardata-turn-v1',
+        activities: {
+          appendEventActivity,
+          karbotTurnActivity: async (input: KarbotTurnInput) => {
+            const context = Context.current()
+            let settled = false
+            const beating = (async () => {
+              while (!settled) {
+                try { context.heartbeat({ at: Date.now() }) } catch { break }
+                await sleep(5000)
+              }
+            })()
+            try {
+              const recorder = createRoundRecorder(pool, `session:${input.sessionId}`, () => undefined)
+              return await executeKarbotTurn(input, {
+                ...deps,
+                attempt: context.info.attempt,
+                recordRound: (fields) => recorder.recordRound(fields),
+                recordToolCall: (fields) => recorder.recordToolCall(fields),
+              })
+            } finally {
+              settled = true
+              await beating
+            }
+          },
+        },
+      })
+      run = worker.run()
+      run.catch(() => undefined)
+      const app: FastifyInstance = buildApp({ pool, runs: new TemporalRunsGateway(pool) })
+      try {
+        const first = await app.inject({ method: 'POST', url: '/v1/commands/send', payload: { threadKey: sessionId, text: 'F8 hello' } })
+        expect(first.statusCode).toBe(202)
+        const startBy = Date.now() + 60_000
+        for (;;) {
+          await projectNewEvents(pool)
+          const { rows } = await pool.query<{ count: string }>(
+            'SELECT COUNT(*) AS count FROM execution_rounds WHERE thread_key = $1 AND attempt = 1',
+            [sessionId],
+          )
+          if (Number(rows[0]?.count ?? 0) > 0) break
+          if (Date.now() > startBy) throw new Error('TEST F8: round 1 never started')
+          await sleep(500)
+        }
+        const cutAt = Date.now()
+        await setProxyEnabled('fault-temporal-f8', false)
+        const down = Date.now()
+        const cut = await app.inject({ method: 'POST', url: '/v1/commands/send', payload: { threadKey: sessionId, text: 'F8 during' } })
+        const downMs = Date.now() - down
+        expect(cut.statusCode).toBe(503)
+        expect((cut.json() as { error: { code: string } }).error.code).toBe('temporal_unavailable')
+        expect(downMs).toBeLessThan(10_000)
+        await sleep(Math.max(0, 30_000 - (Date.now() - cutAt)))
+        await setProxyEnabled('fault-temporal-f8', true)
+        const healedAt = Date.now()
+        const endBy = Date.now() + 150_000
+        for (;;) {
+          await projectNewEvents(pool)
+          const thread = await getThread(pool, sessionId)
+          const texts = (thread?.messages ?? [])
+            .filter((message) => message.kind === 'text')
+            .map((message) => (message.payload as Record<string, unknown>)['text'] as string)
+          if (texts.includes('TEST cut survivor')) break
+          if (Date.now() > endBy) throw new Error('TEST F8: turn never resumed')
+          await sleep(1000)
+        }
+        const recoveredAt = Date.now()
+        const after = await app.inject({ method: 'GET', url: `/v1/runs/${SESSION_PREFIX}${sessionId}` })
+        expect(after.statusCode).toBe(200)
+        const handle = client.workflow.getHandle(`${SESSION_PREFIX}${sessionId}`)
+        await handle.signal('runCancel')
+        expect(await handle.result()).toBe('cancelled')
+        console.log(`[fault F8] downMs=${downMs} cutMs=${healedAt - cutAt} recoveryMs=${recoveredAt - healedAt}`)
+      } finally {
+        await app.close()
+      }
+    } finally {
+      if (savedTemporal === undefined) delete process.env['TEMPORAL_ADDRESS']
+      else process.env['TEMPORAL_ADDRESS'] = savedTemporal
+      if (savedProvider === undefined) delete process.env['KARDATA_PROVIDER']
+      else process.env['KARDATA_PROVIDER'] = savedProvider
+      if (savedDb === undefined) delete process.env['DATABASE_URL']
+      else process.env['DATABASE_URL'] = savedDb
+      await worker?.shutdown()
+      await run?.catch(() => undefined)
+      await connection?.close()
+      await pool.end()
+      await deleteProxy('fault-temporal-f8')
+    }
+  }, 300_000)
 })
