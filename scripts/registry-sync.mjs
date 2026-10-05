@@ -8,6 +8,7 @@ import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
+import { writeParity } from './mcp-parity.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const REGISTRY_PATH = join(ROOT, 'tests', 'registry', 'features.yaml')
@@ -228,6 +229,7 @@ function main() {
   for (const entry of entries) perLayer[entry.layer] = (perLayer[entry.layer] ?? 0) + 1
   console.log(`registry: ${entries.length} entries (${Object.entries(perLayer).map(([layer, count]) => `${layer} ${count}`).join(', ')})`)
   console.log(`registry: +${added.length} new, -${removed.length} removed${removed.length > 0 ? `: ${removed.join(', ')}` : ''}`)
+  writeParity()
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main()

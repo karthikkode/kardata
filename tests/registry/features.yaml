@@ -5738,3 +5738,207 @@
   tiers:
     - db
   states: []
+- id: db.evaluation.readSectorCost
+  layer: db
+  surface: backend/src/db/evaluation.ts
+  tiers:
+    - todo
+  states: []
+- id: db.evaluation.readThreadCost
+  layer: db
+  surface: backend/src/db/evaluation.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.ThreadCost
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.getThreadRun
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.listThreadQueue
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.listThreadRuns
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.readSectorCost
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.readThreadCost
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.removeThreadQueueItem
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.reorderThreadQueue
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.restartSectorSweep
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.threads.getThreadRun
+  layer: db
+  surface: backend/src/db/threads.ts
+  tiers:
+    - todo
+  states: []
+- id: db.threads.listThreadQueue
+  layer: db
+  surface: backend/src/db/threads.ts
+  tiers:
+    - todo
+  states: []
+- id: db.threads.listThreadRuns
+  layer: db
+  surface: backend/src/db/threads.ts
+  tiers:
+    - todo
+  states: []
+- id: db.threads.removeThreadQueueItem
+  layer: db
+  surface: backend/src/db/threads.ts
+  tiers:
+    - todo
+  states: []
+- id: db.threads.reorderThreadQueue
+  layer: db
+  surface: backend/src/db/threads.ts
+  tiers:
+    - todo
+  states: []
+- id: db.workspace.recentActivity
+  layer: db
+  surface: backend/src/db/workspace.ts
+  tiers:
+    - todo
+  states: []
+- id: db.workspace.threadHealth
+  layer: db
+  surface: backend/src/db/workspace.ts
+  tiers:
+    - todo
+  states: []
+- id: mcp.db.request_plan
+  layer: mcp
+  surface: backend/src/mcp/tools.ts
+  tiers:
+    - todo
+  states: []
+- id: mcp.ops.cancel_run
+  layer: mcp
+  surface: backend/src/mcp/tools.ts
+  tiers:
+    - todo
+  states: []
+- id: mcp.ops.cost
+  layer: mcp
+  surface: backend/src/mcp/tools.ts
+  tiers:
+    - todo
+  states: []
+- id: mcp.ops.get_run
+  layer: mcp
+  surface: backend/src/mcp/tools.ts
+  tiers:
+    - todo
+  states: []
+- id: mcp.ops.list_alerts
+  layer: mcp
+  surface: backend/src/mcp/tools.ts
+  tiers:
+    - todo
+  states: []
+- id: mcp.ops.list_runs
+  layer: mcp
+  surface: backend/src/mcp/tools.ts
+  tiers:
+    - todo
+  states: []
+- id: mcp.ops.pause_run
+  layer: mcp
+  surface: backend/src/mcp/tools.ts
+  tiers:
+    - todo
+  states: []
+- id: mcp.ops.queue_remove
+  layer: mcp
+  surface: backend/src/mcp/tools.ts
+  tiers:
+    - todo
+  states: []
+- id: mcp.ops.queue_reorder
+  layer: mcp
+  surface: backend/src/mcp/tools.ts
+  tiers:
+    - todo
+  states: []
+- id: mcp.ops.recent_activity
+  layer: mcp
+  surface: backend/src/mcp/tools.ts
+  tiers:
+    - todo
+  states: []
+- id: mcp.ops.restart_sector_research
+  layer: mcp
+  surface: backend/src/mcp/tools.ts
+  tiers:
+    - todo
+  states: []
+- id: mcp.ops.resume_run
+  layer: mcp
+  surface: backend/src/mcp/tools.ts
+  tiers:
+    - todo
+  states: []
+- id: mcp.ops.sector_evaluation
+  layer: mcp
+  surface: backend/src/mcp/tools.ts
+  tiers:
+    - todo
+  states: []
+- id: mcp.ops.spawn_subagent
+  layer: mcp
+  surface: backend/src/mcp/tools.ts
+  tiers:
+    - todo
+  states: []
+- id: mcp.ops.thread_health
+  layer: mcp
+  surface: backend/src/mcp/tools.ts
+  tiers:
+    - todo
+  states: []
+- id: mcp.ops.thread_queue
+  layer: mcp
+  surface: backend/src/mcp/tools.ts
+  tiers:
+    - todo
+  states: []
