@@ -7,7 +7,7 @@ import { Icons } from '@/lib/icons'
 import { humanizeKey } from '@/lib/format'
 import { notify } from '@/lib/toast'
 import { cancelRun, listRuns, type RunSummary, type RunState } from '../data/useRuns'
-import { StagingApiError, type StagingConfig } from '../data/useApi'
+import { isAuthError, type StagingConfig } from '../data/useApi'
 import { DataTable, type DataTableColumn } from './DataTable'
 import { IconButton } from './IconButton'
 import { DeniedNotice, PanelError, SkeletonRows, UnavailableNotice } from './research-parts'
@@ -104,10 +104,7 @@ export function RunsPanel({
         if (!live) return
         if (typeof navigator !== 'undefined' && navigator.onLine === false) {
           setStatus('offline')
-        } else if (
-          error instanceof StagingApiError &&
-          (error.status === 401 || error.status === 403)
-        ) {
+        } else if (isAuthError(error)) {
           setStatus('denied')
         } else {
           setStatus('error')

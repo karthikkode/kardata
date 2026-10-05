@@ -8,7 +8,7 @@ import { humanizeKey } from '@/lib/format'
 import { notify } from '@/lib/toast'
 import { getSession, listSessions, type Session } from '../data/useSessions'
 import { setSessionModel, type ProviderEntry, type SessionModelSelection } from '../data/useModels'
-import { apiErrorStatus, StagingApiError, type StagingConfig } from '../data/useApi'
+import { apiErrorStatus, isAuthError, StagingApiError, type StagingConfig } from '../data/useApi'
 import { useModelCatalog, type CatalogStatus } from '../data/useModelCatalog'
 import { DeniedNotice, PanelError, UnavailableNotice } from './research-parts'
 import { BodySm, Caption, CardTitle } from './text'
@@ -41,10 +41,7 @@ function saveErrorOf(error: unknown): string {
   if (error instanceof StagingApiError && error.status === 404) {
     return 'This session no longer exists. Pick another session.'
   }
-  if (
-    error instanceof StagingApiError &&
-    (error.status === 401 || error.status === 403)
-  ) {
+  if (isAuthError(error)) {
     return 'This key cannot change models. Ask an admin for access, or check the API key.'
   }
   return 'The model did not save. Check your connection and try again.'

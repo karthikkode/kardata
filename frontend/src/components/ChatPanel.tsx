@@ -9,7 +9,7 @@ import { dockEnter, dockExit, useExitState } from '@/lib/motion'
 import { cancelRun, pauseRun, resumeRun } from '../data/useRuns'
 import { sendThreadText, steerThread, type ThreadView, type ToolPayload } from '../data/useThreads'
 import { compactSession, createSession, deleteSession, renameSession, type Session } from '../data/useSessions'
-import { StagingApiError, type StagingConfig } from '../data/useApi'
+import { isAuthError, type StagingConfig } from '../data/useApi'
 import { type SkillSummary } from '../data/useSkills'
 import { useReasoningOpen } from './chat/ReasoningDisclosure'
 import { Caption } from './text'
@@ -257,7 +257,7 @@ export function ChatPanel({
         setRenaming(false)
       })
       .catch((error: unknown) => {
-        if (error instanceof StagingApiError && (error.status === 401 || error.status === 403)) {
+        if (isAuthError(error)) {
           setSessionsState('denied')
           setRenaming(false)
           return
@@ -298,7 +298,7 @@ export function ChatPanel({
         setConfirmingDelete(false)
       })
       .catch((error: unknown) => {
-        if (error instanceof StagingApiError && (error.status === 401 || error.status === 403)) {
+        if (isAuthError(error)) {
           setSessionsState('denied')
           setConfirmingDelete(false)
           return
@@ -442,7 +442,7 @@ export function ChatPanel({
       .catch((error: unknown) => {
         setWorking(false)
         setAwaitingReply(null)
-        if (error instanceof StagingApiError && (error.status === 401 || error.status === 403)) {
+        if (isAuthError(error)) {
           setThreadsState('denied')
           setPendingSend(null)
           return
