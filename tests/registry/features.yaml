@@ -3685,9 +3685,9 @@
   tiers:
     - todo
   states: []
-- id: db.workspace_library.assertFileVisible
+- id: db.sector_documents.assertFileVisible
   layer: db
-  surface: backend/src/db/workspace-library.ts
+  surface: backend/src/db/sector-documents.ts
   tiers:
     - todo
   states: []
@@ -3769,9 +3769,9 @@
   tiers:
     - todo
   states: []
-- id: db.workspace_library.hiddenFileIds
+- id: db.sector_documents.hiddenFileIds
   layer: db
-  surface: backend/src/db/workspace-library.ts
+  surface: backend/src/db/sector-documents.ts
   tiers:
     - todo
   states: []

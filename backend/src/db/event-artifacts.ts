@@ -16,7 +16,8 @@ import { resolveArchiveTarget, type ArchiveTarget } from '../archive/targets.js'
 import type { Scope } from '../auth/types.js'
 import { createLogger, logOp } from '../observability/logging.js'
 import { ArtifactImportTimeout, DbContractError } from './errors.js'
-import { assertFileVisible, hiddenFileIds, indexSectorArtifact } from './workspace-library.js'
+import { indexSectorArtifact } from './workspace-library.js'
+import { assertFileVisible, hiddenFileIds } from './sector-documents.js'
 import { WorkspaceError } from './workspace.js'
 
 import {

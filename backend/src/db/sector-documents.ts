@@ -6,8 +6,7 @@
 // database.
 import { z } from 'zod'
 import type { Scope } from '../auth/types.js'
-import { DbContractError, WorkspaceError } from './errors.js'
-import { assertFileVisible, hiddenFileIds } from './workspace-library.js'
+import { checked, DbContractError, Id, WorkspaceError } from './errors.js'
 import type { ArchiveTarget } from '../archive/targets.js'
 import { withArchiveDeadline } from '../archive/targets.js'
 import type { Db } from './events.js'
@@ -23,6 +22,17 @@ import {
 import { getSector } from './sectors.js'
 
 const documentLogger = createLogger({ op: 'file.ingest' })
+
+export async function assertFileVisible(db: Db, sectorId: string, fileId: string): Promise<void> {
+  checked(Id, sectorId); checked(Id, fileId)
+  const { rows } = await db.query<{ hidden: boolean }>('SELECT hidden FROM workspace_files WHERE sector_id=$1 AND (file_id=$2 OR document_id=$2)', [sectorId, fileId])
+  if (rows.some((row) => row.hidden)) throw new WorkspaceError('permission_denied', 'This file is hidden from agents.')
+}
+export async function hiddenFileIds(db: Db, sectorId: string): Promise<Set<string>> {
+  checked(Id, sectorId)
+  const { rows } = await db.query<{ file_id: string; document_id: string | null }>('SELECT file_id,document_id FROM workspace_files WHERE sector_id=$1 AND hidden', [sectorId])
+  return new Set(rows.flatMap((row) => row.document_id ? [row.file_id, row.document_id] : [row.file_id]))
+}
 
 export { SECTOR_DOCUMENT_MAX_BYTES }
 

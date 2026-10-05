@@ -6,7 +6,7 @@ import { appendEvent, findEventByKey, type Db } from './events.js'
 import { listArtifacts, resolveArtifactScope } from './event-artifacts.js'
 import { listSessions } from './sessions.js'
 import { checked, DbContractError, Id, WorkspaceError } from './errors.js'
-import { ingestSectorDocument, listSectorDocuments, readOriginalSectorDocument } from './sector-documents.js'
+import { assertFileVisible, ingestSectorDocument, listSectorDocuments, readOriginalSectorDocument } from './sector-documents.js'
 import { listSectorFileProcessing, type FileProcessingProgress } from './file-jobs.js'
 import { createLogger, logOp } from '../observability/logging.js'
 
@@ -71,17 +71,6 @@ export async function listSectorLibrary(db: Db, sectorId: string, scope?: Scope)
   const processing = await listSectorFileProcessing(db, sectorId, scope)
   for (const file of files.values()) if (processing[file.documentId ?? file.id]) file.processing = processing[file.documentId ?? file.id]
   return [...files.values()].sort((a, b) => (arrivedAt.get(b.id) ?? 0) - (arrivedAt.get(a.id) ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-}
-
-export async function assertFileVisible(db: Db, sectorId: string, fileId: string): Promise<void> {
-  checked(Id, sectorId); checked(Id, fileId)
-  const { rows } = await db.query<{ hidden: boolean }>('SELECT hidden FROM workspace_files WHERE sector_id=$1 AND (file_id=$2 OR document_id=$2)', [sectorId, fileId])
-  if (rows.some((row) => row.hidden)) throw new WorkspaceError('permission_denied', 'This file is hidden from agents.')
-}
-export async function hiddenFileIds(db: Db, sectorId: string): Promise<Set<string>> {
-  checked(Id, sectorId)
-  const { rows } = await db.query<{ file_id: string; document_id: string | null }>('SELECT file_id,document_id FROM workspace_files WHERE sector_id=$1 AND hidden', [sectorId])
-  return new Set(rows.flatMap((row) => row.document_id ? [row.file_id, row.document_id] : [row.file_id]))
 }
 
 export async function indexSectorArtifact(db: Db, sectorId: string, artifactId: string, name: string, body: string, scope?: Scope): Promise<void> {

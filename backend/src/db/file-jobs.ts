@@ -9,10 +9,10 @@ import { appendEvent, type Db } from './events.js';
 import type { TransactableDb } from './checkpoints.js';
 import { DbContractError, Id, WorkspaceError } from './errors.js';
 import { getSector } from './sectors.js';
-import { assertFileVisible } from './workspace-library.js'
+import { assertFileVisible, type IngestedDocument } from './sector-documents.js'
 import { requireThread, workspaceTransaction } from './workspace.js';
 import { SECTOR_DOCUMENT_MAX_BYTES, sha256Hex, chunkTextUnits, type ExtractedUnit } from './file-pipeline.js';
-import type { IngestedDocument } from './sector-documents.js';
+
 const logger = createLogger({ op: 'file.processing' });
 const Hash = z.string().regex(/^[a-f0-9]{64}$/);
 export const FileArchiveRef = z.object({ key: z.string().min(1).max(1024), hash: Hash, bytes: z.number().int().positive() }).strict();
