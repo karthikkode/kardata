@@ -90,7 +90,18 @@ test rewritten (old artifact cold-move assertions contradicted 3.5.4);
   (Phase 5 spec-drift note); transitive tags prove execution, aspects
   at entry-point depth.
 
-Remaining Phase 4: P4.4 (F1-F16 drills + 1000-child test) + review package.
+Phase 4 complete (30 commits `ae3df6f..e39cb5a` + package): P4.4a harness,
+P4.4b–m F1–F16 drills + 1000-child test + tags, P4.4n–o docs + knip fix.
+Drill map: F1–F3 provider (`tests/fault/provider.faults`), F4–F5 kill
+(`worker-kill` + `kill-worker.mjs` on dist), F6–F8 cuts (`infra-cuts`,
+toxi 15433/17233), F9/F10/F13/F14 turns (`turn-faults`), F11/F12/F15 db
+(`db-faults`), F16 full (`archive-faults`, prlimit), 1000 queued
+(`tests/backend/workflows.children-1000`, temporal tier). One product
+fix: 503 `temporal_unavailable` (P4.4e). Key readings for review: no
+production `loadContinuation` (retries re-run, keys dedupe); 10 s pg cut
+exceeds turn retry budget (F6 proves path recovery, not turn survival);
+steer instructions never carry to next turn; only `send` maps 503.
+Gates at package: typecheck/lint/quality all 0; no suites per D1.
 
 ## Verification status
 

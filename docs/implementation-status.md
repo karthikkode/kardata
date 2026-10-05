@@ -1,5 +1,15 @@
 # Implementation status
 
+Phase 2 Phase 4: capacity, recovery, fault drills (2026-10-06, branch
+`p2-4-capacity`, 30 commits, reviews deferred to post-Phase-7 per
+owner directive). P4.2 knobs (slots, Meta permit table, child caps,
+pool budgets, plan budget 1–64, positional keys); P4.3 matrices at 0
+todos/0 unknown tags (951 entries); P4.4 F1–F16 drills + 1000-queued-
+children test, all written, none executed (D1). One product fix: honest
+503 `temporal_unavailable` on gateway send. Gates: typecheck/lint/
+quality all exit 0. (No red along the way that changed product; knip
+needed `ignoreBinaries: [prlimit]` for the F16 worker cap.)
+
 Phase 2 Phase 1: foundation (2026-10-05, branch `p2-1-foundation`).
 Registry: `tests/registry/features.yaml` (1025 entries) + sync + gate
 (report mode; unknown-tag and missing-surface fail). Quality: knip
