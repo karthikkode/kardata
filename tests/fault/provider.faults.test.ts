@@ -49,7 +49,7 @@ async function waitFor(condition: () => Promise<boolean>, timeoutMs: number, wha
   }
 }
 
-describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('provider fault drills F1-F3', () => {
+describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('provider fault drills F1-F3 [F:backend.workflow.run.sessionRun] [F:backend.activity.turn.karbotTurnActivity] [F:backend.activity.turn.appendEventActivity]', () => {
   let pool: Pool
   let connection: NativeConnection
   let client: WorkflowClient

@@ -18,7 +18,7 @@ import { ensureTestDb, TEST_DATABASE_URL } from '../backend/db-helper.js'
 import { FakeRunsGateway } from '../backend/fake-gateway.js'
 import { sleep } from './toxiproxy.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('database faults F11-F12, F15', () => {
+describe.skipIf(!TEST_DATABASE_URL)('database faults F11-F12, F15 [F:db.events.appendEvent] [F:db.threads.getThread] [F:http.sendMessage] [F:db.workspace.workspaceTransaction]', () => {
   let pool: Pool
 
   beforeAll(async () => {

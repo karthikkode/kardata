@@ -46,7 +46,7 @@ async function waitForChild(condition: () => Promise<boolean>, child: ChildProce
   }
 }
 
-describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('archive full F16', () => {
+describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('archive full F16 [F:backend.workflow.run.sessionRun] [F:backend.activity.turn.karbotTurnActivity] [F:backend.activity.turn.appendEventActivity]', () => {
   let pool: Pool
   let client: WorkflowClient
   let connection: Connection

@@ -94,7 +94,7 @@ function readSse(port: number, threadKey: string, lastSeq: number, onFrame: (fra
   return { frames, closed, destroy: () => request.destroy() }
 }
 
-describe.skipIf(!ENABLED || !TEST_DATABASE_URL || !TOXIPROXY_URL)('infrastructure cuts F6-F8', () => {
+describe.skipIf(!ENABLED || !TEST_DATABASE_URL || !TOXIPROXY_URL)('infrastructure cuts F6-F8 [F:http.streamThread] [F:db.outbox.publishOutboxFrame] [F:db.outbox.readOutboxBacklog] [F:db.outbox.latestOutboxSeq] [F:db.outbox.subscribeOutbox] [F:http.sendMessage] [F:http.getRun] [F:backend.workflow.run.sessionRun] [F:backend.activity.turn.karbotTurnActivity] [F:backend.activity.turn.appendEventActivity]', () => {
   let databaseUrl = ''
   let upstream = { host: '', port: 0 }
 

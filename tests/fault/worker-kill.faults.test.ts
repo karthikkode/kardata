@@ -45,7 +45,7 @@ async function waitForChild(condition: () => Promise<boolean>, child: ChildProce
   }
 }
 
-describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('worker SIGKILL drills F4-F5', () => {
+describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('worker SIGKILL drills F4-F5 [F:backend.workflow.run.sessionRun] [F:backend.activity.turn.karbotTurnActivity] [F:backend.activity.turn.appendEventActivity] [F:agents.turnRunner.toolOperationId]', () => {
   let pool: Pool
   let client: WorkflowClient
   let connection: Connection
