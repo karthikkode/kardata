@@ -47,10 +47,17 @@ export interface FaultCase {
   errorAnchors?: MatrixAnchor[]
   /** Designed denied UI for 401/403. */
   deniedAnchors?: MatrixAnchor[]
+  /** Asserted visible during the fault but allowed to persist after heal
+   * (draft echoes, retained form text). Never hidden-checked. */
+  errorContent?: MatrixAnchor[]
   /** Content anchors proving heal + the ok baseline. */
   healAnchors: MatrixAnchor[]
   retry?: MatrixAnchor
   deniedRetry?: MatrixAnchor
+  /** Asserted hidden after heal (error UI gone, not just content back). */
+  healAbsent?: MatrixAnchor[]
+  /** Heal by re-running the trigger steps (mutations without retry UI). */
+  healRetrigger?: boolean
   draftFill?: MatrixAnchor
   draftText?: string
   /** Refetch after arming: reload, or in-page steps (no reload). Drafts ride
@@ -174,6 +181,9 @@ export async function runFault(page: Page, fc: FaultCase, fault: FaultKind): Pro
     for (const anchor of wanted) await expect(anchorLocator(page, anchor)).toBeVisible({ timeout: 45000 })
     const retry = denied ? (fc.deniedRetry ?? fc.retry) : fc.retry
     if (retry) await expect(anchorLocator(page, retry)).toBeVisible({ timeout: 15000 })
+    for (const anchor of fc.errorContent ?? []) {
+      await expect(anchorLocator(page, anchor)).toBeVisible({ timeout: 15000 })
+    }
   }
   if (fc.draftFill && expected.draft !== null) {
     await expect(anchorLocator(page, fc.draftFill)).toHaveValue(expected.draft)
@@ -181,17 +191,25 @@ export async function runFault(page: Page, fc: FaultCase, fault: FaultKind): Pro
   mkdirSync(FAILURES_DIR, { recursive: true })
   await page.screenshot({ path: resolve(FAILURES_DIR, `${fileSafe(fc.label)}-${fault}.png`), animations: 'disabled' })
 
-  // Heal: retry when the UI offers one, else reload into the healed backend.
+  // Heal: retry when the UI offers one, re-trigger for mutations, else
+  // reload into the healed backend.
   await page.unroute(fc.pattern)
   const denied = fault === 'f401' || fault === 'f403'
   const retry = denied ? (fc.deniedRetry ?? fc.retry) : fc.retry
-  if (!fc.unverified && retry) {
+  if (!fc.unverified && retry && !fc.healRetrigger) {
     await anchorLocator(page, retry).click()
+  } else if (!fc.unverified && fc.healRetrigger) {
+    await runRefetch(page, fc, expected)
   } else {
     await page.reload()
     await runSetup(page, fc.setup)
   }
   for (const anchor of fc.healAnchors) await expect(anchorLocator(page, anchor)).toBeVisible({ timeout: 15000 })
+  if (!fc.unverified) {
+    for (const anchor of [...(fc.errorAnchors ?? []), ...(fc.deniedAnchors ?? []), ...(fc.healAbsent ?? [])]) {
+      await expect(anchorLocator(page, anchor)).not.toBeVisible({ timeout: 15000 })
+    }
+  }
   if (fc.draftFill && expected.draft !== null) {
     await expect(anchorLocator(page, fc.draftFill)).toHaveValue(expected.draft)
   }
