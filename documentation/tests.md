@@ -9,9 +9,13 @@ Durable supervision gates:
 
 Mirrors the area covered: `tests/frontend/...`, `tests/backend/...`.
 Framework per area doc; frontend uses Vitest + Testing Library (jsdom) for
-components and Playwright for critical flows. Coverage via
-`npm run test:coverage -w frontend` (istanbul provider; thresholds ratchet,
-never drop).
+components and Playwright for critical flows. Coverage is istanbul in all
+three workspaces (`npm run test:coverage -w <ws>`); `npm run coverage` runs
+them plus the backend core-dir gate (db/mcp/temporal >= 85% lines). Globals:
+agents >= 85%, backend >= 80%, frontend >= 75%. Thresholds ratchet, never
+drop. Backend coverage needs TEST_DATABASE_URL + Temporal (else it prints a
+skip note); mutation (>= 70% per core module) is a local gate via
+`npm run test:mutation`.
 
 ## The one rule
 
@@ -169,21 +173,24 @@ like the routes) seeds 1000 companies plus 12 documents.
 | db | Real Postgres, per-suite DB | `TEST_DATABASE_URL=… npm test -w @kardata/backend` |
 | temporal | Real Temporal and DB, scripted provider | add `KARDATA_TEMPORAL_TEST=1` |
 | e2e | Real browser | `npm run test:e2e -w frontend` |
-| fault | Injected failures | `TEST_DATABASE_URL=… TOXIPROXY_URL=… npm run test:fault` (needs `KARDATA_FILE_TEMPORAL_ADDRESS`) |
-| stress | Data volume, DB concurrency | `TEST_DATABASE_URL=… npm run test:stress` |
+| fault | Injected failures | `TEST_DATABASE_URL=… TOXIPROXY_URL=… npm run test:fault` (needs `KARDATA_FILE_TEMPORAL_ADDRESS` + `backend/dist` built) |
+| stress | Data volume, DB concurrency | `TEST_DATABASE_URL=… KARDATA_STRESS=1 npm run test:stress` (`KARDATA_STRESS_SCALE=reduced` in CI: 100k events, 10 writers) |
 | live | Real Meta, isolated stack | `npm run test:live` (lands in Phase 5) |
 | ui-review | Graded screenshots | `npm run ui:review` (`-- --changed` limits to the branch diff) |
 
-Full gates: `npm run verify` (pr:verify + quality + the registry gate,
-which rides inside the backend suite); `npm run verify:full` adds the db,
-temporal, and full Playwright tiers. It needs `TEST_DATABASE_URL` in env
-(fails fast without it) and sets `KARDATA_TEMPORAL_TEST=1` itself for the
-temporal tier.
+Full gates: `npm run verify` (pr:verify + coverage + quality; the registry
+gate rides inside the backend suite, enforced by default); `npm run
+verify:full` adds the db, temporal, and full Playwright tiers. It needs
+`TEST_DATABASE_URL` in env (fails fast without it) and sets
+`KARDATA_TEMPORAL_TEST=1` itself for the temporal tier; with a DB present,
+verify's coverage step also runs the backend gate.
 
 CI runs a separate pinned Postgres/Temporal integration job. Its databases are
 UUID-suffixed isolated resources; it runs the live DB suite then session, child,
-planning and coordinator workflows. Paid Meta and full stress remain separate
-release gates. Browser outputs are uploaded even on failure. The single local
+planning and coordinator workflows, then the fault tier (with Toxiproxy),
+the reduced stress tier, and the backend coverage gate. Live Meta, full
+stress, ui-review grading, and mutation stay local release gates. Browser
+outputs are uploaded even on failure. The single local
 mechanical entrypoint remains `npm run pr:verify`; live database tests use
 `TEST_DATABASE_URL=... npm test -w @kardata/backend`, Temporal tests additionally
 set `KARDATA_TEMPORAL_TEST=1`. Never run migration tests against a shared DB.

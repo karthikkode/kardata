@@ -1,5 +1,15 @@
 # Implementation status
 
+## 2026-10-06 — Phase 7 gate lock (branch p2-7-gates, unmerged)
+Registry enforced by default (REGISTRY_ENFORCE=0 opts out). Coverage:
+istanbul in all workspaces (agents 85 / backend 80 / frontend 75) +
+scripts/coverage.mjs core-dir gate (db/mcp/temporal 85); `verify` runs
+coverage between pr:verify and quality. Stryker break=70 all configs.
+CI integration adds backend build, toxiproxy, fault, reduced stress
+(100k events, 10 writers), backend coverage; timeout 45min. Backend
+coverage needs DB+Temporal (documented skip otherwise). No suites run
+(D1): gates are wired-but-unproven until final verification.
+
 ## 2026-10-06 — Phase 6 frontend matrix (branch p2-6-frontend, unmerged)
 35 commits: seam hooks (27 components, 0 dep violations), shared
 Skeleton, 69 matrix specs (373 tests, 7 checks each), failure matrix
