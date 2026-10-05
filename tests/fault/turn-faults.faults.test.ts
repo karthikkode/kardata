@@ -5,7 +5,7 @@
 // file. Fault suite, skipped explicitly without KARDATA_TEMPORAL_TEST,
 // TEST_DATABASE_URL, and KARDATA_TEMPORAL_ADDRESS.
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync } from 'node:fs'
+import { chmodSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -45,7 +45,7 @@ async function waitFor(condition: () => Promise<boolean>, timeoutMs: number, wha
   }
 }
 
-describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9', () => {
+describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9-F10', () => {
   let pool: Pool
   let connection: NativeConnection
   let client: WorkflowClient
@@ -57,48 +57,37 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9', () => {
   let savedProvider: string | undefined
   const recordKeys = new Map<string, string>()
 
+  let toolImpl: (name: string, args: Record<string, unknown>, operationId?: string) => Promise<{ content: string; isError?: boolean }> = async () => {
+    throw new Error('TEST tool script unset')
+  }
+  let adapterImpl: () => ProviderAdapter = () => {
+    throw new Error('TEST adapter script unset')
+  }
+  let persistImpl: (sessionId: string, round: number, kind: 'request' | 'response' | 'tool-result', record: Record<string, unknown>) => Promise<void> = async () => {
+    throw new Error('TEST persist script unset')
+  }
+
   const mcp: TurnRunnerMcpClient = {
     async listTools(): Promise<ToolDefinition[]> {
       return [{ name: 'TEST_lookup', description: 'TEST lookup', parameters: { type: 'object', properties: {} } }]
     },
-    async callTool(): Promise<{ content: string; isError?: boolean }> {
-      throw new Error('TEST connect ECONNREFUSED 127.0.0.1:3001')
+    async callTool(name: string, args: Record<string, unknown>, operationId?: string): Promise<{ content: string; isError?: boolean }> {
+      return toolImpl(name, args, operationId)
     },
   }
 
   function deps(sessionId: string): KarbotTurnDeps {
-    const archive = resolveArchiveTarget()
     return {
       loadSessionModel: async () => undefined,
       loadHistory: async () => [],
-      resolveTurnAdapter: (): ProviderAdapter => {
-        let round = 0
-        return {
-          providerName: 'TEST-mcp-down',
-          chat: async () => ({ text: 'TEST unexpected chat', reasoning: '', toolCalls: [], usage: emptyUsage(), completion: 'complete' }),
-          chatStream: async function* (): AsyncIterable<StreamEvent> {
-            round += 1
-            if (round === 1) {
-              yield { kind: 'text_delta', text: 'TEST trying lookup' }
-              yield { kind: 'toolcall_start', index: 0, key: 'TEST-call-0' }
-              yield { kind: 'toolcall_delta', index: 0, textAppend: JSON.stringify({ q: 'TEST' }) }
-              yield { kind: 'toolcall_end', index: 0, call: { id: 'TEST-call-0', name: 'TEST_lookup', args: { q: 'TEST' } } }
-              yield { kind: 'done', usage: emptyUsage(), completion: 'complete' }
-              return
-            }
-            yield { kind: 'text_delta', text: 'The lookup tool is down (connection refused), so I cannot fetch that right now.' }
-            yield { kind: 'done', usage: emptyUsage(), completion: 'complete' }
-          },
-        }
-      },
+      resolveTurnAdapter: () => adapterImpl(),
       mcp,
       publishDelta: async () => {},
       publishReasoning: async () => {},
       publishTool: async () => {},
       log: () => {},
       persistExecution: async (round, kind, record) => {
-        const ref = await persistExecutionRecord(archive, sessionId, record)
-        recordKeys.set(`${sessionId}:${round}:${kind}`, ref.key)
+        await persistImpl(sessionId, round, kind, record)
       },
     }
   }
@@ -181,6 +170,33 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9', () => {
   }
 
   it('F9: /mcp down becomes a source gap the agent reports; the turn completes', async () => {
+    toolImpl = async () => {
+      throw new Error('TEST connect ECONNREFUSED 127.0.0.1:3001')
+    }
+    adapterImpl = () => {
+      let round = 0
+      return {
+        providerName: 'TEST-mcp-down',
+        chat: async () => ({ text: 'TEST unexpected chat', reasoning: '', toolCalls: [], usage: emptyUsage(), completion: 'complete' }),
+        chatStream: async function* (): AsyncIterable<StreamEvent> {
+          round += 1
+          if (round === 1) {
+            yield { kind: 'text_delta', text: 'TEST trying lookup' }
+            yield { kind: 'toolcall_start', index: 0, key: 'TEST-call-0' }
+            yield { kind: 'toolcall_delta', index: 0, textAppend: JSON.stringify({ q: 'TEST' }) }
+            yield { kind: 'toolcall_end', index: 0, call: { id: 'TEST-call-0', name: 'TEST_lookup', args: { q: 'TEST' } } }
+            yield { kind: 'done', usage: emptyUsage(), completion: 'complete' }
+            return
+          }
+          yield { kind: 'text_delta', text: 'The lookup tool is down (connection refused), so I cannot fetch that right now.' }
+          yield { kind: 'done', usage: emptyUsage(), completion: 'complete' }
+        },
+      }
+    }
+    persistImpl = async (sessionId, round, kind, record) => {
+      const ref = await persistExecutionRecord(resolveArchiveTarget(), sessionId, record)
+      recordKeys.set(`${sessionId}:${round}:${kind}`, ref.key)
+    }
     const { sessionId, handle } = await startTurn('F9 hello')
     const reply = 'The lookup tool is down (connection refused), so I cannot fetch that right now.'
     await waitFor(async () => {
@@ -218,5 +234,49 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9', () => {
     await handle.signal('runCancel')
     expect(await handle.result()).toBe('cancelled')
     console.log('[fault F9] attempts=1 tool-outcome=error gap-reported=true')
+  }, 180_000)
+
+  it('F10: read-only archive retries the record, then fails honestly without crashing', async () => {
+    const pairs: string[] = []
+    toolImpl = async () => ({ content: 'TEST unused tool' })
+    adapterImpl = () => ({
+      providerName: 'TEST-ro',
+      chat: async () => ({ text: 'TEST unexpected chat', reasoning: '', toolCalls: [], usage: emptyUsage(), completion: 'complete' }),
+      chatStream: async function* (): AsyncIterable<StreamEvent> {
+        yield { kind: 'text_delta', text: 'TEST ro reply' }
+        yield { kind: 'done', usage: emptyUsage(), completion: 'complete' }
+      },
+    })
+    persistImpl = async (sessionId, round, kind, record) => {
+      pairs.push(`${round}:${kind}`)
+      await persistExecutionRecord(resolveArchiveTarget(), sessionId, record)
+    }
+    chmodSync(archiveDir, 0o555)
+    try {
+      const { sessionId, handle } = await startTurn('F10 hello')
+      expect(await handle.result()).toBe('error')
+      expect(pairs).toEqual(['1:request', '1:request', '1:request'])
+      await projectNewEvents(pool)
+      const thread = await getThread(pool, sessionId)
+      const failed = (thread?.messages ?? []).find((message) =>
+        (message.payload as Record<string, unknown>)['failed'] === true,
+      )
+      expect((failed?.payload as Record<string, unknown> | undefined)?.['text']).toBe('I could not complete that reply. Please try again.')
+      const { rows: attempts } = await pool.query<{ attempt: number }>(
+        'SELECT DISTINCT attempt FROM execution_rounds WHERE thread_key = $1 ORDER BY attempt ASC',
+        [sessionId],
+      )
+      expect(attempts.map((row) => row.attempt)).toEqual([1, 2, 3])
+      const { rows: refs } = await pool.query<{ request_ref: string | null }>(
+        'SELECT request_ref FROM execution_rounds WHERE thread_key = $1',
+        [sessionId],
+      )
+      expect(refs.length).toBeGreaterThan(0)
+      for (const row of refs) expect(row.request_ref).toBeNull()
+      expect(await resolveArchiveTarget().list('execution-records')).toEqual([])
+      console.log('[fault F10] persist-tries=3 result=error honest=true archive=empty refs=null')
+    } finally {
+      chmodSync(archiveDir, 0o700)
+    }
   }, 180_000)
 })
