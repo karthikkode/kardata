@@ -2155,9 +2155,9 @@
   tiers:
     - todo
   states: []
-- id: db.file_jobs.fileProcessingWorkflowId
+- id: db.file_processing_dispatch.fileProcessingWorkflowId
   layer: db
-  surface: backend/src/db/file-jobs.ts
+  surface: backend/src/db/file-processing-dispatch.ts
   tiers:
     - todo
   states: []
@@ -2167,9 +2167,9 @@
   tiers:
     - todo
   states: []
-- id: db.file_jobs.listFileAdmissionCandidates
+- id: db.file_processing_dispatch.listFileAdmissionCandidates
   layer: db
-  surface: backend/src/db/file-jobs.ts
+  surface: backend/src/db/file-processing-dispatch.ts
   tiers:
     - todo
   states: []
@@ -2185,9 +2185,9 @@
   tiers:
     - todo
   states: []
-- id: db.file_jobs.markFileProcessingDispatchOutcome
+- id: db.file_processing_dispatch.markFileProcessingDispatchOutcome
   layer: db
-  surface: backend/src/db/file-jobs.ts
+  surface: backend/src/db/file-processing-dispatch.ts
   tiers:
     - todo
   states: []
@@ -2245,9 +2245,9 @@
   tiers:
     - todo
   states: []
-- id: db.file_jobs.reserveFileProcessingDispatch
+- id: db.file_processing_dispatch.reserveFileProcessingDispatch
   layer: db
-  surface: backend/src/db/file-jobs.ts
+  surface: backend/src/db/file-processing-dispatch.ts
   tiers:
     - todo
   states: []
@@ -5487,6 +5487,24 @@
 - id: frontend.src.components.workspace_files
   layer: frontend
   surface: frontend/src/components/workspace-files.tsx
+  tiers:
+    - todo
+  states: []
+- id: db.file_jobs.assertRevision
+  layer: db
+  surface: backend/src/db/file-jobs.ts
+  tiers:
+    - todo
+  states: []
+- id: db.file_jobs.receiptTransaction
+  layer: db
+  surface: backend/src/db/file-jobs.ts
+  tiers:
+    - todo
+  states: []
+- id: db.file_jobs.visible
+  layer: db
+  surface: backend/src/db/file-jobs.ts
   tiers:
     - todo
   states: []

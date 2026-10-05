@@ -10,6 +10,7 @@ export * from './workspace-research.js'
 export * from './reconciliation.js'
 export { listSupervisionAlerts } from './alerts.js'
 export * from './file-jobs.js'
+export * from './file-processing-dispatch.js'
 export * from './execution-epochs.js'
 export { DbContractError } from './errors.js'
 export {
