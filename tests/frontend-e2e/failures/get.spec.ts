@@ -1,11 +1,11 @@
-// GET endpoint failure matrix (P6.4): every unary read endpoint x 9 faults
-// (500/401/403/404/409/429/32s-timeout/abort/malformed). Verified cases
+// GET endpoint failure matrix (P6.4): 23 unary read endpoints x 9 faults
+// (500/401/403/404/409/429/32s-timeout/abort/malformed). 17 verified cases
 // assert the designed error/denied UI + retry + draft kept, then heal.
-// Unverified cases (sessions/providers/skills/artifacts/queue: no proven
-// error UI) assert chrome intact + console clean + a grading shot, and the
-// review package records them for verification follow-up. Page-level
-// offline (navigator) is covered per consumer below; per-endpoint abort
-// while online maps to the error UI by apiErrorStatus design.
+// 6 unverified (providers/skills/artifacts/queue/references/session-one:
+// no proven error UI) assert chrome intact + console clean + a grading
+// shot, recorded for verification follow-up. Page-level offline
+// (navigator) is covered per consumer below; per-endpoint abort while
+// online maps to the error UI by apiErrorStatus design.
 import { expect, test } from '@playwright/test'
 import { serveApi } from '../support/api'
 import { makeCompanies, makeSessions, matrixSector } from '../support/factory'
@@ -63,9 +63,14 @@ const CASES: FaultCase[] = [
     id: 'frontend.src.components.chat.SessionsPanel', label: 'GET /v1/sessions', method: 'GET',
     pattern: /\/v1\/sessions(\?.*)?$/, route: '/',
     setup: [...DOCK],
-    healAnchors: [{ kind: 'role', role: 'complementary', name: 'Assistant chat' }],
+    errorAnchors: [{ kind: 'role', role: 'alert' }],
+    deniedAnchors: [{ kind: 'text', text: 'Chat is not shared with this key.' }],
+    healAnchors: [
+      { kind: 'role', role: 'complementary', name: 'Assistant chat' },
+      { kind: 'role', role: 'log', name: 'Chat messages' },
+    ],
+    retry: TRY_AGAIN,
     refetch: { reload: true },
-    unverified: true,
   },
   {
     id: 'frontend.src.components.chat.ChatLog', label: 'GET /v1/sessions/:id/threads', method: 'GET',
@@ -266,6 +271,37 @@ const CASES: FaultCase[] = [
     id: 'frontend.src.components.SectorWorkspace', label: 'GET thread queue', method: 'GET',
     pattern: /\/v1\/threads\/[^/]+\/queue$/, route: CHAT,
     healAnchors: [{ kind: 'css', css: '[aria-label="Conversation messages"]' }],
+    refetch: { reload: true },
+    unverified: true,
+  },
+  {
+    id: 'frontend.src.components.chat.MessageBubble', label: 'GET artifact references', method: 'GET',
+    pattern: /\/references/, route: '/',
+    setup: [...DOCK],
+    healAnchors: [
+      { kind: 'role', role: 'complementary', name: 'Assistant chat' },
+      { kind: 'role', role: 'log', name: 'Chat messages' },
+    ],
+    refetch: { reload: true },
+    unverified: true,
+  },
+  {
+    id: 'frontend.src.components.ExecutionInspector', label: 'GET execution record', method: 'GET',
+    pattern: /\/execution-records\/[^/]+$/, route: CHAT,
+    setup: [
+      { click: { kind: 'role', role: 'button', name: 'Conversation options' } },
+      { click: { kind: 'role', role: 'menuitem', name: 'Execution records' } },
+    ],
+    errorAnchors: [{ kind: 'role', role: 'alert' }],
+    deniedAnchors: [DENIED_COPY],
+    healAnchors: [{ kind: 'role', role: 'dialog', name: 'Execution records' }],
+    retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
+    refetch: { steps: [{ click: { kind: 'css', css: '[aria-label="Recorded boundaries"] button' } }] },
+  },
+  {
+    id: 'frontend.src.components.ModelToolbar', label: 'GET /v1/sessions/:id', method: 'GET',
+    pattern: /\/v1\/sessions\/[^/]+$/, route: CHAT,
+    healAnchors: [{ kind: 'css', css: '[aria-label="Choose a model"]' }],
     refetch: { reload: true },
     unverified: true,
   },
