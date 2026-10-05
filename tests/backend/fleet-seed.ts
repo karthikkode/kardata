@@ -87,13 +87,14 @@ export interface StressVolume {
   documents: number
 }
 
-export const STRESS_VOLUME: StressVolume = {
-  events: 1_000_000,
-  messages: 200_000,
-  rounds: 100_000,
-  companies: 20_000,
-  documents: 5_000,
-}
+// Phase 7 reduced scale for the CI integration job:
+// KARDATA_STRESS_SCALE=reduced seeds 1/10th (100k events, 20 sessions,
+// 200 threads). Full scale stays the default (local release gate).
+const REDUCED_SCALE = process.env['KARDATA_STRESS_SCALE'] === 'reduced'
+
+export const STRESS_VOLUME: StressVolume = REDUCED_SCALE
+  ? { events: 100_000, messages: 20_000, rounds: 10_000, companies: 2_000, documents: 500 }
+  : { events: 1_000_000, messages: 200_000, rounds: 100_000, companies: 20_000, documents: 5_000 }
 
 export interface StressSeed {
   sectorId: string
@@ -103,8 +104,8 @@ export interface StressSeed {
 }
 
 const STRESS_SEED = 20261005
-const STRESS_SESSIONS = 200
-const STRESS_THREADS = 2000
+const STRESS_SESSIONS = REDUCED_SCALE ? 20 : 200
+const STRESS_THREADS = REDUCED_SCALE ? 200 : 2000
 
 async function batchInsert(pool: Pool, table: string, columns: string, count: number, makeRow: (index: number) => unknown[], batchSize: number): Promise<void> {
   const width = columns.split(',').length
