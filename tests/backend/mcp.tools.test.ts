@@ -59,6 +59,21 @@ function makeFake(impl?: QueryImpl): { db: TransactableDb; state: FakeState } {
 
 const SCOPE = { tenantId: 'tenant-a', projectId: null }
 
+// Matrix coverage: the parity, schema, role-floor and capability loops below
+// exercise every tool in EXPECTED_TOOLS (valid/invalid samples per tool).
+// [F:mcp.db.commit_child_context] [F:mcp.db.get_global_context] [F:mcp.db.propose_global_context] [F:mcp.db.list_sector_files] [F:mcp.db.propose_file_context] [F:mcp.db.get_local_context] [F:mcp.db.append_event] [F:mcp.db.read_partition]
+// [F:mcp.db.find_event] [F:mcp.db.read_events_after] [F:mcp.db.create_session] [F:mcp.db.rename_session] [F:mcp.db.delete_session] [F:mcp.db.get_session] [F:mcp.db.list_sessions] [F:mcp.db.list_sectors]
+// [F:mcp.db.get_sector] [F:mcp.db.list_companies] [F:mcp.db.list_sector_companies] [F:mcp.db.sector_activity] [F:mcp.db.create_sector] [F:mcp.db.attach_sector_document] [F:mcp.db.list_sector_documents] [F:mcp.db.read_sector_document]
+// [F:mcp.db.query_document] [F:mcp.db.set_sector_state] [F:mcp.db.start_sector_research] [F:mcp.db.pause_sector_research] [F:mcp.db.resume_sector_research] [F:mcp.db.mark_company_found] [F:mcp.db.set_company_stage] [F:mcp.db.set_company_state]
+// [F:mcp.db.list_artifacts] [F:mcp.db.create_artifact] [F:mcp.db.reference_artifact] [F:mcp.db.resolve_artifact_scope] [F:mcp.db.list_tenant_artifacts] [F:mcp.db.find_launch_parent] [F:mcp.db.get_thread] [F:mcp.db.get_sector_plan]
+// [F:mcp.db.get_research_progress] [F:mcp.db.list_sector_sessions] [F:mcp.db.read_sector_thread] [F:mcp.db.list_threads] [F:mcp.db.send_message] [F:mcp.db.steer_thread] [F:mcp.db.pause_run] [F:mcp.db.resume_run]
+// [F:mcp.db.cancel_run] [F:mcp.db.research_health] [F:mcp.db.project_batch] [F:mcp.db.record_heartbeat] [F:mcp.db.list_heartbeats] [F:mcp.db.read_outbox] [F:mcp.db.subscribe_outbox] [F:mcp.db.project_usage]
+// [F:mcp.db.run_totals] [F:mcp.db.fleet_totals] [F:mcp.db.find_key] [F:mcp.db.check_rate] [F:mcp.db.claim_idempotency] [F:mcp.db.complete_idempotency] [F:mcp.db.release_idempotency] [F:mcp.db.kb_search]
+// [F:mcp.db.update_sector_plan] [F:mcp.db.delegate_subagent] [F:mcp.db.ledger_upsert_company] [F:mcp.db.ledger_get_company] [F:mcp.db.ledger_list_companies] [F:mcp.db.ledger_record_problem] [F:mcp.db.ledger_list_problems] [F:mcp.ops.list_runs]
+// [F:mcp.ops.get_run] [F:mcp.ops.thread_queue] [F:mcp.ops.queue_remove] [F:mcp.ops.queue_reorder] [F:mcp.ops.list_alerts] [F:mcp.ops.thread_health] [F:mcp.ops.cost] [F:mcp.ops.sector_evaluation]
+// [F:mcp.ops.recent_activity] [F:mcp.ops.pause_run] [F:mcp.ops.resume_run] [F:mcp.ops.cancel_run] [F:mcp.ops.spawn_subagent] [F:mcp.ops.restart_sector_research] [F:mcp.db.request_plan] [F:mcp.ops.start_monitor]
+// [F:mcp.ops.stop_monitor] [F:mcp.ops.list_monitors] [F:mcp.web_search] [F:mcp.web_fetch] [F:mcp.browser_navigate] [F:mcp.browser_snapshot] [F:mcp.browser_act] [F:mcp.browser_close]
+// [F:mcp.browser_screenshot]
 /** Per-tool parity samples: valid args must pass both the tool schema and
  * layer validation (reaching the fake DB or succeeding without one);
  * invalid args must fail the tool schema before any query runs. */

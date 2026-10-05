@@ -7,7 +7,7 @@ import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import { FakeRunsGateway } from './fake-gateway.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('MCP spawn/restart/propose/request tools [F:mcp.ops.spawn_subagent] [F:mcp.ops.restart_sector_research] [F:mcp.db.propose_global_context] [F:mcp.db.request_plan]', () => {
+describe.skipIf(!TEST_DATABASE_URL)('MCP spawn/restart/propose/request tools [F:mcp.ops.spawn_subagent] [F:mcp.ops.restart_sector_research] [F:mcp.db.propose_global_context] [F:mcp.db.request_plan] [F:db.index.restartSectorSweep]', () => {
   let pool: Pool, fake: FakeRunsGateway, sectorA: string, sectorB: string, sessionA: string, karbotSession: string, researchSession: string
   const scope = { tenantId: 'test-ops-spawn', projectId: null }
   const karbot = (role: 'viewer' | 'operator' | 'approver' = 'approver', executionThread?: string): McpToolContext =>

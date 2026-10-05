@@ -6,7 +6,7 @@ import type { McpToolContext } from '../../backend/src/mcp/tools-types.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('MCP ops observability tools [F:mcp.ops.list_alerts] [F:mcp.ops.thread_health] [F:mcp.ops.cost] [F:mcp.ops.sector_evaluation] [F:mcp.ops.recent_activity]', () => {
+describe.skipIf(!TEST_DATABASE_URL)('MCP ops observability tools [F:mcp.ops.list_alerts] [F:mcp.ops.thread_health] [F:mcp.ops.cost] [F:mcp.ops.sector_evaluation] [F:mcp.ops.recent_activity] [F:db.workspace.threadHealth] [F:db.workspace.recentActivity] [F:db.evaluation.readThreadCost] [F:db.evaluation.readSectorCost] [F:db.index.readThreadCost] [F:db.index.readSectorCost] [F:db.index.ThreadCost]', () => {
   let pool: Pool, sectorA: string, sessionA: string
   const scope = { tenantId: 'test-ops-obs', projectId: null }
   const karbot = (role: 'viewer' | 'approver' = 'approver'): McpToolContext => ({ pool, scope, role, keyId: 'test-ops-key' })

@@ -7,7 +7,7 @@ import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import { FakeRunsGateway } from './fake-gateway.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('MCP monitor tools [F:mcp.ops.start_monitor] [F:mcp.ops.stop_monitor] [F:mcp.ops.list_monitors]', () => {
+describe.skipIf(!TEST_DATABASE_URL)('MCP monitor tools [F:mcp.ops.start_monitor] [F:mcp.ops.stop_monitor] [F:mcp.ops.list_monitors] [F:db.monitors.startMonitor] [F:db.monitors.stopMonitor] [F:db.monitors.listMonitors] [F:db.monitors.getMonitor] [F:db.monitors.claimMonitorTick] [F:db.monitors.releaseMonitorTick] [F:db.monitors.finishMonitor] [F:db.index.startMonitor] [F:db.index.stopMonitor] [F:db.index.listMonitors] [F:db.index.getMonitor] [F:db.index.claimMonitorTick] [F:db.index.releaseMonitorTick] [F:db.index.finishMonitor] [F:db.index.MonitorRecord] [F:db.index.MonitorRunner] [F:db.index.StartMonitorInput]', () => {
   let pool: Pool, fake: FakeRunsGateway, sectorA: string, sessionA: string, karbotSession: string
   const scope = { tenantId: 'test-ops-monitor', projectId: null }
   const karbot = (role: 'viewer' | 'operator' | 'approver' = 'operator', thread: string | null = karbotSession): McpToolContext =>

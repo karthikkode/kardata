@@ -5,7 +5,7 @@ import { TEST_DATABASE_URL } from './db-helper.js'
 
 const ENABLED = process.env['KARDATA_TEMPORAL_TEST'] === '1' && !!TEST_DATABASE_URL
 
-describe.skipIf(!ENABLED)('karbotMonitor timer workflow [F:backend.workflow.monitor.karbotMonitor] [F:backend.activity.monitor.monitorTickActivity] [F:backend.activity.monitor.finishMonitorActivity]', () => {
+describe.skipIf(!ENABLED)('karbotMonitor timer workflow [F:backend.workflow.monitor.karbotMonitor] [F:backend.workflow.monitor.monitorStopSignal] [F:backend.activity.monitor.monitorTickActivity] [F:backend.activity.monitor.finishMonitorActivity]', () => {
   it('fires repeated ticks, then stops on signal', async () => {
     const [{ Client }, { connectClient, connectWorker }, { createLaneWorker }, { msToTs }] = await Promise.all([
       import('@temporalio/client'), import('../../backend/src/temporal/connection.js'),

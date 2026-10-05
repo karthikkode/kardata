@@ -7,7 +7,7 @@ import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import { FakeRunsGateway } from './fake-gateway.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('MCP ops runs and queue tools [F:mcp.ops.list_runs] [F:mcp.ops.get_run] [F:mcp.ops.thread_queue] [F:mcp.ops.queue_remove] [F:mcp.ops.queue_reorder]', () => {
+describe.skipIf(!TEST_DATABASE_URL)('MCP ops runs and queue tools [F:mcp.ops.list_runs] [F:mcp.ops.get_run] [F:mcp.ops.thread_queue] [F:mcp.ops.queue_remove] [F:mcp.ops.queue_reorder] [F:db.threads.listThreadRuns] [F:db.threads.getThreadRun] [F:db.threads.listThreadQueue] [F:db.threads.removeThreadQueueItem] [F:db.threads.reorderThreadQueue] [F:db.index.listThreadRuns] [F:db.index.getThreadRun] [F:db.index.listThreadQueue] [F:db.index.removeThreadQueueItem] [F:db.index.reorderThreadQueue]', () => {
   let pool: Pool, fake: FakeRunsGateway, sectorA: string, sessionA: string, sessionB: string, foreign: string
   const scope = { tenantId: 'test-ops-runs', projectId: null }
   const karbot = (role: 'viewer' | 'operator' | 'approver' = 'approver'): McpToolContext =>

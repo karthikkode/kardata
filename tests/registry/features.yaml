@@ -4802,469 +4802,473 @@
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.browser_close
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.browser_navigate
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.browser_screenshot
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.browser_snapshot
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.append_event
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.attach_sector_document
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.cancel_run
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.check_rate
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.claim_idempotency
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.commit_child_context
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.complete_idempotency
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.create_artifact
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.create_sector
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.create_session
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.delegate_subagent
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.delete_session
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.find_event
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.find_key
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.find_launch_parent
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.fleet_totals
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.get_global_context
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.get_local_context
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.get_research_progress
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
+    - live
   states: []
 - id: mcp.db.get_sector
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.get_sector_plan
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.get_session
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.get_thread
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.kb_search
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.ledger_get_company
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.ledger_list_companies
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.ledger_list_problems
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.ledger_record_problem
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.ledger_upsert_company
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.list_artifacts
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.list_companies
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.list_heartbeats
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.list_sector_companies
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.list_sector_documents
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.list_sector_files
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.list_sector_sessions
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.list_sectors
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.list_sessions
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.list_tenant_artifacts
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.list_threads
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.mark_company_found
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
+    - live
   states: []
 - id: mcp.db.pause_run
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.pause_sector_research
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.project_batch
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.project_usage
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.propose_file_context
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.propose_global_context
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.query_document
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.read_events_after
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.read_outbox
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.read_partition
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.read_sector_document
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.read_sector_thread
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
+    - live
   states: []
 - id: mcp.db.record_heartbeat
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.reference_artifact
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.release_idempotency
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.rename_session
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.research_health
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.resolve_artifact_scope
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.resume_run
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.resume_sector_research
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.run_totals
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.sector_activity
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.send_message
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.set_company_stage
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.set_company_state
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.set_sector_state
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.start_sector_research
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.steer_thread
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
+    - live
   states: []
 - id: mcp.db.subscribe_outbox
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.update_sector_plan
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.web_fetch
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.web_search
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: frontend.src.components.chat.ChatComposer
   layer: frontend
@@ -5742,203 +5746,350 @@
   layer: db
   surface: backend/src/db/evaluation.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.evaluation.readThreadCost
   layer: db
   surface: backend/src/db/evaluation.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.ThreadCost
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.getThreadRun
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.listThreadQueue
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.listThreadRuns
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.readSectorCost
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.readThreadCost
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.removeThreadQueueItem
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.reorderThreadQueue
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.restartSectorSweep
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.threads.getThreadRun
   layer: db
   surface: backend/src/db/threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.threads.listThreadQueue
   layer: db
   surface: backend/src/db/threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.threads.listThreadRuns
   layer: db
   surface: backend/src/db/threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.threads.removeThreadQueueItem
   layer: db
   surface: backend/src/db/threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.threads.reorderThreadQueue
   layer: db
   surface: backend/src/db/threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace.recentActivity
   layer: db
   surface: backend/src/db/workspace.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace.threadHealth
   layer: db
   surface: backend/src/db/workspace.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.db.request_plan
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.ops.cancel_run
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.ops.cost
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.ops.get_run
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.ops.list_alerts
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.ops.list_runs
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.ops.pause_run
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.ops.queue_remove
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.ops.queue_reorder
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.ops.recent_activity
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.ops.restart_sector_research
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.ops.resume_run
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.ops.sector_evaluation
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.ops.spawn_subagent
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.ops.thread_health
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.ops.thread_queue
   layer: mcp
   surface: backend/src/mcp/tools.ts
   tiers:
-    - todo
+    - db
+  states: []
+- id: backend.activity.monitor.finishMonitorActivity
+  layer: backend
+  surface: backend/src/temporal/activities/monitor.ts
+  tiers:
+    - temporal
+  states: []
+- id: backend.activity.monitor.monitorTickActivity
+  layer: backend
+  surface: backend/src/temporal/activities/monitor.ts
+  tiers:
+    - temporal
+    - live
+  states: []
+- id: backend.workflow.monitor.karbotMonitor
+  layer: backend
+  surface: backend/src/temporal/workflows/monitor.ts
+  tiers:
+    - temporal
+    - live
+  states: []
+- id: backend.workflow.monitor.monitorStopSignal
+  layer: backend
+  surface: backend/src/temporal/workflows/monitor.ts
+  tiers:
+    - temporal
+  states: []
+- id: db.index.MonitorRecord
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - db
+  states: []
+- id: db.index.MonitorRunner
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - db
+  states: []
+- id: db.index.StartMonitorInput
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - db
+  states: []
+- id: db.index.claimMonitorTick
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - db
+  states: []
+- id: db.index.finishMonitor
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - db
+  states: []
+- id: db.index.getMonitor
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - db
+  states: []
+- id: db.index.listMonitors
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - db
+  states: []
+- id: db.index.releaseMonitorTick
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - db
+  states: []
+- id: db.index.startMonitor
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - db
+  states: []
+- id: db.index.stopMonitor
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - db
+  states: []
+- id: db.monitors.claimMonitorTick
+  layer: db
+  surface: backend/src/db/monitors.ts
+  tiers:
+    - db
+  states: []
+- id: db.monitors.finishMonitor
+  layer: db
+  surface: backend/src/db/monitors.ts
+  tiers:
+    - db
+  states: []
+- id: db.monitors.getMonitor
+  layer: db
+  surface: backend/src/db/monitors.ts
+  tiers:
+    - db
+  states: []
+- id: db.monitors.listMonitors
+  layer: db
+  surface: backend/src/db/monitors.ts
+  tiers:
+    - db
+  states: []
+- id: db.monitors.releaseMonitorTick
+  layer: db
+  surface: backend/src/db/monitors.ts
+  tiers:
+    - db
+  states: []
+- id: db.monitors.startMonitor
+  layer: db
+  surface: backend/src/db/monitors.ts
+  tiers:
+    - db
+  states: []
+- id: db.monitors.stopMonitor
+  layer: db
+  surface: backend/src/db/monitors.ts
+  tiers:
+    - db
+  states: []
+- id: mcp.ops.list_monitors
+  layer: mcp
+  surface: backend/src/mcp/tools.ts
+  tiers:
+    - db
+  states: []
+- id: mcp.ops.start_monitor
+  layer: mcp
+  surface: backend/src/mcp/tools.ts
+  tiers:
+    - db
+    - live
+  states: []
+- id: mcp.ops.stop_monitor
+  layer: mcp
+  surface: backend/src/mcp/tools.ts
+  tiers:
+    - db
   states: []

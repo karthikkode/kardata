@@ -1,5 +1,6 @@
 // Karbot live tests (real Meta): L-K1 status answers, L-K2 research
 // steering, L-K3 monitor ticks. Spend is diffed per test.
+// Requires KARDATA_LIVE_META=1 (via LIVE_META_ENABLED) plus TEST_DATABASE_URL.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { appendEvent, createSector, createSession, ensureResearchSession, markCompanyFound, recordPlanVersion } from '../../../backend/src/db/index.js'
 import { projectNewEvents } from '../../../backend/src/projector.js'
