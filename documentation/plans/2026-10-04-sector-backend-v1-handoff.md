@@ -565,7 +565,8 @@ None. Every A-item shipped, every live test passes, B4 green.
 ## 10. Follow-up sector-backend-v1.1 (two fixes, on main)
 
 Branch `sector-backend-v1.1` (from `main @ 66ba3ce`).
-Commit: `(hash appended at commit time)`.
+Commit: `18f81a4` (fixes + docs; this hash recorded by a
+follow-up commit).
 Never pushed, never merged (merge needs the owner).
 
 ### Fix 1: subagents use inherited context, reliably
