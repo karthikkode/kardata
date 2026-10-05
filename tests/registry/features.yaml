@@ -1681,12 +1681,6 @@
   tiers:
     - todo
   states: []
-- id: db.company_ledger.ProblemStatus
-  layer: db
-  surface: backend/src/db/company-ledger.ts
-  tiers:
-    - todo
-  states: []
 - id: db.company_ledger.RecordProblemInput
   layer: db
   surface: backend/src/db/company-ledger.ts
@@ -1861,12 +1855,6 @@
   tiers:
     - todo
   states: []
-- id: db.document_units.insertDocumentUnits
-  layer: db
-  surface: backend/src/db/document-units.ts
-  tiers:
-    - todo
-  states: []
 - id: db.document_units.listDocumentUnitOrdinals
   layer: db
   surface: backend/src/db/document-units.ts
@@ -1897,25 +1885,7 @@
   tiers:
     - todo
   states: []
-- id: db.events.ARTIFACT_REFERENCED_EVENT
-  layer: db
-  surface: backend/src/db/events.ts
-  tiers:
-    - todo
-  states: []
 - id: db.events.EventEnvelope
-  layer: db
-  surface: backend/src/db/events.ts
-  tiers:
-    - todo
-  states: []
-- id: db.events.SESSION_DELETED_EVENT
-  layer: db
-  surface: backend/src/db/events.ts
-  tiers:
-    - todo
-  states: []
-- id: db.events.SESSION_MODEL_EVENT
   layer: db
   surface: backend/src/db/events.ts
   tiers:
@@ -2125,12 +2095,6 @@
   tiers:
     - todo
   states: []
-- id: db.file_jobs.FileProcessingPagedManifest
-  layer: db
-  surface: backend/src/db/file-jobs.ts
-  tiers:
-    - todo
-  states: []
 - id: db.file_jobs.assembleFileProcessingUnits
   layer: db
   surface: backend/src/db/file-jobs.ts
@@ -2204,12 +2168,6 @@
     - todo
   states: []
 - id: db.file_jobs.listFileAdmissionCandidates
-  layer: db
-  surface: backend/src/db/file-jobs.ts
-  tiers:
-    - todo
-  states: []
-- id: db.file_jobs.listFileProcessingJobs
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
@@ -2317,18 +2275,6 @@
   tiers:
     - todo
   states: []
-- id: db.file_jobs.streamFileProcessingUnits
-  layer: db
-  surface: backend/src/db/file-jobs.ts
-  tiers:
-    - todo
-  states: []
-- id: db.file_pipeline.MAX_OCR_IMAGES
-  layer: db
-  surface: backend/src/db/file-pipeline.ts
-  tiers:
-    - todo
-  states: []
 - id: db.file_pipeline.OCR_CONFIDENCE_MIN
   layer: db
   surface: backend/src/db/file-pipeline.ts
@@ -2371,12 +2317,6 @@
   tiers:
     - todo
   states: []
-- id: db.file_pipeline.documentExtension
-  layer: db
-  surface: backend/src/db/file-pipeline.ts
-  tiers:
-    - todo
-  states: []
 - id: db.file_pipeline.extractFileUnits
   layer: db
   surface: backend/src/db/file-pipeline.ts
@@ -2386,18 +2326,6 @@
 - id: db.file_pipeline.sha256Hex
   layer: db
   surface: backend/src/db/file-pipeline.ts
-  tiers:
-    - todo
-  states: []
-- id: db.heartbeats.HEARTBEAT_WRITE_MS
-  layer: db
-  surface: backend/src/db/heartbeats.ts
-  tiers:
-    - todo
-  states: []
-- id: db.heartbeats.heartbeatThrottleKey
-  layer: db
-  surface: backend/src/db/heartbeats.ts
   tiers:
     - todo
   states: []
@@ -2419,78 +2347,6 @@
   tiers:
     - todo
   states: []
-- id: db.index.ARTIFACT_REFERENCED_EVENT
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.ActivityEntry
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.AppendedEvent
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.ArtifactSummary
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.COMPANY_FOUND_EVENT
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.COMPANY_STAGE_CHANGED_EVENT
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.COMPANY_STATE_CHANGED_EVENT
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.CheckpointTx
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.ClassifiedFile
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.CompactContextResult
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.CompanyFilters
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.CompanyRecord
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
 - id: db.index.CompanyStage
   layer: db
   surface: backend/src/db/index.ts
@@ -2498,30 +2354,6 @@
     - todo
   states: []
 - id: db.index.ConnectableDb
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.ContextFileView
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.ContextNoteView
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.ContextUnitView
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.CreateArtifactInput
   layer: db
   surface: backend/src/db/index.ts
   tiers:
@@ -2551,79 +2383,7 @@
   tiers:
     - todo
   states: []
-- id: db.index.DocumentChunksResult
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.DocumentSummaryResult
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.DocumentTocEntry
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.DocumentUnit
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
 - id: db.index.EventEnvelope
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.ExecutionRecordMetadata
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.ExtractedUnit
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.ExtractionStatus
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.FileExtraction
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.HEARTBEAT_WRITE_MS
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.IdempotencyOutcome
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.IngestedDocument
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.KbChunkInput
   layer: db
   surface: backend/src/db/index.ts
   tiers:
@@ -2635,43 +2395,7 @@
   tiers:
     - todo
   states: []
-- id: db.index.KbSearchHit
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.KeyRecord
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.LedgerCompany
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.LedgerProblem
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
 - id: db.index.LedgerQualification
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.LedgerResult
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.OCR_CONFIDENCE_MIN
   layer: db
   surface: backend/src/db/index.ts
   tiers:
@@ -2683,25 +2407,7 @@
   tiers:
     - todo
   states: []
-- id: db.index.OcrResult
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
 - id: db.index.OutboxRow
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.OutboxSubscription
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.Paging
   layer: db
   surface: backend/src/db/index.ts
   tiers:
@@ -2713,73 +2419,7 @@
   tiers:
     - todo
   states: []
-- id: db.index.PoolBudget
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.PoolStat
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.ProblemStatus
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.ProjectionResult
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.QuerySectorDocumentInput
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.QuerySectorDocumentResult
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.RateDecision
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
 - id: db.index.RecordProblemInput
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.ResearchHealth
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.ResearchSessionHealth
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.ResearchThreadHealth
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.SECTOR_CREATED_EVENT
   layer: db
   surface: backend/src/db/index.ts
   tiers:
@@ -2791,85 +2431,7 @@
   tiers:
     - todo
   states: []
-- id: db.index.SECTOR_PLAN_APPROVED_EVENT
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.SECTOR_PLAN_WRITTEN_EVENT
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.SECTOR_RESEARCH_STARTED_EVENT
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.SECTOR_STATE_CHANGED_EVENT
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.SECTOR_TRANSITIONS
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.SERVER_POOL_BUDGET
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.SESSION_DELETED_EVENT
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.SESSION_MODEL_EVENT
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
 - id: db.index.ScriptedOcrAdapter
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.SectorContextView
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.SectorDigest
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.SectorDocument
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.SectorDocumentStatus
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.SectorFilters
   layer: db
   surface: backend/src/db/index.ts
   tiers:
@@ -2881,37 +2443,7 @@
   tiers:
     - todo
   states: []
-- id: db.index.SectorPlanError
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.SectorPlanFailure
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.SectorPlanRunner
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.SectorRecord
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
 - id: db.index.SectorStartError
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.SectorStartFailure
   layer: db
   surface: backend/src/db/index.ts
   tiers:
@@ -2935,37 +2467,13 @@
   tiers:
     - todo
   states: []
-- id: db.index.SectorTransitionFailure
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
 - id: db.index.SessionModelSelection
   layer: db
   surface: backend/src/db/index.ts
   tiers:
     - todo
   states: []
-- id: db.index.SessionRecord
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
 - id: db.index.StoredEvent
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.StoredHeartbeat
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.SupervisionAlert
   layer: db
   surface: backend/src/db/index.ts
   tiers:
@@ -2983,31 +2491,7 @@
   tiers:
     - todo
   states: []
-- id: db.index.UNIT_MAX_CHARS
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.UnitRef
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
 - id: db.index.UpsertCompanyInput
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.UsageTotals
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.WORKER_POOL_BUDGET
   layer: db
   surface: backend/src/db/index.ts
   tiers:
@@ -3043,12 +2527,6 @@
   tiers:
     - todo
   states: []
-- id: db.index.buildSectorDigest
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
 - id: db.index.cancelThreadRun
   layer: db
   surface: backend/src/db/index.ts
@@ -3061,12 +2539,6 @@
   tiers:
     - todo
   states: []
-- id: db.index.chunkTextUnits
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
 - id: db.index.claimIdempotency
   layer: db
   surface: backend/src/db/index.ts
@@ -3074,12 +2546,6 @@
     - todo
   states: []
 - id: db.index.classifyUpload
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.compactSectorContext
   layer: db
   surface: backend/src/db/index.ts
   tiers:
@@ -3109,12 +2575,6 @@
   tiers:
     - todo
   states: []
-- id: db.index.createHttpOcrAdapter
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
 - id: db.index.createSector
   layer: db
   surface: backend/src/db/index.ts
@@ -3134,24 +2594,6 @@
     - todo
   states: []
 - id: db.index.deleteSession
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.documentExtension
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.extractDocumentText
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.extractFileUnits
   layer: db
   surface: backend/src/db/index.ts
   tiers:
@@ -3193,12 +2635,6 @@
   tiers:
     - todo
   states: []
-- id: db.index.getSectorContext
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
 - id: db.index.getSession
   layer: db
   surface: backend/src/db/index.ts
@@ -3223,19 +2659,7 @@
   tiers:
     - todo
   states: []
-- id: db.index.heartbeatThrottleKey
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
 - id: db.index.ingestSectorDocument
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.insertDocumentUnits
   layer: db
   surface: backend/src/db/index.ts
   tiers:
@@ -3254,12 +2678,6 @@
     - todo
   states: []
 - id: db.index.listCompanies
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.listContextNotes
   layer: db
   surface: backend/src/db/index.ts
   tiers:
@@ -3349,12 +2767,6 @@
   tiers:
     - todo
   states: []
-- id: db.index.pauseSectorResearch
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
 - id: db.index.pauseSectorSweep
   layer: db
   surface: backend/src/db/index.ts
@@ -3367,12 +2779,6 @@
   tiers:
     - todo
   states: []
-- id: db.index.planSectorResearch
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
 - id: db.index.poolStats
   layer: db
   surface: backend/src/db/index.ts
@@ -3380,12 +2786,6 @@
     - todo
   states: []
 - id: db.index.projectBatch
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.projectSectorEvent
   layer: db
   surface: backend/src/db/index.ts
   tiers:
@@ -3589,18 +2989,6 @@
   tiers:
     - todo
   states: []
-- id: db.index.restartSectorSweep
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.resumeSectorResearch
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
 - id: db.index.resumeSectorSweep
   layer: db
   surface: backend/src/db/index.ts
@@ -3673,18 +3061,6 @@
   tiers:
     - todo
   states: []
-- id: db.index.setUnitExclusions
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
-- id: db.index.sha256Hex
-  layer: db
-  surface: backend/src/db/index.ts
-  tiers:
-    - todo
-  states: []
 - id: db.index.startSectorResearch
   layer: db
   surface: backend/src/db/index.ts
@@ -3751,19 +3127,7 @@
   tiers:
     - todo
   states: []
-- id: db.kb_ingest.provenanceSha
-  layer: db
-  surface: backend/src/db/kb-ingest.ts
-  tiers:
-    - todo
-  states: []
 - id: db.kb_ingest.runKbIngest
-  layer: db
-  surface: backend/src/db/kb-ingest.ts
-  tiers:
-    - todo
-  states: []
-- id: db.kb_ingest.sha256Hex
   layer: db
   surface: backend/src/db/kb-ingest.ts
   tiers:
@@ -3778,12 +3142,6 @@
 - id: db.keys.registerApiKey
   layer: db
   surface: backend/src/db/keys.ts
-  tiers:
-    - todo
-  states: []
-- id: db.knowledge.KbChunkInput
-  layer: db
-  surface: backend/src/db/knowledge.ts
   tiers:
     - todo
   states: []
@@ -3895,19 +3253,7 @@
   tiers:
     - todo
   states: []
-- id: db.pdf_extraction.PDF_IMAGE_MAX_BYTES
-  layer: db
-  surface: backend/src/db/pdf-extraction.ts
-  tiers:
-    - todo
-  states: []
 - id: db.pdf_extraction.PDF_IMAGE_MAX_PIXELS
-  layer: db
-  surface: backend/src/db/pdf-extraction.ts
-  tiers:
-    - todo
-  states: []
-- id: db.pdf_extraction.PDF_PAGE_VISUAL_SCALE
   layer: db
   surface: backend/src/db/pdf-extraction.ts
   tiers:
@@ -3920,18 +3266,6 @@
     - todo
   states: []
 - id: db.pool.DEFAULT_POOL_BUDGET
-  layer: db
-  surface: backend/src/db/pool.ts
-  tiers:
-    - todo
-  states: []
-- id: db.pool.SERVER_POOL_BUDGET
-  layer: db
-  surface: backend/src/db/pool.ts
-  tiers:
-    - todo
-  states: []
-- id: db.pool.WORKER_POOL_BUDGET
   layer: db
   surface: backend/src/db/pool.ts
   tiers:
@@ -4021,18 +3355,6 @@
   tiers:
     - todo
   states: []
-- id: db.sector_context.buildSectorDigest
-  layer: db
-  surface: backend/src/db/sector-context.ts
-  tiers:
-    - todo
-  states: []
-- id: db.sector_context.citationLabels
-  layer: db
-  surface: backend/src/db/sector-context.ts
-  tiers:
-    - todo
-  states: []
 - id: db.sector_context.compactSectorContext
   layer: db
   surface: backend/src/db/sector-context.ts
@@ -4045,12 +3367,6 @@
   tiers:
     - todo
   states: []
-- id: db.sector_context.listContextNotes
-  layer: db
-  surface: backend/src/db/sector-context.ts
-  tiers:
-    - todo
-  states: []
 - id: db.sector_context.setUnitExclusions
   layer: db
   surface: backend/src/db/sector-context.ts
@@ -4058,12 +3374,6 @@
     - todo
   states: []
 - id: db.sector_documents.SECTOR_DOCUMENT_MAX_BYTES
-  layer: db
-  surface: backend/src/db/sector-documents.ts
-  tiers:
-    - todo
-  states: []
-- id: db.sector_documents.documentExtension
   layer: db
   surface: backend/src/db/sector-documents.ts
   tiers:
@@ -4106,12 +3416,6 @@
     - todo
   states: []
 - id: db.sector_documents.readSectorDocumentUnitsPage
-  layer: db
-  surface: backend/src/db/sector-documents.ts
-  tiers:
-    - todo
-  states: []
-- id: db.sector_documents.sha256Hex
   layer: db
   surface: backend/src/db/sector-documents.ts
   tiers:
@@ -4183,43 +3487,7 @@
   tiers:
     - todo
   states: []
-- id: db.sectors.COMPANY_FOUND_EVENT
-  layer: db
-  surface: backend/src/db/sectors.ts
-  tiers:
-    - todo
-  states: []
-- id: db.sectors.COMPANY_STAGE_CHANGED_EVENT
-  layer: db
-  surface: backend/src/db/sectors.ts
-  tiers:
-    - todo
-  states: []
-- id: db.sectors.COMPANY_STATE_CHANGED_EVENT
-  layer: db
-  surface: backend/src/db/sectors.ts
-  tiers:
-    - todo
-  states: []
 - id: db.sectors.CompanyStage
-  layer: db
-  surface: backend/src/db/sectors.ts
-  tiers:
-    - todo
-  states: []
-- id: db.sectors.PAGING_DEFAULT_LIMIT
-  layer: db
-  surface: backend/src/db/sectors.ts
-  tiers:
-    - todo
-  states: []
-- id: db.sectors.PAGING_MAX_LIMIT
-  layer: db
-  surface: backend/src/db/sectors.ts
-  tiers:
-    - todo
-  states: []
-- id: db.sectors.SECTOR_CREATED_EVENT
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
@@ -4232,18 +3500,6 @@
     - todo
   states: []
 - id: db.sectors.SECTOR_PLAN_WRITTEN_EVENT
-  layer: db
-  surface: backend/src/db/sectors.ts
-  tiers:
-    - todo
-  states: []
-- id: db.sectors.SECTOR_RESEARCH_STARTED_EVENT
-  layer: db
-  surface: backend/src/db/sectors.ts
-  tiers:
-    - todo
-  states: []
-- id: db.sectors.SECTOR_STATE_CHANGED_EVENT
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
@@ -4309,12 +3565,6 @@
   tiers:
     - todo
   states: []
-- id: db.sectors.pauseSectorResearch
-  layer: db
-  surface: backend/src/db/sectors.ts
-  tiers:
-    - todo
-  states: []
 - id: db.sectors.projectSectorEvent
   layer: db
   surface: backend/src/db/sectors.ts
@@ -4334,12 +3584,6 @@
     - todo
   states: []
 - id: db.sectors.registerSectorDiscovery
-  layer: db
-  surface: backend/src/db/sectors.ts
-  tiers:
-    - todo
-  states: []
-- id: db.sectors.resumeSectorResearch
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
@@ -4471,12 +3715,6 @@
   tiers:
     - todo
   states: []
-- id: db.workspace.GLOBAL_CONTEXT_BUDGET_TOKENS
-  layer: db
-  surface: backend/src/db/workspace.ts
-  tiers:
-    - todo
-  states: []
 - id: db.workspace.PartialContextSections
   layer: db
   surface: backend/src/db/workspace.ts
@@ -4580,12 +3818,6 @@
     - todo
   states: []
 - id: db.workspace.formatGlobalContext
-  layer: db
-  surface: backend/src/db/workspace.ts
-  tiers:
-    - todo
-  states: []
-- id: db.workspace.globalContextUsageFrom
   layer: db
   surface: backend/src/db/workspace.ts
   tiers:
@@ -4784,12 +4016,6 @@
     - todo
   states: []
 - id: db.workspace.researchSessionBinding
-  layer: db
-  surface: backend/src/db/workspace.ts
-  tiers:
-    - todo
-  states: []
-- id: db.workspace.researchThreadState
   layer: db
   surface: backend/src/db/workspace.ts
   tiers:
@@ -5218,12 +4444,6 @@
 - id: frontend.src.components.ui.progress
   layer: frontend
   surface: frontend/src/components/ui/progress.tsx
-  tiers:
-    - todo
-  states: []
-- id: frontend.src.components.ui.searchable
-  layer: frontend
-  surface: frontend/src/components/ui/searchable.tsx
   tiers:
     - todo
   states: []
