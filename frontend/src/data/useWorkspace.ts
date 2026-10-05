@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiErrorStatus, type StagingConfig } from './api/client'
-import { followThread, isTerminalThreadStatus, type LiveThread } from './api/live'
+import { followThread, isFreshTerminalStatus, type LiveThread } from './api/live'
 import { listMessages } from './api/threads'
 import { sendThreadText, steerThread } from './api/commands'
 import { mergeChatMessages, messageSeq, toChatMessages } from '../components/chat/messages'
@@ -71,7 +71,7 @@ function reconcileConversation(state: ConversationState, live: LiveThread, addit
     // honest failure). In-flight deltas/tools still win, and a stale
     // status (seq at or below the send basis) is never fresh news.
     // Steering keeps receipt semantics: only its server receipt releases it.
-    if (!request.steer && !inFlight && isTerminalThreadStatus(live.threadStatus) && (live.threadStatusSeq ?? 0) > (request.statusSeq ?? 0)) return false
+    if (!request.steer && !inFlight && isFreshTerminalStatus(live.threadStatus, live.threadStatusSeq, request.statusSeq ?? 0)) return false
     if (missed.some((entry) => entry.key === request.key)) return false
     // Accepted steering is not applied until its durable consumption receipt.
     if (request.steer && !live.steering?.some((receipt) => receipt.id === request.commandId && receipt.state === 'consumed')) return true

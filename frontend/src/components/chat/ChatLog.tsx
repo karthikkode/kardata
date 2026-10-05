@@ -14,6 +14,7 @@ import { ReasoningDisclosure } from './ReasoningDisclosure'
 import { ThinkingRow } from './ThinkingRow'
 import { ToolActivity } from './ToolActivity'
 import { MessageBubble, renderMentionChips, type ReasoningControl } from './MessageBubble'
+import { BodySm } from '../text'
 import { ToolRow } from '../research-parts'
 import { UserBubble } from '../chat-parts'
 import { Button } from '../ui/button'
@@ -32,6 +33,7 @@ export function ChatLog({
   lastKey,
   echo,
   sendError,
+  orphanNotice,
   working,
   pendingTools,
   pendingReasoning,
@@ -56,6 +58,7 @@ export function ChatLog({
   lastKey: string | undefined
   echo: { text: string; basis: number } | null
   sendError: string | null
+  orphanNotice: string | null
   working: boolean
   pendingTools: Array<ToolPayload & { seenAt?: number }>
   pendingReasoning: string | null
@@ -161,6 +164,12 @@ export function ChatLog({
                 live
               />
             ) : null}
+          </div>
+        ) : null}
+        {orphanNotice ? (
+          <div key="orphan-notice" role="alert" className="flex gap-2 rounded-md border border-danger-border bg-danger-soft p-3">
+            <span className="flex h-5 shrink-0 items-center"><Icons.alertError aria-hidden className="size-4 text-danger" /></span>
+            <BodySm as="span" className="min-w-0 flex-1">{orphanNotice}</BodySm>
           </div>
         ) : null}
         {replying && !working && !pendingText && !pendingReasoning && pendingTools.length === 0 ? (

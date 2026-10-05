@@ -1,8 +1,8 @@
 // Chat data sync: sessions, skills, threads, file index, message pages,
 // and the live thread tail. Query keys reset during render (never in the
 // fetch effects) so stale rows from another session never flash.
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
-import { followThread, listMessages, listThreads, type ThreadView, type ToolPayload } from '../../data/useThreads'
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { followThread, isFreshTerminalStatus, listMessages, listThreads, type ThreadView, type ToolPayload } from '../../data/useThreads'
 import { listRuns } from '../../data/useRuns'
 import { listSessionArtifacts } from '../../data/useFiles'
 import { listSessions, type Session } from '../../data/useSessions'
@@ -41,12 +41,13 @@ interface ChatSyncInput {
   setPendingText: Dispatch<SetStateAction<string | null>>
   setPendingReasoning: Dispatch<SetStateAction<string | null>>
   setPendingTools: Dispatch<SetStateAction<Array<ToolPayload & { seenAt?: number }>>>
-  setAwaitingReply: Dispatch<SetStateAction<{ basis: number } | null>>
+  setAwaitingReply: Dispatch<SetStateAction<{ basis: number; statusSeq?: number } | null>>
   setPendingSend: Dispatch<SetStateAction<string | null>>
   setSendError: Dispatch<SetStateAction<string | null>>
   setEcho: Dispatch<SetStateAction<{ text: string; basis: number } | null>>
+  setThreadStateReason: Dispatch<SetStateAction<string | null>>
   streamControllers: { current: Record<string, AbortController> }
-  awaitingRef: { current: { basis: number } | null }
+  awaitingRef: { current: { basis: number; statusSeq?: number } | null }
   echoRef: { current: { text: string; basis: number } | null }
 }
 
@@ -74,10 +75,15 @@ export function useChatSync({
   setPendingSend,
   setSendError,
   setEcho,
+  setThreadStateReason,
   streamControllers,
   awaitingRef,
   echoRef,
 }: ChatSyncInput) {
+  // Latest outbox status seq per thread, kept by the tail below; the
+  // panel reads it as the stale-status basis at send time. Keyed by
+  // thread because outbox seqs restart per thread (no reset needed).
+  const statusSeqRef = useRef<Record<string, number>>({})
   // Sessions reset during render, never in the fetch effect: when the
   // query changes the previous rows no longer belong to it. The first
   // session activates; an id that no longer exists falls back to the
@@ -240,13 +246,22 @@ export function useChatSync({
             const now = Date.now()
             return snapshot.pendingTools.map((tool) => ({ ...tool, seenAt: seen.get(tool.id) ?? now }))
           })
-          setAwaitingReply((current) =>
-            current && snapshot.messages.some((message) =>
+          if (snapshot.threadStatusSeq !== undefined) statusSeqRef.current = { ...statusSeqRef.current, [key]: snapshot.threadStatusSeq }
+          setThreadStateReason(snapshot.stateReason ?? null)
+          setAwaitingReply((current) => {
+            // A fresh terminal status ends the wait: the run is over and no
+            // agent message will arrive (orphan, honest failure). Stale
+            // statuses (seq at or below the send basis) never release.
+            if (current && isFreshTerminalStatus(snapshot.threadStatus, snapshot.threadStatusSeq, current.statusSeq ?? 0)) {
+              const inFlight = Boolean(snapshot.pendingText) || Boolean(snapshot.pendingReasoning) || snapshot.pendingTools.some((tool) => tool.state === 'running')
+              if (!inFlight) return null
+            }
+            return current && snapshot.messages.some((message) =>
               message.role === 'agent' && typeof message.seq === 'number' && message.seq > current.basis,
             )
               ? null
-              : current,
-          )
+              : current
+          })
         }
       } catch {
         if (!live) return
@@ -299,6 +314,7 @@ export function useChatSync({
       setPendingReasoning(null)
       setPendingTools([])
       setAwaitingReply(null)
+      setThreadStateReason(null)
       // The echo belongs to the previous thread: its confirmation can
       // never arrive here, so drop it instead of showing stale text.
       setPendingSend(null)
@@ -306,4 +322,5 @@ export function useChatSync({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config?.baseUrl, config?.apiKey, threadKey, streamAttempt])
+  return statusSeqRef
 }

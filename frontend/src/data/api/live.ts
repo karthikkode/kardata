@@ -54,6 +54,12 @@ export function isTerminalThreadStatus(status: string | undefined): boolean {
   return status !== undefined && TERMINAL_THREAD_STATUSES.includes(status)
 }
 
+/** True when a terminal server status is newer than the send basis: the
+ * owed reply will never arrive, so the UI must stop waiting for it. */
+export function isFreshTerminalStatus(status: string | undefined, statusSeq: number | undefined, sendBasis: number): boolean {
+  return isTerminalThreadStatus(status) && (statusSeq ?? 0) > sendBasis
+}
+
 export interface LiveThread {
   pendingRunKey?: string | null
   threadStatus?: string

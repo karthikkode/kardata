@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Icons } from '@/lib/icons'
 import { humanizeKey } from '../lib/format'
+import { threadStateReasonLabel } from '../lib/labels'
 import { dockEnter, dockExit, useExitState } from '@/lib/motion'
 import { cancelRun, pauseRun, resumeRun } from '../data/useRuns'
 import { sendThreadText, steerThread, type ThreadView, type ToolPayload } from '../data/useThreads'
@@ -65,7 +66,8 @@ export function ChatPanel({
   // Live tool rows carry a client-side first-seen stamp so running calls
   // can show elapsed time. The wire ToolPayload is unchanged.
   const [pendingTools, setPendingTools] = useState<Array<ToolPayload & { seenAt?: number }>>([])
-  const [awaitingReply, setAwaitingReply] = useState<{ basis: number } | null>(null)
+  const [awaitingReply, setAwaitingReply] = useState<{ basis: number; statusSeq?: number } | null>(null)
+  const [threadStateReason, setThreadStateReason] = useState<string | null>(null)
   const [streamAttempt, setStreamAttempt] = useState(0)
   const [working, setWorking] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
@@ -124,7 +126,7 @@ export function ChatPanel({
   }, [threadKey])
   // Fresh mirrors for the hold-open tail: its closure must read the reply
   // wait and the sent text as of the failure, not as of subscribe time.
-  const awaitingRef = useRef<{ basis: number } | null>(null)
+  const awaitingRef = useRef<{ basis: number; statusSeq?: number } | null>(null)
   useEffect(() => {
     awaitingRef.current = awaitingReply
   }, [awaitingReply])
@@ -190,7 +192,7 @@ export function ChatPanel({
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  useChatSync({
+  const statusSeqRef = useChatSync({
     config,
     sessionsAttempt,
     threadsAttempt,
@@ -214,6 +216,7 @@ export function ChatPanel({
     setPendingSend,
     setSendError,
     setEcho,
+    setThreadStateReason,
     streamControllers,
     awaitingRef,
     echoRef,
@@ -427,7 +430,7 @@ export function ChatPanel({
     setPendingSend(trimmed)
     const basis = Math.max(0, ...(caches[key] ?? []).map(messageSeq))
     setEcho({ text: trimmed, basis })
-    setAwaitingReply({ basis })
+    setAwaitingReply({ basis, statusSeq: statusSeqRef.current[key] ?? 0 })
     setWorking(true)
     inputRef.current?.focus()
     sendThreadText(config, key, trimmed)
@@ -691,6 +694,7 @@ export function ChatPanel({
             lastKey={lastKey}
             echo={echo}
             sendError={sendError}
+            orphanNotice={threadStateReasonLabel(threadStateReason ?? undefined)}
             working={working}
             pendingTools={pendingTools}
             pendingReasoning={pendingReasoning}
