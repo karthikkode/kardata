@@ -47,9 +47,19 @@ export interface LiveMessage {
   state?: string
 }
 
+/** Thread statuses after which no reply can arrive: the run is over. */
+export const TERMINAL_THREAD_STATUSES = ['FINISHED', 'ERROR', 'STOPPED']
+
+export function isTerminalThreadStatus(status: string | undefined): boolean {
+  return status !== undefined && TERMINAL_THREAD_STATUSES.includes(status)
+}
+
 export interface LiveThread {
   pendingRunKey?: string | null
   threadStatus?: string
+  /** Outbox seq of the state frame that set threadStatus; lets the UI tell
+   * a fresh terminal status from a stale one after a new send. */
+  threadStatusSeq?: number
   stateReason?: string
   steering?: Array<{ id: string; state: 'consumed' | 'missed' }>
   messages: LiveMessage[]
@@ -97,6 +107,7 @@ export async function* followThread(
   let pendingTools: ToolPayload[] = [...(previous?.pendingTools ?? [])]
   let pendingRunKey: string | null = options?.cursor?.live?.pendingRunKey ?? null
   let threadStatus: string | undefined = previous?.threadStatus
+  let threadStatusSeq: number | undefined = previous?.threadStatusSeq
   let stateReason: string | undefined = previous?.stateReason
   const steering = new Map<string, 'consumed' | 'missed'>((previous?.steering ?? []).map(({ id, state }) => [id, state]))
   let lastSeq = options?.cursor?.seq ?? 0
@@ -159,6 +170,7 @@ export async function* followThread(
           }
           if (typeof payload?.status === 'string') {
             threadStatus = payload.status
+            threadStatusSeq = frame.seq
             stateReason = typeof payload.stateReason === 'string' ? payload.stateReason : undefined
             if (['PAUSED', 'FINISHED', 'ERROR', 'CANCELLING'].includes(threadStatus)) {
               pendingText = null; pendingReasoning = null; pendingTools = []; pendingRunKey = null
@@ -174,7 +186,7 @@ export async function* followThread(
           if (message.kind === 'tool' || message.role === 'agent') pendingTools = []
         }
         lastSeq = frame.seq
-        const live = { messages: [...messages], pendingText, pendingReasoning, pendingRunKey, pendingTools: [...pendingTools], threadStatus, stateReason, steering: [...steering].map(([id, state]) => ({ id, state })), error: null }
+        const live = { messages: [...messages], pendingText, pendingReasoning, pendingRunKey, pendingTools: [...pendingTools], threadStatus, threadStatusSeq, stateReason, steering: [...steering].map(([id, state]) => ({ id, state })), error: null }
         if (options?.cursor) { options.cursor.seq = lastSeq; options.cursor.live = live }
         yield live
       }
@@ -191,6 +203,7 @@ export async function* followThread(
         pendingReasoning,
         pendingTools: [...pendingTools],
         threadStatus,
+        threadStatusSeq,
         stateReason,
         steering: [...steering].map(([id, state]) => ({ id, state })),
         error:

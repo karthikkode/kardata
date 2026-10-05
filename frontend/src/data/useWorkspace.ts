@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiErrorStatus, type StagingConfig } from './api/client'
-import { followThread, type LiveThread } from './api/live'
+import { followThread, isTerminalThreadStatus, type LiveThread } from './api/live'
 import { listMessages } from './api/threads'
 import { sendThreadText, steerThread } from './api/commands'
 import { mergeChatMessages, messageSeq, toChatMessages } from '../components/chat/messages'
@@ -45,6 +45,7 @@ interface PendingRequest {
   steer: boolean
   userSeq?: number
   commandId?: string
+  statusSeq?: number
 }
 interface ConversationState {
   phase: 'idle' | 'queued' | 'working' | 'reconnecting' | 'paused' | 'failed' | 'stopped' | 'complete'
@@ -65,6 +66,12 @@ function reconcileConversation(state: ConversationState, live: LiveThread, addit
     if (userSeq !== undefined) acknowledgedUsers.add(userSeq)
     return { ...request, userSeq }
   }).filter((request) => {
+    // A terminal server status newer than the send ends the owed reply:
+    // the run is over and no agent message will ever arrive (orphan,
+    // honest failure). In-flight deltas/tools still win, and a stale
+    // status (seq at or below the send basis) is never fresh news.
+    // Steering keeps receipt semantics: only its server receipt releases it.
+    if (!request.steer && !inFlight && isTerminalThreadStatus(live.threadStatus) && (live.threadStatusSeq ?? 0) > (request.statusSeq ?? 0)) return false
     if (missed.some((entry) => entry.key === request.key)) return false
     // Accepted steering is not applied until its durable consumption receipt.
     if (request.steer && !live.steering?.some((receipt) => receipt.id === request.commandId && receipt.state === 'consumed')) return true
@@ -161,7 +168,7 @@ export function useWorkspaceConversation(config: StagingConfig | null, threadKey
     if (!navigator.onLine) { update(threadKey, (old) => ({ ...old, error: 'No connection. Your draft is saved.' })); return }
     const key = threadKey, requestKey = ++requestNonce.current
     const basis = Math.max(0, ...state.messages.map(messageSeq))
-    update(key, (old) => ({ ...old, phase: steer ? 'working' : 'queued', draft: '', busy: true, echo: body, basis, error: null, pending: [...old.pending, { key: requestKey, text: body, basis, steer }] }))
+    update(key, (old) => ({ ...old, phase: steer ? 'working' : 'queued', draft: '', busy: true, echo: body, basis, error: null, pending: [...old.pending, { key: requestKey, text: body, basis, steer, statusSeq: old.live?.threadStatusSeq ?? 0 }] }))
     try {
       const result = steer ? await steerThread(config, key, body) : await sendThreadText(config, key, body)
       if (currentConfig.current !== config) return
