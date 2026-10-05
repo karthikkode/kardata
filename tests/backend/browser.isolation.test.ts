@@ -15,7 +15,8 @@ const fake = vi.hoisted(() => {
 })
 vi.mock('playwright-core', () => ({ chromium: { launch: vi.fn().mockResolvedValue(fake.browser), connectOverCDP: vi.fn().mockResolvedValue(fake.browser) } }))
 import { browserNavigate, browserSnapshot, browserAct, browserScreenshot, browserClose } from '../../backend/src/retrieval/browser.js'
-import { invokeTool, type McpToolContext } from '../../backend/src/mcp/tools.js'
+import { invokeTool } from '../../backend/src/mcp/tools.js'
+import { type McpToolContext } from '../../backend/src/mcp/tools-types.js'
 import { browserPoolStats } from '../../backend/src/browserPool/pool.js'
 let sidecar: Server | undefined
 const opened: Array<{ id: string; owner: string }> = []

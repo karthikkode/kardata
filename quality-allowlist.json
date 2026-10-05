@@ -2,7 +2,6 @@
   "_comment": "Quality allowlist (Phase 1 baseline). Each entry names the phase that fixes it. Phase 2 AC: repo-wide allowlist <= 25 entries.",
   "maxLines": [
     { "file": "backend/src/temporal/runs-gateway.ts", "lines": 927, "phase": 2, "reason": "split by responsibility" },
-    { "file": "backend/src/mcp/tools.ts", "lines": 906, "phase": 2, "reason": "split by responsibility" },
     { "file": "backend/src/db/file-jobs.ts", "lines": 841, "phase": 2, "reason": "split by responsibility" },
     { "file": "backend/src/db/events.ts", "lines": 803, "phase": 2, "reason": "split by responsibility" },
     { "file": "frontend/src/components/workspace-parts.tsx", "lines": 1133, "phase": 2, "reason": "split by responsibility" }
