@@ -126,7 +126,7 @@ export class TemporalRunsGateway implements RunsGateway {
       for (const id of candidates) {
         try {
           const description = await client.workflow.getHandle(id).describe()
-          if (!['sessionRun', 'researchRun', 'guardedResearchRun', 'companyResearch', 'subagentRun'].includes(description.type)) continue
+          if (!['sessionRun', 'researchRun', 'companyResearch', 'subagentRun'].includes(description.type)) continue
           let info = this.describeRun(id, description.type, description)
           if (description.type === 'companyResearch' || description.type === 'subagentRun') {
             const child = children.get(id)
@@ -143,7 +143,7 @@ export class TemporalRunsGateway implements RunsGateway {
     const executions = client.workflow.list({ pageSize: 100 })
     for await (const execution of executions) {
       const type = execution.type
-      if (type !== 'sessionRun' && type !== 'researchRun' && type !== 'guardedResearchRun' && type !== 'companyResearch' && type !== 'subagentRun') continue
+      if (type !== 'sessionRun' && type !== 'researchRun' && type !== 'companyResearch' && type !== 'subagentRun') continue
       let info: RunInfo
       try {
         const description = await client.workflow.getHandle(execution.workflowId).describe()
@@ -207,24 +207,6 @@ export class TemporalRunsGateway implements RunsGateway {
             sessionId: state.runId,
             threadKey: `research:${state.runId}`,
             state: mapResearchStatus(state.status),
-            stageCursor: String(state.cursor),
-            budgetUsedRatio: 0,
-            contextUsedRatio: 0,
-            // Running workflows expose no close time: last-observed-at.
-            updatedAt: new Date().toISOString(),
-          }
-        }
-        if (type === 'guardedResearchRun') {
-          const state = (await handle.query('guardState')) as {
-            runId: string
-            status: RunState
-            cursor: number
-          }
-          return {
-            id: runId,
-            sessionId: state.runId,
-            threadKey: `research:${state.runId}`,
-            state: state.status,
             stageCursor: String(state.cursor),
             budgetUsedRatio: 0,
             contextUsedRatio: 0,
@@ -471,8 +453,7 @@ export class TemporalRunsGateway implements RunsGateway {
   }
 
   async pauseRun(runId: string): Promise<CommandResult> {
-    // Guarded runs have no pause signal by design: the loop/unit/run guards
-    // suspend them, and resumeRun (approved guardResume) is the way back.
+    // Only pausable types are listed: other runs (e.g. companyResearch) 409 via requireType.
     const type = await this.requireType(runId, ['sessionRun', 'researchRun', 'subagentRun'])
     const client = await this.client()
     if (type === 'subagentRun') {
@@ -484,8 +465,10 @@ export class TemporalRunsGateway implements RunsGateway {
     return { commandId: commandId(), state: 'accepted' }
   }
 
-  async resumeRun(runId: string, extendedBudgetMs?: number): Promise<CommandResult> {
-    const type = await this.requireType(runId, ['sessionRun', 'researchRun', 'guardedResearchRun', 'companyResearch', 'subagentRun'])
+  // _extendedBudgetMs is kept for API compatibility (OpenAPI/commands route);
+  // no remaining run type consumes it since the guarded workflow was deleted.
+  async resumeRun(runId: string, _extendedBudgetMs?: number): Promise<CommandResult> {
+    const type = await this.requireType(runId, ['sessionRun', 'researchRun', 'companyResearch', 'subagentRun'])
     const client = await this.client()
     const handle = client.workflow.getHandle(runId)
     const description=await handle.describe()
@@ -518,7 +501,7 @@ export class TemporalRunsGateway implements RunsGateway {
       await setThreadPaused(this.pool, `agent:${runId}`, false)
       await handle.signal('childResume')
     } else if (type === 'companyResearch') await handle.signal('childResume')
-    else await handle.signal('guardResume', { approved: true, extendRunMs: extendedBudgetMs })
+    else throw new ThreadNotAccepting(`run ${runId} (${type}) has no path for this command`)
     return { commandId: commandId(), state: 'accepted' }
   }
 

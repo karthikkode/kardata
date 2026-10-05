@@ -13,7 +13,7 @@ import type { TelemetryOptions } from '@temporalio/worker'
 import type { Db } from '../db/index.js'
 import { Counter, Gauge, Histogram, Registry, collectDefaultMetrics } from 'prom-client'
 import { listHeartbeats, poolStats } from '../db/index.js'
-import { DEFAULT_STALL_THRESHOLDS } from './stalls.js'
+import { DEFAULT_STALL_THRESHOLDS } from './supervision-rules.js'
 import type { RunsGateway } from '../temporal/runs-types.js'
 
 export type { TelemetryOptions }

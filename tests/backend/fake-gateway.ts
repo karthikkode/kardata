@@ -178,7 +178,7 @@ export class FakeRunsGateway implements RunsGateway {
   }
 
   async pauseRun(runId: string): Promise<CommandResult> {
-    // Mirrors production requireType: research runs pause, guarded runs 409.
+    // Mirrors production requireType: research runs pause, other types (e.g. companyResearch) 409.
     const type = this.requireRun(runId)
     if (type !== 'sessionRun' && type !== 'researchRun' && type !== 'subagentRun') {
       throw new ThreadNotAccepting(`run ${runId} (${type}) has no path for this command`)

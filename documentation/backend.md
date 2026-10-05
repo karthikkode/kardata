@@ -85,6 +85,9 @@ the everything-log. Plan: `documentation/plans/2026-09-25-backend-build.md`.
   server — A→B→A loop suspends in bound, over-budget suspends, unauthorized
   resume denied (`tests/backend/workflows.loopguards.test.ts`, needs
   `KARDATA_TEMPORAL_TEST=1`); rules + bounds table in `docs/architecture.md`.
+  Retired in Phase 2: the guarded workflow and detector/stage activities are
+  deleted (never registered on a worker); the pure `decideLoop` rule now lives
+  in `backend/src/observability/supervision-rules.ts` for Phase 3 reconciliation.
 - B3.1 done: REST parity (sessions/threads/runs/commands per OpenAPI v1,
   Zod I/O, envelope errors; request-scoped projector with checkpoint;
   Temporal runs gateway with @name routing and missed_steer via launch

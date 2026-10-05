@@ -46,10 +46,11 @@ Backend additions on top of the agents contract:
 - Every finding records one `t.stall.response` event (run, kind, response,
   reason, timestamp) keyed `stall:<sweepId>:<runId>:<kind>` for retry
   dedup — zero silent stalls, including runs that never beat.
-- `stallSweepActivity` (`backend/src/temporal/activities/stalls.ts`) reads
-  the table, sweeps, and records supplied run observations. Starting thresholds (60 s
-  idle, 120 s in-tool, 0.8 near-ratio) sit above the lane heartbeat
-  timeouts; B5.6 tunes them.
+- Supervision checks live in `backend/src/observability/supervision-rules.ts`:
+  the pure stall sweeper `sweepStalls` plus the `t.stall.response` envelope
+  builder. Starting thresholds (60 s idle, 120 s in-tool, 0.8 near-ratio) sit
+  above the lane heartbeat timeouts; B5.6 tunes them. The legacy sweep
+  activity is deleted; Phase 3 reconciliation consumes the pure core.
 
 The worker entrypoint now installs the shared Pino logger before connecting
 Temporal and exposes SDK metrics at the configured port (9464 by default).

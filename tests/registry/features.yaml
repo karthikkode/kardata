@@ -913,18 +913,6 @@
   tiers:
     - todo
   states: []
-- id: backend.activity.loopguards.detectLoopActivity
-  layer: backend
-  surface: backend/src/temporal/activities/loopguards.ts
-  tiers:
-    - todo
-  states: []
-- id: backend.activity.loopguards.runGuardedStageActivity
-  layer: backend
-  surface: backend/src/temporal/activities/loopguards.ts
-  tiers:
-    - todo
-  states: []
 - id: backend.activity.plan.PlanVersion
   layer: backend
   surface: backend/src/temporal/activities/plan.ts
@@ -1012,24 +1000,6 @@
 - id: backend.activity.research.workWithHeartbeats
   layer: backend
   surface: backend/src/temporal/activities/research.ts
-  tiers:
-    - todo
-  states: []
-- id: backend.activity.stalls.STALL_RESPONSE_EVENT
-  layer: backend
-  surface: backend/src/temporal/activities/stalls.ts
-  tiers:
-    - todo
-  states: []
-- id: backend.activity.stalls.stallResponseEvent
-  layer: backend
-  surface: backend/src/temporal/activities/stalls.ts
-  tiers:
-    - todo
-  states: []
-- id: backend.activity.stalls.stallSweepActivity
-  layer: backend
-  surface: backend/src/temporal/activities/stalls.ts
   tiers:
     - todo
   states: []
@@ -1366,30 +1336,6 @@
 - id: backend.workflow.inbox_queue.queueReorderUpdate
   layer: backend
   surface: backend/src/temporal/workflows/inbox-queue.ts
-  tiers:
-    - todo
-  states: []
-- id: backend.workflow.loopguards.DEFAULT_SUSPEND_TIMEOUT_MS
-  layer: backend
-  surface: backend/src/temporal/workflows/loopguards.ts
-  tiers:
-    - todo
-  states: []
-- id: backend.workflow.loopguards.guardResumeSignal
-  layer: backend
-  surface: backend/src/temporal/workflows/loopguards.ts
-  tiers:
-    - todo
-  states: []
-- id: backend.workflow.loopguards.guardStateQuery
-  layer: backend
-  surface: backend/src/temporal/workflows/loopguards.ts
-  tiers:
-    - todo
-  states: []
-- id: backend.workflow.loopguards.guardedResearchRun
-  layer: backend
-  surface: backend/src/temporal/workflows/loopguards.ts
   tiers:
     - todo
   states: []

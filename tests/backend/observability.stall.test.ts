@@ -10,14 +10,12 @@ import { describe, expect, it } from 'vitest'
 import { appendEvent, readPartition } from '../../backend/src/db/index.js'
 import { listHeartbeats, recordHeartbeat } from '../../backend/src/db/index.js'
 import {
+  STALL_RESPONSE_EVENT,
+  stallResponseEvent,
   stalledTurnsFor,
   sweepStalls,
   type RunObservation,
-} from '../../backend/src/observability/stalls.js'
-import {
-  STALL_RESPONSE_EVENT,
-  stallResponseEvent,
-} from '../../backend/src/temporal/activities/stalls.js'
+} from '../../backend/src/observability/supervision-rules.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
 const ENABLED = TEST_DATABASE_URL !== undefined && TEST_DATABASE_URL !== ''
