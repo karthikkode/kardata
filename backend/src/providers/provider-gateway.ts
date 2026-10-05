@@ -247,6 +247,53 @@ function toFailure(
   }
 }
 
+type ChatCallOptions = { timeoutMs?: number; log?: (fields: ChatLogFields) => void }
+
+function logChatSuccess(
+  options: ChatCallOptions,
+  adapter: ProviderAdapter,
+  latencyMs: number,
+  usage: Usage,
+): void {
+  options.log?.({
+    op: 'provider.chat',
+    provider: adapter.providerName,
+    ok: true,
+    latencyMs,
+    usage,
+  })
+}
+
+function chatCallFailure(
+  adapter: ProviderAdapter,
+  options: ChatCallOptions,
+  started: number,
+  timeoutMs: number,
+  error: unknown,
+): Extract<ChatOutcome, { ok: false }> {
+  const latencyMs = Date.now() - started
+  if (error === CHAT_TIMEOUT) {
+    options.log?.({ op: 'provider.chat', provider: adapter.providerName, ok: false, latencyMs, code: 'provider_timeout' })
+    return {
+      ok: false,
+      providerName: adapter.providerName,
+      code: 'provider_timeout',
+      retryable: true,
+      latencyMs,
+      detail: `provider call exceeded ${timeoutMs} ms`,
+    }
+  }
+  const failure = toFailure(adapter.providerName, latencyMs, error)
+  options.log?.({
+    op: 'provider.chat',
+    provider: adapter.providerName,
+    ok: false,
+    latencyMs,
+    code: failure.code,
+  })
+  return failure
+}
+
 /** One guarded model call. Logs shapes/counters only; the timeout wins the
  * race (the underlying call is left to settle — activity cancellation is
  * Temporal's path, not a dangling-fetch hunt). */
@@ -266,13 +313,7 @@ export async function chatOnce(
       }),
     ])
     const latencyMs = Date.now() - started
-    options.log?.({
-      op: 'provider.chat',
-      provider: adapter.providerName,
-      ok: true,
-      latencyMs,
-      usage: response.usage,
-    })
+    logChatSuccess(options, adapter, latencyMs, response.usage)
     return {
       ok: true,
       providerName: adapter.providerName,
@@ -282,27 +323,7 @@ export async function chatOnce(
       latencyMs,
     }
   } catch (error) {
-    const latencyMs = Date.now() - started
-    if (error === CHAT_TIMEOUT) {
-      options.log?.({ op: 'provider.chat', provider: adapter.providerName, ok: false, latencyMs, code: 'provider_timeout' })
-      return {
-        ok: false,
-        providerName: adapter.providerName,
-        code: 'provider_timeout',
-        retryable: true,
-        latencyMs,
-        detail: `provider call exceeded ${timeoutMs} ms`,
-      }
-    }
-    const failure = toFailure(adapter.providerName, latencyMs, error)
-    options.log?.({
-      op: 'provider.chat',
-      provider: adapter.providerName,
-      ok: false,
-      latencyMs,
-      code: failure.code,
-    })
-    return failure
+    return chatCallFailure(adapter, options, started, timeoutMs, error)
   } finally {
     if (timer) clearTimeout(timer)
   }
@@ -350,13 +371,7 @@ export async function streamChat(
       }),
     ])
     const latencyMs = Date.now() - started
-    options.log?.({
-      op: 'provider.chat',
-      provider: adapter.providerName,
-      ok: true,
-      latencyMs,
-      usage: outcome.usage,
-    })
+    logChatSuccess(options, adapter, latencyMs, outcome.usage)
     return {
       ok: true,
       providerName: adapter.providerName,
@@ -366,27 +381,7 @@ export async function streamChat(
       latencyMs,
     }
   } catch (error) {
-    const latencyMs = Date.now() - started
-    if (error === CHAT_TIMEOUT) {
-      options.log?.({ op: 'provider.chat', provider: adapter.providerName, ok: false, latencyMs, code: 'provider_timeout' })
-      return {
-        ok: false,
-        providerName: adapter.providerName,
-        code: 'provider_timeout',
-        retryable: true,
-        latencyMs,
-        detail: `provider call exceeded ${timeoutMs} ms`,
-      }
-    }
-    const failure = toFailure(adapter.providerName, latencyMs, error)
-    options.log?.({
-      op: 'provider.chat',
-      provider: adapter.providerName,
-      ok: false,
-      latencyMs,
-      code: failure.code,
-    })
-    return failure
+    return chatCallFailure(adapter, options, started, timeoutMs, error)
   } finally {
     if (timer) clearTimeout(timer)
   }
