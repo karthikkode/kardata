@@ -23,7 +23,7 @@ function authHeader(key: string): Record<string, string> {
   return { authorization: `Bearer ${key}` }
 }
 
-describe.skipIf(!ENABLED)('session compaction', () => {
+describe.skipIf(!ENABLED)('session compaction [F:http.compactSession]', () => {
   let app: FastifyInstance
   let pool: Pool
   let sessionId = ''

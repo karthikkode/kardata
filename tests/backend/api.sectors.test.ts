@@ -32,7 +32,7 @@ function authHeader(key: string): Record<string, string> {
   return { authorization: `Bearer ${key}` }
 }
 
-describe.skipIf(!ENABLED)('sector research routes (B-S4)', () => {
+describe.skipIf(!ENABLED)('sector research routes (B-S4) [F:http.createSector] [F:http.getSector] [F:http.listSectors] [F:http.listCompanies] [F:http.listSectorDocuments] [F:http.restartSector] [F:http.pauseSector] [F:http.resumeSector] [F:http.planSector] [F:http.readSectorPlan] [F:http.editSectorPlan] [F:http.approveSectorPlan] [F:http.startSector] [F:http.editGlobalContext]', () => {
   let app: FastifyInstance
   let pool: Pool
   let runsGateway: FakeRunsGateway

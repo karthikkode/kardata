@@ -32,7 +32,7 @@ function notNoRoute(body: unknown): void {
   expect(message).not.toContain('no route')
 }
 
-describe.skipIf(!ENABLED)('workspace routes', () => {
+describe.skipIf(!ENABLED)('workspace routes [F:http.listSteeringReceipts] [F:http.getGlobalContext] [F:http.listSectorFiles] [F:http.attachSectorDocument] [F:http.getSectorFileBody] [F:http.setSectorFileVisibility] [F:http.proposeGlobalContext] [F:http.decideContextProposal] [F:http.ensureSectorResearchSession] [F:http.getLocalContext] [F:http.compactLocalContext] [F:http.editLocalContext] [F:http.requestFileContext] [F:http.getResearchProgress]', () => {
   let app: FastifyInstance
   let pool: Pool
   const sector = `sec-workspace-${STAMP}`
@@ -276,5 +276,77 @@ describe.skipIf(!ENABLED)('workspace routes', () => {
     expect(response.statusCode).toBe(200)
     notNoRoute(response.json())
     expect(response.json<{ data: { sectorId: string } }>().data.sectorId).toBe(sector)
+  })
+
+  it('edits local thread notes under the version guard', async () => {
+    const read = await app.inject({
+      method: 'GET',
+      url: `/v1/threads/${sessionId}/context`,
+      headers: authHeader(KEYS.viewer.presented),
+    })
+    expect(read.statusCode).toBe(200)
+    const version = read.json<{ data: { version: number } }>().data.version
+    const saved = await app.inject({
+      method: 'PATCH',
+      url: `/v1/threads/${sessionId}/context`,
+      headers: authHeader(KEYS.operator.presented),
+      payload: { version, notes: 'TEST edited notes' },
+    })
+    expect(saved.statusCode).toBe(200)
+    notNoRoute(saved.json())
+    expect(saved.json<{ data: { version: number; notes: string } }>().data).toMatchObject({
+      version: version + 1,
+      notes: 'TEST edited notes',
+    })
+    const reread = await app.inject({
+      method: 'GET',
+      url: `/v1/threads/${sessionId}/context`,
+      headers: authHeader(KEYS.viewer.presented),
+    })
+    expect(reread.json<{ data: { notes: string } }>().data.notes).toBe('TEST edited notes')
+    const stale = await app.inject({
+      method: 'PATCH',
+      url: `/v1/threads/${sessionId}/context`,
+      headers: authHeader(KEYS.operator.presented),
+      payload: { version, notes: 'TEST stale notes' },
+    })
+    expect(stale.statusCode).toBe(409)
+  })
+
+  it('proposes indexed file units into global context', async () => {
+    const headers = authHeader(KEYS.operator.presented)
+    const upload = await app.inject({
+      method: 'POST',
+      url: `/v1/sectors/${sector}/documents`,
+      headers,
+      payload: { filename: 'test-context.md', contentBase64: Buffer.from('# TEST context\nA unit for file context proposals.').toString('base64') },
+    })
+    expect(upload.statusCode).toBe(201)
+    const fileId = upload.json<{ data: { id: string } }>().data.id
+    const reread = await app.inject({
+      method: 'GET',
+      url: `/v1/sectors/${sector}/global-context`,
+      headers: authHeader(KEYS.viewer.presented),
+    })
+    const baseVersion = reread.json<{ data: { version: number } }>().data.version
+    const proposed = await app.inject({
+      method: 'POST',
+      url: `/v1/sectors/${sector}/files/${fileId}/context`,
+      headers,
+      payload: { baseVersion, sourceThread: sessionId },
+    })
+    expect(proposed.statusCode).toBe(200)
+    notNoRoute(proposed.json())
+    const change = proposed.json<{ data: { id: string; fileRef: { fileId: string; ords: number[] } } }>().data
+    expect(typeof change.id).toBe('string')
+    expect(change.fileRef.fileId).toBe(fileId)
+    expect(change.fileRef.ords.length).toBeGreaterThan(0)
+    const unknown = await app.inject({
+      method: 'POST',
+      url: `/v1/sectors/${sector}/files/${fileId}/context`,
+      headers,
+      payload: { baseVersion, sourceThread: sessionId, ords: [99999] },
+    })
+    expect(unknown.statusCode).toBe(400)
   })
 })

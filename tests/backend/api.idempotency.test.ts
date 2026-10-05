@@ -52,7 +52,7 @@ function run(id: string, sessionId: string): RunInfo {
   }
 }
 
-describe.skipIf(!ENABLED)('rate limits and idempotency (B3.4)', () => {
+describe.skipIf(!ENABLED)('rate limits and idempotency (B3.4) [F:http.createSession] [F:http.sendMessage] [F:http.mcpRpc]', () => {
   let app: FastifyInstance
   let throttled: FastifyInstance
   let pool: Pool

@@ -32,7 +32,7 @@ function authHeader(key: string): Record<string, string> {
   return { authorization: `Bearer ${key}` }
 }
 
-describe.skipIf(!ENABLED)('session artifacts (files menu)', () => {
+describe.skipIf(!ENABLED)('session artifacts (files menu) [F:http.createSessionArtifact] [F:http.listSessionArtifacts] [F:http.getArtifactBody] [F:http.referenceArtifact] [F:http.listTenantArtifacts]', () => {
   let app: FastifyInstance
   let pool: Pool
   let archive: FilesystemTarget

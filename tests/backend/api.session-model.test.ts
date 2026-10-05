@@ -11,7 +11,7 @@ import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
 const ENABLED = TEST_DATABASE_URL !== undefined && TEST_DATABASE_URL !== ''
 
-describe.skipIf(!ENABLED)('Meta session model and catalog', () => {
+describe.skipIf(!ENABLED)('Meta session model and catalog [F:http.setSessionModel] [F:http.getProviders]', () => {
   let app: FastifyInstance
   let pool: Pool
   let sessionId: string

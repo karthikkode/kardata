@@ -10,7 +10,7 @@ import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import { FakeRunsGateway } from './fake-gateway.js'
 const scope = { tenantId: 'TEST review', projectId: null }
-describe.skipIf(!TEST_DATABASE_URL)('owner intake review over real HTTP and isolated PG', () => {
+describe.skipIf(!TEST_DATABASE_URL)('owner intake review over real HTTP and isolated PG [F:http.reviewResearchWork]', () => {
   let pool: Pool, app: FastifyInstance, origin: string
   const sectorId = `TEST-review-${randomUUID()}`
   const id = (suffix: string) => `${sectorId}:v1:intake:${suffix}`

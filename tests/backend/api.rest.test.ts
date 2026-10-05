@@ -26,7 +26,7 @@ function run(id: string, sessionId: string, state: RunInfo['state'], threadKey?:
   }
 }
 
-describe.skipIf(!ENABLED)('REST parity (B3.1)', () => {
+describe.skipIf(!ENABLED)('REST parity (B3.1) [F:http.createSession] [F:http.getSession] [F:http.listSessions] [F:http.renameSession] [F:http.deleteSession] [F:http.listThreads] [F:http.getThread] [F:http.listMessages] [F:http.listRuns] [F:http.getRun] [F:http.sendMessage] [F:http.steerThread] [F:http.pauseRun] [F:http.resumeRun] [F:http.cancelRun] [F:http.decideApproval] [F:http.listSkills]', () => {
   let app: FastifyInstance
   let pool: Pool
   let runs: FakeRunsGateway

@@ -41,7 +41,7 @@ async function waitFor(condition: () => Promise<boolean>, timeoutMs: number, wha
   }
 }
 
-describe.skipIf(!ENABLED)('live API over Temporal (B3.1)', () => {
+describe.skipIf(!ENABLED)('live API over Temporal (B3.1) [F:http.sendMessage] [F:http.listMessages] [F:http.getRun] [F:http.pauseRun]', () => {
   let connection: NativeConnection
   let client: WorkflowClient
   let pool: Pool

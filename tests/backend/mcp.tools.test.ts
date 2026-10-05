@@ -380,7 +380,7 @@ async function initialize(app: FastifyInstance, extraHeaders: Record<string, str
   expect((response.json.result as { serverInfo?: { name?: string } }).serverInfo?.name).toBe('kardata')
 }
 
-describe('mcp transport (Phase 2)', () => {
+describe('mcp transport (Phase 2) [F:http.mcpRpc]', () => {
   it('serves initialize, tools/list, and tools/call over POST /mcp', async () => {
     const { db } = makeFake(async (text) => {
       if (/FROM heartbeats/.test(text)) {

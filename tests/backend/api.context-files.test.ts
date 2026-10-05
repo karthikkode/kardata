@@ -25,7 +25,7 @@ const KEYS = {
 const authHeader = (key: string): Record<string, string> => ({ authorization: `Bearer ${key}` })
 const FILE_TEXT = 'TEST block evidence: revenue 12,400 in 2024 across 20 sites.'
 
-describe.skipIf(!ENABLED)('context file blocks', () => {
+describe.skipIf(!ENABLED)('context file blocks [F:http.compactSectorContext] [F:http.decideContextProposal] [F:http.editGlobalContext]', () => {
   let app: FastifyInstance
   let pool: Pool
   let runs: FakeRunsGateway

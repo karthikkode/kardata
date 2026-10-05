@@ -17,7 +17,7 @@ import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
 const FILE_TEXT = 'TEST uploaded business evidence: Australian plumbing SME dispatch delay finding, original file-only fact.'
-describe.skipIf(!TEST_DATABASE_URL)('file-derived context promotion authority', () => {
+describe.skipIf(!TEST_DATABASE_URL)('file-derived context promotion authority [F:http.previewContextProposal] [F:http.decideContextProposal] [F:http.rebuildLocalContext] [F:http.mcpRpc]', () => {
   let pool: Pool, app: FastifyInstance
   const scope = { tenantId: 'TEST file promotion tenant', projectId: null }
   const token = 'TEST file promotion execution credential'

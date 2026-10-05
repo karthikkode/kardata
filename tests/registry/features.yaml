@@ -4410,256 +4410,256 @@
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/sectors/{sectorId}/approve)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.attachSectorDocument
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/sectors/{sectorId}/documents)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.cancelRun
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/commands/cancel)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.compactLocalContext
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/threads/{threadKey}/context/compact)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.compactSectorContext
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/sectors/{sectorId}/context/compact)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.compactSession
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/sessions/{sessionId}/compact)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.createSector
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/sectors)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.createSession
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/sessions)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.createSessionArtifact
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/sessions/{sessionId}/artifacts)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.decideApproval
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/commands/approve)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.decideContextProposal
   layer: backend
   surface: backend/openapi/v1.yaml (POST
     /v1/sectors/{sectorId}/global-context/proposals/{proposalId}/decision)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.deleteSession
   layer: backend
   surface: backend/openapi/v1.yaml (DELETE /v1/sessions/{sessionId})
   tiers:
-    - todo
+    - db
   states: []
 - id: http.editGlobalContext
   layer: backend
   surface: backend/openapi/v1.yaml (PATCH /v1/sectors/{sectorId}/global-context)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.editLocalContext
   layer: backend
   surface: backend/openapi/v1.yaml (PATCH /v1/threads/{threadKey}/context)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.editSectorPlan
   layer: backend
   surface: backend/openapi/v1.yaml (PATCH /v1/sectors/{sectorId}/plan)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.ensureSectorResearchSession
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/sectors/{sectorId}/research-session)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.getArtifactBody
   layer: backend
   surface: backend/openapi/v1.yaml (GET
     /v1/sessions/{sessionId}/artifacts/{artifactId}/body)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.getExecutionRecord
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/threads/{threadKey}/execution-records/{seq})
   tiers:
-    - todo
+    - db
   states: []
 - id: http.getGlobalContext
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/sectors/{sectorId}/global-context)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.getLocalContext
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/threads/{threadKey}/context)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.getProviders
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/providers)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.getResearchProgress
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/sectors/{sectorId}/progress)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.getRun
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/runs/{runId})
   tiers:
-    - todo
+    - db
   states: []
 - id: http.getSector
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/sectors/{sectorId})
   tiers:
-    - todo
+    - db
   states: []
 - id: http.getSectorContext
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/sectors/{sectorId}/context)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.getSectorFileBody
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/sectors/{sectorId}/files/{fileId}/body)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.getSectorFileUnits
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/sectors/{sectorId}/files/{fileId}/units)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.getSession
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/sessions/{sessionId})
   tiers:
-    - todo
+    - db
   states: []
 - id: http.getThread
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/threads/{threadKey})
   tiers:
-    - todo
+    - db
   states: []
 - id: http.inspectRun
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/debug/runs/{runId})
   tiers:
-    - todo
+    - db
   states: []
 - id: http.inspectThreadOperation
   layer: backend
   surface: backend/openapi/v1.yaml (GET
     /v1/threads/{threadKey}/operations/{operationId})
   tiers:
-    - todo
+    - db
   states: []
 - id: http.listCompanies
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/companies)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.listExecutionRecords
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/threads/{threadKey}/execution-records)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.listMessages
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/threads/{threadKey}/messages)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.listRuns
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/runs)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.listSectorDocuments
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/sectors/{sectorId}/documents)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.listSectorFiles
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/sectors/{sectorId}/files)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.listSectors
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/sectors)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.listSessionArtifacts
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/sessions/{sessionId}/artifacts)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.listSessions
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/sessions)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.listSkills
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/skills)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.listSteeringReceipts
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/threads/{threadKey}/steering-receipts)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.listSupervisionAlerts
   layer: backend
@@ -4671,153 +4671,153 @@
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/artifacts)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.listThreads
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/sessions/{sessionId}/threads)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.mcpRpc
   layer: backend
   surface: backend/openapi/v1.yaml (POST /mcp)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.patchSectorContext
   layer: backend
   surface: backend/openapi/v1.yaml (PATCH /v1/sectors/{sectorId}/context)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.pauseRun
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/commands/pause)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.pauseSector
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/sectors/{sectorId}/pause)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.planSector
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/sectors/{sectorId}/plan)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.previewContextProposal
   layer: backend
   surface: backend/openapi/v1.yaml (GET
     /v1/sectors/{sectorId}/global-context/proposals/{proposalId})
   tiers:
-    - todo
+    - db
   states: []
 - id: http.proposeGlobalContext
   layer: backend
   surface: backend/openapi/v1.yaml (POST
     /v1/sectors/{sectorId}/global-context/proposals)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.readSectorPlan
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/sectors/{sectorId}/plan)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.rebuildLocalContext
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/threads/{threadKey}/context/rebuild)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.referenceArtifact
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/sessions/{sessionId}/artifacts/references)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.renameSession
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/sessions/{sessionId}/rename)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.requestFileContext
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/sectors/{sectorId}/files/{fileId}/context)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.restartSector
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/sectors/{sectorId}/restart)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.resumeRun
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/commands/resume)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.resumeSector
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/sectors/{sectorId}/resume)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.retryFileProcessing
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/sectors/{sectorId}/files/{fileId}/retry)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.reviewResearchWork
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/sectors/{sectorId}/work/{workId}/review)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.sendMessage
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/commands/send)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.setSectorFileVisibility
   layer: backend
   surface: backend/openapi/v1.yaml (PATCH /v1/sectors/{sectorId}/files/{fileId})
   tiers:
-    - todo
+    - db
   states: []
 - id: http.setSessionModel
   layer: backend
   surface: backend/openapi/v1.yaml (PATCH /v1/sessions/{sessionId}/model)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.startSector
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/sectors/{sectorId}/start)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.steerThread
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/commands/steer)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.streamThread
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/threads/{threadKey}/events)
   tiers:
-    - todo
+    - db
   states: []
 - id: mcp.browser_act
   layer: mcp

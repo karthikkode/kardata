@@ -66,7 +66,7 @@ async function take(
   }
 }
 
-describe.skipIf(!ENABLED)('SSE streaming contract (B3.2)', () => {
+describe.skipIf(!ENABLED)('SSE streaming contract (B3.2) [F:http.streamThread]', () => {
   let app: FastifyInstance
   let pool: Pool
 
