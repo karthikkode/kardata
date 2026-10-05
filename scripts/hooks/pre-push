@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 # Pre-push gate: full verify before anything leaves the machine.
 # Installed (once, by the owner) with: npm run hooks:install
+# Uses the caller's PATH; node 22 is required.
 set -euo pipefail
-export PATH="/home/karthik/.nvm/versions/node/v22.23.3/bin:$PATH"
+if ! command -v node >/dev/null 2>&1; then
+  echo "pre-push: node not found on PATH" >&2
+  exit 2
+fi
+if [ "$(node -p 'process.versions.node.split(".")[0]')" != "22" ]; then
+  echo "pre-push: need node 22, found $(node --version)" >&2
+  exit 2
+fi
 npm run verify
