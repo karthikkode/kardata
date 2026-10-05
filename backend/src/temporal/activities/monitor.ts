@@ -1,0 +1,64 @@
+// Karbot monitor tick activities: claim the overlap guard, snapshot the
+// target's health plus recent alerts, and post brief + snapshot into
+// the Karbot session as a normal message (which runs a visible turn).
+import { createLogger, logOp } from '../../observability/logging.js'
+import { activityLogContext } from '../../observability/temporal-tracing.js'
+import type { Scope } from '../../auth/types.js'
+import {
+  claimMonitorTick,
+  finishMonitor,
+  getMonitor,
+  listSupervisionAlerts,
+  releaseMonitorTick,
+  researchHealth,
+  threadHealth,
+  workerPoolFromEnv,
+} from '../../db/index.js'
+import { TemporalRunsGateway } from '../runs-gateway.js'
+
+async function sectorSnapshot(pool: Parameters<typeof researchHealth>[0], sectorId: string, scope: Scope): Promise<string> {
+  const health = await researchHealth(pool, sectorId, scope)
+  const lines = [`sector ${health.sector.name}: ${health.sector.state}, ${health.liveThreads} live threads${health.stale ? ' (STALE)' : ''}`]
+  const page = await listSupervisionAlerts(pool, scope, Number.MAX_SAFE_INTEGER, 5)
+  const relevant = page.items.filter((item) => item.sectorId === sectorId || item.state === 'current-warning').slice(0, 5)
+  for (const item of relevant) lines.push(`alert [${item.severity}] ${item.subject}`)
+  if (health.recentSupervision.length > 0) lines.push(`supervision: ${health.recentSupervision[0]?.kind} ${health.recentSupervision[0]?.response}`)
+  return lines.join('\n')
+}
+
+async function threadSnapshot(pool: Parameters<typeof threadHealth>[0], threadKey: string, scope: Scope): Promise<string> {
+  const health = await threadHealth(pool, threadKey, scope)
+  const lines = [`thread ${threadKey}: ${health.status}, queue ${health.queueDepth}${health.stalled ? ' (STALLED)' : ''}`]
+  if (health.lastRound) lines.push(`last round ${health.lastRound.round}: ${health.lastRound.model} ${health.lastRound.outcome}${health.lastRound.errorCode ? ` (${health.lastRound.errorCode})` : ''}`)
+  return lines.join('\n')
+}
+
+export async function monitorTickActivity(input: { monitorId: string }): Promise<{ ticked: boolean; skipped?: string }> {
+  const logger = createLogger(activityLogContext())
+  return logOp(logger, 'monitor.tick', async () => {
+    const pool = workerPoolFromEnv()
+    const claimed = await claimMonitorTick(pool, input.monitorId)
+    if (!claimed) {
+      const current = await getMonitor(pool, input.monitorId)
+      return { ticked: false, skipped: !current || current.stoppedAt ? 'stopped' : 'overlap' }
+    }
+    try {
+      const scope = { tenantId: claimed.tenantId, projectId: claimed.projectId }
+      const snapshot = claimed.targetSectorId
+        ? await sectorSnapshot(pool, claimed.targetSectorId, scope)
+        : await threadSnapshot(pool, claimed.targetThreadKey as string, scope)
+      await new TemporalRunsGateway(pool).send(claimed.karbotThreadKey, `[Monitor ${claimed.id}] ${claimed.brief}\n${snapshot}`)
+      return { ticked: true }
+    } finally {
+      await releaseMonitorTick(pool, input.monitorId)
+    }
+  }, { monitorId: input.monitorId })
+}
+
+export async function finishMonitorActivity(input: { monitorId: string }): Promise<{ finished: boolean }> {
+  const logger = createLogger(activityLogContext())
+  return logOp(logger, 'monitor.finish', async () => {
+    await finishMonitor(workerPoolFromEnv(), input.monitorId)
+    return { finished: true }
+  }, { monitorId: input.monitorId })
+}

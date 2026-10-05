@@ -147,6 +147,18 @@ export {
   resumeSectorSweep,
 } from './sector-lifecycle.js'
 export {
+  claimMonitorTick,
+  finishMonitor,
+  getMonitor,
+  listMonitors,
+  releaseMonitorTick,
+  startMonitor,
+  stopMonitor,
+  type MonitorRecord,
+  type MonitorRunner,
+  type StartMonitorInput,
+} from './monitors.js'
+export {
   addContextNotes,
 } from './sector-context.js'
 export {

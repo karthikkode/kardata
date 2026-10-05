@@ -35,6 +35,7 @@ import {
   writePlanArtifactActivity,
 } from './activities/plan.js'
 import { appendEventActivity, karbotTurnActivity } from './activities/turn.js'
+import { finishMonitorActivity, monitorTickActivity } from './activities/monitor.js'
 import { checkWorkerMcpAuth } from './activities/worker-mcp-auth.js'
 import { connectWorker, temporalNamespace } from './connection.js'
 import { createLaneWorker } from './worker.js'
@@ -67,7 +68,7 @@ export async function createDevWorkers(connection: NativeConnection, bundles: De
     connection,
     namespace,
     workflowsPath: bundles.turnBundle,
-    activities: { appendEventActivity, karbotTurnActivity,prepareExecutionIntentActivity,settlePreparedExecutionIntentActivity,originalRecoveryReadyActivity },
+    activities: { appendEventActivity, karbotTurnActivity,prepareExecutionIntentActivity,settlePreparedExecutionIntentActivity,originalRecoveryReadyActivity,monitorTickActivity,finishMonitorActivity },
     ...(logger ? { logger } : {}),
   })
   const researchWorker = await createLaneWorker({

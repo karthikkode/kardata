@@ -466,6 +466,28 @@ export class TemporalRunsGateway implements RunsGateway {
     return { commandId: commandId(), state: 'accepted' }
   }
 
+  /** Start one Karbot monitor timer on the turn lane. The monitor id is
+   * unique per row, so a retry after a lost response fails on the
+   * existing execution instead of double-ticking. */
+  async startMonitorWorkflow(input: { monitorId: string; everyMs: number; untilMs: number }): Promise<{ workflowId: string }> {
+    const client = await this.client()
+    const workflowId = `karbot-monitor-${input.monitorId}`
+    await client.workflow.start('karbotMonitor', { workflowId, taskQueue: laneConfig('turn').taskQueue, args: [input] })
+    return { workflowId }
+  }
+
+  /** Signal one monitor to stop. An already-closed monitor accepts
+   * quietly; the DB row is the source of stopped truth. */
+  async stopMonitorWorkflow(workflowId: string): Promise<void> {
+    const client = await this.client()
+    try {
+      await client.workflow.getHandle(workflowId).signal('monitorStop')
+    } catch (error) {
+      if (error instanceof WorkflowNotFoundError) return
+      throw error
+    }
+  }
+
   async startContextCompaction(sectorId: string, reason: 'auto' | 'manual'): Promise<CommandResult> {
     const client = await this.client()
     try {
