@@ -103,6 +103,17 @@ exceeds turn retry budget (F6 proves path recovery, not turn survival);
 steer instructions never carry to next turn; only `send` maps 503.
 Gates at package: typecheck/lint/quality all 0; no suites per D1.
 
+Phase 5 complete (20 commits `95a92c4..d99168b` incl. package): P5.1a–b
+sectorId scope + tests, P5.1c–d runs/queue + tests, P5.1e–f obs + tests,
+P5.1g–h control + tests, P5.1i–j spawn/restart/propose/request + tests,
+P5.1k palettes, P5.1l parity script, P5.2a–c monitor + db/temporal tests,
+P5.2d live L-K1..K3 (unrun), P5.2e tiering, P5.2f–h docs + package.
+Key readings: sectorScope binding-wins; queue surgery approver+sensitive;
+companyResearch pause via patched(); Karbot propose pending-only;
+karbotMonitor is a timer workflow not a Schedule; 6 DEV owner-only ops;
+registry 1009, enforce-sim clean outside frontend. Gates: typecheck/
+lint 0 per commit; parity standalone OK; no suites per D1.
+
 ## Verification status
 
 - Per-commit gates only: `npm run typecheck`, `npm run lint`, `npm run quality`.
