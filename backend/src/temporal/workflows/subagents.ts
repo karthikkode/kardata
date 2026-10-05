@@ -17,6 +17,7 @@
 import {
   ActivityFailure,
   CancelledFailure,
+  ApplicationFailure,
   CancellationScope,
   condition,
   defineQuery,
@@ -27,9 +28,11 @@ import {
   proxyActivities,
   setHandler,
   startChild,
+  uuid4,
   workflowInfo,
   type ChildWorkflowHandle,
 } from '@temporalio/workflow'
+import { normalizeQueueItem, queueItemsQuery, queueRemoveUpdate, queueReorderUpdate } from './inbox-queue.js'
 import { resumableTurn } from './resumable-turn.js'
 import { withPreparedExecution } from './epoch-start.js'
 import { WorkflowExecutionAlreadyStartedError } from '@temporalio/common'
@@ -52,6 +55,8 @@ export interface DelegateRequest {
   recovery?: OriginalTurnRecovery
   childId: string
   goal: string
+  /** Owner-given display name; recorded on the launch event. */
+  name?: string
   depth: number
   mode: ContextMode
   maxDepth: number
@@ -347,7 +352,13 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
   const threadKey = `agent:${input.childId}`
   const box: { status: ChildStatus } = { status: 'running' }
   const goalBox: { goal: string } = { goal: input.goal }
-  const inbox: string[] = input.recovery ? [input.recovery.text] : []
+  // Inbox ids gate once here (same contract as sessionRun): handlers
+  // close over the flag so old histories keep plain strings.
+  const inboxIds = patched('inbox-ids-v1')
+  function stamp(text: string): string | { id: string; text: string; queuedAt: number } {
+    return inboxIds ? { id: uuid4(), text, queuedAt: Date.now() } : text
+  }
+  const inbox: Array<string | { id: string; text: string; queuedAt: number }> = input.recovery ? [stamp(input.recovery.text)] : []
   let recovering=input.recovery
   const missedSteer: string[] = []
   const currentStatus = (): ChildStatus => box.status
@@ -355,6 +366,7 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
   let threadLength = 0
   let acceptingSteer = true
   let contextPaused = false
+  let paused = false
   const eventKey = patched('child-event-run-v2') ? `${childPartition}:${workflowInfo().runId}` : childPartition
   let finishRequested = false
   let cancelRunningTurn: (() => void) | undefined
@@ -373,14 +385,19 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
     // Mirror agents/subagents.ts: only a running, accepting child queues;
     // everything else lands as missed steer, never a relaunch.
     if (currentStatus() === 'running' && acceptingSteer && inbox.length < input.queueCapacity) {
-      inbox.push(text)
+      inbox.push(stamp(text))
     } else {
       missedSteer.push(text)
     }
     log.info('signal received', { signal: 'childMessage', pending: inbox.length })
   })
+  setHandler(defineSignal('childPause'), () => {
+    if (currentStatus() === 'running') paused = true
+    log.info('signal received', { signal: 'childPause', status: currentStatus() })
+  })
   setHandler(defineSignal('childResume'), () => {
     contextPaused = false
+    paused = false
     acceptingSteer = currentStatus() === 'running'
     log.info('signal received', { signal: 'childResume', status: currentStatus() })
   })
@@ -389,7 +406,7 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
     if (!newGoal.trim()) return
     goalBox.goal = newGoal
     if (currentStatus() === 'running' && acceptingSteer) {
-      inbox.push(`Course correction. New goal: ${newGoal}`)
+      inbox.push(stamp(`Course correction. New goal: ${newGoal}`))
     } else {
       missedSteer.push(`Course correction. New goal: ${newGoal}`)
     }
@@ -418,6 +435,29 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
     lastTool: threadLength > 0 ? 'domain.scan' : undefined,
   }))
   setHandler(childSummaryQuery, () => summary())
+  setHandler(queueItemsQuery, () => inbox.map((item, index) => normalizeQueueItem(item, index)))
+  setHandler(queueRemoveUpdate, (id: string) => {
+    const at = inbox.findIndex((item, index) => normalizeQueueItem(item, index).id === id)
+    if (at < 0) return false
+    inbox.splice(at, 1)
+    return true
+  })
+  setHandler(queueReorderUpdate, (ids: string[]) => {
+    const current = inbox.map((item, index) => normalizeQueueItem(item, index))
+    const known = new Set(current.map((item) => item.id))
+    if (ids.length !== current.length || new Set(ids).size !== ids.length || !ids.every((id) => known.has(id))) {
+      throw ApplicationFailure.nonRetryable('Queue ids must exactly match the current queue.', 'QueueMismatch')
+    }
+    const byId = new Map(current.map((item, index) => [item.id, index] as const))
+    const entries = inbox.slice()
+    inbox.length = 0
+    for (const id of ids) {
+      const at = byId.get(id)
+      const entry = at === undefined ? undefined : entries[at]
+      if (entry !== undefined) inbox.push(entry)
+    }
+    return true
+  })
   // Fork children continue the parent conversation and must not delegate;
   // deeper nesting stops at the launch cap. Mirrors canDelegate.
   setHandler(childCanDelegateQuery, () => input.mode !== 'fork' && input.depth + 1 <= input.maxDepth)
@@ -445,6 +485,7 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
         depth: input.depth,
         mode: input.mode,
         goal: input.goal,
+        ...(input.name === undefined ? {} : { name: input.name }),
         queueCapacity: input.queueCapacity,
         canDelegate: input.mode !== 'fork' && input.depth + 1 <= input.maxDepth,
       },
@@ -463,15 +504,26 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
         continue
       }
       if (finishRequested) break
+      // Owner pause gate: no new inbox item starts while paused. The
+      // header flips through the regular thread-state events.
+      if (patched('subagent-pause-v1') && paused) {
+        nonce += 1
+        await childActivities.appendEventActivity({ idempotencyKey: idempotencyKey(eventKey, 'owner-paused', nonce), partition: childPartition, type: 't.thread.state', payload: { threadKey, status: 'PAUSED', acceptingSteer: false } })
+        await condition(() => !paused || currentStatus() === 'cancelled' || finishRequested)
+        if (currentStatus() === 'cancelled' || finishRequested) continue
+        nonce += 1
+        await childActivities.appendEventActivity({ idempotencyKey: idempotencyKey(eventKey, 'owner-resumed', nonce), partition: childPartition, type: 't.thread.state', payload: { threadKey, status: 'RUNNING', acceptingSteer: true } })
+      }
       const next = inbox.shift()
       if (next === undefined) {
         await condition(() => inbox.length > 0 || finishRequested || currentStatus() === 'cancelled')
         continue
       }
+      const text = typeof next === 'string' ? next : next.text
       try {
         if (patched('child-user-before-turn-v1') && !recovering) {
           nonce += 1
-          await childActivities.appendEventActivity({ idempotencyKey: idempotencyKey(eventKey, 'user', nonce), partition: childPartition, type: 't.message.appended', payload: { threadKey, kind: 'text', message: { role: 'user', text: next } } })
+          await childActivities.appendEventActivity({ idempotencyKey: idempotencyKey(eventKey, 'user', nonce), partition: childPartition, type: 't.message.appended', payload: { threadKey, kind: 'text', message: { role: 'user', text } } })
           threadLength += 1
         }
         const outcome = await CancellationScope.cancellable(async () => {
@@ -488,21 +540,26 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
               runKey: recovering?.runKey ?? (patched('child-runkey-v2') ? runKey : `karbot:${input.childId}:${nonce}`),
               ...(recovering ? { recovery: recovering } : {}),
               ...(input.ownerEpoch ? { ownerEpoch: input.ownerEpoch,ownerFirstExecutionId: workflowInfo().firstExecutionRunId,ownerContinuedFromExecutionId: workflowInfo().continuedFromExecutionRunId } : {}),
-              text: next,
+              text,
               fakeSteps: input.fakeSteps,
             }), async (reason, kind) => {
-              contextPaused = true
-              acceptingSteer = false
+              if (kind === 'pause') paused = true
+              else {
+                contextPaused = true
+                acceptingSteer = false
+              }
               nonce += 1
-              await childActivities.appendEventActivity({ idempotencyKey: idempotencyKey(eventKey, 'context-paused', nonce), partition: childPartition, type: 't.thread.state', payload: { threadKey, status: 'PAUSED', acceptingSteer: false } })
-              nonce += 1
-              await childActivities.appendEventActivity({ idempotencyKey: idempotencyKey(eventKey, 'context-error', nonce), partition: childPartition, type: 't.message.appended', payload: { threadKey, kind: 'tool', message: { id: `context-${nonce}`, name: kind === 'operation' ? 'operation.recovery' : 'context.compaction', state: 'failed', detail: reason } } })
+              await childActivities.appendEventActivity({ idempotencyKey: idempotencyKey(eventKey, kind === 'pause' ? 'owner-paused' : 'context-paused', nonce), partition: childPartition, type: 't.thread.state', payload: { threadKey, status: 'PAUSED', acceptingSteer: false } })
+              if (kind !== 'pause') {
+                nonce += 1
+                await childActivities.appendEventActivity({ idempotencyKey: idempotencyKey(eventKey, 'context-error', nonce), partition: childPartition, type: 't.message.appended', payload: { threadKey, kind: 'tool', message: { id: `context-${nonce}`, name: kind === 'operation' ? 'operation.recovery' : 'context.compaction', state: 'failed', detail: reason } } })
+              }
             }, async () => {
-              await condition(() => !contextPaused || currentStatus() === 'cancelled' || finishRequested)
+              await condition(() => (!contextPaused && !paused) || currentStatus() === 'cancelled' || finishRequested)
               if (currentStatus() === 'cancelled' || finishRequested) throw new CancelledFailure('Child stopped while context was paused')
               nonce += 1
               await childActivities.appendEventActivity({ idempotencyKey: idempotencyKey(eventKey, 'context-resumed', nonce), partition: childPartition, type: 't.thread.state', payload: { threadKey, status: 'RUNNING', acceptingSteer: true } })
-            })
+            }, { parkPause: patched('subagent-pause-v1') })
           } finally {
             cancelRunningTurn = undefined
           }
@@ -527,7 +584,7 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
 
     // Finish drains the leftover inbox into missed steer, exactly like
     // agents finish(); a cancelled child reports cancelled, never finished.
-    missedSteer.push(...inbox.splice(0, inbox.length))
+    missedSteer.push(...inbox.splice(0, inbox.length).map((item) => (typeof item === 'string' ? item : item.text)))
     acceptingSteer = false
     const finalStatus: ChildStatus = currentStatus() === 'cancelled' ? 'cancelled' : 'finished'
     box.status = finalStatus

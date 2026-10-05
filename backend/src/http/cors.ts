@@ -44,8 +44,9 @@ export function corsHeadersFor(request: OriginCarrier, origins: string[]): Recor
 /** Reflects an allowed origin on every response and answers preflights.
  * Preflight handling lives on onRequest ahead of the rate hook so browser
  * handshakes are never rate-counted; the allow headers cover exactly what
- * the staging client sends (Bearer [REDACTED] JSON POSTs). A preflight from an
- * origin off the list is 403 permission_denied, never an echo. */
+ * the staging client sends (Bearer [REDACTED] JSON bodies, idempotency keys on
+ * mutations). A preflight from an origin off the list is 403
+ * permission_denied, never an echo. */
 export function registerCors(app: FastifyInstance, origins: string[]): void {
   const allowed = new Set(origins)
   // Remembered for hijacked responses (SSE): they skip onSend, so the
@@ -62,7 +63,7 @@ export function registerCors(app: FastifyInstance, origins: string[]): void {
       void reply.header('vary', 'Origin')
     }
     void reply.header('access-control-allow-methods', 'GET, POST, PATCH, DELETE, OPTIONS')
-    void reply.header('access-control-allow-headers', 'Authorization, Content-Type')
+    void reply.header('access-control-allow-headers', 'Authorization, Content-Type, Idempotency-Key')
     void reply.header('access-control-max-age', '86400')
     return reply.code(204).send()
   })

@@ -6,8 +6,11 @@ import {
   executeKarbotTurn,
   chatHistory,
   KARBOT_SYSTEM_PROMPT,
+  parseChatRefs,
   productMcpClient,
   RESEARCH_TURN_WALL_MS,
+  researchMcpClient,
+  RESEARCH_TOOLS,
   sectorMcpClient,
   SECTOR_TOOLS,
   type KarbotTurnDeps,
@@ -144,6 +147,37 @@ describe('executeKarbotTurn', () => {
     expect(call?.systemPrompt).not.toContain('thought partner')
     expect(call?.temperature).toBeUndefined()
     expect(preloadCalls).toBe(0)
+  })
+
+  it('A10: prepends the rewrite brief only for context-rewrite sessions', async () => {
+    const rewrite = memoryWorld(new FakeProvider([{ text: 'done' }]))
+    rewrite.deps.loadSessionPurpose = async () => 'context-rewrite'
+    await executeKarbotTurn(input(), rewrite.deps)
+    expect(rewrite.adapter.calls[0]?.systemPrompt).toContain('You are rewriting this sector')
+    const normal = memoryWorld(new FakeProvider([{ text: 'done' }]))
+    normal.deps.loadSessionPurpose = async () => 'chat'
+    await executeKarbotTurn(input(), normal.deps)
+    expect(normal.adapter.calls[0]?.systemPrompt).not.toContain('You are rewriting this sector')
+  })
+
+  it('A12: nudges sector sessions to propose context updates, and only them', async () => {
+    const sector = memoryWorld(new FakeProvider([{ text: 'done' }]))
+    sector.deps.loadSessionSector = async () => 'sec-1'
+    await executeKarbotTurn(input(), sector.deps)
+    expect(sector.adapter.calls[0]?.systemPrompt).toContain('call db.propose_global_context adding it to Instructions')
+    const general = memoryWorld(new FakeProvider([{ text: 'done' }]))
+    await executeKarbotTurn(input(), general.deps)
+    expect(general.adapter.calls[0]?.systemPrompt).not.toContain('call db.propose_global_context adding it to Instructions')
+  })
+
+  it('A14: parses [[session:id|title]] chat markers', async () => {
+    expect(parseChatRefs('plain text')).toEqual([])
+    expect(parseChatRefs('see [[session:abc-123|Pricing chat]] please')).toEqual([{ sessionId: 'abc-123', title: 'Pricing chat' }])
+    expect(parseChatRefs('[[session:a|One]] and [[session:b|Two]]')).toEqual([
+      { sessionId: 'a', title: 'One' },
+      { sessionId: 'b', title: 'Two' },
+    ])
+    expect(parseChatRefs('@name stays untouched')).toEqual([])
   })
 
   it('threads skill prepend and preloaded chunks through the prompt seam in order', async () => {
@@ -473,6 +507,40 @@ describe('sectorMcpClient', () => {
     }
     expect(seen.sort()).toEqual([...SECTOR_TOOLS].sort())
   })
+
+  it('every research tool runs on the research stacking order', async () => {
+    // Research stacks researchMcpClient(transport) directly: the plan
+    // writer is not a Karbot tool, so productMcpClient would list it
+    // (via the grant) but never run it. Every RESEARCH_TOOL must list
+    // and run; anything else must refuse.
+    const seen: string[] = []
+    const transport: TurnRunnerMcpClient = {
+      async listTools() {
+        return [...RESEARCH_TOOLS].map(
+          (name): ToolDefinition => ({
+            name,
+            description: name,
+            parameters: { type: 'object', properties: {}, additionalProperties: false },
+          }),
+        )
+      },
+      async callTool(name: string) {
+        seen.push(name)
+        return { content: `rows for ${name}` }
+      },
+    }
+    const stacked = researchMcpClient(transport)
+    const listed = (await stacked.listTools()).map((tool) => tool.name).sort()
+    expect(listed).toEqual([...RESEARCH_TOOLS].sort())
+    expect(listed).toContain('db.update_sector_plan')
+    for (const name of RESEARCH_TOOLS) {
+      const result = await stacked.callTool(name, {})
+      expect(result.isError !== true, name).toBe(true)
+    }
+    expect(seen.sort()).toEqual([...RESEARCH_TOOLS].sort())
+    const refused = await stacked.callTool('db.ledger_record_problem', {})
+    expect(refused.isError).toBe(true)
+  })
 })
 
 describe('research turn wall budget', () => {
@@ -528,5 +596,55 @@ describe('sector identity preload (B2)', () => {
     const world = memoryWorld(new FakeProvider([{ text: 'TEST general answer' }]))
     await executeKarbotTurn(input(), world.deps)
     expect(world.adapter.calls[0]?.systemPrompt ?? '').not.toContain('Current sector:')
+  })
+  it('A15: carries inherited parent context on every round', async () => {
+    const world = memoryWorld(
+      new FakeProvider([
+        { text: 'checking ', toolCalls: [{ id: 'c1', name: 'db.list_sessions', args: {} }] },
+        { text: 'TEST child answer' },
+      ]),
+    )
+    const brief = 'Context from your parent conversation (authoritative for anything said there):\nParent summary:\ncode word HARBOUR-42\nIf the goal refers to something from the parent conversation, answer from this context first.'
+    world.deps.loadInheritedContext = async () => [brief]
+    world.deps.loadSessionSector = async () => 'sector-9'
+    world.deps.loadSectorName = async () => 'TEST Sector'
+    world.deps.refreshContext = async () => ({ references: ['TEST refreshed'], notes: '', steering: [], contextVersion: 1, planVersion: null, localVersion: 0 })
+    await executeKarbotTurn(input(), world.deps)
+    expect(world.adapter.calls).toHaveLength(2)
+    for (const call of world.adapter.calls) {
+      const prompt = call?.systemPrompt ?? ''
+      expect(prompt).toContain(brief)
+      expect(prompt).toContain(`Reference material (authoritative for this turn):\n${brief}`)
+      expect(prompt.indexOf(brief)).toBeLessThan(prompt.indexOf('TEST refreshed'))
+    }
+  })
+  it('A15: inherited brief leads the initial preload when context never refreshes', async () => {
+    const world = memoryWorld(new FakeProvider([{ text: 'TEST child answer' }]))
+    const brief = 'Context from your parent conversation (authoritative for anything said there):\nParent summary:\ncode word HARBOUR-42\nIf the goal refers to something from the parent conversation, answer from this context first.'
+    world.deps.loadInheritedContext = async () => [brief]
+    world.deps.loadSessionSector = async () => 'sector-9'
+    world.deps.loadSectorName = async () => 'TEST Sector'
+    world.deps.loadSectorRefs = async () => ['TEST global context reference']
+    await executeKarbotTurn(input(), world.deps)
+    expect(world.adapter.calls).toHaveLength(1)
+    const prompt = world.adapter.calls[0]?.systemPrompt ?? ''
+    expect(prompt).toContain(`Reference material (authoritative for this turn):\n${brief}`)
+    expect(prompt.indexOf(brief)).toBeLessThan(prompt.indexOf('TEST global context reference'))
+  })
+  it('keeps the exact sector id line on round 2 and later', async () => {
+    const world = memoryWorld(
+      new FakeProvider([
+        { text: 'checking ', toolCalls: [{ id: 'c1', name: 'db.list_sessions', args: {} }] },
+        { text: 'TEST sector answer' },
+      ]),
+    )
+    world.deps.loadSessionSector = async () => 'sector-9'
+    world.deps.loadSectorName = async () => 'TEST Sector'
+    world.deps.refreshContext = async () => ({ references: ['TEST refreshed'], notes: '', steering: [], contextVersion: 1, planVersion: null, localVersion: 0 })
+    await executeKarbotTurn(input(), world.deps)
+    expect(world.adapter.calls).toHaveLength(2)
+    const line = 'Current sector: "TEST Sector" (sector id: sector-9). Use exactly this sector id for every sector tool call; never derive an id from the name.'
+    expect(world.adapter.calls[0]?.systemPrompt ?? '').toContain(line)
+    expect(world.adapter.calls[1]?.systemPrompt ?? '').toContain(line)
   })
 })

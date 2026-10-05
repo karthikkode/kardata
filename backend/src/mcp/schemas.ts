@@ -8,9 +8,9 @@
 import { z } from 'zod'
 import {
   CompanyStage,
-  ContextSections,
   EventEnvelope,
   LedgerQualification,
+  PartialContextSections,
   RecordProblemInput,
   SectorState,
   UpsertCompanyInput,
@@ -42,7 +42,7 @@ const ArtifactScope = z.object({
 export const TOOL_SCHEMAS = {
   'db.commit_child_context': z.object({ proposalId: NonEmpty }).strict(),
   'db.get_global_context': z.object({ sectorId: NonEmpty.optional() }).strict(),
-  'db.propose_global_context': z.object({ baseVersion: z.number().int().nonnegative(), sections: ContextSections, idempotencyKey: NonEmpty }).strict(),
+  'db.propose_global_context': z.object({ baseVersion: z.number().int().nonnegative(), sections: PartialContextSections, idempotencyKey: NonEmpty }).strict(),
   'db.list_sector_files': z.object({}).strict(),
   'db.propose_file_context': z.object({ fileId: NonEmpty, baseVersion: z.number().int().nonnegative(), ords: z.array(z.number().int().nonnegative()).optional() }).strict(),
   'db.get_local_context': z.object({}).strict(),
@@ -195,6 +195,14 @@ export const TOOL_SCHEMAS = {
   'db.get_thread': z.object({
     threadKey: NonEmpty,
   }),
+  'db.get_sector_plan': z.object({}).strict(),
+  'db.get_research_progress': z.object({}).strict(),
+  'db.list_sector_sessions': z.object({}).strict(),
+  'db.read_sector_thread': z.object({
+    threadKey: NonEmpty,
+    fromSeq: AfterSeq.optional(),
+    limit: z.number().int().min(1).max(100).optional(),
+  }).strict(),
   'db.send_message': z.object({
     threadKey: NonEmpty,
     text: z.string().min(1).max(8000),

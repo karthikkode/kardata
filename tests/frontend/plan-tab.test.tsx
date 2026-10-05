@@ -45,8 +45,9 @@ const progressData: ResearchProgress = {
 
 const globalData: GlobalContext = {
   sectorId: 'sec-1', version: 2,
-  sections: { scope: '', decisions: '', findings: '', questions: '' },
-  markdown: '', researchSessionId: null, changes: [],
+  sections: { scope: '', instructions: '', decisions: '', findings: '', questions: '' },
+  markdown: '', researchSessionId: null, changes: [], files: [],
+  usage: { total: 0, budget: 30000, method: 'estimated', bySection: { scope: 0, instructions: 0, decisions: 0, findings: 0, questions: 0 }, byFile: [] },
 }
 
 function actions(overrides: Partial<ResearchActions> = {}): ResearchActions {

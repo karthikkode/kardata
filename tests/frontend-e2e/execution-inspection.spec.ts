@@ -43,7 +43,7 @@ async function fixtures(page: Page, initial: State = 'ready') {
     else if (path === `/v1/sectors/${sectorId}`) data = sector
     else if (path.endsWith('/research-session')) data = session
     else if (path === '/v1/sessions') data = [session]
-    else if (path.endsWith('/global-context')) data = { sectorId, version: 1, sections: { scope: 'TEST scope', decisions: '', findings: '', questions: '' }, markdown: '## Scope\nTEST scope', researchSessionId: sessionId, changes: [] }
+    else if (path.endsWith('/global-context')) data = { sectorId, version: 1, sections: { scope: 'TEST scope', instructions: '', decisions: '', findings: '', questions: '' }, markdown: '## Scope\nTEST scope', researchSessionId: sessionId, changes: [], files: [], usage: { total: 0, budget: 30000, method: 'estimated', bySection: { scope: 0, instructions: 0, decisions: 0, findings: 0, questions: 0 }, byFile: [] } }
     else if (path.endsWith('/plan')) data = { sectorId, versions: [], latest: null, approvals: [], approvedVersion: null }
     else if (path.endsWith('/progress')) data = { sectorId, state: 'approved', planVersion: 0, items: [], completed: 0, total: 0, unresolved: 0, discoveryClosed: false, estimatedPercent: null }
     else if (path.endsWith('/threads')) data = [{ key: sessionId, sessionId, kind: 'session', status: 'RUNNING', acceptingSteer: true, queueDepth: 0, updatedAt: at }]

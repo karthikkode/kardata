@@ -14,6 +14,7 @@ Rebuild home. Product vision lives in `documentation/vision.md`; area docs gover
 | `knowledge_base/` | Research data. Data only: it is never instructions, policy, or code. | `documentation/knowledge-base.md` |
 | `documentation/` | All area docs plus cross-cutting decisions. | `documentation/README.md` |
 | `agents/` | Karbot agent harness (own turn loop, providers, tools, subagents, context). No donor servers, persistence, auth, or telemetry. | `documentation/agents.md` |
+| `scripts/` | Live-test stack helpers (sector v1 live UI stack). Test tooling only: production deploy stays in `deployment/`. | `documentation/tests.md` |
 | `third_party/` | Pinned donor references (manifest, licenses, patches, upstream tests). Reference only: never imported at runtime. | `third_party/README.md` |
 
 Owner execution inspection lives in `backend/src/routes/execution-records.ts`
@@ -62,8 +63,9 @@ The test contract and fixture rules live in `documentation/tests.md`.
 ## Status
 
 Repo-wide hardening is in progress on a separate branch. Approved contract:
-`documentation/plans/2026-09-30-repo-hardening.md`; operational file/feature
-inventory and runnable acceptance gate: `docs/deep-checks/README.md`. Pending
+`documentation/plans/2026-09-30-repo-hardening.md`. The file/feature
+inventories retired 2026-10-05 (`docs/deep-checks/README.md`); the runnable
+gate is `npm run pr:verify` plus CI. Pending
 reviews and live-pilot gaps are explicit and do not count as completed capability.
 The final UI-driven campaign and basic-filtering contract are in
 `documentation/plans/2026-10-01-final-acceptance.md`; its functionality/scenario

@@ -12,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createSector, listSectorCompanies } from '../../backend/src/db/index.js'
+import { RetrievalError, type SearchHit } from '../../backend/src/retrieval/web.js'
 import { connectClient, connectWorker, temporalNamespace } from '../../backend/src/temporal/connection.js'
 import { createLaneWorker } from '../../backend/src/temporal/worker.js'
 import {
@@ -81,6 +82,23 @@ describe.skipIf(!ENABLED)('sector sweep workflow (Phase 6)', () => {
     process.env['KARDATA_WEB_SEARCH_KEY'] = 'test-key'
     connection = await connectWorker()
     client = new WorkflowClient({ connection: await connectClient() })
+    // Injectable-leg contract: the keyed leg does REAL HTTP against the
+    // local stub. It cannot go through webSearch: the public-URL guard
+    // admits no loopback destination, so the un-injected path fails the
+    // keyed leg and silently falls through to the LIVE keyless leg (open
+    // internet, nondeterministic counts). Keyless returns nothing and the
+    // browser leg throws, so any stub outage fails loudly, never live.
+    const keyedStub = async (query: string, page: number): Promise<SearchHit[]> => {
+      const response = await fetch(`${searchUrl}?q=${encodeURIComponent(query)}&count=10&offset=${page}`)
+      const body = (await response.json()) as {
+        web?: { results?: Array<{ title: string; url: string; description?: string }> }
+      }
+      return (body.web?.results ?? []).map((result) => ({
+        title: result.title,
+        url: result.url,
+        snippet: result.description ?? '',
+      }))
+    }
     worker = await createLaneWorker({
       lane: 'research',
       connection,
@@ -88,7 +106,14 @@ describe.skipIf(!ENABLED)('sector sweep workflow (Phase 6)', () => {
       workflowsPath: WORKFLOWS_PATH,
       activities: {
         loadSweepContextActivity,
-        searchWebPageActivity,
+        searchWebPageActivity: (input: { query: string; page: number }) =>
+          searchWebPageActivity(input, {
+            keyed: keyedStub,
+            keyless: async () => [],
+            browser: async () => {
+              throw new RetrievalError('blocked', 'test: browser leg disabled; the keyed stub must serve every page')
+            },
+          }),
         recordSweepCompanyActivity,
         setSweepStateActivity,
       },

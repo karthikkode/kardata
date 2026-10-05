@@ -42,6 +42,24 @@ Unattributed fleet notifications are denied to scoped callers. Generated files
 record their verified source thread. The HTTP/DB authority matrix is maintained
 in `tests/backend/mcp.authority.test.ts`.
 
+Plan lock (sector backend v1): `db.update_sector_plan` requires a
+research-session main-thread execution; normal chats, research subagents
+and Karbot get `permission_denied`. Palettes: the research parent sees
+RESEARCH_TOOLS (SECTOR_TOOLS plus the plan writer), other sector chats
+see SECTOR_TOOLS, Karbot sees PRODUCT_TOOLS. `planSectorResearch`
+likewise requires the sector's bound research session.
+
+Sector reads (sector backend v1): `db.get_sector_plan`,
+`db.get_research_progress`, `db.list_sector_sessions` and
+`db.read_sector_thread` are viewer tools on both SECTOR_TOOLS and
+RESEARCH_TOOLS, so normal chats read the plan, progress, sibling chats
+and subagent transcripts. The sector check still applies;
+`db.read_sector_thread` is exempt from the local-conversation isolation
+rule but stays denied to subagent actors reading siblings. The four
+also ride PRODUCT_TOOLS for the stacking contract (sectorMcpClient sits
+over productMcpClient); server-side workspace identity still denies
+Karbot callers.
+
 - Keyed mode resolves the caller with the shared `resolveCaller` gate
   (absent/unknown/under-viewer callers 403 `permission_denied`) and
   binds the tenant/project scope plus role into every tool call. Open
@@ -52,7 +70,10 @@ in `tests/backend/mcp.authority.test.ts`.
   projection writes stay top-tier). `db.append_event` refuses
   `t.approval.*` types at every role — verdicts flow only through
   `POST /v1/commands/approve`. Idempotency tools namespace keys per
-  caller (`<keyId>:<key>`), matching the HTTP wrapper. Denied tool calls
+  caller (`<keyId>:<key>`), matching the HTTP wrapper. Context-change
+  ids additionally namespace per sector
+  (`<sectorId>:<keyId>:<key>`), so identical agent keys in different
+  sectors never collide. Denied tool calls
   answer an MCP `isError` result carrying `permission_denied`, never a throw.
 
 ## Tools

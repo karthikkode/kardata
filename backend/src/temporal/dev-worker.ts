@@ -14,9 +14,9 @@ import * as fileProcessingActivities from './activities/file-processing.js'
 // Run: npm run worker --workspace @kardata/backend (needs DATABASE_URL,
 // TEMPORAL_ADDRESS, provider keys, KARDATA_MCP_URL/TOKEN, and
 // KARDATA_WEB_SEARCH_KEY for live sweeps in env).
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { Runtime } from '@temporalio/worker'
+import { Runtime, type NativeConnection, type Worker } from '@temporalio/worker'
 import { createLogger, createWorkerLogger,workerLoggingOptions } from '../observability/logging.js'
 import { workerTelemetryOptions } from '../observability/metrics.js'
 import {
@@ -37,29 +37,38 @@ import * as coordinatorActivities from './activities/coordinator.js'
 import { reconciliationPageActivity } from './activities/reconciliation.js'
 import { ensureExecutionReconciliation, ensureFileAdmissionReconciliation } from './reconciliation-start.js'
 import { fileAdmissionPageActivity } from './activities/file-admission.js'
+import { compactGlobalContextActivity, summarizeContextFileActivity } from './activities/context-files.js'
 import { prepareExecutionIntentActivity,settlePreparedExecutionIntentActivity,originalRecoveryReadyActivity } from './activities/execution-epochs.js'
 
-async function main(): Promise<void> {
-  Runtime.install({ logger: createWorkerLogger(), telemetryOptions: { logging: workerLoggingOptions(),metrics: workerTelemetryOptions(Number(process.env['KARDATA_TEMPORAL_METRICS_PORT'] ?? 9464)) } })
-  // Credential self-check first: a rotated-but-not-recreated token fails
-  // loudly here instead of as cryptic per-turn 403s. Polling continues on
-  // a negative result so digest-answerable turns keep working.
-  const mcpAuth = await checkWorkerMcpAuth({})
-  if (!mcpAuth.ok) console.error(`[FATAL] worker mcp auth: ${mcpAuth.reason}`)
-  const connection = await connectWorker()
-  const workflowsDir = join(dirname(fileURLToPath(import.meta.url)), 'workflows')
+export interface DevWorkerBundles {
+  turnBundle: string
+  researchBundle: string
+}
+
+export interface DevWorkers {
+  turnWorker: Worker
+  researchWorker: Worker
+}
+
+// Shared lane-worker factory: the dev entry and the live Meta test
+// harness (tests/backend/live/harness.ts) serve the SAME activities and
+// bundles. Callers pass dist (.js) or source (.ts) bundle paths; the
+// default task queues are safe for tests because the live namespace
+// is isolated from the owner's workers.
+export async function createDevWorkers(connection: NativeConnection, bundles: DevWorkerBundles): Promise<DevWorkers> {
+  const namespace = temporalNamespace()
   const turnWorker = await createLaneWorker({
     lane: 'turn',
     connection,
-    namespace: temporalNamespace(),
-    workflowsPath: join(workflowsDir, 'turn-bundle.js'),
+    namespace,
+    workflowsPath: bundles.turnBundle,
     activities: { appendEventActivity, karbotTurnActivity,prepareExecutionIntentActivity,settlePreparedExecutionIntentActivity,originalRecoveryReadyActivity },
   })
-  const sweepWorker = await createLaneWorker({
+  const researchWorker = await createLaneWorker({
     lane: 'research',
     connection,
-    namespace: temporalNamespace(),
-    workflowsPath: join(workflowsDir, 'research-bundle.js'),
+    namespace,
+    workflowsPath: bundles.researchBundle,
     activities: {
       ...coordinatorActivities,
       prepareFileProcessingActivity: fileProcessingActivities.prepareFileProcessingActivity,
@@ -69,6 +78,8 @@ async function main(): Promise<void> {
       failFileProcessingActivity: fileProcessingActivities.failFileProcessingActivity,
       reconciliationPageActivity,
       fileAdmissionPageActivity,
+      summarizeContextFileActivity,
+      compactGlobalContextActivity,
       prepareExecutionIntentActivity,
       settlePreparedExecutionIntentActivity,
       loadSweepContextActivity,
@@ -79,6 +90,22 @@ async function main(): Promise<void> {
       setPlanStateActivity,
       writePlanArtifactActivity,
     },
+  })
+  return { turnWorker, researchWorker }
+}
+
+async function main(): Promise<void> {
+  Runtime.install({ logger: createWorkerLogger(), telemetryOptions: { logging: workerLoggingOptions(),metrics: workerTelemetryOptions(Number(process.env['KARDATA_TEMPORAL_METRICS_PORT'] ?? 9464)) } })
+  // Credential self-check first: a rotated-but-not-recreated token fails
+  // loudly here instead of as cryptic per-turn 403s. Polling continues on
+  // a negative result so digest-answerable turns keep working.
+  const mcpAuth = await checkWorkerMcpAuth({})
+  if (!mcpAuth.ok) console.error(`[FATAL] worker mcp auth: ${mcpAuth.reason}`)
+  const connection = await connectWorker()
+  const workflowsDir = join(dirname(fileURLToPath(import.meta.url)), 'workflows')
+  const { turnWorker, researchWorker: sweepWorker } = await createDevWorkers(connection, {
+    turnBundle: join(workflowsDir, 'turn-bundle.js'),
+    researchBundle: join(workflowsDir, 'research-bundle.js'),
   })
   const shutdown = (): void => {
     void turnWorker.shutdown()
@@ -95,7 +122,11 @@ async function main(): Promise<void> {
   } finally { await connection.close() }
 }
 
-void main().catch((error: unknown) => {
-  createLogger({ op: 'worker.startup' }).error({ error }, 'Worker startup failed')
-  process.exitCode = 1
-})
+// Only auto-run as the worker entry. Importers (the live harness takes
+// createDevWorkers) must not boot a worker as a side effect.
+if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  void main().catch((error: unknown) => {
+    createLogger({ op: 'worker.startup' }).error({ error }, 'Worker startup failed')
+    process.exitCode = 1
+  })
+}

@@ -24,10 +24,12 @@ export const SubagentLaunched = z.object({
 
 // B2.4 durable child workflows write a richer isolation record instead of
 // the B1.2 launch shape: same child identity, session under
-// parentSessionId, no display name (the child id doubles as the name).
+// parentSessionId, optional owner-given display name (the child id doubles
+// as the name when absent).
 export const SubagentLaunchedV2 = z.object({
   childId: z.string().min(1),
   parentSessionId: z.string().min(1),
+  name: z.string().min(1).optional(),
 })
 
 export const SubagentCompleted = z.object({

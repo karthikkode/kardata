@@ -576,7 +576,7 @@ export function progressFor(sectorId: string, variant: 'running' | 'complete' | 
 
 // ---------------------------------------------------------- global context
 
-export interface FixtureSections { scope: string; decisions: string; findings: string; questions: string }
+export interface FixtureSections { scope: string; instructions: string; decisions: string; findings: string; questions: string }
 
 export interface FixtureChange {
   id: string
@@ -598,10 +598,15 @@ export interface FixtureGlobal {
   markdown: string
   researchSessionId: string | null
   changes: FixtureChange[]
+  files: Array<{ fileId: string; filename: string; state: string; tokens: number; summary: string; error: string | null }>
+  usage: { total: number; budget: number; method: 'estimated'; bySection: FixtureSectionsNumbers; byFile: Array<{ fileId: string; tokens: number }> }
 }
+
+export interface FixtureSectionsNumbers { scope: number; instructions: number; decisions: number; findings: number; questions: number }
 
 const FULL_SECTIONS: FixtureSections = {
   scope: 'Licensed commercial electrical contractors serving Parramatta and nearby Ryde.\n\n## Coverage\nParramatta first, then Ryde. Residential-only crews are out of scope.\n\nCrew size counts only from named rosters or explicit crew counts.',
+  instructions: 'Prefer named-roster crews and flag after-hours coverage gaps.',
   decisions: 'Ryde crews stay in this sector until the owner says otherwise.\n\nDirectories and news pages are excluded with reasons, never silently.',
   findings: 'Bright Spark Electrical runs 14 named electricians across Parramatta and Ryde.\n\nHarbour City Plumbing added after-hours commercial callouts in September.',
   questions: 'Do the western Sydney crews belong here or in a new sector?\n\nIs the licence register current for the Ryde postcodes?',
@@ -617,9 +622,11 @@ function pendingChange(id: string, withFile: boolean): FixtureChange {
   }
 }
 
+const EMPTY_USAGE = { total: 0, budget: 30000, method: 'estimated' as const, bySection: { scope: 0, instructions: 0, decisions: 0, findings: 0, questions: 0 }, byFile: [] }
+
 export function globalFor(sectorId: string, variant: 'full' | 'empty' = 'full'): FixtureGlobal {
   if (variant === 'empty') {
-    return { sectorId, version: 1, sections: { scope: '', decisions: '', findings: '', questions: '' }, markdown: '', researchSessionId: null, changes: [] }
+    return { sectorId, version: 1, sections: { scope: '', instructions: '', decisions: '', findings: '', questions: '' }, markdown: '', researchSessionId: null, changes: [], files: [], usage: EMPTY_USAGE }
   }
   const decided: FixtureChange[] = [3, 4, 5, 6, 7].map((n) => ({
     id: `change-${n}`, baseVersion: n - 2,
@@ -628,9 +635,11 @@ export function globalFor(sectorId: string, variant: 'full' | 'empty' = 'full'):
   }))
   return {
     sectorId, version: 3, sections: FULL_SECTIONS,
-    markdown: `## Scope\n${FULL_SECTIONS.scope}\n\n## Decisions\n${FULL_SECTIONS.decisions}\n\n## Findings\n${FULL_SECTIONS.findings}\n\n## Open questions\n${FULL_SECTIONS.questions}`,
+    markdown: `## Scope\n${FULL_SECTIONS.scope}\n\n## Instructions\n${FULL_SECTIONS.instructions}\n\n## Decisions\n${FULL_SECTIONS.decisions}\n\n## Findings\n${FULL_SECTIONS.findings}\n\n## Open questions\n${FULL_SECTIONS.questions}`,
     researchSessionId: 'session-electrical-research',
     changes: [pendingChange('change-pending-1', true), pendingChange('change-pending-2', false), ...decided],
+    files: [],
+    usage: { total: 185, budget: 30000, method: 'estimated', bySection: { scope: 68, instructions: 15, decisions: 34, findings: 39, questions: 29 }, byFile: [] },
   }
 }
 

@@ -32,6 +32,10 @@ describe('CORS boundary', () => {
     // or session deletes die in the browser while curl keeps working.
     expect(response.headers['access-control-allow-methods']).toContain('DELETE')
     expect(response.headers['access-control-allow-headers']).toContain('Authorization')
+    // Keyed mutations (settings, queue edits, sends) travel with an
+    // idempotency-key header: without it the preflight fails and the
+    // staging UI toggle dies in the browser while curl keeps working.
+    expect(response.headers['access-control-allow-headers']).toContain('Idempotency-Key')
   })
 
   it('rejects a preflight from an unknown origin without an echo', async () => {

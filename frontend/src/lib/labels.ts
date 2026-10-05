@@ -62,6 +62,10 @@ const toolNameLabels: Record<string, string> = {
   'db.rename_session': 'Renamed session',
   'db.get_thread': 'Read conversation',
   'db.list_threads': 'Listed conversations',
+  'db.get_sector_plan': 'Read the research plan',
+  'db.get_research_progress': 'Checked research progress',
+  'db.list_sector_sessions': 'Listed chats in this sector',
+  'db.read_sector_thread': 'Read a chat',
   'db.append_event': 'Recorded event',
   'db.mark_company_found': 'Recorded company',
   'db.set_company_stage': 'Updated company stage',
@@ -140,6 +144,7 @@ export function runStateLabel(state: string): string {
 export const threadStatusLabels: Record<string, string> = {
   RUNNING: 'Running',
   QUEUED: 'Queued',
+  PAUSED: 'Paused',
   STOPPED: 'Stopped',
 }
 

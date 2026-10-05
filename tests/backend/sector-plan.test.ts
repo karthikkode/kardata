@@ -45,6 +45,15 @@ function stubDb(
           }] as unknown as TRow[],
         }
       }
+      if (text.includes('FROM sector_workspace')) {
+        return {
+          rowCount: 1,
+          rows: [{
+            context_version: 0, sections: {}, research_session_id: 's-plan',
+            protected_decisions: '',
+          }] as unknown as TRow[],
+        }
+      }
       return { rowCount: 0, rows: [] }
     },
   }
@@ -116,6 +125,20 @@ describe('planSectorResearch', () => {
     await expect(planSectorResearch(stubDb(state, [], SESSION), undefined, 'sec-1', SESSION.id, SCOPE)).rejects.toThrow(
       /no plan runner/,
     )
+    expect(state.state).toBe('draft')
+  })
+
+  it('denies plan runs owned by a non-research chat of the same sector', async () => {
+    const state = { name: 'Foods', topic: 'Packaged', state: 'draft' }
+    await expect(
+      planSectorResearch(
+        stubDb(state, [], { id: 's-normal', sector: 'sec-1' }),
+        { startSectorPlan: async () => ({ ok: true }) },
+        'sec-1',
+        's-normal',
+        SCOPE,
+      ),
+    ).rejects.toThrow(/Only the research conversation can change the plan/)
     expect(state.state).toBe('draft')
   })
 })

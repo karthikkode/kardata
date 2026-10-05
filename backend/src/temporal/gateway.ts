@@ -33,7 +33,7 @@ import { createLogger, logOp } from '../observability/logging.js'
 import { projectNewEvents } from '../projector.js'
 import { loadOriginalTurnRecovery } from './turn-recovery.js'
 import { defaultPayloadConverter } from '@temporalio/common'
-import { getThread, listThreads, listThreadHeaders } from '../db/index.js'
+import { getThread, listThreads, listThreadHeaders, requireThread, setThreadPaused, WorkspaceError } from '../db/index.js'
 
 export type RunState = 'IDLE' | 'RUNNING' | 'PAUSED' | 'SUSPENDED' | 'CANCELLING' | 'FINISHED' | 'ERROR'
 
@@ -81,6 +81,15 @@ export interface RunsGateway {
   /** Start the sector planning run: one workflow per sector, idempotent
    * by workflow id like sweeps. */
   startSectorPlan(sectorId: string, scope?: { tenantId: string; projectId: string | null }): Promise<CommandResult>
+  /** Start one context-file summary: idempotent by workflow id, so a
+   * re-approval while summarizing reuses the running workflow. */
+  startContextFileSummary(sectorId: string, fileId: string, hash: string): Promise<CommandResult>
+  /** Cancel one context-file summary. Best effort: an already-closed
+   * run accepts quietly. */
+  cancelContextFileSummary(sectorId: string, fileId: string, hash: string): Promise<CommandResult>
+  /** Start global-context compaction: one workflow per sector, so a
+   * second trigger while one runs is accepted, not duplicated. */
+  startContextCompaction(sectorId: string, reason: 'auto' | 'manual'): Promise<CommandResult>
   /** Halt the sector's sweep workflow. An already-closed run accepts
    * quietly (nothing to halt); only an unreachable worker throws. */
   cancelSectorSweep(sectorId: string): Promise<CommandResult>
@@ -92,9 +101,17 @@ export interface RunsGateway {
   pauseRun(runId: string): Promise<CommandResult>
   resumeRun(runId: string, extendedBudgetMs?: number): Promise<CommandResult>
   cancelRun(runId: string): Promise<CommandResult>
+  listQueue(threadKey: string): Promise<Array<{ id: string; text: string; queuedAt: number }>>
+  removeQueued(threadKey: string, id: string): Promise<boolean>
+  reorderQueue(threadKey: string, ids: string[]): Promise<void>
 }
 
 export const SESSION_PREFIX = 'session-run-'
+
+/** Single-flight key: one compaction workflow per sector at a time. */
+export function contextCompactionWorkflowId(sectorId: string): string {
+  return `context-compaction-${sectorId}`
+}
 
 const researchGatewayLogger = createLogger({ op: 'research.execution.transition' })
 export interface ApprovedCoordinatorHandle {
@@ -134,6 +151,11 @@ export function delegationWorkflowId(sessionId: string): string {
 export interface DelegateSubagentInput {
   sessionId: string
   goal: string
+  /** Owner-given display name; forwarded to the launch event. */
+  name?: string
+  /** Runs after parent acceptance, before the goal signal: the caller's
+   * seam for the spawn-time inherited-context write. */
+  onAccepted?: (childId: string) => Promise<void>
   mode: 'empty' | 'fork'
   queueCapacity: number
   /** Test-only scripted fake steps for the child turn. Never set in
@@ -477,6 +499,7 @@ export class TemporalRunsGateway implements RunsGateway {
         {
           childId,
           goal: input.goal,
+          ...(input.name === undefined ? {} : { name: input.name }),
           depth: 0,
           mode: input.mode,
           maxDepth: 0,
@@ -508,6 +531,7 @@ export class TemporalRunsGateway implements RunsGateway {
       }
       await sleep(500)
     }
+    await input.onAccepted?.(childId)
     await client.workflow.getHandle(childId).signal('childMessage', input.goal)
     return { childId, commandId: commandId() }
   }
@@ -536,6 +560,52 @@ export class TemporalRunsGateway implements RunsGateway {
       throw error
       }
     })
+    return { commandId: commandId(), state: 'accepted' }
+  }
+
+  /** Context file summary: one workflow per sector, file and content
+   * hash. A re-add while summarizing reuses the running workflow; a
+   * retry after the file changed starts a new hash-suffixed workflow. */
+  async startContextFileSummary(sectorId: string, fileId: string, hash: string): Promise<CommandResult> {
+    const client = await this.client()
+    const workflowId = `context-file-${sectorId}-${fileId}-${hash.slice(0, 8)}`
+    try {
+      await client.workflow.start('contextFileSummary', {
+        workflowId,
+        taskQueue: laneConfig('research').taskQueue,
+        args: [{ sectorId, fileId, hash }],
+      })
+    } catch (error) {
+      if (error instanceof WorkflowExecutionAlreadyStartedError) return { commandId: commandId(), state: 'accepted' }
+      throw error
+    }
+    return { commandId: commandId(), state: 'accepted' }
+  }
+
+  async cancelContextFileSummary(sectorId: string, fileId: string, hash: string): Promise<CommandResult> {
+    const client = await this.client()
+    const handle = client.workflow.getHandle(`context-file-${sectorId}-${fileId}-${hash.slice(0, 8)}`)
+    try {
+      await handle.cancel()
+    } catch (error) {
+      if (error instanceof WorkflowNotFoundError) return { commandId: commandId(), state: 'accepted' }
+      throw error
+    }
+    return { commandId: commandId(), state: 'accepted' }
+  }
+
+  async startContextCompaction(sectorId: string, reason: 'auto' | 'manual'): Promise<CommandResult> {
+    const client = await this.client()
+    try {
+      await client.workflow.start('globalContextCompaction', {
+        workflowId: contextCompactionWorkflowId(sectorId),
+        taskQueue: laneConfig('research').taskQueue,
+        args: [{ sectorId, reason }],
+      })
+    } catch (error) {
+      if (error instanceof WorkflowExecutionAlreadyStartedError) return { commandId: commandId(), state: 'accepted' }
+      throw error
+    }
     return { commandId: commandId(), state: 'accepted' }
   }
 
@@ -591,8 +661,13 @@ export class TemporalRunsGateway implements RunsGateway {
   async pauseRun(runId: string): Promise<CommandResult> {
     // Guarded runs have no pause signal by design: the loop/unit/run guards
     // suspend them, and resumeRun (approved guardResume) is the way back.
-    const type = await this.requireType(runId, ['sessionRun', 'researchRun'])
+    const type = await this.requireType(runId, ['sessionRun', 'researchRun', 'subagentRun'])
     const client = await this.client()
+    if (type === 'subagentRun') {
+      await setThreadPaused(this.pool, `agent:${runId}`, true)
+      await client.workflow.getHandle(runId).signal('childPause')
+      return { commandId: commandId(), state: 'accepted' }
+    }
     await client.workflow.getHandle(runId).signal(type === 'sessionRun' ? 'runPause' : 'researchPause')
     return { commandId: commandId(), state: 'accepted' }
   }
@@ -627,7 +702,10 @@ export class TemporalRunsGateway implements RunsGateway {
     }
     if (type === 'sessionRun') await handle.signal('runResume')
     else if (type === 'researchRun') await handle.signal('researchResume')
-    else if (type === 'companyResearch' || type === 'subagentRun') await handle.signal('childResume')
+    else if (type === 'subagentRun') {
+      await setThreadPaused(this.pool, `agent:${runId}`, false)
+      await handle.signal('childResume')
+    } else if (type === 'companyResearch') await handle.signal('childResume')
     else await handle.signal('guardResume', { approved: true, extendRunMs: extendedBudgetMs })
     return { commandId: commandId(), state: 'accepted' }
   }
@@ -640,6 +718,51 @@ export class TemporalRunsGateway implements RunsGateway {
     else if (type === 'subagentRun') { await handle.signal('childCancel'); await handle.signal('childFinish') }
     else await signalRunCancel(handle, runId)
     return { commandId: commandId(), state: 'accepted' }
+  }
+
+  /** Resolve a thread to its run workflow: session threads to
+   * session-run-<sessionId>, agent:<childId> to the child. */
+  private async queueWorkflowId(threadKey: string): Promise<string> {
+    const identity = await requireThread(this.pool, threadKey)
+    return identity.thread.kind === 'subagent' ? threadKey.slice('agent:'.length) : `${SESSION_PREFIX}${identity.session.id}`
+  }
+
+  async listQueue(threadKey: string): Promise<Array<{ id: string; text: string; queuedAt: number }>> {
+    const workflowId = await this.queueWorkflowId(threadKey)
+    const client = await this.client()
+    try {
+      return await client.workflow.getHandle(workflowId).query<Array<{ id: string; text: string; queuedAt: number }>>('queueItems')
+    } catch (error) {
+      if (error instanceof WorkflowNotFoundError) throw new RunNotFound(`no such run ${workflowId}`)
+      throw error
+    }
+  }
+
+  async removeQueued(threadKey: string, id: string): Promise<boolean> {
+    const workflowId = await this.queueWorkflowId(threadKey)
+    const client = await this.client()
+    try {
+      return await client.workflow.getHandle(workflowId).executeUpdate<boolean, [string]>('queueRemove', { args: [id] })
+    } catch (error) {
+      if (error instanceof WorkflowNotFoundError) throw new RunNotFound(`no such run ${workflowId}`)
+      throw error
+    }
+  }
+
+  async reorderQueue(threadKey: string, ids: string[]): Promise<void> {
+    const workflowId = await this.queueWorkflowId(threadKey)
+    const client = await this.client()
+    try {
+      await client.workflow.getHandle(workflowId).executeUpdate<boolean, [string[]]>('queueReorder', { args: [ids] })
+    } catch (error) {
+      if (error instanceof WorkflowNotFoundError) throw new RunNotFound(`no such run ${workflowId}`)
+      // The workflow rejects non-exact id sets with QueueMismatch; the
+      // message is the stable contract across the update boundary.
+      if (error instanceof Error && error.message.includes('Queue ids must exactly match')) {
+        throw new WorkspaceError('validation_failed', 'Queue ids must exactly match the current queue.')
+      }
+      throw error
+    }
   }
 
   private describeRun(

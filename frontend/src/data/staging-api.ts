@@ -97,6 +97,26 @@ export interface Session {
   sectorId?: string
   /** Latest stored selection; absent until the caller sets one. */
   model?: SessionModelSelection
+  /** Per-chat global context switch; absent means on. */
+  useGlobalContext?: boolean
+}
+
+/** Set the per-chat global context switch (operator+). */
+export function setSessionSettings(
+  config: StagingConfig,
+  sessionId: string,
+  value: boolean,
+): Promise<{ useGlobalContext: boolean; purpose: string }> {
+  return request(config, 'PATCH', `/v1/sessions/${encodeURIComponent(sessionId)}/settings`, { useGlobalContext: value }, crypto.randomUUID())
+}
+
+/** Spawn an owner subagent on a session thread (operator+). */
+export function spawnSessionSubagent(
+  config: StagingConfig,
+  sessionId: string,
+  body: { goal: string; name?: string },
+): Promise<{ childId: string; threadKey: string }> {
+  return request(config, 'POST', `/v1/sessions/${encodeURIComponent(sessionId)}/subagents`, body, crypto.randomUUID())
 }
 
 export interface ThreadView {
@@ -476,6 +496,31 @@ export function cancelRun(config: StagingConfig, runId: string): Promise<Command
 }
 export function resumeRun(config: StagingConfig, runId: string): Promise<CommandAccepted> {
   return request(config, 'POST', '/v1/commands/resume', { runId })
+}
+export function pauseRun(config: StagingConfig, runId: string): Promise<CommandAccepted> {
+  return request(config, 'POST', '/v1/commands/pause', { runId })
+}
+
+/** One waiting inbox message: the running item is never listed. */
+export interface QueuedMessage {
+  id: string
+  text: string
+  queuedAt: number
+}
+
+/** List the waiting messages of a thread (viewer+). */
+export function listThreadQueue(config: StagingConfig, threadKey: string): Promise<QueuedMessage[]> {
+  return request<QueuedMessage[]>(config, 'GET', `/v1/threads/${encodeURIComponent(threadKey)}/queue`)
+}
+
+/** Remove one waiting message (operator+). */
+export function removeQueuedMessage(config: StagingConfig, threadKey: string, itemId: string): Promise<{ removed: boolean }> {
+  return request(config, 'DELETE', `/v1/threads/${encodeURIComponent(threadKey)}/queue/${encodeURIComponent(itemId)}`, undefined, crypto.randomUUID())
+}
+
+/** Reorder the waiting messages; ids must be exactly the current set (operator+). */
+export function reorderThreadQueue(config: StagingConfig, threadKey: string, itemIds: string[]): Promise<{ reordered: boolean }> {
+  return request(config, 'POST', `/v1/threads/${encodeURIComponent(threadKey)}/queue/reorder`, { itemIds }, crypto.randomUUID())
 }
 
 export type RunState =

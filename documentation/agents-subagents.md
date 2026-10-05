@@ -79,3 +79,30 @@ collecting reads the child thread (`agent:<childId>`) plus
 (B6.1). Proven by `tests/backend/subagent-delegate.test.ts`
 (hermetic) and `tests/backend/workflows.delegate.test.ts` (live
 Temporal + DB, fake provider).
+
+## Sector control (sector backend v1, 2026-10-04)
+
+The owner spawns a child from the UI with a goal and optional name
+(`POST /v1/sessions/{id}/subagents`, operator, 409 past 50 in flight);
+parents spawn through `db.delegate_subagent` with the same inheritance
+(see agents-context.md). Either way the inherited text is stored before
+the goal message is processed. The display name is the given name, else
+`Subagent N` by spawn order (both spawn paths default it); the launch
+event records it and the thread header serves it. Strip chips, the
+directory and the dock rows show the name (positional `Subagent N`
+fallback when missing); the raw `agent:` key appears only in tooltips.
+
+Pause and resume are per child: the route writes `thread_control`,
+then signals `childPause`/`childResume`. A paused loop waits before
+taking the next inbox item; a mid-turn pause parks at the next provider
+round boundary via the resumable-turn park, keeps the checkpoint, and
+resumes from it (`subagent-pause-v1` patch, replay-safe). The thread
+header shows PAUSED through the regular state events.
+
+Waiting inbox items carry `{id, text, queuedAt}` (`inbox-ids-v1` patch;
+legacy strings wrap on read) in both `sessionRun` and `subagentRun`.
+Query `queueItems` lists them, updates `queueRemove`/`queueReorder`
+edit them, and the gateway exposes `listQueue`/`removeQueued`/
+`reorderQueue` behind `GET|DELETE|POST
+/v1/threads/{key}/queue[/reorder]` (viewer/operator/operator, 404 when
+no workflow runs). Stop reuses the existing cancel path.

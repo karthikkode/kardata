@@ -5,8 +5,8 @@ import { useSectorWorkspace } from '@/data/sector-workspace'
 import { useWorkspaceResource } from '@/data/useWorkspace'
 import type { StagingConfig } from '@/data/staging-api'
 
-const api = vi.hoisted(() => ({ list: vi.fn(), create: vi.fn(), global: vi.fn() }))
-vi.mock('@/data/staging-api', async (original) => ({ ...await original<typeof import('@/data/staging-api')>(), listSessions: api.list, createSession: api.create, listThreads: vi.fn(async () => []), listMessages: vi.fn(async () => []), followThread: vi.fn(async function* () {}) }))
+const api = vi.hoisted(() => ({ list: vi.fn(), create: vi.fn(), global: vi.fn(), settings: vi.fn() }))
+vi.mock('@/data/staging-api', async (original) => ({ ...await original<typeof import('@/data/staging-api')>(), listSessions: api.list, createSession: api.create, setSessionSettings: api.settings, listThreads: vi.fn(async () => []), listMessages: vi.fn(async () => []), followThread: vi.fn(async function* () {}) }))
 vi.mock('@/data/workspace-api', async (original) => ({ ...await original<typeof import('@/data/workspace-api')>(), getGlobalContext: api.global, getSectorFiles: vi.fn(async () => []), getResearchProgress: vi.fn(async () => ({})), readSectorPlan: vi.fn(async () => null), getLocalContext: vi.fn(async () => ({})) }))
 const config: StagingConfig = { baseUrl: 'https://test.invalid', apiKey: 'TEST owner' }
 const research = { id: 'TEST research', title: 'Research', kind: 'research', sectorId: 'TEST sector' }
@@ -68,4 +68,16 @@ it('does not navigate to a late-created conversation after switching sectors', a
   expect(navigate).not.toHaveBeenCalled()
   expect(view.result.current.sessions.data?.some((session) => session.id === 'TEST late creation')).toBe(false)
   view.unmount()
+})
+
+it('sends the global context switch to the API and refreshes the sessions', async () => {
+  api.global.mockResolvedValue({ researchSessionId: research.id })
+  api.list.mockResolvedValue([research])
+  api.settings.mockResolvedValue({ useGlobalContext: false, purpose: 'chat' })
+  const { result, unmount } = renderHook(() => useSectorWorkspace(config, 'TEST sector', research.id, research.id, vi.fn()))
+  await waitFor(() => expect(result.current.sessions.status).toBe('ready'))
+  await act(async () => { await result.current.setUseGlobalContext(false) })
+  expect(api.settings).toHaveBeenCalledWith(config, research.id, false)
+  expect(api.list).toHaveBeenCalledTimes(2)
+  unmount()
 })

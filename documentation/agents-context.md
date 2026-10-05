@@ -153,3 +153,41 @@ key ordering cannot turn an identical retry into a request-fingerprint conflict.
 Changed arguments and changed execution authority remain blocked. Terminal paid
 responses remain staged until final continuation clearing succeeds; repeated
 finalizer failures preserve original producer lease/context/usage and archive hash.
+
+## Global context model (sector backend v1, 2026-10-04)
+
+Global context renders in a fixed order: Scope, Instructions, Decisions,
+Findings, Open questions, then Files. Files are standardized AI summary
+blocks, one per file; the block row is the provenance record. Ready blocks
+render from their stored summaries (hidden files and changed hashes are
+skipped, the latter failing the block); only pre-block `legacy` approvals
+still inject raw unit lines. Injection skips the whole context only when the
+chat's switch is off; the sector id line, local notes and steering still
+apply, and the boundary records `contextVersion: null`.
+
+The budget is 30,000 estimated tokens (4 chars per token), with per-section
+and per-file breakdowns; counting never calls the provider. At 70% the
+context auto-compacts silently: Decisions, Findings and Open questions shrink
+to at most half, every number/company/question kept, while Scope, Instructions
+and all blocks stay byte-identical. A version conflict re-reads and retries
+once, then stands down with a log line. Manual Compact and version restore
+share the same guarantees; restore rewrites text sections only.
+
+Sector turns carry two prompt additions: a nudge to propose durable owner
+directions via `db.propose_global_context` (never claiming they are applied),
+and a rewrite brief for `context-rewrite` chats that ends in exactly one
+pending proposal. Agent file proposals still travel the pending-approval path;
+approval starts summarization instead of including raw units.
+
+Spawned children inherit the parent's context: `thread_context.inherited`
+holds the parent summary plus its last 20 user/agent messages as Owner/Agent
+lines, capped at 12,000 estimated tokens by dropping the oldest first. The
+write lands between parent acceptance and the goal signal, so the child's
+first turn already carries it on every round as the FIRST preload entry,
+immediately after the system prompt and before global context, under the
+heading `Context from your parent conversation (authoritative for anything
+said there)` with the rule to answer from it first when the goal refers to
+the parent conversation. Global context arrives through the parent
+session's own switch. Parents are told (in the `db.delegate_subagent`
+description) to write self-contained goals and never point children at
+global context for conversation facts.

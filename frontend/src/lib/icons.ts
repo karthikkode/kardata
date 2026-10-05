@@ -182,6 +182,8 @@ export const Icons = {
   help: CircleQuestionMark,
   menu: Menu,
   minimize: Minimize2,
+  moveDown: ArrowDown,
+  moveUp: ArrowUp,
   pause: Pause,
   pin: Pin,
   play: Play,

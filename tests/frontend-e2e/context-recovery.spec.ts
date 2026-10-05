@@ -5,7 +5,7 @@ test.use({ video: 'on', trace: 'on' })
 const sectorId = 'TEST-context-recovery-sector', sessionId = 'TEST-context-recovery-parent'
 const at = '2026-10-01T00:00:00Z'
 const session = { id: sessionId, title: 'Research', kind: 'research', sectorId, createdAt: at, updatedAt: at }
-const sections = { scope: 'TEST Australian SME scope', decisions: '', findings: '', questions: '' }
+const sections = { scope: 'TEST Australian SME scope', instructions: '', decisions: '', findings: '', questions: '' }
 const sector = { id: sectorId, name: 'TEST Recovery evidence', topic: sections.scope, state: 'paused', companiesFound: 0, companies: [], companiesTotal: 0, activity: [], activityTotal: 0, createdAt: at, updatedAt: at }
 const operationId = 'op:'.concat('a'.repeat(64))
 async function fixture(page: Page, blocked: boolean) {
@@ -28,7 +28,7 @@ async function fixture(page: Page, blocked: boolean) {
     else if (path === `/v1/sectors/${sectorId}`) data = sector
     else if (path.endsWith('/research-session')) data = session
     else if (path === '/v1/sessions') data = [session]
-    else if (path.endsWith('/global-context')) data = { sectorId, version: 1, sections, markdown: '## Scope\n\nTEST Australian SME scope', researchSessionId: sessionId, changes: [] }
+    else if (path.endsWith('/global-context')) data = { sectorId, version: 1, sections, markdown: '## Scope\n\nTEST Australian SME scope', researchSessionId: sessionId, changes: [], files: [], usage: { total: 0, budget: 30000, method: 'estimated', bySection: { scope: 0, instructions: 0, decisions: 0, findings: 0, questions: 0 }, byFile: [] } }
     else if (path.endsWith('/plan')) data = { sectorId, versions: [], latest: null, approvals: [], approvedVersion: null }
     else if (path.endsWith('/progress')) data = { sectorId, state: 'paused', planVersion: 0, items: [], completed: 0, total: 0, unresolved: 0, discoveryClosed: false, estimatedPercent: null }
     else if (path.endsWith('/threads')) data = [{ key: sessionId, sessionId, kind: 'session', status: 'PAUSED', acceptingSteer: false, queueDepth: 0, updatedAt: at }]

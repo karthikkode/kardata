@@ -56,6 +56,13 @@ describe('independent compaction', () => {
     const countFailure: ProviderAdapter = { providerName: 'test', chat: (request) => fake.chat(request), chatStream: (request) => fake.chatStream(request), countInputTokens: async () => { if (++counts === 2) throw failure; return 90000 } }
     await expect(compactContext({ provider: countFailure, system: '', messages, tools: [], force: true })).rejects.toMatchObject({ constructor: ContextBudgetError, cause: failure })
   })
+  it('refuses short over-budget histories instead of compacting them unsafely', async () => {
+    const fake = new FakeProvider([])
+    const provider: ProviderAdapter = { providerName: 'test', chat: (request) => fake.chat(request), chatStream: (request) => fake.chatStream(request), countInputTokens: async () => 90000 }
+    const messages: ChatMessage[] = [{ role: 'user', text: 'TEST huge pasted notes' }, { role: 'assistant', text: 'TEST ack' }, { role: 'user', text: 'TEST more pasted notes' }]
+    await expect(compactContext({ provider, system: 'TEST', messages, tools: [] })).rejects.toThrow('Context cannot be compacted safely. Reduce the current input.')
+    expect(fake.calls).toHaveLength(0)
+  })
   it('counts system, history and complete tool schemas together', () => {
     const messages: ChatMessage[] = [{ role: 'user', text: 'task' }]
     const plain = assembledTokens('instructions', messages, [])

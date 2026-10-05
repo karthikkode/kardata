@@ -19,19 +19,29 @@ import { progressSummary, type WorkItem } from '../temporal/research-plan.js'
 import { discoverySample } from '../temporal/discovery-acceptance.js'
 import { readSectorPlan, type SectorPlan } from './sector-plan.js'
 import type { ChatMessage, Usage } from '@kardata/agents'
-import { assertThreadFileContext, ContextFileBlocked, mergeFileRefs, threadFileRefs, validateFileRefs, recordThreadFileExposure, type ContextFileRef } from './context-files.js'
+import { estimateTokens } from '@kardata/agents'
+import { assertThreadFileContext, ContextFileBlocked, mergeFileRefs, threadFileRefs, validateFileRefs, recordThreadFileExposure, insertContextFileBlock, listContextFileBlocks, markContextFileBlockFailed, readContextFileBlock, resetContextFileBlock, type ContextFileRef } from './context-files.js'
 import { createLogger, logOp } from '../observability/logging.js'
 
 const workspaceLogger = createLogger({ op: 'workspace' })
 
 export const ContextSections = z.object({
-  scope: z.string().max(24000).default(''), decisions: z.string().max(24000).default(''),
+  scope: z.string().max(24000).default(''), instructions: z.string().max(24000).default(''),
+  decisions: z.string().max(24000).default(''),
   findings: z.string().max(48000).default(''), questions: z.string().max(24000).default(''),
 }).strict()
 export type ContextSections = z.infer<typeof ContextSections>
+export const PartialContextSections = z.object({
+  scope: z.string().max(24000).optional(), instructions: z.string().max(24000).optional(),
+  decisions: z.string().max(24000).optional(),
+  findings: z.string().max(48000).optional(), questions: z.string().max(24000).optional(),
+}).strict()
+export type PartialContextSections = z.infer<typeof PartialContextSections>
 export interface GlobalContext {
   sectorId: string; version: number; sections: ContextSections; markdown: string
   researchSessionId: string | null; changes: ContextChange[]
+  files: Array<{ fileId: string; filename: string; state: string; tokens: number; summary: string; error: string | null }>
+  usage: GlobalContextUsage
 }
 export interface ContextChange {
   id: string; baseVersion: number; sections: ContextSections; sourceThread: string
@@ -102,15 +112,80 @@ export async function sessionKind(db: Db, sessionId: string): Promise<'research'
   const { rows } = await db.query('SELECT sector_id FROM sector_workspace WHERE research_session_id=$1', [sessionId])
   return rows.length ? 'research' : 'normal'
 }
+export interface SectorSessionView {
+  id: string
+  kind: 'research' | 'normal'
+  title: string
+  updatedAt: string
+  threadKeys: string[]
+}
+
+/** Every session of a sector with its thread keys, including agent:*
+ * subagent threads. Sector chats read siblings through this. */
+export async function listSectorSessions(db: Db, sectorId: string, scope?: Scope): Promise<SectorSessionView[]> {
+  checked(Id, sectorId)
+  const sessions = await listSessions(db, scope, sectorId)
+  const views: SectorSessionView[] = []
+  for (const session of sessions) {
+    const headers = await listThreadHeaders(db, session.id)
+    views.push({ id: session.id, kind: await sessionKind(db, session.id), title: session.title, updatedAt: session.updatedAt, threadKeys: headers.map((header) => header.key) })
+  }
+  return views
+}
+
 export async function researchSessionBinding(db: Db, sectorId: string): Promise<string | null> {
   checked(Id, sectorId)
   return (await workspaceRow(db, sectorId)).research_session_id
 }
-export function formatGlobalContext(sections: ContextSections): string {
-  return (['scope', 'decisions', 'findings', 'questions'] as const).flatMap((key) => {
-    const title = { scope: 'Scope', decisions: 'Decisions', findings: 'Findings', questions: 'Open questions' }[key]
+export interface SessionSettings { useGlobalContext: boolean; purpose: string }
+/** Per-chat settings. A missing row means the defaults: switch on. */
+export async function readSessionSettings(db: Db, sessionId: string): Promise<SessionSettings> {
+  checked(Id, sessionId)
+  const { rows } = await db.query<{ use_global_context: boolean; purpose: string }>('SELECT use_global_context,purpose FROM session_settings WHERE session_id=$1', [sessionId])
+  const row = rows[0]
+  return row ? { useGlobalContext: row.use_global_context, purpose: row.purpose } : { useGlobalContext: true, purpose: 'chat' }
+}
+/** Set the per-chat global context switch. Returns undefined for an
+ * unknown session so routes answer 404. */
+export async function setUseGlobalContext(db: Db, sessionId: string, value: boolean, scope?: Scope): Promise<SessionSettings | undefined> {
+  checked(Id, sessionId)
+  const session = await getSession(db, sessionId, scope)
+  if (!session) return undefined
+  const { rows } = await db.query<{ use_global_context: boolean; purpose: string }>(
+    `INSERT INTO session_settings (session_id, use_global_context) VALUES ($1, $2)
+     ON CONFLICT (session_id) DO UPDATE SET use_global_context=EXCLUDED.use_global_context, updated_at=now()
+     RETURNING use_global_context, purpose`,
+    [sessionId, value],
+  )
+  const row = rows[0]
+  return row ? { useGlobalContext: row.use_global_context, purpose: row.purpose } : undefined
+}
+/** Set the per-chat purpose (chat or context-rewrite). Returns undefined
+ * for an unknown session so routes answer 404. */
+export async function setSessionPurpose(db: Db, sessionId: string, purpose: string, scope?: Scope): Promise<SessionSettings | undefined> {
+  checked(Id, sessionId)
+  const session = await getSession(db, sessionId, scope)
+  if (!session) return undefined
+  const { rows } = await db.query<{ use_global_context: boolean; purpose: string }>(
+    `INSERT INTO session_settings (session_id, purpose) VALUES ($1, $2)
+     ON CONFLICT (session_id) DO UPDATE SET purpose=EXCLUDED.purpose, updated_at=now()
+     RETURNING use_global_context, purpose`,
+    [sessionId, purpose],
+  )
+  const row = rows[0]
+  return row ? { useGlobalContext: row.use_global_context, purpose: row.purpose } : undefined
+}
+export interface ContextFileBlockView { fileId: string; filename: string; summary: string; addedVersion: number | null }
+export function formatGlobalContext(sections: ContextSections, blocks?: ContextFileBlockView[]): string {
+  const parts = (['scope', 'instructions', 'decisions', 'findings', 'questions'] as const).flatMap((key) => {
+    const title = { scope: 'Scope', instructions: 'Instructions', decisions: 'Decisions', findings: 'Findings', questions: 'Open questions' }[key]
     return sections[key].trim() ? [`## ${title}\n\n${sections[key].trim()}`] : []
-  }).join('\n\n')
+  })
+  // Files are not a text section: ready block summaries render here,
+  // ordered by added version then filename.
+  const ready = (blocks ?? []).filter((block) => block.summary.trim()).sort((a, b) => (a.addedVersion ?? 0) - (b.addedVersion ?? 0) || a.filename.localeCompare(b.filename))
+  if (ready.length) parts.push(`## Files\n\n${ready.map((block) => block.summary.trim()).join('\n\n')}`)
+  return parts.join('\n\n')
 }
 interface WorkspaceRow { context_version: number; sections: unknown; research_session_id: string | null; protected_decisions: string; section_file_refs?: Record<string, ContextFileRef[] | null> }
 async function workspaceRow(db: Db, sectorId: string): Promise<WorkspaceRow> {
@@ -123,14 +198,14 @@ function changeView(row: ChangeRow): ContextChange {
 }
 async function persistSectionFileRefs(db: Db, sectorId: string, current: ContextSections, proposed: ContextSections, refs: ContextFileRef[], previous?: Record<string, ContextFileRef[] | null>) {
   const sections = { ...(previous ?? {}) }
-  for (const key of ['scope','decisions','findings','questions'] as const) if (current[key] !== proposed[key]) sections[key] = refs
+  for (const key of ['scope','instructions','decisions','findings','questions'] as const) if (current[key] !== proposed[key]) sections[key] = refs
   await db.query('UPDATE sector_workspace SET section_file_refs=$2::jsonb WHERE sector_id=$1', [sectorId, JSON.stringify(sections)])
 }
 export async function assertGlobalFileContext(db: Db, sectorId: string, scope?: Scope): Promise<void> {
   await requireSector(db, sectorId, scope)
   const row = await workspaceRow(db, sectorId)
   const sections = checked(ContextSections, row.sections)
-  for (const key of ['scope','decisions','findings','questions'] as const) if (sections[key] && row.section_file_refs?.[key] === null) throw new ContextFileBlocked('Legacy shared context has unverified file provenance. Owner must review and republish its current content before agents can use it.')
+  for (const key of ['scope','instructions','decisions','findings','questions'] as const) if (sections[key] && row.section_file_refs?.[key] === null) throw new ContextFileBlocked('Legacy shared context has unverified file provenance. Owner must review and republish its current content before agents can use it.')
   await validateFileRefs(db, sectorId, mergeFileRefs(...Object.values(row.section_file_refs ?? {})), scope)
 }
 export async function readGlobalContext(db: Db, sectorId: string, scope?: Scope, includeHistory = true): Promise<GlobalContext> {
@@ -139,7 +214,22 @@ export async function readGlobalContext(db: Db, sectorId: string, scope?: Scope,
   const sections = checked(ContextSections, row.sections)
   if (!sections.scope && row.context_version === 0) sections.scope = sector.topic || sector.name
   const changes = includeHistory ? await db.query<ChangeRow>('SELECT * FROM workspace_changes WHERE sector_id=$1 ORDER BY at DESC LIMIT 100', [sectorId]) : { rows: [] }
-  return { sectorId, version: row.context_version, sections, markdown: formatGlobalContext(sections), researchSessionId: row.research_session_id, changes: changes.rows.map(changeView) }
+  const library = new Map((await listSectorLibrary(db, sectorId, scope)).map((file) => [file.id, file]))
+  const blocks = await listContextFileBlocks(db, sectorId)
+  const views = blocks
+    .filter((block) => {
+      if (block.state !== 'ready') return false
+      const file = library.get(block.fileId)
+      return !!file && !file.hidden && file.hash === block.hash
+    })
+    .sort((a, b) => (a.addedVersion ?? 0) - (b.addedVersion ?? 0) || a.filename.localeCompare(b.filename))
+    .map((block) => ({ fileId: block.fileId, filename: block.filename, summary: block.summary, addedVersion: block.addedVersion }))
+  return {
+    sectorId, version: row.context_version, sections, markdown: formatGlobalContext(sections, views),
+    researchSessionId: row.research_session_id, changes: changes.rows.map(changeView),
+    files: blocks.map((block) => ({ fileId: block.fileId, filename: block.filename, state: block.state, tokens: block.tokens, summary: block.summary, error: block.error })),
+    usage: { ...globalContextUsageFrom(sections, blocks), aiUsage: await readContextAiUsage(db, sectorId, scope) },
+  }
 }
 export async function notifyWorkspace(db: Db, sectorId: string, type: 'context-version' | 'approval' | 'work-progress', payload: unknown): Promise<void> {
   checked(Id, sectorId)
@@ -150,11 +240,11 @@ export async function notifyWorkspace(db: Db, sectorId: string, type: 'context-v
   }
 }
 export async function proposeGlobalContext(db: TransactableDb, input: {
-  sectorId: string; baseVersion: number; sections: ContextSections; sourceThread: string; owner: boolean; scope?: Scope; id?: string
+  sectorId: string; baseVersion: number; sections: PartialContextSections; sourceThread: string; owner: boolean; scope?: Scope; id?: string
   fileRef?: NonNullable<ContextChange['fileRef']>
   trustedResearch?: boolean
 }): Promise<ContextChange> {
-  const sections = checked(ContextSections, input.sections)
+  const patch = checked(PartialContextSections, input.sections)
   checked(z.number().int().nonnegative(), input.baseVersion)
   checked(Id, input.sectorId)
   checked(Id, input.sourceThread)
@@ -170,19 +260,23 @@ export async function proposeGlobalContext(db: TransactableDb, input: {
     if (old.rows[0]) return changeView(old.rows[0])
     if (row.context_version !== input.baseVersion) throw new WorkspaceError('conflict', 'Global context changed. Review the latest version.')
     const researchParent = input.trustedResearch === true && identity?.session.id === row.research_session_id && identity.thread.kind === 'session'
-    let state: ContextChange['state'] = input.owner || researchParent ? 'approved' : input.trustedResearch && identity?.session.id === row.research_session_id && identity.thread.kind === 'subagent' ? 'parent-review' : 'pending'
+    // Every agent write needs owner approval: only the owner approves
+    // directly. Research subagents land in parent-review first; the
+    // parent commit forwards them as pending owner proposals.
+    let state: ContextChange['state'] = input.owner ? 'approved' : input.trustedResearch && identity?.session.id === row.research_session_id && identity.thread.kind === 'subagent' ? 'parent-review' : 'pending'
     const currentSections = checked(ContextSections, row.sections)
     if (!currentSections.scope && row.context_version === 0) { const sector = await requireSector(tx, input.sectorId, input.scope); currentSections.scope = sector.topic || sector.name }
-    const onlyFileInclusion = Boolean(input.fileRef) && (['scope','decisions','findings','questions'] as const).every((key) => sections[key] === currentSections[key])
+    // PATCH semantics: provided keys merge onto current; omitted keys
+    // stay byte-identical; explicit '' clears. The stored proposal is
+    // the merged whole, so approval applies a complete document.
+    const sections: ContextSections = { ...currentSections }
+    for (const [key, value] of Object.entries(patch)) if (value !== undefined) sections[key as keyof ContextSections] = value
+    if (!input.fileRef && (['scope','instructions','decisions','findings','questions'] as const).every((key) => sections[key] === currentSections[key])) throw new WorkspaceError('validation_failed', 'Proposal changes no section.')
+    const onlyFileInclusion = Boolean(input.fileRef) && (['scope','instructions','decisions','findings','questions'] as const).every((key) => sections[key] === currentSections[key])
     if (identity && input.fileRef && !onlyFileInclusion) await assertThreadFileContext(tx, input.sourceThread, input.scope)
     const sourceRefs = mergeFileRefs(input.owner || onlyFileInclusion ? [] : await threadFileRefs(tx, input.sourceThread, input.scope), input.fileRef ? [input.fileRef] : [])
     await validateFileRefs(tx, input.sectorId, sourceRefs, input.scope)
     if (sourceRefs.length) state = 'pending'
-    if (researchParent && !input.owner) {
-      const current = checked(ContextSections, row.sections)
-      if (!current.scope && row.context_version === 0) { const sector = await requireSector(tx, input.sectorId, input.scope); current.scope = sector.topic || sector.name }
-      if (sections.scope !== current.scope || sections.decisions !== current.decisions) state = 'pending'
-    }
     const version = state === 'approved' ? row.context_version + 1 : null
     const author = input.owner ? 'owner' : researchParent ? 'research' : 'session'
     // Idempotent replay: same id replays the first row (appendEvent idiom).
@@ -224,11 +318,22 @@ export async function decideContextChange(db: TransactableDb, input: { sectorId:
     if (input.approve) await validateFileRefs(tx, input.sectorId, proposal.source_refs ?? (proposal.file_ref ? [proposal.file_ref] : []), input.scope)
     if (input.approve && proposal.source_refs === null && !proposal.file_ref) throw new ContextFileBlocked('Legacy proposal has no source receipt. Submit a fresh owner-reviewed proposal.')
     if (input.approve && proposal.file_ref) {
+      // Agent file inclusion: summarize into a block, never inject raw
+      // units. The version bumps when the summary lands, not now.
       const visibility = await tx.query<{ hidden: boolean }>('SELECT hidden FROM workspace_files WHERE sector_id=$1 AND file_id=$2', [input.sectorId, proposal.file_ref.fileId])
       if (visibility.rows[0]?.hidden) throw new WorkspaceError('conflict', 'Reveal the file before including it.')
       const file = (await listSectorLibrary(tx, input.sectorId, input.scope)).find((entry) => entry.id === proposal.file_ref?.fileId)
       if (!file || file.hash !== proposal.file_ref.hash) throw new WorkspaceError('conflict', 'The file version changed. Review a new proposal.')
-      await tx.query('INSERT INTO workspace_files(sector_id,file_id,included,approval_id) VALUES($1,$2,true,$3) ON CONFLICT(sector_id,file_id) DO UPDATE SET included=true,approval_id=$3', [input.sectorId, proposal.file_ref.fileId, input.id])
+      if (file.kind !== 'document' && !file.documentId) throw new WorkspaceError('conflict', 'Only processed documents can be included as shared context.')
+      if (!proposal.file_ref.ords.length) throw new WorkspaceError('conflict', 'This file proposal names no readable units.')
+      await insertContextFileBlock(tx, { sectorId: input.sectorId, fileId: file.id, documentId: file.kind === 'document' ? file.id : (file.documentId ?? file.id), hash: proposal.file_ref.hash, filename: proposal.file_ref.filename, requestedBy: `decision:${input.id}` })
+      await resetContextFileBlock(tx, { sectorId: input.sectorId, fileId: file.id, hash: proposal.file_ref.hash, filename: proposal.file_ref.filename, documentId: file.kind === 'document' ? file.id : (file.documentId ?? file.id), requestedBy: `decision:${input.id}` })
+      const updated = await tx.query<ChangeRow>(`UPDATE workspace_changes SET state='approved',version=NULL WHERE id=$1 RETURNING *`, [input.id])
+      await appendEvent(tx, { idempotencyKey: `workspace-decision:${input.id}`, partition: `sector:${input.sectorId}`, type: 'sector.context.decided', payload: { changeId: input.id, state: 'approved', version: null } })
+      await notifyWorkspace(tx, input.sectorId, 'context-version', { sectorId: input.sectorId, state: 'approved', version: null })
+      const row = updated.rows[0]
+      if (!row) throw new WorkspaceError('conflict', 'context decision missing')
+      return changeView(row)
     }
     const previousSections = checked(ContextSections, current.sections)
     if (!previousSections.scope && current.context_version === 0) { const sector = await requireSector(tx, input.sectorId, input.scope); previousSections.scope = sector.topic || sector.name }
@@ -242,6 +347,213 @@ export async function decideContextChange(db: TransactableDb, input: { sectorId:
     return changeView(row)
   })
 }
+export const GLOBAL_CONTEXT_BUDGET_TOKENS = 30000
+export interface GlobalContextUsage {
+  total: number; budget: number; method: 'estimated'
+  bySection: { scope: number; instructions: number; decisions: number; findings: number; questions: number }
+  byFile: Array<{ fileId: string; tokens: number }>
+  aiUsage: { calls: number; inputTokens: number; outputTokens: number }
+}
+export function globalContextUsageFrom(sections: ContextSections, blocks: Array<{ fileId: string; tokens: number }>): Omit<GlobalContextUsage, 'aiUsage'> {
+  const bySection = {
+    scope: estimateTokens(sections.scope), instructions: estimateTokens(sections.instructions),
+    decisions: estimateTokens(sections.decisions), findings: estimateTokens(sections.findings),
+    questions: estimateTokens(sections.questions),
+  }
+  const byFile = blocks.map((block) => ({ fileId: block.fileId, tokens: block.tokens }))
+  const total = bySection.scope + bySection.instructions + bySection.decisions + bySection.findings + bySection.questions + byFile.reduce((sum, file) => sum + file.tokens, 0)
+  return { total, budget: GLOBAL_CONTEXT_BUDGET_TOKENS, method: 'estimated', bySection, byFile }
+}
+export const ContextAiUsage = z.object({
+  kind: z.enum(['file-summary', 'compaction']),
+  fileId: z.string().min(1).optional(),
+  inputTokens: z.number().int().nonnegative(),
+  outputTokens: z.number().int().nonnegative(),
+  model: z.string().min(1),
+}).strict()
+export type ContextAiUsage = z.infer<typeof ContextAiUsage>
+// Background AI spend lives on the event log, never on deletable rows:
+// removing a file must not erase what its summary cost.
+export async function recordContextAiUsage(db: Db, input: { sectorId: string; idempotencyKey: string; usage: ContextAiUsage; scope?: Scope }): Promise<void> {
+  await requireSector(db, input.sectorId, input.scope)
+  await appendEvent(db, { idempotencyKey: checked(Id, input.idempotencyKey), partition: `sector:${input.sectorId}`, type: 'sector.context.ai_usage', payload: checked(ContextAiUsage, input.usage) })
+}
+export async function readContextAiUsage(db: Db, sectorId: string, scope?: Scope): Promise<{ calls: number; inputTokens: number; outputTokens: number }> {
+  await requireSector(db, sectorId, scope)
+  const rows = await db.query<{ payload: unknown }>(`SELECT payload FROM events WHERE partition=$1 AND type='sector.context.ai_usage'`, [`sector:${sectorId}`])
+  const total = { calls: 0, inputTokens: 0, outputTokens: 0 }
+  for (const row of rows.rows) {
+    const parsed = ContextAiUsage.safeParse(row.payload)
+    if (!parsed.success) continue
+    total.calls += 1
+    total.inputTokens += parsed.data.inputTokens
+    total.outputTokens += parsed.data.outputTokens
+  }
+  return total
+}
+export async function readGlobalContextUsage(db: Db, sectorId: string, scope?: Scope): Promise<GlobalContextUsage> {
+  return (await readGlobalContext(db, sectorId, scope, false)).usage
+}
+export async function applyReadyContextFileBlock(db: TransactableDb, input: { sectorId: string; fileId: string; summary: string; tokens: number; inputTokens?: number; outputTokens?: number }): Promise<{ version: number } | null> {
+  return workspaceTransaction(db, `context-block:${input.sectorId}:${input.fileId}`, async (tx) => {
+    // Late completion after an owner removal: the row is gone, stay gone.
+    const block = await readContextFileBlock(tx, input.sectorId, input.fileId)
+    if (!block) return null
+    // The first block may land before any text edit creates the row.
+    await tx.query('INSERT INTO sector_workspace(sector_id) VALUES($1) ON CONFLICT DO NOTHING', [input.sectorId])
+    const row = await workspaceRow(tx, input.sectorId)
+    const version = row.context_version + 1
+    await tx.query(`UPDATE context_file_blocks SET state='ready',summary=$3,tokens=$4,added_version=$5,error=NULL,input_tokens=$6,output_tokens=$7,updated_at=now()
+      WHERE sector_id=$1 AND file_id=$2`, [input.sectorId, input.fileId, input.summary, input.tokens, version, input.inputTokens ?? 0, input.outputTokens ?? 0])
+    const id = randomUUID()
+    await tx.query(`INSERT INTO workspace_changes(id,sector_id,base_version,sections,source_thread,author,state,version,file_ref,source_refs)
+      VALUES($1,$2,$3,$4::jsonb,'owner','owner','approved',$3,$5::jsonb,'[]'::jsonb)`,
+      [id, input.sectorId, version, JSON.stringify(checked(ContextSections, row.sections)), JSON.stringify({ fileId: input.fileId, hash: block.hash, filename: block.filename, ords: [] })])
+    await tx.query('UPDATE sector_workspace SET context_version=$2 WHERE sector_id=$1', [input.sectorId, version])
+    await tx.query('INSERT INTO workspace_files(sector_id,file_id,included,approval_id) VALUES($1,$2,true,$3) ON CONFLICT(sector_id,file_id) DO UPDATE SET included=true,approval_id=$3', [input.sectorId, input.fileId, id])
+    await appendEvent(tx, { idempotencyKey: `context-block-ready:${input.sectorId}:${input.fileId}:${version}`, partition: `sector:${input.sectorId}`, type: 'sector.context.changed', payload: { changeId: id, state: 'approved', version, fileId: input.fileId } })
+    await notifyWorkspace(tx, input.sectorId, 'context-version', { sectorId: input.sectorId, id, state: 'approved', version })
+    return { version }
+  })
+}
+export async function removeContextFileBlock(db: TransactableDb, input: { sectorId: string; fileId: string; scope?: Scope }): Promise<{ version: number; filename: string; hash: string; state: string }> {
+  await requireSector(db, input.sectorId, input.scope)
+  return workspaceTransaction(db, `context-block:${input.sectorId}:${input.fileId}`, async (tx) => {
+    const block = await readContextFileBlock(tx, input.sectorId, input.fileId)
+    if (!block) throw new WorkspaceError('not_found', 'File is not in the global context.')
+    await tx.query('DELETE FROM context_file_blocks WHERE sector_id=$1 AND file_id=$2', [input.sectorId, input.fileId])
+    await tx.query('UPDATE workspace_files SET included=false,approval_id=NULL WHERE sector_id=$1 AND file_id=$2', [input.sectorId, input.fileId])
+    await tx.query('INSERT INTO sector_workspace(sector_id) VALUES($1) ON CONFLICT DO NOTHING', [input.sectorId])
+    const row = await workspaceRow(tx, input.sectorId)
+    const stripped: Record<string, ContextFileRef[] | null> = {}
+    for (const [key, refs] of Object.entries(row.section_file_refs ?? {})) stripped[key] = refs === null ? null : refs.filter((ref) => ref.fileId !== input.fileId)
+    const version = row.context_version + 1
+    const id = randomUUID()
+    await tx.query('UPDATE sector_workspace SET context_version=$2,section_file_refs=$3::jsonb WHERE sector_id=$1', [input.sectorId, version, JSON.stringify(stripped)])
+    await tx.query(`INSERT INTO workspace_changes(id,sector_id,base_version,sections,source_thread,author,state,version,file_ref,source_refs)
+      VALUES($1,$2,$3,$4::jsonb,'owner','owner','approved',$3,$5::jsonb,'[]'::jsonb)`,
+      [id, input.sectorId, version, JSON.stringify(checked(ContextSections, row.sections)), JSON.stringify({ fileId: input.fileId, hash: block.hash, filename: block.filename, ords: [] })])
+    await appendEvent(tx, { idempotencyKey: `context-block-removed:${input.sectorId}:${input.fileId}:${version}`, partition: `sector:${input.sectorId}`, type: 'sector.context.changed', payload: { changeId: id, state: 'approved', version, fileId: input.fileId, removed: true } })
+    await notifyWorkspace(tx, input.sectorId, 'context-version', { sectorId: input.sectorId, id, state: 'approved', version })
+    return { version, filename: block.filename, hash: block.hash, state: block.state }
+  })
+}
+export async function applySystemCompaction(db: TransactableDb, input: {
+  sectorId: string; baseVersion: number; reason: 'auto' | 'manual'
+  baseScope: string; baseInstructions: string; baseBlocks: Array<{ fileId: string; hash: string; state: string }>
+  sections: { decisions: string; findings: string; questions: string }
+  inputTokens?: number; outputTokens?: number
+}): Promise<{ version: number }> {
+  return workspaceTransaction(db, `context-compaction:${input.sectorId}`, async (tx) => {
+    const row = await workspaceRow(tx, input.sectorId)
+    const current = checked(ContextSections, row.sections)
+    if (row.context_version !== input.baseVersion) throw new WorkspaceError('conflict', 'Global context changed during compaction.')
+    if (current.scope !== input.baseScope || current.instructions !== input.baseInstructions) {
+      throw new WorkspaceError('conflict', 'Compaction must leave scope and instructions byte-identical.')
+    }
+    const blocks = await listContextFileBlocks(tx, input.sectorId)
+    const canon = (entries: Array<{ fileId: string; hash: string; state: string }>) => entries.map((entry) => `${entry.fileId}:${entry.hash}:${entry.state}`).sort().join('\n')
+    if (canon(blocks) !== canon(input.baseBlocks)) throw new WorkspaceError('conflict', 'Context files changed during compaction.')
+    const sections: ContextSections = { scope: current.scope, instructions: current.instructions, ...input.sections }
+    const version = row.context_version + 1
+    const id = randomUUID()
+    await tx.query('UPDATE sector_workspace SET context_version=$2,sections=$3::jsonb WHERE sector_id=$1', [input.sectorId, version, JSON.stringify(sections)])
+    await tx.query(`INSERT INTO workspace_changes(id,sector_id,base_version,sections,source_thread,author,state,version,file_ref,source_refs,input_tokens,output_tokens)
+      VALUES($1,$2,$3,$4::jsonb,$5,'system:compaction','approved',$3,NULL,'[]'::jsonb,$6,$7)`,
+      [id, input.sectorId, version, JSON.stringify(sections), `compaction:${input.reason}`, input.inputTokens ?? 0, input.outputTokens ?? 0])
+    await appendEvent(tx, { idempotencyKey: `context-compaction:${input.sectorId}:${version}`, partition: `sector:${input.sectorId}`, type: 'sector.context.changed', payload: { changeId: id, state: 'approved', version, reason: input.reason } })
+    await notifyWorkspace(tx, input.sectorId, 'context-version', { sectorId: input.sectorId, id, state: 'approved', version })
+    return { version }
+  })
+}
+export async function restoreGlobalContextVersion(db: TransactableDb, input: { sectorId: string; version: number; scope?: Scope }): Promise<{ version: number; sections: ContextSections }> {
+  await requireSector(db, input.sectorId, input.scope)
+  return workspaceTransaction(db, `context-restore:${input.sectorId}`, async (tx) => {
+    const found = await tx.query<ChangeRow>(`SELECT * FROM workspace_changes WHERE sector_id=$1 AND version=$2 AND state='approved' ORDER BY at DESC LIMIT 1`, [input.sectorId, input.version])
+    const source = found.rows[0]
+    if (!source) throw new WorkspaceError('not_found', 'Unknown context version.')
+    await tx.query('INSERT INTO sector_workspace(sector_id) VALUES($1) ON CONFLICT DO NOTHING', [input.sectorId])
+    const row = await workspaceRow(tx, input.sectorId)
+    // Text sections only: file blocks keep their current state, and the
+    // current file refs stay as they are (a removed file must not regain
+    // provenance through a restore).
+    const sections = checked(ContextSections, source.sections)
+    const version = row.context_version + 1
+    const id = randomUUID()
+    await tx.query('UPDATE sector_workspace SET context_version=$2,sections=$3::jsonb WHERE sector_id=$1', [input.sectorId, version, JSON.stringify(sections)])
+    await tx.query(`INSERT INTO workspace_changes(id,sector_id,base_version,sections,source_thread,author,state,version,file_ref,source_refs)
+      VALUES($1,$2,$3,$4::jsonb,'owner','owner','approved',$3,NULL,'[]'::jsonb)`,
+      [id, input.sectorId, version, JSON.stringify(sections)])
+    await appendEvent(tx, { idempotencyKey: `context-restore:${input.sectorId}:${version}`, partition: `sector:${input.sectorId}`, type: 'sector.context.changed', payload: { changeId: id, state: 'approved', version, restoredFrom: input.version } })
+    await notifyWorkspace(tx, input.sectorId, 'context-version', { sectorId: input.sectorId, id, state: 'approved', version })
+    return { version, sections }
+  })
+}
+const INHERITED_MESSAGE_CAP = 20
+const INHERITED_TOKEN_CAP = 12000
+
+/** Spawn-time brief for a child: the parent summary plus its recent
+ * user/agent messages as Owner:/Agent: lines, capped at 12k estimated
+ * tokens by dropping the oldest messages first. */
+export async function buildInheritedContext(db: Db, parentThreadKey: string): Promise<string> {
+  await requireThread(db, parentThreadKey)
+  const local = await readThreadContext(db, parentThreadKey)
+  const { rows } = await db.query<{ payload: unknown }>(
+    `SELECT payload FROM thread_messages WHERE thread_key=$1 AND kind='text' ORDER BY seq DESC LIMIT 40`,
+    [parentThreadKey],
+  )
+  const lines: string[] = []
+  for (const row of [...rows].reverse()) {
+    if (typeof row.payload !== 'object' || row.payload === null) continue
+    const payload = row.payload as Record<string, unknown>
+    if (typeof payload['text'] !== 'string') continue
+    if (payload['role'] === 'user') lines.push(`Owner: ${payload['text']}`)
+    else if (payload['role'] === 'agent') lines.push(`Agent: ${payload['text']}`)
+  }
+  const recent = lines.slice(-INHERITED_MESSAGE_CAP)
+  const render = () => `Parent summary:\n${local.summary}\nRecent parent messages:\n${recent.join('\n')}`
+  let body = render()
+  while (recent.length > 0 && estimateTokens(body) > INHERITED_TOKEN_CAP) {
+    recent.shift()
+    body = render()
+  }
+  return body
+}
+
+/** Bare upsert: the child thread row may not have projected yet when the
+ * brief lands between parent acceptance and the goal signal. */
+export async function saveInheritedContext(db: Db, childThreadKey: string, inherited: string): Promise<void> {
+  if (!childThreadKey) throw new DbContractError('childThreadKey must be a non-empty string')
+  await db.query(
+    `INSERT INTO thread_context(thread_key,inherited) VALUES($1,$2)
+     ON CONFLICT(thread_key) DO UPDATE SET inherited=$2`,
+    [childThreadKey, inherited],
+  )
+}
+
+/** Owner pause flag: written by pause/resume runs, read at every
+ * provider boundary. Missing row means running. */
+export async function setThreadPaused(db: Db, threadKey: string, paused: boolean): Promise<void> {
+  if (!threadKey) throw new DbContractError('threadKey must be a non-empty string')
+  await db.query(
+    `INSERT INTO thread_control(thread_key,paused,updated_at) VALUES($1,$2,now())
+     ON CONFLICT(thread_key) DO UPDATE SET paused=$2,updated_at=now()`,
+    [threadKey, paused],
+  )
+}
+
+export async function isThreadPaused(db: Db, threadKey: string): Promise<boolean> {
+  const researchState = await researchThreadState(db, threadKey).catch(() => null)
+  if (researchState === 'paused' || researchState === 'planning' || researchState === 'planned') return true
+  const { rows } = await db.query<{ paused: boolean }>('SELECT paused FROM thread_control WHERE thread_key=$1', [threadKey])
+  return rows[0]?.paused ?? false
+}
+
+export async function readInheritedContext(db: Db, threadKey: string): Promise<string> {
+  const { rows } = await db.query<{ inherited: string }>('SELECT inherited FROM thread_context WHERE thread_key=$1', [threadKey])
+  return rows[0]?.inherited ?? ''
+}
+
 export async function readThreadContext(db: Db, threadKey: string, scope?: Scope): Promise<ThreadContext> {
   await requireThread(db, threadKey, scope)
   const { rows } = await db.query<{ notes: string; summary: string; covered_seq: number | string; version: number; usage: ThreadContext['usage']; working_user: string | null; working_meta: TurnContinuation['meta'] | null }>('SELECT * FROM thread_context WHERE thread_key=$1', [threadKey])
@@ -488,9 +800,10 @@ export async function commitChildContext(db: TransactableDb, threadKey: string, 
   if (committed.rows[0]) return changeView(committed.rows[0])
   const preview = await previewContextChange(db, session.sectorId, id, scope)
   if (preview.change.state !== 'parent-review' || preview.change.fileRef || preview.change.sourceRefs?.length) throw new WorkspaceError('permission_denied', 'This update requires owner approval.')
-  const result = await proposeGlobalContext(db, { sectorId: session.sectorId, baseVersion: preview.change.baseVersion, sections: preview.change.sections, sourceThread: threadKey, owner: false, trustedResearch: true, scope, id: `parent-commit:${id}` })
-  if (result.state === 'approved') await db.query("UPDATE workspace_changes SET state='approved',version=$2 WHERE id=$1 AND state='parent-review'", [id, result.version])
-  return result
+  // The parent commit forwards the child update as a NEW pending owner
+  // proposal. It never approves: the child row stays parent-review until
+  // the owner decides the forwarded proposal.
+  return proposeGlobalContext(db, { sectorId: session.sectorId, baseVersion: preview.change.baseVersion, sections: preview.change.sections, sourceThread: threadKey, owner: false, trustedResearch: true, scope, id: `parent-commit:${id}` })
 }
 
 const ResearchBudget = z.object({ runId: Id, spentMs: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER) }).strict()
@@ -638,8 +951,19 @@ export async function workspaceReferences(db: Db, sectorId: string, scope?: Scop
   const context = await readGlobalContext(db, sectorId, scope, false)
   if (threadKey) { const row = await workspaceRow(db, sectorId); for (const ref of mergeFileRefs(...Object.values(row.section_file_refs ?? {}))) await recordThreadFileExposure(db as TransactableDb, threadKey, sectorId, ref.fileId, ref.ords, scope) }
   const references = context.markdown ? [context.markdown] : []
-  for (const file of (await listSectorLibrary(db, sectorId, scope)).sort((a, b) => a.id.localeCompare(b.id))) {
+  const blocks = await listContextFileBlocks(db, sectorId)
+  const library = (await listSectorLibrary(db, sectorId, scope)).sort((a, b) => a.id.localeCompare(b.id))
+  const libraryById = new Map(library.map((file) => [file.id, file]))
+  for (const block of blocks) {
+    const file = libraryById.get(block.fileId)
+    if (block.state === 'ready' && file && !file.hidden && file.hash !== block.hash) await markContextFileBlockFailed(db, sectorId, block.fileId, 'file changed')
+  }
+  // Ready blocks ride in the markdown above; raw unit lines survive only for
+  // legacy blocks until they are summarized.
+  const legacy = new Set(blocks.filter((block) => block.state === 'legacy').map((block) => block.fileId))
+  for (const file of library) {
     if (!file.included || file.hidden || (file.kind !== 'document' && !file.documentId)) continue
+    if (!legacy.has(file.id)) continue
     const approved = await db.query<ChangeRow>('SELECT c.* FROM workspace_changes c JOIN workspace_files f ON f.approval_id=c.id WHERE f.sector_id=$1 AND f.file_id=$2', [sectorId, file.id])
     const approval = approved.rows[0]?.file_ref
     if (!approval || approval.hash !== file.hash) continue

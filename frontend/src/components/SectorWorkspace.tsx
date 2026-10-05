@@ -28,19 +28,24 @@ import { AssistantRuntimeAdapter } from './chat/AssistantRuntimeAdapter'
 import { toThreadSegments } from './chat/assistantAdapter'
 import { Markdown } from './Markdown'
 import { SectorFilePreview } from './SectorFilePreview'
+import { subagentDisplayName } from './SubagentsPanel'
 import { ResearchPlanTab } from './plan/PlanTab'
 import { ModelToolbar } from './ModelToolbar'
 import { StateBadge } from './research-parts'
 import { GlobalContextPanel, LocalContextEditor, ResourceNotice, WorkspaceFiles, WorkspaceOverlay } from './workspace-parts'
 import { ConversationComposer, ResourceState, SearchField } from './shells'
-import { BodySm, Caption, CardTitle, Description, Label, WorkspaceTitle } from './text'
+import { BodySm, Caption, CardTitle, Description, Label, Overline, WorkspaceTitle } from './text'
+import { focusRingInset } from '@/lib/interaction'
+import { popoverEnter } from '@/lib/motion'
 import { ThemeMenu } from './ThemeMenu'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { ConfirmAction } from './ui/alert-dialog'
-import { List, listRowClassName } from './ui/list'
+import { List, ListRow, listRowClassName } from './ui/list'
+import { CollapsiblePanel, CollapsibleRoot, CollapsibleTrigger } from './ui/collapsible'
 import { MenuItem, MenuPopup, MenuRoot, MenuTrigger } from './ui/menu'
+import { SwitchRoot } from './ui/switch'
 import { TabsList, TabsPanel, TabsRoot, TabsTab } from './ui/tabs'
 import { ExecutionInspector } from './ExecutionInspector'
 import { IconButton } from './IconButton'
@@ -144,9 +149,10 @@ export function SectorWorkspace({ sector, model, config, actions, onBack, initia
   const [retryFile, setRetryFile] = useState<LibraryFile | null>(null)
   const [group, setGroup] = useState<'research' | 'normal'>('research')
   const [tab, setTab] = useState<'chat' | 'plan'>(initialView ?? 'chat')
-  const [navOpen, setNavOpen] = useState(false), [resourcesOpen, setResourcesOpen] = useState(false), [contextOpen, setContextOpen] = useState(false), [directory, setDirectory] = useState(false)
+  const [navOpen, setNavOpen] = useState(false), [resourcesOpen, setResourcesOpen] = useState(false), [contextOpen, setContextOpen] = useState(false), [directory, setDirectory] = useState(false), [spawnOpen, setSpawnOpen] = useState(false)
   const [renameTarget, setRenameTarget] = useState<{ id: string; title: string } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null)
+  const [stopTarget, setStopTarget] = useState<{ name: string; stop: () => Promise<boolean> } | null>(null)
   const [railHidden, setRailHidden] = useState(readRailHidden)
   const [dismissedError, setDismissedError] = useState<string | null>(null)
   const [sessionQuery, setSessionQuery] = useState(''), [sessionLimit, setSessionLimit] = useState(50)
@@ -303,11 +309,25 @@ export function SectorWorkspace({ sector, model, config, actions, onBack, initia
       <ThemeMenu preference={themePreference} onPreference={setThemePreference} side="right" />
     </div>
   </div>
-  const resourceRail = <div className="flex h-full min-h-0 flex-col divide-y divide-border-subtle"><WorkspaceFiles resource={model.files} busy={busy} onUpload={(file) => void model.upload(file)} onHide={(id, hidden) => void model.hideFile(id, hidden)} onInclude={(id) => void model.includeFile(id)} onPreview={model.previewFile} onRetry={setRetryFile} /><GlobalContextPanel preview={model.preview} onReview={model.reviewProposal} resource={model.global} busy={busy} error={model.error} onSave={model.saveGlobal} onDecision={model.decide} /></div>
+  const resourceRail = <div className="flex h-full min-h-0 flex-col divide-y divide-border-subtle"><WorkspaceFiles resource={model.files} busy={busy} onUpload={(file) => void model.upload(file)} onHide={(id, hidden) => void model.hideFile(id, hidden)} onInclude={(id) => { void (async () => { if (await model.includeFile(id)) notify.success(`Summarizing ${model.files.data?.find((file) => file.id === id)?.filename ?? 'file'} for global context`) })() }} onRemove={(id) => { void (async () => { const name = model.files.data?.find((file) => file.id === id)?.filename ?? model.global.data?.files.find((block) => block.fileId === id)?.filename ?? 'file'; if (await model.removeFile(id)) notify.success(`Removed ${name} from global context`) })() }} onPreview={model.previewFile} onRetry={setRetryFile} /><GlobalContextPanel preview={model.preview} onReview={model.reviewProposal} resource={model.global} busy={busy} error={model.error} onSave={model.saveGlobal} onDecision={model.decide} onSummarize={(id) => void model.summarizeFile(id)} onRemove={(id) => { void (async () => { const name = model.global.data?.files.find((block) => block.fileId === id)?.filename ?? 'file'; if (await model.removeFile(id)) notify.success(`Removed ${name} from global context`) })() }} onCompact={() => { void (async () => { if (await model.compactGlobal()) notify.success('Compacting global context') })() }} onRestore={async (version) => { const ok = await model.restoreGlobal(version); if (ok) notify.success(`Global context restored to v${version}`); return ok }} onRewrite={(instruction) => model.startRewrite(instruction)} onCopied={() => notify.success('Copied')} /></div>
   const isResearchView = selected?.kind === 'research' && !model.child
   const planLatest = model.plan.data?.latest
   const planApproved = planLatest != null && model.plan.data?.approvedVersion === planLatest.version
-  const subagentStrip = children.length ? <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle px-4 py-2 sm:px-6"><Icons.agents className="size-4 shrink-0 text-muted-foreground" aria-hidden /><Caption as="span" className="shrink-0">Subagents</Caption><div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">{children.slice(0, 3).map((child, index) => <Button key={child.key} type="button" variant="ghost" size="sm" onClick={() => model.openThread(child.key)} title={child.name ?? 'Research agent'} className={cn('min-w-0 max-w-44', rowEnter)} style={{ animationDelay: `${staggerDelay(index)}s` }}><span aria-hidden className={cn('size-1.5 shrink-0 rounded-full', child.status === 'RUNNING' ? 'bg-success motion-safe:animate-pulse' : 'bg-muted-foreground')} /><span className="truncate">{child.name ?? 'Research agent'}</span></Button>)}</div><Button type="button" variant="link" size="sm" className="shrink-0" onClick={() => setDirectory(true)}>View all {children.length}</Button></div> : null
+  const subagentStrip = <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border-subtle px-4 py-2 sm:px-6"><Icons.agents className="size-4 shrink-0 text-muted-foreground" aria-hidden /><Caption as="span" className="shrink-0">Subagents</Caption>{children.length ? <div className="flex min-w-60 flex-1 flex-wrap items-center gap-1">{children.slice(0, 3).map((child, index) => {
+            const name = subagentDisplayName(child, index)
+            const childId = child.key.startsWith('agent:') ? child.key.slice('agent:'.length) : child.key
+            const paused = child.status === 'PAUSED'
+            return (
+              <span key={child.key} className={cn('flex min-w-36 max-w-52 flex-1 items-center', rowEnter)} style={{ animationDelay: `${staggerDelay(index)}s` }}>
+                <Button type="button" variant="ghost" size="sm" onClick={() => model.openThread(child.key)} title={child.key} className="min-w-0 flex-1"><span aria-hidden className={cn('size-1.5 shrink-0 rounded-full', child.status === 'RUNNING' ? 'bg-success motion-safe:animate-pulse' : 'bg-muted-foreground')} /><span className="truncate">{name}</span></Button>
+                {paused ? <Badge tone="warning">Paused</Badge> : null}
+                {paused
+                  ? <IconButton label={`Resume ${name}`} size="icon-sm" onClick={() => void model.resumeSubagent(childId)}><Icons.play className="size-3.5" aria-hidden /></IconButton>
+                  : child.status === 'RUNNING' ? <IconButton label={`Pause ${name}`} size="icon-sm" onClick={() => void model.pauseSubagent(childId)}><Icons.pause className="size-3.5" aria-hidden /></IconButton> : null}
+                {child.status === 'RUNNING' ? <IconButton label={`Stop ${name}`} size="icon-sm" onClick={() => setStopTarget({ name, stop: () => model.stopSubagent(childId) })} className="text-danger hover:text-danger"><Icons.stopRun className="size-3.5" aria-hidden /></IconButton> : null}
+              </span>
+            )
+          })}</div> : <Caption as="span" className="min-w-0 flex-1 text-muted-foreground">No subagents yet.</Caption>}{children.length ? <Button type="button" variant="link" size="sm" className="shrink-0" onClick={() => setDirectory(true)}>View all {children.length}</Button> : null}<Button type="button" variant="secondary" size="sm" className="shrink-0" onClick={() => setSpawnOpen(true)}>New subagent</Button></div>
   const errorNotice = blockingError && dismissedError !== blockingError ? <div className="shrink-0 border-b border-border-subtle px-4 py-2 sm:px-6"><div role="alert" className="flex gap-2 rounded-md border border-danger-border bg-danger-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertError aria-hidden className="size-4 text-danger" /></span><BodySm as="span" className="min-w-0 flex-1">{blockingError}</BodySm><IconButton label="Dismiss error" size="icon-sm" onClick={() => setDismissedError(blockingError)}><Icons.deny className="size-4" aria-hidden /></IconButton></div></div> : null
   return <div className="flex h-dvh min-h-0 overflow-hidden bg-background">
     <aside aria-label="Sector sessions" className="hidden min-h-0 w-70 shrink-0 border-r border-border-subtle bg-sidebar md:block">{sessionRail}</aside>
@@ -329,6 +349,7 @@ export function SectorWorkspace({ sector, model, config, actions, onBack, initia
           ) : null}
         </div>
         {selected?.kind === 'research' && !model.child ? <LifecycleButton state={sector.state} actions={actions} onReviewPlan={() => setTab('plan')} /> : null}
+        {model.chat.busy ? <IconButton label="Stop agent" size="icon" disabled={Boolean(model.operation)} onClick={() => setStopTarget({ name: model.child ? model.child.name ?? 'Research agent' : selected?.title ?? 'this conversation', stop: () => model.stop() })} className="text-danger hover:text-danger"><Icons.stopRun className="size-4" aria-hidden /></IconButton> : null}
         <IconButton label={railHidden ? 'Show files and context' : 'Hide files and context'} size="icon" className="hidden min-[1281px]:inline-flex" onClick={() => setRailHidden((value) => !value)}>{railHidden ? <Icons.railShow className="size-4" aria-hidden /> : <Icons.railHide className="size-4" aria-hidden />}</IconButton>
         <IconButton label="Open files and global context" size="icon" className="min-[1281px]:hidden" onClick={() => setResourcesOpen(true)}><Icons.folderOpen className="size-4" aria-hidden /></IconButton>
         <MenuRoot>
@@ -337,6 +358,12 @@ export function SectorWorkspace({ sector, model, config, actions, onBack, initia
             <MenuItem onClick={() => { if (selected) openRename({ id: selected.id, title: selected.title }) }}><Icons.edit aria-hidden />Rename</MenuItem>
             <MenuItem onClick={() => setContextOpen(true)}><Icons.localContext aria-hidden />Local context</MenuItem>
             <MenuItem onClick={() => model.inspectExecution()}><Icons.executionRecords aria-hidden />Execution records</MenuItem>
+            {selected ? (
+              <div className="flex min-h-9 items-center gap-2 px-2 py-1">
+                <span id="use-global-context-label" className="min-w-0 flex-1 text-left text-ui">Use global context</span>
+                <SwitchRoot checked={selected.useGlobalContext !== false} disabled={Boolean(model.operation)} aria-labelledby="use-global-context-label" onCheckedChange={(checked) => { void (async () => { if (await model.setUseGlobalContext(checked)) notify.success(`Global context ${checked ? 'on' : 'off'} for this chat`) })() }} />
+              </div>
+            ) : null}
             {selected && selected.kind !== 'research' ? <MenuItem onClick={() => { if (selected) openDelete({ id: selected.id, title: selected.title }) }} className="text-danger"><Icons.delete aria-hidden />Delete</MenuItem> : null}
           </MenuPopup>
         </MenuRoot>
@@ -367,14 +394,73 @@ export function SectorWorkspace({ sector, model, config, actions, onBack, initia
     <WorkspaceOverlay title="Files and global context" side open={resourcesOpen} onClose={() => setResourcesOpen(false)}><div className="flex h-[calc(100dvh-180px)] min-h-0 flex-col">{resourceRail}</div></WorkspaceOverlay>
     <WorkspaceOverlay title="Local context" side open={contextOpen} onClose={() => setContextOpen(false)} titleBadge={<IconButton label="Execution records" size="icon-sm" onClick={() => model.inspectExecution()}><Icons.executionRecords className="size-4" aria-hidden /></IconButton>}><LocalContextEditor key={model.activeThread} resource={model.local} busy={busy} error={model.error} onSave={(notes, version) => void model.saveLocal(notes, version)} onCompact={() => void model.compact()} inspection={model.operationReceipt} onInspectOperation={model.inspectOperation} onRebuild={(summary, version) => model.rebuildLocal(summary, version)} /></WorkspaceOverlay>
     <ExecutionInspector open={model.executionOpen} page={model.executionPage} body={model.executionBody} selectedSeq={model.executionSeq} hasPrevious={model.executionHasPrevious} onSelect={model.selectExecution} onNext={model.nextExecutionPage} onPrevious={model.previousExecutionPage} onClose={model.closeExecution} />
-    <WorkspaceOverlay title="Subagents" open={directory} onClose={() => setDirectory(false)}><AgentDirectory model={model} onOpen={(key) => { model.openThread(key); setDirectory(false) }} /></WorkspaceOverlay>
+    <WorkspaceOverlay title="Subagents" open={directory} onClose={() => setDirectory(false)}><AgentDirectory model={model} onOpen={(key) => { model.openThread(key); setDirectory(false) }} onSpawn={() => { setDirectory(false); setSpawnOpen(true) }} onStop={(key, name) => { const id = key.startsWith('agent:') ? key.slice('agent:'.length) : key; setStopTarget({ name, stop: () => model.stopSubagent(id) }) }} /></WorkspaceOverlay>
+    {spawnOpen ? <SpawnSubagentDialog busy={busy} onClose={() => setSpawnOpen(false)} onStart={async (goal, name) => { const ok = await model.spawnSubagent(goal, name); if (ok) { notify.success('Subagent started'); setSpawnOpen(false) } return ok }} /> : null}
     <WorkspaceOverlay title="Review file processing retry" open={retryFile !== null} onClose={() => setRetryFile(null)}>{retryFile ? <FileProcessingRetry file={retryFile} latest={model.files.status === 'ready' ? model.files.data?.find((file) => file.id === retryFile.id) : undefined} busy={busy} error={model.error} onRetry={(jobId, revision, allowDuplicatePaid) => model.retryFile(retryFile.id, jobId, revision, allowDuplicatePaid)} onClose={() => setRetryFile(null)} /> : null}</WorkspaceOverlay>
     <WorkspaceOverlay title="File preview" open={model.previewFileId !== null} onClose={() => model.previewFile(null)}><SectorFilePreview resource={model.fileBody} units={model.fileUnits} hasPrevious={model.fileHasPrevious} onBrowse={model.browseFileUnits} onNext={model.nextFileUnits} onPrevious={model.previousFileUnits} /></WorkspaceOverlay>
     {renameTarget ? <RenameSessionDialog key={renameTarget.id} title={renameTarget.title} busy={busy} onClose={() => setRenameTarget(null)} onSave={async (title) => { const ok = await model.renameChat(title); if (ok) { notify.success('Renamed'); setRenameTarget(null) } return ok }} /> : null}
     <ConfirmAction open={deleteTarget !== null} onOpenChange={(next) => { if (!next) setDeleteTarget(null) }} title={deleteTarget ? `Delete "${deleteTarget.title}"?` : 'Delete chat?'} description="The chat is removed from the list. Its history stays in the audit log." confirmLabel="Delete chat" pending={busy} onConfirm={async () => { if (await model.deleteChat()) { notify.success('Chat deleted'); setDeleteTarget(null) } }} />
+    <ConfirmAction open={stopTarget !== null} onOpenChange={(next) => { if (!next) setStopTarget(null) }} title="Stop this agent?" description={stopTarget ? `Stop ${stopTarget.name} now? Anything it already finished stays.` : 'Stop this agent now? Anything it already finished stays.'} confirmLabel="Stop agent" pending={busy} onConfirm={async () => { if (stopTarget && await stopTarget.stop()) { notify.success('Stopped'); setStopTarget(null) } }} />
   </div>
 }
 const scrollPositions = new Map<string, number>()
+// @chat markers render as @title chips inside the owner's words. Unknown
+// [[session:..]] shapes stay plain text.
+function renderChatRefChips(text: string) {
+  return text.split(/(\[\[session:[^|\]]+\|[^\]]*\]\])/g).map((part, index) => {
+    const match = part.match(/^\[\[session:([^|\]]+)\|([^\]]*)\]\]$/)
+    if (!match) return part
+    return (
+      <span
+        key={index}
+        className="mx-0.5 inline-flex items-center gap-1 rounded-md border border-border bg-background px-1.5 font-medium"
+      >
+        <Icons.chatSession className="size-3.5" aria-hidden />
+        @{match[2]}
+      </span>
+    )
+  })
+}
+function QueueDisclosure({ model }: { model: SectorWorkspaceModel }) {
+  const items = model.queue.data ?? []
+  if (!items.length) return null
+  const move = (index: number, delta: -1 | 1) => {
+    const next = items.map((item) => item.id)
+    const other = index + delta
+    const current = next[index]
+    const sibling = next[other]
+    if (current === undefined || sibling === undefined) return
+    next[index] = sibling
+    next[other] = current
+    void (async () => { if (!(await model.reorderQueue(next))) notify.error('Could not reorder the queue. Try again.') })()
+  }
+  return (
+    <CollapsibleRoot className="mb-2 rounded-md border border-border-subtle">
+      <CollapsibleTrigger className="min-h-9 px-3">
+        <Icons.queued aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+        <span className="min-w-0 flex-1 text-left">Queued ({items.length})</span>
+        <Icons.chevronDown data-chevron aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+      </CollapsibleTrigger>
+      <CollapsiblePanel>
+        <div className="px-2 pt-1 pb-2">
+          <List aria-label="Queued messages">
+            {items.map((item, index) => (
+              <ListRow key={item.id} density="dense">
+                <BodySm as="span" className="min-w-0 flex-1 line-clamp-2 [overflow-wrap:anywhere]">{item.text}</BodySm>
+                <span className="flex shrink-0 items-center">
+                  <IconButton label={`Move ${item.text} up`} size="icon-sm" disabled={index === 0} onClick={() => move(index, -1)}><Icons.moveUp className="size-4" aria-hidden /></IconButton>
+                  <IconButton label={`Move ${item.text} down`} size="icon-sm" disabled={index === items.length - 1} onClick={() => move(index, 1)}><Icons.moveDown className="size-4" aria-hidden /></IconButton>
+                  <IconButton label={`Remove ${item.text}`} size="icon-sm" onClick={() => { void (async () => { if (!(await model.removeQueued(item.id))) notify.error('Could not remove the message. Try again.') })() }} className="text-danger hover:text-danger"><Icons.delete className="size-4" aria-hidden /></IconButton>
+                </span>
+              </ListRow>
+            ))}
+          </List>
+        </div>
+      </CollapsiblePanel>
+    </CollapsibleRoot>
+  )
+}
+
 function ConversationView({ model, config, onContext }: { model: SectorWorkspaceModel; config: StagingConfig; onContext(): void }) {
   const chat = model.chat
   const { listRef, showLatest, onListScroll, jumpToLatest } = useChatStick(`${model.activeThread}:${chat.messages.length}:${chat.live?.pendingText?.length ?? 0}`)
@@ -389,6 +475,48 @@ function ConversationView({ model, config, onContext }: { model: SectorWorkspace
     'tools' in segment ? Boolean(segment.reply?.reasoning) : segment.message.kind === 'text' && Boolean(segment.message.reasoning),
   )?.key
   const emptyVariant = model.selected?.kind === 'research' && !model.child ? 'research' as const : 'chat' as const
+  // @chat references (research main thread only): typing @ offers the
+  // sector chats; picking inserts @title while the id mapping stays in
+  // composer state, and send expands each @title to
+  // [[session:id|title]]. Deleting the @title text drops its mapping.
+  const chatRefEnabled = model.selected?.kind === 'research' && !model.child
+  const [chatRefClosed, setChatRefClosed] = useState(false)
+  const [chatRefIndex, setChatRefIndex] = useState(0)
+  const [chatRefMentions, setChatRefMentions] = useState<Array<{ id: string; title: string }>>([])
+  // A new draft reopens the listbox from the top and prunes mappings
+  // whose text is gone: adjust during render (never in an effect) so
+  // the compiler sees no cascading setState.
+  const [chatRefDraft, setChatRefDraft] = useState(chat.draft)
+  if (chatRefDraft !== chat.draft) {
+    setChatRefDraft(chat.draft); setChatRefClosed(false); setChatRefIndex(0)
+    const pruned = chatRefMentions.filter((mention) => chat.draft.includes(`@${mention.title}`))
+    if (pruned.length !== chatRefMentions.length) setChatRefMentions(pruned)
+  }
+  const chatRefMatch = chatRefEnabled && !chatRefClosed ? chat.draft.match(/@([^@\n]*)$/) : null
+  const chatRefQuery = (chatRefMatch?.[1] ?? '').toLowerCase()
+  const chatRefOptions = chatRefMatch
+    ? (model.sessions.data ?? []).filter((session) => session.id !== model.selected?.id && session.title.toLowerCase().includes(chatRefQuery))
+    : []
+  const chatRefOpen = chatRefMatch !== null && chatRefOptions.length > 0
+  function insertChatRef(pick: { id: string; title: string }) {
+    if (!chatRefMatch || chatRefMatch.index === undefined) return
+    chat.setDraft(`${chat.draft.slice(0, chatRefMatch.index)}@${pick.title} `)
+    setChatRefMentions((mentions) => [...mentions.filter((mention) => mention.title !== pick.title), { id: pick.id, title: pick.title }])
+    setChatRefIndex(0)
+    composer.current?.focus()
+  }
+  function expandChatRefs(draft: string): string {
+    let text = draft
+    for (const mention of [...chatRefMentions].sort((a, b) => b.title.length - a.title.length)) {
+      text = text.split(`@${mention.title}`).join(`[[session:${mention.id}|${mention.title}]]`)
+    }
+    return text
+  }
+  function sendChat(steer = false) {
+    const expanded = expandChatRefs(chat.draft)
+    if (expanded === chat.draft) return chat.send(steer)
+    return chat.send(steer, expanded)
+  }
   const threadPaused = model.threads.data?.find((thread) => thread.key === model.activeThread)?.status === 'PAUSED'
   const composerPlaceholder = model.child ? 'Steer or message this subagent...' : model.selected?.kind === 'research' ? 'Ask about this research...' : 'Message...'
   // Send-context failures only: history load errors belong to the thread's
@@ -397,55 +525,156 @@ function ConversationView({ model, config, onContext }: { model: SectorWorkspace
   // disabled, would strand a dead Retry button.
   const composerError = chat.status === 'ready' && !chat.missedInstructions.length && chat.phase !== 'reconnecting' && chat.phase !== 'failed' && chat.phase !== 'paused' && !threadPaused ? (chat.error ?? null) : null
   return <div className="flex min-h-0 flex-1 flex-col"><div className="relative min-h-0 flex-1"><div ref={listRef} onScroll={() => { onListScroll(); if (listRef.current) scrollPositions.set(model.activeThread ?? '', listRef.current.scrollTop) }} role="log" aria-label="Conversation messages" aria-live="polite" className="scroll-slim h-full overflow-y-auto px-4 py-6 sm:px-8"><div className="mx-auto max-w-prose-kd space-y-6"><ResourceNotice resource={notice} label="Conversation" />{chat.status === 'ready' && chat.messages.length === 0 && !chat.echo ? <ConversationEmpty variant={emptyVariant} onSuggest={(text) => { chat.setDraft(text); composer.current?.focus() }} /> : null}
-    {<AssistantRuntimeAdapter messages={toThreadSegments(segments)} isRunning={chat.busy} onSend={() => undefined}><ThreadPrimitive.Root><ThreadPrimitive.Messages>{({ message: runtimeMessage }) => { const segment = segments.find((entry) => entry.key === runtimeMessage.id); if (!segment) return null; const control = segment.key === lastReasoningKey ? { open: reasoningOpen, onOpenChange: setReasoningOpen } : undefined; return 'tools' in segment ? <div key={segment.key} className="space-y-2"><ToolActivity tools={segment.tools} />{segment.reply?.reasoning ? <ReasoningDisclosure reasoning={segment.reply.reasoning} open={control?.open} onOpenChange={control?.onOpenChange} /> : null}{segment.reply ? <AgentBubble copyText={segment.reply.text} timestamp={segment.reply.at} latest={segment.key === lastKey}><Markdown text={segment.reply.text} /></AgentBubble> : null}</div> : segment.message.kind === 'text' ? segment.message.role === 'user' ? <UserBubble key={segment.message.id}>{segment.message.text}</UserBubble> : <div key={segment.message.id} className="space-y-2">{segment.message.reasoning ? <ReasoningDisclosure reasoning={segment.message.reasoning} open={control?.open} onOpenChange={control?.onOpenChange} /> : null}<AgentBubble copyText={segment.message.text} timestamp={segment.message.at} latest={segment.key === lastKey}><Markdown text={segment.message.text} /></AgentBubble></div> : null }}</ThreadPrimitive.Messages></ThreadPrimitive.Root></AssistantRuntimeAdapter>}
-    {chat.echo ? <UserBubble>{chat.echo}</UserBubble> : null}{tools.length || chat.live?.pendingReasoning || chat.live?.pendingText ? <div className="space-y-2">{tools.length ? <ToolActivity tools={tools} live /> : null}{chat.live?.pendingReasoning ? <ThinkingRow reasoning={chat.live.pendingReasoning} open={reasoningOpen} onOpenChange={setReasoningOpen} /> : null}{chat.live?.pendingText ? <AgentBubble><Markdown text={chat.live.pendingText} /></AgentBubble> : null}</div> : null}{chat.phase === 'queued' ? <p role="status" className="flex items-center gap-2"><Icons.queued aria-hidden className="size-3.5 text-muted-foreground" /><Caption as="span">Queued, waiting for the agent</Caption></p> : chat.phase === 'reconnecting' ? <div role="status" className="flex gap-2 rounded-md border border-info-border bg-info-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertInfo aria-hidden className="size-4 text-info" /></span><BodySm as="span" className="min-w-0 flex-1">Reconnecting. Your conversation is saved.</BodySm><Button type="button" variant="ghost" size="sm" onClick={chat.retry} className="shrink-0">Reconnect now</Button></div> : chat.phase === 'paused' || threadPaused ? <div role="status" className="flex gap-2 rounded-md border border-warning-border bg-warning-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertWarning aria-hidden className="size-4 text-warning" /></span><BodySm as="span" className="min-w-0 flex-1">This conversation is paused.</BodySm><Button type="button" variant="ghost" size="sm" disabled={Boolean(model.operation)} onClick={() => void model.resume()} className="shrink-0">Resume</Button></div> : chat.phase === 'failed' ? <div role="alert" className="flex gap-2 rounded-md border border-danger-border bg-danger-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertError aria-hidden className="size-4 text-danger" /></span><BodySm as="span" className="min-w-0 flex-1">That reply did not go through.</BodySm><Button type="button" variant="ghost" size="sm" onClick={() => void chat.send()} className="shrink-0">Retry</Button></div> : chat.busy && !chat.live?.pendingText && !tools.length && !chat.live?.pendingReasoning ? <ThinkingRow /> : null}
+    {<AssistantRuntimeAdapter messages={toThreadSegments(segments)} isRunning={chat.busy} onSend={() => undefined}><ThreadPrimitive.Root><ThreadPrimitive.Messages>{({ message: runtimeMessage }) => { const segment = segments.find((entry) => entry.key === runtimeMessage.id); if (!segment) return null; const control = segment.key === lastReasoningKey ? { open: reasoningOpen, onOpenChange: setReasoningOpen } : undefined; return 'tools' in segment ? <div key={segment.key} className="space-y-2"><ToolActivity tools={segment.tools} />{segment.reply?.reasoning ? <ReasoningDisclosure reasoning={segment.reply.reasoning} open={control?.open} onOpenChange={control?.onOpenChange} /> : null}{segment.reply ? <AgentBubble copyText={segment.reply.text} timestamp={segment.reply.at} latest={segment.key === lastKey}><Markdown text={segment.reply.text} /></AgentBubble> : null}</div> : segment.message.kind === 'text' ? segment.message.role === 'user' ? <UserBubble key={segment.message.id}>{renderChatRefChips(segment.message.text)}</UserBubble> : <div key={segment.message.id} className="space-y-2">{segment.message.reasoning ? <ReasoningDisclosure reasoning={segment.message.reasoning} open={control?.open} onOpenChange={control?.onOpenChange} /> : null}<AgentBubble copyText={segment.message.text} timestamp={segment.message.at} latest={segment.key === lastKey}><Markdown text={segment.message.text} /></AgentBubble></div> : null }}</ThreadPrimitive.Messages></ThreadPrimitive.Root></AssistantRuntimeAdapter>}
+    {chat.echo ? <UserBubble>{renderChatRefChips(chat.echo)}</UserBubble> : null}{tools.length || chat.live?.pendingReasoning || chat.live?.pendingText ? <div className="space-y-2">{tools.length ? <ToolActivity tools={tools} live /> : null}{chat.live?.pendingReasoning ? <ThinkingRow reasoning={chat.live.pendingReasoning} open={reasoningOpen} onOpenChange={setReasoningOpen} /> : null}{chat.live?.pendingText ? <AgentBubble><Markdown text={chat.live.pendingText} /></AgentBubble> : null}</div> : null}{chat.phase === 'queued' ? <p role="status" className="flex items-center gap-2"><Icons.queued aria-hidden className="size-3.5 text-muted-foreground" /><Caption as="span">Queued, waiting for the agent</Caption></p> : chat.phase === 'reconnecting' ? <div role="status" className="flex gap-2 rounded-md border border-info-border bg-info-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertInfo aria-hidden className="size-4 text-info" /></span><BodySm as="span" className="min-w-0 flex-1">Reconnecting. Your conversation is saved.</BodySm><Button type="button" variant="ghost" size="sm" onClick={chat.retry} className="shrink-0">Reconnect now</Button></div> : chat.phase === 'paused' || threadPaused ? <div role="status" className="flex gap-2 rounded-md border border-warning-border bg-warning-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertWarning aria-hidden className="size-4 text-warning" /></span><BodySm as="span" className="min-w-0 flex-1">This conversation is paused.</BodySm><Button type="button" variant="ghost" size="sm" disabled={Boolean(model.operation)} onClick={() => void model.resume()} className="shrink-0">Resume</Button></div> : chat.phase === 'failed' ? <div role="alert" className="flex gap-2 rounded-md border border-danger-border bg-danger-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertError aria-hidden className="size-4 text-danger" /></span><BodySm as="span" className="min-w-0 flex-1">That reply did not go through.</BodySm><Button type="button" variant="ghost" size="sm" onClick={() => void sendChat()} className="shrink-0">Retry</Button></div> : chat.busy && !chat.live?.pendingText && !tools.length && !chat.live?.pendingReasoning ? <ThinkingRow /> : null}
   </div></div><AnimatePresence>{showLatest ? <div className="absolute bottom-3 left-1/2 -translate-x-1/2"><m.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18, ease: 'easeOut' }}><Button size="sm" variant="secondary" className="rounded-full shadow-sm" onClick={jumpToLatest}><Icons.latest aria-hidden />Latest</Button></m.div></div> : null}</AnimatePresence></div>
-  <ConversationComposer label="Message this conversation" input={<><Composer
+  <ConversationComposer label="Message this conversation" input={<>{model.selected?.useGlobalContext === false ? <button type="button" onClick={() => { void (async () => { if (await model.setUseGlobalContext(true)) notify.success('Global context on for this chat') })() }} className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-surface-sunken px-2.5 py-1" aria-label="Global context off. Turn it back on."><Icons.globalContext aria-hidden className="size-3.5 text-muted-foreground" /><Caption as="span">Global context off</Caption></button> : null}<QueueDisclosure model={model} /><Composer
     id="workspace-composer"
     label="Message this conversation"
     value={chat.draft}
     onChange={chat.setDraft}
-    onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !chat.busy) { event.preventDefault(); void chat.send() } }}
+    onKeyDown={(event) => {
+      if (event.key === 'Escape' && chatRefOpen) { event.stopPropagation(); setChatRefClosed(true); return }
+      if (chatRefOpen) {
+        if (event.key === 'ArrowDown') { event.preventDefault(); setChatRefIndex((index) => (index + 1) % chatRefOptions.length); return }
+        if (event.key === 'ArrowUp') { event.preventDefault(); setChatRefIndex((index) => (index - 1 + chatRefOptions.length) % chatRefOptions.length); return }
+        if (event.key === 'Enter' && !event.shiftKey) {
+          const picked = chatRefOptions[chatRefIndex]
+          if (picked) { event.preventDefault(); insertChatRef(picked); return }
+        }
+      }
+      if (event.key === 'Enter' && !event.shiftKey && !chat.busy) { event.preventDefault(); void sendChat() }
+    }}
+    listboxes={chatRefOpen ? (
+      <ul
+        role="listbox"
+        aria-label="Mention a chat"
+        className={`absolute bottom-full left-0 z-50 mb-2 max-h-56 w-72 scroll-slim overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-md ${popoverEnter}`}
+      >
+        <li role="presentation" className="px-2 pt-1.5 pb-1">
+          <Overline>Chats</Overline>
+        </li>
+        {chatRefOptions.map((option, index) => (
+          <li key={option.id} role="presentation">
+            <button
+              type="button"
+              role="option"
+              aria-selected={index === chatRefIndex}
+              aria-label={option.title}
+              onClick={() => insertChatRef(option)}
+              className={`flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1 text-left text-ui ${index === chatRefIndex ? 'bg-surface-active' : 'hover:bg-surface-hover'} ${focusRingInset}`}
+            >
+              <Icons.chatSession className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+              <span className="min-w-0 flex-1 truncate">{option.title}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    ) : null}
     placeholder={composerPlaceholder}
     disabled={!model.activeThread || chat.status === 'denied'}
     textareaRef={composer}
     left={<><IconButton label="Local context" onClick={onContext}><Icons.localContext className="size-4" aria-hidden /></IconButton>{model.selected ? <ModelToolbar config={config} sessionId={model.selected.id} bare /> : null}</>}
-    right={chat.busy ? <><Button type="button" variant="primary" size="sm" disabled={!chat.draft.trim()} onClick={() => void chat.send(true)}><Icons.steer className="size-3.5" aria-hidden />Steer</Button><Button type="button" variant="secondary" size="sm" disabled={!chat.draft.trim()} onClick={() => void chat.send()}>Queue</Button><IconButton label="Stop agent" disabled={Boolean(model.operation)} onClick={() => void model.stop()} className="text-danger hover:text-danger"><Icons.stopRun className="size-4" aria-hidden /></IconButton></> : <IconButton label="Send message" shortcut="Enter" variant="default" size="icon-sm" disabled={!chat.draft.trim() || !model.activeThread} onClick={() => void chat.send()} className="rounded-full"><Icons.send className="size-4" aria-hidden /></IconButton>}
+    right={chat.busy ? <><Button type="button" variant="primary" size="sm" disabled={!chat.draft.trim()} onClick={() => void sendChat(true)}><Icons.steer className="size-3.5" aria-hidden />Steer</Button><Button type="button" variant="secondary" size="sm" disabled={!chat.draft.trim()} onClick={() => void sendChat()}>Queue</Button><IconButton label="Stop agent" disabled={Boolean(model.operation)} onClick={() => void model.stop()} className="text-danger hover:text-danger"><Icons.stopRun className="size-4" aria-hidden /></IconButton></> : <IconButton label="Send message" shortcut="Enter" variant="default" size="icon-sm" disabled={!chat.draft.trim() || !model.activeThread} onClick={() => void sendChat()} className="rounded-full"><Icons.send className="size-4" aria-hidden /></IconButton>}
     error={composerError}
-    onRetry={() => void chat.send()}
-  />{chat.missedInstructions.length ? <section aria-label="Unapplied steering" className="mt-2 flex gap-2 rounded-md border border-info-border bg-info-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertInfo aria-hidden className="size-4 text-info" /></span><div className="min-w-0 flex-1"><BodySm as="p">Steering saved for your next turn</BodySm>{chat.missedInstructions.map((text, index) => <BodySm as="p" key={index} className="mt-1 border-l-2 border-border-strong pl-2 whitespace-pre-wrap break-words text-muted-foreground">“{text}”</BodySm>)}</div><Button type="button" variant="ghost" size="sm" onClick={() => void chat.send()} className="shrink-0">Send now</Button></section> : null}</>} /></div>
+    onRetry={() => void sendChat()}
+  />{chat.missedInstructions.length ? <section aria-label="Unapplied steering" className="mt-2 flex gap-2 rounded-md border border-info-border bg-info-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertInfo aria-hidden className="size-4 text-info" /></span><div className="min-w-0 flex-1"><BodySm as="p">Steering saved for your next turn</BodySm>{chat.missedInstructions.map((text, index) => <BodySm as="p" key={index} className="mt-1 border-l-2 border-border-strong pl-2 whitespace-pre-wrap break-words text-muted-foreground">“{text}”</BodySm>)}</div><Button type="button" variant="ghost" size="sm" onClick={() => void sendChat()} className="shrink-0">Send now</Button></section> : null}</>} /></div>
 }
-function AgentDirectory({ model, onOpen }: { model: SectorWorkspaceModel; onOpen(key: string): void }) {
+function AgentDirectory({ model, onOpen, onSpawn, onStop }: { model: SectorWorkspaceModel; onOpen(key: string): void; onSpawn(): void; onStop(key: string, name: string): void }) {
+  function childId(key: string) {
+    return key.startsWith('agent:') ? key.slice('agent:'.length) : key
+  }
   const [search, setSearch] = useState(''), [limit, setLimit] = useState(50)
   const rows = model.threads.data?.filter((thread) => thread.kind === 'subagent' && `${thread.name ?? ''} ${thread.key}`.toLowerCase().includes(search.toLowerCase())) ?? []
   return (
     <div className="space-y-3">
+      <div className="flex items-center justify-end">
+        <Button type="button" variant="secondary" size="sm" onClick={onSpawn}>New subagent</Button>
+      </div>
       <SearchField value={search} onChange={(value) => { setSearch(value); setLimit(50) }} label="Search subagents" />
       <ResourceNotice resource={model.threads} label="Subagents" />
       <Caption>Showing {Math.min(limit, rows.length)} of {rows.length}</Caption>
       <List aria-label="Subagents">
-        {rows.slice(0, limit).map((thread) => (
-          <li key={thread.key}>
-            <button
-              type="button"
-              data-list-row=""
-              aria-label={`Open ${thread.name ?? 'Research agent'}`}
-              onClick={() => onOpen(thread.key)}
-              className={listRowClassName({ density: 'default' })}
-            >
-              <Icons.agents aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-              <span className="min-w-0 flex-1">
-                <BodySm as="span" className="block truncate">{thread.name ?? 'Research agent'}</BodySm>
-                {thread.queueDepth > 0 ? <Caption as="span" className="mt-0.5 block tabular-nums">{thread.queueDepth} queued</Caption> : null}
-              </span>
-              <Badge tone={thread.status === 'RUNNING' ? 'success' : thread.status === 'QUEUED' ? 'warning' : 'neutral'}>{threadStatusLabel(thread.status)}</Badge>
-            </button>
-          </li>
-        ))}
+        {rows.slice(0, limit).map((thread, index) => {
+          const name = subagentDisplayName(thread, index)
+          const paused = thread.status === 'PAUSED'
+          return (
+            <li key={thread.key} className="flex items-center gap-1">
+              <button
+                type="button"
+                data-list-row=""
+                aria-label={`Open ${name}`}
+                title={thread.key}
+                onClick={() => onOpen(thread.key)}
+                className={`${listRowClassName({ density: 'default' })} min-w-0 flex-1`}
+              >
+                <Icons.agents aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1">
+                  <BodySm as="span" className="block truncate">{name}</BodySm>
+                  {thread.queueDepth > 0 ? <Caption as="span" className="mt-0.5 block tabular-nums">{thread.queueDepth} queued</Caption> : null}
+                </span>
+                <Badge tone={thread.status === 'RUNNING' ? 'success' : thread.status === 'QUEUED' || paused ? 'warning' : 'neutral'}>{threadStatusLabel(thread.status)}</Badge>
+              </button>
+              {paused
+                ? <IconButton label={`Resume ${name}`} size="icon-sm" onClick={() => void model.resumeSubagent(childId(thread.key))}><Icons.play className="size-4" aria-hidden /></IconButton>
+                : thread.status === 'RUNNING' ? <IconButton label={`Pause ${name}`} size="icon-sm" onClick={() => void model.pauseSubagent(childId(thread.key))}><Icons.pause className="size-4" aria-hidden /></IconButton> : null}
+              {thread.status === 'RUNNING' ? <IconButton label={`Stop ${name}`} size="icon-sm" onClick={() => onStop(thread.key, name)} className="text-danger hover:text-danger"><Icons.stopRun className="size-4" aria-hidden /></IconButton> : null}
+            </li>
+          )
+        })}
       </List>
       {!rows.length && model.threads.status === 'ready' ? <Description>No matching subagents.</Description> : null}
       {rows.length > limit ? <Button type="button" variant="secondary" size="sm" onClick={() => setLimit(limit + 50)}>Show more</Button> : null}
     </div>
+  )
+}
+/** Spawn dialog (A15): goal plus an optional name for the child. */
+export function SpawnSubagentDialog({ busy, onClose, onStart }: { busy: boolean; onClose(): void; onStart(goal: string, name?: string): Promise<boolean> }) {
+  const [goal, setGoal] = useState('')
+  const [name, setName] = useState('')
+  const goalRef = useRef<HTMLTextAreaElement | null>(null)
+  const goalId = useId()
+  const nameId = useId()
+  async function start(): Promise<void> {
+    if (busy || !goal.trim()) return
+    await onStart(goal.trim(), name.trim() || undefined)
+  }
+  return (
+    <WorkspaceOverlay
+      title="New subagent"
+      size="small"
+      onClose={onClose}
+      initialFocus={goalRef}
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="button" variant="primary" pending={busy} disabled={!goal.trim()} onClick={() => void start()}>Start subagent</Button>
+        </>
+      }
+    >
+      <form aria-label="New subagent" onSubmit={(event) => { event.preventDefault(); void start() }} className="space-y-3">
+        <div>
+          <Label as="label" htmlFor={goalId}>Goal</Label>
+          <textarea
+            ref={goalRef}
+            id={goalId}
+            value={goal}
+            rows={3}
+            onChange={(event) => setGoal(event.target.value)}
+            className="scroll-slim mt-1.5 block max-h-44 min-h-8 w-full resize-none rounded-md border border-border bg-card px-3 py-2 text-sm placeholder:text-foreground-subtle"
+          />
+        </div>
+        <div>
+          <Label as="label" htmlFor={nameId}>Name (optional)</Label>
+          <Input
+            id={nameId}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            className="mt-1.5"
+          />
+        </div>
+      </form>
+    </WorkspaceOverlay>
   )
 }
 /** Rename dialog (SO-01): autofocused name field with select-all. */

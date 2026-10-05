@@ -3,7 +3,7 @@ import { apiErrorStatus, followThread, listMessages, sendThreadText, steerThread
 import { mergeChatMessages, messageSeq, toChatMessages } from '../components/ChatPanel'
 
 export interface Resource<T> { data?: T; status: 'loading' | 'ready' | 'error' | 'denied' | 'offline'; error?: string; refresh(): void; acknowledge?(data: T): boolean }
-export function useWorkspaceResource<T>(config: StagingConfig | null, key: string | null, load: (config: StagingConfig) => Promise<T>, poll = false): Resource<T> & { acknowledge(data: T): boolean } {
+export function useWorkspaceResource<T>(config: StagingConfig | null, key: string | null, load: (config: StagingConfig) => Promise<T>, poll: boolean | number = false): Resource<T> & { acknowledge(data: T): boolean } {
   const [state, setState] = useState<Omit<Resource<T>, 'refresh'>>({ status: config ? 'loading' : 'offline' })
   const [attempt, setAttempt] = useState(0)
   const loadRef = useRef(load)
@@ -23,7 +23,7 @@ export function useWorkspaceResource<T>(config: StagingConfig | null, key: strin
   }, [config, key, attempt])
   useEffect(() => {
     if (!poll || !config || !key) return
-    const timer = setInterval(() => setAttempt((value) => value + 1), 5000)
+    const timer = setInterval(() => setAttempt((value) => value + 1), typeof poll === 'number' ? poll : 5000)
     return () => clearInterval(timer)
   }, [poll, config, key])
   return { ...state, refresh: useCallback(() => setAttempt((value) => value + 1), []), acknowledge: useCallback((data: T) => {
@@ -151,14 +151,16 @@ export function useWorkspaceConversation(config: StagingConfig | null, threadKey
     }
   }, [threadKey, start])
   const state = threadKey ? threads[threadKey] ?? emptyConversation() : emptyConversation()
-  async function send(steer = false) {
-    if (!config || !threadKey || !state.draft.trim()) return
+  async function send(steer = false, text?: string) {
+    const display = state.draft
+    const body = (text ?? display).trim()
+    if (!config || !threadKey || !body) return
     if (!navigator.onLine) { update(threadKey, (old) => ({ ...old, error: 'No connection. Your draft is saved.' })); return }
-    const key = threadKey, text = state.draft.trim(), requestKey = ++requestNonce.current
+    const key = threadKey, requestKey = ++requestNonce.current
     const basis = Math.max(0, ...state.messages.map(messageSeq))
-    update(key, (old) => ({ ...old, phase: steer ? 'working' : 'queued', draft: '', busy: true, echo: text, basis, error: null, pending: [...old.pending, { key: requestKey, text, basis, steer }] }))
+    update(key, (old) => ({ ...old, phase: steer ? 'working' : 'queued', draft: '', busy: true, echo: body, basis, error: null, pending: [...old.pending, { key: requestKey, text: body, basis, steer }] }))
     try {
-      const result = steer ? await steerThread(config, key, text) : await sendThreadText(config, key, text)
+      const result = steer ? await steerThread(config, key, body) : await sendThreadText(config, key, body)
       if (currentConfig.current !== config) return
       update(key, (old) => {
         const attached = { ...old, pending: old.pending.map((request) => request.key === requestKey ? { ...request, commandId: result.commandId } : request) }
@@ -166,14 +168,14 @@ export function useWorkspaceConversation(config: StagingConfig | null, threadKey
       })
       if (result.state === 'missed_steer') update(key, (old) => {
         const pending = old.pending.filter((request) => request.key !== requestKey)
-        return { ...old, busy: pending.length > 0, pending, echo: null, draft: old.draft || text, error: 'The turn finished before steering. Send this as the next turn.' }
+        return { ...old, busy: pending.length > 0, pending, echo: null, draft: old.draft || display, error: 'The turn finished before steering. Send this as the next turn.' }
       })
       start(key)
     } catch (error) {
       if (currentConfig.current !== config) return
       update(key, (old) => {
         const pending = old.pending.filter((request) => request.key !== requestKey)
-        return { ...old, phase: 'failed', busy: pending.length > 0, pending, echo: null, draft: old.draft || text, error: error instanceof Error ? error.message : 'Send failed. Your draft is saved.' }
+        return { ...old, phase: 'failed', busy: pending.length > 0, pending, echo: null, draft: old.draft || display, error: error instanceof Error ? error.message : 'Send failed. Your draft is saved.' }
       })
     }
   }

@@ -54,7 +54,7 @@ describe('template admission and fallback', () => {
     expect(mocks.query.mock.calls.some(([sql]) => String(sql).startsWith('COMMENT ON DATABASE'))).toBe(false)
     expect(mocks.end).toHaveBeenCalledOnce()
     expect(mocks.query.mock.calls[0]?.[0]).toBe("SET lock_timeout = '30s'")
-    expect(mocks.info).toHaveBeenCalledWith(expect.objectContaining({ event: 'db.test-template.prepare.start', migrationCount: 23 }))
+    expect(mocks.info).toHaveBeenCalledWith(expect.objectContaining({ event: 'db.test-template.prepare.start', migrationCount: 24 }))
     expect(mocks.error).toHaveBeenCalledWith(expect.objectContaining({ event: 'db.test-template.prepare.error', code: 'Error' }))
     expect(JSON.stringify(mocks.error.mock.calls)).not.toContain('fixture migration failure')
     expect(JSON.stringify(mocks.error.mock.calls)).not.toContain('postgresql')

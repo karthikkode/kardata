@@ -148,6 +148,11 @@ describe.skipIf(!ENABLED)('research loop and time guards (B2.6)', () => {
     // The loop died on the third visit: cursor never advanced past it.
     expect(state.cursor).toBe(2)
 
+    await waitFor(
+      async () => (await events(runId)).some((event) => event.type === 't.research.suspended'),
+      30_000,
+      'suspended event',
+    )
     const rows = await events(runId)
     // Per-run stage-attempt counters: one execution row per visit.
     const attempts = ofType(rows, 't.research.stage_attempt')

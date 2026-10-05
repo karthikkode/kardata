@@ -11,6 +11,7 @@
 import {
   ActivityFailure,
   CancelledFailure,
+  ApplicationFailure,
   CancellationScope,
   condition,
   defineQuery,
@@ -19,6 +20,7 @@ import {
   patched,
   proxyActivities,
   setHandler,
+  uuid4,
   workflowInfo,
 } from '@temporalio/workflow'
 import { isLegalTransition, type RunState } from '@kardata/agents/loop'
@@ -26,6 +28,7 @@ import type { FakeStep } from '@kardata/agents'
 import { activityOptions } from '../timeouts.js'
 import type * as activities from '../activities/turn.js'
 import { resumableTurn } from './resumable-turn.js'
+import { normalizeQueueItem, queueItemsQuery, queueRemoveUpdate, queueReorderUpdate } from './inbox-queue.js'
 import type { OriginalTurnRecovery } from '../turn-recovery.js'
 
 export interface SessionRunInput {
@@ -92,7 +95,14 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
   // Reads go through a call boundary: TypeScript narrows property access
   // across awaits, which would erase reachable states from comparisons.
   const currentState = (): RunState => box.state
-  const inbox: Array<{ text: string; recovery?: OriginalTurnRecovery; skill?: { prompt: string; tools: string[]; mode: 'default' | 'brainstorm' } }> = input.recovery ? [{ text: input.recovery.text,recovery: input.recovery }] : []
+  // Inbox ids gate once here: handlers close over the flag so old
+  // histories keep pushing id-less entries while new runs stamp every
+  // item for the queue view.
+  const inboxIds = patched('inbox-ids-v1')
+  function stamp<T extends { text: string }>(item: T): T & { id?: string; queuedAt?: number } {
+    return inboxIds ? { ...item, id: uuid4(), queuedAt: Date.now() } : item
+  }
+  const inbox: Array<{ text: string; recovery?: OriginalTurnRecovery; skill?: { prompt: string; tools: string[]; mode: 'default' | 'brainstorm' }; id?: string; queuedAt?: number }> = input.recovery ? [stamp({ text: input.recovery.text,recovery: input.recovery })] : []
   let nonce = 0
   let cancelRunningTurn: (() => void) | undefined
 
@@ -106,19 +116,42 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
   // Workflow-signal log (B5.1): signal name plus queue depth only. Signal
   // payloads are user text and never enter logs.
   setHandler(sendSignal, (text: string) => {
-    inbox.push({ text })
+    inbox.push(stamp({ text }))
     log.info('signal received', { signal: 'runSend', pending: inbox.length })
   })
   setHandler(steerSignal, (text: string) => {
-    inbox.push({ text })
+    inbox.push(stamp({ text }))
     log.info('signal received', { signal: 'runSteer', pending: inbox.length })
   })
   setHandler(skillSignal, (args: SkillSignalArgs) => {
-    inbox.push({
+    inbox.push(stamp({
       text: args.text,
       skill: { prompt: args.prompt, tools: args.tools, mode: args.mode ?? 'default' },
-    })
+    }))
     log.info('signal received', { signal: 'runSkill', pending: inbox.length })
+  })
+  setHandler(queueItemsQuery, () => inbox.map((item, index) => normalizeQueueItem(item, index)))
+  setHandler(queueRemoveUpdate, (id: string) => {
+    const at = inbox.findIndex((item, index) => normalizeQueueItem(item, index).id === id)
+    if (at < 0) return false
+    inbox.splice(at, 1)
+    return true
+  })
+  setHandler(queueReorderUpdate, (ids: string[]) => {
+    const current = inbox.map((item, index) => normalizeQueueItem(item, index))
+    const known = new Set(current.map((item) => item.id))
+    if (ids.length !== current.length || new Set(ids).size !== ids.length || !ids.every((id) => known.has(id))) {
+      throw ApplicationFailure.nonRetryable('Queue ids must exactly match the current queue.', 'QueueMismatch')
+    }
+    const byId = new Map(current.map((item, index) => [item.id, index] as const))
+    const entries = inbox.slice()
+    inbox.length = 0
+    for (const id of ids) {
+      const at = byId.get(id)
+      const entry = at === undefined ? undefined : entries[at]
+      if (entry) inbox.push(entry)
+    }
+    return true
   })
   setHandler(pauseSignal, () => {
     if (currentState() === 'RUNNING') setState('PAUSED')

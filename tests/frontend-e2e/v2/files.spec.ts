@@ -75,7 +75,7 @@ test('FL-02-hover', async ({ page }) => {
 test('FL-02-included', async ({ page }) => {
   await capture(page, 'FL-02', 'included', () => gotoFiles(page), async () => {
     const scope = await filesScope(page)
-    await expect(scope.getByText('In global context')).toBeVisible()
+    await expect(scope.getByRole('button', { name: 'parramatta-crew-notes.md', exact: true }).getByText('In global context')).toBeVisible()
   })
 })
 

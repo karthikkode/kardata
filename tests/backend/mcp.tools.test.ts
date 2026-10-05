@@ -117,6 +117,10 @@ const SAMPLES: Record<McpToolName, { valid: unknown; invalid: unknown; invoke?: 
   'db.list_tenant_artifacts': { valid: {}, invalid: { tenantId: '' } },
   'db.find_launch_parent': { valid: { childId: 'c' }, invalid: {} },
   'db.get_thread': { valid: { threadKey: 'k' }, invalid: { threadKey: '' } },
+  'db.get_sector_plan': { valid: {}, invalid: { sectorId: '' }, invoke: false },
+  'db.get_research_progress': { valid: {}, invalid: { sectorId: '' }, invoke: false },
+  'db.list_sector_sessions': { valid: {}, invalid: { sectorId: '' }, invoke: false },
+  'db.read_sector_thread': { valid: { threadKey: 'k' }, invalid: { threadKey: 'k', limit: 101 }, invoke: false },
   'db.list_threads': { valid: { sessionId: 's' }, invalid: {} },
   // Steering valid paths need a messenger double: proven by the dedicated
   // steering tests below, never the fake pool (fail-closed has no query).
@@ -208,6 +212,10 @@ const EXPECTED_TOOLS: McpToolName[] = [
   'db.list_tenant_artifacts',
   'db.find_launch_parent',
   'db.get_thread',
+  'db.get_sector_plan',
+  'db.get_research_progress',
+  'db.list_sector_sessions',
+  'db.read_sector_thread',
   'db.list_threads',
   'db.send_message',
   'db.steer_thread',

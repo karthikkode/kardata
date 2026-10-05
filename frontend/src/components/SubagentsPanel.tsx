@@ -21,6 +21,7 @@ function toneFor(status: string): 'working' | 'ok' | 'failed' | 'idle' {
 
 function labelFor(status: string): string {
   if (/running/i.test(status)) return 'Running'
+  if (/paused/i.test(status)) return 'Paused'
   if (/done|finished|complete/i.test(status)) return 'Done'
   if (/fail|error/i.test(status)) return 'Failed'
   if (/stop|cancel/i.test(status)) return 'Stopped'
@@ -30,8 +31,13 @@ function labelFor(status: string): string {
 // Display name for a thread row: the backend title when set, otherwise a
 // positional fallback. Raw `agent:...` keys never render as text; they
 // survive only in the row tooltip.
+export function subagentDisplayName(thread: Pick<ThreadView, 'name'>, index: number): string {
+  const name = thread.name?.trim() ?? ''
+  if (!name || /^child-[0-9a-f-]+$/i.test(name)) return `Subagent ${index + 1}`
+  return name
+}
 function displayName(thread: ThreadView, index: number): string {
-  return thread.name?.trim() ? thread.name : `Subagent ${index + 1}`
+  return subagentDisplayName(thread, index)
 }
 
 // One thread row: status dot, humanized name, and one status caption. The
@@ -45,6 +51,8 @@ function SubagentRow({
   onTagThread,
   onOpenThread,
   onStop,
+  onPause,
+  onResume,
 }: {
   thread: ThreadView
   index: number
@@ -52,9 +60,12 @@ function SubagentRow({
   onTagThread?: (key: string) => void
   onOpenThread?: (key: string) => void
   onStop: (key: string) => void
+  onPause?: (key: string) => void
+  onResume?: (key: string) => void
 }) {
   const tone = toneFor(thread.status)
   const running = tone === 'working'
+  const paused = /paused/i.test(thread.status)
   const name = displayName(thread, index)
   const caption =
     thread.queueDepth > 0 ? `${thread.queueDepth} queued` : labelFor(thread.status)
@@ -77,6 +88,18 @@ function SubagentRow({
           <span className="block truncate text-xs text-muted-foreground">{caption}</span>
         </span>
       </button>
+      {running && onPause ? (
+        <IconButton label={`Pause ${name}`} size="icon-sm" type="button" onClick={() => onPause(thread.key)}
+        >
+          <Icons.pause className="size-4" aria-hidden />
+        </IconButton>
+      ) : null}
+      {paused && onResume ? (
+        <IconButton label={`Resume ${name}`} size="icon-sm" type="button" onClick={() => onResume(thread.key)}
+        >
+          <Icons.play className="size-4" aria-hidden />
+        </IconButton>
+      ) : null}
       {running ? (
         <IconButton label={`Stop ${name}`} size="icon-sm" type="button" onClick={() => onStop(thread.key)}
         >
@@ -99,12 +122,16 @@ export function SubagentsPanel({
   onTagThread,
   onOpenThread,
   onStopThread,
+  onPauseThread,
+  onResumeThread,
 }: {
   threads: ThreadView[]
   taggedKey?: string | null
   onTagThread?: (key: string) => void
   onOpenThread?: (key: string) => void
   onStopThread?: (key: string) => void
+  onPauseThread?: (key: string) => void
+  onResumeThread?: (key: string) => void
 }) {
   const subagentList = useExitState()
   const [announcement, setAnnouncement] = useState<string | null>(null)
@@ -120,6 +147,20 @@ export function SubagentsPanel({
     const at = threads.findIndex((thread) => thread.key === key)
     const thread = at >= 0 ? threads[at]! : null
     setAnnouncement(`${thread ? displayName(thread, at) : key} stopped.`)
+  }
+
+  function pause(key: string) {
+    onPauseThread?.(key)
+    const at = threads.findIndex((thread) => thread.key === key)
+    const thread = at >= 0 ? threads[at]! : null
+    setAnnouncement(`${thread ? displayName(thread, at) : key} paused.`)
+  }
+
+  function resume(key: string) {
+    onResumeThread?.(key)
+    const at = threads.findIndex((thread) => thread.key === key)
+    const thread = at >= 0 ? threads[at]! : null
+    setAnnouncement(`${thread ? displayName(thread, at) : key} resumed.`)
   }
 
   return (
@@ -161,6 +202,8 @@ export function SubagentsPanel({
                   onTagThread={onTagThread}
                   onOpenThread={onOpenThread}
                   onStop={stop}
+                  onPause={onPauseThread ? pause : undefined}
+                  onResume={onResumeThread ? resume : undefined}
                 />
               ))}
             </List>

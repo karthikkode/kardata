@@ -1,5 +1,159 @@
 # Implementation status
 
+Simple merges + deploys (2026-10-05, branch `simple-merge-deploy`):
+retired the file catalogue + functionality matrix (archived with the old
+README, hardening tests deleted, regen instructions scrubbed) so file
+add/remove no longer reds `pr:verify`; pr-checklist is two-tier (Tier B
+silent when untouched, rule 8 kept per owner); db/temporal restart
+unless-stopped (pinned by capacity test); live battery and browser stack
+refuse concurrency via port probes both ways; `scripts/with-env.mjs`
+replaces `set -a` sourcing (node owns `--env-file`, hence `--file`);
+`stack:clean` reaps owned stale test procs only. AGENTS.md gains
+Forbidden work. Narrow-pattern hits remain only in dated history
+(status, preflight review). Gate: `pr:verify` exit 0 (frontend 778/6,
+agents 282/2, backend 694/545, build green); compose config valid.
+(Red along the way: backend typecheck failed on the new stack test -
+`stack-lib.d.mts` lacked the `ownedTestProcs` export; declaration added,
+green after. Test-side contract gap, product correct.)
+
+Sector-backend-v1.1 follow-up (2026-10-05, branch
+`sector-backend-v1.1` from main, unmerged): two fixes, each
+failing-test-first with live proof. (1) Inherited context
+reliability: the spawn brief now rides first after the system
+prompt under `Context from your parent conversation
+(authoritative for anything said there)` with an answer-first
+rule, and `db.delegate_subagent` mandates self-contained goals;
+L-A15 single-child x5 green 5/5 on both legs (all tries=1).
+(2) Per-kind round budget: planning turns (`plan:*` runKeys,
+research sessions), file summaries and compaction get 180 s,
+chat keeps 60 s (`turnRoundTimeoutMs`,
+`CONTEXT_FILE_CALL_TIMEOUT_MS`); L-PLAN x3 green (161/139/110 s,
+tries=1, slowest round 27.7 s, fast window). Unit 67/67 on the
+four touched files, backend typecheck clean. `pr:verify`
+re-run green on the branch (exit 0; frontend 778/6, agents
+282/2, backend 688 pass + 547 DB-gated skips; backend +12 vs
+stage 4 from the new tests). Hardening catalog + acceptance
+regenerated for the 4 new exports and 1 new test file
+(`5b7f0d5`); the regen also refreshed a stale `pending` hash
+for `stage2.live.test.ts` (never re-checked, no finding). DB
+suite and Playwright not re-run: no product-surface change
+outside the two fixes. Env note: a docker daemon restart
+mid-proof left db and temporal down (restart policy `no`);
+`docker start` restored them, volumes untouched.
+
+Sector backend v1, stage 4 FINAL (2026-10-05, `sector-backend-v1`,
+merged to main): pr:verify exit 0, DB suite 1165/56/0, Playwright
+485/23/0, backend live 18/18, B4 green (2.8m, 16 shots opened).
+Reds root-caused along the way. (1) Playwright 209 failed: stale
+e2e fixtures missing the A6/A8 response shape (`instructions`,
+`files`, `usage`); migrated fixtures + 9 specs, then 17 failed:
+12 audit (usage trigger under the 32px floor, subagent strip
+crushed at 390 - both product-fixed), CP-02/WS-07/FL-02 scoping
+(new A15/A16/A18/A6 UI), PL-01 (unmocked A6 route); then 1
+(SA-02 overlap from the strip fix, `min-w-60` container); then
+green. (2) pr:verify backend catalog red: new fixture export;
+regenerated catalog + acceptance per A20. (3) Live battery with
+the B2 stack up: stack worker stole suite activities (bug 13);
+re-ran with the stack down. (4) Live 14/18: L-A15 goal-wording
+variance (test now pins the stored column + loops replies),
+L-A9 fixture/prompt tension (restructured at identical volume),
+L-A16/L-PLAN provider slow window vs the 60s round budget
+(both green on re-run). (5) B4 first attempt 500s: 4 orphan
+events from the bug-13 run wedged the projector (bug 17);
+skipped via checkpoint, zombies terminated, rows preserved.
+
+Final backend gate reds root-caused (2026-10-05, `sector-backend-v1`,
+round-4 fixes committed): 3 failed / 1162 passed. (1)
+`api.rest @name` routed `@c1` by raw child id, which worked only
+because the projector stored the id as the name; with NULL names the
+fixture now names the child `Scout` and mentions `@scout` (test side
+updated to the approved behavior). (2) `subagent-delegate` exact-args
+expectation gained the approved `name: 'Subagent 1'` MCP default.
+(3) Acceptance inventory regenerated for the new exports
+(`UPDATE_ACCEPTANCE_SURFACES=1`). No product changes; re-run pending.
+
+Sector backend v1, stage 4 (2026-10-04, uncommitted on `sector-backend-v1`):
+B4 walkthrough green (run 12, 2.4 min, 15/15 steps, 16 screenshots opened
+and confirmed), CORS `Idempotency-Key` fix, per-sector context-change ids,
+final gate in progress. Findings: (1) proposal idempotency ids were scoped
+`<keyId>:<key>`, so the same model-generated key in two sectors collided
+globally (`conflict: context change id collision`, killed B4 step 9 in two
+runs); ids are now `<sectorId>:<keyId>:<key>`, pinned by a cross-sector
+same-key unit test with same-sector replay. (2) The B4 spec seeds context
+sections mid-run, so a stale-version theory for step 9 was disproven from
+execution records before the real collision cause surfaced. (3) Rewrite
+chats answer every message with a short context note, so queue/stop steps
+run in a fresh normal chat. (4) Approving an agent proposal replaces all
+sections wholesale: a proposal that fills only Instructions wipes the other
+sections (per-spec shape, owner decision whether to merge instead).
+
+Sector backend v1, stage 3 (2026-10-04, uncommitted on `sector-backend-v1`):
+sector read tools (`db.get_sector_plan`, `db.get_research_progress`,
+`db.list_sector_sessions`, `db.read_sector_thread`), `@chat` markers with
+same-turn plan narrowing, owner/parent spawn with inherited context, per-child
+pause/resume with mid-turn checkpoint park, inbox queue view/edit with stable
+ids, and confirmed stop on header/rows/runs. Findings while building: (1)
+children never parked `ResearchPaused` before, so a mid-turn pause would have
+failed the turn; `resumableTurn` now parks `pause` and resumes from the
+checkpoint (`subagent-pause-v1`). (2) `sessionRun` ends `error` on any turn
+error, so workflow-test turn stubs must return the full outcome shape
+(`toolCalls`), not just a reply. (3) Queue workflow assertions must poll
+`>=` counts: after release the stub answers instantly and two turns can land
+between 200 ms polls. (4) Gated turn stubs must heartbeat (5 s cadence, 20 s
+turn-lane timeout) or the attempt times out and retries. Live proof all
+green with real Meta (tries=1 each): L-A13..L-A18, L-PLAN, L-LOCAL.
+Live failures root-caused, all test-side or prompt-level, product correct
+throughout: (a) L-A14/L-PLAN sectors missed their lifecycle state
+(DB `createSector` defaults to `queued`; the plan tool and POST /plan
+rightly refused); (b) L-LOCAL's giant blobs tripped the deliberate
+short-history compaction refusal (<4 messages parks rather than dropping
+user content), now unit-pinned; smaller parts compact normally; (c) the
+planning turn wrote a valid spec as ```json, failing artifact parsing;
+the brief now names the exact ```research-plan fence (brief unit test
+updated). Passing spend in318109/out48290; failed attempts
+in105080/out11702. Stage gate: backend 1159/1159, agents 284/284, frontend
+772/772 on re-run; one `sector-workspace` thousand-item render hit its 5 s
+budget mid-gate and passed 60/60 alone and 772/772 on re-run (load flake,
+outside the stage-3 paths).
+
+Stage-2 gate reds root-caused (2026-10-04, `sector-backend-v1`, uncommitted).
+(1) `api.rest.test.ts` pinned 404 for a first send to a run-less session, but
+production `signalTarget` (`backend/src/temporal/gateway.ts`) explicitly
+signalWithStarts session targets ("absent workflows start instead of
+404ing"); the fake's old describe-then-signal comment was stale. The test was
+the wrong side: it now pins 202 plus a RUNNING `session-run-s-c`, matching
+production. (2) `workflows.loopguards.test.ts` missed its suspended event
+twice under full-suite load while passing 4/4 in isolation: the query state
+turns suspended before the `t.research.suspended` event row lands, and the
+test read events once with no wait. Test-side race, fixed with the same
+waitFor-event pattern the file already uses for `resume_denied`; no product
+code touched research loop guards.
+
+Sector backend v1, stage 2 (2026-10-04, committed `ebb74c0` on
+`sector-backend-v1`): five text sections (Scope, Instructions, Decisions,
+Findings, Open questions) plus AI file blocks, per-chat "use global context"
+switch, 30k estimated budget with per-section/per-file breakdown, system
+compaction (auto at 70%, manual, restore), and `Context rewrite:` tracked
+chats. Live-verified with real Meta on isolated `kardata-live` /
+`kardata_live_*`: L-A4/A5, L-A6 (md+pdf blocks, numeric coverage), L-A7
+(removal, sub-500ms), L-A8 (usage math), L-A9 (auto-compaction + restore),
+L-A10 (rewrite), L-A2/A12 (pending proposals). First compaction attempt
+returned section arrays instead of strings; the prompt was hardened
+(explicit shape, strip, normalize) and the re-run passed.
+
+Sweep workflow suite red on clean main (2026-10-04, `workflows.sweep.test.ts`
+2 failed: expected 2 companies got 1, expected 0 got 7). Root cause: the
+suite's local search stub serves on 127.0.0.1, but the hardened
+public-URL guard admits no loopback destination, so the keyed leg threw
+`blocked`, the facade swallowed the RetrievalError, and the sweep fell
+through to the LIVE keyless leg (recorded rows were Merriam-Webster,
+Reddit, Britannica, IBM, NASA: open-internet data in a suite whose
+contract is "real HTTP, no open internet"). Product behavior (guard plus
+fallthrough) is pinned and correct; the test was fixed to use the
+documented injectable-leg contract: the keyed leg does real HTTP against
+the stub, keyless returns nothing, the browser leg throws. Suite green
+(3/3). No production code changed.
+
 Library-spike verdicts on `ui-revamp-perfect` (frontend-only, measured, not assumed).
 Streamdown 2.7.0: typecheck clean, 4/5 markdown tests green; the hostile-output
 case differs (link dropped versus the pinned inert `#` anchor, both inert) and

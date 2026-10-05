@@ -5,21 +5,23 @@ import { z } from 'zod'
 import type { Scope, Role } from '../auth/keys.js'
 import { resolveCaller, roleAtLeast } from '../auth/keys.js'
 import {
-  ContextSections, WorkspaceError, decideContextChange, ensureResearchSession,
+  ContextSections, PartialContextSections, WorkspaceError, createSession, decideContextChange, ensureResearchSession,
   previewContextChange,
   readSectorLibraryFile,
-  listSectorLibrary, proposeFileContext, proposeGlobalContext, readGlobalContext, readResearchProgress,
-  readThreadContext, saveThreadContext, setFileVisibility, type TransactableDb,
+  listSectorLibrary, proposeFileContext, proposeGlobalContext, readGlobalContext, readGlobalContextUsage, readResearchProgress, removeContextFileBlock, restoreGlobalContextVersion,
+  readThreadContext, saveThreadContext, setFileVisibility, setSessionPurpose, type TransactableDb,
   retryFileProcessingJob, fileProcessingProgress, failFileProcessingJob,
   readSectorDocumentUnitsPage,
 } from '../db/index.js'
+import type { RunsGateway } from '../temporal/gateway.js'
+import { insertContextFileBlock, readContextFileBlock, resetContextFileBlock } from '../db/context-files.js'
 import { compactOwnerThread } from '../context.js'
 import { projectNewEvents } from '../projector.js'
 import { authorize, header, parseInput, requireArchive, requirePool, requireRuns, route, sendError, withIdempotency } from './http.js'
 
-interface Input { keyId: string; pool: TransactableDb; scope?: Scope; params: Record<string, string>; body: unknown }
+interface Input { keyId: string; pool: TransactableDb; scope?: Scope; params: Record<string, string>; body: unknown; runs?: RunsGateway }
 export function workspaceRoutes(app: FastifyInstance): void {
-  function register(method: 'get' | 'post' | 'patch', path: string, role: Role, handler: (input: Input) => Promise<unknown>) {
+  function register(method: 'get' | 'post' | 'patch' | 'delete', path: string, role: Role, handler: (input: Input) => Promise<unknown>) {
     route(app, method, path, async (request, reply, app) => {
       const pool = requirePool(app, reply)
       if (!pool) return undefined
@@ -28,7 +30,7 @@ export function workspaceRoutes(app: FastifyInstance): void {
       const work = async () => {
         await projectNewEvents(pool)
         try {
-          const data = await handler({ keyId: auth.keyId, pool, scope: auth.scope, params: request.params as Record<string, string>, body: request.body })
+          const data = await handler({ keyId: auth.keyId, pool, scope: auth.scope, params: request.params as Record<string, string>, body: request.body, runs: (app as FastifyInstance & { kardataRuns?: RunsGateway }).kardataRuns })
           return { status: 200, body: { ok: true, data } }
         } catch (error) {
           if (error instanceof WorkspaceError) return { status: { not_found: 404, conflict: 409, permission_denied: 403, validation_failed: 400 }[error.code], body: { ok: false, error: { code: error.code, message: error.message } } }
@@ -55,18 +57,101 @@ export function workspaceRoutes(app: FastifyInstance): void {
     const params = request.params as { sectorId: string; fileId: string }
     return { ok: true, data: await readSectorLibraryFile(pool, params.sectorId, params.fileId, archive, auth.scope) }
   })
-  register('patch', '/v1/sectors/:sectorId/global-context', 'approver', (input) => {
+  async function triggerCompactionIfFull(pool: TransactableDb, runs: RunsGateway | undefined, sectorId: string, scope?: Scope): Promise<void> {
+    if (!runs) return
+    const usage = await readGlobalContextUsage(pool, sectorId, scope)
+    if (usage.total >= usage.budget * 0.7) await runs.startContextCompaction(sectorId, 'auto')
+  }
+  register('patch', '/v1/sectors/:sectorId/global-context', 'approver', async (input) => {
     const body = z.object({ baseVersion: z.number().int().nonnegative(), sections: ContextSections }).strict().parse(input.body)
-    return proposeGlobalContext(input.pool, { ...body, sectorId: sector(input), sourceThread: 'owner', owner: true, scope: input.scope })
+    const change = await proposeGlobalContext(input.pool, { ...body, sectorId: sector(input), sourceThread: 'owner', owner: true, scope: input.scope })
+    await triggerCompactionIfFull(input.pool, input.runs, sector(input), input.scope)
+    return change
   })
   register('post', '/v1/sectors/:sectorId/global-context/proposals', 'operator', (input) => {
-    const body = z.object({ baseVersion: z.number().int().nonnegative(), sections: ContextSections, sourceThread: z.string().min(1) }).strict().parse(input.body)
+    const body = z.object({ baseVersion: z.number().int().nonnegative(), sections: PartialContextSections, sourceThread: z.string().min(1) }).strict().parse(input.body)
     // Browser proposals never inherit autonomous research authority.
     return proposeGlobalContext(input.pool, { ...body, sectorId: sector(input), owner: false, scope: input.scope })
   })
-  register('post', '/v1/sectors/:sectorId/global-context/proposals/:proposalId/decision', 'approver', (input) => {
+  register('post', '/v1/sectors/:sectorId/global-context/proposals/:proposalId/decision', 'approver', async (input) => {
     const body = z.object({ approve: z.boolean() }).strict().parse(input.body)
-    return decideContextChange(input.pool, { ...body, sectorId: sector(input), id: input.params['proposalId'] ?? '', scope: input.scope })
+    const decided = await decideContextChange(input.pool, { ...body, sectorId: sector(input), id: input.params['proposalId'] ?? '', scope: input.scope })
+    if (body.approve && decided.state === 'approved' && decided.fileRef) {
+      if (!input.runs) throw new Error('runs gateway unavailable')
+      await input.runs.startContextFileSummary(sector(input), decided.fileRef.fileId, decided.fileRef.hash)
+    }
+    if (body.approve && decided.state === 'approved' && decided.version !== null) {
+      await triggerCompactionIfFull(input.pool, input.runs, sector(input), input.scope)
+    }
+    return decided
+  })
+  register('post', '/v1/sectors/:sectorId/global-context/compact', 'approver', async (input) => {
+    if (!input.runs) throw new Error('runs gateway unavailable')
+    await input.runs.startContextCompaction(sector(input), 'manual')
+    return { started: true }
+  })
+  register('post', '/v1/sectors/:sectorId/global-context/restore', 'approver', async (input) => {
+    const body = z.object({ version: z.number().int().nonnegative() }).strict().parse(input.body)
+    const restored = await restoreGlobalContextVersion(input.pool, { sectorId: sector(input), version: body.version, scope: input.scope })
+    await triggerCompactionIfFull(input.pool, input.runs, sector(input), input.scope)
+    return restored
+  })
+  register('post', '/v1/sectors/:sectorId/global-context/rewrite', 'approver', async (input) => {
+    const body = z.object({ instruction: z.string().trim().min(1).max(2000) }).strict().parse(input.body)
+    if (!input.runs) throw new Error('runs gateway unavailable')
+    const sectorId = sector(input)
+    const session = await createSession(input.pool, `Context rewrite: ${body.instruction.trim().slice(0, 40)}`, input.scope, sectorId)
+    await projectNewEvents(input.pool)
+    await setSessionPurpose(input.pool, session.id, 'context-rewrite', input.scope)
+    await input.runs.send(session.id, `Rewrite the global context: ${body.instruction}`)
+    return { sessionId: session.id }
+  })
+  register('post', '/v1/sectors/:sectorId/global-context/files', 'approver', async (input) => {
+    const body = z.object({ fileId: z.string().min(1) }).strict().parse(input.body)
+    const sectorId = sector(input)
+    const file = (await listSectorLibrary(input.pool, sectorId, input.scope)).find((entry) => entry.id === body.fileId)
+    if (!file) throw new WorkspaceError('not_found', 'File not found in this sector.')
+    if (file.hidden) throw new WorkspaceError('conflict', 'Reveal the file before including it.')
+    if (file.status !== 'indexed') throw new WorkspaceError('conflict', 'The file is not indexed yet.')
+    if (file.kind !== 'document' && !file.documentId) throw new WorkspaceError('conflict', 'Only processed documents can be included as shared context.')
+    const existing = await readContextFileBlock(input.pool, sectorId, body.fileId)
+    if (existing?.state === 'summarizing' || existing?.state === 'ready') return existing
+    const usage = await readGlobalContextUsage(input.pool, sectorId, input.scope)
+    if (usage.total >= usage.budget) throw new WorkspaceError('conflict', 'Global context is full. Remove a file or compact first.')
+    if (!input.runs) throw new Error('runs gateway unavailable')
+    const documentId = file.kind === 'document' ? file.id : (file.documentId ?? file.id)
+    const block = existing
+      ? (await resetContextFileBlock(input.pool, { sectorId, fileId: file.id, hash: file.hash, filename: file.filename, documentId, requestedBy: `owner:${input.keyId}` })) ?? existing
+      : await insertContextFileBlock(input.pool, { sectorId, fileId: file.id, documentId, hash: file.hash, filename: file.filename, requestedBy: `owner:${input.keyId}` })
+    await input.runs.startContextFileSummary(sectorId, file.id, file.hash)
+    return block
+  })
+  register('post', '/v1/sectors/:sectorId/global-context/files/:fileId/summarize', 'approver', async (input) => {
+    const sectorId = sector(input)
+    const fileId = input.params['fileId'] ?? ''
+    const existing = await readContextFileBlock(input.pool, sectorId, fileId)
+    if (!existing || existing.state === 'ready' || existing.state === 'summarizing') throw new WorkspaceError('conflict', 'Only a failed block or a legacy file can be summarized.')
+    const file = (await listSectorLibrary(input.pool, sectorId, input.scope)).find((entry) => entry.id === fileId)
+    if (!file) throw new WorkspaceError('not_found', 'File not found in this sector.')
+    if (file.hidden) throw new WorkspaceError('conflict', 'Reveal the file before including it.')
+    if (file.status !== 'indexed') throw new WorkspaceError('conflict', 'The file is not indexed yet.')
+    if (file.kind !== 'document' && !file.documentId) throw new WorkspaceError('conflict', 'Only processed documents can be included as shared context.')
+    if (!input.runs) throw new Error('runs gateway unavailable')
+    const documentId = file.kind === 'document' ? file.id : (file.documentId ?? file.id)
+    const block = (await resetContextFileBlock(input.pool, { sectorId, fileId: file.id, hash: file.hash, filename: file.filename, documentId, requestedBy: `owner:${input.keyId}` })) ?? existing
+    await input.runs.startContextFileSummary(sectorId, file.id, file.hash)
+    return block
+  })
+  register('delete', '/v1/sectors/:sectorId/global-context/files/:fileId', 'approver', async (input) => {
+    const sectorId = sector(input)
+    const fileId = input.params['fileId'] ?? ''
+    const removed = await removeContextFileBlock(input.pool, { sectorId, fileId, scope: input.scope })
+    // No AI call: deletion is instant. A summary in flight is cancelled
+    // best effort; a late completion finds no row and stays out.
+    if (removed.state === 'summarizing' && input.runs) {
+      try { await input.runs.cancelContextFileSummary(sectorId, fileId, removed.hash) } catch { /* best effort */ }
+    }
+    return removed
   })
   register('get', '/v1/sectors/:sectorId/global-context/proposals/:proposalId', 'viewer', (input) => previewContextChange(input.pool, sector(input), input.params['proposalId'] ?? '', input.scope))
   register('post', '/v1/sectors/:sectorId/work/:workId/review', 'approver', (input) => reviewResearchWork(input.pool, { ...WorkReviewDecision.parse(input.body), sectorId: sector(input), workId: input.params['workId'] ?? '', author: input.keyId, scope: input.scope }))

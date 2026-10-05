@@ -14,6 +14,8 @@ import { CheckboxRoot } from './ui/checkbox'
 import { CollapsiblePanel, CollapsibleRoot, CollapsibleTrigger } from './ui/collapsible'
 import { FieldControl, FieldDescription, FieldLabel, FieldRoot } from './ui/field'
 import { List, ListRow, listRowClassName } from './ui/list'
+import { MenuItem, MenuPopup, MenuRoot, MenuTrigger } from './ui/menu'
+import { PopoverPopup, PopoverRoot, PopoverTitle, PopoverTrigger } from './ui/popover'
 import { ProgressRoot } from './ui/progress'
 import { Skeleton } from './ui/skeleton'
 import { Textarea } from './ui/textarea'
@@ -31,10 +33,11 @@ import { ResourceState, SearchField } from './shells'
 import { EXIT_MS, prefersReducedMotion } from '../lib/motion'
 import { useTopmostOverlay } from '../lib/overlay'
 import type { Resource } from '../data/useWorkspace'
-import type { ContextChange, ContextPreview, GlobalContext, LibraryFile, LocalContext, OperationReceipt, ResearchProgress, Sections } from '../data/workspace-api'
+import type { ContextChange, ContextFileBlock, ContextPreview, GlobalContext, GlobalContextUsage, LibraryFile, LocalContext, OperationReceipt, ResearchProgress, Sections } from '../data/workspace-api'
 import { IconButton } from './IconButton'
+import { ConfirmAction } from './ui/alert-dialog'
 
-export function WorkspaceOverlay({ title, titleBadge, children, onClose, side = false, footer, open = true, size = 'default', popupClassName, initialFocus }: { title: string; titleBadge?: ReactNode; children: ReactNode; onClose(): void; side?: boolean; footer?: ReactNode; open?: boolean; size?: 'default' | 'large' | 'small'; popupClassName?: string; initialFocus?: React.RefObject<HTMLInputElement | null> }) {
+export function WorkspaceOverlay({ title, titleBadge, children, onClose, side = false, footer, open = true, size = 'default', popupClassName, initialFocus }: { title: string; titleBadge?: ReactNode; children: ReactNode; onClose(): void; side?: boolean; footer?: ReactNode; open?: boolean; size?: 'default' | 'large' | 'small'; popupClassName?: string; initialFocus?: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null> }) {
  // Single overlay ownership: the shared dialog owns the focus trap, Esc,
  // and trigger restoration. The root stays mounted through a controlled
  // closing so Base UI can retain and animate the exiting popup before
@@ -425,10 +428,11 @@ export function PlanProgress({ resource, review }: { resource: Resource<Research
   </section>
  )
 }
-const CONTEXT_SECTION_LABELS = { scope: 'Scope', decisions: 'Decisions', findings: 'Findings', questions: 'Open questions' } as const
+const CONTEXT_SECTION_LABELS = { scope: 'Scope', instructions: 'Instructions', decisions: 'Decisions', findings: 'Findings', questions: 'Open questions' } as const
 type ContextSectionKey = keyof typeof CONTEXT_SECTION_LABELS
 const CONTEXT_SECTION_HELPERS: Record<ContextSectionKey, string> = {
   scope: 'What this sector covers, and what stays out.',
+  instructions: 'How agents should work, for example what to focus on or avoid.',
   decisions: 'Owner rulings the agents must follow.',
   findings: 'Established facts from finished research.',
   questions: 'Open questions for later research.',
@@ -470,8 +474,94 @@ function ContextSection({ label, text }: { label: string; text: string }) {
   )
 }
 
-export function GlobalContextPanel({ resource, preview, busy, error, onReview, onSave, onDecision }: { resource: Resource<GlobalContext>; preview: Resource<ContextPreview>; busy: boolean; error?: string | null; onReview(id: string | null): void; onSave(sections: Sections, version: number): Promise<boolean>; onDecision(id: string, approve: boolean): Promise<boolean> }) {
+function ContextFileBlockRow({ block, busy, onSummarize, onRemove }: { block: ContextFileBlock; busy: boolean; onSummarize?(id: string): void; onRemove?(id: string): void }) {
+  const [expanded, setExpanded] = useState(false)
+  const ready = block.state === 'ready'
+  return (
+    <li>
+      <div data-list-row="" className={cn('group', listRowClassName({ density: 'comfortable', interactive: false }), 'flex-col items-stretch gap-0 py-2')}>
+        <div className="flex min-w-0 items-start gap-1">
+          <button
+            type="button"
+            aria-label={`${block.filename}, ${block.state === 'legacy' ? 'needs summary' : block.state}`}
+            aria-expanded={ready ? expanded : undefined}
+            disabled={!ready}
+            onClick={() => setExpanded((value) => !value)}
+            className={cn('flex min-w-0 flex-1 items-start gap-3 rounded-md px-2 py-1 text-left outline-none', focusRingInset, ready && 'cursor-pointer')}
+          >
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-surface-sunken">
+              <FileTypeIcon filename={block.filename} aria-hidden className="size-4 text-muted-foreground" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex min-w-0 items-center gap-2">
+                <BodySm as="span" className="min-w-0 flex-1 truncate font-medium">{block.filename}</BodySm>
+                {block.state === 'summarizing' ? (
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <Icons.loading aria-hidden className="size-4 text-muted-foreground motion-safe:animate-spin" />
+                    <Badge tone="info">Summarizing</Badge>
+                  </span>
+                ) : null}
+                {block.state === 'failed' ? <Badge tone="danger" className="shrink-0">Failed</Badge> : null}
+                {block.state === 'legacy' ? <Badge tone="warning" className="shrink-0">Needs summary</Badge> : null}
+              </span>
+              <Caption as="span" className="mt-0.5 block truncate tabular-nums">
+                {ready ? `${formatCount(block.tokens)} tokens` : block.state === 'failed' ? (block.error || 'Summary failed') : block.state === 'legacy' ? 'Not summarized yet' : 'Writing summary'}
+              </Caption>
+            </span>
+          </button>
+          <span className="flex shrink-0 items-center gap-1">
+            {block.state === 'failed' ? <Button type="button" variant="ghost" size="sm" disabled={busy || !onSummarize} onClick={() => onSummarize?.(block.fileId)}>Retry</Button> : null}
+            {block.state === 'legacy' ? <Button type="button" variant="ghost" size="sm" disabled={busy || !onSummarize} onClick={() => onSummarize?.(block.fileId)}>Summarize</Button> : null}
+            {onRemove ? (
+              <IconButton label={`Remove ${block.filename} from global context`} size="icon-sm" disabled={busy} onClick={() => onRemove(block.fileId)}>
+                <Icons.delete className="size-4" aria-hidden />
+              </IconButton>
+            ) : null}
+          </span>
+        </div>
+        {ready && expanded ? <div className="min-w-0 py-1 pr-2 pl-15"><Markdown text={block.summary} variant="compact" /></div> : null}
+      </div>
+    </li>
+  )
+}
+
+function ContextUsageBar({ usage, files }: { usage: GlobalContextUsage; files: ContextFileBlock[] }) {
+  const ratio = usage.budget > 0 ? usage.total / usage.budget : 0
+  const tone = ratio >= 1 ? '[&_[data-slot=progress-indicator]]:bg-danger' : ratio >= 0.7 ? '[&_[data-slot=progress-indicator]]:bg-warning' : ''
+  const names = new Map(files.map((file) => [file.fileId, file.filename]))
+  return (
+    <PopoverRoot>
+      <PopoverTrigger aria-label={`Global context token usage: ${formatCount(usage.total)} of ${formatCount(usage.budget)} tokens. Show breakdown.`} className="flex min-h-10 w-full flex-col justify-center rounded-md text-left outline-none min-[481px]:min-h-8">
+        <Caption as="span" className="block"><Numeric>{formatCount(usage.total)} of {formatCount(usage.budget)} tokens</Numeric></Caption>
+        <ProgressRoot value={Math.min(100, ratio * 100)} max={100} aria-hidden className={cn('mt-1', tone)} />
+      </PopoverTrigger>
+      <PopoverPopup>
+        <PopoverTitle>Token usage</PopoverTitle>
+        <List aria-label="Token usage breakdown" className="mt-2">
+          {(Object.keys(CONTEXT_SECTION_LABELS) as ContextSectionKey[]).map((key) => (
+            <ListRow key={key} density="dense">
+              <BodySm as="span" className="min-w-0 flex-1 truncate">{CONTEXT_SECTION_LABELS[key]}</BodySm>
+              <Numeric className="shrink-0">{formatCount(usage.bySection[key])}</Numeric>
+            </ListRow>
+          ))}
+          {usage.byFile.map((file) => (
+            <ListRow key={file.fileId} density="dense">
+              <BodySm as="span" title={names.get(file.fileId) ?? file.fileId} className="min-w-0 flex-1 truncate">{names.get(file.fileId) ?? file.fileId}</BodySm>
+              <Numeric className="shrink-0">{formatCount(file.tokens)}</Numeric>
+            </ListRow>
+          ))}
+        </List>
+      </PopoverPopup>
+    </PopoverRoot>
+  )
+}
+
+export function GlobalContextPanel({ resource, preview, busy, error, onReview, onSave, onDecision, onSummarize, onRemove, onCompact, onRestore, onRewrite, onCopied }: { resource: Resource<GlobalContext>; preview: Resource<ContextPreview>; busy: boolean; error?: string | null; onReview(id: string | null): void; onSave(sections: Sections, version: number): Promise<boolean>; onDecision(id: string, approve: boolean): Promise<boolean>; onSummarize?(id: string): void; onRemove?(id: string): void; onCompact?(): void; onRestore?(version: number): Promise<boolean>; onRewrite?(instruction: string): Promise<boolean>; onCopied?(): void }) {
   const [editor, setEditor] = useState(false), [history, setHistory] = useState(false), [proposal, setProposal] = useState<string | null>(null)
+  const [restoreVersion, setRestoreVersion] = useState<number | null>(null)
+  const [rewriteOpen, setRewriteOpen] = useState(false)
+  const [rewriteDraft, setRewriteDraft] = useState('')
+  const [viewerOpen, setViewerOpen] = useState(false)
   const pending = resource.data?.changes.filter((change) => change.state === 'pending' || change.state === 'parent-review') ?? []
   const [editContext, setEditContext] = useState<GlobalContext | null>(null)
   if (editor && !resource.data) { setEditor(false); setEditContext(null) }
@@ -482,8 +572,35 @@ export function GlobalContextPanel({ resource, preview, busy, error, onReview, o
     <SectionTitle className="min-w-0 flex-1">Global context</SectionTitle>
     {data ? <Caption as="span" className="shrink-0 tabular-nums">v{data.version}</Caption> : null}
     <IconButton label="Context history" size="icon-sm" disabled={!data} onClick={() => setHistory(true)}><Icons.history className="size-4" aria-hidden /></IconButton>
+    <IconButton label="Open full view" size="icon-sm" disabled={!data} onClick={() => setViewerOpen(true)}><Icons.openExternal className="size-4" aria-hidden /></IconButton>
     <IconButton label="Edit global context" size="icon-sm" disabled={!data} onClick={() => { setEditContext(data ?? null); setEditor(true) }}><Icons.edit className="size-4" aria-hidden /></IconButton>
+    {data && (onCompact || onRewrite) ? (
+      <MenuRoot>
+        <MenuTrigger
+          render={
+            <IconButton label="Global context options" size="icon-sm">
+              <Icons.moreActions className="size-4" aria-hidden />
+            </IconButton>
+          }
+        />
+        <MenuPopup>
+          {onCompact ? (
+            <MenuItem disabled={busy} onClick={() => onCompact()}>
+              <Icons.minimize aria-hidden />
+              Compact now
+            </MenuItem>
+          ) : null}
+          {onRewrite ? (
+            <MenuItem disabled={busy} onClick={() => { setRewriteDraft(''); setRewriteOpen(true) }}>
+              <Icons.edit aria-hidden />
+              Rewrite with a direction…
+            </MenuItem>
+          ) : null}
+        </MenuPopup>
+      </MenuRoot>
+    ) : null}
   </div>
+  {data ? <div className="shrink-0 border-b border-border-subtle px-4 py-2"><ContextUsageBar usage={data.usage} files={data.files} /></div> : null}
   <div className="scroll-slim min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
     <ResourceNotice resource={resource} label="Global context" />
     {data ? (
@@ -492,6 +609,18 @@ export function GlobalContextPanel({ resource, preview, busy, error, onReview, o
           {(Object.keys(CONTEXT_SECTION_LABELS) as ContextSectionKey[]).map((key) => (
             <ContextSection key={key} label={CONTEXT_SECTION_LABELS[key]} text={data.sections[key]} />
           ))}
+        </div>
+        <div>
+          <Overline>Files</Overline>
+          {data.files.length ? (
+            <List aria-label="Context files" className="mt-1">
+              {data.files.map((block) => (
+                <ContextFileBlockRow key={block.fileId} block={block} busy={busy} onSummarize={onSummarize} onRemove={onRemove} />
+              ))}
+            </List>
+          ) : (
+            <Caption className="mt-1">No files in global context yet</Caption>
+          )}
         </div>
         {pending.length ? (
           <div className="space-y-2">
@@ -526,7 +655,7 @@ export function GlobalContextPanel({ resource, preview, busy, error, onReview, o
             <li key={change.id} className="rounded-lg border border-border p-3">
               <CollapsibleRoot>
                 <CollapsibleTrigger>
-                  <span className="min-w-0 flex-1 text-left text-xs">{change.author}</span>
+                  <span className="min-w-0 flex-1 text-left text-xs">{change.author === 'system:compaction' ? (change.sourceThread === 'compaction:auto' ? 'Auto-compacted' : 'Compacted') : change.author}{change.version !== null ? ` · v${change.version}` : ''}</span>
                   <Badge tone={changeTone(change)}>{humanizeKey(change.state)}</Badge>
                   <Caption as="span" className="shrink-0">{relativeAge(change.at)}</Caption>
                   <Icons.chevronDown data-chevron className="size-4 shrink-0 text-muted-foreground" aria-hidden />
@@ -536,6 +665,11 @@ export function GlobalContextPanel({ resource, preview, busy, error, onReview, o
                     {(Object.keys(CONTEXT_SECTION_LABELS) as ContextSectionKey[]).filter((key) => change.sections[key]).map((key) => (
                       <ContextSection key={key} label={CONTEXT_SECTION_LABELS[key]} text={change.sections[key]} />
                     ))}
+                    {change.state === 'approved' && change.version !== null && onRestore ? (
+                      <div>
+                        <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={() => setRestoreVersion(change.version)}>Restore this version</Button>
+                      </div>
+                    ) : null}
                   </div>
                 </CollapsiblePanel>
               </CollapsibleRoot>
@@ -587,6 +721,49 @@ export function GlobalContextPanel({ resource, preview, busy, error, onReview, o
       )
     }) : null}
   </WorkspaceOverlay>
+  <ConfirmAction open={restoreVersion !== null} onOpenChange={(next) => { if (!next) setRestoreVersion(null) }} title={restoreVersion !== null ? `Restore version ${restoreVersion}?` : 'Restore version?'} description="The text sections return to this revision as a new version. File summaries stay as they are." confirmLabel="Restore version" pending={busy} onConfirm={async () => { if (restoreVersion !== null && onRestore && await onRestore(restoreVersion)) setRestoreVersion(null) }} />
+  <WorkspaceOverlay
+    title="Global context"
+    size="large"
+    open={viewerOpen && data !== undefined}
+    onClose={() => setViewerOpen(false)}
+    titleBadge={data ? <Caption>v{data.version} · {formatCount(data.usage.total)} tokens</Caption> : undefined}
+    footer={data ? (
+      <>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            void (async () => {
+              try {
+                await navigator.clipboard.writeText(data.markdown)
+                onCopied?.()
+              } catch { /* clipboard unavailable: the text stays visible */ }
+            })()
+          }}
+        >
+          Copy as Markdown
+        </Button>
+        <Button type="button" variant="ghost" onClick={() => setViewerOpen(false)}>Close</Button>
+      </>
+    ) : undefined}
+  >
+    {data ? <div className="mx-auto w-full max-w-prose-kd overflow-y-auto"><Markdown text={data.markdown} variant="chat" /></div> : null}
+  </WorkspaceOverlay>
+  <WorkspaceOverlay title="Rewrite with a direction" open={rewriteOpen && onRewrite !== undefined} onClose={() => setRewriteOpen(false)}>
+    <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void (async () => { if (onRewrite && await onRewrite(rewriteDraft)) setRewriteOpen(false) })() }}>
+      <FieldRoot>
+        <FieldLabel>What should change?</FieldLabel>
+        <FieldDescription>For example: the context leans toward X, give more weight to Y.</FieldDescription>
+        <FieldControl render={<Textarea value={rewriteDraft} onChange={(event) => setRewriteDraft(event.target.value)} rows={4} />} />
+      </FieldRoot>
+      {error ? <p role="alert" className="rounded-lg bg-muted p-3 text-xs">{error}</p> : null}
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button type="button" variant="ghost" disabled={busy} onClick={() => setRewriteOpen(false)}>Cancel</Button>
+        <Button type="submit" variant="primary" disabled={busy || !rewriteDraft.trim()}>Start rewrite</Button>
+      </div>
+    </form>
+  </WorkspaceOverlay>
   </section>
   )
 }
@@ -628,6 +805,7 @@ function FileDependencyPreview({ resource }: { resource: Resource<ContextPreview
 function ContextEditor({ sections, baseVersion, currentVersion, busy, error, onSave, onClose }: { sections: Sections; baseVersion: number; currentVersion?: number; busy: boolean; error?: string | null; onSave(sections: Sections): Promise<void>; onClose(): void }) {
   const [draft, setDraft] = useState(sections)
   const stale = currentVersion !== undefined && baseVersion !== currentVersion
+  const dirty = (Object.keys(CONTEXT_SECTION_LABELS) as ContextSectionKey[]).some((key) => draft[key] !== sections[key])
   return (
     <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void onSave(draft) }}>
       {(Object.keys(CONTEXT_SECTION_LABELS) as ContextSectionKey[]).map((key) => (
@@ -641,7 +819,7 @@ function ContextEditor({ sections, baseVersion, currentVersion, busy, error, onS
       {error ? <p role="alert" className="rounded-lg bg-muted p-3 text-xs">{error}</p> : null}
       <div className="flex flex-wrap justify-end gap-2">
         <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>Cancel</Button>
-        <Button type="submit" disabled={busy}>Save context</Button>
+        <Button type="submit" disabled={busy || !dirty}>Save context</Button>
       </div>
     </form>
   )
@@ -665,8 +843,8 @@ export function fileTypeLabel(filename: string): string {
  * hidden); processing state and row actions live beside it, never nested
  * inside the preview button. Actions reveal on hover/focus, always on
  * touch. */
-function FileRow({ file, busy, onPreview, onHide, onInclude, onRetry }: {
- file: LibraryFile; busy: boolean; onPreview?(id: string): void; onHide(id: string, hidden: boolean): void; onInclude(id: string): void; onRetry?(file: LibraryFile): void
+function FileRow({ file, busy, onPreview, onHide, onInclude, onRemove, onRetry }: {
+ file: LibraryFile; busy: boolean; onPreview?(id: string): void; onHide(id: string, hidden: boolean): void; onInclude(id: string): void; onRemove?(id: string): void; onRetry?(file: LibraryFile): void
 }) {
  const previewable = !file.hidden && onPreview !== undefined
  const badge = file.hidden ? 'Hidden' : file.status === 'indexed' ? null : fileStatusLabel(file.status)
@@ -696,9 +874,16 @@ function FileRow({ file, busy, onPreview, onHide, onInclude, onRetry }: {
  </button>
  <span className="flex shrink-0 items-center gap-1 transition-opacity duration-120 pointer-coarse:opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100">
  {file.included ? (
+ <>
  <span role="img" aria-label="In global context" title="In global context" className="flex size-8 items-center justify-center">
  <Icons.includedInContext aria-hidden className="size-4 text-primary-text" />
  </span>
+ {onRemove ? (
+ <IconButton label={`Remove ${file.filename} from global context`} size="icon-sm" disabled={busy} onClick={() => onRemove(file.id)}>
+ <Icons.delete className="size-4" aria-hidden />
+ </IconButton>
+ ) : null}
+ </>
  ) : !file.hidden && file.status === 'indexed' ? (
  <IconButton label={`Add ${file.filename} to global context`} size="icon-sm" disabled={busy} onClick={() => onInclude(file.id)}>
  <Icons.includeInContext className="size-4" aria-hidden />
@@ -719,7 +904,7 @@ function FileRow({ file, busy, onPreview, onHide, onInclude, onRetry }: {
  )
 }
 
-export function WorkspaceFiles({ resource, busy, onUpload, onHide, onInclude, onPreview, onRetry }: { resource: Resource<LibraryFile[]>; busy: boolean; onUpload(file: File): void; onHide(id: string, hidden: boolean): void; onInclude(id: string): void; onPreview?(id: string): void; onRetry?(file: LibraryFile): void }) {
+export function WorkspaceFiles({ resource, busy, onUpload, onHide, onInclude, onRemove, onPreview, onRetry }: { resource: Resource<LibraryFile[]>; busy: boolean; onUpload(file: File): void; onHide(id: string, hidden: boolean): void; onInclude(id: string): void; onRemove?(id: string): void; onPreview?(id: string): void; onRetry?(file: LibraryFile): void }) {
  const [search, setSearch] = useState('')
  const [hidden, setHidden] = useState(false)
  const [limit, setLimit] = useState(50)
@@ -802,7 +987,7 @@ export function WorkspaceFiles({ resource, busy, onUpload, onHide, onInclude, on
  </li>
  ))}
  {rows.slice(0, limit).map((file) => (
- <FileRow key={file.id} file={file} busy={busy} onPreview={onPreview} onHide={onHide} onInclude={onInclude} onRetry={onRetry} />
+ <FileRow key={file.id} file={file} busy={busy} onPreview={onPreview} onHide={onHide} onInclude={onInclude} onRemove={onRemove} onRetry={onRetry} />
  ))}
  </List>
  ) : search ? (

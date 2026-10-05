@@ -46,6 +46,7 @@ export {
   getThreadHeader,
   listThreads,
   listThreadHeaders,
+  readSectorThread,
   projectBatch,
   type ProjectionResult,
   rebuildFromEvents,

@@ -19,7 +19,7 @@ const sectorId = 'TEST-files-scale-sector'
 const sessionId = 'TEST-files-scale-research'
 const session = { id: sessionId, title: 'Research', kind: 'research', sectorId, createdAt: at, updatedAt: at }
 const sector = { id: sectorId, name: 'TEST Files scale', topic: 'TEST synthetic library', state: 'approved', companiesFound: 0, companies: [], companiesTotal: 0, activity: [], activityTotal: 0, createdAt: at, updatedAt: at }
-const sections = { scope: 'TEST synthetic library scope', decisions: '', findings: '', questions: '' }
+const sections = { scope: 'TEST synthetic library scope', instructions: '', decisions: '', findings: '', questions: '' }
 const longName = `TEST Generated ${'unbroken-filename-'.repeat(12)}.md`
 const library = () => Array.from({ length: 2005 }, (_, index) => ({
   id: `TEST-scale-file-${index}`,
@@ -58,7 +58,7 @@ async function fixture(page: Page, initial: FileState = 'ready') {
     else if (path === `/v1/sectors/${sectorId}`) data = sector
     else if (path.endsWith('/research-session')) data = session
     else if (path === '/v1/sessions') data = [session]
-    else if (path.endsWith('/global-context')) data = { sectorId, version: 1, sections, markdown: '## Scope\n\nTEST synthetic library scope', researchSessionId: sessionId, changes: [] }
+    else if (path.endsWith('/global-context')) data = { sectorId, version: 1, sections, markdown: '## Scope\n\nTEST synthetic library scope', researchSessionId: sessionId, changes: [], files: [], usage: { total: 0, budget: 30000, method: 'estimated', bySection: { scope: 0, instructions: 0, decisions: 0, findings: 0, questions: 0 }, byFile: [] } }
     else if (path.endsWith('/plan')) data = { sectorId, versions: [], latest: null, approvals: [], approvedVersion: null }
     else if (path.endsWith('/progress')) data = { sectorId, state: 'approved', planVersion: 0, items: [], completed: 0, total: 0, unresolved: 0, discoveryClosed: false, estimatedPercent: null }
     else if (path.endsWith('/threads')) data = [{ key: sessionId, sessionId, kind: 'session', status: 'RUNNING', acceptingSteer: true, queueDepth: 0, updatedAt: at }]

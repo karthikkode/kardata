@@ -115,7 +115,7 @@ image,30-second parser/encode operation deadlines. Exceeding a bound fails the
 job recoverably; it never silently drops an image or publishes partial units.
 PDFJS can decode page objects before the pixel check; these limits are not a
 process-isolation/RSS guarantee. Scoped decoded-memory measurements and the
-repeatable command now live in [the preflight review](../../docs/deep-checks/preflight-authority-review.md):
+repeatable command now live in [the preflight review](../../docs/deep-checks/archive/preflight-authority-review.md):
 real near-limit rasters, 1/10/100 repeated placements and two concurrent parsers,
 with every image validated and completion/cancellation cleanup checked. These
 measurements do not certify distinct-object decompression bombs, sustained fleet

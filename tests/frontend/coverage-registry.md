@@ -76,6 +76,8 @@ Legend: L/D = light/dark, viewports 390/1440 unless noted, RM = reduced motion.
 | WS-10 ResearchControl | plan/approve/start/pause/resume | SectorChatPanel.test.tsx | plan-full (live-gated skip) | pass |
 | WS-11 options/delete | rename + ConfirmAction delete | session-options.test.tsx, nested-overlays.test.tsx | revamp-evidence (open/Escape) | pass |
 | WS-12 URL state | session/thread restore, invalid scope | navigation-url.test.tsx, workspace-session-creation.test.tsx | workspace | pass |
+| WS-13 queue disclosure | Collapsible + move/remove, empty hidden | queue.test.tsx | — | pass |
+| WS-14 header stop | busy-only + confirm + toast | stop-controls.test.tsx | — | pass |
 
 ## Conversations (CH) — ChatPanel.tsx, chat-parts.tsx, SectorWorkspace.tsx ConversationView
 
@@ -103,6 +105,7 @@ Legend: L/D = light/dark, viewports 390/1440 unless noted, RM = reduced motion.
 | CH-20 ReasoningDisclosure | settled disclosure, expanded state survives settle | chat-staging.test.tsx, workspace-conversation.test.tsx | conversation.spec | pass |
 | CH-21 ToolActivity | summary + per-tool rows, failed tone | chat-staging.test.tsx | conversation.spec | pass |
 | CH-22 ConversationEmpty | per-variant empty + suggestions | workspace-conversation.test.tsx | conversation.spec | pass |
+| CH-23 @chat refs | Chats listbox + marker chips | chat-refs.test.tsx | — | pass |
 
 ## Karbot dock (KB) — ChatPanel.tsx sessions/files/context
 
@@ -159,6 +162,13 @@ Legend: L/D = light/dark, viewports 390/1440 unless noted, RM = reduced motion.
 | GC-05 approval | consequences, stale guard | approval.test.ts | — | pass |
 | GC-06 history | bounded revisions | sector-workspace.test.tsx | — | pass |
 | GC-07 file preview | hashes + 50-unit windows | sector-file-preview.test.tsx | file-processing | pass |
+| GC-08 instructions | Overline + edit/diff fields | context-file-blocks.test.tsx | — | pass |
+| GC-09 switch | menu toggle, off chip | session-global-context.test.tsx | — | pass |
+| GC-10 file blocks | states/badges/expand/remove | context-file-blocks.test.tsx | — | pass |
+| GC-11 usage bar | tones ≥70%/≥100%, breakdown | context-file-blocks.test.tsx | — | pass |
+| GC-12 compact/restore | menu, labels, confirm | context-file-blocks.test.tsx | — | pass |
+| GC-13 rewrite | dialog, navigate | context-file-blocks.test.tsx | — | pass |
+| GC-14 full viewer | six headings, copy | context-file-blocks.test.tsx | — | pass |
 
 ## Local context/compaction/inspection (LC) — LocalContextEditor, ExecutionInspector
 
@@ -204,6 +214,9 @@ Legend: L/D = light/dark, viewports 390/1440 unless noted, RM = reduced motion.
 | AG-07 subagents | strip + open/stop/tag | SubagentsPanel (covered via chat-staging) | — | pass |
 | AG-08 directory | search/50-window/counts | — (SearchField shell-tested; rows reuse session patterns) | — | pass (SearchField adopted; no dedicated directory suite) |
 | AG-09 console | timeline + steer targets + Review | RunConsole.test.tsx | plan-console (live-gated) | pass |
+| AG-10 subagent spawn | dialog + goal/name + toast | subagent-spawn.test.tsx | — | pass |
+| AG-11 pause/resume | strip/directory/dock + Paused badge | subagent-controls.test.tsx | — | pass |
+| AG-12 row stop | confirm + toast + run-id mapping | stop-controls.test.tsx, stop-model.test.tsx | — | pass |
 
 ## Models (MO) — ModelsPanel.tsx, ModelToolbar.tsx
 

@@ -3,7 +3,8 @@ import { Pool } from 'pg'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../backend/src/app.js'
-import { appendEvent, createSector, createSession, ensureResearchSession, readGlobalContext, saveThreadContext, ingestSectorDocument, getSession } from '../../backend/src/db/index.js'
+import { appendEvent, createSector, createSession, ensureResearchSession, readGlobalContext, recordPlanVersion, saveThreadContext, ingestSectorDocument, getSession } from '../../backend/src/db/index.js'
+import { turnPalette } from '../../backend/src/temporal/activities/turn.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { hashKey } from '../../backend/src/auth/keys.js'
 import { FakeRunsGateway } from './fake-gateway.js'
@@ -202,30 +203,153 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP execution and resource authority over H
     await projectNewEvents(pool)
     return { sector, normalSession, researchSession }
   }
-  it('keeps normal proposals pending while the research parent commits permitted findings autonomously', async () => {
+  it('keeps normal and research-parent proposals pending for owner approval', async () => {
     const { sector, normalSession, researchSession } = await freshContextAuthority()
     const normalResult = await call('db.propose_global_context', { baseVersion: 0, sections: sections('TEST normal insight'), idempotencyKey: 'normal-insight' }, normalSession)
     expect(normalResult.error).not.toBe(true)
     expect(JSON.parse(normalResult.text)).toMatchObject({ state: 'pending', sourceThread: normalSession })
     const researchResult = await call('db.propose_global_context', { baseVersion: 0, sections: sections('TEST research evidence'), idempotencyKey: 'research-insight' }, researchSession)
-    expect(JSON.parse(researchResult.text)).toMatchObject({ state: 'approved', version: 1 })
-    expect((await readGlobalContext(pool, sector, scope)).sections.findings).toBe('TEST research evidence')
+    expect(JSON.parse(researchResult.text)).toMatchObject({ state: 'pending', version: null })
+    expect((await readGlobalContext(pool, sector, scope)).version).toBe(0)
   })
-  it('routes research-child updates to the actual parent and rejects protected-decision overrides', async () => {
+  it('scopes proposal idempotency keys per sector so identical agent keys never collide', async () => {
+    const first = await freshContextAuthority()
+    const second = await freshContextAuthority()
+    const args = { baseVersion: 0, sections: sections('TEST same-key insight'), idempotencyKey: 'same-agent-key' }
+    const one = JSON.parse((await call('db.propose_global_context', args, first.normalSession)).text) as { id: string; state: string }
+    expect(one.state).toBe('pending')
+    const two = JSON.parse((await call('db.propose_global_context', args, second.normalSession)).text) as { id: string; state: string }
+    expect(two.state).toBe('pending')
+    expect(two.id).not.toBe(one.id)
+    const replay = JSON.parse((await call('db.propose_global_context', args, first.normalSession)).text) as { id: string }
+    expect(replay.id).toBe(one.id)
+  })
+  it('routes research-child updates through the parent to a pending owner proposal', async () => {
     const { sector, normalSession, researchSession } = await freshContextAuthority()
-    const seed = await call('db.propose_global_context', { baseVersion: 0, sections: sections('TEST initial approved findings'), idempotencyKey: 'TEST independent seed' }, researchSession)
-    expect(JSON.parse(seed.text)).toMatchObject({ state: 'approved', version: 1 })
     const childId = `TEST-context-child-${++nonce}`
     await appendEvent(pool, { idempotencyKey: childId, partition: `session:${researchSession}`, type: 't.subagent.launched', payload: { sessionId: researchSession, parentSessionId: researchSession, childId, name: 'TEST independent research child', canDelegate: false } })
     await projectNewEvents(pool)
-    const proposal = await call('db.propose_global_context', { baseVersion: 1, sections: sections('TEST child evidence'), idempotencyKey: 'child-insight' }, `agent:${childId}`)
+    const proposal = await call('db.propose_global_context', { baseVersion: 0, sections: sections('TEST child evidence'), idempotencyKey: 'child-insight' }, `agent:${childId}`)
     const data = JSON.parse(proposal.text) as { id: string; state: string }
     expect(data.state).toBe('parent-review')
     expect((await call('db.commit_child_context', { proposalId: data.id }, normalSession)).error).toBe(true)
-    expect(JSON.parse((await call('db.commit_child_context', { proposalId: data.id }, researchSession)).text)).toMatchObject({ state: 'approved' })
+    const committed = JSON.parse((await call('db.commit_child_context', { proposalId: data.id }, researchSession)).text) as { id: string; state: string }
+    expect(committed.state).toBe('pending')
+    expect(committed.id).not.toBe(data.id)
+    expect((await readGlobalContext(pool, sector, scope)).version).toBe(0)
     const context = await readGlobalContext(pool, sector, scope)
     const override = await call('db.propose_global_context', { baseVersion: context.version, sections: { ...context.sections, decisions: 'TEST unauthorized replacement' }, idempotencyKey: 'protected-decision' }, researchSession)
     expect(JSON.parse(override.text)).toMatchObject({ state: 'pending' })
     expect((await readGlobalContext(pool, sector, scope)).sections.decisions).toBe('')
+  })
+  async function freshPlannedSector() {
+    const planned = (await createSector(pool, { name: 'TEST planned widgets', topic: 'Widgets', scope, initialState: 'planned' })).sectorId
+    await projectNewEvents(pool)
+    await recordPlanVersion(pool, planned, '# TEST v1', `TEST plan v1 ${++nonce}`, scope)
+    const researchSession = (await ensureResearchSession(pool, planned, scope)).id
+    const normalSession = (await createSession(pool, 'TEST normal planned', scope, planned)).id
+    await projectNewEvents(pool)
+    return { planned, researchSession, normalSession }
+  }
+  it('denies plan writes from normal chats, research children and Karbot, allowing only the research parent', async () => {
+    const { planned, researchSession, normalSession } = await freshPlannedSector()
+    const childId = `TEST-plan-child-${++nonce}`
+    await appendEvent(pool, { idempotencyKey: childId, partition: `session:${researchSession}`, type: 't.subagent.launched', payload: { sessionId: researchSession, parentSessionId: researchSession, childId, name: 'TEST plan research child', canDelegate: false } })
+    await projectNewEvents(pool)
+    const edit = (tag: string) => ({ sectorId: planned, markdown: '# TEST agent edit', idempotencyKey: `TEST plan lock ${tag} ${nonce}` })
+    const normal = await call('db.update_sector_plan', edit('normal'), normalSession)
+    expect(normal.error).toBe(true)
+    expect(normal.text).toContain('Only the research conversation can change the plan')
+    const child = await call('db.update_sector_plan', edit('child'), `agent:${childId}`)
+    expect(child.error).toBe(true)
+    expect(child.text).toContain('Only the research conversation can change the plan')
+    const karbot = await call('db.update_sector_plan', edit('karbot'), general)
+    expect(karbot.error).toBe(true)
+    expect(karbot.text).toContain('Only the research conversation can change the plan')
+    const parent = await call('db.update_sector_plan', edit('parent'), researchSession)
+    expect(parent.error).not.toBe(true)
+    expect(JSON.parse(parent.text)).toMatchObject({ version: 2 })
+  })
+  it('lists the plan tool only on the research parent palette', async () => {
+    const list = async (grant: string[]) => {
+      const response = await app.inject({ method: 'POST', url: '/mcp', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'x-kardata-tool-grant': grant.join(',') }, payload: { jsonrpc: '2.0', id: ++nonce, method: 'tools/list', params: {} } })
+      expect(response.statusCode).toBe(200)
+      const body = response.json<{ result?: { tools?: Array<{ name: string }> } }>()
+      return (body.result?.tools ?? []).map((tool) => tool.name)
+    }
+    const normalGrant = turnPalette({ sectorScoped: true })
+    expect(normalGrant).not.toContain('db.update_sector_plan')
+    expect(await list(normalGrant)).not.toContain('db.update_sector_plan')
+    const karbotGrant = turnPalette({})
+    expect(karbotGrant).not.toContain('db.update_sector_plan')
+    expect(await list(karbotGrant)).not.toContain('db.update_sector_plan')
+    const researchGrant = turnPalette({ sectorScoped: true, researchParent: true })
+    expect(researchGrant).toContain('db.update_sector_plan')
+    expect(await list(researchGrant)).toContain('db.update_sector_plan')
+  })
+  it('lets a sector chat read its plan, progress and sessions, denying Karbot', async () => {
+    const { planned, researchSession, normalSession } = await freshPlannedSector()
+    const plan = await call('db.get_sector_plan', {}, normalSession)
+    expect(plan.error).not.toBe(true)
+    expect(JSON.parse(plan.text)).toMatchObject({ sectorId: planned, latest: { version: 1 } })
+    const progress = await call('db.get_research_progress', {}, normalSession)
+    expect(progress.error).not.toBe(true)
+    expect(JSON.parse(progress.text)).toMatchObject({ sectorId: planned, planVersion: 1 })
+    const sessions = await call('db.list_sector_sessions', {}, normalSession)
+    expect(sessions.error).not.toBe(true)
+    const listed = JSON.parse(sessions.text) as Array<{ id: string; kind: string; title: string; updatedAt: string; threadKeys: string[] }>
+    expect(listed.map((session) => session.id).sort()).toEqual([normalSession, researchSession].sort())
+    for (const session of listed) {
+      expect(typeof session.title).toBe('string')
+      expect(typeof session.updatedAt).toBe('string')
+      expect(session.threadKeys).toContain(session.id)
+    }
+    expect(listed.find((session) => session.id === researchSession)?.kind).toBe('research')
+    expect(listed.find((session) => session.id === normalSession)?.kind).toBe('normal')
+    for (const name of ['db.get_sector_plan', 'db.get_research_progress', 'db.list_sector_sessions'] as const) {
+      const denied = await call(name, {}, general)
+      expect(denied.error, name).toBe(true)
+      expect(denied.text).toContain('sector conversation')
+    }
+  })
+  it('lets a normal chat read a sibling chat and a subagent thread, denying subagents and foreign sectors', async () => {
+    const { planned, normalSession } = await freshPlannedSector()
+    const sibling = (await createSession(pool, 'TEST sibling chat', scope, planned)).id
+    await appendEvent(pool, { idempotencyKey: `TEST sibling msg ${++nonce}`, partition: `session:${sibling}`, type: 't.message.appended', payload: { threadKey: sibling, kind: 'text', message: { text: 'TEST sibling verdict', role: 'agent' } } })
+    const childId = `TEST-read-child-${++nonce}`
+    await appendEvent(pool, { idempotencyKey: childId, partition: `session:${sibling}`, type: 't.subagent.launched', payload: { sessionId: sibling, parentSessionId: sibling, childId, name: 'TEST read child', canDelegate: false } })
+    await appendEvent(pool, { idempotencyKey: `TEST child msg ${++nonce}`, partition: `session:${sibling}`, type: 't.message.appended', payload: { threadKey: `agent:${childId}`, kind: 'text', message: { text: 'TEST child finding', role: 'agent' } } })
+    await projectNewEvents(pool)
+    const siblingRead = await call('db.read_sector_thread', { threadKey: sibling }, normalSession)
+    expect(siblingRead.error).not.toBe(true)
+    expect(siblingRead.text).toContain('TEST sibling verdict')
+    const childRead = await call('db.read_sector_thread', { threadKey: `agent:${childId}` }, normalSession)
+    expect(childRead.error).not.toBe(true)
+    expect(childRead.text).toContain('TEST child finding')
+    const ownChild = `TEST-own-child-${++nonce}`
+    await appendEvent(pool, { idempotencyKey: ownChild, partition: `session:${normalSession}`, type: 't.subagent.launched', payload: { sessionId: normalSession, parentSessionId: normalSession, childId: ownChild, name: 'TEST own child', canDelegate: false } })
+    await projectNewEvents(pool)
+    const subagentRead = await call('db.read_sector_thread', { threadKey: sibling }, `agent:${ownChild}`)
+    expect(subagentRead.error).toBe(true)
+    expect(subagentRead.text).toContain('isolated')
+    const otherSector = (await createSector(pool, { name: 'TEST other sector', topic: 'Other', scope })).sectorId
+    const otherSession = (await createSession(pool, 'TEST other session', scope, otherSector)).id
+    await projectNewEvents(pool)
+    const foreignRead = await call('db.read_sector_thread', { threadKey: otherSession }, normalSession)
+    expect(foreignRead.error).toBe(true)
+    expect(foreignRead.text).toContain('outside this sector')
+    const sessions = JSON.parse((await call('db.list_sector_sessions', {}, normalSession)).text) as Array<{ id: string; threadKeys: string[] }>
+    expect(sessions.find((session) => session.id === sibling)?.threadKeys).toContain(`agent:${childId}`)
+  })
+  it('lists the sector read tools on every palette; the server denies non-sector callers', async () => {
+    // Stacking contract: sectorMcpClient sits on productMcpClient, so every
+    // SECTOR_TOOL must survive the Karbot palette (like db.get_local_context).
+    // The tools/list grant is not the boundary: workspaceIdentity denies any
+    // caller outside a sector execution, pinned by the Karbot denials above.
+    for (const name of ['db.get_sector_plan', 'db.get_research_progress', 'db.list_sector_sessions', 'db.read_sector_thread'] as const) {
+      expect(turnPalette({ sectorScoped: true })).toContain(name)
+      expect(turnPalette({ sectorScoped: true, researchParent: true })).toContain(name)
+      expect(turnPalette({})).toContain(name)
+    }
   })
 })

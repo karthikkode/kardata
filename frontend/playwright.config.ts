@@ -18,8 +18,10 @@ export default defineConfig({
     reuseExistingServer: false,
     env: {
       VITE_STAGING_API: '1',
-      VITE_STAGING_URL: 'http://127.0.0.1:3001',
-      VITE_STAGING_KEY: 'e2e-test-key',
+      // Live walkthrough (KARDATA_LIVE_UI=1) passes the B2 stack through
+      // the environment; every other run keeps the isolated defaults.
+      VITE_STAGING_URL: process.env.VITE_STAGING_URL ?? 'http://127.0.0.1:3001',
+      VITE_STAGING_KEY: process.env.VITE_STAGING_KEY ?? 'e2e-test-key',
     },
   },
 })

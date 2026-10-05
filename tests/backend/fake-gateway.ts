@@ -5,13 +5,14 @@ import { randomUUID } from 'node:crypto'
 import type { Pool } from 'pg'
 import {
   RunNotFound,
+  SESSION_PREFIX,
   ThreadNotAccepting,
   type CommandResult,
   type RunInfo,
   type RunsGateway,
   type SkillInvocation,
 } from '../../backend/src/temporal/gateway.js'
-import { getThread, listThreads } from '../../backend/src/db/index.js'
+import { getThread, listThreads, requireThread, setThreadPaused, WorkspaceError } from '../../backend/src/db/index.js'
 
 export class FakeRunsGateway implements RunsGateway {
   readonly signals: Array<{ workflowId: string; signal: string; args: unknown[] }> = []
@@ -39,9 +40,10 @@ export class FakeRunsGateway implements RunsGateway {
 
   async send(threadKey: string, text: string): Promise<CommandResult> {
     const target = await this.resolveTarget(threadKey, text, 'runSend')
-    // Like production describe-then-signal: session targets need a live run.
+    // Like production signalWithStart: a first session send starts the run.
     if (target.workflowId.startsWith('session-run-') && !this.runs.has(target.workflowId)) {
-      throw new RunNotFound(`no such run ${target.workflowId}`)
+      const sessionId = target.workflowId.slice('session-run-'.length)
+      this.addRun({ id: target.workflowId, sessionId, threadKey: sessionId, state: 'RUNNING', budgetUsedRatio: 0, contextUsedRatio: 0, updatedAt: new Date().toISOString() })
     }
     this.signals.push({ workflowId: target.workflowId, signal: target.signal, args: [text] })
     return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
@@ -61,6 +63,27 @@ export class FakeRunsGateway implements RunsGateway {
     return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
   }
 
+  readonly startedFileSummaries: Array<{ sectorId: string; fileId: string; hash: string }> = []
+
+  async startContextFileSummary(sectorId: string, fileId: string, hash: string): Promise<CommandResult> {
+    this.startedFileSummaries.push({ sectorId, fileId, hash })
+    return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
+  }
+
+  readonly cancelledFileSummaries: Array<{ sectorId: string; fileId: string; hash: string }> = []
+
+  async cancelContextFileSummary(sectorId: string, fileId: string, hash: string): Promise<CommandResult> {
+    this.cancelledFileSummaries.push({ sectorId, fileId, hash })
+    return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
+  }
+
+  readonly startedCompactions: Array<{ sectorId: string; reason: 'auto' | 'manual' }> = []
+
+  async startContextCompaction(sectorId: string, reason: 'auto' | 'manual'): Promise<CommandResult> {
+    this.startedCompactions.push({ sectorId, reason })
+    return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
+  }
+
   /** Cancelled sweep ids; already-gone runs accept quietly like production. */
   readonly cancelledSweeps: string[] = []
 
@@ -70,14 +93,59 @@ export class FakeRunsGateway implements RunsGateway {
   }
 
   /** Delegated children in launch order. */
-  readonly delegated: Array<{ sessionId: string; goal: string; mode: string; queueCapacity: number }> = []
+  readonly delegated: Array<{ sessionId: string; goal: string; mode: string; queueCapacity: number; name?: string }> = []
 
-  async delegateSubagent(input: { sessionId: string; goal: string; mode: string; queueCapacity: number }): Promise<{
+  /** Accept/goal order per child, mirroring production's split. */
+  readonly delegationOrder: string[] = []
+
+  /** Waiting inbox items per run workflow id. */
+  readonly queues = new Map<string, Array<{ id: string; text: string; queuedAt: number }>>()
+
+  seedQueue(runId: string, items: Array<{ id: string; text: string; queuedAt: number }>): void {
+    this.queues.set(runId, items.map((item) => ({ ...item })))
+  }
+
+  private async queueRunId(threadKey: string): Promise<string> {
+    const identity = await requireThread(this.pool, threadKey)
+    return identity.thread.kind === 'subagent' ? threadKey.slice('agent:'.length) : `${SESSION_PREFIX}${identity.session.id}`
+  }
+
+  async listQueue(threadKey: string): Promise<Array<{ id: string; text: string; queuedAt: number }>> {
+    const queue = this.queues.get(await this.queueRunId(threadKey))
+    if (!queue) throw new RunNotFound(`no such run for thread ${threadKey}`)
+    return queue.map((item) => ({ ...item }))
+  }
+
+  async removeQueued(threadKey: string, id: string): Promise<boolean> {
+    const queue = this.queues.get(await this.queueRunId(threadKey))
+    if (!queue) throw new RunNotFound(`no such run for thread ${threadKey}`)
+    const at = queue.findIndex((item) => item.id === id)
+    if (at < 0) return false
+    queue.splice(at, 1)
+    return true
+  }
+
+  async reorderQueue(threadKey: string, ids: string[]): Promise<void> {
+    const queue = this.queues.get(await this.queueRunId(threadKey))
+    if (!queue) throw new RunNotFound(`no such run for thread ${threadKey}`)
+    const known = new Set(queue.map((item) => item.id))
+    if (ids.length !== queue.length || new Set(ids).size !== ids.length || !ids.every((id) => known.has(id))) {
+      throw new WorkspaceError('validation_failed', 'Queue ids must exactly match the current queue.')
+    }
+    queue.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id))
+  }
+
+  async delegateSubagent(input: { sessionId: string; goal: string; mode: string; queueCapacity: number; name?: string; onAccepted?: (childId: string) => Promise<void> }): Promise<{
     childId: string
     commandId: string
   }> {
-    this.delegated.push({ ...input })
-    return { childId: `child-fake-${this.delegated.length}`, commandId: `cmd-${randomUUID()}` }
+    const childId = `child-fake-${this.delegated.length + 1}`
+    const { onAccepted, ...recorded } = input
+    this.delegated.push({ ...recorded })
+    this.delegationOrder.push(`accepted:${childId}`)
+    await onAccepted?.(childId)
+    this.delegationOrder.push(`goal:${childId}`)
+    return { childId, commandId: `cmd-${randomUUID()}` }
   }
 
   async sendSkill(threadKey: string, invocation: SkillInvocation): Promise<CommandResult> {
@@ -120,16 +188,26 @@ export class FakeRunsGateway implements RunsGateway {
   async pauseRun(runId: string): Promise<CommandResult> {
     // Mirrors production requireType: research runs pause, guarded runs 409.
     const type = this.requireRun(runId)
-    if (type !== 'sessionRun' && type !== 'researchRun') {
+    if (type !== 'sessionRun' && type !== 'researchRun' && type !== 'subagentRun') {
       throw new ThreadNotAccepting(`run ${runId} (${type}) has no path for this command`)
+    }
+    if (type === 'subagentRun') {
+      await setThreadPaused(this.pool, `agent:${runId}`, true)
+      this.signals.push({ workflowId: runId, signal: 'childPause', args: [] })
+      return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
     }
     this.signals.push({ workflowId: runId, signal: 'runPause', args: [] })
     return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
   }
 
   async resumeRun(runId: string, extendedBudgetMs?: number): Promise<CommandResult> {
-    this.requireRun(runId)
+    const type = this.requireRun(runId)
     const args = extendedBudgetMs !== undefined ? [extendedBudgetMs] : []
+    if (type === 'subagentRun') {
+      await setThreadPaused(this.pool, `agent:${runId}`, false)
+      this.signals.push({ workflowId: runId, signal: 'childResume', args })
+      return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
+    }
     this.signals.push({ workflowId: runId, signal: 'runResume', args })
     return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
   }

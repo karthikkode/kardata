@@ -224,7 +224,7 @@ by Plan and progress dialog. `SectorFilePreview` displays retained extracts and
 uses shared `downloadBlob` for original/extracted downloads. The data hooks own
 all fetching. Queued, reconnecting and paused chat states are explicit; missed
 steering remains visible. Work-item lists are searchable and windowed, with
-source links and truthful counts. Tests are linked in the hardening catalogue.
+source links and truthful counts. Tests are linked by [F:<id>] tags (registry arrives in Phase 1).
 
 - The sector route lands on the summary page (`SectorLanding`): a
   `Research status` region (state copy, progress estimate, `View

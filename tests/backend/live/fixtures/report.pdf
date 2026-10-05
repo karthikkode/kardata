@@ -1,0 +1,71 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 6 0 R >> >> /Contents 7 0 R >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 6 0 R >> >> /Contents 8 0 R >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 6 0 R >> >> /Contents 9 0 R >>
+endobj
+6 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+7 0 obj
+<< /Length 339 >>
+stream
+BT /F1 11 Tf 72 740 Td
+(Quarterly Rollup Report) Tj
+0 -16 Td (Prepared 2026-02-20 covering 320 serviced sites.) Tj
+0 -16 Td (Collected revenue of $12,750 per site on average, up 8.4%.) Tj
+0 -16 Td (64 sites renewed early; churn review set for 2026-09-15.) Tj
+0 -16 Td (Backlog value stands at 1,875 open work orders across 23 crews.) Tj
+ETendstream
+endobj
+8 0 obj
+<< /Length 324 >>
+stream
+BT /F1 11 Tf 72 740 Td
+(Crew performance) Tj
+0 -16 Td (Average jobs per tech per week: 41 with 6.25% rework.) Tj
+0 -16 Td (128 safety audits passed; $540 average parts cost per job.) Tj
+0 -16 Td (Next calibration window opens 2026-04-11 for 3 depots.) Tj
+0 -16 Td (77 techs completed the new dispatch training module.) Tj
+ETendstream
+endobj
+9 0 obj
+<< /Length 384 >>
+stream
+BT /F1 11 Tf 72 740 Td
+(Parts spend by depot) Tj
+0 -16 Td (Depot North: 450 units, $9,210 total) Tj
+0 -16 Td (Depot East: 388 units, $7,654 total) Tj
+0 -16 Td (Depot West: 512 units, $11,002 total) Tj
+0 -16 Td (Depot South: 296 units, $5,431 total) Tj
+0 -16 Td (Total: 1646 units, $33,297 spend, 17.5% under budget.) Tj
+0 -16 Td (Count date 2025-12-05; 9 lines pending recount.) Tj
+ETendstream
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000127 00000 n 
+0000000253 00000 n 
+0000000379 00000 n 
+0000000505 00000 n 
+0000000575 00000 n 
+0000000964 00000 n 
+0000001338 00000 n 
+trailer
+<< /Size 10 /Root 1 0 R >>
+startxref
+1772
+%%EOF

@@ -427,7 +427,7 @@ test('CP-02-busy-empty', async ({ page }) => {
       await sendWorkspace(page, 'Busy probe')
       await expect(page.getByRole('button', { name: 'Steer' })).toBeDisabled()
       await expect(page.getByRole('button', { name: 'Queue' })).toBeDisabled()
-      await expect(page.getByRole('button', { name: 'Stop agent' })).toBeVisible()
+      await expect(page.getByRole('tabpanel', { name: 'Chat' }).getByRole('button', { name: 'Stop agent' })).toBeVisible()
     },
   )
 })
@@ -438,7 +438,7 @@ test('CP-02-busy-draft', async ({ page }) => {
     () => gotoWorkspace(page, { modes: { commands: 'loading' }, loadingMs: 10000 }),
     async () => {
       await sendWorkspace(page, 'Busy probe')
-      await expect(page.getByRole('button', { name: 'Stop agent' })).toBeVisible()
+      await expect(page.getByRole('tabpanel', { name: 'Chat' }).getByRole('button', { name: 'Stop agent' })).toBeVisible()
       await composer(page).fill('Steer this way instead')
       await expect(page.getByRole('button', { name: 'Steer' })).toBeEnabled()
       await expect(page.getByRole('button', { name: 'Queue' })).toBeEnabled()

@@ -8,7 +8,8 @@ import { execFile, execFileSync, spawn } from 'node:child_process'
 import { readFileSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { countRepoTools, fleetVerdict, formatVerdict, freshnessVerdict, parityVerdict, parseEnvFile } from './stack-lib.mjs'
+import { readlinkSync } from 'node:fs'
+import { countRepoTools, fleetVerdict, formatVerdict, freshnessVerdict, ownedTestProcs, parityVerdict, parseEnvFile } from './stack-lib.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '..', '..')
@@ -52,9 +53,9 @@ async function composePs() {
   } catch { return [] }
 }
 
-/** Host node processes running the backend server or dev worker (duplicates of compose). */
-async function hostStackProcs() {
-  const out = await run('pgrep', ['-af', 'backend/dist/server\\.js|dev-worker\\.js'])
+/** Host processes matching a pgrep pattern, with owner, cwd, and command. */
+async function hostStackProcs(pattern = 'backend/dist/server\\.js|dev-worker\\.js') {
+  const out = await run('pgrep', ['-af', pattern])
   if (!out.ok) return []
   const procs = []
   for (const line of out.stdout.split('\n')) {
@@ -64,7 +65,11 @@ async function hostStackProcs() {
     let user = ''
     const userOut = await run('ps', ['-o', 'user=', '-p', pid])
     if (userOut.ok) user = userOut.stdout.trim()
-    procs.push({ pid, user, cmd: match[2] })
+    let cwd = ''
+    try {
+      cwd = readlinkSync(`/proc/${pid}/cwd`)
+    } catch { cwd = '' }
+    procs.push({ pid, user, cwd, cmd: match[2] })
   }
   return procs
 }
@@ -272,8 +277,41 @@ async function cmdWorkerCompose() {
   console.log('stack: compose worker polling')
 }
 
+async function cmdClean() {
+  // Recorded live-stack PIDs first (provably owned), then owned test
+  // servers/workers only. Browsers, foreign checkouts, other users, and
+  // the owner's dev servers are notes with kill hints, never auto-kills.
+  const stop = await run('bash', [join(ROOT, 'scripts', 'live-stack-stop.sh')])
+  process.stdout.write(stop.stdout || stop.stderr)
+  const meOut = await run('whoami', [])
+  const me = meOut.stdout.trim()
+  const procs = await hostStackProcs('vite|playwright|chrome-headless-shell')
+  const { kill, notes } = ownedTestProcs(procs, { repoRoot: ROOT, user: me })
+  for (const proc of kill) {
+    try {
+      process.kill(Number(proc.pid), 'SIGTERM')
+    } catch { /* already gone */ }
+  }
+  if (kill.length > 0) await new Promise((resolve) => setTimeout(resolve, 2000))
+  let stopped = 0
+  for (const proc of kill) {
+    try {
+      process.kill(Number(proc.pid), 0)
+      try {
+        process.kill(Number(proc.pid), 'SIGKILL')
+      } catch { /* raced out */ }
+      stopped += 1
+    } catch {
+      stopped += 1 // SIGTERM already reaped it
+    }
+  }
+  for (const note of notes) console.log(`[INFO] ${note}`)
+  console.log(`stack: clean stopped ${stopped} owned test process(es)`)
+}
+
 const commands = {
   up: ['boot the compose stack with existing images', cmdUp],
+  clean: ['stop the live stack plus owned stale test servers/workers', cmdClean],
   down: ['stop the stack (volumes kept, never deleted)', cmdDown],
   obs: ['start temporal-ui + telemetry (fails if another stack holds the ports)', cmdObs],
   deploy: ['rebuild backend+worker from HEAD, boot, verify health + MCP parity', cmdDeploy],

@@ -12,9 +12,14 @@ import { FakeRunsGateway } from './fake-gateway.js'
 const ENABLED = TEST_DATABASE_URL !== undefined && TEST_DATABASE_URL !== ''
 
 const OPERATOR = 'key-operator'
+const VIEWER = 'key-viewer'
 
 function authHeader(): Record<string, string> {
   return { authorization: `Bearer ${OPERATOR}` }
+}
+
+function viewerHeader(): Record<string, string> {
+  return { authorization: `Bearer ${VIEWER}` }
 }
 
 describe.skipIf(!ENABLED)('sector-linked sessions', () => {
@@ -31,6 +36,12 @@ describe.skipIf(!ENABLED)('sector-linked sessions', () => {
        VALUES ('op', $1, 'tenant-a', NULL, 'operator')
        ON CONFLICT (key_id) DO UPDATE SET key_hash = EXCLUDED.key_hash`,
       [hashKey(OPERATOR)],
+    )
+    await pool.query(
+      `INSERT INTO api_keys (key_id, key_hash, tenant_id, project_id, roles)
+       VALUES ('view', $1, 'tenant-a', NULL, 'viewer')
+       ON CONFLICT (key_id) DO UPDATE SET key_hash = EXCLUDED.key_hash`,
+      [hashKey(VIEWER)],
     )
     await pool.query(
       `INSERT INTO sectors (id, name, topic, state, tenant_id, project_id)
@@ -92,6 +103,31 @@ describe.skipIf(!ENABLED)('sector-linked sessions', () => {
     const generalIds = ((general.json() as { data: Array<{ id: string }> }).data).map((row) => row.id)
     expect(generalIds).toContain(generalChat)
     expect(generalIds).not.toContain(sectorChat)
+  })
+
+  it('toggles the per-chat global context switch for operators only', async () => {
+    const detail = await app.inject({ method: 'GET', url: `/v1/sessions/${sectorChat}`, headers: authHeader() })
+    expect(detail.statusCode).toBe(200)
+    expect((detail.json() as { data: { useGlobalContext: boolean } }).data.useGlobalContext).toBe(true)
+
+    const denied = await app.inject({ method: 'PATCH', url: `/v1/sessions/${sectorChat}/settings`, headers: viewerHeader(), payload: { useGlobalContext: false } })
+    expect(denied.statusCode).toBe(403)
+
+    const bad = await app.inject({ method: 'PATCH', url: `/v1/sessions/${sectorChat}/settings`, headers: { ...authHeader(), 'idempotency-key': 'TEST settings bad' }, payload: { useGlobalContext: 'nope' } })
+    expect(bad.statusCode).toBe(400)
+
+    const missing = await app.inject({ method: 'PATCH', url: '/v1/sessions/sec-nope/settings', headers: { ...authHeader(), 'idempotency-key': 'TEST settings missing' }, payload: { useGlobalContext: false } })
+    expect(missing.statusCode).toBe(404)
+
+    const set = await app.inject({ method: 'PATCH', url: `/v1/sessions/${sectorChat}/settings`, headers: { ...authHeader(), 'idempotency-key': 'TEST settings off' }, payload: { useGlobalContext: false } })
+    expect(set.statusCode).toBe(200)
+    expect((set.json() as { data: { useGlobalContext: boolean } }).data.useGlobalContext).toBe(false)
+
+    const again = await app.inject({ method: 'GET', url: `/v1/sessions/${sectorChat}`, headers: authHeader() })
+    expect((again.json() as { data: { useGlobalContext: boolean } }).data.useGlobalContext).toBe(false)
+    const list = await app.inject({ method: 'GET', url: '/v1/sessions?sectorId=sec-foods', headers: authHeader() })
+    const entry = ((list.json() as { data: Array<{ id: string; useGlobalContext: boolean }> }).data).find((row) => row.id === sectorChat)
+    expect(entry?.useGlobalContext).toBe(false)
   })
 
   it('rejects unknown sectors and blank filters loudly', async () => {
