@@ -62,6 +62,7 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
   const pages: number[] = []
   const reviewerOperations: string[] = []
   let intakeHold: Hold | null = null
+  let intakeBarrier: { target: number; entered: number; maxSeen: number; ready: Promise<void>; release: () => void } | null = null
   let intakeTransient = false
   const transientDomains = new Set<string>()
   const correctedDomains = new Set<string>()
@@ -157,6 +158,7 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
           if (transientDomains.delete(new URL(candidate.url).hostname)) return { reply: '', toolCalls: [], haltNotice: 'TEST temporary source failure' }
           if (intakeTransient) { intakeTransient = false; return { reply: '', toolCalls: [], haltNotice: 'TEST transient provider interruption' } }
           if (intakeHold) { const hold = intakeHold; intakeHold = null; hold.entered(); await hold.ready }
+          if (intakeBarrier) { const barrier = intakeBarrier; barrier.entered += 1; barrier.maxSeen = Math.max(barrier.maxSeen, barrier.entered); if (barrier.entered >= barrier.target) barrier.release(); await Promise.race([barrier.ready, new Promise((_, reject) => setTimeout(() => reject(new Error(`TEST intake barrier stuck at ${barrier.entered}/${barrier.target}`)), 25000))]); barrier.entered -= 1 }
           if (/rejected|uncertain/.test(candidate.url) && !correctedDomains.has(new URL(candidate.url).hostname)) return { reply: JSON.stringify({ decision: candidate.url.includes('rejected') ? 'reject' : 'uncertain', name: 'Unknown', reason: 'TEST basic intake did not establish fit' }), toolCalls: [], sources: [] }
           const name = 'TEST Australian Widgets company'
           const excerpt = `${name} is an Australian manufacturing widgets supplier. Evidence revision ${receiptFault.revision}.`
@@ -187,6 +189,7 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
         { title: 'TEST Australian widgets business', snippet: 'Australian manufacturing widgets', url: 'https://rejected.example.test/' },
         { title: 'TEST Australian Widgets company', snippet: 'Australian manufacturing widgets', url: 'https://widgets.example.test/' },
       ] : []
+      if (query === 'TEST concurrency-four') return page === 0 ? ['c1', 'c2', 'c3', 'c4'].map((domain) => ({ title: 'TEST Australian widgets company', snippet: 'Australian manufacturing widgets', url: `https://${domain}.example.test/` })) : []
       if (query === 'TEST metadata-junk' && page === 0) return [
         { title: 'Top 20 Australian widgets companies', snippet: 'Australian manufacturing widgets directory', url: 'https://widget-directory.example.test/' },
         { title: 'Australian widgets manufacturing jobs', snippet: 'Manufacturing widgets', url: 'https://widget-jobs.example.test/jobs/australia' },
@@ -204,11 +207,11 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
     researchWorker?.shutdown(); turnWorker?.shutdown(); await Promise.all([researchRun, turnRun]); await connection?.close(); await pool?.end(); vi.unstubAllEnvs()
   }, 60000)
 
-  async function start(query: string, target: number, maxCompanies = 10, secondQuery?: string, historyEventLimit?: number, prepare?: (sectorId: string) => Promise<void>) {
+  async function start(query: string, target: number, maxCompanies = 10, secondQuery?: string, historyEventLimit?: number, prepare?: (sectorId: string) => Promise<void>, concurrency = 2) {
     const sector = await createSector(pool, { name: 'TEST Australian widgets', topic: 'Australian manufacturing widgets', initialState: 'draft', scope })
     await projectNewEvents(pool)
     const session = await ensureResearchSession(pool, sector.sectorId, scope)
-    await recordPlanVersion(pool, sector.sectorId, `# TEST discovery\n\n\`\`\`research-plan\n${JSON.stringify({ researchDepth: 'discovery', discoveryTarget: target, discovery: [{ id: 'widgets', title: 'TEST widgets', queries: [query], maxPages: 3 }, ...(secondQuery ? [{ id: 'second', title: 'TEST second direction', queries: [secondQuery], maxPages: 3 }] : [])], companyBrief: 'Discovery only', budgets: { maxCompanies, maxWallMinutes: 5, concurrency: 2 }, acceptance: ['Verified Australian companies'] })}\n\`\`\``, 'test-plan', scope)
+    await recordPlanVersion(pool, sector.sectorId, `# TEST discovery\n\n\`\`\`research-plan\n${JSON.stringify({ researchDepth: 'discovery', discoveryTarget: target, discovery: [{ id: 'widgets', title: 'TEST widgets', queries: [query], maxPages: 3 }, ...(secondQuery ? [{ id: 'second', title: 'TEST second direction', queries: [secondQuery], maxPages: 3 }] : [])], companyBrief: 'Discovery only', budgets: { maxCompanies, maxWallMinutes: 5, concurrency }, acceptance: ['Verified Australian companies'] })}\n\`\`\``, 'test-plan', scope)
     await setSectorState(pool, sector.sectorId, 'planned', { scope }); await projectNewEvents(pool)
     await approveSectorPlan(pool, sector.sectorId, 1, scope); await projectNewEvents(pool)
     await setSectorState(pool, sector.sectorId, 'queued', { scope }); await projectNewEvents(pool)
@@ -282,6 +285,19 @@ describe.skipIf(!ENABLED)('sector discovery coordinator acceptance', () => {
     expect(progress.items.filter((item) => item.kind === 'company')).toHaveLength(1)
     expect(progress.items.filter((item) => item.title.startsWith('Screen '))).toHaveLength(2)
   }, 60000)
+
+  it('fans intake screening out to the plan concurrency budget', async () => {
+    let release!: () => void
+    const ready = new Promise<void>((resolve) => { release = resolve })
+    intakeBarrier = { target: 4, entered: 0, maxSeen: 0, ready, release }
+    try {
+      const run = await start('TEST concurrency-four', 4, 10, undefined, undefined, undefined, 4)
+      expect(await run.handle.result()).toBe('complete')
+      expect(intakeBarrier.maxSeen).toBe(4)
+      const progress = await readResearchProgress(pool, run.sectorId, scope)
+      expect(progress.items.filter((item) => item.kind === 'company')).toHaveLength(4)
+    } finally { intakeBarrier = null }
+  }, 90000)
 
   it('enforces the publication ceiling under concurrent intake transactions', async () => {
     racePublication = true

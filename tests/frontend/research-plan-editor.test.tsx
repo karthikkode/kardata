@@ -30,6 +30,15 @@ describe('owner review of executable plans', () => {
     expect(onSave.mock.calls[0]?.[0]).toContain('"maxCompanies":2000')
     expect(screen.getByRole('alert')).toHaveTextContent('Save failed')
   })
+  it('preserves the approved concurrency budget on owner edits', async () => {
+    const user = userEvent.setup(), onSave = vi.fn(async (_text: string) => true)
+    const budgeted = { ...executable, budgets: { ...executable.budgets, concurrency: 8 } }
+    render(<ResearchPlanEditor markdown="Plan" executable={budgeted} busy={false} error={null} onSave={onSave} />)
+    await user.click(screen.getByRole('button', { name: 'Edit plan' }))
+    await user.type(screen.getByRole('textbox', { name: 'Plan text' }), ' touched')
+    await user.click(screen.getByRole('button', { name: 'Save plan' }))
+    expect(onSave.mock.calls[0]?.[0]).toContain('"concurrency":8')
+  })
   it('closes only after a successful save', async () => {
     const user = userEvent.setup()
     render(<ResearchPlanEditor markdown="Plan" executable={executable} busy={false} error={null} onSave={async () => true} />)

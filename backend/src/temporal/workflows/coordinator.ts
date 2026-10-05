@@ -78,6 +78,10 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
   const version = initial.plan.version
   currentPlanVersion = version
   const plan = initial.plan.executable
+  // Plan budget (1..64, schema-enforced): intake, recovery, validation,
+  // and company fan-out all batch by this. Reads from the approved plan,
+  // so replays reproduce the identical slices.
+  const concurrency = plan.budgets.concurrency
   const compactState = compactTransport && plan.researchDepth === 'discovery'
   if (compactState && input.pinnedVersion !== undefined && input.pinnedVersion !== version) throw ApplicationFailure.nonRetryable('The approved plan changed across history rotation. Owner review/start is required.', 'ResearchPlanChanged')
   if (compactState && intentGeneration === 0 && initial.sector.state === 'paused') { desiredPaused = true; paused = true; pauseStarted = Date.now() }
@@ -194,7 +198,7 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
           for (const entry of interrupted.slice(offset)) await research.researchCheckpointActivity({ ...input, version, item: { ...entry, state: 'blocked', detail: 'Approved company limit reached. Owner review and a revised limit are required.' } })
           break
         }
-        const batch = interrupted.slice(offset, offset + Math.min(2, plan.budgets.maxCompanies - known.length))
+        const batch = interrupted.slice(offset, offset + Math.min(concurrency, plan.budgets.maxCompanies - known.length))
         active = batch.length
         const accepted = await bounded(() => Promise.all(batch.map((entry) => screen({ domain: new URL(entry.sourceUrl!).hostname.replace(/^www\./, ''), name: entry.title.replace(/^Screen /, ''), url: entry.sourceUrl!, intakeKey: entry.id.split(':').at(-1)! }))))
         known = [...new Set([...known, ...accepted.filter((value): value is string => value !== null)])]
@@ -208,9 +212,9 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
       let snapshot = initial
       for (;;) {
         const interrupted = snapshot.progress.items.filter((entry) => entry.kind === 'discovery' && entry.id.includes(':intake:') && ['pending','running','blocked','failed'].includes(entry.state) && (entry.state === 'pending' || !entry.detail.startsWith('uncertain:')) && (compactState || entry.sourceUrl))
-        for (let offset = 0; offset < interrupted.length; offset += 2) {
+        for (let offset = 0; offset < interrupted.length; offset += concurrency) {
           await check()
-          const references = interrupted.slice(offset, offset + 2)
+          const references = interrupted.slice(offset, offset + concurrency)
           const batch = compactState ? await Promise.all(references.map((entry) => research.researchWorkItemActivity({ ...input, version, id: entry.id }))) : references
           for (const entry of batch) settledIntakes.set(entry.id, entry)
           if (companyTotal() >= plan.budgets.maxCompanies) {
@@ -263,7 +267,7 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
             for (let offset = 0; offset < result.candidates.length;) {
               await check()
               if (companyTotal() >= plan.budgets.maxCompanies) break
-              const batch = result.candidates.slice(offset, offset + Math.min(2, plan.budgets.maxCompanies - companyTotal()))
+              const batch = result.candidates.slice(offset, offset + Math.min(concurrency, plan.budgets.maxCompanies - companyTotal()))
               active = batch.length
               const accepted = await bounded(() => Promise.all(batch.map(screen)))
               const previousSize = known.length
@@ -301,9 +305,9 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
       const sample = discoverySample(companies)
       const outcomes: TurnOutcome[] = []
       try {
-        for (let start = 0; start < sample.length; start += 20) {
+        for (let start = 0; start < sample.length; start += 10 * concurrency) {
           await check()
-          const batches = [sample.slice(start, start + 10), sample.slice(start + 10, start + 20)].filter((part) => part.length)
+          const batches = Array.from({ length: concurrency }, (_, index) => sample.slice(start + index * 10, start + (index + 1) * 10)).filter((part) => part.length)
           active = batches.length
           const results = await bounded(() => Promise.all(batches.map(async (part, offset) => {
             const index = Math.floor(start / 10) + offset
@@ -353,9 +357,9 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
     }
     const companies = discovered.progress.items.filter((item) => item.kind === 'company' && item.state !== 'complete')
     let failures = 0
-    for (let index = 0; index < companies.length; index += 2) {
+    for (let index = 0; index < companies.length; index += concurrency) {
       await check()
-      const batch = companies.slice(index, index + 2)
+      const batch = companies.slice(index, index + concurrency)
       active = batch.length
       const results = await bounded(() => Promise.all(batch.map(async (item) => {
         await research.researchCheckpointActivity({ ...input, version, item: { ...item, state: 'running', attempts: item.attempts + 1 } })

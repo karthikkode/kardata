@@ -492,7 +492,7 @@ function PlanForm({ formId, markdown, executable, busy, error, onDirtyChange, on
  discoveryTarget: depth === 'discovery' ? parsedTarget : undefined,
  discovery: parsedDirections,
  companyBrief: brief,
- budgets: { maxCompanies: parsedCompanies, maxWallMinutes: parsedMinutes, concurrency: 2 },
+ budgets: { maxCompanies: parsedCompanies, maxWallMinutes: parsedMinutes, concurrency: executable?.budgets.concurrency ?? 2 },
  acceptance: criteria,
  }
  if (!ExecutableResearchPlan.safeParse(parsed).success) next.plan = 'Check the queries, limits and acceptance criteria. All fields must be valid.'

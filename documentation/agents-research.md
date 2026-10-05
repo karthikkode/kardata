@@ -153,6 +153,13 @@ include followups. Existing histories retain their original contract via the
 workflow marker. Source outcomes use archive refs on production activities; the
 parent validates hydrated bytes, not model-authored citation claims alone.
 
+Fan-out is a plan budget, not a constant: `budgets.concurrency` (1..64,
+schema-enforced) sizes the intake, recovery, validation, and company
+batches. Children run turns through the permit-wrapped provider gateway,
+so wider fan-out stays under the global Meta limiter. Owner edits keep
+the approved value (new plans default 2). Proven by the concurrency
+barrier test in `tests/backend/workflows.coordinator.test.ts`.
+
 ## Compatible revision retention
 
 Plan edit/approval serializes with sector workspace decisions and checks committed
