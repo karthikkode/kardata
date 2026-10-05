@@ -176,6 +176,7 @@ export function matrixApiOptions(
       data.sessions = makeSessions(Math.min(count, 50))
       data.runs = makeRuns(Math.min(count, 50))
       data.subagents = Math.min(count, 50)
+      data.messages = makeMessages(count)
       return { modes, data }
     }
     case 'error':
