@@ -5568,3 +5568,33 @@
   tiers:
     - todo
   states: []
+- id: db.events.listColdPointers
+  layer: db
+  surface: backend/src/db/events.ts
+  tiers:
+    - todo
+  states: []
+- id: db.events.recordColdPointers
+  layer: db
+  surface: backend/src/db/events.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.ColdEventPointer
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.listColdPointers
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.recordColdPointers
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []

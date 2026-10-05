@@ -23,9 +23,12 @@ export {
   deleteEventsBySeq,
   findEventByKey,
   findLaunchParentWorkflowId,
+  type ColdEventPointer,
+  listColdPointers,
   readEventsAfter,
   readEventsOlderThan,
   readPartition,
+  recordColdPointers,
   type StoredEvent,
 } from './events.js'
 export {

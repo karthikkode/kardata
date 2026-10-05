@@ -246,11 +246,15 @@ export async function findLaunchParentWorkflowId(
   return rows[0]?.payload.parentWorkflowId
 }
 
-/** Retention read: oldest-first batch of events past the age window. */
+/** Retention read: oldest-first batch of events past the age window.
+ * Knowledge event types (documents aside, which never enter the log) stay
+ * hot: artifacts, execution records and company facts are read live from
+ * the log, so retention excludes them when told to. */
 export async function readEventsOlderThan(
   db: Db,
   olderThanDays: number,
   limit: number,
+  excludeTypes: string[] = [],
 ): Promise<StoredEvent[]> {
   if (!Number.isFinite(olderThanDays) || olderThanDays < 0) {
     throw new DbContractError('olderThanDays must be a non-negative number')
@@ -261,10 +265,55 @@ export async function readEventsOlderThan(
   const { rows } = await db.query<RawEventRow>(
     `SELECT seq, idempotency_key, partition, type, payload, redacted, at, trace_id, client FROM events
      WHERE at < now() - make_interval(days => $1)
+       AND ($3::text[] IS NULL OR type <> ALL($3::text[]))
      ORDER BY seq ASC LIMIT $2`,
-    [olderThanDays, limit],
+    [olderThanDays, limit, excludeTypes.length > 0 ? excludeTypes : null],
   )
   return rows.map(toStoredEvent)
+}
+
+export interface ColdEventPointer {
+  partition: string
+  seq: number
+  archiveKey: string
+  type: string
+  at: string
+}
+
+/** Records one cold-storage pointer per moved event: the hot log keeps a
+ * durable reference to where the bytes went. Idempotent per run. */
+export async function recordColdPointers(db: Db, pointers: ColdEventPointer[]): Promise<void> {
+  if (pointers.length === 0) return
+  const values: unknown[] = []
+  const tuples = pointers.map((pointer, index) => {
+    const base = index * 5
+    values.push(pointer.partition, pointer.seq, pointer.archiveKey, pointer.type, pointer.at)
+    return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5}::timestamptz)`
+  })
+  await db.query(
+    `INSERT INTO cold_event_pointers(partition, seq, archive_key, type, at) VALUES ${tuples.join(',')} ON CONFLICT(partition, seq) DO NOTHING`,
+    values,
+  )
+}
+
+/** Lists cold-storage pointers for a partition (or the whole log), so replay
+ * and audit can find moved bytes without scanning the archive. */
+export async function listColdPointers(db: Db, partition?: string): Promise<ColdEventPointer[]> {
+  const { rows } = partition
+    ? await db.query<{ partition: string; seq: string; archive_key: string; type: string; at: Date | string }>(
+        'SELECT partition, seq, archive_key, type, at FROM cold_event_pointers WHERE partition = $1 ORDER BY seq ASC',
+        [partition],
+      )
+    : await db.query<{ partition: string; seq: string; archive_key: string; type: string; at: Date | string }>(
+        'SELECT partition, seq, archive_key, type, at FROM cold_event_pointers ORDER BY partition ASC, seq ASC',
+      )
+  return rows.map((row) => ({
+    partition: row.partition,
+    seq: Number(row.seq),
+    archiveKey: row.archive_key,
+    type: row.type,
+    at: row.at instanceof Date ? row.at.toISOString() : String(row.at),
+  }))
 }
 
 /** Retention delete: drops exactly the archived seqs. */

@@ -79,8 +79,20 @@ CREATE INDEX IF NOT EXISTS tool_calls_thread_at_idx ON tool_calls (thread_key, a
 -- artifact document. Uploads and legacy rows stay null.
 ALTER TABLE sector_documents ADD COLUMN author_thread text;
 
+-- P3.5 retention cold pointers: every operational event moved to cold
+-- storage keeps a durable DB reference to its archive bytes.
+CREATE TABLE cold_event_pointers (
+  partition text NOT NULL,
+  seq bigint NOT NULL,
+  archive_key text NOT NULL,
+  type text NOT NULL,
+  at timestamptz NOT NULL,
+  PRIMARY KEY (partition, seq)
+);
+
 -- migrate:down
 
+DROP TABLE IF EXISTS cold_event_pointers;
 ALTER TABLE sector_documents DROP COLUMN IF EXISTS author_thread;
 DROP INDEX IF EXISTS tool_calls_thread_at_idx;
 DROP INDEX IF EXISTS execution_rounds_trace_idx;

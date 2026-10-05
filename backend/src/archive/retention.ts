@@ -5,11 +5,27 @@
 // runRetention lands in B2.1; this module is the job body.
 import type { ArchiveTarget } from './targets.js'
 import {
+  type ColdEventPointer,
   type Db,
   deleteEventsBySeq,
+  recordColdPointers,
   readEventsOlderThan,
   type StoredEvent,
 } from '../db/index.js'
+
+/** Knowledge event types never move to cold storage: artifacts, execution
+ * records and company facts are read live from the hot log, and documents
+ * never enter the log at all. Only operational events move, with a DB
+ * pointer kept per moved event. */
+export const KNOWLEDGE_EVENT_TYPES = [
+  't.artifact.stored',
+  't.artifact.indexed',
+  't.artifact.referenced',
+  't.execution.recorded',
+  'company.found',
+  'company.stage_changed',
+  'company.state_changed',
+]
 
 export interface RetentionOptions {
   /** Archive events strictly older than this many days. */
@@ -29,12 +45,14 @@ function archiveKey(partition: string, seq: number): string {
 
 export async function runRetention(db: Db, target: ArchiveTarget, options: RetentionOptions): Promise<RetentionResult> {
   const batchSize = options.batchSize ?? 1_000
-  const rows = await readEventsOlderThan(db, options.olderThanDays, batchSize)
+  const rows = await readEventsOlderThan(db, options.olderThanDays, batchSize, KNOWLEDGE_EVENT_TYPES)
   for (const row of rows) {
     const body = JSON.stringify(row)
     await target.write(archiveKey(row.partition, row.seq), body)
   }
   if (rows.length > 0) {
+    const pointers: ColdEventPointer[] = rows.map((row) => ({ partition: row.partition, seq: row.seq, archiveKey: archiveKey(row.partition, row.seq), type: row.type, at: row.at }))
+    await recordColdPointers(db, pointers)
     await deleteEventsBySeq(
       db,
       rows.map((row) => row.seq),
