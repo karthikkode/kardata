@@ -5,9 +5,8 @@ import { z } from 'zod'
 import type { Scope } from '../auth/types.js'
 import { appendEvent, type Db } from './events.js'
 import type { TransactableDb } from './checkpoints.js'
-import { DbContractError, WorkspaceError } from './errors.js'
+import { DbContractError, Id, WorkspaceError } from './errors.js'
 import { assertRevision, receiptTransaction, visible, type FileProcessingJob } from './file-jobs.js'
-import { Id } from './workspace.js'
 
 export function fileProcessingWorkflowId(jobId:string,revision:number):string {Id.parse(jobId);if(!Number.isInteger(revision)||revision<0)throw new DbContractError('File revision must be nonnegative.');return `file-processing-${jobId}-r${revision}`;}
 export async function reserveFileProcessingDispatch(db:TransactableDb,jobId:string,revision:number,nonce:string=randomUUID(),scope?:Scope):Promise<{workflowId:string;nonce:string;ownsReservation:boolean;state:FileProcessingJob['dispatchState']}> {

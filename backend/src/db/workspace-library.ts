@@ -5,16 +5,12 @@ import type { Scope } from '../auth/types.js'
 import { appendEvent, findEventByKey, type Db } from './events.js'
 import { listArtifacts, resolveArtifactScope } from './event-artifacts.js'
 import { listSessions } from './sessions.js'
-import { DbContractError, WorkspaceError } from './errors.js'
+import { checked, DbContractError, Id, WorkspaceError } from './errors.js'
 import { ingestSectorDocument, listSectorDocuments, readOriginalSectorDocument } from './sector-documents.js'
 import { listSectorFileProcessing, type FileProcessingProgress } from './file-jobs.js'
 import { createLogger, logOp } from '../observability/logging.js'
 
-import {
-  checked,
-  requireSector,
-  Id,
-} from './workspace.js'
+import { requireSector } from './workspace.js'
 
 const workspaceLogger = createLogger({ op: 'workspace' })
 

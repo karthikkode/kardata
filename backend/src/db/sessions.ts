@@ -4,14 +4,19 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import type { Scope } from '../auth/types.js'
-import { DbContractError } from './errors.js'
-import { sessionKind, WorkspaceError } from './workspace.js'
+import { checked, DbContractError, Id, WorkspaceError } from './errors.js'
 
 import {
   appendEvent,
   readPartition,
   type Db,
 } from './events.js'
+
+export async function sessionKind(db: Db, sessionId: string): Promise<'research' | 'normal'> {
+  checked(Id, sessionId)
+  const { rows } = await db.query('SELECT sector_id FROM sector_workspace WHERE research_session_id=$1', [sessionId])
+  return rows.length ? 'research' : 'normal'
+}
 
 // Session reads straight from the event log (moved from sessions/query.ts,
 // B7.5 behavior-neutral). Sessions have no projection table: identity and

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { LifecycleButton, type ResearchActions } from '@/components/SectorWorkspace'
+import { LifecycleButton } from '@/components/SectorWorkspace'
+import type { ResearchActions } from '@/components/plan/PlanTab'
 
 function actions(overrides: Partial<ResearchActions> = {}): ResearchActions {
   return {

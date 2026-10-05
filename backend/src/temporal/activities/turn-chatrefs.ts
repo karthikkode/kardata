@@ -1,8 +1,7 @@
 // Turn chat references: [[session:id|title]] markers, research-chat
 // resolution, and bounded text history for prompts.
 import type { ChatMessage } from '@kardata/agents'
-import { getSession, type Db } from '../../db/index.js'
-import { sessionKind } from '../../db/workspace.js'
+import { getSession, sessionKind, type Db } from '../../db/index.js'
 import { RESEARCH_TOOLS } from './turn-palettes.js'
 
 const CHAT_REF_PATTERN = /\[\[session:([^|\]]+)\|([^\]]*)\]\]/g

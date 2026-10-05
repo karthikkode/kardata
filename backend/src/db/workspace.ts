@@ -1,11 +1,11 @@
 import { z } from 'zod'
 import type { Scope } from '../auth/types.js'
-import { createSession, getSession, listSessions } from './sessions.js'
+import { createSession, getSession, listSessions, sessionKind } from './sessions.js'
 import { readPartition, type Db } from './events.js'
 import { getSector } from './sectors.js'
 import { getThreadHeader, listThreadHeaders } from './threads.js'
 import { DURABLE_STREAM_LOCK_SQL, type TransactableDb } from './checkpoints.js'
-import { DbContractError, WorkspaceError } from './errors.js'
+import { checked, Id, WorkspaceError } from './errors.js'
 export { WorkspaceError } from './errors.js'
 import { estimateTokens } from '@kardata/agents'
 import { type ContextFileRef } from './context-files.js'
@@ -35,13 +35,6 @@ export interface ContextChange {
   fileRef: { fileId: string; hash: string; filename: string; ords: number[] } | null
 }
 export interface ThreadContext { pendingResponse?: { round: number }; task?: string; sourceRefs?: ContextFileRef[]; contextBlocked?: string; pendingOperations?: Array<{ operationId: string; toolName: string; callId: string; reason: string }>; threadKey: string; notes: string; summary: string; coveredSeq: number; version: number; usage?: { inputTokens: number; budget: number; window: number; method: 'exact' | 'estimated' } }
-/** Shared id schema and validator for the workspace slices. */
-export const Id = z.string().min(1).max(255)
-export function checked<T>(schema: z.ZodType<T>, value: unknown): T {
-  const result = schema.safeParse(value)
-  if (!result.success) throw new DbContractError(result.error.issues[0]?.message ?? 'invalid workspace input')
-  return result.data
-}
 export async function workspaceTransaction<T>(db: TransactableDb, key: string, fn: (tx: Db) => Promise<T>): Promise<T> {
   checked(Id, key)
   const client = await db.connect()
@@ -92,11 +85,6 @@ export async function ensureResearchSession(db: TransactableDb, sectorId: string
     if (!session) throw new WorkspaceError('not_found', 'Research conversation not found.')
     return { ...session, kind: 'research' as const }
   })
-}
-export async function sessionKind(db: Db, sessionId: string): Promise<'research' | 'normal'> {
-  checked(Id, sessionId)
-  const { rows } = await db.query('SELECT sector_id FROM sector_workspace WHERE research_session_id=$1', [sessionId])
-  return rows.length ? 'research' : 'normal'
 }
 export interface SectorSessionView {
   id: string

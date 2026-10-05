@@ -7,7 +7,7 @@ import { z } from 'zod'
 import type { Scope } from '../auth/types.js'
 import { appendEvent, type Db } from './events.js'
 import { type TransactableDb } from './checkpoints.js'
-import { DbContractError, WorkspaceError } from './errors.js'
+import { checked, DbContractError, Id, WorkspaceError } from './errors.js'
 import { publishOutboxFrame } from './outbox.js'
 import type { ChatMessage, Usage } from '@kardata/agents'
 import { estimateTokens } from '@kardata/agents'
@@ -15,10 +15,8 @@ import { assertThreadFileContext, ContextFileBlocked, threadFileRefs, validateFi
 
 import {
   type ThreadContext,
-  checked,
   requireThread,
   workspaceTransaction,
-  Id,
 } from './workspace.js'
 
 const INHERITED_MESSAGE_CAP = 20

@@ -5,7 +5,7 @@ import { z } from 'zod'
 import type { Scope } from '../auth/types.js'
 import { appendEvent, findEventByKey, type Db } from './events.js'
 import { type TransactableDb } from './checkpoints.js'
-import { DbContractError, WorkspaceError } from './errors.js'
+import { checked, DbContractError, Id, WorkspaceError } from './errors.js'
 import { listDocumentUnits } from './document-units.js'
 import { progressSummary, type WorkItem } from '../research-plan.js'
 import { discoverySample } from '../discovery-acceptance.js'
@@ -14,11 +14,9 @@ import { assertThreadFileContext, mergeFileRefs, recordThreadFileExposure, listC
 import { createLogger, logOp } from '../observability/logging.js'
 
 import {
-  checked,
   requireSector,
   workspaceRow,
   workspaceTransaction,
-  Id,
 } from './workspace.js'
 import { assertGlobalFileContext, notifyWorkspace, readGlobalContext, type ChangeRow } from './workspace-global-context.js'
 import { listSectorLibrary } from './workspace-library.js'

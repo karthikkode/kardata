@@ -5,10 +5,10 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import type { Scope } from '../auth/types.js'
 import { appendEvent, type Db } from './events.js'
-import { listSessions } from './sessions.js'
+import { listSessions, sessionKind } from './sessions.js'
 import { listThreadHeaders } from './threads.js'
 import { type TransactableDb } from './checkpoints.js'
-import { WorkspaceError } from './errors.js'
+import { checked, Id, WorkspaceError } from './errors.js'
 import { publishOutboxFrame } from './outbox.js'
 import { listDocumentUnits } from './document-units.js'
 import { assertThreadFileContext, ContextFileBlocked, mergeFileRefs, threadFileRefs, validateFileRefs, insertContextFileBlock, listContextFileBlocks, readContextFileBlock, resetContextFileBlock, type ContextFileRef } from './context-files.js'
@@ -19,14 +19,11 @@ import {
   type GlobalContext,
   type GlobalContextUsage,
   PartialContextSections,
-  checked,
   globalContextUsageFrom,
   requireSector,
   requireThread,
-  sessionKind,
   workspaceRow,
   workspaceTransaction,
-  Id,
 } from './workspace.js'
 import { listSectorLibrary } from './workspace-library.js'
 

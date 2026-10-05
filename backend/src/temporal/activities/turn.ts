@@ -39,10 +39,11 @@ import {
   recordHeartbeat,
   searchKb,
   workerPoolFromEnv,
+  sessionKind,
   type Db,
 } from '../../db/index.js'
 import { isThreadPaused, readInheritedContext } from '../../db/workspace-threads.js'
-import { readSessionSettings, sessionKind } from '../../db/workspace.js'
+import { readSessionSettings } from '../../db/workspace.js'
 import { projectNewEvents } from '../../projector.js'
 import { localContextMessages } from '../../context.js'
 import { findModel } from '../../providers/registry.js'

@@ -3997,9 +3997,9 @@
   tiers:
     - todo
   states: []
-- id: db.workspace.sessionKind
+- id: db.sessions.sessionKind
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/sessions.ts
   tiers:
     - todo
   states: []
@@ -5388,15 +5388,15 @@
   tiers:
     - todo
   states: []
-- id: db.workspace.Id
+- id: db.errors.Id
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/errors.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.checked
+- id: db.errors.checked
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/errors.ts
   tiers:
     - todo
   states: []
