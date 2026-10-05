@@ -13,12 +13,17 @@ research sessions), file summaries and compaction get 180 s,
 chat keeps 60 s (`turnRoundTimeoutMs`,
 `CONTEXT_FILE_CALL_TIMEOUT_MS`); L-PLAN x3 green (161/139/110 s,
 tries=1, slowest round 27.7 s, fast window). Unit 67/67 on the
-four touched files, backend typecheck clean. Full gates
-(pr:verify, DB suite, Playwright) not re-run: out of the
-follow-up scope, no product-surface change outside the two
-fixes. Env note: a docker daemon restart mid-proof left db and
-temporal down (restart policy `no`); `docker start` restored
-them, volumes untouched.
+four touched files, backend typecheck clean. `pr:verify`
+re-run green on the branch (exit 0; frontend 778/6, agents
+282/2, backend 688 pass + 547 DB-gated skips; backend +12 vs
+stage 4 from the new tests). Hardening catalog + acceptance
+regenerated for the 4 new exports and 1 new test file
+(`5b7f0d5`); the regen also refreshed a stale `pending` hash
+for `stage2.live.test.ts` (never re-checked, no finding). DB
+suite and Playwright not re-run: no product-surface change
+outside the two fixes. Env note: a docker daemon restart
+mid-proof left db and temporal down (restart policy `no`);
+`docker start` restored them, volumes untouched.
 
 Sector backend v1, stage 4 FINAL (2026-10-05, `sector-backend-v1`,
 merged to main): pr:verify exit 0, DB suite 1165/56/0, Playwright

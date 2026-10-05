@@ -654,3 +654,12 @@ the stack (volumes untouched); all services healthy before the
 re-run. That attempt does not count in the 3/3.
 
 Follow-up live spend total: input 313234, output 70848.
+
+Gate: `KARDATA_META_KEY= npm run pr:verify` exit 0 on the
+branch (frontend 778 passed / 6 skipped, agents 282 / 2,
+backend 688 passed / 547 DB-gated skipped, frontend build
+green). The first gate run flagged only the hardening
+catalog/acceptance inventories (new file + 4 new exports);
+regenerated per the repo recipe and committed as `5b7f0d5`.
+DB suite and Playwright were not re-run (no product-surface
+change outside the two fixes).
