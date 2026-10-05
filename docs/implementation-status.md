@@ -12,6 +12,9 @@ replaces `set -a` sourcing (node owns `--env-file`, hence `--file`);
 Forbidden work. Narrow-pattern hits remain only in dated history
 (status, preflight review). Gate: `pr:verify` exit 0 (frontend 778/6,
 agents 282/2, backend 694/545, build green); compose config valid.
+(Red along the way: backend typecheck failed on the new stack test -
+`stack-lib.d.mts` lacked the `ownedTestProcs` export; declaration added,
+green after. Test-side contract gap, product correct.)
 
 Sector-backend-v1.1 follow-up (2026-10-05, branch
 `sector-backend-v1.1` from main, unmerged): two fixes, each
