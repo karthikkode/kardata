@@ -194,14 +194,15 @@ export class FakeRunsGateway implements RunsGateway {
   }
 
   async resumeRun(runId: string, extendedBudgetMs?: number): Promise<CommandResult> {
+    // Mirrors production per-type resume signals.
     const type = this.requireRun(runId)
     const args = extendedBudgetMs !== undefined ? [extendedBudgetMs] : []
-    if (type === 'subagentRun') {
-      await setThreadPaused(this.pool, `agent:${runId}`, false)
+    if (type === 'subagentRun' || type === 'companyResearch') {
+      if (type === 'subagentRun') await setThreadPaused(this.pool, `agent:${runId}`, false)
       this.signals.push({ workflowId: runId, signal: 'childResume', args })
       return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
     }
-    this.signals.push({ workflowId: runId, signal: 'runResume', args })
+    this.signals.push({ workflowId: runId, signal: type === 'researchRun' ? 'researchResume' : 'runResume', args })
     return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
   }
 
