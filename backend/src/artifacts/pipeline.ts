@@ -10,7 +10,7 @@
 // proposal path structurally cannot write company mutations.
 import { createHash, randomUUID } from 'node:crypto'
 import type { ArchiveTarget } from '../archive/targets.js'
-import type { StoredEvent } from '../db/index.js'
+import type { StoredEvent } from '../db/events.js'
 
 export const ARTIFACT_STORED_EVENT = 't.artifact.stored'
 export const ARTIFACT_INDEXED_EVENT = 't.artifact.indexed'
