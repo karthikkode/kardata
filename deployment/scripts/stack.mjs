@@ -277,6 +277,42 @@ async function cmdWorkerCompose() {
   console.log('stack: compose worker polling')
 }
 
+async function cmdWorker(args) {
+  // Compose replica scaling: every replica polls the same lanes, and the
+  // Meta permit table caps the fleet. Cap 16: 16 workers x 5 PG
+  // connections + server pool stays inside a 100-connection budget.
+  let replicas = 1
+  const flag = args.indexOf('--replicas')
+  if (flag >= 0) {
+    replicas = Number(args[flag + 1])
+    if (!Number.isInteger(replicas) || replicas < 1 || replicas > 16) {
+      console.error('stack: --replicas must be an integer from 1 to 16')
+      process.exit(1)
+    }
+  }
+  const procs = (await hostStackProcs()).filter((p) => isWorkerCmd(p.cmd))
+  if (procs.length > 0) {
+    console.error('stack: refusing to scale the compose worker: host worker(s) already polling:')
+    for (const p of procs) console.error(`  $ ${p.user === 'root' ? 'sudo ' : ''}kill ${p.pid}  # ${p.cmd.slice(0, 70)}`)
+    process.exit(1)
+  }
+  const out = await run('docker', ['compose', '-f', COMPOSE, 'up', '-d', '--scale', `worker=${replicas}`, 'worker'], { env: composeEnv() })
+  process.stdout.write(out.stdout || out.stderr)
+  if (!out.ok) process.exit(1)
+  const ok = await waitFor(`${replicas} worker(s) polling`, async () => {
+    const names = (await composePs())
+      .filter((s) => s.Service === 'worker' && s.State === 'running')
+      .map((s) => s.Name)
+    if (names.length < replicas) return false
+    for (const name of names) {
+      if (!(await containerLogHas(name, 'turn worker polling'))) return false
+    }
+    return true
+  })
+  if (!ok) process.exit(1)
+  console.log(`stack: ${replicas} compose worker(s) polling`)
+}
+
 async function cmdClean() {
   // Recorded live-stack PIDs first (provably owned), then owned test
   // servers/workers only. Browsers, foreign checkouts, other users, and
@@ -319,12 +355,13 @@ const commands = {
   doctor: ['fail on duplicate fleets / stale images; warn + fixes otherwise', cmdDoctor],
   'worker:host': ['refuse if a host worker polls, else stop compose worker and run the laptop one', cmdWorkerHost],
   'worker:compose': ['refuse if a host worker polls, else start the compose worker', cmdWorkerCompose],
+  worker: ['scale the compose worker (default 1): stack.mjs worker --replicas N', cmdWorker],
 }
 
-const [command] = process.argv.slice(2)
+const [command, ...commandArgs] = process.argv.slice(2)
 if (!command || !(command in commands)) {
   console.log('usage: npm run stack:<command>')
   for (const [name, [help]] of Object.entries(commands)) console.log(`  ${name.padEnd(14)} ${help}`)
   process.exit(command ? 1 : 0)
 }
-await commands[command][1]()
+await commands[command][1](commandArgs)

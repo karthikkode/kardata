@@ -35,7 +35,8 @@
     "stack:status": "node deployment/scripts/stack.mjs status",
     "stack:doctor": "node deployment/scripts/stack.mjs doctor",
     "stack:worker:host": "node deployment/scripts/stack.mjs worker:host",
-    "stack:worker:compose": "node deployment/scripts/stack.mjs worker:compose"
+    "stack:worker:compose": "node deployment/scripts/stack.mjs worker:compose",
+    "stack:worker": "node deployment/scripts/stack.mjs worker"
   },
   "devDependencies": {
     "@stryker-mutator/core": "^10.0.0",
