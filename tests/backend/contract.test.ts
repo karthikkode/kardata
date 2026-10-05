@@ -73,14 +73,25 @@ describe('API contract (B0.2)', () => {
     for (const expected of EXPECTED_TYPES) {
       expect(covered.has(`${expected.sourceFile}::${expected.mockType}`), `${expected.mockType}`).toBe(true)
     }
-    // No silent additions: every exported UI type in ChatPanel is expected.
-    const actual = new Set<string>()
-    for (const name of exportedTypes('frontend/src/components/ChatPanel.tsx')) {
-      actual.add(`frontend/src/components/ChatPanel.tsx::${name}`)
+    // Every table entry points at a real export (P2 audit: the chat/api
+    // splits hollowed this table once; ghosts fail loudly now).
+    for (const entry of [...PARITY, ...EXPECTED_TYPES]) {
+      expect(exportedTypes(entry.sourceFile), entry.sourceFile).toContain(entry.mockType)
     }
-    for (const expected of EXPECTED_TYPES.filter((entry) => entry.sourceFile === 'frontend/src/components/ChatPanel.tsx')) {
+    // No silent additions: every exported UI type in the chat-type homes is expected.
+    const chatHomes = ['frontend/src/components/chat/messages.ts', 'frontend/src/components/chat/MessageBubble.tsx']
+    // LoadState is a UI load-state union, not a wire shape (P2 audit).
+    const nonWire = new Set(['frontend/src/components/chat/messages.ts::LoadState'])
+    const actual = new Set<string>()
+    for (const home of chatHomes) {
+      for (const name of exportedTypes(home)) {
+        actual.add(`${home}::${name}`)
+      }
+    }
+    for (const expected of EXPECTED_TYPES.filter((entry) => chatHomes.includes(entry.sourceFile))) {
       actual.delete(`${expected.sourceFile}::${expected.mockType}`)
     }
+    for (const known of nonWire) actual.delete(known)
     expect([...actual]).toEqual([])
   })
 
