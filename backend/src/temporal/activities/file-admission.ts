@@ -5,6 +5,7 @@ import {defaultPayloadConverter} from '@temporalio/common'
 import {listFileAdmissionCandidates,readFileJobBoundary,pauseFileProcessingJob,markFileProcessingDispatchOutcome,failFileProcessingJob,fileProcessingWorkflowId,workerPoolFromEnv,type TransactableDb,type FileProcessingJob} from '../../db/index.js'
 import {projectNewEvents} from '../../projector.js'
 import {createLogger,logOp} from '../../observability/logging.js'
+import {temporalClientInterceptors} from '../../observability/temporal-tracing.js'
 import {connectClient,temporalNamespace} from '../connection.js'
 import { TemporalRunsGateway } from '../runs-gateway.js'
 
@@ -56,7 +57,7 @@ export async function reconcileFileAdmissionPage(db:TransactableDb,cursor:string
 export async function fileAdmissionPageActivity(cursor:string){
  const connection:Connection=await connectClient(),context=Context.current()
  try{
-  const client=new Client({connection,namespace:context.info.namespace??temporalNamespace()})
+  const client=new Client({connection,namespace:context.info.namespace??temporalNamespace(),interceptors:{workflow:temporalClientInterceptors()}})
   const db=workerPoolFromEnv(),gateway=new TemporalRunsGateway(db,connection)
   return await reconcileFileAdmissionPage(db,cursor,job=>inspectFileAdmissionOwner(client,job),(id,revision)=>gateway.startFileProcessing(id,revision),()=>context.heartbeat({phase:'file-admission'}))
  }finally{await connection.close()}

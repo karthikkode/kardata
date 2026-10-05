@@ -5,6 +5,7 @@
 import { buildApp } from './app.js'
 import { createDbPool, serverPoolBudget } from './db/index.js'
 import { createLogger } from './observability/logging.js'
+import { ensureTemporalTracing } from './observability/temporal-tracing.js'
 import { ensureTracing, wrapPool } from './observability/tracing.js'
 import { TemporalRunsGateway } from './temporal/runs-gateway.js'
 
@@ -13,6 +14,8 @@ const connectionString = process.env['DATABASE_URL']
 const logger = createLogger({ op: 'http' })
 // Spans export as JSONL through the app logger (B5.2 staging path).
 ensureTracing({ logger })
+// OTel context manager + propagator for the Temporal interceptors (P3.2).
+ensureTemporalTracing()
 const pool = connectionString ? wrapPool(createDbPool(connectionString, serverPoolBudget())) : undefined
 const app = buildApp({
   pool,

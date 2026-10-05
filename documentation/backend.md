@@ -487,6 +487,15 @@ share one minted/validated trace ID despite plugin registration order; unmatched
 routes collapse to `*unmatched*`. URLs, query strings, headers, request bodies and
 exception bodies/stacks are excluded. Existing metrics keep bounded route labels.
 
+Temporal carries the same trace end to end (P3.2). The runs gateway, worker
+factory, and every other Temporal client install the OTel interceptors from
+`backend/src/observability/temporal-tracing.ts`, with the OTel context manager
+and W3C propagator registered in both entries. Workflow starts wrap in
+`withAmbientTrace` (ambient OTel trace, else the request trace, else a fresh
+id); the mandatory workflow-span sink exports as JSONL beside server spans.
+One `trace_id` joins the HTTP log, workflow start, activity logs, provider
+rounds, MCP callbacks, and DB events; no collector or new service.
+
 New discovery coordinators use the compact-state Temporal patch. Status checks
 carry scope/version/budget only; snapshots carry bounded retry references and a
 validation sample, with a1.5MB serialized guard. Full records are read through

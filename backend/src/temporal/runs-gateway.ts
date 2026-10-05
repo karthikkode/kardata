@@ -27,6 +27,7 @@ import {
 import { connectClient,temporalNamespace } from './connection.js'
 import { laneConfig } from './lanes.js'
 import { createLogger, logOp } from '../observability/logging.js'
+import { temporalClientInterceptors, withAmbientTrace } from '../observability/temporal-tracing.js'
 import { projectNewEvents } from '../projector.js'
 import { loadOriginalTurnRecovery } from './turn-recovery.js'
 import { defaultPayloadConverter } from '@temporalio/common'
@@ -70,7 +71,7 @@ export class TemporalRunsGateway implements RunsGateway {
     if (!this.clientPromise) {
       this.clientPromise = (async () => {
         const connection = this.connection ?? (await connectClient())
-        return new Client({ connection,namespace: temporalNamespace() })
+        return new Client({ connection,namespace: temporalNamespace(),interceptors: { workflow: temporalClientInterceptors() } })
       })()
     }
     return this.clientPromise
@@ -90,10 +91,10 @@ export class TemporalRunsGateway implements RunsGateway {
       const client = await this.client()
       try {
         if (reservation.ownsReservation) {
-          const handle = await client.connection.withDeadline(Date.now() + 2_000, () => client.workflow.start('fileProcessing', {
+          const handle = await client.connection.withDeadline(Date.now() + 2_000, () => withAmbientTrace(() => client.workflow.start('fileProcessing', {
             workflowId, taskQueue: laneConfig('research').taskQueue,
             args: [{ jobId, revision, dispatchNonce: nonce }],
-          }))
+          })))
           await markFileProcessingDispatchOutcome(this.pool, { jobId, revision, nonce, workflowId, outcome: 'confirmed', executionId: handle.firstExecutionRunId })
           return
         }
@@ -241,11 +242,11 @@ export class TemporalRunsGateway implements RunsGateway {
     const client = await this.client()
     const plan = await readSectorPlan(this.pool, sectorId, scope)
     const approved = plan?.versions.find((entry) => entry.version === plan.approvedVersion)
-    const start = () => client.workflow.start(approved?.executable ? 'sectorCoordinator' : 'sectorSweep', {
+    const start = () => withAmbientTrace(() => client.workflow.start(approved?.executable ? 'sectorCoordinator' : 'sectorSweep', {
         workflowId: `sector-sweep-${sectorId}`,
         taskQueue: laneConfig('research').taskQueue,
         args: [{ sectorId,ownerEpochProtocol: true, ...(scope === undefined ? {} : { scope }) }],
-      })
+      }))
     try {
       await start()
     } catch (error) {
@@ -285,7 +286,7 @@ export class TemporalRunsGateway implements RunsGateway {
   async delegateSubagent(input: DelegateSubagentInput): Promise<DelegatedChild> {
     const childId = `child-${randomUUID()}`
     const client = await this.client()
-    await client.workflow.signalWithStart('delegateParent', {
+    await withAmbientTrace(() => client.workflow.signalWithStart('delegateParent', {
       workflowId: delegationWorkflowId(input.sessionId),
       taskQueue: input.taskQueue ?? laneConfig('turn').taskQueue,
       signal: 'parentDelegate',
@@ -302,7 +303,7 @@ export class TemporalRunsGateway implements RunsGateway {
         },
       ],
       args: [{ sessionId: input.sessionId,ownerEpochProtocol: true }],
-    })
+    }))
     // The parent starts the child asynchronously (duplicate ids and a
     // full fan-out reject instead of starting): poll its state, then feed
     // the goal. A rejection surfaces here as a timeout, never a silent
@@ -342,11 +343,11 @@ export class TemporalRunsGateway implements RunsGateway {
     if (!sessionId) throw new Error('startSectorPlan needs the planning chat sessionId')
     const client = await this.client()
     await this.startWithEpoch(sessionId,sessionId,`sector-plan-${sectorId}`,async (ownerEpoch) => {
-      try { return await client.workflow.start('sectorPlan', {
+      try { return await withAmbientTrace(() => client.workflow.start('sectorPlan', {
         workflowId: `sector-plan-${sectorId}`,
         taskQueue: laneConfig('research').taskQueue,
         args: [{ sectorId, sessionId,ownerEpoch, ...(scope === undefined ? {} : { scope }) }],
-      })
+      }))
       } catch (error) {
       if (error instanceof WorkflowExecutionAlreadyStartedError) {
         return client.workflow.getHandle(`sector-plan-${sectorId}`)
@@ -364,11 +365,11 @@ export class TemporalRunsGateway implements RunsGateway {
     const client = await this.client()
     const workflowId = `context-file-${sectorId}-${fileId}-${hash.slice(0, 8)}`
     try {
-      await client.workflow.start('contextFileSummary', {
+      await withAmbientTrace(() => client.workflow.start('contextFileSummary', {
         workflowId,
         taskQueue: laneConfig('research').taskQueue,
         args: [{ sectorId, fileId, hash }],
-      })
+      }))
     } catch (error) {
       if (error instanceof WorkflowExecutionAlreadyStartedError) return { commandId: commandId(), state: 'accepted' }
       throw error
@@ -391,11 +392,11 @@ export class TemporalRunsGateway implements RunsGateway {
   async startContextCompaction(sectorId: string, reason: 'auto' | 'manual'): Promise<CommandResult> {
     const client = await this.client()
     try {
-      await client.workflow.start('globalContextCompaction', {
+      await withAmbientTrace(() => client.workflow.start('globalContextCompaction', {
         workflowId: contextCompactionWorkflowId(sectorId),
         taskQueue: laneConfig('research').taskQueue,
         args: [{ sectorId, reason }],
-      })
+      }))
     } catch (error) {
       if (error instanceof WorkflowExecutionAlreadyStartedError) return { commandId: commandId(), state: 'accepted' }
       throw error
@@ -421,13 +422,13 @@ export class TemporalRunsGateway implements RunsGateway {
       },
     ]
     try {
-      await this.startWithEpoch(target.sessionId,target.sessionId,`${SESSION_PREFIX}${target.sessionId}`,(ownerEpoch) => client.workflow.signalWithStart(SESSION_WORKFLOW_TYPE, {
+      await this.startWithEpoch(target.sessionId,target.sessionId,`${SESSION_PREFIX}${target.sessionId}`,(ownerEpoch) => withAmbientTrace(() => client.workflow.signalWithStart(SESSION_WORKFLOW_TYPE, {
         workflowId: `${SESSION_PREFIX}${target.sessionId}`,
         taskQueue: laneConfig('turn').taskQueue,
         signal: 'runSkill',
         signalArgs,
         args: [{ sessionId: target.sessionId,ownerEpoch }],
-      }))
+      })))
     } catch (error) {
       if (error instanceof WorkflowNotFoundError) throw new RunNotFound(`no such run ${threadKey}`)
       throw error
@@ -476,7 +477,7 @@ export class TemporalRunsGateway implements RunsGateway {
       if (type==='sessionRun') {
         const sessionId=runId.slice(SESSION_PREFIX.length)
         const recovery=await loadOriginalTurnRecovery(this.pool,client,sessionId)
-        await this.startWithEpoch(sessionId,sessionId,runId,(ownerEpoch) => client.workflow.start('sessionRun',{ workflowId: runId,taskQueue: laneConfig('turn').taskQueue,args: [{ sessionId,ownerEpoch,recovery }] }))
+        await this.startWithEpoch(sessionId,sessionId,runId,(ownerEpoch) => withAmbientTrace(() => client.workflow.start('sessionRun',{ workflowId: runId,taskQueue: laneConfig('turn').taskQueue,args: [{ sessionId,ownerEpoch,recovery }] })))
         return { commandId: commandId(),state: 'accepted' }
       }
       if (type==='subagentRun') {

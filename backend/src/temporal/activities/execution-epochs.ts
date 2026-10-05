@@ -5,6 +5,7 @@ import { connectClient } from '../connection.js'
 import { loadOriginalTurnRecovery,type OriginalTurnRecovery } from '../turn-recovery.js'
 import { projectNewEvents } from '../../projector.js'
 import { createLogger, logOp } from '../../observability/logging.js'
+import { temporalClientInterceptors } from '../../observability/temporal-tracing.js'
 
 export async function prepareExecutionIntentActivity(input: ExecutionIntentInput): Promise<string> {
   const context = Context.current()
@@ -28,7 +29,7 @@ export async function originalRecoveryReadyActivity(input: { threadKey: string; 
     if (actor.session.id!==input.sessionId) throw new WorkspaceError('permission_denied','The original task belongs to another session.')
     const connection=await connectClient()
     try {
-      const client=new Client({ connection,namespace: context.info.namespace })
+      const client=new Client({ connection,namespace: context.info.namespace,interceptors: { workflow: temporalClientInterceptors() } })
       const description=await connection.withDeadline(Date.now()+2_000,() => client.workflow.getHandle(input.threadKey.slice(6)).describe())
       if (description.status.name==='RUNNING') return false
       const saved=await readTurnContinuation(pool,input.threadKey)
@@ -50,7 +51,7 @@ export async function prepareResearchTurnRecoveryActivity(input: { sectorId: str
     const threadKey=`agent:${input.childId}`
     if (!(await getThreadHeader(pool,threadKey)) || !(await readTurnContinuation(pool,threadKey))) return undefined
     const connection=await connectClient()
-    try { return await loadOriginalTurnRecovery(pool,new Client({ connection,namespace: context.info.namespace }),threadKey) }
+    try { return await loadOriginalTurnRecovery(pool,new Client({ connection,namespace: context.info.namespace,interceptors: { workflow: temporalClientInterceptors() } }),threadKey) }
     finally { await connection.close() }
   },{ childId: input.childId,workId: input.workId })
 }

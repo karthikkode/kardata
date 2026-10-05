@@ -2,6 +2,7 @@ import { Context } from '@temporalio/activity'
 import { Client, Connection } from '@temporalio/client'
 import { listReconciliationCandidates, recordReconciliation, workerPoolFromEnv, type TransactableDb, type ReconciliationCandidate } from '../../db/index.js'
 import { createLogger, logOp } from '../../observability/logging.js'
+import { temporalClientInterceptors } from '../../observability/temporal-tracing.js'
 import { reconcileObservation, RECONCILIATION_LIMITS, type OwnerObservation } from '../../observability/reconciliation.js'
 import { projectNewEvents } from '../../projector.js'
 import { temporalAddress, temporalNamespace } from '../connection.js'
@@ -52,7 +53,7 @@ export async function reconciliationPageActivity(after: string): Promise<Reconci
     context.heartbeat({ phase: 'connect' })
     const connection = await Connection.connect({ address: temporalAddress(), connectTimeout: '5s' })
     try {
-      const client = new Client({ connection, namespace: temporalNamespace() })
+      const client = new Client({ connection, namespace: temporalNamespace(), interceptors: { workflow: temporalClientInterceptors() } })
       return await reconcilePage(workerPoolFromEnv(), after, (candidate) => inspectWorkflowOwner(connection,client,candidate,logger), Date.now(), () => context.heartbeat({ phase: 'reconcile' }))
     } finally { await connection.close() }
   })

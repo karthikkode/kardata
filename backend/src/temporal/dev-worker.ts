@@ -17,8 +17,11 @@ import * as fileProcessingActivities from './activities/file-processing.js'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Runtime, type NativeConnection, type Worker } from '@temporalio/worker'
+import type { Logger } from 'pino'
 import { createLogger, createWorkerLogger,workerLoggingOptions } from '../observability/logging.js'
 import { workerTelemetryOptions } from '../observability/metrics.js'
+import { ensureTemporalTracing } from '../observability/temporal-tracing.js'
+import { ensureTracing } from '../observability/tracing.js'
 import {
   loadSweepContextActivity,
   recordSweepCompanyActivity,
@@ -55,7 +58,7 @@ export interface DevWorkers {
 // bundles. Callers pass dist (.js) or source (.ts) bundle paths; the
 // default task queues are safe for tests because the live namespace
 // is isolated from the owner's workers.
-export async function createDevWorkers(connection: NativeConnection, bundles: DevWorkerBundles): Promise<DevWorkers> {
+export async function createDevWorkers(connection: NativeConnection, bundles: DevWorkerBundles, logger?: Logger): Promise<DevWorkers> {
   const namespace = temporalNamespace()
   const turnWorker = await createLaneWorker({
     lane: 'turn',
@@ -63,12 +66,14 @@ export async function createDevWorkers(connection: NativeConnection, bundles: De
     namespace,
     workflowsPath: bundles.turnBundle,
     activities: { appendEventActivity, karbotTurnActivity,prepareExecutionIntentActivity,settlePreparedExecutionIntentActivity,originalRecoveryReadyActivity },
+    ...(logger ? { logger } : {}),
   })
   const researchWorker = await createLaneWorker({
     lane: 'research',
     connection,
     namespace,
     workflowsPath: bundles.researchBundle,
+    ...(logger ? { logger } : {}),
     activities: {
       ...coordinatorActivities,
       prepareFileProcessingActivity: fileProcessingActivities.prepareFileProcessingActivity,
@@ -96,6 +101,9 @@ export async function createDevWorkers(connection: NativeConnection, bundles: De
 
 async function main(): Promise<void> {
   Runtime.install({ logger: createWorkerLogger(), telemetryOptions: { logging: workerLoggingOptions(),metrics: workerTelemetryOptions(Number(process.env['KARDATA_TEMPORAL_METRICS_PORT'] ?? 9464)) } })
+  const workerLogger = createLogger({ op: 'temporal.worker' })
+  ensureTracing({ logger: workerLogger, serviceName: 'kardata-worker' })
+  ensureTemporalTracing()
   // Credential self-check first: a rotated-but-not-recreated token fails
   // loudly here instead of as cryptic per-turn 403s. Polling continues on
   // a negative result so digest-answerable turns keep working.
@@ -106,7 +114,7 @@ async function main(): Promise<void> {
   const { turnWorker, researchWorker: sweepWorker } = await createDevWorkers(connection, {
     turnBundle: join(workflowsDir, 'turn-bundle.js'),
     researchBundle: join(workflowsDir, 'research-bundle.js'),
-  })
+  }, workerLogger)
   const shutdown = (): void => {
     void turnWorker.shutdown()
     void sweepWorker.shutdown()

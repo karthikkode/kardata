@@ -29,6 +29,7 @@ import {
   SimpleSpanProcessor,
   type ReadableSpan,
   type SpanExporter,
+  type SpanProcessor,
 } from '@opentelemetry/sdk-trace-base'
 import type { Logger } from 'pino'
 import type { Db, DbQueryResult } from '../db/index.js'
@@ -53,6 +54,11 @@ export function clearSpanContext(): void {
 
 function currentSpanContext(): SpanContext | undefined {
   return als.getStore()
+}
+
+/** Ambient request trace id from our ALS (the Fastify hook enters it). */
+export function currentTraceId(): string | undefined {
+  return currentSpanContext()?.traceId
 }
 
 /** Adopt an ingress trace: same trace_id, remote parent when one arrived. */
@@ -139,6 +145,44 @@ export function wrapPool<T extends Db>(db: T): T {
   return db
 }
 
+/** JSONL span exporter: one pino line per span. Shared by the server
+ * provider and the Temporal workflow-span sink so both emit one shape. */
+function createJsonlSpanExporter(logger: Logger, serviceName: string): SpanExporter {
+  return {
+    export: (spans: ReadableSpan[], resultCallback) => {
+      for (const span of spans) {
+        const ctx = span.spanContext()
+        const parent = span.parentSpanContext
+        const duration = Math.round(span.duration[0] * 1000 + span.duration[1] / 1_000_000)
+        const line: SpanLine = {
+          op: 'otel.span',
+          service: serviceName,
+          trace_id: ctx.traceId,
+          span_id: ctx.spanId,
+          ...(parent ? { parent_span_id: parent.spanId } : {}),
+          name: span.name,
+          kind: SpanKind[span.kind] ?? String(span.kind),
+          status:
+            span.status.code === SpanStatusCode.ERROR
+              ? `error: ${span.status.message ?? ''}`
+              : 'ok',
+          attributes: {
+            ...(span.attributes as Record<string, string | number | boolean>),
+          },
+          durationMs: duration,
+        }
+        logger.info(line)
+      }
+      resultCallback({ code: 0 as const })
+    },
+    shutdown: () => Promise.resolve(),
+  }
+}
+
+export function createJsonlSpanProcessor(logger: Logger, serviceName: string): SpanProcessor {
+  return new SimpleSpanProcessor(createJsonlSpanExporter(logger, serviceName))
+}
+
 /** JSONL exporter: one pino line per span. The global tracer stays
  * provider-less (valid non-recording spans) until `ensureTracing` runs. */
 export function ensureTracing(options: {
@@ -149,38 +193,7 @@ export function ensureTracing(options: {
   const processors =
     options.logger === undefined
       ? []
-      : [
-          new SimpleSpanProcessor({
-            export: (spans: ReadableSpan[], resultCallback) => {
-              const logger = options.logger as Logger
-              for (const span of spans) {
-                const ctx = span.spanContext()
-                const parent = span.parentSpanContext
-                const duration = Math.round(span.duration[0] * 1000 + span.duration[1] / 1_000_000)
-                const line: SpanLine = {
-                  op: 'otel.span',
-                  service,
-                  trace_id: ctx.traceId,
-                  span_id: ctx.spanId,
-                  ...(parent ? { parent_span_id: parent.spanId } : {}),
-                  name: span.name,
-                  kind: SpanKind[span.kind] ?? String(span.kind),
-                  status:
-                    span.status.code === SpanStatusCode.ERROR
-                      ? `error: ${span.status.message ?? ''}`
-                      : 'ok',
-                  attributes: {
-                    ...(span.attributes as Record<string, string | number | boolean>),
-                  },
-                  durationMs: duration,
-                }
-                logger.info(line)
-              }
-              resultCallback({ code: 0 as const })
-            },
-            shutdown: () => Promise.resolve(),
-          } satisfies SpanExporter),
-        ]
+      : [createJsonlSpanProcessor(options.logger, service)]
   const provider = new BasicTracerProvider({ spanProcessors: processors })
   trace.setGlobalTracerProvider(provider)
   const tracer = trace.getTracer(TRACER_NAME)
