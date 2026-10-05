@@ -187,6 +187,9 @@ const SAMPLES: Record<McpToolName, { valid: unknown; invalid: unknown; invoke?: 
   'ops.cost': { valid: { threadKey: 't' }, invalid: {} },
   'ops.sector_evaluation': { valid: { sectorId: 's' }, invalid: { sectorId: '' } },
   'ops.recent_activity': { valid: { threadKey: 't' }, invalid: {} },
+  'ops.pause_run': { valid: { runId: 'r' }, invalid: {}, invoke: false },
+  'ops.resume_run': { valid: { runId: 'r' }, invalid: { runId: '' }, invoke: false },
+  'ops.cancel_run': { valid: { runId: 'r' }, invalid: {}, invoke: false },
 }
 
 const EXPECTED_TOOLS: McpToolName[] = [
@@ -267,6 +270,9 @@ const EXPECTED_TOOLS: McpToolName[] = [
   'ops.cost',
   'ops.sector_evaluation',
   'ops.recent_activity',
+  'ops.pause_run',
+  'ops.resume_run',
+  'ops.cancel_run',
   'web_search',
   'web_fetch',
   'browser_navigate',

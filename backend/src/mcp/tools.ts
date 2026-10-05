@@ -112,6 +112,9 @@ export const TOOL_LAYER: Record<McpToolName, string> = {
   'ops.cost': 'readThreadCost+readSectorCost',
   'ops.sector_evaluation': 'readSectorEvaluation',
   'ops.recent_activity': 'recentActivity',
+  'ops.pause_run': 'pauseThreadRun',
+  'ops.resume_run': 'resumeThreadRun',
+  'ops.cancel_run': 'cancelThreadRun',
 }
 
 /** Capability tier: read (viewer), write (operator), sensitive (approver
@@ -146,6 +149,7 @@ const SENSITIVE_TOOLS: ReadonlySet<McpToolName> = new Set([
   // same side-effect class as steering, never a quiet write.
   'ops.queue_remove',
   'ops.queue_reorder',
+  'ops.resume_run',
 ])
 
 export function toolCapability(name: McpToolName): ToolCapability {
@@ -253,6 +257,9 @@ export const TOOL_META: Record<McpToolName, { description: string; minRole: Role
   'ops.cost': { description: 'Token cost for one thread (threadKey) or one sector (sectorId).', minRole: 'viewer' },
   'ops.sector_evaluation': { description: 'Sector research quality, reliability and cost.', minRole: 'viewer' },
   'ops.recent_activity': { description: 'Recent rounds, tool calls and events by trace or thread. No bodies or refs.', minRole: 'viewer' },
+  'ops.pause_run': { description: 'Pause any run kind, including company research. Mirrors the route floor: operator.', minRole: 'operator' },
+  'ops.resume_run': { description: 'Resume a paused run. Sensitive: approver plus user confirmation.', minRole: 'approver' },
+  'ops.cancel_run': { description: 'Cancel any run kind, including company research. Mirrors the route floor: operator.', minRole: 'operator' },
 }
 
 const preDispatchFailures = new WeakSet<object>()
@@ -304,7 +311,7 @@ export async function invokeTool(
       if (name === 'db.rename_session' && actor.thread.kind === 'subagent') throw new McpToolError('permission_denied', 'Conversation naming belongs to the parent or owner.')
       if (name === 'db.delete_session') throw new McpToolError('permission_denied', 'Conversation deletion requires owner confirmation in the UI.')
       if (name === 'db.set_sector_state') throw new McpToolError('permission_denied', 'Use the approved research lifecycle operations.')
-      if (name === 'db.resume_run' && typeof parsed.data === 'object' && parsed.data !== null && 'extendedBudgetMs' in parsed.data && parsed.data.extendedBudgetMs !== undefined) throw new McpToolError('permission_denied', 'Budget changes require owner approval in the UI.')
+      if ((name === 'db.resume_run' || name === 'ops.resume_run') && typeof parsed.data === 'object' && parsed.data !== null && 'extendedBudgetMs' in parsed.data && parsed.data.extendedBudgetMs !== undefined) throw new McpToolError('permission_denied', 'Budget changes require owner approval in the UI.')
       if (actor.thread.kind === 'subagent' && typeof parsed.data === 'object' && parsed.data !== null) {
         const args = parsed.data as Record<string, unknown>
         if (typeof args['threadKey'] === 'string' && args['threadKey'] !== actor.thread.key) throw new McpToolError('permission_denied', 'Child conversations are isolated. Use the assigned parent brief.')
@@ -330,9 +337,9 @@ export async function invokeTool(
         if (name === 'db.create_artifact') args['producedBy'] = ctx.executionThread
       }
     }
-    if (['db.send_message', 'db.steer_thread', 'db.pause_run', 'db.resume_run', 'db.cancel_run', 'ops.list_runs', 'ops.get_run', 'ops.thread_queue', 'ops.queue_remove', 'ops.queue_reorder'].includes(name) && !ctx.messenger) throw new McpPreconditionError('Thread control is unavailable: no messenger attached.')
+    if (['db.send_message', 'db.steer_thread', 'db.pause_run', 'db.resume_run', 'db.cancel_run', 'ops.list_runs', 'ops.get_run', 'ops.thread_queue', 'ops.queue_remove', 'ops.queue_reorder', 'ops.pause_run', 'ops.resume_run', 'ops.cancel_run'].includes(name) && !ctx.messenger) throw new McpPreconditionError('Thread control is unavailable: no messenger attached.')
     if (['db.start_sector_research', 'db.pause_sector_research', 'db.resume_sector_research'].includes(name) && !ctx.runs) throw new McpPreconditionError('Research control is unavailable: no sweep runner attached.')
-    if (['db.pause_run', 'db.resume_run', 'db.cancel_run'].includes(name) && (ctx.scope || ctx.executionThread)) {
+    if (['db.pause_run', 'db.resume_run', 'db.cancel_run', 'ops.pause_run', 'ops.resume_run', 'ops.cancel_run'].includes(name) && (ctx.scope || ctx.executionThread)) {
       if (!ctx.runReader) throw new McpPreconditionError('A scoped run reader is required.')
       const run = await ctx.runReader.getRun((parsed.data as { runId: string }).runId)
       const target = run ? await getSession(ctx.pool, run.sessionId, ctx.scope) : undefined

@@ -402,15 +402,24 @@ export async function companyResearch(input: CompanyInput): Promise<TurnOutcome>
   const childId = workflowInfo().workflowId, threadKey = `agent:${childId}`, partition = `child:${childId}`
   const modernSteering = patched('company-child-steering-v1')
   const eventKey = patched('company-child-run-v2') ? `${childId}:${workflowInfo().runId}` : childId
+  const externalPause = patched('company-child-pause-v1')
   const parent = `session:${input.sessionId}`
   let cancelled = false
   let failed = false
   let threadLength = 1
   let parked = false
+  let pauseCount = 0
   const inbox: string[] = []
   setHandler(defineQuery('childState'), () => ({ id: childId, status: cancelled ? 'cancelled' : parked ? 'paused' : 'running', acceptingSteer: !cancelled && !parked, queueDepth: inbox.length }))
   setHandler(defineSignal('childResume'), () => { parked = false; log.info('signal received', { signal: 'childResume' }) })
   setHandler(defineSignal<[string]>('childMessage'), (text) => { inbox.push(text); log.info('signal received', { signal: 'childMessage', pending: inbox.length }) })
+  if (externalPause) setHandler(defineSignal('childPause'), async () => {
+    if (cancelled || parked) return
+    parked = true
+    pauseCount++
+    log.info('signal received', { signal: 'childPause' })
+    await append(`pause:${pauseCount}`, 't.thread.state', { threadKey, status: 'PAUSED', acceptingSteer: false })
+  })
   const append = (key: string, type: string, payload: Record<string, unknown>, target = partition) => turn.appendEventActivity({ idempotencyKey: `${eventKey}:${key}`, partition: target, type, payload })
   await append('launch', 't.subagent.launched', { sessionId: input.sessionId, parentSessionId: input.sessionId, childId, name: input.item.title, parentWorkflowId: workflowInfo().parent?.workflowId, depth: 0, mode: 'empty', goal: input.brief, queueCapacity: 10, canDelegate: false }, parent)
   const text = input.assignment ?? [`Research ${input.item.title}: ${input.item.sourceUrl ?? input.item.evidence[0]}.`, input.brief,
@@ -434,14 +443,21 @@ export async function companyResearch(input: CompanyInput): Promise<TurnOutcome>
       }
     }
   }
+  const parkAtBoundary = async () => {
+    if (!externalPause || !parked || cancelled) return
+    await condition(() => !parked)
+    await append(`resume:ext:${pauseCount}`, 't.thread.state', { threadKey, status: 'RUNNING', acceptingSteer: true })
+  }
   try {
     let outcome = await runTurn(input.recovery?.text ?? text, input.recovery?.runKey ?? `${eventKey}:research`, input.recovery)
+    await parkAtBoundary()
     await append('reply', 't.message.appended', { threadKey, kind: 'text', message: { role: 'agent', text: outcome.reply.replace(/```(?:research|discovery|intake)-result[\s\S]*?```/g, '').trim() || 'Research finished. The evidence verdict is being validated.', reasoning: outcome.reasoning } })
     threadLength++
     let followup = 0
     while (inbox.length) {
       const next = inbox.shift()
       if (!next) continue
+      await parkAtBoundary()
       followup++
       await append(`followup-user:${followup}`, 't.message.appended', { threadKey, kind: 'text', message: { role: 'user', text: next } })
       threadLength++

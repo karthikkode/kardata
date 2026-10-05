@@ -610,6 +610,33 @@ export const INVOKERS: Invokers = {
     return readSectorEvaluation(ctx.pool, sectorId, ctx.scope)
   },
   'ops.recent_activity': (ctx, args) => recentActivity(ctx.pool, args, ctx.scope),
+  'ops.pause_run': async (ctx, args) => {
+    try {
+      return await pauseThreadRun(ctx.messenger, args.runId)
+    } catch (error: unknown) {
+      if (error instanceof RunNotFound) throw new McpToolError('not_found', error.message)
+      if (error instanceof ThreadNotAccepting) throw new McpToolError('conflict', error.message)
+      throw error
+    }
+  },
+  'ops.resume_run': async (ctx, args) => {
+    try {
+      return await resumeThreadRun(ctx.messenger, args.runId, args.extendedBudgetMs)
+    } catch (error: unknown) {
+      if (error instanceof RunNotFound) throw new McpToolError('not_found', error.message)
+      if (error instanceof ThreadNotAccepting) throw new McpToolError('conflict', error.message)
+      throw error
+    }
+  },
+  'ops.cancel_run': async (ctx, args) => {
+    try {
+      return await cancelThreadRun(ctx.messenger, args.runId)
+    } catch (error: unknown) {
+      if (error instanceof RunNotFound) throw new McpToolError('not_found', error.message)
+      if (error instanceof ThreadNotAccepting) throw new McpToolError('conflict', error.message)
+      throw error
+    }
+  },
 }
 
 /** Retrieval failures become isError text with their own code

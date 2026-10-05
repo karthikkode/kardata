@@ -179,12 +179,12 @@ export class FakeRunsGateway implements RunsGateway {
   }
 
   async pauseRun(runId: string): Promise<CommandResult> {
-    // Mirrors production requireType: research runs pause, other types (e.g. companyResearch) 409.
+    // Mirrors production requireType: session, research, subagent and company runs pause.
     const type = this.requireRun(runId)
-    if (type !== 'sessionRun' && type !== 'researchRun' && type !== 'subagentRun') {
+    if (type !== 'sessionRun' && type !== 'researchRun' && type !== 'subagentRun' && type !== 'companyResearch') {
       throw new ThreadNotAccepting(`run ${runId} (${type}) has no path for this command`)
     }
-    if (type === 'subagentRun') {
+    if (type === 'subagentRun' || type === 'companyResearch') {
       await setThreadPaused(this.pool, `agent:${runId}`, true)
       this.signals.push({ workflowId: runId, signal: 'childPause', args: [] })
       return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
@@ -214,13 +214,19 @@ export class FakeRunsGateway implements RunsGateway {
   }
 
   async cancelRun(runId: string): Promise<CommandResult> {
-    // Mirrors production: only session runs cancel.
+    // Mirrors production: session, subagent and company runs cancel (any
+    // other type 409s); a company cancel is a handle cancel, recorded here
+    // as the 'cancel' signal for observability.
     const type = this.requireRun(runId)
-    if (type !== 'sessionRun') {
+    if (type !== 'sessionRun' && type !== 'subagentRun' && type !== 'companyResearch') {
       throw new ThreadNotAccepting(`run ${runId} (${type}) has no path for this command`)
     }
     if (this.closedRuns.has(runId)) throw new RunNotFound(`no such run ${runId}`)
-    this.signals.push({ workflowId: runId, signal: 'runCancel', args: [] })
+    if (type === 'companyResearch') this.signals.push({ workflowId: runId, signal: 'cancel', args: [] })
+    else if (type === 'subagentRun') {
+      this.signals.push({ workflowId: runId, signal: 'childCancel', args: [] })
+      this.signals.push({ workflowId: runId, signal: 'childFinish', args: [] })
+    } else this.signals.push({ workflowId: runId, signal: 'runCancel', args: [] })
     return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
   }
 

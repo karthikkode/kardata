@@ -531,10 +531,9 @@ export class TemporalRunsGateway implements RunsGateway {
   }
 
   async pauseRun(runId: string): Promise<CommandResult> {
-    // Only pausable types are listed: other runs (e.g. companyResearch) 409 via requireType.
-    const type = await this.requireType(runId, ['sessionRun', 'researchRun', 'subagentRun'])
+    const type = await this.requireType(runId, ['sessionRun', 'researchRun', 'subagentRun', 'companyResearch'])
     const client = await this.client()
-    if (type === 'subagentRun') {
+    if (type === 'subagentRun' || type === 'companyResearch') {
       await setThreadPaused(this.pool, `agent:${runId}`, true)
       await client.workflow.getHandle(runId).signal('childPause')
       return { commandId: commandId(), state: 'accepted' }

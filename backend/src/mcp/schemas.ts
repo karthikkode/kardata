@@ -369,6 +369,16 @@ export const TOOL_SCHEMAS = {
     z.object({ traceId: NonEmpty, limit: z.number().int().min(1).max(200).optional() }).strict(),
     z.object({ threadKey: NonEmpty, limit: z.number().int().min(1).max(200).optional() }).strict(),
   ]),
+  'ops.pause_run': z.object({
+    runId: NonEmpty,
+  }).strict(),
+  'ops.resume_run': z.object({
+    runId: NonEmpty,
+    extendedBudgetMs: z.number().int().positive().optional(),
+  }).strict(),
+  'ops.cancel_run': z.object({
+    runId: NonEmpty,
+  }).strict(),
 }
 
 export type McpToolName = keyof typeof TOOL_SCHEMAS
