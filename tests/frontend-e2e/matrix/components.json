@@ -1,0 +1,590 @@
+{
+  "_comment": "Matrix case table (P6.3): one entry per visual component. anchors = chrome asserted for content states; fault/loading/empty states assert the family content anchors instead (shared-state UI replaces content by design). postAnchors assert after setup. ThinkingRow (live-only) and the 7 non-visual hook/helper modules have no entry: ThinkingRow is tagged in the 6.3.2 live-state spec, the rest in jsdom unit tests.",
+  "frontend.src.components.ChatPanel": {
+    "route": "/",
+    "setup": [{ "click": { "kind": "role", "role": "button", "name": "Ask Karbot" } }],
+    "anchors": [{ "kind": "role", "role": "complementary", "name": "Assistant chat" }],
+    "emptyAnchors": [{ "kind": "text", "text": "Ask Karbot anything" }],
+    "primary": "sessions",
+    "secondary": "messages",
+    "family": "direct"
+  },
+  "frontend.src.components.CommandPalette": {
+    "route": "/",
+    "setup": [{ "press": "Control+k" }],
+    "anchors": [{ "kind": "role", "role": "dialog" }],
+    "postAnchors": [{ "kind": "text", "text": "New sector" }],
+    "primary": "sectors",
+    "family": "static"
+  },
+  "frontend.src.components.CompaniesSection": {
+    "route": "/?section=Researches",
+    "anchors": [{ "kind": "role", "role": "region", "name": "Companies" }],
+    "emptyAnchors": [{ "kind": "text", "text": "No companies yet" }],
+    "primary": "companies",
+    "family": "resource"
+  },
+  "frontend.src.components.CreateSectorDialog": {
+    "route": "/?section=Researches",
+    "setup": [{ "click": { "kind": "role", "role": "button", "name": "New sector" } }],
+    "anchors": [{ "kind": "role", "role": "button", "name": "New sector" }],
+    "postAnchors": [{ "kind": "role", "role": "dialog", "name": "Create a sector" }],
+    "primary": "sectors",
+    "family": "static"
+  },
+  "frontend.src.components.Dashboard": {
+    "route": "/",
+    "anchors": [
+      { "kind": "role", "role": "heading", "name": "Overview" },
+      { "kind": "css", "css": "[aria-label=\"Recent sectors\"]" }
+    ],
+    "emptyAnchors": [{ "kind": "text", "text": "No sectors yet" }],
+    "primary": "sectors",
+    "secondary": "companies",
+    "family": "resource"
+  },
+  "frontend.src.components.DataTable": {
+    "route": "/?section=Agents",
+    "anchors": [
+      { "kind": "role", "role": "region", "name": "Runs" },
+      { "kind": "role", "role": "table" }
+    ],
+    "primary": "runs",
+    "family": "static"
+  },
+  "frontend.src.components.ExecutionInspector": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "setup": [
+      { "click": { "kind": "role", "role": "button", "name": "Conversation options" } },
+      { "click": { "kind": "role", "role": "menuitem", "name": "Execution records" } }
+    ],
+    "anchors": [{ "kind": "role", "role": "button", "name": "Conversation options" }],
+    "postAnchors": [{ "kind": "role", "role": "dialog", "name": "Execution records" }],
+    "primary": "execution",
+    "family": "resource"
+  },
+  "frontend.src.components.FileProcessingRetry": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "anchors": [
+      { "kind": "css", "css": "[aria-label=\"Sector files\"]" },
+      { "kind": "text", "text": "ryde-roster-scan.pdf" },
+      { "kind": "role", "role": "alert" }
+    ],
+    "primary": "files",
+    "family": "static"
+  },
+  "frontend.src.components.FileProcessingStatus": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "anchors": [
+      { "kind": "css", "css": "[aria-label=\"Sector files\"]" },
+      { "kind": "css", "css": "[aria-label=\"File processing progress\"]" }
+    ],
+    "primary": "files",
+    "family": "static"
+  },
+  "frontend.src.components.FileTypeIcon": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "anchors": [{ "kind": "css", "css": "[aria-label=\"Sector files\"]" }],
+    "primary": "files",
+    "family": "static"
+  },
+  "frontend.src.components.IconButton": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "anchors": [{ "kind": "role", "role": "button", "name": "Conversation options" }],
+    "primary": "sessions",
+    "family": "static"
+  },
+  "frontend.src.components.Markdown": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "anchors": [
+      { "kind": "css", "css": "[aria-label=\"Conversation messages\"]" },
+      { "kind": "css", "css": "[aria-label=\"Conversation messages\"] table" }
+    ],
+    "primary": "messages",
+    "family": "static"
+  },
+  "frontend.src.components.ModelToolbar": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "anchors": [{ "kind": "css", "css": "[aria-label=\"Choose a model\"]" }],
+    "primary": "sessions",
+    "family": "direct"
+  },
+  "frontend.src.components.ModelsPanel": {
+    "route": "/?section=Models",
+    "anchors": [{ "kind": "role", "role": "region", "name": "Models" }],
+    "emptyAnchors": [{ "kind": "text", "text": "No sessions yet. Start one from chat to bind a model." }],
+    "primary": "sessions",
+    "secondary": "providers",
+    "family": "direct"
+  },
+  "frontend.src.components.ResearchPlanEditor": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "setup": [{ "click": { "kind": "css", "css": "[data-tab-value=\"plan\"]" } }],
+    "anchors": [
+      { "kind": "css", "css": "[data-tab-value=\"plan\"]" },
+      { "kind": "css", "css": "[aria-label=\"Plan text\"]" }
+    ],
+    "primary": "plan",
+    "family": "static"
+  },
+  "frontend.src.components.ResearchesPage": {
+    "route": "/?section=Researches",
+    "anchors": [{ "kind": "role", "role": "heading", "name": "Researches" }],
+    "emptyAnchors": [{ "kind": "text", "text": "No sectors yet" }],
+    "primary": "sectors",
+    "secondary": "companies",
+    "family": "resource"
+  },
+  "frontend.src.components.RunsPanel": {
+    "route": "/?section=Agents",
+    "anchors": [{ "kind": "role", "role": "region", "name": "Runs" }],
+    "emptyAnchors": [{ "kind": "text", "text": "No runs yet" }],
+    "primary": "runs",
+    "family": "direct"
+  },
+  "frontend.src.components.SectorFilePreview": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "setup": [{ "click": { "kind": "text", "text": "parramatta-crew-notes.md" } }],
+    "anchors": [{ "kind": "css", "css": "[aria-label=\"Sector files\"]" }],
+    "postAnchors": [
+      { "kind": "text", "text": "File preview" },
+      { "kind": "role", "role": "note" }
+    ],
+    "primary": "fileBody",
+    "family": "resource"
+  },
+  "frontend.src.components.SectorLanding": {
+    "route": "/?section=SectorDetail&sector=sector-matrix",
+    "anchors": [
+      { "kind": "role", "role": "region", "name": "Research status" },
+      { "kind": "role", "role": "button", "name": "Open workspace" }
+    ],
+    "emptyAnchors": [{ "kind": "text", "text": "Sector not found" }],
+    "primary": "sector",
+    "family": "resource"
+  },
+  "frontend.src.components.SectorWorkspace": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "anchors": [{ "kind": "css", "css": "[aria-label=\"Research views\"]" }],
+    "emptyAnchors": [{ "kind": "text", "text": "No chats yet" }],
+    "primary": "sessions",
+    "secondary": "messages",
+    "family": "resource"
+  },
+  "frontend.src.components.Sidebar": {
+    "route": "/",
+    "anchors": [{ "kind": "role", "role": "navigation", "name": "Primary" }],
+    "primary": "sectors",
+    "family": "static"
+  },
+  "frontend.src.components.StatusPill": {
+    "route": "/?section=Agents",
+    "anchors": [
+      { "kind": "role", "role": "region", "name": "Runs" },
+      { "kind": "css", "css": "[data-tone]" }
+    ],
+    "primary": "runs",
+    "family": "static"
+  },
+  "frontend.src.components.SubagentsPanel": {
+    "route": "/",
+    "setup": [{ "click": { "kind": "role", "role": "button", "name": "Ask Karbot" } }],
+    "anchors": [
+      { "kind": "role", "role": "complementary", "name": "Assistant chat" },
+      { "kind": "css", "css": "[aria-label=\"Subagent threads\"]" }
+    ],
+    "primary": "threads",
+    "family": "static"
+  },
+  "frontend.src.components.SupervisionAlertsPanel": {
+    "route": "/?section=Agents",
+    "anchors": [{ "kind": "role", "role": "region", "name": "Alerts" }],
+    "emptyAnchors": [{ "kind": "text", "text": "All clear" }],
+    "primary": "alerts",
+    "family": "resource"
+  },
+  "frontend.src.components.ThemeMenu": {
+    "route": "/",
+    "setup": [{ "click": { "kind": "role", "role": "button", "name": "Theme" } }],
+    "anchors": [{ "kind": "role", "role": "button", "name": "Theme" }],
+    "postAnchors": [{ "kind": "role", "role": "menuitemradio", "name": "Dark" }],
+    "primary": "sectors",
+    "family": "static"
+  },
+  "frontend.src.components.TopBar": {
+    "route": "/",
+    "anchors": [{ "kind": "role", "role": "button", "name": "Ask Karbot" }],
+    "primary": "sessions",
+    "family": "static"
+  },
+  "frontend.src.components.chat.AssistantRuntimeAdapter": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "anchors": [{ "kind": "css", "css": "[aria-label=\"Conversation messages\"]" }],
+    "primary": "messages",
+    "family": "static"
+  },
+  "frontend.src.components.chat.Composer": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "anchors": [{ "kind": "role", "role": "textbox" }],
+    "primary": "messages",
+    "family": "static"
+  },
+  "frontend.src.components.chat.ConversationEmpty": {
+    "route": "/",
+    "setup": [{ "click": { "kind": "role", "role": "button", "name": "Ask Karbot" } }],
+    "anchors": [
+      { "kind": "role", "role": "complementary", "name": "Assistant chat" },
+      { "kind": "text", "text": "Ask Karbot anything" },
+      { "kind": "text", "text": "Karbot sees every sector you can open." }
+    ],
+    "emptyAnchors": [{ "kind": "text", "text": "Ask Karbot anything" }],
+    "primary": "messages",
+    "envBasis": "empty",
+    "family": "static"
+  },
+  "frontend.src.components.chat.ReasoningDisclosure": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "anchors": [{ "kind": "css", "css": "[aria-label=\"Conversation messages\"]" }],
+    "primary": "messages",
+    "family": "static"
+  },
+  "frontend.src.components.chat.ToolActivity": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "anchors": [{ "kind": "css", "css": "[aria-label=\"Conversation messages\"]" }],
+    "primary": "messages",
+    "family": "static"
+  },
+  "frontend.src.components.chat_parts": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "anchors": [{ "kind": "css", "css": "[aria-label=\"Conversation messages\"]" }],
+    "primary": "messages",
+    "family": "static"
+  },
+  "frontend.src.components.plan.PlanSteps": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "setup": [{ "click": { "kind": "css", "css": "[data-tab-value=\"plan\"]" } }],
+    "anchors": [{ "kind": "css", "css": "[data-tab-value=\"plan\"]" }],
+    "primary": "plan",
+    "family": "static"
+  },
+  "frontend.src.components.plan.PlanTab": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "setup": [{ "click": { "kind": "css", "css": "[data-tab-value=\"plan\"]" } }],
+    "anchors": [{ "kind": "css", "css": "[data-tab-value=\"plan\"]" }],
+    "primary": "plan",
+    "family": "resource"
+  },
+  "frontend.src.components.research_parts": {
+    "route": "/?section=Researches",
+    "anchors": [{ "kind": "role", "role": "heading", "name": "Researches" }],
+    "primary": "sectors",
+    "family": "static"
+  },
+  "frontend.src.components.shells": {
+    "route": "/?section=Agents",
+    "anchors": [{ "kind": "role", "role": "region", "name": "Runs" }],
+    "primary": "runs",
+    "family": "resource"
+  },
+  "frontend.src.components.text": {
+    "route": "/",
+    "setup": [{ "click": { "kind": "role", "role": "button", "name": "Ask Karbot" } }],
+    "anchors": [
+      { "kind": "text", "text": "Ask Karbot anything" },
+      { "kind": "text", "text": "Karbot sees every sector you can open." }
+    ],
+    "emptyAnchors": [{ "kind": "text", "text": "Ask Karbot anything" }],
+    "primary": "messages",
+    "envBasis": "empty",
+    "family": "static"
+  },
+  "frontend.src.components.ui.alert_dialog": {
+    "route": "/?section=Agents",
+    "setup": [{ "click": { "kind": "role", "role": "button", "name": "Cancel" } }],
+    "anchors": [{ "kind": "role", "role": "region", "name": "Runs" }],
+    "postAnchors": [
+      { "kind": "text", "text": "Cancel this run?" },
+      { "kind": "role", "role": "button", "name": "Cancel run" }
+    ],
+    "primary": "runs",
+    "family": "static"
+  },
+  "frontend.src.components.ui.badge": {
+    "route": "/",
+    "anchors": [
+      { "kind": "role", "role": "navigation", "name": "Primary" },
+      { "kind": "css", "css": "[data-slot=\"badge\"]" }
+    ],
+    "primary": "sectors",
+    "family": "static"
+  },
+  "frontend.src.components.ui.button": {
+    "route": "/?section=Researches",
+    "anchors": [
+      { "kind": "role", "role": "heading", "name": "Researches" },
+      { "kind": "css", "css": "[data-slot=\"button\"]" }
+    ],
+    "primary": "sectors",
+    "family": "static"
+  },
+  "frontend.src.components.ui.checkbox": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "setup": [
+      { "click": { "kind": "role", "role": "button", "name": "Conversation options" } },
+      { "click": { "kind": "role", "role": "menuitem", "name": "Local context" } }
+    ],
+    "anchors": [{ "kind": "role", "role": "button", "name": "Conversation options" }],
+    "postAnchors": [{ "kind": "css", "css": "[aria-label=\"I reviewed this replacement\"]" }],
+    "primary": "local",
+    "family": "static"
+  },
+  "frontend.src.components.ui.collapsible": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "setup": [{ "click": { "kind": "css", "css": "[data-tab-value=\"plan\"]" } }],
+    "anchors": [{ "kind": "css", "css": "[data-tab-value=\"plan\"]" }],
+    "postAnchors": [{ "kind": "css", "css": "[data-slot=\"collapsible-trigger\"]" }],
+    "primary": "plan",
+    "family": "static"
+  },
+  "frontend.src.components.ui.dialog": {
+    "route": "/?section=Researches",
+    "setup": [{ "click": { "kind": "role", "role": "button", "name": "New sector" } }],
+    "anchors": [{ "kind": "role", "role": "button", "name": "New sector" }],
+    "postAnchors": [{ "kind": "role", "role": "dialog", "name": "Create a sector" }],
+    "primary": "sectors",
+    "family": "static"
+  },
+  "frontend.src.components.ui.field": {
+    "route": "/?section=Models",
+    "anchors": [
+      { "kind": "role", "role": "region", "name": "Models" },
+      { "kind": "css", "css": "[data-slot=\"field\"]" }
+    ],
+    "primary": "sessions",
+    "family": "static"
+  },
+  "frontend.src.components.ui.input": {
+    "route": "/?section=Agents",
+    "anchors": [
+      { "kind": "role", "role": "region", "name": "Runs" },
+      { "kind": "role", "role": "textbox", "name": "Search runs" }
+    ],
+    "primary": "runs",
+    "family": "static"
+  },
+  "frontend.src.components.ui.list": {
+    "route": "/?section=Agents",
+    "anchors": [
+      { "kind": "role", "role": "region", "name": "Alerts" },
+      { "kind": "css", "css": "[aria-label=\"Current warnings\"]" }
+    ],
+    "primary": "alerts",
+    "family": "static"
+  },
+  "frontend.src.components.ui.menu": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "setup": [{ "click": { "kind": "role", "role": "button", "name": "Conversation options" } }],
+    "anchors": [{ "kind": "role", "role": "button", "name": "Conversation options" }],
+    "postAnchors": [{ "kind": "role", "role": "menuitem", "name": "Local context" }],
+    "primary": "sessions",
+    "family": "static"
+  },
+  "frontend.src.components.ui.popover": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "anchors": [{ "kind": "css", "css": "[data-slot=\"popover-trigger\"]" }],
+    "primary": "global",
+    "family": "static"
+  },
+  "frontend.src.components.ui.progress": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "setup": [{ "click": { "kind": "css", "css": "[data-tab-value=\"plan\"]" } }],
+    "anchors": [
+      { "kind": "css", "css": "[data-tab-value=\"plan\"]" },
+      { "kind": "css", "css": "[data-slot=\"progress\"]" }
+    ],
+    "primary": "progress",
+    "family": "static"
+  },
+  "frontend.src.components.ui.select": {
+    "route": "/?section=Researches",
+    "setup": [{ "click": { "kind": "css", "css": "[aria-label=\"Research type\"]" } }],
+    "anchors": [
+      { "kind": "role", "role": "heading", "name": "Researches" },
+      { "kind": "css", "css": "[aria-label=\"Research type\"]" }
+    ],
+    "postAnchors": [{ "kind": "role", "role": "option" }],
+    "primary": "sectors",
+    "family": "static"
+  },
+  "frontend.src.components.ui.separator": {
+    "route": "/?section=Agents",
+    "anchors": [
+      { "kind": "role", "role": "region", "name": "Runs" },
+      { "kind": "css", "css": "[data-slot=\"separator\"]" }
+    ],
+    "primary": "runs",
+    "family": "static"
+  },
+  "frontend.src.components.ui.skeleton": {
+    "route": "/?section=Researches",
+    "anchors": [{ "kind": "role", "role": "status" }],
+    "primary": "sectors",
+    "envBasis": "loading",
+    "family": "resource"
+  },
+  "frontend.src.components.ui.switch": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "setup": [{ "click": { "kind": "role", "role": "button", "name": "Conversation options" } }],
+    "anchors": [{ "kind": "role", "role": "button", "name": "Conversation options" }],
+    "postAnchors": [{ "kind": "css", "css": "[data-slot=\"switch\"]" }],
+    "primary": "sessions",
+    "family": "static"
+  },
+  "frontend.src.components.ui.tabs": {
+    "route": "/?section=Agents",
+    "anchors": [
+      { "kind": "role", "role": "region", "name": "Alerts" },
+      { "kind": "css", "css": "[aria-label=\"Alert scope\"]" }
+    ],
+    "primary": "alerts",
+    "family": "static"
+  },
+  "frontend.src.components.ui.textarea": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "setup": [{ "click": { "kind": "css", "css": "[data-tab-value=\"plan\"]" } }],
+    "anchors": [
+      { "kind": "css", "css": "[data-tab-value=\"plan\"]" },
+      { "kind": "css", "css": "[aria-label=\"Plan text\"]" }
+    ],
+    "primary": "plan",
+    "family": "static"
+  },
+  "frontend.src.components.ui.tooltip": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "setup": [{ "hover": { "kind": "role", "role": "button", "name": "Conversation options" } }],
+    "anchors": [{ "kind": "role", "role": "button", "name": "Conversation options" }],
+    "postAnchors": [{ "kind": "css", "css": "[data-slot=\"tooltip-popup\"]" }],
+    "primary": "sessions",
+    "family": "static"
+  },
+  "frontend.src.components.workspace_parts": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "anchors": [{ "kind": "css", "css": "[aria-label=\"Conversation messages\"]" }],
+    "primary": "messages",
+    "family": "static"
+  },
+  "frontend.src.components.chat.ChatComposer": {
+    "route": "/",
+    "setup": [{ "click": { "kind": "role", "role": "button", "name": "Ask Karbot" } }],
+    "anchors": [
+      { "kind": "role", "role": "complementary", "name": "Assistant chat" },
+      { "kind": "role", "role": "textbox" },
+      { "kind": "role", "role": "button", "name": "Attach file" }
+    ],
+    "primary": "messages",
+    "family": "static"
+  },
+  "frontend.src.components.chat.ChatHeader": {
+    "route": "/",
+    "setup": [{ "click": { "kind": "role", "role": "button", "name": "Ask Karbot" } }],
+    "anchors": [
+      { "kind": "role", "role": "complementary", "name": "Assistant chat" },
+      { "kind": "role", "role": "region", "name": "Chat context" }
+    ],
+    "primary": "sessions",
+    "family": "static"
+  },
+  "frontend.src.components.chat.ChatLog": {
+    "route": "/",
+    "setup": [{ "click": { "kind": "role", "role": "button", "name": "Ask Karbot" } }],
+    "anchors": [
+      { "kind": "role", "role": "complementary", "name": "Assistant chat" },
+      { "kind": "role", "role": "log", "name": "Chat messages" }
+    ],
+    "emptyAnchors": [{ "kind": "text", "text": "Ask Karbot anything" }],
+    "primary": "messages",
+    "family": "direct"
+  },
+  "frontend.src.components.chat.ChatStates": {
+    "route": "/",
+    "setup": [{ "click": { "kind": "role", "role": "button", "name": "Ask Karbot" } }],
+    "anchors": [{ "kind": "role", "role": "complementary", "name": "Assistant chat" }],
+    "primary": "sessions",
+    "family": "direct"
+  },
+  "frontend.src.components.chat.FilesMenu": {
+    "route": "/",
+    "setup": [
+      { "click": { "kind": "role", "role": "button", "name": "Ask Karbot" } },
+      { "click": { "kind": "role", "role": "button", "name": "Attach file" } }
+    ],
+    "anchors": [{ "kind": "role", "role": "textbox" }],
+    "postAnchors": [{ "kind": "role", "role": "menu" }],
+    "primary": "artifacts",
+    "family": "static"
+  },
+  "frontend.src.components.chat.MessageBubble": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "anchors": [{ "kind": "css", "css": "[aria-label=\"Conversation messages\"]" }],
+    "primary": "messages",
+    "family": "static"
+  },
+  "frontend.src.components.chat.SessionFiles": {
+    "route": "/",
+    "setup": [{ "click": { "kind": "role", "role": "button", "name": "Ask Karbot" } }],
+    "anchors": [
+      { "kind": "role", "role": "complementary", "name": "Assistant chat" },
+      { "kind": "css", "css": "[aria-label=\"Session files\"]" }
+    ],
+    "emptyAnchors": [{ "kind": "text", "text": "No files yet. Files Karbot or subagents create appear here." }],
+    "primary": "artifacts",
+    "family": "static"
+  },
+  "frontend.src.components.chat.SessionsPanel": {
+    "route": "/",
+    "setup": [
+      { "click": { "kind": "role", "role": "button", "name": "Ask Karbot" } },
+      { "click": { "kind": "css", "css": "[aria-label=\"Chat sessions\"]" } }
+    ],
+    "anchors": [
+      { "kind": "role", "role": "complementary", "name": "Assistant chat" },
+      { "kind": "role", "role": "region", "name": "Chat context" }
+    ],
+    "postAnchors": [{ "kind": "text", "text": "New chat" }],
+    "primary": "sessions",
+    "family": "static"
+  },
+  "frontend.src.components.global_context_panel": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "anchors": [{ "kind": "css", "css": "[aria-label=\"Global context\"]" }],
+    "primary": "global",
+    "family": "resource"
+  },
+  "frontend.src.components.local_context_editor": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "setup": [
+      { "click": { "kind": "role", "role": "button", "name": "Conversation options" } },
+      { "click": { "kind": "role", "role": "menuitem", "name": "Local context" } }
+    ],
+    "anchors": [{ "kind": "role", "role": "button", "name": "Conversation options" }],
+    "postAnchors": [{ "kind": "text", "text": "Local context" }],
+    "primary": "local",
+    "family": "resource"
+  },
+  "frontend.src.components.plan_progress": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "setup": [{ "click": { "kind": "css", "css": "[data-tab-value=\"plan\"]" } }],
+    "anchors": [
+      { "kind": "css", "css": "[data-tab-value=\"plan\"]" },
+      { "kind": "role", "role": "region", "name": "Research progress" }
+    ],
+    "primary": "progress",
+    "family": "resource"
+  },
+  "frontend.src.components.workspace_files": {
+    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "anchors": [{ "kind": "css", "css": "[aria-label=\"Sector files\"]" }],
+    "primary": "files",
+    "family": "resource"
+  }
+}
