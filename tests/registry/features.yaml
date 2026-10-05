@@ -1207,18 +1207,6 @@
   tiers:
     - todo
   states: []
-- id: backend.activity.turn_legacy.runChildTurnActivity
-  layer: backend
-  surface: backend/src/temporal/activities/turn-legacy.ts
-  tiers:
-    - todo
-  states: []
-- id: backend.activity.turn_legacy.runTurnActivity
-  layer: backend
-  surface: backend/src/temporal/activities/turn-legacy.ts
-  tiers:
-    - todo
-  states: []
 - id: backend.activity.turn_palettes.sectorMcpClient
   layer: backend
   surface: backend/src/temporal/activities/turn-palettes.ts

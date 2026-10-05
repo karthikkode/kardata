@@ -3,8 +3,7 @@ import { inheritThreadFileRefs, assertThreadFileContext, ContextFileBlocked } fr
 // the Phase 3 Karbot turn over the B4.1 provider gateway plus the agents
 // Streamable MCP client, with deltas on ephemeral outbox frames. Siblings
 // hold the input schema (karbot-turn-input), prompts (turn-prompts),
-// palettes (turn-palettes), chat refs (turn-chatrefs), and retired scripted
-// scaffolding (turn-legacy).
+// palettes (turn-palettes), and chat refs (turn-chatrefs).
 
 import { createHash, createHmac } from 'node:crypto'
 import { ApplicationFailure, Context } from '@temporalio/activity'
@@ -107,7 +106,7 @@ export interface TurnOutcome {
   haltNotice?: string
 }
 
-/** Shared beat sleep for turn activities (also used by turn-legacy). */
+/** Shared beat sleep for turn activities. */
 export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     const done = () => { clearTimeout(timer); signal?.removeEventListener('abort', done); resolve() }
