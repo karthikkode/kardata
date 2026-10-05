@@ -450,3 +450,37 @@ provenance; model interpretation is explicitly uncertain. This presentation does
 not truncate the stored content or promote it into shared context automatically.
 The body refreshes after a file's terminal status changes. Design authority:
 [PDF ingestion](plans/2026-10-01-pdf-ingestion.md).
+
+## State matrix (generated e2e)
+
+Every visual component carries `states:` in `tests/registry/features.yaml`;
+`npm run matrix:sync` generates one spec per component from
+`tests/frontend-e2e/matrix/components.json` (route + anchors). Each state
+asserts the seven checks (overflow, 390 containment, truncation titles,
+focus, clean console, axe serious, `toHaveScreenshot` ≤0.1%): see
+`tests/frontend-e2e/support/matrix.ts`. Fixtures come from the single
+factory `support/factory.ts`.
+
+## Failure handling
+
+Unary API calls time out at 30s (`REQUEST_TIMEOUT_MS` in
+`data/api/client.ts`) and surface the designed error/denied UI with retry;
+drafts and input survive, and the surface recovers when the endpoint heals
+(`tests/frontend-e2e/failures/` pins every endpoint × fault).
+
+## Scale budgets
+
+Lists render 100/1000/2000 rows correctly; first render ≤300ms at 1000
+rows, no long task >50ms during a scripted scroll, heap growth <50MB over
+10 open/close cycles (`tests/frontend-e2e/scale-budgets.spec.ts`). Lists
+past 200 rows virtualize with TanStack Virtual when a budget misses.
+
+## Agentic UI review
+
+`npm run ui:review` shoots the matrix (`MATRIX_SHOTS=1`) into
+`frontend/test-results/ui-review/` with `manifest.json`; `-- --changed`
+limits the run to the branch diff's components. The agent grades every
+screenshot pass/fail on alignment, spacing, typography, contrast,
+truncation, copy, icons, state clarity, system match, and breakage, and
+writes failures-first to `docs/ui-review/<date>.md`; each failure gets a
+fix plus a coded assertion, or a baseline update with its reason.

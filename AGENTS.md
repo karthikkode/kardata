@@ -64,6 +64,7 @@ task request, the rules win unless the owner explicitly overrides them.
   `documentation/tests.md` (test per change, query priority, no markup
   snapshots). Gates: `npm run lint`, `npm run typecheck`, `npm test`,
   `npm run build` from `frontend/`.
+- Every UI change runs `npm run ui:review -- --changed` before review.
 
 ## Merge gate
 

@@ -172,7 +172,7 @@ like the routes) seeds 1000 companies plus 12 documents.
 | fault | Injected failures | `TEST_DATABASE_URL=… TOXIPROXY_URL=… npm run test:fault` (needs `KARDATA_FILE_TEMPORAL_ADDRESS`) |
 | stress | Data volume, DB concurrency | `TEST_DATABASE_URL=… npm run test:stress` |
 | live | Real Meta, isolated stack | `npm run test:live` (lands in Phase 5) |
-| ui-review | Graded screenshots | `npm run ui:review` (lands in Phase 6) |
+| ui-review | Graded screenshots | `npm run ui:review` (`-- --changed` limits to the branch diff) |
 
 Full gates: `npm run verify` (pr:verify + quality + the registry gate,
 which rides inside the backend suite); `npm run verify:full` adds the db,
