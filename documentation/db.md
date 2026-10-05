@@ -217,6 +217,7 @@ adds auth, transport, and tool schemas, never SQL.
 | Companies / work | `companies`, `research_work` | projected from company.* events |
 | Cold pointers | `cold_event_pointers` | one row per moved operational event |
 | Alerts | `alerts` | supervision findings, resolved_at nullable |
+| Thread failure reason | `threads.state_reason` | supervisor kind (closed-owner, ...); cleared on next state |
 | Evaluation | `v_thread_cost`, `v_research_quality`, `v_agent_reliability` | read via `GET /v1/sectors/:id/evaluation` |
 
 ## Current schema (0001–0019)
