@@ -1,6 +1,13 @@
 import { z } from 'zod'
 import type { WorkItem } from './research-plan.js'
-import type { TurnOutcome } from './activities/turn.js'
+
+/** Minimal turn view the validator needs (P2 depcruise: importing TurnOutcome
+ * from activities/turn.js closed import cycles; TurnOutcome stays assignable). */
+export interface DiscoveryOutcome {
+  reply: string
+  sources?: Array<{ url: string; text: string }>
+  haltNotice?: string
+}
 
 const Result = z.object({
   checks: z.array(z.object({ criterion: z.string().min(1), met: z.boolean(), evidence: z.array(z.string().url()).min(1) }).strict()),
@@ -11,7 +18,7 @@ const Result = z.object({
 export function discoverySample<T extends Pick<WorkItem, 'id' | 'kind'>>(items: T[], count = 50): T[] {
   return items.filter((item) => item.kind === 'company').sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0).slice(0, count)
 }
-export function validateDiscoveryAcceptance(outcome: TurnOutcome, expected: WorkItem[], criteria: string[]) {
+export function validateDiscoveryAcceptance(outcome: DiscoveryOutcome, expected: WorkItem[], criteria: string[]) {
   if (outcome.haltNotice) throw new Error(outcome.haltNotice)
   if (!expected.length) throw new Error('No discovered companies are available for validation.')
   const fenced = outcome.reply.match(/```discovery-result\s*\n([\s\S]*?)```/)
