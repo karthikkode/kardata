@@ -66,7 +66,7 @@ test('chat picker offers only live Meta models and seeds Contributor high', asyn
 })
 
 test('chat shows a served reply, quiet tool disclosure, and provider trace', async ({ page }) => {
-  let release = () => undefined
+  let release: () => void = () => undefined
   const sent = new Promise<void>((resolve) => { release = resolve })
   await serveApi(page, sent, release)
   await page.goto('/')

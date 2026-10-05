@@ -18,6 +18,7 @@ import {
   listSectorDocuments,
   listSectors,
   listSessionArtifacts,
+  listSessions,
   listTenantArtifacts,
   listThreads,
   referenceArtifact,

@@ -209,7 +209,7 @@ describe('chat staging (no mocks)', () => {
 
   it('echoes the sent message instantly, then shows the confirmed copy once', async () => {
     let push: ((bytes: Uint8Array) => void) | undefined
-    let acceptSend = () => undefined
+    let acceptSend: () => void = () => undefined
     const encode = (frames: unknown[]) =>
       new TextEncoder().encode(frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join(''))
     stubApi((url) => {

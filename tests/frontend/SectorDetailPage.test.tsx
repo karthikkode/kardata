@@ -30,6 +30,8 @@ afterEach(() => {
 })
 const petCare: SectorDetail = {
   id: 'seed-pet-care',
+  createdAt: '2026-09-27T00:00:00.000Z',
+  updatedAt: '2026-09-27T01:00:00.000Z',
   name: 'Pet care',
   topic: 'D2C pet brands',
   companiesFound: 1,
@@ -50,6 +52,8 @@ const petCare: SectorDetail = {
 }
 const quiet: SectorDetail = {
   id: 'seed-quiet',
+  createdAt: '2026-09-27T00:00:00.000Z',
+  updatedAt: '2026-09-27T01:00:00.000Z',
   name: 'Quiet sector',
   topic: 'Nothing yet',
   companiesFound: 0,
@@ -61,6 +65,8 @@ const quiet: SectorDetail = {
 }
 const draftSector: SectorDetail = {
   id: 'seed-draft',
+  createdAt: '2026-09-27T00:00:00.000Z',
+  updatedAt: '2026-09-27T01:00:00.000Z',
   name: 'Speciality foods',
   topic: 'Artisanal packaged foods',
   companiesFound: 0,

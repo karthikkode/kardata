@@ -21,7 +21,7 @@ it('keeps a large library in fifty-row windows without hiding indexed/error stat
   // 2005-row filter render overruns vitest's 5s timeout under full-suite
   // worker contention. The filter reads onChange, so this stays faithful.
   fireEvent.change(screen.getByRole('textbox', { name: 'Search files' }), { target: { value: 'source 2004' } })
-  expect(screen.getByRole('button', { name: 'TEST source 2004.md', exact: true })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'TEST source 2004.md' })).toBeInTheDocument()
   expect(screen.getByText('Showing 1 of 1 files')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument()
   fireEvent.change(screen.getByRole('textbox', { name: 'Search files' }), { target: { value: '' } })
@@ -35,8 +35,8 @@ it('resets the window on hidden-file filtering and keeps reveal/preview authorit
   await user.click(screen.getByRole('button', { name: 'Show hidden files' }))
   expect(screen.getAllByRole('button', { name: /^TEST source/ })).toHaveLength(50)
   expect(screen.getByText('Showing 50 of 2,005 files')).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'TEST source 4.md', exact: true })).toBeDisabled()
-  await user.click(screen.getByRole('button', { name: 'Reveal TEST source 4.md to agents', exact: true }))
+  expect(screen.getByRole('button', { name: 'TEST source 4.md' })).toBeDisabled()
+  await user.click(screen.getByRole('button', { name: 'Reveal TEST source 4.md to agents' }))
   expect(props.onHide).toHaveBeenCalledWith('TEST file 4', false)
 })
 

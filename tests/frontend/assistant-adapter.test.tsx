@@ -24,9 +24,9 @@ describe('assistant adapter mapping', () => {
     const out = toThreadMessages(settled, { pendingText: null, pendingReasoning: null, pendingTools: [] })
     expect(out).toHaveLength(2)
     expect(out[0]).toMatchObject({ role: 'user' })
-    expect(textOf((out[0] as { content: unknown[] }).content[0])).toBe('Find problems')
+    expect(textOf((out[0] as unknown as { content: unknown[] }).content[0])).toBe('Find problems')
     expect(out[1]).toMatchObject({ role: 'assistant' })
-    expect(textOf((out[1] as { content: unknown[] }).content[0])).toBe('Acme Pay mismatch')
+    expect(textOf((out[1] as unknown as { content: unknown[] }).content[0])).toBe('Acme Pay mismatch')
   })
 
   it('places reasoning before its reply text', () => {
@@ -34,7 +34,7 @@ describe('assistant adapter mapping', () => {
       { id: 'm:3', kind: 'text', role: 'agent', text: 'Verdict', reasoning: 'Trace' },
     ]
     const out = toThreadMessages(settled, { pendingText: null, pendingReasoning: null, pendingTools: [] })
-    const content = (out[0] as { content: unknown[] }).content
+    const content = (out[0] as unknown as { content: unknown[] }).content
     expect(content.map(typeOf)).toEqual(['reasoning', 'text'])
     expect(textOf(content[0])).toBe('Trace')
   })
@@ -45,7 +45,7 @@ describe('assistant adapter mapping', () => {
     ]
     const out = toThreadMessages(settled, { pendingText: null, pendingReasoning: null, pendingTools: [] })
     expect(out[0]).toMatchObject({ status: { type: 'incomplete', reason: 'error' } })
-    expect(textOf((out[0] as { content: unknown[] }).content[0])).toBe('Partial')
+    expect(textOf((out[0] as unknown as { content: unknown[] }).content[0])).toBe('Partial')
   })
 
   it('appends live pending tools, reasoning, and text as one running turn', () => {
@@ -56,7 +56,7 @@ describe('assistant adapter mapping', () => {
     })
     expect(out).toHaveLength(1)
     expect(out[0]).toMatchObject({ role: 'assistant', status: { type: 'running' } })
-    const content = (out[0] as { content: unknown[] }).content
+    const content = (out[0] as unknown as { content: unknown[] }).content
     expect(content.map(typeOf)).toEqual(['tool-call', 'reasoning', 'text'])
   })
 

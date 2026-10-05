@@ -79,7 +79,7 @@ export async function auditPage(page: Page, options: AuditOptions = {}): Promise
         let current: Element | null = element
         for (let depth = 0; current && depth < 4; depth++) {
           const tag = current.tagName.toLowerCase()
-          const parent = current.parentElement
+          const parent: Element | null = current.parentElement
           const index = parent ? [...parent.children].filter((child) => child.tagName === current?.tagName).indexOf(current) + 1 : 1
           parts.unshift(`${tag}:nth-of-type(${index})`)
           current = parent

@@ -537,7 +537,7 @@ function workItems(count: number, seed: number): FixtureWorkItem[] {
       childId: state === 'running' ? `child-${i}` : null,
       evidence: state === 'complete' ? ['Licensed crew named on the roster page.'] : [],
       detail: state === 'complete' ? 'Accepted after source review.' : state === 'running' ? 'Reviewer is reading the coverage page.' : state === 'blocked' ? 'Waiting on the coverage page fetch.' : state === 'failed' ? 'The source page did not load.' : 'Excluded as a directory page.',
-      ...(state !== 'pending' ? { sourceUrl: `https://example.com/contractor-${i + 1}` } : {}),
+      sourceUrl: `https://example.com/contractor-${i + 1}`,
     }
   })
 }

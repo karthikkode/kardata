@@ -2,12 +2,12 @@
 // dock open/close, section switch, model menu open/Esc. Videos land in
 // test-results/visual/video (gitignored); rows live in
 // docs/frontend-verification.md.
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page, type Route } from '@playwright/test'
 
 test.use({ video: { mode: 'on', size: { width: 1280, height: 720 } } })
 
-async function serveClipsApi(page): Promise<void> {
-  await page.route('**/v1/**', async (route) => {
+async function serveClipsApi(page: Page): Promise<void> {
+  await page.route('**/v1/**', async (route: Route) => {
     const url = route.request().url()
     if (url.includes('/events?')) {
       await route.fulfill({ status: 200, contentType: 'text/event-stream', body: '' })

@@ -74,7 +74,7 @@ describe('SectorContextDrawer', () => {
   })
 
   it('excludes a file through PATCH and refreshes the view', async () => {
-    const { calls } = stubApi((url, init) => {
+    const { calls } = stubApi((_url, init) => {
       if ((init.method ?? 'GET') === 'PATCH') {
         return { status: 200, payload: envelope({ ...VIEW, files: [{ ...VIEW.files[0], excluded: true }] }) }
       }
@@ -90,7 +90,7 @@ describe('SectorContextDrawer', () => {
   })
 
   it('adds a user note through PATCH', async () => {
-    stubApi((url, init) => {
+    stubApi((_url, init) => {
       if ((init.method ?? 'GET') === 'PATCH') {
         return {
           status: 200,

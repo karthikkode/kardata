@@ -12,7 +12,8 @@
     "moduleDetection": "force",
     "skipLibCheck": true,
     "noEmit": true,
+    "allowJs": true,
     "types": ["node"]
   },
-  "include": ["src", "vitest.config.ts", "../tests/backend"]
+  "include": ["src", "vitest.config.ts", "../tests/backend", "../tests/registry"]
 }

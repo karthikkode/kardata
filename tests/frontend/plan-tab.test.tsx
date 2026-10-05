@@ -127,7 +127,7 @@ describe('ResearchPlanTab brief and states', () => {
     const user = userEvent.setup()
     const bare = planView()
     renderTab('planned', ready({ ...bare, latest: { ...bare.latest!, executable: undefined } }))
-    const warning = screen.getByText(/no executable search steps yet/).closest('[role="alert"]')!
+    const warning = screen.getByText(/no executable search steps yet/).closest('[role="alert"]')! as HTMLElement
     await user.click(within(warning).getByRole('button', { name: 'Edit plan' }))
     expect(screen.getByRole('dialog', { name: 'Edit research plan' })).toBeInTheDocument()
   })

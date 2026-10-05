@@ -5,7 +5,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { sessionAge } from '@/components/ChatPanel'
 import { SectorChatPanel } from '@/components/SectorChatPanel'
-import type { StagingConfig } from '@/data/staging-api'
+import type { ResearchState, StagingConfig } from '@/data/staging-api'
 
 const config: StagingConfig = { baseUrl: 'https://staging.test', apiKey: 'key' }
 
@@ -56,7 +56,7 @@ afterEach(() => {
 
 function renderPanel(
   research: {
-    researchState?: 'draft' | 'running' | 'paused' | 'queued' | 'failed' | 'complete' | null
+    researchState?: ResearchState | null
     researchSessionId?: string | null
     researchBusy?: boolean
     researchError?: string | null
@@ -417,7 +417,22 @@ describe('SectorChatPanel', () => {
   }, 15000)
 
   it('needs staging before any chat', () => {
-    render(<SectorChatPanel config={null} sectorId="sec-foods" sectorName="Speciality Foods" />)
+    render(
+      <SectorChatPanel
+        config={null}
+        sectorId="sec-foods"
+        sectorName="Speciality Foods"
+        researchState={null}
+        researchSessionId={null}
+        researchBusy={false}
+        researchError={null}
+        onPauseResearch={() => {}}
+        onResumeResearch={() => {}}
+        onStartResearch={() => {}}
+        onRestartResearch={() => {}}
+        onPlanResearch={() => {}}
+      />,
+    )
     expect(screen.getByText('Sector chat needs the staging backend first.')).toBeInTheDocument()
   })
 

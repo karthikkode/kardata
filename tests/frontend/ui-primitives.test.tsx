@@ -107,10 +107,10 @@ describe('owned primitives', () => {
     )
     const indicators = () => container.querySelectorAll('[data-slot="tab-indicator"]')
     expect(indicators()).toHaveLength(1)
-    expect(screen.getByRole('tab', { name: 'Sectors' })).toContainElement(indicators()[0])
+    expect(screen.getByRole('tab', { name: 'Sectors' })).toContainElement(indicators()[0] as HTMLElement)
     await user.click(screen.getByRole('tab', { name: 'Companies' }))
     expect(indicators()).toHaveLength(1)
-    expect(screen.getByRole('tab', { name: 'Companies' })).toContainElement(indicators()[0])
+    expect(screen.getByRole('tab', { name: 'Companies' })).toContainElement(indicators()[0] as HTMLElement)
   })
 
   it('renders the segmented thumb inside the active tab only', () => {
@@ -128,7 +128,7 @@ describe('owned primitives', () => {
     expect(indicators).toHaveLength(1)
     expect(indicators[0]).toHaveClass('bg-surface-raised')
     expect(indicators[0]).toHaveClass('border-border')
-    expect(screen.getByRole('tab', { name: 'Research' })).toContainElement(indicators[0])
+    expect(screen.getByRole('tab', { name: 'Research' })).toContainElement(indicators[0] as HTMLElement)
   })
 
   it('opens a menu and closes it with Escape', async () => {

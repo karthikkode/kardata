@@ -8,7 +8,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
 test.use({ baseURL: 'http://127.0.0.1:5173' })
 

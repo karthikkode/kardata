@@ -16,7 +16,6 @@ import {
 } from '../../scripts/registry-sync.mjs'
 
 const ROOT = new URL('../..', import.meta.url).pathname.replace(/\/$/, '')
-const ENFORCE = process.env['REGISTRY_ENFORCE'] === '1'
 
 describe('registry gate', () => {
   it('lists every enumerated surface in features.yaml', () => {

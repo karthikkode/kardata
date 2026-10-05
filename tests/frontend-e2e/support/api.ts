@@ -7,7 +7,7 @@ import {
   alerts, allSectors, artifacts, companies, executablePlan, executionBody, executionPage,
   FILE_MARKDOWN, fileUnits, globalFor, karbotSessions, largeLibrary, libraryFiles,
   localFor, planView, planVersions, progressFor, providers, providersEmpty, providersNoKey,
-  runs, sectorActivity, sectorById, sectorSessions, sessionById, sessionThreads, skills,
+  runs, sectorActivity, sectorSessions, sessionById, sessionThreads, skills,
   threadMessages, HEX64, type FixtureCompany, type FixtureMessage, type FixtureSector,
   type FixtureSession, type ResearchState,
 } from './fixtures'

@@ -245,7 +245,7 @@ describe('context compaction and restore', () => {
     await user.click(rows[0]!)
     await user.click(screen.getByRole('button', { name: 'Restore this version' }))
     expect(screen.getByRole('alertdialog', { name: 'Restore version 2?' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Restore version', exact: true }))
+    await user.click(screen.getByRole('button', { name: 'Restore version' }))
     expect(onRestore).toHaveBeenCalledWith(2)
   })
 })

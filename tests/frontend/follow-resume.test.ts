@@ -36,7 +36,7 @@ function streamOf(chunks: Array<Uint8Array | 'die'>): Response {
 }
 
 function hangingStream(): Response {
-  return { ok: true, status: 200, body: new ReadableStream<Uint8Array>(() => undefined) } as Response
+  return { ok: true, status: 200, body: new ReadableStream<Uint8Array>({ start() {} }) } as Response
 }
 
 async function drain<T>(gen: AsyncGenerator<T>): Promise<T[]> {

@@ -14,7 +14,7 @@ function channel() {
     push(value: LiveThread | null) { queue.push(value); wake?.() },
     async *read(signal?: AbortSignal) {
       while (!signal?.aborted) {
-        if (!queue.length) await new Promise<void>((resolve) => { wake = resolve; signal?.addEventListener('abort', resolve, { once: true }) })
+        if (!queue.length) await new Promise<void>((resolve) => { wake = resolve; signal?.addEventListener('abort', () => resolve(), { once: true }) })
         const value = queue.shift()
         if (value === null || signal?.aborted) return
         if (value) yield value
