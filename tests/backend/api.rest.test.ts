@@ -98,6 +98,7 @@ describe.skipIf(!ENABLED)('REST parity (B3.1)', () => {
         childId: 'c1',
         parentSessionId: 's-a',
         parentWorkflowId: 'parent-wf',
+        name: 'Scout',
         depth: 1,
         mode: 'empty',
         goal: 'research',
@@ -262,7 +263,7 @@ describe.skipIf(!ENABLED)('REST parity (B3.1)', () => {
     const mention = await app.inject({
       method: 'POST',
       url: '/v1/commands/send',
-      payload: { threadKey: 's-a', text: '@c1 dig deeper' },
+      payload: { threadKey: 's-a', text: '@scout dig deeper' },
     })
     expect(mention.statusCode).toBe(202)
     expect(runs.signals.at(-1)).toMatchObject({ workflowId: 'c1', signal: 'childMessage' })

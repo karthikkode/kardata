@@ -192,7 +192,7 @@ const WS_AT = '2026-09-30T00:00:00.000Z'
 const WS_SECTOR = { id: 'sec-overflow-ws', name: 'Overflow workspace', topic: 'Bulk rows', state: 'running', companiesFound: 0, companies: [], companiesTotal: 0, activity: [], activityTotal: 0, createdAt: WS_AT, updatedAt: WS_AT }
 const WS_RESEARCH = { id: 'ws-research', title: 'Overflow research', kind: 'research', sectorId: WS_SECTOR.id, createdAt: WS_AT, updatedAt: WS_AT }
 const WS_NORMALS = Array.from({ length: 60 }, (_, i) => ({ id: `ws-chat-${i + 1}`, title: `Overflow chat ${i + 1}`, kind: 'normal', sectorId: WS_SECTOR.id, createdAt: WS_AT, updatedAt: WS_AT }))
-const WS_SECTIONS = { scope: 'Overflow scope.', decisions: '', findings: '', questions: '' }
+const WS_SECTIONS = { scope: 'Overflow scope.', instructions: '', decisions: '', findings: '', questions: '' }
 
 async function serveWorkspaceApi(page: Page): Promise<void> {
   await page.route('**/v1/**', async (route) => {
@@ -204,7 +204,7 @@ async function serveWorkspaceApi(page: Page): Promise<void> {
     else if (path === '/v1/companies') data = { companies: [], total: 0 }
     else if (path.endsWith('/research-session')) data = WS_RESEARCH
     else if (path === '/v1/sessions') data = url.searchParams.has('sectorId') ? [WS_RESEARCH, ...WS_NORMALS] : []
-    else if (path.endsWith('/global-context')) data = { sectorId: WS_SECTOR.id, version: 0, sections: WS_SECTIONS, markdown: '## Scope\n\nOverflow scope.', researchSessionId: WS_RESEARCH.id, changes: [] }
+    else if (path.endsWith('/global-context')) data = { sectorId: WS_SECTOR.id, version: 0, sections: WS_SECTIONS, markdown: '## Scope\n\nOverflow scope.', researchSessionId: WS_RESEARCH.id, changes: [], files: [], usage: { total: 0, budget: 30000, method: 'estimated', bySection: { scope: 0, instructions: 0, decisions: 0, findings: 0, questions: 0 }, byFile: [] } }
     else if (path.endsWith('/progress')) data = { sectorId: WS_SECTOR.id, state: WS_SECTOR.state, planVersion: 0, items: [], completed: 0, total: 0, unresolved: 0, discoveryClosed: false, estimatedPercent: null }
     else if (path.endsWith('/files')) data = []
     else if (path.endsWith('/threads')) data = [{ key: WS_RESEARCH.id, sessionId: WS_RESEARCH.id, kind: 'session', status: 'RUNNING', acceptingSteer: true, queueDepth: 0, updatedAt: WS_AT }]

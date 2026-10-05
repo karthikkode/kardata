@@ -1,5 +1,36 @@
 # Implementation status
 
+Sector backend v1, stage 4 FINAL (2026-10-05, `sector-backend-v1`,
+merged to main): pr:verify exit 0, DB suite 1165/56/0, Playwright
+485/23/0, backend live 18/18, B4 green (2.8m, 16 shots opened).
+Reds root-caused along the way. (1) Playwright 209 failed: stale
+e2e fixtures missing the A6/A8 response shape (`instructions`,
+`files`, `usage`); migrated fixtures + 9 specs, then 17 failed:
+12 audit (usage trigger under the 32px floor, subagent strip
+crushed at 390 - both product-fixed), CP-02/WS-07/FL-02 scoping
+(new A15/A16/A18/A6 UI), PL-01 (unmocked A6 route); then 1
+(SA-02 overlap from the strip fix, `min-w-60` container); then
+green. (2) pr:verify backend catalog red: new fixture export;
+regenerated catalog + acceptance per A20. (3) Live battery with
+the B2 stack up: stack worker stole suite activities (bug 13);
+re-ran with the stack down. (4) Live 14/18: L-A15 goal-wording
+variance (test now pins the stored column + loops replies),
+L-A9 fixture/prompt tension (restructured at identical volume),
+L-A16/L-PLAN provider slow window vs the 60s round budget
+(both green on re-run). (5) B4 first attempt 500s: 4 orphan
+events from the bug-13 run wedged the projector (bug 17);
+skipped via checkpoint, zombies terminated, rows preserved.
+
+Final backend gate reds root-caused (2026-10-05, `sector-backend-v1`,
+round-4 fixes committed): 3 failed / 1162 passed. (1)
+`api.rest @name` routed `@c1` by raw child id, which worked only
+because the projector stored the id as the name; with NULL names the
+fixture now names the child `Scout` and mentions `@scout` (test side
+updated to the approved behavior). (2) `subagent-delegate` exact-args
+expectation gained the approved `name: 'Subagent 1'` MCP default.
+(3) Acceptance inventory regenerated for the new exports
+(`UPDATE_ACCEPTANCE_SURFACES=1`). No product changes; re-run pending.
+
 Sector backend v1, stage 4 (2026-10-04, uncommitted on `sector-backend-v1`):
 B4 walkthrough green (run 12, 2.4 min, 15/15 steps, 16 screenshots opened
 and confirmed), CORS `Idempotency-Key` fix, per-sector context-change ids,

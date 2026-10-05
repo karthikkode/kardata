@@ -313,12 +313,12 @@ export function SectorWorkspace({ sector, model, config, actions, onBack, initia
   const isResearchView = selected?.kind === 'research' && !model.child
   const planLatest = model.plan.data?.latest
   const planApproved = planLatest != null && model.plan.data?.approvedVersion === planLatest.version
-  const subagentStrip = <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle px-4 py-2 sm:px-6"><Icons.agents className="size-4 shrink-0 text-muted-foreground" aria-hidden /><Caption as="span" className="shrink-0">Subagents</Caption>{children.length ? <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">{children.slice(0, 3).map((child, index) => {
+  const subagentStrip = <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border-subtle px-4 py-2 sm:px-6"><Icons.agents className="size-4 shrink-0 text-muted-foreground" aria-hidden /><Caption as="span" className="shrink-0">Subagents</Caption>{children.length ? <div className="flex min-w-60 flex-1 flex-wrap items-center gap-1">{children.slice(0, 3).map((child, index) => {
             const name = subagentDisplayName(child, index)
             const childId = child.key.startsWith('agent:') ? child.key.slice('agent:'.length) : child.key
             const paused = child.status === 'PAUSED'
             return (
-              <span key={child.key} className={cn('flex min-w-0 max-w-52 items-center', rowEnter)} style={{ animationDelay: `${staggerDelay(index)}s` }}>
+              <span key={child.key} className={cn('flex min-w-36 max-w-52 flex-1 items-center', rowEnter)} style={{ animationDelay: `${staggerDelay(index)}s` }}>
                 <Button type="button" variant="ghost" size="sm" onClick={() => model.openThread(child.key)} title={child.key} className="min-w-0 flex-1"><span aria-hidden className={cn('size-1.5 shrink-0 rounded-full', child.status === 'RUNNING' ? 'bg-success motion-safe:animate-pulse' : 'bg-muted-foreground')} /><span className="truncate">{name}</span></Button>
                 {paused ? <Badge tone="warning">Paused</Badge> : null}
                 {paused

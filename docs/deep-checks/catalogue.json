@@ -1963,7 +1963,7 @@
     },
     {
       "path": "backend/src/db/threads.ts",
-      "sha256": "64ae6b41dc8fd45c1cd73d5aac8cfeed11d798a4f75758d2f9f9f7fb6cc8eb19",
+      "sha256": "c81dd1738c56dec2c4425800850d7b7c5848bd4c91e2cf29c76f037bbd861a6b",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3895,7 +3895,7 @@
     },
     {
       "path": "frontend/src/components/SectorWorkspace.tsx",
-      "sha256": "a106272b18d6d5232d0edb68fa489f14b6ebc9051c7b1fd2d0f59f09b315485c",
+      "sha256": "0408ceae8ce37e34f178aa3150ea309c5aa9a594a052ee2d3b4887ec8b3eaf65",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -3931,7 +3931,7 @@
     },
     {
       "path": "frontend/src/components/SubagentsPanel.tsx",
-      "sha256": "c7991cfd36374c632a923d54eba0a9c946e08522646580da7944c5575fd218b2",
+      "sha256": "d6b5373804123017d45520b69c867d12341a95b6a613be5e787df85d2f22779f",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4375,7 +4375,7 @@
     },
     {
       "path": "frontend/src/components/workspace-parts.tsx",
-      "sha256": "2b686c183ae8a6d51a4a10eec08cf5b47a546396563fc76b55676ef5eed07432",
+      "sha256": "29532eadd968e55c9e8b51290482ee4a6174b067a644b5b665073af118cc8145",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -4926,7 +4926,7 @@
     },
     {
       "path": "tests/backend/api.rest.test.ts",
-      "sha256": "522587f6eeaf8c6dfb84911d7132d179f7d70a6e390560bd252c26a58dd6519d",
+      "sha256": "525698e159716d9d073aa5d1e5859d675e3432a0979d8970c173f4e80685a575",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5881,7 +5881,7 @@
     },
     {
       "path": "tests/backend/subagent-delegate.test.ts",
-      "sha256": "4d2ad92548e750deee90d10275d23127a6718578f822f718082998a4980c5daf",
+      "sha256": "bdef5ac8db956953c122ac7b48dc164b8d9fcbd25cc2e8b0d23ed649f0bb9920",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -6036,7 +6036,7 @@
     },
     {
       "path": "tests/backend/threads.test.ts",
-      "sha256": "34d0c962ec806a4b7bdc4fd9ae8a31c2d6b5813870b1d39aee4dae4179033605",
+      "sha256": "c6a663155382072518ad2a2c0d205b2ba9fdb6db7b95e606ff379274d16e238f",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -12645,21 +12645,21 @@
     },
     {
       "path": "tests/frontend-e2e/context-recovery.spec.ts",
-      "sha256": "b09b3f12a5e6a7b22cd0cbacf833d6f3ba05352a49cd78224408bcad4e7f6197",
+      "sha256": "f8a690b25a3fbc5c880fb234304ade9491003ddaad3e39595d635d5052165e66",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend-e2e/execution-inspection.spec.ts",
-      "sha256": "a9b4cbbf68174e3dbc15be254f6dd149271f437a22023cc807f58469153b49d0",
+      "sha256": "efeade128d2d9a0fc94998511b8cf81fc15a831f20280323af91e2636dd4ddbe",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend-e2e/file-processing.spec.ts",
-      "sha256": "1b702e4ba22e6e3d02044be9e4edc465225b7b0457343102003af5a3ea970004",
+      "sha256": "561087081c721e57bc0fa30afd64a41d92c0b33e95935fac7b0a98ef77686518",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -12673,7 +12673,7 @@
     },
     {
       "path": "tests/frontend-e2e/files-scale.spec.ts",
-      "sha256": "342b732c36d705b551660b66708f8bf40832f6d252a202831ffe78dd6b936b13",
+      "sha256": "3e6ea74e8a009cce5f8826be578dcc797eaa92c079a26409d1cdd0ea239d9ddd",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -12736,14 +12736,14 @@
     },
     {
       "path": "tests/frontend-e2e/polish.spec.ts",
-      "sha256": "f6b774a7dc7d7bad78f91260073cafd3cafcbf98796d99132dfd6b4e8eba3549",
+      "sha256": "7acdd0df53d7cc1ed98d606794158f47f1f1d14d28f289d256eb0ab4e3d780e2",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend-e2e/revamp-evidence.spec.ts",
-      "sha256": "c3022e50d16f462eb55b83b9a18dce9bd051404d46195fa927e5b7c0271e536e",
+      "sha256": "77b2f05b1e838ef969ffe6163659c7c78fdb2179e90eda80928a156a00e121aa",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -12764,7 +12764,7 @@
     },
     {
       "path": "tests/frontend-e2e/scrollbars.spec.ts",
-      "sha256": "54de3ba00b78cfc6e1d1de772a80f33125d2c977aba8865989c0a7f7138e9221",
+      "sha256": "3d70607b1858276c738b475fc11c653bd0a5d9909ecc74f87d31ba667cc30103",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -12778,7 +12778,7 @@
     },
     {
       "path": "tests/frontend-e2e/support/api.ts",
-      "sha256": "d676cd2863a399841b6fe0c1d581bac02e9a01790e0ea57fd2c551652a8d8d72",
+      "sha256": "ce9052d0a4964f3f8c61811fa52ddd88b32e0d908878c017c128c34ddb567685",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -12835,7 +12835,7 @@
     },
     {
       "path": "tests/frontend-e2e/support/fixtures.ts",
-      "sha256": "ddf43bff8f625e365a7249fa3cfcb62c4a3d834c7058ab89a0aa532c67d3a271",
+      "sha256": "2c9789372446fdeb998a31208ef6fae000b664e4b14948b2296543e16f76425b",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -12853,6 +12853,7 @@
         "FixtureProgress",
         "FixtureRun",
         "FixtureSections",
+        "FixtureSectionsNumbers",
         "FixtureSector",
         "FixtureSession",
         "FixtureThread",
@@ -12951,14 +12952,14 @@
     },
     {
       "path": "tests/frontend-e2e/v2/conversation.spec.ts",
-      "sha256": "a02c700589fb51ec135b081a24903c642729a50da39748b863011589063e3347",
+      "sha256": "74ea695e223264e3063211af5a3e5f2d3463fb70152c7fab57c985e393e4cdb5",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend-e2e/v2/files.spec.ts",
-      "sha256": "98b515e72de930614e59a494bb2be049bd2f8d6efdaceeb3e93dbc76e09f38fe",
+      "sha256": "2aa0b2d933f02d6c1d047cdc118b9376da7369e8cca375ca1be7e4081585c4c3",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -13028,7 +13029,7 @@
     },
     {
       "path": "tests/frontend-e2e/v2/workspace.spec.ts",
-      "sha256": "35e47535305515e0d50144a29052655c8f69ee424b40f7420f1753e070924330",
+      "sha256": "717816281dd8ce8b1bacb6b884ec59e9bf879c5076f8a56d0c14e268d1b17b97",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -13042,14 +13043,14 @@
     },
     {
       "path": "tests/frontend-e2e/work-review.spec.ts",
-      "sha256": "3316c79e3d68793c3dd557320d9346149d2737a61980294fd7f0d65248a3465d",
+      "sha256": "f7182e67ee52368ee71cd40218e891d1d871498bda284717bd7ee0b8a98ec48c",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/frontend-e2e/workspace.spec.ts",
-      "sha256": "deaa7cba0798b2a43d7963accdbc56e8a75e5a9bed23bcef0a154cadb6152359",
+      "sha256": "37733fea5ddf3b106a4b1020e890e9b52ec7dbbd205461b140a7c87584f2c68a",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -13504,7 +13505,7 @@
     },
     {
       "path": "tests/frontend/sector-workspace.test.tsx",
-      "sha256": "9763e03ba51e07b394f98f6871b565e81703ca5755f4e9a52bd3bab6078b3e2f",
+      "sha256": "b4d8524a9211f18f7c21caf9de462d992c88f4479fcd3b9069032acb200dbc05",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -13574,7 +13575,7 @@
     },
     {
       "path": "tests/frontend/subagent-spawn.test.tsx",
-      "sha256": "a3a827cfb1912b6bb04005139c046eee6bb60e168b7484e7c3b0138c0856340b",
+      "sha256": "c23ffecb23834f0245c93643e29981a59a4b32f3d99ae091a307115c12e4c297",
       "review": "pending",
       "tests": [],
       "exports": []

@@ -486,6 +486,12 @@ set -a; . agents/.env; set +a; KARDATA_LIVE_META=1 KARDATA_TEMPORAL_TEST=1 TEST_
 Files run sequentially (`--no-file-parallelism`): 10 min per test, 30 min per
 file. Re-run one test with `-t "<ID>"`. Spend is read back from the archived
 execution records via the harness `spend()` helper and reported per test.
+Never run the browser stack below concurrently with this suite: both poll
+the same namespace and task queues, so the stack worker steals suite
+activities and fails them against the wrong database (handoff bug 13).
+Terminate namespace residue (`temporal workflow terminate` on test
+workflows) before reusing a live database, or orphaned events wedge
+the projector (handoff bug 17).
 
 The live browser stack (`scripts/live-stack.sh`, stop with
 `scripts/live-stack-stop.sh`, which kills only its recorded PIDs) serves the

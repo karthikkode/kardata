@@ -193,18 +193,24 @@ describe.skipIf(!LIVE_META_ENABLED)('live stage 3 (reads, chat refs, subagent co
     ]
     let tries = 0
     let childKey = ''
+    const seen = new Set(threadsBefore)
     for (const wording of wordings) {
       tries += 1
       await sendAndWaitReply(stack, parentId, wording)
-      const fresh = (await threadsOf(stack, parentId)).map((thread) => thread.key).filter((key) => !threadsBefore.includes(key) && key.startsWith('agent:'))
-      if (fresh.length > 0) {
-        childKey = fresh[0] ?? ''
-        break
+      const fresh = (await threadsOf(stack, parentId)).map((thread) => thread.key).filter((key) => !seen.has(key) && key.startsWith('agent:'))
+      for (const key of fresh) seen.add(key)
+      for (const key of fresh) {
+        const stored = await stack.pool.query<{ inherited: string }>('SELECT inherited FROM thread_context WHERE thread_key=$1', [key])
+        expect(stored.rows[0]?.inherited ?? '').toContain('HARBOUR-42')
+        const reply = await waitChildReply(stack, key)
+        if (reply.includes('HARBOUR-42')) {
+          childKey = key
+          break
+        }
       }
+      if (childKey) break
     }
     expect(childKey).not.toBe('')
-    const parentSpawnedReply = await waitChildReply(stack, childKey)
-    expect(parentSpawnedReply).toContain('HARBOUR-42')
     logSpend('L-A15', `tries=${tries}`, spendBefore, await stack.spend())
   }, 600_000)
 

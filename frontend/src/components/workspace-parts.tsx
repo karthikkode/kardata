@@ -531,7 +531,7 @@ function ContextUsageBar({ usage, files }: { usage: GlobalContextUsage; files: C
   const names = new Map(files.map((file) => [file.fileId, file.filename]))
   return (
     <PopoverRoot>
-      <PopoverTrigger aria-label={`Global context token usage: ${formatCount(usage.total)} of ${formatCount(usage.budget)} tokens. Show breakdown.`} className="block w-full rounded-md text-left outline-none">
+      <PopoverTrigger aria-label={`Global context token usage: ${formatCount(usage.total)} of ${formatCount(usage.budget)} tokens. Show breakdown.`} className="flex min-h-10 w-full flex-col justify-center rounded-md text-left outline-none min-[481px]:min-h-8">
         <Caption as="span" className="block"><Numeric>{formatCount(usage.total)} of {formatCount(usage.budget)} tokens</Numeric></Caption>
         <ProgressRoot value={Math.min(100, ratio * 100)} max={100} aria-hidden className={cn('mt-1', tone)} />
       </PopoverTrigger>

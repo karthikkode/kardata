@@ -186,7 +186,7 @@ test('revamp: loaded-list filter timing probe', async ({ page }) => {
     else if (path === `/v1/sectors/${sectorId}`) data = sector
     else if (path.endsWith('/research-session')) data = session
     else if (path === '/v1/sessions') data = [session]
-    else if (path.endsWith('/global-context')) data = { sectorId, version: 1, sections: { scope: 'TEST' }, markdown: '## Scope\n\nTEST', researchSessionId: sessionId, changes: [] }
+    else if (path.endsWith('/global-context')) data = { sectorId, version: 1, sections: { scope: 'TEST', instructions: '', decisions: '', findings: '', questions: '' }, markdown: '## Scope\n\nTEST', researchSessionId: sessionId, changes: [], files: [], usage: { total: 0, budget: 30000, method: 'estimated', bySection: { scope: 0, instructions: 0, decisions: 0, findings: 0, questions: 0 }, byFile: [] } }
     else if (path.endsWith('/plan')) data = { sectorId, versions: [], latest: null, approvals: [], approvedVersion: null }
     else if (path.endsWith('/progress')) data = { sectorId, state: 'approved', planVersion: 0, items: [], completed: 0, total: 0, unresolved: 0, discoveryClosed: false, estimatedPercent: null }
     else if (path.endsWith('/threads')) data = [{ key: sessionId, sessionId, kind: 'session', status: 'RUNNING', acceptingSteer: true, queueDepth: 0, updatedAt: at }]
@@ -342,7 +342,7 @@ for (const dark of [false, true]) {
       else if (path.endsWith('/research-session')) data = session
       else if (path === '/v1/sessions') data = [session]
       else if (path.includes('/v1/companies')) data = { companies: [], total: 0 }
-      else if (path.endsWith('/global-context')) data = { sectorId, version: 1, sections: { scope: 'TEST scope', decisions: 'TEST decisions', findings: '', questions: '' }, markdown: '## Scope\n\nTEST scope', researchSessionId: sessionId, changes: [] }
+      else if (path.endsWith('/global-context')) data = { sectorId, version: 1, sections: { scope: 'TEST scope', instructions: '', decisions: 'TEST decisions', findings: '', questions: '' }, markdown: '## Scope\n\nTEST scope', researchSessionId: sessionId, changes: [], files: [], usage: { total: 0, budget: 30000, method: 'estimated', bySection: { scope: 0, instructions: 0, decisions: 0, findings: 0, questions: 0 }, byFile: [] } }
       else if (path.endsWith('/plan')) data = plan
       else if (path.endsWith('/progress')) data = { sectorId, state: 'approved', planVersion: 2, items: [], completed: 0, total: 0, unresolved: 0, discoveryClosed: false, estimatedPercent: null }
       else if (path.endsWith('/files')) data = []
@@ -400,7 +400,7 @@ for (const dark of [false, true]) {
       else if (path.endsWith('/research-session')) data = session
       else if (path === '/v1/sessions') data = [session]
       else if (path.includes('/v1/companies')) data = { companies: [], total: 0 }
-      else if (path.endsWith('/global-context')) data = { sectorId, version: 1, sections: { scope: 'TEST scope', decisions: '', findings: '', questions: '' }, markdown: '## Scope\n\nTEST scope', researchSessionId: sessionId, changes: [] }
+      else if (path.endsWith('/global-context')) data = { sectorId, version: 1, sections: { scope: 'TEST scope', instructions: '', decisions: '', findings: '', questions: '' }, markdown: '## Scope\n\nTEST scope', researchSessionId: sessionId, changes: [], files: [], usage: { total: 0, budget: 30000, method: 'estimated', bySection: { scope: 0, instructions: 0, decisions: 0, findings: 0, questions: 0 }, byFile: [] } }
       else if (path.endsWith('/plan')) data = plan
       else if (path.endsWith('/progress')) data = { sectorId, state: 'planned', planVersion: 2, items: [], completed: 0, total: 0, unresolved: 0, discoveryClosed: false, estimatedPercent: null }
       else if (path.endsWith('/files')) data = []
@@ -442,7 +442,7 @@ test('revamp: bottom-docked model menu stays inside the viewport', async ({ page
     else if (path.endsWith('/research-session')) data = session
     else if (path === '/v1/sessions') data = [session]
     else if (path.includes('/v1/companies')) data = { companies: [], total: 0 }
-    else if (path.endsWith('/global-context')) data = { sectorId, version: 1, sections: { scope: 'TEST scope', decisions: '', findings: '', questions: '' }, markdown: '## Scope\n\nTEST scope', researchSessionId: sessionId, changes: [] }
+    else if (path.endsWith('/global-context')) data = { sectorId, version: 1, sections: { scope: 'TEST scope', instructions: '', decisions: '', findings: '', questions: '' }, markdown: '## Scope\n\nTEST scope', researchSessionId: sessionId, changes: [], files: [], usage: { total: 0, budget: 30000, method: 'estimated', bySection: { scope: 0, instructions: 0, decisions: 0, findings: 0, questions: 0 }, byFile: [] } }
     else if (path.endsWith('/plan')) data = { sectorId, versions: [], latest: null, approvals: [], approvedVersion: null }
     else if (path.endsWith('/progress')) data = { sectorId, state: 'approved', planVersion: 0, items: [], completed: 0, total: 0, unresolved: 0, discoveryClosed: false, estimatedPercent: null }
     else if (path.endsWith('/files')) data = []

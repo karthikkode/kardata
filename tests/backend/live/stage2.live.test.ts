@@ -223,10 +223,10 @@ describe.skipIf(!LIVE_META_ENABLED)('live stage 2 (sections, switch, file blocks
 
     const scope = `SCOPE SENTINEL ALBATROSS-7. ${'Scope context sentence. '.repeat(900)}`.slice(0, 22000)
     const instructions = `INSTRUCTIONS SENTINEL BANYAN-3. ${'Instruction context sentence. '.repeat(750)}`.slice(0, 22000)
-    const decisions = 'Decision context sentence states that residential focus wins. '.repeat(340).slice(0, 20000)
+    const decisions = `Decision A: residential focus wins for coastal crews. Decision B: mid-size firms before independents. Decision C: fixed-price contracts over hourly. ${'Background discussion restating prior context with no new decisions. '.repeat(400)}`.slice(0, 20000)
     const numbered = Array.from({ length: 40 }, (_, i) => `Finding ${i}: route ticket ${1000 + i} paid $${(2000 + i * 7).toFixed(2)} on 2026-01-${String((i % 28) + 1).padStart(2, '0')}.`).join(' ')
-    const findings = `${numbered} ${'Follow-up detail sentence about crew scheduling and parts availability. '.repeat(400)}`.slice(0, 22400)
-    const questions = 'Open question context sentence asks about commercial weighting? '.repeat(60).slice(0, 3000)
+    const findings = `${numbered} ${'Restated scheduling background with no new facts. '.repeat(500)}`.slice(0, 22400)
+    const questions = `Should commercial weighting match residential? Which postcodes need licence rechecks? ${'Restated background with no new questions. '.repeat(90)}`.slice(0, 3000)
     const preBase = Number(dataOf((await stack.api('GET', `/v1/sectors/${sectorId}/global-context`)).body)['version'])
     const patched = await stack.api('PATCH', `/v1/sectors/${sectorId}/global-context`, {
       baseVersion: preBase, sections: { scope, instructions, decisions, findings, questions },

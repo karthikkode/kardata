@@ -8234,6 +8234,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/workspace.ts#ContextAiUsage",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/workspace.ts#ContextChange",
       "source": "backend/src/db/workspace.ts",
       "kind": "export",
@@ -8367,6 +8374,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/db/workspace.ts#PartialContextSections",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/db/workspace.ts#previewContextChange",
       "source": "backend/src/db/workspace.ts",
       "kind": "export",
@@ -8382,6 +8396,13 @@
     },
     {
       "id": "backend/src/db/workspace.ts#proposeGlobalContext",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/workspace.ts#readContextAiUsage",
       "source": "backend/src/db/workspace.ts",
       "kind": "export",
       "features": [],
@@ -8480,6 +8501,13 @@
     },
     {
       "id": "backend/src/db/workspace.ts#rebuildThreadContext",
+      "source": "backend/src/db/workspace.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/db/workspace.ts#recordContextAiUsage",
       "source": "backend/src/db/workspace.ts",
       "kind": "export",
       "features": [],
@@ -12954,6 +12982,13 @@
     {
       "id": "frontend/src/components/StatusPill.tsx#toneDot",
       "source": "frontend/src/components/StatusPill.tsx",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "frontend/src/components/SubagentsPanel.tsx#subagentDisplayName",
+      "source": "frontend/src/components/SubagentsPanel.tsx",
       "kind": "export",
       "features": [],
       "status": "pending"

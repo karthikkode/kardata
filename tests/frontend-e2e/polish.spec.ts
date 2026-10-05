@@ -25,7 +25,7 @@ const MESSAGES = [
   { seq: 1, role: 'user', kind: 'text', text: 'Which buyers show costly friction?', at: AT },
   { seq: 2, role: 'agent', kind: 'text', text: `## Costly friction so far\n\nEvidence lines that pin the pain to money, each long enough to wrap several lines at desktop measure and force the conversation column well past one viewport of scrollable height.\n\n${'A repeated manual reconciliation step costs operators hours every week. '.repeat(12)}`, at: AT },
 ]
-const SECTIONS = { scope: 'Polish scope.', decisions: '', findings: '', questions: '' }
+const SECTIONS = { scope: 'Polish scope.', instructions: '', decisions: '', findings: '', questions: '' }
 
 async function serveWorkspaceApi(page: Page): Promise<void> {
   await page.route('**/v1/**', async (route) => {
@@ -37,7 +37,7 @@ async function serveWorkspaceApi(page: Page): Promise<void> {
     else if (path === '/v1/companies') data = { companies: [], total: 0 }
     else if (path.endsWith('/research-session')) data = RESEARCH
     else if (path === '/v1/sessions') data = url.searchParams.has('sectorId') ? [RESEARCH, ...NORMALS] : []
-    else if (path.endsWith('/global-context')) data = { sectorId: SECTOR.id, version: 0, sections: SECTIONS, markdown: '## Scope\n\nPolish scope.', researchSessionId: RESEARCH.id, changes: [] }
+    else if (path.endsWith('/global-context')) data = { sectorId: SECTOR.id, version: 0, sections: SECTIONS, markdown: '## Scope\n\nPolish scope.', researchSessionId: RESEARCH.id, changes: [], files: [], usage: { total: 0, budget: 30000, method: 'estimated', bySection: { scope: 0, instructions: 0, decisions: 0, findings: 0, questions: 0 }, byFile: [] } }
     else if (path.endsWith('/progress')) data = { sectorId: SECTOR.id, state: SECTOR.state, planVersion: 0, items: [], completed: 0, total: 0, unresolved: 0, discoveryClosed: false, estimatedPercent: null }
     else if (path.endsWith('/files')) data = []
     else if (path.endsWith('/threads')) data = [{ key: RESEARCH.id, sessionId: RESEARCH.id, kind: 'session', status: 'RUNNING', acceptingSteer: true, queueDepth: 0, updatedAt: AT }]

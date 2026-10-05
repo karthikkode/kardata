@@ -326,7 +326,7 @@ test('WS-07-running', async ({ page }) => {
     page, 'WS-07', 'running',
     () => gotoWorkspace(page, 'sector-electrical'),
     async () => {
-      await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible()
     },
     { widths: [1440] },
   )

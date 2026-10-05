@@ -272,6 +272,14 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
         await ok(route, { id: 'change-saved', baseVersion: input['baseVersion'] ?? 3, sections: input['sections'], sourceThread: 'owner', author: 'Owner', state: 'approved', version: 4, at: new Date().toISOString(), fileRef: null })
         return
       }
+      if (rest === '/global-context/files' && method === 'POST') {
+        const state = await gate(route, 'global')
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
+        const library = data.filesVariant === 'large' ? largeLibrary() : libraryFiles
+        const file = library.find((entry) => entry.id === String((body())['fileId'] ?? ''))
+        await ok(route, { fileId: file?.id ?? 'unknown', filename: file?.filename ?? 'file', state: 'summarizing', tokens: 0, summary: '', error: null })
+        return
+      }
       if (rest === '/global-context/proposals' && method === 'POST') {
         const state = await gate(route, 'global')
         if (state !== 'ok' && state !== 'loading' && state !== 'empty') return

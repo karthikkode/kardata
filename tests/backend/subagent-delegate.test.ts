@@ -112,6 +112,7 @@ describe('db.delegate_subagent', () => {
       {
         sessionId: 's-1',
         goal: 'Research Acme Pay: scale proof, mechanism, cost.',
+        name: 'Subagent 1',
         mode: 'empty',
         queueCapacity: 8,
         // A15 inheritance seam: the parent context write lands between
