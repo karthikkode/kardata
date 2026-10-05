@@ -1111,51 +1111,51 @@
   tiers:
     - todo
   states: []
-- id: backend.activity.turn.CONTEXT_PROPOSAL_NUDGE
+- id: backend.activity.turn_prompts.CONTEXT_PROPOSAL_NUDGE
   layer: backend
-  surface: backend/src/temporal/activities/turn.ts
+  surface: backend/src/temporal/activities/turn-prompts.ts
   tiers:
     - todo
   states: []
-- id: backend.activity.turn.CONTEXT_REWRITE_PREAMBLE
+- id: backend.activity.turn_prompts.CONTEXT_REWRITE_PREAMBLE
   layer: backend
-  surface: backend/src/temporal/activities/turn.ts
+  surface: backend/src/temporal/activities/turn-prompts.ts
   tiers:
     - todo
   states: []
-- id: backend.activity.turn.KARBOT_SYSTEM_PROMPT
+- id: backend.activity.turn_prompts.KARBOT_SYSTEM_PROMPT
   layer: backend
-  surface: backend/src/temporal/activities/turn.ts
+  surface: backend/src/temporal/activities/turn-prompts.ts
   tiers:
     - todo
   states: []
-- id: backend.activity.turn.KarbotTurnInput
+- id: backend.activity.karbot_turn_input.KarbotTurnInput
   layer: backend
-  surface: backend/src/temporal/activities/turn.ts
+  surface: backend/src/temporal/activities/karbot-turn-input.ts
   tiers:
     - todo
   states: []
-- id: backend.activity.turn.PLANNING_ROUND_TIMEOUT_MS
+- id: backend.activity.turn_prompts.PLANNING_ROUND_TIMEOUT_MS
   layer: backend
-  surface: backend/src/temporal/activities/turn.ts
+  surface: backend/src/temporal/activities/turn-prompts.ts
   tiers:
     - todo
   states: []
-- id: backend.activity.turn.PRODUCT_TOOLS
+- id: backend.activity.turn_palettes.PRODUCT_TOOLS
   layer: backend
-  surface: backend/src/temporal/activities/turn.ts
+  surface: backend/src/temporal/activities/turn-palettes.ts
   tiers:
     - todo
   states: []
-- id: backend.activity.turn.RESEARCH_TOOLS
+- id: backend.activity.turn_palettes.RESEARCH_TOOLS
   layer: backend
-  surface: backend/src/temporal/activities/turn.ts
+  surface: backend/src/temporal/activities/turn-palettes.ts
   tiers:
     - todo
   states: []
-- id: backend.activity.turn.RESEARCH_TURN_WALL_MS
+- id: backend.activity.turn_prompts.RESEARCH_TURN_WALL_MS
   layer: backend
-  surface: backend/src/temporal/activities/turn.ts
+  surface: backend/src/temporal/activities/turn-prompts.ts
   tiers:
     - todo
   states: []
@@ -1165,15 +1165,15 @@
   tiers:
     - todo
   states: []
-- id: backend.activity.turn.SECTOR_TOOLS
+- id: backend.activity.turn_palettes.SECTOR_TOOLS
   layer: backend
-  surface: backend/src/temporal/activities/turn.ts
+  surface: backend/src/temporal/activities/turn-palettes.ts
   tiers:
     - todo
   states: []
-- id: backend.activity.turn.TURN_HEARTBEAT_MS
+- id: backend.activity.turn_prompts.TURN_HEARTBEAT_MS
   layer: backend
-  surface: backend/src/temporal/activities/turn.ts
+  surface: backend/src/temporal/activities/turn-prompts.ts
   tiers:
     - todo
   states: []
@@ -1183,9 +1183,9 @@
   tiers:
     - todo
   states: []
-- id: backend.activity.turn.chatHistory
+- id: backend.activity.turn_chatrefs.chatHistory
   layer: backend
-  surface: backend/src/temporal/activities/turn.ts
+  surface: backend/src/temporal/activities/turn-chatrefs.ts
   tiers:
     - todo
   states: []
@@ -1201,9 +1201,9 @@
   tiers:
     - todo
   states: []
-- id: backend.activity.turn.freezeOriginalPalette
+- id: backend.activity.turn_palettes.freezeOriginalPalette
   layer: backend
-  surface: backend/src/temporal/activities/turn.ts
+  surface: backend/src/temporal/activities/turn-palettes.ts
   tiers:
     - todo
   states: []
@@ -1213,45 +1213,45 @@
   tiers:
     - todo
   states: []
-- id: backend.activity.turn.parseChatRefs
+- id: backend.activity.turn_chatrefs.parseChatRefs
   layer: backend
-  surface: backend/src/temporal/activities/turn.ts
+  surface: backend/src/temporal/activities/turn-chatrefs.ts
   tiers:
     - todo
   states: []
-- id: backend.activity.turn.productMcpClient
+- id: backend.activity.turn_palettes.productMcpClient
   layer: backend
-  surface: backend/src/temporal/activities/turn.ts
+  surface: backend/src/temporal/activities/turn-palettes.ts
   tiers:
     - todo
   states: []
-- id: backend.activity.turn.researchMcpClient
+- id: backend.activity.turn_palettes.researchMcpClient
   layer: backend
-  surface: backend/src/temporal/activities/turn.ts
+  surface: backend/src/temporal/activities/turn-palettes.ts
   tiers:
     - todo
   states: []
-- id: backend.activity.turn.resolveChatRefTurn
+- id: backend.activity.turn_chatrefs.resolveChatRefTurn
   layer: backend
-  surface: backend/src/temporal/activities/turn.ts
+  surface: backend/src/temporal/activities/turn-chatrefs.ts
   tiers:
     - todo
   states: []
-- id: backend.activity.turn.runChildTurnActivity
+- id: backend.activity.turn_legacy.runChildTurnActivity
   layer: backend
-  surface: backend/src/temporal/activities/turn.ts
+  surface: backend/src/temporal/activities/turn-legacy.ts
   tiers:
     - todo
   states: []
-- id: backend.activity.turn.runTurnActivity
+- id: backend.activity.turn_legacy.runTurnActivity
   layer: backend
-  surface: backend/src/temporal/activities/turn.ts
+  surface: backend/src/temporal/activities/turn-legacy.ts
   tiers:
     - todo
   states: []
-- id: backend.activity.turn.sectorMcpClient
+- id: backend.activity.turn_palettes.sectorMcpClient
   layer: backend
-  surface: backend/src/temporal/activities/turn.ts
+  surface: backend/src/temporal/activities/turn-palettes.ts
   tiers:
     - todo
   states: []
@@ -1267,15 +1267,15 @@
   tiers:
     - todo
   states: []
-- id: backend.activity.turn.turnPalette
+- id: backend.activity.turn_palettes.turnPalette
   layer: backend
-  surface: backend/src/temporal/activities/turn.ts
+  surface: backend/src/temporal/activities/turn-palettes.ts
   tiers:
     - todo
   states: []
-- id: backend.activity.turn.turnRoundTimeoutMs
+- id: backend.activity.turn_prompts.turnRoundTimeoutMs
   layer: backend
-  surface: backend/src/temporal/activities/turn.ts
+  surface: backend/src/temporal/activities/turn-prompts.ts
   tiers:
     - todo
   states: []
@@ -5433,6 +5433,12 @@
 - id: agents.http.postWithDeadline
   layer: agents
   surface: agents/src/http.ts
+  tiers:
+    - todo
+  states: []
+- id: backend.activity.turn.sleep
+  layer: backend
+  surface: backend/src/temporal/activities/turn.ts
   tiers:
     - todo
   states: []

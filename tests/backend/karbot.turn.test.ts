@@ -2,22 +2,12 @@
 // no Temporal worker, no database, no network: per-session model wins, env
 // fallback resolves the fake, deltas reach the sink, logs stay key-free.
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
-import {
-  executeKarbotTurn,
-  chatHistory,
-  KARBOT_SYSTEM_PROMPT,
-  parseChatRefs,
-  productMcpClient,
-  RESEARCH_TURN_WALL_MS,
-  researchMcpClient,
-  RESEARCH_TOOLS,
-  sectorMcpClient,
-  SECTOR_TOOLS,
-  type KarbotTurnDeps,
-  type KarbotTurnInput,
-  KarbotTurnInput as KarbotTurnInputSchema,
-  type KarbotTurnLogFields,
-} from '../../backend/src/temporal/activities/turn.js'
+import { executeKarbotTurn } from '../../backend/src/temporal/activities/turn.js'
+import { KarbotTurnInput as KarbotTurnInputSchema } from '../../backend/src/temporal/activities/karbot-turn-input.js'
+import { chatHistory, parseChatRefs } from '../../backend/src/temporal/activities/turn-chatrefs.js'
+import { KARBOT_SYSTEM_PROMPT, RESEARCH_TURN_WALL_MS } from '../../backend/src/temporal/activities/turn-prompts.js'
+import { productMcpClient, researchMcpClient, RESEARCH_TOOLS, sectorMcpClient, SECTOR_TOOLS } from '../../backend/src/temporal/activities/turn-palettes.js'
+import { type KarbotTurnDeps, type KarbotTurnInput, type KarbotTurnLogFields } from '../../backend/src/temporal/activities/karbot-turn-input.js'
 import type { ProviderSelection } from '../../backend/src/providers/provider-gateway.js'
 import type { SessionModelSelection } from '../../backend/src/db/index.js'
 import {

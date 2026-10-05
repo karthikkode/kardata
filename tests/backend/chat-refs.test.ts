@@ -5,7 +5,7 @@
 import { Pool } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createSector, createSession, ensureResearchSession } from '../../backend/src/db/index.js'
-import { resolveChatRefTurn } from '../../backend/src/temporal/activities/turn.js'
+import { resolveChatRefTurn } from '../../backend/src/temporal/activities/turn-chatrefs.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 

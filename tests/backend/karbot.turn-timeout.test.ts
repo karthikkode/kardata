@@ -15,7 +15,9 @@ vi.mock('@kardata/agents', async (importOriginal) => {
   }
 })
 
-import { executeKarbotTurn, PLANNING_ROUND_TIMEOUT_MS, turnRoundTimeoutMs, type KarbotTurnDeps } from '../../backend/src/temporal/activities/turn.js'
+import { executeKarbotTurn } from '../../backend/src/temporal/activities/turn.js'
+import { PLANNING_ROUND_TIMEOUT_MS, turnRoundTimeoutMs } from '../../backend/src/temporal/activities/turn-prompts.js'
+import { type KarbotTurnDeps } from '../../backend/src/temporal/activities/karbot-turn-input.js'
 import { FakeProvider } from '@kardata/agents'
 
 describe('turnRoundTimeoutMs', () => {

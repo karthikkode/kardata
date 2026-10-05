@@ -1,6 +1,7 @@
 import { MockActivityEnvironment } from '@temporalio/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { karbotTurnActivity, selectTurnContinuation, TURN_HEARTBEAT_MS } from '../../backend/src/temporal/activities/turn.js'
+import { karbotTurnActivity, selectTurnContinuation } from '../../backend/src/temporal/activities/turn.js'
+import { TURN_HEARTBEAT_MS } from '../../backend/src/temporal/activities/turn-prompts.js'
 
 const db = vi.hoisted(() => ({ begin: vi.fn(), identity: vi.fn(), project: vi.fn(), inherit: vi.fn(), finish: vi.fn(), read: vi.fn(), beat: vi.fn(), pool: {} }))
 vi.mock('../../backend/src/db/index.js', async (original) => ({ ...await original<typeof import('../../backend/src/db/index.js')>(), workerPoolFromEnv: () => db.pool, beginThreadTurn: db.begin, readActiveExecutionIdentity: db.identity, finishSteering: db.finish, readTurnContinuation: db.read, recordHeartbeat: db.beat }))

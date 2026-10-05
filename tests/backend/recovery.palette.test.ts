@@ -1,5 +1,5 @@
 import { describe,expect,it,vi } from 'vitest'
-import { freezeOriginalPalette } from '../../backend/src/temporal/activities/turn.js'
+import { freezeOriginalPalette } from '../../backend/src/temporal/activities/turn-palettes.js'
 
 describe('original-turn permission ceiling',() => {
   it('hides and refuses newly available tools while preserving cached operation authority and identities',async () => {

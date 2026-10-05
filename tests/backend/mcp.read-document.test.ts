@@ -6,10 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createSector, DbContractError, ingestSectorDocument } from '../../backend/src/db/index.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { invokeTool, McpToolError } from '../../backend/src/mcp/tools.js'
-import {
-  productMcpClient,
-  sectorMcpClient,
-} from '../../backend/src/temporal/activities/turn.js'
+import { productMcpClient, sectorMcpClient } from '../../backend/src/temporal/activities/turn-palettes.js'
 import type { TurnRunnerMcpClient } from '@kardata/agents'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 

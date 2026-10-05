@@ -13,7 +13,8 @@ import { FilesystemTarget, readExecutionRecord, resolveArchiveTarget, type Archi
 import { createSector, createSession, listSessions, readPartition, readThreadContext, readTurnContinuation, registerApiKey, saveThreadContext } from '../../backend/src/db/index.js'
 import * as dbLayer from '../../backend/src/db/index.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
-import { karbotTurnActivity, type KarbotTurnInput, type TurnOutcome } from '../../backend/src/temporal/activities/turn.js'
+import { karbotTurnActivity, type TurnOutcome } from '../../backend/src/temporal/activities/turn.js'
+import { type KarbotTurnInput } from '../../backend/src/temporal/activities/karbot-turn-input.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
 describe.skipIf(!TEST_DATABASE_URL)('paid provider response recording recovery', () => {

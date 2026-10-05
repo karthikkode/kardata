@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { LANES } from '../../backend/src/temporal/lanes.js'
 import { activityOptions, laneTimeouts } from '../../backend/src/temporal/timeouts.js'
-import { TURN_HEARTBEAT_MS } from '../../backend/src/temporal/activities/turn.js'
+import { TURN_HEARTBEAT_MS } from '../../backend/src/temporal/activities/turn-prompts.js'
 
 function toMs(value: string | number): number {
   if (typeof value === 'number') return value
