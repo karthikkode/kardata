@@ -5,9 +5,9 @@ import { useWorkspaceResource } from './useWorkspace'
 
 export const SupervisionAlert = z.object({
   seq: z.number().int().positive(), at: z.string().datetime(),
-  sessionId: z.string().min(1), sessionTitle: z.string(), threadKey: z.string().min(1), sectorId: z.string().nullable(),
-  kind: z.enum(['closed-owner', 'missing-heartbeat', 'stalled-progress', 'queue-starvation', 'owner-unavailable']),
-  response: z.enum(['observe', 'park']), state: z.enum(['current-warning', 'historical']), threadStatus: z.string(),
+  kind: z.string().min(1), severity: z.enum(['info', 'warning', 'high', 'critical']), subject: z.string().min(1),
+  threadKey: z.string().min(1).nullable(), sectorId: z.string().min(1).nullable(), sessionId: z.string().min(1).nullable(),
+  resolvedAt: z.string().datetime().nullable(), state: z.enum(['current-warning', 'historical']),
 })
 export type SupervisionAlert = z.infer<typeof SupervisionAlert>
 export const SupervisionAlertsPage = z.object({ items: z.array(SupervisionAlert).max(100), nextBeforeSeq: z.number().int().positive().nullable() })

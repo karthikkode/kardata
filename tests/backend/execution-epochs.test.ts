@@ -28,15 +28,15 @@ describe.skipIf(!TEST_DATABASE_URL)('private execution epoch durability and reco
       expect((await listReconciliationCandidates(pool))[0]?.activeExecutionId).toBe(owner.executionId)
     } finally { await pool.end() }
   })
-  it('parks only exact confirmed terminal ownership, then a validated successor supersedes recovery pause',async () => {
+  it('fails only exact confirmed terminal ownership as orphaned, then a validated successor supersedes recovery',async () => {
     const { pool,input,owner } = await fixture()
     try {
       const candidate = (await listReconciliationCandidates(pool))[0]!
       const closed = reconcileObservation(candidate,{ state: 'closed',executionId: owner.executionId },Date.now())[0]!
-      expect(closed.response).toBe('park')
+      expect(closed.response).toBe('fail')
       expect(await recordReconciliation(pool,candidate,closed,1)).toBe(true)
       await projectNewEvents(pool)
-      expect((await getThreadHeader(pool,input.threadKey))?.status).toBe('PAUSED')
+      expect((await getThreadHeader(pool,input.threadKey))?.status).toBe('ERROR')
       const epoch = await reserveExecutionIntent(pool,{ ...input,requestKey: 'TEST successor' })
       const executionId = randomUUID()
       await beginThreadTurn(pool,input.threadKey,'TEST successor turn',{ ...owner,epoch,executionId,firstExecutionId: executionId })
@@ -91,10 +91,10 @@ describe.skipIf(!TEST_DATABASE_URL)('private execution epoch durability and reco
       const settled=(await listReconciliationCandidates(pool))[0]!
       expect(settled.unresolvedStart).toBe(false)
       const recovery=reconcileObservation(settled,{ state: 'closed',executionId: owner.executionId },Date.now())[0]!
-      expect(recovery.response).toBe('park')
+      expect(recovery.response).toBe('fail')
       expect(await recordReconciliation(pool,settled,recovery,1)).toBe(true)
       const decisions=await pool.query("SELECT payload->>'response' AS response FROM events WHERE type='t.reconciliation.finding' ORDER BY seq")
-      expect(decisions.rows.map((row) => row.response)).toEqual(['observe','park'])
+      expect(decisions.rows.map((row) => row.response)).toEqual(['observe','fail'])
     } finally { await pool.end() }
   })
   it('advances a continuation only from its predecessor, rejecting old-run callbacks and observations',async () => {

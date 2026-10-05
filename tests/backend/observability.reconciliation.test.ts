@@ -8,19 +8,19 @@ import { reconcilePage } from '../../backend/src/temporal/activities/reconciliat
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
 const now = 2_000_000
-const candidate = (overrides: Partial<ReconciliationCandidate> = {}): ReconciliationCandidate => ({ threadKey: 's',sessionId: 's',workflowId: 'session-run-s',status: 'RUNNING',queueDepth: 0,updatedAtMs: now - 1_000,heartbeatAtMs: now - 1_000,progressAtMs: now - 1_000,activeRun: 'r',lease: 'lease',...overrides })
+const candidate = (overrides: Partial<ReconciliationCandidate> = {}): ReconciliationCandidate => ({ threadKey: 's',sessionId: 's',workflowId: 'session-run-s',status: 'RUNNING',queueDepth: 0,updatedAtMs: now - 1_000,heartbeatAtMs: now - 1_000,progressAtMs: now - 1_000,activeRun: 'r',lease: 'lease',sessionDeleted: false,...overrides })
 
 describe('bounded execution reconciliation policy', () => {
-  it('allows healthy slow provider work, despite stale semantic progress', () => {
+  it('nudges once on stale semantic progress; the page escalates a repeated nudge to pause', () => {
     const findings = reconcileObservation(candidate({ progressAtMs: now - 1_000_000 }), { state: 'running' }, now)
-    expect(findings).toEqual([expect.objectContaining({ kind: 'stalled-progress', response: 'observe' })])
+    expect(findings).toEqual([expect.objectContaining({ kind: 'stalled-progress', response: 'nudge' })])
   })
   it('does not turn missing heartbeats or an unavailable owner into death', () => {
     expect(reconcileObservation(candidate({ heartbeatAtMs: now - 200_000 }), { state: 'running' }, now)).toEqual([expect.objectContaining({ kind: 'missing-heartbeat',response: 'observe' })])
     expect(reconcileObservation(candidate(), { state: 'unavailable' }, now)).toEqual([expect.objectContaining({ kind: 'owner-unavailable',response: 'observe' })])
   })
-  it('detects queued logical work without claiming it executes', () => {
-    expect(reconcileObservation(candidate({ lease: null,queueDepth: 1000,updatedAtMs: now - 400_000 }), { state: 'running' }, now)).toEqual([expect.objectContaining({ kind: 'queue-starvation',response: 'observe' })])
+  it('alerts the owner on starved queues without claiming the work executes', () => {
+    expect(reconcileObservation(candidate({ lease: null,queueDepth: 1000,updatedAtMs: now - 400_000 }), { state: 'running' }, now)).toEqual([expect.objectContaining({ kind: 'queue-starvation',response: 'alert' })])
   })
   it('keeps confirmed terminal ownership advisory until restart intents can be fenced', () => {
     expect(reconcileObservation(candidate(), { state: 'closed' }, now)).toEqual([expect.objectContaining({ kind: 'closed-owner',response: 'observe' })])
@@ -31,7 +31,7 @@ describe('bounded execution reconciliation policy', () => {
 })
 
 describe.skipIf(!TEST_DATABASE_URL)('reconciliation production DB/projector path', () => {
-  it('records a closed owner once, retains its lease/continuation and publishes a recoverable UI notice', async () => {
+  it('records an unfenced closed owner as observe-only, retaining lease/continuation with no UI notice', async () => {
     const pool = new Pool({ connectionString: await ensureTestDb('kardata_test_reconcile') })
     try {
       const session = await createSession(pool,'TEST isolated reconciliation')
@@ -45,8 +45,10 @@ describe.skipIf(!TEST_DATABASE_URL)('reconciliation production DB/projector path
       const rows = await pool.query('SELECT active_lease,active_run FROM thread_context WHERE thread_key=$1',[session.id])
       expect(rows.rows[0]).toEqual({ active_lease: lease,active_run: 'turn-one' })
       expect(await reconcilePage(pool,'',async () => ({ state: 'closed' }))).toMatchObject({ inspected: 1,findings: 0 })
-      const messages = await pool.query("SELECT payload FROM thread_messages WHERE thread_key=$1 AND kind='tool'",[session.id])
-      expect(messages.rows).toEqual([expect.objectContaining({ payload: expect.objectContaining({ name: 'execution.recovery',state: 'failed' }) })])
+      const notices = await pool.query("SELECT payload FROM events WHERE type='t.reconciliation.finding'")
+      expect(notices.rows).toHaveLength(1)
+      const messages = await pool.query('SELECT payload FROM thread_messages WHERE thread_key=$1',[session.id])
+      expect(messages.rows).toHaveLength(0)
     } finally { await pool.end() }
   })
   it('cannot clear a new attempt or turn a DB/owner outage into terminal state', async () => {

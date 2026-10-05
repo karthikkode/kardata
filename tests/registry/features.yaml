@@ -5448,3 +5448,69 @@
   tiers:
     - todo
   states: []
+- id: backend.activity.reconciliation.SUPERVISION_NUDGE
+  layer: backend
+  surface: backend/src/temporal/activities/reconciliation.ts
+  tiers:
+    - todo
+  states: []
+- id: db.alerts.raiseAlert
+  layer: db
+  surface: backend/src/db/alerts.ts
+  tiers:
+    - todo
+  states: []
+- id: db.alerts.resolveAlert
+  layer: db
+  surface: backend/src/db/alerts.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.raiseAlert
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.resolveAlert
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.reconciliation.HEARTBEAT_FAIL_FLOOR_MS
+  layer: db
+  surface: backend/src/db/reconciliation.ts
+  tiers:
+    - todo
+  states: []
+- id: db.reconciliation.controlRecorded
+  layer: db
+  surface: backend/src/db/reconciliation.ts
+  tiers:
+    - todo
+  states: []
+- id: db.reconciliation.listOrphanedWorkflows
+  layer: db
+  surface: backend/src/db/reconciliation.ts
+  tiers:
+    - todo
+  states: []
+- id: db.reconciliation.parentWorkflowsForChildren
+  layer: db
+  surface: backend/src/db/reconciliation.ts
+  tiers:
+    - todo
+  states: []
+- id: db.reconciliation.recentTurnLoopEvidence
+  layer: db
+  surface: backend/src/db/reconciliation.ts
+  tiers:
+    - todo
+  states: []
+- id: db.reconciliation.recordOrphanWorkflow
+  layer: db
+  surface: backend/src/db/reconciliation.ts
+  tiers:
+    - todo
+  states: []

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 test.use({ video: 'on', trace: 'on' })
-const sample = { seq: 500, at: '2026-10-01T00:00:00.000Z', sessionId: 'TEST session', sessionTitle: 'TEST named conversation', threadKey: `agent:${'TEST long thread identifier '.repeat(40)}`, sectorId: 'TEST sector', kind: 'closed-owner', response: 'park', state: 'current-warning', threadStatus: 'PAUSED' }
+const sample = { seq: 500, at: '2026-10-01T00:00:00.000Z', kind: 'closed-owner', severity: 'high', subject: 'TEST owning execution ended with work leased', threadKey: `agent:${'TEST long thread identifier '.repeat(40)}`, sectorId: 'TEST sector', sessionId: 'TEST session', resolvedAt: null, state: 'current-warning' }
 for (const width of [390, 1440]) for (const dark of [false, true]) test(`alerts paging and long references ${width} ${dark ? 'dark' : 'light'}`, async ({ page }, info) => {
   await page.setViewportSize({ width, height: 900 })
   await page.emulateMedia({ reducedMotion: 'reduce' })
@@ -26,7 +26,7 @@ for (const width of [390, 1440]) for (const dark of [false, true]) test(`alerts 
   await panel.getByRole('button', { name: 'Older alerts', exact: true }).click()
   await expect(panel.getByRole('tab', { name: 'History', exact: true })).toHaveAttribute('aria-selected', 'true')
   await expect(panel.getByRole('list', { name: 'Alert history' }).getByRole('listitem')).toHaveCount(1)
-  await expect(panel.getByText('Open “TEST named conversation” in the chat session picker and match session TEST session.', { exact: true })).toBeVisible()
+  await expect(panel.getByText(/in the chat session picker\./)).toBeVisible()
   await expect(panel.getByText('Owning execution ended', { exact: true })).toHaveCount(1)
   await panel.getByRole('tab', { name: 'Current', exact: true }).focus()
   await page.keyboard.press('Enter')

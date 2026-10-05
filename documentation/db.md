@@ -1,12 +1,14 @@
 # DB
 
 Durable supervision uses `backend/src/db/reconciliation.ts` for bounded keyset
-thread reads and matched-state observation recording inside existing workspace/
+thread reads and matched-state finding recording inside existing workspace/
 durable transaction locks. Migration0021 adds retained execution intents, a
 per-thread epoch head and private active epoch/workflow/execution lease fields.
 Only exact terminal execution proof with unchanged head/lease and no unresolved
-starts permits recovery parking; legacy/unknown ownership remains advisory.
-No research content or execution history is deleted. Sector health limits reads to that sector's
+starts permits recovery failing; legacy/unknown ownership remains advisory.
+Acting responses (nudge, pause, stop, cancel, fail, alert) run through the same
+fences; every action writes an `alerts` row (migration0025). No research
+content or execution history is deleted. Sector health limits reads to that sector's
 persisted session/thread IDs. See [supervision](agents-supervision.md).
 
 Postgres schema, migrations, and the single access layer. No seeds
@@ -447,21 +449,17 @@ overwrite completed/excluded receipts. No company publication occurs here.
 
 ## Scoped in-app supervision alert reads
 
-`backend/src/db/alerts.ts` reads only `t.reconciliation.finding` events whose
-partition and thread ownership agree with an undeleted, tenant/project-scoped
-session. Exclusive descending sequence pages fetch at most limit+1 (limit1–100).
-No new table, migration, agent DB credentials or raw fleet read is introduced.
-The current-warning predicate joins the tagged parking event, latest thread state
-and current execution head, and excludes every unresolved start intent. A
-successor or manual state change demotes the prior warning to historical. Sector
-links are returned only when the sector row agrees with caller scope. Reads use
-logOp; private execution fields and unbounded reason bodies never enter output.
-HTTP shapes/roles are authoritative in `documentation/backend.md`; liveness
-semantics are in `documentation/agents-supervision.md`.
-
-Alert sessionTitle follows current scoped session metadata: latest rename title,
-otherwise original creation title. It is an identification aid alongside UUID,
-not execution content or authorization. Duplicate titles retain distinct IDs.
+`backend/src/db/alerts.ts` reads the `alerts` table (migration 0025): one row
+per action with kind, severity, subject, thread/sector attribution and an
+explicit resolved timestamp. Raises dedupe to the open row per
+kind/severity/subject/thread/sector; every raise needs a thread or a sector so
+reads stay scope-checkable. Exclusive descending sequence pages fetch at most
+limit+1 (limit1–100). Thread alerts scope through thread → session → owner
+event and exclude deleted sessions; sector alerts scope through the sector row.
+Reads use logOp; private execution fields and unbounded reason bodies never
+enter output. HTTP shapes/roles are authoritative in
+`documentation/backend.md`; liveness semantics are in
+`documentation/agents-supervision.md`.
 
 Durable file processing retains stored processing/failed/needs-ocr status on all
 document and library reads. Agent document queries expose no text, units or TOC

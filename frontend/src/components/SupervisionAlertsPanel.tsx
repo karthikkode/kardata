@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { SupervisionAlert, SupervisionAlertsPage } from '../data/alerts'
 import type { Resource } from '../data/useWorkspace'
 import { Icons } from '@/lib/icons'
+import { alertKindLabel, alertSeverityLabel } from '@/lib/labels'
 import { relativeAge } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { BodySm, Caption, Description } from './text'
@@ -10,16 +11,16 @@ import { Button } from './ui/button'
 import { List, ListRow } from './ui/list'
 import { TabsList, TabsRoot, TabsTab } from './ui/tabs'
 
-const labels: Record<SupervisionAlert['kind'], string> = {
+const labels: Record<string, string> = {
   'closed-owner': 'Owning execution ended',
   'missing-heartbeat': 'Heartbeat needs review',
   'stalled-progress': 'Progress needs review',
   'queue-starvation': 'Queued work needs review',
   'owner-unavailable': 'Workflow status unavailable',
-}
-
-function recordedAction(response: SupervisionAlert['response']): string {
-  return response === 'park' ? 'Parked for review' : 'Observed'
+  'loop-detected': 'Loop stopped',
+  'turn-wall-exceeded': 'Turn exceeded its wall clock',
+  'orphan-workflow': 'Orphan workflow cancelled',
+  'orphan-child': 'Orphan child cancelled',
 }
 
 function AlertRow({ alert, onOpen }: { alert: SupervisionAlert; onOpen(alert: SupervisionAlert): void }) {
@@ -37,18 +38,19 @@ function AlertRow({ alert, onOpen }: { alert: SupervisionAlert; onOpen(alert: Su
       </span>
       <span className="min-w-0 flex-1">
         <BodySm as="span" className="block truncate font-medium text-foreground">
-          {labels[alert.kind]}
+          {labels[alert.kind] ?? alertKindLabel(alert.kind)}
         </BodySm>
-        <Description as="span" className="block truncate">
-          Session {alert.sessionTitle} · {recordedAction(alert.response)}
+        <Description as="span" className="block truncate" title={alert.subject}>
+          {alert.subject}
         </Description>
-        {alert.sectorId ? null : (
-          <Description as="span" className="mt-0.5 block">
-            Open “{alert.sessionTitle}” in the chat session picker and match session {alert.sessionId}.
+        {alert.sectorId || !alert.threadKey ? null : (
+          <Description as="span" className="mt-0.5 block truncate" title={alert.threadKey}>
+            Match thread {alert.threadKey} in the chat session picker.
           </Description>
         )}
       </span>
       <span className="flex shrink-0 flex-col items-end gap-1">
+        <Caption as="span">{alertSeverityLabel(alert.severity)}</Caption>
         <Caption as="span" title={new Date(alert.at).toLocaleString()} className="tabular-nums">
           {relativeAge(alert.at)}
         </Caption>

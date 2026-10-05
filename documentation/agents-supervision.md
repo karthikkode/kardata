@@ -120,22 +120,24 @@ verification remain distinct from the already-verified safe parking contract.
 The worker entrypoint ensures one `kardata-execution-reconciliation-v1` workflow
 per configured namespace on the existing research task queue. Multiple worker
 starts adopt the running singleton. `executionReconciliation` persists a keyset
-cursor, runs one bounded page, waits 30 seconds, and continues as new after 100
-pages. There is no extra service or dependency. A matching worker rollout is
+cursor, runs one bounded page, waits 5 seconds (patched
+`reconcile-cadence-v1`; legacy histories keep 30 s), and continues as new after
+100 pages. There is no extra service or dependency. A matching worker rollout is
 required; source implementation alone does not activate an older deployed image.
 
-Each page first catches up the projector and inspects at most 100 active/queued
-threads, with four concurrent Temporal owner reads and a two-second RPC deadline.
+Each page first catches up the projector and inspects at most 500 active/queued
+threads, with eight concurrent Temporal owner reads and a two-second RPC deadline.
 The page activity has a 90-second attempt/5-minute overall bound, 15-second
 heartbeat timeout and at most three attempts. Exhausted retries log a coded
 failure, retain the cursor and try on the next pass. Unavailable Temporal status,
-including missing histories, never proves an owner is dead.
+including missing histories, never proves an owner is dead. A projector backlog
+defers the page (`projector-lag`) instead of deciding on stale reads.
 
-Detection latency includes the full cursor rotation: a page handles at most 100
-threads, then waits 30 seconds, in addition to activity time/retries. Thresholds
-are not guarantees of a fleet-wide notification within that time. Large-fleet
-latency, queue starvation and outbound alert delivery require separate measured
-stress evidence before claiming an operating envelope.
+Detection latency includes the full cursor rotation on top of activity
+time/retries; 500-thread pages on a 5 s cadence clear 1000 threads inside 60 s
+(fault-suite coverage test). Thresholds are not guarantees of a fleet-wide
+notification within that time. Larger-fleet latency and outbound alert delivery
+require separate measured stress evidence before claiming an operating envelope.
 
 Owner IDs derive from persisted thread/assignment identity: session-run ID for a
 normal session turn, recorded child ID for an `agent:` thread, and sector-plan ID
@@ -144,31 +146,39 @@ Missing/mismatched planning bindings remain unknown rather than inventing a chat
 owner. Heartbeats belong to that actual owner, not the fleet.
 Durable agent replies and tool-result boundaries are separate progress signals;
 user messages, heartbeat writes and the supervisor's own notices do not count.
-Starting advisory thresholds are 120 seconds without a heartbeat, 15 minutes
-without a durable reply/tool boundary and five minutes waiting without an active
-turn. These are observations, not automatic cancellation rules. Healthy slow
-provider work remains subject to existing Temporal activity deadlines/retries.
+Acting thresholds (`SUPERVISION_THRESHOLDS` in `temporal/timeouts.ts`):
+120 s without a heartbeat observes, and fails past the 20-minute wall when the
+owner cannot be described; 15 min without a durable reply/tool boundary sends one
+steering nudge, then pauses with an owner alert; 5 min queued without a lease
+alerts; a loop (same tool+args ×3, or repeated assistant text) stops the turn
+with an honest reply; orphan workflows/children are cancelled; the 20-minute
+turn wall fails honestly. Healthy slow provider work remains subject to existing
+Temporal activity deadlines/retries.
 
 Legacy terminal descriptions without validated epoch metadata remain advisory.
-Modern epoch-bearing attempts can be parked only under the exact execution/head/
-lease/unresolved-intent conditions above. Recovery emits PAUSED with a tagged
-recovery epoch and an `execution.recovery` tool notice. A validated successor
-supersedes that recovery pause; a manually paused state without the tag stays
-untouched. A new reservation blocks an old observation even before its first
-workflow event or lease. Saved history/context/instructions remain intact. No
+Modern epoch-bearing attempts fail only under the exact execution/head/
+lease/unresolved-intent conditions above. Recovery emits ERROR with an
+`execution.recovery` tool notice, an owner alert, and a parent notice for
+children; ERROR is revivable, a validated successor begin flips it RUNNING.
+A manually paused state stays untouched. A new reservation blocks an old
+observation even before its first workflow event or lease. Saved history/context/
+instructions remain intact. No
 lease expiry is inferred from age; start deadlines diagnose unresolved admission,
 not proof that a start never happened. The older deployed worker has not been
 activated with this source/migration; these source capabilities require a matching
 rollout, distinct from the owned Temporal test executions.
 
 Findings record `t.reconciliation.finding` in the session partition, with a
-15-minute identity bucket for repeated advisory observations; closed-owner notices
-deduplicate for the lease lifetime. Reads and observation operations
-use correlated start/done/error logs; operational logs contain IDs/codes, not
-execution content. Existing thread streams expose recovery pause/notices and
-unresolved/rejected start notices. `db.research_health` returns the latest 20 observations from that sector's
-actual session/thread set as `recentSupervision`, explicitly historical rather
-than a list of still-active alerts.
+15-minute identity bucket for repeated advisory observations. Control effects
+(signal/cancel) run before the record lands and dedupe per thread/kind/response/
+lease (`controlRecorded`), so a lost effect retries and a lost record never
+double-acts. Acting findings also write `alerts` rows. Reads and observation
+operations use correlated start/done/error logs; operational logs contain
+IDs/codes, not execution content. Existing thread streams expose recovery
+notices and unresolved/rejected start notices. `db.research_health` returns the
+latest 20 observations from that sector's actual session/thread set as
+`recentSupervision`, explicitly historical rather than a list of still-active
+alerts.
 
 Busy/idle heartbeat transitions bypass the five-second identical-state throttle.
 Failed writes do not advance the throttle and clock rollback cannot suppress new
@@ -180,16 +190,16 @@ requirements; this page does not claim those have passed.
 
 ## Scoped in-app delivery
 
-The owner selected in-app alerts through the existing backend. Durable
-`t.reconciliation.finding` records now feed an authenticated read for the Agents
-surface; HTTP contract is in `documentation/backend.md`, query ownership in
-`documentation/db.md`. A warning is current only when a confirmed closed-owner
-park still owns the latest recovery-tagged PAUSED state and unchanged execution
-head, with no unresolved start. Missing heartbeat, progress, queue and unavailable
-owner findings remain historical observations, never proof that work is dead.
-A successor or manual pause demotes an old notice. UI links permit owner review,
-not automatic resume/cancel. This is supervisor → durable DB → authenticated UI
-delivery; external Prometheus notification receivers remain unconfigured.
+The owner selected in-app alerts through the existing backend. Acting findings
+write table-backed `alerts` rows (migration 0025, one unresolved row per
+kind/subject/thread/sector); HTTP contract is in `documentation/backend.md`,
+query ownership in `documentation/db.md`. Resolution is explicit
+(`resolveAlert`), never inferred: unresolved rows are current warnings,
+resolved rows are history. Missing heartbeat, progress, queue and unavailable
+owner observations stay silent unless they escalate to an action. UI links
+permit owner review, not automatic resume/cancel. This is supervisor →
+durable DB → authenticated UI delivery; external Prometheus notification
+receivers remain unconfigured.
 
 ### Queued file admission recovery
 

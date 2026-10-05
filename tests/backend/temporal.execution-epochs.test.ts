@@ -61,7 +61,7 @@ describe.skipIf(!enabled)('private epoch authority through real gateway/Temporal
         const observed = await inspectWorkflowOwner(connection,client,old)
         expect(observed.state).toBe('closed')
         const finding = reconcileObservation(old,observed,Date.now())[0]!
-        expect(finding.response).toBe('park')
+        expect(finding.response).toBe('fail')
         holdNext=true
         const sending = gateway.send(session.id,'TEST successor'); await waitFor(() => heldRpc)
         expect(await recordReconciliation(pool,old,finding,1)).toBe(false)
@@ -73,7 +73,7 @@ describe.skipIf(!enabled)('private epoch authority through real gateway/Temporal
         expect(await recordReconciliation(pool,old,finding,1)).toBe(false)
         await client.workflow.getHandle(fresh.workflowId!,fresh.activeExecutionId!).terminate('TEST isolated exact terminal successor')
         expect(await reconcilePage(pool,'',(row) => inspectWorkflowOwner(connection,client,row))).toMatchObject({ findings: 1 })
-        const state = await pool.query('SELECT status FROM threads WHERE key=$1',[session.id]); expect(state.rows[0]?.status).toBe('PAUSED')
+        const state = await pool.query('SELECT status FROM threads WHERE key=$1',[session.id]); expect(state.rows[0]?.status).toBe('ERROR')
         gates.forEach((gate) => gate.resolve())
       })
     } finally { intercept.mockRestore(); rpcGate.resolve(); gates.forEach((gate) => gate.resolve()); if (previous===undefined) delete process.env['TEMPORAL_NAMESPACE']; else process.env['TEMPORAL_NAMESPACE']=previous; await connection.close(); await native.close(); await pool.end() }

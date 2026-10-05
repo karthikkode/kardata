@@ -768,30 +768,36 @@ export function localFor(threadKey: string, variant: 'full' | 'empty' | 'blocked
 export interface FixtureAlert {
   seq: number
   at: string
-  sessionId: string
-  sessionTitle: string
-  threadKey: string
+  kind: 'closed-owner' | 'missing-heartbeat' | 'stalled-progress' | 'queue-starvation' | 'owner-unavailable' | 'loop-detected' | 'turn-wall-exceeded' | 'orphan-workflow' | 'orphan-child'
+  severity: 'info' | 'warning' | 'high' | 'critical'
+  subject: string
+  threadKey: string | null
   sectorId: string | null
-  kind: 'closed-owner' | 'missing-heartbeat' | 'stalled-progress' | 'queue-starvation' | 'owner-unavailable'
-  response: 'observe' | 'park'
+  sessionId: string | null
+  resolvedAt: string | null
   state: 'current-warning' | 'historical'
-  threadStatus: string
 }
 
 export const alerts: FixtureAlert[] = (() => {
-  const kinds: FixtureAlert['kind'][] = ['stalled-progress', 'missing-heartbeat', 'queue-starvation', 'closed-owner', 'owner-unavailable']
-  return Array.from({ length: 24 }, (_, i) => ({
-    seq: i + 1,
-    at: daysAgo(Math.floor(i / 4), i % 6),
-    sessionId: i % 3 === 0 ? `session-karbot-${String((i % 9) + 1).padStart(2, '0')}` : 'session-electrical-research',
-    sessionTitle: i % 3 === 0 ? 'Browser chat' : 'Research',
-    threadKey: i % 3 === 0 ? `session-karbot-${String((i % 9) + 1).padStart(2, '0')}` : 'session-electrical-research',
-    sectorId: i % 3 === 0 ? null : 'sector-electrical',
-    kind: kinds[i % kinds.length] as FixtureAlert['kind'],
-    response: i % 4 === 0 ? 'park' : 'observe',
-    state: i >= 20 ? 'current-warning' : 'historical',
-    threadStatus: i >= 20 ? 'RUNNING' : 'FINISHED',
-  }))
+  const kinds: FixtureAlert['kind'][] = ['stalled-progress', 'missing-heartbeat', 'queue-starvation', 'closed-owner', 'owner-unavailable', 'loop-detected', 'turn-wall-exceeded', 'orphan-workflow', 'orphan-child']
+  const severities: FixtureAlert['severity'][] = ['info', 'warning', 'high', 'critical']
+  return Array.from({ length: 24 }, (_, i) => {
+    const kind = kinds[i % kinds.length] as FixtureAlert['kind']
+    const at = daysAgo(Math.floor(i / 4), i % 6)
+    const thread = i % 3 === 0 ? `session-karbot-${String((i % 9) + 1).padStart(2, '0')}` : 'session-electrical-research'
+    return {
+      seq: i + 1,
+      at,
+      kind,
+      severity: severities[i % severities.length] as FixtureAlert['severity'],
+      subject: `Fixture ${kind} ${i + 1}`,
+      threadKey: thread,
+      sectorId: i % 3 === 0 ? null : 'sector-electrical',
+      sessionId: thread,
+      resolvedAt: i >= 20 ? null : at,
+      state: i >= 20 ? 'current-warning' : 'historical',
+    }
+  })
 })()
 
 // -------------------------------------------------------------------- runs

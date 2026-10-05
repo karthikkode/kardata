@@ -158,10 +158,25 @@ const alertKindLabels: Record<string, string> = {
   'stalled-progress': 'Progress stalled',
   'queue-starvation': 'Queue starved',
   'owner-unavailable': 'Owner unavailable',
+  'loop-detected': 'Loop stopped',
+  'turn-wall-exceeded': 'Turn wall exceeded',
+  'orphan-workflow': 'Orphan workflow cancelled',
+  'orphan-child': 'Orphan child cancelled',
 }
 
 export function alertKindLabel(kind: string): string {
   return alertKindLabels[kind] ?? humanizeKey(kind)
+}
+
+const alertSeverityLabels: Record<string, string> = {
+  info: 'Notice',
+  warning: 'Warning',
+  high: 'Needs review',
+  critical: 'Critical',
+}
+
+export function alertSeverityLabel(severity: string): string {
+  return alertSeverityLabels[severity] ?? humanizeKey(severity)
 }
 
 const fileStatusLabels: Record<string, string> = {

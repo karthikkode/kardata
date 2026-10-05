@@ -66,6 +66,27 @@ export function laneTimeouts(lane: Lane): LaneTimeouts {
   return TABLE[lane]
 }
 
+/** Supervision thresholds (P3.4): the single tuning surface for
+ * executionReconciliation. Detection windows plus the coverage tuning
+ * (page size × cadence clears 1000 threads inside 60 s). */
+export const SUPERVISION_THRESHOLDS = {
+  /** Missing heartbeat on a running turn → observe, then fail past the wall. */
+  missingHeartbeatMs: 120_000,
+  /** No progress → one steering nudge, then pause + owner alert. */
+  noProgressMs: 15 * 60_000,
+  /** Same tool + same args this often in a turn → stop the turn. */
+  loopToolRepeats: 3,
+  /** Orphan/queue/wall detection bound; the page cycle runs far inside it. */
+  orphanMs: 60_000,
+  /** Queue item waiting with no lease → owner alert. */
+  queueStaleMs: 5 * 60_000,
+  /** Turn wall clock → fail honestly. */
+  turnWallMs: 20 * 60_000,
+  /** Coverage: 500 threads a page, a page every 5 s. */
+  reconcilePageSize: 500,
+  reconcileCadenceMs: 5_000,
+} as const
+
 /** Drop-in options for proxyActivities<typeof activities>(...). */
 export function activityOptions(lane: Lane): LaneTimeouts {
   return laneTimeouts(lane)

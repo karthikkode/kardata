@@ -145,6 +145,39 @@ export function sweepStalls(input: StallSweepInput): StallOutcome[] {
   return findings.map((finding) => ({ finding, decision: decide(finding, clock) }))
 }
 
+// Turn-loop rule (P3.4): same tool + same args ≥ N in the sampled window,
+// or the same non-empty assistant text twice. Pure over projected
+// thread_messages; the args compare is JSON-exact.
+export interface TurnToolCall {
+  name: string
+  args: unknown
+}
+
+export function decideTurnLoop(
+  toolCalls: TurnToolCall[],
+  assistantTexts: string[],
+  repeats = 3,
+): { loop: boolean; reason?: string } {
+  const counts = new Map<string, number>()
+  for (const call of toolCalls) {
+    const key = `${call.name}:${JSON.stringify(call.args) ?? 'null'}`
+    const count = (counts.get(key) ?? 0) + 1
+    counts.set(key, count)
+    if (count >= repeats) {
+      return { loop: true, reason: `tool '${call.name}' with identical args ${count} times in this turn` }
+    }
+  }
+  const seen = new Set<string>()
+  for (const text of assistantTexts) {
+    if (!text) continue
+    if (seen.has(text)) {
+      return { loop: true, reason: 'identical assistant text twice in this turn' }
+    }
+    seen.add(text)
+  }
+  return { loop: false }
+}
+
 // Stall response envelope: one `t.stall.response` per finding — trigger,
 // response, reason, and timestamp, so no stall is ever silent.
 export const STALL_RESPONSE_EVENT = 't.stall.response'

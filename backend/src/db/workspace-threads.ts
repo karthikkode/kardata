@@ -170,7 +170,7 @@ export async function beginThreadTurn(db: TransactableDb, threadKey: string, run
     if (owner && epoch) {
       const latest = await tx.query<{ payload: { status?: string; recoveryEpoch?: string } }>("SELECT payload FROM events WHERE type='t.thread.state' AND payload->>'threadKey'=$1 ORDER BY seq DESC LIMIT 1", [threadKey])
       const state = latest.rows[0]?.payload
-      if (state?.status === 'PAUSED' && typeof state.recoveryEpoch === 'string') await appendEvent(tx, { idempotencyKey: `execution-started:${epoch}:${owner.executionId}`, partition: `session:${owner.sessionId}`, type: 't.thread.state', payload: { threadKey, status: 'RUNNING', acceptingSteer: true, ownerEpoch: epoch, executionId: owner.executionId } })
+      if ((state?.status === 'PAUSED' || state?.status === 'ERROR') && typeof state.recoveryEpoch === 'string') await appendEvent(tx, { idempotencyKey: `execution-started:${epoch}:${owner.executionId}`, partition: `session:${owner.sessionId}`, type: 't.thread.state', payload: { threadKey, status: 'RUNNING', acceptingSteer: true, ownerEpoch: epoch, executionId: owner.executionId } })
     }
   })
   return lease

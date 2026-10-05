@@ -571,23 +571,23 @@ retry; editing the reviewed work, decision or owner reason creates a new request
 
 ## Scoped in-app supervision alerts
 
-`GET /v1/alerts?beforeSeq=&limit=` feeds the existing Agents surface using durable
-`t.reconciliation.finding` events. Always validate a viewer-or-higher key, even
-in test/open app mode. Derive tenant/project/session/thread scope from the
-validated caller and stored ownership; exclude deleted/unattributed sessions.
-Descending exclusive sequence pagination defaults to20 and caps at100. Response
-data is `{items,nextBeforeSeq}`; items contain seq, at, sessionId, sessionTitle, threadKey,
-nullable sectorId, kind, response, threadStatus and state (`current-warning` or
-`historical`). Omit free-text reasons, execution IDs, leases and raw payloads.
+`GET /v1/alerts?beforeSeq=&limit=` feeds the existing Agents surface from the
+table-backed `alerts` rows that acting supervision writes. Always validate a
+viewer-or-higher key, even in test/open app mode. Derive tenant/project scope
+from the validated caller and stored ownership (thread → session → owner
+event, or the sector row); exclude deleted/unattributed sessions. Descending
+exclusive sequence pagination defaults to20 and caps at100. Response data is
+`{items,nextBeforeSeq}`; items contain seq, at, kind, severity, subject,
+nullable threadKey/sectorId/sessionId, nullable resolvedAt and state
+(`current-warning` or `historical`). Omit free-text reasons, execution IDs,
+leases and raw payloads.
 
-Only a closed-owner parking observation whose tagged recovery pause remains the
-latest thread-state event, whose thread is PAUSED, whose recovery epoch matches
-the current execution head, and which has no pending/uncertain starts is a current
-warning. All advisory or superseded observations are historical; age never
-proves liveness or justifies cancellation. Reads perform no recovery mutation. The route catches up the projector first;
-a still-behind bounded catch-up returns recoverable503 instead of stale current status.
-Delivery means supervisor → durable DB → authenticated UI; external Prometheus
-notification delivery remains a separate unconfigured capability.
+Unresolved rows are current warnings; resolved rows are history. Resolution is
+explicit, never inferred from age or successor state. Reads perform no recovery
+mutation. The route catches up the projector first; a still-behind bounded
+catch-up returns recoverable503 instead of stale current status. Delivery means
+supervisor → durable DB → authenticated UI; external Prometheus notification
+delivery remains a separate unconfigured capability.
 
 ## Recoverable PDF file operations
 
