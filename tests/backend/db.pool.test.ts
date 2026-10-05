@@ -5,8 +5,9 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Logger } from 'pino'
+import { Writable } from 'node:stream'
 import { afterEach, describe, expect, it } from 'vitest'
+import { createLogger } from '../../backend/src/observability/logging.js'
 import {
   DbContractError,
   DEFAULT_POOL_BUDGET,
@@ -64,12 +65,21 @@ describe('pool budgets', () => {
   })
 
   it('skips validation with a warning when Postgres is unreachable', async () => {
-    const warnings: unknown[][] = []
-    const logger = { warn: (...args: unknown[]) => { warnings.push(args) } } as unknown as Logger
+    const logLines: string[] = []
+    const logStream = new Writable({
+      write(chunk, _encoding, callback) {
+        for (const line of String(chunk).split('\n')) {
+          if (line.trim()) logLines.push(line)
+        }
+        callback()
+      },
+    })
+    const logger = createLogger({ op: 'test' }, logStream)
     await expect(
       validatePoolBudget('postgresql://u:p@127.0.0.1:1/kardata_nope', 10, 'KARDATA_DB_POOL_SERVER', logger),
     ).resolves.toBeUndefined()
-    expect(warnings).toHaveLength(1)
+    expect(logLines).toHaveLength(1)
+    expect(JSON.parse(logLines[0] as string)).toMatchObject({ op: 'db.pool.validate', env: 'KARDATA_DB_POOL_SERVER' })
   })
 
   it('builds pools only through the factory', () => {
