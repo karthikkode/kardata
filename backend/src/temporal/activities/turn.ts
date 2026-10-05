@@ -8,6 +8,7 @@ import { inheritThreadFileRefs, assertThreadFileContext, ContextFileBlocked } fr
 import { createHash, createHmac } from 'node:crypto'
 import { ApplicationFailure, Context } from '@temporalio/activity'
 import { z } from 'zod'
+import { activityLogFields } from '../../observability/temporal-tracing.js'
 import {
   BudgetTracker,
   composeSystemPrompt,
@@ -493,7 +494,7 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
       }
     } catch (error) {
       if (abort.signal.aborted || settled) return
-      context.log.error('karbot.heartbeat.error', { code: 'heartbeat_failed', threadKey: input.threadKey, runKey: input.runKey })
+      context.log.error('karbot.heartbeat.error', { code: 'heartbeat_failed', ...activityLogFields({ threadKey: input.threadKey, sessionId: input.sessionId }), runKey: input.runKey })
       abort.abort()
       throw error
     }
@@ -504,7 +505,7 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
     return await Promise.race([
       (async () => {
         const identity = await readActiveExecutionIdentity(pool, input.threadKey, lease).catch((error: unknown) => {
-          context.log.error('karbot.identity.error', { code: 'identity_read_failed', threadKey: input.threadKey, runKey: input.runKey })
+          context.log.error('karbot.identity.error', { code: 'identity_read_failed', ...activityLogFields({ threadKey: input.threadKey, sessionId: input.sessionId }), runKey: input.runKey })
           throw error
         })
         const producer = { attemptLease: lease, activityId: context.info.activityId, activityAttempt: context.info.attempt, ...(identity.workflowId ?? actual?.workflowId ? { workflowId: identity.workflowId ?? actual?.workflowId } : {}), ...(identity.executionId ?? actual?.runId ? { executionId: identity.executionId ?? actual?.runId } : {}), ...(identity.ownerEpoch ? { ownerEpoch: identity.ownerEpoch } : {}) }
@@ -648,7 +649,7 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
         },
         // Key-free by construction: shapes and counters only, never prompt,
         // reply text, or token material.
-        log: (fields) => context.log.info('karbot.turn', { ...fields }),
+        log: (fields) => context.log.info('karbot.turn', { ...activityLogFields({ threadKey: input.threadKey, sessionId: input.sessionId }), ...fields }),
       })
       abort.signal.throwIfAborted()
       const archived = await archiveResearchOutcome(archive, input.sessionId, outcome, abort.signal)

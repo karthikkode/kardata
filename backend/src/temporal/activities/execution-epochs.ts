@@ -5,26 +5,26 @@ import { connectClient } from '../connection.js'
 import { loadOriginalTurnRecovery,type OriginalTurnRecovery } from '../turn-recovery.js'
 import { projectNewEvents } from '../../projector.js'
 import { createLogger, logOp } from '../../observability/logging.js'
-import { temporalClientInterceptors } from '../../observability/temporal-tracing.js'
+import { activityLogContext, temporalClientInterceptors } from '../../observability/temporal-tracing.js'
 
 export async function prepareExecutionIntentActivity(input: ExecutionIntentInput): Promise<string> {
   const context = Context.current()
   const owner = context.info.workflowExecution
   if (!owner) throw new Error('Execution preparation requires an owning workflow')
-  return logOp(createLogger({ runId: owner.workflowId,attempt: context.info.attempt }),'execution.intent.prepare',() => reserveExecutionIntent(workerPoolFromEnv(),{
+  return logOp(createLogger(activityLogContext({ threadKey: input.threadKey,sessionId: input.sessionId })),'execution.intent.prepare',() => reserveExecutionIntent(workerPoolFromEnv(),{
     ...input,requestKey: `${owner.runId}:${input.requestKey}`,
-  }),{ childWorkflowId: input.workflowId,threadKey: input.threadKey })
+  }),{ childWorkflowId: input.workflowId })
 }
 
 export async function settlePreparedExecutionIntentActivity(input: { epoch: string; beforeDispatch: boolean }): Promise<void> {
   const context=Context.current(); const owner=context.info.workflowExecution
   if (!owner) throw new Error('Execution settlement requires an owning workflow')
-  return logOp(createLogger({ runId: owner.workflowId,attempt: context.info.attempt }),'execution.intent.settle',() => markExecutionIntent(workerPoolFromEnv(),input.epoch,input.beforeDispatch,owner.runId),{ epoch: input.epoch,beforeDispatch: input.beforeDispatch })
+  return logOp(createLogger(activityLogContext()),'execution.intent.settle',() => markExecutionIntent(workerPoolFromEnv(),input.epoch,input.beforeDispatch,owner.runId),{ epoch: input.epoch,beforeDispatch: input.beforeDispatch })
 }
 
 export async function originalRecoveryReadyActivity(input: { threadKey: string; sessionId: string; checkpointHash: string }): Promise<boolean> {
   const context=Context.current()
-  return logOp(createLogger({ runId: context.info.workflowExecution?.workflowId,attempt: context.info.attempt }),'execution.original.ready',async () => {
+  return logOp(createLogger(activityLogContext({ threadKey: input.threadKey,sessionId: input.sessionId })),'execution.original.ready',async () => {
     const pool=workerPoolFromEnv(); const actor=await requireThread(pool,input.threadKey)
     if (actor.session.id!==input.sessionId) throw new WorkspaceError('permission_denied','The original task belongs to another session.')
     const connection=await connectClient()
@@ -42,7 +42,7 @@ export async function originalRecoveryReadyActivity(input: { threadKey: string; 
 /** Research parent retries only its scoped, still-approved work contract. */
 export async function prepareResearchTurnRecoveryActivity(input: { sectorId: string; version: number; workId: string; childId: string; sessionId: string }): Promise<OriginalTurnRecovery | undefined> {
   const context=Context.current()
-  return logOp(createLogger({ runId: context.info.workflowExecution?.workflowId,attempt: context.info.attempt }),'execution.research.restore',async () => {
+  return logOp(createLogger(activityLogContext({ threadKey: `agent:${input.childId}`,sessionId: input.sessionId,sectorId: input.sectorId })),'execution.research.restore',async () => {
     const pool=workerPoolFromEnv(); await projectNewEvents(pool)
     const work=await readResearchWorkItem(pool,input.sectorId,input.version,input.workId)
     const session=await getSession(pool,input.sessionId)

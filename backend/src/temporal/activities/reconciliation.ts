@@ -1,8 +1,8 @@
 import { Context } from '@temporalio/activity'
 import { Client, Connection } from '@temporalio/client'
 import { listReconciliationCandidates, recordReconciliation, workerPoolFromEnv, type TransactableDb, type ReconciliationCandidate } from '../../db/index.js'
-import { createLogger, logOp } from '../../observability/logging.js'
-import { temporalClientInterceptors } from '../../observability/temporal-tracing.js'
+import { childLogger, createLogger, logOp } from '../../observability/logging.js'
+import { activityLogContext, activityLogFields, temporalClientInterceptors } from '../../observability/temporal-tracing.js'
 import { reconcileObservation, RECONCILIATION_LIMITS, type OwnerObservation } from '../../observability/reconciliation.js'
 import { projectNewEvents } from '../../projector.js'
 import { temporalAddress, temporalNamespace } from '../connection.js'
@@ -13,12 +13,13 @@ export async function inspectWorkflowOwner(connection: Connection, client: Clien
   if (!candidate.workflowId) return { state: 'unavailable' }
   const workflowId = candidate.workflowId
   try {
-    return await logOp(logger, 'execution.inspect_owner', async (): Promise<OwnerObservation> => {
+    const scoped = childLogger(logger, activityLogContext({ threadKey: candidate.threadKey, sessionId: candidate.sessionId }))
+    return await logOp(scoped, 'execution.inspect_owner', async (): Promise<OwnerObservation> => {
       const owner = await connection.withDeadline(Date.now() + 2_000, () => client.workflow.getHandle(workflowId,candidate.activeExecutionId ?? undefined).describe())
       return { state: owner.status.name === 'RUNNING' ? 'running' : 'closed',executionId: owner.runId }
-    }, { workflowId: candidate.workflowId, threadKey: candidate.threadKey })
+    }, { workflowId: candidate.workflowId })
   } catch (error) {
-    logger.warn({ event: 'execution.owner_unavailable', workflowId: candidate.workflowId, code: error instanceof Error ? error.name : 'unknown' })
+    logger.warn({ event: 'execution.owner_unavailable', ...activityLogFields({ threadKey: candidate.threadKey, sessionId: candidate.sessionId }), workflowId: candidate.workflowId, code: error instanceof Error ? error.name : 'unknown' })
     return { state: 'unavailable' }
   }
 }
@@ -48,7 +49,7 @@ export async function reconcilePage(db: TransactableDb, after: string, inspectOw
 
 export async function reconciliationPageActivity(after: string): Promise<ReconciliationPage> {
   const context = Context.current()
-  const logger = createLogger({ runId: context.info.workflowExecution?.workflowId, attempt: context.info.attempt })
+  const logger = createLogger(activityLogContext())
   return logOp(logger, 'execution.reconcile', async () => {
     context.heartbeat({ phase: 'connect' })
     const connection = await Connection.connect({ address: temporalAddress(), connectTimeout: '5s' })

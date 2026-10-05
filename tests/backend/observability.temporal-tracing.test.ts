@@ -6,7 +6,10 @@ import { existsSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   activeTraceId,
+  activityLogContext,
+  activityLogFields,
   ensureTemporalTracing,
+  temporalActivityInfo,
   temporalActivityInterceptorFactories,
   temporalClientInterceptors,
   temporalWorkflowExportSinks,
@@ -44,6 +47,51 @@ describe('trace context helpers (P3.2)', () => {
     ensureTemporalTracing()
     const minted = withAmbientTrace(() => activeTraceId())
     expect(minted).toMatch(/^[0-9a-f]{32}$/)
+  })
+})
+
+describe('activity join keys (P3.2.3)', () => {
+  it('reads no Temporal identity outside a worker', () => {
+    expect(temporalActivityInfo()).toEqual({})
+  })
+
+  it('builds logger context with the ambient trace plus passed ids', () => {
+    ensureTemporalTracing()
+    const context = withTraceContext(TRACE_ID, () =>
+      activityLogContext({ threadKey: 'TEST thread', sessionId: 'TEST session', sectorId: 'TEST sector', round: 3 }),
+    )
+    expect(context).toEqual({
+      traceId: TRACE_ID,
+      threadKey: 'TEST thread',
+      sessionId: 'TEST session',
+      sectorId: 'TEST sector',
+      round: 3,
+    })
+  })
+
+  it('omits unknown keys instead of emitting empties', () => {
+    ensureTemporalTracing()
+    expect(activityLogContext()).toEqual({})
+    expect(activityLogFields({ sessionId: 'TEST session' })).toEqual({ session_id: 'TEST session' })
+  })
+
+  it('emits the same keys in snake_case for extras', () => {
+    ensureTemporalTracing()
+    const fields = withTraceContext(TRACE_ID, () =>
+      activityLogFields({ threadKey: 'TEST thread', sessionId: 'TEST session', sectorId: 'TEST sector', round: 3 }),
+    )
+    expect(fields).toEqual({
+      trace_id: TRACE_ID,
+      thread_key: 'TEST thread',
+      session_id: 'TEST session',
+      sector_id: 'TEST sector',
+      round: 3,
+    })
+  })
+
+  it('lets explicit run and attempt override the ambient activity', () => {
+    ensureTemporalTracing()
+    expect(activityLogFields({ runId: 'TEST run', attempt: 2 })).toEqual({ run_id: 'TEST run', attempt: 2 })
   })
 })
 

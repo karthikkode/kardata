@@ -20,6 +20,7 @@ import { documentImageRequest, DOCUMENT_IMAGE_PROMPT_VERSION } from '../../ocr.j
 import { resolveAdapter } from '../../providers/provider-gateway.js'
 import { findModel } from '../../providers/registry.js'
 import { createLogger, logOp } from '../../observability/logging.js'
+import { activityLogFields } from '../../observability/temporal-tracing.js'
 
 export interface FileProcessingInput { jobId: string; revision: number }
 interface WorkContext { producerId: string; signal?: AbortSignal; heartbeat(phase: string): void }
@@ -163,7 +164,7 @@ export function createFileProcessingActivities(deps: FileProcessingDependencies)
         await registerFileImages(deps.db, input.jobId, reference, images, archive, input.revision)
         return { state: 'processing', totalImages: images.length }
         } finally { clearInterval(pulse) }
-      }, { jobId: input.jobId, revision: input.revision })
+      }, { ...activityLogFields(), jobId: input.jobId, revision: input.revision })
     },
     async nextFileImageActivity(input: FileProcessingInput & { cursor: { page: number; ordinal: number } | null }): Promise<{ imageId: string | null; nextCursor: { page: number; ordinal: number } | null; state?: 'paused' }> {
       return logOp(logger, 'file.processing.cursor', async () => {
@@ -180,7 +181,7 @@ export function createFileProcessingActivities(deps: FileProcessingDependencies)
         return { imageId: null, nextCursor: input.cursor, state: 'paused' }
       }
       return { imageId: next?.imageId ?? null, nextCursor: next ? { page: next.page, ordinal: next.ordinal } : input.cursor }
-      }, { jobId: input.jobId, revision: input.revision, cursor: input.cursor })
+      }, { ...activityLogFields(), jobId: input.jobId, revision: input.revision, cursor: input.cursor })
     },
     async processFileImageActivity(input: FileProcessingInput & { imageId: string }): Promise<{ state: string }> {
       return logOp(logger, 'file.processing.image', () => pulsed('image', async (context) => {
@@ -215,7 +216,7 @@ export function createFileProcessingActivities(deps: FileProcessingDependencies)
           const request = documentImageRequest(png, signal, image.role ?? 'embedded')
           const inputBudget = Math.min(80_000, Math.min(100_000, deps.modelWindow?.(current.model) ?? 100_000) - 16384)
           if (!Number.isFinite(inputBudget) || inputBudget <= 0) throw new WorkspaceError('conflict', 'The image model has no verified fitting request budget.')
-          const measurement = await logOp(logger, 'file.processing.input-budget', () => abortableFileWork(() => measureInputTokens(adapter, request, () => assembledTokens(request.systemPrompt, request.messages, request.tools) + Math.ceil(image.width * image.height / 256) * 2 + 512), signal), { jobId: input.jobId, imageId: input.imageId })
+          const measurement = await logOp(logger, 'file.processing.input-budget', () => abortableFileWork(() => measureInputTokens(adapter, request, () => assembledTokens(request.systemPrompt, request.messages, request.tools) + Math.ceil(image.width * image.height / 256) * 2 + 512), signal), { ...activityLogFields(), jobId: input.jobId, imageId: input.imageId })
           const { inputTokens } = measurement
           if (!Number.isFinite(inputTokens) || inputTokens < 0 || inputTokens > inputBudget) throw new WorkspaceError('conflict', 'Image input exceeds the verified request budget.')
           logger.info({ event: 'file.processing.input-budget.reading', jobId: input.jobId, imageId: input.imageId, basis: measurement.method, inputTokens, inputBudget, outputReserve: 16384 }, 'File image request budget')
@@ -243,14 +244,14 @@ export function createFileProcessingActivities(deps: FileProcessingDependencies)
           if (timeout) clearTimeout(timeout)
           if (heartbeat) clearInterval(heartbeat)
         }
-      }), { jobId: input.jobId, imageId: input.imageId, revision: input.revision })
+      }), { ...activityLogFields(), jobId: input.jobId, imageId: input.imageId, revision: input.revision })
     },
     async finalizeFileProcessingActivity(input: FileProcessingInput): Promise<void> {
       await logOp(logger, 'file.processing.finalize', () => pulsed('finalize', async (context) => {
         await job(input)
         const cancellable: ArchiveTarget = { read: (key, maxBytes) => archive.read(key, maxBytes, context.signal), write: (key, body) => archive.write(key, body, context.signal), list: (directory) => archive.list(directory) }
         await stageAndPublishFileProcessingJob(deps.db, input.jobId, cancellable, input.revision)
-      }), { jobId: input.jobId, revision: input.revision })
+      }), { ...activityLogFields(), jobId: input.jobId, revision: input.revision })
     },
     async failFileProcessingActivity(input: FileProcessingInput & { code: string }): Promise<void> {
       await failFileProcessingJob(deps.db, input.jobId, input.code, input.revision)

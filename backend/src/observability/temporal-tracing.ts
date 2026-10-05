@@ -19,9 +19,11 @@ import {
   makeWorkflowExporter,
 } from '@temporalio/interceptors-opentelemetry'
 import type { ActivityInterceptorsFactory } from '@temporalio/worker'
+import { Context } from '@temporalio/activity'
 import { randomBytes } from 'node:crypto'
 import { createRequire } from 'node:module'
 import type { Logger } from 'pino'
+import type { LogContext } from './logging.js'
 import { newTraceId } from './trace.js'
 import { createJsonlSpanProcessor, currentTraceId } from './tracing.js'
 
@@ -99,4 +101,71 @@ export function activeTraceId(): string | undefined {
  * (routes and MCP tools), else a fresh id (background starters). */
 export function withAmbientTrace<T>(fn: () => T): T {
   return withTraceContext(activeTraceId() ?? currentTraceId() ?? newTraceId(), fn)
+}
+
+export interface ActivityIds {
+  threadKey?: string
+  sessionId?: string
+  sectorId?: string
+  round?: number
+  runId?: string
+  attempt?: number
+}
+
+/** Temporal activity identity when running inside a worker; empty on direct
+ * unit-test calls (the recordSpend try/catch pattern in context-files). */
+export function temporalActivityInfo(): { runId?: string; attempt?: number } {
+  try {
+    const info = Context.current().info
+    return {
+      ...(info.workflowExecution?.workflowId ? { runId: info.workflowExecution.workflowId } : {}),
+      attempt: info.attempt,
+    }
+  } catch {
+    return {}
+  }
+}
+
+function resolvedActivityIds(ids: ActivityIds = {}): ActivityIds {
+  const info = temporalActivityInfo()
+  return {
+    threadKey: ids.threadKey,
+    sessionId: ids.sessionId,
+    sectorId: ids.sectorId,
+    round: ids.round,
+    runId: ids.runId ?? info.runId,
+    attempt: ids.attempt ?? info.attempt,
+  }
+}
+
+/** Join keys for `createLogger`/`childLogger`: ambient trace plus activity
+ * identity. Unknown keys stay absent; in production every activity line
+ * carries trace_id, run_id, attempt, and the ids its input knows. */
+export function activityLogContext(ids: ActivityIds = {}): LogContext {
+  const traceId = activeTraceId()
+  const resolved = resolvedActivityIds(ids)
+  return {
+    ...(traceId ? { traceId } : {}),
+    ...(resolved.runId ? { runId: resolved.runId } : {}),
+    ...(resolved.attempt !== undefined ? { attempt: resolved.attempt } : {}),
+    ...(resolved.threadKey ? { threadKey: resolved.threadKey } : {}),
+    ...(resolved.sessionId ? { sessionId: resolved.sessionId } : {}),
+    ...(resolved.sectorId ? { sectorId: resolved.sectorId } : {}),
+    ...(resolved.round !== undefined ? { round: resolved.round } : {}),
+  }
+}
+
+/** Same keys in snake_case for `logOp` extras and `context.log` lines. */
+export function activityLogFields(ids: ActivityIds = {}): Record<string, unknown> {
+  const traceId = activeTraceId()
+  const resolved = resolvedActivityIds(ids)
+  return {
+    ...(traceId ? { trace_id: traceId } : {}),
+    ...(resolved.runId ? { run_id: resolved.runId } : {}),
+    ...(resolved.attempt !== undefined ? { attempt: resolved.attempt } : {}),
+    ...(resolved.threadKey ? { thread_key: resolved.threadKey } : {}),
+    ...(resolved.sessionId ? { session_id: resolved.sessionId } : {}),
+    ...(resolved.sectorId ? { sector_id: resolved.sectorId } : {}),
+    ...(resolved.round !== undefined ? { round: resolved.round } : {}),
+  }
 }

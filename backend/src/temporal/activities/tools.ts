@@ -22,6 +22,7 @@ import { getSession, type TransactableDb } from '../../db/index.js'
 import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
 import { Context } from '@temporalio/activity'
 import { TRACER_NAME, startSpan } from '../../observability/tracing.js'
+import { activityLogFields } from '../../observability/temporal-tracing.js'
 import {
   PlanStore,
   TaskLedger,
@@ -395,7 +396,7 @@ export async function toolCallActivity(input: ToolCallInput): Promise<ToolCallRe
     // Cancellation surfaces as a rejected promise (turn.ts pattern).
     const outcome = await Promise.race([
       executeToolCall(input, {
-        log: (fields) => context.log.info('tool.call', { ...fields }),
+        log: (fields) => context.log.info('tool.call', { ...activityLogFields({ sessionId: input.sessionId }), ...fields }),
         ...store,
         artifacts: { db: pool, target: resolveArchiveTarget() },
       }),

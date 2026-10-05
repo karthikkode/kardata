@@ -13,6 +13,7 @@ import { resolveAdapter } from '../../providers/provider-gateway.js'
 import { TemporalRunsGateway } from '../runs-gateway.js'
 import { WorkspaceError } from '../../db/errors.js'
 import { createLogger, logOp } from '../../observability/logging.js'
+import { activityLogFields } from '../../observability/temporal-tracing.js'
 
 export interface ContextFileSummaryInput { sectorId: string; fileId: string; hash: string }
 export interface ContextCompactionInput { sectorId: string; reason: 'auto' | 'manual' }
@@ -167,7 +168,7 @@ export function createContextFileActivities(deps: ContextFileActivitiesDeps) {
         } finally {
           await recordSpend(deps.db, input.sectorId, { kind: 'file-summary', fileId: input.fileId, ...spend })
         }
-      }, { sectorId: input.sectorId, fileId: input.fileId })
+      }, { ...activityLogFields({ sectorId: input.sectorId }), fileId: input.fileId })
     },
     async compactGlobalContextActivity(input: ContextCompactionInput): Promise<{ compacted: boolean; version?: number }> {
       return logOp(logger, 'context.compaction', async () => {
@@ -228,7 +229,7 @@ export function createContextFileActivities(deps: ContextFileActivitiesDeps) {
         } finally {
           await recordSpend(deps.db, input.sectorId, { kind: 'compaction', ...spend })
         }
-      }, { sectorId: input.sectorId, reason: input.reason })
+      }, { ...activityLogFields({ sectorId: input.sectorId }), reason: input.reason })
     },
   }
 }

@@ -14,6 +14,7 @@ import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
 import { Context } from '@temporalio/activity'
 import { appendEvent, publishOutboxFrame, recordHeartbeat } from '../../db/index.js'
 import { TRACER_NAME, startSpan } from '../../observability/tracing.js'
+import { activityLogFields } from '../../observability/temporal-tracing.js'
 import {
   chatOnce,
   resolveAdapter,
@@ -174,7 +175,7 @@ export async function providerChatActivity(input: ProviderChatInput): Promise<Ch
     // workflow sees CancelledFailure instead of an orphaned provider call.
     const outcome = await Promise.race([
       executeProviderChat(input, {
-        log: (fields) => context.log.info('provider.chat', { ...fields }),
+        log: (fields) => context.log.info('provider.chat', { ...activityLogFields({ sessionId: input.sessionId }), ...fields }),
         appendErrorEvent: async (event) => {
           await appendEvent(pool, event)
         },

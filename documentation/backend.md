@@ -495,6 +495,10 @@ and W3C propagator registered in both entries. Workflow starts wrap in
 id); the mandatory workflow-span sink exports as JSONL beside server spans.
 One `trace_id` joins the HTTP log, workflow start, activity logs, provider
 rounds, MCP callbacks, and DB events; no collector or new service.
+Every activity line also carries `run_id`, `attempt`, and the thread, session,
+sector, and round ids its input knows (`activityLogContext`/`activityLogFields`;
+unknown keys stay absent, never empty). The OTel outbound interceptor adds
+`trace_id`/`span_id` to `context.log` lines automatically.
 
 New discovery coordinators use the compact-state Temporal patch. Status checks
 carry scope/version/budget only; snapshots carry bounded retry references and a
