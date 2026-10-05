@@ -22,7 +22,7 @@ the everything-log. Plan: `documentation/plans/2026-09-25-backend-build.md`.
 - B0.1 done: workspace scaffold, health + 404 envelope, `tests/backend/`
   harness, gates green.
 - B0.2 done: `backend/openapi/v1.yaml` (34 operations, envelopes, SSE resume,
-  idempotency, denied paths) with a parity table in `backend/src/contract.ts`
+  idempotency, denied paths) with a parity table in `tests/backend/contract-harness.ts`
   covering all 19 mock/scenario/UI shapes; contract tests green.
 - B0.3 done: `db/migrations/0001_init.sql` (events, heartbeats, outbox,
   projections) + transactional migrator; up/down round-trip, duplicate

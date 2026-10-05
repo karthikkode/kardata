@@ -59,7 +59,7 @@ export const PARITY: ParityEntry[] = [
 
 export function loadSpec(): unknown {
   const here = dirname(fileURLToPath(import.meta.url))
-  const text = readFileSync(join(here, '..', 'openapi', 'v1.yaml'), 'utf8')
+  const text = readFileSync(join(here, '..', '..', 'backend', 'openapi', 'v1.yaml'), 'utf8')
   return parseYaml(text)
 }
 
