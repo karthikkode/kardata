@@ -1,7 +1,10 @@
 // Karbot turn activity (Phase 3). executeKarbotTurn over injected doubles —
 // no Temporal worker, no database, no network: per-session model wins, env
 // fallback resolves the fake, deltas reach the sink, logs stay key-free.
+import { Writable } from 'node:stream'
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
+import { createLogger } from '../../backend/src/observability/logging.js'
+import { ensureTracing } from '../../backend/src/observability/tracing.js'
 import { executeKarbotTurn } from '../../backend/src/temporal/activities/turn.js'
 import { KarbotTurnInput as KarbotTurnInputSchema } from '../../backend/src/temporal/activities/karbot-turn-input.js'
 import { chatHistory, parseChatRefs } from '../../backend/src/temporal/activities/turn-chatrefs.js'
@@ -644,5 +647,47 @@ describe('sector identity preload (B2)', () => {
     const line = 'Current sector: "TEST Sector" (sector id: sector-9). Use exactly this sector id for every sector tool call; never derive an id from the name.'
     expect(world.adapter.calls[0]?.systemPrompt ?? '').toContain(line)
     expect(world.adapter.calls[1]?.systemPrompt ?? '').toContain(line)
+  })
+  it('leaks no env key material into turn logs or spans (P3.3)', async () => {
+    const fakeKey = 'TEST-FAKE-KEY-9f8e7d6c5b4a'
+    const savedMetaKey = process.env['KARDATA_META_KEY']
+    process.env['KARDATA_META_KEY'] = fakeKey
+    try {
+      const world = memoryWorld(
+        new FakeProvider([
+          { text: 'checking ', toolCalls: [{ id: 'c1', name: 'db.list_sessions', args: { q: fakeKey } }] },
+          { text: 'TEST done' },
+        ]),
+      )
+      const spanLines: string[] = []
+      const stream = new Writable({
+        write(chunk, _encoding, callback) {
+          for (const line of String(chunk).split('\n')) {
+            if (line.trim()) spanLines.push(line)
+          }
+          callback()
+        },
+      })
+      const { tracer, shutdown } = ensureTracing({ logger: createLogger({ op: 'TEST secrets' }, stream) })
+      try {
+        await tracer.startActiveSpan('TEST secrets turn', async (span) => {
+          try {
+            await executeKarbotTurn(input({ text: `key check ${fakeKey}` }), world.deps)
+          } finally {
+            span.end()
+          }
+        })
+        const failing = memoryWorld(new FakeProvider([{ error: 'TEST provider blew up' }]))
+        await expect(executeKarbotTurn(input(), failing.deps)).rejects.toThrow('karbot turn failed')
+        const haystack = `${JSON.stringify(world.logs)}\n${JSON.stringify(failing.logs)}\n${spanLines.join('\n')}`
+        expect(haystack).not.toContain(fakeKey)
+        expect(haystack).not.toContain('TEST-FAKE-KEY')
+      } finally {
+        await shutdown()
+      }
+    } finally {
+      if (savedMetaKey === undefined) delete process.env['KARDATA_META_KEY']
+      else process.env['KARDATA_META_KEY'] = savedMetaKey
+    }
   })
 })

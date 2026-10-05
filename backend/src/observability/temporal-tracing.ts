@@ -23,7 +23,7 @@ import { Context } from '@temporalio/activity'
 import { randomBytes } from 'node:crypto'
 import { createRequire } from 'node:module'
 import type { Logger } from 'pino'
-import type { LogContext } from './logging.js'
+import { childLogger, logOp, type LogContext } from './logging.js'
 import { injectTraceparent, newTraceId } from './trace.js'
 import { createJsonlSpanProcessor, currentTraceId } from './tracing.js'
 
@@ -176,4 +176,20 @@ export function activityLogFields(ids: ActivityIds = {}): Record<string, unknown
     ...(resolved.sectorId ? { sector_id: resolved.sectorId } : {}),
     ...(resolved.round !== undefined ? { round: resolved.round } : {}),
   }
+}
+
+/** Lifecycle triple for every registered activity (P3.3): start, done and
+ * error via logOp with the activity join keys. Applied once in
+ * createLaneWorker, so no activity file needs its own wrapper. The keys
+ * resolve at call time, inside activity context. */
+export function withActivityLogging(
+  logger: Logger,
+  activities: Record<string, (...args: never[]) => unknown>,
+): Record<string, (...args: never[]) => unknown> {
+  const wrapped: Record<string, (...args: never[]) => unknown> = {}
+  for (const [name, fn] of Object.entries(activities)) {
+    wrapped[name] = (...args: never[]) =>
+      logOp(childLogger(logger, activityLogContext()), `activity.${name}`, () => Promise.resolve(fn(...args)), { activity: name })
+  }
+  return wrapped
 }

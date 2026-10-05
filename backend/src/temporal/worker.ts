@@ -8,6 +8,7 @@ import {
   temporalActivityInterceptorFactories,
   temporalWorkflowExportSinks,
   temporalWorkflowModules,
+  withActivityLogging,
 } from '../observability/temporal-tracing.js'
 import { laneConfig, type Lane } from './lanes.js'
 
@@ -36,7 +37,7 @@ export async function createLaneWorker(options: LaneWorkerOptions): Promise<Work
     namespace: options.namespace,
     taskQueue: options.taskQueue ?? config.taskQueue,
     workflowsPath: options.workflowsPath,
-    activities: options.activities,
+    activities: withActivityLogging(logger, options.activities),
     interceptors: {
       activity: temporalActivityInterceptorFactories(),
       workflowModules: temporalWorkflowModules(),
