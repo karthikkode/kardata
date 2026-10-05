@@ -110,8 +110,10 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
     await page.addInitScript((primed: unknown[]) => {
       const nativeFetch = window.fetch.bind(window)
       const controllers = new Set<ReadableStreamDefaultController<Uint8Array>>()
+      let connections = 0
       window.fetch = (input, init) => {
         if (String(input).includes('/events?')) {
+          connections += 1
           return Promise.resolve(new Response(new ReadableStream<Uint8Array>({
             start(controller) {
               controllers.add(controller)
@@ -128,6 +130,15 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
           for (const controller of controllers) {
             try { controller.enqueue(bytes) } catch { controllers.delete(controller) }
           }
+        },
+        dropChatStream() {
+          for (const controller of controllers) {
+            try { controller.error(new Error('injected stream drop')) } catch { /* already closed */ }
+            controllers.delete(controller)
+          }
+        },
+        chatStreamCount() {
+          return connections
         },
       })
     }, frames)
@@ -638,6 +649,20 @@ export async function pushFrame(page: Page, frame: unknown): Promise<void> {
   await page.evaluate((value) => {
     (window as unknown as { pushChatFrame(frame: unknown): void }).pushChatFrame(value)
   }, frame)
+}
+
+/** Drop every held-open stream (the client sees a socket error and resubscribes). */
+export async function dropStream(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    (window as unknown as { dropChatStream(): void }).dropChatStream()
+  })
+}
+
+/** How many /events? streams the page has opened (resubscribe detection). */
+export async function streamCount(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    return (window as unknown as { chatStreamCount(): number }).chatStreamCount()
+  })
 }
 
 export { executablePlan }
