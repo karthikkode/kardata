@@ -25,9 +25,13 @@ import { alerts, runs } from './fixtures'
 export type { FixtureAlert, FixtureCompany, FixtureMessage, FixtureRun, FixtureSector, FixtureSession, FixtureThread }
 export { allSectors, companiesBySector, extraChats, karbotSessions, sectorSessions, sessionThreads, threadMessages }
 
-/** Frozen wall-clock time installed by the matrix harness before goto. */
-export const FIXED_NOW = '2026-01-15T12:00:00.000Z'
-export const FIXED_DAY = '2026-01-15T08:00:00.000Z'
+/**
+ * Frozen wall-clock time installed by the matrix harness before goto. Sits
+ * after every fixtures.ts stamp (BASE 2026-09-02 + 30d window) so relative
+ * ages render deterministically instead of going negative.
+ */
+export const FIXED_NOW = '2026-10-05T12:00:00.000Z'
+export const FIXED_DAY = '2026-10-05T08:00:00.000Z'
 
 /** 300-char company/sector name (long-text overflow state). */
 export const LONG_NAME_300 = repeatTo('Association of licensed commercial electrical contractors operating across regional Queensland and northern New South Wales ', 300)
@@ -176,7 +180,9 @@ export function matrixApiOptions(
       data.sessions = makeSessions(Math.min(count, 50))
       data.runs = makeRuns(Math.min(count, 50))
       data.subagents = Math.min(count, 50)
-      data.messages = makeMessages(count)
+      // Typical keeps the showcase thread (tools + reasoning + markdown);
+      // only the scaled counts override messages.
+      if (state !== 'typical') data.messages = makeMessages(count)
       return { modes, data }
     }
     case 'error':
