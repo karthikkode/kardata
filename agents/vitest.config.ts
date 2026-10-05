@@ -10,5 +10,14 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', '**/var/**'],
+    // Phase 7 gate: lines >= 85% (ratchet up only). Istanbul provider,
+    // like frontend (v8 needs @vitest/browser, not installed).
+    coverage: {
+      provider: 'istanbul',
+      reporter: ['text', 'json-summary'],
+      include: ['src/**/*.ts'],
+      exclude: ['src/**/*.test.ts'],
+      thresholds: { lines: 85 },
+    },
   },
 })

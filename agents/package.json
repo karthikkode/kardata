@@ -18,6 +18,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:live": "vitest run src/probe.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint ."
