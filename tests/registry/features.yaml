@@ -4207,33 +4207,9 @@
   tiers:
     - todo
   states: []
-- id: frontend.src.components.RunConsole
-  layer: frontend
-  surface: frontend/src/components/RunConsole.tsx
-  tiers:
-    - todo
-  states: []
 - id: frontend.src.components.RunsPanel
   layer: frontend
   surface: frontend/src/components/RunsPanel.tsx
-  tiers:
-    - todo
-  states: []
-- id: frontend.src.components.SectorChatPanel
-  layer: frontend
-  surface: frontend/src/components/SectorChatPanel.tsx
-  tiers:
-    - todo
-  states: []
-- id: frontend.src.components.SectorContextDrawer
-  layer: frontend
-  surface: frontend/src/components/SectorContextDrawer.tsx
-  tiers:
-    - todo
-  states: []
-- id: frontend.src.components.SectorDetailPage
-  layer: frontend
-  surface: frontend/src/components/SectorDetailPage.tsx
   tiers:
     - todo
   states: []
@@ -4246,12 +4222,6 @@
 - id: frontend.src.components.SectorLanding
   layer: frontend
   surface: frontend/src/components/SectorLanding.tsx
-  tiers:
-    - todo
-  states: []
-- id: frontend.src.components.SectorPlanSection
-  layer: frontend
-  surface: frontend/src/components/SectorPlanSection.tsx
   tiers:
     - todo
   states: []

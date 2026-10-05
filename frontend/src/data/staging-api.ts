@@ -170,7 +170,7 @@ export interface CompanyResearch {
   state: ResearchState
 }
 
-export interface SectorActivityEntry {
+interface SectorActivityEntry {
   seq: number
   text: string
 }
@@ -649,81 +649,6 @@ export interface SectorDocumentSummary {
   sha256: string
   createdAt: string
   status: 'indexed' | 'needs-ocr'
-}
-
-interface ContextUnitView {
-  ord: number
-  kind: string
-  text: string
-  uncertain: boolean
-  excluded: boolean
-}
-
-export interface ContextFileView {
-  id: string
-  filename: string
-  mediaType: string
-  status: 'indexed' | 'needs-ocr'
-  sha256: string
-  chars: number
-  excluded: boolean
-  units: ContextUnitView[]
-}
-
-interface ContextNoteView {
-  id: string
-  text: string
-  createdAt: string
-}
-
-export interface SectorContextView {
-  sectorId: string
-  digest: { version: string; text: string }
-  segments: { system: string; references: string[]; history: string[]; tail: string[] }
-  usage: {
-    system: { messages: number; estimatedTokens: number }
-    references: { messages: number; estimatedTokens: number }
-    history: { messages: number; estimatedTokens: number }
-    tail: { messages: number; estimatedTokens: number }
-    totalEstimatedTokens: number
-  }
-  files: ContextFileView[]
-  notes: ContextNoteView[]
-}
-
-export function getSectorContext(config: StagingConfig, sectorId: string): Promise<SectorContextView> {
-  return request<SectorContextView>(config, 'GET', `/v1/sectors/${encodeURIComponent(sectorId)}/context`)
-}
-
-export function patchSectorContext(
-  config: StagingConfig,
-  sectorId: string,
-  input: {
-    exclude?: Array<{ documentId: string; ord?: number }>
-    include?: Array<{ documentId: string; ord?: number }>
-    notes?: string[]
-  },
-): Promise<SectorContextView> {
-  return request<SectorContextView>(config, 'PATCH', `/v1/sectors/${encodeURIComponent(sectorId)}/context`, input)
-}
-
-export interface CompactSectorContextResult {
-  sectorId: string
-  compacted: boolean
-  priorNotesCount?: number
-  reason?: string
-  note?: { id: string; text: string; createdAt: string }
-}
-
-export function compactSectorContext(
-  config: StagingConfig,
-  sectorId: string,
-): Promise<CompactSectorContextResult> {
-  return request<CompactSectorContextResult>(
-    config,
-    'POST',
-    `/v1/sectors/${encodeURIComponent(sectorId)}/context/compact`,
-  )
 }
 
 /** Create a sector (defaults to draft: attach files, start explicitly). */

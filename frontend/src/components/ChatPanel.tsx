@@ -241,7 +241,7 @@ function toChatFile(summary: ArtifactSummary): ChatFile {
 
 // Past sessions: titles with ages, one active row, and a new-session
 // action. Switching swaps the visible thread.
-export function SessionsPanel({
+function SessionsPanel({
   sessions,
   activeId,
   pinnedId = null,

@@ -9,8 +9,7 @@
     { "file": "backend/src/db/events.ts", "lines": 803, "phase": 2, "reason": "split by responsibility" },
     { "file": "frontend/src/components/ChatPanel.tsx", "lines": 2087, "phase": 2, "reason": "merge chat panels, shared parts" },
     { "file": "frontend/src/components/workspace-parts.tsx", "lines": 1133, "phase": 2, "reason": "split by responsibility" },
-    { "file": "frontend/src/data/staging-api.ts", "lines": 1030, "phase": 2, "reason": "one client plus per-resource modules" },
-    { "file": "frontend/src/components/SectorChatPanel.tsx", "lines": 842, "phase": 2, "reason": "merge chat panels, shared parts" }
+    { "file": "frontend/src/data/staging-api.ts", "lines": 1030, "phase": 2, "reason": "one client plus per-resource modules" }
   ],
   "globalFetch": [
     { "file": "agents/src/turnRunner.ts", "phase": 2, "reason": "move to agents/src/http.ts" },

@@ -51,7 +51,7 @@ test('chat picker offers only live Meta models and seeds Contributor high', asyn
   const chat = page.getByRole('complementary', { name: 'Assistant chat' })
   const trigger = chat.getByRole('button', { name: 'Choose a model' })
   // The chat picker shows the bound display name plus the seeded effort
-  // (generic pills live only in the legacy SectorChatPanel):
+  // (generic pills were removed with the legacy SectorChatPanel):
   // the trigger reads the Contributor name while the portalled
   // menu carries the live catalog (CP-03: search + provider groups +
   // effort submenus, display names, DeepSeek nowhere).
