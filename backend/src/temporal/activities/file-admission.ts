@@ -6,7 +6,7 @@ import {listFileAdmissionCandidates,readFileJobBoundary,pauseFileProcessingJob,m
 import {projectNewEvents} from '../../projector.js'
 import {createLogger,logOp} from '../../observability/logging.js'
 import {connectClient,temporalNamespace} from '../connection.js'
-import {TemporalRunsGateway} from '../runs-gateway.js'
+import { TemporalRunsGateway } from '../runs-gateway.js'
 
 export type FileAdmissionOwner={state:'running'|'closed';executionId:string}|{state:'absent'|'unavailable'|'mismatch'}
 export async function inspectFileAdmissionOwner(client:Client,job:FileProcessingJob):Promise<FileAdmissionOwner>{

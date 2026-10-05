@@ -3,15 +3,7 @@
 // Temporal. Never imported by product code.
 import { randomUUID } from 'node:crypto'
 import type { Pool } from 'pg'
-import {
-  RunNotFound,
-  SESSION_PREFIX,
-  ThreadNotAccepting,
-  type CommandResult,
-  type RunInfo,
-  type RunsGateway,
-  type SkillInvocation,
-} from '../../backend/src/temporal/runs-gateway.js'
+import { RunNotFound, SESSION_PREFIX, ThreadNotAccepting, type CommandResult, type RunInfo, type RunsGateway, type SkillInvocation } from '../../backend/src/temporal/runs-types.js'
 import { getThread, listThreads, requireThread, setThreadPaused, WorkspaceError } from '../../backend/src/db/index.js'
 
 export class FakeRunsGateway implements RunsGateway {

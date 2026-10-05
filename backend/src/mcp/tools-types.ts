@@ -4,7 +4,7 @@
 import type { Logger } from 'pino'
 import type { Role, Scope } from '../auth/keys.js'
 import { DbContractError, type SectorSweepRunner, type ThreadMessenger, type TransactableDb } from '../db/index.js'
-import { type SubagentDelegator } from '../temporal/runs-gateway.js'
+import { type SubagentDelegator } from '../temporal/runs-types.js'
 import type { ArchiveTarget } from '../archive/targets.js'
 import { type FileProcessorRunner } from '../file-ingestion.js'
 import { type McpToolName } from './schemas.js'

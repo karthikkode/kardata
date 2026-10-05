@@ -4,7 +4,8 @@
 // server: the handle is a stub.
 import { WorkflowNotFoundError } from '@temporalio/client'
 import { describe, expect, it } from 'vitest'
-import { RunNotFound, signalRunCancel } from '../../backend/src/temporal/runs-gateway.js'
+import { RunNotFound } from '../../backend/src/temporal/runs-types.js'
+import { signalRunCancel } from '../../backend/src/temporal/runs-helpers.js'
 
 describe('signalRunCancel', () => {
   it('maps a closed handle to RunNotFound', async () => {

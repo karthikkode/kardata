@@ -22,7 +22,7 @@ import {
   WorkspaceError,
   researchSessionBinding,
 } from '../db/index.js'
-import { RunNotFound, SESSION_PREFIX } from '../temporal/runs-gateway.js'
+import { RunNotFound, SESSION_PREFIX } from '../temporal/runs-types.js'
 import { projectNewEvents } from '../projector.js'
 import { compactOwnerThread } from '../context.js'
 import type { ModelCatalog } from '../providers/catalog.js'

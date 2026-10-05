@@ -324,7 +324,7 @@ export function sectorRoutes(app: FastifyInstance): void {
     return withIdempotency(request, reply, pool, auth.keyId, async () => {
       await projectNewEvents(pool)
       try {
-        const dependencies = app as FastifyInstance & { kardataRuns?: import('../temporal/runs-gateway.js').RunsGateway; kardataArchive?: import('../archive/targets.js').ArchiveTarget; kardataLogger?: import('pino').Logger }
+        const dependencies = app as FastifyInstance & { kardataRuns?: import('../temporal/runs-types.js').RunsGateway; kardataArchive?: import('../archive/targets.js').ArchiveTarget; kardataLogger?: import('pino').Logger }
         const document = await attachSectorDocument(pool, {
           sectorId,
           filename: body.filename,

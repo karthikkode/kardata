@@ -3,11 +3,8 @@
 // with the runSend/runSteer signal and a { sessionId } start payload.
 // No Temporal server, no network.
 import { describe, expect, it } from 'vitest'
-import {
-  buildSessionSignalStart,
-  SESSION_PREFIX,
-  SESSION_WORKFLOW_TYPE,
-} from '../../backend/src/temporal/runs-gateway.js'
+import { buildSessionSignalStart } from '../../backend/src/temporal/runs-helpers.js'
+import { SESSION_PREFIX, SESSION_WORKFLOW_TYPE } from '../../backend/src/temporal/runs-types.js'
 import { laneConfig } from '../../backend/src/temporal/lanes.js'
 
 describe('buildSessionSignalStart', () => {

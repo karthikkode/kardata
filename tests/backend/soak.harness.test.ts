@@ -20,7 +20,7 @@ import {
 } from '../../backend/src/observability/metrics.js'
 import { sweepStalls, type LoopEvidence, type RunObservation } from '../../backend/src/observability/stalls.js'
 import { stallResponseEvent } from '../../backend/src/temporal/activities/stalls.js'
-import type { RunInfo, RunState } from '../../backend/src/temporal/runs-gateway.js'
+import type { RunInfo, RunState } from '../../backend/src/temporal/runs-types.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import { FakeRunsGateway } from './fake-gateway.js'
 

@@ -19,14 +19,11 @@ import {
 } from '../db/index.js'
 import {
   Client,
-  CancelledFailure,
-  WorkflowFailedError,
   WorkflowExecutionAlreadyStartedError,
   WorkflowNotFoundError,
   type WorkflowExecutionDescription,
   type Connection,
 } from '@temporalio/client'
-import type { FakeStep } from '@kardata/agents'
 import { connectClient,temporalNamespace } from './connection.js'
 import { laneConfig } from './lanes.js'
 import { createLogger, logOp } from '../observability/logging.js'
@@ -35,216 +32,31 @@ import { loadOriginalTurnRecovery } from './turn-recovery.js'
 import { defaultPayloadConverter } from '@temporalio/common'
 import { getThread, listThreads, listThreadHeaders, requireThread, setThreadPaused, WorkspaceError } from '../db/index.js'
 
-export type RunState = 'IDLE' | 'RUNNING' | 'PAUSED' | 'SUSPENDED' | 'CANCELLING' | 'FINISHED' | 'ERROR'
-
-export interface RunInfo {
-  id: string
-  sessionId: string
-  threadKey: string
-  state: RunState
-  stageCursor?: string
-  /** 0 until B5.x wires ledger/telemetry ratios; never a measured value. */
-  budgetUsedRatio: number
-  contextUsedRatio: number
-  updatedAt: string
-}
-
-export interface CommandResult {
-  commandId: string
-  state: 'accepted' | 'missed_steer'
-}
-
-/** No such run or thread. Routes answer 404. */
-export class RunNotFound extends Error {}
-
-/** Thread exists but cannot take steer right now. Routes answer 409. */
-export class ThreadNotAccepting extends Error {}
-
-/** Resolved skill invocation: prompt and tool grant travel with the text
- * so the workflow needs no skill-registry import (workflows never import
- * the agents barrel, which pulls node:http). */
-export interface SkillInvocation {
-  name: string
-  prompt: string
-  tools: string[]
-  text: string
-  mode?: 'default' | 'brainstorm' | 'plan'
-}
-
-export interface RunsGateway {
-  startFileProcessing?(jobId: string, revision: number): Promise<void>
-  listRuns(sessionId?: string): Promise<RunInfo[]>
-  getRun(runId: string): Promise<RunInfo | null>
-  send(threadKey: string, text: string): Promise<CommandResult>
-  sendSkill(threadKey: string, invocation: SkillInvocation): Promise<CommandResult>
-  startSectorSweep(sectorId: string, scope?: { tenantId: string; projectId: string | null }): Promise<CommandResult>
-  /** Start the sector planning run: one workflow per sector, idempotent
-   * by workflow id like sweeps. */
-  startSectorPlan(sectorId: string, scope?: { tenantId: string; projectId: string | null }): Promise<CommandResult>
-  /** Start one context-file summary: idempotent by workflow id, so a
-   * re-approval while summarizing reuses the running workflow. */
-  startContextFileSummary(sectorId: string, fileId: string, hash: string): Promise<CommandResult>
-  /** Cancel one context-file summary. Best effort: an already-closed
-   * run accepts quietly. */
-  cancelContextFileSummary(sectorId: string, fileId: string, hash: string): Promise<CommandResult>
-  /** Start global-context compaction: one workflow per sector, so a
-   * second trigger while one runs is accepted, not duplicated. */
-  startContextCompaction(sectorId: string, reason: 'auto' | 'manual'): Promise<CommandResult>
-  /** Halt the sector's sweep workflow. An already-closed run accepts
-   * quietly (nothing to halt); only an unreachable worker throws. */
-  cancelSectorSweep(sectorId: string): Promise<CommandResult>
-  /** Launch a leaf subagent researcher under a session's delegation
-   * parent (created on first use). Pilot children run at depth 0 with
-   * maxDepth 0: they research, never delegate further. */
-  delegateSubagent(input: DelegateSubagentInput): Promise<DelegatedChild>
-  steer(threadKey: string, text: string): Promise<CommandResult>
-  pauseRun(runId: string): Promise<CommandResult>
-  resumeRun(runId: string, extendedBudgetMs?: number): Promise<CommandResult>
-  cancelRun(runId: string): Promise<CommandResult>
-  listQueue(threadKey: string): Promise<Array<{ id: string; text: string; queuedAt: number }>>
-  removeQueued(threadKey: string, id: string): Promise<boolean>
-  reorderQueue(threadKey: string, ids: string[]): Promise<void>
-}
-
-export const SESSION_PREFIX = 'session-run-'
-
-/** Single-flight key: one compaction workflow per sector at a time. */
-export function contextCompactionWorkflowId(sectorId: string): string {
-  return `context-compaction-${sectorId}`
-}
-
-const researchGatewayLogger = createLogger({ op: 'research.execution.transition' })
-export interface ApprovedCoordinatorHandle {
-  workflowId: string
-  query(name: 'coordinatorState'): Promise<{ paused: boolean; planVersion?: number }>
-  signal(name: 'coordinatorResume'): Promise<void>
-  cancel(): Promise<unknown>
-  result(): Promise<unknown>
-}
-/** Only a confirmed paused, superseded execution may be replaced. */
-export async function ensureApprovedCoordinator(handle: ApprovedCoordinatorHandle, version: number, start: () => Promise<unknown>, closeTimeoutMs = 60_000): Promise<void> {
-  if (!Number.isInteger(version) || version < 1 || !Number.isFinite(closeTimeoutMs) || closeTimeoutMs <= 0) throw new TypeError('Invalid research transition limits')
-  return logOp(researchGatewayLogger, 'research.execution.transition', async () => {
-    const current = await handle.query('coordinatorState')
-    if (!current.planVersion || current.planVersion === version) { await handle.signal('coordinatorResume'); return }
-    if (!current.paused) throw new Error('Previous research is still stopping. Retry Start after it is paused.')
-    await handle.cancel()
-    let timer: ReturnType<typeof setTimeout> | undefined
-    try {
-      await Promise.race([
-        handle.result().catch((error: unknown) => {
-          if (!(error instanceof WorkflowFailedError && error.cause instanceof CancelledFailure)) throw error
-        }),
-        new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Previous research has not stopped. Retry Start after recovery.')), closeTimeoutMs) }),
-      ])
-    } finally { if (timer) clearTimeout(timer) }
-    await start()
-  }, { workflowId: handle.workflowId, planVersion: version })
-}
-
-/** Delegation parent workflow id for a session: one parent per session,
- * created on first delegation, shared by all its children. */
-export function delegationWorkflowId(sessionId: string): string {
-  return `delegation-${sessionId}`
-}
-
-export interface DelegateSubagentInput {
-  sessionId: string
-  goal: string
-  /** Owner-given display name; forwarded to the launch event. */
-  name?: string
-  /** Runs after parent acceptance, before the goal signal: the caller's
-   * seam for the spawn-time inherited-context write. */
-  onAccepted?: (childId: string) => Promise<void>
-  mode: 'empty' | 'fork'
-  queueCapacity: number
-  /** Test-only scripted fake steps for the child turn. Never set in
-   * production (mirrors the workflow fakeSteps precedent). */
-  fakeSteps?: FakeStep[]
-  /** Test-only task queue override. Production always uses the turn lane;
-   * tests point the door at their isolated queue. */
-  taskQueue?: string
-}
-
-export interface DelegatedChild {
-  childId: string
-  commandId: string
-}
-
-/** Narrow delegation capability for MCP tool contexts: the full gateway
- * satisfies it structurally, fakes implement just this. */
-export interface SubagentDelegator {
-  delegateSubagent(input: DelegateSubagentInput): Promise<DelegatedChild>
-}
-
-/** Minimal handle surface cancelRun needs: signalling a run. */
-export interface CancelHandle {
-  signal(signal: 'runCancel'): Promise<void>
-}
-
-/** Signal runCancel, mapping a closed handle to RunNotFound. Describe
- * succeeds on closed workflows, so the signal is where their absence
- * surfaces; callers treat it as already gone instead of 500ing. */
-export async function signalRunCancel(handle: CancelHandle, runId: string): Promise<void> {
-  try {
-    await handle.signal('runCancel')
-  } catch (error) {
-    if (error instanceof WorkflowNotFoundError) throw new RunNotFound(`no such run ${runId}`)
-    throw error
-  }
-}
-
-/** Workflow type name of the session-run workflow (workflows/run.ts). The
- * gateway addresses it by string name so client code never bundles
- * workflow code. */
-export const SESSION_WORKFLOW_TYPE = 'sessionRun'
-
-export interface SessionSignalStart {
-  workflowType: typeof SESSION_WORKFLOW_TYPE
-  workflowId: string
-  taskQueue: string
-  signal: 'runSend' | 'runSteer'
-  signalArgs: [string]
-  args: [{ sessionId: string }]
-}
-
-/** Pure builder for the session signal-with-start: first send to a session
- * starts its workflow instead of 404ing; later sends signal the running
- * one (the server routes the signal to the existing execution). */
-export function buildSessionSignalStart(
-  sessionId: string,
-  text: string,
-  signal: 'runSend' | 'runSteer',
-): SessionSignalStart {
-  return {
-    workflowType: SESSION_WORKFLOW_TYPE,
-    workflowId: `${SESSION_PREFIX}${sessionId}`,
-    taskQueue: laneConfig('turn').taskQueue,
-    signal,
-    signalArgs: [text],
-    args: [{ sessionId }],
-  }
-}
-
-function commandId(): string {
-  return `cmd-${randomUUID()}`
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-function closeState(statusName: string): RunState {
-  switch (statusName) {
-    case 'COMPLETED':
-    case 'CANCELLED':
-      return 'FINISHED'
-    case 'CONTINUED_AS_NEW':
-      return 'RUNNING'
-    default:
-      return 'ERROR'
-  }
-}
+import {
+  buildSessionSignalStart,
+  childNameOf,
+  closeState,
+  commandId,
+  contextCompactionWorkflowId,
+  delegationWorkflowId,
+  ensureApprovedCoordinator,
+  mapResearchStatus,
+  signalRunCancel,
+  sleep,
+} from './runs-helpers.js'
+import {
+  SESSION_PREFIX,
+  SESSION_WORKFLOW_TYPE,
+  RunNotFound,
+  ThreadNotAccepting,
+  type CommandResult,
+  type DelegateSubagentInput,
+  type DelegatedChild,
+  type RunInfo,
+  type RunState,
+  type RunsGateway,
+  type SkillInvocation,
+} from './runs-types.js'
 
 export class TemporalRunsGateway implements RunsGateway {
   private clientPromise: Promise<Client> | undefined
@@ -903,25 +715,4 @@ export class TemporalRunsGateway implements RunsGateway {
     return { commandId: id, state: 'missed_steer' }
 
   }
-}
-
-function mapResearchStatus(status: string): RunState {
-  switch (status) {
-    case 'running':
-      return 'RUNNING'
-    case 'paused':
-      return 'PAUSED'
-    case 'blocked':
-      return 'ERROR'
-    default:
-      return 'FINISHED'
-  }
-}
-
-function childNameOf(messages: Array<{ payload: unknown }>): string | undefined {
-  for (const message of messages) {
-    const payload = message.payload as { launched?: string; name?: string }
-    if (payload.launched === 'true' && typeof payload.name === 'string') return payload.name
-  }
-  return undefined
 }

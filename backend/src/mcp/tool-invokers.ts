@@ -81,7 +81,7 @@ import {
   upsertLedgerCompany,
   updateSectorPlan,
 } from '../db/index.js'
-import { RunNotFound, ThreadNotAccepting } from '../temporal/runs-gateway.js'
+import { RunNotFound, ThreadNotAccepting } from '../temporal/runs-types.js'
 import { TOOL_SCHEMAS, type McpToolName } from './schemas.js'
 import {
   pooledBrowserAct,

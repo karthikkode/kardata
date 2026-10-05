@@ -7,7 +7,7 @@
 import type { FastifyInstance } from 'fastify'
 import type { Db } from '../db/index.js'
 import type { Scope } from '../auth/keys.js'
-import type { RunInfo } from '../temporal/runs-gateway.js'
+import type { RunInfo } from '../temporal/runs-types.js'
 import { getThread } from '../db/index.js'
 import { authorize, requirePool, requireRuns, route, sendError, sessionVisible } from './http.js'
 
