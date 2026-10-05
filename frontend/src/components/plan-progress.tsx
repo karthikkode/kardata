@@ -15,7 +15,7 @@ import { Textarea } from './ui/textarea'
 import { safeExternalUrl } from './Markdown'
 import { ResourceState, SearchField } from './shells'
 import type { Resource } from '../data/useWorkspace'
-import type { ResearchProgress } from '../data/api/progress'
+import type { ResearchProgress } from '../data/useSectors'
 import { IconButton } from './IconButton'
 
 export type WorkReview = { busy: boolean; error: string | null; clearError(): void; decide(id: string, version: number, receipt: string, decision: 'retry' | 'exclude', reason: string): Promise<boolean> }

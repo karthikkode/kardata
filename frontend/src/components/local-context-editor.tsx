@@ -13,8 +13,8 @@ import { ProgressRoot } from './ui/progress'
 import { Textarea } from './ui/textarea'
 import { Markdown } from './Markdown'
 import type { Resource } from '../data/useWorkspace'
-import type { LocalContext } from '../data/api/context'
-import type { OperationReceipt } from '../data/api/threads'
+import type { LocalContext } from '../data/useContexts'
+import type { OperationReceipt } from '../data/useThreads'
 
 import { ResourceNotice, WorkspaceOverlay } from './workspace-parts'
 

@@ -7,7 +7,7 @@ import { listRuns } from '../../data/useRuns'
 import { listSessionArtifacts } from '../../data/useFiles'
 import { listSessions, type Session } from '../../data/useSessions'
 import { listSkills, type SkillSummary } from '../../data/useSkills'
-import { type StagingConfig } from '../../data/api/client'
+import { type StagingConfig } from '../../data/useApi'
 import {
   loadStateOf,
   mergeChatMessages,

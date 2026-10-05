@@ -8,9 +8,9 @@
 // and collision-aware placement come from the Base UI menu primitive.
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Icons } from '@/lib/icons'
-import { getSession } from '../data/api/sessions'
-import { setSessionModel, type ProviderEntry } from '../data/api/models'
-import { type StagingConfig } from '../data/api/client'
+import { getSession } from '../data/useSessions'
+import { setSessionModel, type ProviderEntry } from '../data/useModels'
+import { type StagingConfig } from '../data/useApi'
 import { useModelCatalog } from '../data/useModelCatalog'
 import { providerLabel } from './ModelsPanel'
 import { Caption } from './text'

@@ -18,7 +18,7 @@ import { ProgressRoot } from './ui/progress'
 import { Textarea } from './ui/textarea'
 import { Markdown } from './Markdown'
 import type { Resource } from '../data/useWorkspace'
-import type { ContextChange, ContextFileBlock, ContextPreview, GlobalContext, GlobalContextUsage, Sections } from '../data/api/context'
+import type { ContextChange, ContextFileBlock, ContextPreview, GlobalContext, GlobalContextUsage, Sections } from '../data/useContexts'
 import { IconButton } from './IconButton'
 import { ConfirmAction } from './ui/alert-dialog'
 

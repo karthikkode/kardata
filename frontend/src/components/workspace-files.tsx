@@ -14,7 +14,7 @@ import { Button } from './ui/button'
 import { List, listRowClassName } from './ui/list'
 import { SearchField } from './shells'
 import type { Resource } from '../data/useWorkspace'
-import type { LibraryFile } from '../data/api/files'
+import type { LibraryFile } from '../data/useFiles'
 import { IconButton } from './IconButton'
 
 import { ResourceNotice } from './workspace-parts'
