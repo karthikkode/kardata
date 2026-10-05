@@ -11,7 +11,7 @@ import { type TransactableDb } from './checkpoints.js'
 import { checked, Id, WorkspaceError } from './errors.js'
 import { publishOutboxFrame } from './outbox.js'
 import { listDocumentUnits } from './document-units.js'
-import { assertThreadFileContext, ContextFileBlocked, mergeFileRefs, threadFileRefs, validateFileRefs, insertContextFileBlock, listContextFileBlocks, readContextFileBlock, resetContextFileBlock, type ContextFileRef } from './context-files.js'
+import { assertThreadFileContext, ContextFileBlocked, mergeFileRefs, threadFileRefs, validateFileRefs, insertContextFileBlock, listContextFileBlocks, readContextFileBlock, resetContextFileBlock } from './context-files.js'
 
 import {
   type ContextChange,
@@ -19,6 +19,7 @@ import {
   type GlobalContext,
   type GlobalContextUsage,
   PartialContextSections,
+  type ContextFileRef,
   globalContextUsageFrom,
   requireSector,
   requireThread,

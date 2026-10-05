@@ -1681,9 +1681,9 @@
   tiers:
     - todo
   states: []
-- id: db.context_files.ContextFileRef
+- id: db.workspace.ContextFileRef
   layer: db
-  surface: backend/src/db/context-files.ts
+  surface: backend/src/db/workspace.ts
   tiers:
     - todo
   states: []

@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto'
 // Server-derived provenance. Agent text and arguments never grant inclusion.
-import { z } from 'zod'
 import type { Scope } from '../auth/types.js'
 import { appendEvent, type Db } from './events.js'
 import { listArtifacts } from './event-artifacts.js'
@@ -8,10 +7,8 @@ import type { TransactableDb } from './checkpoints.js'
 import { WorkspaceError } from './errors.js'
 import { listDocumentUnitOrdinals } from './document-units.js'
 import { listSectorLibrary } from './workspace-library.js'
-import { requireThread, workspaceTransaction } from './workspace.js'
+import { requireThread, workspaceTransaction, type ContextFileRef } from './workspace.js'
 
-export const ContextFileRef = z.object({ readSectorId: z.string().min(1).optional(), fileId: z.string().min(1), hash: z.string().min(1), filename: z.string().min(1), ords: z.array(z.number().int().nonnegative()) }).strict()
-export type ContextFileRef = z.infer<typeof ContextFileRef>
 export class ContextFileBlocked extends WorkspaceError {
   constructor(message = 'Context depends on a hidden, changed, or unverified file. Reveal the exact source version or safely rebuild context before resuming.') { super('conflict', message) }
 }

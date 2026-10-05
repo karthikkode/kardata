@@ -8,7 +8,9 @@ import { DURABLE_STREAM_LOCK_SQL, type TransactableDb } from './checkpoints.js'
 import { checked, Id, WorkspaceError } from './errors.js'
 export { WorkspaceError } from './errors.js'
 import { estimateTokens } from '@kardata/agents'
-import { type ContextFileRef } from './context-files.js'
+
+export const ContextFileRef = z.object({ readSectorId: z.string().min(1).optional(), fileId: z.string().min(1), hash: z.string().min(1), filename: z.string().min(1), ords: z.array(z.number().int().nonnegative()) }).strict()
+export type ContextFileRef = z.infer<typeof ContextFileRef>
 
 export const ContextSections = z.object({
   scope: z.string().max(24000).default(''), instructions: z.string().max(24000).default(''),
