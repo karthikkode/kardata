@@ -33,6 +33,7 @@ interface ThreadRow {
   session_id: string
   kind: 'session' | 'subagent'
   status: string
+  state_reason: string | null
   accepting_steer: boolean
   queue_depth: number
   updated_at: Date
@@ -368,6 +369,7 @@ export async function getThread(db: Db, threadKey: string): Promise<ThreadView |
     sessionId: thread.session_id,
     kind: thread.kind,
     status: thread.status,
+    ...(thread.state_reason ? { stateReason: thread.state_reason } : {}),
     acceptingSteer: thread.accepting_steer,
     queueDepth: Number(thread.queue_depth),
     updatedAt: thread.updated_at.toISOString(),
@@ -400,7 +402,7 @@ export async function getThreadHeader(db: Db, threadKey: string): Promise<Thread
   if (!ThreadKeySchema.safeParse(threadKey).success) throw new DbContractError('threadKey must be non-empty')
   const { rows } = await db.query<ThreadRow>('SELECT * FROM threads WHERE key = $1', [threadKey])
   const thread = rows[0]
-  return thread ? { key: thread.key, sessionId: thread.session_id, kind: thread.kind, status: thread.status, acceptingSteer: thread.accepting_steer, queueDepth: Number(thread.queue_depth), updatedAt: thread.updated_at.toISOString(), messages: [] } : undefined
+  return thread ? { key: thread.key, sessionId: thread.session_id, kind: thread.kind, status: thread.status, ...(thread.state_reason ? { stateReason: thread.state_reason } : {}), acceptingSteer: thread.accepting_steer, queueDepth: Number(thread.queue_depth), updatedAt: thread.updated_at.toISOString(), messages: [] } : undefined
 }
 
 export async function listThreads(db: Db, sessionId: string): Promise<ThreadView[]> {
@@ -425,7 +427,7 @@ export async function listThreadHeaders(db: Db, sessionId: string): Promise<Thre
     CASE WHEN t.kind='subagent' THEN (SELECT m.payload->>'name' FROM thread_messages m
       WHERE m.thread_key=t.key AND m.payload->>'launched'='true' ORDER BY m.seq ASC LIMIT 1) END AS name
     FROM threads t WHERE t.session_id=$1 ORDER BY t.key`, [sessionId])
-  return rows.map((thread) => ({ key: thread.key, sessionId: thread.session_id, kind: thread.kind, status: thread.status, acceptingSteer: thread.accepting_steer, queueDepth: Number(thread.queue_depth), updatedAt: thread.updated_at.toISOString(), ...(thread.name ? { name: thread.name } : {}), messages: [] }))
+  return rows.map((thread) => ({ key: thread.key, sessionId: thread.session_id, kind: thread.kind, status: thread.status, ...(thread.state_reason ? { stateReason: thread.state_reason } : {}), acceptingSteer: thread.accepting_steer, queueDepth: Number(thread.queue_depth), updatedAt: thread.updated_at.toISOString(), ...(thread.name ? { name: thread.name } : {}), messages: [] }))
 }
 
 /** Outbound thread messaging for Karbot steering. The messenger is the

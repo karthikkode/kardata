@@ -2718,6 +2718,9 @@ components:
           enum: [session, subagent]
         status:
           $ref: '#/components/schemas/RunState'
+        stateReason:
+          type: string
+          description: Supervisor reason code (closed-owner, ...); absent when no failure stands.
         acceptingSteer:
           type: boolean
         queueDepth:

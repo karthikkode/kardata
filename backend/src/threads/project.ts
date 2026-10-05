@@ -102,6 +102,8 @@ export interface ThreadView {
   sessionId: string
   kind: 'session' | 'subagent'
   status: string
+  /** Supervisor reason code (closed-owner, ...); absent when no failure stands. */
+  stateReason?: string
   acceptingSteer: boolean
   queueDepth: number
   updatedAt: string
