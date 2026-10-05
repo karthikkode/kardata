@@ -42,7 +42,7 @@ const ArtifactScope = z.object({
 export const TOOL_SCHEMAS = {
   'db.commit_child_context': z.object({ proposalId: NonEmpty }).strict(),
   'db.get_global_context': z.object({ sectorId: NonEmpty.optional() }).strict(),
-  'db.propose_global_context': z.object({ baseVersion: z.number().int().nonnegative(), sections: PartialContextSections, idempotencyKey: NonEmpty }).strict(),
+  'db.propose_global_context': z.object({ baseVersion: z.number().int().nonnegative(), sections: PartialContextSections, idempotencyKey: NonEmpty, sectorId: NonEmpty.optional() }).strict(),
   'db.list_sector_files': z.object({}).strict(),
   'db.propose_file_context': z.object({ fileId: NonEmpty, baseVersion: z.number().int().nonnegative(), ords: z.array(z.number().int().nonnegative()).optional() }).strict(),
   'db.get_local_context': z.object({}).strict(),
@@ -378,6 +378,18 @@ export const TOOL_SCHEMAS = {
   }).strict(),
   'ops.cancel_run': z.object({
     runId: NonEmpty,
+  }).strict(),
+  'ops.spawn_subagent': z.object({
+    threadKey: NonEmpty,
+    goal: z.string().min(1).max(8000),
+  }).strict(),
+  'ops.restart_sector_research': z.object({
+    sectorId: NonEmpty,
+    idempotencyKey: NonEmpty.optional(),
+  }).strict(),
+  'db.request_plan': z.object({
+    sectorId: NonEmpty,
+    instruction: z.string().min(1).max(8000),
   }).strict(),
 }
 

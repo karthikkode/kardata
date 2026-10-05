@@ -190,6 +190,9 @@ const SAMPLES: Record<McpToolName, { valid: unknown; invalid: unknown; invoke?: 
   'ops.pause_run': { valid: { runId: 'r' }, invalid: {}, invoke: false },
   'ops.resume_run': { valid: { runId: 'r' }, invalid: { runId: '' }, invoke: false },
   'ops.cancel_run': { valid: { runId: 'r' }, invalid: {}, invoke: false },
+  'ops.spawn_subagent': { valid: { threadKey: 't', goal: 'research this' }, invalid: { threadKey: 't' }, invoke: false },
+  'ops.restart_sector_research': { valid: { sectorId: 's' }, invalid: { sectorId: '' } },
+  'db.request_plan': { valid: { sectorId: 's', instruction: 'focus on Sydney' }, invalid: { sectorId: 's' }, invoke: false },
 }
 
 const EXPECTED_TOOLS: McpToolName[] = [
@@ -273,6 +276,9 @@ const EXPECTED_TOOLS: McpToolName[] = [
   'ops.pause_run',
   'ops.resume_run',
   'ops.cancel_run',
+  'ops.spawn_subagent',
+  'ops.restart_sector_research',
+  'db.request_plan',
   'web_search',
   'web_fetch',
   'browser_navigate',

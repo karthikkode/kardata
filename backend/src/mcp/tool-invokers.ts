@@ -66,6 +66,9 @@ import {
   referenceArtifact,
   releaseIdempotency,
   pauseSectorSweep,
+  researchSessionBinding,
+  requireSector,
+  restartSectorSweep,
   resolveArtifactScope,
   buildInheritedContext,
   saveInheritedContext,
@@ -161,9 +164,10 @@ export const INVOKERS: Invokers = {
 
   },
   'db.propose_global_context': async (ctx, args) => {
-    const identity = await workspaceIdentity(ctx)
-    await assertThreadFileContext(ctx.pool, identity.threadKey, ctx.scope)
-    return proposeGlobalContext(ctx.pool, { ...args, sectorId: identity.sectorId, sourceThread: identity.threadKey, owner: false, trustedResearch: true, scope: ctx.scope, id: `${identity.sectorId}:${scopedIdempotencyKey(ctx, args.idempotencyKey)}` })
+    const { sectorId } = await sectorScope(ctx, args.sectorId)
+    if (!ctx.executionThread) throw new McpToolError('permission_denied', 'Verified execution context is required.')
+    await assertThreadFileContext(ctx.pool, ctx.executionThread, ctx.scope)
+    return proposeGlobalContext(ctx.pool, { ...args, sectorId, sourceThread: ctx.executionThread, owner: false, trustedResearch: true, scope: ctx.scope, id: `${sectorId}:${scopedIdempotencyKey(ctx, args.idempotencyKey)}` })
   },
   'db.list_sector_files': async (ctx) => {
     const identity = await workspaceIdentity(ctx)
@@ -631,6 +635,49 @@ export const INVOKERS: Invokers = {
   'ops.cancel_run': async (ctx, args) => {
     try {
       return await cancelThreadRun(ctx.messenger, args.runId)
+    } catch (error: unknown) {
+      if (error instanceof RunNotFound) throw new McpToolError('not_found', error.message)
+      if (error instanceof ThreadNotAccepting) throw new McpToolError('conflict', error.message)
+      throw error
+    }
+  },
+  'ops.spawn_subagent': async (ctx, args) => {
+    if (!ctx.delegator) throw new McpPreconditionError('Delegation is unavailable: no subagent delegator attached.')
+    const goal = args.goal.trim()
+    if (!goal) throw new DbContractError('goal must be a non-empty string')
+    const target = await requireThread(ctx.pool, args.threadKey, ctx.scope)
+    const siblings = (await listThreadHeaders(ctx.pool, target.session.id)).filter((thread) => thread.kind === 'subagent')
+    try {
+      return await ctx.delegator.delegateSubagent({
+        sessionId: target.session.id,
+        goal,
+        name: `Subagent ${siblings.length + 1}`,
+        mode: 'empty',
+        queueCapacity: 8,
+        onAccepted: async (childId) => {
+          await saveInheritedContext(ctx.pool, `agent:${childId}`, await buildInheritedContext(ctx.pool, args.threadKey))
+        },
+      })
+    } catch (error: unknown) {
+      if (error instanceof ThreadNotAccepting) throw new McpToolError('conflict', error.message)
+      throw error
+    }
+  },
+  'ops.restart_sector_research': async (ctx, args) => {
+    const key = args.idempotencyKey ? `sector-restart:${args.sectorId}:${ctx.keyId}:${args.idempotencyKey}` : undefined
+    try {
+      return await restartSectorSweep(ctx.pool, ctx.runs, args.sectorId, ctx.scope, key)
+    } catch (error: unknown) {
+      if (error instanceof SectorTransitionError) throw new DbContractError(`${error.failure}: ${error.message}`)
+      throw error
+    }
+  },
+  'db.request_plan': async (ctx, args) => {
+    await requireSector(ctx.pool, args.sectorId, ctx.scope)
+    const sessionId = await researchSessionBinding(ctx.pool, args.sectorId)
+    if (!sessionId) throw new McpToolError('not_found', `sector ${args.sectorId} has no research session`)
+    try {
+      return await sendThreadMessage(ctx.messenger, sessionId, args.instruction)
     } catch (error: unknown) {
       if (error instanceof RunNotFound) throw new McpToolError('not_found', error.message)
       if (error instanceof ThreadNotAccepting) throw new McpToolError('conflict', error.message)

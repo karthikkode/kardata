@@ -143,6 +143,7 @@ export {
 } from './sector-start.js'
 export {
   pauseSectorSweep,
+  restartSectorSweep,
   resumeSectorSweep,
 } from './sector-lifecycle.js'
 export {

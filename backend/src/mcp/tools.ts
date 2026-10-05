@@ -115,6 +115,9 @@ export const TOOL_LAYER: Record<McpToolName, string> = {
   'ops.pause_run': 'pauseThreadRun',
   'ops.resume_run': 'resumeThreadRun',
   'ops.cancel_run': 'cancelThreadRun',
+  'ops.spawn_subagent': 'delegateSubagent',
+  'ops.restart_sector_research': 'restartSectorSweep',
+  'db.request_plan': 'sendThreadMessage',
 }
 
 /** Capability tier: read (viewer), write (operator), sensitive (approver
@@ -150,6 +153,8 @@ const SENSITIVE_TOOLS: ReadonlySet<McpToolName> = new Set([
   'ops.queue_remove',
   'ops.queue_reorder',
   'ops.resume_run',
+  // A plan instruction moves the research turn: steer-class, like send.
+  'db.request_plan',
 ])
 
 export function toolCapability(name: McpToolName): ToolCapability {
@@ -260,6 +265,9 @@ export const TOOL_META: Record<McpToolName, { description: string; minRole: Role
   'ops.pause_run': { description: 'Pause any run kind, including company research. Mirrors the route floor: operator.', minRole: 'operator' },
   'ops.resume_run': { description: 'Resume a paused run. Sensitive: approver plus user confirmation.', minRole: 'approver' },
   'ops.cancel_run': { description: 'Cancel any run kind, including company research. Mirrors the route floor: operator.', minRole: 'operator' },
+  'ops.spawn_subagent': { description: 'Launch a leaf subagent under one thread’s session, inheriting that thread. Mirrors db.delegate_subagent: operator.', minRole: 'operator' },
+  'ops.restart_sector_research': { description: 'Restart a sector’s research sweep. Mirrors the route floor: operator.', minRole: 'operator' },
+  'db.request_plan': { description: 'Send a plan instruction to a sector’s research session. Karbot never writes the plan. Sensitive: approver plus user confirmation.', minRole: 'approver' },
 }
 
 const preDispatchFailures = new WeakSet<object>()
@@ -290,7 +298,7 @@ export async function invokeTool(
       const where = first ? [...first.path.map(String), first.message].join(': ') : 'invalid input'
       throw new McpToolError('validation_failed', `${name}: ${where}`)
     }
-    if (ctx.scope && ['db.get_thread', 'db.read_sector_thread', 'db.send_message', 'db.steer_thread', 'db.read_outbox', 'ops.thread_queue', 'ops.queue_remove', 'ops.queue_reorder'].includes(name)) {
+    if (ctx.scope && ['db.get_thread', 'db.read_sector_thread', 'db.send_message', 'db.steer_thread', 'db.read_outbox', 'ops.thread_queue', 'ops.queue_remove', 'ops.queue_reorder', 'ops.spawn_subagent'].includes(name)) {
       await requireThread(ctx.pool, (parsed.data as { threadKey: string }).threadKey, ctx.scope)
     }
     if (ctx.scope && name === 'db.subscribe_outbox') throw new McpToolError('permission_denied', 'Unattributed fleet notifications are unavailable to scoped callers.')
@@ -307,7 +315,7 @@ export async function invokeTool(
         }
       }
       if (['db.get_thread', 'db.read_sector_thread', 'db.read_outbox', 'ops.thread_queue'].includes(name)) await assertThreadFileContext(ctx.pool, (parsed.data as { threadKey: string }).threadKey, ctx.scope)
-      if (name === 'db.delegate_subagent' && actor.thread.kind === 'subagent') throw new McpToolError('permission_denied', 'Leaf subagents cannot delegate further.')
+      if ((name === 'db.delegate_subagent' || name === 'ops.spawn_subagent') && actor.thread.kind === 'subagent') throw new McpToolError('permission_denied', 'Leaf subagents cannot delegate further.')
       if (name === 'db.rename_session' && actor.thread.kind === 'subagent') throw new McpToolError('permission_denied', 'Conversation naming belongs to the parent or owner.')
       if (name === 'db.delete_session') throw new McpToolError('permission_denied', 'Conversation deletion requires owner confirmation in the UI.')
       if (name === 'db.set_sector_state') throw new McpToolError('permission_denied', 'Use the approved research lifecycle operations.')
@@ -337,8 +345,8 @@ export async function invokeTool(
         if (name === 'db.create_artifact') args['producedBy'] = ctx.executionThread
       }
     }
-    if (['db.send_message', 'db.steer_thread', 'db.pause_run', 'db.resume_run', 'db.cancel_run', 'ops.list_runs', 'ops.get_run', 'ops.thread_queue', 'ops.queue_remove', 'ops.queue_reorder', 'ops.pause_run', 'ops.resume_run', 'ops.cancel_run'].includes(name) && !ctx.messenger) throw new McpPreconditionError('Thread control is unavailable: no messenger attached.')
-    if (['db.start_sector_research', 'db.pause_sector_research', 'db.resume_sector_research'].includes(name) && !ctx.runs) throw new McpPreconditionError('Research control is unavailable: no sweep runner attached.')
+    if (['db.send_message', 'db.steer_thread', 'db.pause_run', 'db.resume_run', 'db.cancel_run', 'ops.list_runs', 'ops.get_run', 'ops.thread_queue', 'ops.queue_remove', 'ops.queue_reorder', 'ops.pause_run', 'ops.resume_run', 'ops.cancel_run', 'db.request_plan'].includes(name) && !ctx.messenger) throw new McpPreconditionError('Thread control is unavailable: no messenger attached.')
+    if (['db.start_sector_research', 'db.pause_sector_research', 'db.resume_sector_research', 'ops.restart_sector_research'].includes(name) && !ctx.runs) throw new McpPreconditionError('Research control is unavailable: no sweep runner attached.')
     if (['db.pause_run', 'db.resume_run', 'db.cancel_run', 'ops.pause_run', 'ops.resume_run', 'ops.cancel_run'].includes(name) && (ctx.scope || ctx.executionThread)) {
       if (!ctx.runReader) throw new McpPreconditionError('A scoped run reader is required.')
       const run = await ctx.runReader.getRun((parsed.data as { runId: string }).runId)

@@ -99,7 +99,10 @@ export async function proposeGlobalContext(db: TransactableDb, input: {
   checked(Id, input.sourceThread)
   await requireSector(db, input.sectorId, input.scope)
   const identity = input.owner ? undefined : await requireThread(db, input.sourceThread, input.scope)
-  if (identity && identity.session.sectorId !== input.sectorId) throw new WorkspaceError('permission_denied', 'Conversation belongs to another sector.')
+  // Sector-bound threads propose only into their own sector; unbound
+  // threads (general Karbot sessions) may propose into any sector, and
+  // always land pending (never approved, never parent-review).
+  if (identity?.session.sectorId && identity.session.sectorId !== input.sectorId) throw new WorkspaceError('permission_denied', 'Conversation belongs to another sector.')
   if (identity && !input.fileRef) await assertThreadFileContext(db, input.sourceThread, input.scope)
   return workspaceTransaction(db, input.sectorId, async (tx) => {
     await tx.query('INSERT INTO sector_workspace(sector_id) VALUES($1) ON CONFLICT DO NOTHING', [input.sectorId])
