@@ -50,3 +50,15 @@ None.
 2. The retire has no positive test, only suite-absence + grep.
 3. Reviewed after merge: protection landed after `cb15608`, so Phase 0
    never went through a PR; Phase 1+ will.
+
+## Suite result (authorized run, EXIT=0)
+
+`KARDATA_META_KEY= npm run pr:verify`, full log `var/p2-0-verify.log`.
+- frontend: 778 passed / 6 skipped (89 files, 1 skipped file).
+- agents: 282 passed / 2 skipped (32 files).
+- backend: 694 passed / 545 skipped (89 files, 82 skipped files).
+- lint: 0 errors, 7 warnings (pre-existing react-hooks + bundle).
+- typecheck: clean all workspaces. build: frontend ✓ in 513ms.
+- 0 failures; the 6 "FAIL" strings in the log are expected
+  `TEST_LISTEN_FAILURE` codes inside passing error-path tests.
+- Spend: 0 provider tokens (no live tests in this suite).
