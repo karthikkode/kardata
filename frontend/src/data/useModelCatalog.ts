@@ -2,7 +2,8 @@
 // Models tab (panel). One fetch, one status; each surface seeds its own
 // drafts from the returned providers.
 import { useCallback, useEffect, useState } from 'react'
-import { apiErrorStatus, listProviders, type ProviderEntry, type StagingConfig } from './staging-api'
+import { apiErrorStatus, type StagingConfig } from './api/client'
+import { listProviders, type ProviderEntry } from './api/models'
 
 export type CatalogStatus = 'loading' | 'ready' | 'error' | 'denied' | 'offline'
 

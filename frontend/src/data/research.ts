@@ -2,17 +2,9 @@
 // bundles from the backend; without credentials the flag-off path renders
 // a not-configured notice, never sample data.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  getSectorDetail,
-  listCompanies,
-  listSectors,
-  apiErrorStatus,
-  StagingApiError,
-  type CompanyResearch,
-  type SectorDetail,
-  type SectorResearch,
-  type StagingConfig,
-} from './staging-api'
+import { getSectorDetail, listSectors, type CompanyResearch, type SectorDetail, type SectorResearch } from './api/sectors'
+import { listCompanies } from './api/companies'
+import { apiErrorStatus, StagingApiError, type StagingConfig } from './api/client'
 
 export type { CompanyResearch, SectorDetail, SectorResearch }
 

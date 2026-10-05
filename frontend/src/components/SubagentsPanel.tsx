@@ -6,7 +6,7 @@
 import { useState } from 'react'
 import { Icons } from '@/lib/icons'
 import { popoverEnter, popoverExit, useExitState } from '@/lib/motion'
-import type { ThreadView } from '../data/staging-api'
+import type { ThreadView } from '../data/api/threads'
 import { toneDot } from './StatusPill'
 import { Button } from './ui/button'
 import { IconButton } from './IconButton'

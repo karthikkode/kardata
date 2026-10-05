@@ -1,13 +1,8 @@
 // Sector plan client: explicit planning runs and versioned artifact
 // reads. API answers are stubbed; no fixture imports.
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import {
-  planSector,
-  approveSectorPlan,
-  readSectorPlan,
-  updateSectorPlan,
-  type StagingConfig,
-} from '@/data/staging-api'
+import { planSector, approveSectorPlan, readSectorPlan, updateSectorPlan } from '@/data/api/plans'
+import { type StagingConfig } from '@/data/api/client'
 
 const config: StagingConfig = { baseUrl: 'https://staging.test', apiKey: 'key' }
 

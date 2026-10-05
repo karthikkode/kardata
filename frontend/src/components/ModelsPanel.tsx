@@ -6,17 +6,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icons } from '@/lib/icons'
 import { humanizeKey } from '@/lib/format'
 import { notify } from '@/lib/toast'
-import {
-  getSession,
-  listSessions,
-  setSessionModel,
-  apiErrorStatus,
-  StagingApiError,
-  type ProviderEntry,
-  type Session,
-  type SessionModelSelection,
-  type StagingConfig,
-} from '../data/staging-api'
+import { getSession, listSessions, type Session } from '../data/api/sessions'
+import { setSessionModel, type ProviderEntry, type SessionModelSelection } from '../data/api/models'
+import { apiErrorStatus, StagingApiError, type StagingConfig } from '../data/api/client'
 import { useModelCatalog, type CatalogStatus } from '../data/useModelCatalog'
 import { DeniedNotice, PanelError, UnavailableNotice } from './research-parts'
 import { BodySm, Caption, CardTitle } from './text'

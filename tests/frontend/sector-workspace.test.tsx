@@ -4,8 +4,9 @@ import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { SectorLanding } from '@/components/SectorLanding'
 import { GlobalContextPanel, LocalContextEditor, PlanProgress, ResourceNotice, WorkspaceFiles } from '@/components/workspace-parts'
-import type { SectorDetail } from '@/data/staging-api'
-import type { GlobalContext, GlobalContextUsage, ResearchProgress } from '@/data/workspace-api'
+import type { SectorDetail } from '@/data/api/sectors'
+import type { GlobalContext, GlobalContextUsage } from '@/data/api/context'
+import type { ResearchProgress } from '@/data/api/progress'
 import type { Resource } from '@/data/useWorkspace'
 
 const sector: SectorDetail = { id: 'test-sector', name: 'TEST sector', topic: 'Topic', state: 'draft', companiesFound: 0, companies: [], companiesTotal: 0, activity: [], activityTotal: 0, researchSessionId: null, createdAt: '2026-09-30', updatedAt: '2026-09-30' }

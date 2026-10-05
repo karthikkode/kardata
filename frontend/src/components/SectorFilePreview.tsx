@@ -1,5 +1,5 @@
 import type { Resource } from '../data/useWorkspace'
-import type { SectorFileBody, FileUnitsPage } from '../data/workspace-api'
+import type { SectorFileBody, FileUnitsPage } from '../data/api/files'
 import { Icons } from '@/lib/icons'
 import { formatCount } from '../lib/format'
 import { downloadBlob } from '../lib/download'

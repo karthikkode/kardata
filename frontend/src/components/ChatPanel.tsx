@@ -6,23 +6,12 @@ import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent }
 import { Icons } from '@/lib/icons'
 import { humanizeKey } from '../lib/format'
 import { dockEnter, dockExit, useExitState } from '@/lib/motion'
-import {
-  cancelRun,
-  compactSession,
-  createSession,
-  deleteSession,
-  pauseRun,
-  resumeRun,
-  renameSession,
-  sendThreadText,
-  steerThread,
-  StagingApiError,
-  type Session,
-  type SkillSummary,
-  type StagingConfig,
-  type ThreadView,
-  type ToolPayload,
-} from '../data/staging-api'
+import { cancelRun, pauseRun, resumeRun, sendThreadText, steerThread } from '../data/api/commands'
+import { compactSession, createSession, deleteSession, renameSession, type Session } from '../data/api/sessions'
+import { StagingApiError, type StagingConfig } from '../data/api/client'
+import { type SkillSummary } from '../data/api/skills'
+import { type ThreadView } from '../data/api/threads'
+import { type ToolPayload } from '../data/api/live'
 import { useReasoningOpen } from './chat/ReasoningDisclosure'
 import { Caption } from './text'
 import { IconButton } from './IconButton'

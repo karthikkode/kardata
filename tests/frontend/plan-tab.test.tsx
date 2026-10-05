@@ -5,8 +5,10 @@ import { ResearchPlanTab } from '@/components/plan/PlanTab'
 import type { ResearchActions } from '@/components/SectorWorkspace'
 import type { WorkReview } from '@/components/workspace-parts'
 import type { Resource } from '@/data/useWorkspace'
-import type { ResearchState, SectorPlanView } from '@/data/staging-api'
-import type { GlobalContext, ResearchProgress } from '@/data/workspace-api'
+import type { ResearchState } from '@/data/api/sectors'
+import type { SectorPlanView } from '@/data/api/plans'
+import type { GlobalContext } from '@/data/api/context'
+import type { ResearchProgress } from '@/data/api/progress'
 import type { ExecutableResearchPlan } from '@/data/research-plan'
 
 const executable: ExecutableResearchPlan = {

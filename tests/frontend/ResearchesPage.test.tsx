@@ -12,7 +12,7 @@ import type {
   ResearchData,
   SectorResearch,
 } from '@/data/research'
-import type { StagingConfig } from '@/data/staging-api'
+import type { StagingConfig } from '@/data/api/client'
 
 const noop = () => {}
 const staging: StagingConfig = { baseUrl: 'https://staging.test', apiKey: 'key' }

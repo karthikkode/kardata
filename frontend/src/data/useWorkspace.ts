@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { apiErrorStatus, followThread, listMessages, sendThreadText, steerThread, type LiveThread, type StagingConfig } from './staging-api'
+import { apiErrorStatus, type StagingConfig } from './api/client'
+import { followThread, type LiveThread } from './api/live'
+import { listMessages } from './api/threads'
+import { sendThreadText, steerThread } from './api/commands'
 import { mergeChatMessages, messageSeq, toChatMessages } from '../components/chat/messages'
 
 export interface Resource<T> { data?: T; status: 'loading' | 'ready' | 'error' | 'denied' | 'offline'; error?: string; refresh(): void; acknowledge?(data: T): boolean }

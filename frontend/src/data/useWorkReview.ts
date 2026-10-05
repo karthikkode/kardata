@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
-import type { StagingConfig } from './staging-api'
-import { reviewResearchWork, type ResearchProgress } from './workspace-api'
+import type { StagingConfig } from './api/client'
+import { reviewResearchWork, type ResearchProgress } from './api/progress'
 import type { Resource } from './useWorkspace'
 export function useWorkReview(config: StagingConfig | null, resource: Resource<ResearchProgress>) {
   const [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null)

@@ -1,10 +1,13 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useWorkspaceConversation } from '@/data/useWorkspace'
-import { StagingApiError, type LiveThread, type StagingConfig } from '@/data/staging-api'
+import { StagingApiError, type StagingConfig } from '@/data/api/client'
+import { type LiveThread } from '@/data/api/live'
 
 const mocked = vi.hoisted(() => ({ follow: vi.fn(), history: vi.fn(), send: vi.fn(), steer: vi.fn() }))
-vi.mock('@/data/staging-api', async (importOriginal) => ({ ...await importOriginal<typeof import('@/data/staging-api')>(), followThread: mocked.follow, listMessages: mocked.history, sendThreadText: mocked.send, steerThread: mocked.steer }))
+vi.mock('@/data/api/live', async (importOriginal) => ({ ...await importOriginal<typeof import('@/data/api/live')>(), followThread: mocked.follow }))
+vi.mock('@/data/api/threads', async (importOriginal) => ({ ...await importOriginal<typeof import('@/data/api/threads')>(), listMessages: mocked.history }))
+vi.mock('@/data/api/commands', async (importOriginal) => ({ ...await importOriginal<typeof import('@/data/api/commands')>(), sendThreadText: mocked.send, steerThread: mocked.steer }))
 
 const config: StagingConfig = { baseUrl: 'https://test.invalid', apiKey: 'test' }
 function channel() {

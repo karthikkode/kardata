@@ -3,7 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { SectorWorkspace } from '@/components/SectorWorkspace'
 import type { SectorWorkspaceModel } from '@/data/sector-workspace'
-import type { Session, StagingConfig, ThreadView } from '@/data/staging-api'
+import type { Session } from '@/data/api/sessions'
+import type { StagingConfig } from '@/data/api/client'
+import type { ThreadView } from '@/data/api/threads'
 
 const config: StagingConfig = { baseUrl: 'https://test.invalid', apiKey: 'TEST owner' }
 const sector = { id: 'sec-1', name: 'Foods', topic: '', state: 'draft', companiesFound: 0 } as never

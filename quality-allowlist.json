@@ -7,12 +7,9 @@
     { "file": "backend/src/mcp/tools.ts", "lines": 906, "phase": 2, "reason": "split by responsibility" },
     { "file": "backend/src/db/file-jobs.ts", "lines": 841, "phase": 2, "reason": "split by responsibility" },
     { "file": "backend/src/db/events.ts", "lines": 803, "phase": 2, "reason": "split by responsibility" },
-    { "file": "frontend/src/components/workspace-parts.tsx", "lines": 1133, "phase": 2, "reason": "split by responsibility" },
-    { "file": "frontend/src/data/staging-api.ts", "lines": 1030, "phase": 2, "reason": "one client plus per-resource modules" }
+    { "file": "frontend/src/components/workspace-parts.tsx", "lines": 1133, "phase": 2, "reason": "split by responsibility" }
   ],
-  "globalFetch": [
-    { "file": "frontend/src/data/staging-api.ts", "phase": 2, "reason": "becomes the single frontend client" }
-  ],
+  "globalFetch": [],
   "knip": [
     { "scope": "root ignoreDependencies (21 test deps)", "phase": null, "reason": "knip attributes mirror tests/ to root; each dep is listed in its owning workspace (backend/frontend)" },
     { "scope": "frontend ignoreDependencies (fontsource x2, shadcn, tw-animate-css, tailwindcss)", "phase": null, "reason": "imported from index.css and vite.config.ts, which knip does not trace" }

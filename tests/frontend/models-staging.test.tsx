@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ModelsPanel } from '@/components/ModelsPanel'
 import { ModelToolbar } from '@/components/ModelToolbar'
 import { notify } from '@/lib/toast'
-import type { StagingConfig } from '@/data/staging-api'
+import type { StagingConfig } from '@/data/api/client'
 
 vi.mock('@/lib/toast', () => ({ notify: { success: vi.fn(), error: vi.fn() } }))
 

@@ -4,7 +4,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { SubagentsPanel } from '@/components/SubagentsPanel'
-import type { ThreadView } from '@/data/staging-api'
+import type { ThreadView } from '@/data/api/threads'
 
 const THREADS: ThreadView[] = [
   { key: 'agent:child-1', name: 'Research agent 1', sessionId: 's-1', kind: 'subagent', status: 'running', acceptingSteer: true, queueDepth: 2, updatedAt: '' },

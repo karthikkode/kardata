@@ -3,13 +3,14 @@
 // sidebar surfaces; the centre carries one h1 per view. Data stays in
 // the model; this file owns layout, hierarchy, and state copy only.
 import { FileProcessingRetry } from './FileProcessingRetry'
-import type { LibraryFile } from '../data/workspace-api'
+import type { LibraryFile } from '../data/api/files'
 import { useWorkReview } from '../data/useWorkReview'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Icons } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import type { SectorWorkspaceModel } from '../data/sector-workspace'
-import type { ResearchState, SectorDetail, StagingConfig } from '../data/staging-api'
+import type { ResearchState, SectorDetail } from '../data/api/sectors'
+import type { StagingConfig } from '../data/api/client'
 import { formatCount, formatFullDate, relativeAge } from '../lib/format'
 import { researchStateLabel, threadStatusLabel } from '../lib/labels'
 import { rowEnter, staggerDelay } from '../lib/motion'

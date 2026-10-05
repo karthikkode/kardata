@@ -1,8 +1,8 @@
 import { act, renderHook } from '@testing-library/react'
 import { useWorkReview } from '../../frontend/src/data/useWorkReview'
-import type { ResearchProgress } from '../../frontend/src/data/workspace-api'
+import type { ResearchProgress } from '../../frontend/src/data/api/progress'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { reviewResearchWork } from '../../frontend/src/data/workspace-api'
+import { reviewResearchWork } from '../../frontend/src/data/api/progress'
 const config = { baseUrl: 'https://api.example.test', apiKey: 'TEST key' }
 const item = { id: 'TEST:v1:intake:a', kind: 'discovery', title: 'TEST candidate', state: 'excluded', attempts: 3, childId: null, evidence: [], detail: 'TEST original reason', receiptVersion: 'b'.repeat(64) }
 afterEach(() => vi.unstubAllGlobals())

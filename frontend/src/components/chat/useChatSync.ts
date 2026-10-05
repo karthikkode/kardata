@@ -2,20 +2,13 @@
 // and the live thread tail. Query keys reset during render (never in the
 // fetch effects) so stale rows from another session never flash.
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
-import {
-  followThread,
-  listMessages,
-  listRuns,
-  listSessionArtifacts,
-  listSessions,
-  listSkills,
-  listThreads,
-  type Session,
-  type SkillSummary,
-  type StagingConfig,
-  type ThreadView,
-  type ToolPayload,
-} from '../../data/staging-api'
+import { followThread, type ToolPayload } from '../../data/api/live'
+import { listMessages, listThreads, type ThreadView } from '../../data/api/threads'
+import { listRuns } from '../../data/api/runs'
+import { listSessionArtifacts } from '../../data/api/artifacts'
+import { listSessions, type Session } from '../../data/api/sessions'
+import { listSkills, type SkillSummary } from '../../data/api/skills'
+import { type StagingConfig } from '../../data/api/client'
 import {
   loadStateOf,
   mergeChatMessages,

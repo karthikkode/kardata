@@ -27,7 +27,7 @@ export default defineConfig([
   },
   {
     files: ['src/**/*.{ts,tsx}'],
-    ignores: ['src/test/**', 'src/**/*.test.{ts,tsx}'],
+    ignores: ['src/test/**', 'src/**/*.test.{ts,tsx}', 'src/data/api/client.ts'],
     rules: {
       'max-lines': ['error', { max: 800 }],
       complexity: ['warn', 20],
@@ -36,7 +36,7 @@ export default defineConfig([
         'error',
         {
           selector: "CallExpression[callee.name='fetch']",
-          message: 'use the frontend data client (single client lands in Phase 2)',
+          message: 'use the frontend data client (src/data/api/client.ts)',
         },
       ],
     },

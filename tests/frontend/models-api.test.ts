@@ -1,8 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import {
-  getSession, listProviders, setSessionModel,
-  type StagingConfig,
-} from '@/data/staging-api'
+import { getSession } from '@/data/api/sessions'
+import { listProviders, setSessionModel } from '@/data/api/models'
+import { type StagingConfig } from '@/data/api/client'
 
 const config: StagingConfig = { baseUrl: 'https://staging.test', apiKey: 'key' }
 const catalog = { defaultProvider: 'meta', providers: [{

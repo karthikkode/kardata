@@ -14,7 +14,8 @@ import type {
   SectorResearch,
 } from '../data/research'
 import { useStagingCompanies } from '../data/research'
-import type { ResearchState, StagingConfig } from '../data/staging-api'
+import type { ResearchState } from '../data/api/sectors'
+import type { StagingConfig } from '../data/api/client'
 import type { ResearchList } from './Dashboard'
 import { StageSteps, StateBadge } from './research-parts'
 import { ResourceState, SearchField } from './shells'

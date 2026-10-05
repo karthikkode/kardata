@@ -11,7 +11,7 @@ import { SectorLanding, sectorMetaLine } from './components/SectorLanding'
 import { SectorWorkspace } from './components/SectorWorkspace'
 import { useSectorWorkspace } from './data/sector-workspace'
 import { useWorkspaceResource } from './data/useWorkspace'
-import { getResearchProgress } from './data/workspace-api'
+import { getResearchProgress } from './data/api/progress'
 import { Sidebar } from './components/Sidebar'
 import { TopBar } from './components/TopBar'
 import {
@@ -19,17 +19,9 @@ import {
   useStagingSectorDetail,
   useStagingSectors,
 } from './data/research'
-import {
-  approveSectorPlan,
-  createSector,
-  pauseSector,
-  planSector,
-  resumeSector,
-  startSector,
-  updateSectorPlan,
-  stagingConfig,
-  type StagingConfig,
-} from './data/staging-api'
+import { approveSectorPlan, planSector, updateSectorPlan } from './data/api/plans'
+import { createSector, pauseSector, resumeSector, startSector } from './data/api/sectors'
+import { stagingConfig, type StagingConfig } from './data/api/client'
 import { useExitState, pageEnter } from './lib/motion'
 import { LazyMotion, MotionConfig, domAnimation } from 'motion/react'
 import { useNavigation } from './lib/useNavigation'

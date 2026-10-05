@@ -2,7 +2,8 @@
 // backend route (POST /v1/commands/approve, appends t.approval.decided).
 // fetch is stubbed; the wire shape is what is pinned here.
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { decideApproval, type StagingConfig } from '@/data/staging-api'
+import { decideApproval } from '@/data/api/commands'
+import { type StagingConfig } from '@/data/api/client'
 
 const config: StagingConfig = { baseUrl: 'https://staging.test', apiKey: 'k' }
 

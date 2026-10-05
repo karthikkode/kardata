@@ -4,7 +4,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RunsPanel } from '@/components/RunsPanel'
 import { notify } from '@/lib/toast'
-import type { StagingConfig } from '@/data/staging-api'
+import type { StagingConfig } from '@/data/api/client'
 
 vi.mock('@/lib/toast', () => ({ notify: { success: vi.fn(), error: vi.fn() } }))
 

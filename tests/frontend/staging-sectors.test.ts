@@ -2,24 +2,14 @@
 // paths, methods, and bodies, plus the StagingApiError envelope mapping.
 // Live-backend coverage extends tests/frontend/staging-api.test.ts.
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import {
-  cancelRun,
-  followThread,
-  renameSession,
-  getArtifactBody,
-  getSectorDetail,
-  listCompanies,
-  listRuns,
-  listSectors,
-  listTenantArtifacts,
-  referenceArtifact,
-  restartSector,
-  sendThreadText,
-  steerThread,
-  StagingApiError,
-  type StagingConfig,
-  type StreamFrame,
-} from '../../frontend/src/data/staging-api.js'
+import { cancelRun, sendThreadText, steerThread } from '../../frontend/src/data/api/commands.js'
+import { followThread, type StreamFrame } from '../../frontend/src/data/api/live.js'
+import { renameSession } from '../../frontend/src/data/api/sessions.js'
+import { getArtifactBody, listTenantArtifacts, referenceArtifact } from '../../frontend/src/data/api/artifacts.js'
+import { getSectorDetail, listSectors, restartSector } from '../../frontend/src/data/api/sectors.js'
+import { listCompanies } from '../../frontend/src/data/api/companies.js'
+import { listRuns } from '../../frontend/src/data/api/runs.js'
+import { StagingApiError, type StagingConfig } from '../../frontend/src/data/api/client.js'
 
 const config: StagingConfig = { baseUrl: 'https://staging.test', apiKey: 'key' }
 

@@ -1,4 +1,4 @@
-import type { FileProcessingProgress } from '../data/workspace-api'
+import type { FileProcessingProgress } from '../data/api/files'
 import { Button } from './ui/button'
 
 const labels: Record<FileProcessingProgress['state'], string> = {

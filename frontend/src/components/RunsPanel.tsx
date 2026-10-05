@@ -6,14 +6,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { Icons } from '@/lib/icons'
 import { humanizeKey } from '@/lib/format'
 import { notify } from '@/lib/toast'
-import {
-  cancelRun,
-  listRuns,
-  StagingApiError,
-  type RunSummary,
-  type RunState,
-  type StagingConfig,
-} from '../data/staging-api'
+import { cancelRun } from '../data/api/commands'
+import { listRuns, type RunSummary, type RunState } from '../data/api/runs'
+import { StagingApiError, type StagingConfig } from '../data/api/client'
 import { DataTable, type DataTableColumn } from './DataTable'
 import { IconButton } from './IconButton'
 import { DeniedNotice, PanelError, SkeletonRows, UnavailableNotice } from './research-parts'

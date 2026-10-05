@@ -8,25 +8,13 @@
 // Note: api_keys stores sha256 hex of the presented key;
 // replace the key value and keep it out of the repo.
 import { beforeAll, describe, expect, it } from 'vitest'
-import {
-  attachSectorDocument,
-  createSector,
-  createSession,
-  getSectorDetail,
-  getSession,
-  listCompanies,
-  listSectorDocuments,
-  listSectors,
-  listSessionArtifacts,
-  listSessions,
-  listTenantArtifacts,
-  listThreads,
-  referenceArtifact,
-  stagingEnabled,
-  StagingApiError,
-  startSector,
-  type StagingConfig,
-} from '../../frontend/src/data/staging-api.js'
+import { attachSectorDocument, listSectorDocuments } from '../../frontend/src/data/api/files.js'
+import { createSector, getSectorDetail, listSectors, startSector } from '../../frontend/src/data/api/sectors.js'
+import { createSession, getSession, listSessions } from '../../frontend/src/data/api/sessions.js'
+import { listCompanies } from '../../frontend/src/data/api/companies.js'
+import { listSessionArtifacts, listTenantArtifacts, referenceArtifact } from '../../frontend/src/data/api/artifacts.js'
+import { listThreads } from '../../frontend/src/data/api/threads.js'
+import { stagingEnabled, StagingApiError, type StagingConfig } from '../../frontend/src/data/api/client.js'
 
 const URL = process.env['KARDATA_STAGING_URL']
 const KEY = process.env['KARDATA_STAGING_KEY']

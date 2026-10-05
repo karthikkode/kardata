@@ -5,7 +5,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CompaniesSection } from '@/components/CompaniesSection'
-import type { CompanyResearch, ResearchState, StagingConfig } from '@/data/staging-api'
+import type { CompanyResearch, ResearchState } from '@/data/api/sectors'
+import type { StagingConfig } from '@/data/api/client'
 
 const staging: StagingConfig = { baseUrl: 'https://staging.example.test', apiKey: 'TEST key' }
 

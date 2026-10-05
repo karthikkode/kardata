@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { z } from 'zod'
-import { request, StagingApiError, type StagingConfig } from './staging-api'
+import { request, StagingApiError, type StagingConfig } from './api/client'
 import { useWorkspaceResource } from './useWorkspace'
 
 export const SupervisionAlert = z.object({

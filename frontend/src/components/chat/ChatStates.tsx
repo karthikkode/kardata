@@ -1,7 +1,7 @@
 // Chat pre-conversation states: compact notice plus the no-backend,
 // denied, loading, failed, and offline branches.
 import { Icons } from '@/lib/icons'
-import type { StagingConfig } from '../../data/staging-api'
+import type { StagingConfig } from '../../data/api/client'
 import { Button } from '../ui/button'
 import { CardTitle, Description } from '../text'
 import { Skeleton } from '../ui/skeleton'

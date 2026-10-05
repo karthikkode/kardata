@@ -2,7 +2,8 @@
 // and malformed frames without losing or duplicating messages, resuming
 // from the last good token. fetch is stubbed per connection attempt.
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { followThread, type StagingConfig } from '@/data/staging-api'
+import { followThread } from '@/data/api/live'
+import { type StagingConfig } from '@/data/api/client'
 
 const config: StagingConfig = { baseUrl: 'https://staging.test', apiKey: 'k' }
 

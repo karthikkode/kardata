@@ -5,7 +5,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ChatPanel } from '@/components/ChatPanel'
 import { mergeChatMessages, toChatMessages, toLiveMessages } from '@/components/chat/messages'
-import type { StagingConfig } from '@/data/staging-api'
+import type { StagingConfig } from '@/data/api/client'
 
 const config: StagingConfig = { baseUrl: 'https://staging.test', apiKey: 'key' }
 

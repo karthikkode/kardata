@@ -2,7 +2,8 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { GlobalContextPanel, WorkspaceFiles } from '@/components/workspace-parts'
-import type { ContextChange, ContextFileBlock, GlobalContext, LibraryFile } from '@/data/workspace-api'
+import type { ContextChange, ContextFileBlock, GlobalContext } from '@/data/api/context'
+import type { LibraryFile } from '@/data/api/files'
 
 function block(overrides: Partial<ContextFileBlock> = {}): ContextFileBlock {
   return { fileId: 'file-1', filename: 'notes.md', state: 'ready', tokens: 1240, summary: '### notes.md (MD)\n**Overview.** TEST summary.', error: null, ...overrides }

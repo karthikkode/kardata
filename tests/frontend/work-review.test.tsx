@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { PlanProgress } from '../../frontend/src/components/workspace-parts'
-import type { ResearchProgress } from '../../frontend/src/data/workspace-api'
+import type { ResearchProgress } from '../../frontend/src/data/api/progress'
 const item = { id: 'TEST:v1:intake:test', kind: 'discovery' as const, title: 'TEST uncertain candidate', state: 'blocked' as const, attempts: 3, childId: null, evidence: ['https://example.com/TEST-source'], sourceUrl: 'https://example.com/', detail: 'uncertain: TEST Australia evidence missing', receiptVersion: 'a'.repeat(64) }
 const data: ResearchProgress = { sectorId: 'TEST', state: 'paused', planVersion: 1, items: [item], completed: 0, total: 1, unresolved: 1, discoveryClosed: false, estimatedPercent: null }
 const resource = { status: 'ready' as const, data, refresh: vi.fn() }
