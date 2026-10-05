@@ -5,8 +5,7 @@
 import type { PoolClient } from 'pg'
 import { z } from 'zod'
 import { DbContractError } from './errors.js'
-import type { Db } from './events.js'
-import { DURABLE_STREAM_LOCK_SQL } from './checkpoints.js'
+import { DURABLE_STREAM_LOCK_SQL, type Db } from './events.js'
 import { createLogger, logOp } from '../observability/logging.js'
 
 const subscriptionLogger = createLogger({ op: 'db.outbox.subscription' })

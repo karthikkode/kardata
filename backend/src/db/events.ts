@@ -7,7 +7,10 @@
 import { z } from 'zod'
 import { scrubSecrets } from '../observability/logging.js'
 import { DbContractError } from './errors.js'
-import { DURABLE_STREAM_LOCK_SQL } from './checkpoints.js'
+
+/** Both durable streams share one lock: transactions cannot invert event
+ * and outbox lock order, and cursors cannot overtake uncommitted seqs. */
+export const DURABLE_STREAM_LOCK_SQL = "SELECT pg_advisory_xact_lock(hashtext('kardata:durable-stream'))"
 
 export const EventEnvelope = z.object({
   idempotencyKey: z.string().min(1),

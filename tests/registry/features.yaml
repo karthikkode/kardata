@@ -1609,9 +1609,9 @@
   tiers:
     - todo
   states: []
-- id: db.checkpoints.DURABLE_STREAM_LOCK_SQL
+- id: db.events.DURABLE_STREAM_LOCK_SQL
   layer: db
-  surface: backend/src/db/checkpoints.ts
+  surface: backend/src/db/events.ts
   tiers:
     - todo
   states: []
