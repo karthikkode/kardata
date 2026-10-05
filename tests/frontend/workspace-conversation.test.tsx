@@ -1,3 +1,4 @@
+// [F:frontend.hook.useWorkspace]
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useWorkspaceConversation } from '@/data/useWorkspace'
@@ -120,6 +121,46 @@ describe('workspace conversation lifecycle', () => {
     await act(async () => { rejectSend(new Error('network failed')); await sending })
     expect(result.current.draft).toBe('new draft')
     expect(result.current.error).toContain('network failed')
+    unmount()
+  })
+  it('releases a send when a fresh terminal status arrives without a reply', async () => {
+    const stream = channel()
+    mocked.history.mockResolvedValue([])
+    mocked.follow.mockImplementation((_config, _key, signal) => stream.read(signal))
+    mocked.send.mockResolvedValue({ commandId: 'orphan-command', state: 'accepted' })
+    const { result, unmount } = renderHook(() => useWorkspaceConversation(config, 'thread'))
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+    act(() => result.current.setDraft('Doomed request'))
+    await act(async () => { await result.current.send() })
+    const user = [{ seq: 1, kind: 'text', role: 'user', text: 'Doomed request' }]
+    await act(async () => { stream.push(snapshot(user)) })
+    expect(result.current.busy).toBe(true)
+    await act(async () => { stream.push({ ...snapshot(user), threadStatus: 'ERROR', threadStatusSeq: 5, stateReason: 'closed-owner' }) })
+    await waitFor(() => expect(result.current.busy).toBe(false))
+    expect(result.current.pending).toHaveLength(0)
+    expect(result.current.live?.stateReason).toBe('closed-owner')
+    unmount()
+  })
+  it('ignores a stale terminal status after a new send', async () => {
+    const stream = channel()
+    mocked.history.mockResolvedValue([])
+    mocked.follow.mockImplementation((_config, _key, signal) => stream.read(signal))
+    mocked.send.mockResolvedValue({ commandId: 'second-command', state: 'accepted' })
+    const { result, unmount } = renderHook(() => useWorkspaceConversation(config, 'thread'))
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+    act(() => result.current.setDraft('First request'))
+    await act(async () => { await result.current.send() })
+    const first = [{ seq: 1, kind: 'text', role: 'user', text: 'First request' }]
+    await act(async () => { stream.push({ ...snapshot(first), threadStatus: 'ERROR', threadStatusSeq: 5 }) })
+    await waitFor(() => expect(result.current.busy).toBe(false))
+    act(() => result.current.setDraft('Second request'))
+    await act(async () => { await result.current.send() })
+    const both = [...first, { seq: 2, kind: 'text', role: 'user', text: 'Second request' }]
+    await act(async () => { stream.push({ ...snapshot(both), threadStatus: 'ERROR', threadStatusSeq: 5 }) })
+    expect(result.current.busy).toBe(true)
+    expect(result.current.pending).toHaveLength(1)
+    await act(async () => { stream.push({ ...snapshot(both), threadStatus: 'ERROR', threadStatusSeq: 9 }) })
+    await waitFor(() => expect(result.current.busy).toBe(false))
     unmount()
   })
 })

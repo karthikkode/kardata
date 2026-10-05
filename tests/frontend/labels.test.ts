@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   alertKindLabel, alertSeverityLabel, companiesEmptyCopy, companyStageLabel, fileStatusLabel,
   planSectionLabel, researchNextStep, researchStateLabel, runStateLabel, statusSummary,
-  threadStatusLabel, toolFamily, toolLabel,
+  threadStateReasonLabel, threadStatusLabel, toolFamily, toolLabel,
 } from '@/lib/labels'
 
 describe('humanized labels (F12)', () => {
@@ -106,5 +106,12 @@ describe('humanized labels (F12)', () => {
     for (const state of ['draft', 'planning', 'running', 'paused', 'queued', 'complete', 'mystery']) {
       expect(researchNextStep(state), state).toBeNull()
     }
+  })
+
+  it('maps only the orphan reason to banner copy', () => {
+    expect(threadStateReasonLabel('closed-owner')).toBe('Stopped unexpectedly')
+    expect(threadStateReasonLabel('missing-heartbeat')).toBeNull()
+    expect(threadStateReasonLabel('mystery-code')).toBeNull()
+    expect(threadStateReasonLabel(undefined)).toBeNull()
   })
 })
