@@ -31,6 +31,21 @@ Done on `p2-3-observability` (all `TC_EXIT=0 LINT_EXIT=0 QUALITY_EXIT=0`):
 - `90bb0d7`: P3.4 supervision that acts (control-before-record findings,
   `alerts` table + `GET /v1/alerts` + Agents panel, fault drills per row,
   1000-thread coverage test).
+- `5adf469`: P3.5.1 execution records every round incl. in-turn compaction
+  (`roundKind`, recovery replays turn requests only).
+- `ac6cbb3`: P3.5.2 `execution_rounds`/`tool_calls` + all emitters + temporal
+  invariant test; `turn.ts` split (`turn-rounds.ts`, `worker-mcp-auth.ts`).
+- `6af52c1`: P3.5.3 `sector_documents.author_thread` (create/reference paths,
+  keep-first, Files surface; uploads null).
+- `156f7d0`: P3.5.4 retention keeps 7 knowledge event types hot;
+  `cold_event_pointers` for moved operational events.
+- `f30bddb`: P3.5.5 evaluation views + `GET /v1/sectors/:id/evaluation` +
+  db.md stored-where table.
+- `d62a4c9`: P3.6a stress seed (1M/200k/100k/20k/5k) + hot-20 p95 tier;
+  tsconfig now covers tests/stress + tests/fault.
+- `546c958`: P3.6b 100-writer × 5 min contention tier.
+- `a6ef558`: tiers+tags for the 34 touched entries, [none]+why on 10
+  re-exports; fixed the registry gate self-tag false positive.
 
 Key design notes:
 
@@ -48,8 +63,13 @@ Key design notes:
   kind/severity/subject (no sessionTitle/response/threadStatus). The `alerts`
   e2e fixture and panel copy were updated in the same commit.
 
-Remaining Phase 3: 3.5 execution rounds/tool calls/retention/views, 3.6 DB stress,
-then `p2-3-review.md`.
+Remaining Phase 3: `p2-3-review.md` only (build complete).
+
+Phase 3 deviations (see review package): legacy db registry todos stay
+(only the 34 touched entries tiered); `readThreadExecutionReference`
+untested; P3.1 research table lives in the review package; retention
+test rewritten (old artifact cold-move assertions contradicted 3.5.4);
+`listSessions`-sector is the at-risk p95 query (unmeasured under D1).
 
 ## Verification status
 
