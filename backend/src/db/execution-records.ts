@@ -12,6 +12,7 @@ const RecordInput = z.object({
   sessionId: z.string().min(1).max(255), threadKey: z.string().min(1).max(255),
   runKey: z.string().min(1).max(255), lease: z.string().uuid(),
   round: z.number().int().nonnegative(), kind: z.enum(['request', 'response', 'tool-result']),
+  roundKind: z.enum(['turn', 'compaction']).optional(),
   workflowId: z.string().min(1).max(255).optional(), executionId: z.string().min(1).max(255).optional(), ownerEpoch: z.string().uuid().optional(),
   ref: z.object({ key: z.string().min(1).max(1024), hash: z.string().regex(/^[a-f0-9]{64}$/), bytes: z.number().int().positive().max(16 * 1024 * 1024) }).strict(),
 }).strict()
@@ -42,6 +43,7 @@ export async function recordTurnExecution(db: TransactableDb, raw: z.input<typeo
 export interface ExecutionRecordMetadata {
   seq: number; at: string; runKey: string; attemptLease: string; round: number
   kind: 'request' | 'response' | 'tool-result'
+  roundKind?: 'turn' | 'compaction'
   workflowId?: string; executionId?: string; ownerEpoch?: string
   ref: { hash: string; bytes: number }
 }
@@ -50,7 +52,7 @@ function journalView(row: JournalRow, threadKey: string, sessionId: string) {
   const parsed = RecordInput.safeParse(row.payload)
   if (!parsed.success || parsed.data.threadKey !== threadKey || parsed.data.sessionId !== sessionId) throw new WorkspaceError('conflict', 'Stored execution metadata has an invalid conversation binding.')
   const input = parsed.data
-  const metadata: ExecutionRecordMetadata = { seq: Number(row.seq), at: new Date(row.at).toISOString(), runKey: input.runKey, attemptLease: input.lease, round: input.round, kind: input.kind, ref: { hash: input.ref.hash, bytes: input.ref.bytes }, ...(input.workflowId ? { workflowId: input.workflowId } : {}), ...(input.executionId ? { executionId: input.executionId } : {}), ...(input.ownerEpoch ? { ownerEpoch: input.ownerEpoch } : {}) }
+  const metadata: ExecutionRecordMetadata = { seq: Number(row.seq), at: new Date(row.at).toISOString(), runKey: input.runKey, attemptLease: input.lease, round: input.round, kind: input.kind, ref: { hash: input.ref.hash, bytes: input.ref.bytes }, ...(input.roundKind ? { roundKind: input.roundKind } : {}), ...(input.workflowId ? { workflowId: input.workflowId } : {}), ...(input.executionId ? { executionId: input.executionId } : {}), ...(input.ownerEpoch ? { ownerEpoch: input.ownerEpoch } : {}) }
   return { metadata, sessionId, ref: input.ref }
 }
 export async function listThreadExecutionRecords(db: Db, threadKey: string, scope?: Scope, afterSeq = 0, limit = 20): Promise<{ records: ExecutionRecordMetadata[]; nextAfterSeq: number | null }> {
@@ -76,6 +78,6 @@ export async function readRecoveryRequestReference(db: Db, threadKey: string, ru
   if (!z.string().min(1).max(255).safeParse(runKey).success) throw new DbContractError('Recovery operation identity must be non-empty.')
   const actor = await requireThread(db, threadKey, scope)
   const partition = actor.thread.kind === 'subagent' ? `child:${threadKey.slice(6)}` : `session:${actor.session.id}`
-  const { rows } = await db.query<JournalRow>(`SELECT seq,at,payload FROM events WHERE partition=$1 AND type='t.execution.recorded' AND payload->>'threadKey'=$2 AND payload->>'runKey'=$3 AND payload->>'kind'='request' ORDER BY seq DESC LIMIT 1`, [partition, threadKey, runKey])
+  const { rows } = await db.query<JournalRow>(`SELECT seq,at,payload FROM events WHERE partition=$1 AND type='t.execution.recorded' AND payload->>'threadKey'=$2 AND payload->>'runKey'=$3 AND payload->>'kind'='request' AND payload->>'roundKind' IS DISTINCT FROM 'compaction' ORDER BY seq DESC LIMIT 1`, [partition, threadKey, runKey])
   return rows[0] ? journalView(rows[0], threadKey, actor.session.id) : undefined
 }

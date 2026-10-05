@@ -418,7 +418,11 @@ binding and current lease; stale attempts cannot publish current execution recor
 Archive IO occurs before that transaction. Unreferenced bytes after a failed commit
 are retained for reconciliation; no DB pointer certifies unverified content.
 Records describe normalized adapter inputs/results, not raw vendor HTTP payloads.
-Production callbacks, keyed owner inspection and UI proof are pending separately.
+Every karbot turn round journals request/response/tool-result in production,
+including in-turn compaction rounds (marked `roundKind: compaction`; recovery
+replays turn requests only). Keyed owner inspection
+(`GET /v1/threads/:threadKey/execution-records`) and the ExecutionInspector UI
+read the same journal.
 
 `listSectorLibrary` orders uploaded and generated metadata together by arrival,
 descending, then file ID. A single scoped aggregate reads artifact arrival times

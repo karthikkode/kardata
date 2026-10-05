@@ -242,8 +242,8 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
     let compactedCount = 0
     const sources: Array<{ url: string; text: string }> = continuation?.sources ?? []
     let boundary: Record<string, unknown> = {}
-    const persist = async (round: number, kind: 'request' | 'response' | 'tool-result', data: unknown, original?: Record<string, unknown>) => {
-      try { const record = original && typeof original['serializedRecord'] === 'string' ? { ...JSON.parse(original['serializedRecord']) as Record<string, unknown>, preserveProducer: true } : original ? { ...original, data } : { version: 1, provider: providerName, model, round, boundary, data }; await deps.persistExecution?.(round, kind, record) }
+    const persist = async (round: number, kind: 'request' | 'response' | 'tool-result', data: unknown, original?: Record<string, unknown>, roundKind: 'turn' | 'compaction' = 'turn') => {
+      try { const record = original && typeof original['serializedRecord'] === 'string' ? { ...JSON.parse(original['serializedRecord']) as Record<string, unknown>, preserveProducer: true } : original ? { ...original, data } : { version: 1, provider: providerName, model, round, boundary, roundKind, data }; await deps.persistExecution?.(round, kind, record) }
       catch (error) { throw new ContextBudgetError('Execution content could not be durably recorded. Retry after storage recovers.', { cause: error }) }
     }
     const roundBase = { provider: providerName, ...(model ? { model } : {}), ...(sectorId ? { sectorId } : {}) }
@@ -301,6 +301,10 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
         if (compacted.needed) {
           deps.log(providerRoundFields({ ...roundBase, latencyMs: Date.now() - compactStarted, ...(compactionUsage ? { usage: compactionUsage } : {}), outcome: 'ok' }))
           compactedCount++
+          if (deps.persistExecution) {
+            await persist(round, 'request', { systemPrompt: prompt, messages, toolNames: current.tools.map((tool) => tool.name), window: profile?.contextWindow }, undefined, 'compaction')
+            await persist(round, 'response', { summaryText: compacted.summary.summaryText, coveredSeq: compacted.summary.coveredSeq, usage: compactionUsage }, undefined, 'compaction')
+          }
           if (compacted.summary.coveredSeq !== undefined) await deps.persistSummary?.(compacted.summary.summaryText, compacted.summary.coveredSeq)
           return { systemPrompt: prompt, messages: compacted.view }
         }
@@ -583,7 +587,7 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
             const original = preserveProducer ? { ...envelope, data } : { ...producer, ...envelope, data }
             const ref = await persistExecutionRecord(archive, input.sessionId, original, abort.signal)
             abort.signal.throwIfAborted()
-            await recordTurnExecution(pool, { sessionId: input.sessionId, threadKey: input.threadKey, runKey: continuation?.runKey ?? input.runKey, lease, round, kind, ref, ...(actual ? { workflowId: actual.workflowId, executionId: actual.runId } : {}) })
+            await recordTurnExecution(pool, { sessionId: input.sessionId, threadKey: input.threadKey, runKey: continuation?.runKey ?? input.runKey, lease, round, kind, ...(record['roundKind'] === 'compaction' ? { roundKind: 'compaction' as const } : { roundKind: 'turn' as const }), ref, ...(actual ? { workflowId: actual.workflowId, executionId: actual.runId } : {}) })
           },
           measureContext: (usage) => recordContextMeasurement(pool, input.threadKey, usage),
           signal: abort.signal,

@@ -3043,6 +3043,7 @@ components:
         attemptLease: { type: string, format: uuid }
         round: { type: integer, minimum: 0 }
         kind: { type: string, enum: [request, response, tool-result] }
+        roundKind: { type: string, enum: [turn, compaction] }
         workflowId: { type: string }
         executionId: { type: string }
         ownerEpoch: { type: string, format: uuid }
