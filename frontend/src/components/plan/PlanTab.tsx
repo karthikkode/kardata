@@ -10,10 +10,11 @@ import type { SectorPlanView } from '../../data/api/plans'
 import type { GlobalContext } from '../../data/api/context'
 import type { ResearchProgress } from '../../data/api/progress'
 import type { ResearchActions } from '../SectorWorkspace'
-import type { WorkReview } from '../workspace-parts'
+import type { WorkReview } from '../plan-progress'
 import { formatFullDate, relativeAge } from '../../lib/format'
 import { PlanDocument } from '../shells'
-import { PlanProgress, ResourceNotice } from '../workspace-parts'
+import { PlanProgress } from '../plan-progress'
+import { ResourceNotice } from '../workspace-parts'
 import {
   ExecutablePlanDetails,
   NarrativePlanWarning,

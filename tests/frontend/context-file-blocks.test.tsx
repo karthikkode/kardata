@@ -1,7 +1,8 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { GlobalContextPanel, WorkspaceFiles } from '@/components/workspace-parts'
+import { GlobalContextPanel } from '@/components/global-context-panel'
+import { WorkspaceFiles } from '@/components/workspace-files'
 import type { ContextChange, ContextFileBlock, GlobalContext } from '@/data/api/context'
 import type { LibraryFile } from '@/data/api/files'
 

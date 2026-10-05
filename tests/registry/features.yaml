@@ -5466,3 +5466,27 @@
   tiers:
     - todo
   states: []
+- id: frontend.src.components.global_context_panel
+  layer: frontend
+  surface: frontend/src/components/global-context-panel.tsx
+  tiers:
+    - todo
+  states: []
+- id: frontend.src.components.local_context_editor
+  layer: frontend
+  surface: frontend/src/components/local-context-editor.tsx
+  tiers:
+    - todo
+  states: []
+- id: frontend.src.components.plan_progress
+  layer: frontend
+  surface: frontend/src/components/plan-progress.tsx
+  tiers:
+    - todo
+  states: []
+- id: frontend.src.components.workspace_files
+  layer: frontend
+  surface: frontend/src/components/workspace-files.tsx
+  tiers:
+    - todo
+  states: []

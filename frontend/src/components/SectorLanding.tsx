@@ -21,7 +21,8 @@ import { Button } from './ui/button'
 import { CollapsiblePanel, CollapsibleRoot, CollapsibleTrigger } from './ui/collapsible'
 import { ProgressRoot } from './ui/progress'
 import { Skeleton } from './ui/skeleton'
-import { CounterTile, PlanProgress, ResourceNotice, WorkspaceOverlay } from './workspace-parts'
+import { CounterTile, PlanProgress } from './plan-progress'
+import { ResourceNotice, WorkspaceOverlay } from './workspace-parts'
 
 function ProgressTile({
   progress,

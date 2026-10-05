@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
-import { WorkspaceFiles } from '@/components/workspace-parts'
+import { WorkspaceFiles } from '@/components/workspace-files'
 import type { LibraryFile } from '@/data/api/files'
 
 const data: LibraryFile[] = Array.from({ length: 2005 }, (_, index) => ({ id: `TEST file ${index}`, filename: `TEST source ${index}.md`, status: index === 1 ? 'processing' : index === 2 ? 'failed' : index === 3 ? 'needs-ocr' : 'indexed', source: index % 2 ? 'Uploaded' : 'Research agent', hash: `TEST ${index}`, hidden: index === 4, included: false, kind: index % 2 ? 'document' : 'artifact' }))
