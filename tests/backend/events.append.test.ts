@@ -10,6 +10,11 @@ import {
   readPartition,
 } from '../../backend/src/db/index.js'
 import { migrate } from '../../backend/src/db/migrate.js'
+import { runWithEventClient } from '../../backend/src/observability/ambient.js'
+import {
+  spanContextFromTrace,
+  withSpanContext,
+} from '../../backend/src/observability/tracing.js'
 
 const DB = process.env['TEST_DATABASE_URL']
 // This file owns a separate database from the migrations suite so the two
@@ -32,6 +37,15 @@ describe('event envelope (B1.1)', () => {
     expect(() =>
       EventEnvelope.parse({ idempotencyKey: 'k', partition: 'p', type: 't', payload: { ok: true } }),
     ).not.toThrow()
+  })
+
+  it('accepts explicit trace and client, rejects malformed ones (P3.2.6)', () => {
+    expect(() =>
+      EventEnvelope.parse({ idempotencyKey: 'k', partition: 'p', type: 't', traceId: 'a'.repeat(32), client: 'ui' }),
+    ).not.toThrow()
+    expect(() => EventEnvelope.parse({ idempotencyKey: 'k', partition: 'p', type: 't', traceId: 'short' })).toThrow()
+    expect(() => EventEnvelope.parse({ idempotencyKey: 'k', partition: 'p', type: 't', traceId: 'A'.repeat(32) })).toThrow()
+    expect(() => EventEnvelope.parse({ idempotencyKey: 'k', partition: 'p', type: 't', client: 'browser' })).toThrow()
   })
 
   it('rejects invalid appends before any SQL runs', async () => {
@@ -145,6 +159,42 @@ describe('event envelope (B1.1)', () => {
         const events = await readPartition(pool, 'test-order')
         expect(events.map((event) => event.type)).toEqual(['a', 'b'])
         expect(await readPartition(pool, 'test-order', first.seq)).toHaveLength(1)
+      } finally {
+        await pool.end()
+      }
+    })
+
+    it('stores explicit trace and client and reads them back (P3.2.6)', async () => {
+      const pool = await cleanPartition('test-trace-explicit')
+      try {
+        await appendEvent(pool, {
+          idempotencyKey: 'trace-1',
+          partition: 'test-trace-explicit',
+          type: 't.trace.probe',
+          traceId: 'b'.repeat(32),
+          client: 'agent-mcp',
+        })
+        const stored = await findEventByKey(pool, 'trace-1')
+        expect(stored?.traceId).toBe('b'.repeat(32))
+        expect(stored?.client).toBe('agent-mcp')
+      } finally {
+        await pool.end()
+      }
+    })
+
+    it('defaults to the ambient trace and route client, else system (P3.2.6)', async () => {
+      const pool = await cleanPartition('test-trace-ambient')
+      try {
+        await withSpanContext(spanContextFromTrace('c'.repeat(32)), () =>
+          runWithEventClient('ui', () =>
+            appendEvent(pool, { idempotencyKey: 'trace-2', partition: 'test-trace-ambient', type: 't.trace.probe' }),
+          ),
+        )
+        expect((await findEventByKey(pool, 'trace-2'))?.traceId).toBe('c'.repeat(32))
+        expect((await findEventByKey(pool, 'trace-2'))?.client).toBe('ui')
+        await appendEvent(pool, { idempotencyKey: 'trace-3', partition: 'test-trace-ambient', type: 't.trace.probe' })
+        expect((await findEventByKey(pool, 'trace-3'))?.traceId).toBeNull()
+        expect((await findEventByKey(pool, 'trace-3'))?.client).toBe('system')
       } finally {
         await pool.end()
       }

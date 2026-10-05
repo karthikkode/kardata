@@ -22,6 +22,7 @@ import { mutationFingerprint, rateBucket } from '../http/limits.js'
 import { getSession } from '../db/index.js'
 import type { RunsGateway } from '../temporal/runs-types.js'
 import { RunNotFound, ThreadNotAccepting } from '../temporal/runs-types.js'
+import { runWithEventClient, type EventClient } from '../observability/ambient.js'
 
 export type ErrorCode =
   | 'not_found'
@@ -252,6 +253,15 @@ export type RouteHandler = (
   app: FastifyInstance,
 ) => Promise<unknown>
 
+/** Event caller from the registered route (P3.2.6): the UI owns /v1,
+ * agents own /mcp. Auth failures return before any write, so an
+ * unauthenticated caller can never land a mislabeled event. */
+export function eventClientForRoute(url: string): EventClient {
+  if (url === '/mcp' || url.startsWith('/mcp/')) return 'agent-mcp'
+  if (url.startsWith('/v1/')) return 'ui'
+  return 'other'
+}
+
 /** Registers a handler with gateway/domain errors mapped to envelopes. */
 export function route(
   app: FastifyInstance,
@@ -261,7 +271,7 @@ export function route(
 ): void {
   const wrapped = async (request: FastifyRequest, reply: FastifyReply): Promise<unknown> => {
     try {
-      return await handler(request, reply, app)
+      return await runWithEventClient(eventClientForRoute(url), () => handler(request, reply, app))
     } catch (error) {
       // Route errors never vanish into an envelope: the app logger records
       // route + trace + code so a 500 joins to Loki via trace_id. The

@@ -12,7 +12,6 @@
 // `wrapPool` parents pg spans to whatever is current, and tests/assets use
 // `withSpanContext` explicitly. Never pass raw SQL, headers, or bodies as
 // attributes — names and verbs are bounded, values stay counters/ids.
-import { AsyncLocalStorage } from 'node:async_hooks'
 import { randomBytes } from 'node:crypto'
 import {
   ROOT_CONTEXT,
@@ -33,33 +32,16 @@ import {
 } from '@opentelemetry/sdk-trace-base'
 import type { Logger } from 'pino'
 import type { Db, DbQueryResult } from '../db/index.js'
+import { currentSpanContext } from './ambient.js'
 
 export const TRACER_NAME = 'kardata-backend'
 
-const als = new AsyncLocalStorage<SpanContext>()
-
-/** Run `fn` with `ctx` as the implicit span parent. */
-export function withSpanContext<T>(ctx: SpanContext, fn: () => T): T {
-  return als.run(ctx, fn)
-}
-
-/** Enter `ctx` for the current execution chain (Fastify hook pattern). */
-export function enterSpanContext(ctx: SpanContext): void {
-  als.enterWith(ctx)
-}
-
-export function clearSpanContext(): void {
-  als.enterWith(undefined as unknown as SpanContext)
-}
-
-function currentSpanContext(): SpanContext | undefined {
-  return als.getStore()
-}
-
-/** Ambient request trace id from our ALS (the Fastify hook enters it). */
-export function currentTraceId(): string | undefined {
-  return currentSpanContext()?.traceId
-}
+export {
+  clearSpanContext,
+  currentTraceId,
+  enterSpanContext,
+  withSpanContext,
+} from './ambient.js'
 
 /** Adopt an ingress trace: same trace_id, remote parent when one arrived. */
 export function spanContextFromTrace(traceId: string, parentSpanId?: string): SpanContext {

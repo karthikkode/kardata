@@ -23,7 +23,7 @@ import {
   type ThreadView,
 } from '../threads/project.js'
 import { DbContractError } from './errors.js'
-import type { Db, StoredEvent } from './events.js'
+import type { Db, ProjectableEvent, StoredEvent } from './events.js'
 import { publishOutboxFrame } from './outbox.js'
 import { projectSectorEvent } from './sectors.js'
 
@@ -121,14 +121,14 @@ async function isSessionDeleted(db: Db, sessionId: string): Promise<boolean> {
 /** Session scope of a thread-mutating event: its session partition, or a
  * bare session-thread target. Null for child/research threads, which
  * outlive any single session tombstone. */
-function sessionScopeOf(event: StoredEvent, threadKey?: string): string | null {
+function sessionScopeOf(event: ProjectableEvent, threadKey?: string): string | null {
   const scoped = /^session:(.+)$/.exec(event.partition)
   if (scoped?.[1]) return scoped[1]
   if (threadKey && !threadKey.includes(':')) return threadKey
   return null
 }
 
-async function applyEvent(db: Db, event: StoredEvent): Promise<boolean> {
+async function applyEvent(db: Db, event: ProjectableEvent): Promise<boolean> {
   const at = event.at
   switch (event.type) {
     case 't.session.created': {
@@ -318,7 +318,7 @@ export interface ProjectionResult {
 }
 
 /** Applies a batch of stored events in seq order. Unknown types are ignored. */
-export async function projectBatch(db: Db, events: StoredEvent[]): Promise<ProjectionResult> {
+export async function projectBatch(db: Db, events: ProjectableEvent[]): Promise<ProjectionResult> {
   if (!Array.isArray(events)) throw new DbContractError('events must be an array')
   let applied = 0
   const ignored: string[] = []

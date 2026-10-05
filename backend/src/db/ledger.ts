@@ -7,7 +7,7 @@
 import { z } from 'zod'
 import { UsageRecorded } from '../ledger/project.js'
 import { DbContractError } from './errors.js'
-import type { Db, StoredEvent } from './events.js'
+import type { Db, ProjectableEvent, StoredEvent } from './events.js'
 
 export interface UsageTotals {
   inputTokens: number
@@ -22,7 +22,7 @@ export interface LedgerResult {
 
 const ZERO: UsageTotals = { inputTokens: 0, outputTokens: 0, cost: '0' }
 
-export async function projectUsage(db: Db, events: StoredEvent[]): Promise<LedgerResult> {
+export async function projectUsage(db: Db, events: ProjectableEvent[]): Promise<LedgerResult> {
   if (!Array.isArray(events)) throw new DbContractError('events must be an array')
   let applied = 0
   const ignored: string[] = []

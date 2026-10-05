@@ -4,8 +4,10 @@
 // idempotency key (duplicates replay the first seq, one row), per-partition
 // ordering, and a redaction hook that scrubs secrets before they touch disk.
 // Misaligned calls throw DbContractError before any SQL runs.
+import { context, trace } from '@opentelemetry/api'
 import { z } from 'zod'
 import { scrubSecrets } from '../observability/logging.js'
+import { currentEventClient, currentTraceId, type EventClient } from '../observability/ambient.js'
 import { DbContractError } from './errors.js'
 
 /** Both durable streams share one lock: transactions cannot invert event
@@ -18,6 +20,11 @@ export const EventEnvelope = z.object({
   type: z.string().min(1),
   payload: z.record(z.string(), z.unknown()).default({}),
   redacted: z.boolean().default(false),
+  /** Explicit trace (P3.2.6); absent means the ambient one. */
+  traceId: z.string().regex(/^[0-9a-f]{32}$/).optional(),
+  /** Explicit caller (P3.2.6); absent means the ambient route client,
+   * else system for background writes. */
+  client: z.enum(['ui', 'agent-mcp', 'system', 'other']).optional(),
 })
 
 export type EventEnvelope = z.infer<typeof EventEnvelope>
@@ -47,6 +54,16 @@ export const KeySchema = z.string().min(1)
 const PartitionSchema = z.string().min(1)
 const AfterSeqSchema = z.number().int().min(0)
 
+/** Ambient trace for the event (P3.2.6): the OTel span the activity
+ * interceptor installed, else the route ALS the Fastify hook entered.
+ * Read with @opentelemetry/api only, so the db layer stays free of
+ * temporal imports. */
+function ambientTraceId(): string | undefined {
+  const otel = trace.getSpanContext(context.active())?.traceId
+  if (otel !== undefined && otel !== '0'.repeat(32)) return otel
+  return currentTraceId()
+}
+
 export async function appendEvent(db: Db, input: unknown): Promise<AppendedEvent> {
   const parsed = EventEnvelope.safeParse(input)
   if (!parsed.success) {
@@ -54,13 +71,15 @@ export async function appendEvent(db: Db, input: unknown): Promise<AppendedEvent
   }
   const event = parsed.data
   const payload = event.redacted ? scrubSecrets(event.payload) : event.payload
+  const traceId = event.traceId ?? ambientTraceId() ?? null
+  const client = event.client ?? currentEventClient() ?? 'system'
   const inserted = await db.query<EventRow>(
     `WITH durable_order AS MATERIALIZED (${DURABLE_STREAM_LOCK_SQL})
-     INSERT INTO events (idempotency_key, partition, type, payload, redacted)
-     SELECT $1, $2, $3, $4::jsonb, $5 FROM durable_order
+     INSERT INTO events (idempotency_key, partition, type, payload, redacted, trace_id, client)
+     SELECT $1, $2, $3, $4::jsonb, $5, $6, $7 FROM durable_order
      ON CONFLICT (idempotency_key) DO NOTHING
      RETURNING seq`,
-    [event.idempotencyKey, event.partition, event.type, JSON.stringify(payload), event.redacted],
+    [event.idempotencyKey, event.partition, event.type, JSON.stringify(payload), event.redacted, traceId, client],
   )
   if (inserted.rowCount === 1) {
     const row = inserted.rows[0]
@@ -83,7 +102,16 @@ export interface StoredEvent {
   payload: unknown
   redacted: boolean
   at: string
+  /** Null for rows written before migration 0025. */
+  traceId: string | null
+  client: EventClient | null
 }
+
+/** Projection input: trace/client ride DB reads but never affect the
+ * projected views, so MCP callers may replay historical events without
+ * them. */
+export type ProjectableEvent = Omit<StoredEvent, 'traceId' | 'client'> &
+  Partial<Pick<StoredEvent, 'traceId' | 'client'>>;
 
 /** Durable exactly-once lookup: the recorded outcome of a prior call under
  * the same idempotency key, if any. Tool activities replay from this row
@@ -100,8 +128,10 @@ export async function findEventByKey(db: Db, idempotencyKey: string): Promise<St
     payload: unknown
     redacted: boolean
     at: Date
+    trace_id: string | null
+    client: EventClient | null
   }>(
-    `SELECT seq, idempotency_key, partition, type, payload, redacted, at
+    `SELECT seq, idempotency_key, partition, type, payload, redacted, at, trace_id, client
      FROM events WHERE idempotency_key = $1`,
     [idempotencyKey],
   )
@@ -115,6 +145,8 @@ export async function findEventByKey(db: Db, idempotencyKey: string): Promise<St
     payload: row.payload,
     redacted: row.redacted,
     at: row.at.toISOString(),
+    traceId: row.trace_id,
+    client: row.client,
   }
 }
 
@@ -134,8 +166,10 @@ export async function readPartition(db: Db, partition: string, afterSeq = 0, typ
     payload: unknown
     redacted: boolean
     at: Date
+    trace_id: string | null
+    client: EventClient | null
   }>(
-    `SELECT seq, idempotency_key, partition, type, payload, redacted, at
+    `SELECT seq, idempotency_key, partition, type, payload, redacted, at, trace_id, client
      FROM events WHERE partition = $1 AND seq > $2 ${types === undefined ? '' : 'AND type=ANY($3::text[])'} ORDER BY seq ASC`,
     types === undefined ? [partition, afterSeq] : [partition, afterSeq, types],
   )
@@ -147,6 +181,8 @@ export async function readPartition(db: Db, partition: string, afterSeq = 0, typ
     payload: row.payload,
     redacted: row.redacted,
     at: row.at.toISOString(),
+    traceId: row.trace_id,
+    client: row.client,
   }))
 }
 
@@ -158,6 +194,8 @@ interface RawEventRow {
   payload: unknown
   redacted: boolean
   at: Date | string
+  trace_id: string | null
+  client: EventClient | null
 }
 
 function toStoredEvent(row: RawEventRow): StoredEvent {
@@ -169,6 +207,8 @@ function toStoredEvent(row: RawEventRow): StoredEvent {
     payload: row.payload,
     redacted: row.redacted,
     at: new Date(row.at).toISOString(),
+    traceId: row.trace_id,
+    client: row.client,
   }
 }
 
@@ -182,7 +222,7 @@ export async function readEventsAfter(db: Db, fromSeq: number, limit: number): P
     throw new DbContractError('limit must be a positive integer')
   }
   const { rows } = await db.query<RawEventRow>(
-    `SELECT seq, idempotency_key, partition, type, payload, redacted, at
+    `SELECT seq, idempotency_key, partition, type, payload, redacted, at, trace_id, client
      FROM events WHERE seq > $1 ORDER BY seq ASC LIMIT $2`,
     [fromSeq, limit],
   )
@@ -219,7 +259,7 @@ export async function readEventsOlderThan(
     throw new DbContractError('limit must be a positive integer')
   }
   const { rows } = await db.query<RawEventRow>(
-    `SELECT seq, idempotency_key, partition, type, payload, redacted, at FROM events
+    `SELECT seq, idempotency_key, partition, type, payload, redacted, at, trace_id, client FROM events
      WHERE at < now() - make_interval(days => $1)
      ORDER BY seq ASC LIMIT $2`,
     [olderThanDays, limit],
