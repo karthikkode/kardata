@@ -2,12 +2,8 @@
 // with its tsconfig (see quality:deps), so all
 // paths below are cwd-relative (Phase 1 used workspace-prefixed paths
 // that never matched; P2 fixed them).
-const { frontendDirectApi } = require('./quality-allowlist.json')
-// Grandfathered direct data/api importers (P3): exact repo-root-relative
-// allowlist paths, re-rooted to the frontend cwd and suffix-anchored.
-const grandfatheredApiImporters = frontendDirectApi[0].files.map(
-  (file) => `${file.replace(/^frontend\//, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
-)
+// P6.1: all 27 grandfathered importers converted to data/use*.ts; the
+// hooks-only rule below now applies to every component with no exemptions.
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
   forbidden: [
@@ -21,8 +17,8 @@ module.exports = {
     {
       name: 'frontend-no-direct-api',
       severity: 'error',
-      comment: 'Hooks-only (restored P3): components reach data through data/use*.ts hooks. 27 grandfathered files in quality-allowlist.json (frontendDirectApi); Phase 6 converts them while building the per-endpoint failure matrix.',
-      from: { path: 'src/components', pathNot: grandfatheredApiImporters },
+      comment: 'Hooks-only (P6.1 tightened): components reach data through data/use*.ts hooks; no exemptions.',
+      from: { path: 'src/components' },
       to: { path: 'src/data/api|src/data/[^/]*-api' },
     },
     {

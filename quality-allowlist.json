@@ -13,42 +13,5 @@
       "phase": null,
       "reason": "imported from index.css and vite.config.ts, which knip does not trace"
     }
-  ],
-  "frontendDirectApi": [
-    {
-      "scope": "27 component files importing data/api directly (grandfathered P3)",
-      "phase": 6,
-      "reason": "Phase 6 moves to hooks",
-      "note": "Convert these 27 to data/use*.ts hooks while building the per-endpoint failure matrix, then delete this entry and drop pathNot from frontend-no-direct-api.",
-      "files": [
-        "frontend/src/components/chat/ChatComposer.tsx",
-        "frontend/src/components/chat/ChatHeader.tsx",
-        "frontend/src/components/chat/ChatLog.tsx",
-        "frontend/src/components/chat/ChatStates.tsx",
-        "frontend/src/components/chat/messages.ts",
-        "frontend/src/components/ChatPanel.tsx",
-        "frontend/src/components/chat/SessionFiles.tsx",
-        "frontend/src/components/chat/SessionsPanel.tsx",
-        "frontend/src/components/chat/useChatScroll.ts",
-        "frontend/src/components/chat/useChatSync.ts",
-        "frontend/src/components/CompaniesSection.tsx",
-        "frontend/src/components/ExecutionInspector.tsx",
-        "frontend/src/components/FileProcessingRetry.tsx",
-        "frontend/src/components/FileProcessingStatus.tsx",
-        "frontend/src/components/global-context-panel.tsx",
-        "frontend/src/components/local-context-editor.tsx",
-        "frontend/src/components/ModelsPanel.tsx",
-        "frontend/src/components/ModelToolbar.tsx",
-        "frontend/src/components/plan/PlanTab.tsx",
-        "frontend/src/components/plan-progress.tsx",
-        "frontend/src/components/ResearchesPage.tsx",
-        "frontend/src/components/RunsPanel.tsx",
-        "frontend/src/components/SectorFilePreview.tsx",
-        "frontend/src/components/SectorLanding.tsx",
-        "frontend/src/components/SectorWorkspace.tsx",
-        "frontend/src/components/SubagentsPanel.tsx",
-        "frontend/src/components/workspace-files.tsx"
-      ]
-    }
   ]
 }
