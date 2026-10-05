@@ -10,8 +10,9 @@ branches, no merges/pushes, no full suites until final verification.
 - Plan: `/home/karthik/.claude/plans/now-i-need-you-scalable-brooks.md`.
 - Phase review packages: `documentation/plans/p2-<N>-review.md` (written per phase,
   no stop until Phase 7 is complete).
-- Branches: `p2-2-quality` (accepted) → `p2-3-observability` (active) → later
-  `p2-4-*`, `p2-5-*`, `p2-6-*`, `p2-7-*`, stacked, unmerged.
+- Branches, stacked, unmerged: `p2-2-quality` (accepted) →
+  `p2-3-observability` → `p2-4-capacity` → `p2-5-mcp` →
+  `p2-6-frontend` → `p2-7-gates` (HEAD, all phases built).
 
 ## Phase 3 status
 
@@ -130,6 +131,21 @@ stated (not applied) fix for budget misses; matrix-sync parses both
 YAML states formats; ui:review grading + all runtime signal deferred
 to final verification. Registry 1019, 0 todos, 0 missing/unknown
 (static). Gates: typecheck/lint/quality 0; no suites per D1.
+
+Phase 7 complete (14 commits `1dea447..014459c` incl. package, branch
+`p2-7-gates`): enforce default + opt-out, istanbul in agents/backend
+(85/80) + frontend 75, scripts/coverage.mjs core-dir gate (db/mcp/
+temporal 85) + root `coverage`, backend = evergreen tiers + temporal
+env, verify wiring, stryker break=70 ×3, KARDATA_STRESS_SCALE=reduced
+(100k events, 10 writers, 60s), CI integration (backend build, toxi,
+fault, reduced stress, backend coverage; 45min), AGENTS.md bug-fix
+rule, tests.md gate docs, status note. Key readings: backend coverage
+skips bare with a printed note (DB+Temporal needed, documented); CI
+toxi mirrors stack:toxi (host network, :latest); 3 removed-surface
+YAML entries are load-bearing (live tags reference them); mutation
+"tests where low" deferred to fix loop (unmeasurable under D1).
+Registry 1019, sync +0/-3 (stale, retained). Gates: typecheck/lint/
+quality 0; coverage --print-plan OK; YAML/JSON parsed; no suites D1.
 
 ## Verification status
 
