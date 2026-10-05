@@ -15,5 +15,9 @@
   "globalFetch": [
     { "file": "agents/src/turnRunner.ts", "phase": 2, "reason": "move to agents/src/http.ts" },
     { "file": "frontend/src/data/staging-api.ts", "phase": 2, "reason": "becomes the single frontend client" }
+  ],
+  "knip": [
+    { "scope": "root ignoreDependencies (21 test deps)", "phase": null, "reason": "knip attributes mirror tests/ to root; each dep is listed in its owning workspace (backend/frontend)" },
+    { "scope": "frontend ignoreDependencies (fontsource x2, shadcn, tw-animate-css, tailwindcss)", "phase": null, "reason": "imported from index.css and vite.config.ts, which knip does not trace" }
   ]
 }

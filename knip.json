@@ -1,22 +1,27 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignore": ["var/**", "**/test-results/**", "**/coverage/**", "**/dist/**", "tests/**"],
+  "ignore": ["var/**", "**/test-results/**", "**/coverage/**", "**/dist/**"],
   "workspaces": {
     ".": {
-      "entry": ["scripts/*.mjs", "deployment/scripts/*.mjs"],
-      "project": ["scripts/*.mjs", "deployment/scripts/*.mjs"]
+      "entry": ["scripts/*.mjs", "deployment/scripts/*.mjs", "tests/**/*.ts"],
+      "paths": {
+        "@/*": ["./frontend/src/*"]
+      },
+      "ignoreDependencies": ["pg", "fastify", "zod", "unpdf", "sharp", "@opentelemetry/api", "@temporalio/activity", "@temporalio/client", "@temporalio/common", "@temporalio/proto", "@temporalio/testing", "@temporalio/worker", "@temporalio/workflow", "playwright-core", "react", "@testing-library/react", "@testing-library/user-event", "@playwright/test", "sonner", "lucide-react", "@assistant-ui/react"],
+      "project": ["scripts/*.mjs", "deployment/scripts/*.mjs", "tests/**/*.ts"]
     },
     "agents": {
-      "entry": ["src/index.ts"],
-      "project": ["src/**/*.ts", "!src/**/*.test.ts", "!src/fixtures/**"]
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "project": ["src/**/*.ts", "!src/fixtures/**"]
     },
     "backend": {
-      "entry": ["src/server.ts", "src/temporal/dev-worker.ts", "src/db/cli.ts", "src/temporal/workflows/*.ts", "src/temporal/activities/*.ts"],
-      "project": ["src/**/*.ts"]
+      "entry": ["src/server.ts", "src/temporal/dev-worker.ts", "src/db/cli.ts", "src/temporal/workflows/*.ts", "src/temporal/activities/*.ts", "*.config.ts"],
+      "project": ["src/**/*.ts", "*.config.ts"]
     },
     "frontend": {
-      "entry": ["src/main.tsx"],
-      "project": ["src/**/*.{ts,tsx}", "!src/test/**", "!src/**/*.test.{ts,tsx}"]
+      "entry": ["src/main.tsx", "src/test/**", "src/**/*.test.{ts,tsx}", "*.config.ts"],
+      "project": ["src/**/*.{ts,tsx}", "*.config.ts"],
+      "ignoreDependencies": ["@fontsource-variable/geist", "@fontsource-variable/geist-mono", "shadcn", "tw-animate-css", "tailwindcss"]
     }
   }
 }
