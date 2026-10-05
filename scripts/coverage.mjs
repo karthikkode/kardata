@@ -1,9 +1,11 @@
 // Phase 7 coverage gate. Runs per-workspace istanbul coverage, then
 // enforces the backend per-directory split (db/mcp/temporal >= 85% lines)
 // that vitest thresholds cannot express (the 85/80/75 globals live in
-// each workspace config). Backend runs only with TEST_DATABASE_URL: bare
-// runs skip the db tier, so bare backend numbers are meaningless; the
-// skip is printed, and verify:full / CI integration run the full gate.
+// each workspace config). Backend coverage measures the evergreen tiers
+// (unit+db+temporal; fault/stress are separate gates) and needs both
+// TEST_DATABASE_URL and a Temporal server, like verify:full. Without a
+// DB the db tier skips and the numbers are meaningless, so the backend
+// step is skipped with a printed note instead of a false pass.
 // Usage: node scripts/coverage.mjs [--backend-only] [--print-plan]
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
@@ -59,7 +61,7 @@ function printPlan() {
   console.log('- agents: npm run test:coverage -w @kardata/agents (lines >= 85%, in-config)')
   console.log('- frontend: npm run test:coverage -w frontend (lines >= 75%, in-config)')
   const backend = process.env['TEST_DATABASE_URL']
-    ? 'npm run test:coverage -w @kardata/backend + core gate'
+    ? 'npm run test:coverage -w @kardata/backend + core gate (needs Temporal too)'
     : 'SKIP (needs TEST_DATABASE_URL; runs in verify:full / CI integration)'
   console.log(`- backend: ${backend}`)
   console.log(`- backend core gate: ${CORE_DIRS.join(', ')} lines >= ${CORE_MIN_LINES_PCT}% from coverage/coverage-summary.json`)
