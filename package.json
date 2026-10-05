@@ -19,6 +19,7 @@
     "dev": "npm run dev -w frontend",
     "pr:verify": "npm run build -w @kardata/agents && npm run lint --workspaces && npm run typecheck --workspaces && npm run test --workspaces && npm run build -w frontend",
     "registry:sync": "node scripts/registry-sync.mjs",
+    "matrix:sync": "node scripts/matrix-sync.mjs",
     "quality:knip": "knip",
     "quality:dup": "jscpd agents/src && jscpd backend/src && jscpd frontend/src",
     "quality:deps": "cd agents && npx --no-install depcruise --config ../.dependency-cruiser.cjs --ts-config tsconfig.json src && cd ../backend && npx --no-install depcruise --config ../.dependency-cruiser.cjs --ts-config tsconfig.json src ../scripts ../deployment/scripts && cd ../frontend && npx --no-install depcruise --config ../.dependency-cruiser.cjs --ts-config tsconfig.app.json src",
