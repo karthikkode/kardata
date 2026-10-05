@@ -1637,6 +1637,45 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+  /v1/sectors/{sectorId}/evaluation:
+    get:
+      operationId: getSectorEvaluation
+      tags:
+        - sectors
+      parameters:
+        - name: sectorId
+          in: path
+          required: true
+          schema: *a0
+      responses:
+        "200":
+          description: Workspace response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - ok
+                  - data
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: "#/components/schemas/SectorEvaluation"
+                additionalProperties: false
+        "403":
+          description: Permission denied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Sector not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /v1/sectors/{sectorId}/files:
     get:
       operationId: listSectorFiles
@@ -3300,6 +3339,55 @@ components:
               minimum: 0
               maximum: 100
             - type: "null"
+      additionalProperties: false
+    SectorEvaluation:
+      type: object
+      required:
+        - sectorId
+        - quality
+        - reliability
+        - cost
+      properties:
+        sectorId: *a1
+        quality:
+          type: object
+          required: [found, accepted, rejected, duplicates, sourceCoverage, costPerAccepted]
+          properties:
+            found: *a2
+            accepted: *a2
+            rejected: *a2
+            duplicates: *a2
+            sourceCoverage: { anyOf: [{ type: number }, { type: "null" }] }
+            costPerAccepted: { anyOf: [{ type: number }, { type: "null" }] }
+          additionalProperties: false
+        reliability:
+          type: array
+          items:
+            type: object
+            required: [kind, runs, rounds, ok, errors, timeouts, cancelled, retries, loops, stalls]
+            properties:
+              kind: *a1
+              runs: *a2
+              rounds: *a2
+              ok: *a2
+              errors: *a2
+              timeouts: *a2
+              cancelled: *a2
+              retries: *a2
+              loops: *a2
+              stalls: *a2
+            additionalProperties: false
+        cost:
+          type: object
+          required: [threads, rounds, inputTokens, outputTokens, cachedTokens, errors]
+          properties:
+            threads: *a2
+            rounds: *a2
+            inputTokens: *a2
+            outputTokens: *a2
+            cachedTokens: *a2
+            errors: *a2
+          additionalProperties: false
       additionalProperties: false
     ContextPreview:
       type: object

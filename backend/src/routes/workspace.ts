@@ -11,7 +11,7 @@ import {
   listSectorLibrary, proposeFileContext, proposeGlobalContext, readGlobalContext, readGlobalContextUsage, readResearchProgress, removeContextFileBlock, restoreGlobalContextVersion,
   readThreadContext, saveThreadContext, setFileVisibility, setSessionPurpose, type TransactableDb,
   retryFileProcessingJob, fileProcessingProgress, failFileProcessingJob,
-  readSectorDocumentUnitsPage,
+  readSectorDocumentUnitsPage, readSectorEvaluation,
 } from '../db/index.js'
 import type { RunsGateway } from '../temporal/runs-types.js'
 import { insertContextFileBlock, readContextFileBlock, resetContextFileBlock } from '../db/context-files.js'
@@ -156,6 +156,7 @@ export function workspaceRoutes(app: FastifyInstance): void {
   register('get', '/v1/sectors/:sectorId/global-context/proposals/:proposalId', 'viewer', (input) => previewContextChange(input.pool, sector(input), input.params['proposalId'] ?? '', input.scope))
   register('post', '/v1/sectors/:sectorId/work/:workId/review', 'approver', (input) => reviewResearchWork(input.pool, { ...WorkReviewDecision.parse(input.body), sectorId: sector(input), workId: input.params['workId'] ?? '', author: input.keyId, scope: input.scope }))
   register('get', '/v1/sectors/:sectorId/progress', 'viewer', (input) => readResearchProgress(input.pool, sector(input), input.scope))
+  register('get', '/v1/sectors/:sectorId/evaluation', 'viewer', (input) => readSectorEvaluation(input.pool, sector(input), input.scope))
   register('get', '/v1/sectors/:sectorId/files', 'viewer', (input) => listSectorLibrary(input.pool, sector(input), input.scope))
   route(app, 'get', '/v1/sectors/:sectorId/files/:fileId/units', async (request, reply, app) => {
     const pool = requirePool(app, reply)

@@ -5598,3 +5598,45 @@
   tiers:
     - todo
   states: []
+- id: db.evaluation.readSectorEvaluation
+  layer: db
+  surface: backend/src/db/evaluation.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.KindReliability
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.SectorCost
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.SectorEvaluation
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.SectorQuality
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.readSectorEvaluation
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: http.getSectorEvaluation
+  layer: backend
+  surface: backend/openapi/v1.yaml (GET /v1/sectors/{sectorId}/evaluation)
+  tiers:
+    - todo
+  states: []

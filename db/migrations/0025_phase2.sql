@@ -90,8 +90,75 @@ CREATE TABLE cold_event_pointers (
   PRIMARY KEY (partition, seq)
 );
 
+-- P3.5 evaluation views. Token cost per thread, research quality per
+-- sector, agent reliability per sector and turn kind. Cost is tokens;
+-- no pricing table exists. Loops attribute to the thread's first round
+-- kind, stalls to the run's kind.
+CREATE VIEW v_thread_cost AS
+SELECT thread_key,
+  MAX(session_id) AS session_id,
+  MAX(sector_id) AS sector_id,
+  COUNT(*) AS rounds,
+  COALESCE(SUM(input_tokens), 0) AS input_tokens,
+  COALESCE(SUM(output_tokens), 0) AS output_tokens,
+  COALESCE(SUM(cached_tokens), 0) AS cached_tokens,
+  COUNT(*) FILTER (WHERE outcome <> 'ok') AS errors,
+  MAX(finished_at) AS last_round_at
+FROM execution_rounds
+GROUP BY thread_key;
+
+CREATE VIEW v_research_quality AS
+SELECT s.id AS sector_id,
+  (SELECT COUNT(*) FROM companies c WHERE c.sector_id = s.id) AS found,
+  (SELECT COUNT(*) FROM companies c WHERE c.sector_id = s.id AND c.state = 'complete') AS accepted,
+  (SELECT COUNT(*) FROM companies c WHERE c.sector_id = s.id AND c.state = 'failed') AS rejected,
+  (SELECT COALESCE(SUM(cnt - 1), 0) FROM (SELECT COUNT(*) AS cnt FROM companies c WHERE c.sector_id = s.id GROUP BY lower(c.name) HAVING COUNT(*) > 1) dup) AS duplicates,
+  (SELECT AVG(CASE WHEN w.evidence <> '[]'::jsonb THEN 1.0 ELSE 0.0 END) FROM research_work w WHERE w.sector_id = s.id AND w.kind = 'company') AS source_coverage,
+  (SELECT COALESCE(SUM(COALESCE(r.input_tokens, 0) + COALESCE(r.output_tokens, 0)), 0)::numeric FROM execution_rounds r WHERE r.sector_id = s.id)
+    / NULLIF((SELECT COUNT(*) FROM companies c WHERE c.sector_id = s.id AND c.state = 'complete'), 0) AS cost_per_accepted
+FROM sectors s;
+
+CREATE VIEW v_agent_reliability AS
+WITH thread_kind AS (
+  SELECT DISTINCT ON (thread_key) thread_key, kind, sector_id
+  FROM execution_rounds
+  ORDER BY thread_key, round ASC, attempt ASC
+),
+loops AS (
+  SELECT tk.sector_id AS sector_id, tk.kind AS kind, COUNT(*) AS loops
+  FROM events e
+  JOIN thread_kind tk ON tk.thread_key = e.payload->>'threadKey'
+  WHERE e.type = 't.loop.detected'
+  GROUP BY tk.sector_id, tk.kind
+),
+stalls AS (
+  SELECT r.sector_id AS sector_id, r.kind AS kind, COUNT(DISTINCT e.seq) AS stalls
+  FROM events e
+  JOIN execution_rounds r ON r.run_id = e.payload->>'runId'
+  WHERE e.type = 't.stall.response'
+  GROUP BY r.sector_id, r.kind
+)
+SELECT r.sector_id AS sector_id,
+  r.kind AS kind,
+  COUNT(DISTINCT r.run_id) AS runs,
+  COUNT(*) AS rounds,
+  COUNT(*) FILTER (WHERE r.outcome = 'ok') AS ok,
+  COUNT(*) FILTER (WHERE r.outcome = 'error') AS errors,
+  COUNT(*) FILTER (WHERE r.outcome = 'timeout') AS timeouts,
+  COUNT(*) FILTER (WHERE r.outcome = 'cancelled') AS cancelled,
+  COUNT(*) FILTER (WHERE r.attempt > 0) AS retries,
+  COALESCE(l.loops, 0) AS loops,
+  COALESCE(s.stalls, 0) AS stalls
+FROM execution_rounds r
+LEFT JOIN loops l ON l.sector_id IS NOT DISTINCT FROM r.sector_id AND l.kind = r.kind
+LEFT JOIN stalls s ON s.sector_id IS NOT DISTINCT FROM r.sector_id AND s.kind = r.kind
+GROUP BY r.sector_id, r.kind, l.loops, s.stalls;
+
 -- migrate:down
 
+DROP VIEW IF EXISTS v_agent_reliability;
+DROP VIEW IF EXISTS v_research_quality;
+DROP VIEW IF EXISTS v_thread_cost;
 DROP TABLE IF EXISTS cold_event_pointers;
 ALTER TABLE sector_documents DROP COLUMN IF EXISTS author_thread;
 DROP INDEX IF EXISTS tool_calls_thread_at_idx;

@@ -202,6 +202,20 @@ adds auth, transport, and tool schemas, never SQL.
 | `db.ledger_upsert_company` / `db.ledger_get_company` / `db.ledger_list_companies` | `upsertLedgerCompany` / `getLedgerCompany` / `listLedgerCompanies` | master-ledger company record |
 | `db.ledger_record_problem` / `db.ledger_list_problems` | `recordLedgerProblem` / `listLedgerProblems` | one row per researched problem |
 
+## What is stored where
+
+| Data | Store | Notes |
+|---|---|---|
+| Event log | `events` (+`trace_id`, `client`) | append-only; knowledge types never cold-move |
+| Execution journal | `t.execution.recorded` events | request/response/tool bytes via archive refs |
+| Rounds / tool calls | `execution_rounds`, `tool_calls` | projected from `t.provider.round` / `t.tool.call` |
+| Documents / units | `sector_documents` (+`author_thread`), `sector_document_units` | direct writes, never events |
+| Artifacts | `t.artifact.*` events + archive bytes | referenced across sessions by key |
+| Companies / work | `companies`, `research_work` | projected from company.* events |
+| Cold pointers | `cold_event_pointers` | one row per moved operational event |
+| Alerts | `alerts` | supervision findings, resolved_at nullable |
+| Evaluation | `v_thread_cost`, `v_research_quality`, `v_agent_reliability` | read via `GET /v1/sectors/:id/evaluation` |
+
 ## Current schema (0001–0019)
 
 - 0009–0013: sector drafts, document units index, context selection
@@ -227,6 +241,9 @@ adds auth, transport, and tool schemas, never SQL.
   (mutation claims + replays).
 - 0007: `sectors`, `companies` (sector research projections over
   sector.*/company.* events; state/stage CHECKs mirror the product vocab).
+- 0025: `events.trace_id`/`client`, `alerts`, `execution_rounds`,
+  `tool_calls`, `sector_documents.author_thread`, `cold_event_pointers`,
+  and the three evaluation views.
 
 Reserved, currently unwritten by product code: `heartbeats.attempt`
 (future per-op attempt counting) and `outbox.delivered_at` (future

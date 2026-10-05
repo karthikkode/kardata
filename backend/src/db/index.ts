@@ -183,3 +183,4 @@ export { recordTurnExecution, listThreadExecutionRecords, readThreadExecutionRef
 export { workspaceReferenceSnapshot } from './workspace-research.js'
 
 export {readSectorDocumentUnitsPage} from './sector-documents.js'
+export { readSectorEvaluation, type SectorCost, type SectorEvaluation, type SectorQuality, type KindReliability } from './evaluation.js'
