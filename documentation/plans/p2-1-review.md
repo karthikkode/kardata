@@ -59,6 +59,28 @@ in this branch but first executes on the end-of-run PR.
     (4/4 pre-D1), stack refuses pilot-archive delete (+d.mts),
     `git clean -x` banned, reworded re-run bullet.
 
+## Delta (review changes; one commit per item)
+
+1. tierOfFile decides one tier from content (live > temporal >
+   db gates; stress/fault/e2e by path; backend unit stays unit).
+2. scanTags adds stress/fault/registry roots; backend vitest
+   include widens the same way.
+3. assertDeletablePath resolves first; refuses archive, contents,
+   and ancestors (var/pilot, var, root); `..` covered by tests.
+4. pre-push uses caller PATH, requires node 22 with clear errors.
+5. Integration job ends with the tracked-file diff check.
+6a. Typecheck covers all tests (backend +registry; frontend app
+   +tests/frontend; node +tests/frontend-e2e with DOM lib,
+   bundler resolution, no erasableSyntaxOnly; node types added).
+   100 pre-existing test type errors fixed, zero product changes:
+   unused vars, stale fixtures (ResearchState/WorkItem/WorkReview
+   now match product types), bad casts, invalid `exact` options,
+   untyped mocks, lib gaps. Lint 0 errors, typecheck EXIT=0.
+6b. One item per commit from here on (this delta ships as 6).
+6c. Mutation baseline runs at final verification on 0eb0da6 in
+   a var/ worktree, not on later code.
+7. Phase 2 drops `|| true` from `npm run quality` at 0 errors.
+
 ## Blocked
 
 None.
