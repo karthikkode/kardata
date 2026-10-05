@@ -177,6 +177,11 @@ const SAMPLES: Record<McpToolName, { valid: unknown; invalid: unknown; invoke?: 
   'db.ledger_list_companies': { valid: { qualification: 'qualified', query: 'ex' }, invalid: { qualification: 'nope' } },
   'db.ledger_record_problem': { valid: { companyId: 'c', problem: 'p' }, invalid: { companyId: 'c', problem: '' } },
   'db.ledger_list_problems': { valid: { companyId: 'c' }, invalid: {} },
+  'ops.list_runs': { valid: {}, invalid: { state: 'nope' }, invoke: false },
+  'ops.get_run': { valid: { runId: 'r' }, invalid: {}, invoke: false },
+  'ops.thread_queue': { valid: { threadKey: 't' }, invalid: {}, invoke: false },
+  'ops.queue_remove': { valid: { threadKey: 't', id: 'q1' }, invalid: { threadKey: 't' }, invoke: false },
+  'ops.queue_reorder': { valid: { threadKey: 't', ids: ['q1'] }, invalid: { threadKey: 't', ids: [''] }, invoke: false },
 }
 
 const EXPECTED_TOOLS: McpToolName[] = [
@@ -247,6 +252,11 @@ const EXPECTED_TOOLS: McpToolName[] = [
   'db.ledger_list_companies',
   'db.ledger_record_problem',
   'db.ledger_list_problems',
+  'ops.list_runs',
+  'ops.get_run',
+  'ops.thread_queue',
+  'ops.queue_remove',
+  'ops.queue_reorder',
   'web_search',
   'web_fetch',
   'browser_navigate',

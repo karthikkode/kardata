@@ -331,6 +331,25 @@ export const TOOL_SCHEMAS = {
   'db.ledger_list_problems': z.object({
     companyId: NonEmpty,
   }),
+  'ops.list_runs': z.object({
+    sectorId: NonEmpty.optional(),
+    state: z.enum(['IDLE', 'RUNNING', 'PAUSED', 'SUSPENDED', 'CANCELLING', 'FINISHED', 'ERROR']).optional(),
+    kind: z.enum(['session', 'subagent']).optional(),
+  }).strict(),
+  'ops.get_run': z.object({
+    runId: NonEmpty,
+  }).strict(),
+  'ops.thread_queue': z.object({
+    threadKey: NonEmpty,
+  }).strict(),
+  'ops.queue_remove': z.object({
+    threadKey: NonEmpty,
+    id: NonEmpty,
+  }).strict(),
+  'ops.queue_reorder': z.object({
+    threadKey: NonEmpty,
+    ids: z.array(NonEmpty),
+  }).strict(),
 }
 
 export type McpToolName = keyof typeof TOOL_SCHEMAS

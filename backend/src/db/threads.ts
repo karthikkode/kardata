@@ -439,6 +439,14 @@ export interface ThreadMessenger {
   pauseRun(runId: string): Promise<{ commandId: string; state: 'accepted' | 'missed_steer' }>
   resumeRun(runId: string, extendedBudgetMs?: number): Promise<{ commandId: string; state: 'accepted' | 'missed_steer' }>
   cancelRun(runId: string): Promise<{ commandId: string; state: 'accepted' | 'missed_steer' }>
+  /** Run inspection (the production gateway implements all five; minimal
+   * fakes omit them and the wrappers below fail closed). Structural
+   * shapes keep this module free of temporal imports. */
+  listRuns?(sessionId?: string): Promise<Array<{ id: string; sessionId: string; threadKey: string; state: string; updatedAt: string }>>
+  getRun?(runId: string): Promise<{ id: string; sessionId: string; threadKey: string; state: string; updatedAt: string } | null>
+  listQueue?(threadKey: string): Promise<Array<{ id: string; text: string; queuedAt: number }>>
+  removeQueued?(threadKey: string, id: string): Promise<boolean>
+  reorderQueue?(threadKey: string, ids: string[]): Promise<void>
 }
 
 const ThreadTextSchema = z.string().min(1).max(8000)
@@ -518,4 +526,59 @@ export async function cancelThreadRun(
     throw new DbContractError('runId must be a non-empty string')
   }
   return requireMessenger(messenger, 'db.cancel_run').cancelRun(runId)
+}
+
+function requireInspection<K extends 'listRuns' | 'getRun' | 'listQueue' | 'removeQueued' | 'reorderQueue'>(
+  messenger: ThreadMessenger | undefined,
+  tool: string,
+  method: K,
+): NonNullable<ThreadMessenger[K]> {
+  const runner = requireMessenger(messenger, tool)
+  const fn = runner[method]
+  if (typeof fn !== 'function') throw new DbContractError(`${tool} needs a run-inspection runner: the server wires the runs gateway, tests inject a fake`)
+  return fn as NonNullable<ThreadMessenger[K]>
+}
+
+/** List runs fleet-wide (filtering is the caller's job). Fail-closed
+ * without an inspection runner. */
+export async function listThreadRuns(messenger: ThreadMessenger | undefined) {
+  return requireInspection(messenger, 'ops.list_runs', 'listRuns')()
+}
+
+/** Read one run; null when unknown. Fail-closed without a runner. */
+export async function getThreadRun(messenger: ThreadMessenger | undefined, runId: string) {
+  if (!RunIdSchema.safeParse(runId).success) {
+    throw new DbContractError('runId must be a non-empty string')
+  }
+  return requireInspection(messenger, 'ops.get_run', 'getRun')(runId)
+}
+
+/** List a thread's queued messages. Fail-closed without a runner. */
+export async function listThreadQueue(messenger: ThreadMessenger | undefined, threadKey: string) {
+  if (!ThreadKeySchema.safeParse(threadKey).success) {
+    throw new DbContractError('threadKey must be a non-empty string')
+  }
+  return requireInspection(messenger, 'ops.thread_queue', 'listQueue')(threadKey)
+}
+
+/** Remove one queued message; false when the id is unknown. */
+export async function removeThreadQueueItem(messenger: ThreadMessenger | undefined, threadKey: string, id: string): Promise<boolean> {
+  if (!ThreadKeySchema.safeParse(threadKey).success) {
+    throw new DbContractError('threadKey must be a non-empty string')
+  }
+  if (!z.string().min(1).safeParse(id).success) {
+    throw new DbContractError('id must be a non-empty string')
+  }
+  return requireInspection(messenger, 'ops.queue_remove', 'removeQueued')(threadKey, id)
+}
+
+/** Reorder a thread's queue; the id set must match exactly. */
+export async function reorderThreadQueue(messenger: ThreadMessenger | undefined, threadKey: string, ids: string[]): Promise<void> {
+  if (!ThreadKeySchema.safeParse(threadKey).success) {
+    throw new DbContractError('threadKey must be a non-empty string')
+  }
+  if (!z.array(z.string().min(1)).safeParse(ids).success) {
+    throw new DbContractError('ids must be an array of non-empty strings')
+  }
+  return requireInspection(messenger, 'ops.queue_reorder', 'reorderQueue')(threadKey, ids)
 }

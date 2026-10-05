@@ -65,7 +65,13 @@ import {
   saveInheritedContext,
   resumeSectorSweep,
   cancelThreadRun,
+  getThreadHeader,
+  getThreadRun,
+  listThreadQueue,
+  listThreadRuns,
   pauseThreadRun,
+  removeThreadQueueItem,
+  reorderThreadQueue,
   resumeThreadRun,
   runTotals,
   sectorActivity,
@@ -499,6 +505,73 @@ export const INVOKERS: Invokers = {
     listLedgerCompanies(ctx.pool, { qualification: args.qualification, sector: args.sector, query: args.query }),
   'db.ledger_record_problem': (ctx, args) => recordLedgerProblem(ctx.pool, args),
   'db.ledger_list_problems': (ctx, args) => listLedgerProblems(ctx.pool, args.companyId),
+  'ops.list_runs': async (ctx, args) => {
+    let sectorId = args.sectorId
+    if (ctx.executionThread) {
+      const actor = await requireThread(ctx.pool, ctx.executionThread, ctx.scope)
+      sectorId = actor.session.sectorId ?? sectorId
+    }
+    const runs = await listThreadRuns(ctx.messenger)
+    const sessions = new Map<string, { sectorId?: string } | undefined>()
+    const kinds = new Map<string, string | null>()
+    const out: typeof runs = []
+    for (const run of runs) {
+      if (args.state && run.state !== args.state) continue
+      if (!sessions.has(run.sessionId)) sessions.set(run.sessionId, await getSession(ctx.pool, run.sessionId, ctx.scope))
+      const session = sessions.get(run.sessionId)
+      if (!session) {
+        // Legacy research runs attribute to no session: visible only on
+        // an unfiltered fleet dump by an unattributed caller, never in
+        // scoped tools or under sector/kind filters.
+        if (ctx.scope || ctx.executionThread || sectorId || args.kind) continue
+        out.push(run)
+        continue
+      }
+      if (sectorId && session.sectorId !== sectorId) continue
+      if (args.kind) {
+        if (!kinds.has(run.threadKey)) kinds.set(run.threadKey, (await getThreadHeader(ctx.pool, run.threadKey))?.kind ?? null)
+        if (kinds.get(run.threadKey) !== args.kind) continue
+      }
+      out.push(run)
+    }
+    return out
+  },
+  'ops.get_run': async (ctx, args) => {
+    const run = await getThreadRun(ctx.messenger, args.runId)
+    if (!run) throw new McpToolError('not_found', `no such run ${args.runId}`)
+    const session = await getSession(ctx.pool, run.sessionId, ctx.scope)
+    if (!session) throw new McpToolError('permission_denied', 'Run is outside the authorized scope.')
+    if (ctx.executionThread) {
+      const actor = await requireThread(ctx.pool, ctx.executionThread, ctx.scope)
+      if (actor.session.sectorId && session.sectorId !== actor.session.sectorId) throw new McpToolError('permission_denied', 'Run is outside this sector.')
+    }
+    return run
+  },
+  'ops.thread_queue': async (ctx, args) => {
+    try {
+      return await listThreadQueue(ctx.messenger, args.threadKey)
+    } catch (error: unknown) {
+      if (error instanceof RunNotFound) throw new McpToolError('not_found', error.message)
+      throw error
+    }
+  },
+  'ops.queue_remove': async (ctx, args) => {
+    try {
+      return { removed: await removeThreadQueueItem(ctx.messenger, args.threadKey, args.id) }
+    } catch (error: unknown) {
+      if (error instanceof RunNotFound) throw new McpToolError('not_found', error.message)
+      throw error
+    }
+  },
+  'ops.queue_reorder': async (ctx, args) => {
+    try {
+      await reorderThreadQueue(ctx.messenger, args.threadKey, args.ids)
+      return { ok: true }
+    } catch (error: unknown) {
+      if (error instanceof RunNotFound) throw new McpToolError('not_found', error.message)
+      throw error
+    }
+  },
 }
 
 /** Retrieval failures become isError text with their own code
