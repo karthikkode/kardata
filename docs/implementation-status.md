@@ -1,5 +1,16 @@
 # Implementation status
 
+Phase 2 Phase 1: foundation (2026-10-05, branch `p2-1-foundation`).
+Registry: `tests/registry/features.yaml` (1025 entries) + sync + gate
+(report mode; unknown-tag and missing-surface fail). Quality: knip
+(9 files, 5+5 deps, 7 unlisted, 252 exports), jscpd (agents 2.04%,
+backend 3.12%, frontend 1.03%), cruiser (agents 0, backend 92 circular,
+frontend 6 circular, 0 layering breaks), eslint max-lines 800 + 10-file
+allowlist + fetch ban. Mutation baselines in the review package.
+verify/verify:full/hooks wired; CI verify runs verify + tracked-file
+diff check. var/ excluded everywhere (guard test); stack refuses pilot
+archive deletes; `git clean -x` banned.
+
 Simple merges + deploys (2026-10-05, branch `simple-merge-deploy`):
 retired the file catalogue + functionality matrix (archived with the old
 README, hardening tests deleted, regen instructions scrubbed) so file

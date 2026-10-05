@@ -7,6 +7,9 @@ const rootDir = import.meta.dirname
 
 // https://vite.dev/config/
 export default defineConfig({
+  // Explicit root (the config directory): programmatic runners such as
+  // Stryker start from the repo root, and include must resolve the same.
+  root: rootDir,
   plugins: [react(), tailwindcss()],
   server: {
     fs: {
@@ -23,6 +26,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     include: ['../tests/frontend/**/*.test.{ts,tsx}'],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/var/**'],
     // Coverage uses the istanbul provider (the v8 provider needs
     // @vitest/browser, which this workspace does not install); reports
     // land in coverage/ (gitignored). Run with `npm run test:coverage`.

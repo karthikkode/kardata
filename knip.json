@@ -1,0 +1,22 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignore": ["var/**", "**/test-results/**", "**/coverage/**", "**/dist/**", "tests/**"],
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.mjs", "deployment/scripts/*.mjs"],
+      "project": ["scripts/*.mjs", "deployment/scripts/*.mjs"]
+    },
+    "agents": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts", "!src/**/*.test.ts", "!src/fixtures/**"]
+    },
+    "backend": {
+      "entry": ["src/server.ts", "src/temporal/dev-worker.ts", "src/db/cli.ts", "src/temporal/workflows/*.ts", "src/temporal/activities/*.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "frontend": {
+      "entry": ["src/main.tsx"],
+      "project": ["src/**/*.{ts,tsx}", "!src/test/**", "!src/**/*.test.{ts,tsx}"]
+    }
+  }
+}

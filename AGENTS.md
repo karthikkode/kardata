@@ -87,7 +87,10 @@ Efficiency rules. The agent must NOT:
   touched files; the full gates run once on the final code.
 - Add scripts, wrappers, or helpers when extending an existing entry
   point (`npm run stack:*`, `package.json` scripts) does the job.
-- Never re-run a suite or live test on unchanged code.
+- Run each suite and live test only once per unchanged tree; a re-run
+  needs a code change first.
+- Never run `git clean -x` in this repo: it deletes ignored runtime state
+  under var/ (pilot archives, evidence, test output).
 - Stuck more than 45 minutes on one item: record it as Blocked with the
   exact error and move on.
 - Open-source research only from the references the phase lists, at most

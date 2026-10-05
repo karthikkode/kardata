@@ -116,6 +116,20 @@ export function ownedTestProcs(processes, { repoRoot, user }) {
   return { kill, notes }
 }
 
+/**
+ * Refuse to delete the pilot archive (`var/pilot/archive`): runs are kept
+ * forever, and no stack command may remove them. Throws on the archive or
+ * anything inside it; allows everything else. Phase 8 wires this into
+ * `pilot down`; until then it has no caller (knip baseline notes it).
+ */
+export function assertDeletablePath(target, { repoRoot }) {
+  const resolved = target.startsWith('/') ? target : `${repoRoot}/${target}`
+  const archive = `${repoRoot}/var/pilot/archive`
+  if (resolved === archive || resolved.startsWith(`${archive}/`)) {
+    throw new Error(`stack refuses to delete the pilot archive: ${target}`)
+  }
+}
+
 /** Render one verdict line: [PASS|WARN|FAIL] detail (+ indented fix lines). */
 export function formatVerdict(name, verdict) {
   const tag = verdict.level.toUpperCase().padEnd(4)

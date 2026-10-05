@@ -1,0 +1,16 @@
+{
+  "minTokens": 50,
+  "minLines": 5,
+  "ignore": [
+    "**/*.test.{ts,tsx,js,mjs}",
+    "**/test/**",
+    "**/fixtures/**",
+    "tests/**",
+    "**/node_modules/**",
+    "**/dist/**",
+    "var/**",
+    "**/test-results/**",
+    "**/coverage/**"
+  ],
+  "reporters": ["console"]
+}

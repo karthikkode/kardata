@@ -35,3 +35,4 @@ export function ownedTestProcs(
   processes: HostProc[],
   args: { repoRoot: string; user: string },
 ): { kill: HostProc[]; notes: string[] }
+export function assertDeletablePath(target: string, args: { repoRoot: string }): void

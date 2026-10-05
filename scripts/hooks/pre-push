@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Pre-push gate: full verify before anything leaves the machine.
+# Installed (once, by the owner) with: npm run hooks:install
+set -euo pipefail
+export PATH="/home/karthik/.nvm/versions/node/v22.23.3/bin:$PATH"
+npm run verify

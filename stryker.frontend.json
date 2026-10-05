@@ -1,0 +1,24 @@
+{
+  "$schema": "https://stryker-mutator.io/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "frontend/vite.config.ts",
+    "related": false
+  },
+  "mutate": [
+    "frontend/src/data/useWorkspace.ts"
+  ],
+  "ignorePatterns": [
+    "var/**",
+    "**/test-results/**",
+    "**/coverage/**",
+    "**/dist/**",
+    "reports/**"
+  ],
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "incremental": true,
+  "incrementalFile": ".stryker-tmp/incremental-frontend.json"
+}

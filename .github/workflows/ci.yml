@@ -18,10 +18,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run pr:verify
+      - run: npm run verify
       - run: npm test -w @kardata/backend -- pdf-mixed.test.ts
         env:
           KARDATA_PDF_MEMORY_TEST: '1'
+      - name: No test rewrote tracked files
+        run: git diff --exit-code
       - uses: actions/upload-artifact@v4
         if: always()
         with:

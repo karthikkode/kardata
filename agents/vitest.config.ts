@@ -4,7 +4,11 @@ import { defineConfig } from 'vitest/config'
 // build output under dist/ is never collected as a duplicate suite
 // (stale dist test files resolve fixtures against dist and fail).
 export default defineConfig({
+  // Explicit root (the config directory): programmatic runners such as
+  // Stryker start from the repo root, and include must resolve the same.
+  root: import.meta.dirname,
   test: {
     include: ['src/**/*.test.ts'],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/var/**'],
   },
 })

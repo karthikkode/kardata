@@ -11,6 +11,8 @@ coverage/
 playwright-report/
 test-results/
 .vitest/
+.stryker-tmp/
+reports/
 
 # logs
 *.log

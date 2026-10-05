@@ -1,0 +1,19 @@
+{
+  "_comment": "Quality allowlist (Phase 1 baseline). Each entry names the phase that fixes it. Phase 2 AC: repo-wide allowlist <= 25 entries.",
+  "maxLines": [
+    { "file": "backend/src/temporal/activities/turn.ts", "lines": 1088, "phase": 2, "reason": "split by responsibility" },
+    { "file": "backend/src/db/workspace.ts", "lines": 1045, "phase": 2, "reason": "split by responsibility" },
+    { "file": "backend/src/temporal/gateway.ts", "lines": 927, "phase": 2, "reason": "split by responsibility" },
+    { "file": "backend/src/mcp/tools.ts", "lines": 906, "phase": 2, "reason": "split by responsibility" },
+    { "file": "backend/src/db/file-jobs.ts", "lines": 841, "phase": 2, "reason": "split by responsibility" },
+    { "file": "backend/src/db/events.ts", "lines": 803, "phase": 2, "reason": "split by responsibility" },
+    { "file": "frontend/src/components/ChatPanel.tsx", "lines": 2087, "phase": 2, "reason": "merge chat panels, shared parts" },
+    { "file": "frontend/src/components/workspace-parts.tsx", "lines": 1133, "phase": 2, "reason": "split by responsibility" },
+    { "file": "frontend/src/data/staging-api.ts", "lines": 1030, "phase": 2, "reason": "one client plus per-resource modules" },
+    { "file": "frontend/src/components/SectorChatPanel.tsx", "lines": 842, "phase": 2, "reason": "merge chat panels, shared parts" }
+  ],
+  "globalFetch": [
+    { "file": "agents/src/turnRunner.ts", "phase": 2, "reason": "move to agents/src/http.ts" },
+    { "file": "frontend/src/data/staging-api.ts", "phase": 2, "reason": "becomes the single frontend client" }
+  ]
+}

@@ -161,6 +161,25 @@ like the routes) seeds 1000 companies plus 12 documents.
   run-unique session: reruns never collide with still-running children
   from an aborted run (which correctly reject as duplicates).
 
+## Tiers and commands (Phase 2 plan)
+
+| Tier | Proves | Command |
+|---|---|---|
+| unit | Logic, jsdom components, fake provider | `npm test` |
+| db | Real Postgres, per-suite DB | `TEST_DATABASE_URL=… npm test -w @kardata/backend` |
+| temporal | Real Temporal and DB, scripted provider | add `KARDATA_TEMPORAL_TEST=1` |
+| e2e | Real browser | `npm run test:e2e -w frontend` |
+| fault | Injected failures | `npm run test:fault` (lands in Phase 4) |
+| stress | Data volume, DB concurrency | `npm run test:stress` (lands in Phase 4) |
+| live | Real Meta, isolated stack | `npm run test:live` (lands in Phase 5) |
+| ui-review | Graded screenshots | `npm run ui:review` (lands in Phase 6) |
+
+Full gates: `npm run verify` (pr:verify + quality + the registry gate,
+which rides inside the backend suite); `npm run verify:full` adds the db,
+temporal, and full Playwright tiers. It needs `TEST_DATABASE_URL` in env
+(fails fast without it) and sets `KARDATA_TEMPORAL_TEST=1` itself for the
+temporal tier.
+
 CI runs a separate pinned Postgres/Temporal integration job. Its databases are
 UUID-suffixed isolated resources; it runs the live DB suite then session, child,
 planning and coordinator workflows. Paid Meta and full stress remain separate

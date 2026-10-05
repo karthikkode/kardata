@@ -7,7 +7,8 @@ import { randomUUID } from 'node:crypto'
 export default defineConfig({
   root: '..',
   test: {
-    include: ['tests/backend/**/*.test.ts'],
+    include: ['tests/backend/**/*.test.ts', 'tests/registry/**/*.test.ts'],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/var/**'],
     // Bound integration-file fan-out against the established 100-connection
     // Postgres budget. Explicit within-file contention/stress remains unchanged.
     ...(process.env['TEST_DATABASE_URL'] ? {

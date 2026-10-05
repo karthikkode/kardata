@@ -1,0 +1,26 @@
+{
+  "$schema": "https://stryker-mutator.io/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "backend/vitest.config.ts",
+    "related": false
+  },
+  "mutate": [
+    "backend/src/db/workspace.ts",
+    "backend/src/mcp/tools.ts",
+    "backend/src/temporal/activities/turn.ts"
+  ],
+  "ignorePatterns": [
+    "var/**",
+    "**/test-results/**",
+    "**/coverage/**",
+    "**/dist/**",
+    "reports/**"
+  ],
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "incremental": true,
+  "incrementalFile": ".stryker-tmp/incremental-backend.json"
+}
