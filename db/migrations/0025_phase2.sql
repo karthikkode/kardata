@@ -75,8 +75,13 @@ CREATE INDEX IF NOT EXISTS execution_rounds_sector_started_idx ON execution_roun
 CREATE INDEX IF NOT EXISTS execution_rounds_trace_idx ON execution_rounds (trace_id);
 CREATE INDEX IF NOT EXISTS tool_calls_thread_at_idx ON tool_calls (thread_key, at);
 
+-- P3.5 agent-authored files: the author thread of an auto-registered
+-- artifact document. Uploads and legacy rows stay null.
+ALTER TABLE sector_documents ADD COLUMN author_thread text;
+
 -- migrate:down
 
+ALTER TABLE sector_documents DROP COLUMN IF EXISTS author_thread;
 DROP INDEX IF EXISTS tool_calls_thread_at_idx;
 DROP INDEX IF EXISTS execution_rounds_trace_idx;
 DROP INDEX IF EXISTS execution_rounds_sector_started_idx;

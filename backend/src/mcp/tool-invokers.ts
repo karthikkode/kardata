@@ -289,6 +289,7 @@ export const INVOKERS: Invokers = {
         ...(args.reason === undefined ? {} : { reason: args.reason }),
         scope: ctx.scope,
         producedBy: ctx.executionThread,
+        ...(ctx.executionThread === undefined ? {} : { authorThread: ctx.executionThread }),
       },
       ctx.archive,
     ),

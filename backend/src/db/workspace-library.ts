@@ -18,6 +18,7 @@ export interface LibraryFile {
   id: string; filename: string; status: string; source: string; hash: string
   hidden: boolean; included: boolean; kind: 'document' | 'artifact'; sessionId?: string; documentId?: string
   processing?: FileProcessingProgress
+  authorThread?: string
 }
 export async function readSectorLibraryFile(db: Db, sectorId: string, fileId: string, archive: ArchiveTarget, scope?: Scope) {
   return logOp(workspaceLogger, 'workspace.file.read', () => readLibraryFile(db, sectorId, fileId, archive, scope), { sectorId, fileId })
@@ -44,7 +45,7 @@ export async function listSectorLibrary(db: Db, sectorId: string, scope?: Scope)
   const files = new Map<string, LibraryFile>()
   const arrivedAt = new Map<string, number>()
   for (const doc of await listSectorDocuments(db, sectorId, scope, true)) {
-    files.set(doc.id, { id: doc.id, filename: doc.filename, status: doc.status, hash: doc.sha256, source: 'Uploaded', hidden: false, included: false, kind: 'document' })
+    files.set(doc.id, { id: doc.id, filename: doc.filename, status: doc.status, hash: doc.sha256, source: 'Uploaded', hidden: false, included: false, kind: 'document', ...(doc.authorThread ? { authorThread: doc.authorThread } : {}) })
     arrivedAt.set(doc.id, new Date(doc.createdAt).getTime())
   }
   const sessions = await listSessions(db, scope, sectorId)

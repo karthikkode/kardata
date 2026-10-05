@@ -28,14 +28,14 @@ import {
 } from './events.js'
 import { getSession, listSessions } from './sessions.js'
 
-export async function indexSectorArtifact(db: Db, sectorId: string, artifactId: string, name: string, body: string, scope?: Scope): Promise<void> {
+export async function indexSectorArtifact(db: Db, sectorId: string, artifactId: string, name: string, body: string, scope?: Scope, authorThread?: string): Promise<void> {
   checked(Id, sectorId)
   checked(Id, artifactId)
   if (typeof name !== 'string' || !name) throw new DbContractError('name must be a non-empty string')
   if (typeof body !== 'string' || !body) throw new DbContractError('body must be a non-empty string')
   await requireSector(db, sectorId, scope)
   const filename = /\.(md|txt|csv|json)$/i.test(name) ? name : `${name}.txt`
-  const doc = await ingestSectorDocument(db, { sectorId, filename, contentBase64: Buffer.from(body).toString('base64'), source: 'artifact', scope })
+  const doc = await ingestSectorDocument(db, { sectorId, filename, contentBase64: Buffer.from(body).toString('base64'), source: 'artifact', scope, ...(authorThread ? { authorThread } : {}) })
   await db.query('INSERT INTO workspace_files(sector_id,file_id,document_id) VALUES($1,$2,$3) ON CONFLICT(sector_id,file_id) DO UPDATE SET document_id=$3', [sectorId, artifactId, doc.id])
 }
 
@@ -186,7 +186,7 @@ async function referenceArtifactImpl(
   const served = await serveArtifact(target, scopeParsed.data, input.artifactId, artifactDeps)
   if (toSession.sectorId) {
     const copied = await storeAndIndex(target, { scope: { kind: 'session', id: input.toSessionId }, artifactId: input.artifactId, name: served.meta.name, body: served.body, reason: served.meta.reason, producedBy: served.meta.producedBy, kind: served.meta.kind, detail: served.meta.detail }, artifactDeps)
-    await indexSectorArtifact(db, toSession.sectorId, copied.artifactId, copied.name, served.body, input.scope)
+    await indexSectorArtifact(db, toSession.sectorId, copied.artifactId, copied.name, served.body, input.scope, served.meta.producedBy)
     payload['bytes'] = copied.bytes; payload['sha256'] = copied.sha256
   }
   signal?.throwIfAborted()
@@ -259,6 +259,8 @@ export interface CreateArtifactInput {
   detail?: string
   reason?: ArtifactReason
   producedBy?: string
+  /** Authoring thread; defaults to producedBy (thread key in turn paths). */
+  authorThread?: string
   scope?: Scope
 }
 
@@ -304,7 +306,7 @@ export async function createArtifact(
         record: (event) => appendEvent(db, event).then(() => undefined),
       },
     )
-    if (session.sectorId) await indexSectorArtifact(db, session.sectorId, indexed.artifactId, indexed.name, input.content, input.scope)
+    if (session.sectorId) await indexSectorArtifact(db, session.sectorId, indexed.artifactId, indexed.name, input.content, input.scope, input.authorThread ?? indexed.producedBy)
     return {
       artifactId: indexed.artifactId,
       name: indexed.name,
