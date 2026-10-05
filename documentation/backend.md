@@ -193,6 +193,12 @@ the everything-log. Plan: `documentation/plans/2026-09-25-backend-build.md`.
   Proven by `tests/backend/sector-lifecycle.test.ts` (stub-DB order +
   fail-closed), `tests/backend/workflows.sweep.test.ts` (live cancel),
   and `tests/backend/api.sectors.test.ts` (route lifecycle).
+- Honest 503 on Temporal cuts (Phase 4): gateway `send` maps connectivity
+  failures (`isTemporalConnectivity`) to `temporal_unavailable` (503) and
+  drops the cached client so post-heal commands reconnect; domain errors
+  and bugs keep their existing codes. Proven by
+  `tests/backend/temporal-unavailable.test.ts` (detector) and the F8 drill
+  (`tests/fault/infra-cuts.faults.test.ts`).
 - Sector context citations are human-readable (`backend/src/db/sector-context.ts`):
   reference units cite `filename:ord` (repeats take a stable `name (2)`
   suffix via `citationLabels`), notes cite `[note:1]` by creation order,
