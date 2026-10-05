@@ -50,6 +50,7 @@ export interface LiveMessage {
 export interface LiveThread {
   pendingRunKey?: string | null
   threadStatus?: string
+  stateReason?: string
   steering?: Array<{ id: string; state: 'consumed' | 'missed' }>
   messages: LiveMessage[]
   /** In-flight token text for the latest run; null when idle. Cleared the
@@ -96,6 +97,7 @@ export async function* followThread(
   let pendingTools: ToolPayload[] = [...(previous?.pendingTools ?? [])]
   let pendingRunKey: string | null = options?.cursor?.live?.pendingRunKey ?? null
   let threadStatus: string | undefined = previous?.threadStatus
+  let stateReason: string | undefined = previous?.stateReason
   const steering = new Map<string, 'consumed' | 'missed'>((previous?.steering ?? []).map(({ id, state }) => [id, state]))
   let lastSeq = options?.cursor?.seq ?? 0
   for (;;) {
@@ -147,7 +149,7 @@ export async function* followThread(
             for (const id of payload.ids) if (typeof id === 'string') steering.set(id, payload.state === 'missed' ? 'missed' : 'consumed')
           }
         } else if (frame.type === 'state') {
-          const payload = frame.payload as { status?: unknown; historyRefresh?: unknown }
+          const payload = frame.payload as { status?: unknown; historyRefresh?: unknown; stateReason?: unknown }
           if (payload?.historyRefresh === true) {
             const recovered = await listMessages(config, threadKey, Math.max(0, ...messages.map((message) => message.seq ?? 0)), signal) as LiveMessage[]
             const receipts = await readSteeringReceipts(config, threadKey, signal)
@@ -157,6 +159,7 @@ export async function* followThread(
           }
           if (typeof payload?.status === 'string') {
             threadStatus = payload.status
+            stateReason = typeof payload.stateReason === 'string' ? payload.stateReason : undefined
             if (['PAUSED', 'FINISHED', 'ERROR', 'CANCELLING'].includes(threadStatus)) {
               pendingText = null; pendingReasoning = null; pendingTools = []; pendingRunKey = null
             }
@@ -171,7 +174,7 @@ export async function* followThread(
           if (message.kind === 'tool' || message.role === 'agent') pendingTools = []
         }
         lastSeq = frame.seq
-        const live = { messages: [...messages], pendingText, pendingReasoning, pendingRunKey, pendingTools: [...pendingTools], threadStatus, steering: [...steering].map(([id, state]) => ({ id, state })), error: null }
+        const live = { messages: [...messages], pendingText, pendingReasoning, pendingRunKey, pendingTools: [...pendingTools], threadStatus, stateReason, steering: [...steering].map(([id, state]) => ({ id, state })), error: null }
         if (options?.cursor) { options.cursor.seq = lastSeq; options.cursor.live = live }
         yield live
       }
@@ -188,6 +191,7 @@ export async function* followThread(
         pendingReasoning,
         pendingTools: [...pendingTools],
         threadStatus,
+        stateReason,
         steering: [...steering].map(([id, state]) => ({ id, state })),
         error:
           error instanceof StagingApiError

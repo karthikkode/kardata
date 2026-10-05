@@ -152,6 +152,17 @@ export function threadStatusLabel(status: string): string {
   return threadStatusLabels[status] ?? humanizeKey(status)
 }
 
+const threadStateReasonLabels: Record<string, string> = {
+  'closed-owner': 'Stopped unexpectedly',
+}
+
+/** Banner copy for a failed thread state reason. Only mapped reasons show
+ * a banner; unknown codes stay silent (no humanized supervisor internals). */
+export function threadStateReasonLabel(reason: string | undefined): string | null {
+  if (!reason) return null
+  return threadStateReasonLabels[reason] ?? null
+}
+
 const alertKindLabels: Record<string, string> = {
   'closed-owner': 'Run closed',
   'missing-heartbeat': 'Heartbeat lost',

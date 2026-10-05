@@ -8,6 +8,7 @@ export interface ThreadView {
   sessionId: string
   kind: string
   status: string
+  stateReason?: string
   acceptingSteer: boolean
   queueDepth: number
   updatedAt: string
