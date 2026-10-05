@@ -18,5 +18,14 @@ export default defineConfig({
     } : {}),
     // DB-touching files each own a separate database (see the gated suites),
     // so files stay parallel-safe and order-independent by construction.
+    // Phase 7 gate: lines >= 80% overall (db/mcp/temporal need >= 85%,
+    // enforced per-directory by scripts/coverage.mjs). Root is the repo
+    // root, so include is backend-scoped. Istanbul provider, like frontend.
+    coverage: {
+      provider: 'istanbul',
+      reporter: ['text', 'json-summary'],
+      include: ['backend/src/**/*.ts'],
+      thresholds: { lines: 80 },
+    },
   },
 })

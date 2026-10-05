@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint . && cd ../tests/backend && eslint . && cd ../fault && eslint .",
     "build": "tsc -p tsconfig.build.json",
