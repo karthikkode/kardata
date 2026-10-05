@@ -168,7 +168,7 @@ export function tierOfFile(relPath, content = '') {
 }
 
 export function scanTags(repoRoot = ROOT) {
-  const roots = ['tests/backend', 'tests/frontend', 'tests/frontend-e2e', 'agents/src']
+  const roots = ['tests/backend', 'tests/frontend', 'tests/frontend-e2e', 'tests/stress', 'tests/fault', 'tests/registry', 'agents/src']
   const tags = []
   const walk = (dir) => {
     for (const entry of readdirSync(join(repoRoot, dir), { withFileTypes: true })) {
