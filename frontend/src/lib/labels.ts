@@ -4,7 +4,7 @@
 // sentence-cased humanizeKey, never raw.
 import { humanizeKey } from './format'
 
-export const researchStateLabels: Record<string, string> = {
+const researchStateLabels: Record<string, string> = {
   draft: 'Draft',
   planning: 'Planning',
   planned: 'Planned',
@@ -20,7 +20,7 @@ export function researchStateLabel(state: string): string {
   return researchStateLabels[state] ?? humanizeKey(state)
 }
 
-export const companyStageLabels: Record<string, string> = {
+const companyStageLabels: Record<string, string> = {
   Filter: 'Screening',
   'Deep research': 'Deep research',
   'Problem found': 'Problem found',
@@ -31,7 +31,7 @@ export function companyStageLabel(stage: string): string {
   return companyStageLabels[stage] ?? humanizeKey(stage)
 }
 
-export const planSectionLabels: Record<string, string> = {
+const planSectionLabels: Record<string, string> = {
   scope: 'Scope',
   goal: 'Goal',
   'direction shards': 'Search directions',
@@ -127,7 +127,7 @@ export function toolFamily(name: string): 'search' | 'web' | 'document' | 'defau
   return 'default'
 }
 
-export const runStateLabels: Record<string, string> = {
+const runStateLabels: Record<string, string> = {
   IDLE: 'Idle',
   RUNNING: 'Running',
   PAUSED: 'Paused',
@@ -141,7 +141,7 @@ export function runStateLabel(state: string): string {
   return runStateLabels[state] ?? humanizeKey(state)
 }
 
-export const threadStatusLabels: Record<string, string> = {
+const threadStatusLabels: Record<string, string> = {
   RUNNING: 'Running',
   QUEUED: 'Queued',
   PAUSED: 'Paused',
@@ -152,7 +152,7 @@ export function threadStatusLabel(status: string): string {
   return threadStatusLabels[status] ?? humanizeKey(status)
 }
 
-export const alertKindLabels: Record<string, string> = {
+const alertKindLabels: Record<string, string> = {
   'closed-owner': 'Run closed',
   'missing-heartbeat': 'Heartbeat lost',
   'stalled-progress': 'Progress stalled',
@@ -164,7 +164,7 @@ export function alertKindLabel(kind: string): string {
   return alertKindLabels[kind] ?? humanizeKey(kind)
 }
 
-export const fileStatusLabels: Record<string, string> = {
+const fileStatusLabels: Record<string, string> = {
   indexed: 'Indexed',
   processing: 'Processing',
   queued: 'Queued',

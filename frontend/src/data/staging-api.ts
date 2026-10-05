@@ -44,7 +44,7 @@ export type SessionModelSelection = z.infer<typeof SessionModelSelection>
 
 /** One selectable model with its reasoning capability. Mirrors the
  * OpenAPI ProviderModel. */
-export const ProviderModelSchema = z.object({
+const ProviderModelSchema = z.object({
   provider: z.literal('meta'),
   model: z.string().min(1),
   displayName: z.string().min(1),
@@ -54,11 +54,9 @@ export const ProviderModelSchema = z.object({
   efforts: z.array(z.string().min(1)).default([]),
 })
 
-export type ProviderModel = z.infer<typeof ProviderModelSchema>
-
 /** One provider row: key presence only, never key material. Mirrors the
  * OpenAPI ProviderEntry. */
-export const ProviderEntrySchema = z.object({
+const ProviderEntrySchema = z.object({
   name: z.literal('meta'),
   hasKey: z.boolean(),
   defaultModel: z.string().min(1),
@@ -68,7 +66,7 @@ export const ProviderEntrySchema = z.object({
 export type ProviderEntry = z.infer<typeof ProviderEntrySchema>
 
 /** Provider catalog envelope data. Mirrors the OpenAPI ProviderCatalog. */
-export const ProviderCatalogSchema = z.object({
+const ProviderCatalogSchema = z.object({
   defaultProvider: z.literal('meta'),
   providers: z.array(ProviderEntrySchema),
 })
@@ -204,7 +202,7 @@ export interface ArtifactBody {
 
 /** Live token text from the thread stream. Ephemeral: the terminal message
  * frame supersedes deltas, and reconnects replay persisted messages only. */
-export interface DeltaPayload {
+interface DeltaPayload {
   runKey: string
   text: string
 }
@@ -323,8 +321,6 @@ export function listThreads(config: StagingConfig, sessionId: string): Promise<T
     `/v1/sessions/${encodeURIComponent(sessionId)}/threads`,
   )
 }
-
-export type TurnMode = 'default' | 'brainstorm' | 'plan'
 
 export interface CreateArtifactInput {
   name: string
@@ -595,7 +591,7 @@ export function restartSector(config: StagingConfig, sectorId: string): Promise<
   return request<SectorResearch>(config, 'POST', `/v1/sectors/${encodeURIComponent(sectorId)}/restart`)
 }
 
-export interface PlanVersionView {
+interface PlanVersionView {
   version: number
   markdown: string
   at: string
@@ -655,7 +651,7 @@ export interface SectorDocumentSummary {
   status: 'indexed' | 'needs-ocr'
 }
 
-export interface ContextUnitView {
+interface ContextUnitView {
   ord: number
   kind: string
   text: string
@@ -674,7 +670,7 @@ export interface ContextFileView {
   units: ContextUnitView[]
 }
 
-export interface ContextNoteView {
+interface ContextNoteView {
   id: string
   text: string
   createdAt: string
@@ -838,7 +834,7 @@ export interface LiveThread {
  * silence past this means a half-open socket, not a slow turn. The tail
  * aborts and followThread resumes from its last token; the missed frames
  * replay and the terminal message clears the replying state. */
-export const STREAM_IDLE_TIMEOUT_MS = 30_000
+const STREAM_IDLE_TIMEOUT_MS = 30_000
 
 export interface FollowThreadOptions {
   /** Persistent UI tails retry graceful EOF with their last accepted token. */
@@ -980,7 +976,7 @@ export async function* followThread(
   }
 }
 
-export async function* openThreadStream(
+async function* openThreadStream(
   config: StagingConfig,
   threadKey: string,
   fromSeq: number,

@@ -9,13 +9,12 @@ import {
   apiErrorStatus,
   StagingApiError,
   type CompanyResearch,
-  type SectorActivityEntry,
   type SectorDetail,
   type SectorResearch,
   type StagingConfig,
 } from './staging-api'
 
-export type { CompanyResearch, SectorActivityEntry, SectorDetail, SectorResearch }
+export type { CompanyResearch, SectorDetail, SectorResearch }
 
 export type ResearchStatus = 'loading' | 'ready' | 'error' | 'denied' | 'offline'
 
@@ -94,7 +93,7 @@ export interface CompanyFilters {
 }
 
 /** Client window size: matches the server default page. */
-export const COMPANY_WINDOW = 100
+const COMPANY_WINDOW = 100
 
 export interface CompanyData extends ResearchData<CompanyResearch> {
   moreError: string | null

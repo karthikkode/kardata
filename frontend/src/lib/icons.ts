@@ -209,8 +209,6 @@ export const Icons = {
   rotateBack: RotateCcw,
 } as const satisfies Record<string, LucideIcon>
 
-export type IconName = keyof typeof Icons
-
 /** Lowercase extension of a filename (the whole lowercased name when it
  * has no dot). */
 export function fileExtension(filename: string): string {

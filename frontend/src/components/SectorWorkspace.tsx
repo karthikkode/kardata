@@ -82,7 +82,7 @@ export interface ResearchActions {
   plan(): void; approve(version: number, contextVersion?: number): void; start(): void; pause(): void; resume(): void; edit(markdown: string): Promise<boolean>
 }
 
-export const WORKSPACE_RAIL_STORAGE_KEY = 'kardata-workspace-rail'
+const WORKSPACE_RAIL_STORAGE_KEY = 'kardata-workspace-rail'
 
 function readRailHidden(): boolean {
   try {
@@ -629,7 +629,7 @@ function AgentDirectory({ model, onOpen, onSpawn, onStop }: { model: SectorWorks
   )
 }
 /** Spawn dialog (A15): goal plus an optional name for the child. */
-export function SpawnSubagentDialog({ busy, onClose, onStart }: { busy: boolean; onClose(): void; onStart(goal: string, name?: string): Promise<boolean> }) {
+function SpawnSubagentDialog({ busy, onClose, onStart }: { busy: boolean; onClose(): void; onStart(goal: string, name?: string): Promise<boolean> }) {
   const [goal, setGoal] = useState('')
   const [name, setName] = useState('')
   const goalRef = useRef<HTMLTextAreaElement | null>(null)

@@ -37,12 +37,10 @@ async function read<T>(config: StagingConfig, method: string, path: string, sche
 }
 export const getGlobalContext = (config: StagingConfig, id: string) => read(config, 'GET', `${sectorPath(id)}/global-context`, Global)
 export const saveGlobalContext = (config: StagingConfig, id: string, baseVersion: number, sections: Sections) => read(config, 'PATCH', `${sectorPath(id)}/global-context`, Change, { baseVersion, sections })
-export const proposeGlobalContext = (config: StagingConfig, id: string, baseVersion: number, sections: Sections, sourceThread: string) => read(config, 'POST', `${sectorPath(id)}/global-context/proposals`, Change, { baseVersion, sections, sourceThread })
 export const decideGlobalContext = (config: StagingConfig, id: string, proposalId: string, approve: boolean) => read(config, 'POST', `${sectorPath(id)}/global-context/proposals/${encodeURIComponent(proposalId)}/decision`, Change, { approve })
 export const getSectorFiles = (config: StagingConfig, id: string) => read(config, 'GET', `${sectorPath(id)}/files`, z.array(File))
 export const getSectorFileBody = (config: StagingConfig, id: string, fileId: string) => read(config, 'GET', `${sectorPath(id)}/files/${encodeURIComponent(fileId)}/body`, FileBody)
 export const hideSectorFile = (config: StagingConfig, id: string, fileId: string, hidden: boolean) => read(config, 'PATCH', `${sectorPath(id)}/files/${encodeURIComponent(fileId)}`, File, { hidden })
-export const includeSectorFile = (config: StagingConfig, id: string, fileId: string, baseVersion: number, sourceThread: string) => read(config, 'POST', `${sectorPath(id)}/files/${encodeURIComponent(fileId)}/context`, Change, { baseVersion, sourceThread })
 const Block = z.object({ fileId: z.string(), filename: z.string(), state: z.string(), tokens: z.number(), summary: z.string(), error: z.string().nullable() }).passthrough()
 export const addFileToGlobalContext = (config: StagingConfig, id: string, fileId: string) => read(config, 'POST', `${sectorPath(id)}/global-context/files`, Block, { fileId })
 export const summarizeGlobalContextFile = (config: StagingConfig, id: string, fileId: string) => read(config, 'POST', `${sectorPath(id)}/global-context/files/${encodeURIComponent(fileId)}/summarize`, Block)

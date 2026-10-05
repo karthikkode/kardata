@@ -46,27 +46,6 @@ function MenuItem({ className, ...props }: React.ComponentProps<typeof Menu.Item
   )
 }
 
-function MenuCheckboxItem({ className, children, ...props }: React.ComponentProps<typeof Menu.CheckboxItem>) {
-  return (
-    <Menu.CheckboxItem
-      data-slot="menu-checkbox-item"
-      className={cn(
-        'relative flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm py-1 pr-2 pl-8 text-left text-ui outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-surface-hover data-highlighted:text-foreground [&_svg]:size-4 [&_svg]:shrink-0',
-        className,
-      )}
-      {...props}
-    >
-      <Menu.CheckboxItemIndicator
-        data-slot="menu-checkbox-item-indicator"
-        className="absolute left-2 flex size-4 items-center justify-center text-primary-text"
-      >
-        <Check aria-hidden />
-      </Menu.CheckboxItemIndicator>
-      {children}
-    </Menu.CheckboxItem>
-  )
-}
-
 function MenuRadioGroup(props: React.ComponentProps<typeof Menu.RadioGroup>) {
   return <Menu.RadioGroup data-slot="menu-radio-group" {...props} />
 }
@@ -159,7 +138,6 @@ export {
   MenuTrigger,
   MenuPopup,
   MenuItem,
-  MenuCheckboxItem,
   MenuRadioGroup,
   MenuRadioItem,
   MenuLabel,

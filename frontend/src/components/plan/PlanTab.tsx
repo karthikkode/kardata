@@ -155,7 +155,7 @@ export function ResearchPlanTab({
 
 /** Empty plan (PL-05): first-run empty, or the planning skeleton while
  * the agent drafts. */
-export function PlanEmpty({ planning, onPlan }: { planning: boolean; onPlan(): void }) {
+function PlanEmpty({ planning, onPlan }: { planning: boolean; onPlan(): void }) {
   if (planning) {
     return (
       <div>

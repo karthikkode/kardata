@@ -164,14 +164,14 @@ function isHttpUrl(value: string): boolean {
  return value.startsWith('http://') || value.startsWith('https://')
 }
 
-export interface WorkReviewSelection {
+interface WorkReviewSelection {
  item: ResearchProgress['items'][number]
  version: number
 }
 
 /** Intake review dialog (PL-09, shared with SL-04): candidate evidence on
  * the left, the owner's decision on the right. */
-export function WorkReviewDialog({
+function WorkReviewDialog({
  open, onClose, selected, latest, stale, safe, resource, review, reason, onReasonChange, onReviewLatest, onDecided,
 }: {
  open: boolean

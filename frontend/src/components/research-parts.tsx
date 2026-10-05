@@ -3,7 +3,7 @@ import { Icons } from '@/lib/icons'
 import { companyStageLabel } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 import { researchStages } from '../data/stages'
-import type { CompanyResearch, SectorResearch } from '../data/research'
+import type { CompanyResearch } from '../data/research'
 import { StatusPill } from './StatusPill'
 import { CardTitle, Description, Label } from './text'
 import { Badge, type BadgeTone } from './ui/badge'
@@ -23,7 +23,7 @@ export const stateLabel = {
   complete: 'Complete',
 } as const
 
-export const stateTone = {
+const stateTone = {
   draft: 'idle',
   planning: 'working',
   planned: 'paused',
@@ -61,48 +61,6 @@ export function StateBadge({ state }: { state: keyof typeof stateLabel }) {
       <span aria-hidden className="size-1.5 rounded-full bg-current" />
       {stateLabel[state]}
     </Badge>
-  )
-}
-
-export const firstRunCopy = {
-  sectors:
-    'No sector researches yet. Start one from Researches to see companies found here.',
-  companies:
-    'No company researches yet. Companies picked from a sector research show up here.',
-} as const
-
-// Both row anatomies share one height so side-by-side lists keep the same
-// rhythm. Content centers vertically; sector rows gain even breathing room,
-// never filler content.
-export function SectorRow({
-  research,
-  onOpen,
-}: {
-  research: SectorResearch
-  onOpen: (id: string) => void
-}) {
-  return (
-    <li className="border-b border-border last:border-0">
-      <button
-        type="button"
-        onClick={() => onOpen(research.id)}
-        aria-label={`Open ${research.name}`}
-        className="flex min-h-14 w-full cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 py-3 text-left transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:bg-surface-hover motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
-      >
-        <span className="min-w-32 flex-1 basis-32">
-          <span className="block truncate text-sm font-medium">{research.name}</span>
-          <span className="block truncate text-xs text-muted-foreground">
-            {research.topic}
-          </span>
-        </span>
-        <span className="inline-flex h-7 w-24 shrink-0 items-center justify-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-sm">
-          <span className="font-medium tabular-nums">{research.companiesFound}</span>
-          <span className="text-muted-foreground">found</span>
-        </span>
-        <StatusPill tone={stateTone[research.state]} label={stateLabel[research.state]} className="h-7 w-32 justify-center" />
-        <Icons.chevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-      </button>
-    </li>
   )
 }
 
@@ -300,7 +258,7 @@ export function PanelError({
 // Overflow standard: past OVERFLOW_THRESHOLD rows the list scrolls in
 // place under a truthful total chip instead of growing the page. One
 // implementation for every surface; small lists render plain rows.
-export const OVERFLOW_THRESHOLD = 50
+const OVERFLOW_THRESHOLD = 50
 
 export function OverflowList({
   total,

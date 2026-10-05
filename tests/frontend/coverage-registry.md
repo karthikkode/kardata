@@ -302,8 +302,6 @@ No suitable surface (honest non-adoption, not silent gaps):
   listboxes own durable positioning, dismissal choreography, and pinned
   focus contracts (`chat-staging`, transitions clip). Transplanting them
   would risk that behavior for no user-visible gain.
-- `ui/searchable`: no backend-supplied long-list selection exists outside
-  the model menu above; short lists correctly use `ui/select`.
 - `ui/switch` for approvals: approval acknowledgment must never become a
   switch (the adopted switches are genuine boolean settings only).
 

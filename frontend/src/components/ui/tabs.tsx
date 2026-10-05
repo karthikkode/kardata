@@ -12,7 +12,7 @@ import { LazyMotion, domAnimation, m } from 'motion/react'
 import { tabIndicatorTransition } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 
-export type TabsVariant = 'underline' | 'segmented'
+type TabsVariant = 'underline' | 'segmented'
 
 const TabsVariantContext = React.createContext<{ variant: TabsVariant; groupId: string }>({
   variant: 'underline',

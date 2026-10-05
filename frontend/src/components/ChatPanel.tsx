@@ -66,7 +66,7 @@ import { IconButton } from './IconButton'
 
 export type ChatScope = { id: string; name: string } | null
 
-export type ChatText = {
+type ChatText = {
   id: string
   kind: 'text'
   role: 'user' | 'agent'
@@ -461,7 +461,7 @@ function renderMentionChips(text: string, files: ChatFile[]) {
   })
 }
 
-export interface ReasoningControl {
+interface ReasoningControl {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
