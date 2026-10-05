@@ -109,3 +109,5 @@ jobs:
         with:
           name: browser-agent-context-integration
           path: frontend/test-results/
+      - name: No test rewrote tracked files
+        run: git diff --exit-code
