@@ -3973,12 +3973,6 @@
   tiers:
     - todo
   states: []
-- id: db.workspace_research.retainCompatibleDiscovery
-  layer: db
-  surface: backend/src/db/workspace-research.ts
-  tiers:
-    - todo
-  states: []
 - id: db.workspace_threads.saveInheritedContext
   layer: db
   surface: backend/src/db/workspace-threads.ts
