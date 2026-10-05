@@ -2150,7 +2150,7 @@
     },
     {
       "path": "backend/src/mcp/tools.ts",
-      "sha256": "7f01c680c530bd2ab17ebb4fa4e6c5017ab3f4fbe8cd4af88ff86083ce56f327",
+      "sha256": "79fc3dac0bf4fd09ac9ba0987b16d71d122df1cb422bb200139b3d825e86d321",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2587,15 +2587,17 @@
     },
     {
       "path": "backend/src/temporal/activities/context-files.ts",
-      "sha256": "224d0f3b6d7c8a7e7c79a3bc9850f352f2d16c4175cff5a8e75e643e80c97699",
+      "sha256": "9a90e789bc4eee688d652ab6d91d0347d5702698dd2d1cc6287771d9b036623b",
       "review": "pending",
       "tests": [],
       "exports": [
+        "CONTEXT_FILE_CALL_TIMEOUT_MS",
         "CONTEXT_FILE_MODEL",
         "ContextCompactionInput",
         "ContextFileActivitiesDeps",
         "ContextFileSummaryInput",
         "buildContextFilePrompt",
+        "chatWithTimeout",
         "compactGlobalContextActivity",
         "createContextFileActivities",
         "summarizeContextFileActivity"
@@ -2784,7 +2786,7 @@
     },
     {
       "path": "backend/src/temporal/activities/turn.ts",
-      "sha256": "5567158ce0fb666020bf7364d37bcacaa64ef2b00108212d9ed33f2b03046c15",
+      "sha256": "6d2974bda65d8fe23eeebc0f4361f3e326f6eeef272b8bb0ec2cd490120fbbce",
       "review": "pending",
       "tests": [],
       "exports": [
@@ -2797,6 +2799,7 @@
         "KarbotTurnInput",
         "KarbotTurnLogFields",
         "McpAuthProbe",
+        "PLANNING_ROUND_TIMEOUT_MS",
         "PRODUCT_TOOLS",
         "RESEARCH_TOOLS",
         "RESEARCH_TURN_WALL_MS",
@@ -2821,6 +2824,7 @@
         "selectTurnContinuation",
         "turnContextSnapshot",
         "turnPalette",
+        "turnRoundTimeoutMs",
         "turnSectorRefs"
       ]
     },
@@ -5073,7 +5077,7 @@
     },
     {
       "path": "tests/backend/context-files.test.ts",
-      "sha256": "6d562ca103d7350963a48e0fb867b50ba74395102afbd05ef311a1995690ec44",
+      "sha256": "278d5691e329f9017211df0478aa2502ae633ec741b6ffdb823c6b6ff55c675c",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5432,8 +5436,15 @@
       "exports": []
     },
     {
+      "path": "tests/backend/karbot.turn-timeout.test.ts",
+      "sha256": "7ce02d079f64605b9802824bce7bcf1d0602f6c7b9bb794293181a345e154ebc",
+      "review": "pending",
+      "tests": [],
+      "exports": []
+    },
+    {
       "path": "tests/backend/karbot.turn.test.ts",
-      "sha256": "b90cf266fe4f7970d9920aa4590ce85570bcf6cc7cc01fc0de7594b6945f3ea6",
+      "sha256": "36474963ea1908d4c423459e77e6bca574ffad35f223f88c3754aa6c00c2d7eb",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5507,14 +5518,14 @@
     },
     {
       "path": "tests/backend/live/stage2.live.test.ts",
-      "sha256": "4cbedad04fbb24bdf5ac3ee61e3c75f977c049ef133a93359f3b3e6870b1c6e1",
+      "sha256": "cf3fc7beb9e2cdea1fca9df62c054c97265a891c2a1f4a95a8fe5809ef5c29c1",
       "review": "pending",
       "tests": [],
       "exports": []
     },
     {
       "path": "tests/backend/live/stage3.live.test.ts",
-      "sha256": "372d8ee87590b4ccfbb41563d57b11878f8467032a3d9ab9c1aab2ca95d11010",
+      "sha256": "b41c04694f31368b3585471bb2f64284f05898f1cff040e3e8b5cb6ce2c4d01e",
       "review": "pending",
       "tests": [],
       "exports": []
@@ -5881,7 +5892,7 @@
     },
     {
       "path": "tests/backend/subagent-delegate.test.ts",
-      "sha256": "bdef5ac8db956953c122ac7b48dc164b8d9fcbd25cc2e8b0d23ed649f0bb9920",
+      "sha256": "686c4bf397716ad0edb5ae7c38de6f58c800385ab9960926e88219ef8696247e",
       "review": "pending",
       "tests": [],
       "exports": []

@@ -10012,7 +10012,21 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/temporal/activities/context-files.ts#chatWithTimeout",
+      "source": "backend/src/temporal/activities/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/temporal/activities/context-files.ts#compactGlobalContextActivity",
+      "source": "backend/src/temporal/activities/context-files.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/context-files.ts#CONTEXT_FILE_CALL_TIMEOUT_MS",
       "source": "backend/src/temporal/activities/context-files.ts",
       "kind": "export",
       "features": [],
@@ -10768,6 +10782,13 @@
       "status": "pending"
     },
     {
+      "id": "backend/src/temporal/activities/turn.ts#PLANNING_ROUND_TIMEOUT_MS",
+      "source": "backend/src/temporal/activities/turn.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
       "id": "backend/src/temporal/activities/turn.ts#PRODUCT_TOOLS",
       "source": "backend/src/temporal/activities/turn.ts",
       "kind": "export",
@@ -10881,6 +10902,13 @@
     },
     {
       "id": "backend/src/temporal/activities/turn.ts#turnPalette",
+      "source": "backend/src/temporal/activities/turn.ts",
+      "kind": "export",
+      "features": [],
+      "status": "pending"
+    },
+    {
+      "id": "backend/src/temporal/activities/turn.ts#turnRoundTimeoutMs",
       "source": "backend/src/temporal/activities/turn.ts",
       "kind": "export",
       "features": [],
