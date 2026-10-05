@@ -9,7 +9,6 @@ import type { ResearchState } from '../../data/api/sectors'
 import type { SectorPlanView } from '../../data/api/plans'
 import type { GlobalContext } from '../../data/api/context'
 import type { ResearchProgress } from '../../data/api/progress'
-import type { ResearchActions } from '../SectorWorkspace'
 import type { WorkReview } from '../plan-progress'
 import { formatFullDate, relativeAge } from '../../lib/format'
 import { PlanDocument } from '../shells'
@@ -27,6 +26,11 @@ import { Caption, CardTitle, Description } from '../text'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { TooltipPopup, TooltipRoot, TooltipTrigger } from '../ui/tooltip'
+
+export interface ResearchActions {
+  busy: boolean; error: string | null
+  plan(): void; approve(version: number, contextVersion?: number): void; start(): void; pause(): void; resume(): void; edit(markdown: string): Promise<boolean>
+}
 
 export function ResearchPlanTab({
   sectorState,

@@ -30,7 +30,7 @@ import { toThreadSegments } from './chat/assistantAdapter'
 import { Markdown } from './Markdown'
 import { SectorFilePreview } from './SectorFilePreview'
 import { subagentDisplayName } from './SubagentsPanel'
-import { ResearchPlanTab } from './plan/PlanTab'
+import { ResearchPlanTab, type ResearchActions } from './plan/PlanTab'
 import { ModelToolbar } from './ModelToolbar'
 import { StateBadge } from './research-parts'
 import { GlobalContextPanel } from './global-context-panel'
@@ -79,11 +79,6 @@ export function activateNeighbor(
       .querySelector<HTMLButtonElement>(`[data-tab-scope="${scope}"][data-tab-value="${next}"]`)
       ?.focus()
   })
-}
-
-export interface ResearchActions {
-  busy: boolean; error: string | null
-  plan(): void; approve(version: number, contextVersion?: number): void; start(): void; pause(): void; resume(): void; edit(markdown: string): Promise<boolean>
 }
 
 const WORKSPACE_RAIL_STORAGE_KEY = 'kardata-workspace-rail'
