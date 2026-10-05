@@ -1,5 +1,14 @@
 # Implementation status
 
+## 2026-10-06 — Phase 6 frontend matrix (branch p2-6-frontend, unmerged)
+35 commits: seam hooks (27 components, 0 dep violations), shared
+Skeleton, 69 matrix specs (373 tests, 7 checks each), failure matrix
+(23 GET + 16 mutations x9 + 6 offline), 30s timeout, live-state truth
+(terminal release + orphan banner, migration 0028), scale budgets
+(7 specs), ui:review wiring, registry 1019 entries at 0 todos.
+`npm run quality` green. No suites run (D1): ~740 frontend tests are
+written-but-unrun; grading + budget measurement await final verify.
+
 Phase 2 Phase 4: capacity, recovery, fault drills (2026-10-06, branch
 `p2-4-capacity`, 30 commits, reviews deferred to post-Phase-7 per
 owner directive). P4.2 knobs (slots, Meta permit table, child caps,
