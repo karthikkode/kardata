@@ -1,0 +1,315 @@
+// GET endpoint failure matrix (P6.4): every unary read endpoint x 9 faults
+// (500/401/403/404/409/429/32s-timeout/abort/malformed). Verified cases
+// assert the designed error/denied UI + retry + draft kept, then heal.
+// Unverified cases (sessions/providers/skills/artifacts/queue: no proven
+// error UI) assert chrome intact + console clean + a grading shot, and the
+// review package records them for verification follow-up. Page-level
+// offline (navigator) is covered per consumer below; per-endpoint abort
+// while online maps to the error UI by apiErrorStatus design.
+import { expect, test } from '@playwright/test'
+import { serveApi } from '../support/api'
+import { makeCompanies, makeSessions, matrixSector } from '../support/factory'
+import { FAULTS, runFault, type FaultCase } from '../support/failures'
+
+test.describe.configure({ timeout: 120_000 })
+
+const DOCK = [{ click: { kind: 'role', role: 'button', name: 'Ask Karbot' } }] as const
+const TRY_AGAIN = { kind: 'role', role: 'button', name: 'Try again' } as const
+const DENIED_COPY = { kind: 'text', text: 'Ask an owner for access, then try again.' } as const
+const CHAT = '/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001'
+
+const CASES: FaultCase[] = [
+  {
+    id: 'frontend.src.components.ResearchesPage', label: 'GET /v1/sectors', method: 'GET',
+    pattern: /\/v1\/sectors(\?.*)?$/, route: '/?section=Researches',
+    setup: [{ click: { kind: 'text', text: 'Sectors' } }],
+    errorAnchors: [{ kind: 'role', role: 'alert' }],
+    deniedAnchors: [DENIED_COPY],
+    healAnchors: [
+      { kind: 'role', role: 'heading', name: 'Researches' },
+      { kind: 'text', text: 'Matrix Trades' },
+    ],
+    retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
+    draftFill: { kind: 'role', role: 'textbox', name: 'Search sectors' }, draftText: 'Matrix',
+    refetch: { steps: [{ fill: { kind: 'role', role: 'textbox', name: 'Search sectors' }, text: 'Matrix T' }] },
+  },
+  {
+    id: 'frontend.src.components.SectorLanding', label: 'GET /v1/sectors/:id', method: 'GET',
+    pattern: /\/v1\/sectors\/[^/?]+$/, route: '/?section=SectorDetail&sector=sector-matrix',
+    errorAnchors: [{ kind: 'role', role: 'alert' }],
+    deniedAnchors: [DENIED_COPY],
+    healAnchors: [
+      { kind: 'role', role: 'region', name: 'Research status' },
+      { kind: 'role', role: 'button', name: 'Open workspace' },
+    ],
+    retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
+    refetch: { reload: true },
+  },
+  {
+    id: 'frontend.src.components.CompaniesSection', label: 'GET /v1/companies', method: 'GET',
+    pattern: /\/v1\/companies/, route: '/?section=Researches',
+    setup: [{ click: { kind: 'text', text: 'Companies' } }],
+    errorAnchors: [{ kind: 'role', role: 'alert' }],
+    deniedAnchors: [DENIED_COPY],
+    healAnchors: [
+      { kind: 'role', role: 'region', name: 'Companies' },
+      { kind: 'text', text: 'Matrix Spark Electrical 1' },
+    ],
+    retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
+    draftFill: { kind: 'role', role: 'textbox', name: 'Search companies' }, draftText: 'Matrix',
+    refetch: { steps: [{ fill: { kind: 'role', role: 'textbox', name: 'Search companies' }, text: 'Matrix S' }] },
+  },
+  {
+    id: 'frontend.src.components.chat.SessionsPanel', label: 'GET /v1/sessions', method: 'GET',
+    pattern: /\/v1\/sessions(\?.*)?$/, route: '/',
+    setup: [...DOCK],
+    healAnchors: [{ kind: 'role', role: 'complementary', name: 'Assistant chat' }],
+    refetch: { reload: true },
+    unverified: true,
+  },
+  {
+    id: 'frontend.src.components.chat.ChatLog', label: 'GET /v1/sessions/:id/threads', method: 'GET',
+    pattern: /\/v1\/sessions\/[^/]+\/threads/, route: '/',
+    setup: [...DOCK],
+    errorAnchors: [{ kind: 'role', role: 'alert' }],
+    deniedAnchors: [{ kind: 'text', text: 'Chat is not shared with this key.' }],
+    healAnchors: [
+      { kind: 'role', role: 'complementary', name: 'Assistant chat' },
+      { kind: 'role', role: 'log', name: 'Chat messages' },
+    ],
+    retry: TRY_AGAIN,
+    draftFill: { kind: 'role', role: 'textbox' }, draftText: 'unsent draft',
+    refetch: { steps: [
+      { click: { kind: 'css', css: '[aria-label="Chat sessions"]' } },
+      { click: { kind: 'text', text: 'Matrix chat 2' } },
+    ] },
+  },
+  {
+    id: 'frontend.src.components.chat.ChatLog', label: 'GET /v1/threads/:key/messages', method: 'GET',
+    pattern: /\/v1\/threads\/[^/]+\/messages/, route: '/',
+    setup: [...DOCK],
+    errorAnchors: [{ kind: 'role', role: 'alert' }],
+    deniedAnchors: [{ kind: 'text', text: 'Chat is not shared with this key.' }],
+    healAnchors: [
+      { kind: 'role', role: 'complementary', name: 'Assistant chat' },
+      { kind: 'role', role: 'log', name: 'Chat messages' },
+    ],
+    retry: TRY_AGAIN,
+    draftFill: { kind: 'role', role: 'textbox' }, draftText: 'unsent draft',
+    refetch: { steps: [
+      { click: { kind: 'css', css: '[aria-label="Chat sessions"]' } },
+      { click: { kind: 'text', text: 'Matrix chat 2' } },
+    ] },
+  },
+  {
+    id: 'frontend.src.components.RunsPanel', label: 'GET /v1/runs', method: 'GET',
+    pattern: /\/v1\/runs/, route: '/?section=Agents',
+    errorAnchors: [{ kind: 'role', role: 'alert' }],
+    deniedAnchors: [DENIED_COPY],
+    healAnchors: [
+      { kind: 'role', role: 'region', name: 'Runs' },
+      { kind: 'role', role: 'table' },
+    ],
+    retry: TRY_AGAIN,
+    draftFill: { kind: 'role', role: 'textbox', name: 'Search runs' }, draftText: 'mx-run',
+    refetch: { steps: [{ fill: { kind: 'role', role: 'textbox', name: 'Search runs' }, text: 'mx-run-00' }] },
+  },
+  {
+    id: 'frontend.src.components.ModelToolbar', label: 'GET /v1/providers', method: 'GET',
+    pattern: /\/v1\/providers/, route: CHAT,
+    healAnchors: [{ kind: 'css', css: '[aria-label="Choose a model"]' }],
+    refetch: { reload: true },
+    unverified: true,
+  },
+  {
+    id: 'frontend.src.components.chat.ChatComposer', label: 'GET /v1/skills', method: 'GET',
+    pattern: /\/v1\/skills/, route: '/',
+    setup: [...DOCK],
+    healAnchors: [
+      { kind: 'role', role: 'complementary', name: 'Assistant chat' },
+      { kind: 'role', role: 'textbox' },
+    ],
+    refetch: { reload: true },
+    silent: true,
+  },
+  {
+    id: 'frontend.src.components.chat.SessionFiles', label: 'GET session artifacts', method: 'GET',
+    pattern: /\/artifacts/, route: '/',
+    setup: [...DOCK],
+    healAnchors: [
+      { kind: 'role', role: 'complementary', name: 'Assistant chat' },
+      { kind: 'css', css: '[aria-label="Session files"]' },
+    ],
+    refetch: { reload: true },
+    unverified: true,
+  },
+  {
+    id: 'frontend.src.components.global_context_panel', label: 'GET global-context', method: 'GET',
+    pattern: /\/global-context$/, route: CHAT,
+    errorAnchors: [{ kind: 'role', role: 'alert' }],
+    deniedAnchors: [DENIED_COPY],
+    healAnchors: [{ kind: 'css', css: '[aria-label="Global context"]' }],
+    retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
+    refetch: { reload: true },
+  },
+  {
+    id: 'frontend.src.components.workspace_files', label: 'GET sector files', method: 'GET',
+    pattern: /\/files(\?.*)?$/, route: CHAT,
+    errorAnchors: [{ kind: 'role', role: 'alert' }],
+    deniedAnchors: [DENIED_COPY],
+    healAnchors: [{ kind: 'css', css: '[aria-label="Sector files"]' }],
+    retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
+    refetch: { reload: true },
+  },
+  {
+    id: 'frontend.src.components.SectorFilePreview', label: 'GET file body', method: 'GET',
+    pattern: /\/files\/[^/]+\/body/, route: CHAT,
+    setup: [{ click: { kind: 'text', text: 'parramatta-crew-notes.md' } }],
+    errorAnchors: [{ kind: 'role', role: 'alert' }],
+    deniedAnchors: [DENIED_COPY],
+    healAnchors: [
+      { kind: 'text', text: 'File preview' },
+      { kind: 'role', role: 'note' },
+    ],
+    retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
+    refetch: { steps: [
+      { press: 'Escape' },
+      { click: { kind: 'text', text: 'parramatta-crew-notes.md' } },
+    ] },
+  },
+  {
+    id: 'frontend.src.components.local_context_editor', label: 'GET thread context', method: 'GET',
+    pattern: /\/v1\/threads\/[^/]+\/context$/, route: CHAT,
+    setup: [
+      { click: { kind: 'role', role: 'button', name: 'Conversation options' } },
+      { click: { kind: 'role', role: 'menuitem', name: 'Local context' } },
+    ],
+    errorAnchors: [{ kind: 'role', role: 'alert' }],
+    deniedAnchors: [DENIED_COPY],
+    healAnchors: [{ kind: 'text', text: 'Local context' }],
+    retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
+    refetch: { steps: [
+      { press: 'Escape' },
+      { click: { kind: 'role', role: 'button', name: 'Conversation options' } },
+      { click: { kind: 'role', role: 'menuitem', name: 'Local context' } },
+    ] },
+  },
+  {
+    id: 'frontend.src.components.plan_progress', label: 'GET research progress', method: 'GET',
+    pattern: /\/progress$/, route: CHAT,
+    setup: [{ click: { kind: 'css', css: '[data-tab-value="plan"]' } }],
+    errorAnchors: [{ kind: 'role', role: 'alert' }],
+    deniedAnchors: [DENIED_COPY],
+    healAnchors: [
+      { kind: 'css', css: '[data-tab-value="plan"]' },
+      { kind: 'role', role: 'region', name: 'Research progress' },
+    ],
+    retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
+    refetch: { reload: true },
+  },
+  {
+    id: 'frontend.src.components.plan.PlanTab', label: 'GET sector plan', method: 'GET',
+    pattern: /\/plan$/, route: CHAT,
+    setup: [{ click: { kind: 'css', css: '[data-tab-value="plan"]' } }],
+    errorAnchors: [{ kind: 'role', role: 'alert' }],
+    deniedAnchors: [DENIED_COPY],
+    healAnchors: [
+      { kind: 'css', css: '[data-tab-value="plan"]' },
+      { kind: 'role', role: 'region', name: 'Research progress' },
+    ],
+    retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
+    refetch: { reload: true },
+  },
+  {
+    id: 'frontend.src.components.SupervisionAlertsPanel', label: 'GET /v1/alerts', method: 'GET',
+    pattern: /\/v1\/alerts/, route: '/?section=Agents',
+    errorAnchors: [{ kind: 'role', role: 'alert' }],
+    deniedAnchors: [DENIED_COPY],
+    healAnchors: [
+      { kind: 'role', role: 'region', name: 'Alerts' },
+      { kind: 'css', css: '[aria-label="Current warnings"]' },
+    ],
+    retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
+    refetch: { reload: true },
+  },
+  {
+    id: 'frontend.src.components.ExecutionInspector', label: 'GET execution records', method: 'GET',
+    pattern: /\/execution-records/, route: CHAT,
+    setup: [
+      { click: { kind: 'role', role: 'button', name: 'Conversation options' } },
+      { click: { kind: 'role', role: 'menuitem', name: 'Execution records' } },
+    ],
+    errorAnchors: [{ kind: 'role', role: 'alert' }],
+    deniedAnchors: [DENIED_COPY],
+    healAnchors: [{ kind: 'role', role: 'dialog', name: 'Execution records' }],
+    retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
+    refetch: { steps: [
+      { press: 'Escape' },
+      { click: { kind: 'role', role: 'button', name: 'Conversation options' } },
+      { click: { kind: 'role', role: 'menuitem', name: 'Execution records' } },
+    ] },
+  },
+  {
+    id: 'frontend.src.components.local_context_editor', label: 'GET operation receipt', method: 'GET',
+    pattern: /\/operations\//, route: CHAT,
+    setup: [
+      { click: { kind: 'role', role: 'button', name: 'Conversation options' } },
+      { click: { kind: 'role', role: 'menuitem', name: 'Local context' } },
+    ],
+    errorAnchors: [{ kind: 'role', role: 'alert' }],
+    deniedAnchors: [DENIED_COPY],
+    healAnchors: [{ kind: 'text', text: 'Local context' }],
+    retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
+    refetch: { steps: [{ click: { kind: 'role', role: 'button', name: 'Inspect receipt' } }] },
+  },
+  {
+    id: 'frontend.src.components.SectorWorkspace', label: 'GET thread queue', method: 'GET',
+    pattern: /\/v1\/threads\/[^/]+\/queue$/, route: CHAT,
+    healAnchors: [{ kind: 'css', css: '[aria-label="Conversation messages"]' }],
+    refetch: { reload: true },
+    unverified: true,
+  },
+]
+
+for (const fc of CASES) {
+  for (const fault of FAULTS) {
+    test(`[F:${fc.id}] failure ${fc.label} ${fault}`, async ({ page }) => {
+      await runFault(page, fc, fault)
+    })
+  }
+}
+
+// Page-level offline (navigator down): every consumer route shows a
+// connection notice. Chrome anchors are skipped: offline UI replaces
+// content by design, and the matrix already proves the chrome.
+const OFFLINE_ROUTES: Array<{ label: string; route: string }> = [
+  { label: 'overview', route: '/' },
+  { label: 'researches', route: '/?section=Researches' },
+  { label: 'agents', route: '/?section=Agents' },
+  { label: 'models', route: '/?section=Models' },
+  { label: 'detail', route: '/?section=SectorDetail&sector=sector-matrix' },
+  { label: 'chat', route: CHAT },
+]
+
+for (const target of OFFLINE_ROUTES) {
+  test(`[F:frontend.src.components.shells] offline ${target.label} shows connection notice`, async ({ page }) => {
+    const errors: string[] = []
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') errors.push(msg.text().slice(0, 300))
+    })
+    page.on('pageerror', (error) => errors.push(String(error).slice(0, 300)))
+    await serveApi(page, {
+      stream: 'static',
+      modes: { sectors: 'offline', companies: 'offline', sessions: 'offline', runs: 'offline', alerts: 'offline', progress: 'offline', plan: 'offline', files: 'offline', global: 'offline' },
+      data: { sectors: [matrixSector()], companies: makeCompanies(8), sessions: makeSessions(8) },
+    })
+    await page.context().setOffline(true)
+    try {
+      await page.goto(target.route)
+      await expect(page.getByText('No connection').first()).toBeVisible({ timeout: 15000 })
+    } finally {
+      await page.context().setOffline(false)
+    }
+    expect(errors, `console errors: ${errors.join(' | ')}`).toEqual([])
+  })
+}
