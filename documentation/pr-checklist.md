@@ -24,6 +24,8 @@ until it is on, no agent merges on its own verification alone.
   Proof: `package.json` diff empty, no new root entries.
 - [ ] No unrelated refactors or drive-by cleanup. Proof: each touched file
   named with its reason.
+- [ ] Checked the reuse map and the registry; `npm run quality:dup` did not
+  rise. Proof: before/after duplication %.
 
 ### Gates and tests
 
