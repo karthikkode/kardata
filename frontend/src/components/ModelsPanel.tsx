@@ -2,13 +2,12 @@
 // row comes from the backend: GET /v1/providers for the catalog (key
 // presence only, never key material) and the session read/write pair for
 // the binding. No fixtures, no guessed models.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icons } from '@/lib/icons'
 import { humanizeKey } from '@/lib/format'
 import { notify } from '@/lib/toast'
 import {
   getSession,
-  listProviders,
   listSessions,
   setSessionModel,
   apiErrorStatus,
@@ -18,6 +17,7 @@ import {
   type SessionModelSelection,
   type StagingConfig,
 } from '../data/staging-api'
+import { useModelCatalog, type CatalogStatus } from '../data/useModelCatalog'
 import { DeniedNotice, PanelError, UnavailableNotice } from './research-parts'
 import { BodySm, Caption, CardTitle } from './text'
 import { Button } from './ui/button'
@@ -25,12 +25,6 @@ import { FieldDescription, FieldLabel, FieldRoot } from './ui/field'
 import { SelectItem, SelectPopup, SelectRoot, SelectTrigger } from './ui/select'
 import { Skeleton } from './ui/skeleton'
 import { SwitchRoot } from './ui/switch'
-
-type LoadStatus = 'loading' | 'ready' | 'error' | 'denied' | 'offline'
-
-function statusOf(error: unknown): LoadStatus {
-  return apiErrorStatus(error)
-}
 
 /** Provider ids stay server spellings on the wire; the card shows the
  * plain-language label, humanized when the provider is unknown. */
@@ -205,10 +199,11 @@ export function ModelsPanel({
    * instead of inventing providers. */
   config: StagingConfig | null
 }) {
-  const [status, setStatus] = useState<LoadStatus>(() => (config ? 'loading' : 'ready'))
+  const catalog = useModelCatalog(config)
+  const { providers, defaultProvider } = catalog
   const [sessions, setSessions] = useState<Session[]>([])
-  const [providers, setProviders] = useState<ProviderEntry[]>([])
-  const [defaultProvider, setDefaultProvider] = useState('')
+  const [sessionsStatus, setSessionsStatus] = useState<CatalogStatus>(() => (config ? 'loading' : 'ready'))
+  const [sessionsAttempt, setSessionsAttempt] = useState(0)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [binding, setBinding] = useState<SessionModelSelection | null>(null)
   const [boundFor, setBoundFor] = useState<string | null>(null)
@@ -216,52 +211,52 @@ export function ModelsPanel({
   const [drafts, setDrafts] = useState<Record<string, { model: string; reasoning: boolean; effort?: string }>>({})
   const [saving, setSaving] = useState<string | null>(null)
   const [saveErrors, setSaveErrors] = useState<Record<string, string | null>>({})
-  const [attempt, setAttempt] = useState(0)
   const [bindingAttempt, setBindingAttempt] = useState(0)
   // A save that lands after its session read started leaves fresher
   // state than the read; the read then stays out of the way.
   const saveEpoch = useRef(0)
+  const status = catalog.status !== 'ready' ? catalog.status : sessionsStatus
 
-  // Catalog fetch with no synchronous state writes, so the effect below
-  // only subscribes. Retries set the loading state from their own event
-  // handlers instead.
-  const fetchCatalog = useCallback(() => {
+  useEffect(() => {
     if (!config) return undefined
     let live = true
-    Promise.all([listSessions(config), listProviders(config)])
-      .then(([rows, catalog]) => {
+    listSessions(config)
+      .then((rows) => {
         if (!live) return
         setSessions(rows)
-        setProviders(catalog.providers)
-        setDefaultProvider(catalog.defaultProvider)
-        setDrafts(
-          Object.fromEntries(
-            catalog.providers.map((entry) => [
-              entry.name,
-              { model: entry.defaultModel, reasoning: entry.models.find((model) => model.model === entry.defaultModel)?.reasoning === 'native', effort: 'high' },
-            ]),
-          ),
-        )
         setActiveSessionId((current) => {
           if (current && rows.some((row) => row.id === current)) return current
           return rows[0]?.id ?? null
         })
-        setStatus('ready')
+        setSessionsStatus('ready')
       })
       .catch((error: unknown) => {
         if (!live) return
-        setStatus(statusOf(error))
+        setSessionsStatus(apiErrorStatus(error))
       })
     return () => {
       live = false
     }
-  }, [config?.baseUrl, config?.apiKey, attempt]) // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config?.baseUrl, config?.apiKey, sessionsAttempt])
 
-  useEffect(() => fetchCatalog(), [fetchCatalog])
+  // Seed per-provider drafts once the catalog lands. Render-time, like
+  // the query keys: retries keep the user's picks.
+  if (providers.length > 0 && Object.keys(drafts).length === 0) {
+    setDrafts(
+      Object.fromEntries(
+        providers.map((entry) => [
+          entry.name,
+          { model: entry.defaultModel, reasoning: entry.models.find((model) => model.model === entry.defaultModel)?.reasoning === 'native', effort: 'high' },
+        ]),
+      ),
+    )
+  }
 
   function retryCatalog() {
-    setStatus('loading')
-    setAttempt((value) => value + 1)
+    catalog.reload()
+    setSessionsStatus('loading')
+    setSessionsAttempt((value) => value + 1)
   }
 
   // The binding follows the active session: the session read carries the

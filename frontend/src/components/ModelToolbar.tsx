@@ -6,16 +6,15 @@
 // persists immediately with PATCH /v1/sessions/:id/model. No fixtures,
 // no guessed models. Keyboard (arrows, Home/End, Enter, Esc, typeahead)
 // and collision-aware placement come from the Base UI menu primitive.
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Icons } from '@/lib/icons'
 import {
   getSession,
-  listProviders,
   setSessionModel,
-  apiErrorStatus,
   type ProviderEntry,
   type StagingConfig,
 } from '../data/staging-api'
+import { useModelCatalog } from '../data/useModelCatalog'
 import { providerLabel } from './ModelsPanel'
 import { Caption } from './text'
 import { Button } from './ui/button'
@@ -34,12 +33,6 @@ import {
   MenuTrigger,
 } from './ui/menu'
 import { SwitchRoot } from './ui/switch'
-
-type LoadStatus = 'loading' | 'ready' | 'error' | 'denied' | 'offline'
-
-function statusOf(error: unknown): LoadStatus {
-  return apiErrorStatus(error)
-}
 
 interface Draft {
   provider: string
@@ -122,46 +115,28 @@ export function ModelToolbar({
    * name, for composers with no room to spare. */
   modelLabel?: 'name' | 'generic'
 }) {
-  const [status, setStatus] = useState<LoadStatus>(() => (config ? 'loading' : 'ready'))
-  const [providers, setProviders] = useState<ProviderEntry[]>([])
+  const catalog = useModelCatalog(config)
+  const { providers, status } = catalog
   const [draft, setDraft] = useState<Draft>({ provider: '', model: '', reasoning: false })
   const [boundFor, setBoundFor] = useState<string | null>(null)
   const [bindingFailed, setBindingFailed] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [attempt, setAttempt] = useState(0)
   const [bindingAttempt, setBindingAttempt] = useState(0)
   const [query, setQuery] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [effortOpen, setEffortOpen] = useState(false)
   const saveEpoch = useRef(0)
 
-  const fetchCatalog = useCallback(() => {
-    if (!config) return undefined
-    let live = true
-    listProviders(config)
-      .then((catalog) => {
-        if (!live) return
-        setProviders(catalog.providers)
-        setDraft((current) => {
-          if (current.provider) return current
-          const seeded = defaultsOf(catalog.providers, catalog.defaultProvider)
-          const entry = catalog.providers.find((item) => item.name === seeded.provider)
-          const effort = seedEffort(seeded.model, entry?.models ?? [])
-          return effort === undefined ? seeded : { ...seeded, effort }
-        })
-        setStatus('ready')
-      })
-      .catch((error: unknown) => {
-        if (!live) return
-        setStatus(statusOf(error))
-      })
-    return () => {
-      live = false
-    }
-  }, [config?.baseUrl, config?.apiKey, attempt]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => fetchCatalog(), [fetchCatalog])
+  // Seed the draft from the catalog once providers land (the binding
+  // effect below overwrites with the stored selection when present).
+  // Render-time, like the query keys: retries keep the user's picks.
+  if (draft.provider === '' && providers.length > 0) {
+    const seeded = defaultsOf(providers, catalog.defaultProvider)
+    const entry = providers.find((item) => item.name === seeded.provider)
+    const effort = seedEffort(seeded.model, entry?.models ?? [])
+    setDraft(effort === undefined ? seeded : { ...seeded, effort })
+  }
 
   // Another picker instance opening its menu closes this one first, so a
   // split header/composer pair never holds two competing menus.
@@ -227,8 +202,7 @@ export function ModelToolbar({
   }, [config?.baseUrl, config?.apiKey, sessionId, bindingAttempt, providers]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function retryCatalog() {
-    setStatus('loading')
-    setAttempt((value) => value + 1)
+    catalog.reload()
   }
 
   function retryBinding() {

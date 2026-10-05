@@ -5412,3 +5412,9 @@
   tiers:
     - todo
   states: []
+- id: frontend.hook.useModelCatalog
+  layer: frontend
+  surface: frontend/src/data/useModelCatalog.ts
+  tiers:
+    - todo
+  states: []
