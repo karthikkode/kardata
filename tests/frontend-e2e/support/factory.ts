@@ -46,9 +46,6 @@ const MATRIX_SECTOR: FixtureSector = {
   topic: 'Electrical services',
   state: 'running',
   companiesFound: 0,
-  companiesTotal: 0,
-  activity: [],
-  activityTotal: 0,
   createdAt: FIXED_DAY,
   updatedAt: FIXED_NOW,
 }

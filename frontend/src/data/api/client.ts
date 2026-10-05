@@ -49,17 +49,32 @@ export function apiErrorStatus(error: unknown): 'offline' | 'denied' | 'error' {
   return 'error'
 }
 
+/** Unary requests fail at 30s with a retryable timeout (P6.4). Streams are
+ * excluded: SSE holds the socket open by design. */
+export const REQUEST_TIMEOUT_MS = 30_000
+
 export async function requestEnvelope<T>(config: StagingConfig, method: string, path: string, body?: unknown, signal?: AbortSignal, idempotencyKey?: string): Promise<{ data: T; nextAfterSeq?: number }> {
-  const response = await fetch(`${config.baseUrl}${path}`, {
-    method,
-    signal,
-    headers: {
-      authorization: `Bearer ${config.apiKey}`,
-      ...(idempotencyKey ? { 'idempotency-key': idempotencyKey } : {}),
-      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
+  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+  const combined = signal ? AbortSignal.any([signal, timeout]) : timeout
+  let response: Response
+  try {
+    response = await fetch(`${config.baseUrl}${path}`, {
+      method,
+      signal: combined,
+      headers: {
+        authorization: `Bearer ${config.apiKey}`,
+        ...(idempotencyKey ? { 'idempotency-key': idempotencyKey } : {}),
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+  } catch (error) {
+    // Caller-initiated cancels and network failures keep their existing
+    // paths; only a fired timeout becomes a retryable 408 with safe copy.
+    if (signal?.aborted) throw error
+    if (timeout.aborted) throw new StagingApiError(408, 'timeout', `request timed out: ${method} ${path}`)
+    throw error
+  }
   const parsed = (await response.json()) as {
     ok: boolean
     data?: T
