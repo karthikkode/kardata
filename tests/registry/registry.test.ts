@@ -1,8 +1,9 @@
 // Lean feature registry gate (Phase 1). No hashes, no per-file review
 // statuses: the YAML lists surfaces, tests carry [F:<id>] tags.
 // Always fails on: a surface missing from the YAML, a tag naming an
-// unknown id. With REGISTRY_ENFORCE=1 (default in Phase 7) it also fails
-// on `todo` entries and entries lacking a tagged test per listed tier.
+// unknown id. Enforcement is the default (Phase 7): it also fails on
+// `todo` entries and entries lacking a tagged test per listed tier.
+// REGISTRY_ENFORCE=0 opts out (report mode, for partial branches).
 // Tier-by-content is a heuristic (documented in tierOfFile); exactness
 // hardens in Phase 7.
 import { describe, expect, it } from 'vitest'
@@ -35,6 +36,13 @@ describe('registry gate', () => {
     const entries = loadRegistry(ROOT)
     const layers = new Set(entries.map((entry) => entry.layer))
     expect(layers.size).toBeGreaterThan(3)
+  })
+
+  it('enforces todo and tier coverage by default', () => {
+    if (process.env['REGISTRY_ENFORCE'] === '0') return
+    const result = checkRegistry(loadRegistry(ROOT), enumerateSurfaces(ROOT), scanTags(ROOT), { enforce: true })
+    expect(result.todo).toEqual([])
+    expect(result.gaps).toEqual([])
   })
 })
 
