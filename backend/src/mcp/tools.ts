@@ -107,6 +107,11 @@ export const TOOL_LAYER: Record<McpToolName, string> = {
   'ops.thread_queue': 'listThreadQueue',
   'ops.queue_remove': 'removeThreadQueueItem',
   'ops.queue_reorder': 'reorderThreadQueue',
+  'ops.list_alerts': 'listSupervisionAlerts',
+  'ops.thread_health': 'threadHealth',
+  'ops.cost': 'readThreadCost+readSectorCost',
+  'ops.sector_evaluation': 'readSectorEvaluation',
+  'ops.recent_activity': 'recentActivity',
 }
 
 /** Capability tier: read (viewer), write (operator), sensitive (approver
@@ -243,6 +248,11 @@ export const TOOL_META: Record<McpToolName, { description: string; minRole: Role
   'ops.thread_queue': { description: 'List a thread’s queued messages.', minRole: 'viewer' },
   'ops.queue_remove': { description: 'Remove one queued message. Sensitive: approver plus user confirmation.', minRole: 'approver' },
   'ops.queue_reorder': { description: 'Reorder a thread’s queue (ids must match exactly). Sensitive: approver plus user confirmation.', minRole: 'approver' },
+  'ops.list_alerts': { description: 'List supervision alerts, newest first, with an optional sector filter.', minRole: 'viewer' },
+  'ops.thread_health': { description: 'One thread’s liveness snapshot: state, queue, latest round, stalled flag.', minRole: 'viewer' },
+  'ops.cost': { description: 'Token cost for one thread (threadKey) or one sector (sectorId).', minRole: 'viewer' },
+  'ops.sector_evaluation': { description: 'Sector research quality, reliability and cost.', minRole: 'viewer' },
+  'ops.recent_activity': { description: 'Recent rounds, tool calls and events by trace or thread. No bodies or refs.', minRole: 'viewer' },
 }
 
 const preDispatchFailures = new WeakSet<object>()

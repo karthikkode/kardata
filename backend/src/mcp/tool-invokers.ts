@@ -38,6 +38,7 @@ import {
   listSectorSessions,
   listSectors,
   listSessions,
+  listSupervisionAlerts,
   listTenantArtifacts,
   listThreadHeaders,
   markCompanyFound,
@@ -48,10 +49,15 @@ import {
   readOutboxBacklog,
   readPartition,
   readResearchProgress,
+  readSectorCost,
   readSectorDocument,
+  readSectorEvaluation,
   readSectorPlan,
   readSectorThread,
+  readThreadCost,
+  recentActivity,
   recordHeartbeat,
+  threadHealth,
   recordLedgerProblem,
   deleteSession,
   renameSession,
@@ -572,6 +578,28 @@ export const INVOKERS: Invokers = {
       throw error
     }
   },
+  'ops.list_alerts': async (ctx, args) => {
+    if (!ctx.scope) throw new McpToolError('permission_denied', 'Notifications never use unscoped open-mode authority.')
+    let sectorId = args.sectorId
+    if (ctx.executionThread) {
+      const actor = await requireThread(ctx.pool, ctx.executionThread, ctx.scope)
+      sectorId = actor.session.sectorId ?? sectorId
+    }
+    const page = await listSupervisionAlerts(ctx.pool, ctx.scope, args.beforeSeq ?? Number.MAX_SAFE_INTEGER, args.limit ?? 20)
+    if (!sectorId) return page
+    return { items: page.items.filter((item) => item.sectorId === sectorId), nextBeforeSeq: page.nextBeforeSeq }
+  },
+  'ops.thread_health': (ctx, args) => threadHealth(ctx.pool, args.threadKey, ctx.scope),
+  'ops.cost': async (ctx, args) => {
+    if ('threadKey' in args) return readThreadCost(ctx.pool, args.threadKey, ctx.scope)
+    const { sectorId } = await sectorScope(ctx, args.sectorId)
+    return readSectorCost(ctx.pool, sectorId, ctx.scope)
+  },
+  'ops.sector_evaluation': async (ctx, args) => {
+    const { sectorId } = await sectorScope(ctx, args.sectorId)
+    return readSectorEvaluation(ctx.pool, sectorId, ctx.scope)
+  },
+  'ops.recent_activity': (ctx, args) => recentActivity(ctx.pool, args, ctx.scope),
 }
 
 /** Retrieval failures become isError text with their own code

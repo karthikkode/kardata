@@ -182,6 +182,11 @@ const SAMPLES: Record<McpToolName, { valid: unknown; invalid: unknown; invoke?: 
   'ops.thread_queue': { valid: { threadKey: 't' }, invalid: {}, invoke: false },
   'ops.queue_remove': { valid: { threadKey: 't', id: 'q1' }, invalid: { threadKey: 't' }, invoke: false },
   'ops.queue_reorder': { valid: { threadKey: 't', ids: ['q1'] }, invalid: { threadKey: 't', ids: [''] }, invoke: false },
+  'ops.list_alerts': { valid: {}, invalid: { limit: 0 } },
+  'ops.thread_health': { valid: { threadKey: 't' }, invalid: {} },
+  'ops.cost': { valid: { threadKey: 't' }, invalid: {} },
+  'ops.sector_evaluation': { valid: { sectorId: 's' }, invalid: { sectorId: '' } },
+  'ops.recent_activity': { valid: { threadKey: 't' }, invalid: {} },
 }
 
 const EXPECTED_TOOLS: McpToolName[] = [
@@ -257,6 +262,11 @@ const EXPECTED_TOOLS: McpToolName[] = [
   'ops.thread_queue',
   'ops.queue_remove',
   'ops.queue_reorder',
+  'ops.list_alerts',
+  'ops.thread_health',
+  'ops.cost',
+  'ops.sector_evaluation',
+  'ops.recent_activity',
   'web_search',
   'web_fetch',
   'browser_navigate',

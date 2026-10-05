@@ -350,6 +350,25 @@ export const TOOL_SCHEMAS = {
     threadKey: NonEmpty,
     ids: z.array(NonEmpty),
   }).strict(),
+  'ops.list_alerts': z.object({
+    sectorId: NonEmpty.optional(),
+    beforeSeq: z.number().int().positive().optional(),
+    limit: z.number().int().min(1).max(100).optional(),
+  }).strict(),
+  'ops.thread_health': z.object({
+    threadKey: NonEmpty,
+  }).strict(),
+  'ops.cost': z.union([
+    z.object({ threadKey: NonEmpty }).strict(),
+    z.object({ sectorId: NonEmpty }).strict(),
+  ]),
+  'ops.sector_evaluation': z.object({
+    sectorId: NonEmpty.optional(),
+  }).strict(),
+  'ops.recent_activity': z.union([
+    z.object({ traceId: NonEmpty, limit: z.number().int().min(1).max(200).optional() }).strict(),
+    z.object({ threadKey: NonEmpty, limit: z.number().int().min(1).max(200).optional() }).strict(),
+  ]),
 }
 
 export type McpToolName = keyof typeof TOOL_SCHEMAS

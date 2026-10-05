@@ -4,7 +4,7 @@
 import type { Scope } from '../auth/types.js'
 import { createLogger, logOp } from '../observability/logging.js'
 import type { Db } from './events.js'
-import { requireSector } from './workspace.js'
+import { requireSector, requireThread } from './workspace.js'
 
 export interface SectorQuality {
   found: number
@@ -99,6 +99,41 @@ async function readCost(db: Db, sectorId: string): Promise<SectorCost> {
     cachedTokens: Number(row?.cached_tokens ?? 0),
     errors: Number(row?.errors ?? 0),
   }
+}
+
+export interface ThreadCost {
+  rounds: number
+  inputTokens: number
+  outputTokens: number
+  cachedTokens: number
+  errors: number
+  lastRoundAt: string | null
+}
+
+/** Token cost for one thread. Unknown or out-of-scope threads fail
+ * before the view is touched; threads without rounds read zeros. */
+export async function readThreadCost(db: Db, threadKey: string, scope?: Scope): Promise<ThreadCost> {
+  await requireThread(db, threadKey, scope)
+  const { rows } = await db.query<{
+    rounds: string | null; input_tokens: string | null; output_tokens: string | null
+    cached_tokens: string | null; errors: string | null; last_round_at: Date | null
+  }>(`SELECT rounds, input_tokens, output_tokens, cached_tokens, errors, last_round_at
+      FROM v_thread_cost WHERE thread_key = $1`, [threadKey])
+  const row = rows[0]
+  return {
+    rounds: Number(row?.rounds ?? 0),
+    inputTokens: Number(row?.input_tokens ?? 0),
+    outputTokens: Number(row?.output_tokens ?? 0),
+    cachedTokens: Number(row?.cached_tokens ?? 0),
+    errors: Number(row?.errors ?? 0),
+    lastRoundAt: row?.last_round_at ? new Date(row.last_round_at).toISOString() : null,
+  }
+}
+
+/** Token cost for one sector (the evaluation cost block, standalone). */
+export async function readSectorCost(db: Db, sectorId: string, scope?: Scope): Promise<SectorCost> {
+  await requireSector(db, sectorId, scope)
+  return readCost(db, sectorId)
 }
 
 /** Reads the three evaluation views for one sector. Unknown sectors fail

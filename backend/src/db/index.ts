@@ -189,5 +189,5 @@ export { recordTurnExecution, listThreadExecutionRecords, readThreadExecutionRef
 export { workspaceReferenceSnapshot } from './workspace-research.js'
 
 export {readSectorDocumentUnitsPage} from './sector-documents.js'
-export { readSectorEvaluation, type SectorCost, type SectorEvaluation, type SectorQuality, type KindReliability } from './evaluation.js'
+export { readSectorEvaluation, readSectorCost, readThreadCost, type SectorCost, type SectorEvaluation, type SectorQuality, type KindReliability, type ThreadCost } from './evaluation.js'
 export { acquireMetaPermit, ensureMetaPermits, withMetaPermit, resolveMetaMax, MetaPermitTimeout } from './meta-limiter.js'
