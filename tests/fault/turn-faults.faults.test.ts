@@ -1,14 +1,16 @@
-// F9 turn fault: /mcp down. The mock tool client throws (connection
-// refused); the runner records an isError outcome and the turn continues,
-// so round 2 sees the failure and says so. The drill proves the failure
-// fed forward by reading round 2's archived request. F13/F14 join this
-// file. Fault suite, skipped explicitly without KARDATA_TEMPORAL_TEST,
-// TEST_DATABASE_URL, and KARDATA_TEMPORAL_ADDRESS.
+// F9/F10/F13/F14 turn faults: one in-process worker with per-test scripts
+// (tool, adapter, persist, steering lease). F9: /mcp down becomes a
+// reported source gap. F10: read-only archive retries then fails honestly.
+// F13: steer at turn end is never lost. F14: pause parks at the turn
+// boundary and resume keeps budgets. Fault suite, skipped explicitly
+// without KARDATA_TEMPORAL_TEST, TEST_DATABASE_URL, and
+// KARDATA_TEMPORAL_ADDRESS.
 import { randomUUID } from 'node:crypto'
 import { chmodSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { FastifyInstance } from 'fastify'
 import { Pool } from 'pg'
 import { Client as WorkflowClient, type WorkflowHandle } from '@temporalio/client'
 import { Context } from '@temporalio/activity'
@@ -25,8 +27,19 @@ import { resolveArchiveTarget, persistExecutionRecord } from '../../backend/src/
 import { appendEventActivity, executeKarbotTurn } from '../../backend/src/temporal/activities/turn.js'
 import { createRoundRecorder } from '../../backend/src/temporal/activities/turn-rounds.js'
 import type { KarbotTurnDeps, KarbotTurnInput } from '../../backend/src/temporal/activities/karbot-turn-input.js'
-import { appendEvent as appendDbEvent, createSector, getThread } from '../../backend/src/db/index.js'
+import { buildApp } from '../../backend/src/app.js'
+import {
+  appendEvent as appendDbEvent,
+  beginThreadTurn,
+  consumeSteering,
+  createSector,
+  finishSteering,
+  getThread,
+  readSteeringReceiptsPage,
+} from '../../backend/src/db/index.js'
 import { connectClient, connectWorker, temporalNamespace } from '../../backend/src/temporal/connection.js'
+import { TemporalRunsGateway } from '../../backend/src/temporal/runs-gateway.js'
+import { SESSION_PREFIX } from '../../backend/src/temporal/runs-types.js'
 import { createLaneWorker } from '../../backend/src/temporal/worker.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from '../backend/db-helper.js'
@@ -45,7 +58,7 @@ async function waitFor(condition: () => Promise<boolean>, timeoutMs: number, wha
   }
 }
 
-describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9-F10', () => {
+describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9-F10, F13-F14', () => {
   let pool: Pool
   let connection: NativeConnection
   let client: WorkflowClient
@@ -66,10 +79,17 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9-F10', () => {
   let persistImpl: (sessionId: string, round: number, kind: 'request' | 'response' | 'tool-result', record: Record<string, unknown>) => Promise<void> = async () => {
     throw new Error('TEST persist script unset')
   }
+  let steeringImpl = false
+  let toolsImpl: () => Promise<ToolDefinition[]> = async () => [
+    { name: 'TEST_lookup', description: 'TEST lookup', parameters: { type: 'object', properties: {} } },
+  ]
+  let toolCalls = 0
+  let toolStarted = false
+  let adapterCalls = 0
 
   const mcp: TurnRunnerMcpClient = {
     async listTools(): Promise<ToolDefinition[]> {
-      return [{ name: 'TEST_lookup', description: 'TEST lookup', parameters: { type: 'object', properties: {} } }]
+      return toolsImpl()
     },
     async callTool(name: string, args: Record<string, unknown>, operationId?: string): Promise<{ content: string; isError?: boolean }> {
       return toolImpl(name, args, operationId)
@@ -121,10 +141,20 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9-F10', () => {
               await sleep(5000)
             }
           })()
+          const lease = steeringImpl ? await beginThreadTurn(pool, input.threadKey, input.runKey) : undefined
           try {
             const recorder = createRoundRecorder(pool, `session:${input.sessionId}`, () => undefined)
             return await executeKarbotTurn(input, {
               ...deps(input.sessionId),
+              ...(lease === undefined
+                ? {}
+                : {
+                    refreshContext: async (round: number) => ({
+                      references: [],
+                      notes: '',
+                      steering: await consumeSteering(pool, input.threadKey, input.runKey, round, lease),
+                    }),
+                  }),
               attempt: context.info.attempt,
               recordRound: (fields) => recorder.recordRound(fields),
               recordToolCall: (fields) => recorder.recordToolCall(fields),
@@ -132,6 +162,7 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9-F10', () => {
           } finally {
             settled = true
             await beating
+            if (lease !== undefined) await finishSteering(pool, input.threadKey, input.runKey, lease)
           }
         },
       },
@@ -279,4 +310,191 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9-F10', () => {
       chmodSync(archiveDir, 0o700)
     }
   }, 180_000)
+
+  it('F13: steers are applied once now or receipted; nothing is ever lost', async () => {
+    steeringImpl = true
+    toolImpl = async () => ({ content: 'TEST unused tool' })
+    adapterImpl = () => {
+      let round = 0
+      return {
+        providerName: 'TEST-steer',
+        chat: async () => ({ text: 'TEST unexpected chat', reasoning: '', toolCalls: [], usage: emptyUsage(), completion: 'complete' }),
+        chatStream: async function* (): AsyncIterable<StreamEvent> {
+          round += 1
+          if (round === 1) {
+            await sleep(8000)
+            yield { kind: 'text_delta', text: 'TEST one' }
+            yield { kind: 'done', usage: emptyUsage(), completion: 'complete' }
+            return
+          }
+          await sleep(3000)
+          yield { kind: 'text_delta', text: 'TEST turn one done' }
+          yield { kind: 'done', usage: emptyUsage(), completion: 'complete' }
+        },
+      }
+    }
+    persistImpl = async (sessionId, round, kind, record) => {
+      const ref = await persistExecutionRecord(resolveArchiveTarget(), sessionId, record)
+      recordKeys.set(`${sessionId}:${round}:${kind}`, ref.key)
+    }
+    const { sessionId, handle } = await startTurn('F13 hello')
+    const roundStarted = async (round: number): Promise<boolean> => {
+      await projectNewEvents(pool)
+      const { rows } = await pool.query<{ count: string }>(
+        'SELECT COUNT(*) AS count FROM execution_rounds WHERE thread_key = $1 AND round = $2',
+        [sessionId, round],
+      )
+      return Number(rows[0]?.count ?? 0) > 0
+    }
+    const app: FastifyInstance = buildApp({ pool, runs: new TemporalRunsGateway(pool) })
+    try {
+      await waitFor(async () => roundStarted(1), 60_000, 'round 1')
+      const steer1 = await app.inject({ method: 'POST', url: '/v1/commands/steer', payload: { threadKey: sessionId, text: 'TEST steer now' } })
+      expect(steer1.statusCode).toBe(202)
+      const first = steer1.json() as { data: { commandId: string; state: string } }
+      expect(first.data.state).toBe('accepted')
+      await waitFor(async () => roundStarted(2), 60_000, 'round 2')
+      const steer2 = await app.inject({ method: 'POST', url: '/v1/commands/steer', payload: { threadKey: sessionId, text: 'TEST steer at end' } })
+      expect(steer2.statusCode).toBe(202)
+      const second = steer2.json() as { data: { commandId: string; state: string } }
+      expect(second.data.state).toBe('accepted')
+      await waitFor(async () => {
+        await projectNewEvents(pool)
+        const thread = await getThread(pool, sessionId)
+        return (thread?.messages ?? []).some((message) =>
+          message.kind === 'text' && (message.payload as Record<string, unknown>)['text'] === 'TEST turn one done',
+        )
+      }, 120_000, 'turn completion')
+      const steer3 = await app.inject({ method: 'POST', url: '/v1/commands/steer', payload: { threadKey: sessionId, text: 'TEST steer idle' } })
+      expect(steer3.statusCode).toBe(202)
+      const third = steer3.json() as { data: { commandId: string; state: string } }
+      expect(third.data.state).toBe('missed_steer')
+      const { rows } = await pool.query<{ id: string; text: string; state: string; run_key: string | null; round: number | null }>(
+        'SELECT id, text, state, run_key, round FROM thread_instructions WHERE thread_key = $1 ORDER BY id ASC',
+        [sessionId],
+      )
+      expect(rows.length).toBe(3)
+      const one = rows.find((row) => row.id === first.data.commandId)!
+      const two = rows.find((row) => row.id === second.data.commandId)!
+      const three = rows.find((row) => row.id === third.data.commandId)!
+      expect(one.text).toBe('TEST steer now')
+      expect(one.state).toBe('consumed')
+      expect(one.run_key).not.toBeNull()
+      expect(Number(one.round)).toBe(2)
+      expect(two.text).toBe('TEST steer at end')
+      expect(two.state).toBe('missed')
+      expect(three.text).toBe('TEST steer idle')
+      expect(three.state).toBe('missed')
+      const request2 = recordKeys.get(`${sessionId}:2:request`)
+      expect(request2).toBeDefined()
+      const body2 = await resolveArchiveTarget().read(request2!, 16 * 1024 * 1024)
+      expect(body2).toContain('TEST steer now')
+      expect(body2).not.toContain('TEST steer at end')
+      const receipts = await readSteeringReceiptsPage(pool, sessionId)
+      expect(receipts.items.map((item) => item.id).sort()).toEqual(
+        [first.data.commandId, second.data.commandId, third.data.commandId].sort(),
+      )
+      console.log('[fault F13] instructions=3 consumed=1 missed=2 receipted=3')
+    } finally {
+      await app.close()
+    }
+    steeringImpl = false
+    await handle.signal('runCancel')
+    expect(await handle.result()).toBe('cancelled')
+  }, 180_000)
+
+  it('F14: pause during a tool call parks at the turn boundary; resume keeps budgets', async () => {
+    steeringImpl = false
+    toolCalls = 0
+    toolStarted = false
+    adapterCalls = 0
+    toolsImpl = async () => [
+      { name: 'TEST_slow', description: 'TEST slow', parameters: { type: 'object', properties: {} } },
+    ]
+    toolImpl = async () => {
+      toolCalls += 1
+      toolStarted = true
+      await sleep(10_000)
+      return { content: 'TEST slow done' }
+    }
+    adapterImpl = () => {
+      adapterCalls += 1
+      if (adapterCalls > 1) {
+        return {
+          providerName: 'TEST-pause-2',
+          chat: async () => ({ text: 'TEST unexpected chat', reasoning: '', toolCalls: [], usage: emptyUsage(), completion: 'complete' }),
+          chatStream: async function* (): AsyncIterable<StreamEvent> {
+            yield { kind: 'text_delta', text: 'TEST second reply' }
+            yield { kind: 'done', usage: { ...emptyUsage(), inputTokens: 7, outputTokens: 2 }, completion: 'complete' }
+          },
+        }
+      }
+      let round = 0
+      return {
+        providerName: 'TEST-pause',
+        chat: async () => ({ text: 'TEST unexpected chat', reasoning: '', toolCalls: [], usage: emptyUsage(), completion: 'complete' }),
+        chatStream: async function* (): AsyncIterable<StreamEvent> {
+          round += 1
+          if (round === 1) {
+            yield { kind: 'text_delta', text: 'TEST calling slow' }
+            yield { kind: 'toolcall_start', index: 0, key: 'TEST-call-0' }
+            yield { kind: 'toolcall_delta', index: 0, textAppend: '{}' }
+            yield { kind: 'toolcall_end', index: 0, call: { id: 'TEST-call-0', name: 'TEST_slow', args: {} } }
+            yield { kind: 'done', usage: { ...emptyUsage(), inputTokens: 10, outputTokens: 4 }, completion: 'complete' }
+            return
+          }
+          yield { kind: 'text_delta', text: 'TEST resumed reply' }
+          yield { kind: 'done', usage: { ...emptyUsage(), inputTokens: 5, outputTokens: 3 }, completion: 'complete' }
+        },
+      }
+    }
+    persistImpl = async (sessionId, _round, _kind, record) => {
+      await persistExecutionRecord(resolveArchiveTarget(), sessionId, record)
+    }
+    const { sessionId, handle } = await startTurn('F14 hello')
+    await waitFor(async () => toolStarted, 60_000, 'tool dispatch')
+    const app: FastifyInstance = buildApp({ pool, runs: new TemporalRunsGateway(pool) })
+    try {
+      const runId = `${SESSION_PREFIX}${sessionId}`
+      const pause = await app.inject({ method: 'POST', url: '/v1/commands/pause', payload: { runId } })
+      expect(pause.statusCode).toBe(202)
+      await waitFor(async () => ((await handle.query('runState')) as { state: string }).state === 'PAUSED', 90_000, 'parked')
+      expect(toolCalls).toBe(1)
+      await projectNewEvents(pool)
+      const { rows: tools } = await pool.query<{ outcome: string }>(
+        'SELECT outcome FROM tool_calls WHERE thread_key = $1',
+        [sessionId],
+      )
+      expect(tools.map((row) => row.outcome)).toEqual(['ok'])
+      const resume = await app.inject({ method: 'POST', url: '/v1/commands/resume', payload: { runId } })
+      expect(resume.statusCode).toBe(202)
+      await waitFor(async () => ((await handle.query('runState')) as { state: string }).state === 'RUNNING', 30_000, 'resumed')
+      await handle.signal('runSend', 'F14 again')
+      await waitFor(async () => {
+        await projectNewEvents(pool)
+        const thread = await getThread(pool, sessionId)
+        return (thread?.messages ?? []).some((message) =>
+          message.kind === 'text' && (message.payload as Record<string, unknown>)['text'] === 'TEST second reply',
+        )
+      }, 120_000, 'post-resume reply')
+      expect(toolCalls).toBe(1)
+      await projectNewEvents(pool)
+      const { rows: attempts } = await pool.query<{ attempt: number }>(
+        'SELECT DISTINCT attempt FROM execution_rounds WHERE thread_key = $1 ORDER BY attempt ASC',
+        [sessionId],
+      )
+      expect(attempts.map((row) => row.attempt)).toEqual([1])
+      const { rows: usage } = await pool.query<{ input_tokens: number | null; output_tokens: number | null }>(
+        'SELECT input_tokens, output_tokens FROM execution_rounds WHERE thread_key = $1',
+        [sessionId],
+      )
+      expect(usage.reduce((sum, row) => sum + (row.input_tokens ?? 0), 0)).toBe(22)
+      expect(usage.reduce((sum, row) => sum + (row.output_tokens ?? 0), 0)).toBe(9)
+      console.log('[fault F14] tool-calls=1 attempts=1 usage-in=22 usage-out=9')
+    } finally {
+      await app.close()
+    }
+    await handle.signal('runCancel')
+    expect(await handle.result()).toBe('cancelled')
+  }, 300_000)
 })
