@@ -174,6 +174,8 @@ Ad-hoc is allowed only for throwaway proofs under the ignored `test-results/`.
   tool context (runners fail closed when absent), live-run mutations are
   approver plus sensitive, and fleet signals that do not attribute to the
   queried scope stay out of scoped tools.
+- Every bug fix starts with a failing test at the tier named in
+  `docs/bug-escapes.md` for that bug class.
 
 ## Verification and handoff
 
