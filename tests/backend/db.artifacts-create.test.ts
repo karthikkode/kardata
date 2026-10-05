@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest'
 import type { PoolClient } from 'pg'
 import { FilesystemTarget } from '../../backend/src/archive/targets.js'
 import { DbContractError, type TransactableDb } from '../../backend/src/db/index.js'
-import { createArtifact } from '../../backend/src/db/events.js'
+import { createArtifact } from '../../backend/src/db/event-artifacts.js'
 
 function stubDb(session: boolean): TransactableDb {
   const log = new Map<string, { seq: number; idempotency_key: string; partition: string; type: string; payload: unknown; redacted: boolean; at: Date }>()

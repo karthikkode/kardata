@@ -9,7 +9,7 @@ import { z } from 'zod'
 import type { Scope } from '../auth/keys.js'
 import { DbContractError } from './errors.js'
 import type { Db } from './events.js'
-import { listSessions } from './events.js'
+import { listSessions } from './sessions.js'
 import { getSector, sectorActivity } from './sectors.js'
 import { listThreads } from './threads.js'
 

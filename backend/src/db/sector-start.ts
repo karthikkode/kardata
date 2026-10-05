@@ -6,7 +6,8 @@
 // 409 dead end.
 import type { Scope } from '../auth/keys.js'
 import { DbContractError } from './errors.js'
-import { getSession, type Db } from './events.js'
+import { getSession } from './sessions.js'
+import { type Db } from './events.js'
 import { getSector, recordResearchSession, setSectorState } from './sectors.js'
 import { readGlobalContext } from './workspace-global-context.js'
 import { readSectorPlan } from './sector-plan.js'

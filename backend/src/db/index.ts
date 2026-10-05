@@ -11,34 +11,40 @@ export * from './reconciliation.js'
 export { listSupervisionAlerts } from './alerts.js'
 export * from './file-jobs.js'
 export * from './file-processing-dispatch.js'
+export * from './sessions.js'
+export * from './event-artifacts.js'
 export * from './execution-epochs.js'
 export { DbContractError } from './errors.js'
 export {
-  createArtifact,
-  createSession,
   type Db,
   type DbQueryResult,
   EventEnvelope,
   appendEvent,
   deleteEventsBySeq,
-  deleteSession,
   findEventByKey,
   findLaunchParentWorkflowId,
-  getSession,
-  getSessionModel,
-  listArtifacts,
-  listSessions,
-  listTenantArtifacts,
   readEventsAfter,
   readEventsOlderThan,
   readPartition,
-  referenceArtifact,
-  renameSession,
-  resolveArtifactScope,
-  SessionModelSelection,
-  setSessionModel,
   type StoredEvent,
 } from './events.js'
+export {
+  createSession,
+  deleteSession,
+  getSession,
+  getSessionModel,
+  listSessions,
+  renameSession,
+  SessionModelSelection,
+  setSessionModel,
+} from './sessions.js'
+export {
+  createArtifact,
+  listArtifacts,
+  listTenantArtifacts,
+  referenceArtifact,
+  resolveArtifactScope,
+} from './event-artifacts.js'
 export {
   getThread,
   getThreadHeader,

@@ -13,7 +13,8 @@ import type { TransactableDb } from './checkpoints.js'
 import type { Scope } from '../auth/keys.js'
 import { DbContractError, WorkspaceError } from './errors.js'
 import { parseExecutablePlan, visiblePlan, type ExecutablePlan } from '../temporal/research-plan.js'
-import { appendEvent, getSession, readPartition, type Db } from './events.js'
+import { appendEvent, readPartition, type Db } from './events.js'
+import { getSession } from './sessions.js'
 import {
   getSector,
   SECTOR_PLAN_APPROVED_EVENT,

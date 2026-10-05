@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { Scope } from '../auth/keys.js'
-import { createSession, getSession, listSessions, readPartition, type Db } from './events.js'
+import { createSession, getSession, listSessions } from './sessions.js'
+import { readPartition, type Db } from './events.js'
 import { getSector } from './sectors.js'
 import { getThreadHeader, listThreadHeaders } from './threads.js'
 import { DURABLE_STREAM_LOCK_SQL, type TransactableDb } from './checkpoints.js'

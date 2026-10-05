@@ -1891,9 +1891,9 @@
   tiers:
     - todo
   states: []
-- id: db.events.SessionModelSelection
+- id: db.sessions.SessionModelSelection
   layer: db
-  surface: backend/src/db/events.ts
+  surface: backend/src/db/sessions.ts
   tiers:
     - todo
   states: []
@@ -1903,15 +1903,15 @@
   tiers:
     - todo
   states: []
-- id: db.events.createArtifact
+- id: db.event_artifacts.createArtifact
   layer: db
-  surface: backend/src/db/events.ts
+  surface: backend/src/db/event-artifacts.ts
   tiers:
     - todo
   states: []
-- id: db.events.createSession
+- id: db.sessions.createSession
   layer: db
-  surface: backend/src/db/events.ts
+  surface: backend/src/db/sessions.ts
   tiers:
     - todo
   states: []
@@ -1921,9 +1921,9 @@
   tiers:
     - todo
   states: []
-- id: db.events.deleteSession
+- id: db.sessions.deleteSession
   layer: db
-  surface: backend/src/db/events.ts
+  surface: backend/src/db/sessions.ts
   tiers:
     - todo
   states: []
@@ -1939,33 +1939,33 @@
   tiers:
     - todo
   states: []
-- id: db.events.getSession
+- id: db.sessions.getSession
   layer: db
-  surface: backend/src/db/events.ts
+  surface: backend/src/db/sessions.ts
   tiers:
     - todo
   states: []
-- id: db.events.getSessionModel
+- id: db.sessions.getSessionModel
   layer: db
-  surface: backend/src/db/events.ts
+  surface: backend/src/db/sessions.ts
   tiers:
     - todo
   states: []
-- id: db.events.listArtifacts
+- id: db.event_artifacts.listArtifacts
   layer: db
-  surface: backend/src/db/events.ts
+  surface: backend/src/db/event-artifacts.ts
   tiers:
     - todo
   states: []
-- id: db.events.listSessions
+- id: db.sessions.listSessions
   layer: db
-  surface: backend/src/db/events.ts
+  surface: backend/src/db/sessions.ts
   tiers:
     - todo
   states: []
-- id: db.events.listTenantArtifacts
+- id: db.event_artifacts.listTenantArtifacts
   layer: db
-  surface: backend/src/db/events.ts
+  surface: backend/src/db/event-artifacts.ts
   tiers:
     - todo
   states: []
@@ -1987,27 +1987,27 @@
   tiers:
     - todo
   states: []
-- id: db.events.referenceArtifact
+- id: db.event_artifacts.referenceArtifact
   layer: db
-  surface: backend/src/db/events.ts
+  surface: backend/src/db/event-artifacts.ts
   tiers:
     - todo
   states: []
-- id: db.events.renameSession
+- id: db.sessions.renameSession
   layer: db
-  surface: backend/src/db/events.ts
+  surface: backend/src/db/sessions.ts
   tiers:
     - todo
   states: []
-- id: db.events.resolveArtifactScope
+- id: db.event_artifacts.resolveArtifactScope
   layer: db
-  surface: backend/src/db/events.ts
+  surface: backend/src/db/event-artifacts.ts
   tiers:
     - todo
   states: []
-- id: db.events.setSessionModel
+- id: db.sessions.setSessionModel
   layer: db
-  surface: backend/src/db/events.ts
+  surface: backend/src/db/sessions.ts
   tiers:
     - todo
   states: []
@@ -5505,6 +5505,12 @@
 - id: db.file_jobs.visible
   layer: db
   surface: backend/src/db/file-jobs.ts
+  tiers:
+    - todo
+  states: []
+- id: db.events.KeySchema
+  layer: db
+  surface: backend/src/db/events.ts
   tiers:
     - todo
   states: []

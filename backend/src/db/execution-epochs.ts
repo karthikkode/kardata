@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import { appendEvent, getSession, type Db } from './events.js'
+import { appendEvent, type Db } from './events.js'
+import { getSession } from './sessions.js'
 import { DbContractError,WorkspaceError } from './errors.js'
 import type { TransactableDb } from './checkpoints.js'
 import { workspaceTransaction } from './workspace.js'
