@@ -641,7 +641,7 @@ describe('uncertain mutation recovery', () => {
     const checkpoints: Array<{ messages: import('./providers.js').ChatMessage[]; blocked?: RecoveryOperation[] }> = []
     const result = await runKarbotTurn({ provider, operationKey: 'TEST operation', systemPrompt: 'TEST', messages: [{ role: 'user', text: 'TEST create' }], sink: { onDelta: () => undefined }, mcp: { listTools: async () => [sessionTool()], callTool: async (_name, _args, operationId) => ({ content: 'TEST lost reply', isError: true, recovery: { operationId: operationId!, reason: 'TEST uncertain effect' } }) }, onCheckpoint: async (messages, _round, _usage, _tools, blocked) => { checkpoints.push({ messages: structuredClone(messages), blocked }) } })
     expect(provider.calls).toHaveLength(1)
-    expect(result.recoveryHalt).toEqual([{ operationId: 'TEST operation:mutation-1', call, serializedCall: JSON.stringify(call), reason: 'TEST uncertain effect' }])
+    expect(result.recoveryHalt).toEqual([{ operationId: 'TEST operation:1:0', call, serializedCall: JSON.stringify(call), reason: 'TEST uncertain effect' }])
     expect(result.budgetTripped).toBeUndefined()
     expect(checkpoints.at(-1)?.blocked).toEqual(result.recoveryHalt)
     expect(checkpoints.at(-1)?.messages.at(-1)?.toolResult?.toolCallId).toBe(call.id)
@@ -665,12 +665,21 @@ describe('uncertain mutation recovery', () => {
     expect(provider.calls).toHaveLength(0)
     expect(result.recoveryHalt).toHaveLength(1)
   })
-  it('preserves short legacy ids and bounds long deterministic operation identities', () => {
-    expect(toolOperationId('run', 'call')).toBe('run:call')
-    const first = toolOperationId('x'.repeat(200), 'call')
+  it('keys operations by run, round, and call index with bounded long identities', () => {
+    expect(toolOperationId('run', 1, 0)).toBe('run:1:0')
+    expect(toolOperationId('run', 2, 3)).toBe('run:2:3')
+    const first = toolOperationId('x'.repeat(200), 1, 0)
     expect(first).toHaveLength(67)
-    expect(first).toBe(toolOperationId('x'.repeat(200), 'call'))
-    expect(first).not.toBe(toolOperationId('x'.repeat(200), 'different'))
+    expect(first).toBe(toolOperationId('x'.repeat(200), 1, 0))
+    expect(first).not.toBe(toolOperationId('x'.repeat(200), 1, 1))
+    expect(first).not.toBe(toolOperationId('x'.repeat(200), 2, 0))
+  })
+  it('reuses identical keys when a round regenerates provider call ids', async () => {
+    const seen: string[] = []
+    const turn = (ids: string[]) => runKarbotTurn({ provider: new FakeProvider([{ text: '', toolCalls: ids.map((id, index) => ({ id, name: 'db.create_session', args: { title: `TEST replay ${index}` } })) }, { text: 'TEST done' }]), operationKey: 'TEST stable run', systemPrompt: 'TEST', messages: [{ role: 'user', text: 'TEST go' }], sink: { onDelta: () => undefined }, mcp: { listTools: async () => [sessionTool()], callTool: async (_name, _args, operationId) => { seen.push(operationId!); return { content: 'TEST committed' } } } })
+    await turn(['call-alpha', 'call-beta'])
+    await turn(['call-one', 'call-two'])
+    expect(seen).toEqual(['TEST stable run:1:0', 'TEST stable run:1:1', 'TEST stable run:1:0', 'TEST stable run:1:1'])
   })
 })
 
@@ -727,7 +736,7 @@ it('records original operations before dispatch when the result checkpoint fails
   let saved: RecoveryOperation[] | undefined
   let checkpoints = 0
   const callTool = vi.fn(async () => {
-    expect(saved?.[0]?.operationId).toBe('TEST checkpoint run:TEST checkpoint call')
+    expect(saved?.[0]?.operationId).toBe('TEST checkpoint run:1:0')
     return { content: 'TEST committed effect' }
   })
   await expect(runKarbotTurn({ provider, operationKey: 'TEST checkpoint run', systemPrompt: 'TEST', messages: [], sink: { onDelta: () => undefined }, mcp: { authorityId: 'TEST authority', listTools: async () => [sessionTool()], callTool }, onCheckpoint: async (_messages, _round, _usage, _tools, blocked) => {
@@ -735,14 +744,14 @@ it('records original operations before dispatch when the result checkpoint fails
     saved = structuredClone(blocked)
   } })).rejects.toThrow('TEST result persistence unavailable')
   expect(callTool).toHaveBeenCalledTimes(1)
-  expect(saved).toEqual([{ authorityId: 'TEST authority', operationId: 'TEST checkpoint run:TEST checkpoint call', call, serializedCall: JSON.stringify(call), reason: expect.any(String) }])
+  expect(saved).toEqual([{ authorityId: 'TEST authority', operationId: 'TEST checkpoint run:1:0', call, serializedCall: JSON.stringify(call), reason: expect.any(String) }])
 })
 it('parks thrown client errors under the original identity before another provider round', async () => {
   const call = { id: 'TEST thrown call', name: 'db.create_session', args: {} }
   const provider = new FakeProvider([{ text: '', toolCalls: [call] }, { text: 'Must not run' }])
   const result = await runKarbotTurn({ provider, operationKey: 'TEST thrown run', systemPrompt: 'TEST', messages: [], sink: { onDelta: () => undefined }, mcp: { listTools: async () => [sessionTool()], callTool: async () => { throw new Error('TEST client failure') } } })
   expect(provider.calls).toHaveLength(1)
-  expect(result.recoveryHalt?.[0]?.operationId).toBe('TEST thrown run:TEST thrown call')
+  expect(result.recoveryHalt?.[0]?.operationId).toBe('TEST thrown run:1:0')
 })
 
 it('does not dispatch prepared assistant calls after recovery authority denial', async () => {
@@ -771,11 +780,11 @@ it.each([1, 3])('resumes %s prepared calls with one complete original tool group
   expect(history.slice(1).map((message) => message.toolResult?.toolCallId)).toEqual(calls.map((call) => call.id))
 })
 
-it.each(['TEST unicode Ω', 'TEST newline\n', 'TEST trailing '])('normalizes header-unsafe operation identities: %s', (callId) => {
-  const id = toolOperationId('TEST run', callId)
+it.each(['TEST unicode Ω', 'TEST newline\n', 'TEST trailing '])('normalizes header-unsafe operation keys: %s', (operationKey) => {
+  const id = toolOperationId(operationKey, 1, 0)
   expect(id).toMatch(/^op:[a-f0-9]{64}$/)
-  expect(id).toBe(toolOperationId('TEST run', callId))
-  expect(id).not.toBe(toolOperationId('TEST run', `${callId}different`))
+  expect(id).toBe(toolOperationId(operationKey, 1, 0))
+  expect(id).not.toBe(toolOperationId(operationKey, 1, 1))
 })
 
 
@@ -795,7 +804,7 @@ describe('provider execution persistence boundaries', () => {
     expect(requests).toEqual(provider.calls.map(({ signal: _signal, ...request }) => request))
     expect(requests[0]).not.toHaveProperty('signal')
     expect(responses).toEqual([{ text: '', reasoning: '', toolCalls: [call], usage: emptyUsage(), completion: 'complete' }, { text: 'TEST final', reasoning: '', toolCalls: [], usage: emptyUsage(), completion: 'complete' }])
-    expect(results).toEqual([{ original: call, outcome: { content: 'TEST exact tool result' }, operationId: 'TEST record run:TEST record call' }])
+    expect(results).toEqual([{ original: call, outcome: { content: 'TEST exact tool result' }, operationId: 'TEST record run:1:0' }])
   })
   it('does not execute the provider when request persistence fails', async () => {
     const provider = new FakeProvider([{ text: 'TEST must not run' }])
