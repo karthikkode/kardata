@@ -10,14 +10,12 @@ their own tests and are out of Phase 0 scope.
 ## AC
 
 - Narrow grep (`UPDATE_HARDENING_*|hardening.catalog|hardening.acceptance`,
-  excluding `archive/` + `plans/`): 4 hits, all dated history
-  (`implementation-status.md:70,3698`,
-  `preflight-authority-review.md:669,670`). No live instruction remains.
+  excluding `archive/` + `plans/`): 2 hits, both dated history in
+  `implementation-status.md:70,3698`. No live instruction remains.
   Literal 0 NOT met; history left intact per item 6. Proved by the grep
-  itself (rule-8 subagent re-ran it).
-- `git ls-files 'docs/deep-checks/*.json'`: the 2 archived JSONs plus the
-  old `preflight-authority-review.json` artifact (dated review data, not an
-  inventory). Literal "only archive/" NOT met; artifact left in place.
+  itself (rule-8 subagent re-ran it; delta re-checks below).
+- `git ls-files 'docs/deep-checks/*.json'`: only `archive/` paths. Met:
+  delta moved `preflight-authority-review.{md,json}` into `archive/`.
 - `AGENTS.md` has "Forbidden work": met (`AGENTS.md`, 5 bullets).
 
 Retire behavior is proved negatively: `pr:verify` contains no hardening
@@ -48,7 +46,7 @@ None.
 
 ## 3 weakest points
 
-1. Two AC lines are literally unmet (history hits, preflight JSON).
+1. One AC line is literally unmet (2 history hits in the status log).
 2. The retire has no positive test, only suite-absence + grep.
 3. Reviewed after merge: protection landed after `cb15608`, so Phase 0
    never went through a PR; Phase 1+ will.

@@ -8,6 +8,6 @@ No test regenerates them; no gate reads them.
 
 The release gate is `npm run pr:verify` plus CI (`verify`, `e2e`,
 `integration` jobs). Live suites state their own gates in
-`documentation/tests.md`. Dated history in `docs/implementation-status.md`
-and `preflight-authority-review.md` still names the old files; that is
-history, not instruction.
+`documentation/tests.md`. Dated history in `docs/implementation-status.md` still names the old
+files; that is history, not instruction. `archive/` also holds the
+retired preflight authority review.

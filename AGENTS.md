@@ -87,6 +87,11 @@ Efficiency rules. The agent must NOT:
   touched files; the full gates run once on the final code.
 - Add scripts, wrappers, or helpers when extending an existing entry
   point (`npm run stack:*`, `package.json` scripts) does the job.
+- Never re-run a suite or live test on unchanged code.
+- Stuck more than 45 minutes on one item: record it as Blocked with the
+  exact error and move on.
+- Open-source research only from the references the phase lists, at most
+  2 hours per phase; output one adopt/reject table.
 
 ## Deep-check conventions (every change, every agent)
 
