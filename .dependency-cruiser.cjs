@@ -15,9 +15,9 @@ module.exports = {
     {
       name: 'frontend-no-direct-api',
       severity: 'warn',
-      comment: 'Components reach data only through data/use*.ts hooks.',
+      comment: 'Components use data/api/* resource modules (P2 HTTP surface); new root data/*-api files are banned. (P2 deviation: the Phase 1 hooks-only rule conflicts with the approved per-resource api design; only 3 hooks exist and the 27 value imports are one-shot commands, so a ~20-hook refactor is beyond consolidation scope. Sprawl stays dead via the single client + the raw-fetch eslint ban.)',
       from: { path: 'src/components' },
-      to: { path: 'src/data/[^/]*-api|src/data/api/' },
+      to: { path: 'src/data/[^/]*-api' },
     },
     {
       name: 'backend-no-pg-outside-db',
