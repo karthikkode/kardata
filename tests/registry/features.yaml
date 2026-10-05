@@ -4023,368 +4023,778 @@
   layer: frontend
   surface: frontend/src/data/useWorkReview.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: frontend.hook.useWorkspace
   layer: frontend
   surface: frontend/src/data/useWorkspace.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: frontend.src.components.ChatPanel
   layer: frontend
   surface: frontend/src/components/ChatPanel.tsx
   tiers:
-    - todo
-  states: [loading, empty, typical, error, offline, partial, light, dark, w1440, w1280, w768, w390, focus, reduced-motion]
+    - unit
+    - e2e
+  states:
+    - loading
+    - empty
+    - typical
+    - error
+    - offline
+    - partial
+    - light
+    - dark
+    - w1440
+    - w1280
+    - w768
+    - w390
+    - focus
+    - reduced-motion
 - id: frontend.src.components.CommandPalette
   layer: frontend
   surface: frontend/src/components/CommandPalette.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, w390, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - w390
+    - focus
 - id: frontend.src.components.CompaniesSection
   layer: frontend
   surface: frontend/src/components/CompaniesSection.tsx
   tiers:
-    - todo
-  states: [loading, empty, one, typical, n100, n1000, error, denied, offline, longtext, light, dark, w1440, w1280, w768, w390, focus, reduced-motion]
+    - e2e
+  states:
+    - loading
+    - empty
+    - one
+    - typical
+    - n100
+    - n1000
+    - error
+    - denied
+    - offline
+    - longtext
+    - light
+    - dark
+    - w1440
+    - w1280
+    - w768
+    - w390
+    - focus
+    - reduced-motion
 - id: frontend.src.components.CreateSectorDialog
   layer: frontend
   surface: frontend/src/components/CreateSectorDialog.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, w390, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - w390
+    - focus
 - id: frontend.src.components.Dashboard
   layer: frontend
   surface: frontend/src/components/Dashboard.tsx
   tiers:
-    - todo
-  states: [loading, empty, typical, error, denied, offline, partial, longtext, light, dark, w1440, w1280, w768, w390, reduced-motion]
+    - e2e
+  states:
+    - loading
+    - empty
+    - typical
+    - error
+    - denied
+    - offline
+    - partial
+    - longtext
+    - light
+    - dark
+    - w1440
+    - w1280
+    - w768
+    - w390
+    - reduced-motion
 - id: frontend.src.components.DataTable
   layer: frontend
   surface: frontend/src/components/DataTable.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, w390]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - w390
 - id: frontend.src.components.ExecutionInspector
   layer: frontend
   surface: frontend/src/components/ExecutionInspector.tsx
   tiers:
-    - todo
-  states: [loading, typical, error, denied, offline, light, dark, w1440, w390, focus]
+    - e2e
+  states:
+    - loading
+    - typical
+    - error
+    - denied
+    - offline
+    - light
+    - dark
+    - w1440
+    - w390
+    - focus
 - id: frontend.src.components.FileProcessingRetry
   layer: frontend
   surface: frontend/src/components/FileProcessingRetry.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
 - id: frontend.src.components.FileProcessingStatus
   layer: frontend
   surface: frontend/src/components/FileProcessingStatus.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
 - id: frontend.src.components.FileTypeIcon
   layer: frontend
   surface: frontend/src/components/FileTypeIcon.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
 - id: frontend.src.components.IconButton
   layer: frontend
   surface: frontend/src/components/IconButton.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, w390, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - w390
+    - focus
 - id: frontend.src.components.Markdown
   layer: frontend
   surface: frontend/src/components/Markdown.tsx
   tiers:
-    - todo
-  states: [typical, longtext, light, dark, w1440, w390]
+    - e2e
+  states:
+    - typical
+    - longtext
+    - light
+    - dark
+    - w1440
+    - w390
 - id: frontend.src.components.ModelToolbar
   layer: frontend
   surface: frontend/src/components/ModelToolbar.tsx
   tiers:
-    - todo
-  states: [typical, error, light, dark, w1440, w390, focus]
+    - e2e
+  states:
+    - typical
+    - error
+    - light
+    - dark
+    - w1440
+    - w390
+    - focus
 - id: frontend.src.components.ModelsPanel
   layer: frontend
   surface: frontend/src/components/ModelsPanel.tsx
   tiers:
-    - todo
-  states: [loading, empty, typical, error, denied, offline, partial, light, dark, w1440, w1280, w768, w390, focus]
+    - e2e
+  states:
+    - loading
+    - empty
+    - typical
+    - error
+    - denied
+    - offline
+    - partial
+    - light
+    - dark
+    - w1440
+    - w1280
+    - w768
+    - w390
+    - focus
 - id: frontend.src.components.ResearchPlanEditor
   layer: frontend
   surface: frontend/src/components/ResearchPlanEditor.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, w390, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - w390
+    - focus
 - id: frontend.src.components.ResearchesPage
   layer: frontend
   surface: frontend/src/components/ResearchesPage.tsx
   tiers:
-    - todo
-  states: [loading, empty, typical, n100, n1000, error, denied, offline, partial, longtext, light, dark, w1440, w1280, w768, w390, reduced-motion]
+    - e2e
+  states:
+    - loading
+    - empty
+    - typical
+    - n100
+    - n1000
+    - error
+    - denied
+    - offline
+    - partial
+    - longtext
+    - light
+    - dark
+    - w1440
+    - w1280
+    - w768
+    - w390
+    - reduced-motion
 - id: frontend.src.components.RunsPanel
   layer: frontend
   surface: frontend/src/components/RunsPanel.tsx
   tiers:
-    - todo
-  states: [loading, empty, one, typical, error, denied, offline, light, dark, w1440, w1280, w768, w390, focus, reduced-motion]
+    - e2e
+  states:
+    - loading
+    - empty
+    - one
+    - typical
+    - error
+    - denied
+    - offline
+    - light
+    - dark
+    - w1440
+    - w1280
+    - w768
+    - w390
+    - focus
+    - reduced-motion
 - id: frontend.src.components.SectorFilePreview
   layer: frontend
   surface: frontend/src/components/SectorFilePreview.tsx
   tiers:
-    - todo
-  states: [loading, typical, error, denied, offline, light, dark, w1440, w390]
+    - e2e
+  states:
+    - loading
+    - typical
+    - error
+    - denied
+    - offline
+    - light
+    - dark
+    - w1440
+    - w390
 - id: frontend.src.components.SectorLanding
   layer: frontend
   surface: frontend/src/components/SectorLanding.tsx
   tiers:
-    - todo
-  states: [loading, empty, typical, error, denied, offline, longtext, light, dark, w1440, w1280, w768, w390, focus, reduced-motion]
+    - e2e
+  states:
+    - loading
+    - empty
+    - typical
+    - error
+    - denied
+    - offline
+    - longtext
+    - light
+    - dark
+    - w1440
+    - w1280
+    - w768
+    - w390
+    - focus
+    - reduced-motion
 - id: frontend.src.components.SectorWorkspace
   layer: frontend
   surface: frontend/src/components/SectorWorkspace.tsx
   tiers:
-    - todo
-  states: [loading, empty, typical, error, denied, offline, partial, longtext, light, dark, w1440, w1280, w768, w390, focus, reduced-motion]
+    - unit
+    - e2e
+  states:
+    - loading
+    - empty
+    - typical
+    - error
+    - denied
+    - offline
+    - partial
+    - longtext
+    - light
+    - dark
+    - w1440
+    - w1280
+    - w768
+    - w390
+    - focus
+    - reduced-motion
 - id: frontend.src.components.Sidebar
   layer: frontend
   surface: frontend/src/components/Sidebar.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, w1280, w768, w390, focus, reduced-motion]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - w1280
+    - w768
+    - w390
+    - focus
+    - reduced-motion
 - id: frontend.src.components.StatusPill
   layer: frontend
   surface: frontend/src/components/StatusPill.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
 - id: frontend.src.components.SubagentsPanel
   layer: frontend
   surface: frontend/src/components/SubagentsPanel.tsx
   tiers:
-    - todo
-  states: [typical, one, n100, n1000, light, dark, w1440, w390, focus]
+    - e2e
+  states:
+    - typical
+    - one
+    - n100
+    - n1000
+    - light
+    - dark
+    - w1440
+    - w390
+    - focus
 - id: frontend.src.components.SupervisionAlertsPanel
   layer: frontend
   surface: frontend/src/components/SupervisionAlertsPanel.tsx
   tiers:
-    - todo
-  states: [loading, empty, typical, error, denied, offline, light, dark, w1440, w390, focus]
+    - e2e
+  states:
+    - loading
+    - empty
+    - typical
+    - error
+    - denied
+    - offline
+    - light
+    - dark
+    - w1440
+    - w390
+    - focus
 - id: frontend.src.components.ThemeMenu
   layer: frontend
   surface: frontend/src/components/ThemeMenu.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - focus
 - id: frontend.src.components.TopBar
   layer: frontend
   surface: frontend/src/components/TopBar.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, w1280, w768, w390, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - w1280
+    - w768
+    - w390
+    - focus
 - id: frontend.src.components.chat.AssistantRuntimeAdapter
   layer: frontend
   surface: frontend/src/components/chat/AssistantRuntimeAdapter.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
 - id: frontend.src.components.chat.Composer
   layer: frontend
   surface: frontend/src/components/chat/Composer.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, w390, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - w390
+    - focus
 - id: frontend.src.components.chat.ConversationEmpty
   layer: frontend
   surface: frontend/src/components/chat/ConversationEmpty.tsx
   tiers:
-    - todo
-  states: [empty, light, dark, w1440, w390, focus]
+    - e2e
+  states:
+    - empty
+    - light
+    - dark
+    - w1440
+    - w390
+    - focus
 - id: frontend.src.components.chat.ReasoningDisclosure
   layer: frontend
   surface: frontend/src/components/chat/ReasoningDisclosure.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
 - id: frontend.src.components.chat.ThinkingRow
   layer: frontend
   surface: frontend/src/components/chat/ThinkingRow.tsx
   tiers:
-    - todo
+    - e2e
   states: []
 - id: frontend.src.components.chat.ToolActivity
   layer: frontend
   surface: frontend/src/components/chat/ToolActivity.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
 - id: frontend.src.components.chat.assistantAdapter
   layer: frontend
   surface: frontend/src/components/chat/assistantAdapter.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: frontend.src.components.chat_parts
   layer: frontend
   surface: frontend/src/components/chat-parts.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
 - id: frontend.src.components.plan.PlanSteps
   layer: frontend
   surface: frontend/src/components/plan/PlanSteps.tsx
   tiers:
-    - todo
-  states: [loading, typical, light, dark, w1440, w390, focus]
+    - e2e
+  states:
+    - loading
+    - typical
+    - light
+    - dark
+    - w1440
+    - w390
+    - focus
 - id: frontend.src.components.plan.PlanTab
   layer: frontend
   surface: frontend/src/components/plan/PlanTab.tsx
   tiers:
-    - todo
-  states: [loading, typical, error, denied, offline, light, dark, w1440, w390, focus]
+    - e2e
+  states:
+    - loading
+    - typical
+    - error
+    - denied
+    - offline
+    - light
+    - dark
+    - w1440
+    - w390
+    - focus
 - id: frontend.src.components.research_parts
   layer: frontend
   surface: frontend/src/components/research-parts.tsx
   tiers:
-    - todo
-  states: [typical, n100, light, dark, w1440, w390]
+    - e2e
+  states:
+    - typical
+    - n100
+    - light
+    - dark
+    - w1440
+    - w390
 - id: frontend.src.components.shells
   layer: frontend
   surface: frontend/src/components/shells.tsx
   tiers:
-    - todo
-  states: [loading, typical, error, denied, offline, light, dark, w1440, w390, focus]
+    - e2e
+  states:
+    - loading
+    - typical
+    - error
+    - denied
+    - offline
+    - light
+    - dark
+    - w1440
+    - w390
+    - focus
 - id: frontend.src.components.text
   layer: frontend
   surface: frontend/src/components/text.tsx
   tiers:
-    - todo
-  states: [empty, light, dark, w1440, w390]
+    - e2e
+  states:
+    - empty
+    - light
+    - dark
+    - w1440
+    - w390
 - id: frontend.src.components.ui.alert_dialog
   layer: frontend
   surface: frontend/src/components/ui/alert-dialog.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, w390, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - w390
+    - focus
 - id: frontend.src.components.ui.badge
   layer: frontend
   surface: frontend/src/components/ui/badge.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
 - id: frontend.src.components.ui.button
   layer: frontend
   surface: frontend/src/components/ui/button.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - focus
 - id: frontend.src.components.ui.checkbox
   layer: frontend
   surface: frontend/src/components/ui/checkbox.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - focus
 - id: frontend.src.components.ui.collapsible
   layer: frontend
   surface: frontend/src/components/ui/collapsible.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - focus
 - id: frontend.src.components.ui.dialog
   layer: frontend
   surface: frontend/src/components/ui/dialog.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, w390, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - w390
+    - focus
 - id: frontend.src.components.ui.field
   layer: frontend
   surface: frontend/src/components/ui/field.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
 - id: frontend.src.components.ui.input
   layer: frontend
   surface: frontend/src/components/ui/input.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - focus
 - id: frontend.src.components.ui.list
   layer: frontend
   surface: frontend/src/components/ui/list.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - focus
 - id: frontend.src.components.ui.menu
   layer: frontend
   surface: frontend/src/components/ui/menu.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - focus
 - id: frontend.src.components.ui.popover
   layer: frontend
   surface: frontend/src/components/ui/popover.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - focus
 - id: frontend.src.components.ui.progress
   layer: frontend
   surface: frontend/src/components/ui/progress.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - focus
 - id: frontend.src.components.ui.select
   layer: frontend
   surface: frontend/src/components/ui/select.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - focus
 - id: frontend.src.components.ui.separator
   layer: frontend
   surface: frontend/src/components/ui/separator.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
 - id: frontend.src.components.ui.skeleton
   layer: frontend
   surface: frontend/src/components/ui/skeleton.tsx
   tiers:
-    - todo
-  states: [loading, light, dark, w1440, w390, reduced-motion]
+    - unit
+    - e2e
+  states:
+    - loading
+    - light
+    - dark
+    - w1440
+    - w390
+    - reduced-motion
 - id: frontend.src.components.ui.switch
   layer: frontend
   surface: frontend/src/components/ui/switch.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - focus
 - id: frontend.src.components.ui.tabs
   layer: frontend
   surface: frontend/src/components/ui/tabs.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - focus
 - id: frontend.src.components.ui.textarea
   layer: frontend
   surface: frontend/src/components/ui/textarea.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - focus
 - id: frontend.src.components.ui.tooltip
   layer: frontend
   surface: frontend/src/components/ui/tooltip.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
 - id: frontend.src.components.workspace_parts
   layer: frontend
   surface: frontend/src/components/workspace-parts.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
 - id: http.approveSectorPlan
   layer: backend
   surface: backend/openapi/v1.yaml (POST /v1/sectors/{sectorId}/approve)
@@ -5274,73 +5684,138 @@
   layer: frontend
   surface: frontend/src/components/chat/ChatComposer.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, w390, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - w390
+    - focus
 - id: frontend.src.components.chat.ChatHeader
   layer: frontend
   surface: frontend/src/components/chat/ChatHeader.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, w390]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - w390
 - id: frontend.src.components.chat.ChatLog
   layer: frontend
   surface: frontend/src/components/chat/ChatLog.tsx
   tiers:
-    - todo
-  states: [loading, empty, one, typical, n100, n1000, error, offline, longtext, light, dark, w1440, w1280, w768, w390, focus, reduced-motion]
+    - e2e
+  states:
+    - loading
+    - empty
+    - one
+    - typical
+    - n100
+    - n1000
+    - error
+    - offline
+    - longtext
+    - light
+    - dark
+    - w1440
+    - w1280
+    - w768
+    - w390
+    - focus
+    - reduced-motion
 - id: frontend.src.components.chat.ChatStates
   layer: frontend
   surface: frontend/src/components/chat/ChatStates.tsx
   tiers:
-    - todo
-  states: [loading, typical, error, offline, light, dark, w1440, focus]
+    - e2e
+  states:
+    - loading
+    - typical
+    - error
+    - offline
+    - light
+    - dark
+    - w1440
+    - focus
 - id: frontend.src.components.chat.FilesMenu
   layer: frontend
   surface: frontend/src/components/chat/FilesMenu.tsx
   tiers:
-    - todo
-  states: [typical, light, dark, w1440, w390, focus]
+    - e2e
+  states:
+    - typical
+    - light
+    - dark
+    - w1440
+    - w390
+    - focus
 - id: frontend.src.components.chat.MessageBubble
   layer: frontend
   surface: frontend/src/components/chat/MessageBubble.tsx
   tiers:
-    - todo
-  states: [typical, one, n100, n1000, longtext, light, dark, w1440, w390]
+    - e2e
+  states:
+    - typical
+    - one
+    - n100
+    - n1000
+    - longtext
+    - light
+    - dark
+    - w1440
+    - w390
 - id: frontend.src.components.chat.SessionFiles
   layer: frontend
   surface: frontend/src/components/chat/SessionFiles.tsx
   tiers:
-    - todo
-  states: [empty, typical, light, dark, w1440, w390, focus]
+    - e2e
+  states:
+    - empty
+    - typical
+    - light
+    - dark
+    - w1440
+    - w390
+    - focus
 - id: frontend.src.components.chat.SessionsPanel
   layer: frontend
   surface: frontend/src/components/chat/SessionsPanel.tsx
   tiers:
-    - todo
-  states: [typical, n100, light, dark, w1440, w390, focus]
+    - e2e
+  states:
+    - typical
+    - n100
+    - light
+    - dark
+    - w1440
+    - w390
+    - focus
 - id: frontend.src.components.chat.messages
   layer: frontend
   surface: frontend/src/components/chat/messages.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: frontend.src.components.chat.useChatScroll
   layer: frontend
   surface: frontend/src/components/chat/useChatScroll.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: frontend.src.components.chat.useChatSync
   layer: frontend
   surface: frontend/src/components/chat/useChatSync.ts
   tiers:
-    - todo
+    - e2e
   states: []
 - id: frontend.hook.useModelCatalog
   layer: frontend
   surface: frontend/src/data/useModelCatalog.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: agents.http.HttpError
   layer: agents
@@ -5394,26 +5869,65 @@
   layer: frontend
   surface: frontend/src/components/global-context-panel.tsx
   tiers:
-    - todo
-  states: [loading, typical, error, denied, offline, light, dark, w1440, focus, reduced-motion]
+    - e2e
+  states:
+    - loading
+    - typical
+    - error
+    - denied
+    - offline
+    - light
+    - dark
+    - w1440
+    - focus
+    - reduced-motion
 - id: frontend.src.components.local_context_editor
   layer: frontend
   surface: frontend/src/components/local-context-editor.tsx
   tiers:
-    - todo
-  states: [typical, error, denied, offline, light, dark, w1440, w390, focus]
+    - e2e
+  states:
+    - typical
+    - error
+    - denied
+    - offline
+    - light
+    - dark
+    - w1440
+    - w390
+    - focus
 - id: frontend.src.components.plan_progress
   layer: frontend
   surface: frontend/src/components/plan-progress.tsx
   tiers:
-    - todo
-  states: [loading, typical, error, denied, offline, light, dark, w1440, w390, focus]
+    - e2e
+  states:
+    - loading
+    - typical
+    - error
+    - denied
+    - offline
+    - light
+    - dark
+    - w1440
+    - w390
+    - focus
 - id: frontend.src.components.workspace_files
   layer: frontend
   surface: frontend/src/components/workspace-files.tsx
   tiers:
-    - todo
-  states: [loading, typical, error, denied, offline, light, dark, w1440, focus, reduced-motion]
+    - e2e
+  states:
+    - loading
+    - typical
+    - error
+    - denied
+    - offline
+    - light
+    - dark
+    - w1440
+    - focus
+    - reduced-motion
 - id: db.file_jobs.assertRevision
   layer: db
   surface: backend/src/db/file-jobs.ts
@@ -6093,3 +6607,72 @@
   tiers:
     - db
   states: []
+- id: frontend.hook.useApi
+  layer: frontend
+  surface: frontend/src/data/useApi.ts
+  tiers:
+    - unit
+  states: []
+- id: frontend.hook.useContexts
+  layer: frontend
+  surface: frontend/src/data/useContexts.ts
+  tiers:
+    - none
+  states: []
+  why: P6.1 re-export seam, no behavior
+- id: frontend.hook.useFiles
+  layer: frontend
+  surface: frontend/src/data/useFiles.ts
+  tiers:
+    - none
+  states: []
+  why: P6.1 re-export seam, no behavior
+- id: frontend.hook.useModels
+  layer: frontend
+  surface: frontend/src/data/useModels.ts
+  tiers:
+    - none
+  states: []
+  why: P6.1 re-export seam, no behavior
+- id: frontend.hook.usePlans
+  layer: frontend
+  surface: frontend/src/data/usePlans.ts
+  tiers:
+    - none
+  states: []
+  why: P6.1 re-export seam, no behavior
+- id: frontend.hook.useRuns
+  layer: frontend
+  surface: frontend/src/data/useRuns.ts
+  tiers:
+    - none
+  states: []
+  why: P6.1 re-export seam, no behavior
+- id: frontend.hook.useSectors
+  layer: frontend
+  surface: frontend/src/data/useSectors.ts
+  tiers:
+    - none
+  states: []
+  why: P6.1 re-export seam, no behavior
+- id: frontend.hook.useSessions
+  layer: frontend
+  surface: frontend/src/data/useSessions.ts
+  tiers:
+    - none
+  states: []
+  why: P6.1 re-export seam, no behavior
+- id: frontend.hook.useSkills
+  layer: frontend
+  surface: frontend/src/data/useSkills.ts
+  tiers:
+    - none
+  states: []
+  why: P6.1 re-export seam, no behavior
+- id: frontend.hook.useThreads
+  layer: frontend
+  surface: frontend/src/data/useThreads.ts
+  tiers:
+    - none
+  states: []
+  why: P6.1 re-export seam, no behavior

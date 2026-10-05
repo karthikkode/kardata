@@ -1,5 +1,5 @@
 // Live-state truth (P6.3.2): running indicators derive from server state.
-// [F:frontend.src.components.ChatPanel] [F:frontend.src.components.chat.ChatLog] [F:frontend.src.components.SectorWorkspace] [F:frontend.src.components.chat.ThinkingRow]
+// [F:frontend.src.components.ChatPanel] [F:frontend.src.components.chat.ChatLog] [F:frontend.src.components.SectorWorkspace] [F:frontend.src.components.chat.ThinkingRow] [F:frontend.src.components.chat.useChatSync]
 import { expect, test, type Page } from '@playwright/test'
 import { dropStream, pushFrame, serveApi, streamCount } from './support/api'
 

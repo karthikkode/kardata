@@ -1,5 +1,6 @@
 // SPIKE: adapter mapping proof over stubbed snapshots. No network, no
 // transport. Fails if mapping drops rows, reorders, or loses pending parts.
+// [F:frontend.src.components.chat.assistantAdapter]
 import { describe, expect, it } from 'vitest'
 import { toThreadMessages } from '@/components/chat/assistantAdapter'
 import type { ChatMessage } from '@/components/chat/messages'

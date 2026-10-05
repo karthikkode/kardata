@@ -55,15 +55,46 @@ function loadRegistryStates() {
   const lines = readFileSync(REGISTRY, 'utf8').split('\n')
   const out = new Map()
   let id = null
+  let block = null
+  const flush = () => {
+    if (id && block) out.set(id, block)
+    id = null
+    block = null
+  }
   for (const line of lines) {
     const idMatch = /^- id: (frontend\.\S+)/.exec(line)
-    if (idMatch) id = idMatch[1]
+    if (idMatch) {
+      flush()
+      id = idMatch[1]
+      continue
+    }
+    if (/^- id: /.test(line)) {
+      flush()
+      continue
+    }
     const stMatch = /^  states: \[(.*)\]/.exec(line)
     if (stMatch && id) {
       out.set(id, stMatch[1].split(',').map((s) => s.trim()).filter(Boolean))
       id = null
+      continue
     }
+    if (/^  states: \[\]$/.test(line) && id) {
+      out.set(id, [])
+      id = null
+      continue
+    }
+    if (/^  states:$/.test(line) && id) {
+      block = []
+      continue
+    }
+    const itemMatch = /^    - (\S+)/.exec(line)
+    if (itemMatch && block) {
+      block.push(itemMatch[1])
+      continue
+    }
+    if (block && /^\S/.test(line)) flush()
   }
+  flush()
   return out
 }
 
