@@ -122,13 +122,21 @@ async function workspaceIdentity(ctx: McpToolContext) {
   return { sectorId: identity.session.sectorId, threadKey: ctx.executionThread }
 }
 
+/** Sector scope shared by Karbot-readable sector tools: the caller's
+ * sector binding wins when present (an explicit sectorId must match
+ * it); outside a sector conversation sectorId is required. */
+async function sectorScope(ctx: McpToolContext, argSectorId?: string) {
+  const actor = ctx.executionThread ? await requireThread(ctx.pool, ctx.executionThread, ctx.scope) : undefined
+  const sectorId = actor?.session.sectorId ?? argSectorId
+  if (!sectorId) throw new McpToolError('validation_failed', 'Specify sectorId outside a sector conversation.')
+  if (actor?.session.sectorId && argSectorId && argSectorId !== actor.session.sectorId) throw new McpToolError('permission_denied', 'This execution is bound to another sector.')
+  return { sectorId, actor }
+}
+
 export const INVOKERS: Invokers = {
   'db.commit_child_context': async (ctx, args) => { const identity = await workspaceIdentity(ctx); await assertThreadFileContext(ctx.pool, identity.threadKey, ctx.scope); return commitChildContext(ctx.pool, identity.threadKey, args.proposalId, ctx.scope) },
   'db.get_global_context': async (ctx, args) => {
-    const actor = ctx.executionThread ? await requireThread(ctx.pool, ctx.executionThread, ctx.scope) : undefined
-    const sectorId = actor?.session.sectorId ?? args.sectorId
-    if (!sectorId) throw new McpToolError('validation_failed', 'Specify sectorId outside a sector conversation.')
-    if (actor?.session.sectorId && args.sectorId && args.sectorId !== actor.session.sectorId) throw new McpToolError('permission_denied', 'This execution is bound to another sector.')
+    const { sectorId, actor } = await sectorScope(ctx, args.sectorId)
     await assertGlobalFileContext(ctx.pool, sectorId, ctx.scope)
     const context = await readGlobalContext(ctx.pool, sectorId, ctx.scope)
     const parent = actor?.thread.kind === 'session' && actor.session.id === context.researchSessionId
@@ -315,20 +323,22 @@ export const INVOKERS: Invokers = {
     }
     return target
   },
-  'db.get_sector_plan': async (ctx) => {
-    const identity = await workspaceIdentity(ctx)
-    return readSectorPlan(ctx.pool, identity.sectorId, ctx.scope)
+  'db.get_sector_plan': async (ctx, args) => {
+    const { sectorId } = await sectorScope(ctx, args.sectorId)
+    return readSectorPlan(ctx.pool, sectorId, ctx.scope)
   },
-  'db.get_research_progress': async (ctx) => {
-    const identity = await workspaceIdentity(ctx)
-    return readResearchProgress(ctx.pool, identity.sectorId, ctx.scope)
+  'db.get_research_progress': async (ctx, args) => {
+    const { sectorId } = await sectorScope(ctx, args.sectorId)
+    return readResearchProgress(ctx.pool, sectorId, ctx.scope)
   },
-  'db.list_sector_sessions': async (ctx) => {
-    const identity = await workspaceIdentity(ctx)
-    return listSectorSessions(ctx.pool, identity.sectorId, ctx.scope)
+  'db.list_sector_sessions': async (ctx, args) => {
+    const { sectorId } = await sectorScope(ctx, args.sectorId)
+    return listSectorSessions(ctx.pool, sectorId, ctx.scope)
   },
   'db.read_sector_thread': async (ctx, args) => {
-    await workspaceIdentity(ctx)
+    const { sectorId } = await sectorScope(ctx, args.sectorId)
+    const target = await requireThread(ctx.pool, args.threadKey, ctx.scope)
+    if (target.session.sectorId !== sectorId) throw new McpToolError('permission_denied', 'Conversation is outside this sector.')
     return readSectorThread(ctx.pool, args.threadKey, { fromSeq: args.fromSeq, limit: args.limit })
   },
   'db.list_threads': (ctx, args) => listThreadHeaders(ctx.pool, args.sessionId),

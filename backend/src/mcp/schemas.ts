@@ -195,11 +195,12 @@ export const TOOL_SCHEMAS = {
   'db.get_thread': z.object({
     threadKey: NonEmpty,
   }),
-  'db.get_sector_plan': z.object({}).strict(),
-  'db.get_research_progress': z.object({}).strict(),
-  'db.list_sector_sessions': z.object({}).strict(),
+  'db.get_sector_plan': z.object({ sectorId: NonEmpty.optional() }).strict(),
+  'db.get_research_progress': z.object({ sectorId: NonEmpty.optional() }).strict(),
+  'db.list_sector_sessions': z.object({ sectorId: NonEmpty.optional() }).strict(),
   'db.read_sector_thread': z.object({
     threadKey: NonEmpty,
+    sectorId: NonEmpty.optional(),
     fromSeq: AfterSeq.optional(),
     limit: z.number().int().min(1).max(100).optional(),
   }).strict(),
