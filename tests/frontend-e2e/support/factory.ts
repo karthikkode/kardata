@@ -177,9 +177,9 @@ export function matrixApiOptions(
     case 'n1000': {
       const count = COUNT_ROWS[state] as number
       data.companies = makeCompanies(count)
-      data.sessions = makeSessions(Math.min(count, 50))
+      data.sessions = makeSessions(count)
       data.runs = makeRuns(Math.min(count, 50))
-      data.subagents = Math.min(count, 50)
+      data.subagents = count
       // Typical keeps the showcase thread (tools + reasoning + markdown);
       // only the scaled counts override messages.
       if (state !== 'typical') data.messages = makeMessages(count)
