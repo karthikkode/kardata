@@ -153,17 +153,18 @@ export function mergeRegistry(oldEntries, surfaces) {
 
 const TAG_PATTERN = /\[F:([A-Za-z0-9_.-]+)\]/g
 
-/** Tier heuristic by test path (Phase 7 hardens exactness). */
-export function tierOfFile(relPath) {
-  if (relPath.startsWith('tests/stress/')) return ['stress']
-  if (relPath.startsWith('tests/fault/')) return ['fault']
-  if (relPath.startsWith('tests/backend/live/') || relPath.endsWith('.live.spec.ts')) return ['live']
-  if (relPath.startsWith('tests/frontend-e2e/')) return ['e2e']
-  if (/^tests\/backend\/(workflows|temporal)[./]/.test(relPath) || /^tests\/backend\/(workflows|temporal)\..*\.test\.ts$/.test(relPath)) return ['unit', 'db', 'temporal']
-  if (relPath.startsWith('tests/backend/')) return ['unit', 'db']
-  if (relPath.startsWith('agents/src/')) return ['unit']
-  if (relPath.startsWith('tests/frontend/')) return ['unit']
-  return ['unit']
+/** One tier per test file, decided by content (Phase 7 hardens exactness).
+ *  Content gates beat location: temporal and live files also touch the DB,
+ *  so live precedes temporal precedes db; a pure unit test in tests/backend
+ *  is unit. */
+export function tierOfFile(relPath, content = '') {
+  if (relPath.startsWith('tests/stress/')) return 'stress'
+  if (relPath.startsWith('tests/fault/')) return 'fault'
+  if (content.includes('KARDATA_LIVE_META') || content.includes('KARDATA_LIVE_UI')) return 'live'
+  if (content.includes('KARDATA_TEMPORAL_TEST')) return 'temporal'
+  if (content.includes('TEST_DATABASE_URL') || content.includes('db-helper')) return 'db'
+  if (relPath.startsWith('tests/frontend-e2e/')) return 'e2e'
+  return 'unit'
 }
 
 export function scanTags(repoRoot = ROOT) {
@@ -177,7 +178,7 @@ export function scanTags(repoRoot = ROOT) {
       } else if (/\.(test|spec)\.(ts|tsx|js|mjs)$/.test(entry.name)) {
         const text = readFileSync(join(repoRoot, rel), 'utf8')
         for (const match of text.matchAll(TAG_PATTERN)) {
-          tags.push({ id: match[1], file: rel, tiers: tierOfFile(rel) })
+          tags.push({ id: match[1], file: rel, tiers: [tierOfFile(rel, text)] })
         }
       }
     }

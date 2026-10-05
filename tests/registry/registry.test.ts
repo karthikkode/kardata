@@ -3,7 +3,7 @@
 // Always fails on: a surface missing from the YAML, a tag naming an
 // unknown id. With REGISTRY_ENFORCE=1 (default in Phase 7) it also fails
 // on `todo` entries and entries lacking a tagged test per listed tier.
-// Tier-by-path is a heuristic (documented in tierOfFile); exactness
+// Tier-by-content is a heuristic (documented in tierOfFile); exactness
 // hardens in Phase 7.
 import { describe, expect, it } from 'vitest'
 import {
@@ -105,15 +105,17 @@ describe('registry sync merge', () => {
 })
 
 describe('tierOfFile', () => {
-  it('maps paths to tiers', () => {
-    expect(tierOfFile('tests/stress/x.test.ts')).toEqual(['stress'])
-    expect(tierOfFile('tests/fault/x.test.ts')).toEqual(['fault'])
-    expect(tierOfFile('tests/backend/live/x.test.ts')).toEqual(['live'])
-    expect(tierOfFile('tests/frontend-e2e/x.live.spec.ts')).toEqual(['live'])
-    expect(tierOfFile('tests/frontend-e2e/x.spec.ts')).toEqual(['e2e'])
-    expect(tierOfFile('tests/backend/workflows.x.test.ts')).toEqual(['unit', 'db', 'temporal'])
-    expect(tierOfFile('tests/backend/api.x.test.ts')).toEqual(['unit', 'db'])
-    expect(tierOfFile('agents/src/x.test.ts')).toEqual(['unit'])
-    expect(tierOfFile('tests/frontend/x.test.tsx')).toEqual(['unit'])
+  it('maps content to exactly one tier', () => {
+    expect(tierOfFile('tests/stress/x.test.ts', '')).toBe('stress')
+    expect(tierOfFile('tests/fault/x.test.ts', '')).toBe('fault')
+    expect(tierOfFile('tests/backend/live/x.test.ts', "process.env['KARDATA_LIVE_META']")).toBe('live')
+    expect(tierOfFile('tests/frontend-e2e/x.live.spec.ts', 'KARDATA_LIVE_UI')).toBe('live')
+    expect(tierOfFile('tests/backend/workflows.x.test.ts', 'KARDATA_TEMPORAL_TEST TEST_DATABASE_URL')).toBe('temporal')
+    expect(tierOfFile('tests/backend/db.x.test.ts', 'TEST_DATABASE_URL')).toBe('db')
+    expect(tierOfFile('tests/backend/api.x.test.ts', "from '../db-helper.js'")).toBe('db')
+    expect(tierOfFile('tests/backend/api.x.test.ts', 'plain unit test')).toBe('unit')
+    expect(tierOfFile('tests/frontend-e2e/x.spec.ts', 'playwright test')).toBe('e2e')
+    expect(tierOfFile('agents/src/x.test.ts', '')).toBe('unit')
+    expect(tierOfFile('tests/frontend/x.test.tsx', '')).toBe('unit')
   })
 })
