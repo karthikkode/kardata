@@ -15,5 +15,5 @@
     "allowJs": true,
     "types": ["node"]
   },
-  "include": ["src", "vitest.config.ts", "../tests/backend", "../tests/registry"]
+  "include": ["src", "vitest.config.ts", "../tests/backend", "../tests/registry", "../tests/stress", "../tests/fault"]
 }
