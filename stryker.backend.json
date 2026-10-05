@@ -22,5 +22,6 @@
     "json"
   ],
   "incremental": true,
-  "incrementalFile": ".stryker-tmp/incremental-backend.json"
+  "incrementalFile": ".stryker-tmp/incremental-backend.json",
+  "thresholds": { "high": 80, "low": 70, "break": 70 }
 }

@@ -20,5 +20,6 @@
     "json"
   ],
   "incremental": true,
-  "incrementalFile": ".stryker-tmp/incremental-agents.json"
+  "incrementalFile": ".stryker-tmp/incremental-agents.json",
+  "thresholds": { "high": 80, "low": 70, "break": 70 }
 }
