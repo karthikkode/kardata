@@ -29,7 +29,7 @@ function appendUrl(): string {
   return url.toString()
 }
 
-describe('event envelope (B1.1) [F:db.index.appendEvent] [F:db.index.findEventByKey] [F:db.index.readPartition] [F:db.index.DbContractError] [F:db.migrate.migrate] [F:db.index.EventEnvelope] [F:db.events.readPartition] [F:db.events.appendEvent] [F:db.events.findEventByKey] [F:db.errors.DbContractError] [F:db.events.EventEnvelope] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.events.KeySchema]', () => {
+describe('event envelope (B1.1)', () => {
   it('rejects invalid envelopes without touching the database', () => {
     expect(() => EventEnvelope.parse({ partition: 'p', type: 't' })).toThrow()
     expect(() => EventEnvelope.parse({ idempotencyKey: '', partition: 'p', type: 't' })).toThrow()
@@ -82,7 +82,7 @@ describe('event envelope (B1.1) [F:db.index.appendEvent] [F:db.index.findEventBy
     expect((error as DbContractError).code).toBe('db_contract')
   })
 
-  describe.skipIf(!DB)('against Postgres', () => {
+  describe.skipIf(!DB)('against Postgres [F:db.index.appendEvent] [F:db.index.findEventByKey] [F:db.index.readPartition] [F:db.index.DbContractError] [F:db.migrate.migrate] [F:db.index.EventEnvelope] [F:db.events.readPartition] [F:db.events.appendEvent] [F:db.events.findEventByKey] [F:db.errors.DbContractError] [F:db.events.EventEnvelope] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.events.KeySchema]', () => {
     beforeAll(async () => {
       const admin = new URL(DB as string)
       admin.pathname = '/postgres'

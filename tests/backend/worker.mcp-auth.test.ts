@@ -13,7 +13,7 @@ function stubFetch(status: number) {
   return async () => ({ ok: status >= 200 && status < 300, status })
 }
 
-describe('worker mcp auth self-check [F:backend.activity.worker_mcp_auth.checkWorkerMcpAuth] [F:backend.activity.turn.checkWorkerMcpAuth]', () => {
+describe('worker mcp auth self-check [F:backend.activity.worker_mcp_auth.checkWorkerMcpAuth]', () => {
   it('passes when the credential resolves', async () => {
     const result = await checkWorkerMcpAuth({
       mcpEndpoint: 'http://backend:3001/mcp',

@@ -14,7 +14,7 @@ import { routeSend } from '../../backend/src/threads/project.js'
 import { toApiMessage } from '../../backend/src/threads/views.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe('message view thinking trace [F:db.index.appendEvent] [F:db.index.readPartition] [F:db.index.getThread] [F:db.index.listThreads] [F:db.index.projectBatch] [F:db.index.rebuildFromEvents] [F:db.index.listThreadHeaders] [F:db.events.readPartition] [F:db.events.appendEvent] [F:db.threads.getThread] [F:db.threads.listThreads] [F:db.threads.projectBatch] [F:db.threads.rebuildFromEvents] [F:db.threads.listThreadHeaders] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.index.SectorSweepRunner] [F:db.index.StoredEvent]', () => {
+describe('message view thinking trace', () => {
   it('passes agent reasoning through, never on user rows', () => {
     expect(
       toApiMessage({
@@ -56,7 +56,7 @@ describe('thread routing (B1.2)', () => {
   })
 })
 
-describe.skipIf(!TEST_DATABASE_URL)('transcript projection (B1.2)', () => {
+describe.skipIf(!TEST_DATABASE_URL)('transcript projection (B1.2) [F:db.index.appendEvent] [F:db.index.readPartition] [F:db.index.getThread] [F:db.index.listThreads] [F:db.index.projectBatch] [F:db.index.rebuildFromEvents] [F:db.index.listThreadHeaders] [F:db.events.readPartition] [F:db.events.appendEvent] [F:db.threads.getThread] [F:db.threads.listThreads] [F:db.threads.projectBatch] [F:db.threads.rebuildFromEvents] [F:db.threads.listThreadHeaders] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.index.SectorSweepRunner] [F:db.index.StoredEvent]', () => {
   let url = ''
 
   beforeAll(async () => {

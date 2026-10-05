@@ -18,7 +18,7 @@ async function fixture() {
   return {pool,session}
 }
 
-describe.skipIf(!TEST_DATABASE_URL)('scoped table-backed supervision delivery [F:db.alerts.raiseAlert] [F:db.alerts.resolveAlert] [F:db.alerts.listSupervisionAlerts] [F:http.listSupervisionAlerts] [F:db.index.appendEvent] [F:db.index.createSector] [F:db.index.createSession] [F:db.index.registerApiKey] [F:db.keys.registerApiKey] [F:db.sectors.createSector] [F:db.events.appendEvent] [F:db.sessions.createSession] [F:db.alerts.SupervisionAlert] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.workspace.WorkspaceError] [F:db.workspace.requireSector]',()=>{
+describe.skipIf(!TEST_DATABASE_URL)('scoped table-backed supervision delivery [F:db.alerts.raiseAlert] [F:db.alerts.resolveAlert] [F:db.alerts.listSupervisionAlerts] [F:http.listSupervisionAlerts] [F:db.index.appendEvent] [F:db.index.createSector] [F:db.index.createSession] [F:db.index.registerApiKey] [F:db.keys.registerApiKey] [F:db.sectors.createSector] [F:db.events.appendEvent] [F:db.sessions.createSession] [F:db.alerts.SupervisionAlert] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.workspace.WorkspaceError] [F:db.workspace.requireSector] [F:db.index.raiseAlert] [F:db.index.resolveAlert]',()=>{
   it('requires a validated key even in open app mode and inherits request correlation',async()=>{
     const {pool,session}=await fixture(),app=buildApp({pool,auth:false})
     try {

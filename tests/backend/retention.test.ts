@@ -41,7 +41,7 @@ class FakeGcsBucket implements GcsBucketHandle {
   }
 }
 
-describe('archive targets (B1.4) [F:db.index.appendEvent] [F:db.index.readPartition] [F:db.events.readPartition] [F:db.events.appendEvent] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.index.readEventsOlderThan] [F:db.events.deleteEventsBySeq] [F:db.index.deleteEventsBySeq]', () => {
+describe('archive targets (B1.4)', () => {
   it('filesystem target round-trips and lists by prefix', async () => {
     const target = new FilesystemTarget(mkdtempSync(join(tmpdir(), 'kardata-arch-')))
     await target.write('events/p1/1.json', '{"seq":1}')
@@ -62,7 +62,7 @@ describe('archive targets (B1.4) [F:db.index.appendEvent] [F:db.index.readPartit
   })
 })
 
-describe.skipIf(!TEST_DATABASE_URL)('retention job (B1.4) [F:db.events.listColdPointers] [F:db.events.recordColdPointers] [F:db.events.readEventsOlderThan]', () => {
+describe.skipIf(!TEST_DATABASE_URL)('retention job (B1.4) [F:db.events.listColdPointers] [F:db.events.recordColdPointers] [F:db.events.readEventsOlderThan] [F:db.index.ColdEventPointer] [F:db.index.listColdPointers] [F:db.index.recordColdPointers] [F:db.index.appendEvent] [F:db.index.readPartition] [F:db.events.readPartition] [F:db.events.appendEvent] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.index.readEventsOlderThan] [F:db.events.deleteEventsBySeq] [F:db.index.deleteEventsBySeq]', () => {
   let url = ''
 
   beforeAll(async () => {

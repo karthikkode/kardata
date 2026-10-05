@@ -967,12 +967,6 @@
   tiers:
     - unit
   states: []
-- id: backend.activity.providers.providerChatActivity
-  layer: backend
-  surface: backend/src/temporal/activities/providers.ts
-  tiers:
-    - todo
-  states: []
 - id: backend.activity.reconciliation.inspectWorkflowOwner
   layer: backend
   surface: backend/src/temporal/activities/reconciliation.ts
@@ -1076,23 +1070,11 @@
   tiers:
     - db
   states: []
-- id: backend.activity.tools.emptyTaskSnapshot
-  layer: backend
-  surface: backend/src/temporal/activities/tools.ts
-  tiers:
-    - todo
-  states: []
 - id: backend.activity.tools.executeToolCall
   layer: backend
   surface: backend/src/temporal/activities/tools.ts
   tiers:
     - db
-  states: []
-- id: backend.activity.tools.toolCallActivity
-  layer: backend
-  surface: backend/src/temporal/activities/tools.ts
-  tiers:
-    - todo
   states: []
 - id: backend.activity.turn_prompts.CONTEXT_PROPOSAL_NUDGE
   layer: backend
@@ -1169,12 +1151,6 @@
 - id: backend.activity.turn_chatrefs.chatHistory
   layer: backend
   surface: backend/src/temporal/activities/turn-chatrefs.ts
-  tiers:
-    - unit
-  states: []
-- id: backend.activity.turn.checkWorkerMcpAuth
-  layer: backend
-  surface: backend/src/temporal/activities/turn.ts
   tiers:
     - unit
   states: []
@@ -1398,8 +1374,9 @@
   layer: backend
   surface: backend/src/temporal/workflows/research-bundle.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: export-star barrel, no own behavior
 - id: backend.workflow.resumable_turn.resumableTurn
   layer: backend
   surface: backend/src/temporal/workflows/resumable-turn.ts
@@ -1590,8 +1567,9 @@
   layer: backend
   surface: backend/src/temporal/workflows/turn-bundle.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: export-star barrel, no own behavior
 - id: backend.workflow.turn_bundle.companyResearch
   layer: backend
   surface: backend/src/temporal/workflows/turn-bundle.ts
@@ -2448,8 +2426,9 @@
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: export-star barrel, no own behavior
 - id: db.index.addContextNotes
   layer: db
   surface: backend/src/db/index.ts

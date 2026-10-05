@@ -64,7 +64,7 @@ Evidence items always carry doc id, URL, and excerpt (provenance minimum).
 
 ## Backend conformance (B4.2)
 
-The backend executes plan/task tools through `toolCallActivity` in
+The backend executes plan/task tools through `executeToolCall` in
 `backend/src/temporal/activities/tools.ts`, reusing agents `dispatch`,
 `planTools`, and `taskTools`. Rules the backend adds on top of the agents
 contract:

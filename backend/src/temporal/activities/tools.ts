@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto'
 import { recordThreadFileExposure } from '../../db/context-files.js'
 import { getSession, type TransactableDb } from '../../db/index.js'
-// Plan/task tool activities (B4.2). `toolCallActivity` executes one
-// agents plan/task tool call with approval gates, timeouts, and durable
-// idempotency — the pure core (`executeToolCall`) takes its side effects
-// as deps so the matrix is unit-provable without a Temporal worker.
+// Plan/task tool activities (B4.2). `executeToolCall` runs one agents
+// plan/task tool call with approval gates, timeouts, and durable
+// idempotency, taking its side effects as deps so the matrix is
+// unit-provable without a Temporal worker.
 //
 // State discipline: workers hold no plan/task state (AGENTS.md). The
 // workflow carries snapshots in history; the activity rehydrates fresh
@@ -19,10 +19,6 @@ import { getSession, type TransactableDb } from '../../db/index.js'
 //     error result is the recorded response — never silent);
 //   - sensitive tools without an approving verdict record
 //     `t.approval.decided` (denied) and never execute.
-import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
-import { Context } from '@temporalio/activity'
-import { TRACER_NAME, startSpan } from '../../observability/tracing.js'
-import { activityLogFields } from '../../observability/temporal-tracing.js'
 import {
   PlanStore,
   TaskLedger,
@@ -37,15 +33,13 @@ import {
   type ToolRegistration,
   type ToolResult,
 } from '@kardata/agents'
-import { resolveArchiveTarget, type ArchiveTarget } from '../../archive/targets.js'
+import type { ArchiveTarget } from '../../archive/targets.js'
 import {
   CorruptArtifactError,
   UnindexedArtifactError,
   serveArtifact,
 } from '../../artifacts/pipeline.js'
 import { appendEvent, findEventByKey, resolveArtifactScope, type Db } from '../../db/index.js'
-import { recordHeartbeat } from '../../db/index.js'
-import { workerPoolFromEnv } from '../../db/index.js'
 
 export const TOOL_EXECUTED_EVENT = 't.tool.executed'
 export const TOOL_TIMEOUT_EVENT = 't.tool.timeout'
@@ -65,10 +59,6 @@ export interface TaskSnapshot {
   blockers: Array<{ reason: string }>
   submissions: Array<{ summary: string; detail?: string }>
   failures: Array<{ reason: string }>
-}
-
-export function emptyTaskSnapshot(): TaskSnapshot {
-  return { checkpoints: [], clarifications: [], blockers: [], submissions: [], failures: [] }
 }
 
 function rehydrateTasks(snapshot: TaskSnapshot | undefined): TaskLedger {
@@ -343,77 +333,4 @@ export async function executeToolCall(
     return finish(result, { timedOut: true })
   }
   return finish(result)
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-export async function toolCallActivity(input: ToolCallInput): Promise<ToolCallResult> {
-  const context = Context.current()
-  const pool = workerPoolFromEnv()
-  let settled = false
-  const beating = (async () => {
-    try {
-      while (!settled) {
-        await Promise.race([sleep(5_000), context.cancelled])
-        if (settled) break
-        context.heartbeat({ tool: input.call.name, at: Date.now() })
-        // Operation heartbeat for the stall sweeper (B5.3).
-        await recordHeartbeat(pool, `session-run-${input.sessionId}`, 'tool.call', true)
-      }
-    } catch {
-      // Cancellation races the beat; the call race below owns the outcome.
-    }
-  })()
-  const store = {
-    findRecorded: async (idempotencyKey: string) => {
-      const row = await findEventByKey(pool, idempotencyKey)
-      if (!row || row.type !== TOOL_EXECUTED_EVENT) return undefined
-      const payload = row.payload as {
-        result?: ToolResult
-        plan?: PlanSnapshot
-        tasks?: TaskSnapshot
-      } | null
-      if (!payload || typeof payload !== 'object') return undefined
-      if (!payload.result || !payload.plan || !payload.tasks) return undefined
-      return { result: payload.result, plan: payload.plan, tasks: payload.tasks }
-    },
-    record: async (event: {
-      idempotencyKey: string
-      partition: string
-      type: string
-      payload: Record<string, unknown>
-    }) => {
-      await appendEvent(pool, event)
-    },
-  }
-  const span = startSpan(trace.getTracer(TRACER_NAME), 'activity.toolCall', undefined, {
-    kind: SpanKind.INTERNAL,
-    attributes: { session_id: input.sessionId, tool: input.call.name },
-  })
-  try {
-    // Cancellation surfaces as a rejected promise (turn.ts pattern).
-    const outcome = await Promise.race([
-      executeToolCall(input, {
-        log: (fields) => context.log.info('tool.call', { ...activityLogFields({ sessionId: input.sessionId }), ...fields }),
-        ...store,
-        artifacts: { db: pool, target: resolveArchiveTarget() },
-      }),
-      context.cancelled,
-    ])
-    span.setStatus(
-      outcome.result.isError ? { code: SpanStatusCode.ERROR } : { code: SpanStatusCode.OK },
-    )
-    return outcome
-  } catch (error) {
-    // Re-raised unchanged: cancellation must still surface as
-    // CancelledFailure, never a generic activity error.
-    span.setStatus({ code: SpanStatusCode.ERROR })
-    throw error
-  } finally {
-    span.end()
-    settled = true
-    void beating
-  }
 }

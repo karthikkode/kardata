@@ -17,7 +17,7 @@ import { ingestSectorDocument, listSectorDocuments } from '../../backend/src/db/
 
 const LIVE = TEST_DATABASE_URL !== undefined && TEST_DATABASE_URL !== ''
 
-describe('generateFleet (hermetic) [F:db.pool.createDbPool] [F:db.sectors.createSector] [F:db.sectors.getSector] [F:db.sectors.listSectorCompanies] [F:db.sectors.markCompanyFound] [F:db.sector_documents.listSectorDocuments] [F:db.index.SECTOR_DOCUMENT_MAX_BYTES] [F:db.workspace.WorkspaceError] [F:db.sector_documents.hiddenFileIds] [F:db.workspace.requireSector]', () => {
+describe('generateFleet (hermetic)', () => {
   it('is deterministic: same seed gives byte-identical output', () => {
     expect(generateFleet(7, 1000, 12)).toEqual(generateFleet(7, 1000, 12))
   })
@@ -49,7 +49,7 @@ describe('generateFleet (hermetic) [F:db.pool.createDbPool] [F:db.sectors.create
   })
 })
 
-describe.skipIf(!LIVE)('fleet seed at volume (live)', () => {
+describe.skipIf(!LIVE)('fleet seed at volume (live) [F:db.pool.createDbPool] [F:db.sectors.createSector] [F:db.sectors.getSector] [F:db.sectors.listSectorCompanies] [F:db.sectors.markCompanyFound] [F:db.sector_documents.listSectorDocuments] [F:db.index.SECTOR_DOCUMENT_MAX_BYTES] [F:db.workspace.WorkspaceError] [F:db.sector_documents.hiddenFileIds] [F:db.workspace.requireSector]', () => {
   it(
     'seeds 1000 companies plus 12 documents into an isolated TEST scope',
     async () => {
