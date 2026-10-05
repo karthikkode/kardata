@@ -45,6 +45,26 @@ describe.skipIf(!TEST_DATABASE_URL)('private execution epoch durability and reco
       await expect(beginThreadTurn(pool,input.threadKey,'TEST late old begin',owner)).rejects.toThrow('newer execution')
     } finally { await pool.end() }
   })
+  it('projects the orphan reason code onto the thread and clears it on revival',async () => {
+    const { pool,input,owner } = await fixture()
+    try {
+      const candidate = (await listReconciliationCandidates(pool))[0]!
+      const closed = reconcileObservation(candidate,{ state: 'closed',executionId: owner.executionId },Date.now())[0]!
+      expect(closed.kind).toBe('closed-owner')
+      expect(await recordReconciliation(pool,candidate,closed,1)).toBe(true)
+      await projectNewEvents(pool)
+      const failed = await getThreadHeader(pool,input.threadKey)
+      expect(failed?.status).toBe('ERROR')
+      expect(failed?.stateReason).toBe('closed-owner')
+      const epoch = await reserveExecutionIntent(pool,{ ...input,requestKey: 'TEST revived successor' })
+      const executionId = randomUUID()
+      await beginThreadTurn(pool,input.threadKey,'TEST revived turn',{ ...owner,epoch,executionId,firstExecutionId: executionId })
+      await projectNewEvents(pool)
+      const revived = await getThreadHeader(pool,input.threadKey)
+      expect(revived?.status).toBe('RUNNING')
+      expect(revived?.stateReason).toBeUndefined()
+    } finally { await pool.end() }
+  })
   it('blocks stale recovery at the committed pre-start boundary before any successor event or lease',async () => {
     const { pool,input,owner } = await fixture()
     try {
