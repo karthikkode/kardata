@@ -89,7 +89,7 @@ before effects and is retry-safe; paid uncertain retries remain owner-only.
 Validated execution context supplies source-thread provenance, never tool arguments;
 it grants no research-parent, context-inclusion or owner-approval authority.
 
-- 65 tools covering the binding table (rows bundle read/write pairs, so
+- 97 tools covering the binding table (rows bundle read/write pairs, so
   tools outnumber rows): `db.append_event`,
   `db.read_partition`, `db.find_event`, `db.read_events_after`,
   `db.create_session`, `db.rename_session` / `db.delete_session`, `db.get_session` / `db.list_sessions`,
@@ -109,7 +109,14 @@ it grants no research-parent, context-inclusion or owner-approval authority.
   `db.complete_idempotency` / `db.release_idempotency`, `db.kb_search`,
   `db.ledger_upsert_company` / `db.ledger_get_company` /
   `db.ledger_list_companies`, `db.ledger_record_problem` /
-  `db.ledger_list_problems`, plus `db.delegate_subagent` (Karbot-only,
+  `db.ledger_list_problems`, plus Phase 5 Karbot parity: `ops.list_runs` /
+  `ops.get_run` / `ops.thread_queue` / `ops.queue_remove` /
+  `ops.queue_reorder`, `ops.list_alerts` / `ops.thread_health` /
+  `ops.cost` / `ops.sector_evaluation` / `ops.recent_activity`,
+  `ops.pause_run` / `ops.resume_run` / `ops.cancel_run`,
+  `ops.spawn_subagent` / `ops.restart_sector_research`,
+  `db.request_plan`, `ops.start_monitor` / `ops.stop_monitor` /
+  `ops.list_monitors`, plus `db.delegate_subagent` (Karbot-only,
   operator: launches a leaf subagent researcher under the session's
   delegation parent; the retrieval seven and the delegate door bind to
   the retrieval modules and the runs gateway, not the db layer).
@@ -145,6 +152,17 @@ a general chat/keyed human selects an authorized sector explicitly, while sector
 executions remain pinned to their binding. Approved sections are readable;
 proposal visibility remains source-thread/research-parent-only. Cross-tenant reads
 remain denied and no owner approval or research authority is granted by arguments.
+
+Phase 5 sector scope: `db.get_research_progress`, `db.get_sector_plan`,
+`db.list_sector_sessions`, `db.read_sector_thread` and
+`db.propose_global_context` take optional `sectorId` (required outside a
+sector session, must match inside; Karbot proposals stay pending-only).
+Karbot's palette holds every new tool; `SECTOR_TOOLS` gets sector-bound
+reads, health/cost/alerts and spawn; `RESEARCH_TOOLS` adds plan update;
+children keep restrictions. OpenAPI→MCP parity is scripted:
+`scripts/mcp-parity.mjs` writes `docs/mcp-parity.md` (owner-only =
+protected approvals or binary downloads). `db.request_plan` sends an
+instruction to the research session; Karbot never writes the plan.
 
 ### MCP operation replay authority
 
