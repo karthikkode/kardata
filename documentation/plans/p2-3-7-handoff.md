@@ -114,6 +114,23 @@ karbotMonitor is a timer workflow not a Schedule; 6 DEV owner-only ops;
 registry 1009, enforce-sim clean outside frontend. Gates: typecheck/
 lint 0 per commit; parity standalone OK; no suites per D1.
 
+Phase 6 complete (36 commits `a6ea453..dbdff4f` incl. package, branch
+`p2-6-frontend`): P6.0a deps, P6.1a–d seam hooks (27 components, 0 dep
+violations) + isAuthError, P6.2 Skeleton sweep, P6.3a–f matrix factory/
+runner/cases/generator (69 specs, 373 tests, 7 checks each), P6.4a–d
+30s timeout + failure harness + GET 23×9 + mutations 16×9 + fixes,
+P6.3.2a–j live-state truth (migration 0028 state_reason, terminal
+release both chats, orphan banner, 4 e2e + unit + db tests), P6.3.3
+scale budgets (7 specs), P6.4a–b ui:review wiring + docs, P6.5
+registry no-todo (tiers from tag evidence, gap tests), P6.6 quality
+green, P6.7 package. Key readings: writeFail reason now reaches the
+UI as a stable kind code; terminal status releases only when newer
+than the send (outbox-seq basis, replay-safe); virtualization is the
+stated (not applied) fix for budget misses; matrix-sync parses both
+YAML states formats; ui:review grading + all runtime signal deferred
+to final verification. Registry 1019, 0 todos, 0 missing/unknown
+(static). Gates: typecheck/lint/quality 0; no suites per D1.
+
 ## Verification status
 
 - Per-commit gates only: `npm run typecheck`, `npm run lint`, `npm run quality`.
