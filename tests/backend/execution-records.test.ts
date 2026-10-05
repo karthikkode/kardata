@@ -9,7 +9,7 @@ import { FilesystemTarget, persistExecutionRecord, readExecutionRecord } from '.
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('execution record durable ownership', () => {
+describe.skipIf(!TEST_DATABASE_URL)('execution record durable ownership [F:db.execution_records.recordTurnExecution] [F:db.execution_records.listThreadExecutionRecords] [F:db.execution_records.readRecoveryRequestReference]', () => {
   async function fixture() {
     const pool = new Pool({ connectionString: await ensureTestDb('kardata_test_execution_record') })
     const session = await createSession(pool, 'TEST execution records')

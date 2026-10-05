@@ -25,7 +25,7 @@ describe('registry gate', () => {
     expect(missing).toEqual([])
   })
 
-  it('resolves every [F:id] tag to a known entry', () => {
+  it('resolves every feature tag to a known entry', () => {
     const tags = scanTags(ROOT)
     const { unknown } = checkRegistry(loadRegistry(ROOT), [], tags, { enforce: false })
     expect(unknown).toEqual([])

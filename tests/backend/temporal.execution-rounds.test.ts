@@ -20,7 +20,7 @@ import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 // through the SDK mock harness with a scripted provider.
 const temporalTier = process.env['KARDATA_TEMPORAL_TEST'] === '1'
 
-describe.skipIf(!TEST_DATABASE_URL || !temporalTier)('execution rounds invariant over scripted turns', () => {
+describe.skipIf(!TEST_DATABASE_URL || !temporalTier)('execution rounds invariant over scripted turns [F:db.execution_rounds.appendProviderRoundEvent] [F:db.execution_rounds.appendToolCallEvent] [F:db.execution_rounds.projectProviderRound] [F:db.execution_rounds.projectToolCall] [F:backend.activity.turn_rounds.createRoundRecorder] [F:backend.activity.turn_rounds.roundOutcomeFor] [F:backend.activity.turn_rounds.stashToolRef] [F:backend.activity.turn_rounds.turnKindForRun]', () => {
   let pool: Pool, server: Server, endpoint: string
   beforeAll(async () => {
     const url = await ensureTestDb('kardata_test_execution_rounds')

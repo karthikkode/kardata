@@ -50,7 +50,7 @@ function runningControl(captured: { signals: Array<{ workflowId: string; signal:
   }
 }
 
-describe.skipIf(!TEST_DATABASE_URL)('supervision acts (P3.4)', () => {
+describe.skipIf(!TEST_DATABASE_URL)('supervision acts (P3.4) [F:db.reconciliation.controlRecorded] [F:db.reconciliation.listOrphanedWorkflows] [F:db.reconciliation.parentWorkflowsForChildren] [F:db.reconciliation.recentTurnLoopEvidence] [F:db.reconciliation.recordOrphanWorkflow] [F:db.reconciliation.HEARTBEAT_FAIL_FLOOR_MS] [F:backend.activity.reconciliation.SUPERVISION_NUDGE] [F:backend.activity.reconciliation.reconcilePage]', () => {
   it('pins every detection threshold and the coverage arithmetic', () => {
     expect(SUPERVISION_THRESHOLDS).toMatchObject({
       missingHeartbeatMs: 120_000,

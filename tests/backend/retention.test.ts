@@ -62,7 +62,7 @@ describe('archive targets (B1.4)', () => {
   })
 })
 
-describe.skipIf(!TEST_DATABASE_URL)('retention job (B1.4)', () => {
+describe.skipIf(!TEST_DATABASE_URL)('retention job (B1.4) [F:db.events.listColdPointers] [F:db.events.recordColdPointers] [F:db.events.readEventsOlderThan]', () => {
   let url = ''
 
   beforeAll(async () => {

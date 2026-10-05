@@ -12,7 +12,7 @@ import { createSector, createSession, ensureResearchSession, ingestSectorDocumen
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('artifact author-thread attribution', () => {
+describe.skipIf(!TEST_DATABASE_URL)('artifact author-thread attribution [F:db.event_artifacts.createArtifact] [F:db.event_artifacts.indexSectorArtifact] [F:db.sector_documents.ingestSectorDocument] [F:db.workspace_library.listSectorLibrary]', () => {
   let pool: Pool
   const scope = { tenantId: 'TEST artifact author tenant', projectId: null }
   beforeAll(async () => {

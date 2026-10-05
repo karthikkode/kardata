@@ -30,7 +30,7 @@ describe('bounded execution reconciliation policy', () => {
   })
 })
 
-describe.skipIf(!TEST_DATABASE_URL)('reconciliation production DB/projector path', () => {
+describe.skipIf(!TEST_DATABASE_URL)('reconciliation production DB/projector path [F:backend.activity.reconciliation.reconcilePage] [F:db.reconciliation.recordReconciliation]', () => {
   it('records an unfenced closed owner as observe-only, retaining lease/continuation with no UI notice', async () => {
     const pool = new Pool({ connectionString: await ensureTestDb('kardata_test_reconcile') })
     try {

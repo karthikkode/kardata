@@ -18,7 +18,7 @@ async function fixture() {
   return {pool,session}
 }
 
-describe.skipIf(!TEST_DATABASE_URL)('scoped table-backed supervision delivery',()=>{
+describe.skipIf(!TEST_DATABASE_URL)('scoped table-backed supervision delivery [F:db.alerts.raiseAlert] [F:db.alerts.resolveAlert] [F:db.alerts.listSupervisionAlerts] [F:http.listSupervisionAlerts]',()=>{
   it('requires a validated key even in open app mode and inherits request correlation',async()=>{
     const {pool,session}=await fixture(),app=buildApp({pool,auth:false})
     try {

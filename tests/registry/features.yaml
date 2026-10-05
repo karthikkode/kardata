@@ -971,7 +971,8 @@
   layer: backend
   surface: backend/src/temporal/activities/reconciliation.ts
   tiers:
-    - todo
+    - db
+    - fault
   states: []
 - id: backend.activity.reconciliation.reconciliationPageActivity
   layer: backend
@@ -1595,7 +1596,7 @@
   layer: db
   surface: backend/src/db/alerts.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.events.DURABLE_STREAM_LOCK_SQL
   layer: db
@@ -1841,7 +1842,7 @@
   layer: db
   surface: backend/src/db/event-artifacts.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sessions.createSession
   layer: db
@@ -1913,7 +1914,7 @@
   layer: db
   surface: backend/src/db/events.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.events.readPartition
   layer: db
@@ -1991,13 +1992,13 @@
   layer: db
   surface: backend/src/db/execution-records.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.execution_records.readRecoveryRequestReference
   layer: db
   surface: backend/src/db/execution-records.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.execution_records.readThreadExecutionReference
   layer: db
@@ -2009,7 +2010,7 @@
   layer: db
   surface: backend/src/db/execution-records.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_jobs.FileArchiveRef
   layer: db
@@ -3275,7 +3276,7 @@
   layer: db
   surface: backend/src/db/reconciliation.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.research_health.researchHealth
   layer: db
@@ -3323,7 +3324,7 @@
   layer: db
   surface: backend/src/db/sector-documents.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sector_documents.listSectorDocuments
   layer: db
@@ -3767,7 +3768,7 @@
   layer: db
   surface: backend/src/db/event-artifacts.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_threads.isThreadPaused
   layer: db
@@ -3779,7 +3780,7 @@
   layer: db
   surface: backend/src/db/workspace-library.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace.listSectorSessions
   layer: db
@@ -4652,7 +4653,7 @@
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/alerts)
   tiers:
-    - todo
+    - db
   states: []
 - id: http.listTenantArtifacts
   layer: backend
@@ -5452,191 +5453,201 @@
   layer: backend
   surface: backend/src/temporal/activities/reconciliation.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: db.alerts.raiseAlert
   layer: db
   surface: backend/src/db/alerts.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.alerts.resolveAlert
   layer: db
   surface: backend/src/db/alerts.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.raiseAlert
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: re-export of db.alerts.raiseAlert
 - id: db.index.resolveAlert
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: re-export of db.alerts.resolveAlert
 - id: db.reconciliation.HEARTBEAT_FAIL_FLOOR_MS
   layer: db
   surface: backend/src/db/reconciliation.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: db.reconciliation.controlRecorded
   layer: db
   surface: backend/src/db/reconciliation.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: db.reconciliation.listOrphanedWorkflows
   layer: db
   surface: backend/src/db/reconciliation.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: db.reconciliation.parentWorkflowsForChildren
   layer: db
   surface: backend/src/db/reconciliation.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: db.reconciliation.recentTurnLoopEvidence
   layer: db
   surface: backend/src/db/reconciliation.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: db.reconciliation.recordOrphanWorkflow
   layer: db
   surface: backend/src/db/reconciliation.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: backend.activity.turn_rounds.createRoundRecorder
   layer: backend
   surface: backend/src/temporal/activities/turn-rounds.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.turn_rounds.roundOutcomeFor
   layer: backend
   surface: backend/src/temporal/activities/turn-rounds.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.turn_rounds.stashToolRef
   layer: backend
   surface: backend/src/temporal/activities/turn-rounds.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.turn_rounds.turnKindForRun
   layer: backend
   surface: backend/src/temporal/activities/turn-rounds.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: backend.activity.worker_mcp_auth.checkWorkerMcpAuth
   layer: backend
   surface: backend/src/temporal/activities/worker-mcp-auth.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.execution_rounds.appendProviderRoundEvent
   layer: db
   surface: backend/src/db/execution-rounds.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.execution_rounds.appendToolCallEvent
   layer: db
   surface: backend/src/db/execution-rounds.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.execution_rounds.projectProviderRound
   layer: db
   surface: backend/src/db/execution-rounds.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.execution_rounds.projectToolCall
   layer: db
   surface: backend/src/db/execution-rounds.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.events.listColdPointers
   layer: db
   surface: backend/src/db/events.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.events.recordColdPointers
   layer: db
   surface: backend/src/db/events.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.ColdEventPointer
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: re-export of db.events pointer type
 - id: db.index.listColdPointers
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: re-export of db.events.listColdPointers
 - id: db.index.recordColdPointers
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: re-export of db.events.recordColdPointers
 - id: db.evaluation.readSectorEvaluation
   layer: db
   surface: backend/src/db/evaluation.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.KindReliability
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: re-export of db.evaluation reliability type
 - id: db.index.SectorCost
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: re-export of db.evaluation cost type
 - id: db.index.SectorEvaluation
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: re-export of db.evaluation evaluation type
 - id: db.index.SectorQuality
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: re-export of db.evaluation quality type
 - id: db.index.readSectorEvaluation
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - none
   states: []
+  why: re-export of db.evaluation.readSectorEvaluation
 - id: http.getSectorEvaluation
   layer: backend
   surface: backend/openapi/v1.yaml (GET /v1/sectors/{sectorId}/evaluation)
   tiers:
-    - todo
+    - db
   states: []
