@@ -16,6 +16,7 @@
     "lint": "npm run lint --workspaces",
     "typecheck": "npm run typecheck --workspaces",
     "build": "npm run build -w frontend",
+    "coverage": "node scripts/coverage.mjs",
     "dev": "npm run dev -w frontend",
     "pr:verify": "npm run build -w @kardata/agents && npm run lint --workspaces && npm run typecheck --workspaces && npm run test --workspaces && npm run build -w frontend",
     "registry:sync": "node scripts/registry-sync.mjs",
