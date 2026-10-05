@@ -96,6 +96,53 @@ Efficiency rules. The agent must NOT:
 - Open-source research only from the references the phase lists, at most
   2 hours per phase; output one adopt/reject table.
 
+## Where things live (reuse before you build)
+
+Need → the one place. Build new only when no row fits.
+
+| Need | The one place |
+|---|---|
+| Frontend HTTP | `frontend/src/data/api/client.ts` (`requestEnvelope`) + per-resource `data/api/*.ts` |
+| Frontend data hooks | `frontend/src/data/*.ts` (`useWorkspace`, `useModelCatalog`, …) |
+| UI primitives | `frontend/src/components/ui/*` |
+| Icons | `frontend/src/lib/icons.ts` |
+| Labels and copy | `frontend/src/lib/labels.ts` |
+| Formatting (dates, numbers) | `frontend/src/lib/format.ts` |
+| Design tokens | `frontend/src/index.css` |
+| Motion and transitions | `frontend/src/lib/motion.ts` (respects reduced motion) |
+| Skeleton loading | Phase 6: no shared `Skeleton` yet; flag it, do not hand-roll |
+| Chat UI parts | `frontend/src/components/chat/*` |
+| Plan UI parts | `frontend/src/components/plan/*` |
+| Theme preference | `frontend/src/lib/theme.ts` |
+| DB access | `backend/src/db/index.ts` barrel only, never `pg` in routes/mcp |
+| Logging | `logOp` in `backend/src/observability/logging.ts` |
+| Timeouts and thresholds | `backend/src/temporal/timeouts.ts` |
+| Supervision rules | `backend/src/observability/supervision-rules.ts` (pure) |
+| New MCP tool | `backend/src/mcp/tools.ts` + `schemas.ts` + palette in `temporal/activities/turn-palettes.ts` |
+| MCP HTTP boundary | `backend/src/mcp/routes.ts` |
+| Provider calls | `backend/src/providers/provider-gateway.ts` |
+| Agents HTTP | `agents/src/http.ts` |
+| Turn runner (agents lib) | `agents/src/turnRunner.ts` |
+| Runs and workflows | `backend/src/temporal/runs-gateway.ts`, `temporal/workflows/*` |
+| Turn activities | `backend/src/temporal/activities/turn.ts` and siblings |
+| AuthN/Z, roles | `backend/src/auth/*` (`Scope`/`Role` in `types.ts`) |
+| File ingest boundary | `backend/src/file-ingestion.ts` (shared HTTP/MCP behavior) |
+| File extract and index | `backend/src/db/file-pipeline.ts` |
+| Archive bytes | `backend/src/artifacts/pipeline.ts` |
+| Web retrieval | `backend/src/retrieval/*` |
+| Skills and slash commands | `backend/src/skills.ts` + `routes/commands.ts` |
+| Live tail and outbox | `backend/src/streams/outbox.ts` |
+| Stack scripts | `deployment/scripts/stack.mjs` (extend it; no new scripts) |
+| Env for scripts | `scripts/with-env.mjs` (never shell-source `agents/.env`) |
+| API spec | `backend/openapi/v1.yaml` |
+| UI↔spec parity | `tests/backend/contract-harness.ts` |
+| Feature registry | `tests/registry/features.yaml` + `npm run registry:sync` |
+| Test DB | `tests/backend/db-helper.ts` |
+| Fake runs gateway | `tests/backend/fake-gateway.ts` |
+| Seed data | `tests/backend/fleet-seed.ts` |
+| E2E fixtures | `tests/frontend-e2e/support/fixtures.ts` |
+| Research cassettes | `agents/src/fixtures/` (packs; test data, never corpus) |
+
 ## Deep-check conventions (every change, every agent)
 
 - Cross-module calls are observable at their boundaries: the MCP tool
