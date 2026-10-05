@@ -345,8 +345,49 @@ async function cmdClean() {
   console.log(`stack: clean stopped ${stopped} owned test process(es)`)
 }
 
+async function cmdToxi(args) {
+  const [sub] = args
+  if (sub === 'up') {
+    const existing = await run('docker', ['inspect', '-f', '{{.State.Running}}', 'kardata-toxiproxy'])
+    if (existing.ok && existing.stdout.trim() === 'true') {
+      console.log('stack: toxiproxy already running (127.0.0.1:8474)')
+      return
+    }
+    if (existing.ok) await run('docker', ['rm', '-f', 'kardata-toxiproxy'])
+    const created = await run('docker', ['run', '-d', '--name', 'kardata-toxiproxy', '--network', 'host', 'shopify/toxiproxy:latest'])
+    process.stdout.write(created.stdout || created.stderr)
+    if (!created.ok) process.exit(1)
+    for (let i = 0; i < 30; i++) {
+      try {
+        const res = await fetch('http://127.0.0.1:8474/version')
+        if (res.ok) {
+          console.log('stack: toxiproxy up (127.0.0.1:8474)')
+          return
+        }
+      } catch { /* starting */ }
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+    }
+    console.error('stack: toxiproxy did not answer on 127.0.0.1:8474')
+    process.exit(1)
+  }
+  if (sub === 'down') {
+    const existing = await run('docker', ['inspect', '-f', '{{.State.Running}}', 'kardata-toxiproxy'])
+    if (!existing.ok) {
+      console.log('stack: toxiproxy not present')
+      return
+    }
+    const removed = await run('docker', ['rm', '-f', 'kardata-toxiproxy'])
+    process.stdout.write(removed.stdout || removed.stderr)
+    if (!removed.ok) process.exit(1)
+    return
+  }
+  console.error('usage: npm run stack:toxi -- <up|down>')
+  process.exit(1)
+}
+
 const commands = {
   up: ['boot the compose stack with existing images', cmdUp],
+  toxi: ['toxiproxy for fault drills: up|down (host network, 127.0.0.1:8474)', cmdToxi],
   clean: ['stop the live stack plus owned stale test servers/workers', cmdClean],
   down: ['stop the stack (volumes kept, never deleted)', cmdDown],
   obs: ['start temporal-ui + telemetry (fails if another stack holds the ports)', cmdObs],

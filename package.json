@@ -11,6 +11,8 @@
   "scripts": {
     "test": "npm run test --workspaces",
     "test:e2e": "npm run test:e2e -w frontend",
+    "test:fault": "KARDATA_TEMPORAL_TEST=1 npm test -w @kardata/backend -- tests/fault",
+    "test:stress": "npm test -w @kardata/backend -- tests/stress",
     "lint": "npm run lint --workspaces",
     "typecheck": "npm run typecheck --workspaces",
     "build": "npm run build -w frontend",
@@ -36,7 +38,8 @@
     "stack:doctor": "node deployment/scripts/stack.mjs doctor",
     "stack:worker:host": "node deployment/scripts/stack.mjs worker:host",
     "stack:worker:compose": "node deployment/scripts/stack.mjs worker:compose",
-    "stack:worker": "node deployment/scripts/stack.mjs worker"
+    "stack:worker": "node deployment/scripts/stack.mjs worker",
+    "stack:toxi": "node deployment/scripts/stack.mjs toxi"
   },
   "devDependencies": {
     "@stryker-mutator/core": "^10.0.0",

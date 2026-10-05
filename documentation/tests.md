@@ -169,8 +169,8 @@ like the routes) seeds 1000 companies plus 12 documents.
 | db | Real Postgres, per-suite DB | `TEST_DATABASE_URL=… npm test -w @kardata/backend` |
 | temporal | Real Temporal and DB, scripted provider | add `KARDATA_TEMPORAL_TEST=1` |
 | e2e | Real browser | `npm run test:e2e -w frontend` |
-| fault | Injected failures | `npm run test:fault` (lands in Phase 4) |
-| stress | Data volume, DB concurrency | `npm run test:stress` (lands in Phase 4) |
+| fault | Injected failures | `TEST_DATABASE_URL=… TOXIPROXY_URL=… npm run test:fault` (needs `KARDATA_FILE_TEMPORAL_ADDRESS`) |
+| stress | Data volume, DB concurrency | `TEST_DATABASE_URL=… npm run test:stress` |
 | live | Real Meta, isolated stack | `npm run test:live` (lands in Phase 5) |
 | ui-review | Graded screenshots | `npm run ui:review` (lands in Phase 6) |
 
@@ -426,6 +426,14 @@ ID-only history/replay, hidden pause/reveal and scoped approver acknowledgement
 for an unknown paid outcome. Providers remain scripted. Declare the owned server
 explicitly; no default server fallback exists. Cleanup cancels only its captured
 owned workflows and closes owned clients/workers; DB/archive records remain.
+
+Fault drills (`tests/fault/`) inject network cuts and latency through Toxiproxy
+(`tests/fault/toxiproxy.ts`, fetch-based, tests-only): provision the server with
+`npm run stack:toxi -- up` (docker, host network, `127.0.0.1:8474`), pass
+`TOXIPROXY_URL=http://127.0.0.1:8474`, and point `TEST_DATABASE_URL` plus
+`KARDATA_FILE_TEMPORAL_ADDRESS` at owned infra. Drills create per-test proxies
+(pg `127.0.0.1:15433`, Temporal `127.0.0.1:17233`) and delete them in `finally`;
+each records detection and recovery time. Drills skip without `TOXIPROXY_URL`.
 The25-second storage cases distinguish preparation health from finalization:
 each asserts its own activity attempt stays at1 and no heartbeat timeout occurs.
 `KARDATA_FILE_TEST_DISABLE_FINALIZE_HEARTBEAT=1` is an explicit test-fixture-only
