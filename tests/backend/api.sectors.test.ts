@@ -32,7 +32,7 @@ function authHeader(key: string): Record<string, string> {
   return { authorization: `Bearer ${key}` }
 }
 
-describe.skipIf(!ENABLED)('sector research routes (B-S4) [F:http.createSector] [F:http.getSector] [F:http.listSectors] [F:http.listCompanies] [F:http.listSectorDocuments] [F:http.restartSector] [F:http.pauseSector] [F:http.resumeSector] [F:http.planSector] [F:http.readSectorPlan] [F:http.editSectorPlan] [F:http.approveSectorPlan] [F:http.startSector] [F:http.editGlobalContext]', () => {
+describe.skipIf(!ENABLED)('sector research routes (B-S4) [F:http.createSector] [F:http.getSector] [F:http.listSectors] [F:http.listCompanies] [F:http.listSectorDocuments] [F:http.restartSector] [F:http.pauseSector] [F:http.resumeSector] [F:http.planSector] [F:http.readSectorPlan] [F:http.editSectorPlan] [F:http.approveSectorPlan] [F:http.startSector] [F:http.editGlobalContext] [F:db.index.createSector] [F:db.index.markCompanyFound] [F:db.index.recordPlanVersion] [F:db.index.setSectorState] [F:db.sectors.createSector] [F:db.sectors.markCompanyFound] [F:db.sector_plan.recordPlanVersion] [F:db.sectors.setSectorState] [F:db.errors.WorkspaceError] [F:db.index.Db] [F:db.index.SectorStartError] [F:db.index.pauseSectorSweep] [F:db.index.resumeSectorSweep] [F:db.index.startSectorResearch] [F:db.workspace.WorkspaceError] [F:db.sector_documents.assertFileVisible] [F:db.workspace.requireSector] [F:db.errors.Id] [F:db.errors.checked] [F:db.file_jobs.visible] [F:db.sectors.projectSectorEvent]', () => {
   let app: FastifyInstance
   let pool: Pool
   let runsGateway: FakeRunsGateway

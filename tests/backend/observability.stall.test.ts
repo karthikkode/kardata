@@ -36,7 +36,7 @@ function observation(overrides: Partial<RunObservation> = {}): RunObservation {
   }
 }
 
-describe('stall detection (B5.3)', () => {
+describe('stall detection (B5.3) [F:db.index.appendEvent] [F:db.index.readPartition] [F:db.index.recordHeartbeat] [F:db.heartbeats.recordHeartbeat] [F:db.events.readPartition] [F:db.index.listHeartbeats] [F:db.events.appendEvent] [F:db.heartbeats.listHeartbeats] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db]', () => {
   it('detects all 5 stall kinds with a recorded response each', () => {
     const outcomes = sweepStalls({
       sweepId: `sweep-${STAMP}`,

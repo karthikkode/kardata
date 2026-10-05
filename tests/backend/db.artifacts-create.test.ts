@@ -47,7 +47,7 @@ function stubDb(session: boolean): TransactableDb {
 
 const SCOPE = { tenantId: 't', projectId: null }
 
-describe('createArtifact', () => {
+describe('createArtifact [F:db.index.DbContractError] [F:db.errors.DbContractError]', () => {
   it('stores, indexes, and summarizes a session file', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'kardata-art-create-'))
     const target = new FilesystemTarget(dir)

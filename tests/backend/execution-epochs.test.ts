@@ -6,7 +6,7 @@ import { reconcileObservation } from '../../backend/src/observability/reconcilia
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb,TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('private execution epoch durability and recovery fences',() => {
+describe.skipIf(!TEST_DATABASE_URL)('private execution epoch durability and recovery fences [F:db.index.appendEvent] [F:db.index.createSession] [F:db.workspace_threads.beginThreadTurn] [F:db.execution_epochs.confirmExecutionIntent] [F:db.index.getThreadHeader] [F:db.reconciliation.listReconciliationCandidates] [F:db.execution_epochs.markExecutionIntent] [F:db.execution_epochs.reserveExecutionIntent] [F:db.events.appendEvent] [F:db.sessions.createSession] [F:db.threads.getThreadHeader] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.execution_epochs.bindExecutionEpoch] [F:db.index.Db] [F:db.index.TransactableDb] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked]',() => {
   async function fixture() {
     const pool = new Pool({ connectionString: await ensureTestDb('kardata_test_execution_epoch') })
     const session = await createSession(pool,'TEST execution epoch')

@@ -10,7 +10,7 @@ import { projectNewEvents } from '../../backend/src/projector.js'
 import { loadCoordinatorActivity, type CoordinatorInput } from '../../backend/src/temporal/activities/coordinator.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('research coordinator transport budget [F:backend.activity.coordinator.loadCoordinatorActivity]', () => {
+describe.skipIf(!TEST_DATABASE_URL)('research coordinator transport budget [F:backend.activity.coordinator.loadCoordinatorActivity] [F:db.index.createSector] [F:db.workspace_global_context.readGlobalContext] [F:db.index.recordPlanVersion] [F:db.workspace_global_context.proposeGlobalContext] [F:db.sectors.createSector] [F:db.index.approveSectorPlan] [F:db.sector_plan.approveSectorPlan] [F:db.sector_plan.recordPlanVersion] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.workspace.ContextFileRef] [F:db.context_files.assertThreadFileContext] [F:db.context_files.listContextFileBlocks] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.errors.WorkspaceError] [F:db.index.Db] [F:db.index.TransactableDb] [F:db.workspace.PartialContextSections] [F:db.workspace.WorkspaceError] [F:db.workspace_global_context.notifyWorkspace] [F:db.workspace_research.readResearchCoordinatorProgress] [F:db.workspace.requireSector] [F:db.workspace.requireThread] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked] [F:db.workspace.globalContextUsageFrom]', () => {
   let pool: Pool
   beforeAll(async () => { const url = await ensureTestDb('kardata_test_research_transport'); pool = new Pool({ connectionString: url, max: 5 }); vi.stubEnv('DATABASE_URL', url) })
   afterAll(async () => { await pool?.end(); vi.unstubAllEnvs() })

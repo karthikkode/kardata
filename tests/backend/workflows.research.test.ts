@@ -49,7 +49,7 @@ async function waitFor(condition: () => Promise<boolean>, timeoutMs: number, wha
   }
 }
 
-describe.skipIf(!ENABLED)('deep-research pipeline workflow (B2.5) [F:backend.activity.turn.appendEventActivity] [F:backend.activity.research.runResearchStageActivity] [F:backend.workflow.research.researchRun] [F:backend.activity.research.STAGE_MS] [F:backend.activity.research.scriptedFindings] [F:backend.activity.research.workWithHeartbeats] [F:backend.workflow.research.assembleFindingsReport] [F:backend.workflow.research.researchPauseSignal] [F:backend.workflow.research.researchResumeSignal] [F:backend.workflow.research.researchStateQuery] [F:backend.activity.turn.sleep]', () => {
+describe.skipIf(!ENABLED)('deep-research pipeline workflow (B2.5) [F:backend.activity.turn.appendEventActivity] [F:backend.activity.research.runResearchStageActivity] [F:backend.workflow.research.researchRun] [F:backend.activity.research.STAGE_MS] [F:backend.activity.research.scriptedFindings] [F:backend.activity.research.workWithHeartbeats] [F:backend.workflow.research.assembleFindingsReport] [F:backend.workflow.research.researchPauseSignal] [F:backend.workflow.research.researchResumeSignal] [F:backend.workflow.research.researchStateQuery] [F:backend.activity.turn.sleep] [F:db.index.readPartition] [F:db.events.readPartition]', () => {
   let connection: NativeConnection
   let client: WorkflowClient
   let url = ''

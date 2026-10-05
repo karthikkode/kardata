@@ -86,7 +86,7 @@ function logSpend(label: string, extra: string, before: { inputTokens: number; o
   console.log(`${label} ${extra} input=${after.inputTokens - before.inputTokens} output=${after.outputTokens - before.outputTokens}`)
 }
 
-describe.skipIf(!LIVE_META_ENABLED)('live stage 3 (reads, chat refs, subagent control)', () => {
+describe.skipIf(!LIVE_META_ENABLED)('live stage 3 (reads, chat refs, subagent control) [F:db.index.createSector] [F:db.index.recordPlanVersion] [F:db.sectors.createSector] [F:db.sector_plan.recordPlanVersion] [F:db.workspace.WorkspaceError] [F:db.workspace.requireSector]', () => {
   let stack: LiveStack
 
   beforeAll(async () => {

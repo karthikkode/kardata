@@ -26,7 +26,7 @@ function run(id: string, sessionId: string, state: RunInfo['state'], threadKey?:
   }
 }
 
-describe.skipIf(!ENABLED)('REST parity (B3.1) [F:http.createSession] [F:http.getSession] [F:http.listSessions] [F:http.renameSession] [F:http.deleteSession] [F:http.listThreads] [F:http.getThread] [F:http.listMessages] [F:http.listRuns] [F:http.getRun] [F:http.sendMessage] [F:http.steerThread] [F:http.pauseRun] [F:http.resumeRun] [F:http.cancelRun] [F:http.decideApproval] [F:http.listSkills]', () => {
+describe.skipIf(!ENABLED)('REST parity (B3.1) [F:http.createSession] [F:http.getSession] [F:http.listSessions] [F:http.renameSession] [F:http.deleteSession] [F:http.listThreads] [F:http.getThread] [F:http.listMessages] [F:http.listRuns] [F:http.getRun] [F:http.sendMessage] [F:http.steerThread] [F:http.pauseRun] [F:http.resumeRun] [F:http.cancelRun] [F:http.decideApproval] [F:http.listSkills] [F:db.index.appendEvent] [F:db.events.appendEvent] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.errors.WorkspaceError] [F:db.sessions.deleteSession] [F:db.sessions.renameSession] [F:db.index.Db] [F:db.index.deleteSession] [F:db.index.renameSession] [F:db.workspace.WorkspaceError] [F:db.sector_documents.assertFileVisible] [F:db.workspace.researchSessionBinding] [F:db.sessions.sessionKind] [F:db.errors.Id] [F:db.errors.checked] [F:db.workspace.workspaceRow] [F:db.file_jobs.visible]', () => {
   let app: FastifyInstance
   let pool: Pool
   let runs: FakeRunsGateway

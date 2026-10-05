@@ -47,7 +47,7 @@ async function getContext(app: FastifyInstance, sectorId: string, key: string): 
   return { status: response.statusCode, payload: response.json<{ data: ContextPayload }>().data }
 }
 
-describe.skipIf(!ENABLED)('sector context routes (Phase B) [F:http.getSectorContext] [F:http.patchSectorContext] [F:http.attachSectorDocument]', () => {
+describe.skipIf(!ENABLED)('sector context routes (Phase B) [F:http.getSectorContext] [F:http.patchSectorContext] [F:http.attachSectorDocument] [F:db.index.createSector] [F:db.sectors.createSector] [F:db.errors.WorkspaceError] [F:db.index.Db] [F:db.sector_context.setUnitExclusions] [F:db.workspace.WorkspaceError] [F:db.sector_documents.assertFileVisible] [F:db.workspace.requireSector] [F:db.errors.Id] [F:db.errors.checked] [F:db.file_jobs.visible]', () => {
   let app: FastifyInstance
   let pool: Pool
   const sector = `sec-ctx-${STAMP}`

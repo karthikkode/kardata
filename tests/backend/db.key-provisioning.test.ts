@@ -5,7 +5,7 @@ import { registerApiKey, findKeyByHash } from '../../backend/src/db/keys.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex')
-describe.skipIf(!TEST_DATABASE_URL)('owner-authorized scoped key provisioning', () => {
+describe.skipIf(!TEST_DATABASE_URL)('owner-authorized scoped key provisioning [F:db.keys.registerApiKey] [F:db.keys.findKeyByHash] [F:db.index.Db]', () => {
   let pool: Pool
   beforeAll(async () => { pool = new Pool({ connectionString: await ensureTestDb('kardata_test_key_provision'), max: 3 }) }, 120_000)
   afterAll(async () => { await pool?.end() })

@@ -179,7 +179,7 @@ function percentile(sorted: number[], p: number): number {
   return sorted[at] ?? 0
 }
 
-describe.skipIf(!ENABLED)('1000-agent soak (B5.6)', () => {
+describe.skipIf(!ENABLED)('1000-agent soak (B5.6) [F:db.index.appendEvent] [F:db.index.readPartition] [F:db.index.projectUsage] [F:db.index.fleetTotals] [F:db.events.readPartition] [F:db.index.listHeartbeats] [F:db.events.appendEvent] [F:db.ledger.projectUsage] [F:db.ledger.fleetTotals] [F:db.heartbeats.listHeartbeats] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db]', () => {
   let pool: Pool
   let runs: FakeRunsGateway
   let agents: SoakAgent[] = []

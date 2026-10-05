@@ -56,7 +56,7 @@ async function addAndWaitReady(stack: LiveStack, sectorId: string, fileId: strin
   }, 600_000, `block ready for ${fileId}`)
 }
 
-describe.skipIf(!LIVE_META_ENABLED)('live stage 2 (sections, switch, file blocks)', () => {
+describe.skipIf(!LIVE_META_ENABLED)('live stage 2 (sections, switch, file blocks) [F:db.index.createSector] [F:db.context_files.extractNumberTokens] [F:db.context_files.findMissingNumbers] [F:db.context_files.validateBlockTemplate] [F:db.sectors.createSector] [F:db.workspace_global_context.readGlobalContextUsage] [F:db.workspace.WorkspaceError] [F:db.workspace.requireSector]', () => {
   let stack: LiveStack
 
   beforeAll(async () => {

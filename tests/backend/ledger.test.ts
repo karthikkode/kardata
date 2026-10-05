@@ -11,7 +11,7 @@ import {
 import { formatCents } from '../../backend/src/ledger/project.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe('ledger rounding (B1.3)', () => {
+describe('ledger rounding (B1.3) [F:db.index.appendEvent] [F:db.index.readPartition] [F:db.index.projectUsage] [F:db.index.runTotals] [F:db.index.fleetTotals] [F:db.index.rebuildLedger] [F:db.events.readPartition] [F:db.events.appendEvent] [F:db.ledger.projectUsage] [F:db.ledger.runTotals] [F:db.ledger.fleetTotals] [F:db.ledger.rebuildLedger] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.index.StoredEvent]', () => {
   it('rounds half-up to cents on decimal strings', () => {
     expect(formatCents('0.005')).toBe('0.01')
     expect(formatCents('0.004')).toBe('0.00')

@@ -10,7 +10,7 @@ import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 const now = 2_000_000
 const candidate = (overrides: Partial<ReconciliationCandidate> = {}): ReconciliationCandidate => ({ threadKey: 's',sessionId: 's',workflowId: 'session-run-s',status: 'RUNNING',queueDepth: 0,updatedAtMs: now - 1_000,heartbeatAtMs: now - 1_000,progressAtMs: now - 1_000,activeRun: 'r',lease: 'lease',sessionDeleted: false,...overrides })
 
-describe('bounded execution reconciliation policy', () => {
+describe('bounded execution reconciliation policy [F:db.index.appendEvent] [F:db.index.createSector] [F:db.index.createSession] [F:db.workspace_threads.beginThreadTurn] [F:db.workspace_threads.readTurnContinuation] [F:db.workspace_threads.saveTurnContinuation] [F:db.index.getThreadHeader] [F:db.reconciliation.listReconciliationCandidates] [F:db.sectors.createSector] [F:db.index.researchHealth] [F:db.events.appendEvent] [F:db.sessions.createSession] [F:db.threads.getThreadHeader] [F:db.research_health.researchHealth] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.execution_epochs.bindExecutionEpoch] [F:db.index.Db] [F:db.index.TransactableDb] [F:db.workspace.WorkspaceError] [F:db.workspace.requireSector] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked]', () => {
   it('nudges once on stale semantic progress; the page escalates a repeated nudge to pause', () => {
     const findings = reconcileObservation(candidate({ progressAtMs: now - 1_000_000 }), { state: 'running' }, now)
     expect(findings).toEqual([expect.objectContaining({ kind: 'stalled-progress', response: 'nudge' })])

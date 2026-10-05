@@ -62,7 +62,7 @@ function stubDb(
 const SCOPE = { tenantId: 't', projectId: null }
 const SESSION = { id: 's-plan', sector: 'sec-1' }
 
-describe('planSectorResearch', () => {
+describe('planSectorResearch [F:db.sector_plan.planSectorResearch] [F:db.sector_plan.SectorPlanError] [F:db.workspace.researchSessionBinding] [F:db.workspace.workspaceRow]', () => {
   it('moves draft -> planning and starts the plan run', async () => {
     const state = { name: 'Foods', topic: 'Packaged', state: 'draft' }
     let planned: string | undefined

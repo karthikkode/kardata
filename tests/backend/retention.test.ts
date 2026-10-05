@@ -41,7 +41,7 @@ class FakeGcsBucket implements GcsBucketHandle {
   }
 }
 
-describe('archive targets (B1.4)', () => {
+describe('archive targets (B1.4) [F:db.index.appendEvent] [F:db.index.readPartition] [F:db.events.readPartition] [F:db.events.appendEvent] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.index.readEventsOlderThan] [F:db.events.deleteEventsBySeq] [F:db.index.deleteEventsBySeq]', () => {
   it('filesystem target round-trips and lists by prefix', async () => {
     const target = new FilesystemTarget(mkdtempSync(join(tmpdir(), 'kardata-arch-')))
     await target.write('events/p1/1.json', '{"seq":1}')

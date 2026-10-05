@@ -32,7 +32,7 @@ function notNoRoute(body: unknown): void {
   expect(message).not.toContain('no route')
 }
 
-describe.skipIf(!ENABLED)('workspace routes [F:http.listSteeringReceipts] [F:http.getGlobalContext] [F:http.listSectorFiles] [F:http.attachSectorDocument] [F:http.getSectorFileBody] [F:http.setSectorFileVisibility] [F:http.proposeGlobalContext] [F:http.decideContextProposal] [F:http.ensureSectorResearchSession] [F:http.getLocalContext] [F:http.compactLocalContext] [F:http.editLocalContext] [F:http.requestFileContext] [F:http.getResearchProgress]', () => {
+describe.skipIf(!ENABLED)('workspace routes [F:http.listSteeringReceipts] [F:http.getGlobalContext] [F:http.listSectorFiles] [F:http.attachSectorDocument] [F:http.getSectorFileBody] [F:http.setSectorFileVisibility] [F:http.proposeGlobalContext] [F:http.decideContextProposal] [F:http.ensureSectorResearchSession] [F:http.getLocalContext] [F:http.compactLocalContext] [F:http.editLocalContext] [F:http.requestFileContext] [F:http.getResearchProgress] [F:db.index.createSector] [F:db.workspace_threads.beginThreadTurn] [F:db.workspace_threads.consumeSteering] [F:db.workspace_threads.enqueueSteering] [F:db.workspace_threads.finishSteering] [F:db.workspace_threads.readSteeringReceiptsPage] [F:db.sectors.createSector] [F:db.errors.WorkspaceError] [F:db.execution_epochs.bindExecutionEpoch] [F:db.index.Db] [F:db.workspace.PartialContextSections] [F:db.workspace.WorkspaceError] [F:db.sector_documents.assertFileVisible] [F:db.workspace_library.readSectorLibraryFile] [F:db.workspace.requireSector] [F:db.errors.Id] [F:db.errors.checked]', () => {
   let app: FastifyInstance
   let pool: Pool
   const sector = `sec-workspace-${STAMP}`

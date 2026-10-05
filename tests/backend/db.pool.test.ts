@@ -36,7 +36,7 @@ function restoreEnv(snapshot: Record<string, string | undefined>): void {
   }
 }
 
-describe('pool budgets', () => {
+describe('pool budgets [F:db.index.DbContractError] [F:db.index.validatePoolBudget] [F:db.index.DEFAULT_POOL_BUDGET] [F:db.index.serverPoolBudget] [F:db.index.workerPoolBudget] [F:db.index.workerPoolFromEnv] [F:db.errors.DbContractError] [F:db.pool.validatePoolBudget] [F:db.pool.DEFAULT_POOL_BUDGET] [F:db.pool.serverPoolBudget] [F:db.pool.workerPoolBudget] [F:db.pool.workerPoolFromEnv]', () => {
   const snapshot = snapshotEnv()
   afterEach(() => restoreEnv(snapshot))
 

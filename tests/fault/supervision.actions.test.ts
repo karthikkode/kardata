@@ -50,7 +50,7 @@ function runningControl(captured: { signals: Array<{ workflowId: string; signal:
   }
 }
 
-describe.skipIf(!TEST_DATABASE_URL)('supervision acts (P3.4) [F:db.reconciliation.controlRecorded] [F:db.reconciliation.listOrphanedWorkflows] [F:db.reconciliation.parentWorkflowsForChildren] [F:db.reconciliation.recentTurnLoopEvidence] [F:db.reconciliation.recordOrphanWorkflow] [F:db.reconciliation.HEARTBEAT_FAIL_FLOOR_MS] [F:backend.activity.reconciliation.SUPERVISION_NUDGE] [F:backend.activity.reconciliation.reconcilePage]', () => {
+describe.skipIf(!TEST_DATABASE_URL)('supervision acts (P3.4) [F:db.reconciliation.controlRecorded] [F:db.reconciliation.listOrphanedWorkflows] [F:db.reconciliation.parentWorkflowsForChildren] [F:db.reconciliation.recentTurnLoopEvidence] [F:db.reconciliation.recordOrphanWorkflow] [F:db.reconciliation.HEARTBEAT_FAIL_FLOOR_MS] [F:backend.activity.reconciliation.SUPERVISION_NUDGE] [F:backend.activity.reconciliation.reconcilePage] [F:db.index.appendEvent] [F:db.index.createSession] [F:db.workspace_threads.beginThreadTurn] [F:db.index.recordHeartbeat] [F:db.index.getThreadHeader] [F:db.execution_epochs.reserveExecutionIntent] [F:db.heartbeats.recordHeartbeat] [F:db.index.listSupervisionAlerts] [F:db.events.appendEvent] [F:db.sessions.createSession] [F:db.threads.getThreadHeader] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.execution_epochs.bindExecutionEpoch] [F:db.index.Db] [F:db.index.TransactableDb] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked]', () => {
   it('pins every detection threshold and the coverage arithmetic', () => {
     expect(SUPERVISION_THRESHOLDS).toMatchObject({
       missingHeartbeatMs: 120_000,

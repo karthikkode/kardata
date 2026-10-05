@@ -16,7 +16,7 @@ import { karbotTurnActivity, type TurnOutcome } from '../../backend/src/temporal
 import { type KarbotTurnInput } from '../../backend/src/temporal/activities/karbot-turn-input.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('uncertain mutation recovery over real HTTP [F:backend.activity.turn.karbotTurnActivity]', () => {
+describe.skipIf(!TEST_DATABASE_URL)('uncertain mutation recovery over real HTTP [F:backend.activity.turn.karbotTurnActivity] [F:db.index.createSession] [F:db.index.registerApiKey] [F:db.workspace_threads.commitThreadCompaction] [F:db.workspace_threads.readThreadContext] [F:db.workspace_threads.readTurnContinuation] [F:db.keys.registerApiKey] [F:db.index.listSessions] [F:db.events.readPartition] [F:db.sessions.createSession] [F:db.sessions.listSessions] [F:db.context_files.assertThreadFileContext] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.errors.WorkspaceError] [F:db.sessions.SessionModelSelection] [F:db.execution_epochs.readActiveExecutionIdentity] [F:db.index.Db] [F:db.index.SessionModelSelection] [F:db.workspace.WorkspaceError] [F:db.sector_documents.assertFileVisible] [F:db.workspace_threads.recordContextMeasurement] [F:db.errors.Id] [F:db.errors.checked] [F:db.file_jobs.visible]', () => {
   let pool: Pool, app: FastifyInstance, endpoint: string
   const scope = { tenantId: 'test-mutation-recovery', projectId: null }
   const credential = 'TEST operation recovery worker credential'

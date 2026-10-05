@@ -36,7 +36,7 @@ const CASES: EvalCase[] = [
   { question: 'How should outreach emails sound?', expectTopic: 'voice', anchor: 'surveillance' },
 ]
 
-describe.skipIf(!ENABLED)('corpus accuracy (grounded retrieval QA)', () => {
+describe.skipIf(!ENABLED)('corpus accuracy (grounded retrieval QA) [F:db.index.recordKbBatch] [F:db.index.searchKb] [F:db.kb_ingest.collectKbDocs] [F:db.knowledge.recordKbBatch] [F:db.knowledge.searchKb] [F:db.index.Db] [F:db.index.KbDocumentInput] [F:db.knowledge.KbDocumentInput]', () => {
   let pool: Pool
 
   beforeAll(async () => {

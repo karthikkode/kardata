@@ -20,7 +20,7 @@ function operatorDocument(operations: Array<[number, unknown[]]>, objects: Recor
   return { numPages: 1, getPage: async () => page, destroy: vi.fn(async () => undefined) }
 }
 
-describe('real mixed native-text/image PDF pipeline', () => {
+describe('real mixed native-text/image PDF pipeline [F:db.pdf_extraction.planPdfExtraction] [F:db.pdf_extraction.PDF_IMAGE_MAX_PIXELS]', () => {
   it('destroys a proxy acquired after abort instead of leaking an abort-ignoring acquisition', async () => {
     let resolve: (document: unknown) => void = () => undefined
     const destroy = vi.fn(async () => undefined)

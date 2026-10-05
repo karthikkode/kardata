@@ -6,7 +6,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { DbContractError, validatePoolBudget } from '../../backend/src/db/index.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('pool budget validation', () => {
+describe.skipIf(!TEST_DATABASE_URL)('pool budget validation [F:db.index.DbContractError] [F:db.index.validatePoolBudget] [F:db.errors.DbContractError] [F:db.pool.validatePoolBudget]', () => {
   let url = ''
 
   beforeAll(async () => {

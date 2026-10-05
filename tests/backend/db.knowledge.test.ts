@@ -34,7 +34,7 @@ function untouchedDb(): { db: { query: () => Promise<never> }; wasQueried: () =>
   }
 }
 
-describe('knowledge + master ledger contract', () => {
+describe('knowledge + master ledger contract [F:db.index.DbContractError] [F:db.index.upsertLedgerCompany] [F:db.index.getLedgerCompany] [F:db.index.listLedgerCompanies] [F:db.index.listLedgerProblems] [F:db.index.recordKbBatch] [F:db.index.recordLedgerProblem] [F:db.index.searchKb] [F:db.kb_ingest.collectKbDocs] [F:db.kb_ingest.parseKbFile] [F:db.errors.DbContractError] [F:db.company_ledger.upsertLedgerCompany] [F:db.company_ledger.getLedgerCompany] [F:db.company_ledger.listLedgerCompanies] [F:db.company_ledger.listLedgerProblems] [F:db.knowledge.recordKbBatch] [F:db.company_ledger.recordLedgerProblem] [F:db.knowledge.searchKb] [F:db.company_ledger.LedgerQualification] [F:db.company_ledger.RecordProblemInput] [F:db.company_ledger.UpsertCompanyInput] [F:db.index.Db] [F:db.index.KbDocumentInput] [F:db.index.LedgerQualification] [F:db.index.RecordProblemInput] [F:db.index.UpsertCompanyInput] [F:db.knowledge.KbDocumentInput]', () => {
   it('rejects misaligned calls before any SQL', async () => {
     const { db, wasQueried } = untouchedDb()
     await expect(searchKb(db, '')).rejects.toBeInstanceOf(DbContractError)

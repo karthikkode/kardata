@@ -17,7 +17,7 @@ import { karbotTurnActivity, type TurnOutcome } from '../../backend/src/temporal
 import { type KarbotTurnInput } from '../../backend/src/temporal/activities/karbot-turn-input.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('paid provider response recording recovery [F:backend.activity.turn.karbotTurnActivity]', () => {
+describe.skipIf(!TEST_DATABASE_URL)('paid provider response recording recovery [F:backend.activity.turn.karbotTurnActivity] [F:db.index.createSector] [F:db.index.createSession] [F:db.index.registerApiKey] [F:db.index.readPartition] [F:db.workspace_threads.readThreadContext] [F:db.workspace_threads.readTurnContinuation] [F:db.workspace_threads.saveThreadContext] [F:db.keys.registerApiKey] [F:db.sectors.createSector] [F:db.index.listSessions] [F:db.events.readPartition] [F:db.sessions.createSession] [F:db.sessions.listSessions] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.context_files.assertThreadFileContext] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.errors.WorkspaceError] [F:db.sessions.SessionModelSelection] [F:db.execution_epochs.readActiveExecutionIdentity] [F:db.index.Db] [F:db.index.SessionModelSelection] [F:db.index.TransactableDb] [F:db.workspace.WorkspaceError] [F:db.sector_documents.assertFileVisible] [F:db.workspace_threads.recordContextMeasurement] [F:db.workspace.requireSector] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked] [F:db.file_jobs.visible]', () => {
   let pool: Pool, app: FastifyInstance, endpoint: string
   const token = 'TEST paid response worker credential'
   const scope = { tenantId: 'TEST paid response recovery', projectId: null }

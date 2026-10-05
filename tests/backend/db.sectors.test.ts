@@ -44,7 +44,7 @@ function untouchedDb(): { db: { query: () => Promise<never> }; wasQueried: () =>
   }
 }
 
-describe('sector repos (B-S2)', () => {
+describe('sector repos (B-S2) [F:db.index.createSector] [F:db.index.createSession] [F:db.index.markCompanyFound] [F:db.index.setSectorState] [F:db.index.DbContractError] [F:db.index.projectBatch] [F:db.index.readEventsAfter] [F:db.index.listSectorCompanies] [F:db.index.rebuildFromEvents] [F:db.index.assertSectorTransition] [F:db.index.getSector] [F:db.index.readSectorExecutionState] [F:db.index.listCompanies] [F:db.index.listSectors] [F:db.index.recordResearchSession] [F:db.index.sectorActivity] [F:db.index.setCompanyStage] [F:db.index.setCompanyState] [F:db.sectors.createSector] [F:db.sectors.getSector] [F:db.sectors.listSectorCompanies] [F:db.sectors.markCompanyFound] [F:db.sectors.assertSectorTransition] [F:db.sessions.createSession] [F:db.sectors.setSectorState] [F:db.errors.DbContractError] [F:db.threads.projectBatch] [F:db.events.readEventsAfter] [F:db.threads.rebuildFromEvents] [F:db.sectors.readSectorExecutionState] [F:db.sectors.listCompanies] [F:db.sectors.listSectors] [F:db.sectors.recordResearchSession] [F:db.sectors.sectorActivity] [F:db.sectors.setCompanyStage] [F:db.sectors.setCompanyState] [F:db.index.StoredEvent] [F:db.workspace.WorkspaceError] [F:db.workspace.requireSector]', () => {
   it('rejects misaligned calls before any SQL', async () => {
     const { db, wasQueried } = untouchedDb()
     await expect(createSector(db, { name: '' })).rejects.toBeInstanceOf(DbContractError)

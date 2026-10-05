@@ -53,7 +53,7 @@ class CountingGateway extends FakeRunsGateway {
   }
 }
 
-describe.skipIf(!ENABLED)('run inspector (B5.5) [F:http.inspectRun]', () => {
+describe.skipIf(!ENABLED)('run inspector (B5.5) [F:http.inspectRun] [F:db.index.appendEvent] [F:db.events.appendEvent] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db]', () => {
   let app: FastifyInstance
   let pool: Pool
   let runs: CountingGateway

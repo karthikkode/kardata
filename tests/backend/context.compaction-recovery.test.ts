@@ -6,7 +6,7 @@ import { compactThread } from '../../backend/src/context.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('parked context compaction recovery', () => {
+describe.skipIf(!TEST_DATABASE_URL)('parked context compaction recovery [F:db.index.createSession] [F:db.workspace_threads.beginThreadTurn] [F:db.workspace_threads.consumeSteering] [F:db.workspace_threads.finishSteering] [F:db.workspace_threads.clearTurnContinuation] [F:db.workspace_threads.commitThreadCompaction] [F:db.index.getThread] [F:db.workspace_threads.readThreadContext] [F:db.workspace_threads.readTurnContinuation] [F:db.workspace_threads.saveThreadContext] [F:db.workspace_threads.saveTurnContinuation] [F:db.sessions.createSession] [F:db.threads.getThread] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.context_files.assertThreadFileContext] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.errors.WorkspaceError] [F:db.execution_epochs.bindExecutionEpoch] [F:db.index.Db] [F:db.index.TransactableDb] [F:db.workspace.WorkspaceError] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked]', () => {
   let pool: Pool
   beforeAll(async () => { pool = new Pool({ connectionString: await ensureTestDb('kardata_test_compaction_recovery') }) })
   afterAll(async () => { await pool?.end() })

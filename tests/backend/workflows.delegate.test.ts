@@ -44,7 +44,7 @@ async function waitFor(what: () => Promise<boolean>, timeoutMs: number, name: st
   }
 }
 
-describe.skipIf(!ENABLED)('delegation door (db.delegate_subagent gateway) [F:backend.activity.turn.appendEventActivity] [F:backend.activity.turn.karbotTurnActivity]', () => {
+describe.skipIf(!ENABLED)('delegation door (db.delegate_subagent gateway) [F:backend.activity.turn.appendEventActivity] [F:backend.activity.turn.karbotTurnActivity] [F:db.index.readPartition] [F:db.events.readPartition] [F:db.context_files.assertThreadFileContext] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.execution_epochs.readActiveExecutionIdentity] [F:db.index.Db] [F:db.workspace_threads.recordContextMeasurement]', () => {
   let connection: NativeConnection
   let client: WorkflowClient
   let url = ''

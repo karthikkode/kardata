@@ -13,7 +13,7 @@ const RUN_MS = 5 * 60_000
 const POOL_MAX = 10
 const POOL_WAIT_P95_BUDGET_MS = 50
 
-describe.skipIf(!TEST_DATABASE_URL || !STRESS)('stress writer contention', () => {
+describe.skipIf(!TEST_DATABASE_URL || !STRESS)('stress writer contention [F:db.index.appendEvent] [F:db.index.recordHeartbeat] [F:db.index.getThreadHeader] [F:db.heartbeats.recordHeartbeat] [F:db.workspace_research.readResearchProgress] [F:db.events.appendEvent] [F:db.threads.getThreadHeader] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db]', () => {
   let pool: Pool
   const sectorId = 'TEST stress writer sector'
   const threadKey = 'TEST stress writer thread'

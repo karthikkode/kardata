@@ -12,7 +12,7 @@ import { createSector, createSession, ensureResearchSession, ingestSectorDocumen
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('artifact author-thread attribution [F:db.event_artifacts.createArtifact] [F:db.event_artifacts.indexSectorArtifact] [F:db.sector_documents.ingestSectorDocument] [F:db.workspace_library.listSectorLibrary]', () => {
+describe.skipIf(!TEST_DATABASE_URL)('artifact author-thread attribution [F:db.event_artifacts.createArtifact] [F:db.event_artifacts.indexSectorArtifact] [F:db.sector_documents.ingestSectorDocument] [F:db.workspace_library.listSectorLibrary] [F:db.index.createSector] [F:db.index.createSession] [F:db.workspace.ensureResearchSession] [F:db.index.ingestSectorDocument] [F:db.index.listSectorDocuments] [F:db.index.readSectorDocument] [F:db.sectors.createSector] [F:db.sector_documents.listSectorDocuments] [F:db.sessions.createSession] [F:db.sector_documents.readSectorDocument] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.errors.WorkspaceError] [F:db.index.Db] [F:db.index.OcrAdapter] [F:db.index.SECTOR_DOCUMENT_MAX_BYTES] [F:db.index.TransactableDb] [F:db.workspace.WorkspaceError] [F:db.sector_documents.assertFileVisible] [F:db.sector_documents.hiddenFileIds] [F:db.workspace.requireSector] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked] [F:db.file_jobs.visible]', () => {
   let pool: Pool
   const scope = { tenantId: 'TEST artifact author tenant', projectId: null }
   beforeAll(async () => {

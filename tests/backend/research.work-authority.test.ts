@@ -5,7 +5,7 @@ import { createSector, recordResearchWork } from '../../backend/src/db/index.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('research work identity authority', () => {
+describe.skipIf(!TEST_DATABASE_URL)('research work identity authority [F:db.index.createSector] [F:db.sectors.createSector] [F:db.workspace_research.recordResearchWork] [F:db.workspace.WorkspaceError] [F:db.workspace_global_context.notifyWorkspace] [F:db.workspace.requireSector] [F:db.errors.Id]', () => {
   let pool: Pool
   const scope = { tenantId: 'TEST work authority', projectId: null }
   beforeAll(async () => { pool = new Pool({ connectionString: await ensureTestDb('kardata_test_work_authority'), max: 4 }) })

@@ -4,7 +4,7 @@ import { appendEvent, createSession, getThread, latestOutboxSeq, publishOutboxFr
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('durable cursor commit ordering', () => {
+describe.skipIf(!TEST_DATABASE_URL)('durable cursor commit ordering [F:db.index.appendEvent] [F:db.index.createSession] [F:db.index.publishOutboxFrame] [F:db.index.getThread] [F:db.index.latestOutboxSeq] [F:db.index.readOutboxBacklog] [F:db.events.appendEvent] [F:db.sessions.createSession] [F:db.outbox.publishOutboxFrame] [F:db.threads.getThread] [F:db.outbox.latestOutboxSeq] [F:db.outbox.readOutboxBacklog] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.index.OutboxRow]', () => {
   let pool: Pool
   beforeAll(async () => { pool = new Pool({ connectionString: await ensureTestDb('kardata_test_commit_order'), max: 5 }) })
   afterAll(async () => { await pool?.end() })

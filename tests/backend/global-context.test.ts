@@ -9,7 +9,7 @@ import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
 const scope = { tenantId: 'TEST global context', projectId: null }
 
-describe.skipIf(!TEST_DATABASE_URL)('global context sections (A4) [F:backend.activity.turn.turnContextSnapshot] [F:backend.activity.turn.turnSectorRefs]', () => {
+describe.skipIf(!TEST_DATABASE_URL)('global context sections (A4) [F:backend.activity.turn.turnContextSnapshot] [F:backend.activity.turn.turnSectorRefs] [F:db.index.createSector] [F:db.index.createSession] [F:db.workspace_global_context.readGlobalContext] [F:db.workspace_global_context.proposeGlobalContext] [F:db.sectors.createSector] [F:db.workspace.ContextSections] [F:db.workspace_global_context.decideContextChange] [F:db.workspace_global_context.formatGlobalContext] [F:db.workspace.readSessionSettings] [F:db.workspace.setUseGlobalContext] [F:db.sessions.createSession] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.workspace.ContextFileRef] [F:db.context_files.assertThreadFileContext] [F:db.context_files.insertContextFileBlock] [F:db.context_files.listContextFileBlocks] [F:db.context_files.resetContextFileBlock] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.errors.WorkspaceError] [F:db.index.Db] [F:db.index.TransactableDb] [F:db.workspace.PartialContextSections] [F:db.workspace.WorkspaceError] [F:db.workspace_global_context.notifyWorkspace] [F:db.workspace.requireSector] [F:db.workspace.requireThread] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked] [F:db.workspace.globalContextUsageFrom]', () => {
   let pool: Pool
   beforeAll(async () => {
     pool = new Pool({ connectionString: await ensureTestDb('kardata_test_global_context'), max: 5 })

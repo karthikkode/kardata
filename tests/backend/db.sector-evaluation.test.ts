@@ -11,7 +11,7 @@ import { hashKey } from '../../backend/src/auth/keys.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('sector evaluation views and route [F:db.evaluation.readSectorEvaluation] [F:http.getSectorEvaluation]', () => {
+describe.skipIf(!TEST_DATABASE_URL)('sector evaluation views and route [F:db.evaluation.readSectorEvaluation] [F:http.getSectorEvaluation] [F:db.index.appendEvent] [F:db.index.createSector] [F:db.index.registerApiKey] [F:db.keys.registerApiKey] [F:db.sectors.createSector] [F:db.events.appendEvent] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.workspace.WorkspaceError] [F:db.workspace.requireSector]', () => {
   let pool: Pool, app: FastifyInstance
   const scope = { tenantId: 'TEST evaluation tenant', projectId: null }
   const token = 'TEST evaluation viewer credential'

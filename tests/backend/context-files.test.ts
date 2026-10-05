@@ -4,7 +4,7 @@ import {
   extractNumberTokens, findMissingNumbers, chunkDocumentUnits, normalizeSectionsJson, parseJsonObject, validateBlockTemplate,
 } from '../../backend/src/db/context-files.js'
 
-describe('extractNumberTokens [F:backend.activity.context_files.CONTEXT_FILE_CALL_TIMEOUT_MS] [F:backend.activity.context_files.chatWithTimeout] [F:backend.activity.context_files.CONTEXT_FILE_MODEL]', () => {
+describe('extractNumberTokens [F:backend.activity.context_files.CONTEXT_FILE_CALL_TIMEOUT_MS] [F:backend.activity.context_files.chatWithTimeout] [F:backend.activity.context_files.CONTEXT_FILE_MODEL] [F:db.context_files.extractNumberTokens] [F:db.context_files.findMissingNumbers] [F:db.context_files.chunkDocumentUnits] [F:db.context_files.normalizeSectionsJson] [F:db.context_files.parseJsonObject] [F:db.context_files.validateBlockTemplate]', () => {
   it('matches the spec regex with length >= 2', () => {
     const text = 'Revenue 12,400 in 2024, up 50% on 3/4; a 7 x unit.'
     expect(extractNumberTokens(text)).toEqual(['12,400', '2024', '50%', '3/4'])

@@ -6,7 +6,7 @@ import { appendEvent, createSession, listThreadHeaders, type Db } from '../../ba
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('large thread directory metadata', () => {
+describe.skipIf(!TEST_DATABASE_URL)('large thread directory metadata [F:db.index.appendEvent] [F:db.index.createSession] [F:db.index.listThreadHeaders] [F:db.events.appendEvent] [F:db.sessions.createSession] [F:db.threads.listThreadHeaders] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.index.SectorSweepRunner]', () => {
   let pool: Pool
   beforeAll(async () => { pool = new Pool({ connectionString: await ensureTestDb('kardata_test_thread_directory'), max: 5 }) })
   afterAll(async () => { await pool?.end() })

@@ -11,7 +11,7 @@ import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import { FakeRunsGateway } from './fake-gateway.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('owner subagent spawn (A15)', () => {
+describe.skipIf(!TEST_DATABASE_URL)('owner subagent spawn (A15) [F:db.index.appendEvent] [F:db.index.createSector] [F:db.index.createSession] [F:db.sectors.createSector] [F:db.events.appendEvent] [F:db.sessions.createSession] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.workspace.WorkspaceError] [F:db.workspace.requireSector]', () => {
   let app: FastifyInstance
   let pool: Pool
   let runs: FakeRunsGateway

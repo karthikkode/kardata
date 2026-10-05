@@ -6,7 +6,7 @@ import { appendEvent, createSession, getThread } from '../../backend/src/db/inde
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('projector multi-batch catch-up', () => {
+describe.skipIf(!TEST_DATABASE_URL)('projector multi-batch catch-up [F:db.index.appendEvent] [F:db.index.createSession] [F:db.index.getThread] [F:db.events.appendEvent] [F:db.sessions.createSession] [F:db.threads.getThread] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db]', () => {
   let url = ''
   let pool: Pool
 

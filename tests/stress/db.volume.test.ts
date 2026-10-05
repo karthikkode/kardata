@@ -36,7 +36,7 @@ function percentile(sorted: number[], fraction: number): number {
   return sorted[Math.min(sorted.length - 1, Math.ceil((fraction * sorted.length) / 1) - 1)] as number
 }
 
-describe.skipIf(!TEST_DATABASE_URL || !STRESS)('stress hot queries at volume', () => {
+describe.skipIf(!TEST_DATABASE_URL || !STRESS)('stress hot queries at volume [F:db.index.findEventByKey] [F:db.workspace_global_context.readGlobalContext] [F:db.index.getSession] [F:db.index.readPartition] [F:db.index.getThread] [F:db.index.listSectorDocuments] [F:db.index.listArtifacts] [F:db.index.readOutboxBacklog] [F:db.index.listThreads] [F:db.index.listSectorCompanies] [F:db.index.getThreadHeader] [F:db.index.listThreadExecutionRecords] [F:db.sectors.listSectorCompanies] [F:db.sector_documents.listSectorDocuments] [F:db.index.listSessions] [F:db.events.readPartition] [F:db.workspace_research.readResearchProgress] [F:db.index.listSupervisionAlerts] [F:db.events.findEventByKey] [F:db.sessions.getSession] [F:db.threads.getThread] [F:db.event_artifacts.listArtifacts] [F:db.outbox.readOutboxBacklog] [F:db.threads.listThreads] [F:db.threads.getThreadHeader] [F:db.sessions.listSessions] [F:db.workspace.ContextFileRef] [F:db.context_files.listContextFileBlocks] [F:db.errors.WorkspaceError] [F:db.sessions.SessionModelSelection] [F:db.index.Db] [F:db.index.OutboxRow] [F:db.index.SECTOR_DOCUMENT_MAX_BYTES] [F:db.index.SessionModelSelection] [F:db.workspace.WorkspaceError] [F:db.sector_documents.assertFileVisible] [F:db.sector_documents.hiddenFileIds] [F:db.errors.Id] [F:db.errors.checked] [F:db.workspace.globalContextUsageFrom] [F:db.file_jobs.visible] [F:db.events.KeySchema]', () => {
   let pool: Pool
   let seed: StressSeed
   let statStatements = false

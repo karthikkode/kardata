@@ -12,7 +12,7 @@ import { FilesystemTarget,persistExecutionRecord } from '../../backend/src/archi
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb,TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('owner recovery rejects false original contracts and changed checkpoints',() => {
+describe.skipIf(!TEST_DATABASE_URL)('owner recovery rejects false original contracts and changed checkpoints [F:db.index.createSession] [F:db.workspace_threads.beginThreadTurn] [F:db.workspace_threads.readTurnContinuation] [F:db.workspace_threads.saveTurnContinuation] [F:db.execution_epochs.reserveExecutionIntent] [F:db.index.recordTurnExecution] [F:db.execution_epochs.recoveryCheckpointHash] [F:db.sessions.createSession] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.errors.WorkspaceError] [F:db.execution_epochs.bindExecutionEpoch] [F:db.index.Db] [F:db.index.TransactableDb] [F:db.workspace.WorkspaceError] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked]',() => {
   async function fixture() {
     const pool=new Pool({ connectionString: await ensureTestDb('kardata_test_recovery_contract') })
     const session=await createSession(pool,'TEST protected original'); await projectNewEvents(pool)

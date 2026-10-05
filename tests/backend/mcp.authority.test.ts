@@ -10,7 +10,7 @@ import { hashKey } from '../../backend/src/auth/keys.js'
 import { FakeRunsGateway } from './fake-gateway.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('MCP execution and resource authority over HTTP [F:http.mcpRpc] [F:backend.activity.turn_palettes.turnPalette]', () => {
+describe.skipIf(!TEST_DATABASE_URL)('MCP execution and resource authority over HTTP [F:http.mcpRpc] [F:backend.activity.turn_palettes.turnPalette] [F:db.index.appendEvent] [F:db.index.createSector] [F:db.index.createSession] [F:db.workspace.ensureResearchSession] [F:db.index.ingestSectorDocument] [F:db.workspace_global_context.readGlobalContext] [F:db.index.getSession] [F:db.index.recordPlanVersion] [F:db.workspace_threads.saveThreadContext] [F:db.sectors.createSector] [F:db.events.appendEvent] [F:db.sessions.createSession] [F:db.sessions.getSession] [F:db.sector_plan.recordPlanVersion] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.workspace.ContextFileRef] [F:db.context_files.listContextFileBlocks] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.errors.WorkspaceError] [F:db.index.Db] [F:db.index.TransactableDb] [F:db.workspace.WorkspaceError] [F:db.workspace.requireSector] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked] [F:db.workspace.globalContextUsageFrom]', () => {
   let pool: Pool, app: FastifyInstance, runs: FakeRunsGateway
   let normal: string, research: string, foreign: string, sectorId: string, general: string
   const scope = { tenantId: 'test-authority', projectId: null }

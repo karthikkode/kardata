@@ -1602,7 +1602,7 @@
   layer: db
   surface: backend/src/db/alerts.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.alerts.listSupervisionAlerts
   layer: db
@@ -1614,241 +1614,241 @@
   layer: db
   surface: backend/src/db/events.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: db.checkpoints.runCheckpointTx
   layer: db
   surface: backend/src/db/checkpoints.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.company_ledger.LedgerQualification
   layer: db
   surface: backend/src/db/company-ledger.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.company_ledger.RecordProblemInput
   layer: db
   surface: backend/src/db/company-ledger.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.company_ledger.UpsertCompanyInput
   layer: db
   surface: backend/src/db/company-ledger.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.company_ledger.getLedgerCompany
   layer: db
   surface: backend/src/db/company-ledger.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.company_ledger.listLedgerCompanies
   layer: db
   surface: backend/src/db/company-ledger.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.company_ledger.listLedgerProblems
   layer: db
   surface: backend/src/db/company-ledger.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.company_ledger.recordLedgerProblem
   layer: db
   surface: backend/src/db/company-ledger.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.company_ledger.registerLedgerCandidate
   layer: db
   surface: backend/src/db/company-ledger.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.company_ledger.upsertLedgerCompany
   layer: db
   surface: backend/src/db/company-ledger.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.context_files.ContextFileBlocked
   layer: db
   surface: backend/src/db/context-files.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace.ContextFileRef
   layer: db
   surface: backend/src/db/workspace.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.context_files.agentHistoryBoundary
   layer: db
   surface: backend/src/db/context-files.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.context_files.assertThreadFileContext
   layer: db
   surface: backend/src/db/context-files.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.context_files.chunkDocumentUnits
   layer: db
   surface: backend/src/db/context-files.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.context_files.extractNumberTokens
   layer: db
   surface: backend/src/db/context-files.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.context_files.findMissingNumbers
   layer: db
   surface: backend/src/db/context-files.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.context_files.inheritThreadFileRefs
   layer: db
   surface: backend/src/db/context-files.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.context_files.insertContextFileBlock
   layer: db
   surface: backend/src/db/context-files.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.context_files.listContextFileBlocks
   layer: db
   surface: backend/src/db/context-files.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.context_files.markContextFileBlockFailed
   layer: db
   surface: backend/src/db/context-files.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.context_files.mergeFileRefs
   layer: db
   surface: backend/src/db/context-files.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.context_files.normalizeSectionsJson
   layer: db
   surface: backend/src/db/context-files.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.context_files.parseJsonObject
   layer: db
   surface: backend/src/db/context-files.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.context_files.readContextFileBlock
   layer: db
   surface: backend/src/db/context-files.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.context_files.recordThreadFileExposure
   layer: db
   surface: backend/src/db/context-files.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.context_files.resetContextFileBlock
   layer: db
   surface: backend/src/db/context-files.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.context_files.threadFileRefs
   layer: db
   surface: backend/src/db/context-files.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.context_files.validateBlockTemplate
   layer: db
   surface: backend/src/db/context-files.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.context_files.validateFileRefs
   layer: db
   surface: backend/src/db/context-files.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.document_units.countDocumentUnits
   layer: db
   surface: backend/src/db/document-units.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.document_units.listDocumentUnitOrdinals
   layer: db
   surface: backend/src/db/document-units.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.document_units.listDocumentUnits
   layer: db
   surface: backend/src/db/document-units.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.errors.ArtifactImportTimeout
   layer: db
   surface: backend/src/db/errors.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.errors.DbContractError
   layer: db
   surface: backend/src/db/errors.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.errors.WorkspaceError
   layer: db
   surface: backend/src/db/errors.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.events.EventEnvelope
   layer: db
   surface: backend/src/db/events.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sessions.SessionModelSelection
   layer: db
   surface: backend/src/db/sessions.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.events.appendEvent
   layer: db
   surface: backend/src/db/events.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: db.event_artifacts.createArtifact
   layer: db
@@ -1860,67 +1860,67 @@
   layer: db
   surface: backend/src/db/sessions.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: db.events.deleteEventsBySeq
   layer: db
   surface: backend/src/db/events.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sessions.deleteSession
   layer: db
   surface: backend/src/db/sessions.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.events.findEventByKey
   layer: db
   surface: backend/src/db/events.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.events.findLaunchParentWorkflowId
   layer: db
   surface: backend/src/db/events.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sessions.getSession
   layer: db
   surface: backend/src/db/sessions.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.sessions.getSessionModel
   layer: db
   surface: backend/src/db/sessions.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.event_artifacts.listArtifacts
   layer: db
   surface: backend/src/db/event-artifacts.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.sessions.listSessions
   layer: db
   surface: backend/src/db/sessions.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.event_artifacts.listTenantArtifacts
   layer: db
   surface: backend/src/db/event-artifacts.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.events.readEventsAfter
   layer: db
   surface: backend/src/db/events.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.events.readEventsOlderThan
   layer: db
@@ -1932,73 +1932,73 @@
   layer: db
   surface: backend/src/db/events.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.event_artifacts.referenceArtifact
   layer: db
   surface: backend/src/db/event-artifacts.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sessions.renameSession
   layer: db
   surface: backend/src/db/sessions.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.event_artifacts.resolveArtifactScope
   layer: db
   surface: backend/src/db/event-artifacts.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sessions.setSessionModel
   layer: db
   surface: backend/src/db/sessions.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.execution_epochs.bindExecutionEpoch
   layer: db
   surface: backend/src/db/execution-epochs.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: db.execution_epochs.confirmExecutionIntent
   layer: db
   surface: backend/src/db/execution-epochs.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.execution_epochs.markExecutionIntent
   layer: db
   surface: backend/src/db/execution-epochs.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.execution_epochs.readActiveExecutionIdentity
   layer: db
   surface: backend/src/db/execution-epochs.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.execution_epochs.recoveryCheckpointHash
   layer: db
   surface: backend/src/db/execution-epochs.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.execution_epochs.reserveExecutionIntent
   layer: db
   surface: backend/src/db/execution-epochs.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: db.execution_epochs.verifyOriginalExecutionEpoch
   layer: db
   surface: backend/src/db/execution-epochs.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.execution_records.listThreadExecutionRecords
   layer: db
@@ -2016,7 +2016,7 @@
   layer: db
   surface: backend/src/db/execution-records.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.execution_records.recordTurnExecution
   layer: db
@@ -2028,421 +2028,421 @@
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_jobs.FileImageIdentity
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_jobs.FileProcessingManifest
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_jobs.assembleFileProcessingUnits
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_jobs.beginFileProcessingJob
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.file_jobs.claimFileImage
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_jobs.completeFileImage
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_jobs.createFileProcessingJob
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.file_jobs.failFileImage
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_jobs.failFileProcessingJob
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_jobs.fileImageResponseUnits
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_jobs.fileProcessingArchivePrefix
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_jobs.fileProcessingProgress
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_processing_dispatch.fileProcessingWorkflowId
   layer: db
   surface: backend/src/db/file-processing-dispatch.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.file_jobs.finalizeFileProcessingJob
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_processing_dispatch.listFileAdmissionCandidates
   layer: db
   surface: backend/src/db/file-processing-dispatch.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_jobs.listSectorFileProcessing
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_jobs.markFileImageRequestStarted
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_processing_dispatch.markFileProcessingDispatchOutcome
   layer: db
   surface: backend/src/db/file-processing-dispatch.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.file_jobs.pauseFileProcessingJob
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.file_jobs.readCurrentFileImageAttempt
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.file_jobs.readFileImage
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.file_jobs.readFileImageAttempt
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.file_jobs.readFileJobBoundary
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.file_jobs.readFileProcessingJob
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.file_jobs.readNextFileImage
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.file_jobs.registerFileImages
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_jobs.rejectFileImageResponse
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_processing_dispatch.reserveFileProcessingDispatch
   layer: db
   surface: backend/src/db/file-processing-dispatch.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.file_jobs.restoreFileImageArchive
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.file_jobs.retryFileProcessingJob
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.file_jobs.stageAndPublishFileProcessingJob
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_jobs.stageFileImageResponse
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_pipeline.OCR_CONFIDENCE_MIN
   layer: db
   surface: backend/src/db/file-pipeline.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.file_pipeline.SECTOR_DOCUMENT_MAX_BYTES
   layer: db
   surface: backend/src/db/file-pipeline.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.file_pipeline.ScriptedOcrAdapter
   layer: db
   surface: backend/src/db/file-pipeline.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_pipeline.UNIT_MAX_CHARS
   layer: db
   surface: backend/src/db/file-pipeline.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.file_pipeline.chunkTextUnits
   layer: db
   surface: backend/src/db/file-pipeline.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.file_pipeline.classifyUpload
   layer: db
   surface: backend/src/db/file-pipeline.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.file_pipeline.createHttpOcrAdapter
   layer: db
   surface: backend/src/db/file-pipeline.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.file_pipeline.extractFileUnits
   layer: db
   surface: backend/src/db/file-pipeline.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.file_pipeline.sha256Hex
   layer: db
   surface: backend/src/db/file-pipeline.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.heartbeats.listHeartbeats
   layer: db
   surface: backend/src/db/heartbeats.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.heartbeats.pruneHeartbeats
   layer: db
   surface: backend/src/db/heartbeats.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.heartbeats.recordHeartbeat
   layer: db
   surface: backend/src/db/heartbeats.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: db.index.CompanyStage
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.ConnectableDb
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.index.DEFAULT_POOL_BUDGET
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.index.Db
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: db.index.DbContractError
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.DbQueryResult
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.EventEnvelope
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.KbDocumentInput
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.LedgerQualification
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.OcrAdapter
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.OutboxRow
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.index.PlanVersion
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.index.RecordProblemInput
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.SECTOR_DOCUMENT_MAX_BYTES
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.index.ScriptedOcrAdapter
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.SectorPlan
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.SectorStartError
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.SectorState
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.SectorSweepRunner
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.SectorTransitionError
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.SessionModelSelection
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.index.StoredEvent
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.index.ThreadMessenger
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.TransactableDb
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: db.index.UpsertCompanyInput
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index._
   layer: db
@@ -2454,835 +2454,835 @@
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.appendEvent
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: db.index.approveSectorPlan
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.assertSectorTransition
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.cancelThreadRun
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.checkRate
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.claimIdempotency
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.classifyUpload
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.index.completeIdempotency
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.countDocumentUnits
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.createArtifact
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.createDbPool
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.createSector
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.index.createSession
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: db.index.deleteEventsBySeq
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.deleteSession
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.findEventByKey
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.index.findKeyByHash
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.index.findLaunchParentWorkflowId
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.fleetTotals
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.index.getLedgerCompany
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.getSector
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.index.getSession
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.index.getSessionModel
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.getThread
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.index.getThreadHeader
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: db.index.ingestSectorDocument
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.latestOutboxSeq
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.listArtifacts
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.index.listCompanies
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.listDocumentUnits
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.listHeartbeats
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.index.listLedgerCompanies
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.listLedgerProblems
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.listSectorCompanies
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.index.listSectorDocuments
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.index.listSectors
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.listSessions
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.index.listSupervisionAlerts
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: db.index.listTenantArtifacts
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.listThreadExecutionRecords
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.index.listThreadHeaders
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.listThreads
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.index.markCompanyFound
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.index.pauseSectorSweep
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.pauseThreadRun
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.poolStats
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.projectBatch
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.projectUsage
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.index.pruneHeartbeats
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.index.pruneOutbox
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.index.publishOutboxFrame
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.querySectorDocument
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.readEventsAfter
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.readEventsOlderThan
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.readOriginalSectorDocument
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.index.readOutboxBacklog
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.index.readPartition
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.index.readRecoveryRequestReference
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.readSectorDocument
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.readSectorDocumentUnitsPage
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.readSectorExecutionState
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.readSectorPlan
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.readSectorThread
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.readThreadExecutionReference
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.rebuildFromEvents
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.index.rebuildLedger
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.recordHeartbeat
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: db.index.recordKbBatch
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.recordLedgerProblem
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.recordPlanVersion
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.recordResearchSession
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.recordTurnExecution
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.referenceArtifact
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.registerApiKey
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.index.registerLedgerCandidate
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.registerSectorDiscovery
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.releaseIdempotency
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.index.renameSession
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.researchHealth
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.resolveArtifactScope
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.resumeSectorSweep
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.resumeThreadRun
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.runCheckpointTx
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.index.runTotals
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.searchKb
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.sectorActivity
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.sendThreadMessage
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.serverPoolBudget
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.index.setCompanyStage
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.index.setCompanyState
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.setSectorState
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.setSessionModel
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.startSectorResearch
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.steerThread
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.subscribeOutbox
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.sweepIdempotency
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.index.updateSectorPlan
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.upsertLedgerCompany
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.workerPoolBudget
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.index.workerPoolFromEnv
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.index.workspaceReferenceSnapshot
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.kb_ingest.collectKbDocs
   layer: db
   surface: backend/src/db/kb-ingest.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.kb_ingest.parseKbFile
   layer: db
   surface: backend/src/db/kb-ingest.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.kb_ingest.runKbIngest
   layer: db
   surface: backend/src/db/kb-ingest.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.keys.findKeyByHash
   layer: db
   surface: backend/src/db/keys.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.keys.registerApiKey
   layer: db
   surface: backend/src/db/keys.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.knowledge.KbDocumentInput
   layer: db
   surface: backend/src/db/knowledge.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.knowledge.recordKbBatch
   layer: db
   surface: backend/src/db/knowledge.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.knowledge.searchKb
   layer: db
   surface: backend/src/db/knowledge.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.ledger.fleetTotals
   layer: db
   surface: backend/src/db/ledger.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.ledger.projectUsage
   layer: db
   surface: backend/src/db/ledger.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.ledger.rebuildLedger
   layer: db
   surface: backend/src/db/ledger.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.ledger.runTotals
   layer: db
   surface: backend/src/db/ledger.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.migrate.migrate
   layer: db
   surface: backend/src/db/migrate.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.migrate.migrationFiles
   layer: db
   surface: backend/src/db/migrate.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.operation_receipts.inspectOperationReceipt
   layer: db
   surface: backend/src/db/operation-receipts.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.operation_receipts.recordOperationIntent
   layer: db
   surface: backend/src/db/operation-receipts.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.operation_receipts.recordOperationResult
   layer: db
   surface: backend/src/db/operation-receipts.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.operation_receipts.recoverOperationResult
   layer: db
   surface: backend/src/db/operation-receipts.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.outbox.latestOutboxSeq
   layer: db
   surface: backend/src/db/outbox.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.outbox.pruneOutbox
   layer: db
   surface: backend/src/db/outbox.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.outbox.publishOutboxFrame
   layer: db
   surface: backend/src/db/outbox.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.outbox.readOutboxBacklog
   layer: db
   surface: backend/src/db/outbox.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.outbox.subscribeOutbox
   layer: db
   surface: backend/src/db/outbox.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.pdf_extraction.PDF_IMAGE_MAX_PIXELS
   layer: db
   surface: backend/src/db/pdf-extraction.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.pdf_extraction.planPdfExtraction
   layer: db
   surface: backend/src/db/pdf-extraction.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.pool.DEFAULT_POOL_BUDGET
   layer: db
   surface: backend/src/db/pool.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.pool.createDbPool
   layer: db
   surface: backend/src/db/pool.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.pool.poolStats
   layer: db
   surface: backend/src/db/pool.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.pool.serverPoolBudget
   layer: db
   surface: backend/src/db/pool.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.pool.workerPoolBudget
   layer: db
   surface: backend/src/db/pool.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.pool.workerPoolFromEnv
   layer: db
   surface: backend/src/db/pool.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.quotas.checkRate
   layer: db
   surface: backend/src/db/quotas.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.quotas.claimIdempotency
   layer: db
   surface: backend/src/db/quotas.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.quotas.completeIdempotency
   layer: db
   surface: backend/src/db/quotas.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.quotas.releaseIdempotency
   layer: db
   surface: backend/src/db/quotas.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.quotas.sweepIdempotency
   layer: db
   surface: backend/src/db/quotas.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.reconciliation.listReconciliationCandidates
   layer: db
   surface: backend/src/db/reconciliation.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.reconciliation.recordReconciliation
   layer: db
@@ -3294,43 +3294,43 @@
   layer: db
   surface: backend/src/db/research-health.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sector_context.addContextNotes
   layer: db
   surface: backend/src/db/sector-context.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sector_context.compactSectorContext
   layer: db
   surface: backend/src/db/sector-context.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sector_context.getSectorContext
   layer: db
   surface: backend/src/db/sector-context.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.sector_context.setUnitExclusions
   layer: db
   surface: backend/src/db/sector-context.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sector_documents.SECTOR_DOCUMENT_MAX_BYTES
   layer: db
   surface: backend/src/db/sector-documents.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.sector_documents.extractDocumentText
   layer: db
   surface: backend/src/db/sector-documents.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.sector_documents.ingestSectorDocument
   layer: db
@@ -3342,439 +3342,439 @@
   layer: db
   surface: backend/src/db/sector-documents.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.sector_documents.querySectorDocument
   layer: db
   surface: backend/src/db/sector-documents.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sector_documents.readOriginalSectorDocument
   layer: db
   surface: backend/src/db/sector-documents.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.sector_documents.readSectorDocument
   layer: db
   surface: backend/src/db/sector-documents.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sector_documents.readSectorDocumentUnitsPage
   layer: db
   surface: backend/src/db/sector-documents.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sector_lifecycle.pauseSectorSweep
   layer: db
   surface: backend/src/db/sector-lifecycle.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.sector_lifecycle.restartSectorSweep
   layer: db
   surface: backend/src/db/sector-lifecycle.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.sector_lifecycle.resumeSectorSweep
   layer: db
   surface: backend/src/db/sector-lifecycle.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.sector_plan.SectorPlanError
   layer: db
   surface: backend/src/db/sector-plan.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.sector_plan.approveSectorPlan
   layer: db
   surface: backend/src/db/sector-plan.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sector_plan.planSectorResearch
   layer: db
   surface: backend/src/db/sector-plan.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.sector_plan.readSectorPlan
   layer: db
   surface: backend/src/db/sector-plan.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sector_plan.recordPlanVersion
   layer: db
   surface: backend/src/db/sector-plan.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sector_plan.updateSectorPlan
   layer: db
   surface: backend/src/db/sector-plan.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sector_start.SectorStartError
   layer: db
   surface: backend/src/db/sector-start.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.sector_start.startSectorResearch
   layer: db
   surface: backend/src/db/sector-start.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.sectors.CompanyStage
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sectors.SECTOR_PLAN_APPROVED_EVENT
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sectors.SECTOR_PLAN_WRITTEN_EVENT
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sectors.SECTOR_TRANSITIONS
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.sectors.SectorState
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sectors.SectorTransitionError
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.sectors.assertSectorTransition
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sectors.createSector
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.sectors.getSector
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.sectors.listCompanies
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sectors.listSectorCompanies
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.sectors.listSectors
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sectors.markCompanyFound
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.sectors.projectSectorEvent
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sectors.readSectorExecutionState
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sectors.recordResearchSession
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sectors.registerSectorDiscovery
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sectors.sectorActivity
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sectors.setCompanyStage
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.sectors.setCompanyState
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sectors.setSectorState
   layer: db
   surface: backend/src/db/sectors.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.threads.cancelThreadRun
   layer: db
   surface: backend/src/db/threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.threads.getThread
   layer: db
   surface: backend/src/db/threads.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.threads.getThreadHeader
   layer: db
   surface: backend/src/db/threads.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: db.threads.listThreadHeaders
   layer: db
   surface: backend/src/db/threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.threads.listThreads
   layer: db
   surface: backend/src/db/threads.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.threads.pauseThreadRun
   layer: db
   surface: backend/src/db/threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.threads.projectBatch
   layer: db
   surface: backend/src/db/threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.threads.readSectorThread
   layer: db
   surface: backend/src/db/threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.threads.rebuildFromEvents
   layer: db
   surface: backend/src/db/threads.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.threads.resumeThreadRun
   layer: db
   surface: backend/src/db/threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.threads.sendThreadMessage
   layer: db
   surface: backend/src/db/threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.threads.steerThread
   layer: db
   surface: backend/src/db/threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.work_review.WorkReviewDecision
   layer: db
   surface: backend/src/db/work-review.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.work_review.readResearchWorkReviewSequence
   layer: db
   surface: backend/src/db/work-review.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.work_review.reviewResearchWork
   layer: db
   surface: backend/src/db/work-review.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.workspace_global_context.ContextAiUsage
   layer: db
   surface: backend/src/db/workspace-global-context.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace.ContextSections
   layer: db
   surface: backend/src/db/workspace.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace.PartialContextSections
   layer: db
   surface: backend/src/db/workspace.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace.WorkspaceError
   layer: db
   surface: backend/src/db/workspace.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.workspace_global_context.applyReadyContextFileBlock
   layer: db
   surface: backend/src/db/workspace-global-context.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_global_context.applySystemCompaction
   layer: db
   surface: backend/src/db/workspace-global-context.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sector_documents.assertFileVisible
   layer: db
   surface: backend/src/db/sector-documents.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.workspace_global_context.assertGlobalFileContext
   layer: db
   surface: backend/src/db/workspace-global-context.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_threads.beginThreadTurn
   layer: db
   surface: backend/src/db/workspace-threads.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: db.workspace_threads.buildInheritedContext
   layer: db
   surface: backend/src/db/workspace-threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_threads.clearTurnContinuation
   layer: db
   surface: backend/src/db/workspace-threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_research.closeDiscovery
   layer: db
   surface: backend/src/db/workspace-research.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.workspace_global_context.commitChildContext
   layer: db
   surface: backend/src/db/workspace-global-context.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.workspace_threads.commitThreadCompaction
   layer: db
   surface: backend/src/db/workspace-threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_threads.consumeSteering
   layer: db
   surface: backend/src/db/workspace-threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_global_context.decideContextChange
   layer: db
   surface: backend/src/db/workspace-global-context.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_threads.enqueueSteering
   layer: db
   surface: backend/src/db/workspace-threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace.ensureResearchSession
   layer: db
   surface: backend/src/db/workspace.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.workspace_threads.finishSteering
   layer: db
   surface: backend/src/db/workspace-threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_global_context.formatGlobalContext
   layer: db
   surface: backend/src/db/workspace-global-context.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sector_documents.hiddenFileIds
   layer: db
   surface: backend/src/db/sector-documents.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.event_artifacts.indexSectorArtifact
   layer: db
@@ -3786,7 +3786,7 @@
   layer: db
   surface: backend/src/db/workspace-threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_library.listSectorLibrary
   layer: db
@@ -3798,247 +3798,247 @@
   layer: db
   surface: backend/src/db/workspace.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_global_context.notifyWorkspace
   layer: db
   surface: backend/src/db/workspace-global-context.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.workspace_global_context.previewContextChange
   layer: db
   surface: backend/src/db/workspace-global-context.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_global_context.proposeFileContext
   layer: db
   surface: backend/src/db/workspace-global-context.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_global_context.proposeGlobalContext
   layer: db
   surface: backend/src/db/workspace-global-context.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_global_context.readContextAiUsage
   layer: db
   surface: backend/src/db/workspace-global-context.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_research.readDiscoveryPublicationState
   layer: db
   surface: backend/src/db/workspace-research.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.workspace_global_context.readGlobalContext
   layer: db
   surface: backend/src/db/workspace-global-context.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.workspace_global_context.readGlobalContextUsage
   layer: db
   surface: backend/src/db/workspace-global-context.ts
   tiers:
-    - todo
+    - unit
   states: []
 - id: db.workspace_threads.readInheritedContext
   layer: db
   surface: backend/src/db/workspace-threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_research.readResearchBudget
   layer: db
   surface: backend/src/db/workspace-research.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_research.readResearchCoordinatorProgress
   layer: db
   surface: backend/src/db/workspace-research.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_research.readResearchProgress
   layer: db
   surface: backend/src/db/workspace-research.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.workspace_research.readResearchWorkItem
   layer: db
   surface: backend/src/db/workspace-research.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_library.readSectorLibraryFile
   layer: db
   surface: backend/src/db/workspace-library.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace.readSessionSettings
   layer: db
   surface: backend/src/db/workspace.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_threads.readSteeringReceiptsPage
   layer: db
   surface: backend/src/db/workspace-threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_threads.readThreadContext
   layer: db
   surface: backend/src/db/workspace-threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_threads.readTurnContinuation
   layer: db
   surface: backend/src/db/workspace-threads.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.workspace_threads.rebuildThreadContext
   layer: db
   surface: backend/src/db/workspace-threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_global_context.recordContextAiUsage
   layer: db
   surface: backend/src/db/workspace-global-context.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_threads.recordContextMeasurement
   layer: db
   surface: backend/src/db/workspace-threads.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.workspace_research.recordResearchBudget
   layer: db
   surface: backend/src/db/workspace-research.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_research.recordResearchWork
   layer: db
   surface: backend/src/db/workspace-research.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_global_context.removeContextFileBlock
   layer: db
   surface: backend/src/db/workspace-global-context.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace.requireSector
   layer: db
   surface: backend/src/db/workspace.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.workspace.requireThread
   layer: db
   surface: backend/src/db/workspace.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.workspace_research.researchIntakeReceipts
   layer: db
   surface: backend/src/db/workspace-research.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.workspace.researchSessionBinding
   layer: db
   surface: backend/src/db/workspace.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_global_context.restoreGlobalContextVersion
   layer: db
   surface: backend/src/db/workspace-global-context.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_threads.saveInheritedContext
   layer: db
   surface: backend/src/db/workspace-threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_threads.saveThreadContext
   layer: db
   surface: backend/src/db/workspace-threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_threads.saveTurnContinuation
   layer: db
   surface: backend/src/db/workspace-threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.sessions.sessionKind
   layer: db
   surface: backend/src/db/sessions.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.workspace_global_context.setFileVisibility
   layer: db
   surface: backend/src/db/workspace-global-context.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.workspace.setSessionPurpose
   layer: db
   surface: backend/src/db/workspace.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_threads.setThreadPaused
   layer: db
   surface: backend/src/db/workspace-threads.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace.setUseGlobalContext
   layer: db
   surface: backend/src/db/workspace.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_research.workspaceReferenceSnapshot
   layer: db
   surface: backend/src/db/workspace-research.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace_research.workspaceReferences
   layer: db
   surface: backend/src/db/workspace-research.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.workspace.workspaceTransaction
   layer: db
   surface: backend/src/db/workspace.ts
   tiers:
-    - todo
+    - fault
   states: []
 - id: frontend.hook.useWorkReview
   layer: frontend
@@ -5387,25 +5387,25 @@
   layer: db
   surface: backend/src/db/errors.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.errors.checked
   layer: db
   surface: backend/src/db/errors.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.workspace.globalContextUsageFrom
   layer: db
   surface: backend/src/db/workspace.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.workspace.workspaceRow
   layer: db
   surface: backend/src/db/workspace.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: frontend.src.components.global_context_panel
   layer: frontend
@@ -5435,25 +5435,25 @@
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.file_jobs.receiptTransaction
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - temporal
   states: []
 - id: db.file_jobs.visible
   layer: db
   surface: backend/src/db/file-jobs.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: db.events.KeySchema
   layer: db
   surface: backend/src/db/events.ts
   tiers:
-    - todo
+    - stress
   states: []
 - id: backend.workflow.inbox_queue.registerQueueHandlers
   layer: backend
@@ -5667,61 +5667,61 @@
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.acquireMetaPermit
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.ensureMetaPermits
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.resolveMetaMax
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.index.withMetaPermit
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.meta_limiter.MetaPermitTimeout
   layer: db
   surface: backend/src/db/meta-limiter.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.meta_limiter.acquireMetaPermit
   layer: db
   surface: backend/src/db/meta-limiter.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.meta_limiter.ensureMetaPermits
   layer: db
   surface: backend/src/db/meta-limiter.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.meta_limiter.resolveMetaMax
   layer: db
   surface: backend/src/db/meta-limiter.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.meta_limiter.withMetaPermit
   layer: db
   surface: backend/src/db/meta-limiter.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: backend.workflow.subagents.DEFAULT_MAX_QUEUED_CHILDREN
   layer: backend
@@ -5751,11 +5751,11 @@
   layer: db
   surface: backend/src/db/index.ts
   tiers:
-    - todo
+    - db
   states: []
 - id: db.pool.validatePoolBudget
   layer: db
   surface: backend/src/db/pool.ts
   tiers:
-    - todo
+    - db
   states: []

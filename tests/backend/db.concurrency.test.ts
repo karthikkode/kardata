@@ -19,7 +19,7 @@ import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
 const ENABLED = TEST_DATABASE_URL !== undefined && TEST_DATABASE_URL !== ''
 
-describe.skipIf(!ENABLED)('db concurrency under contention', () => {
+describe.skipIf(!ENABLED)('db concurrency under contention [F:db.index.appendEvent] [F:db.index.readPartition] [F:db.index.checkRate] [F:db.index.claimIdempotency] [F:db.index.completeIdempotency] [F:db.index.createDbPool] [F:db.index.poolStats] [F:db.pool.createDbPool] [F:db.events.readPartition] [F:db.events.appendEvent] [F:db.quotas.checkRate] [F:db.quotas.claimIdempotency] [F:db.quotas.completeIdempotency] [F:db.pool.poolStats] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.events.KeySchema]', () => {
   let pool: Pool
   let url: string
 

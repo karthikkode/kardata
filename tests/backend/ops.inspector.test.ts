@@ -24,7 +24,7 @@ function authHeader(key: string): Record<string, string> {
   return { authorization: `Bearer ${key}` }
 }
 
-describe.skipIf(!ENABLED)('ops find-diagnose-act (B5.5)', () => {
+describe.skipIf(!ENABLED)('ops find-diagnose-act (B5.5) [F:db.index.appendEvent] [F:db.events.appendEvent] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db]', () => {
   let app: FastifyInstance
   let pool: Pool
   let runs: FakeRunsGateway

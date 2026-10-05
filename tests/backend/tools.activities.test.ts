@@ -65,7 +65,7 @@ function types(records: unknown[]): unknown[] {
   return (records as Array<{ type: string }>).map((record) => record.type)
 }
 
-describe('tool activities (B4.2) [F:backend.activity.tools.executeToolCall] [F:backend.activity.tools.TOOL_APPROVAL_EVENT] [F:backend.activity.tools.TOOL_EXECUTED_EVENT] [F:backend.activity.tools.TOOL_TIMEOUT_EVENT] [F:backend.activity.tools.DEFAULT_TOOL_TIMEOUT_MS] [F:backend.activity.tools.SENSITIVE_TOOLS] [F:backend.activity.turn.sleep]', () => {
+describe('tool activities (B4.2) [F:backend.activity.tools.executeToolCall] [F:backend.activity.tools.TOOL_APPROVAL_EVENT] [F:backend.activity.tools.TOOL_EXECUTED_EVENT] [F:backend.activity.tools.TOOL_TIMEOUT_EVENT] [F:backend.activity.tools.DEFAULT_TOOL_TIMEOUT_MS] [F:backend.activity.tools.SENSITIVE_TOOLS] [F:backend.activity.turn.sleep] [F:db.index.appendEvent] [F:db.index.findEventByKey] [F:db.index.readPartition] [F:db.events.readPartition] [F:db.events.appendEvent] [F:db.events.findEventByKey] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.context_files.recordThreadFileExposure] [F:db.errors.WorkspaceError] [F:db.index.Db] [F:db.index.TransactableDb] [F:db.workspace.WorkspaceError] [F:db.sector_documents.assertFileVisible] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked] [F:db.file_jobs.visible] [F:db.events.KeySchema]', () => {
   it('executes a read and records the outcome with snapshots', async () => {
     const d = memoryDeps()
     const outcome = await executeToolCall(input(), d)

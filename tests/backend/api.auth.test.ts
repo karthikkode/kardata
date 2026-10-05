@@ -27,7 +27,7 @@ function authHeader(key: string, extra: Record<string, string> = {}): Record<str
   return { authorization: `Bearer ${key}`, ...extra }
 }
 
-describe.skipIf(!ENABLED)('auth and tenancy (B3.3) [F:http.createSession] [F:http.listSessions] [F:http.getSession] [F:http.sendMessage] [F:http.decideApproval] [F:http.resumeRun] [F:http.pauseRun] [F:http.listThreads] [F:http.getThread] [F:http.listMessages] [F:http.streamThread]', () => {
+describe.skipIf(!ENABLED)('auth and tenancy (B3.3) [F:http.createSession] [F:http.listSessions] [F:http.getSession] [F:http.sendMessage] [F:http.decideApproval] [F:http.resumeRun] [F:http.pauseRun] [F:http.listThreads] [F:http.getThread] [F:http.listMessages] [F:http.streamThread] [F:db.index.appendEvent] [F:db.events.appendEvent] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.workspace.researchSessionBinding] [F:db.sessions.sessionKind] [F:db.errors.Id] [F:db.errors.checked] [F:db.workspace.workspaceRow]', () => {
   let app: FastifyInstance
   let pool: Pool
   let runs: FakeRunsGateway

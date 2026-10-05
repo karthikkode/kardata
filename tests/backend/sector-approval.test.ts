@@ -61,7 +61,7 @@ function stubDb(
 
 const SCOPE = { tenantId: 't', projectId: null }
 
-describe('updateSectorPlan', () => {
+describe('updateSectorPlan [F:db.sector_plan.approveSectorPlan] [F:db.sector_plan.updateSectorPlan] [F:db.sectors.SectorTransitionError] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.errors.WorkspaceError] [F:db.index.Db] [F:db.index.SectorTransitionError] [F:db.index.TransactableDb] [F:db.workspace.WorkspaceError] [F:db.workspace.requireSector] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked]', () => {
   it('versions edits on planned sectors', async () => {
     const state = { name: 'n', topic: 't', state: 'planned', plans: ['## scope\nv1'] }
     const outcome = await updateSectorPlan(stubDb(state, []), 'sec-1', '## scope\nv2', SCOPE)

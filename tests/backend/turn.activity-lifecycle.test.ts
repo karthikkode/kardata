@@ -9,7 +9,7 @@ vi.mock('../../backend/src/projector.js', () => ({ projectNewEvents: db.project 
 vi.mock('../../backend/src/db/context-files.js', async (original) => ({ ...await original<typeof import('../../backend/src/db/context-files.js')>(), inheritThreadFileRefs: db.inherit }))
 afterEach(() => { vi.useRealTimers(); vi.clearAllMocks() })
 
-describe('production activity setup supervision [F:backend.activity.turn.karbotTurnActivity] [F:backend.activity.turn_prompts.TURN_HEARTBEAT_MS] [F:backend.activity.turn.selectTurnContinuation]', () => {
+describe('production activity setup supervision [F:backend.activity.turn.karbotTurnActivity] [F:backend.activity.turn_prompts.TURN_HEARTBEAT_MS] [F:backend.activity.turn.selectTurnContinuation] [F:db.context_files.assertThreadFileContext] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.execution_epochs.readActiveExecutionIdentity] [F:db.index.Db] [F:db.workspace_threads.recordContextMeasurement]', () => {
   it('releases the claimed attempt when producer identity setup fails before provider work', async () => {
     const lease = '00000000-0000-4000-8000-000000000002'
     const failure = new Error('TEST identity read disconnected')

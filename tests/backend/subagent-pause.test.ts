@@ -16,7 +16,7 @@ const fixture = vi.hoisted(() => ({ describe: vi.fn(), signal: vi.fn() }))
 vi.mock('@temporalio/client', async (original) => ({ ...await original<typeof import('@temporalio/client')>(), Client: class { workflow = { getHandle: (id: string) => ({ describe: () => fixture.describe(id), signal: (...args: unknown[]) => fixture.signal(id, ...args) }) } } }))
 afterEach(() => vi.resetAllMocks())
 
-describe.skipIf(!TEST_DATABASE_URL)('subagent pause controls (A16)', () => {
+describe.skipIf(!TEST_DATABASE_URL)('subagent pause controls (A16) [F:db.workspace_threads.isThreadPaused] [F:db.workspace_threads.setThreadPaused]', () => {
   let pool: Pool
   let runs: FakeRunsGateway
   beforeAll(async () => {

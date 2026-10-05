@@ -17,7 +17,7 @@ import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import { FakeRunsGateway } from './fake-gateway.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('subagent inheritance (A15)', () => {
+describe.skipIf(!TEST_DATABASE_URL)('subagent inheritance (A15) [F:db.index.appendEvent] [F:db.index.createSector] [F:db.index.createSession] [F:db.workspace_threads.readThreadContext] [F:db.workspace_threads.saveThreadContext] [F:db.sectors.createSector] [F:db.workspace_threads.buildInheritedContext] [F:db.workspace_threads.readInheritedContext] [F:db.workspace_threads.saveInheritedContext] [F:db.events.appendEvent] [F:db.sessions.createSession] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.context_files.assertThreadFileContext] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.errors.WorkspaceError] [F:db.index.Db] [F:db.index.TransactableDb] [F:db.workspace.WorkspaceError] [F:db.workspace.requireSector] [F:db.workspace.requireThread] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked]', () => {
   let pool: Pool
   let runs: FakeRunsGateway
   const scope = { tenantId: 'test-inherit', projectId: null }

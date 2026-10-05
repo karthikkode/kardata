@@ -4,7 +4,7 @@ import { createSector, readResearchBudget, recordResearchBudget } from '../../ba
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('durable cumulative research budget', () => {
+describe.skipIf(!TEST_DATABASE_URL)('durable cumulative research budget [F:db.index.createSector] [F:db.workspace_research.readResearchBudget] [F:db.workspace_research.recordResearchBudget] [F:db.sectors.createSector] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.errors.WorkspaceError] [F:db.index.Db] [F:db.index.TransactableDb] [F:db.workspace.WorkspaceError] [F:db.workspace.requireSector] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked]', () => {
   let pool: Pool, sectorId: string
   const scope = { tenantId: 'test-budget', projectId: null }
   beforeAll(async () => {
