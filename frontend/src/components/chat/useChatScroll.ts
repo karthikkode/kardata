@@ -1,7 +1,7 @@
 // Chat log scroll: stick-to-bottom with a "Latest" escape. The log
 // follows new frames only while stuck; scrolling up parks it.
 import { useEffect, useRef, useState } from 'react'
-import type { ToolPayload } from '../../data/api/live'
+import type { ToolPayload } from '../../data/useThreads'
 import type { ChatMessage } from './messages'
 
 export function useChatScroll({

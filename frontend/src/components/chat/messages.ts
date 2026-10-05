@@ -1,9 +1,9 @@
 // Chat message shapes and pure transforms shared by the Karbot panel and
 // the sector workspace. No React: grouping, merging, and server-record
 // mapping live here so both surfaces stay consistent.
-import { apiErrorStatus } from '../../data/api/client'
-import { type ArtifactSummary } from '../../data/api/artifacts'
-import { type LiveMessage } from '../../data/api/live'
+import { apiErrorStatus } from '../../data/useApi'
+import { type ArtifactSummary } from '../../data/useFiles'
+import { type LiveMessage } from '../../data/useThreads'
 
 export type ChatScope = { id: string; name: string } | null
 
