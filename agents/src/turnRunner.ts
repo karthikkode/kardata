@@ -31,6 +31,7 @@ import {
   type ToolDefinition,
   type Usage,
 } from './providers.js'
+import { HttpError, defaultFetchFn, postWithDeadline, type McpFetchFn } from './http.js'
 
 export interface McpToolOutcome { content: string; isError?: boolean; recovery?: { operationId: string; reason: string; authorityId?: string } }
 export interface RecoveryOperation {
@@ -520,21 +521,6 @@ export interface StreamableMcpClientOptions {
 /** Request header carrying the tool grant (see StreamableMcpClientOptions.grant). */
 export const MCP_TOOL_GRANT_HEADER = 'x-kardata-tool-grant'
 
-export interface McpHttpResponse {
-  ok: boolean
-  status: number
-  text(): Promise<string>
-}
-
-export type McpFetchFn = (
-  url: string,
-  init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal },
-) => Promise<McpHttpResponse>
-
-function defaultFetchFn(url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }): Promise<McpHttpResponse> {
-  return fetch(url, init)
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -598,34 +584,34 @@ export class StreamableMcpClient implements TurnRunnerMcpClient {
   }
 
   private async rpc(method: string, params: Record<string, unknown>, operationId?: string): Promise<unknown> {
-    const controller = new AbortController()
-    const signal = this.signal ? AbortSignal.any([this.signal, controller.signal]) : controller.signal
-    let rejectAbort: (() => void) | undefined
-    const timer = setTimeout(() => controller.abort(new Error('MCP request deadline exceeded')), this.timeoutMs)
+    const describe = `mcp request '${method}'`
+    let text: string
     try {
-      const aborted = new Promise<never>((_, reject) => {
-        rejectAbort = () => reject(new Error(`mcp request '${method}' aborted or exceeded its deadline`))
-        if (signal.aborted) rejectAbort()
-        else signal.addEventListener('abort', rejectAbort, { once: true })
+      text = await postWithDeadline({
+        describe,
+        url: this.endpoint,
+        init: {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            accept: 'application/json, text/event-stream',
+            authorization: `Bearer ${this.token}`,
+            ...(operationId ? { 'idempotency-key': operationId } : {}),
+            ...(this.execution ? { 'x-kardata-thread': this.execution.threadKey, 'x-kardata-execution': this.execution.signature } : {}),
+            ...(this.grant ? { [MCP_TOOL_GRANT_HEADER]: this.grant.join(',') } : {}),
+          },
+          body: JSON.stringify({ jsonrpc: '2.0', id: operationId ?? this.nextId++, method, params }),
+        },
+        timeoutMs: this.timeoutMs,
+        signal: this.signal,
+        fetchFn: this.fetchFn,
       })
-      return await Promise.race([aborted, (async () => {
-        if (signal.aborted) throw new Error('MCP request cancelled before dispatch')
-    const response = await this.fetchFn(this.endpoint, {
-      signal,
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json, text/event-stream',
-        authorization: `Bearer ${this.token}`,
-        ...(operationId ? { 'idempotency-key': operationId } : {}),
-        ...(this.execution ? { 'x-kardata-thread': this.execution.threadKey, 'x-kardata-execution': this.execution.signature } : {}),
-        ...(this.grant ? { [MCP_TOOL_GRANT_HEADER]: this.grant.join(',') } : {}),
-      },
-      body: JSON.stringify({ jsonrpc: '2.0', id: operationId ?? this.nextId++, method, params }),
-    })
-    // Token stays out of errors: status only, never headers or body echoes.
-    if (!response.ok) throw Object.assign(new Error(`mcp request '${method}' failed with HTTP ${response.status}`), { beforeEffect: [400, 401, 403, 404, 429].includes(response.status) })
-    const text = await response.text()
+    } catch (error) {
+      if (error instanceof HttpError) {
+        throw Object.assign(new Error(`${describe} failed with HTTP ${error.status}`), { beforeEffect: [400, 401, 403, 404, 429].includes(error.status) })
+      }
+      throw error
+    }
     const payload = firstJsonPayload(text)
     if (!isRecord(payload)) throw new Error(`mcp request '${method}' returned a malformed envelope`)
     if (isRecord(payload['error'])) {
@@ -633,12 +619,6 @@ export class StreamableMcpClient implements TurnRunnerMcpClient {
       throw new Error(`mcp request '${method}' failed: ${message.slice(0, 300)}`)
     }
     return payload['result']
-      })()])
-    } finally {
-      clearTimeout(timer)
-      if (rejectAbort) signal.removeEventListener('abort', rejectAbort)
-      controller.abort()
-    }
   }
 
   private async ensureInitialized(): Promise<void> {

@@ -24,7 +24,7 @@ export default defineConfig([
   },
   {
     files: ['src/**/*.ts'],
-    ignores: ['src/**/*.test.ts', 'src/fixtures/**'],
+    ignores: ['src/**/*.test.ts', 'src/fixtures/**', 'src/http.ts'],
     rules: {
       'max-lines': ['error', { max: 800 }],
       complexity: ['warn', 20],
@@ -33,7 +33,7 @@ export default defineConfig([
         'error',
         {
           selector: "CallExpression[callee.name='fetch']",
-          message: 'use the workspace HTTP client (agents/src/http.ts lands in Phase 2)',
+          message: 'use the workspace HTTP client (agents/src/http.ts)',
         },
       ],
     },
