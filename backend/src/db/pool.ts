@@ -6,7 +6,8 @@
 // Defaults mirror node-postgres out of the box (behavior-neutral move);
 // per-process budgets (statement timeouts, max connections for the
 // server vs each worker) land here in slice 7 with the B5.6 numbers.
-import { Pool } from 'pg'
+import { Client, Pool } from 'pg'
+import type { Logger } from 'pino'
 import { DbContractError } from './errors.js'
 
 export interface PoolBudget {
@@ -37,10 +38,11 @@ function envPositiveInt(name: string, fallback: number): number {
   return parsed
 }
 
-/** Effective server budget: env wins, code default fills gaps. */
-export function serverPoolBudget(): PoolBudget {
+/** Effective server budget: env wins, code default fills gaps. Both
+ * fields always resolve (no `??` needed downstream). */
+export function serverPoolBudget(): { max: number; statementTimeoutMs: number } {
   return {
-    max: envPositiveInt('KARDATA_PG_SERVER_MAX', DEFAULT_POOL_BUDGET.max),
+    max: envPositiveInt('KARDATA_DB_POOL_SERVER', DEFAULT_POOL_BUDGET.max),
     statementTimeoutMs: envPositiveInt(
       'KARDATA_PG_STATEMENT_TIMEOUT_MS',
       DEFAULT_POOL_BUDGET.statementTimeoutMs,
@@ -48,14 +50,54 @@ export function serverPoolBudget(): PoolBudget {
   }
 }
 
-/** Effective worker budget: env wins, code default fills gaps. */
-export function workerPoolBudget(): PoolBudget {
+/** Effective worker budget: env wins, code default fills gaps. Both
+ * fields always resolve (no `??` needed downstream). */
+export function workerPoolBudget(): { max: number; statementTimeoutMs: number } {
   return {
-    max: envPositiveInt('KARDATA_PG_WORKER_MAX', WORKER_POOL_BUDGET.max),
+    max: envPositiveInt('KARDATA_DB_POOL_WORKER', WORKER_POOL_BUDGET.max),
     statementTimeoutMs: envPositiveInt(
       'KARDATA_PG_STATEMENT_TIMEOUT_MS',
       DEFAULT_POOL_BUDGET.statementTimeoutMs,
     ),
+  }
+}
+
+/** Startup guard (P4.2.5): the pool must fit inside the server's
+ * `max_connections`. Over budget throws DbContractError naming the env
+ * var — fail fast, not a wedged pool at runtime. Unreachable DB (or an
+ * unreadable setting) only warns: the server boots without a database,
+ * so validation never blocks startup, it just skips. Uses a dedicated
+ * 2 s client, never the lazy product pool. */
+export async function validatePoolBudget(
+  connectionString: string,
+  max: number,
+  envName: string,
+  logger?: Logger,
+): Promise<void> {
+  const client = new Client({ connectionString, connectionTimeoutMillis: 2000, statement_timeout: 2000 })
+  try {
+    await client.connect()
+  } catch (error) {
+    logger?.warn(
+      { op: 'db.pool.validate', env: envName, code: error instanceof Error ? error.message : String(error) },
+      'pool budget validation skipped: Postgres unreachable',
+    )
+    return
+  }
+  try {
+    const { rows } = await client.query<{ max_connections: string }>('SHOW max_connections')
+    const maxConnections = Number(rows[0]?.max_connections)
+    if (!Number.isInteger(maxConnections) || maxConnections <= 0) {
+      logger?.warn({ op: 'db.pool.validate', env: envName }, 'pool budget validation skipped: unreadable max_connections')
+      return
+    }
+    if (max > maxConnections) {
+      throw new DbContractError(
+        `env ${envName}=${max} exceeds Postgres max_connections=${maxConnections}: lower ${envName} or raise max_connections`,
+      )
+    }
+  } finally {
+    await client.end().catch(() => undefined)
   }
 }
 

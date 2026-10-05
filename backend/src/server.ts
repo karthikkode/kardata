@@ -3,7 +3,7 @@
 // (lazy: construction never connects) and the Temporal runs gateway (lazy:
 // connects on first command). Without DATABASE_URL the routes fail closed.
 import { buildApp } from './app.js'
-import { createDbPool, serverPoolBudget } from './db/index.js'
+import { createDbPool, serverPoolBudget, validatePoolBudget } from './db/index.js'
 import { createLogger } from './observability/logging.js'
 import { ensureTemporalTracing } from './observability/temporal-tracing.js'
 import { ensureTracing, wrapPool } from './observability/tracing.js'
@@ -16,7 +16,13 @@ const logger = createLogger({ op: 'http' })
 ensureTracing({ logger })
 // OTel context manager + propagator for the Temporal interceptors (P3.2).
 ensureTemporalTracing()
-const pool = connectionString ? wrapPool(createDbPool(connectionString, serverPoolBudget())) : undefined
+const serverBudget = connectionString ? serverPoolBudget() : undefined
+const pool = connectionString && serverBudget ? wrapPool(createDbPool(connectionString, serverBudget)) : undefined
+// Fail fast on a pool that cannot fit the server; unreachable DB only
+// warns (the server boots without a database).
+if (connectionString && serverBudget) {
+  await validatePoolBudget(connectionString, serverBudget.max, 'KARDATA_DB_POOL_SERVER', logger)
+}
 const app = buildApp({
   pool,
   runs: pool ? new TemporalRunsGateway(pool) : undefined,

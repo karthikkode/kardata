@@ -86,8 +86,11 @@ server-side and counts from totals, never window lengths.
   a 30 s statement timeout as a runaway backstop. Starting values;
   retune against measured contention, not vibes.
 - Env overrides (compose sets them; unset means the code default):
-  `KARDATA_PG_SERVER_MAX`, `KARDATA_PG_WORKER_MAX`,
+  `KARDATA_DB_POOL_SERVER`, `KARDATA_DB_POOL_WORKER`,
   `KARDATA_PG_STATEMENT_TIMEOUT_MS`. Invalid values throw at startup.
+- Startup guard: server and worker validate their pool max against the
+  server's `max_connections` (`validatePoolBudget`); over budget fails
+  fast naming the env var, unreachable DB only warns (boot continues).
 - Pool pressure reports via `kardata_pg_pool_total/idle/waiting`
   (`poolStats()` in the factory); `KardataPoolExhaustion` pages on
   sustained waiting. Slow queries surface in Postgres logs

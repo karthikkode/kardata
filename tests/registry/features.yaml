@@ -5735,3 +5735,15 @@
   tiers:
     - todo
   states: []
+- id: db.index.validatePoolBudget
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.pool.validatePoolBudget
+  layer: db
+  surface: backend/src/db/pool.ts
+  tiers:
+    - todo
+  states: []

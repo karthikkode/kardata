@@ -33,6 +33,13 @@ function authHeader(key: string, extra: Record<string, string> = {}): Record<str
   return { authorization: `Bearer ${key}`, ...extra }
 }
 
+let mcpNonce = 0
+
+function mcpPayload(): Record<string, unknown> {
+  mcpNonce += 1
+  return { jsonrpc: '2.0', id: mcpNonce, method: 'tools/call', params: { name: 'db.get_local_context', arguments: {} } }
+}
+
 function run(id: string, sessionId: string): RunInfo {
   return {
     id,
@@ -142,6 +149,68 @@ describe.skipIf(!ENABLED)('rate limits and idempotency (B3.4)', () => {
     expect(other.statusCode).toBe(200)
     const health = await throttled.inject({ method: 'GET', url: '/healthz' })
     expect(health.statusCode).toBe(200)
+  })
+
+  it('429s /mcp past the per-key budget with the same envelope', async () => {
+    for (let n = 0; n < 3; n += 1) {
+      const ok = await throttled.inject({
+        method: 'POST',
+        url: '/mcp',
+        headers: authHeader(RATE_KEY),
+        payload: mcpPayload(),
+      })
+      expect(ok.statusCode).not.toBe(429)
+    }
+    const limited = await throttled.inject({
+      method: 'POST',
+      url: '/mcp',
+      headers: authHeader(RATE_KEY),
+      payload: mcpPayload(),
+    })
+    expect(limited.statusCode).toBe(429)
+    expect(limited.json()).toEqual({
+      ok: false,
+      error: { code: 'rate_limited', message: expect.stringMatching(/retry after \d+ seconds/i) },
+    })
+    const retryAfter = Number(limited.headers['retry-after'])
+    expect(Number.isInteger(retryAfter)).toBe(true)
+    expect(retryAfter).toBeGreaterThanOrEqual(1)
+    expect(retryAfter).toBeLessThanOrEqual(60)
+  })
+
+  it('isolates /mcp budgets per key', async () => {
+    const other = await throttled.inject({
+      method: 'POST',
+      url: '/mcp',
+      headers: authHeader(RATE_KEY_OTHER),
+      payload: mcpPayload(),
+    })
+    expect(other.statusCode).not.toBe(429)
+  })
+
+  it('counts /mcp against its own bucket, never the /v1 budget', async () => {
+    for (let n = 0; n < 3; n += 1) {
+      const ok = await throttled.inject({
+        method: 'POST',
+        url: '/mcp',
+        headers: authHeader(OPERATOR),
+        payload: mcpPayload(),
+      })
+      expect(ok.statusCode).not.toBe(429)
+    }
+    const exhausted = await throttled.inject({
+      method: 'POST',
+      url: '/mcp',
+      headers: authHeader(OPERATOR),
+      payload: mcpPayload(),
+    })
+    expect(exhausted.statusCode).toBe(429)
+    const v1 = await throttled.inject({
+      method: 'GET',
+      url: '/v1/sessions',
+      headers: authHeader(OPERATOR),
+    })
+    expect(v1.statusCode).toBe(200)
   })
 
   it('replays identical session creates without a second session', async () => {

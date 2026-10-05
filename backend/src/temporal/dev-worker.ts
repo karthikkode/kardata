@@ -18,6 +18,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Runtime, type NativeConnection, type Worker } from '@temporalio/worker'
 import type { Logger } from 'pino'
+import { validatePoolBudget, workerPoolBudget } from '../db/index.js'
 import { createLogger, createWorkerLogger,workerLoggingOptions } from '../observability/logging.js'
 import { workerTelemetryOptions } from '../observability/metrics.js'
 import { ensureTemporalTracing } from '../observability/temporal-tracing.js'
@@ -105,6 +106,12 @@ async function main(): Promise<void> {
   const workerLogger = createLogger({ op: 'temporal.worker' })
   ensureTracing({ logger: workerLogger, serviceName: 'kardata-worker' })
   ensureTemporalTracing()
+  // Pool self-check first: a budget past max_connections fails loudly
+  // here instead of as cryptic runtime wedges. Unreachable DB only warns.
+  const workerDatabaseUrl = process.env['DATABASE_URL']
+  if (workerDatabaseUrl) {
+    await validatePoolBudget(workerDatabaseUrl, workerPoolBudget().max, 'KARDATA_DB_POOL_WORKER', workerLogger)
+  }
   // Credential self-check first: a rotated-but-not-recreated token fails
   // loudly here instead of as cryptic per-turn 403s. Polling continues on
   // a negative result so digest-answerable turns keep working.

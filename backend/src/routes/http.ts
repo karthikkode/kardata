@@ -121,10 +121,13 @@ export async function authorize(
  * fails open so healthy traffic is never 500ed by its own guard. */
 export function registerRateLimit(app: FastifyInstance, limitPerMin: number, logger?: Logger): void {
   app.addHook('onRequest', async (request, reply) => {
-    if (limitPerMin <= 0 || !request.url.startsWith('/v1/')) return
+    // /mcp rides the same per-key budget under its own bucket namespace,
+    // so worker tool traffic never starves a key's /v1 budget or reverse.
+    const isMcp = request.url === '/mcp' || request.url.startsWith('/mcp?')
+    if (limitPerMin <= 0 || (!request.url.startsWith('/v1/') && !isMcp)) return
     const pool = (app as FastifyInstance & { kardataPool?: TransactableDb }).kardataPool
     if (!pool) return
-    const bucket = rateBucket(header(request, 'authorization'), request.ip)
+    const bucket = `${isMcp ? 'mcp:' : ''}${rateBucket(header(request, 'authorization'), request.ip)}`
     let decision
     try {
       decision = await checkRate(pool, bucket, limitPerMin)

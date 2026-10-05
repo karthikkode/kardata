@@ -5,18 +5,20 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { Logger } from 'pino'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   DbContractError,
   DEFAULT_POOL_BUDGET,
   serverPoolBudget,
+  validatePoolBudget,
   workerPoolBudget,
   workerPoolFromEnv,
 } from '../../backend/src/db/index.js'
 
 const VARS = [
-  'KARDATA_PG_SERVER_MAX',
-  'KARDATA_PG_WORKER_MAX',
+  'KARDATA_DB_POOL_SERVER',
+  'KARDATA_DB_POOL_WORKER',
   'KARDATA_PG_STATEMENT_TIMEOUT_MS',
   'DATABASE_URL',
 ]
@@ -45,20 +47,29 @@ describe('pool budgets', () => {
   })
 
   it('honors env overrides', () => {
-    process.env['KARDATA_PG_SERVER_MAX'] = '25'
-    process.env['KARDATA_PG_WORKER_MAX'] = '3'
+    process.env['KARDATA_DB_POOL_SERVER'] = '25'
+    process.env['KARDATA_DB_POOL_WORKER'] = '3'
     process.env['KARDATA_PG_STATEMENT_TIMEOUT_MS'] = '5000'
     expect(serverPoolBudget()).toMatchObject({ max: 25, statementTimeoutMs: 5000 })
     expect(workerPoolBudget()).toMatchObject({ max: 3, statementTimeoutMs: 5000 })
   })
 
   it('rejects invalid env fast instead of running small', () => {
-    process.env['KARDATA_PG_SERVER_MAX'] = 'lots'
+    process.env['KARDATA_DB_POOL_SERVER'] = 'lots'
     expect(() => serverPoolBudget()).toThrow(DbContractError)
-    process.env['KARDATA_PG_SERVER_MAX'] = '0'
+    process.env['KARDATA_DB_POOL_SERVER'] = '0'
     expect(() => serverPoolBudget()).toThrow(DbContractError)
-    process.env['KARDATA_PG_WORKER_MAX'] = '-2'
+    process.env['KARDATA_DB_POOL_WORKER'] = '-2'
     expect(() => workerPoolBudget()).toThrow(DbContractError)
+  })
+
+  it('skips validation with a warning when Postgres is unreachable', async () => {
+    const warnings: unknown[][] = []
+    const logger = { warn: (...args: unknown[]) => { warnings.push(args) } } as unknown as Logger
+    await expect(
+      validatePoolBudget('postgresql://u:p@127.0.0.1:1/kardata_nope', 10, 'KARDATA_DB_POOL_SERVER', logger),
+    ).resolves.toBeUndefined()
+    expect(warnings).toHaveLength(1)
   })
 
   it('builds pools only through the factory', () => {

@@ -153,6 +153,7 @@ export {
   createDbPool,
   poolStats,
   serverPoolBudget,
+  validatePoolBudget,
   workerPoolBudget,
   workerPoolFromEnv,
 } from './pool.js'

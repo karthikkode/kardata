@@ -45,8 +45,9 @@ export interface AppOptions {
   /** Keyed multi-tenant mode. Without it the routes stay open (B3.1) and
    * unscoped; server.ts always enables it. */
   auth?: boolean
-  /** Fixed-window per-key budget for /v1/* (B3.4). Defaults to 600; 0 or
-   * negative disables the hook. /healthz is never throttled. */
+  /** Fixed-window per-key budget for /v1/* (B3.4) and /mcp (P4.2.5,
+   * separate buckets). Defaults to 600; 0 or negative disables the hook.
+   * /healthz is never throttled. */
   rateLimitPerMin?: number
   /** Optional pino logger. Limit breaches are logged; without one the 429
    * envelope is still served but nothing is recorded. */

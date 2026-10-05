@@ -277,7 +277,8 @@ events ──retention──▶ cold archive (GCS) ──replay──┘
 - Denied behavior: role 403s on resume/approve arrive with B3.3 auth.
   Without pool/gateway the routes fail closed with 503 `overload`.
 - Rate limits + mutation idempotency (B3.4). Fixed-window per-key budgets
-  on `/v1/*` (`rate_windows`; `/healthz` exempt for probes); breaches are
+  on `/v1/*` and `/mcp` (`rate_windows`, separate bucket namespaces;
+  `/healthz` exempt for probes); breaches are
   429 `rate_limited` with `Retry-After` and a `http.rate_limited` log line.
   All twelve mutating routes honor `Idempotency-Key` (`idempotency_records`,
   caller-scoped): the six command POSTs, session create/rename/model/delete,
