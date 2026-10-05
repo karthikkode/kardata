@@ -6,7 +6,7 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "eslint . && cd ../tests/backend && eslint .",
+    "lint": "eslint . && cd ../tests/backend && eslint . && cd ../fault && eslint .",
     "build": "tsc -p tsconfig.build.json",
     "migrate": "node dist/db/cli.js",
     "worker": "node dist/temporal/dev-worker.js"
