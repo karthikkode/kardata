@@ -18,6 +18,7 @@ import { notify } from '../lib/toast'
 import { useTheme } from '../lib/theme'
 import { AnimatePresence, m } from 'motion/react'
 import { groupMessageSegments } from './chat/messages'
+import { Skeleton } from './ui/skeleton'
 import { AgentBubble, UserBubble, useChatStick } from './chat-parts'
 import { Composer } from './chat/Composer'
 import { ConversationEmpty } from './chat/ConversationEmpty'
@@ -93,15 +94,15 @@ function readRailHidden(): boolean {
 
 const SKELETON_WIDTHS = ['64%', '48%', '72%', '56%', '64%']
 
-function SessionListSkeleton() {
+export function SessionListSkeleton() {
   return (
     <div className="flex min-w-0 flex-col" aria-hidden>
       {SKELETON_WIDTHS.map((width, index) => (
         <div key={index} className="flex min-h-14 items-center gap-3 px-2">
-          <div className="size-4 shrink-0 rounded-sm bg-muted" />
+          <Skeleton className="size-4 shrink-0" />
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <div className="h-3 rounded-sm bg-muted" style={{ width }} />
-            <div className="h-3 w-1/3 rounded-sm bg-muted" />
+            <Skeleton className="h-3" style={{ width }} />
+            <Skeleton className="h-3 w-1/3" />
           </div>
         </div>
       ))}
