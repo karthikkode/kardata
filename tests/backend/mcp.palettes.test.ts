@@ -5,6 +5,7 @@ const NEW_OPS = [
   'ops.list_runs', 'ops.get_run', 'ops.thread_queue', 'ops.queue_remove', 'ops.queue_reorder',
   'ops.list_alerts', 'ops.thread_health', 'ops.cost', 'ops.sector_evaluation', 'ops.recent_activity',
   'ops.pause_run', 'ops.resume_run', 'ops.cancel_run', 'ops.spawn_subagent', 'ops.restart_sector_research',
+  'ops.start_monitor', 'ops.stop_monitor', 'ops.list_monitors',
 ]
 const SECTOR_OPS = ['ops.thread_health', 'ops.cost', 'ops.list_alerts', 'ops.spawn_subagent']
 

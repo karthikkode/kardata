@@ -118,6 +118,9 @@ export const TOOL_LAYER: Record<McpToolName, string> = {
   'ops.spawn_subagent': 'delegateSubagent',
   'ops.restart_sector_research': 'restartSectorSweep',
   'db.request_plan': 'sendThreadMessage',
+  'ops.start_monitor': 'startMonitor',
+  'ops.stop_monitor': 'stopMonitor',
+  'ops.list_monitors': 'listMonitors',
 }
 
 /** Capability tier: read (viewer), write (operator), sensitive (approver
@@ -268,6 +271,9 @@ export const TOOL_META: Record<McpToolName, { description: string; minRole: Role
   'ops.spawn_subagent': { description: 'Launch a leaf subagent under one thread’s session, inheriting that thread. Mirrors db.delegate_subagent: operator.', minRole: 'operator' },
   'ops.restart_sector_research': { description: 'Restart a sector’s research sweep. Mirrors the route floor: operator.', minRole: 'operator' },
   'db.request_plan': { description: 'Send a plan instruction to a sector’s research session. Karbot never writes the plan. Sensitive: approver plus user confirmation.', minRole: 'approver' },
+  'ops.start_monitor': { description: 'Watch a sector or thread: post the brief plus a health snapshot into this session every 5-120 minutes, until `until` (default 24h). One monitor per target.', minRole: 'operator' },
+  'ops.stop_monitor': { description: 'Stop a monitor by id or target. Already-stopped monitors accept quietly.', minRole: 'operator' },
+  'ops.list_monitors': { description: 'List monitors in scope, newest first.', minRole: 'viewer' },
 }
 
 const preDispatchFailures = new WeakSet<object>()
@@ -339,7 +345,9 @@ export async function invokeTool(
         if (typeof args['threadKey'] === 'string') {
           const target = await requireThread(ctx.pool, args['threadKey'], ctx.scope)
           if (target.session.sectorId !== sectorId) throw new McpToolError('permission_denied', 'Thread is outside this sector.')
-          if (name !== 'db.read_sector_thread' && (target.session.id !== actor.session.id || (actor.thread.kind === 'subagent' && target.thread.key !== actor.thread.key))) throw new McpToolError('permission_denied', 'Local conversations are isolated. Use shared context to communicate.')
+          // Monitors watch other sessions by design (Karbot calls from its
+          // own session); the layer still enforces tenant scope per target.
+          if (!['db.read_sector_thread', 'ops.start_monitor', 'ops.stop_monitor'].includes(name) && (target.session.id !== actor.session.id || (actor.thread.kind === 'subagent' && target.thread.key !== actor.thread.key))) throw new McpToolError('permission_denied', 'Local conversations are isolated. Use shared context to communicate.')
         }
         if (['db.list_sessions','db.list_companies','db.research_health','db.query_document'].includes(name)) args['sectorId'] = sectorId
         if (name === 'db.create_artifact') args['producedBy'] = ctx.executionThread
@@ -347,6 +355,7 @@ export async function invokeTool(
     }
     if (['db.send_message', 'db.steer_thread', 'db.pause_run', 'db.resume_run', 'db.cancel_run', 'ops.list_runs', 'ops.get_run', 'ops.thread_queue', 'ops.queue_remove', 'ops.queue_reorder', 'ops.pause_run', 'ops.resume_run', 'ops.cancel_run', 'db.request_plan'].includes(name) && !ctx.messenger) throw new McpPreconditionError('Thread control is unavailable: no messenger attached.')
     if (['db.start_sector_research', 'db.pause_sector_research', 'db.resume_sector_research', 'ops.restart_sector_research'].includes(name) && !ctx.runs) throw new McpPreconditionError('Research control is unavailable: no sweep runner attached.')
+    if (['ops.start_monitor', 'ops.stop_monitor'].includes(name) && !ctx.monitor) throw new McpPreconditionError('Monitor control is unavailable: no monitor runner attached.')
     if (['db.pause_run', 'db.resume_run', 'db.cancel_run', 'ops.pause_run', 'ops.resume_run', 'ops.cancel_run'].includes(name) && (ctx.scope || ctx.executionThread)) {
       if (!ctx.runReader) throw new McpPreconditionError('A scoped run reader is required.')
       const run = await ctx.runReader.getRun((parsed.data as { runId: string }).runId)

@@ -19,6 +19,7 @@ export const PRODUCT_TOOLS: ReadonlySet<string> = new Set([
   'ops.list_runs', 'ops.get_run', 'ops.thread_queue', 'ops.queue_remove', 'ops.queue_reorder',
   'ops.list_alerts', 'ops.thread_health', 'ops.cost', 'ops.sector_evaluation', 'ops.recent_activity',
   'ops.pause_run', 'ops.resume_run', 'ops.cancel_run', 'ops.spawn_subagent', 'ops.restart_sector_research',
+  'ops.start_monitor', 'ops.stop_monitor', 'ops.list_monitors',
   'db.rename_session', 'db.delete_session',
   'db.list_sectors', 'db.get_sector', 'db.sector_activity',
   'db.list_companies', 'db.list_sector_companies',

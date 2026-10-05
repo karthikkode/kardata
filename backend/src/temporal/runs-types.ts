@@ -81,6 +81,8 @@ export interface RunsGateway {
   listQueue(threadKey: string): Promise<Array<{ id: string; text: string; queuedAt: number }>>
   removeQueued(threadKey: string, id: string): Promise<boolean>
   reorderQueue(threadKey: string, ids: string[]): Promise<void>
+  startMonitorWorkflow(input: { monitorId: string; everyMs: number; untilMs: number }): Promise<{ workflowId: string }>
+  stopMonitorWorkflow(workflowId: string): Promise<void>
 }
 
 export const SESSION_PREFIX = 'session-run-'

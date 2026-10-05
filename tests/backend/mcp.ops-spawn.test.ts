@@ -44,7 +44,7 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP spawn/restart/propose/request tools [F:
     const restarted = await invokeTool('ops.restart_sector_research', karbot('operator'), { sectorId: sectorB }) as { state: string }
     expect(restarted.state).toBe('running')
     expect(fake.startedSweeps).toContain(sectorB)
-    await expect(invokeTool('ops.restart_sector_research', karbot('operator'), { sectorId: sectorA })).rejects.toMatchObject({ code: 'validation_failed' })
+    await expect(invokeTool('ops.restart_sector_research', karbot('operator'), { sectorId: sectorA })).rejects.toThrow('not failed')
   })
 
   it('Karbot proposes pending-only with an explicit sectorId', async () => {

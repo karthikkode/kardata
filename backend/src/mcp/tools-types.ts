@@ -3,7 +3,7 @@
 // the handler table (tool-invokers.ts).
 import type { Logger } from 'pino'
 import type { Role, Scope } from '../auth/types.js'
-import { DbContractError, type SectorSweepRunner, type ThreadMessenger, type TransactableDb } from '../db/index.js'
+import { DbContractError, type MonitorRunner, type SectorSweepRunner, type ThreadMessenger, type TransactableDb } from '../db/index.js'
 import { type SubagentDelegator } from '../temporal/runs-types.js'
 import type { ArchiveTarget } from '../archive/targets.js'
 import { type FileProcessorRunner } from '../file-ingestion.js'
@@ -27,6 +27,9 @@ export interface McpToolContext {
   /** Subagent delegator for the delegation door. Absent: delegate calls
    * fail closed instead of half-launching a child. */
   delegator?: SubagentDelegator
+  /** Monitor runner for Karbot monitoring tools. Absent: monitor
+   * lifecycle calls fail closed instead of half-starting a timer. */
+  monitor?: MonitorRunner
   /** Thread messenger (runs gateway) for Karbot steering tools. Absent
    * outside the server: send/steer fail closed instead of half-signaling. */
   messenger?: ThreadMessenger

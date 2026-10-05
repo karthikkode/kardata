@@ -127,6 +127,18 @@ export class FakeRunsGateway implements RunsGateway {
     queue.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id))
   }
 
+  readonly monitorsStarted: Array<{ monitorId: string; everyMs: number; untilMs: number }> = []
+  readonly monitorsStopped: string[] = []
+
+  async startMonitorWorkflow(input: { monitorId: string; everyMs: number; untilMs: number }): Promise<{ workflowId: string }> {
+    this.monitorsStarted.push(input)
+    return { workflowId: `karbot-monitor-${input.monitorId}` }
+  }
+
+  async stopMonitorWorkflow(workflowId: string): Promise<void> {
+    this.monitorsStopped.push(workflowId)
+  }
+
   async delegateSubagent(input: { sessionId: string; goal: string; mode: string; queueCapacity: number; name?: string; onAccepted?: (childId: string) => Promise<void> }): Promise<{
     childId: string
     commandId: string

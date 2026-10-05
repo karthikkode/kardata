@@ -391,6 +391,19 @@ export const TOOL_SCHEMAS = {
     sectorId: NonEmpty,
     instruction: z.string().min(1).max(8000),
   }).strict(),
+  'ops.start_monitor': z.object({
+    sectorId: NonEmpty.optional(),
+    threadKey: NonEmpty.optional(),
+    everyMinutes: z.number().int().min(5).max(120),
+    brief: z.string().min(1).max(2000),
+    until: NonEmpty.optional(),
+  }).strict(),
+  'ops.stop_monitor': z.object({
+    monitorId: NonEmpty.optional(),
+    sectorId: NonEmpty.optional(),
+    threadKey: NonEmpty.optional(),
+  }).strict(),
+  'ops.list_monitors': z.object({}).strict(),
 }
 
 export type McpToolName = keyof typeof TOOL_SCHEMAS

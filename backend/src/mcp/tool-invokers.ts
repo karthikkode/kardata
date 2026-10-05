@@ -36,6 +36,7 @@ import {
   listSectorCompanies,
   listSectorDocuments,
   listSectorSessions,
+  listMonitors,
   listSectors,
   listSessions,
   listSupervisionAlerts,
@@ -69,6 +70,8 @@ import {
   researchSessionBinding,
   requireSector,
   restartSectorSweep,
+  startMonitor,
+  stopMonitor,
   resolveArtifactScope,
   buildInheritedContext,
   saveInheritedContext,
@@ -683,6 +686,24 @@ export const INVOKERS: Invokers = {
       if (error instanceof ThreadNotAccepting) throw new McpToolError('conflict', error.message)
       throw error
     }
+  },
+  'ops.start_monitor': async (ctx, args) => {
+    if (!ctx.scope) throw new McpToolError('permission_denied', 'Monitors require a scoped caller.')
+    if (!ctx.executionThread) throw new McpToolError('permission_denied', 'Verified execution context is required.')
+    const actor = await requireThread(ctx.pool, ctx.executionThread, ctx.scope)
+    return startMonitor(ctx.pool, ctx.monitor, {
+      sectorId: args.sectorId, threadKey: args.threadKey, everyMinutes: args.everyMinutes,
+      brief: args.brief, until: args.until, karbotSessionId: actor.session.id,
+      karbotThreadKey: ctx.executionThread, scope: ctx.scope,
+    })
+  },
+  'ops.stop_monitor': async (ctx, args) => {
+    if (!ctx.scope) throw new McpToolError('permission_denied', 'Monitors require a scoped caller.')
+    return stopMonitor(ctx.pool, ctx.monitor, { monitorId: args.monitorId, sectorId: args.sectorId, threadKey: args.threadKey }, ctx.scope)
+  },
+  'ops.list_monitors': async (ctx) => {
+    if (!ctx.scope) throw new McpToolError('permission_denied', 'Monitors require a scoped caller.')
+    return listMonitors(ctx.pool, ctx.scope)
   },
 }
 
