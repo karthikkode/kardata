@@ -5717,3 +5717,21 @@
   tiers:
     - todo
   states: []
+- id: backend.workflow.can.CAN_DEFAULT_BYTE_LIMIT
+  layer: backend
+  surface: backend/src/temporal/workflows/can.ts
+  tiers:
+    - todo
+  states: []
+- id: backend.workflow.can.CAN_DEFAULT_EVENT_LIMIT
+  layer: backend
+  surface: backend/src/temporal/workflows/can.ts
+  tiers:
+    - todo
+  states: []
+- id: backend.workflow.can.shouldContinueAsNew
+  layer: backend
+  surface: backend/src/temporal/workflows/can.ts
+  tiers:
+    - todo
+  states: []

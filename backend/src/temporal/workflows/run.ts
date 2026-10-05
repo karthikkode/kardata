@@ -13,6 +13,7 @@ import {
   CancelledFailure,
   CancellationScope,
   condition,
+  continueAsNew,
   defineQuery,
   defineSignal,
   log,
@@ -26,6 +27,7 @@ import { isLegalTransition, type RunState } from '@kardata/agents/loop'
 import type { FakeStep } from '@kardata/agents'
 import { activityOptions } from '../timeouts.js'
 import type * as activities from '../activities/turn.js'
+import { shouldContinueAsNew } from './can.js'
 import { resumableTurn } from './resumable-turn.js'
 import { registerQueueHandlers } from './inbox-queue.js'
 import type { OriginalTurnRecovery } from '../turn-recovery.js'
@@ -41,6 +43,27 @@ export interface SessionRunInput {
   /** Idle close: a RUNNING run with an empty inbox for this long finishes
    * itself instead of persisting abandoned. Defaults to 24 h. */
   idleTimeoutMs?: number
+  /** History caps that trip continue-as-new (defaults 10k events / 10 MB).
+   * Tests set small values; production leaves both undefined. */
+  historyEventLimit?: number
+  historyByteLimit?: number
+  /** Carry-over from the previous run in a continue-as-new chain. Set by
+   * the workflow itself, never by callers. */
+  resumed?: SessionRunResumed
+}
+
+export interface SessionRunInboxItem {
+  text: string
+  recovery?: OriginalTurnRecovery
+  skill?: { prompt: string; tools: string[]; mode: 'default' | 'brainstorm' }
+  id?: string
+  queuedAt?: number
+}
+
+export interface SessionRunResumed {
+  inbox: SessionRunInboxItem[]
+  state: 'RUNNING' | 'PAUSED'
+  nonce: number
 }
 
 /** Default idle close for abandoned session runs. */
@@ -101,8 +124,16 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
   function stamp<T extends { text: string }>(item: T): T & { id?: string; queuedAt?: number } {
     return inboxIds ? { ...item, id: uuid4(), queuedAt: Date.now() } : item
   }
-  const inbox: Array<{ text: string; recovery?: OriginalTurnRecovery; skill?: { prompt: string; tools: string[]; mode: 'default' | 'brainstorm' }; id?: string; queuedAt?: number }> = input.recovery ? [stamp({ text: input.recovery.text,recovery: input.recovery })] : []
-  let nonce = 0
+  // Continued runs reuse the carried inbox and nonce; fresh runs seed
+  // from the recovery proof exactly like before the can-v1 patch.
+  function initialInbox(): SessionRunInboxItem[] {
+    return input.resumed?.inbox ?? (input.recovery ? [stamp({ text: input.recovery.text,recovery: input.recovery })] : [])
+  }
+  function initialNonce(): number {
+    return input.resumed?.nonce ?? 0
+  }
+  const inbox: SessionRunInboxItem[] = initialInbox()
+  let nonce = initialNonce()
   let cancelRunningTurn: (() => void) | undefined
 
   const setState = (next: RunState): void => {
@@ -147,14 +178,40 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
   })
   setHandler(stateQuery, () => ({ state: box.state, sessionId: input.sessionId, pending: inbox.length }))
 
-  nonce += 1
-  await turn.appendEventActivity({
-    idempotencyKey: idempotencyKey(input.sessionId, runTag, 'session', 0),
-    partition,
-    type: 't.session.created',
-    payload: { sessionId: input.sessionId, title: input.sessionId },
-  })
-  setState('RUNNING')
+  // Continued runs skip session.created (the first run recorded it; a
+  // second row would double it) and re-enter PAUSED when the chain
+  // continued mid-pause, so the pause gate holds across runs.
+  async function enterInitialState(): Promise<void> {
+    if (!input.resumed) {
+      nonce += 1
+      await turn.appendEventActivity({
+        idempotencyKey: idempotencyKey(input.sessionId, runTag, 'session', 0),
+        partition,
+        type: 't.session.created',
+        payload: { sessionId: input.sessionId, title: input.sessionId },
+      })
+    }
+    setState('RUNNING')
+    if (input.resumed?.state === 'PAUSED') setState('PAUSED')
+  }
+  await enterInitialState()
+
+  function buildContinuation(): SessionRunInput | undefined {
+    const info = workflowInfo()
+    if (!patched('can-v1')) return undefined
+    if (!shouldContinueAsNew(info.historyLength, info.historySize, info.continueAsNewSuggested, input.historyEventLimit, input.historyByteLimit)) {
+      return undefined
+    }
+    return {
+      sessionId: input.sessionId,
+      ...(input.ownerEpoch === undefined ? {} : { ownerEpoch: input.ownerEpoch }),
+      ...(input.fakeSteps === undefined ? {} : { fakeSteps: input.fakeSteps }),
+      ...(input.idleTimeoutMs === undefined ? {} : { idleTimeoutMs: input.idleTimeoutMs }),
+      ...(input.historyEventLimit === undefined ? {} : { historyEventLimit: input.historyEventLimit }),
+      ...(input.historyByteLimit === undefined ? {} : { historyByteLimit: input.historyByteLimit }),
+      resumed: { inbox, state: currentState() === 'PAUSED' ? 'PAUSED' : 'RUNNING', nonce },
+    }
+  }
 
   for (;;) {
     if (currentState() === 'CANCELLING') {
@@ -174,6 +231,15 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
       })
       setState('FINISHED')
       return 'cancelled'
+    }
+    // Continue-as-new between turns: the inbox, pause state, and nonce
+    // carry into a fresh run. Idempotency keys and runKeys embed the run
+    // id, so nothing collides; old histories skip via the patch gate.
+    const continued = buildContinuation()
+    if (continued !== undefined) {
+      await continueAsNew<typeof sessionRun>(continued)
+      // Unreachable: the new run owns the inbox now.
+      return 'continued'
     }
     if (currentState() === 'PAUSED') {
       await condition(() => currentState() !== 'PAUSED')

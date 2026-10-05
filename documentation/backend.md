@@ -143,6 +143,14 @@ the everything-log. Plan: `documentation/plans/2026-09-25-backend-build.md`.
   `session-user-before-turn-v1` patch. Existing workflow histories replay
   the old order; newly executed turns use the new order. The guard stays
   until every old run has closed.
+- `sessionRun`, `delegateParent`, and `subagentRun` continue-as-new past
+  10k history events or 10 MB (`can-v1` patch; old histories skip). The
+  session carries its inbox, pause state, and nonce; the parent carries
+  pending signals, the durable queue, promotion sets, and the children map
+  (running handles re-derive by child id); the child carries its inbox,
+  missed steer, goal, thread length, and pause flags. Continued runs skip
+  the created/launched row. Proven by
+  `tests/backend/workflows.continue-as-new.test.ts` (chain walk + replay).
 - Karbot tool calls publish ephemeral `tool` outbox frames at provider
   call-start (provisional name), call-end (real name), and MCP completion
   (`runKey`, call id, name, state). Arguments and results stay out

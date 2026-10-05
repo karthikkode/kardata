@@ -19,8 +19,10 @@ import {
   CancelledFailure,
   CancellationScope,
   condition,
+  continueAsNew,
   defineQuery,
   defineSignal,
+  getExternalWorkflowHandle,
   log,
   ParentClosePolicy,
   patched,
@@ -30,7 +32,9 @@ import {
   uuid4,
   workflowInfo,
   type ChildWorkflowHandle,
+  type ExternalWorkflowHandle,
 } from '@temporalio/workflow'
+import { shouldContinueAsNew } from './can.js'
 import { registerQueueHandlers } from './inbox-queue.js'
 import { resumableTurn } from './resumable-turn.js'
 import { withPreparedExecution } from './epoch-start.js'
@@ -66,6 +70,10 @@ export interface DelegateRequest {
   /** Finish close for a cancelled child (see SubagentChildInput).
    * Forwarded verbatim into the child input. */
   childFinishTimeoutMs?: number
+  /** History caps that trip the child's continue-as-new (defaults 10k
+   * events / 10 MB). Forwarded verbatim into the child input. */
+  historyEventLimit?: number
+  historyByteLimit?: number
 }
 
 export interface SubagentChildInput extends DelegateRequest {
@@ -76,6 +84,22 @@ export interface SubagentChildInput extends DelegateRequest {
    * completes itself (status cancelled) instead of waiting forever.
    * Defaults to 1 h. */
   childFinishTimeoutMs?: number
+  /** Carry-over from the previous run in a continue-as-new chain. Set by
+   * the workflow itself, never by callers. */
+  resumed?: SubagentRunResumed
+}
+
+export type SubagentInboxItem = string | { id: string; text: string; queuedAt: number }
+
+export interface SubagentRunResumed {
+  inbox: SubagentInboxItem[]
+  missedSteer: string[]
+  goal: string
+  threadLength: number
+  nonce: number
+  acceptingSteer: boolean
+  paused: boolean
+  contextPaused: boolean
 }
 
 /** Default finish close for cancelled children. */
@@ -151,6 +175,24 @@ export interface DelegateParentInput {
    * immediately as `t.subagent.rejected` (the gateway refuses before
    * signalling, so callers see a 409, never a timeout). Defaults to 2000. */
   maxQueued?: number
+  /** History caps that trip continue-as-new (defaults 10k events / 10 MB).
+   * Tests set small values; production leaves both undefined. */
+  historyEventLimit?: number
+  historyByteLimit?: number
+  /** Carry-over from the previous run in a continue-as-new chain. Set by
+   * the workflow itself, never by callers. */
+  resumed?: DelegateParentResumed
+}
+
+export interface DelegateParentResumed {
+  delegations: DelegateRequest[]
+  steers: SteerRequest[]
+  waiting: DelegateRequest[]
+  promoted: string[]
+  queuedNotified: string[]
+  rejections: Array<{ childId: string; reason: string }>
+  children: Array<{ childId: string; status: ChildStatus | 'running'; goalFed: boolean }>
+  nonce: number
 }
 
 /** Default idle close for delegation parents. */
@@ -164,18 +206,29 @@ export const DEFAULT_MAX_QUEUED_CHILDREN = 2000
 
 export async function delegateParent(input: DelegateParentInput): Promise<string> {
   const partition = `session:${input.sessionId}`
-  const delegations: DelegateRequest[] = []
-  const steers: SteerRequest[] = []
-  const waiting: DelegateRequest[] = []
-  const queuedNotified = new Set<string>()
-  const promoted = new Set<string>()
-  const rejections: Array<{ childId: string; reason: string }> = []
+  const carried = input.resumed
+  const delegations: DelegateRequest[] = carried?.delegations ?? []
+  const steers: SteerRequest[] = carried?.steers ?? []
+  const waiting: DelegateRequest[] = carried?.waiting ?? []
+  const queuedNotified = new Set<string>(carried?.queuedNotified ?? [])
+  const promoted = new Set<string>(carried?.promoted ?? [])
+  const rejections: Array<{ childId: string; reason: string }> = carried?.rejections ?? []
   function noteRejection(childId: string, reason: string): void {
     rejections.push({ childId, reason })
     if (rejections.length > 20) rejections.shift()
   }
-  const children = new Map<string, { status: ChildStatus | 'running'; goalFed: boolean; handle?: ChildWorkflowHandle<typeof subagentRun> }>()
-  let nonce = 0
+  // Handles cannot cross continue-as-new: running children re-derive by
+  // id. Staleness still follows the noteDone protocol — a close without
+  // noteDone was already stale before the chain, never because of it.
+  const children = new Map<string, { status: ChildStatus | 'running'; goalFed: boolean; handle?: ChildWorkflowHandle<typeof subagentRun> | ExternalWorkflowHandle }>()
+  for (const child of carried?.children ?? []) {
+    children.set(child.childId, {
+      status: child.status,
+      goalFed: child.goalFed,
+      ...(child.status === 'running' ? { handle: getExternalWorkflowHandle(child.childId) } : {}),
+    })
+  }
+  let nonce = carried?.nonce ?? 0
   let finishRequested = false
 
   // Signal payloads carry goals and text: only names, ids, and counts log.
@@ -216,16 +269,49 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
     rejected: [...rejections],
   }))
 
-  nonce += 1
-  await childActivities.appendEventActivity({
-    idempotencyKey: idempotencyKey(partition, 'session', nonce),
-    partition,
-    type: 't.session.created',
-    payload: { sessionId: input.sessionId, title: input.sessionId },
-  })
+  // Continued runs skip session.created (the first run recorded it).
+  if (!carried) {
+    nonce += 1
+    await childActivities.appendEventActivity({
+      idempotencyKey: idempotencyKey(partition, 'session', nonce),
+      partition,
+      type: 't.session.created',
+      payload: { sessionId: input.sessionId, title: input.sessionId },
+    })
+  }
 
   for (;;) {
     if (finishRequested) return 'done'
+    // Continue-as-new between iterations: the pending signals, the
+    // durable queue, the promotion sets, and the children map carry into
+    // a fresh run. Old histories skip via the patch gate.
+    const parentInfo = workflowInfo()
+    if (
+      patched('can-v1') &&
+      shouldContinueAsNew(parentInfo.historyLength, parentInfo.historySize, parentInfo.continueAsNewSuggested, input.historyEventLimit, input.historyByteLimit)
+    ) {
+      await continueAsNew<typeof delegateParent>({
+        sessionId: input.sessionId,
+        ...(input.ownerEpochProtocol === undefined ? {} : { ownerEpochProtocol: input.ownerEpochProtocol }),
+        ...(input.parentIdleTimeoutMs === undefined ? {} : { parentIdleTimeoutMs: input.parentIdleTimeoutMs }),
+        ...(input.maxInFlight === undefined ? {} : { maxInFlight: input.maxInFlight }),
+        ...(input.maxQueued === undefined ? {} : { maxQueued: input.maxQueued }),
+        ...(input.historyEventLimit === undefined ? {} : { historyEventLimit: input.historyEventLimit }),
+        ...(input.historyByteLimit === undefined ? {} : { historyByteLimit: input.historyByteLimit }),
+        resumed: {
+          delegations,
+          steers,
+          waiting,
+          promoted: [...promoted],
+          queuedNotified: [...queuedNotified],
+          rejections,
+          children: [...children.entries()].map(([childId, record]) => ({ childId, status: record.status, goalFed: record.goalFed })),
+          nonce,
+        },
+      })
+      // Unreachable: the new run owns the queue now.
+      return 'continued'
+    }
     // Steers drain before delegations every iteration, by design: an
     // operator redirect to a live child jumps ahead of queued launches so a
     // stale queue can never delay a course correction.
@@ -420,23 +506,26 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
 export async function subagentRun(input: SubagentChildInput): Promise<string> {
   const childPartition = `child:${input.childId}`
   const threadKey = `agent:${input.childId}`
+  const carried = input.resumed
   const box: { status: ChildStatus } = { status: 'running' }
-  const goalBox: { goal: string } = { goal: input.goal }
+  const goalBox: { goal: string } = { goal: carried?.goal ?? input.goal }
   // Inbox ids gate once here (same contract as sessionRun): handlers
   // close over the flag so old histories keep plain strings.
   const inboxIds = patched('inbox-ids-v1')
   function stamp(text: string): string | { id: string; text: string; queuedAt: number } {
     return inboxIds ? { id: uuid4(), text, queuedAt: Date.now() } : text
   }
-  const inbox: Array<string | { id: string; text: string; queuedAt: number }> = input.recovery ? [stamp(input.recovery.text)] : []
-  let recovering=input.recovery
-  const missedSteer: string[] = []
+  const inbox: SubagentInboxItem[] = carried?.inbox ?? (input.recovery ? [stamp(input.recovery.text)] : [])
+  // A continued run never re-arms recovery: the proof resolved in the
+  // previous run, and carried inbox items resume by their own runKeys.
+  let recovering = carried ? undefined : input.recovery
+  const missedSteer: string[] = carried?.missedSteer ?? []
   const currentStatus = (): ChildStatus => box.status
-  let nonce = 0
-  let threadLength = 0
-  let acceptingSteer = true
-  let contextPaused = false
-  let paused = false
+  let nonce = carried?.nonce ?? 0
+  let threadLength = carried?.threadLength ?? 0
+  let acceptingSteer = carried?.acceptingSteer ?? true
+  let contextPaused = carried?.contextPaused ?? false
+  let paused = carried?.paused ?? false
   const eventKey = patched('child-event-run-v2') ? `${childPartition}:${workflowInfo().runId}` : childPartition
   let finishRequested = false
   let cancelRunningTurn: (() => void) | undefined
@@ -521,23 +610,26 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
   }
 
   try {
-    nonce += 1
-    await childActivities.appendEventActivity({
-      idempotencyKey: idempotencyKey(patched('child-event-run-v2') ? eventKey : input.parentPartition, `launched-${input.childId}`, nonce),
-      partition: input.parentPartition,
-      type: 't.subagent.launched',
-      payload: {
-        childId: input.childId,
-        parentSessionId: input.parentSessionId,
-        parentWorkflowId: workflowInfo().parent?.workflowId ?? 'unknown',
-        depth: input.depth,
-        mode: input.mode,
-        goal: input.goal,
-        ...(input.name === undefined ? {} : { name: input.name }),
-        queueCapacity: input.queueCapacity,
-        canDelegate: input.mode !== 'fork' && input.depth + 1 <= input.maxDepth,
-      },
-    })
+    // Continued runs skip launched (the first run recorded it).
+    if (!carried) {
+      nonce += 1
+      await childActivities.appendEventActivity({
+        idempotencyKey: idempotencyKey(patched('child-event-run-v2') ? eventKey : input.parentPartition, `launched-${input.childId}`, nonce),
+        partition: input.parentPartition,
+        type: 't.subagent.launched',
+        payload: {
+          childId: input.childId,
+          parentSessionId: input.parentSessionId,
+          parentWorkflowId: workflowInfo().parent?.workflowId ?? 'unknown',
+          depth: input.depth,
+          mode: input.mode,
+          goal: input.goal,
+          ...(input.name === undefined ? {} : { name: input.name }),
+          queueCapacity: input.queueCapacity,
+          canDelegate: input.mode !== 'fork' && input.depth + 1 <= input.maxDepth,
+        },
+      })
+    }
 
     for (;;) {
       // Two-step close like agents finish(): cancel marks the child and
@@ -552,6 +644,45 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
         continue
       }
       if (finishRequested) break
+      // Continue-as-new between turns: the inbox, missed steer, goal,
+      // thread length, and pause flags carry into a fresh run. Mid-recovery
+      // and cancelled runs never continue; old histories skip via the patch.
+      const childInfo = workflowInfo()
+      if (
+        !recovering &&
+        currentStatus() === 'running' &&
+        patched('can-v1') &&
+        shouldContinueAsNew(childInfo.historyLength, childInfo.historySize, childInfo.continueAsNewSuggested, input.historyEventLimit, input.historyByteLimit)
+      ) {
+        await continueAsNew<typeof subagentRun>({
+          childId: input.childId,
+          goal: input.goal,
+          depth: input.depth,
+          mode: input.mode,
+          maxDepth: input.maxDepth,
+          queueCapacity: input.queueCapacity,
+          parentSessionId: input.parentSessionId,
+          parentPartition: input.parentPartition,
+          ...(input.name === undefined ? {} : { name: input.name }),
+          ...(input.fakeSteps === undefined ? {} : { fakeSteps: input.fakeSteps }),
+          ...(input.childFinishTimeoutMs === undefined ? {} : { childFinishTimeoutMs: input.childFinishTimeoutMs }),
+          ...(input.historyEventLimit === undefined ? {} : { historyEventLimit: input.historyEventLimit }),
+          ...(input.historyByteLimit === undefined ? {} : { historyByteLimit: input.historyByteLimit }),
+          ...(input.ownerEpoch === undefined ? {} : { ownerEpoch: input.ownerEpoch }),
+          resumed: {
+            inbox,
+            missedSteer,
+            goal: goalBox.goal,
+            threadLength,
+            nonce,
+            acceptingSteer,
+            paused,
+            contextPaused,
+          },
+        })
+        // Unreachable: the new run owns the inbox now.
+        return 'continued'
+      }
       // Owner pause gate: no new inbox item starts while paused. The
       // header flips through the regular thread-state events.
       if (patched('subagent-pause-v1') && paused) {
