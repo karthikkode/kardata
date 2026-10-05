@@ -71,6 +71,27 @@ untested; P3.1 research table lives in the review package; retention
 test rewritten (old artifact cold-move assertions contradicted 3.5.4);
 `listSessions`-sector is the at-risk p95 query (unmeasured under D1).
 
+## Phase 4 (branch `p2-4-capacity`, stacked on Phase 3)
+
+- P4.2.1 turn slots + global Meta limiter; P4.2.2 worker replicas;
+  P4.2.3 durable child queue + 409 refusal; P4.2.4 continue-as-new
+  (`can.ts`, `patched('can-v1')`); P4.2.5 pool validation + `/mcp` rate
+  limit; P4.2.6 coordinator concurrency 1..64; P4.2.7 positional
+  idempotent turn keys. One commit each, all gated.
+- P4.3 functional matrix DONE (commits 4.3a-f): agents 109 unit + 12
+  none; routes 69 http.* tagged 1:1 + 2 gap tests; backend 146 +
+  db 416 tagged via import/start/caller-chain attribution (worker and
+  gateway registration excluded as non-execution); 3 dead activities
+  deleted; 3 export-star barrels [none]; 10 gap tests (context-file
+  factory/workflows, kb ingest, route gaps). 0 todos, 0 unknown tags
+  across agents/backend/db/http.
+- Findings for review: live routes without operationIds
+  (queue/subagents/settings/context-files) are registry-invisible
+  (Phase 5 spec-drift note); transitive tags prove execution, aspects
+  at entry-point depth.
+
+Remaining Phase 4: P4.4 (F1-F16 drills + 1000-child test) + review package.
+
 ## Verification status
 
 - Per-commit gates only: `npm run typecheck`, `npm run lint`, `npm run quality`.
