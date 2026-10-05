@@ -21,7 +21,7 @@ import {
 import { mutationFingerprint, rateBucket } from '../http/limits.js'
 import { getSession } from '../db/index.js'
 import type { RunsGateway } from '../temporal/runs-types.js'
-import { RunNotFound, ThreadNotAccepting } from '../temporal/runs-types.js'
+import { RunNotFound, TemporalUnavailableError, ThreadNotAccepting } from '../temporal/runs-types.js'
 import { runWithEventClient, type EventClient } from '../observability/ambient.js'
 
 export type ErrorCode =
@@ -31,6 +31,7 @@ export type ErrorCode =
   | 'conflict'
   | 'validation_failed'
   | 'overload'
+  | 'temporal_unavailable'
 
 export function sendError(reply: FastifyReply, status: number, code: ErrorCode, message: string): unknown {
   return reply.code(status).send({ ok: false, error: { code, message } })
@@ -247,6 +248,7 @@ function mapRouteError(reply: FastifyReply, error: unknown): unknown {
   if (error instanceof WorkspaceError) return sendError(reply, { not_found: 404, permission_denied: 403, conflict: 409, validation_failed: 400 }[error.code], error.code, error.message)
   if (error instanceof RunNotFound) return sendError(reply, 404, 'not_found', error.message)
   if (error instanceof ThreadNotAccepting) return sendError(reply, 409, 'conflict', error.message)
+  if (error instanceof TemporalUnavailableError) return sendError(reply, 503, 'temporal_unavailable', error.message)
   return sendError(reply, 500, 'overload', 'internal error')
 }
 
@@ -286,7 +288,7 @@ export function route(
         op: 'http.route',
         route: `${method.toUpperCase()} ${url}`,
         ...(request.traceContext ? { trace_id: request.traceContext.traceId } : {}),
-        code: error instanceof WorkspaceError ? error.code : error instanceof RunNotFound ? 'not_found' : error instanceof ThreadNotAccepting ? 'conflict' : 'internal',
+        code: error instanceof WorkspaceError ? error.code : error instanceof RunNotFound ? 'not_found' : error instanceof ThreadNotAccepting ? 'conflict' : error instanceof TemporalUnavailableError ? 'temporal_unavailable' : 'internal',
         errorType: error instanceof Error ? error.constructor.name : 'unknown',
       })
       return mapRouteError(reply, error)

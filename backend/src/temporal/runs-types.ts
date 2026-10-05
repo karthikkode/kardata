@@ -28,6 +28,10 @@ export class RunNotFound extends Error {}
 /** Thread exists but cannot take steer right now. Routes answer 409. */
 export class ThreadNotAccepting extends Error {}
 
+/** Temporal is unreachable (connectivity, not a domain error). Routes
+ * answer 503 so callers retry instead of treating it as a bug. */
+export class TemporalUnavailableError extends Error {}
+
 /** Delegation refused before signalling: the durable child queue is full.
  * Extends ThreadNotAccepting so routes answer 409 and tools report
  * conflict, immediately instead of after the 30 s acceptance poll. */

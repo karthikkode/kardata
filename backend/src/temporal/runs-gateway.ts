@@ -50,6 +50,7 @@ import {
   SESSION_WORKFLOW_TYPE,
   ChildQueueFull,
   RunNotFound,
+  TemporalUnavailableError,
   ThreadNotAccepting,
   type CommandResult,
   type DelegateSubagentInput,
@@ -72,6 +73,32 @@ export function childCapsFromEnv(env: NodeJS.ProcessEnv = process.env): { maxInF
     return value
   }
   return { maxInFlight: parse('KARDATA_MAX_CHILDREN_IN_FLIGHT', 50), maxQueued: parse('KARDATA_MAX_CHILDREN_QUEUED', 2000) }
+}
+
+const TEMPORAL_CONNECTIVITY_CODES: ReadonlySet<unknown> = new Set([
+  14, 'UNAVAILABLE', 'ECONNREFUSED', 'ENOTFOUND', 'EPIPE', 'ETIMEDOUT', 'ECONNRESET',
+])
+const TEMPORAL_CONNECTIVITY_MESSAGE_PARTS = [
+  'connection refused', 'unavailable', 'failed to connect', 'transport error', 'tonic',
+]
+
+/** True when a Temporal client failure means the server is unreachable
+ * (F8): gRPC UNAVAILABLE, refused/reset/timed-out sockets, or the bridge's
+ * transport errors, found on the error or up to 4 causes deep. Domain
+ * errors (not-found, already-started) and bugs never match. */
+export function isTemporalConnectivity(error: unknown): boolean {
+  let current: unknown = error
+  for (let depth = 0; depth < 5; depth += 1) {
+    if (!current || (typeof current !== 'object' && typeof current !== 'function')) return false
+    if (TEMPORAL_CONNECTIVITY_CODES.has((current as { code?: unknown }).code)) return true
+    const message = (current as { message?: unknown }).message
+    if (typeof message === 'string') {
+      const text = message.toLowerCase()
+      if (TEMPORAL_CONNECTIVITY_MESSAGE_PARTS.some((part) => text.includes(part))) return true
+    }
+    current = (current as { cause?: unknown }).cause
+  }
+  return false
 }
 
 export class TemporalRunsGateway implements RunsGateway {
@@ -245,7 +272,18 @@ export class TemporalRunsGateway implements RunsGateway {
       const child = await getThread(this.pool, `agent:${target.workflowId}`)
       if (child?.status === 'FINISHED' || child?.status === 'ERROR') return this.recordMissedSteer(child.key, text)
     }
-    await this.signalTarget(target)
+    try {
+      await this.signalTarget(target)
+    } catch (error) {
+      if (error instanceof RunNotFound) throw error
+      if (isTemporalConnectivity(error)) {
+        // Drop the cached client so post-heal commands build a fresh
+        // connection instead of reusing a dead socket.
+        this.clientPromise = undefined
+        throw new TemporalUnavailableError('Temporal is unreachable; retry the command shortly.', { cause: error })
+      }
+      throw error
+    }
     return { commandId: commandId(), state: 'accepted' }
   }
 
