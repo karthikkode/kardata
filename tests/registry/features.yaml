@@ -3703,9 +3703,9 @@
   tiers:
     - todo
   states: []
-- id: db.workspace.ContextAiUsage
+- id: db.workspace_global_context.ContextAiUsage
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-global-context.ts
   tiers:
     - todo
   states: []
@@ -3727,81 +3727,81 @@
   tiers:
     - todo
   states: []
-- id: db.workspace.applyReadyContextFileBlock
+- id: db.workspace_global_context.applyReadyContextFileBlock
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-global-context.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.applySystemCompaction
+- id: db.workspace_global_context.applySystemCompaction
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-global-context.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.assertFileVisible
+- id: db.workspace_library.assertFileVisible
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-library.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.assertGlobalFileContext
+- id: db.workspace_global_context.assertGlobalFileContext
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-global-context.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.beginThreadTurn
+- id: db.workspace_threads.beginThreadTurn
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-threads.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.buildInheritedContext
+- id: db.workspace_threads.buildInheritedContext
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-threads.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.clearTurnContinuation
+- id: db.workspace_threads.clearTurnContinuation
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-threads.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.closeDiscovery
+- id: db.workspace_research.closeDiscovery
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-research.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.commitChildContext
+- id: db.workspace_global_context.commitChildContext
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-global-context.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.commitThreadCompaction
+- id: db.workspace_threads.commitThreadCompaction
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-threads.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.consumeSteering
+- id: db.workspace_threads.consumeSteering
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-threads.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.decideContextChange
+- id: db.workspace_global_context.decideContextChange
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-global-context.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.enqueueSteering
+- id: db.workspace_threads.enqueueSteering
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-threads.ts
   tiers:
     - todo
   states: []
@@ -3811,39 +3811,39 @@
   tiers:
     - todo
   states: []
-- id: db.workspace.finishSteering
+- id: db.workspace_threads.finishSteering
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-threads.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.formatGlobalContext
+- id: db.workspace_global_context.formatGlobalContext
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-global-context.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.hiddenFileIds
+- id: db.workspace_library.hiddenFileIds
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-library.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.indexSectorArtifact
+- id: db.workspace_library.indexSectorArtifact
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-library.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.isThreadPaused
+- id: db.workspace_threads.isThreadPaused
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-threads.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.listSectorLibrary
+- id: db.workspace_library.listSectorLibrary
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-library.ts
   tiers:
     - todo
   states: []
@@ -3853,87 +3853,87 @@
   tiers:
     - todo
   states: []
-- id: db.workspace.notifyWorkspace
+- id: db.workspace_global_context.notifyWorkspace
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-global-context.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.previewContextChange
+- id: db.workspace_global_context.previewContextChange
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-global-context.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.proposeFileContext
+- id: db.workspace_global_context.proposeFileContext
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-global-context.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.proposeGlobalContext
+- id: db.workspace_global_context.proposeGlobalContext
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-global-context.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.readContextAiUsage
+- id: db.workspace_global_context.readContextAiUsage
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-global-context.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.readDiscoveryPublicationState
+- id: db.workspace_research.readDiscoveryPublicationState
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-research.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.readGlobalContext
+- id: db.workspace_global_context.readGlobalContext
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-global-context.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.readGlobalContextUsage
+- id: db.workspace_global_context.readGlobalContextUsage
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-global-context.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.readInheritedContext
+- id: db.workspace_threads.readInheritedContext
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-threads.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.readResearchBudget
+- id: db.workspace_research.readResearchBudget
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-research.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.readResearchCoordinatorProgress
+- id: db.workspace_research.readResearchCoordinatorProgress
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-research.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.readResearchProgress
+- id: db.workspace_research.readResearchProgress
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-research.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.readResearchWorkItem
+- id: db.workspace_research.readResearchWorkItem
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-research.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.readSectorLibraryFile
+- id: db.workspace_library.readSectorLibraryFile
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-library.ts
   tiers:
     - todo
   states: []
@@ -3943,57 +3943,57 @@
   tiers:
     - todo
   states: []
-- id: db.workspace.readSteeringReceiptsPage
+- id: db.workspace_threads.readSteeringReceiptsPage
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-threads.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.readThreadContext
+- id: db.workspace_threads.readThreadContext
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-threads.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.readTurnContinuation
+- id: db.workspace_threads.readTurnContinuation
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-threads.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.rebuildThreadContext
+- id: db.workspace_threads.rebuildThreadContext
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-threads.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.recordContextAiUsage
+- id: db.workspace_global_context.recordContextAiUsage
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-global-context.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.recordContextMeasurement
+- id: db.workspace_threads.recordContextMeasurement
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-threads.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.recordResearchBudget
+- id: db.workspace_research.recordResearchBudget
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-research.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.recordResearchWork
+- id: db.workspace_research.recordResearchWork
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-research.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.removeContextFileBlock
+- id: db.workspace_global_context.removeContextFileBlock
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-global-context.ts
   tiers:
     - todo
   states: []
@@ -4009,9 +4009,9 @@
   tiers:
     - todo
   states: []
-- id: db.workspace.researchIntakeReceipts
+- id: db.workspace_research.researchIntakeReceipts
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-research.ts
   tiers:
     - todo
   states: []
@@ -4021,33 +4021,33 @@
   tiers:
     - todo
   states: []
-- id: db.workspace.restoreGlobalContextVersion
+- id: db.workspace_global_context.restoreGlobalContextVersion
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-global-context.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.retainCompatibleDiscovery
+- id: db.workspace_research.retainCompatibleDiscovery
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-research.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.saveInheritedContext
+- id: db.workspace_threads.saveInheritedContext
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-threads.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.saveThreadContext
+- id: db.workspace_threads.saveThreadContext
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-threads.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.saveTurnContinuation
+- id: db.workspace_threads.saveTurnContinuation
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-threads.ts
   tiers:
     - todo
   states: []
@@ -4057,9 +4057,9 @@
   tiers:
     - todo
   states: []
-- id: db.workspace.setFileVisibility
+- id: db.workspace_global_context.setFileVisibility
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-global-context.ts
   tiers:
     - todo
   states: []
@@ -4069,9 +4069,9 @@
   tiers:
     - todo
   states: []
-- id: db.workspace.setThreadPaused
+- id: db.workspace_threads.setThreadPaused
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-threads.ts
   tiers:
     - todo
   states: []
@@ -4081,15 +4081,15 @@
   tiers:
     - todo
   states: []
-- id: db.workspace.workspaceReferenceSnapshot
+- id: db.workspace_research.workspaceReferenceSnapshot
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-research.ts
   tiers:
     - todo
   states: []
-- id: db.workspace.workspaceReferences
+- id: db.workspace_research.workspaceReferences
   layer: db
-  surface: backend/src/db/workspace.ts
+  surface: backend/src/db/workspace-research.ts
   tiers:
     - todo
   states: []
@@ -5439,6 +5439,30 @@
 - id: backend.activity.turn.sleep
   layer: backend
   surface: backend/src/temporal/activities/turn.ts
+  tiers:
+    - todo
+  states: []
+- id: db.workspace.Id
+  layer: db
+  surface: backend/src/db/workspace.ts
+  tiers:
+    - todo
+  states: []
+- id: db.workspace.checked
+  layer: db
+  surface: backend/src/db/workspace.ts
+  tiers:
+    - todo
+  states: []
+- id: db.workspace.globalContextUsageFrom
+  layer: db
+  surface: backend/src/db/workspace.ts
+  tiers:
+    - todo
+  states: []
+- id: db.workspace.workspaceRow
+  layer: db
+  surface: backend/src/db/workspace.ts
   tiers:
     - todo
   states: []

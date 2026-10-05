@@ -6,7 +6,9 @@ import { appendEvent, type Db } from './events.js'
 import { WorkspaceError } from './errors.js'
 import { readSectorExecutionState } from './sectors.js'
 import { readSectorPlan } from './sector-plan.js'
-import { notifyWorkspace, readResearchWorkItem, requireSector, workspaceTransaction } from './workspace.js'
+import { notifyWorkspace } from './workspace-global-context.js'
+import { readResearchWorkItem } from './workspace-research.js'
+import { requireSector, workspaceTransaction } from './workspace.js'
 import { createLogger, logOp } from '../observability/logging.js'
 
 export const WorkReviewDecision = z.object({ planVersion: z.number().int().positive(), receiptVersion: z.string().regex(/^[a-f0-9]{64}$/), decision: z.enum(['retry','exclude']), reason: z.string().trim().min(1).max(4000) }).strict()

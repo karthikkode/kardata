@@ -6,7 +6,8 @@ import { appendEvent, listArtifacts, type Db } from './events.js'
 import type { TransactableDb } from './checkpoints.js'
 import { WorkspaceError } from './errors.js'
 import { listDocumentUnitOrdinals } from './document-units.js'
-import { listSectorLibrary, requireThread, workspaceTransaction } from './workspace.js'
+import { listSectorLibrary } from './workspace-library.js'
+import { requireThread, workspaceTransaction } from './workspace.js'
 
 export const ContextFileRef = z.object({ readSectorId: z.string().min(1).optional(), fileId: z.string().min(1), hash: z.string().min(1), filename: z.string().min(1), ords: z.array(z.number().int().nonnegative()) }).strict()
 export type ContextFileRef = z.infer<typeof ContextFileRef>

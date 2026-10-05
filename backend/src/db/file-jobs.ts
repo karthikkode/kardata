@@ -9,7 +9,8 @@ import { appendEvent, type Db } from './events.js';
 import type { TransactableDb } from './checkpoints.js';
 import { DbContractError, WorkspaceError } from './errors.js';
 import { getSector } from './sectors.js';
-import { assertFileVisible, requireThread, workspaceTransaction } from './workspace.js';
+import { assertFileVisible } from './workspace-library.js'
+import { requireThread, workspaceTransaction } from './workspace.js';
 import { SECTOR_DOCUMENT_MAX_BYTES, sha256Hex, chunkTextUnits, type ExtractedUnit } from './file-pipeline.js';
 import type { IngestedDocument } from './sector-documents.js';
 const logger = createLogger({ op: 'file.processing' });

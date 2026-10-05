@@ -1,5 +1,5 @@
 import { WorkReviewDecision, reviewResearchWork } from '../db/work-review.js'
-import { rebuildThreadContext } from '../db/workspace.js'
+import { rebuildThreadContext } from '../db/workspace-threads.js'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import type { Scope, Role } from '../auth/keys.js'

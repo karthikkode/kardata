@@ -4,7 +4,7 @@ import { appendEvent, getSession, type Db } from './events.js'
 import { DbContractError,WorkspaceError } from './errors.js'
 import type { TransactableDb } from './checkpoints.js'
 import { workspaceTransaction } from './workspace.js'
-import type { TurnContinuation } from './workspace.js'
+import type { TurnContinuation } from './workspace-threads.js'
 import { createHash } from 'node:crypto'
 
 const Id = z.string().min(1).max(512)

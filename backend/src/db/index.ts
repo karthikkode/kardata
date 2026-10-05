@@ -3,6 +3,10 @@
 // never deep into repos and never 'pg' directly (enforced by eslint
 // no-restricted-imports). Repositories land here slice by slice.
 export * from './workspace.js'
+export * from './workspace-global-context.js'
+export * from './workspace-threads.js'
+export * from './workspace-library.js'
+export * from './workspace-research.js'
 export * from './reconciliation.js'
 export { listSupervisionAlerts } from './alerts.js'
 export * from './file-jobs.js'
@@ -166,6 +170,6 @@ export {
 } from './outbox.js'
 
 export { recordTurnExecution, listThreadExecutionRecords, readThreadExecutionReference, readRecoveryRequestReference } from './execution-records.js'
-export { workspaceReferenceSnapshot } from './workspace.js'
+export { workspaceReferenceSnapshot } from './workspace-research.js'
 
 export {readSectorDocumentUnitsPage} from './sector-documents.js'

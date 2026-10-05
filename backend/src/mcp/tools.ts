@@ -1,5 +1,6 @@
 import { agentHistoryBoundary, ContextFileBlocked, recordThreadFileExposure, assertThreadFileContext, validateFileRefs } from '../db/context-files.js'
-import { assertGlobalFileContext, sessionKind } from '../db/workspace.js'
+import { assertGlobalFileContext } from '../db/workspace-global-context.js'
+import { sessionKind } from '../db/workspace.js'
 // MCP tool bindings (Phase 2). Each tool wires one semantic operation
 // from the binding table in documentation/db.md — the server adds
 // auth, transport, and tool schemas, never SQL. Projector-only

@@ -22,7 +22,8 @@ import type { Scope } from '../auth/keys.js'
 import { scrubSecrets, createLogger, logOp } from '../observability/logging.js'
 import { ArtifactImportTimeout, DbContractError } from './errors.js'
 import { DURABLE_STREAM_LOCK_SQL } from './checkpoints.js'
-import { assertFileVisible, hiddenFileIds, indexSectorArtifact, sessionKind, WorkspaceError } from './workspace.js'
+import { assertFileVisible, hiddenFileIds, indexSectorArtifact } from './workspace-library.js'
+import { sessionKind, WorkspaceError } from './workspace.js'
 
 export const EventEnvelope = z.object({
   idempotencyKey: z.string().min(1),

@@ -5,7 +5,9 @@
 // is a conflict; a plan run that never starts compensates back so a
 // retry stays a plan instead of a 409 dead end.
 import { z } from 'zod'
-import { readGlobalContext, researchSessionBinding, retainCompatibleDiscovery, workspaceTransaction } from './workspace.js'
+import { readGlobalContext } from './workspace-global-context.js'
+import { researchSessionBinding, workspaceTransaction } from './workspace.js'
+import { retainCompatibleDiscovery } from './workspace-research.js'
 import { readSectorExecutionState } from './sectors.js'
 import type { TransactableDb } from './checkpoints.js'
 import type { Scope } from '../auth/keys.js'

@@ -7,7 +7,7 @@
 import { z } from 'zod'
 import type { Scope } from '../auth/keys.js'
 import { DbContractError, WorkspaceError } from './errors.js'
-import { assertFileVisible, hiddenFileIds } from './workspace.js'
+import { assertFileVisible, hiddenFileIds } from './workspace-library.js'
 import type { ArchiveTarget } from '../archive/targets.js'
 import { withArchiveDeadline } from '../archive/targets.js'
 import type { Db } from './events.js'
