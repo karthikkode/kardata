@@ -25,6 +25,12 @@ Done on `p2-3-observability` (all `TC_EXIT=0 LINT_EXIT=0 QUALITY_EXIT=0`):
 - `efb49ca`: worker→`/mcp` `traceparent`; server continues via global trace plugin.
 - `2b16f2a`: migration 0025 `events.trace_id/client` + indexes; ambient trace/client
   defaults; route caller ALS; gated temporal continuity e2e.
+- `59f9cdf`: this handoff doc started.
+- `7e35334`: P3.3 log coverage (activity wrapper, outbox, workflow triples,
+  static coverage + secrets tests).
+- `90bb0d7`: P3.4 supervision that acts (control-before-record findings,
+  `alerts` table + `GET /v1/alerts` + Agents panel, fault drills per row,
+  1000-thread coverage test).
 
 Key design notes:
 
@@ -35,9 +41,15 @@ Key design notes:
 - `ProjectableEvent` keeps MCP/projector replay compatible with pre-0025 events.
 - Event `client` is route-derived for now (`/v1` → `ui`, `/mcp` → `agent-mcp`,
   else `other`; background → `system`). `api_keys.client` arrives in Phase 8.
+- P3.4 ordering: Temporal signal/cancel runs BEFORE the finding record lands
+  (a lost effect retries next page; `controlRecorded` dedupes per lease).
+  Fail uses revivable ERROR, not PAUSED; a successor begin flips it RUNNING.
+- P3.4 contract change: alerts are table-backed; the Agents panel renders
+  kind/severity/subject (no sessionTitle/response/threadStatus). The `alerts`
+  e2e fixture and panel copy were updated in the same commit.
 
-Remaining Phase 3: 3.3 log coverage/static/secrets tests, 3.4 supervision + alerts,
-3.5 execution rounds/tool calls/retention/views, 3.6 DB stress, then `p2-3-review.md`.
+Remaining Phase 3: 3.5 execution rounds/tool calls/retention/views, 3.6 DB stress,
+then `p2-3-review.md`.
 
 ## Verification status
 
