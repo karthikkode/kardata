@@ -97,15 +97,9 @@ export function createDbPool(connectionString: string, budget: PoolBudget = {}, 
   )
 }
 
-/** HTTP server budget: serves routes + projector catch-up. */
-export const SERVER_POOL_BUDGET: Required<PoolBudget> = {
-  ...DEFAULT_POOL_BUDGET,
-  max: 10,
-}
-
 /** Worker budget: one shared pool per worker process; activities are
  * I/O-light event/heartbeat writes, so it runs smaller than the server. */
-export const WORKER_POOL_BUDGET: Required<PoolBudget> = {
+const WORKER_POOL_BUDGET: Required<PoolBudget> = {
   ...DEFAULT_POOL_BUDGET,
   max: 5,
 }

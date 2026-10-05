@@ -167,7 +167,7 @@ async function verifiedJson(archive: ArchiveTarget, ref: FileArchiveRef): Promis
     }
 }
 export const FileProcessingManifest = z.object({ version: z.literal(1), records: z.array(z.union([z.object({ kind: z.literal('text'), page: z.number().int().positive(), text: z.string() }).strict(), FileImageIdentity.extend({ kind: z.literal('image') })])) }).strict();
-export const FileProcessingPagedManifest = z.object({ version: z.literal(2), parts: z.array(FileArchiveRef) }).strict();
+const FileProcessingPagedManifest = z.object({ version: z.literal(2), parts: z.array(FileArchiveRef) }).strict();
 export type FileProcessingManifest = z.infer<typeof FileProcessingManifest>;
 export interface FileProcessingUnit extends ExtractedUnit {
     page?: number;
@@ -455,7 +455,7 @@ async function* expectedUnits(db: Db, job: FileProcessingJob, archive: ArchiveTa
         }
     }
 }
-export async function* streamFileProcessingUnits(db: Db, jobId: string, archive: ArchiveTarget, revision: number, scope?: Scope): AsyncGenerator<FileProcessingUnit> {
+async function* streamFileProcessingUnits(db: Db, jobId: string, archive: ArchiveTarget, revision: number, scope?: Scope): AsyncGenerator<FileProcessingUnit> {
     const job = await readFileProcessingJob(db, jobId, scope);
     assertRevision(job, revision);
     await visible(db, job);
@@ -648,18 +648,6 @@ async function readImageIdentity(db: Db, jobId: string, imageId: string, scope: 
     if (!r)
         throw new WorkspaceError('not_found', 'File image not found.');
     return FileImageIdentity.parse({ imageId: r.image_id, page: r.page, ordinal: r.ordinal, imageHash: r.image_hash, inputRef: r.input_ref, width: r.width, height: r.height, role: r.role });
-}
-export async function listFileProcessingJobs(db: Db, afterId = '', limit = 100): Promise<Array<{
-    jobId: string;
-    revision: number;
-}>> {
-    if (!Number.isInteger(limit) || limit < 1 || limit > 100)
-        throw new DbContractError('File processing page must be1–100.');
-    const { rows } = await db.query<{
-        id: string;
-        revision: number;
-    }>("SELECT id,revision FROM file_processing_jobs WHERE state='queued' AND id>$1 ORDER BY id LIMIT $2", [afterId, limit]);
-    return rows.map(r => ({ jobId: r.id, revision: r.revision }));
 }
 export async function listSectorFileProcessing(db: Db, sectorId: string, scope?: Scope): Promise<Record<string, FileProcessingProgress>> {
     if (!(await getSector(db, sectorId, scope)))

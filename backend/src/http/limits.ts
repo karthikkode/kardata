@@ -11,8 +11,6 @@ import { hashKey } from '../auth/keys.js';
  * (B7.3). Import the stores from '../db/index.js'.
  */
 
-export type { IdempotencyOutcome, RateDecision } from '../db/index.js';
-
 export function rateBucket(authHeader: string | undefined, ip: string): string {
   if (authHeader?.toLowerCase().startsWith('bearer ')) {
     const token = authHeader.slice(7).trim();
@@ -22,11 +20,6 @@ export function rateBucket(authHeader: string | undefined, ip: string): string {
   }
   return `ip:${ip || 'unknown'}`;
 }
-
-/** Stable caller scope for idempotency records: one key id, or "open".
- * Credential hashing is canonical in auth/keys.ts (re-exported here so
- * rate-bucket callers keep one import). */
-export { hashKey };
 
 /** Canonical fingerprint of a mutation request; key reuse with a different
  *  fingerprint is a conflict rather than a replay. */

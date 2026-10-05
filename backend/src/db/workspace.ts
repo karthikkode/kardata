@@ -347,14 +347,14 @@ export async function decideContextChange(db: TransactableDb, input: { sectorId:
     return changeView(row)
   })
 }
-export const GLOBAL_CONTEXT_BUDGET_TOKENS = 30000
+const GLOBAL_CONTEXT_BUDGET_TOKENS = 30000
 export interface GlobalContextUsage {
   total: number; budget: number; method: 'estimated'
   bySection: { scope: number; instructions: number; decisions: number; findings: number; questions: number }
   byFile: Array<{ fileId: string; tokens: number }>
   aiUsage: { calls: number; inputTokens: number; outputTokens: number }
 }
-export function globalContextUsageFrom(sections: ContextSections, blocks: Array<{ fileId: string; tokens: number }>): Omit<GlobalContextUsage, 'aiUsage'> {
+function globalContextUsageFrom(sections: ContextSections, blocks: Array<{ fileId: string; tokens: number }>): Omit<GlobalContextUsage, 'aiUsage'> {
   const bySection = {
     scope: estimateTokens(sections.scope), instructions: estimateTokens(sections.instructions),
     decisions: estimateTokens(sections.decisions), findings: estimateTokens(sections.findings),
@@ -1033,7 +1033,7 @@ export async function commitThreadCompaction(db: TransactableDb, threadKey: stri
     return readThreadContext(tx, threadKey, scope)
   })
 }
-export async function researchThreadState(db: Db, threadKey: string): Promise<string | null> {
+async function researchThreadState(db: Db, threadKey: string): Promise<string | null> {
   checked(Id, threadKey)
   const { rows } = await db.query<{ state: string }>(`SELECT s.state FROM research_work w JOIN sectors s ON s.id=w.sector_id WHERE w.child_id=$1`, [threadKey.replace(/^agent:/, '')])
   return rows[0]?.state ?? null

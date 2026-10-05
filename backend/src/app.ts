@@ -28,13 +28,13 @@ import { registerBrowserProxy } from './retrieval/proxy.js'
 import { workspaceRoutes } from './routes/workspace.js'
 import { executionRecordRoutes } from './routes/execution-records.js'
 
-export interface HealthData {
+interface HealthData {
   status: 'ok'
   buildSha: string
   uptimeSecs: number
 }
 
-export type ApiResponse<T> =
+type ApiResponse<T> =
   | { ok: true; data: T }
   | { ok: false; error: { code: string; message: string } }
 

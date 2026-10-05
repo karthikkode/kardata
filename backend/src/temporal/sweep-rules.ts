@@ -9,7 +9,7 @@
 const TEST_MARKER_CLAUSE = /^\s*TEST\b[^;]*;\s*/i
 const TEST_MARKER_TOKEN = /^\s*TEST\b[:\s-]*/i
 
-export function stripTestMarkers(value: string): string {
+function stripTestMarkers(value: string): string {
   return value.replace(TEST_MARKER_CLAUSE, '').replace(TEST_MARKER_TOKEN, '')
 }
 
@@ -23,7 +23,7 @@ export function stripTestMarkers(value: string): string {
  * (regionals append after the base set, capped at 30); the optional
  * override exists for tests and future region-scoped runs, never for
  * live contraction. */
-export const ENGLISH_REGIONS: readonly string[] = [
+const ENGLISH_REGIONS: readonly string[] = [
   'United States',
   'United Kingdom',
   'Canada',

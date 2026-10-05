@@ -15,7 +15,7 @@ import { listThreads } from './threads.js'
 
 const SectorIdSchema = z.string().min(1)
 
-export interface ResearchThreadHealth {
+interface ResearchThreadHealth {
   key: string
   status: string
   acceptingSteer: boolean
@@ -23,7 +23,7 @@ export interface ResearchThreadHealth {
   updatedAgeSec: number
 }
 
-export interface ResearchSessionHealth {
+interface ResearchSessionHealth {
   sessionId: string
   threads: ResearchThreadHealth[]
 }

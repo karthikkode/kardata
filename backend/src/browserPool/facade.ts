@@ -237,4 +237,3 @@ export function pooledBrowserScreenshot(sessionId: string, options: { fullPage?:
   return browserScreenshot(sessionId, options, caller)
 }
 
-export { browserPoolStats } from './pool.js'

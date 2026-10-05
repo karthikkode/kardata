@@ -23,7 +23,7 @@ export interface RetentionResult {
   deleted: number
 }
 
-export function archiveKey(partition: string, seq: number): string {
+function archiveKey(partition: string, seq: number): string {
   return `events/${partition}/${seq}.json`
 }
 

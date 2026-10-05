@@ -21,7 +21,7 @@ import { toApiMessage, toApiThread } from '../threads/views.js'
 
 export const SNAPSHOT_THRESHOLD = 200
 
-export type StreamFrameType = 'message' | 'state' | 'delta' | 'reasoning' | 'tool' | 'finding' | 'error' | 'context-version' | 'approval' | 'work-progress' | 'compaction' | 'steering-consumption'
+type StreamFrameType = 'message' | 'state' | 'delta' | 'reasoning' | 'tool' | 'finding' | 'error' | 'context-version' | 'approval' | 'work-progress' | 'compaction' | 'steering-consumption'
 
 export interface StreamFrame {
   seq: number

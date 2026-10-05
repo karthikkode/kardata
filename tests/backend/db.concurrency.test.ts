@@ -13,8 +13,8 @@ import {
   createDbPool,
   poolStats,
   readPartition,
-  type IdempotencyOutcome,
 } from '../../backend/src/db/index.js'
+import type { IdempotencyOutcome } from '../../backend/src/db/quotas.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
 const ENABLED = TEST_DATABASE_URL !== undefined && TEST_DATABASE_URL !== ''

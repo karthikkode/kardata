@@ -9,11 +9,11 @@ import { DbContractError } from './errors.js'
 import type { Db } from './events.js'
 
 /** Minimum milliseconds between table writes for one (run, op). */
-export const HEARTBEAT_WRITE_MS = 5_000
+const HEARTBEAT_WRITE_MS = 5_000
 
 const lastWrites = new WeakMap<Db, Map<string, { at: number; busy: boolean }>>()
 
-export function heartbeatThrottleKey(runId: string, op: string): string {
+function heartbeatThrottleKey(runId: string, op: string): string {
   return JSON.stringify([runId, op])
 }
 

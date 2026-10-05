@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse as parseYaml } from 'yaml'
 
-export type ParityKind = 'counterpart' | 'deferred'
+type ParityKind = 'counterpart' | 'deferred'
 
 export interface ParityEntry {
   sourceFile: string

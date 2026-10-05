@@ -7,8 +7,8 @@ import { WorkspaceError } from './errors.js'
 import { createLogger, logOp } from '../observability/logging.js'
 
 export const PDF_IMAGE_MAX_PIXELS = 8_000_000
-export const PDF_IMAGE_MAX_BYTES = 8 * 1024 * 1024
-export const PDF_PAGE_VISUAL_SCALE = 2
+const PDF_IMAGE_MAX_BYTES = 8 * 1024 * 1024
+const PDF_PAGE_VISUAL_SCALE = 2
 const OP_TIMEOUT_MS = 30_000
 const logger = createLogger({ op: 'pdf.extract' })
 export type PdfExtractionPart = { page: number; kind: 'text'; text: string } | { page: number; kind: 'image'; ordinal: number; png: Uint8Array; imageHash: string; width: number; height: number; role?: 'embedded' | 'page-visual' }

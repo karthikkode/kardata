@@ -17,7 +17,7 @@ export function newTraceId(): string {
   return randomUUID().replace(/-/g, '')
 }
 
-export function newSpanId(): string {
+function newSpanId(): string {
   return randomBytes(8).toString('hex')
 }
 

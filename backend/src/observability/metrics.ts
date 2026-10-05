@@ -23,7 +23,7 @@ export const CARDINALITY_BUDGET = 10_000
 
 /** Label-name allow-list per metric. Values are bounded separately: route
  * patterns (never concrete ids), fixed method/status sets. */
-export const METRIC_LABEL_ALLOW: Record<string, string[]> = {
+const METRIC_LABEL_ALLOW: Record<string, string[]> = {
   http_requests_total: ['method', 'route', 'status'],
   http_request_duration_seconds: ['method', 'route', 'status'],
   kardata_runs_by_state: ['state'],

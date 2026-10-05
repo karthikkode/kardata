@@ -40,7 +40,7 @@ export interface RunObservation {
   prevStalledTurns: number
 }
 
-export interface HeartbeatRow {
+interface HeartbeatRow {
   runId: string
   atMs: number
   busy: boolean

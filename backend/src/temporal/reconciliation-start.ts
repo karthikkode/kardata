@@ -3,7 +3,7 @@ import { createLogger, logOp } from '../observability/logging.js'
 import { temporalAddress, temporalNamespace } from './connection.js'
 import { laneConfig } from './lanes.js'
 
-export const RECONCILIATION_WORKFLOW_ID = 'kardata-execution-reconciliation-v1'
+const RECONCILIATION_WORKFLOW_ID = 'kardata-execution-reconciliation-v1'
 
 export async function ensureExecutionReconciliation(): Promise<void> {
   await logOp(createLogger({ runId: RECONCILIATION_WORKFLOW_ID }), 'execution.supervisor.start', async () => {
@@ -16,7 +16,7 @@ export async function ensureExecutionReconciliation(): Promise<void> {
   })
 }
 
-export const FILE_ADMISSION_WORKFLOW_ID = 'kardata-file-admission-reconciliation-v1'
+const FILE_ADMISSION_WORKFLOW_ID = 'kardata-file-admission-reconciliation-v1'
 /** Separate workflow type: existing supervision histories stay replayable. */
 export async function ensureFileAdmissionReconciliation(): Promise<void> {
   await logOp(createLogger({runId:FILE_ADMISSION_WORKFLOW_ID}),'file.admission.supervisor.start',async()=>{

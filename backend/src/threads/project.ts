@@ -44,7 +44,7 @@ export const SubagentMissedSteer = z.object({
   text: z.string().min(1),
 })
 
-export const MessageKind = z.enum(['text', 'tool', 'approval'])
+const MessageKind = z.enum(['text', 'tool', 'approval'])
 
 export const MessageAppended = z.object({
   threadKey: z.string().min(1),

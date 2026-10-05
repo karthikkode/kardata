@@ -4,16 +4,12 @@
 // no-restricted-imports). Repositories land here slice by slice.
 export * from './workspace.js'
 export * from './reconciliation.js'
-export { listSupervisionAlerts, SupervisionAlert } from './alerts.js'
+export { listSupervisionAlerts } from './alerts.js'
 export * from './file-jobs.js'
 export * from './execution-epochs.js'
 export { DbContractError } from './errors.js'
 export {
-  type AppendedEvent,
-  ARTIFACT_REFERENCED_EVENT,
-  type ArtifactSummary,
   createArtifact,
-  type CreateArtifactInput,
   createSession,
   type Db,
   type DbQueryResult,
@@ -34,11 +30,8 @@ export {
   referenceArtifact,
   renameSession,
   resolveArtifactScope,
-  SESSION_DELETED_EVENT,
-  SESSION_MODEL_EVENT,
   SessionModelSelection,
   setSessionModel,
-  type SessionRecord,
   type StoredEvent,
 } from './events.js'
 export {
@@ -48,7 +41,6 @@ export {
   listThreadHeaders,
   readSectorThread,
   projectBatch,
-  type ProjectionResult,
   rebuildFromEvents,
   cancelThreadRun,
   pauseThreadRun,
@@ -59,38 +51,27 @@ export {
 } from './threads.js'
 export {
   researchHealth,
-  type ResearchHealth,
-  type ResearchSessionHealth,
-  type ResearchThreadHealth,
 } from './research-health.js'
 export {
   fleetTotals,
-  type LedgerResult,
   projectUsage,
   rebuildLedger,
   runTotals,
-  type UsageTotals,
 } from './ledger.js'
 export {
-  type CheckpointTx,
   runCheckpointTx,
   type TransactableDb,
 } from './checkpoints.js'
 export {
-  KbChunkInput,
   KbDocumentInput,
-  type KbSearchHit,
   recordKbBatch,
   searchKb,
 } from './knowledge.js'
 export {
   getLedgerCompany,
   LedgerQualification,
-  type LedgerCompany,
-  type LedgerProblem,
   listLedgerCompanies,
   listLedgerProblems,
-  ProblemStatus,
   recordLedgerProblem,
   RecordProblemInput,
   UpsertCompanyInput,
@@ -98,26 +79,10 @@ export {
   registerLedgerCandidate,
 } from './company-ledger.js'
 export {
-  COMPANY_FOUND_EVENT,
-  COMPANY_STAGE_CHANGED_EVENT,
-  COMPANY_STATE_CHANGED_EVENT,
   CompanyStage,
-  SECTOR_CREATED_EVENT,
-  SECTOR_RESEARCH_STARTED_EVENT,
-  SECTOR_PLAN_WRITTEN_EVENT,
-  SECTOR_PLAN_APPROVED_EVENT,
-  SECTOR_STATE_CHANGED_EVENT,
   SectorState,
   assertSectorTransition,
-  SECTOR_TRANSITIONS,
   SectorTransitionError,
-  type ActivityEntry,
-  type CompanyFilters,
-  type CompanyRecord,
-  type Paging,
-  type SectorFilters,
-  type SectorRecord,
-  type SectorTransitionFailure,
   createSector,
   getSector,
   listCompanies,
@@ -126,10 +91,7 @@ export {
   markCompanyFound,
   registerSectorDiscovery,
   readSectorExecutionState,
-  pauseSectorResearch,
-  projectSectorEvent,
   recordResearchSession,
-  resumeSectorResearch,
   sectorActivity,
   setCompanyStage,
   setCompanyState,
@@ -137,123 +99,73 @@ export {
 } from './sectors.js'
 export {
   SECTOR_DOCUMENT_MAX_BYTES,
-  documentExtension,
-  extractDocumentText,
   ingestSectorDocument,
   listSectorDocuments,
   querySectorDocument,
   readSectorDocument,
   readOriginalSectorDocument,
-  sha256Hex,
-  type DocumentChunksResult,
-  type DocumentSummaryResult,
-  type DocumentTocEntry,
-  type IngestedDocument,
-  type QuerySectorDocumentInput,
-  type QuerySectorDocumentResult,
-  type SectorDocument,
 } from './sector-documents.js'
 export {
   countDocumentUnits,
-  insertDocumentUnits,
   listDocumentUnits,
-  type DocumentUnit,
 } from './document-units.js'
 export {
-  SectorPlanError,
   approveSectorPlan,
-  planSectorResearch,
   readSectorPlan,
   recordPlanVersion,
   updateSectorPlan,
-  type SectorPlanFailure,
-  type SectorPlanRunner,
   type PlanVersion,
   type SectorPlan,
 } from './sector-plan.js'
 export {
   SectorStartError,
   startSectorResearch,
-  type SectorStartFailure,
   type SectorSweepRunner,
 } from './sector-start.js'
 export {
   pauseSectorSweep,
-  restartSectorSweep,
   resumeSectorSweep,
 } from './sector-lifecycle.js'
 export {
   addContextNotes,
-  buildSectorDigest,
-  compactSectorContext,
-  getSectorContext,
-  listContextNotes,
-  setUnitExclusions,
-  type CompactContextResult,
-  type ContextFileView,
-  type ContextNoteView,
-  type ContextUnitView,
-  type SectorContextView,
-  type SectorDigest,
-  type UnitRef,
 } from './sector-context.js'
 export {
-  chunkTextUnits,
   classifyUpload,
-  createHttpOcrAdapter,
-  extractFileUnits,
-  OCR_CONFIDENCE_MIN,
   ScriptedOcrAdapter,
-  UNIT_MAX_CHARS,
-  type ClassifiedFile,
-  type ExtractedUnit,
-  type ExtractionStatus,
-  type FileExtraction,
   type OcrAdapter,
-  type OcrResult,
 } from './file-pipeline.js'
 export {
   DEFAULT_POOL_BUDGET,
-  SERVER_POOL_BUDGET,
-  WORKER_POOL_BUDGET,
   createDbPool,
-  type PoolBudget,
   poolStats,
-  type PoolStat,
   serverPoolBudget,
   workerPoolBudget,
   workerPoolFromEnv,
 } from './pool.js'
-export { findKeyByHash, registerApiKey, type KeyRecord } from './keys.js'
+export { findKeyByHash, registerApiKey } from './keys.js'
 export {
   checkRate,
   claimIdempotency,
   completeIdempotency,
-  type IdempotencyOutcome,
-  type RateDecision,
   releaseIdempotency,
   sweepIdempotency,
 } from './quotas.js'
 export {
-  HEARTBEAT_WRITE_MS,
-  heartbeatThrottleKey,
   listHeartbeats,
   pruneHeartbeats,
   recordHeartbeat,
-  type StoredHeartbeat,
 } from './heartbeats.js'
 export {
   type ConnectableDb,
   latestOutboxSeq,
   type OutboxRow,
-  type OutboxSubscription,
   pruneOutbox,
   publishOutboxFrame,
   readOutboxBacklog,
   subscribeOutbox,
 } from './outbox.js'
 
-export { recordTurnExecution, listThreadExecutionRecords, readThreadExecutionReference, readRecoveryRequestReference, type ExecutionRecordMetadata } from './execution-records.js'
+export { recordTurnExecution, listThreadExecutionRecords, readThreadExecutionReference, readRecoveryRequestReference } from './execution-records.js'
 export { workspaceReferenceSnapshot } from './workspace.js'
 
-export {readSectorDocumentUnitsPage,type SectorDocumentStatus} from './sector-documents.js'
+export {readSectorDocumentUnitsPage} from './sector-documents.js'

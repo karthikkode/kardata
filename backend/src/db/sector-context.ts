@@ -15,7 +15,7 @@ import type { SectorDocumentStatus } from './sector-documents.js'
 import { listSectorDocuments, type SectorDocument } from './sector-documents.js'
 import { getSector } from './sectors.js'
 
-export interface ContextUnitView {
+interface ContextUnitView {
   ord: number
   kind: string
   text: string
@@ -23,7 +23,7 @@ export interface ContextUnitView {
   excluded: boolean
 }
 
-export interface ContextFileView {
+interface ContextFileView {
   id: string
   filename: string
   mediaType: string
@@ -40,7 +40,7 @@ export interface ContextNoteView {
   createdAt: string
 }
 
-export interface SectorDigest {
+interface SectorDigest {
   version: string
   text: string
 }
@@ -56,7 +56,7 @@ export interface SectorContextView {
 
 const NoteSchema = z.string().min(1).max(2000)
 
-export async function listContextNotes(db: Db, sectorId: string): Promise<ContextNoteView[]> {
+async function listContextNotes(db: Db, sectorId: string): Promise<ContextNoteView[]> {
   const { rows } = await db.query<{ id: string; text: string; created_at: Date | string }>(
     'SELECT id, text, created_at FROM sector_context_notes WHERE sector_id = $1 ORDER BY created_at ASC',
     [sectorId],
@@ -124,7 +124,7 @@ async function exclusionMap(db: Db, sectorId: string): Promise<Map<string, boole
  * same digest across sessions), versioned by content hash. The version
  * travels in its own field; the text carries no hash, so model-visible
  * prose never spends context on machine ids. */
-export function buildSectorDigest(input: {
+function buildSectorDigest(input: {
   sectorId: string
   name: string
   topic: string
@@ -153,7 +153,7 @@ export function buildSectorDigest(input: {
  * the storage id. Repeats (same name, different content) take a stable
  * creation-order suffix so every label stays unique. Internal selection,
  * reads, and tool args keep using the storage ids. */
-export function citationLabels(documents: Array<{ id: string; filename: string }>): Map<string, string> {
+function citationLabels(documents: Array<{ id: string; filename: string }>): Map<string, string> {
   const seen = new Map<string, number>()
   const labels = new Map<string, string>()
   for (const document of documents) {

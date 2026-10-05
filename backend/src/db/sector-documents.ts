@@ -14,7 +14,6 @@ import type { Db } from './events.js'
 import { createLogger, logOp } from '../observability/logging.js'
 
 import {
-  documentExtension,
   extractFileUnits,
   SECTOR_DOCUMENT_MAX_BYTES,
   sha256Hex,
@@ -25,7 +24,7 @@ import { getSector } from './sectors.js'
 
 const documentLogger = createLogger({ op: 'file.ingest' })
 
-export { documentExtension, SECTOR_DOCUMENT_MAX_BYTES, sha256Hex }
+export { SECTOR_DOCUMENT_MAX_BYTES }
 
 /** Legacy single-text extraction over the pipeline. needs-ocr degrades to
  * the historical rejection so existing callers keep their contract; new
@@ -239,14 +238,14 @@ export async function readOriginalSectorDocument(db: Db, sectorId: string, docum
   return { filename: doc.filename, mediaType: doc.mediaType, text: doc.text, fullChars: doc.fullChars??doc.chars, textTruncated: doc.textTruncated??false, nextOrd: doc.nextOrd??null, contentBase64, originalAvailable: true }
 }
 
-export interface DocumentTocEntry {
+interface DocumentTocEntry {
   ord: number
   kind: string
   preview: string
   uncertain: boolean
 }
 
-export interface DocumentSummaryResult {
+interface DocumentSummaryResult {
   documentId: string
   filename: string
   status: SectorDocumentStatus
@@ -257,7 +256,7 @@ export interface DocumentSummaryResult {
   nextOrd?: number | null
 }
 
-export interface DocumentChunksResult {
+interface DocumentChunksResult {
   documentId: string
   filename: string
   status: SectorDocumentStatus

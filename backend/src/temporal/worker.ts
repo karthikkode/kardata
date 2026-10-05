@@ -5,7 +5,7 @@ import { NativeConnection, Worker } from '@temporalio/worker'
 import { laneConfig, type Lane } from './lanes.js'
 
 // Local structural type: the SDK types worker activities as plain `object`.
-export type ActivityFunction = (...args: never[]) => unknown
+type ActivityFunction = (...args: never[]) => unknown
 
 export interface LaneWorkerOptions {
   lane: Lane

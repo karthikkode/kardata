@@ -10,14 +10,14 @@ import { appendEvent, findEventByKey, readPartition } from './events.js'
 import { DbContractError } from './errors.js'
 import type { Db } from './events.js'
 
-export const SECTOR_CREATED_EVENT = 'sector.created'
-export const SECTOR_STATE_CHANGED_EVENT = 'sector.state_changed'
-export const SECTOR_RESEARCH_STARTED_EVENT = 'sector.research_started'
+const SECTOR_CREATED_EVENT = 'sector.created'
+const SECTOR_STATE_CHANGED_EVENT = 'sector.state_changed'
+const SECTOR_RESEARCH_STARTED_EVENT = 'sector.research_started'
 export const SECTOR_PLAN_WRITTEN_EVENT = 'sector.plan_written'
 export const SECTOR_PLAN_APPROVED_EVENT = 'sector.plan_approved'
-export const COMPANY_FOUND_EVENT = 'company.found'
-export const COMPANY_STAGE_CHANGED_EVENT = 'company.stage_changed'
-export const COMPANY_STATE_CHANGED_EVENT = 'company.state_changed'
+const COMPANY_FOUND_EVENT = 'company.found'
+const COMPANY_STAGE_CHANGED_EVENT = 'company.stage_changed'
+const COMPANY_STATE_CHANGED_EVENT = 'company.state_changed'
 
 /** Draft is create-first: a sector shaped in chat with context files
  * attached, planned and approved explicitly, started only after approval.
@@ -299,8 +299,8 @@ export interface Paging {
   offset?: number
 }
 
-export const PAGING_DEFAULT_LIMIT = 100
-export const PAGING_MAX_LIMIT = 500
+const PAGING_DEFAULT_LIMIT = 100
+const PAGING_MAX_LIMIT = 500
 
 function parsePaging(paging: Paging = {}): { limit: number; offset: number } {
   const limit = paging.limit ?? PAGING_DEFAULT_LIMIT
@@ -579,43 +579,6 @@ export class SectorTransitionError extends Error {
     super(message)
     this.failure = failure
   }
-}
-
-/** Owner pause: running -> paused. State transition only — the run
- * lifecycle (halt before state) lives in db/sector-lifecycle.ts, which
- * routes and tools must use instead of calling this directly. Anything
- * else is a conflict. */
-export async function pauseSectorResearch(
-  db: Db,
-  sectorId: string,
-  options: { scope?: Scope; idempotencyKey?: string } = {},
-): Promise<SectorRecord> {
-  const sector = await getSector(db, sectorId, options.scope)
-  if (!sector) throw new SectorTransitionError('not_found', `no such sector ${sectorId}`)
-  if (sector.state !== 'running') {
-    throw new SectorTransitionError('conflict', `sector ${sectorId} is ${sector.state}, not running`)
-  }
-  await setSectorState(db, sectorId, 'paused', options)
-  const paused = await getSector(db, sectorId, options.scope)
-  if (!paused) throw new SectorTransitionError('not_found', `no such sector ${sectorId}`)
-  return paused
-}
-
-/** Owner resume: paused -> running. Anything else is a conflict. */
-export async function resumeSectorResearch(
-  db: Db,
-  sectorId: string,
-  options: { scope?: Scope; idempotencyKey?: string } = {},
-): Promise<SectorRecord> {
-  const sector = await getSector(db, sectorId, options.scope)
-  if (!sector) throw new SectorTransitionError('not_found', `no such sector ${sectorId}`)
-  if (sector.state !== 'paused') {
-    throw new SectorTransitionError('conflict', `sector ${sectorId} is ${sector.state}, not paused`)
-  }
-  await setSectorState(db, sectorId, 'running', options)
-  const running = await getSector(db, sectorId, options.scope)
-  if (!running) throw new SectorTransitionError('not_found', `no such sector ${sectorId}`)
-  return running
 }
 
 export async function markCompanyFound(

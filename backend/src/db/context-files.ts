@@ -94,7 +94,7 @@ export async function agentHistoryBoundary(db: Db, threadKey: string): Promise<{
 
 // A6: one standardized summary block per context file. The block row is the
 // provenance record; the version bumps only when the summary lands.
-export type ContextFileBlockState = 'summarizing' | 'ready' | 'failed' | 'legacy'
+type ContextFileBlockState = 'summarizing' | 'ready' | 'failed' | 'legacy'
 export interface ContextFileBlock {
   sectorId: string; fileId: string; documentId: string; hash: string; filename: string
   state: ContextFileBlockState; summary: string; tokens: number; error: string | null

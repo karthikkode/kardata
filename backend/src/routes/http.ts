@@ -22,11 +22,6 @@ import { getSession } from '../db/index.js'
 import type { RunsGateway } from '../temporal/gateway.js'
 import { RunNotFound, ThreadNotAccepting } from '../temporal/gateway.js'
 
-export interface RouteDeps {
-  pool?: TransactableDb
-  runs?: RunsGateway
-}
-
 export type ErrorCode =
   | 'not_found'
   | 'permission_denied'
@@ -243,7 +238,7 @@ export async function requireSessionScope(
   return false
 }
 
-export function mapRouteError(reply: FastifyReply, error: unknown): unknown {
+function mapRouteError(reply: FastifyReply, error: unknown): unknown {
   if (error instanceof WorkspaceError) return sendError(reply, { not_found: 404, permission_denied: 403, conflict: 409, validation_failed: 400 }[error.code], error.code, error.message)
   if (error instanceof RunNotFound) return sendError(reply, 404, 'not_found', error.message)
   if (error instanceof ThreadNotAccepting) return sendError(reply, 409, 'conflict', error.message)

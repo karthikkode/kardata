@@ -8,11 +8,11 @@ import { z } from 'zod'
 import { DbContractError } from './errors.js'
 import type { Db } from './events.js'
 
-export const KbChunkInput = z.object({
+const KbChunkInput = z.object({
   section: z.string().max(200).default(''),
   text: z.string().min(1).max(8000),
 })
-export type KbChunkInput = z.infer<typeof KbChunkInput>
+type KbChunkInput = z.infer<typeof KbChunkInput>
 
 export const KbDocumentInput = z.object({
   topic: z.string().min(1).max(80),

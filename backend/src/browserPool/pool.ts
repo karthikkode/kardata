@@ -11,13 +11,13 @@ import { RetrievalError } from '../retrieval/web.js'
 /** Absolute ceiling: owner-approved max is 16 browsers. */
 export const BROWSER_POOL_ABSOLUTE_MAX = 16
 /** Starting default; raise via KARDATA_BROWSER_MAX up to the ceiling. */
-export const BROWSER_POOL_DEFAULT_MAX = 8
+const BROWSER_POOL_DEFAULT_MAX = 8
 /** Waiting acquires past this reject immediately: backpressure, not OOM. */
 const MAX_QUEUED = 64
 /** Active + queued slots per caller: one sweep cannot hog the pool. */
 const CALLER_SLOT_CAP = 4
 /** Acquire waits this long for a slot before rejecting with overload. */
-export const BROWSER_SLOT_TIMEOUT_MS = 30_000
+const BROWSER_SLOT_TIMEOUT_MS = 30_000
 
 export interface BrowserSlot {
   release(): void
@@ -38,7 +38,7 @@ const callerCounts = new Map<string, number>()
 const queue: Waiter[] = []
 
 /** Effective max: test override, else KARDATA_BROWSER_MAX clamped 1..16. */
-export function browserPoolMax(): number {
+function browserPoolMax(): number {
   if (overrideMax !== undefined) return overrideMax
   const raw = process.env['KARDATA_BROWSER_MAX']?.trim()
   if (!raw) return BROWSER_POOL_DEFAULT_MAX

@@ -51,7 +51,7 @@ export function clearSpanContext(): void {
   als.enterWith(undefined as unknown as SpanContext)
 }
 
-export function currentSpanContext(): SpanContext | undefined {
+function currentSpanContext(): SpanContext | undefined {
   return als.getStore()
 }
 
@@ -91,7 +91,7 @@ export function startSpan(
   return span
 }
 
-export interface SpanLine {
+interface SpanLine {
   op: 'otel.span'
   service: string
   trace_id: string

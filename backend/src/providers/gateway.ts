@@ -180,7 +180,7 @@ export function resolveAdapter(
   }
 }
 
-export type ProviderFailureCode =
+type ProviderFailureCode =
   | 'provider_timeout'
   | 'provider_unauthorized'
   | 'provider_failed'

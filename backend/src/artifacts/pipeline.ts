@@ -43,7 +43,7 @@ export class ArtifactValidationError extends Error {
   }
 }
 
-export class ArtifactConflictError extends ArtifactValidationError {
+class ArtifactConflictError extends ArtifactValidationError {
   readonly code = 'conflict'
   constructor() { super('Artifact identity conflicts with an existing version. Create a new artifact version.'); this.name = 'ArtifactConflictError' }
 }
@@ -119,7 +119,7 @@ export interface ArtifactDeps {
   }): Promise<void>
 }
 
-export function bodyKey(scope: ArtifactScope, artifactId: string): string {
+function bodyKey(scope: ArtifactScope, artifactId: string): string {
   return `artifacts/${scope.kind}/${scope.id}/${artifactId}`
 }
 

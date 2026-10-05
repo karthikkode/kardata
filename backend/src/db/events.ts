@@ -188,10 +188,10 @@ export const SessionModelSelection = z.object({
 
 export type SessionModelSelection = z.infer<typeof SessionModelSelection>
 
-export const SESSION_MODEL_EVENT = 't.session.model'
+const SESSION_MODEL_EVENT = 't.session.model'
 
 /** Tombstone: deleted sessions stay in the log but vanish from reads. */
-export const SESSION_DELETED_EVENT = 't.session.deleted'
+const SESSION_DELETED_EVENT = 't.session.deleted'
 
 interface SessionRow {
   id: string
@@ -355,7 +355,7 @@ export interface ArtifactSummary {
   indexed: boolean
 }
 
-export const ARTIFACT_REFERENCED_EVENT = 't.artifact.referenced'
+const ARTIFACT_REFERENCED_EVENT = 't.artifact.referenced'
 
 const ArtifactScopePayload = z.object({
   kind: z.enum(['session', 'task']),

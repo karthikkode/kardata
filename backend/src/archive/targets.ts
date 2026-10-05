@@ -9,7 +9,7 @@ import { pipeline } from 'node:stream/promises'
 import { Storage } from '@google-cloud/storage'
 import { createLogger, logOp } from '../observability/logging.js'
 
-export function assertArchiveKey(key: string, prefix = false): void {
+function assertArchiveKey(key: string, prefix = false): void {
   if (typeof key !== 'string') throw new TypeError('Archive key must be a string.')
   const parts = key.split('/')
   if (prefix && parts.at(-1) === '') parts.pop()
@@ -102,7 +102,7 @@ export interface GcsFileHandle {
   exists(): Promise<[boolean]>
 }
 
-export interface GcsListedFile {
+interface GcsListedFile {
   name: string
 }
 
