@@ -77,7 +77,7 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('worker SIGKILL drills F4-F5', (
     await connection?.close()
   })
 
-  function spawnWorker(script: 'f4' | 'f5', taskQueue: string, effectsFile: string, markerFile: string): { child: ChildProcess; stderr: { text: string } } {
+  function spawnWorker(script: 'f4' | 'f5', taskQueue: string, effectsFile: string, markerFile: string, archiveDir: string): { child: ChildProcess; stderr: { text: string } } {
     const stderr = { text: '' }
     const child = spawn(process.execPath, [KILL_WORKER_PATH], {
       env: {
@@ -88,6 +88,7 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('worker SIGKILL drills F4-F5', (
         FAULT_SCRIPT: script,
         FAULT_EFFECTS: effectsFile,
         FAULT_MARKER: markerFile,
+        FAULT_ARCHIVE_DIR: archiveDir,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     })
@@ -162,14 +163,15 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('worker SIGKILL drills F4-F5', (
   it('F4: SIGKILL in round 2 resumes on a new worker with exactly-once effects', async () => {
     const taskQueue = `kardata-test-fault-kill-f4-${Date.now()}`
     const effectsFile = join(effectsDir, `f4-${randomUUID()}.log`)
-    const first = spawnWorker('f4', taskQueue, effectsFile, '')
+    const archiveDir = join(effectsDir, `f4-${randomUUID()}-archive`)
+    const first = spawnWorker('f4', taskQueue, effectsFile, '', archiveDir)
     const { sessionId, handle } = await startTurn('F4 hello', taskQueue, first)
     await waitForChild(async () => roundOneOk(sessionId), first.child, first.stderr, 180_000, 'round 1 ok (round 2 hanging)')
     const killAt = Date.now()
     first.child.kill('SIGKILL')
     await once(first.child, 'exit')
     expect(first.child.signalCode).toBe('SIGKILL')
-    const second = spawnWorker('f4', taskQueue, effectsFile, '')
+    const second = spawnWorker('f4', taskQueue, effectsFile, '', archiveDir)
     await waitForChild(async () => (await texts(sessionId)).includes('TEST round two done'), second.child, second.stderr, 180_000, 'resumed reply')
     const recoveredAt = Date.now()
     expect(await attemptSet(sessionId)).toEqual([1, 2])
@@ -196,13 +198,14 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('worker SIGKILL drills F4-F5', (
     const taskQueue = `kardata-test-fault-kill-f5-${Date.now()}`
     const effectsFile = join(effectsDir, `f5-${randomUUID()}.log`)
     const markerFile = join(effectsDir, `f5-${randomUUID()}.marker`)
-    const first = spawnWorker('f5', taskQueue, effectsFile, markerFile)
+    const archiveDir = join(effectsDir, `f5-${randomUUID()}-archive`)
+    const first = spawnWorker('f5', taskQueue, effectsFile, markerFile, archiveDir)
     const { sessionId, handle } = await startTurn('F5 hello', taskQueue, first)
     await waitForChild(async () => existsSync(markerFile), first.child, first.stderr, 180_000, 'delegate marker')
     first.child.kill('SIGKILL')
     await once(first.child, 'exit')
     expect(first.child.signalCode).toBe('SIGKILL')
-    const second = spawnWorker('f5', taskQueue, effectsFile, markerFile)
+    const second = spawnWorker('f5', taskQueue, effectsFile, markerFile, archiveDir)
     await waitForChild(async () => (await texts(sessionId)).includes('TEST round two done'), second.child, second.stderr, 180_000, 'resumed reply')
     expect(await attemptSet(sessionId)).toEqual([1, 2])
     const { calls, effects } = effectLines(effectsFile)

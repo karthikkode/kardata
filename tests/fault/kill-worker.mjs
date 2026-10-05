@@ -7,10 +7,11 @@
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { env } from 'node:process'
+import process, { env } from 'node:process'
 import { setTimeout } from 'node:timers'
 import { Pool } from 'pg'
 import { Context } from '@temporalio/activity'
+import { persistExecutionRecord, resolveArchiveTarget } from '../../backend/dist/archive/targets.js'
 import { appendEventActivity, executeKarbotTurn } from '../../backend/dist/temporal/activities/turn.js'
 import { createRoundRecorder } from '../../backend/dist/temporal/activities/turn-rounds.js'
 import { connectWorker, temporalNamespace } from '../../backend/dist/temporal/connection.js'
@@ -18,6 +19,10 @@ import { createLaneWorker } from '../../backend/dist/temporal/worker.js'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const RUN_WORKFLOWS_PATH = join(ROOT, 'backend', 'src', 'temporal', 'workflows', 'run.ts')
+
+// F16 caps this process with RLIMIT_FSIZE: writes fail EFBIG instead of
+// killing the worker, so the drill proves honest handling, not a crash.
+process.on('SIGXFSZ', () => {})
 
 function required(name) {
   const value = env[name]
@@ -39,6 +44,7 @@ function sleep(ms) {
 function makeMcp(effectsFile, markerFile, toolName) {
   return {
     async listTools() {
+      if (!toolName) return []
       return [{ name: toolName, description: `TEST ${toolName}`, parameters: { type: 'object', properties: {} } }]
     },
     async callTool(name, args, operationId) {
@@ -66,6 +72,11 @@ function scriptedAdapter(toolCall) {
     async *chatStream() {
       round += 1
       if (round === 1) {
+        if (!toolCall) {
+          yield { kind: 'text_delta', text: 'TEST f16 reply' }
+          yield { kind: 'done', usage: zeroUsage(), completion: 'complete' }
+          return
+        }
         yield { kind: 'text_delta', text: 'TEST round one' }
         yield { kind: 'toolcall_start', index: 0, key: toolCall.id }
         yield { kind: 'toolcall_delta', index: 0, textAppend: JSON.stringify(toolCall.args) }
@@ -87,18 +98,20 @@ function scriptedAdapter(toolCall) {
 async function main() {
   const taskQueue = required('FAULT_TASK_QUEUE')
   const script = required('FAULT_SCRIPT')
-  if (script !== 'f4' && script !== 'f5') throw new Error(`TEST kill-worker: bad FAULT_SCRIPT ${script}`)
+  if (script !== 'f4' && script !== 'f5' && script !== 'f16') throw new Error(`TEST kill-worker: bad FAULT_SCRIPT ${script}`)
   const effectsFile = required('FAULT_EFFECTS')
   const markerFile = script === 'f5' ? required('FAULT_MARKER') : ''
   const databaseUrl = required('DATABASE_URL')
   env['TEMPORAL_ADDRESS'] = env['TEMPORAL_ADDRESS'] ?? 'localhost:7233'
+  env['KARDATA_ARCHIVE_DIR'] = required('FAULT_ARCHIVE_DIR')
 
-  const toolName = script === 'f5' ? 'TEST_delegate' : 'TEST_effect'
-  const toolCall = {
+  const toolName = script === 'f5' ? 'TEST_delegate' : script === 'f4' ? 'TEST_effect' : null
+  const toolCall = toolName === null ? null : {
     id: 'TEST-call-0',
     name: toolName,
     args: script === 'f5' ? { goal: 'TEST child' } : { note: 'TEST x' },
   }
+  const archive = resolveArchiveTarget()
   const mcp = makeMcp(effectsFile, markerFile, toolName)
   const pool = new Pool({ connectionString: databaseUrl })
   const connection = await connectWorker()
@@ -130,6 +143,9 @@ async function main() {
             publishReasoning: async () => {},
             publishTool: async () => {},
             log: () => {},
+            persistExecution: async (_round, _kind, record) => {
+              await persistExecutionRecord(archive, input.sessionId, record)
+            },
             attempt: context.info.attempt,
             recordRound: (fields) => recorder.recordRound(fields),
             recordToolCall: (fields) => recorder.recordToolCall(fields),
