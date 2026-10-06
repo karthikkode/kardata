@@ -25,7 +25,7 @@ describe.skipIf(!TEST_DATABASE_URL)('scoped table-backed supervision delivery [F
       await raiseAlert(pool,{kind:'missing-heartbeat',severity:'high',subject:'TEST heartbeat flatline',threadKey:session.id})
       const denied=await app.inject({method:'GET',url:'/v1/alerts'})
       expect(denied.statusCode).toBe(403)
-      const ok=await app.inject({method:'GET',url:'/v1/alerts',headers:{authorization:'Bearer [REDACTED] viewer key'}})
+      const ok=await app.inject({method:'GET',url:'/v1/alerts',headers:{authorization:'Bearer TEST viewer key'}})
       expect(ok.statusCode).toBe(200);expect(ok.headers['traceparent']).toBeTruthy()
       expect(ok.json().data.items).toHaveLength(1)
       expect(Object.keys(ok.json().data.items[0]).sort()).toEqual(['at','kind','resolvedAt','sectorId','seq','sessionId','severity','state','subject','threadKey'])
@@ -98,17 +98,17 @@ describe.skipIf(!TEST_DATABASE_URL)('scoped table-backed supervision delivery [F
   })
   it.each(['?limit=101','?beforeSeq=0','?unknown=1'])('validates the route query %s',async(query)=>{
     const {pool}=await fixture(),app=buildApp({pool,auth:true})
-    try {expect((await app.inject({method:'GET',url:'/v1/alerts'+query,headers:{authorization:'Bearer [REDACTED] viewer key'}})).statusCode).toBe(400)}finally{await app.close();await pool.end()}
+    try {expect((await app.inject({method:'GET',url:'/v1/alerts'+query,headers:{authorization:'Bearer TEST viewer key'}})).statusCode).toBe(400)}finally{await app.close();await pool.end()}
   })
   it('fails recoverably when projection has not caught up rather than presenting stale current status',async()=>{
     const {pool}=await fixture(),app=buildApp({pool,auth:true})
     const catchup=vi.spyOn(projector,'projectNewEvents').mockResolvedValue({applied:10000,caughtUp:false})
     try {
-      const response=await app.inject({method:'GET',url:'/v1/alerts',headers:{authorization:'Bearer [REDACTED] viewer key'}})
+      const response=await app.inject({method:'GET',url:'/v1/alerts',headers:{authorization:'Bearer TEST viewer key'}})
       expect(response.statusCode).toBe(503);expect(response.json().error.code).toBe('overload')
     }finally{catchup.mockRestore();await app.close();await pool.end()}
   })
-  it.each([{authorization:'Bearer [REDACTED] unknown'},{authorization:'Bearer [REDACTED] viewer key','x-tenant':'TEST forged tenant'}])('denies unknown or mismatched authority',async(headers)=>{
+  it.each([{authorization:'Bearer TEST unknown'},{authorization:'Bearer TEST viewer key','x-tenant':'TEST forged tenant'}])('denies unknown or mismatched authority',async(headers)=>{
     const {pool}=await fixture(),app=buildApp({pool,auth:false})
     try {expect((await app.inject({method:'GET',url:'/v1/alerts',headers})).statusCode).toBe(403)}finally{await app.close();await pool.end()}
   })
