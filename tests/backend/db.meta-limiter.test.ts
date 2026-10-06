@@ -157,4 +157,19 @@ describe.skipIf(!TEST_DATABASE_URL)('meta permit limiter [F:backend.activity.tur
       await release()
     }
   })
+
+  it('a small-max replica never steals expired slots past its max', async () => {
+    await ensureMetaPermits(pool, 8)
+    const releases: Array<() => Promise<void>> = []
+    for (let i = 0; i < 4; i++) {
+      releases.push(await acquireMetaPermit(pool, `TEST limiter small ${i}`, { max: 8 }))
+    }
+    try {
+      await pool.query('UPDATE meta_permits SET holder = $1, held_at = now() - make_interval(secs => 100000) WHERE slot >= 4', ['TEST limiter crashed'])
+      await expect(acquireMetaPermit(pool, 'TEST limiter small waiter', { max: 4, leaseMs: 1000, waitMs: 500 })).rejects.toBeInstanceOf(MetaPermitTimeout)
+    } finally {
+      await pool.query('UPDATE meta_permits SET holder = NULL, held_at = NULL WHERE holder = $1', ['TEST limiter crashed'])
+      for (const release of releases) await release()
+    }
+  })
 })

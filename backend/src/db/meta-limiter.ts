@@ -78,12 +78,15 @@ export async function acquireMetaPermit(
     heartbeat?.()
     await ensureMetaPermits(db, max)
     const { rows } = await db.query<{ slot: number }>(
+      // Mixed fleet maxes: a small-max replica must not take or steal
+      // slots past its own max (converge keeps every row usable by
+      // whichever replica has the larger max).
       `UPDATE meta_permits SET holder = $1, held_at = now() WHERE slot = (
          SELECT slot FROM meta_permits
-         WHERE holder IS NULL OR held_at < now() - make_interval(secs => $2)
+         WHERE (holder IS NULL OR held_at < now() - make_interval(secs => $2)) AND slot < $3
          ORDER BY slot LIMIT 1 FOR UPDATE SKIP LOCKED
        ) RETURNING slot`,
-      [holder, leaseMs / 1000],
+      [holder, leaseMs / 1000, max],
     )
     if (rows.length > 0) {
       let released = false
