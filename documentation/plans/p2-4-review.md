@@ -61,8 +61,8 @@ KARDATA_TEMPORAL_TEST, TEST_DATABASE_URL, TOXIPROXY_URL, prlimit,
 
 ## Deviations
 
-- No `loadContinuation` exists in production, so F4/F5 prove full re-run
-  + stable keys, not checkpoint resume (plan language aspirational).
+- F4/F5 prove resume with stable keys; the drills do not isolate
+  checkpoint resume (`loadContinuation` in turn.ts) from full re-run.
 - F6 has no in-flight turn (10 s cut exceeds the 3-attempt budget);
   it proves pg-path recovery instead. F11 compresses 60 s (call-driven).
 - F16 uses EFBIG-under-prlimit as the ENOSPC proxy + a parity test.
