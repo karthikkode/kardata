@@ -367,13 +367,13 @@ function chatCallFailure(
  * counting stays permit-free: it never touches the vendor. */
 export function wrapAdapterWithPermit(
   adapter: ProviderAdapter,
-  acquire: () => Promise<() => Promise<void>>,
+  acquire: (signal?: AbortSignal) => Promise<() => Promise<void>>,
 ): ProviderAdapter {
   return {
     ...(adapter.countInputTokens ? { countInputTokens: adapter.countInputTokens.bind(adapter) } : {}),
     providerName: adapter.providerName,
     chat: async (request) => {
-      const release = await acquire()
+      const release = await acquire(request.signal)
       try {
         return await adapter.chat(request)
       } finally {
@@ -381,7 +381,7 @@ export function wrapAdapterWithPermit(
       }
     },
     chatStream: async function* (request) {
-      const release = await acquire()
+      const release = await acquire(request.signal)
       try {
         yield* adapter.chatStream(request)
       } finally {

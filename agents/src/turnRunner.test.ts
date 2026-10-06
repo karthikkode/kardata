@@ -85,6 +85,45 @@ describe('runKarbotTurn [F:agents.turnRunner.runKarbotTurn]', () => {
     expect(signal?.aborted).toBe(true)
     expect(deltas).toEqual([])
   })
+  it('acquires the fleet permit before the round timer starts', async () => {
+    // Contended permit (300 ms wait) with a 100 ms round budget and a fast
+    // provider: succeeds only if the wait does not burn the timer.
+    let acquired = false
+    let released = false
+    const { sink } = memorySink()
+    const result = await runKarbotTurn({
+      provider: new FakeProvider([{ text: 'TEST fast reply' }]),
+      mcp: memoryMcp(), sink, systemPrompt: 'sys', messages: [{ role: 'user', text: 'TEST hi' }],
+      timeoutMs: 100,
+      acquirePermit: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 300))
+        acquired = true
+        return async () => { released = true }
+      },
+    })
+    expect(acquired).toBe(true)
+    expect(released).toBe(true)
+    expect(result.text).toBe('TEST fast reply')
+  })
+  it('aborts a contended permit wait on owner cancellation', async () => {
+    const abort = new AbortController()
+    let entered: () => void = () => undefined
+    const called = new Promise<void>((resolve) => { entered = resolve })
+    const pending = runKarbotTurn({
+      provider: new FakeProvider([{ text: 'TEST never' }]),
+      mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages: [],
+      signal: abort.signal,
+      acquirePermit: (signal) => {
+        entered()
+        return new Promise<() => Promise<void>>((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+      },
+    })
+    await called
+    abort.abort(new Error('TEST owner cancelled'))
+    await expect(pending).rejects.toThrow('TEST owner cancelled')
+  })
   it('shows a tool as soon as its provider stream starts', async () => {
     let release: () => void = () => undefined
     let announce: () => void = () => undefined

@@ -42,21 +42,39 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+/** Poll sleep that wakes early on abort (the waiter rejects with the abort
+ * reason instead of sleeping out the interval, then the wait bound). */
+function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal === undefined) return sleep(ms)
+  signal.throwIfAborted()
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => { cleanup(); resolve() }, ms)
+    const onAbort = (): void => { cleanup(); reject(signal.reason ?? new Error('permit wait aborted')) }
+    const cleanup = (): void => { clearTimeout(timer); signal.removeEventListener('abort', onAbort) }
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
 /** Acquires one fleet-wide Meta permit, polling until a slot frees, a
  * crashed holder's lease expires, or the wait bound hits. The holder must
- * be unique per call (release clears by holder). */
+ * be unique per call (release clears by holder). The poll honors `signal`
+ * (owner cancellation stops the wait) and calls `heartbeat` every pass so
+ * a long wait never looks wedged. */
 export async function acquireMetaPermit(
   db: Db,
   holder: string,
-  options: { max?: number; leaseMs?: number; waitMs?: number } = {},
+  options: { max?: number; leaseMs?: number; waitMs?: number; signal?: AbortSignal; heartbeat?: () => void } = {},
 ): Promise<() => Promise<void>> {
   if (typeof holder !== 'string' || holder.length === 0) throw new DbContractError('holder must be a non-empty string')
   const max = options.max ?? resolveMetaMax()
   const leaseMs = options.leaseMs ?? META_PERMIT_LEASE_MS
   const waitMs = options.waitMs ?? META_PERMIT_WAIT_MS
   if (!Number.isInteger(max) || max < 1) throw new DbContractError('max must be a positive integer')
+  const { signal, heartbeat } = options
   const start = Date.now()
   for (;;) {
+    signal?.throwIfAborted()
+    heartbeat?.()
     await ensureMetaPermits(db, max)
     const { rows } = await db.query<{ slot: number }>(
       `UPDATE meta_permits SET holder = $1, held_at = now() WHERE slot = (
@@ -75,7 +93,7 @@ export async function acquireMetaPermit(
       }
     }
     if (Date.now() - start >= waitMs) throw new MetaPermitTimeout(`no Meta permit freed within ${waitMs} ms`)
-    await sleep(200 + Math.floor(Math.random() * 100))
+    await abortableSleep(200 + Math.floor(Math.random() * 100), signal)
   }
 }
 
@@ -84,7 +102,7 @@ export async function withMetaPermit<T>(
   db: Db,
   holder: string,
   run: () => Promise<T>,
-  options: { max?: number; leaseMs?: number; waitMs?: number } = {},
+  options: { max?: number; leaseMs?: number; waitMs?: number; signal?: AbortSignal; heartbeat?: () => void } = {},
 ): Promise<T> {
   const release = await acquireMetaPermit(db, holder, options)
   try {

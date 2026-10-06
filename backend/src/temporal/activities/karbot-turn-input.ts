@@ -107,6 +107,10 @@ export interface KarbotTurnDeps {
   attempt?: number
   measureContext?(usage: { inputTokens: number; budget: number; window: number; method: 'exact' | 'estimated' }): Promise<void>
   signal?: AbortSignal
+  /** Fleet Meta permit hook (live Meta only): the turn runner acquires
+   * before the round timer starts and releases when the round settles.
+   * Absent means unguarded (fake/test adapters). */
+  acquirePermit?(signal: AbortSignal): Promise<() => Promise<void>>
   loadContinuation?(): Promise<{ messages: ChatMessage[]; runKey: string; sources: Array<{ url: string; text: string }>; meta: { round: number; usage: Usage; toolCalls: number; elapsedMs: number; blockedOperations?: RecoveryOperation[]; pendingResponse?: PendingProviderResponse } } | undefined>
   checkpoint?(messages: ChatMessage[], round: number, usage: Usage, toolCalls: number, sources: Array<{ url: string; text: string }>, blockedOperations?: RecoveryOperation[], pendingResponse?: PendingProviderResponse): Promise<void>
   refreshContext?(round: number): Promise<{ references: string[]; notes: string; steering: string[]; paused?: boolean; contextVersion?: number | null; planVersion?: number | null; localVersion?: number }>

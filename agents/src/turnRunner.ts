@@ -120,6 +120,10 @@ export interface KarbotTurnOptions {
   maxTurns?: number
   /** Per-provider-call budget in ms. Default 60_000. */
   timeoutMs?: number
+  /** Fleet permit hook: acquired before the round timer starts (a
+   * contended wait queues instead of burning the provider budget) and
+   * released when the round settles. Absent means unguarded. */
+  acquirePermit?(signal: AbortSignal): Promise<() => Promise<void>>
   /** Context harness: budgets, repetition screening, per-round snapshots,
    * and pre-round condensation. All optional; absent means the legacy
    * behavior (round cap and timeout only). */
@@ -374,6 +378,10 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
     const roundSignal = options.signal ? AbortSignal.any([options.signal, roundController.signal]) : roundController.signal
     let streamClosed = false
     let onAbort: (() => void) | undefined
+    // Fleet permit BEFORE the round timer: a contended wait queues instead
+    // of burning the provider budget. The wait honors the round signal,
+    // so owner cancellation stops the poll.
+    const releasePermit = options.acquirePermit ? await options.acquirePermit(roundSignal) : undefined
     try {
       const streamed = await Promise.race([
         (async () => {
@@ -494,6 +502,9 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
       if (timer !== undefined) clearTimeout(timer)
       if (onAbort) roundSignal.removeEventListener('abort', onAbort)
       roundController.abort()
+      // Best-effort: a release failure must never fail a turn the vendor
+      // already served (the permit lease reclaims the slot).
+      if (releasePermit) await releasePermit().catch(() => undefined)
     }
   }
   if (!completed && recoveryHalt.length === 0 && budgetTripped === undefined && repetitionHalt === undefined) budgetTripped = ['turns']

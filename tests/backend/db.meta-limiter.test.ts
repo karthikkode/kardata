@@ -90,4 +90,27 @@ describe.skipIf(!TEST_DATABASE_URL)('meta permit limiter [F:backend.activity.tur
       await release()
     }
   })
+
+  it('aborts the poll on signal instead of waiting out the bound', async () => {
+    const release = await acquireMetaPermit(pool, 'TEST limiter abort hog', { max: 1 })
+    try {
+      const abort = new AbortController()
+      const pending = acquireMetaPermit(pool, 'TEST limiter abort waiter', { max: 1, waitMs: 60_000, signal: abort.signal })
+      abort.abort(new Error('TEST cancelled'))
+      await expect(pending).rejects.toThrow('TEST cancelled')
+    } finally {
+      await release()
+    }
+  })
+
+  it('heartbeats while polling for a permit', async () => {
+    const release = await acquireMetaPermit(pool, 'TEST limiter heartbeat hog', { max: 1 })
+    try {
+      let beats = 0
+      await expect(acquireMetaPermit(pool, 'TEST limiter heartbeat waiter', { max: 1, waitMs: 500, heartbeat: () => { beats += 1 } })).rejects.toBeInstanceOf(MetaPermitTimeout)
+      expect(beats).toBeGreaterThan(0)
+    } finally {
+      await release()
+    }
+  })
 })

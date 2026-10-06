@@ -56,7 +56,6 @@ import {
   resolveAdapter,
   resolveEffectiveSelection,
   resolveSelection,
-  wrapAdapterWithPermit,
 } from '../../providers/provider-gateway.js'
 import { archiveResearchOutcome, hydrateResearchSources, persistResearchSource, persistExecutionRecord, resolveArchiveTarget, type ArchivedResearchSource } from '../../archive/targets.js'
 
@@ -265,6 +264,7 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
       resume: continuation?.meta,
       signal: deps.signal,
       timeoutMs,
+      ...(providerName === 'meta' && deps.acquirePermit ? { acquirePermit: deps.acquirePermit } : {}),
       onProviderRequest: (round: number, request: Omit<import('@kardata/agents').ProviderRequest, 'signal'>) => {
         roundStarted.set(round, Date.now())
         if (deps.persistExecution) return persist(round, 'request', request)
@@ -692,11 +692,10 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
               return []
             }
           },
-          resolveTurnAdapter: (selection, options) => {
-            const adapter = resolveAdapter(selection, { fakeSteps: options.fakeSteps, model: options.model })
-            if (adapter.providerName !== 'meta') return adapter
-            return wrapAdapterWithPermit(adapter, () => acquireMetaPermit(pool, `${input.runKey}:${randomUUID()}`))
-          },
+          resolveTurnAdapter: (selection, options) => resolveAdapter(selection, { fakeSteps: options.fakeSteps, model: options.model }),
+          // Fleet permit for live Meta rounds: acquired before the round
+          // timer (never inside it), abort-aware, heartbeating while queued.
+          acquirePermit: (signal) => acquireMetaPermit(pool, `${input.runKey}:${randomUUID()}`, { signal, heartbeat: () => context.heartbeat({ sessionId: input.sessionId, at: Date.now() }) }),
           // Sector-linked sessions get the sector palette on top of the
           // Karbot palette (and any skill grant): the same MCP, not all the
           // access. The narrowed palette travels to the server on the grant
