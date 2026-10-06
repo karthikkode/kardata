@@ -54,7 +54,7 @@ describe('trace context helpers (P3.2)', () => {
     ensureTemporalTracing()
     expect(ambientTraceparent()).toBeUndefined()
     const header = withTraceContext(TRACE_ID, () => ambientTraceparent())
-    expect(header).toMatch(/^00-aaaaaaaaaaaaaaaa-[0-9a-f]{16}-01$/)
+    expect(header).toMatch(/^00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-[0-9a-f]{16}-01$/)
   })
 })
 
