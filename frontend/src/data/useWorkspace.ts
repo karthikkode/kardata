@@ -14,15 +14,34 @@ export function useWorkspaceResource<T>(config: StagingConfig | null, key: strin
   const identity = config && key ? `${config.baseUrl}:${config.apiKey}:${key}` : null
   const latestIdentity = useRef(identity)
   useEffect(() => { latestIdentity.current = identity }, [identity])
+  // Polls supersede slow attempts: a success counts only from the latest
+  // attempt (stale rows never overwrite), but a failure surfaces unless a
+  // newer attempt already succeeded. Otherwise a persistently slow
+  // endpoint (every attempt outlived by the next poll) spins forever and
+  // the timeout never renders.
+  const latestAttempt = useRef(0)
+  const lastSuccess = useRef(-1)
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const [current, setCurrent] = useState(identity)
   if (identity !== current) { setCurrent(identity); setState({ status: identity ? 'loading' : 'offline' }) }
   useEffect(() => {
     if (!config || !key) return
-    let live = true
-    loadRef.current(config).then((data) => { if (live) setState({ status: 'ready', data }) }, (error: unknown) => {
-      if (live) setState((old) => ({ ...(apiErrorStatus(error) === 'denied' ? {} : old), status: apiErrorStatus(error), error: error instanceof Error ? error.message : 'Could not load. Try again.' }))
+    const mine = latestAttempt.current + 1
+    latestAttempt.current = mine
+    const startedIdentity = identity
+    // Mounted + same identity only: superseded attempts (an older poll)
+    // still settle through the guards below, never through a dead flag.
+    const fresh = (): boolean => mounted.current && startedIdentity === latestIdentity.current
+    loadRef.current(config).then((data) => {
+      if (!fresh()) return
+      lastSuccess.current = mine
+      if (mine === latestAttempt.current) setState({ status: 'ready', data })
+    }, (error: unknown) => {
+      if (!fresh()) return
+      if (mine < lastSuccess.current) return
+      setState((old) => ({ ...(apiErrorStatus(error) === 'denied' ? {} : old), status: apiErrorStatus(error), error: error instanceof Error ? error.message : 'Could not load. Try again.' }))
     })
-    return () => { live = false }
   }, [config, key, attempt])
   useEffect(() => {
     if (!poll || !config || !key) return
@@ -33,6 +52,7 @@ export function useWorkspaceResource<T>(config: StagingConfig | null, key: strin
     // A successful mutation is authoritative before the following list request.
     // Never publish its result into a resource after credentials/scope change.
     if (latestIdentity.current !== identity) return false
+    lastSuccess.current = latestAttempt.current
     setState({ status: 'ready', data })
     setAttempt((value) => value + 1)
     return true
