@@ -5,7 +5,8 @@
 // (unit+db+temporal; fault/stress are separate gates) and needs both
 // TEST_DATABASE_URL and a Temporal server, like verify:full. Without a
 // DB the db tier skips and the numbers are meaningless, so the backend
-// step is skipped with a printed note instead of a false pass.
+// step fails unless COVERAGE_SKIP_BACKEND=1 skips it explicitly (the
+// backend gate then runs in verify:full / CI integration).
 // Usage: node scripts/coverage.mjs [--backend-only] [--print-plan]
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
@@ -62,7 +63,7 @@ function printPlan() {
   console.log('- frontend: npm run test:coverage -w frontend (lines >= 75%, in-config)')
   const backend = process.env['TEST_DATABASE_URL']
     ? 'npm run test:coverage -w @kardata/backend + core gate (needs Temporal too)'
-    : 'SKIP (needs TEST_DATABASE_URL; runs in verify:full / CI integration)'
+    : 'SKIP only with COVERAGE_SKIP_BACKEND=1 (else fails; runs in verify:full / CI integration)'
   console.log(`- backend: ${backend}`)
   console.log(`- backend core gate: ${CORE_DIRS.join(', ')} lines >= ${CORE_MIN_LINES_PCT}% from coverage/coverage-summary.json`)
 }
@@ -78,7 +79,12 @@ export function main(argv = process.argv.slice(2), env = process.env) {
     run('npm', ['run', 'test:coverage', '-w', 'frontend'])
   }
   if (!env['TEST_DATABASE_URL']) {
-    console.log('coverage: backend skipped (TEST_DATABASE_URL unset; runs in verify:full / CI integration)')
+    if (env['COVERAGE_SKIP_BACKEND'] === '1') {
+      console.log('coverage: backend skipped (COVERAGE_SKIP_BACKEND=1; gate runs in verify:full / CI integration)')
+    } else {
+      console.error('coverage: backend needs TEST_DATABASE_URL (or COVERAGE_SKIP_BACKEND=1 to skip explicitly); refusing a zero-coverage pass')
+      process.exitCode = 1
+    }
   } else {
     run('npm', ['run', 'test:coverage', '-w', '@kardata/backend'])
     gateBackendCore()

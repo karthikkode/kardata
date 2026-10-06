@@ -19,7 +19,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # P7-M3: no DB service here; the backend coverage gate runs in the
+      # integration job, so verify's coverage step skips it explicitly.
       - run: npm run verify
+        env:
+          COVERAGE_SKIP_BACKEND: '1'
       - run: npm test -w @kardata/backend -- pdf-mixed.test.ts
         env:
           KARDATA_PDF_MEMORY_TEST: '1'

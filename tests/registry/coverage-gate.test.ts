@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { checkCoreDirs, CORE_DIRS, CORE_MIN_LINES_PCT } from '../../scripts/coverage.mjs'
+import { checkCoreDirs, CORE_DIRS, CORE_MIN_LINES_PCT, main } from '../../scripts/coverage.mjs'
 
 type SummaryFile = [file: string, covered: number, total: number]
 
@@ -56,6 +56,28 @@ describe('coverage core gate', () => {
       ['backend/src/temporal/c.ts', 90, 100],
     ]))
     expect(result.every((entry) => entry.pass)).toBe(true)
+  })
+
+  it('backend without DB fails unless explicitly skipped (P7-M3)', () => {
+    const prev = process.exitCode
+    try {
+      process.exitCode = 0
+      main(['--backend-only'], {})
+      expect(process.exitCode).toBe(1)
+    } finally {
+      process.exitCode = prev
+    }
+  })
+
+  it('COVERAGE_SKIP_BACKEND=1 skips backend with a note (P7-M3)', () => {
+    const prev = process.exitCode
+    try {
+      process.exitCode = 0
+      main(['--backend-only'], { COVERAGE_SKIP_BACKEND: '1' })
+      expect(process.exitCode ?? 0).toBe(0)
+    } finally {
+      process.exitCode = prev
+    }
   })
 
   it('importing the script does not run the gate (main guard)', () => {
