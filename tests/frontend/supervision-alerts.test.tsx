@@ -38,7 +38,7 @@ it('filters the current tab to live warnings and opens conversations without rel
   expect(onOpenConversation).toHaveBeenCalledWith(item)
   await userEvent.click(screen.getByRole('tab', { name: 'History' }))
   expect(screen.getByText('Heartbeat needs review')).toBeVisible()
-  expect(screen.getByText(/match thread agent:TEST child/)).toBeVisible()
+  expect(screen.getByText(/Match thread agent:TEST child/)).toBeVisible()
 })
 it('pages explicitly and returns to latest without modifying work', async () => {
   const older = vi.fn(), latest = vi.fn()
