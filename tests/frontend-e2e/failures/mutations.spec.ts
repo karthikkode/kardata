@@ -148,6 +148,7 @@ const CASES: FaultCase[] = [
   {
     id: 'frontend.src.components.local_context_editor', label: 'POST context rebuild', method: 'POST',
     pattern: /\/rebuild/, route: CHAT,
+    apiData: { localVariant: 'blocked' },
     setup: [
       ...OPTIONS_MENU,
       { click: { kind: 'role', role: 'menuitem', name: 'Local context' } },
