@@ -320,11 +320,11 @@ export function SectorWorkspace({ sector, model, config, actions, onBack, initia
             return (
               <span key={child.key} className={cn('flex min-w-36 max-w-52 flex-1 items-center', rowEnter)} style={{ animationDelay: `${staggerDelay(index)}s` }}>
                 <Button type="button" variant="ghost" size="sm" onClick={() => model.openThread(child.key)} title={child.key} className="min-w-0 flex-1"><span aria-hidden className={cn('size-1.5 shrink-0 rounded-full', child.status === 'RUNNING' ? 'bg-success motion-safe:animate-pulse' : 'bg-muted-foreground')} /><span className="truncate">{name}</span></Button>
-                {paused ? <Badge tone="warning">Paused</Badge> : null}
+                {paused ? <Badge tone="warning">Paused</Badge> : child.status === 'QUEUED' ? <Badge tone="warning">Queued</Badge> : null}
                 {paused
                   ? <IconButton label={`Resume ${name}`} size="icon-sm" onClick={() => void model.resumeSubagent(childId)}><Icons.play className="size-3.5" aria-hidden /></IconButton>
-                  : child.status === 'RUNNING' ? <IconButton label={`Pause ${name}`} size="icon-sm" onClick={() => void model.pauseSubagent(childId)}><Icons.pause className="size-3.5" aria-hidden /></IconButton> : null}
-                {child.status === 'RUNNING' ? <IconButton label={`Stop ${name}`} size="icon-sm" onClick={() => setStopTarget({ name, stop: () => model.stopSubagent(childId) })} className="text-danger hover:text-danger"><Icons.stopRun className="size-3.5" aria-hidden /></IconButton> : null}
+                  : child.status === 'RUNNING' || child.status === 'QUEUED' ? <IconButton label={`Pause ${name}`} size="icon-sm" onClick={() => void model.pauseSubagent(childId)}><Icons.pause className="size-3.5" aria-hidden /></IconButton> : null}
+                {child.status === 'RUNNING' || child.status === 'QUEUED' ? <IconButton label={`Stop ${name}`} size="icon-sm" onClick={() => setStopTarget({ name, stop: () => model.stopSubagent(childId) })} className="text-danger hover:text-danger"><Icons.stopRun className="size-3.5" aria-hidden /></IconButton> : null}
               </span>
             )
           })}</div> : <Caption as="span" className="min-w-0 flex-1 text-muted-foreground">No subagents yet.</Caption>}{children.length ? <Button type="button" variant="link" size="sm" className="shrink-0" onClick={() => setDirectory(true)}>View all {children.length}</Button> : null}<Button type="button" variant="secondary" size="sm" className="shrink-0" onClick={() => setSpawnOpen(true)}>New subagent</Button></div>
@@ -618,8 +618,8 @@ function AgentDirectory({ model, onOpen, onSpawn, onStop }: { model: SectorWorks
               </button>
               {paused
                 ? <IconButton label={`Resume ${name}`} size="icon-sm" onClick={() => void model.resumeSubagent(childId(thread.key))}><Icons.play className="size-4" aria-hidden /></IconButton>
-                : thread.status === 'RUNNING' ? <IconButton label={`Pause ${name}`} size="icon-sm" onClick={() => void model.pauseSubagent(childId(thread.key))}><Icons.pause className="size-4" aria-hidden /></IconButton> : null}
-              {thread.status === 'RUNNING' ? <IconButton label={`Stop ${name}`} size="icon-sm" onClick={() => onStop(thread.key, name)} className="text-danger hover:text-danger"><Icons.stopRun className="size-4" aria-hidden /></IconButton> : null}
+                : thread.status === 'RUNNING' || thread.status === 'QUEUED' ? <IconButton label={`Pause ${name}`} size="icon-sm" onClick={() => void model.pauseSubagent(childId(thread.key))}><Icons.pause className="size-4" aria-hidden /></IconButton> : null}
+              {thread.status === 'RUNNING' || thread.status === 'QUEUED' ? <IconButton label={`Stop ${name}`} size="icon-sm" onClick={() => onStop(thread.key, name)} className="text-danger hover:text-danger"><Icons.stopRun className="size-4" aria-hidden /></IconButton> : null}
             </li>
           )
         })}

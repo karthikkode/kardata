@@ -69,6 +69,19 @@ because durable children have no wall clock across replays. Proven by
   Continued runs skip the created/launched row. Proven by
   `tests/backend/workflows.continue-as-new.test.ts`.
 
+## Queued-child controls (C6/2)
+
+A waiting child has no workflow yet, so pause/resume/cancel route through
+its live parent: the gateway checks the parent's queue, signals
+`parentChildControl`, and polls the projected state (5 s cap, then
+accepted anyway). The parent drains controls with steers, ahead of
+launches (`queued-controls-v1` patch): pause parks the id past promotion
+(`pausedQueued`, carried across continue-as-new), resume releases it,
+cancel completes it as cancelled without starting it. A control racing
+promotion forwards to the live child; a stale QUEUED row with no parent is
+409. Steers land as pending instructions for the first turn
+(`enqueueQueuedSteering`), never missed.
+
 ## Delegation door (production launch path)
 
 Workflows existed with no production door: nothing could signal

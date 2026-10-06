@@ -36,12 +36,15 @@ import {
   closeState,
   commandId,
   contextCompactionWorkflowId,
+  controlQueuedChild,
   delegationWorkflowId,
   ensureApprovedCoordinator,
   mapResearchStatus, normalizeLaunchError,
+  requireWorkflowType,
   sendTraceparent,
   signalRunCancel,
   sleep,
+  steerQueuedChild,
 } from './runs-helpers.js'
 import {
   SESSION_PREFIX,
@@ -534,6 +537,8 @@ export class TemporalRunsGateway implements RunsGateway {
     await projectNewEvents(this.pool)
     const thread = await getThread(this.pool, threadKey)
     if (!thread) throw new RunNotFound(`no such thread ${threadKey}`)
+    const queuedSteer = await steerQueuedChild(this.pool, await this.client(), thread, text)
+    if (queuedSteer) return queuedSteer
     if (!thread.acceptingSteer) {
       // Finished children record the steer instead of relaunching; anything
       // else that cannot take steer is a conflict the caller resolves.
@@ -548,8 +553,10 @@ export class TemporalRunsGateway implements RunsGateway {
   }
 
   async pauseRun(runId: string): Promise<CommandResult> {
-    const type = await this.requireType(runId, ['sessionRun', 'researchRun', 'subagentRun', 'companyResearch'])
     const client = await this.client()
+    const queued = await controlQueuedChild(this.pool, client, runId, 'pause', () => projectNewEvents(this.pool))
+    if (queued) return queued
+    const type = await requireWorkflowType(client, runId, ['sessionRun', 'researchRun', 'subagentRun', 'companyResearch'])
     if (type === 'subagentRun' || type === 'companyResearch') {
       await setThreadPaused(this.pool, `agent:${runId}`, true)
       await client.workflow.getHandle(runId).signal('childPause')
@@ -562,8 +569,10 @@ export class TemporalRunsGateway implements RunsGateway {
   // _extendedBudgetMs is kept for API compatibility (OpenAPI/commands route);
   // no remaining run type consumes it since the guarded workflow was deleted.
   async resumeRun(runId: string, _extendedBudgetMs?: number): Promise<CommandResult> {
-    const type = await this.requireType(runId, ['sessionRun', 'researchRun', 'companyResearch', 'subagentRun'])
     const client = await this.client()
+    const queued = await controlQueuedChild(this.pool, client, runId, 'resume', () => projectNewEvents(this.pool))
+    if (queued) return queued
+    const type = await requireWorkflowType(client, runId, ['sessionRun', 'researchRun', 'companyResearch', 'subagentRun'])
     const handle = client.workflow.getHandle(runId)
     const description=await handle.describe()
     if (description.status.name!=='RUNNING') {
@@ -603,9 +612,11 @@ export class TemporalRunsGateway implements RunsGateway {
   }
 
   async cancelRun(runId: string): Promise<CommandResult> {
-    const type = await this.requireType(runId, ['sessionRun','subagentRun','companyResearch'])
-    await appendCancelState(this.pool, runId, type)
     const client = await this.client()
+    const queued = await controlQueuedChild(this.pool, client, runId, 'cancel', () => projectNewEvents(this.pool))
+    if (queued) return queued
+    const type = await requireWorkflowType(client, runId, ['sessionRun','subagentRun','companyResearch'])
+    await appendCancelState(this.pool, runId, type)
     const handle = client.workflow.getHandle(runId)
     if (type === 'companyResearch') await handle.cancel()
     else if (type === 'subagentRun') { await handle.signal('childCancel'); await handle.signal('childFinish') }
@@ -686,21 +697,6 @@ export class TemporalRunsGateway implements RunsGateway {
       contextUsedRatio: 0,
       updatedAt: updatedAt.toISOString(),
     }
-  }
-
-  private async requireType(runId: string, allowed: string[]): Promise<string> {
-    const client = await this.client()
-    let description: WorkflowExecutionDescription
-    try {
-      description = await client.workflow.getHandle(runId).describe()
-    } catch (error) {
-      if (error instanceof WorkflowNotFoundError) throw new RunNotFound(`no such run ${runId}`)
-      throw error
-    }
-    if (!allowed.includes(description.type)) {
-      throw new ThreadNotAccepting(`run ${runId} (${description.type}) has no path for this command`)
-    }
-    return description.type
   }
 
   /** Session text with @name goes to that subagent's thread; anything else

@@ -18,6 +18,7 @@ import {
   SubagentLaunched,
   SubagentLaunchedV2,
   SubagentMissedSteer,
+  SubagentQueued,
   ThreadFinished,
   ThreadState,
   type ThreadView,
@@ -155,6 +156,24 @@ async function applyEvent(db: Db, event: ProjectableEvent): Promise<boolean> {
       await db.query(`DELETE FROM threads WHERE key = $1`, [payload.sessionId])
       await db.query(`DELETE FROM thread_context WHERE thread_key = $1 AND active_lease IS NULL`, [payload.sessionId])
       await db.query(`DELETE FROM thread_instructions WHERE thread_key = $1`, [payload.sessionId])
+      return true
+    }
+    case 't.subagent.queued': {
+      // A waiting child is a visible thread from acceptance: the strip and
+      // directory list it as QUEUED with pause/stop controls, and steers
+      // land as pending instructions for its first turn. Launch flips the
+      // same row to RUNNING; re-queued ids flip back.
+      const payload = SubagentQueued.parse(event.payload)
+      const queuedSession = event.partition.replace(/^session:/, '')
+      if (await isSessionDeleted(db, queuedSession)) return true
+      await db.query(
+        `INSERT INTO threads (key, session_id, kind, status, updated_at)
+         VALUES ($1, $2, 'subagent', 'QUEUED', $3::timestamptz)
+         ON CONFLICT (key) DO UPDATE SET status='QUEUED', accepting_steer=true, updated_at=EXCLUDED.updated_at
+         WHERE threads.session_id=EXCLUDED.session_id`,
+        [`agent:${payload.childId}`, queuedSession, at],
+      )
+      await publishState(db, `agent:${payload.childId}`)
       return true
     }
     case 't.subagent.launched': {

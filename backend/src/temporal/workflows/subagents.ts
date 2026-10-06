@@ -36,6 +36,7 @@ import {
   type ExternalWorkflowHandle,
 } from '@temporalio/workflow'
 import { shouldContinueAsNew } from './can.js'
+import { applyChildControl, parentChildControlSignal, shiftUnpaused, type ChildControlRequest } from './child-controls.js'
 import { registerQueueHandlers } from './inbox-queue.js'
 import { resumableTurn } from './resumable-turn.js'
 import { withPreparedExecution } from './epoch-start.js'
@@ -128,6 +129,8 @@ export interface ParentState {
   /** Latest rejections, newest last (cap 20): lets the gateway fail a
    * queue-full racer fast instead of after the 30 s acceptance poll. */
   rejected: Array<{ childId: string; reason: string }>
+  /** Queued children parked past promotion until resumed. */
+  pausedQueued: string[]
 }
 
 export const parentDelegateSignal = defineSignal<[DelegateRequest]>('parentDelegate')
@@ -188,9 +191,11 @@ export interface DelegateParentInput {
 export interface DelegateParentResumed {
   delegations: DelegateRequest[]
   steers: SteerRequest[]
+  controls: ChildControlRequest[]
   waiting: DelegateRequest[]
   promoted: string[]
   queuedNotified: string[]
+  pausedQueued: string[]
   rejections: Array<{ childId: string; reason: string }>
   children: Array<{ childId: string; status: ChildStatus | 'running'; goalFed: boolean }>
   nonce: number
@@ -210,7 +215,9 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
   const carried = input.resumed
   const delegations: DelegateRequest[] = carried?.delegations ?? []
   const steers: SteerRequest[] = carried?.steers ?? []
+  const controls: ChildControlRequest[] = carried?.controls ?? []
   const waiting: DelegateRequest[] = carried?.waiting ?? []
+  const pausedQueued = new Set<string>(carried?.pausedQueued ?? [])
   const queuedNotified = new Set<string>(carried?.queuedNotified ?? [])
   const promoted = new Set<string>(carried?.promoted ?? [])
   const rejections: Array<{ childId: string; reason: string }> = carried?.rejections ?? []
@@ -246,6 +253,10 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
     steers.push(request)
     log.info('signal received', { signal: 'parentSteer', pending: steers.length })
   })
+  setHandler(parentChildControlSignal, (request: ChildControlRequest) => {
+    controls.push(request)
+    log.info('signal received', { signal: 'parentChildControl', pending: controls.length })
+  })
   setHandler(parentNoteDoneSignal, (request: NoteDoneRequest) => {
     const record = children.get(request.childId)
     const wasRunning = record?.status === 'running'
@@ -254,7 +265,7 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
     // the same slot twice. The promotion lands in delegations so the wait
     // below wakes on the same predicate.
     if (wasRunning) {
-      const next = waiting.shift()
+      const next = shiftUnpaused(waiting, pausedQueued)
       if (next) {
         promoted.add(next.childId)
         delegations.push(next)
@@ -271,6 +282,7 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
     children: [...children.entries()].map(([childId, record]) => ({ childId, status: record.status, goalFed: record.goalFed })),
     queued: waiting.map((request) => request.childId),
     rejected: [...rejections],
+    pausedQueued: [...pausedQueued],
   }))
 
   const cancelRunningChildren = async (): Promise<void> => {
@@ -316,9 +328,11 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
           resumed: {
             delegations,
             steers,
+            controls,
             waiting,
             promoted: [...promoted],
             queuedNotified: [...queuedNotified],
+            pausedQueued: [...pausedQueued],
             rejections,
             children: [...children.entries()].map(([childId, record]) => ({ childId, status: record.status, goalFed: record.goalFed })),
             nonce,
@@ -336,7 +350,8 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
           await record.handle.signal(childMessageSignal, steer.text)
         } else {
           // Finished (or unknown) child: never relaunch; the text lands as
-          // missed steer against the closed child id.
+          // missed steer against the closed child id. Queued children steer
+          // through pending thread instructions (gateway path), not here.
           nonce += 1
           await childActivities.appendEventActivity({
             idempotencyKey: idempotencyKey(partition, 'missed', nonce),
@@ -347,14 +362,53 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
         }
         continue
       }
+      // Queued-child controls drain with steers, ahead of launches: a pause
+      // lands before the next promotion. Old histories hold no such
+      // signals, so the gate only ever opens on new runs.
+      if (patched('queued-controls-v1')) {
+        const control = controls.shift()
+        if (control !== undefined) {
+          await applyChildControl({
+            waiting,
+            paused: pausedQueued,
+            isRunning: (childId) => children.get(childId)?.status === 'running',
+            forwardToChild: async (childId, signals) => {
+              const handle = children.get(childId)?.handle
+              if (!handle) return
+              for (const signal of signals) {
+                try { await handle.signal(signal) } catch { /* already closed */ }
+              }
+            },
+            completeCancelled: async (childId) => {
+              nonce += 1
+              await childActivities.appendEventActivity({
+                idempotencyKey: idempotencyKey(partition, `cancelled-${childId}`, nonce),
+                partition,
+                type: 't.subagent.completed',
+                payload: { summary: { id: childId, status: 'cancelled' } },
+              })
+            },
+            noteState: async (childId, status, acceptingSteer) => {
+              nonce += 1
+              await childActivities.appendEventActivity({
+                idempotencyKey: idempotencyKey(partition, `queued-state-${childId}`, nonce),
+                partition,
+                type: 't.thread.state',
+                payload: { threadKey: `agent:${childId}`, status, acceptingSteer },
+              })
+            },
+          }, control)
+          continue
+        }
+      }
       const request = delegations.shift()
       if (request === undefined) {
         const parentIdleTimeoutMs = input.parentIdleTimeoutMs ?? DEFAULT_PARENT_IDLE_TIMEOUT_MS
         const signalled = await condition(
-          () => delegations.length > 0 || steers.length > 0 || finishRequested,
+          () => delegations.length > 0 || steers.length > 0 || controls.length > 0 || finishRequested,
           parentIdleTimeoutMs,
         )
-        if (!signalled && !finishRequested && delegations.length === 0 && steers.length === 0) {
+        if (!signalled && !finishRequested && delegations.length === 0 && steers.length === 0 && controls.length === 0) {
           // Idle close: no running child outlives the parent as an orphan,
           // then complete with a terminal entry.
           await cancelRunningChildren()

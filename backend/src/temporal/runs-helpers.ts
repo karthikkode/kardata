@@ -1,8 +1,8 @@
 // Run gateway helpers: workflow-id builders, the approved-coordinator
 // transition, cancel signaling, and status mapping.
 import { randomUUID } from 'node:crypto'
-import { appendEvent, type TransactableDb } from '../db/index.js'
-import { CancelledFailure, WorkflowFailedError, WorkflowNotFoundError } from '@temporalio/client'
+import { appendEvent, enqueueQueuedSteering, getThread, setThreadPaused, type TransactableDb } from '../db/index.js'
+import { CancelledFailure, WorkflowFailedError, WorkflowNotFoundError, type Client } from '@temporalio/client'
 import { laneConfig } from './lanes.js'
 import { createLogger, logOp } from '../observability/logging.js'
 import { activeTraceId } from '../observability/temporal-tracing.js'
@@ -13,8 +13,10 @@ import {
   SESSION_PREFIX,
   SESSION_WORKFLOW_TYPE,
   TemporalUnavailableError,
+  ThreadNotAccepting,
   type ApprovedCoordinatorHandle,
   type CancelHandle,
+  type CommandResult,
   type RunState,
   type SessionSignalStart,
 } from './runs-types.js'
@@ -178,4 +180,99 @@ export function childNameOf(messages: Array<{ payload: unknown }>): string | und
     if (payload.launched === 'true' && typeof payload.name === 'string') return payload.name
   }
   return undefined
+}
+
+/** Describes a run and rejects handles whose workflow type has no path for
+ * the requested command. */
+export async function requireWorkflowType(client: Client, runId: string, allowed: string[]): Promise<string> {
+  let description
+  try {
+    description = await client.workflow.getHandle(runId).describe()
+  } catch (error) {
+    if (error instanceof WorkflowNotFoundError) throw new RunNotFound(`no such run ${runId}`)
+    throw error
+  }
+  if (!allowed.includes(description.type)) {
+    throw new ThreadNotAccepting(`run ${runId} (${description.type}) has no path for this command`)
+  }
+  return description.type
+}
+
+async function awaitQueuedState(
+  pool: TransactableDb,
+  threadKey: string,
+  status: string,
+  project: () => Promise<unknown>,
+): Promise<void> {
+  const started = Date.now()
+  for (;;) {
+    await project()
+    const current = await getThread(pool, threadKey)
+    if (current?.status === status || Date.now() - started > 5000) return
+    await sleep(200)
+  }
+}
+
+/** Pauses, resumes or cancels a QUEUED child via its live parent. Returns
+ * null when the target is not a queued delegateParent child, so the
+ * caller keeps its existing running path untouched — including a child
+ * that promoted between the read and the control. A stale QUEUED row
+ * whose parent is gone is a 409, not a silent no-op. */
+export async function controlQueuedChild(
+  pool: TransactableDb,
+  client: Client,
+  runId: string,
+  action: 'pause' | 'resume' | 'cancel',
+  project: () => Promise<unknown>,
+): Promise<CommandResult | null> {
+  const threadKey = `agent:${runId}`
+  const thread = await getThread(pool, threadKey)
+  if (!thread || thread.kind !== 'subagent') return null
+  if (thread.status !== 'QUEUED' && thread.status !== 'PAUSED') return null
+  const parent = client.workflow.getHandle(delegationWorkflowId(thread.sessionId))
+  let queued: string[]
+  try {
+    queued = ((await parent.query('parentState')) as { queued?: string[] }).queued ?? []
+  } catch (queryError) {
+    if (!(queryError instanceof WorkflowNotFoundError)) throw queryError
+    throw new ThreadNotAccepting(`child ${runId} has no live parent; it can no longer be controlled`)
+  }
+  if (!queued.includes(runId)) return null
+  if (action === 'cancel') await appendCancelState(pool, runId, 'subagentRun')
+  try {
+    await parent.signal('parentChildControl', { childId: runId, action })
+  } catch (signalError) {
+    if (!(signalError instanceof WorkflowNotFoundError)) throw signalError
+    throw new ThreadNotAccepting(`child ${runId} has no live parent; it can no longer be controlled`)
+  }
+  if (action !== 'cancel') await setThreadPaused(pool, threadKey, action === 'pause')
+  const expect = action === 'cancel' ? 'FINISHED' : action === 'pause' ? 'PAUSED' : 'QUEUED'
+  await awaitQueuedState(pool, threadKey, expect, project)
+  return { commandId: commandId(), state: 'accepted' }
+}
+
+/** Steers a QUEUED child, or a PAUSED child with no live workflow yet: the
+ * instruction waits pending for its first turn instead of recording
+ * missed. Returns null for session threads and children with a live
+ * workflow, which keep their existing steer path. */
+export async function steerQueuedChild(
+  pool: TransactableDb,
+  client: Client,
+  thread: { key: string; kind: string; status: string },
+  text: string,
+): Promise<CommandResult | null> {
+  if (thread.kind !== 'subagent') return null
+  if (thread.status === 'PAUSED') {
+    try {
+      await client.workflow.getHandle(thread.key.slice('agent:'.length)).describe()
+      return null
+    } catch (error) {
+      if (!(error instanceof WorkflowNotFoundError)) throw error
+    }
+  } else if (thread.status !== 'QUEUED') {
+    return null
+  }
+  const id = commandId()
+  await enqueueQueuedSteering(pool, thread.key, text, id)
+  return { commandId: id, state: 'accepted' }
 }

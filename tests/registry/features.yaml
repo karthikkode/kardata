@@ -6719,3 +6719,27 @@
   tiers:
     - db
   states: []
+- id: backend.workflow.child_controls.applyChildControl
+  layer: backend
+  surface: backend/src/temporal/workflows/child-controls.ts
+  tiers:
+    - temporal
+  states: []
+- id: backend.workflow.child_controls.parentChildControlSignal
+  layer: backend
+  surface: backend/src/temporal/workflows/child-controls.ts
+  tiers:
+    - temporal
+  states: []
+- id: backend.workflow.child_controls.shiftUnpaused
+  layer: backend
+  surface: backend/src/temporal/workflows/child-controls.ts
+  tiers:
+    - temporal
+  states: []
+- id: db.workspace_threads.enqueueQueuedSteering
+  layer: db
+  surface: backend/src/db/workspace-threads.ts
+  tiers:
+    - db
+  states: []

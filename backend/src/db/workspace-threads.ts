@@ -143,6 +143,20 @@ export async function enqueueSteering(db: TransactableDb, threadKey: string, tex
     return { id, state: rows[0]?.state ?? 'missed' }
   })
 }
+/** Steer for a child with no live workflow yet (QUEUED or paused-queued):
+ * the instruction waits pending for its first turn instead of recording
+ * missed. The idempotent re-claim flips a just-missed row to pending, so a
+ * steer racing promotion still lands. */
+export async function enqueueQueuedSteering(db: TransactableDb, threadKey: string, text: string, id: string): Promise<{ id: string; state: string }> {
+  await requireThread(db, threadKey)
+  checked(z.string().trim().min(1).max(24000), text); checked(Id, id)
+  return workspaceTransaction(db, threadKey, async (tx) => {
+    const { rows } = await tx.query<{ state: string }>(`INSERT INTO thread_instructions(id,thread_key,text,state)
+      VALUES($1,$2,$3,'pending')
+      ON CONFLICT(id) DO UPDATE SET state='pending' RETURNING state`, [id, threadKey, text])
+    return { id, state: rows[0]?.state ?? 'pending' }
+  })
+}
 export async function readSteeringReceiptsPage(db: Db, threadKey: string, afterId = '', limit = 200, scope?: Scope): Promise<{ items: Array<{ id: string; state: 'consumed' | 'missed' }>; nextAfterId: string | null }> {
   await requireThread(db, threadKey, scope)
   checked(z.string().max(255), afterId); checked(z.number().int().min(1).max(200), limit)
