@@ -122,13 +122,19 @@ const CASES: FaultCase[] = [
   {
     id: 'frontend.src.components.ModelToolbar', label: 'PATCH session model', method: 'PATCH',
     pattern: /\/model/, route: CHAT,
-    errorAnchors: [{ kind: 'role', role: 'alert' }],
-    deniedAnchors: [{ kind: 'role', role: 'alert' }],
+    errorAnchors: [
+      { kind: 'role', role: 'alert' },
+      { kind: 'text', text: 'The model did not save. Check your connection and try again.' },
+    ],
+    deniedAnchors: [
+      { kind: 'role', role: 'alert' },
+      { kind: 'text', text: 'The model did not save. Check your connection and try again.' },
+    ],
     healAnchors: [{ kind: 'css', css: '[aria-label="Choose a model"]' }],
-    healRetrigger: true,
+    retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
     refetch: { steps: [
       { click: { kind: 'css', css: '[aria-label="Choose a model"]' } },
-      { click: { kind: 'text', text: 'Muse Spark 1.3' } },
+      { click: { kind: 'text', text: 'Muse Spark 1.3 Compact' } },
     ] },
   },
   {

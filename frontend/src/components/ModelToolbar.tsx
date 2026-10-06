@@ -566,9 +566,14 @@ export function ModelToolbar({
         </div>
       )}
       {saveError ? (
-        <p role="alert" className="mt-1 text-xs text-danger">
-          {saveError}
-        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <p role="alert" className="text-xs text-danger">
+            {saveError}
+          </p>
+          <Button type="button" variant="secondary" size="sm" onClick={() => persist(draft)}>
+            Try again
+          </Button>
+        </div>
       ) : null}
     </div>
   )
