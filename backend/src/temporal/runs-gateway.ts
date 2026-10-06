@@ -38,7 +38,7 @@ import {
   contextCompactionWorkflowId,
   delegationWorkflowId,
   ensureApprovedCoordinator,
-  mapResearchStatus,
+  mapResearchStatus, normalizeLaunchError,
   sendTraceparent,
   signalRunCancel,
   sleep,
@@ -781,7 +781,7 @@ export class TemporalRunsGateway implements RunsGateway {
     } catch (error) {
       await markExecutionIntent(this.pool,epoch)
       await projectNewEvents(this.pool)
-      throw error
+      throw normalizeLaunchError(error, () => { this.clientPromise = undefined })
     }
   }
 

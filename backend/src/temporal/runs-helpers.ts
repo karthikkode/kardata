@@ -12,6 +12,7 @@ import {
   RunNotFound,
   SESSION_PREFIX,
   SESSION_WORKFLOW_TYPE,
+  TemporalUnavailableError,
   type ApprovedCoordinatorHandle,
   type CancelHandle,
   type RunState,
@@ -115,6 +116,35 @@ export async function appendCancelState(pool: TransactableDb, runId: string, typ
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+const TEMPORAL_DEADLINE_CODES: ReadonlySet<unknown> = new Set([4, 'DEADLINE_EXCEEDED'])
+
+/** True when a Temporal client failure is the RPC deadline firing (F8
+ * launch path): gRPC DEADLINE_EXCEEDED by code or message, up to 4
+ * causes deep. Separate from isTemporalConnectivity (which deliberately
+ * excludes code 4): only the launch path converts it, since only there
+ * does a deadline mean the server is cut rather than slow work. */
+export function isTemporalDeadlineExceeded(error: unknown): boolean {
+  let current: unknown = error
+  for (let depth = 0; depth < 5; depth += 1) {
+    if (!current || (typeof current !== 'object' && typeof current !== 'function')) return false
+    if (TEMPORAL_DEADLINE_CODES.has((current as { code?: unknown }).code)) return true
+    const message = (current as { message?: unknown }).message
+    if (typeof message === 'string' && message.toLowerCase().includes('deadline exceeded')) return true
+    current = (current as { cause?: unknown }).cause
+  }
+  return false
+}
+
+/** Launch-path error mapping (F8): a fired RPC deadline means the server
+ * is cut, so it converts to TemporalUnavailableError (503) like
+ * connectivity failures; anything else rethrows untouched. The client
+ * cache drops on conversion so post-heal commands reconnect fresh. */
+export function normalizeLaunchError(error: unknown, dropClient: () => void): unknown {
+  if (!isTemporalDeadlineExceeded(error)) return error
+  dropClient()
+  return new TemporalUnavailableError('Temporal is unreachable; retry the command shortly.', { cause: error })
 }
 
 export function closeState(statusName: string): RunState {
