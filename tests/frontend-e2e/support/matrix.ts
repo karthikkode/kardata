@@ -79,8 +79,8 @@ function isEnvState(state: MatrixState): state is MatrixEnvState {
   return state === 'dark' || state === 'w1280' || state === 'w768' || state === 'w390' || state === 'focus' || state === 'reduced-motion'
 }
 
-/** Page-level horizontal overflow plus every non-scroll container. */
-async function assertNoOverflow(page: Page): Promise<void> {
+/** Page-level horizontal overflow plus every non-scroll container. Exported for the checker contract spec. */
+export async function assertNoOverflow(page: Page): Promise<void> {
   const bad = await page.evaluate(() => {
     const out: string[] = []
     if (document.documentElement.scrollWidth > window.innerWidth + 1) out.push('page')
@@ -90,8 +90,23 @@ async function assertNoOverflow(page: Page): Promise<void> {
       const style = getComputedStyle(html)
       if (style.overflowX === 'auto' || style.overflowX === 'scroll') continue
       if (html.offsetParent === null && style.position !== 'fixed') continue
+      // Not visible overflow: screen-reader-only content (Tailwind's
+      // sr-only class or the 1px clipped pattern Radix renders inline) and
+      // ellipsis truncation (clipped by definition; titles are checked
+      // separately). None can spill visibly past its container.
+      const rect = html.getBoundingClientRect()
+      const visuallyHidden =
+        html.classList.contains('sr-only') ||
+        (rect.width <= 1 &&
+          rect.height <= 1 &&
+          (style.position === 'absolute' || style.position === 'fixed') &&
+          (style.overflowX === 'hidden' || style.overflowX === 'clip'))
+      if (visuallyHidden || style.textOverflow === 'ellipsis') continue
       if (html.scrollWidth > html.clientWidth + 1) {
-        out.push(`${html.tagName.toLowerCase()}${html.id ? `#${html.id}` : ''}.${String(html.className).split(' ').slice(0, 2).join('.')}`)
+        const text = String(html.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40)
+        out.push(
+          `${html.tagName.toLowerCase()}${html.id ? `#${html.id}` : ''}.${String(html.className).split(' ').slice(0, 2).join('.')} "${text}" sw=${html.scrollWidth} cw=${html.clientWidth}`,
+        )
         if (out.length > 5) break
       }
     }
