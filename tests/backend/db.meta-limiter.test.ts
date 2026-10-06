@@ -113,4 +113,48 @@ describe.skipIf(!TEST_DATABASE_URL)('meta permit limiter [F:backend.activity.tur
       await release()
     }
   })
+
+  it('retries a flapping release and frees the slot', async () => {
+    let flaps = 0
+    const flaky = {
+      query: async <T>(text: string, params?: unknown[]): Promise<{ rows: T[]; rowCount: number }> => {
+        if (text.includes('holder = NULL') && flaps++ < 2) throw new Error('TEST release flap')
+        const result = await pool.query(text, params)
+        return { rows: result.rows as T[], rowCount: result.rowCount ?? 0 }
+      },
+    }
+    const guarded = await acquireMetaPermit(flaky, 'TEST limiter flap guarded', { max: 1 })
+    await guarded()
+    expect(flaps).toBeGreaterThanOrEqual(2)
+    expect(await held()).toBe(0)
+  })
+
+  it('never throws release even when the database stays down', async () => {
+    const down = {
+      query: async <T>(text: string, params?: unknown[]): Promise<{ rows: T[]; rowCount: number }> => {
+        if (text.includes('holder = NULL')) throw new Error('TEST database down')
+        const result = await pool.query(text, params)
+        return { rows: result.rows as T[], rowCount: result.rowCount ?? 0 }
+      },
+    }
+    const guarded = await acquireMetaPermit(down, 'TEST limiter doomed guarded', { max: 1 })
+    try {
+      await expect(guarded()).resolves.toBeUndefined()
+    } finally {
+      await pool.query(`UPDATE meta_permits SET holder = NULL, held_at = NULL WHERE holder = 'TEST limiter doomed guarded'`)
+    }
+  })
+
+  it('renews a live holder past the lease instead of letting it steal', async () => {
+    await ensureMetaPermits(pool, 1)
+    const release = await acquireMetaPermit(pool, 'TEST limiter renewed', { max: 1, leaseMs: 300 })
+    try {
+      // Two full leases pass; renewal keeps the hold, so no heir can steal.
+      await new Promise((resolve) => setTimeout(resolve, 700))
+      await expect(acquireMetaPermit(pool, 'TEST limiter heir denied', { max: 1, leaseMs: 300, waitMs: 300 })).rejects.toBeInstanceOf(MetaPermitTimeout)
+      expect(await held()).toBe(1)
+    } finally {
+      await release()
+    }
+  })
 })

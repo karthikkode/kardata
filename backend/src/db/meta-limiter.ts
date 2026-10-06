@@ -6,10 +6,11 @@
 import { DbContractError } from './errors.js'
 import type { Db } from './events.js'
 
-/** A crashed holder's permit becomes stealable after the lease, and a
- * waiter gives up after the wait bound (the turn retry re-queues). Both
- * bound the worst case at 10 minutes. Callers override per call. */
-const META_PERMIT_LEASE_MS = 600_000
+/** A crashed holder's permit becomes stealable after the lease: 2x the
+ * longest round timeout (180 s plan), renewed while held so only crashed
+ * holders are ever reclaimed. Waiters give up after the wait bound (the
+ * turn retry re-queues). Callers override per call. */
+const META_PERMIT_LEASE_MS = 360_000
 const META_PERMIT_WAIT_MS = 600_000
 
 export class MetaPermitTimeout extends Error {
@@ -86,10 +87,29 @@ export async function acquireMetaPermit(
     )
     if (rows.length > 0) {
       let released = false
+      // Live holders renew at a third of the lease: the short lease only
+      // reclaims crashed holders, never a slow vendor call. Unref'd so a
+      // leaked permit never pins the process; cleared on release.
+      const renew = setInterval(() => {
+        db.query('UPDATE meta_permits SET held_at = now() WHERE holder = $1', [holder]).catch(() => undefined)
+      }, Math.max(50, Math.floor(leaseMs / 3)))
+      renew.unref()
       return async () => {
         if (released) return
         released = true
-        await db.query('UPDATE meta_permits SET holder = NULL, held_at = NULL WHERE holder = $1', [holder])
+        clearInterval(renew)
+        // Never throws: retry with backoff, then let the lease reclaim the
+        // slot. A throwing release would replace a paid vendor response
+        // with an error and pay the vendor twice on retry.
+        for (let attempt = 0; ; attempt += 1) {
+          try {
+            await db.query('UPDATE meta_permits SET holder = NULL, held_at = NULL WHERE holder = $1', [holder])
+            return
+          } catch {
+            if (attempt >= 4) return
+            await sleep(100 * 2 ** attempt)
+          }
+        }
       }
     }
     if (Date.now() - start >= waitMs) throw new MetaPermitTimeout(`no Meta permit freed within ${waitMs} ms`)
