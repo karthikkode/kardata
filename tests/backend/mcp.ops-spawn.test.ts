@@ -68,7 +68,11 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP spawn/restart/propose/request tools [F:
     expect(first.state).toBe('pending')
     const replay = await invokeTool('db.propose_global_context', karbot('operator', karbotSession), args) as { id: string }
     expect(replay.id).toBe(first.id)
-    await expect(invokeTool('db.propose_global_context', karbot('operator', karbotSession), { ...args, idempotencyKey: 'karbot-propose-2' })).rejects.toMatchObject({ code: 'validation_failed' })
+    // A new idempotency key is a new proposal by definition (pending
+    // proposals do not consume baseVersion; only approval bumps it).
+    const second = await invokeTool('db.propose_global_context', karbot('operator', karbotSession), { ...args, idempotencyKey: 'karbot-propose-2' }) as { id: string; state: string }
+    expect(second.state).toBe('pending')
+    expect(second.id).not.toBe(first.id)
     await expect(invokeTool('db.propose_global_context', karbot('operator', sessionA), { ...args, idempotencyKey: 'karbot-propose-3', sectorId: sectorB })).rejects.toMatchObject({ code: 'permission_denied' })
   })
 
