@@ -269,7 +269,8 @@ export function PlanProgress({ resource, review }: { resource: Resource<Research
          </Caption>
         </div>
         {rows.length > 0 ? (
-         <List aria-label="Work items">
+         // No card padding here, so skip the bleed recipe's -mx-2.
+         <List aria-label="Work items" className="mx-0">
           {rows.slice(0, limit).map((item) => {
            const open = expanded.has(item.id)
            return (
