@@ -56,6 +56,7 @@ describe.skipIf(!LIVE_META_ENABLED)('live Karbot (status, steer, monitor) [F:mcp
   it('L-K1: Karbot reports research status and subagent findings from tools', async () => {
     const spendBefore = await stack.spend()
     const sectorId = (await createSector(stack.pool, { name: 'Live Research K1', topic: 'k1', scope: SCOPE })).sectorId
+    await projectNewEvents(stack.pool)
     await recordPlanVersion(stack.pool, sectorId, '# Live K1', 'Target Sydney sparkies first.', SCOPE)
     await markCompanyFound(stack.pool, { sectorId, name: 'Acme Live Widgets', scope: SCOPE })
     await markCompanyFound(stack.pool, { sectorId, name: 'Beta Live Plumbing', scope: SCOPE })
@@ -90,6 +91,7 @@ describe.skipIf(!LIVE_META_ENABLED)('live Karbot (status, steer, monitor) [F:mcp
   it('L-K2: Karbot steers the research parent on command', async () => {
     const spendBefore = await stack.spend()
     const sectorId = (await createSector(stack.pool, { name: 'Live Research K2', topic: 'k2', scope: SCOPE })).sectorId
+    await projectNewEvents(stack.pool)
     const research = (await ensureResearchSession(stack.pool, sectorId, SCOPE)).id
     await projectNewEvents(stack.pool)
     const karbot = await karbotChat()
@@ -117,6 +119,7 @@ describe.skipIf(!LIVE_META_ENABLED)('live Karbot (status, steer, monitor) [F:mcp
   it('L-K3: a 5-minute monitor ticks and reports seeded duplicates', async () => {
     const spendBefore = await stack.spend()
     const sectorId = (await createSector(stack.pool, { name: 'Live Research K3', topic: 'k3', scope: SCOPE })).sectorId
+    await projectNewEvents(stack.pool)
     const research = (await ensureResearchSession(stack.pool, sectorId, SCOPE)).id
     await projectNewEvents(stack.pool)
     const karbot = await karbotChat()
