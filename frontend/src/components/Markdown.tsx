@@ -138,6 +138,19 @@ const components: Components = {
  hr: () => <hr className="my-2 border-border" />,
 }
 
+/** Plain-text fast path: remark re-parse per mount costs ~150ms for a
+ * 50-segment tail (measured on session switch). Texts with no markdown
+ * syntax and no GFM autolinkables render byte-identical paragraphs
+ * without the unified pipeline. Conservative: anything doubtful falls
+ * through to ReactMarkdown. Bare parens, dots, quotes and mid-line > are
+ * literal in GFM and stay fast; < (skipped HTML), escapes, and email
+ * autolinks always take the slow path. */
+const MARKDOWN_SYNTAX =
+ /[`*_#|[\]{}!\\<~]|^\s*[-+>]|^\s*\d+[.)]|https?:\/\/|www\.|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/m
+export function isPlainChatText(text: string): boolean {
+ return text.length <= 5000 && !MARKDOWN_SYNTAX.test(text)
+}
+
 const compactComponents: Components = {
  ...components,
  h1: ({ children }) => <h1 className="mt-3 mb-1 text-ui leading-5 font-medium first:mt-0">{children}</h1>,
@@ -166,33 +179,7 @@ const sectionComponents: Components = {
  h4: ({ children }) => <h4 className="mt-3 mb-1 text-2xs font-medium tracking-[0.05em] text-foreground-subtle uppercase first:mt-0">{children}</h4>,
 }
 
-function MarkdownView({ text, variant = 'chat' }: { text: string; variant?: 'chat' | 'plan' | 'compact' | 'section' }) {
- // Plan documents render through the explicit plan variant: decorative
- // section glyphs and grouped-row rhythm live on the renderer itself, not
- // on wrapper DOM (no reaching through ancestors). Ordinary chat never
- // receives keyword icons. The compact variant is 13px rails-and-brief
- // prose: every heading 13/20 500, paragraphs 13/20 muted. The section
- // variant shares compact prose but drops headings into the Overline
- // label register for prose inside labelled context sections.
- if (variant === 'compact' || variant === 'section') {
- return (
- <div data-markdown="" className="min-w-0 [overflow-wrap:anywhere]">
- <ReactMarkdown
- remarkPlugins={[remarkGfm]}
- allowedElements={ALLOWED_ELEMENTS}
- unwrapDisallowed
- skipHtml
- urlTransform={safeExternalUrl}
- components={variant === 'section' ? sectionComponents : compactComponents}
- >
- {text}
- </ReactMarkdown>
- </div>
- )
- }
- const renderers: Components =
- variant === 'plan'
- ? {
+const planComponents: Components = {
  ...components,
  h2: ({ children }) => {
  const Icon = headingIcon(headingText(children))
@@ -213,8 +200,32 @@ function MarkdownView({ text, variant = 'chat' }: { text: string; variant?: 'cha
  )
  },
  p: ({ children }) => <p className="mt-1 mb-0 text-sm leading-relaxed text-muted-foreground first:mt-0">{children}</p>,
- }
+}
+
+function MarkdownView({ text, variant = 'chat' }: { text: string; variant?: 'chat' | 'plan' | 'compact' | 'section' }) {
+ // Plan documents render through the explicit plan variant: decorative
+ // section glyphs and grouped-row rhythm live on the renderer itself, not
+ // on wrapper DOM (no reaching through ancestors). Ordinary chat never
+ // receives keyword icons. The compact variant is 13px rails-and-brief
+ // prose: every heading 13/20 500, paragraphs 13/20 muted. The section
+ // variant shares compact prose but drops headings into the Overline
+ // label register for prose inside labelled context sections.
+ const renderers: Components =
+ variant === 'plan' ? planComponents
+ : variant === 'section' ? sectionComponents
+ : variant === 'compact' ? compactComponents
  : components
+ // Plain texts skip the unified pipeline: same wrapper, same <p>
+ // renderers, no remark parse (byte-identical paragraphs).
+ const Paragraph = renderers.p
+ if (isPlainChatText(text) && typeof Paragraph === 'function') {
+ const blocks = text.split(/\n\s*\n/).map((block) => block.trim()).filter((block) => block !== '')
+ return (
+ <div data-markdown="" className="min-w-0 [overflow-wrap:anywhere]">
+ {blocks.map((block, index) => <Paragraph key={index}>{block}</Paragraph>)}
+ </div>
+ )
+ }
  return (
  <div data-markdown="" className="min-w-0 [overflow-wrap:anywhere]">
  <ReactMarkdown

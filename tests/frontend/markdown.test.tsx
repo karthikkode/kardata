@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { toast } from 'sonner'
-import { Markdown } from '@/components/Markdown'
+import { Markdown, isPlainChatText } from '@/components/Markdown'
 // NOTE: plan-icon suite appended at file end; shared import above covers it.
 
 vi.mock('sonner', () => {
@@ -136,5 +136,49 @@ describe('section variant', () => {
     expect(heading!.className).toContain('uppercase')
     expect(heading!.className).not.toContain('text-ui')
     expect(heading!.className).not.toContain('font-semibold')
+  })
+})
+
+describe('plain-text fast path', () => {
+  it.each([
+    'Scale-A answer 1000',
+    'Price is 45 AUD (inc GST).',
+    'a > b, and (c) beats "d".',
+    'First line\nsecond line',
+    'Para one\n\nPara two',
+  ])('treats %j as plain', (text) => {
+    expect(isPlainChatText(text)).toBe(true)
+  })
+
+  it.each([
+    '**bold**', '`code`', '# heading', '- item', '1. item', '> quote',
+    '[link](https://example.com)', '![alt](img.png)', '| a | b |',
+    '<b>html</b>', 'C:\\path\\file', 'a_b', 'a~~b~~',
+    'see https://example.com/x', 'go to www.example.com', 'mail a@b.com',
+    'x'.repeat(5001),
+  ])('sends %j through remark', (text) => {
+    expect(isPlainChatText(text)).toBe(false)
+  })
+
+  it('renders plain paragraphs with the same chat <p> as remark', () => {
+    const { container } = render(<Markdown text={'Scale-A answer 1000\n\nSecond para'} />)
+    const paras = Array.from(container.querySelectorAll('p'))
+    expect(paras).toHaveLength(2)
+    expect(paras[0]!.textContent).toBe('Scale-A answer 1000')
+    expect(paras[0]!.className).toContain('leading-[22px]')
+    expect(container.querySelector('[data-markdown]')).not.toBeNull()
+  })
+
+  it('renders plain text identically across variants', () => {
+    for (const variant of ['chat', 'plan', 'compact', 'section'] as const) {
+      const { container, unmount } = render(<Markdown variant={variant} text="Just words here" />)
+      expect(container.querySelector('p')?.textContent).toBe('Just words here')
+      unmount()
+    }
+  })
+
+  it('still linkifies GFM autolinks instead of fast-pathing them', () => {
+    const { container } = render(<Markdown text="see https://example.com/x for rates" />)
+    expect(container.querySelector('a[href="https://example.com/x"]')).not.toBeNull()
   })
 })
