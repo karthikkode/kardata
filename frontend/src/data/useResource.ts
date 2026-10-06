@@ -26,8 +26,17 @@ export function useResource<T>(
   const [data, setData] = useState<T | undefined>(undefined)
   const [status, setStatus] = useState<ResourceStatus>(() => (key === null ? 'ready' : 'loading'))
   const [activeKey, setActiveKey] = useState<string | null>(key)
+  const keyRef = useRef(key)
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
   if (activeKey !== key) {
     setActiveKey(key)
+    keyRef.current = key
     if (key === null) {
       setData(undefined)
       setStatus('ready')
@@ -36,6 +45,13 @@ export function useResource<T>(
     }
   }
   const [attempt, setAttempt] = useState(0)
+  // Polls supersede slow attempts: a success counts only from the latest
+  // attempt, but a failure surfaces unless a newer attempt already
+  // succeeded. Otherwise a persistently slow endpoint (every attempt
+  // outlived by the next poll) spins forever with stale rows and no
+  // error UI.
+  const latestAttempt = useRef(0)
+  const lastSuccess = useRef(0)
   const onDataRef = useRef(onData)
   useEffect(() => {
     onDataRef.current = onData
@@ -50,22 +66,28 @@ export function useResource<T>(
   useEffect(() => {
     const pending = load()
     if (!pending) return undefined
-    let live = true
+    const mine = latestAttempt.current + 1
+    latestAttempt.current = mine
+    const startedKey = activeKey
+    // Mounted + same key only: superseded attempts (an older poll)
+    // still settle through the guards below, never through a dead flag.
+    const fresh = (): boolean => mounted.current && startedKey === keyRef.current
     pending.then(
       (value) => {
-        if (!live) return
+        if (!fresh()) return
+        lastSuccess.current = mine
+        if (mine !== latestAttempt.current) return
         setData(value)
         setStatus('ready')
         onDataRef.current?.(value)
       },
       (cause: unknown) => {
-        if (!live) return
+        if (!fresh()) return
+        if (mine < lastSuccess.current) return
         setStatus(apiErrorStatus(cause))
       },
     )
-    return () => {
-      live = false
-    }
+    return undefined
     // The key encodes every load input; the loader identity is
     // intentionally untracked, like the query keys it replaces.
     // eslint-disable-next-line react-hooks/exhaustive-deps
