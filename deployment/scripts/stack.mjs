@@ -357,7 +357,7 @@ async function cmdToxi(args) {
       return
     }
     if (existing.ok) await run('docker', ['rm', '-f', 'kardata-toxiproxy'])
-    const created = await run('docker', ['run', '-d', '--name', 'kardata-toxiproxy', '--network', 'host', 'shopify/toxiproxy:latest'])
+    const created = await run('docker', ['run', '-d', '--name', 'kardata-toxiproxy', '--network', 'host', 'shopify/toxiproxy@sha256:a6b080af39986b863a1f7c5a3b9bacf2afeb48abab8f0eb7e243f8f7ad38c645'])
     process.stdout.write(created.stdout || created.stderr)
     if (!created.ok) process.exit(1)
     for (let i = 0; i < 30; i++) {
