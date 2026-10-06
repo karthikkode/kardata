@@ -163,7 +163,7 @@ describe('derived counts', () => {
     expect(expectedRowCount(SESSIONS, 'sessions', 'typical')).toBe(8)
     expect(expectedRowCount(SESSIONS, 'sessions', 'n100')).toBe(100)
     expect(expectedRowCount(WORKSPACE, 'sessions', 'typical')).toBe(12)
-    expect(expectedRowCount(WORKSPACE, 'sessions', 'partial')).toBe(7)
+    expect(expectedRowCount(WORKSPACE, 'sessions', 'partial')).toBe(9)
     expect(expectedRowCount(DASHBOARD, 'sectors', 'typical')).toBe(6)
     expect(expectedRowCount(DASHBOARD, 'sectors', 'partial')).toBe(1)
     expect(expectedRowCount(RUNS, 'runs', 'one')).toBe(1)
