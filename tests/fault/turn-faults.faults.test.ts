@@ -94,6 +94,9 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9-F10, F13-F14 [F:
     async callTool(name: string, args: Record<string, unknown>, operationId?: string): Promise<{ content: string; isError?: boolean }> {
       return toolImpl(name, args, operationId)
     },
+    // F9's lookup is read-only: its transport failure is a plain error
+    // result, never a recovery halt. The other drills never throw.
+    isReadOnlyTool: () => true,
   }
 
   function deps(sessionId: string): KarbotTurnDeps {

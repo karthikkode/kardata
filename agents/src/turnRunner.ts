@@ -65,6 +65,10 @@ export interface TurnRunnerMcpClient {
   readonly authorityId?: string
   listTools(): Promise<ToolDefinition[]>
   callTool(name: string, args: Record<string, unknown>, operationId?: string): Promise<McpToolOutcome>
+  /** True when the tool is read-only (no effect to confirm): a transport
+   * failure on it is a plain error result, never a recovery halt. Clients
+   * without read-only knowledge omit it (treated as mutating). */
+  isReadOnlyTool?(name: string): boolean
 }
 
 /** Delta sink: one call per streamed text delta, in stream order. The
@@ -243,7 +247,8 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
     } catch (error) {
       options.signal?.throwIfAborted()
       const operationId = replayId ?? freshId
-      outcome = { content: error instanceof Error ? error.message.slice(0, 500) : 'mcp tool call failed', isError: true, ...(operationId ? { recovery: { operationId, authorityId: options.mcp.authorityId, reason: 'The tool client failed without confirming whether the operation took effect.' } } : {}) }
+      const readOnly = options.mcp.isReadOnlyTool?.(call.name) ?? false
+      outcome = { content: error instanceof Error ? error.message.slice(0, 500) : 'mcp tool call failed', isError: true, ...(operationId && !readOnly ? { recovery: { operationId, authorityId: options.mcp.authorityId, reason: 'The tool client failed without confirming whether the operation took effect.' } } : {}) }
     }
     options.signal?.throwIfAborted()
     await options.onToolResult?.(round, call, outcome, replayId ?? freshId)
@@ -651,6 +656,10 @@ export class StreamableMcpClient implements TurnRunnerMcpClient {
       // remains the real probe, so a failed hello never blocks the turn.
     }
     this.initialized = true
+  }
+
+  isReadOnlyTool(name: string): boolean {
+    return this.readOnlyTools.has(name)
   }
 
   async listTools(): Promise<ToolDefinition[]> {

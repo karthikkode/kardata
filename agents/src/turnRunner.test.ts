@@ -765,6 +765,14 @@ it('parks thrown client errors under the original identity before another provid
   expect(provider.calls).toHaveLength(1)
   expect(result.recoveryHalt?.[0]?.operationId).toBe('TEST thrown run:1:0')
 })
+it('turns a read-only transport failure into a plain error result without halting', async () => {
+  const call = { id: 'TEST lookup call', name: 'db.list_sessions', args: {} }
+  const provider = new FakeProvider([{ text: '', toolCalls: [call] }, { text: 'TEST gap reported' }])
+  const result = await runKarbotTurn({ provider, operationKey: 'TEST lookup run', systemPrompt: 'TEST', messages: [], sink: { onDelta: () => undefined }, mcp: { listTools: async () => [sessionTool()], callTool: async () => { throw new Error('TEST connect ECONNREFUSED') }, isReadOnlyTool: (name) => name === 'db.list_sessions' } })
+  expect(provider.calls).toHaveLength(2)
+  expect(result.recoveryHalt ?? []).toEqual([])
+  expect(result.text).toBe('TEST gap reported')
+})
 
 it('does not dispatch prepared assistant calls after recovery authority denial', async () => {
   const call = { id: 'TEST prepared call', name: 'db.create_session', args: { title: 'TEST original' } }
