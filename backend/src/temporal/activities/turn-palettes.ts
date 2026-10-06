@@ -45,8 +45,10 @@ export const PRODUCT_TOOLS: ReadonlySet<string> = new Set([
 ])
 
 export function productMcpClient(client: TurnRunnerMcpClient): TurnRunnerMcpClient {
+  const isReadOnlyTool = client.isReadOnlyTool?.bind(client)
   return {
     authorityId: client.authorityId,
+    ...(isReadOnlyTool === undefined ? {} : { isReadOnlyTool }),
     async listTools() {
       return (await client.listTools()).filter((tool) => PRODUCT_TOOLS.has(tool.name))
     },
@@ -105,8 +107,10 @@ export const SECTOR_TOOLS: ReadonlySet<string> = new Set([
 ])
 
 export function sectorMcpClient(client: TurnRunnerMcpClient): TurnRunnerMcpClient {
+  const isReadOnlyTool = client.isReadOnlyTool?.bind(client)
   return {
     authorityId: client.authorityId,
+    ...(isReadOnlyTool === undefined ? {} : { isReadOnlyTool }),
     async listTools() {
       return (await client.listTools()).filter((tool) => SECTOR_TOOLS.has(tool.name))
     },
@@ -126,8 +130,10 @@ export function sectorMcpClient(client: TurnRunnerMcpClient): TurnRunnerMcpClien
 export const RESEARCH_TOOLS: ReadonlySet<string> = new Set([...SECTOR_TOOLS, 'db.update_sector_plan'])
 
 export function researchMcpClient(client: TurnRunnerMcpClient): TurnRunnerMcpClient {
+  const isReadOnlyTool = client.isReadOnlyTool?.bind(client)
   return {
     authorityId: client.authorityId,
+    ...(isReadOnlyTool === undefined ? {} : { isReadOnlyTool }),
     async listTools() {
       return (await client.listTools()).filter((tool) => RESEARCH_TOOLS.has(tool.name))
     },
@@ -152,5 +158,6 @@ export function turnPalette(input: { sectorScoped?: boolean; researchParent?: bo
 /** Keep the original transport identity; effective names can only narrow. */
 export function freezeOriginalPalette(client: TurnRunnerMcpClient, names: string[]): TurnRunnerMcpClient {
   const allowed = new Set(z.array(z.string().min(1).max(80)).max(128).parse(names))
-  return { authorityId: client.authorityId, listTools: async () => (await client.listTools()).filter((tool) => allowed.has(tool.name)), callTool: (name, args, operationId) => allowed.has(name) ? client.callTool(name, args, operationId) : Promise.resolve({ content: 'This tool was not in the original execution contract.', isError: true }) }
+  const isReadOnlyTool = client.isReadOnlyTool?.bind(client)
+  return { authorityId: client.authorityId, ...(isReadOnlyTool === undefined ? {} : { isReadOnlyTool }), listTools: async () => (await client.listTools()).filter((tool) => allowed.has(tool.name)), callTool: (name, args, operationId) => allowed.has(name) ? client.callTool(name, args, operationId) : Promise.resolve({ content: 'This tool was not in the original execution contract.', isError: true }) }
 }

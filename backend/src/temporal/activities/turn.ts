@@ -257,6 +257,10 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
       catch (error) { throw new ContextBudgetError('Execution content could not be durably recorded. Retry after storage recovers.', { cause: error }) }
     }
     const roundBase = { provider: providerName, ...(model ? { model } : {}), ...(sectorId ? { sectorId } : {}) }
+    // Read-only knowledge must survive the wrap: without it a read-only
+    // tool transport failure becomes a recovery halt (and an activity
+    // retry loop) instead of a reported source gap.
+    const isReadOnlyTool = deps.mcp.isReadOnlyTool?.bind(deps.mcp)
     const result = await runKarbotTurn({
       maxTurns: 10,
       maxOutputTokens: 16_384,
@@ -378,6 +382,7 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
       provider: adapter,
       mcp: {
         authorityId: deps.mcp.authorityId,
+        ...(isReadOnlyTool === undefined ? {} : { isReadOnlyTool }),
         listTools: () => deps.mcp.listTools(),
         callTool: async (name, args, operationId) => {
           const callStarted = Date.now()
@@ -506,8 +511,10 @@ function karbotMcpClient(input: {
   // tools. The server re-enforces the same grant from the header, so the
   // local filter shapes the prompt while the boundary holds server-side.
   const allow = new Set(input.toolAllow)
+  const allowReadOnly = scoped.isReadOnlyTool?.bind(scoped)
   return {
     authorityId: scoped.authorityId,
+    ...(allowReadOnly === undefined ? {} : { isReadOnlyTool: allowReadOnly }),
     async listTools() {
       return (await scoped.listTools()).filter((tool) => allow.has(tool.name))
     },

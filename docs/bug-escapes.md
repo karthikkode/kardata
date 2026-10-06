@@ -6,6 +6,7 @@ recurrence. New rows append at the top.
 
 | date | bug | found by | tier that should have caught it | test added | rule added |
 |---|---|---|---|---|---|
+| 2026-10-06 | MCP wrappers dropped isReadOnlyTool: read-only tool transport failures became recovery halts (OperationRecoveryError retry loop) instead of reported source gaps | fix loop (B3 F9) | fault | turn-faults F9 + mcp.palettes passthrough cases | wrappers pass isReadOnlyTool through (bound arrow, omit when absent) |
 | 2026-10-06 | Pre-entry pause/cancel/resume dropped: first-WFT signals dispatch while the session box is IDLE, failing the RUNNING/PAUSED guards, and the run proceeded | fix loop (B2a CAN carry) | temporal | workflows.run-first-signal.test.ts (worker starts after signalling) | record pre-entry state intent, apply at entry behind patched() |
 | 2026-10-06 | Child CAN unwind caught as failure: phantom noteDone(failed) freed the parent slot and stretched the CAN across WFTs, losing mid-unwind signals | fix loop (B2b CAN carry) | temporal | workflows.continue-as-new.test.ts child case (correction+m2) | CAN-unwind rethrows before any failure note (mirror delegateParent guard) |
 | 2026-10-04 | Poisoned projector (orphan events from a bad run) wedged every route at 500 | B4 walkthrough | live | hygiene rule, no test | terminate live-namespace residue before reusing a DB |
