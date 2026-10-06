@@ -147,14 +147,22 @@ describe.skipIf(!TEST_DATABASE_URL)('supervision acts (P3.4) [F:db.reconciliatio
       const session = await createSession(pool, 'TEST loop', scope)
       await projectNewEvents(pool)
       await leaseOn(pool, session.id, session.id, `session-run-${session.id}`)
+      const roundId = (await pool.query<{ id: number }>(
+        `INSERT INTO execution_rounds (run_id, thread_key, kind, round, attempt, model, provider, started_at, outcome)
+         VALUES ('TEST turn', $1, 'chat', 0, 0, 'TEST-model', 'fake', now(), 'ok') RETURNING id`,
+        [session.id],
+      )).rows[0]!.id
       for (let i = 0; i < 3; i++) {
-        await appendEvent(pool, { idempotencyKey: randomUUID(), partition: `session:${session.id}`, type: 't.message.appended', payload: { threadKey: session.id, kind: 'tool', message: { name: 'db.list_sessions', args: { q: 1 } } } })
+        await pool.query(
+          `INSERT INTO tool_calls (round_id, thread_key, tool, args_hash, outcome, at)
+           VALUES ($1, $2, 'db.list_sessions', $3, 'ok', now())`,
+          [roundId, session.id, 'ab'.repeat(32)],
+        )
       }
-      await projectNewEvents(pool)
       await recordHeartbeat(pool, `session-run-${session.id}`, 'TEST op', true)
       const captured = { signals: [] as Array<{ workflowId: string; signal: string; payload?: string }>, cancels: [] as string[] }
       await reconcilePage(pool, '', async () => ({ state: 'running' }), Date.now(), () => undefined, runningControl(captured))
-      expect(captured.signals).toEqual([{ workflowId: `session-run-${session.id}`, signal: 'runCancel' }])
+      expect(captured.signals).toEqual([{ workflowId: `session-run-${session.id}`, signal: 'runStopTurn' }])
       expect(captured.cancels).toHaveLength(0)
       const loop = await pool.query('SELECT payload FROM events WHERE type = $1', ['t.loop.detected'])
       expect(loop.rows).toHaveLength(1)

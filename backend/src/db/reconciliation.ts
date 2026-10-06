@@ -115,27 +115,48 @@ export interface TurnLoopEvidence {
   texts: string[]
 }
 
-/** Recent tool calls + agent texts per thread for the loop rule: one
- * batched read per page, newest first, capped per thread. */
+/** Loop evidence scoped to the CURRENT turn only, so older turns never
+ * poison a new one. Tool repeats come from tool_calls (args_hash equality)
+ * for the active run — thread_messages tools land only after the turn ends
+ * and are useless mid-turn; assistant-text repeats come from messages since
+ * the lease began. Two batched reads per page, newest first, capped. */
 export async function recentTurnLoopEvidence(db: Db, threadKeys: string[]): Promise<Map<string, TurnLoopEvidence>> {
   const evidence = new Map<string, TurnLoopEvidence>()
   if (threadKeys.length === 0) return evidence
   for (const key of threadKeys) evidence.set(key, { tools: [], texts: [] })
-  const { rows } = await db.query<{ thread_key: string; kind: string; payload: { name?: unknown; args?: unknown; detail?: unknown; text?: unknown; role?: unknown } }>(
-    `SELECT thread_key, kind, payload FROM (
-       SELECT thread_key, kind, payload, ROW_NUMBER() OVER (PARTITION BY thread_key ORDER BY seq DESC) AS rn
-       FROM thread_messages WHERE thread_key = ANY($1::text[]) AND kind IN ('tool', 'text')
+  const tools = await db.query<{ thread_key: string; tool: string; args_hash: string }>(
+    `SELECT thread_key, tool, args_hash FROM (
+       SELECT scoped.thread_key, scoped.tool, scoped.args_hash,
+         ROW_NUMBER() OVER (PARTITION BY scoped.thread_key ORDER BY scoped.at DESC, scoped.id DESC) AS rn
+       FROM (
+         SELECT tc.thread_key, tc.tool, tc.args_hash, tc.at, tc.id FROM tool_calls tc
+         JOIN execution_rounds r ON r.id = tc.round_id JOIN thread_context c ON c.thread_key = tc.thread_key
+         WHERE tc.thread_key = ANY($1::text[]) AND (r.run_id = c.active_run OR r.run_id = c.active_run || ':compaction')
+         UNION ALL
+         SELECT tc.thread_key, tc.tool, tc.args_hash, tc.at, tc.id FROM tool_calls tc
+         JOIN thread_context c ON c.thread_key = tc.thread_key
+         WHERE tc.thread_key = ANY($1::text[]) AND tc.round_id IS NULL AND c.active_lease IS NOT NULL AND tc.at >= c.active_run_started_at
+       ) scoped
      ) ranked WHERE rn <= 12`,
     [threadKeys],
   )
-  for (const row of rows) {
+  for (const row of tools.rows) {
     const slot = evidence.get(row.thread_key)
-    if (!slot) continue
-    if (row.kind === 'tool' && typeof row.payload.name === 'string' && row.payload.name) {
-      slot.tools.push({ name: row.payload.name, args: row.payload.args ?? row.payload.detail ?? null })
-    } else if (row.kind === 'text' && row.payload.role === 'agent' && typeof row.payload.text === 'string') {
-      slot.texts.push(row.payload.text)
-    }
+    if (slot && row.tool) slot.tools.push({ name: row.tool, args: row.args_hash })
+  }
+  const texts = await db.query<{ thread_key: string; text: string | null }>(
+    `SELECT thread_key, text FROM (
+       SELECT m.thread_key, m.payload->>'text' AS text,
+         ROW_NUMBER() OVER (PARTITION BY m.thread_key ORDER BY m.seq DESC) AS rn
+       FROM thread_messages m JOIN thread_context c ON c.thread_key = m.thread_key
+       WHERE m.thread_key = ANY($1::text[]) AND m.kind = 'text' AND m.payload->>'role' = 'agent'
+         AND c.active_lease IS NOT NULL AND m.at >= c.active_run_started_at
+     ) ranked WHERE rn <= 12`,
+    [threadKeys],
+  )
+  for (const row of texts.rows) {
+    const slot = evidence.get(row.thread_key)
+    if (slot && typeof row.text === 'string') slot.texts.push(row.text)
   }
   return evidence
 }

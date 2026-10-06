@@ -16,7 +16,7 @@ export interface ReconciliationPage { cursor: string; inspected: number; finding
  * double-acts (controlRecorded gates repeats within the lease). */
 export interface ReconciliationControl {
   describe(workflowId: string): Promise<{ state: 'running' | 'closed' | 'unknown'; executionId?: string }>
-  signal(workflowId: string, signalName: 'runSteer' | 'runPause' | 'runCancel', payload?: string): Promise<void>
+  signal(workflowId: string, signalName: 'runSteer' | 'runPause' | 'runCancel' | 'runStopTurn', payload?: string): Promise<void>
   cancel(workflowId: string): Promise<void>
 }
 
@@ -60,7 +60,7 @@ async function applyFinding(
     try {
       if (effective.response === 'nudge') await control.signal(candidate.workflowId, 'runSteer', SUPERVISION_NUDGE)
       else if (effective.response === 'pause') await control.signal(candidate.workflowId, 'runPause')
-      else if (effective.response === 'stop') await control.signal(candidate.workflowId, 'runCancel')
+      else if (effective.response === 'stop') await control.signal(candidate.workflowId, 'runStopTurn')
       else await control.cancel(candidate.workflowId)
     } catch (error) {
       logger.warn({ event: 'execution.control_failed', ...activityLogFields({ threadKey: candidate.threadKey, sessionId: candidate.sessionId }), kind: effective.kind, response: effective.response, code: error instanceof Error ? error.name : 'unknown' })

@@ -1437,6 +1437,12 @@
   tiers:
     - temporal
   states: []
+- id: backend.workflow.run.stopTurnSignal
+  layer: backend
+  surface: backend/src/temporal/workflows/run.ts
+  tiers:
+    - temporal
+  states: []
 - id: backend.workflow.subagents.DEFAULT_CHILD_FINISH_TIMEOUT_MS
   layer: backend
   surface: backend/src/temporal/workflows/subagents.ts

@@ -87,6 +87,7 @@ export const skillSignal = defineSignal<[SkillSignalArgs]>('runSkill')
 export const pauseSignal = defineSignal('runPause')
 export const resumeSignal = defineSignal('runResume')
 export const cancelSignal = defineSignal('runCancel')
+export const stopTurnSignal = defineSignal('runStopTurn')
 export const stateQuery = defineQuery<SessionRunState>('runState')
 
 const turn = proxyActivities<typeof activities>(activityOptions('turn'))
@@ -175,6 +176,13 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
       cancelRunningTurn?.()
     }
     log.info('signal received', { signal: 'runCancel', state: currentState() })
+  })
+  setHandler(stopTurnSignal, () => {
+    // Loop stop: cancel the in-flight turn only. The run stays alive: the
+    // turn catch discards the partial outcome and the loop continues, and
+    // the cancelled activity releases its lease in its own finally.
+    cancelRunningTurn?.()
+    log.info('signal received', { signal: 'runStopTurn', state: currentState() })
   })
   setHandler(stateQuery, () => ({ state: box.state, sessionId: input.sessionId, pending: inbox.length }))
 

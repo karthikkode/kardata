@@ -146,8 +146,8 @@ export function sweepStalls(input: StallSweepInput): StallOutcome[] {
 }
 
 // Turn-loop rule (P3.4): same tool + same args ≥ N in the sampled window,
-// or the same non-empty assistant text twice. Pure over projected
-// thread_messages; the args compare is JSON-exact.
+// or the same non-empty assistant text twice. Pure over run-scoped samples
+// (tool_calls args_hash, in-lease messages); the args compare is hash-exact.
 export interface TurnToolCall {
   name: string
   args: unknown

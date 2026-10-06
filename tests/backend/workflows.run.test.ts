@@ -203,6 +203,30 @@ describe.skipIf(!ENABLED)('session-run workflow (B2.2) [F:backend.activity.turn.
     expect(final).not.toContain('doomed reply')
   }, 120_000)
 
+  it('stops the in-flight turn via runStopTurn while the run stays alive [F:backend.workflow.run.stopTurnSignal]', async () => {
+    const sessionId = `stopturn-${Date.now()}`
+    const handle = await client.workflow.start('sessionRun', {
+      taskQueue: (worker.options as { taskQueue: string }).taskQueue,
+      workflowId: `session-run-${sessionId}`,
+      args: [{ sessionId, fakeSteps: [{ text: 'fake after', delayMs: 15_000 }] }],
+    })
+    await waitFor(async () => await queryState(handle) === 'RUNNING', 30_000, 'run to start')
+    await handle.signal('runSend', 'looping-turn')
+    await waitFor(async () => (await texts(sessionId)).includes('looping-turn'), 15_000, 'user message before turn')
+    await sleep(1_000)
+    await handle.signal('runStopTurn')
+    await sleep(3_000)
+    expect(await queryState(handle)).toBe('RUNNING')
+    await handle.signal('runSend', 'after-stop')
+    await waitFor(
+      async () => (await texts(sessionId)).filter((text) => text === 'fake after').length === 1,
+      45_000,
+      'post-stop reply',
+    )
+    await handle.signal('runCancel')
+    expect(await handle.result()).toBe('cancelled')
+  }, 120_000)
+
   it('an idle run with an empty inbox closes itself instead of persisting', async () => {
     const sessionId = `idle-${Date.now()}`
     const handle = await client.workflow.start('sessionRun', {
