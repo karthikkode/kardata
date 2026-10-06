@@ -100,11 +100,11 @@ export async function listSessions(db: Db, scope?: Scope, sectorId?: string): Pr
   const filter = conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : ''
   const { rows } = await db.query<SessionRow>(
     `${SESSIONS_CTE}
-     SELECT c.id AS id, COALESCE(r.title, c.title) AS title, c.sector AS sector, c.created_at AS created_at, MAX(e.at) AS updated_at
-     FROM created c LEFT JOIN renamed r ON r.id = c.id LEFT JOIN deleted d ON d.id = c.id JOIN events e ON e.partition = 'session:' || c.id
-     WHERE d.id IS NULL ${filter}
-     GROUP BY c.id, COALESCE(r.title, c.title), c.sector, c.created_at
-     ORDER BY MAX(e.at) DESC`,
+     SELECT c.id AS id, COALESCE(r.title, c.title) AS title, c.sector AS sector, c.created_at AS created_at, m.updated_at AS updated_at
+     FROM created c LEFT JOIN renamed r ON r.id = c.id LEFT JOIN deleted d ON d.id = c.id
+     JOIN LATERAL (SELECT MAX(at) AS updated_at FROM events WHERE partition = 'session:' || c.id) m ON true
+     WHERE d.id IS NULL AND m.updated_at IS NOT NULL ${filter}
+     ORDER BY m.updated_at DESC`,
     params,
   )
   return rows.map(toSessionRecord)
@@ -124,10 +124,10 @@ export async function getSession(
   const params = scope ? [sessionId, scope.tenantId, scope.projectId] : [sessionId]
   const { rows } = await db.query<SessionRow>(
     `${SESSIONS_CTE}
-     SELECT c.id AS id, COALESCE(r.title, c.title) AS title, c.sector AS sector, c.created_at AS created_at, MAX(e.at) AS updated_at
-     FROM created c LEFT JOIN renamed r ON r.id = c.id LEFT JOIN deleted d ON d.id = c.id JOIN events e ON e.partition = 'session:' || c.id
-     WHERE c.id = $1 AND d.id IS NULL ${filter}
-     GROUP BY c.id, COALESCE(r.title, c.title), c.sector, c.created_at`,
+     SELECT c.id AS id, COALESCE(r.title, c.title) AS title, c.sector AS sector, c.created_at AS created_at, m.updated_at AS updated_at
+     FROM created c LEFT JOIN renamed r ON r.id = c.id LEFT JOIN deleted d ON d.id = c.id
+     JOIN LATERAL (SELECT MAX(at) AS updated_at FROM events WHERE partition = 'session:' || c.id) m ON true
+     WHERE c.id = $1 AND d.id IS NULL AND m.updated_at IS NOT NULL ${filter}`,
     params,
   )
   const row = rows[0]
