@@ -251,6 +251,8 @@ const CASES: FaultCase[] = [
     pattern: /\/restore/, route: CHAT,
     healAnchors: [{ kind: 'css', css: '[aria-label="Global context"]' }],
     refetch: { steps: [
+      { click: { kind: 'role', role: 'button', name: 'Context history' } },
+      { click: { kind: 'role', role: 'button', name: 'Research agent 2 · v2' } },
       { click: { kind: 'role', role: 'button', name: 'Restore this version' } },
       { click: { kind: 'role', role: 'button', name: 'Restore version' } },
     ] },
