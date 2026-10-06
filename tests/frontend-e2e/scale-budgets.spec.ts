@@ -327,7 +327,10 @@ test('files window 100/1000/2000 with first window under budget at 1000', async 
   }
 })
 
-test('dock open/close cycles keep heap growth under 50MB', async ({ page }) => {
+test('dock open/close cycles keep heap growth under 50MB', async ({ page }, testInfo) => {
+  // 12 honest cycles (mocked cascade + 2000-item menu render each) need
+  // more than the 30s default; per-cycle cost is flat (trace-verified).
+  testInfo.setTimeout(120_000)
   const world: MutableWorld = {
     sessions: scaleSessions(2000), subagents: [], queue: [], messages: [], companies: [], files: [],
   }
@@ -339,8 +342,12 @@ test('dock open/close cycles keep heap growth under 50MB', async ({ page }) => {
     await openDock(page)
     await openSessionsMenu(page)
     await expect(page.getByRole('menuitem', { name: 'Open Scale chat 2000' })).toBeAttached({ timeout: 15000 })
-    await page.keyboard.press('Escape')
-    await page.keyboard.press('Escape')
+    // Dismiss the menu via its backdrop (the trigger sits under it),
+    // then close the dock via its Close button: Escape is ambiguous here
+    // (menu vs dock exit race) and the trigger is covered while open.
+    await page.getByRole('button', { name: 'Dismiss sessions' }).click()
+    await expect(page.getByRole('menu', { name: 'Chat sessions' })).not.toBeVisible()
+    await dock(page).getByRole('button', { name: 'Close' }).click()
     await expect(dock(page)).not.toBeVisible()
   }
   await cycle()
