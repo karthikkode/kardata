@@ -29,6 +29,7 @@ export interface ReconciliationCandidate {
   intentExecutionId?: string | null
   intentState?: string | null
   intentCreatedAtMs?: number | null
+  runStartedAtMs?: number | null
   unresolvedStart?: boolean
   sessionDeleted: boolean
 }
@@ -40,8 +41,8 @@ export async function listReconciliationCandidates(db: Db, after = '', limit = 1
   const { rows } = await db.query<{
     key: string; session_id: string; workflow_id: string | null; status: string; queue_depth: number
     updated_at: Date; heartbeat_at: Date | null; progress_at: Date | null; active_run: string | null; active_lease: string | null
-    current_epoch: string | null; active_epoch: string | null; active_execution_id: string | null; intent_execution_id: string | null; intent_state: string | null; intent_created_at: Date | null; unresolved_start: boolean; session_deleted: boolean
-  }>(`SELECT t.key,t.session_id,t.status,t.queue_depth,t.updated_at,c.active_run,c.active_lease,
+    current_epoch: string | null; active_epoch: string | null; active_execution_id: string | null; intent_execution_id: string | null; intent_state: string | null; intent_created_at: Date | null; run_started_at: Date | null; unresolved_start: boolean; session_deleted: boolean
+  }>(`SELECT t.key,t.session_id,t.status,t.queue_depth,t.updated_at,c.active_run,c.active_lease,c.active_run_started_at AS run_started_at,
       owner.workflow_id,beat.at AS heartbeat_at,progress.at AS progress_at,h.epoch AS current_epoch,c.active_epoch,c.active_execution_id,
       intent.execution_id AS intent_execution_id,intent.state AS intent_state,intent.created_at AS intent_created_at,
       EXISTS(SELECT 1 FROM execution_intents pending WHERE pending.thread_key=t.key AND pending.state IN ('pending','uncertain')) AS unresolved_start,
@@ -65,7 +66,7 @@ export async function listReconciliationCandidates(db: Db, after = '', limit = 1
   const ms = (at: Date | null): number | null => at === null ? null : new Date(at).getTime()
   return rows.map((r) => ({ threadKey: r.key, sessionId: r.session_id, workflowId: r.workflow_id, status: r.status,
     queueDepth: r.queue_depth, updatedAtMs: ms(r.updated_at)!, heartbeatAtMs: ms(r.heartbeat_at), progressAtMs: ms(r.progress_at), activeRun: r.active_run, lease: r.active_lease,
-    currentEpoch: r.current_epoch, activeEpoch: r.active_epoch, activeExecutionId: r.active_execution_id, intentExecutionId: r.intent_execution_id, intentState: r.intent_state, intentCreatedAtMs: ms(r.intent_created_at), unresolvedStart: r.unresolved_start, sessionDeleted: r.session_deleted }))
+    currentEpoch: r.current_epoch, activeEpoch: r.active_epoch, activeExecutionId: r.active_execution_id, intentExecutionId: r.intent_execution_id, intentState: r.intent_state, intentCreatedAtMs: ms(r.intent_created_at), runStartedAtMs: ms(r.run_started_at), unresolvedStart: r.unresolved_start, sessionDeleted: r.session_deleted }))
 }
 
 export interface ReconciliationFinding {
@@ -207,7 +208,7 @@ async function findingFenceHolds(tx: Db, row: FencedRow, candidate: Reconciliati
 }
 
 async function writePause(tx: Db, key: string, partition: string, candidate: ReconciliationCandidate, finding: ReconciliationFinding): Promise<void> {
-  await tx.query('UPDATE thread_context SET active_run=NULL,active_lease=NULL,active_epoch=NULL,active_workflow_id=NULL,active_execution_id=NULL WHERE thread_key=$1', [candidate.threadKey])
+  await tx.query('UPDATE thread_context SET active_run=NULL,active_lease=NULL,active_epoch=NULL,active_workflow_id=NULL,active_execution_id=NULL,active_run_started_at=NULL WHERE thread_key=$1', [candidate.threadKey])
   await appendEvent(tx, { idempotencyKey: `${key}:state`, partition, type: 't.thread.state', payload: { threadKey: candidate.threadKey, status: 'PAUSED', acceptingSteer: false, recoveryEpoch: candidate.activeEpoch } })
   await raiseAlert(tx, { kind: finding.kind, severity: 'high', subject: `No progress on ${candidate.threadKey}: paused, owner review needed`, threadKey: candidate.threadKey })
 }
@@ -225,7 +226,7 @@ async function writeCancel(tx: Db, key: string, partition: string, candidate: Re
 
 async function writeFail(tx: Db, key: string, partition: string, candidate: ReconciliationCandidate, finding: ReconciliationFinding): Promise<void> {
   await appendEvent(tx, { idempotencyKey: `${key}:message`, partition, type: 't.message.appended', payload: { threadKey: candidate.threadKey, kind: 'tool', message: { id: key, name: 'execution.recovery', state: 'failed', detail: finding.reason } } })
-  await tx.query('UPDATE thread_context SET active_run=NULL,active_lease=NULL,active_epoch=NULL,active_workflow_id=NULL,active_execution_id=NULL WHERE thread_key=$1', [candidate.threadKey])
+  await tx.query('UPDATE thread_context SET active_run=NULL,active_lease=NULL,active_epoch=NULL,active_workflow_id=NULL,active_execution_id=NULL,active_run_started_at=NULL WHERE thread_key=$1', [candidate.threadKey])
   await appendEvent(tx, { idempotencyKey: `${key}:state`, partition, type: 't.thread.state', payload: { threadKey: candidate.threadKey, status: 'ERROR', acceptingSteer: false, recoveryEpoch: candidate.activeEpoch ?? undefined, reason: finding.reason, reasonCode: finding.kind } })
   await raiseAlert(tx, { kind: finding.kind, severity: 'high', subject: `Thread failed on ${candidate.threadKey}: ${finding.reason}`, threadKey: candidate.threadKey })
   if (!candidate.threadKey.startsWith('agent:')) return
@@ -279,7 +280,7 @@ export async function recordReconciliation(db: TransactableDb, candidate: Reconc
  * known; the alert and lease clear always land. */
 export async function recordOrphanWorkflow(db: TransactableDb, orphan: OrphanedWorkflow, finding: ReconciliationFinding): Promise<boolean> {
   return workspaceTransaction(db, orphan.threadKey, async (tx) => {
-    const cleared = await tx.query('UPDATE thread_context SET active_run=NULL,active_lease=NULL,active_epoch=NULL,active_workflow_id=NULL,active_execution_id=NULL WHERE thread_key=$1 AND active_lease=$2 AND active_workflow_id IS NOT DISTINCT FROM $3', [orphan.threadKey, orphan.lease, orphan.workflowId])
+    const cleared = await tx.query('UPDATE thread_context SET active_run=NULL,active_lease=NULL,active_epoch=NULL,active_workflow_id=NULL,active_execution_id=NULL,active_run_started_at=NULL WHERE thread_key=$1 AND active_lease=$2 AND active_workflow_id IS NOT DISTINCT FROM $3', [orphan.threadKey, orphan.lease, orphan.workflowId])
     if ((cleared.rowCount ?? 0) !== 1) return false
     const identity = createHash('sha256').update(JSON.stringify([orphan.threadKey, orphan.lease, orphan.workflowId, finding.kind, finding.response])).digest('hex')
     const key = `reconcile:${identity}`

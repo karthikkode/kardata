@@ -166,7 +166,7 @@ export async function beginThreadTurn(db: TransactableDb, threadKey: string, run
     if (!owner && (await tx.query<{ active_epoch: string | null }>('SELECT active_epoch FROM thread_context WHERE thread_key=$1 FOR UPDATE', [threadKey])).rows[0]?.active_epoch) throw new WorkspaceError('conflict', 'A legacy attempt cannot replace a validated execution owner.')
     if (owner && owner.threadKey !== threadKey) throw new WorkspaceError('permission_denied', 'Execution epoch belongs to another thread.')
     const epoch = owner ? await bindExecutionEpoch(tx, owner) : null
-    await tx.query('INSERT INTO thread_context(thread_key,active_run,active_lease,active_epoch,active_workflow_id,active_execution_id) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(thread_key) DO UPDATE SET active_run=$2,active_lease=$3,active_epoch=$4,active_workflow_id=$5,active_execution_id=$6', [threadKey, runKey, lease, epoch, owner?.workflowId ?? null, owner?.executionId ?? null])
+    await tx.query('INSERT INTO thread_context(thread_key,active_run,active_lease,active_epoch,active_workflow_id,active_execution_id,active_run_started_at) VALUES($1,$2,$3,$4,$5,$6,now()) ON CONFLICT(thread_key) DO UPDATE SET active_run=$2,active_lease=$3,active_epoch=$4,active_workflow_id=$5,active_execution_id=$6,active_run_started_at=now()', [threadKey, runKey, lease, epoch, owner?.workflowId ?? null, owner?.executionId ?? null])
     if (owner && epoch) {
       const latest = await tx.query<{ payload: { status?: string; recoveryEpoch?: string } }>("SELECT payload FROM events WHERE type='t.thread.state' AND payload->>'threadKey'=$1 ORDER BY seq DESC LIMIT 1", [threadKey])
       const state = latest.rows[0]?.payload
@@ -192,7 +192,7 @@ export async function finishSteering(db: TransactableDb, threadKey: string, runK
     const active = await tx.query('SELECT active_run FROM thread_context WHERE thread_key=$1 AND active_run=$2 AND ($3::text IS NULL OR active_lease=$3)', [threadKey, runKey, lease ?? null])
     if (!active.rows.length) return
     const { rows } = await tx.query<{ id: string }>("UPDATE thread_instructions SET state='missed' WHERE thread_key=$1 AND state='pending' RETURNING id", [threadKey])
-    await tx.query('UPDATE thread_context SET active_run=NULL,active_lease=NULL,active_epoch=NULL,active_workflow_id=NULL,active_execution_id=NULL WHERE thread_key=$1 AND active_run=$2 AND ($3::text IS NULL OR active_lease=$3)', [threadKey, runKey, lease ?? null])
+    await tx.query('UPDATE thread_context SET active_run=NULL,active_lease=NULL,active_epoch=NULL,active_workflow_id=NULL,active_execution_id=NULL,active_run_started_at=NULL WHERE thread_key=$1 AND active_run=$2 AND ($3::text IS NULL OR active_lease=$3)', [threadKey, runKey, lease ?? null])
     if (rows.length) await publishOutboxFrame(tx, threadKey, 'steering-consumption', { ids: rows.map((row) => row.id), state: 'missed' })
   })
 }

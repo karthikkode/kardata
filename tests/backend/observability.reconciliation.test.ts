@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { Pool } from 'pg'
 import { describe, expect, it } from 'vitest'
-import { appendEvent, beginThreadTurn, createSector, createSession, getThreadHeader, listReconciliationCandidates, readTurnContinuation, recordReconciliation, researchHealth, saveTurnContinuation, type ReconciliationCandidate } from '../../backend/src/db/index.js'
+import { appendEvent, beginThreadTurn, createSector, createSession, finishSteering, getThreadHeader, listReconciliationCandidates, readTurnContinuation, recordReconciliation, researchHealth, saveTurnContinuation, type ReconciliationCandidate } from '../../backend/src/db/index.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { reconcileObservation } from '../../backend/src/observability/reconciliation.js'
 import { reconcilePage } from '../../backend/src/temporal/activities/reconciliation.js'
@@ -27,6 +27,11 @@ describe('bounded execution reconciliation policy', () => {
   })
   it('does not flag startup silence or fresh work', () => {
     expect(reconcileObservation(candidate({ heartbeatAtMs: null,progressAtMs: null }), { state: 'running' }, now)).toEqual([])
+  })
+  it('measures the turn wall clock from the current turn start, not the session workflow age', () => {
+    expect(reconcileObservation(candidate({ intentState: 'bound',intentCreatedAtMs: 0,runStartedAtMs: now - 60_000 }), { state: 'running' }, now)).toEqual([])
+    expect(reconcileObservation(candidate({ intentState: 'bound',intentCreatedAtMs: 0,runStartedAtMs: now - 25 * 60_000 }), { state: 'running' }, now)).toEqual([expect.objectContaining({ kind: 'turn-wall-exceeded',response: 'fail' })])
+    expect(reconcileObservation(candidate({ intentState: 'bound',intentCreatedAtMs: 0,runStartedAtMs: null }), { state: 'running' }, now)).toEqual([])
   })
 })
 
@@ -120,6 +125,21 @@ describe.skipIf(!TEST_DATABASE_URL)('reconciliation production DB/projector path
       expect(reconcileObservation(planning,{ state: 'running' },Date.now())).toEqual([])
       await beginThreadTurn(pool,session.id,'plan:TEST-wrong-sector')
       expect((await listReconciliationCandidates(pool))[0]?.workflowId).toBeNull()
+    } finally { await pool.end() }
+  })
+  it('stamps the turn start at lease claim and clears it when the turn ends', async () => {
+    const pool = new Pool({ connectionString: await ensureTestDb('kardata_test_reconcile_turnstart') })
+    try {
+      const session = await createSession(pool,'TEST turn start stamp')
+      await projectNewEvents(pool)
+      const before = Date.now()
+      await beginThreadTurn(pool,session.id,'run-stamp')
+      const stamped = (await listReconciliationCandidates(pool))[0]!
+      expect(stamped.runStartedAtMs).not.toBeNull()
+      expect(stamped.runStartedAtMs!).toBeGreaterThanOrEqual(before)
+      expect(stamped.runStartedAtMs!).toBeLessThanOrEqual(Date.now())
+      await finishSteering(pool,session.id,'run-stamp')
+      expect(await listReconciliationCandidates(pool)).toEqual([])
     } finally { await pool.end() }
   })
 })

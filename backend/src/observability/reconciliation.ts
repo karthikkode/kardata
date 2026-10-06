@@ -49,7 +49,7 @@ export function reconcileObservation(
 }
 
 function runningFindings(candidate: ReconciliationCandidate, findings: ReconciliationFinding[], now: number, heartbeatAge: number, progressAge: number, loop: LoopObservation | undefined): void {
-  if (candidate.intentState === 'bound' && candidate.intentCreatedAtMs !== null && candidate.intentCreatedAtMs !== undefined && now - candidate.intentCreatedAtMs >= SUPERVISION_THRESHOLDS.turnWallMs) {
+  if (candidate.intentState === 'bound' && candidate.runStartedAtMs !== null && candidate.runStartedAtMs !== undefined && now - candidate.runStartedAtMs >= SUPERVISION_THRESHOLDS.turnWallMs) {
     findings.push({ kind: 'turn-wall-exceeded', response: 'fail', reason: `This turn held its lease past the ${SUPERVISION_THRESHOLDS.turnWallMs / 60_000}-minute wall clock. The run is cancelled and the thread failed honestly.` })
   }
   if (heartbeatAge >= RECONCILIATION_LIMITS.heartbeatStaleMs) {
