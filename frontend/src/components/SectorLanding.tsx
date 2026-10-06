@@ -181,21 +181,30 @@ export function SectorLanding({
     )
   }
   if (!sector) {
+    // A missing sector is an error state, not an empty list: transient
+    // 404s heal through retry, removed sectors exit through Back.
     return (
-      <ResourceState
-        resource={{ status: 'ready', refresh: onRetry }}
-        label="Sector"
-        emptyKind="first"
-        hideTitle
-        icon={<Icons.notFound aria-hidden />}
-        emptyTitle="Sector not found"
-        emptyBody="This sector may have been removed."
-        emptyAction={
-          <Button type="button" variant="primary" size="sm" onClick={onBack}>
-            Back to researches
-          </Button>
-        }
-      />
+      <div role="alert">
+        <ResourceState
+          resource={{ status: 'ready', refresh: onRetry }}
+          label="Sector"
+          emptyKind="first"
+          hideTitle
+          icon={<Icons.notFound aria-hidden />}
+          emptyTitle="Sector not found"
+          emptyBody="This sector may have been removed."
+          emptyAction={
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button type="button" variant="secondary" size="sm" onClick={onRetry}>
+                Try again
+              </Button>
+              <Button type="button" variant="primary" size="sm" onClick={onBack}>
+                Back to researches
+              </Button>
+            </div>
+          }
+        />
+      </div>
     )
   }
   return (
