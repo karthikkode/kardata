@@ -347,7 +347,12 @@ export function ModelToolbar({
           </Button>
         </div>
       ) : status === 'denied' ? (
-        <p className="text-xs text-muted-foreground">Models are not shared with this key.</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs text-muted-foreground">Models are not shared with this key.</p>
+          <Button type="button" variant="secondary" size="sm" onClick={retryCatalog}>
+            Try again
+          </Button>
+        </div>
       ) : status === 'offline' ? (
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-xs text-muted-foreground">Models need a connection.</p>

@@ -1,9 +1,9 @@
 // GET endpoint failure matrix (P6.4): 23 unary read endpoints x 9 faults
-// (500/401/403/404/409/429/32s-timeout/abort/malformed). 17 verified cases
+// (500/401/403/404/409/429/32s-timeout/abort/malformed). 19 verified cases
 // assert the designed error/denied UI + retry + draft kept, then heal.
-// 6 unverified (providers/skills/artifacts/queue/references/session-one:
-// no proven error UI) assert chrome intact + console clean + a grading
-// shot, recorded for verification follow-up. Page-level offline
+// 4 unverified (skills/artifacts/queue/references: no proven error UI)
+// assert chrome intact + console clean + a grading shot, recorded for
+// verification follow-up. Page-level offline
 // (navigator) is covered per consumer below; per-endpoint abort while
 // online maps to the error UI by apiErrorStatus design.
 import { expect, test } from '@playwright/test'
@@ -126,9 +126,11 @@ const CASES: FaultCase[] = [
   {
     id: 'frontend.src.components.ModelToolbar', label: 'GET /v1/providers', method: 'GET',
     pattern: /\/v1\/providers/, route: CHAT,
+    errorAnchors: [{ kind: 'text', text: 'Models did not load.' }],
+    deniedAnchors: [{ kind: 'text', text: 'Models are not shared with this key.' }],
     healAnchors: [{ kind: 'css', css: '[aria-label="Choose a model"]' }],
+    retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
     refetch: { reload: true },
-    unverified: true,
   },
   {
     id: 'frontend.src.components.chat.ChatComposer', label: 'GET /v1/skills', method: 'GET',
@@ -306,9 +308,11 @@ const CASES: FaultCase[] = [
   {
     id: 'frontend.src.components.ModelToolbar', label: 'GET /v1/sessions/:id', method: 'GET',
     pattern: /\/v1\/sessions\/[^/]+$/, route: CHAT,
+    errorAnchors: [{ kind: 'text', text: 'The current model did not load.' }],
+    deniedAnchors: [{ kind: 'text', text: 'The current model did not load.' }],
     healAnchors: [{ kind: 'css', css: '[aria-label="Choose a model"]' }],
+    retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
     refetch: { reload: true },
-    unverified: true,
   },
 ]
 
