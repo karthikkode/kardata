@@ -55,12 +55,14 @@ describe('log coverage seams (P3.3)', () => {
   it('every registry workflow surface uses the workflow logger', () => {
     // Bundles re-export, queue/turn helpers hold no workflow,
     // withPreparedExecution is a shared helper: none own log lines.
+    // can.ts is a pure predicate (no SDK imports) like those helpers.
     const excluded = new Set([
       'backend/src/temporal/workflows/turn-bundle.ts',
       'backend/src/temporal/workflows/research-bundle.ts',
       'backend/src/temporal/workflows/inbox-queue.ts',
       'backend/src/temporal/workflows/resumable-turn.ts',
       'backend/src/temporal/workflows/epoch-start.ts',
+      'backend/src/temporal/workflows/can.ts',
     ])
     for (const file of excluded) {
       expect(() => src(file), `${file} exclusion is current`).not.toThrow()
