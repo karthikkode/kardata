@@ -1,5 +1,6 @@
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
+import { isValidElement } from "react"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
@@ -46,13 +47,25 @@ function Button({
   size = "default",
   pending = false,
   disabled,
+  nativeButton,
+  render,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants> & { pending?: boolean }) {
+  // Link-styled buttons render an anchor: tell Base UI so it does not
+  // warn about the missing native button. An explicit nativeButton wins;
+  // function-form render cannot be inspected and keeps the default.
+  const nonNative =
+    nativeButton === undefined &&
+    isValidElement(render) &&
+    typeof render.type === 'string' &&
+    render.type !== 'button'
   return (
     <ButtonPrimitive
       data-slot="button"
       disabled={disabled || pending}
       aria-busy={pending || undefined}
+      nativeButton={nonNative ? false : nativeButton}
+      render={render}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />
