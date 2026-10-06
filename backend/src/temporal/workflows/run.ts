@@ -232,6 +232,30 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
   }
   await enterInitialState()
 
+  // A turn killed while the run survives (runStopTurn: loop guard,
+  // supervision) must still answer: without a receipt the UI waits for a
+  // reply that never arrives and the thinking indicator sticks forever. A
+  // run-level cancel (CANCELLING) owns its own receipt ('run cancelled' +
+  // finished) at the loop top, so it skips this.
+  async function appendTurnStoppedReceipt(): Promise<void> {
+    if (currentState() === 'CANCELLING' || !patched('turn-cancel-receipt-v1')) return
+    nonce += 1
+    await turn.appendEventActivity({
+      idempotencyKey: idempotencyKey(input.sessionId, runTag, 'turn-stopped', nonce),
+      partition,
+      type: 't.message.appended',
+      payload: {
+        threadKey: input.sessionId,
+        kind: 'text',
+        message: {
+          text: 'That reply was stopped before it finished. Tell me how to proceed and I will continue.',
+          role: 'agent',
+          stopped: true,
+        },
+      },
+    })
+  }
+
   function buildContinuation(): SessionRunInput | undefined {
     const info = workflowInfo()
     if (!patched('can-v1')) return undefined
@@ -409,6 +433,7 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
       })
     } catch (error) {
       if (isCancellation(error)) {
+        await appendTurnStoppedReceipt()
         continue
       }
       nonce += 1
