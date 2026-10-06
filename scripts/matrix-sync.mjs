@@ -151,18 +151,26 @@ function main() {
     for (const state of list) {
       if (DEFAULT_ENV.has(state)) continue
       let anchors = mc.anchors
+      // Gated surfaces (dock, dialog, palette) render their content only
+      // after setup opens them, so per-state content anchors move to a
+      // post-setup postAnchors override; anchors stays the trigger.
+      let post = null
       if (state === 'empty') {
         if (!mc.emptyAnchors) {
           console.error(`${id}: empty state needs emptyAnchors`)
           process.exit(1)
         }
-        anchors = mc.emptyAnchors
+        if (mc.gated) post = mc.emptyAnchors
+        else anchors = mc.emptyAnchors
       } else if (state === 'loading' || state === 'error' || state === 'denied' || state === 'offline') {
         if (mc.family === 'static' && state !== 'loading') {
           console.error(`${id}: static family cannot assert ${state}`)
           process.exit(1)
         }
-        if (mc.family !== 'static') anchors = CONTENT[mc.family][state]
+        if (mc.family !== 'static') {
+          if (mc.gated) post = CONTENT[mc.family][state]
+          else anchors = CONTENT[mc.family][state]
+        }
       }
       // P6-M4: count states assert rows + totals, longtext asserts snippets.
       const extras = []
@@ -178,6 +186,7 @@ function main() {
         needsFactory = true
       }
       if (parts.length > 0) extras.push(`expectedTexts: [${parts.join(', ')}]`)
+      if (post) extras.push(`postAnchors: ${JSON.stringify([...(mc.postAnchors ?? []), ...post])}`)
       tests.push(
         `test('[F:${id}] ${shortName(id)} ${state}', async ({ page }) => {\n` +
         `  await runMatrixState(page, { ...base, anchors: ${JSON.stringify(anchors)}${extras.length > 0 ? `, ${extras.join(', ')}` : ''} }, '${state}')\n` +

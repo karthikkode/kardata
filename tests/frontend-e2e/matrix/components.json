@@ -1,5 +1,5 @@
 {
-  "_comment": "Matrix case table (P6.3): one entry per visual component. anchors = chrome asserted for content states; fault/loading/empty states assert the family content anchors instead (shared-state UI replaces content by design). postAnchors assert after setup. ThinkingRow (live-only) and the 7 non-visual hook/helper modules have no entry: ThinkingRow is tagged in the 6.3.2 live-state spec, the rest in jsdom unit tests.",
+  "_comment": "Matrix case table (P6.3): one entry per visual component. anchors = chrome asserted for content states; fault/loading/empty states assert the family content anchors instead (shared-state UI replaces content by design). postAnchors assert after setup. gated: true moves per-state content anchors post-setup (the surface renders only after setup opens it); anchors stays the trigger. ThinkingRow (live-only) and the 7 non-visual hook/helper modules have no entry: ThinkingRow is tagged in the 6.3.2 live-state spec, the rest in jsdom unit tests.",
   "frontend.src.components.ChatPanel": {
     "route": "/",
     "setup": [
@@ -11,7 +11,15 @@
         }
       }
     ],
+    "gated": true,
     "anchors": [
+      {
+        "kind": "role",
+        "role": "button",
+        "name": "Ask Karbot"
+      }
+    ],
+    "postAnchors": [
       {
         "kind": "role",
         "role": "complementary",

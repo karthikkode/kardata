@@ -15,54 +15,61 @@ const base: Omit<MatrixCase, 'anchors'> = {
       }
     }
   ],
+  "postAnchors": [
+    {
+      "kind": "role",
+      "role": "complementary",
+      "name": "Assistant chat"
+    }
+  ],
   "primary": "sessions",
   "secondary": "messages"
 }
 
 test('[F:frontend.src.components.ChatPanel] ChatPanel loading', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"status"}] }, 'loading')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], postAnchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"status"}] }, 'loading')
 })
 
 test('[F:frontend.src.components.ChatPanel] ChatPanel empty', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"text","text":"Ask Karbot anything"}] }, 'empty')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], postAnchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"text","text":"Ask Karbot anything"}] }, 'empty')
 })
 
 test('[F:frontend.src.components.ChatPanel] ChatPanel typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'typical')
 })
 
 test('[F:frontend.src.components.ChatPanel] ChatPanel error', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"role","role":"button","name":"Try again"}] }, 'error')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], postAnchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"alert"},{"kind":"role","role":"button","name":"Try again"}] }, 'error')
 })
 
 test('[F:frontend.src.components.ChatPanel] ChatPanel offline', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"text","text":"No connection"},{"kind":"role","role":"button","name":"Try again"}] }, 'offline')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], postAnchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"text","text":"No connection"},{"kind":"role","role":"button","name":"Try again"}] }, 'offline')
 })
 
 test('[F:frontend.src.components.ChatPanel] ChatPanel partial', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"}] }, 'partial')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'partial')
 })
 
 test('[F:frontend.src.components.ChatPanel] ChatPanel dark', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"}] }, 'dark')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'dark')
 })
 
 test('[F:frontend.src.components.ChatPanel] ChatPanel w1280', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"}] }, 'w1280')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'w1280')
 })
 
 test('[F:frontend.src.components.ChatPanel] ChatPanel w768', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"}] }, 'w768')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'w768')
 })
 
 test('[F:frontend.src.components.ChatPanel] ChatPanel w390', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"}] }, 'w390')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'w390')
 })
 
 test('[F:frontend.src.components.ChatPanel] ChatPanel focus', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"}] }, 'focus')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'focus')
 })
 
 test('[F:frontend.src.components.ChatPanel] ChatPanel reduced-motion', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"}] }, 'reduced-motion')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'reduced-motion')
 })
