@@ -5,7 +5,8 @@
 import { FileProcessingRetry } from './FileProcessingRetry'
 import type { LibraryFile } from '../data/useFiles'
 import { useWorkReview } from '../data/useWorkReview'
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useVirtualList } from '@/lib/useVirtualList'
 import { Icons } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import type { SectorWorkspaceModel } from '../data/sector-workspace'
@@ -424,16 +425,6 @@ function renderChatRefChips(text: string) {
 function QueueDisclosure({ model }: { model: SectorWorkspaceModel }) {
   const items = model.queue.data ?? []
   if (!items.length) return null
-  const move = (index: number, delta: -1 | 1) => {
-    const next = items.map((item) => item.id)
-    const other = index + delta
-    const current = next[index]
-    const sibling = next[other]
-    if (current === undefined || sibling === undefined) return
-    next[index] = sibling
-    next[other] = current
-    void (async () => { if (!(await model.reorderQueue(next))) notify.error('Could not reorder the queue. Try again.') })()
-  }
   return (
     <CollapsibleRoot className="mb-2 rounded-md border border-border-subtle">
       <CollapsibleTrigger className="min-h-9 px-3">
@@ -442,22 +433,70 @@ function QueueDisclosure({ model }: { model: SectorWorkspaceModel }) {
         <Icons.chevronDown data-chevron aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       </CollapsibleTrigger>
       <CollapsiblePanel>
-        <div className="px-2 pt-1 pb-2">
-          <List aria-label="Queued messages">
-            {items.map((item, index) => (
-              <ListRow key={item.id} density="dense">
-                <BodySm as="span" className="min-w-0 flex-1 line-clamp-2 [overflow-wrap:anywhere]">{item.text}</BodySm>
-                <span className="flex shrink-0 items-center">
-                  <IconButton label={`Move ${item.text} up`} size="icon-sm" disabled={index === 0} onClick={() => move(index, -1)}><Icons.moveUp className="size-4" aria-hidden /></IconButton>
-                  <IconButton label={`Move ${item.text} down`} size="icon-sm" disabled={index === items.length - 1} onClick={() => move(index, 1)}><Icons.moveDown className="size-4" aria-hidden /></IconButton>
-                  <IconButton label={`Remove ${item.text}`} size="icon-sm" onClick={() => { void (async () => { if (!(await model.removeQueued(item.id))) notify.error('Could not remove the message. Try again.') })() }} className="text-danger hover:text-danger"><Icons.delete className="size-4" aria-hidden /></IconButton>
-                </span>
-              </ListRow>
-            ))}
-          </List>
-        </div>
+        <QueueVirtualList model={model} items={items} />
       </CollapsiblePanel>
     </CollapsibleRoot>
+  )
+}
+
+// Queued-row innards, memoized apart from the positioned wrapper:
+// the wrapper's translateY changes on every scroll tick, but the text
+// and buttons of a row that stays in range do not (each IconButton
+// mounts a tooltip tree, so re-rendering them per tick janks).
+const QueueRowBody = memo(function QueueRowBody({ item, index, total, onMove, onRemove }: {
+  item: { id: string; text: string }
+  index: number
+  total: number
+  onMove: (index: number, delta: -1 | 1) => void
+  onRemove: (id: string) => void
+}) {
+  return (
+    <>
+      <BodySm as="span" className="min-w-0 flex-1 line-clamp-2 [overflow-wrap:anywhere]">{item.text}</BodySm>
+      <span className="flex shrink-0 items-center">
+        <IconButton label={`Move ${item.text} up`} size="icon-sm" disabled={index === 0} onClick={() => onMove(index, -1)}><Icons.moveUp className="size-4" aria-hidden /></IconButton>
+        <IconButton label={`Move ${item.text} down`} size="icon-sm" disabled={index === total - 1} onClick={() => onMove(index, 1)}><Icons.moveDown className="size-4" aria-hidden /></IconButton>
+        <IconButton label={`Remove ${item.text}`} size="icon-sm" onClick={() => onRemove(item.id)} className="text-danger hover:text-danger"><Icons.delete className="size-4" aria-hidden /></IconButton>
+      </span>
+    </>
+  )
+})
+
+// Virtualized + height-capped queue list. Mounts with its scrollport
+// inside the panel (never above the open/close conditional): the
+// virtualizer subscribes on mount, and 1000 uncapped rows used to blow
+// out the composer and bury the trigger under the log.
+function QueueVirtualList({ model, items }: { model: SectorWorkspaceModel; items: Array<{ id: string; text: string }> }) {
+  const { parentRef, virtualizer } = useVirtualList(items.length, 56)
+  const virtualRows = virtualizer.getVirtualItems()
+  const move = useCallback((index: number, delta: -1 | 1) => {
+    const next = items.map((item) => item.id)
+    const other = index + delta
+    const current = next[index]
+    const sibling = next[other]
+    if (current === undefined || sibling === undefined) return
+    next[index] = sibling
+    next[other] = current
+    void (async () => { if (!(await model.reorderQueue(next))) notify.error('Could not reorder the queue. Try again.') })()
+  }, [items, model])
+  const remove = useCallback((id: string) => {
+    void (async () => { if (!(await model.removeQueued(id))) notify.error('Could not remove the message. Try again.') })()
+  }, [model])
+  return (
+    <div ref={parentRef} className="scroll-slim max-h-64 overflow-y-auto px-2 pt-1 pb-2">
+      <List aria-label="Queued messages" style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+        {virtualRows.map((virtualRow) => {
+          const item = items[virtualRow.index]
+          if (!item) return null
+          const index = virtualRow.index
+          return (
+          <ListRow key={item.id} density="dense" ref={virtualizer.measureElement} data-index={index} aria-posinset={index + 1} aria-setsize={items.length} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${virtualRow.start}px)` }}>
+            <QueueRowBody item={item} index={index} total={items.length} onMove={move} onRemove={remove} />
+          </ListRow>
+          )
+        })}
+      </List>
+    </div>
   )
 }
 

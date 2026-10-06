@@ -268,18 +268,22 @@ test('queue renders 100/1000/2000 with first render under budget at 1000', async
     await expect(trigger).toBeVisible({ timeout: 15000 })
     await trigger.click()
     const list = page.locator('[aria-label="Queued messages"]')
-    await expect(list.getByText(`Scale queued ${count}`)).toBeAttached({ timeout: 15000 })
+    const first = list.getByText('Scale queued 1', { exact: true })
+    const last = list.getByText(`Scale queued ${count}`)
+    await wheelToEnd(page, first, last)
     if (count === 1000) {
       await trigger.click()
+      await expect(list).not.toBeAttached()
       const started = Date.now()
       await trigger.click()
-      await expect(list.getByText(`Scale queued ${count}`)).toBeAttached({ timeout: 15000 })
+      await expect(first).toBeAttached({ timeout: 15000 })
       expect(Date.now() - started).toBeLessThanOrEqual(300)
+      await wheelToEnd(page, first, last)
     }
     if (count === 2000) {
       await clearLongtasks(page)
-      await wheelDown(page, list)
-      await expect(list.getByText(`Scale queued ${count}`)).toBeVisible({ timeout: 15000 })
+      await wheelUp(page, last)
+      await expect(list).toBeVisible()
       expect(await maxLongtask(page)).toBeLessThanOrEqual(50)
     }
   }
