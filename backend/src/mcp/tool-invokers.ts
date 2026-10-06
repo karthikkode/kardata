@@ -7,6 +7,7 @@ import { assertGlobalFileContext } from '../db/workspace-global-context.js'
 // auth, transport, and tool schemas, never SQL. Projector-only
 // publishOutboxFrame/runCheckpointTx are intentionally absent.
 import { z } from 'zod'
+import { projectNewEvents } from '../projector.js'
 
 /** Role ladder lives in auth/keys.ts (viewer < operator < approver). */
 import {
@@ -272,7 +273,11 @@ export const INVOKERS: Invokers = {
     try {
       // Same lifecycle as the route: halt the run before recording paused.
       // Without a sweep runner this fails closed instead of relabeling.
-      return await pauseSectorSweep(ctx.pool, ctx.runs, args.sectorId, ctx.scope, key)
+      await pauseSectorSweep(ctx.pool, ctx.runs, args.sectorId, ctx.scope, key)
+      // The transition only appends; the routes project before re-reading,
+      // and so must we, or the caller sees the pre-transition state.
+      await projectNewEvents(ctx.pool)
+      return await getSector(ctx.pool, args.sectorId, ctx.scope)
     } catch (error: unknown) {
       if (error instanceof SectorTransitionError) throw new DbContractError(`${error.failure}: ${error.message}`)
       throw error
@@ -281,7 +286,9 @@ export const INVOKERS: Invokers = {
   'db.resume_sector_research': async (ctx, args) => {
     const key = args.idempotencyKey ? `sector-resume:${args.sectorId}:${ctx.keyId}:${args.idempotencyKey}` : undefined
     try {
-      return await resumeSectorSweep(ctx.pool, ctx.runs, args.sectorId, ctx.scope, key)
+      await resumeSectorSweep(ctx.pool, ctx.runs, args.sectorId, ctx.scope, key)
+      await projectNewEvents(ctx.pool)
+      return await getSector(ctx.pool, args.sectorId, ctx.scope)
     } catch (error: unknown) {
       if (error instanceof SectorTransitionError) throw new DbContractError(`${error.failure}: ${error.message}`)
       throw error
@@ -679,7 +686,9 @@ export const INVOKERS: Invokers = {
   'ops.restart_sector_research': async (ctx, args) => {
     const key = args.idempotencyKey ? `sector-restart:${args.sectorId}:${ctx.keyId}:${args.idempotencyKey}` : undefined
     try {
-      return await restartSectorSweep(ctx.pool, ctx.runs, args.sectorId, ctx.scope, key)
+      await restartSectorSweep(ctx.pool, ctx.runs, args.sectorId, ctx.scope, key)
+      await projectNewEvents(ctx.pool)
+      return await getSector(ctx.pool, args.sectorId, ctx.scope)
     } catch (error: unknown) {
       if (error instanceof SectorTransitionError) throw new DbContractError(`${error.failure}: ${error.message}`)
       throw error
