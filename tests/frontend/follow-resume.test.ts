@@ -229,4 +229,16 @@ describe('followThread resume', () => {
     expect(recovered.at(-1)?.pendingText).toBeNull()
   })
 
+  it.each(['FINISHED', 'ERROR', 'STOPPED', 'CANCELLING'])('drops in-flight deltas on a %s state frame', async (status) => {
+    vi.stubGlobal('fetch', vi.fn(async () => streamOf([
+      frame({ seq: 1, type: 'tool', payload: { runKey: 'TEST run', id: 'TEST tool', name: 'search', state: 'running' } }),
+      frame({ seq: 2, type: 'delta', payload: { runKey: 'TEST run', text: 'partial…' } }),
+      frame({ seq: 3, type: 'state', payload: { status } }),
+    ])))
+    const snapshots = await drain(followThread(config, 'terminal-clear'))
+    expect(snapshots[1]).toMatchObject({ pendingText: 'partial…' })
+    expect(snapshots[1]?.pendingTools).toHaveLength(1)
+    expect(snapshots.at(-1)).toMatchObject({ pendingText: null, pendingReasoning: null, pendingTools: [], threadStatus: status, error: null })
+  })
+
 })

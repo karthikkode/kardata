@@ -213,5 +213,5 @@ export function useWorkspaceConversation(config: StagingConfig | null, threadKey
     }
   }
   return { ...state, setDraft: (draft: string) => { if (threadKey) update(threadKey, (old) => ({ ...old, draft })) }, send,
-    retry: () => { if (threadKey) start(threadKey) }, stopped: () => { if (threadKey) update(threadKey, (old) => ({ ...old, phase: 'stopped', busy: false, pending: [], echo: null })) } }
+    retry: () => { if (threadKey) start(threadKey) }, stopped: () => { if (threadKey) update(threadKey, (old) => ({ ...old, phase: 'stopped', busy: false, pending: [], echo: null, live: old.live ? { ...old.live, pendingText: null, pendingReasoning: null, pendingTools: [] } : null })) } }
 }

@@ -83,13 +83,17 @@ the tail re-reads once (a reply may have landed without a frame) and, if
 no fresh agent message arrived, clears Replying and shows the send failure
 with the sent text restored for retry — a dead stream never spins the
 indicator. Pinned by the dead-stream test in `chat-staging.test.tsx`.
-A terminal thread status (FINISHED/ERROR/STOPPED) newer than the send
-releases the owed reply even when no agent message arrives (orphan,
-honest failure); staleness is judged by outbox seq, and in-flight
-deltas/tools still win. An ERROR with reason `closed-owner` shows the
+A terminal thread status (FINISHED/ERROR/STOPPED/CANCELLING) newer
+than the send releases the owed reply even when no agent message
+arrives (orphan, honest failure); staleness is judged by outbox seq,
+and in-flight deltas/tools still win. A terminal (or pause) state frame
+drops the in-flight text, thinking and tools — the clear-set follows
+the terminal set, so a stop can never strand them. Local stop clears
+the live deltas too. An ERROR with reason `closed-owner` shows the
 "Stopped unexpectedly" banner in both chat variants. Pinned by
 `terminal-status.test.ts`, `workspace-conversation.test.tsx`,
-`execution-epochs.test.ts`, and `live-state.spec.ts`.
+`follow-resume.test.ts`, `execution-epochs.test.ts`, and
+`live-state.spec.ts`.
 MCP tool start/completion frames open the in-flight Activity disclosure and
 show each running/done/failed status before the turn finishes. Persisted tool
 messages take its place when they arrive; the stream carries no tool

@@ -179,7 +179,11 @@ export async function* followThread(
             threadStatus = payload.status
             threadStatusSeq = frame.seq
             stateReason = typeof payload.stateReason === 'string' ? payload.stateReason : undefined
-            if (['PAUSED', 'FINISHED', 'ERROR', 'CANCELLING'].includes(threadStatus)) {
+            // Dead runs own no deltas: a terminal status (or a pause) drops
+            // the in-flight text, thinking and tools, so the owed-reply
+            // wait releases instead of vetoing on orphaned fragments. The
+            // clear-set follows the terminal set and cannot drift from it.
+            if (threadStatus === 'PAUSED' || isTerminalThreadStatus(threadStatus)) {
               pendingText = null; pendingReasoning = null; pendingTools = []; pendingRunKey = null
             }
           }
