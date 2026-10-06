@@ -159,9 +159,10 @@ async function assertFocusVisible(page: Page, subject: Locator): Promise<void> {
     const el = document.activeElement as HTMLElement | null
     if (!el || el === document.body) return 'nothing focused'
     const style = getComputedStyle(el)
+    // Design-system focus is outline rings (focusRing*); any box-shadow
+    // passes nothing (P6 minor: the old `|| ringed` admitted shadows).
     const outlined = style.outlineStyle !== 'none' && style.outlineWidth !== '0px'
-    const ringed = style.boxShadow !== 'none'
-    return outlined || ringed ? 'ok' : 'no visible indicator'
+    return outlined ? 'ok' : 'no visible indicator'
   })
   expect(visible).toBe('ok')
 }
