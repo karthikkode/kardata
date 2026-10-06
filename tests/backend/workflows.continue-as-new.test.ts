@@ -287,6 +287,57 @@ describe.skipIf(!ENABLED)('continue-as-new (P4.2.4) [F:backend.activity.turn.app
     }
   }, 120_000)
 
+  it('running children survive a parent continue and all complete', async () => {
+    const tag = randomUUID()
+    const sessionId = `can-survive-${tag}`
+    const workflowId = `can-survive-run-${tag}`
+    const partition = `session:${sessionId}`
+    const handle = await client.workflow.start('delegateParent', {
+      taskQueue: taskQueue(),
+      workflowId,
+      args: [{ sessionId, maxInFlight: 10, historyEventLimit: 10 }],
+    })
+    await waitFor(
+      async () => (await events(partition)).some((event) => event.type === 't.session.created'),
+      30_000,
+      'parent to start',
+    )
+    const childIds = [0, 1, 2, 3, 4].map((index) => `can-survive-c-${index}-${tag}`)
+    for (const childId of childIds) {
+      await handle.signal('parentDelegate', {
+        childId,
+        goal: `TEST survive goal ${childId}`,
+        depth: 1,
+        mode: 'empty',
+        maxDepth: 1,
+        queueCapacity: 8,
+        fakeSteps: [{ text: 'survive reply' }],
+      })
+    }
+    await waitFor(async () => (await events(partition)).filter((event) => event.type === 't.subagent.launched').length === 5, 60_000, 'five launches')
+    // The tiny history limit trips a continue while all five run: with
+    // REQUEST_CANCEL the old run's close would cancel them.
+    const firstRunId = await expectContinuedChain(workflowId)
+    replayTargets.push({ workflowId, runId: firstRunId })
+    for (const childId of childIds) {
+      const state = (await client.workflow.getHandle(childId).query('childState')) as { status: string }
+      expect(state.status).toBe('running')
+    }
+    // Every child still finishes normally through the continued parent, and
+    // noteDone crosses the chain: all five read finished, none re-queued.
+    for (const childId of childIds) {
+      await client.workflow.getHandle(childId).signal('childFinish')
+      expect(await client.workflow.getHandle(childId).result()).toBe('finished')
+    }
+    await waitFor(async () => (await events(partition)).filter((event) => event.type === 't.subagent.completed').length === 5, 60_000, 'five completions')
+    const fresh = () => client.workflow.getHandle(workflowId)
+    const state = (await fresh().query('parentState')) as { children: Array<{ childId: string; status: string }>; queued: string[] }
+    expect(state.children.filter((child) => child.status === 'finished')).toHaveLength(5)
+    expect(state.queued).toEqual([])
+    await fresh().signal('parentFinish')
+    expect(await fresh().result()).toBe('done')
+  }, 180_000)
+
   it('subagentRun continues and carries the goal, inbox, and pause', async () => {
     const tag = randomUUID()
     const sessionId = `can-child-session-${tag}`

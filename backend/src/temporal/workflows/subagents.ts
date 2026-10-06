@@ -18,6 +18,7 @@ import {
   ActivityFailure,
   CancelledFailure,
   CancellationScope,
+  ContinueAsNew,
   condition,
   continueAsNew,
   defineQuery,
@@ -272,6 +273,14 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
     rejected: [...rejections],
   }))
 
+  const cancelRunningChildren = async (): Promise<void> => {
+    for (const [, record] of children) {
+      if (record.status !== 'running' || !record.handle) continue
+      try { await record.handle.signal(childCancelSignal); await record.handle.signal(childFinishSignal) } catch { /* already closed */ }
+      record.status = 'cancelled'
+    }
+  }
+
   // Continued runs skip session.created (the first run recorded it).
   if (!carried) {
     nonce += 1
@@ -283,143 +292,92 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
     })
   }
 
-  for (;;) {
-    if (finishRequested) return 'done'
-    // Continue-as-new between iterations: the pending signals, the
-    // durable queue, the promotion sets, and the children map carry into
-    // a fresh run. Old histories skip via the patch gate.
-    const parentInfo = workflowInfo()
-    if (
-      patched('can-v1') &&
-      shouldContinueAsNew(parentInfo.historyLength, parentInfo.historySize, parentInfo.continueAsNewSuggested, input.historyEventLimit, input.historyByteLimit)
-    ) {
-      await continueAsNew<typeof delegateParent>({
-        sessionId: input.sessionId,
-        ...(input.ownerEpochProtocol === undefined ? {} : { ownerEpochProtocol: input.ownerEpochProtocol }),
-        ...(input.parentIdleTimeoutMs === undefined ? {} : { parentIdleTimeoutMs: input.parentIdleTimeoutMs }),
-        ...(input.maxInFlight === undefined ? {} : { maxInFlight: input.maxInFlight }),
-        ...(input.maxQueued === undefined ? {} : { maxQueued: input.maxQueued }),
-        ...(input.historyEventLimit === undefined ? {} : { historyEventLimit: input.historyEventLimit }),
-        ...(input.historyByteLimit === undefined ? {} : { historyByteLimit: input.historyByteLimit }),
-        resumed: {
-          delegations,
-          steers,
-          waiting,
-          promoted: [...promoted],
-          queuedNotified: [...queuedNotified],
-          rejections,
-          children: [...children.entries()].map(([childId, record]) => ({ childId, status: record.status, goalFed: record.goalFed })),
-          nonce,
-        },
-      })
-      // Unreachable: the new run owns the queue now.
-      return 'continued'
-    }
-    // Steers drain before delegations every iteration, by design: an
-    // operator redirect to a live child jumps ahead of queued launches so a
-    // stale queue can never delay a course correction.
-    const steer = steers.shift()
-    if (steer !== undefined) {
-      const record = children.get(steer.childId)
-      if (record && record.status === 'running' && record.handle) {
-        await record.handle.signal(childMessageSignal, steer.text)
-      } else {
-        // Finished (or unknown) child: never relaunch; the text lands as
-        // missed steer against the closed child id.
-        nonce += 1
-        await childActivities.appendEventActivity({
-          idempotencyKey: idempotencyKey(partition, 'missed', nonce),
-          partition,
-          type: 't.subagent.missed_steer',
-          payload: { childId: steer.childId, text: steer.text },
-        })
+  try {
+    for (;;) {
+      if (finishRequested) {
+        await cancelRunningChildren()
+        return 'done'
       }
-      continue
-    }
-    const request = delegations.shift()
-    if (request === undefined) {
-      const parentIdleTimeoutMs = input.parentIdleTimeoutMs ?? DEFAULT_PARENT_IDLE_TIMEOUT_MS
-      const signalled = await condition(
-        () => delegations.length > 0 || steers.length > 0 || finishRequested,
-        parentIdleTimeoutMs,
-      )
-      if (!signalled && !finishRequested && delegations.length === 0 && steers.length === 0) {
-        // Idle close: cooperatively cancel-then-finish running children
-        // (the same two-step close operators use) so none outlives the
-        // parent as an orphan, then complete with a terminal entry.
-        for (const record of children.values()) {
-          if (record.status === 'running' && record.handle) {
-            try {
-              await record.handle.signal(childCancelSignal)
-              await record.handle.signal(childFinishSignal)
-            } catch {
-              // Already closed: the completion entry (or missed steer)
-              // recorded the outcome; nothing left to close.
-            }
-            record.status = 'cancelled'
-          }
+      // Continue-as-new between iterations: signals, queue, promotions, and
+      // the children map carry into a fresh run (patch-gated for old runs).
+      const parentInfo = workflowInfo()
+      if (
+        patched('can-v1') &&
+        shouldContinueAsNew(parentInfo.historyLength, parentInfo.historySize, parentInfo.continueAsNewSuggested, input.historyEventLimit, input.historyByteLimit)
+      ) {
+        await continueAsNew<typeof delegateParent>({
+          sessionId: input.sessionId,
+          ...(input.ownerEpochProtocol === undefined ? {} : { ownerEpochProtocol: input.ownerEpochProtocol }),
+          ...(input.parentIdleTimeoutMs === undefined ? {} : { parentIdleTimeoutMs: input.parentIdleTimeoutMs }),
+          ...(input.maxInFlight === undefined ? {} : { maxInFlight: input.maxInFlight }),
+          ...(input.maxQueued === undefined ? {} : { maxQueued: input.maxQueued }),
+          ...(input.historyEventLimit === undefined ? {} : { historyEventLimit: input.historyEventLimit }),
+          ...(input.historyByteLimit === undefined ? {} : { historyByteLimit: input.historyByteLimit }),
+          resumed: {
+            delegations,
+            steers,
+            waiting,
+            promoted: [...promoted],
+            queuedNotified: [...queuedNotified],
+            rejections,
+            children: [...children.entries()].map(([childId, record]) => ({ childId, status: record.status, goalFed: record.goalFed })),
+            nonce,
+          },
+        })
+        // Unreachable: the new run owns the queue now.
+        return 'continued'
+      }
+      // Steers drain before delegations every iteration: a redirect to a live
+      // child jumps ahead of queued launches, never delayed by a stale queue.
+      const steer = steers.shift()
+      if (steer !== undefined) {
+        const record = children.get(steer.childId)
+        if (record && record.status === 'running' && record.handle) {
+          await record.handle.signal(childMessageSignal, steer.text)
+        } else {
+          // Finished (or unknown) child: never relaunch; the text lands as
+          // missed steer against the closed child id.
+          nonce += 1
+          await childActivities.appendEventActivity({
+            idempotencyKey: idempotencyKey(partition, 'missed', nonce),
+            partition,
+            type: 't.subagent.missed_steer',
+            payload: { childId: steer.childId, text: steer.text },
+          })
         }
-        nonce += 1
-        await childActivities.appendEventActivity({
-          idempotencyKey: idempotencyKey(partition, 'parent-expired', nonce),
-          partition,
-          type: 't.subagent.parent_expired',
-          payload: { sessionId: input.sessionId, children: children.size },
-        })
-        return 'parent-idle-timeout'
+        continue
       }
-      continue
-    }
-    const existing = children.get(request.childId)
-    if (request.recovery) {
-      if (!(await execution.originalRecoveryReadyActivity({ threadKey: `agent:${request.childId}`,sessionId: input.sessionId,checkpointHash: request.recovery.checkpointHash }))) continue
-      children.delete(request.childId)
-    }
-    if ((existing?.status === 'running' || waiting.some((queued) => queued.childId === request.childId)) && !request.recovery) {
-      // A duplicate workflowId would throw inside startChild and fail the
-      // parent: reject the duplicate as an event and keep the running (or
-      // waiting) child. Finished children may relaunch under the same id
-      // (server reuses the id once the previous run closes), so only
-      // running or waiting duplicates reject.
-      nonce += 1
-      await childActivities.appendEventActivity({
-        idempotencyKey: idempotencyKey(partition, 'rejected', nonce),
-        partition,
-        type: 't.subagent.rejected',
-        payload: {
-          childId: request.childId,
-          goal: request.goal,
-          depth: request.depth,
-          maxDepth: request.maxDepth,
-          reason: 'duplicate delegation for a running child',
-        },
-      })
-      noteRejection(request.childId, 'duplicate delegation for a running child')
-      continue
-    }
-    if (!request.goal.trim() || request.depth > request.maxDepth) {
-      nonce += 1
-      await childActivities.appendEventActivity({
-        idempotencyKey: idempotencyKey(partition, 'rejected', nonce),
-        partition,
-        type: 't.subagent.rejected',
-        payload: {
-          childId: request.childId,
-          goal: request.goal,
-          depth: request.depth,
-          maxDepth: request.maxDepth,
-          reason: !request.goal.trim() ? 'delegation needs a non-empty goal' : `depth exceeds max ${request.maxDepth}`,
-        },
-      })
-      noteRejection(request.childId, !request.goal.trim() ? 'delegation needs a non-empty goal' : `depth exceeds max ${request.maxDepth}`)
-      continue
-    }
-    const maxInFlight = input.maxInFlight ?? DEFAULT_MAX_IN_FLIGHT_CHILDREN
-    const maxQueued = input.maxQueued ?? DEFAULT_MAX_QUEUED_CHILDREN
-    const running = [...children.values()].filter((record) => record.status === 'running').length
-    if (running >= maxInFlight) {
-      if (!patched('child-queue-v1')) {
-        // Pre-4.2.3 histories: over-cap rejected instead of queueing.
+      const request = delegations.shift()
+      if (request === undefined) {
+        const parentIdleTimeoutMs = input.parentIdleTimeoutMs ?? DEFAULT_PARENT_IDLE_TIMEOUT_MS
+        const signalled = await condition(
+          () => delegations.length > 0 || steers.length > 0 || finishRequested,
+          parentIdleTimeoutMs,
+        )
+        if (!signalled && !finishRequested && delegations.length === 0 && steers.length === 0) {
+          // Idle close: no running child outlives the parent as an orphan,
+          // then complete with a terminal entry.
+          await cancelRunningChildren()
+          nonce += 1
+          await childActivities.appendEventActivity({
+            idempotencyKey: idempotencyKey(partition, 'parent-expired', nonce),
+            partition,
+            type: 't.subagent.parent_expired',
+            payload: { sessionId: input.sessionId, children: children.size },
+          })
+          return 'parent-idle-timeout'
+        }
+        continue
+      }
+      const existing = children.get(request.childId)
+      if (request.recovery) {
+        if (!(await execution.originalRecoveryReadyActivity({ threadKey: `agent:${request.childId}`,sessionId: input.sessionId,checkpointHash: request.recovery.checkpointHash }))) continue
+        children.delete(request.childId)
+      }
+      if ((existing?.status === 'running' || waiting.some((queued) => queued.childId === request.childId)) && !request.recovery) {
+        // A duplicate workflowId would throw inside startChild: reject it as
+        // an event instead. Finished ids may relaunch (server reuses the id
+        // once the previous run closes); only running/waiting duplicates reject.
         nonce += 1
         await childActivities.appendEventActivity({
           idempotencyKey: idempotencyKey(partition, 'rejected', nonce),
@@ -430,13 +388,13 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
             goal: request.goal,
             depth: request.depth,
             maxDepth: request.maxDepth,
-            reason: `max in-flight children ${maxInFlight} reached`,
+            reason: 'duplicate delegation for a running child',
           },
         })
-        noteRejection(request.childId, `max in-flight children ${maxInFlight} reached`)
+        noteRejection(request.childId, 'duplicate delegation for a running child')
         continue
       }
-      if (waiting.length >= maxQueued) {
+      if (!request.goal.trim() || request.depth > request.maxDepth) {
         nonce += 1
         await childActivities.appendEventActivity({
           idempotencyKey: idempotencyKey(partition, 'rejected', nonce),
@@ -447,62 +405,105 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
             goal: request.goal,
             depth: request.depth,
             maxDepth: request.maxDepth,
-            reason: `child queue full (${maxQueued} waiting)`,
+            reason: !request.goal.trim() ? 'delegation needs a non-empty goal' : `depth exceeds max ${request.maxDepth}`,
           },
         })
-        noteRejection(request.childId, `child queue full (${maxQueued} waiting)`)
+        noteRejection(request.childId, !request.goal.trim() ? 'delegation needs a non-empty goal' : `depth exceeds max ${request.maxDepth}`)
         continue
       }
-      waiting.push(request)
-      if (!queuedNotified.has(request.childId)) {
-        queuedNotified.add(request.childId)
-        nonce += 1
-        await childActivities.appendEventActivity({
-          idempotencyKey: idempotencyKey(partition, 'queued', nonce),
-          partition,
-          type: 't.subagent.queued',
-          payload: { childId: request.childId, goal: request.goal, depth: request.depth, position: waiting.length },
-        })
-      }
-      continue
-    }
-    nonce += 1
-    await childActivities.appendEventActivity({
-      idempotencyKey: idempotencyKey(partition, 'delegated', nonce),
-      partition,
-      type: 't.subagent.delegated',
-      payload: { childId: request.childId, goal: request.goal, depth: request.depth, mode: request.mode },
-    })
-    // REQUEST_CANCEL (not the TERMINATE default): a cancelled parent
-    // cooperatively cancels the running child — mirroring agents cancel()
-    // propagation — so the child still records its completion entry instead
-    // of dying silent.
-    const ownerEpoch = input.ownerEpochProtocol && patched('execution-epoch-v1') ? await execution.prepareExecutionIntentActivity({ workflowId: request.childId,threadKey: `agent:${request.childId}`,sessionId: input.sessionId,requestKey: `child:${request.childId}:${nonce}` }) : undefined
-    let handle: ChildWorkflowHandle<typeof subagentRun>
-    try { handle = await withPreparedExecution(ownerEpoch,() => startChild(subagentRun, {
-      workflowId: request.childId,
-      parentClosePolicy: ParentClosePolicy.PARENT_CLOSE_POLICY_REQUEST_CANCEL,
-      args: [
-        {
-          ...request,
-          parentSessionId: input.sessionId,
-          parentPartition: partition,
-          ...(ownerEpoch ? { ownerEpoch } : {}),
-        },
-      ],
-    })) } catch (error) {
-      if (request.recovery && error instanceof WorkflowExecutionAlreadyStartedError) {
-        if (existing) children.set(request.childId,existing)
+      const maxInFlight = input.maxInFlight ?? DEFAULT_MAX_IN_FLIGHT_CHILDREN
+      const maxQueued = input.maxQueued ?? DEFAULT_MAX_QUEUED_CHILDREN
+      const running = [...children.values()].filter((record) => record.status === 'running').length
+      if (running >= maxInFlight) {
+        if (!patched('child-queue-v1')) {
+          // Pre-4.2.3 histories: over-cap rejected instead of queueing.
+          nonce += 1
+          await childActivities.appendEventActivity({
+            idempotencyKey: idempotencyKey(partition, 'rejected', nonce),
+            partition,
+            type: 't.subagent.rejected',
+            payload: {
+              childId: request.childId,
+              goal: request.goal,
+              depth: request.depth,
+              maxDepth: request.maxDepth,
+              reason: `max in-flight children ${maxInFlight} reached`,
+            },
+          })
+          noteRejection(request.childId, `max in-flight children ${maxInFlight} reached`)
+          continue
+        }
+        if (waiting.length >= maxQueued) {
+          nonce += 1
+          await childActivities.appendEventActivity({
+            idempotencyKey: idempotencyKey(partition, 'rejected', nonce),
+            partition,
+            type: 't.subagent.rejected',
+            payload: {
+              childId: request.childId,
+              goal: request.goal,
+              depth: request.depth,
+              maxDepth: request.maxDepth,
+              reason: `child queue full (${maxQueued} waiting)`,
+            },
+          })
+          noteRejection(request.childId, `child queue full (${maxQueued} waiting)`)
+          continue
+        }
+        waiting.push(request)
+        if (!queuedNotified.has(request.childId)) {
+          queuedNotified.add(request.childId)
+          nonce += 1
+          await childActivities.appendEventActivity({
+            idempotencyKey: idempotencyKey(partition, 'queued', nonce),
+            partition,
+            type: 't.subagent.queued',
+            payload: { childId: request.childId, goal: request.goal, depth: request.depth, position: waiting.length },
+          })
+        }
         continue
       }
-      throw error
+      nonce += 1
+      await childActivities.appendEventActivity({
+        idempotencyKey: idempotencyKey(partition, 'delegated', nonce),
+        partition,
+        type: 't.subagent.delegated',
+        payload: { childId: request.childId, goal: request.goal, depth: request.depth, mode: request.mode },
+      })
+      // ABANDON: children survive continue-as-new (REQUEST_CANCEL would kill
+      // them when the old run closes). Cancel/finish/idle propagate
+      // explicitly; noteDone reunites stragglers with the new run.
+      const ownerEpoch = input.ownerEpochProtocol && patched('execution-epoch-v1') ? await execution.prepareExecutionIntentActivity({ workflowId: request.childId,threadKey: `agent:${request.childId}`,sessionId: input.sessionId,requestKey: `child:${request.childId}:${nonce}` }) : undefined
+      let handle: ChildWorkflowHandle<typeof subagentRun>
+      try { handle = await withPreparedExecution(ownerEpoch,() => startChild(subagentRun, {
+        workflowId: request.childId,
+        parentClosePolicy: ParentClosePolicy.PARENT_CLOSE_POLICY_ABANDON,
+        args: [
+          {
+            ...request,
+            parentSessionId: input.sessionId,
+            parentPartition: partition,
+            ...(ownerEpoch ? { ownerEpoch } : {}),
+          },
+        ],
+      })) } catch (error) {
+        if (request.recovery && error instanceof WorkflowExecutionAlreadyStartedError) {
+          if (existing) children.set(request.childId,existing)
+          continue
+        }
+        throw error
+      }
+      // Promoted launches feed the goal parent-side (the gateway returned
+      // queued without signalling); direct launches leave it to the gateway.
+      const fed = promoted.delete(request.childId)
+      if (fed) await handle.signal(childMessageSignal, request.goal)
+      children.set(request.childId, { status: 'running', goalFed: fed, handle })
     }
-    // Promoted launches feed the goal parent-side: the gateway returns
-    // queued without signalling, so the parent owns the first work item.
-    // Direct launches leave the feed to the gateway (goalFed false).
-    const fed = promoted.delete(request.childId)
-    if (fed) await handle.signal(childMessageSignal, request.goal)
-    children.set(request.childId, { status: 'running', goalFed: fed, handle })
+  } catch (error) {
+    // ABANDON orphans running children on unwind: cancel them explicitly.
+    // Continue-as-new restarts cleanly and must not touch them.
+    if (!(error instanceof ContinueAsNew)) await CancellationScope.nonCancellable(() => cancelRunningChildren())
+    throw error
   }
 }
 
