@@ -247,14 +247,17 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
   })
   setHandler(parentNoteDoneSignal, (request: NoteDoneRequest) => {
     const record = children.get(request.childId)
+    const wasRunning = record?.status === 'running'
     if (record) record.status = request.status
-    // A freed slot promotes the head of the durable queue: the promotion
-    // lands in delegations so the wait below wakes on the same predicate.
-    // Spurious promotions self-correct (the launch re-checks the cap).
-    const next = waiting.shift()
-    if (next) {
-      promoted.add(next.childId)
-      delegations.push(next)
+    // Promote only on a running→done transition: duplicates must not free
+    // the same slot twice. The promotion lands in delegations so the wait
+    // below wakes on the same predicate.
+    if (wasRunning) {
+      const next = waiting.shift()
+      if (next) {
+        promoted.add(next.childId)
+        delegations.push(next)
+      }
     }
     log.info('signal received', { signal: 'parentNoteDone', childId: request.childId, status: request.status })
   })
@@ -609,6 +612,18 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
     })
   }
 
+  // Liveness: the closing child signals noteDone so the parent frees the
+  // slot and promotes the queue. Best-effort, always after the completion
+  // entry lands; pre-fix histories replay without the signal.
+  const noteDoneProtocol = patched('child-notedone-v1')
+  const noteParentDone = async (status: ChildStatus): Promise<void> => {
+    const parentWorkflowId = noteDoneProtocol ? workflowInfo().parent?.workflowId : undefined
+    if (!parentWorkflowId) return
+    try {
+      await getExternalWorkflowHandle(parentWorkflowId).signal(parentNoteDoneSignal, { childId: input.childId, status })
+    } catch { log.warn('parent noteDone failed', { childId: input.childId, status }) }
+  }
+
   try {
     // Continued runs skip launched (the first run recorded it).
     if (!carried) {
@@ -768,13 +783,16 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
     const finalStatus: ChildStatus = currentStatus() === 'cancelled' ? 'cancelled' : 'finished'
     box.status = finalStatus
     await appendCompletion()
+    await noteParentDone(finalStatus)
     return finalStatus
   } catch (error) {
     if (isCancellation(error)) {
       // Parent cancelled: the completion entry still lands (non-cancellable)
       // so the parent thread shows the closed child instead of silence.
       box.status = 'cancelled'
-      await CancellationScope.nonCancellable(() => appendCompletion())
+      await CancellationScope.nonCancellable(async () => { await appendCompletion(); await noteParentDone('cancelled') })
+    } else {
+      await noteParentDone('failed')
     }
     throw error
   }

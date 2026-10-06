@@ -436,6 +436,54 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
     expect(await parent.result()).toBe('done')
   }, 180_000)
 
+  it('drains the queue as children close themselves, with no manual noteDone', async () => {
+    const sessionId = `drain-${Date.now()}`
+    const parent = await client.workflow.start('delegateParent', {
+      taskQueue: taskQueue(),
+      workflowId: `subagents-parent-${sessionId}`,
+      args: [{ sessionId, maxInFlight: 50 }],
+    })
+    await waitFor(
+      async () => (await events(`session:${sessionId}`)).some((event) => event.type === 't.session.created'),
+      30_000,
+      'parent to start',
+    )
+    const stamp = Date.now()
+    const ids = Array.from({ length: 60 }, (_, i) => `sag-drain-${stamp}-${i}`)
+    for (const childId of ids) {
+      await parent.signal('parentDelegate', delegate(childId, `goal ${childId}`, { fakeSteps: [{ text: `reply ${childId}` }] }))
+    }
+    const launched = async () => (await events(`session:${sessionId}`)).filter((event) => event.type === 't.subagent.launched').length
+    const queued = async () => (await events(`session:${sessionId}`)).filter((event) => event.type === 't.subagent.queued').length
+    await waitFor(async () => (await launched()) === 50, 120_000, 'cap filled')
+    await waitFor(async () => (await queued()) === 10, 60_000, 'overflow queued')
+    // Finish every running child; each close signals noteDone itself and
+    // frees its slot for the next queued child. This test never signals
+    // parentNoteDone: any manual noteDone here would fake the drain.
+    const signalled = new Set<string>()
+    await waitFor(async () => {
+      const state = (await parent.query('parentState')) as { children: Array<{ childId: string; status: string }>; queued: string[] }
+      for (const child of state.children) {
+        if (child.status === 'running' && !signalled.has(child.childId)) {
+          signalled.add(child.childId)
+          try {
+            await client.workflow.getHandle(child.childId).signal('childFinish')
+          } catch {
+            // Raced a close: already finished, nothing to do.
+          }
+        }
+      }
+      const completed = (await events(`session:${sessionId}`)).filter((event) => event.type === 't.subagent.completed').length
+      return completed === 60
+    }, 240_000, 'all 60 children complete')
+    expect(await launched()).toBe(60)
+    const state = (await parent.query('parentState')) as { children: Array<{ childId: string; status: string }>; queued: string[] }
+    expect(state.queued).toEqual([])
+    expect(state.children.filter((child) => child.status === 'finished')).toHaveLength(60)
+    await parent.signal('parentFinish')
+    expect(await parent.result()).toBe('done')
+  }, 300_000)
+
   it('delegations past the queue cap reject with the queue-full reason', async () => {
     const sessionId = `qfull-${Date.now()}`
     const workflowId = `subagents-parent-${sessionId}`
