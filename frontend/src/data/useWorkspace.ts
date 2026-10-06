@@ -8,7 +8,6 @@ import { mergeChatMessages, messageSeq, toChatMessages } from '../components/cha
 export interface Resource<T> { data?: T; status: 'loading' | 'ready' | 'error' | 'denied' | 'offline'; error?: string; refresh(): void; acknowledge?(data: T): boolean }
 export function useWorkspaceResource<T>(config: StagingConfig | null, key: string | null, load: (config: StagingConfig) => Promise<T>, poll: boolean | number = false): Resource<T> & { acknowledge(data: T): boolean } {
   const [state, setState] = useState<Omit<Resource<T>, 'refresh'>>({ status: config ? 'loading' : 'offline' })
-  const [attempt, setAttempt] = useState(0)
   const loadRef = useRef(load)
   useEffect(() => { loadRef.current = load }, [load])
   const identity = config && key ? `${config.baseUrl}:${config.apiKey}:${key}` : null
@@ -25,15 +24,21 @@ export function useWorkspaceResource<T>(config: StagingConfig | null, key: strin
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const [current, setCurrent] = useState(identity)
   if (identity !== current) { setCurrent(identity); setState({ status: identity ? 'loading' : 'offline' }) }
-  useEffect(() => {
+  // The fetch trigger lives outside render state: a poll tick used to
+  // bump an `attempt` counter and re-render every subscriber with
+  // identical UI (App itself subscribes, so each 5s tick reconciled the
+  // whole tree, ~57ms in dev). Ticks now fetch directly; renders happen
+  // only when data, status, or identity actually changes.
+  const runAttempt = useCallback(() => {
     if (!config || !key) return
+    const activeConfig = config
     const mine = latestAttempt.current + 1
     latestAttempt.current = mine
-    const startedIdentity = identity
+    const startedIdentity = latestIdentity.current
     // Mounted + same identity only: superseded attempts (an older poll)
     // still settle through the guards below, never through a dead flag.
     const fresh = (): boolean => mounted.current && startedIdentity === latestIdentity.current
-    loadRef.current(config).then((data) => {
+    loadRef.current(activeConfig).then((data) => {
       if (!fresh()) return
       lastSuccess.current = mine
       if (mine === latestAttempt.current) setState({ status: 'ready', data })
@@ -42,21 +47,24 @@ export function useWorkspaceResource<T>(config: StagingConfig | null, key: strin
       if (mine < lastSuccess.current) return
       setState((old) => ({ ...(apiErrorStatus(error) === 'denied' ? {} : old), status: apiErrorStatus(error), error: error instanceof Error ? error.message : 'Could not load. Try again.' }))
     })
-  }, [config, key, attempt])
+  }, [config, key])
+  useEffect(() => {
+    runAttempt()
+  }, [runAttempt])
   useEffect(() => {
     if (!poll || !config || !key) return
-    const timer = setInterval(() => setAttempt((value) => value + 1), typeof poll === 'number' ? poll : 5000)
+    const timer = setInterval(runAttempt, typeof poll === 'number' ? poll : 5000)
     return () => clearInterval(timer)
-  }, [poll, config, key])
-  return { ...state, refresh: useCallback(() => setAttempt((value) => value + 1), []), acknowledge: useCallback((data: T) => {
+  }, [poll, config, key, runAttempt])
+  return { ...state, refresh: useCallback(() => runAttempt(), [runAttempt]), acknowledge: useCallback((data: T) => {
     // A successful mutation is authoritative before the following list request.
     // Never publish its result into a resource after credentials/scope change.
     if (latestIdentity.current !== identity) return false
     lastSuccess.current = latestAttempt.current
     setState({ status: 'ready', data })
-    setAttempt((value) => value + 1)
+    runAttempt()
     return true
-  }, [identity]) }
+  }, [identity, runAttempt]) }
 }
 interface PendingRequest {
   key: number
