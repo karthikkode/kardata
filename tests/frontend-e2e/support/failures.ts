@@ -52,6 +52,10 @@ export interface FaultCase {
   errorContent?: MatrixAnchor[]
   /** Content anchors proving heal + the ok baseline. */
   healAnchors: MatrixAnchor[]
+  /** Pre-fault anchors (trigger surface ready). Defaults to healAnchors;
+   * mutations set this when the post-heal state differs from the
+   * pre-fault state (sent text, renamed title, created sector). */
+  baseAnchors?: MatrixAnchor[]
   retry?: MatrixAnchor
   deniedRetry?: MatrixAnchor
   /** Asserted hidden after heal (error UI gone, not just content back). */
@@ -60,6 +64,10 @@ export interface FaultCase {
   healRetrigger?: boolean
   draftFill?: MatrixAnchor
   draftText?: string
+  /** The input is consumed by a successful mutation (dialog closes,
+   * message sends): the draft is asserted across the fault, but not
+   * after heal. Without this, the healed input must retain the text. */
+  draftConsumed?: boolean
   /** Refetch after arming: reload, or in-page steps (no reload). Drafts ride
    * refetch flows only: a reload clears React-state input by design. A fill
    * step updates the expected draft value. */
@@ -173,7 +181,7 @@ export async function runFault(page: Page, fc: FaultCase, fault: FaultKind): Pro
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(fc.route)
   await runSetup(page, fc.setup)
-  for (const anchor of fc.healAnchors) await expect(anchorLocator(page, anchor)).toBeVisible({ timeout: 15000 })
+  for (const anchor of fc.baseAnchors ?? fc.healAnchors) await expect(anchorLocator(page, anchor)).toBeVisible({ timeout: 15000 })
 
   if (fc.silent) {
     // The fault was armed from load: the surface works regardless.
@@ -234,7 +242,7 @@ export async function runFault(page: Page, fc: FaultCase, fault: FaultKind): Pro
       await expect(anchorLocator(page, anchor)).not.toBeVisible({ timeout: 15000 })
     }
   }
-  if (fc.draftFill && expected.draft !== null) {
+  if (fc.draftFill && expected.draft !== null && !fc.draftConsumed) {
     await expect(anchorLocator(page, fc.draftFill)).toHaveValue(expected.draft)
   }
   expect(errors, `console errors: ${errors.join(' | ')}`).toEqual([])

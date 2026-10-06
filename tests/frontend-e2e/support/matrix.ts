@@ -21,6 +21,9 @@ export interface MatrixAnchor {
   name?: string
   text?: string
   css?: string
+  /** Exact accessible-name/text match (default substring). Use when a
+   * short name ('Retry') would also match longer siblings. */
+  exact?: boolean
 }
 
 export interface MatrixSetup {
@@ -59,8 +62,8 @@ function shotsMode(): boolean {
 }
 
 export function anchorLocator(page: Page, anchor: MatrixAnchor): Locator {
-  if (anchor.kind === 'role') return page.getByRole(anchor.role as never, anchor.name ? { name: anchor.name } : undefined).first()
-  if (anchor.kind === 'text') return page.getByText(anchor.text as string).first()
+  if (anchor.kind === 'role') return page.getByRole(anchor.role as never, anchor.name ? { name: anchor.name, ...(anchor.exact ? { exact: true } : {}) } : undefined).first()
+  if (anchor.kind === 'text') return page.getByText(anchor.text as string, anchor.exact ? { exact: true } : undefined).first()
   return page.locator(anchor.css as string).first()
 }
 

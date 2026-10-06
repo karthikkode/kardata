@@ -15,7 +15,6 @@ test.describe.configure({ timeout: 120_000 })
 
 const DOCK = [{ click: { kind: 'role', role: 'button', name: 'Ask Karbot' } }] as const
 const TRY_AGAIN = { kind: 'role', role: 'button', name: 'Try again' } as const
-const CHAT_DENIED = { kind: 'text', text: 'Chat is not shared with this key.' } as const
 const CHAT = '/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001'
 const OPTIONS_MENU: MatrixSetup[] = [
   { click: { kind: 'role', role: 'button', name: 'Conversation options' } },
@@ -27,17 +26,19 @@ const CASES: FaultCase[] = [
     pattern: /\/commands\/send/, route: CHAT,
     errorAnchors: [
       { kind: 'text', text: 'That reply did not go through.' },
-      { kind: 'role', role: 'button', name: 'Retry' },
+      { kind: 'role', role: 'button', name: 'Retry', exact: true },
     ],
     deniedAnchors: [
       { kind: 'text', text: 'That reply did not go through.' },
-      { kind: 'role', role: 'button', name: 'Retry' },
+      { kind: 'role', role: 'button', name: 'Retry', exact: true },
     ],
     errorContent: [{ kind: 'text', text: 'fault-probe message' }],
+    baseAnchors: [{ kind: 'role', role: 'textbox', name: 'Message this conversation' }],
     healAnchors: [{ kind: 'text', text: 'fault-probe message' }],
-    retry: { kind: 'role', role: 'button', name: 'Retry' },
-    deniedRetry: { kind: 'role', role: 'button', name: 'Retry' },
-    draftFill: { kind: 'role', role: 'textbox' }, draftText: 'fault-probe message',
+    retry: { kind: 'role', role: 'button', name: 'Retry', exact: true },
+    deniedRetry: { kind: 'role', role: 'button', name: 'Retry', exact: true },
+    draftFill: { kind: 'role', role: 'textbox', name: 'Message this conversation' }, draftText: 'fault-probe message',
+    draftConsumed: true,
     refetch: { steps: [{ press: 'Enter' }] },
   },
   {
@@ -52,14 +53,19 @@ const CASES: FaultCase[] = [
       { kind: 'role', role: 'alert' },
       { kind: 'text', text: 'Could not rename. Try again.' },
     ],
-    deniedAnchors: [CHAT_DENIED],
+    deniedAnchors: [
+      { kind: 'role', role: 'alert' },
+      { kind: 'text', text: 'Could not rename. This key cannot rename chats.' },
+    ],
+    baseAnchors: [{ kind: 'css', css: '#karbot-rename-name' }],
     healAnchors: [
       { kind: 'role', role: 'complementary', name: 'Assistant chat' },
       { kind: 'text', text: 'Renamed!' },
     ],
     healRetrigger: true,
     draftFill: { kind: 'css', css: '#karbot-rename-name' }, draftText: 'Renamed!',
-    refetch: { steps: [{ press: 'Enter' }] },
+    draftConsumed: true,
+    refetch: { steps: [{ click: { kind: 'role', role: 'button', name: 'Save' } }] },
   },
   {
     id: 'frontend.src.components.chat.ChatHeader', label: 'DELETE session', method: 'DELETE',
@@ -173,11 +179,15 @@ const CASES: FaultCase[] = [
     setup: [{ click: { kind: 'role', role: 'button', name: 'New sector' } }],
     errorAnchors: [{ kind: 'role', role: 'alert' }],
     deniedAnchors: [{ kind: 'role', role: 'alert' }],
+    baseAnchors: [{ kind: 'role', role: 'dialog', name: 'New sector' }],
     healAnchors: [{ kind: 'role', role: 'heading', name: 'Researches' }],
-    healAbsent: [{ kind: 'role', role: 'dialog', name: 'Create a sector' }],
+    healAbsent: [{ kind: 'role', role: 'dialog', name: 'New sector' }],
     healRetrigger: true,
     draftFill: { kind: 'role', role: 'textbox', name: 'Name' }, draftText: 'Fault Sector',
-    refetch: { steps: [{ press: 'Enter' }] },
+    draftConsumed: true,
+    // The form has two inputs and no submit button, so Enter never
+    // submits; the explicit button is the trigger.
+    refetch: { steps: [{ click: { kind: 'role', role: 'button', name: 'Create sector' } }] },
   },
   {
     id: 'frontend.src.components.chat.SessionFiles', label: 'POST session artifact', method: 'POST',

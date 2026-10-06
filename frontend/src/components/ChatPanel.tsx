@@ -265,9 +265,11 @@ export function ChatPanel({
         setRenaming(false)
       })
       .catch((error: unknown) => {
+        // A denied write keeps the dialog and its draft (like any save
+        // error): killing the whole chat surface for a mutation auth
+        // failure would discard the user's input.
         if (isAuthError(error)) {
-          setSessionsState('denied')
-          setRenaming(false)
+          setRenameError('Could not rename. This key cannot rename chats.')
           return
         }
         setRenameError('Could not rename. Try again.')
