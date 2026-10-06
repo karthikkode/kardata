@@ -45,7 +45,9 @@ const MATRIX_SECTOR: FixtureSector = {
   name: 'Matrix Trades',
   topic: 'Electrical services',
   state: 'running',
-  companiesFound: 0,
+  // Consistent with the baseline makeCompanies(8): all matrix companies
+  // belong to this sector, so the Dashboard caption reads Across 1 sector.
+  companiesFound: 8,
   createdAt: FIXED_DAY,
   updatedAt: FIXED_NOW,
 }
@@ -171,7 +173,8 @@ export function makeSectors(count: number): FixtureSector[] {
   const states: FixtureSector['state'][] = ['running', 'complete', 'paused', 'planned', 'approved', 'draft']
   const topics = ['Electrical services', 'Plumbing services', 'HVAC services']
   return Array.from({ length: count }, (_, i) => {
-    if (i === 0) return matrixSector()
+    // Item 0 owns all makeCompanies(count): its count tracks the state.
+    if (i === 0) return { ...matrixSector(), companiesFound: count }
     return {
       id: `mx-sector-${String(i + 1).padStart(3, '0')}`,
       name: `Matrix sector ${i + 1}`,
@@ -260,7 +263,7 @@ export function matrixApiOptions(
         { seq: 1, kind: 'text', role: 'assistant', text: LONG_MESSAGE_5K, at: FIXED_NOW },
         { seq: 2, kind: 'text', role: 'user', text: UNBROKEN_URL, at: FIXED_NOW },
       ]
-      data.sectors = [{ ...matrixSector(), name: LONG_NAME_300 }]
+      data.sectors = [{ ...matrixSector(), name: LONG_NAME_300, companiesFound: 1 }]
       return { modes, data }
   }
 }
