@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Client } from 'pg'
@@ -17,7 +18,15 @@ async function tables(client: Client): Promise<string[]> {
 
 describe('migrations (B0.3)', () => {
   it('lists migration files in version order', () => {
-    expect(migrationFiles(DIR)).toEqual(['0001_init.sql', '0002_ledger_event_seq.sql', '0003_projection_checkpoints.sql', '0004_outbox_notify.sql', '0005_api_keys.sql', '0006_rate_idempotency.sql', '0007_sector_domain.sql', '0008_knowledge_ledger.sql', '0009_sector_drafts.sql', '0010_sector_document_units.sql', '0011_sector_context_selection.sql', '0012_sector_research_session.sql', '0013_sector_planning_states.sql', '0014_sector_workspace.sql', '0015_workspace_file_index.sql', '0016_turn_continuations.sql', '0017_workspace_measurements.sql', '0018_workspace_hardening.sql', '0019_turn_attempt_leases.sql', '0020_context_file_dependencies.sql', '0021_execution_epochs.sql', '0022_intake_review.sql', '0023_file_processing.sql', '0024_sector_model_v1.sql', '0025_phase2.sql'])
+    expect(migrationFiles(DIR)).toEqual(['0001_init.sql', '0002_ledger_event_seq.sql', '0003_projection_checkpoints.sql', '0004_outbox_notify.sql', '0005_api_keys.sql', '0006_rate_idempotency.sql', '0007_sector_domain.sql', '0008_knowledge_ledger.sql', '0009_sector_drafts.sql', '0010_sector_document_units.sql', '0011_sector_context_selection.sql', '0012_sector_research_session.sql', '0013_sector_planning_states.sql', '0014_sector_workspace.sql', '0015_workspace_file_index.sql', '0016_turn_continuations.sql', '0017_workspace_measurements.sql', '0018_workspace_hardening.sql', '0019_turn_attempt_leases.sql', '0020_context_file_dependencies.sql', '0021_execution_epochs.sql', '0022_intake_review.sql', '0023_file_processing.sql', '0024_sector_model_v1.sql', '0025_phase2.sql', '0026_phase4.sql', '0027_monitors.sql', '0028_thread_state_reason.sql'])
+  })
+
+  it('every migration file carries up and down markers [F:db.migrate.migrate] [F:db.migrate.migrationFiles]', () => {
+    const missing = migrationFiles(DIR).filter((file) => {
+      const lines = readFileSync(join(DIR, file), 'utf8').split('\n').map((line) => line.trim())
+      return !lines.includes('-- migrate:up') || !lines.includes('-- migrate:down')
+    })
+    expect(missing).toEqual([])
   })
 
   describe.skipIf(!DB)('against Postgres [F:db.migrate.migrate] [F:db.migrate.migrationFiles]', () => {

@@ -5,3 +5,7 @@
 -- migrate:up
 
 ALTER TABLE threads ADD COLUMN IF NOT EXISTS state_reason TEXT;
+
+-- migrate:down
+
+ALTER TABLE threads DROP COLUMN IF EXISTS state_reason;
