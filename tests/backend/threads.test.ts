@@ -261,4 +261,32 @@ describe.skipIf(!TEST_DATABASE_URL)('transcript projection (B1.2) [F:db.index.ap
       await db.end()
     }
   })
+
+  // Last: rebuild truncates the shared projection tables (every test above
+  // rebuilds its own state, so nothing after this can observe the wipe).
+  it('rebuild replays tool calls exactly, keeping legitimate parallel duplicates [F:db.threads.rebuildFromEvents]', async () => {
+    const db = pool()
+    try {
+      await db.query("DELETE FROM events WHERE partition = 'session:s-rebuild'")
+      await db.query("DELETE FROM thread_messages WHERE thread_key = 's-rebuild'")
+      await db.query("DELETE FROM threads WHERE key = 's-rebuild'")
+      await db.query("DELETE FROM tool_calls WHERE thread_key = 's-rebuild'")
+      await appendEvent(db, { idempotencyKey: 'rb-session', partition: 'session:s-rebuild', type: 't.session.created', payload: { sessionId: 's-rebuild', title: 'Rebuild' } })
+      const call = (key: string, callId: string): Promise<unknown> => appendEvent(db, { idempotencyKey: key, partition: 'session:s-rebuild', type: 't.tool.call', payload: {
+        runId: 'run-rb-1', threadKey: 's-rebuild', round: 1, attempt: 1, callId, tool: 'web_fetch',
+        argsHash: 'a'.repeat(64), outcome: 'ok', latencyMs: 10, at: new Date().toISOString(),
+      } })
+      // Parallel duplicates: same round, tool and args, distinct calls.
+      await call('rb-call-a', 'call-a')
+      await call('rb-call-b', 'call-b')
+      await projectBatch(db, await readPartition(db, 'session:s-rebuild'))
+      const before = await db.query('SELECT id FROM tool_calls WHERE thread_key = $1', ['s-rebuild'])
+      expect(before.rows).toHaveLength(2)
+      await rebuildFromEvents(db, await readPartition(db, 'session:s-rebuild'))
+      const after = await db.query('SELECT id FROM tool_calls WHERE thread_key = $1', ['s-rebuild'])
+      expect(after.rows).toHaveLength(2)
+    } finally {
+      await db.end()
+    }
+  })
 })

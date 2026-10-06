@@ -348,7 +348,10 @@ export async function rebuildFromEvents(db: Db, events: StoredEvent[]): Promise<
   if (!Array.isArray(events)) throw new DbContractError('events must be an array')
   // Sector source files and workspace state are authoritative owner data,
   // not disposable projections. Replay upserts sector identity in place.
-  await db.query('TRUNCATE thread_messages, threads, companies')
+  // tool_calls has no natural unique key (parallel duplicate calls in one
+  // round stay distinct rows), so it truncates: replay re-inserts exactly.
+  // execution_rounds is upsert-safe and needs no truncate.
+  await db.query('TRUNCATE thread_messages, threads, companies, tool_calls')
   return projectBatch(db, events)
 }
 
