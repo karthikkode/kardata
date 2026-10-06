@@ -224,6 +224,13 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL || !TOXIPROXY_URL)('infrastructur
         const baseline = Date.now()
         await publishOutboxFrame(pool, sessionId, 'state', { text: 'TEST baseline' })
         expect(Date.now() - baseline).toBeLessThan(2_000)
+        // Warmed before the toxic: a fresh connect through +2 s latency
+        // costs several round trips, which would dominate the fail-fast
+        // budget below. statement_timeout would NOT fire here (it measures
+        // server execution, and the server stays fast); query_timeout is the
+        // client-side timeout that fires on network latency.
+        const tight = new Pool({ connectionString: proxiedUrl, query_timeout: 1000 })
+        await tight.query('SELECT 1')
         await addToxic('fault-pg-f7', { name: 'latency', type: 'latency', attributes: { latency: 2000 } })
         try {
           const burst = Date.now()
@@ -233,15 +240,14 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL || !TOXIPROXY_URL)('infrastructur
           expect(Date.now() - burst).toBeLessThan(30_000)
           const backlog = await readOutboxBacklog(direct, sessionId, 0)
           expect(backlog.filter((row) => (row.payload as { text?: string }).text?.startsWith('TEST burst')).length).toBe(20)
-          const tight = new Pool({ connectionString: proxiedUrl, statement_timeout: 1000 })
           try {
             const timeoutStarted = Date.now()
             const failure = await publishOutboxFrame(tight, sessionId, 'state', { text: 'TEST timeout' }).then(
               () => undefined,
-              (error: unknown) => error as { code?: string },
+              (error: unknown) => error as Error,
             )
             expect(Date.now() - timeoutStarted).toBeLessThan(10_000)
-            expect(failure?.code).toBe('57014')
+            expect(failure?.message).toMatch(/timeout/i)
           } finally {
             await tight.end()
           }
