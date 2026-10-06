@@ -56,6 +56,7 @@ interface ChatSyncInput {
   sessionsAttempt: number
   threadsAttempt: number
   streamAttempt: number
+  messagesAttempt: number
   activeSessionId: string | null
   threadKey: string | null
   setSessions: Dispatch<SetStateAction<Session[] | null>>
@@ -67,6 +68,7 @@ interface ChatSyncInput {
   setRuns: Dispatch<SetStateAction<Array<{ id: string; threadKey: string }>>>
   setFiles: Dispatch<SetStateAction<ChatFile[]>>
   setThreadsState: Dispatch<SetStateAction<LoadState>>
+  setMessagesState: Dispatch<SetStateAction<LoadState>>
   setCaches: Dispatch<SetStateAction<Record<string, ChatMessage[]>>>
   setPendingText: Dispatch<SetStateAction<string | null>>
   setPendingReasoning: Dispatch<SetStateAction<string | null>>
@@ -86,6 +88,7 @@ export function useChatSync({
   sessionsAttempt,
   threadsAttempt,
   streamAttempt,
+  messagesAttempt,
   activeSessionId,
   threadKey,
   setSessions,
@@ -97,6 +100,7 @@ export function useChatSync({
   setRuns,
   setFiles,
   setThreadsState,
+  setMessagesState,
   setCaches,
   setPendingText,
   setPendingReasoning,
@@ -208,13 +212,14 @@ export function useChatSync({
   // Stream state resets during render, never in the tail effect: the
   // pending delta/reasoning/tools belong to the previous thread.
   const streamQuery =
-    config && threadKey ? `${config.baseUrl} ${config.apiKey} ${threadKey} ${streamAttempt}` : null
+    config && threadKey ? `${config.baseUrl} ${config.apiKey} ${threadKey} ${streamAttempt} ${messagesAttempt}` : null
   const [activeStreamQuery, setActiveStreamQuery] = useState<string | null>(null)
   if (activeStreamQuery !== streamQuery) {
     setActiveStreamQuery(streamQuery)
     setPendingText(null)
     setPendingReasoning(null)
     setPendingTools([])
+    setMessagesState(streamQuery ? 'loading' : 'ready')
   }
 
   // Message pages follow the visible thread; the stream tails live frames.
@@ -230,9 +235,11 @@ export function useChatSync({
         if (!live) return
         const rows = toChatMessages(raw)
         setCaches((current) => ({ ...current, [key]: mergeChatMessages(current[key] ?? [], rows) }))
+        setMessagesState('ready')
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (!live) return
+        setMessagesState(loadStateOf(error))
       })
     const controller = new AbortController()
     // Ref-sharing: the registry ref is owned by the panel and shared so stop
@@ -337,6 +344,6 @@ export function useChatSync({
       setEcho(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config?.baseUrl, config?.apiKey, threadKey, streamAttempt])
+  }, [config?.baseUrl, config?.apiKey, threadKey, streamAttempt, messagesAttempt])
   return statusSeqRef
 }
