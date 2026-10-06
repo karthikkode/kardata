@@ -238,19 +238,24 @@ test('subagents render 100/1000/2000 with first render under budget at 1000', as
     const toggle = dock(page).getByRole('button', { name: /subagents/ })
     await toggle.click()
     const list = page.locator('[aria-label="Subagent threads"]')
+    const first = list.getByRole('button', { name: 'Chat with Scale agent 1', exact: true })
     const last = list.getByRole('button', { name: `Chat with Scale agent ${count}` })
-    await expect(last).toBeAttached({ timeout: 15000 })
+    await wheelToEnd(page, first, last)
     if (count === 1000) {
       await toggle.click()
+      // Settle the exit so the timed open is a fresh mount at scroll 0,
+      // not a cancelled exit with end-scroll preserved.
+      await expect(list).not.toBeAttached()
       const started = Date.now()
       await toggle.click()
-      await expect(last).toBeAttached({ timeout: 15000 })
+      await expect(first).toBeAttached({ timeout: 15000 })
       expect(Date.now() - started).toBeLessThanOrEqual(300)
+      await wheelToEnd(page, first, last)
     }
     if (count === 2000) {
       await clearLongtasks(page)
-      await wheelDown(page, list)
-      await expect(last).toBeVisible({ timeout: 15000 })
+      await wheelUp(page, last)
+      await expect(list).toBeVisible()
       expect(await maxLongtask(page)).toBeLessThanOrEqual(50)
     }
   }
