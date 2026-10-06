@@ -335,6 +335,9 @@ export function ChatPanel({
         inputRef.current?.focus()
       })
       .catch(() => {
+        // Dismiss the menu like the success path: its overlay would
+        // otherwise cover the error UI's retry button.
+        sessionsPanel.set(false)
         setSessionsState('error')
       })
   }
