@@ -31,8 +31,9 @@ const CASES: FaultCase[] = [
       { kind: 'text', text: 'Matrix Trades' },
     ],
     retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
-    draftFill: { kind: 'role', role: 'textbox', name: 'Search sectors' }, draftText: 'Matrix',
-    refetch: { steps: [{ fill: { kind: 'role', role: 'textbox', name: 'Search sectors' }, text: 'Matrix T' }] },
+    // Sector search filters client-side (useStagingSectors takes no
+    // filters), so a fill cannot refetch; reload replays the faulted GET.
+    refetch: { reload: true },
   },
   {
     id: 'frontend.src.components.SectorLanding', label: 'GET /v1/sectors/:id', method: 'GET',
