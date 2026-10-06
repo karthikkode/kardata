@@ -402,6 +402,10 @@ describe.skipIf(!ENABLED)('continue-as-new (P4.2.4) [F:backend.activity.turn.app
     // message queued, and the gate holds until resume.
     const before = startedOf((await child().fetchHistory()) as LooseHistory).continued
     await child().signal('childMessage', 'm3')
+    // Same CAN-hop race as the session phase: the user event proves 'm3'
+    // left the inbox, so the pause lands mid-turn (1.5 s dwell) instead of
+    // ahead of a still-queued message (queueDepth 2 forever).
+    await waitFor(async () => hasUserMessage(childPartition, 'm3'), 30_000, 'third user message')
     await sleep(300)
     await child().signal('childPause')
     await child().signal('childMessage', 'm4')
