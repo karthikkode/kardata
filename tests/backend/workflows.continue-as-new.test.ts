@@ -354,6 +354,51 @@ describe.skipIf(!ENABLED)('continue-as-new (P4.2.4) [F:backend.activity.turn.app
     expect(await fresh().result()).toBe('done')
   }, 180_000)
 
+  it('a cancelled parent cancels its pre-continue children', async () => {
+    const tag = randomUUID()
+    const sessionId = `can-cancel-${tag}`
+    const workflowId = `can-cancel-run-${tag}`
+    const partition = `session:${sessionId}`
+    const handle = await client.workflow.start('delegateParent', {
+      taskQueue: taskQueue(),
+      workflowId,
+      args: [{ sessionId, maxInFlight: 10, historyEventLimit: 10 }],
+    })
+    await waitFor(
+      async () => (await events(partition)).some((event) => event.type === 't.session.created'),
+      30_000,
+      'parent to start',
+    )
+    const childIds = [0, 1, 2, 3, 4].map((index) => `can-cancel-c-${index}-${tag}`)
+    for (const childId of childIds) {
+      await handle.signal('parentDelegate', {
+        childId,
+        goal: `TEST cancel goal ${childId}`,
+        depth: 1,
+        mode: 'empty',
+        maxDepth: 1,
+        queueCapacity: 8,
+        fakeSteps: [{ text: 'cancel reply' }],
+      })
+    }
+    await waitFor(async () => (await events(partition)).filter((event) => event.type === 't.subagent.launched').length === 5, 60_000, 'five launches')
+    // The tiny history limit trips a continue while all five run: from
+    // here they are pre-continue children under re-derived handles.
+    const firstRunId = await expectContinuedChain(workflowId)
+    replayTargets.push({ workflowId, runId: firstRunId })
+    const fresh = () => client.workflow.getHandle(workflowId)
+    await fresh().cancel()
+    await expect(fresh().result()).rejects.toThrow()
+    // The parent's own unwind cancels all five through the re-derived
+    // external handles: no orphan survives, no supervision needed. Each
+    // child still lands its own completion entry; noteDone to the dead
+    // parent fails best-effort inside the child.
+    for (const childId of childIds) {
+      expect(await client.workflow.getHandle(childId).result()).toBe('cancelled')
+    }
+    await waitFor(async () => (await events(partition)).filter((event) => event.type === 't.subagent.completed').length === 5, 60_000, 'five completions')
+  }, 180_000)
+
   it('subagentRun continues and carries the goal, inbox, and pause', async () => {
     const tag = randomUUID()
     const sessionId = `can-child-session-${tag}`
