@@ -141,6 +141,33 @@ describe.skipIf(!TEST_DATABASE_URL)('supervision acts (P3.4) [F:db.reconciliatio
     }
   })
 
+  it('nudges and pauses a stalled child with child* signals, never run*', async () => {
+    const pool = await poolFor('kardata_test_supervision_childsignal')
+    try {
+      const session = await createSession(pool, 'TEST childsignal', scope)
+      const childId = randomUUID()
+      const threadKey = `agent:${childId}`
+      await appendEvent(pool, { idempotencyKey: randomUUID(), partition: `session:${session.id}`, type: 't.subagent.launched', payload: { sessionId: session.id, childId, name: 'TEST child', goal: 'TEST goal', parentSessionId: session.id, parentWorkflowId: `session-run-${session.id}` } })
+      await projectNewEvents(pool)
+      await leaseOn(pool, session.id, threadKey, childId)
+      await appendEvent(pool, { idempotencyKey: randomUUID(), partition: `session:${session.id}`, type: 't.message.appended', payload: { threadKey, kind: 'text', message: { role: 'agent', text: 'TEST old child reply' } } })
+      await projectNewEvents(pool)
+      await pool.query(`UPDATE thread_messages SET at = now() - interval '16 minutes' WHERE thread_key = $1`, [threadKey])
+      await pool.query(`UPDATE thread_context SET active_run_started_at = now() - interval '16 minutes' WHERE thread_key = $1`, [threadKey])
+      await recordHeartbeat(pool, childId, 'TEST op', true)
+      const captured = { signals: [] as Array<{ workflowId: string; signal: string; payload?: string }>, cancels: [] as string[] }
+      const control = runningControl(captured)
+      await reconcilePage(pool, '', async () => ({ state: 'running' }), Date.now(), () => undefined, control)
+      expect(captured.signals).toEqual([{ workflowId: childId, signal: 'childMessage', payload: SUPERVISION_NUDGE }])
+      await pool.query(`UPDATE events SET at = now() - interval '16 minutes' WHERE type = 't.reconciliation.finding' AND payload->>'response' = 'nudge'`)
+      await reconcilePage(pool, '', async () => ({ state: 'running' }), Date.now(), () => undefined, control)
+      expect(captured.signals[1]).toEqual({ workflowId: childId, signal: 'childPause' })
+      expect(captured.cancels).toEqual([])
+    } finally {
+      await pool.end()
+    }
+  })
+
   it('stops a looping turn with a loop event and an honest reply', async () => {
     const pool = await poolFor('kardata_test_supervision_loop')
     try {

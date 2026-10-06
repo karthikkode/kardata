@@ -16,7 +16,7 @@ export interface ReconciliationPage { cursor: string; inspected: number; finding
  * double-acts (controlRecorded gates repeats within the lease). */
 export interface ReconciliationControl {
   describe(workflowId: string): Promise<{ state: 'running' | 'closed' | 'unknown'; executionId?: string }>
-  signal(workflowId: string, signalName: 'runSteer' | 'runPause' | 'runCancel' | 'runStopTurn', payload?: string): Promise<void>
+  signal(workflowId: string, signalName: 'runSteer' | 'runPause' | 'runCancel' | 'runStopTurn' | 'childMessage' | 'childPause' | 'childCancel', payload?: string): Promise<void>
   cancel(workflowId: string): Promise<void>
 }
 
@@ -58,9 +58,13 @@ async function applyFinding(
     if (await controlRecorded(db, candidate.threadKey, effective.kind, effective.response, candidate.lease)) return false
     if (!candidate.workflowId) return false
     try {
-      if (effective.response === 'nudge') await control.signal(candidate.workflowId, 'runSteer', SUPERVISION_NUDGE)
-      else if (effective.response === 'pause') await control.signal(candidate.workflowId, 'runPause')
-      else if (effective.response === 'stop') await control.signal(candidate.workflowId, 'runStopTurn')
+      // Child workflows (agent:*) only handle child* signals: run* lands
+      // nowhere while the DB still records the action. A child's turn is
+      // its run, so stop maps to the graceful childCancel.
+      const child = candidate.threadKey.startsWith('agent:')
+      if (effective.response === 'nudge') await control.signal(candidate.workflowId, child ? 'childMessage' : 'runSteer', SUPERVISION_NUDGE)
+      else if (effective.response === 'pause') await control.signal(candidate.workflowId, child ? 'childPause' : 'runPause')
+      else if (effective.response === 'stop') await control.signal(candidate.workflowId, child ? 'childCancel' : 'runStopTurn')
       else await control.cancel(candidate.workflowId)
     } catch (error) {
       logger.warn({ event: 'execution.control_failed', ...activityLogFields({ threadKey: candidate.threadKey, sessionId: candidate.sessionId }), kind: effective.kind, response: effective.response, code: error instanceof Error ? error.name : 'unknown' })
