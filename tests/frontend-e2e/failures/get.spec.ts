@@ -205,12 +205,12 @@ const CASES: FaultCase[] = [
   },
   {
     id: 'frontend.src.components.plan_progress', label: 'GET research progress', method: 'GET',
-    pattern: /\/progress$/, route: CHAT,
-    setup: [{ click: { kind: 'css', css: '[data-tab-value="plan"]' } }],
+    pattern: /\/progress$/, route: '/?section=SectorChat&sector=sector-matrix&session=session-sector-matrix-research&thread=session-sector-matrix-research',
+    setup: [{ click: { kind: 'role', role: 'tab', name: 'Plan' } }],
     errorAnchors: [{ kind: 'role', role: 'alert' }],
     deniedAnchors: [DENIED_COPY],
     healAnchors: [
-      { kind: 'css', css: '[data-tab-value="plan"]' },
+      { kind: 'role', role: 'tab', name: 'Plan' },
       { kind: 'role', role: 'region', name: 'Research progress' },
     ],
     retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
@@ -218,12 +218,12 @@ const CASES: FaultCase[] = [
   },
   {
     id: 'frontend.src.components.plan.PlanTab', label: 'GET sector plan', method: 'GET',
-    pattern: /\/plan$/, route: CHAT,
-    setup: [{ click: { kind: 'css', css: '[data-tab-value="plan"]' } }],
+    pattern: /\/plan$/, route: '/?section=SectorChat&sector=sector-matrix&session=session-sector-matrix-research&thread=session-sector-matrix-research',
+    setup: [{ click: { kind: 'role', role: 'tab', name: 'Plan' } }],
     errorAnchors: [{ kind: 'role', role: 'alert' }],
     deniedAnchors: [DENIED_COPY],
     healAnchors: [
-      { kind: 'css', css: '[data-tab-value="plan"]' },
+      { kind: 'role', role: 'tab', name: 'Plan' },
       { kind: 'role', role: 'region', name: 'Research progress' },
     ],
     retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
