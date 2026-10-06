@@ -133,6 +133,9 @@ it grants no research-parent, context-inclusion or owner-approval authority.
 - Proven by `tests/backend/mcp.tools.test.ts` (binding-table parity,
   schema/layer validation parity per tool, role floors, transport auth,
   idempotent replay; fake/di doubles only, no live keys).
+- Monitor lifecycle: a tick skips while the Karbot thread runs a turn; a
+  stopped row ends the workflow run; starting on a target whose active
+  row passed `until` retires it instead of conflicting.
 
 Thread-directory MCP reads return metadata and empty message arrays. A directory
 lookup never hydrates parent, sibling or child local transcripts; conversation

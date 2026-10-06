@@ -23,10 +23,17 @@ export async function karbotMonitor(input: { monitorId: string; everyMs: number;
     await sleep(Math.max(1, Math.min(input.everyMs, input.untilMs - Date.now())))
     if (stopped) return 'stopped'
     try {
-      await monitor.monitorTickActivity({ monitorId: input.monitorId })
+      const result = await monitor.monitorTickActivity({ monitorId: input.monitorId })
+      // The row is the durable stop signal: a run orphaned across CAN
+      // (signal lost) exits on its first stopped skip instead of ticking
+      // dead until untilMs.
+      if (result.skipped === 'stopped') return 'stopped'
     } catch {
       log.warn('monitor.tick_failed', { monitorId: input.monitorId })
     }
   }
+  // A stop landing between the last check and CAN belongs to this run:
+  // without this the fresh execution starts unstopped and ticks on.
+  if (stopped) return 'stopped'
   return continueAsNew<typeof karbotMonitor>(input)
 }

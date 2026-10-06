@@ -82,6 +82,12 @@ export async function startMonitor(db: TransactableDb, runner: MonitorRunner | u
   const threadKey = input.threadKey
   if (sectorId) await requireSector(db, sectorId, input.scope)
   if (threadKey) await requireThread(db, threadKey, input.scope)
+  // A row whose workflow died with it (a failed finishMonitorActivity
+  // closes the execution) never finishes itself: retire expired rows on
+  // this target so the unique index stops blocking new monitors. Live
+  // rows still conflict below.
+  if (sectorId) await db.query('UPDATE monitors SET stopped_at = now() WHERE stopped_at IS NULL AND until < now() AND target_sector_id = $1', [sectorId])
+  else await db.query('UPDATE monitors SET stopped_at = now() WHERE stopped_at IS NULL AND until < now() AND target_thread_key = $1', [threadKey as string])
   const id = randomUUID()
   try {
     await db.query(

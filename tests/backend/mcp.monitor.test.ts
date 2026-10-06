@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { Pool } from 'pg'
 import { afterAll, beforeAll, describe, expect, it, vi, type Mock } from 'vitest'
 import { beginThreadTurn, claimMonitorTick, createSector, createSession, finishMonitor, finishSteering, getMonitor, releaseMonitorTick, threadTurnBusy } from '../../backend/src/db/index.js'
@@ -182,5 +183,21 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP monitor tools [F:mcp.ops.start_monitor]
       sendMock.mockReset()
     }
     await finishMonitor(pool, started.id)
+  })
+
+  it('retires an expired active row when a new monitor starts on its target', async () => {
+    // Seeds the orphan a failed finishMonitorActivity leaves: active row,
+    // until passed, no workflow coming back to finish it. Without the
+    // retirement the unique index conflicts forever.
+    const orphanId = randomUUID()
+    await pool.query(
+      `INSERT INTO monitors(id, target_sector_id, every_minutes, brief, until, karbot_session_id, karbot_thread_key, workflow_id, tenant_id, project_id)
+       VALUES ($1, $2, 5, 'orphan', now() - interval '1 hour', $3, $3, $4, 'test-ops-monitor', NULL)`,
+      [orphanId, sectorA, karbotSession, `karbot-monitor-${orphanId}`],
+    )
+    const started = await invokeTool('ops.start_monitor', karbot(), { sectorId: sectorA, everyMinutes: 5, brief: 'after orphan' }) as { id: string }
+    expect(started.id).not.toBe(orphanId)
+    expect((await getMonitor(pool, orphanId))?.stoppedAt).not.toBeNull()
+    await invokeTool('ops.stop_monitor', karbot(), { monitorId: started.id })
   })
 })
