@@ -39,7 +39,9 @@ describe.skipIf(!TEST_DATABASE_URL)('artifact author-thread attribution [F:db.ev
     expect(read.authorThread).toBe('agent:TEST child')
     expect(read.text).toContain('TEST attributed file fact')
     const files = await listSectorLibrary(pool, sectorId, scope)
-    expect(files.find((file) => file.id === doc!.id)?.authorThread).toBe('agent:TEST child')
+    const entry = files.find((file) => file.id === summary.artifactId)
+    expect(entry?.documentId).toBe(doc!.id)
+    expect(entry?.authorThread).toBe('agent:TEST child')
   })
 
   it('defaults attribution to producedBy and leaves uploads unattributed', async () => {

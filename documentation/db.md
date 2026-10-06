@@ -220,6 +220,10 @@ adds auth, transport, and tool schemas, never SQL.
 | Thread failure reason | `threads.state_reason` | supervisor kind (closed-owner, ...); cleared on next state |
 | Evaluation | `v_thread_cost`, `v_research_quality`, `v_agent_reliability` | read via `GET /v1/sectors/:id/evaluation` |
 
+Files (`listSectorLibrary`) folds each indexed artifact with its sector
+document into one artifact-flavored row (artifact id, `documentId` link,
+doc hash, doc `authorThread`); the doc-id row never lists twice.
+
 ## Current schema (0001–0019)
 
 - 0009–0013: sector drafts, document units index, context selection

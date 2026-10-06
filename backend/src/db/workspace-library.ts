@@ -62,7 +62,7 @@ export async function listSectorLibrary(db: Db, sectorId: string, scope?: Scope)
     const file = files.get(flag.file_id)
     if (file) {
       file.hidden = flag.hidden; file.included = flag.included && !flag.hidden
-      if (flag.document_id) { file.documentId = flag.document_id; const indexed = files.get(flag.document_id); if (indexed) file.hash = indexed.hash; files.delete(flag.document_id) }
+      if (flag.document_id) { file.documentId = flag.document_id; const indexed = files.get(flag.document_id); if (indexed) { file.hash = indexed.hash; if (indexed.authorThread) file.authorThread = indexed.authorThread } files.delete(flag.document_id) }
     }
   }
   for (const file of files.values()) if (file.kind === 'artifact' && !file.documentId) file.status = 'processing'
