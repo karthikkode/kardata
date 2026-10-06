@@ -5,6 +5,9 @@ if (!Number.isInteger(testPort) || testPort < 1024 || testPort > 65535) throw ne
 
 export default defineConfig({
   testDir: '../tests/frontend-e2e',
+  // P6-M5: CI e2e skips the matrix until screenshot baselines are
+  // captured at final verification (a baseless first run fails).
+  ...(process.env.CI_MATRIX === '0' ? { testIgnore: '**/matrix/**' } : {}),
   fullyParallel: true,
   reporter: 'list',
   use: {

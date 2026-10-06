@@ -33,6 +33,7 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -46,7 +47,11 @@ jobs:
       # 1000-row paging inside 30s) are validated on an unloaded
       # machine; parallel workers on shared runners break them with
       # load noise, not product regressions (PR #37 triage).
+      # P6-M5: matrix/ stays out until screenshot baselines are
+      # captured at final verification (a baseless first run fails).
       - run: npm run test:e2e -- --workers=1
+        env:
+          CI_MATRIX: '0'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
