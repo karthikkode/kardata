@@ -241,6 +241,7 @@ describe.skipIf(!TEST_DATABASE_URL)('supervision acts (P3.4) [F:db.reconciliatio
       await pool.query(`UPDATE threads SET updated_at = now() - interval '6 minutes' WHERE key = $1`, [queued.id])
       const walledLease = await leaseOn(pool, walled.id, walled.id, `session-run-${walled.id}`)
       await pool.query(`UPDATE execution_intents SET created_at = now() - interval '21 minutes' WHERE epoch = $1`, [walledLease.epoch])
+      await pool.query(`UPDATE thread_context SET active_run_started_at = now() - interval '21 minutes' WHERE thread_key = $1`, [walled.id])
       await recordHeartbeat(pool, `session-run-${walled.id}`, 'TEST op', true)
       const captured = { signals: [], cancels: [] as string[] }
       await reconcilePage(pool, '', async () => ({ state: 'running' }), Date.now(), () => undefined, runningControl(captured))
