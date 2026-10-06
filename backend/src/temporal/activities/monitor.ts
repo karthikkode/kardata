@@ -15,6 +15,7 @@ import {
   threadTurnBusy,
   workerPoolFromEnv,
 } from '../../db/index.js'
+import { connectClient } from '../connection.js'
 import { TemporalRunsGateway } from '../runs-gateway.js'
 
 async function sectorSnapshot(pool: Parameters<typeof researchHealth>[0], sectorId: string, scope: Scope): Promise<string> {
@@ -54,7 +55,14 @@ export async function monitorTickActivity(input: { monitorId: string }): Promise
       const snapshot = claimed.targetSectorId
         ? await sectorSnapshot(pool, claimed.targetSectorId, scope)
         : await threadSnapshot(pool, claimed.targetThreadKey as string, scope)
-      await new TemporalRunsGateway(pool).send(claimed.karbotThreadKey, `[Monitor ${claimed.id}] ${claimed.brief}\n${snapshot}`)
+      // The gateway never closes a self-made connection, so each tick
+      // leaked one: own the connection here and close it in finally.
+      const connection = await connectClient()
+      try {
+        await new TemporalRunsGateway(pool, connection).send(claimed.karbotThreadKey, `[Monitor ${claimed.id}] ${claimed.brief}\n${snapshot}`)
+      } finally {
+        await connection.close()
+      }
       return { ticked: true }
     } finally {
       await releaseMonitorTick(pool, input.monitorId)

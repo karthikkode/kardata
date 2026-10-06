@@ -1,8 +1,33 @@
 import { Pool } from 'pg'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi, type Mock } from 'vitest'
 import { beginThreadTurn, claimMonitorTick, createSector, createSession, finishMonitor, finishSteering, getMonitor, releaseMonitorTick, threadTurnBusy } from '../../backend/src/db/index.js'
 import { invokeTool } from '../../backend/src/mcp/tools.js'
 import { monitorTickActivity } from '../../backend/src/temporal/activities/monitor.js'
+import { TemporalRunsGateway } from '../../backend/src/temporal/runs-gateway.js'
+
+// Temporal boundary fakes: the tick's claim/snapshot/close path runs for
+// real; only the transport is fake. runs-gateway.js has no other importer
+// in this file's graph, and connection.js keeps its real exports.
+const { sendMock, openedConnections } = vi.hoisted(() => ({
+  sendMock: vi.fn(),
+  openedConnections: [] as Array<{ close: Mock }>,
+}))
+vi.mock('../../backend/src/temporal/connection.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../backend/src/temporal/connection.js')>()
+  return {
+    ...original,
+    connectClient: vi.fn(async () => {
+      const connection = { close: vi.fn(async () => undefined) }
+      openedConnections.push(connection)
+      return connection
+    }),
+  }
+})
+vi.mock('../../backend/src/temporal/runs-gateway.js', () => ({
+  TemporalRunsGateway: vi.fn(function () {
+    return { send: sendMock }
+  }),
+}))
 import type { McpToolContext } from '../../backend/src/mcp/tools-types.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
@@ -109,6 +134,52 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP monitor tools [F:mcp.ops.start_monitor]
     } finally {
       if (saved === undefined) delete process.env['DATABASE_URL']
       else process.env['DATABASE_URL'] = saved
+    }
+    await finishMonitor(pool, started.id)
+  })
+
+  it('closes its Temporal connection after a successful tick', async () => {
+    const started = await invokeTool('ops.start_monitor', karbot(), { sectorId: sectorA, everyMinutes: 5, brief: 'close probe' }) as { id: string }
+    const saved = process.env['DATABASE_URL']
+    process.env['DATABASE_URL'] = dbUrl
+    openedConnections.length = 0
+    sendMock.mockResolvedValue(undefined)
+    try {
+      expect(await threadTurnBusy(pool, karbotSession)).toBe(false)
+      await expect(monitorTickActivity({ monitorId: started.id })).resolves.toEqual({ ticked: true })
+      expect(sendMock).toHaveBeenCalledTimes(1)
+      expect(openedConnections).toHaveLength(1)
+      const connection = openedConnections[0] as { close: Mock }
+      expect(connection.close).toHaveBeenCalledTimes(1)
+      // The gateway ran on the owned connection, not a self-made one.
+      expect((TemporalRunsGateway as unknown as Mock).mock.calls.at(-1)?.[1]).toBe(connection)
+      // Guard released: the next tick may claim.
+      expect(await claimMonitorTick(pool, started.id)).not.toBeNull()
+      await releaseMonitorTick(pool, started.id)
+    } finally {
+      if (saved === undefined) delete process.env['DATABASE_URL']
+      else process.env['DATABASE_URL'] = saved
+      sendMock.mockReset()
+    }
+    await finishMonitor(pool, started.id)
+  })
+
+  it('closes the connection and releases the guard when the send fails', async () => {
+    const started = await invokeTool('ops.start_monitor', karbot(), { sectorId: sectorA, everyMinutes: 5, brief: 'fail probe' }) as { id: string }
+    const saved = process.env['DATABASE_URL']
+    process.env['DATABASE_URL'] = dbUrl
+    openedConnections.length = 0
+    sendMock.mockRejectedValueOnce(new Error('temporal down'))
+    try {
+      await expect(monitorTickActivity({ monitorId: started.id })).rejects.toThrow('temporal down')
+      expect(openedConnections).toHaveLength(1)
+      expect((openedConnections[0] as { close: Mock }).close).toHaveBeenCalledTimes(1)
+      expect(await claimMonitorTick(pool, started.id)).not.toBeNull()
+      await releaseMonitorTick(pool, started.id)
+    } finally {
+      if (saved === undefined) delete process.env['DATABASE_URL']
+      else process.env['DATABASE_URL'] = saved
+      sendMock.mockReset()
     }
     await finishMonitor(pool, started.id)
   })
