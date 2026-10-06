@@ -236,11 +236,11 @@ export async function runMatrixState(page: Page, mc: MatrixCase, state: MatrixSt
   const env = isEnvState(state)
   const dataState: MatrixDataState = env ? (mc.envBasis ?? 'typical') : state
   const width = typeof state === 'string' && WIDTHS[state] ? WIDTHS[state] : 1440
-  // Error/denied/offline states fault the mocked API by design, so the
-  // browser's own resource errors for /v1/ URLs are expected there — and
-  // only there. Healthy-state runs stay strict: an unmocked endpoint's
+  // Error/denied/offline/partial states fault the mocked API by design,
+  // so the browser's own resource errors for /v1/ URLs are expected there —
+  // and only there. Healthy-state runs stay strict: an unmocked endpoint's
   // catch-all 404 must still trip the console assertion.
-  const faultedApi = dataState === 'error' || dataState === 'denied' || dataState === 'offline'
+  const faultedApi = dataState === 'error' || dataState === 'denied' || dataState === 'offline' || dataState === 'partial'
   const errors: string[] = []
   page.on('console', (msg) => {
     if (msg.type() !== 'error') return
