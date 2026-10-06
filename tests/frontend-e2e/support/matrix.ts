@@ -72,7 +72,25 @@ export function anchorLocator(page: Page, anchor: MatrixAnchor): Locator {
 export function isFaultedResourceNoise(msg: ConsoleMessage, scope: RegExp): boolean {
   if (msg.type() !== 'error') return false
   if (!msg.text().startsWith('Failed to load resource')) return false
-  return scope.test(msg.location().url)
+  if (scope.test(msg.location().url)) return true
+  // Older Chromium puts the URL in the text but not the location.
+  const embedded = msg.text().match(/https?:\/\/[^\s'"]+/)
+  return embedded !== null && scope.test(embedded[0])
+}
+
+/** Newer Chromium omits the URL from both the text and location() of a
+ * resource error ("Failed to load resource: the server responded with a
+ * status of 500 ..."). Returns that status so the caller can drop the
+ * noise only when the faulted scope actually served it (a matching
+ * response on the wire); anything else (app fallout requesting an
+ * unmocked URL, load-time chunk failures) still fails. */
+export function unattributedNoiseStatus(msg: ConsoleMessage): number | undefined {
+  if (msg.type() !== 'error') return undefined
+  if (!msg.text().startsWith('Failed to load resource')) return undefined
+  if (msg.location().url !== '') return undefined
+  if (/https?:\/\//.test(msg.text())) return undefined
+  const status = msg.text().match(/status of (\d{3})/)
+  return status ? Number(status[1]) : undefined
 }
 
 function isEnvState(state: MatrixState): state is MatrixEnvState {

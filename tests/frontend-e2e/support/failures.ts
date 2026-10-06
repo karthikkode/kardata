@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { expect, type Page, type Route } from '@playwright/test'
 import { serveApi } from './api'
 import { makeCompanies, makeRuns, makeSessions, matrixSector } from './factory'
-import { anchorLocator, isFaultedResourceNoise, type MatrixAnchor, type MatrixSetup } from './matrix'
+import { anchorLocator, isFaultedResourceNoise, unattributedNoiseStatus, type MatrixAnchor, type MatrixSetup } from './matrix'
 
 export type FaultKind =
   | 'f500' | 'f401' | 'f403' | 'f404' | 'f409' | 'f429'
@@ -123,11 +123,21 @@ async function runRefetch(page: Page, fc: FaultCase, expected: { draft: string |
 
 export async function runFault(page: Page, fc: FaultCase, fault: FaultKind): Promise<void> {
   const errors: string[] = []
+  // The faulted scope proves itself on the wire by status: unattributed
+  // resource noise drops only when the scope actually served that status.
+  // Aborts and malformed bodies serve no error status, so their noise
+  // (app fallout requesting something unmocked) still fails by design.
+  const faultedStatuses = new Set<number>()
+  page.on('response', (response) => {
+    if (fc.pattern.test(response.url())) faultedStatuses.add(response.status())
+  })
   page.on('console', (msg) => {
     if (msg.type() !== 'error') return
     // The faulted request makes Chromium itself log a resource error naming
     // the faulted URL; drop that noise for the faulted pattern only.
     if (isFaultedResourceNoise(msg, fc.pattern)) return
+    const noiseStatus = unattributedNoiseStatus(msg)
+    if (noiseStatus !== undefined && faultedStatuses.has(noiseStatus)) return
     errors.push(msg.text().slice(0, 300))
   })
   page.on('pageerror', (error) => errors.push(String(error).slice(0, 300)))
