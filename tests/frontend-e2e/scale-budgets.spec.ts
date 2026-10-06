@@ -6,7 +6,7 @@
 // back to serveApi outside its paths) so one page walks all three counts.
 // [F:frontend.src.components.chat.SessionsPanel] [F:frontend.src.components.SubagentsPanel] [F:frontend.src.components.SectorWorkspace] [F:frontend.src.components.SectorLanding] [F:frontend.src.components.workspace_files]
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { serveApi } from './support/api'
+import { serveApi, type PollFreeze } from './support/api'
 import { makeCompanies, matrixSector } from './support/factory'
 
 // Scale budgets pin warm logic/render cost, not animation frames:
@@ -93,11 +93,12 @@ interface MutableWorld {
   files: unknown[]
 }
 
-async function mutableApi(page: Page, world: MutableWorld): Promise<void> {
+async function mutableApi(page: Page, world: MutableWorld, freeze?: PollFreeze): Promise<void> {
   await page.route('**/v1/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
     const path = url.pathname
+    if (freeze?.current && !freeze.allow(path)) return new Promise<never>(() => {})
     const method = request.method()
     let data: unknown = null
     let extra: Record<string, unknown> = {}
@@ -146,6 +147,24 @@ async function maxLongtask(page: Page): Promise<number> {
   const durations = await page.evaluate(() => (window as unknown as { __longtasks: number[] }).__longtasks ?? [])
   return durations.length ? Math.max(...durations) : 0
 }
+
+// Freeze background sync around a measured window: the page's 5s poll
+// wave (sessions, context, progress, plan, files, events) otherwise lands
+// inside scroll/timing budgets by phase race (measured: 2x ~65ms tasks
+// from a 12-request wave). The measured action's own endpoint stays
+// allowed; everything else hangs open until the window ends.
+async function frozen<T>(freeze: PollFreeze, allow: (fullPath: string) => boolean, fn: () => Promise<T>): Promise<T> {
+  freeze.current = true
+  freeze.allow = allow
+  try {
+    return await fn()
+  } finally {
+    freeze.current = false
+    freeze.allow = () => true
+  }
+}
+
+const allowNone = (): boolean => false
 
 async function heapMB(page: Page): Promise<number> {
   return page.evaluate(() => {
@@ -201,8 +220,9 @@ async function openSessionsMenu(page: Page): Promise<void> {
 
 test('sessions render 100/1000/2000 with first render under budget at 1000', async ({ page }) => {
   const world: MutableWorld = { sessions: [], subagents: [], queue: [], messages: [], companies: [], files: [] }
-  await serveApi(page, { stream: 'static' })
-  await mutableApi(page, world)
+  const freeze: PollFreeze = { current: false, allow: () => true }
+  await serveApi(page, { stream: 'static', freeze })
+  await mutableApi(page, world, freeze)
   await installPerf(page)
   for (const count of [100, 1000, 2000]) {
     world.sessions = scaleSessions(count)
@@ -217,16 +237,20 @@ test('sessions render 100/1000/2000 with first render under budget at 1000', asy
       await page.keyboard.press('Escape')
       await expect(menu).not.toBeAttached()
       const started = Date.now()
-      await openSessionsMenu(page)
-      await expect(first).toBeAttached({ timeout: 15000 })
+      await frozen(freeze, (path) => path === '/v1/sessions', async () => {
+        await openSessionsMenu(page)
+        await expect(first).toBeAttached({ timeout: 15000 })
+      })
       expect(Date.now() - started).toBeLessThanOrEqual(300)
       await wheelToEnd(page, first, last)
     }
     if (count === 2000) {
-      await clearLongtasks(page)
-      await wheelUp(page, last)
-      await expect(menu).toBeVisible()
-      expect(await maxLongtask(page)).toBeLessThanOrEqual(50)
+      await frozen(freeze, allowNone, async () => {
+        await clearLongtasks(page)
+        await wheelUp(page, last)
+        await expect(menu).toBeVisible()
+        expect(await maxLongtask(page)).toBeLessThanOrEqual(50)
+      })
     }
   }
 })
@@ -234,8 +258,9 @@ test('sessions render 100/1000/2000 with first render under budget at 1000', asy
 test('subagents render 100/1000/2000 with first render under budget at 1000', async ({ page }) => {
   // The dock loads threads for its active session: without one the panel never mounts.
   const world: MutableWorld = { sessions: scaleSessions(1), subagents: [], queue: [], messages: [], companies: [], files: [] }
-  await serveApi(page, { stream: 'static' })
-  await mutableApi(page, world)
+  const freeze: PollFreeze = { current: false, allow: () => true }
+  await serveApi(page, { stream: 'static', freeze })
+  await mutableApi(page, world, freeze)
   await installPerf(page)
   for (const count of [100, 1000, 2000]) {
     world.subagents = scaleSubagents(count)
@@ -253,24 +278,29 @@ test('subagents render 100/1000/2000 with first render under budget at 1000', as
       // not a cancelled exit with end-scroll preserved.
       await expect(list).not.toBeAttached()
       const started = Date.now()
-      await toggle.click()
-      await expect(first).toBeAttached({ timeout: 15000 })
+      await frozen(freeze, (path) => /^\/v1\/sessions\/[^/]+\/threads$/.test(path), async () => {
+        await toggle.click()
+        await expect(first).toBeAttached({ timeout: 15000 })
+      })
       expect(Date.now() - started).toBeLessThanOrEqual(300)
       await wheelToEnd(page, first, last)
     }
     if (count === 2000) {
-      await clearLongtasks(page)
-      await wheelUp(page, last)
-      await expect(list).toBeVisible()
-      expect(await maxLongtask(page)).toBeLessThanOrEqual(50)
+      await frozen(freeze, allowNone, async () => {
+        await clearLongtasks(page)
+        await wheelUp(page, last)
+        await expect(list).toBeVisible()
+        expect(await maxLongtask(page)).toBeLessThanOrEqual(50)
+      })
     }
   }
 })
 
 test('queue renders 100/1000/2000 with first render under budget at 1000', async ({ page }) => {
   const world: MutableWorld = { sessions: sectorSession(), subagents: [], queue: [], messages: [], companies: [], files: [] }
-  await serveApi(page, { stream: 'static', data: { sectors: [matrixSector()] } })
-  await mutableApi(page, world)
+  const freeze: PollFreeze = { current: false, allow: () => true }
+  await serveApi(page, { stream: 'static', data: { sectors: [matrixSector()] }, freeze })
+  await mutableApi(page, world, freeze)
   await installPerf(page)
   for (const count of [100, 1000, 2000]) {
     world.queue = scaleQueue(count)
@@ -286,16 +316,20 @@ test('queue renders 100/1000/2000 with first render under budget at 1000', async
       await trigger.click()
       await expect(list).not.toBeAttached()
       const started = Date.now()
-      await trigger.click()
-      await expect(first).toBeAttached({ timeout: 15000 })
+      await frozen(freeze, (path) => /^\/v1\/threads\/[^/]+\/queue$/.test(path), async () => {
+        await trigger.click()
+        await expect(first).toBeAttached({ timeout: 15000 })
+      })
       expect(Date.now() - started).toBeLessThanOrEqual(300)
       await wheelToEnd(page, first, last)
     }
     if (count === 2000) {
-      await clearLongtasks(page)
-      await wheelUp(page, last)
-      await expect(list).toBeVisible()
-      expect(await maxLongtask(page)).toBeLessThanOrEqual(50)
+      await frozen(freeze, allowNone, async () => {
+        await clearLongtasks(page)
+        await wheelUp(page, last)
+        await expect(list).toBeVisible()
+        expect(await maxLongtask(page)).toBeLessThanOrEqual(50)
+      })
     }
   }
 })
@@ -305,8 +339,9 @@ test('thread renders 1000 under budget and 5000 with clean scroll', async ({ pag
     sessions: [...sectorSession(), { id: 'mx-session-002', title: 'Second chat', createdAt: AT, updatedAt: AT, sectorId: 'sector-matrix', kind: 'normal' }],
     subagents: [], queue: [], messages: [], companies: [], files: [],
   }
-  await serveApi(page, { stream: 'static', data: { sectors: [matrixSector()] } })
-  await mutableApi(page, world)
+  const freeze: PollFreeze = { current: false, allow: () => true }
+  await serveApi(page, { stream: 'static', data: { sectors: [matrixSector()] }, freeze })
+  await mutableApi(page, world, freeze)
   await installPerf(page)
   for (const count of [1000, 5000]) {
     world.messagesByThread = {
@@ -325,22 +360,27 @@ test('thread renders 1000 under budget and 5000 with clean scroll', async ({ pag
       await page.getByRole('button', { name: 'Open Second chat' }).click()
       await expect(log.getByText(`Scale-B answer ${count}`)).toBeAttached({ timeout: 30000 })
       const started = Date.now()
-      await page.getByRole('button', { name: 'Open Matrix chat' }).click()
-      await expect(log.getByText(`Scale-A answer ${count}`)).toBeAttached({ timeout: 30000 })
+      await frozen(freeze, (path) => /^\/v1\/threads\/[^/]+\/messages$/.test(path), async () => {
+        await page.getByRole('button', { name: 'Open Matrix chat' }).click()
+        await expect(log.getByText(`Scale-A answer ${count}`)).toBeAttached({ timeout: 30000 })
+      })
       expect(Date.now() - started).toBeLessThanOrEqual(300)
     } else {
-      await clearLongtasks(page)
-      await wheelDown(page, log, 10)
-      await expect(last).toBeVisible({ timeout: 15000 })
-      expect(await maxLongtask(page)).toBeLessThanOrEqual(50)
+      await frozen(freeze, allowNone, async () => {
+        await clearLongtasks(page)
+        await wheelDown(page, log, 10)
+        await expect(last).toBeVisible({ timeout: 15000 })
+        expect(await maxLongtask(page)).toBeLessThanOrEqual(50)
+      })
     }
   }
 })
 
 test('companies page 100/1000/2000 with first window under budget at 1000', async ({ page }) => {
   const world: MutableWorld = { sessions: [], subagents: [], queue: [], messages: [], companies: [], files: [] }
-  await serveApi(page, { stream: 'static', data: { sectors: [matrixSector()] } })
-  await mutableApi(page, world)
+  const freeze: PollFreeze = { current: false, allow: () => true }
+  await serveApi(page, { stream: 'static', data: { sectors: [matrixSector()] }, freeze })
+  await mutableApi(page, world, freeze)
   await installPerf(page)
   for (const count of [100, 1000, 2000]) {
     world.companies = makeCompanies(count)
@@ -353,22 +393,27 @@ test('companies page 100/1000/2000 with first window under budget at 1000', asyn
       // load, not product render. Show more fetches the next window and
       // re-renders warm in-section (same idiom as the files search leg).
       const started = Date.now()
-      await section.getByRole('button', { name: 'Show more', exact: true }).click()
-      await expect(section.getByText(`Showing 200 of ${grouped(count)}`)).toBeVisible({ timeout: 15000 })
+      await frozen(freeze, (path) => path === '/v1/companies', async () => {
+        await section.getByRole('button', { name: 'Show more', exact: true }).click()
+        await expect(section.getByText(`Showing 200 of ${grouped(count)}`)).toBeVisible({ timeout: 15000 })
+      })
       expect(Date.now() - started).toBeLessThanOrEqual(300)
     }
     if (count === 2000) {
-      await clearLongtasks(page)
-      await wheelDown(page, window)
-      expect(await maxLongtask(page)).toBeLessThanOrEqual(50)
+      await frozen(freeze, allowNone, async () => {
+        await clearLongtasks(page)
+        await wheelDown(page, window)
+        expect(await maxLongtask(page)).toBeLessThanOrEqual(50)
+      })
     }
   }
 })
 
 test('files window 100/1000/2000 with first window under budget at 1000', async ({ page }) => {
   const world: MutableWorld = { sessions: [], subagents: [], queue: [], messages: [], companies: [], files: [] }
-  await serveApi(page, { stream: 'static', data: { sectors: [matrixSector()] } })
-  await mutableApi(page, world)
+  const freeze: PollFreeze = { current: false, allow: () => true }
+  await serveApi(page, { stream: 'static', data: { sectors: [matrixSector()] }, freeze })
+  await mutableApi(page, world, freeze)
   await installPerf(page)
   await page.setViewportSize({ width: 1440, height: 900 })
   for (const count of [100, 1000, 2000]) {
@@ -384,15 +429,19 @@ test('files window 100/1000/2000 with first window under budget at 1000', async 
       // filters all 1000 rows and re-renders warm in-section.
       const search = files.getByRole('textbox', { name: 'Search files' })
       const started = Date.now()
-      await search.fill('scale-note-0999')
-      await expect(files.getByText('scale-note-0999.md')).toBeVisible({ timeout: 15000 })
+      await frozen(freeze, allowNone, async () => {
+        await search.fill('scale-note-0999')
+        await expect(files.getByText('scale-note-0999.md')).toBeVisible({ timeout: 15000 })
+      })
       expect(Date.now() - started).toBeLessThanOrEqual(300)
       await search.fill('')
     }
     if (count === 2000) {
-      await clearLongtasks(page)
-      await wheelDown(page, files)
-      expect(await maxLongtask(page)).toBeLessThanOrEqual(50)
+      await frozen(freeze, allowNone, async () => {
+        await clearLongtasks(page)
+        await wheelDown(page, files)
+        expect(await maxLongtask(page)).toBeLessThanOrEqual(50)
+      })
     }
   }
 })

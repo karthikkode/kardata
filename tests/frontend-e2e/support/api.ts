@@ -37,8 +37,19 @@ export interface ApiData {
   subagents?: number
 }
 
+/** Background-sync freeze for wall-clock budgets: while current, every
+ * request whose full /v1/* path the allow predicate rejects hangs open
+ * (no response, no render). Perf specs freeze around measured windows so
+ * the 5s poll wave cannot land inside them; the measured action's own
+ * endpoint stays allowed. Hangs die with navigation or page close. */
+export interface PollFreeze {
+  current: boolean
+  allow: (fullPath: string) => boolean
+}
+
 export interface ApiOptions {
   modes?: Partial<Record<RouteKey, RouteMode>>
+  freeze?: PollFreeze
   data?: ApiData
   /** static: fulfill frames then close. live: held-open stream, auto-primed.
    * quiet: held-open stream, test pushes frames itself. */
@@ -147,7 +158,9 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
   await page.route('**/v1/**', async (route) => {
     const url = new URL(route.request().url())
     const method = route.request().method()
-    const path = url.pathname.replace(/^\/v1/, '') || '/'
+    const fullPath = url.pathname
+    if (options.freeze?.current && !options.freeze.allow(fullPath)) return new Promise<never>(() => {})
+    const path = fullPath.replace(/^\/v1/, '') || '/'
     const body = (): Record<string, unknown> => {
       try { return (route.request().postDataJSON() ?? {}) as Record<string, unknown> } catch { return {} }
     }
