@@ -561,8 +561,10 @@ function requireInspection<K extends 'listRuns' | 'getRun' | 'listQueue' | 'remo
   const fn = runner[method]
   if (typeof fn !== 'function') throw new DbContractError(`${tool} needs a run-inspection runner: the server wires the runs gateway, tests inject a fake`)
   // Bound: callers invoke the method detached, and both the real gateway
-  // and the fake read instance state (client, pool, runs, queues).
-  return (fn as NonNullable<ThreadMessenger[K]>).bind(runner)
+  // and the fake read instance state (client, pool, runs, queues). The
+  // unbound-typed hop keeps bind's this-overloads out of the generic.
+  const unbound = fn as (...args: never[]) => unknown
+  return unbound.bind(runner) as NonNullable<ThreadMessenger[K]>
 }
 
 /** List runs fleet-wide (filtering is the caller's job). Fail-closed
