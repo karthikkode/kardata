@@ -59,8 +59,8 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP ops observability tools [F:mcp.ops.list
     await projectNewEvents(pool)
     await pool.query(
       `INSERT INTO execution_rounds(trace_id, run_id, thread_key, session_id, sector_id, kind, round, attempt, model, provider, started_at, finished_at, latency_ms, input_tokens, output_tokens, cached_tokens, outcome)
-       VALUES ('test-trace-obs-idle', 'run-obs-idle', $1, $1, $2, 'chat', 1, 0, 'meta-test', 'meta', now() - interval '20 minutes', now() - interval '20 minutes', 120, 100, 50, 0, 'ok')`,
-      [idle, sectorA],
+       VALUES ('test-trace-obs-idle', 'run-obs-idle', $1, $1, NULL, 'chat', 1, 0, 'meta-test', 'meta', now() - interval '20 minutes', now() - interval '20 minutes', 120, 100, 50, 0, 'ok')`,
+      [idle],
     )
     const health = await invokeTool('ops.thread_health', karbot(), { threadKey: idle }) as { status: string; stalled: boolean }
     expect(health.status).toBe('IDLE')
