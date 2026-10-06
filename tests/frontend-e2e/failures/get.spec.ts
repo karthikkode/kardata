@@ -178,7 +178,7 @@ const CASES: FaultCase[] = [
     deniedAnchors: [DENIED_COPY],
     healAnchors: [
       { kind: 'text', text: 'File preview' },
-      { kind: 'role', role: 'note' },
+      { kind: 'role', role: 'heading', name: 'parramatta-crew-notes.md' },
     ],
     retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
     refetch: { steps: [
