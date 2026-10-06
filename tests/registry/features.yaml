@@ -6485,6 +6485,12 @@
     - temporal
     - live
   states: []
+- id: backend.activity.monitor.relevantAlerts
+  layer: backend
+  surface: backend/src/temporal/activities/monitor.ts
+  tiers:
+    - unit
+  states: []
 - id: backend.workflow.monitor.karbotMonitor
   layer: backend
   surface: backend/src/temporal/workflows/monitor.ts

@@ -18,11 +18,17 @@ import {
 import { connectClient } from '../connection.js'
 import { TemporalRunsGateway } from '../runs-gateway.js'
 
+/** Alerts a sector snapshot may report: its own sector only. A bare
+ * current-warning from another sector must never leak in. */
+export function relevantAlerts<T extends { sectorId: string | null; state: string }>(items: T[], sectorId: string): T[] {
+  return items.filter((item) => item.sectorId === sectorId).slice(0, 5)
+}
+
 async function sectorSnapshot(pool: Parameters<typeof researchHealth>[0], sectorId: string, scope: Scope): Promise<string> {
   const health = await researchHealth(pool, sectorId, scope)
   const lines = [`sector ${health.sector.name}: ${health.sector.state}, ${health.liveThreads} live threads${health.stale ? ' (STALE)' : ''}`]
   const page = await listSupervisionAlerts(pool, scope, Number.MAX_SAFE_INTEGER, 5)
-  const relevant = page.items.filter((item) => item.sectorId === sectorId || item.state === 'current-warning').slice(0, 5)
+  const relevant = relevantAlerts(page.items, sectorId)
   for (const item of relevant) lines.push(`alert [${item.severity}] ${item.subject}`)
   if (health.recentSupervision.length > 0) lines.push(`supervision: ${health.recentSupervision[0]?.kind} ${health.recentSupervision[0]?.response}`)
   return lines.join('\n')
