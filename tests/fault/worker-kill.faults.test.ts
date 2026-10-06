@@ -150,10 +150,9 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('worker SIGKILL drills F4-F5 [F:
     return rows.map((row) => row.attempt)
   }
 
-  async function roundOneOk(sessionId: string): Promise<boolean> {
-    await projectNewEvents(pool)
+  async function delegateResulted(sessionId: string): Promise<boolean> {
     const { rows } = await pool.query<{ count: string }>(
-      "SELECT COUNT(*) AS count FROM execution_rounds WHERE thread_key = $1 AND attempt = 1 AND outcome = 'ok'",
+      `SELECT COUNT(*) AS count FROM events WHERE partition = $1 AND type = 't.operation.result' AND payload->>'toolName' = 'db.delegate_subagent'`,
       [sessionId],
     )
     return Number(rows[0]?.count ?? 0) > 0
@@ -192,7 +191,10 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('worker SIGKILL drills F4-F5 [F:
     const archiveDir = join(effectsDir, `f4-${randomUUID()}-archive`)
     const first = spawnWorker('f4', taskQueue, '', archiveDir, namespace)
     const { sessionId, handle } = await startTurn('F4 hello', taskQueue, first, nsClient)
-    await waitForChild(async () => roundOneOk(sessionId), first.child, first.stderr, 180_000, 'round 1 ok (round 2 hanging)')
+    // The contract kills in round 2: the provider round records before the
+    // delegate dispatches, so gate on the delegate result receipt (round 1
+    // fully complete, round 2 hanging) instead of the provider round.
+    await waitForChild(async () => delegateResulted(sessionId), first.child, first.stderr, 180_000, 'delegate result (round 2 hanging)')
     const killAt = Date.now()
     first.child.kill('SIGKILL')
     await once(first.child, 'exit')
