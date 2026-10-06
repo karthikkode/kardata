@@ -8,6 +8,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Context } from '@temporalio/activity'
 import { Client as WorkflowClient } from '@temporalio/client'
+import { msToTs } from '@temporalio/common'
 import type { NativeConnection, Worker } from '@temporalio/worker'
 import {
   emptyUsage,
@@ -257,6 +258,7 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL || !TOXIPROXY_URL)('infrastructur
     const savedTemporal = process.env['TEMPORAL_ADDRESS']
     const savedProvider = process.env['KARDATA_PROVIDER']
     const savedDb = process.env['DATABASE_URL']
+    const savedNamespace = process.env['TEMPORAL_NAMESPACE']
     const separator = ADDRESS.lastIndexOf(':')
     const upstreamHost = ADDRESS.slice(0, separator)
     const upstreamPort = Number(ADDRESS.slice(separator + 1))
@@ -264,6 +266,17 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL || !TOXIPROXY_URL)('infrastructur
     process.env['TEMPORAL_ADDRESS'] = `127.0.0.1:${TOXI_TEMPORAL_PORT}`
     process.env['DATABASE_URL'] = databaseUrl
     process.env['KARDATA_PROVIDER'] = 'fake'
+    // The HTTP send path hardcodes the turn-lane queue, so the drill
+    // worker must poll that name: isolate with a throwaway namespace
+    // (registered while the proxy is up) instead of a unique queue.
+    const namespace = `kardata-test-fault-f8-${Date.now()}-${randomUUID().slice(0, 8)}`
+    const registrar = await connectClient()
+    try {
+      await registrar.workflowService.registerNamespace({ namespace, workflowExecutionRetentionPeriod: msToTs(86_400_000) })
+    } finally {
+      await registrar.close()
+    }
+    process.env['TEMPORAL_NAMESPACE'] = namespace
     const pool = new Pool({ connectionString: databaseUrl })
     let connection: NativeConnection | undefined
     let worker: Worker | undefined
@@ -293,7 +306,7 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL || !TOXIPROXY_URL)('infrastructur
     try {
       const sessionId = await seedSession(pool)
       connection = await connectWorker()
-      const client = new WorkflowClient({ connection: await connectClient() })
+      const client = new WorkflowClient({ connection: await connectClient(), namespace })
       worker = await createLaneWorker({
         lane: 'turn',
         connection,
@@ -328,6 +341,10 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL || !TOXIPROXY_URL)('infrastructur
       })
       run = worker.run()
       run.catch(() => undefined)
+      // The prod-named queue poll stays inside the drill namespace: a
+      // default-namespace worker here would steal owner turns.
+      expect(temporalNamespace()).toBe(namespace)
+      expect((worker.options as { namespace?: string }).namespace).toBe(namespace)
       const app: FastifyInstance = buildApp({ pool, runs: new TemporalRunsGateway(pool) })
       try {
         const first = await app.inject({ method: 'POST', url: '/v1/commands/send', payload: { threadKey: sessionId, text: 'F8 hello' } })
@@ -382,6 +399,8 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL || !TOXIPROXY_URL)('infrastructur
       else process.env['KARDATA_PROVIDER'] = savedProvider
       if (savedDb === undefined) delete process.env['DATABASE_URL']
       else process.env['DATABASE_URL'] = savedDb
+      if (savedNamespace === undefined) delete process.env['TEMPORAL_NAMESPACE']
+      else process.env['TEMPORAL_NAMESPACE'] = savedNamespace
       await worker?.shutdown()
       await run?.catch(() => undefined)
       await connection?.close()
