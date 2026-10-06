@@ -2,6 +2,7 @@
 // + tests/frontend-e2e/matrix/components.json. Do not edit.
 import { test } from '@playwright/test'
 import { runMatrixState, type MatrixCase } from '../support/matrix'
+import { longtextSnippets } from '../support/factory'
 
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.Dashboard",
@@ -19,7 +20,7 @@ test('[F:frontend.src.components.Dashboard] Dashboard empty', async ({ page }) =
 })
 
 test('[F:frontend.src.components.Dashboard] Dashboard typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Overview"},{"kind":"css","css":"[aria-label=\"Recent sectors\"]"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Overview"},{"kind":"css","css":"[aria-label=\"Recent sectors\"]"}], expectedRows: { selector: "[aria-label=\"Recent sectors\"] [data-list-row]", count: 6 } }, 'typical')
 })
 
 test('[F:frontend.src.components.Dashboard] Dashboard error', async ({ page }) => {
@@ -35,11 +36,11 @@ test('[F:frontend.src.components.Dashboard] Dashboard offline', async ({ page })
 })
 
 test('[F:frontend.src.components.Dashboard] Dashboard partial', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Overview"},{"kind":"css","css":"[aria-label=\"Recent sectors\"]"}] }, 'partial')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Overview"},{"kind":"css","css":"[aria-label=\"Recent sectors\"]"}], expectedRows: { selector: "[aria-label=\"Recent sectors\"] [data-list-row]", count: 1 } }, 'partial')
 })
 
 test('[F:frontend.src.components.Dashboard] Dashboard longtext', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Overview"},{"kind":"css","css":"[aria-label=\"Recent sectors\"]"}] }, 'longtext')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Overview"},{"kind":"css","css":"[aria-label=\"Recent sectors\"]"}], expectedRows: { selector: "[aria-label=\"Recent sectors\"] [data-list-row]", count: 1 }, expectedTexts: [...longtextSnippets("sectors")] }, 'longtext')
 })
 
 test('[F:frontend.src.components.Dashboard] Dashboard dark', async ({ page }) => {

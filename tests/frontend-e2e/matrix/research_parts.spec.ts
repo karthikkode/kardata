@@ -10,11 +10,11 @@ const base: Omit<MatrixCase, 'anchors'> = {
 }
 
 test('[F:frontend.src.components.research_parts] research_parts typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Researches"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Researches"}], expectedRows: { selector: "table[aria-label=\"Sectors\"] [data-list-row]", count: 8 } }, 'typical')
 })
 
 test('[F:frontend.src.components.research_parts] research_parts n100', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Researches"}] }, 'n100')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Researches"}], expectedRows: { selector: "table[aria-label=\"Sectors\"] [data-list-row]", count: 50 }, expectedTexts: [{ text: "Showing 50 of 100", exact: true }] }, 'n100')
 })
 
 test('[F:frontend.src.components.research_parts] research_parts dark', async ({ page }) => {

@@ -18,11 +18,11 @@ test('[F:frontend.src.components.RunsPanel] RunsPanel empty', async ({ page }) =
 })
 
 test('[F:frontend.src.components.RunsPanel] RunsPanel one', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"region","name":"Runs"}] }, 'one')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"region","name":"Runs"}], expectedRows: { selector: "table[aria-label=\"Agent runs\"] [data-list-row]", count: 1 } }, 'one')
 })
 
 test('[F:frontend.src.components.RunsPanel] RunsPanel typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"region","name":"Runs"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"region","name":"Runs"}], expectedRows: { selector: "table[aria-label=\"Agent runs\"] [data-list-row]", count: 8 } }, 'typical')
 })
 
 test('[F:frontend.src.components.RunsPanel] RunsPanel error', async ({ page }) => {

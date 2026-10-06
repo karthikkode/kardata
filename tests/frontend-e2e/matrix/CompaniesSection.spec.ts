@@ -2,6 +2,7 @@
 // + tests/frontend-e2e/matrix/components.json. Do not edit.
 import { test } from '@playwright/test'
 import { runMatrixState, type MatrixCase } from '../support/matrix'
+import { longtextSnippets } from '../support/factory'
 
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.CompaniesSection",
@@ -18,19 +19,19 @@ test('[F:frontend.src.components.CompaniesSection] CompaniesSection empty', asyn
 })
 
 test('[F:frontend.src.components.CompaniesSection] CompaniesSection one', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"region","name":"Companies"}] }, 'one')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"region","name":"Companies"}], expectedRows: { selector: "table[aria-label=\"Companies\"] [data-list-row]", count: 1 }, expectedTexts: [{ text: "Showing 1 of 1", exact: true }] }, 'one')
 })
 
 test('[F:frontend.src.components.CompaniesSection] CompaniesSection typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"region","name":"Companies"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"region","name":"Companies"}], expectedRows: { selector: "table[aria-label=\"Companies\"] [data-list-row]", count: 8 }, expectedTexts: [{ text: "Showing 8 of 8", exact: true }] }, 'typical')
 })
 
 test('[F:frontend.src.components.CompaniesSection] CompaniesSection n100', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"region","name":"Companies"}] }, 'n100')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"region","name":"Companies"}], expectedRows: { selector: "table[aria-label=\"Companies\"] [data-list-row]", count: 100 }, expectedTexts: [{ text: "Showing 100 of 100", exact: true }] }, 'n100')
 })
 
 test('[F:frontend.src.components.CompaniesSection] CompaniesSection n1000', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"region","name":"Companies"}] }, 'n1000')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"region","name":"Companies"}], expectedRows: { selector: "table[aria-label=\"Companies\"] [data-list-row]", count: 100 }, expectedTexts: [{ text: "Showing 100 of 1,000", exact: true }] }, 'n1000')
 })
 
 test('[F:frontend.src.components.CompaniesSection] CompaniesSection error', async ({ page }) => {
@@ -46,7 +47,7 @@ test('[F:frontend.src.components.CompaniesSection] CompaniesSection offline', as
 })
 
 test('[F:frontend.src.components.CompaniesSection] CompaniesSection longtext', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"region","name":"Companies"}] }, 'longtext')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"region","name":"Companies"}], expectedRows: { selector: "table[aria-label=\"Companies\"] [data-list-row]", count: 1 }, expectedTexts: [{ text: "Showing 1 of 1", exact: true }, ...longtextSnippets("companies")] }, 'longtext')
 })
 
 test('[F:frontend.src.components.CompaniesSection] CompaniesSection dark', async ({ page }) => {

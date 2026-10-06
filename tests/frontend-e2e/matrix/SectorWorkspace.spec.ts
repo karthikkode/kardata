@@ -2,6 +2,7 @@
 // + tests/frontend-e2e/matrix/components.json. Do not edit.
 import { test } from '@playwright/test'
 import { runMatrixState, type MatrixCase } from '../support/matrix'
+import { longtextSnippets } from '../support/factory'
 
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.SectorWorkspace",
@@ -19,7 +20,7 @@ test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace empty', async 
 })
 
 test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Research views\"]"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Research views\"]"}], expectedRows: { selector: "[aria-label=\"Chat sessions\"] [data-list-row]", count: 12 } }, 'typical')
 })
 
 test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace error', async ({ page }) => {
@@ -35,11 +36,11 @@ test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace offline', asyn
 })
 
 test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace partial', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Research views\"]"}] }, 'partial')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Research views\"]"}], expectedRows: { selector: "[aria-label=\"Chat sessions\"] [data-list-row]", count: 7 } }, 'partial')
 })
 
 test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace longtext', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Research views\"]"}] }, 'longtext')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Research views\"]"}], expectedRows: { selector: "[aria-label=\"Chat sessions\"] [data-list-row]", count: 7 }, expectedTexts: [...longtextSnippets("sessions")] }, 'longtext')
 })
 
 test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace dark', async ({ page }) => {

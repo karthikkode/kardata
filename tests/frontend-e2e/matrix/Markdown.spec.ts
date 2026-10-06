@@ -2,6 +2,7 @@
 // + tests/frontend-e2e/matrix/components.json. Do not edit.
 import { test } from '@playwright/test'
 import { runMatrixState, type MatrixCase } from '../support/matrix'
+import { longtextSnippets } from '../support/factory'
 
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.Markdown",
@@ -14,7 +15,7 @@ test('[F:frontend.src.components.Markdown] Markdown typical', async ({ page }) =
 })
 
 test('[F:frontend.src.components.Markdown] Markdown longtext', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Conversation messages\"]"},{"kind":"css","css":"[aria-label=\"Conversation messages\"] table"}] }, 'longtext')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Conversation messages\"]"},{"kind":"css","css":"[aria-label=\"Conversation messages\"] table"}], expectedTexts: [...longtextSnippets("messages")] }, 'longtext')
 })
 
 test('[F:frontend.src.components.Markdown] Markdown dark', async ({ page }) => {

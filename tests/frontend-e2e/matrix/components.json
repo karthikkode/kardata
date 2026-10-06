@@ -66,7 +66,8 @@
       }
     ],
     "primary": "companies",
-    "family": "resource"
+    "family": "resource",
+    "rows": "table[aria-label=\"Companies\"] [data-list-row]"
   },
   "frontend.src.components.CreateSectorDialog": {
     "route": "/?section=Researches",
@@ -117,7 +118,8 @@
     ],
     "primary": "sectors",
     "secondary": "companies",
-    "family": "resource"
+    "family": "resource",
+    "rows": "[aria-label=\"Recent sectors\"] [data-list-row]"
   },
   "frontend.src.components.DataTable": {
     "route": "/?section=Agents",
@@ -312,7 +314,8 @@
     ],
     "primary": "sectors",
     "secondary": "companies",
-    "family": "resource"
+    "family": "resource",
+    "rows": "table[aria-label=\"Sectors\"] [data-list-row]"
   },
   "frontend.src.components.RunsPanel": {
     "route": "/?section=Agents",
@@ -330,7 +333,8 @@
       }
     ],
     "primary": "runs",
-    "family": "direct"
+    "family": "direct",
+    "rows": "table[aria-label=\"Agent runs\"] [data-list-row]"
   },
   "frontend.src.components.SectorFilePreview": {
     "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
@@ -400,7 +404,8 @@
     ],
     "primary": "sessions",
     "secondary": "messages",
-    "family": "resource"
+    "family": "resource",
+    "rows": "[aria-label=\"Chat sessions\"] [data-list-row]"
   },
   "frontend.src.components.Sidebar": {
     "route": "/",
@@ -453,7 +458,8 @@
       }
     ],
     "primary": "threads",
-    "family": "static"
+    "family": "static",
+    "countText": "{n} subagents"
   },
   "frontend.src.components.SupervisionAlertsPanel": {
     "route": "/?section=Agents",
@@ -657,7 +663,8 @@
       }
     ],
     "primary": "sectors",
-    "family": "static"
+    "family": "static",
+    "rows": "table[aria-label=\"Sectors\"] [data-list-row]"
   },
   "frontend.src.components.shells": {
     "route": "/?section=Agents",
@@ -1229,7 +1236,8 @@
       }
     ],
     "primary": "messages",
-    "family": "direct"
+    "family": "direct",
+    "rows": "[aria-label=\"Chat messages\"] [data-message-bubble]"
   },
   "frontend.src.components.chat.ChatStates": {
     "route": "/",
@@ -1294,7 +1302,8 @@
       }
     ],
     "primary": "messages",
-    "family": "static"
+    "family": "static",
+    "rows": "[aria-label=\"Chat messages\"] [data-message-bubble]"
   },
   "frontend.src.components.chat.SessionFiles": {
     "route": "/",
@@ -1363,7 +1372,8 @@
       }
     ],
     "primary": "sessions",
-    "family": "static"
+    "family": "static",
+    "rows": "[aria-label=\"Chat sessions\"] [role=\"menuitem\"][aria-label^=\"Open \"]"
   },
   "frontend.src.components.global_context_panel": {
     "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",

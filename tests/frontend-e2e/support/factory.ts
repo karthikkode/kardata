@@ -81,6 +81,34 @@ export function longTextCompanies(): FixtureCompany[] {
   }]
 }
 
+/** Stable substrings proving long-text fixtures reached the UI. */
+export interface MatrixTextExpect {
+  text: string
+  exact: boolean
+}
+const NAME_SNIPPET = LONG_NAME_300.slice(0, 80)
+const MESSAGE_SNIPPET = LONG_MESSAGE_5K.slice(0, 80)
+const URL_SNIPPET = UNBROKEN_URL.slice(0, 60)
+
+/** Snippets per primary for the longtext state. sessions covers
+ * SectorWorkspace: the open thread renders the 5k message + URL. */
+export function longtextSnippets(primary: string): MatrixTextExpect[] {
+  switch (primary) {
+    case 'companies':
+    case 'sectors':
+    case 'sector':
+      return [{ text: NAME_SNIPPET, exact: false }]
+    case 'messages':
+    case 'sessions':
+      return [
+        { text: MESSAGE_SNIPPET, exact: false },
+        { text: URL_SNIPPET, exact: false },
+      ]
+    default:
+      return []
+  }
+}
+
 /** Deterministic chat messages for count states. */
 export function makeMessages(count: number): FixtureMessage[] {
   return Array.from({ length: count }, (_, i) => ({
@@ -137,6 +165,36 @@ export function makeRuns(count: number): FixtureRun[] {
   }))
 }
 
+/** Deterministic sectors for count states (one/typical/100/1000). Keeps
+ * sector-matrix first: matrix routes address it for detail + sessions. */
+export function makeSectors(count: number): FixtureSector[] {
+  const states: FixtureSector['state'][] = ['running', 'complete', 'paused', 'planned', 'approved', 'draft']
+  const topics = ['Electrical services', 'Plumbing services', 'HVAC services']
+  return Array.from({ length: count }, (_, i) => {
+    if (i === 0) return matrixSector()
+    return {
+      id: `mx-sector-${String(i + 1).padStart(3, '0')}`,
+      name: `Matrix sector ${i + 1}`,
+      topic: topics[i % topics.length] as string,
+      state: states[i % states.length] as FixtureSector['state'],
+      companiesFound: 0,
+      createdAt: FIXED_DAY,
+      updatedAt: new Date(new Date(FIXED_NOW).getTime() - i * 3_600_000).toISOString(),
+    }
+  })
+}
+
+/** Deterministic Karbot (unscoped) sessions for count states. No sectorId:
+ * the sessions endpoint only returns these to unfiltered (Karbot) views. */
+export function makeKarbotSessions(count: number): FixtureSession[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: `mx-karbot-${String(i + 1).padStart(3, '0')}`,
+    title: `Matrix karbot chat ${i + 1}`,
+    createdAt: FIXED_DAY,
+    updatedAt: FIXED_NOW,
+  }))
+}
+
 export type MatrixDataState =
   | 'loading' | 'empty' | 'one' | 'typical' | 'n100' | 'n1000'
   | 'error' | 'denied' | 'offline' | 'partial' | 'longtext'
@@ -177,6 +235,8 @@ export function matrixApiOptions(
       data.sessions = makeSessions(count)
       data.runs = makeRuns(Math.min(count, 50))
       data.subagents = count
+      data.sectors = makeSectors(count)
+      data.karbotSessions = makeKarbotSessions(count)
       // Typical keeps the showcase thread (tools + reasoning + markdown);
       // only the scaled counts override messages.
       if (state !== 'typical') data.messages = makeMessages(count)
@@ -196,7 +256,10 @@ export function matrixApiOptions(
       return { modes, data }
     case 'longtext':
       data.companies = longTextCompanies()
-      data.messages = [{ seq: 1, kind: 'text', role: 'assistant', text: LONG_MESSAGE_5K, at: FIXED_NOW }]
+      data.messages = [
+        { seq: 1, kind: 'text', role: 'assistant', text: LONG_MESSAGE_5K, at: FIXED_NOW },
+        { seq: 2, kind: 'text', role: 'user', text: UNBROKEN_URL, at: FIXED_NOW },
+      ]
       data.sectors = [{ ...matrixSector(), name: LONG_NAME_300 }]
       return { modes, data }
   }

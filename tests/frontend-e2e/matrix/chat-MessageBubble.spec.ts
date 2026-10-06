@@ -2,6 +2,7 @@
 // + tests/frontend-e2e/matrix/components.json. Do not edit.
 import { test } from '@playwright/test'
 import { runMatrixState, type MatrixCase } from '../support/matrix'
+import { longtextSnippets } from '../support/factory'
 
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.chat.MessageBubble",
@@ -10,23 +11,23 @@ const base: Omit<MatrixCase, 'anchors'> = {
 }
 
 test('[F:frontend.src.components.chat.MessageBubble] MessageBubble typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Conversation messages\"]"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Conversation messages\"]"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 28 } }, 'typical')
 })
 
 test('[F:frontend.src.components.chat.MessageBubble] MessageBubble one', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Conversation messages\"]"}] }, 'one')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Conversation messages\"]"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 1 } }, 'one')
 })
 
 test('[F:frontend.src.components.chat.MessageBubble] MessageBubble n100', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Conversation messages\"]"}] }, 'n100')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Conversation messages\"]"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 100 } }, 'n100')
 })
 
 test('[F:frontend.src.components.chat.MessageBubble] MessageBubble n1000', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Conversation messages\"]"}] }, 'n1000')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Conversation messages\"]"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 1000 } }, 'n1000')
 })
 
 test('[F:frontend.src.components.chat.MessageBubble] MessageBubble longtext', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Conversation messages\"]"}] }, 'longtext')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Conversation messages\"]"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 2 }, expectedTexts: [...longtextSnippets("messages")] }, 'longtext')
 })
 
 test('[F:frontend.src.components.chat.MessageBubble] MessageBubble dark', async ({ page }) => {

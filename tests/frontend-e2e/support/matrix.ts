@@ -41,6 +41,10 @@ export interface MatrixCase {
   primary: RouteKey
   secondary?: RouteKey
   envBasis?: MatrixDataState
+  /** P6-M4: repeated-row count for count states (selector from components.json). */
+  expectedRows?: { selector: string; count: number }
+  /** P6-M4: exact or substring texts (footers, toggle labels, long-text). */
+  expectedTexts?: Array<{ text: string; exact?: boolean }>
 }
 
 const WIDTHS: Record<string, number> = { w1280: 1280, w768: 768, w390: 390 }
@@ -228,6 +232,12 @@ export async function runMatrixState(page: Page, mc: MatrixCase, state: MatrixSt
   }
   for (const anchor of mc.anchors) await expect(anchorLocator(page, anchor)).toBeVisible({ timeout: 15000 })
   for (const anchor of mc.postAnchors ?? []) await expect(anchorLocator(page, anchor)).toBeVisible({ timeout: 15000 })
+  if (mc.expectedRows) {
+    await expect(page.locator(mc.expectedRows.selector)).toHaveCount(mc.expectedRows.count, { timeout: 15000 })
+  }
+  for (const want of mc.expectedTexts ?? []) {
+    await expect(page.getByText(want.text, { exact: want.exact ?? false }).first()).toBeVisible({ timeout: 15000 })
+  }
 
   await assertNoOverflow(page)
   await assertTruncationTitles(page)

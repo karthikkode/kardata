@@ -33,7 +33,7 @@ export interface ReasoningControl {
 export function MessageBubble({ message, files, live = false, latest = false, reasoningControl }: { message: ChatText; files: ChatFile[]; live?: boolean; latest?: boolean; reasoningControl?: ReasoningControl }) {
   if (message.role === 'user') {
     return (
-      <div className="flex justify-end">
+      <div className="flex justify-end" data-message-bubble="">
         <UserBubble>
           {renderMentionChips(message.text, files)}
         </UserBubble>
@@ -41,7 +41,7 @@ export function MessageBubble({ message, files, live = false, latest = false, re
     )
   }
   return (
-    <div className="min-w-0 space-y-2">
+    <div className="min-w-0 space-y-2" data-message-bubble="">
       {message.reasoning ? <ReasoningDisclosure reasoning={message.reasoning} open={reasoningControl?.open} onOpenChange={reasoningControl?.onOpenChange} /> : null}
       {message.text ? (
         <AgentBubble copyText={live ? undefined : message.text} timestamp={message.at} latest={latest && !live}>

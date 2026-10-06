@@ -469,7 +469,15 @@ Every visual component carries `states:` in `tests/registry/features.yaml`;
 asserts the seven checks (overflow, 390 containment, truncation titles,
 focus, clean console, axe serious, `toHaveScreenshot` ≤0.1%): see
 `tests/frontend-e2e/support/matrix.ts`. Fixtures come from the single
-factory `support/factory.ts`.
+factory `support/factory.ts`. Count states (`one`/`typical`/`n100`/`n1000`,
+plus `partial`/`longtext` where meaningful) also assert row counts and
+total/toggle texts: components.json carries the row selector (`rows`) or a
+count template (`countText`), `matrix/counts.mjs` pins the expected numbers
+(windows, page drains, showcase sizes), and `matrix-sync` emits them as
+`expectedRows`/`expectedTexts`. Long-text snippets come from
+`longtextSnippets` in the factory. Cases without rendered rows
+(SectorLanding, Markdown, ChatPanel, ModelsPanel) assert texts or anchors
+only; the omit set is pinned in `tests/frontend/matrix-counts.test.ts`.
 
 ## Failure handling
 

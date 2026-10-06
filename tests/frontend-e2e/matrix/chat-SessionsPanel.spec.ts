@@ -31,11 +31,11 @@ const base: Omit<MatrixCase, 'anchors'> = {
 }
 
 test('[F:frontend.src.components.chat.SessionsPanel] SessionsPanel typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"region","name":"Chat context"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"region","name":"Chat context"}], expectedRows: { selector: "[aria-label=\"Chat sessions\"] [role=\"menuitem\"][aria-label^=\"Open \"]", count: 8 } }, 'typical')
 })
 
 test('[F:frontend.src.components.chat.SessionsPanel] SessionsPanel n100', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"region","name":"Chat context"}] }, 'n100')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"region","name":"Chat context"}], expectedRows: { selector: "[aria-label=\"Chat sessions\"] [role=\"menuitem\"][aria-label^=\"Open \"]", count: 100 } }, 'n100')
 })
 
 test('[F:frontend.src.components.chat.SessionsPanel] SessionsPanel dark', async ({ page }) => {

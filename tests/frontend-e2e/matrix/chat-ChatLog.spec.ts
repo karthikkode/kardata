@@ -2,6 +2,7 @@
 // + tests/frontend-e2e/matrix/components.json. Do not edit.
 import { test } from '@playwright/test'
 import { runMatrixState, type MatrixCase } from '../support/matrix'
+import { longtextSnippets } from '../support/factory'
 
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.chat.ChatLog",
@@ -27,19 +28,19 @@ test('[F:frontend.src.components.chat.ChatLog] ChatLog empty', async ({ page }) 
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog one', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"}] }, 'one')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 1 } }, 'one')
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 28 } }, 'typical')
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog n100', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"}] }, 'n100')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 100 } }, 'n100')
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog n1000', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"}] }, 'n1000')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 1000 } }, 'n1000')
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog error', async ({ page }) => {
@@ -51,7 +52,7 @@ test('[F:frontend.src.components.chat.ChatLog] ChatLog offline', async ({ page }
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog longtext', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"}] }, 'longtext')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 2 }, expectedTexts: [...longtextSnippets("messages")] }, 'longtext')
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog dark', async ({ page }) => {

@@ -19,19 +19,19 @@ const base: Omit<MatrixCase, 'anchors'> = {
 }
 
 test('[F:frontend.src.components.SubagentsPanel] SubagentsPanel typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"css","css":"[aria-label=\"Subagent threads\"]"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"css","css":"[aria-label=\"Subagent threads\"]"}], expectedTexts: [{ text: "8 subagents", exact: true }] }, 'typical')
 })
 
 test('[F:frontend.src.components.SubagentsPanel] SubagentsPanel one', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"css","css":"[aria-label=\"Subagent threads\"]"}] }, 'one')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"css","css":"[aria-label=\"Subagent threads\"]"}], expectedTexts: [{ text: "1 subagents", exact: true }] }, 'one')
 })
 
 test('[F:frontend.src.components.SubagentsPanel] SubagentsPanel n100', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"css","css":"[aria-label=\"Subagent threads\"]"}] }, 'n100')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"css","css":"[aria-label=\"Subagent threads\"]"}], expectedTexts: [{ text: "100 subagents", exact: true }] }, 'n100')
 })
 
 test('[F:frontend.src.components.SubagentsPanel] SubagentsPanel n1000', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"css","css":"[aria-label=\"Subagent threads\"]"}] }, 'n1000')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"css","css":"[aria-label=\"Subagent threads\"]"}], expectedTexts: [{ text: "1000 subagents", exact: true }] }, 'n1000')
 })
 
 test('[F:frontend.src.components.SubagentsPanel] SubagentsPanel dark', async ({ page }) => {

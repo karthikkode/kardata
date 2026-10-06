@@ -2,6 +2,7 @@
 // + tests/frontend-e2e/matrix/components.json. Do not edit.
 import { test } from '@playwright/test'
 import { runMatrixState, type MatrixCase } from '../support/matrix'
+import { longtextSnippets } from '../support/factory'
 
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.ResearchesPage",
@@ -19,15 +20,15 @@ test('[F:frontend.src.components.ResearchesPage] ResearchesPage empty', async ({
 })
 
 test('[F:frontend.src.components.ResearchesPage] ResearchesPage typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Researches"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Researches"}], expectedRows: { selector: "table[aria-label=\"Sectors\"] [data-list-row]", count: 8 } }, 'typical')
 })
 
 test('[F:frontend.src.components.ResearchesPage] ResearchesPage n100', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Researches"}] }, 'n100')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Researches"}], expectedRows: { selector: "table[aria-label=\"Sectors\"] [data-list-row]", count: 50 }, expectedTexts: [{ text: "Showing 50 of 100", exact: true }] }, 'n100')
 })
 
 test('[F:frontend.src.components.ResearchesPage] ResearchesPage n1000', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Researches"}] }, 'n1000')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Researches"}], expectedRows: { selector: "table[aria-label=\"Sectors\"] [data-list-row]", count: 50 }, expectedTexts: [{ text: "Showing 50 of 1,000", exact: true }] }, 'n1000')
 })
 
 test('[F:frontend.src.components.ResearchesPage] ResearchesPage error', async ({ page }) => {
@@ -43,11 +44,11 @@ test('[F:frontend.src.components.ResearchesPage] ResearchesPage offline', async 
 })
 
 test('[F:frontend.src.components.ResearchesPage] ResearchesPage partial', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Researches"}] }, 'partial')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Researches"}], expectedRows: { selector: "table[aria-label=\"Sectors\"] [data-list-row]", count: 1 } }, 'partial')
 })
 
 test('[F:frontend.src.components.ResearchesPage] ResearchesPage longtext', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Researches"}] }, 'longtext')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Researches"}], expectedRows: { selector: "table[aria-label=\"Sectors\"] [data-list-row]", count: 1 }, expectedTexts: [...longtextSnippets("sectors")] }, 'longtext')
 })
 
 test('[F:frontend.src.components.ResearchesPage] ResearchesPage dark', async ({ page }) => {

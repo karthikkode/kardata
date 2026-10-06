@@ -2,6 +2,7 @@
 // + tests/frontend-e2e/matrix/components.json. Do not edit.
 import { test } from '@playwright/test'
 import { runMatrixState, type MatrixCase } from '../support/matrix'
+import { longtextSnippets } from '../support/factory'
 
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.SectorLanding",
@@ -34,7 +35,7 @@ test('[F:frontend.src.components.SectorLanding] SectorLanding offline', async ({
 })
 
 test('[F:frontend.src.components.SectorLanding] SectorLanding longtext', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"region","name":"Research status"},{"kind":"role","role":"button","name":"Open workspace"}] }, 'longtext')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"region","name":"Research status"},{"kind":"role","role":"button","name":"Open workspace"}], expectedTexts: [...longtextSnippets("sector")] }, 'longtext')
 })
 
 test('[F:frontend.src.components.SectorLanding] SectorLanding dark', async ({ page }) => {
