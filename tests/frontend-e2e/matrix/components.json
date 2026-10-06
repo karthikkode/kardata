@@ -400,8 +400,9 @@
     "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
     "anchors": [
       {
-        "kind": "css",
-        "css": "[aria-label=\"Research views\"]"
+        "kind": "role",
+        "role": "log",
+        "name": "Conversation messages"
       }
     ],
     "emptyAnchors": [

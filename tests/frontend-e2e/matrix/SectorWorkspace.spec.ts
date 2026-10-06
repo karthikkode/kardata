@@ -20,7 +20,7 @@ test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace empty', async 
 })
 
 test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Research views\"]"}], expectedRows: { selector: "[aria-label=\"Chat sessions\"] [data-list-row]", count: 12 } }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"log","name":"Conversation messages"}], expectedRows: { selector: "[aria-label=\"Chat sessions\"] [data-list-row]", count: 12 } }, 'typical')
 })
 
 test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace error', async ({ page }) => {
@@ -36,33 +36,33 @@ test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace offline', asyn
 })
 
 test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace partial', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Research views\"]"}], expectedRows: { selector: "[aria-label=\"Chat sessions\"] [data-list-row]", count: 7 } }, 'partial')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"log","name":"Conversation messages"}], expectedRows: { selector: "[aria-label=\"Chat sessions\"] [data-list-row]", count: 9 } }, 'partial')
 })
 
 test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace longtext', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Research views\"]"}], expectedRows: { selector: "[aria-label=\"Chat sessions\"] [data-list-row]", count: 7 }, expectedTexts: [...longtextSnippets("sessions")] }, 'longtext')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"log","name":"Conversation messages"}], expectedRows: { selector: "[aria-label=\"Chat sessions\"] [data-list-row]", count: 9 }, expectedTexts: [...longtextSnippets("sessions")] }, 'longtext')
 })
 
 test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace dark', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Research views\"]"}] }, 'dark')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"log","name":"Conversation messages"}] }, 'dark')
 })
 
 test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace w1280', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Research views\"]"}] }, 'w1280')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"log","name":"Conversation messages"}] }, 'w1280')
 })
 
 test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace w768', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Research views\"]"}] }, 'w768')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"log","name":"Conversation messages"}] }, 'w768')
 })
 
 test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace w390', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Research views\"]"}] }, 'w390')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"log","name":"Conversation messages"}] }, 'w390')
 })
 
 test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace focus', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Research views\"]"}] }, 'focus')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"log","name":"Conversation messages"}] }, 'focus')
 })
 
 test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace reduced-motion', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Research views\"]"}] }, 'reduced-motion')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"log","name":"Conversation messages"}] }, 'reduced-motion')
 })
