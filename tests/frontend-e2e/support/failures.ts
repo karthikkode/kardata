@@ -156,7 +156,10 @@ export async function runFault(page: Page, fc: FaultCase, fault: FaultKind): Pro
   })
   let armed = fc.silent === true
   await page.route(fc.pattern, async (route) => {
-    if (route.request().method() !== fc.method || !armed) {
+    // Dev-asset guard: patterns match URL substrings, and vite names
+    // code-split chunks after their modules (api/artifacts.ts ships as
+    // /assets/artifacts-*.js). Only the staging API carries /v1/.
+    if (!route.request().url().includes('/v1/') || route.request().method() !== fc.method || !armed) {
       await route.fallback()
       return
     }
