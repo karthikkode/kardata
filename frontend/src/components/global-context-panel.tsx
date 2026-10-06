@@ -224,7 +224,8 @@ export function GlobalContextPanel({ resource, preview, busy, error, onReview, o
               <span className="flex h-5 shrink-0 items-center"><Icons.alertWarning aria-hidden className="size-4 text-warning" /></span>
               <BodySm as="span" className="min-w-0 flex-1">{pending.length} {pending.length === 1 ? 'update' : 'updates'} waiting for review</BodySm>
             </div>
-            <List aria-label="Pending context updates">
+            {/* No hover rows here, so skip the bleed recipe's -mx-2. */}
+            <List aria-label="Pending context updates" className="mx-0">
               {pending.map((change) => (
                 <li key={change.id} className="flex items-center gap-2 py-1">
                   <div className="min-w-0 flex-1">
