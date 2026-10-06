@@ -50,11 +50,11 @@ const CASES: FaultCase[] = [
   {
     id: 'frontend.src.components.CompaniesSection', label: 'GET /v1/companies', method: 'GET',
     pattern: /\/v1\/companies/, route: '/?section=Researches',
-    setup: [{ click: { kind: 'text', text: 'Companies' } }],
+    setup: [{ click: { kind: 'role', role: 'tab', name: 'Companies' } }],
     errorAnchors: [{ kind: 'role', role: 'alert' }],
     deniedAnchors: [DENIED_COPY],
     healAnchors: [
-      { kind: 'role', role: 'region', name: 'Companies' },
+      { kind: 'role', role: 'table', name: 'Companies' },
       { kind: 'text', text: 'Matrix Spark Electrical 1' },
     ],
     retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
