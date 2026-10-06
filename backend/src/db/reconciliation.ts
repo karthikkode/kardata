@@ -170,8 +170,8 @@ export interface OrphanedWorkflow {
 
 /** Active leases whose thread row is gone (no FOREIGN KEYs guard this,
  * deliberate). The workflow itself may still run: the page describes each
- * and cancels the runners, then clears the lease. Session-deleted threads
- * keep their rows, so they flow through the candidate path instead. */
+ * and cancels the runners, then clears the lease. Session deletes keep the
+ * context row while a lease is active, so deleted sessions surface here. */
 export async function listOrphanedWorkflows(db: Db): Promise<OrphanedWorkflow[]> {
   const { rows } = await db.query<{ thread_key: string; workflow_id: string | null; lease: string }>(
     `SELECT c.thread_key, c.active_workflow_id AS workflow_id, c.active_lease AS lease
@@ -325,6 +325,9 @@ export async function recordOrphanWorkflow(db: TransactableDb, orphan: OrphanedW
   return workspaceTransaction(db, orphan.threadKey, async (tx) => {
     const cleared = await tx.query('UPDATE thread_context SET active_run=NULL,active_lease=NULL,active_epoch=NULL,active_workflow_id=NULL,active_execution_id=NULL,active_run_started_at=NULL WHERE thread_key=$1 AND active_lease=$2 AND active_workflow_id IS NOT DISTINCT FROM $3', [orphan.threadKey, orphan.lease, orphan.workflowId])
     if ((cleared.rowCount ?? 0) !== 1) return false
+    // The thread is gone by definition of this path: drop the husk row so
+    // kept-lease deletes leave nothing behind once the workflow is closed.
+    await tx.query('DELETE FROM thread_context WHERE thread_key=$1 AND active_lease IS NULL', [orphan.threadKey])
     const identity = createHash('sha256').update(JSON.stringify([orphan.threadKey, orphan.lease, orphan.workflowId, finding.kind, finding.response])).digest('hex')
     const key = `reconcile:${identity}`
     if (orphan.sessionId) {

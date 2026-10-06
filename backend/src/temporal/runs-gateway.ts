@@ -1,13 +1,9 @@
 // Runs gateway: HTTP commands and run reads over Temporal workflows. B3.1.
-// One interface; the Temporal implementation below is production, tests
-// inject a fake (tests/backend/fake-gateway.ts — never imported by product
-// code). Reads that need thread state assume the request path already ran
-// the projector; the gateway never projects.
-//
-// Addressing: runId is the Temporal workflow id. Session runs use
-// `session-run-<sessionId>`; research and guarded runs are self-scoped
-// (sessionId = runId, threadKey = `research:<runId>`). Child workflows are
-// addressed by child id (`agent:<childId>` threads).
+// One interface; the Temporal implementation below is production, tests inject
+// a fake (tests/backend/fake-gateway.ts — never imported by product code).
+// Reads assume the request path already ran the projector; the gateway never
+// projects. Addressing: runId is the workflow id (`session-run-<sessionId>`
+// for sessions; research runs self-scoped; children by `agent:<childId>`).
 import { randomUUID } from 'node:crypto'
 import {
   enqueueSteering,
@@ -370,11 +366,9 @@ export class TemporalRunsGateway implements RunsGateway {
       ],
       args: [{ sessionId: input.sessionId,ownerEpochProtocol: true,maxInFlight: caps.maxInFlight,maxQueued: caps.maxQueued }],
     }))
-    // The parent starts the child asynchronously: duplicate ids reject
-    // instead of starting (a timeout here, never a silent idle child),
-    // while over-cap delegations queue durably until a slot frees. A
-    // queue-full racer that slipped the pre-check fails fast on the
-    // parent's rejection list instead of waiting out the deadline.
+    // Async child start: duplicate ids reject (a timeout, never a silent
+    // idle child); over-cap delegations queue durably; queue-full racers
+    // fail fast on the parent's rejection list.
     const deadline = Date.now() + 30_000
     for (;;) {
       try {

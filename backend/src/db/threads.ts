@@ -149,9 +149,11 @@ async function applyEvent(db: Db, event: ProjectableEvent): Promise<boolean> {
       // thread reads 404 from here on, while the event log keeps history.
       // Local memory and steering rows follow the thread (no hard FK: they
       // must survive rebuildFromEvents, which truncates threads).
+      // The context row stays while a lease is active: the orphan detector
+      // finds (lease set, thread gone) and cancels the workflow, then clears.
       const payload = SessionDeleted.parse(event.payload)
       await db.query(`DELETE FROM threads WHERE key = $1`, [payload.sessionId])
-      await db.query(`DELETE FROM thread_context WHERE thread_key = $1`, [payload.sessionId])
+      await db.query(`DELETE FROM thread_context WHERE thread_key = $1 AND active_lease IS NULL`, [payload.sessionId])
       await db.query(`DELETE FROM thread_instructions WHERE thread_key = $1`, [payload.sessionId])
       return true
     }
