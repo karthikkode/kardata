@@ -197,7 +197,9 @@ const CASES: FaultCase[] = [
     errorAnchors: [{ kind: 'role', role: 'alert' }],
     deniedAnchors: [{ kind: 'role', role: 'alert' }],
     baseAnchors: [{ kind: 'role', role: 'dialog', name: 'New sector' }],
-    healAnchors: [{ kind: 'role', role: 'heading', name: 'Researches' }],
+    // A successful create navigates to the new sector's detail page,
+    // so the healed state is the sector heading, not the list heading.
+    healAnchors: [{ kind: 'role', role: 'heading', name: 'Fault Sector' }],
     healAbsent: [{ kind: 'role', role: 'dialog', name: 'New sector' }],
     healRetrigger: true,
     draftFill: { kind: 'role', role: 'textbox', name: 'Name' }, draftText: 'Fault Sector',
