@@ -443,6 +443,15 @@ describe('fleet meta permit (P4.2)', () => {
     )).rejects.toBeInstanceOf(MetaPermitTimeout)
     expect(d.events).toHaveLength(0)
   })
+
+  it('a non-timeout permit error fails closed instead of proceeding', async () => {
+    const d = deps()
+    await expect(executeProviderChat(
+      input({ provider: 'meta' }),
+      { ...d, permit: async () => { throw new Error('TEST permit store down') } },
+    )).rejects.toThrow('TEST permit store down')
+    expect(d.events).toHaveLength(0)
+  })
 })
 
 const live = readLiveConfig()

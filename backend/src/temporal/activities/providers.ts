@@ -3,7 +3,6 @@
 // returns a typed outcome (code/retryable/provider/latency — no free
 // text, so the outcome is provably key-free). Side effects arrive as
 // deps so the matrix is unit-provable without a Temporal worker.
-import { MetaPermitTimeout } from '../../db/index.js'
 import {
   chatOnce,
   resolveAdapter,
@@ -66,15 +65,12 @@ export async function executeProviderChat(
   deps: ProviderChatDeps,
 ): Promise<ChatOutcome> {
   let outcome: ChatOutcome
-  // Fleet permit first (live Meta only): a permit timeout throws past the
+  // Fleet permit first (live Meta only): permit failures throw past the
   // outcome below so the activity retries instead of failing honestly.
+  // Fail-closed: a permit-store error must not run Meta unthrottled.
   let releasePermit: (() => Promise<void>) | undefined
-  try {
-    if (input.fakeSteps === undefined && deps.permit && resolveSelection(input.provider) === 'meta') {
-      releasePermit = await deps.permit()
-    }
-  } catch (error) {
-    if (error instanceof MetaPermitTimeout) throw error
+  if (input.fakeSteps === undefined && deps.permit && resolveSelection(input.provider) === 'meta') {
+    releasePermit = await deps.permit()
   }
   try {
     const selection = resolveSelection(input.provider)
