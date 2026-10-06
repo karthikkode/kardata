@@ -133,6 +133,21 @@ const CASES: FaultCase[] = [
     refetch: { reload: true },
   },
   {
+    // Panel-side providers failure: the catalog area degrades inline
+    // while the session picker keeps working (partial rendering).
+    id: 'frontend.src.components.ModelsPanel', label: 'GET /v1/providers panel', method: 'GET',
+    pattern: /\/v1\/providers/, route: '/?section=Models',
+    errorAnchors: [{ kind: 'text', text: 'The model catalog did not load.' }],
+    deniedAnchors: [{ kind: 'text', text: 'The model catalog is not shared with this key.' }],
+    errorContent: [{ kind: 'role', role: 'combobox' }],
+    healAnchors: [
+      { kind: 'role', role: 'region', name: 'Models' },
+      { kind: 'text', text: 'Meta' },
+    ],
+    retry: TRY_AGAIN, deniedRetry: TRY_AGAIN,
+    refetch: { reload: true },
+  },
+  {
     id: 'frontend.src.components.chat.ChatComposer', label: 'GET /v1/skills', method: 'GET',
     pattern: /\/v1\/skills/, route: '/',
     setup: [...DOCK],

@@ -234,7 +234,8 @@ export function ModelsPanel({
   const [drafts, setDrafts] = useState<Record<string, { model: string; reasoning: boolean; effort?: string }>>({})
   const [saving, setSaving] = useState<string | null>(null)
   const [saveErrors, setSaveErrors] = useState<Record<string, string | null>>({})
-  const status = catalog.status !== 'ready' ? catalog.status : sessionsStatus
+  // Sessions and catalog fail independently: each part renders its own
+  // state below, so a catalog outage leaves the session picker working.
   // A failed binding read surfaces through bindingFailed; the hook keeps
   // the error status for it.
   if (bindingQuery.status !== 'loading' && bindingQuery.status !== 'ready' && !bindingFailed) {
@@ -252,11 +253,6 @@ export function ModelsPanel({
         ]),
       ),
     )
-  }
-
-  function retryCatalog() {
-    catalog.reload()
-    sessionsQuery.reload()
   }
 
   function retryBinding() {
@@ -332,40 +328,25 @@ export function ModelsPanel({
               Set the staging API URL and key, then reload.
             </p>
           </div>
-        ) : status === 'loading' ? (
-          <div role="status" aria-label="Models are loading">
-            <span className="sr-only">Loading Models</span>
-            <div aria-hidden className="grid gap-3 lg:grid-cols-2">
-              {[0, 1].map((tile) => (
-                <div key={tile} className="flex flex-col gap-3 rounded-xl border border-border bg-background px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <Skeleton className="size-8 rounded-md" />
-                    <Skeleton className="h-4 flex-1" />
-                    <Skeleton className="h-4 w-16" />
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Skeleton className="h-10" />
-                    <Skeleton className="h-10" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : status === 'error' ? (
-          <PanelError
-            heading="Models did not load."
-            detail="Check your connection and try again."
-            onRetry={retryCatalog}
-          />
-        ) : status === 'denied' ? (
-          <DeniedNotice heading="Models are not shared with this key." onRetry={retryCatalog} />
-        ) : status === 'offline' ? (
-          <UnavailableNotice onRetry={retryCatalog} />
         ) : (
           <div className="space-y-4">
             <FieldRoot className="max-w-sm">
               <FieldLabel id="models-session-label">Session</FieldLabel>
-              {sessions.length === 0 ? (
+              {sessionsStatus === 'loading' ? (
+                <p role="status" className="text-sm text-muted-foreground">
+                  Loading sessions.
+                </p>
+              ) : sessionsStatus === 'error' ? (
+                <PanelError
+                  heading="Sessions did not load."
+                  detail="Check your connection and try again."
+                  onRetry={sessionsQuery.reload}
+                />
+              ) : sessionsStatus === 'denied' ? (
+                <DeniedNotice heading="Sessions are not shared with this key." onRetry={sessionsQuery.reload} />
+              ) : sessionsStatus === 'offline' ? (
+                <UnavailableNotice onRetry={sessionsQuery.reload} />
+              ) : sessions.length === 0 ? (
                 <div className="rounded-lg border border-border p-4">
                   <p className="text-sm text-muted-foreground">
                     No sessions yet. Start one from chat to bind a model.
@@ -414,7 +395,36 @@ export function ModelsPanel({
                 )}
               </div>
             ) : null}
-            {providers.length === 0 ? (
+            {catalog.status === 'loading' ? (
+              <div role="status" aria-label="Models are loading">
+                <span className="sr-only">Loading Models</span>
+                <div aria-hidden className="grid gap-3 lg:grid-cols-2">
+                  {[0, 1].map((tile) => (
+                    <div key={tile} className="flex flex-col gap-3 rounded-xl border border-border bg-background px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="size-8 rounded-md" />
+                        <Skeleton className="h-4 flex-1" />
+                        <Skeleton className="h-4 w-16" />
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Skeleton className="h-10" />
+                        <Skeleton className="h-10" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : catalog.status === 'error' ? (
+              <PanelError
+                heading="The model catalog did not load."
+                detail="Check your connection and try again."
+                onRetry={catalog.reload}
+              />
+            ) : catalog.status === 'denied' ? (
+              <DeniedNotice heading="The model catalog is not shared with this key." onRetry={catalog.reload} />
+            ) : catalog.status === 'offline' ? (
+              <UnavailableNotice onRetry={catalog.reload} />
+            ) : providers.length === 0 ? (
               <div className="rounded-lg border border-border p-4">
                 <p className="text-sm text-muted-foreground">
                   No providers listed. The catalog is empty on the server.

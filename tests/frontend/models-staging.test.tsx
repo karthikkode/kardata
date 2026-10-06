@@ -83,12 +83,14 @@ describe('Meta-only Models tab', () => {
     vi.unstubAllGlobals()
     stubApi(() => ({ status: 503, payload: { ok: false, error: { code: 'overload', message: 'offline' } } }))
     const error = render(<ModelsPanel config={config} />)
-    expect(await screen.findByText('Models did not load.')).toBeInTheDocument()
+    expect(await screen.findByText('Sessions did not load.')).toBeInTheDocument()
+    expect(await screen.findByText('The model catalog did not load.')).toBeInTheDocument()
     error.unmount()
     vi.unstubAllGlobals()
     stubApi(() => ({ status: 403, payload: { ok: false, error: { code: 'permission_denied', message: 'no' } } }))
     render(<ModelsPanel config={config} />)
-    expect(await screen.findByText('Models are not shared with this key.')).toBeInTheDocument()
+    expect(await screen.findByText('Sessions are not shared with this key.')).toBeInTheDocument()
+    expect(await screen.findByText('The model catalog is not shared with this key.')).toBeInTheDocument()
   })
 
   it('explains missing backend configuration', () => {
