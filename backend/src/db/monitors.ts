@@ -150,10 +150,15 @@ export async function getMonitor(db: Db, monitorId: string): Promise<MonitorReco
 }
 
 /** Atomically claim a tick; null when a previous tick is still running
- * (the caller skips) or the monitor is gone/stopped. */
+ * (the caller skips) or the monitor is gone/stopped. A claim older than
+ * one interval is stale — its tick crashed between claim and release —
+ * so the escape reclaims it instead of wedging the monitor forever. */
 export async function claimMonitorTick(db: Db, monitorId: string): Promise<MonitorRecord | null> {
   const { rows } = await db.query<MonitorDbRow>(
-    'UPDATE monitors SET last_tick_done = FALSE, last_tick_at = now() WHERE id = $1 AND stopped_at IS NULL AND last_tick_done RETURNING *',
+    `UPDATE monitors SET last_tick_done = FALSE, last_tick_at = now()
+     WHERE id = $1 AND stopped_at IS NULL
+       AND (last_tick_done OR last_tick_at < now() - make_interval(mins => every_minutes))
+     RETURNING *`,
     [monitorId],
   )
   const row = rows[0]

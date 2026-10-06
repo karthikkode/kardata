@@ -12,6 +12,7 @@ import {
   releaseMonitorTick,
   researchHealth,
   threadHealth,
+  threadTurnBusy,
   workerPoolFromEnv,
 } from '../../db/index.js'
 import { TemporalRunsGateway } from '../runs-gateway.js'
@@ -37,10 +38,16 @@ export async function monitorTickActivity(input: { monitorId: string }): Promise
   const logger = createLogger(activityLogContext())
   return logOp(logger, 'monitor.tick', async () => {
     const pool = workerPoolFromEnv()
+    // send() returns at enqueue, so the tick guard alone cannot stop
+    // monitor messages piling onto a running Karbot turn: claim only
+    // when the Karbot thread is idle, else skip for this interval.
+    const current = await getMonitor(pool, input.monitorId)
+    if (!current || current.stoppedAt) return { ticked: false, skipped: 'stopped' }
+    if (await threadTurnBusy(pool, current.karbotThreadKey)) return { ticked: false, skipped: 'busy' }
     const claimed = await claimMonitorTick(pool, input.monitorId)
     if (!claimed) {
-      const current = await getMonitor(pool, input.monitorId)
-      return { ticked: false, skipped: !current || current.stoppedAt ? 'stopped' : 'overlap' }
+      const recheck = await getMonitor(pool, input.monitorId)
+      return { ticked: false, skipped: !recheck || recheck.stoppedAt ? 'stopped' : 'overlap' }
     }
     try {
       const scope = { tenantId: claimed.tenantId, projectId: claimed.projectId }

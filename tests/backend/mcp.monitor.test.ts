@@ -1,20 +1,22 @@
 import { Pool } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { claimMonitorTick, createSector, createSession, finishMonitor, getMonitor, releaseMonitorTick } from '../../backend/src/db/index.js'
+import { beginThreadTurn, claimMonitorTick, createSector, createSession, finishMonitor, finishSteering, getMonitor, releaseMonitorTick, threadTurnBusy } from '../../backend/src/db/index.js'
 import { invokeTool } from '../../backend/src/mcp/tools.js'
+import { monitorTickActivity } from '../../backend/src/temporal/activities/monitor.js'
 import type { McpToolContext } from '../../backend/src/mcp/tools-types.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import { FakeRunsGateway } from './fake-gateway.js'
 
 describe.skipIf(!TEST_DATABASE_URL)('MCP monitor tools [F:mcp.ops.start_monitor] [F:mcp.ops.stop_monitor] [F:mcp.ops.list_monitors] [F:db.monitors.startMonitor] [F:db.monitors.stopMonitor] [F:db.monitors.listMonitors] [F:db.monitors.getMonitor] [F:db.monitors.claimMonitorTick] [F:db.monitors.releaseMonitorTick] [F:db.monitors.finishMonitor] [F:db.index.startMonitor] [F:db.index.stopMonitor] [F:db.index.listMonitors] [F:db.index.getMonitor] [F:db.index.claimMonitorTick] [F:db.index.releaseMonitorTick] [F:db.index.finishMonitor] [F:db.index.MonitorRecord] [F:db.index.MonitorRunner] [F:db.index.StartMonitorInput]', () => {
-  let pool: Pool, fake: FakeRunsGateway, sectorA: string, sessionA: string, karbotSession: string
+  let pool: Pool, fake: FakeRunsGateway, sectorA: string, sessionA: string, karbotSession: string, dbUrl: string
   const scope = { tenantId: 'test-ops-monitor', projectId: null }
   const karbot = (role: 'viewer' | 'operator' | 'approver' = 'operator', thread: string | null = karbotSession): McpToolContext =>
     ({ pool, scope, role, keyId: 'test-ops-key', monitor: fake, ...(thread ? { executionThread: thread } : {}) })
 
   beforeAll(async () => {
-    pool = new Pool({ connectionString: await ensureTestDb('kardata_test_mcp_monitor'), max: 5 })
+    dbUrl = await ensureTestDb('kardata_test_mcp_monitor')
+    pool = new Pool({ connectionString: dbUrl, max: 5 })
     fake = new FakeRunsGateway(pool)
     sectorA = (await createSector(pool, { name: 'TEST Monitor A', topic: 'A', scope })).sectorId
     sessionA = (await createSession(pool, 'TEST monitor chat', scope, sectorA)).id
@@ -71,5 +73,43 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP monitor tools [F:mcp.ops.start_monitor]
     await finishMonitor(pool, started.id)
     expect(await claimMonitorTick(pool, started.id)).toBeNull()
     expect((await getMonitor(pool, started.id))?.stoppedAt).not.toBeNull()
+  })
+
+  it('reclaims a tick claim older than one interval (crashed tick)', async () => {
+    const started = await invokeTool('ops.start_monitor', karbot(), { sectorId: sectorA, everyMinutes: 5, brief: 'stale probe' }) as { id: string }
+    expect(await claimMonitorTick(pool, started.id)).not.toBeNull()
+    // Simulates the crash: no release. A fresh claim still blocks...
+    expect(await claimMonitorTick(pool, started.id)).toBeNull()
+    // ...but once it ages past the interval, the escape reclaims it.
+    await pool.query('UPDATE monitors SET last_tick_at = now() - make_interval(mins => every_minutes + 1) WHERE id = $1', [started.id])
+    expect(await claimMonitorTick(pool, started.id)).not.toBeNull()
+    await releaseMonitorTick(pool, started.id)
+    await finishMonitor(pool, started.id)
+  })
+
+  it('skips the tick while the Karbot thread runs a turn [F:db.threads.threadTurnBusy] [F:db.index.threadTurnBusy]', async () => {
+    // send() returns at enqueue, so without the idle check every tick
+    // would pile another message onto the running turn.
+    const started = await invokeTool('ops.start_monitor', karbot(), { sectorId: sectorA, everyMinutes: 5, brief: 'busy probe' }) as { id: string }
+    const saved = process.env['DATABASE_URL']
+    process.env['DATABASE_URL'] = dbUrl
+    try {
+      const runKey = 'TEST monitor busy turn'
+      const lease = await beginThreadTurn(pool, karbotSession, runKey)
+      try {
+        expect(await threadTurnBusy(pool, karbotSession)).toBe(true)
+        await expect(monitorTickActivity({ monitorId: started.id })).resolves.toEqual({ ticked: false, skipped: 'busy' })
+        // The skipped tick claims nothing: the guard is still free.
+        expect(await claimMonitorTick(pool, started.id)).not.toBeNull()
+        await releaseMonitorTick(pool, started.id)
+      } finally {
+        await finishSteering(pool, karbotSession, runKey, lease)
+      }
+      expect(await threadTurnBusy(pool, karbotSession)).toBe(false)
+    } finally {
+      if (saved === undefined) delete process.env['DATABASE_URL']
+      else process.env['DATABASE_URL'] = saved
+    }
+    await finishMonitor(pool, started.id)
   })
 })

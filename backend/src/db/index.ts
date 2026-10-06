@@ -66,6 +66,7 @@ export {
   resumeThreadRun,
   sendThreadMessage,
   steerThread,
+  threadTurnBusy,
   type ThreadMessenger,
 } from './threads.js'
 export {

@@ -410,6 +410,22 @@ export async function getThreadHeader(db: Db, threadKey: string): Promise<Thread
   return thread ? { key: thread.key, sessionId: thread.session_id, kind: thread.kind, status: thread.status, ...(thread.state_reason ? { stateReason: thread.state_reason } : {}), acceptingSteer: thread.accepting_steer, queueDepth: Number(thread.queue_depth), updatedAt: thread.updated_at.toISOString(), messages: [] } : undefined
 }
 
+/** True while the thread has a turn in flight (active lease) or queued
+ * work — the same busy signal reconciliation uses. Lightweight probe for
+ * producers (monitor ticks) that must not pile messages onto a working
+ * thread. Missing threads read idle: the send then fails honestly
+ * instead of wedging the producer silent. */
+export async function threadTurnBusy(db: Db, threadKey: string): Promise<boolean> {
+  if (!ThreadKeySchema.safeParse(threadKey).success) throw new DbContractError('threadKey must be non-empty')
+  const { rows } = await db.query<{ queue_depth: number; active_lease: string | null }>(
+    'SELECT t.queue_depth, c.active_lease FROM threads t LEFT JOIN thread_context c ON c.thread_key = t.key WHERE t.key = $1',
+    [threadKey],
+  )
+  const row = rows[0]
+  if (!row) return false
+  return row.active_lease !== null || Number(row.queue_depth) > 0
+}
+
 export async function listThreads(db: Db, sessionId: string): Promise<ThreadView[]> {
   if (!SessionIdSchema.safeParse(sessionId).success) {
     throw new DbContractError('sessionId must be a non-empty string')
