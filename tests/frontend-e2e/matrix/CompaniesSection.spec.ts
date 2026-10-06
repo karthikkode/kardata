@@ -6,7 +6,7 @@ import { longtextSnippets } from '../support/factory'
 
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.CompaniesSection",
-  "route": "/?section=Researches",
+  "route": "/?section=SectorDetail&sector=sector-matrix",
   "primary": "companies"
 }
 

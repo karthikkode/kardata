@@ -59,7 +59,7 @@
     "family": "static"
   },
   "frontend.src.components.CompaniesSection": {
-    "route": "/?section=Researches",
+    "route": "/?section=SectorDetail&sector=sector-matrix",
     "anchors": [
       {
         "kind": "role",
