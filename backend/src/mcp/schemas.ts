@@ -358,17 +358,18 @@ export const TOOL_SCHEMAS = {
   'ops.thread_health': z.object({
     threadKey: NonEmpty,
   }).strict(),
-  'ops.cost': z.union([
-    z.object({ threadKey: NonEmpty }).strict(),
-    z.object({ sectorId: NonEmpty }).strict(),
-  ]),
+  'ops.cost': z.object({
+    threadKey: NonEmpty.optional(),
+    sectorId: NonEmpty.optional(),
+  }).strict(),
   'ops.sector_evaluation': z.object({
     sectorId: NonEmpty.optional(),
   }).strict(),
-  'ops.recent_activity': z.union([
-    z.object({ traceId: NonEmpty, limit: z.number().int().min(1).max(200).optional() }).strict(),
-    z.object({ threadKey: NonEmpty, limit: z.number().int().min(1).max(200).optional() }).strict(),
-  ]),
+  'ops.recent_activity': z.object({
+    traceId: NonEmpty.optional(),
+    threadKey: NonEmpty.optional(),
+    limit: z.number().int().min(1).max(200).optional(),
+  }).strict(),
   'ops.pause_run': z.object({
     runId: NonEmpty,
   }).strict(),

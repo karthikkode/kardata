@@ -608,7 +608,12 @@ export const INVOKERS: Invokers = {
   },
   'ops.thread_health': (ctx, args) => threadHealth(ctx.pool, args.threadKey, ctx.scope),
   'ops.cost': async (ctx, args) => {
-    if ('threadKey' in args) return readThreadCost(ctx.pool, args.threadKey, ctx.scope)
+    // One object schema (unions list empty in tools/list), so the
+    // exactly-one rule lives here, before any query runs.
+    if ((args.threadKey ? 1 : 0) + (args.sectorId ? 1 : 0) !== 1) {
+      throw new McpToolError('validation_failed', 'exactly one of threadKey, sectorId is required')
+    }
+    if (args.threadKey) return readThreadCost(ctx.pool, args.threadKey, ctx.scope)
     const { sectorId } = await sectorScope(ctx, args.sectorId)
     return readSectorCost(ctx.pool, sectorId, ctx.scope)
   },
@@ -616,7 +621,12 @@ export const INVOKERS: Invokers = {
     const { sectorId } = await sectorScope(ctx, args.sectorId)
     return readSectorEvaluation(ctx.pool, sectorId, ctx.scope)
   },
-  'ops.recent_activity': (ctx, args) => recentActivity(ctx.pool, args, ctx.scope),
+  'ops.recent_activity': (ctx, args) => {
+    if ((args.traceId ? 1 : 0) + (args.threadKey ? 1 : 0) !== 1) {
+      throw new McpToolError('validation_failed', 'exactly one of traceId, threadKey is required')
+    }
+    return recentActivity(ctx.pool, args, ctx.scope)
+  },
   'ops.pause_run': async (ctx, args) => {
     try {
       return await pauseThreadRun(ctx.messenger, args.runId)

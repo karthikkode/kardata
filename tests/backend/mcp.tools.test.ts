@@ -467,6 +467,43 @@ describe('mcp transport (Phase 2) [F:http.mcpRpc]', () => {
     }
   })
 
+  it('lists ops.cost and ops.recent_activity with visible selector properties [F:mcp.ops.cost] [F:mcp.ops.recent_activity]', async () => {
+    // Unions list as an empty schema, hiding every selector from the
+    // model; single objects list their properties (P5-M2). The fake
+    // throws on any query: listing must stay query-free.
+    const { db } = makeFake(async (text) => {
+      throw new QueryReached(text)
+    })
+    const app = buildApp({ pool: db })
+    try {
+      await initialize(app)
+      const listed = await postMcp(app, rpc('tools/list', {}, 1))
+      expect(listed.status).toBe(200)
+      const tools = (listed.json.result as { tools: Array<{ name: string; inputSchema: { properties?: Record<string, unknown> } }> }).tools
+      const byName = new Map(tools.map((tool) => [tool.name, tool.inputSchema]))
+      expect(Object.keys(byName.get('ops.cost')?.properties ?? {})).toEqual(
+        expect.arrayContaining(['threadKey', 'sectorId']),
+      )
+      expect(Object.keys(byName.get('ops.recent_activity')?.properties ?? {})).toEqual(
+        expect.arrayContaining(['traceId', 'threadKey', 'limit']),
+      )
+      // The exactly-one rule moved into the handlers: both selectors at
+      // once fails before any query runs.
+      for (const [tool, args] of [
+        ['ops.cost', { threadKey: 't', sectorId: 's' }],
+        ['ops.recent_activity', { traceId: 'x', threadKey: 't' }],
+      ] as const) {
+        const both = await postMcp(app, rpc('tools/call', { name: tool, arguments: args }, 2))
+        expect(both.status).toBe(200)
+        const result = both.json.result as { isError?: boolean; content: Array<{ text: string }> }
+        expect(result.isError, tool).toBe(true)
+        expect(result.content[0]?.text, tool).toContain('exactly one of')
+      }
+    } finally {
+      await app.close()
+    }
+  })
+
   it('fails closed without a pool and 404s non-POST methods', async () => {
     const app = buildApp({})
     try {
