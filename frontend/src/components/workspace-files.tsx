@@ -1,7 +1,7 @@
 // Workspace files: sector file library rows and states.
 import { FileProcessingStatus } from './FileProcessingStatus'
 import { FileTypeIcon } from './FileTypeIcon'
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Icons } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { formatCount, humanizeKey } from '../lib/format'
@@ -107,7 +107,8 @@ export function WorkspaceFiles({ resource, busy, onUpload, onHide, onInclude, on
  const [pending, setPending] = useState<string[]>([])
  const fileInput = useRef<HTMLInputElement>(null)
  const dragDepth = useRef(0)
- const rows = resource.data?.filter((file) => (hidden || !file.hidden) && file.filename.toLowerCase().includes(search.toLowerCase())) ?? []
+ const needle = search.toLowerCase()
+ const rows = useMemo(() => resource.data?.filter((file) => (hidden || !file.hidden) && file.filename.toLowerCase().includes(needle)) ?? [], [resource.data, hidden, needle])
  // Pending uploads clear when the operation settles: landed rows arrive
  // with the refresh, failed uploads surface through the error notice.
  // Adjusted during render (React restarts the render with cleared state)
