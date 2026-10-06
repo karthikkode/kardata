@@ -8,7 +8,7 @@ Diff: 95 files, +4601/−616. Gates per commit: typecheck 0, lint 0 errors
 
 | Reference | Take | Where | Result |
 |---|---|---|---|
-| Temporal OTel interceptors | client/workflow/activity context | `temporal/otel.ts`, gateways, workers | trace continuity e2e |
+| Temporal OTel interceptors | client/workflow/activity context | `observability/temporal-tracing.ts`, gateways, workers | trace continuity e2e |
 | OTel Node SDK spans | span attrs already in `tracing.ts` | unchanged | reused as-is |
 | Langfuse data model | rounds/tool calls/scores tables | `execution_rounds`, `tool_calls`, eval views | new schema |
 | OTel GenAI conventions | model/latency/token field names | `provider.round` payload, rounds columns | adopted |
