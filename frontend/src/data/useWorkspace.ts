@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import { apiErrorStatus, type StagingConfig } from './api/client'
 import { followThread, isFreshTerminalStatus, type LiveThread } from './api/live'
 import { listMessages } from './api/threads'
@@ -105,6 +105,14 @@ function reconcileConversation(state: ConversationState, live: LiveThread, addit
   return { ...state, phase, messages, live, busy: !paused && (pending.length > 0 || inFlight), pending, acknowledgedUsers: [...acknowledgedUsers], echo: echoed?.text ?? null, ...(state.phase === 'reconnecting' && !live.error ? { error: null } : {}), ...(missed.length ? { missedInstructions: [...state.missedInstructions, ...missed.map((request) => request.text)], draft: state.draft || missed.map((request) => request.text).join('\n\n'), error: 'The turn finished before steering was applied. The instruction is saved; send it as the next turn.' } : {}) }
 }
 
+/** Reread recovery after repeated live failures: reconcile against a
+ * fresh history snapshot, keeping the reconnecting phase while sends are
+ * still owed a reply. Module-level so the poll loop stays flat. */
+function recoverConversation(state: ConversationState, live: LiveThread, reread: unknown[]): ConversationState {
+  const recovered = reconcileConversation(state, { ...live, pendingText: null, pendingReasoning: null, pendingTools: [] }, toChatMessages(reread))
+  return { ...recovered, phase: recovered.pending.length ? 'reconnecting' : recovered.phase, error: recovered.pending.length ? 'Connection interrupted. The request may still be running; reconnect to follow it. Your draft is saved.' : null }
+}
+
 function reconnectDelay(signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     const done = () => { clearTimeout(timer); signal.removeEventListener('abort', done); resolve() }
@@ -144,19 +152,18 @@ export function useWorkspaceConversation(config: StagingConfig | null, threadKey
             if (failures >= 3) {
               const reread = await listMessages(config, key)
               if (controller.signal.aborted) return
-              update(key, (state) => {
-                const recovered = reconcileConversation(state, { ...live, pendingText: null, pendingReasoning: null, pendingTools: [] }, toChatMessages(reread))
-                return { ...recovered, phase: recovered.pending.length ? 'reconnecting' : recovered.phase, error: recovered.pending.length ? 'Connection interrupted. The request may still be running; reconnect to follow it. Your draft is saved.' : null }
-              })
+              startTransition(() => update(key, (state) => recoverConversation(state, live, reread)))
               return
             }
-            update(key, (state) => reconcileConversation(state, live))
+            // Background sync renders as a transition: poll frames must
+            // never block input or scroll on a heavy page.
+            startTransition(() => update(key, (state) => reconcileConversation(state, live)))
           }
           if (!controller.signal.aborted) {
             // A stream break must not clobber a terminal send outcome:
             // the failed UI (with its re-send retry) stays until the
             // user retries, instead of flashing to reconnecting.
-            update(key, (state) => (state.phase === 'failed' || state.phase === 'stopped' || state.phase === 'paused' ? state : { ...state, phase: 'reconnecting' }))
+            startTransition(() => update(key, (state) => (state.phase === 'failed' || state.phase === 'stopped' || state.phase === 'paused' ? state : { ...state, phase: 'reconnecting' })))
             await reconnectDelay(controller.signal)
           }
         }

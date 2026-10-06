@@ -4,7 +4,7 @@
 // user bubbles and mention chips intentionally stay plain text.
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { isValidElement, type ReactNode } from 'react'
+import { isValidElement, memo, type ReactNode } from 'react'
 import { Icons } from '@/lib/icons'
 import { notify } from '../lib/toast'
 import { IconButton } from './IconButton'
@@ -166,7 +166,7 @@ const sectionComponents: Components = {
  h4: ({ children }) => <h4 className="mt-3 mb-1 text-2xs font-medium tracking-[0.05em] text-foreground-subtle uppercase first:mt-0">{children}</h4>,
 }
 
-export function Markdown({ text, variant = 'chat' }: { text: string; variant?: 'chat' | 'plan' | 'compact' | 'section' }) {
+function MarkdownView({ text, variant = 'chat' }: { text: string; variant?: 'chat' | 'plan' | 'compact' | 'section' }) {
  // Plan documents render through the explicit plan variant: decorative
  // section glyphs and grouped-row rhythm live on the renderer itself, not
  // on wrapper DOM (no reaching through ancestors). Ordinary chat never
@@ -230,3 +230,8 @@ export function Markdown({ text, variant = 'chat' }: { text: string; variant?: '
  </div>
  )
 }
+
+// Memoized: every parent re-render (polls, typing, timers) would
+// otherwise re-run remark over every mounted message. Props are
+// strings, so the shallow compare is exact.
+export const Markdown = memo(MarkdownView)

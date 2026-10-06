@@ -5,7 +5,7 @@
 import { FileProcessingRetry } from './FileProcessingRetry'
 import type { LibraryFile } from '../data/useFiles'
 import { useWorkReview } from '../data/useWorkReview'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Icons } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import type { SectorWorkspaceModel } from '../data/sector-workspace'
@@ -461,6 +461,16 @@ function QueueDisclosure({ model }: { model: SectorWorkspaceModel }) {
   )
 }
 
+/** Conversation tail window: long histories render the latest 50
+ * segments (same idiom as the files 50-window); earlier ones load on
+ * demand. Rows skip off-screen render (content-visibility) so scroll
+ * commits stay inside the longtask budget. */
+const THREAD_TAIL = 50
+
+/** Stable no-op send: the adapter memoizes the runtime store on this
+ * identity, so an inline arrow would recreate the runtime per commit. */
+function noopSend(): void {}
+
 function ConversationView({ model, config, onContext }: { model: SectorWorkspaceModel; config: StagingConfig; onContext(): void }) {
   const chat = model.chat
   const { listRef, showLatest, onListScroll, jumpToLatest } = useChatStick(`${model.activeThread}:${chat.messages.length}:${chat.live?.pendingText?.length ?? 0}`)
@@ -468,10 +478,34 @@ function ConversationView({ model, config, onContext }: { model: SectorWorkspace
   useEffect(() => { composer.current?.focus(); const position = scrollPositions.get(model.activeThread ?? ''); if (position !== undefined && listRef.current) listRef.current.scrollTop = position }, [model.activeThread, listRef])
   const tools = (chat.live?.pendingTools ?? []).map((tool) => ({ id: tool.id, name: tool.name, detail: '', state: tool.state }))
   const notice = { status: chat.status, refresh: chat.retry, error: chat.error ?? undefined }
-  const segments = groupMessageSegments(chat.messages)
-  const lastKey = segments.length ? segments[segments.length - 1]?.key : undefined
+  const segments = useMemo(() => groupMessageSegments(chat.messages), [chat.messages])
+  // Tail window with a new-thread reset during render (house pattern):
+  // the latest message always mounts, earlier ones prepend on demand.
+  const [shownCount, setShownCount] = useState(THREAD_TAIL)
+  const [shownThread, setShownThread] = useState(model.activeThread)
+  if (shownThread !== model.activeThread) { setShownThread(model.activeThread); setShownCount(THREAD_TAIL) }
+  const hiddenCount = Math.max(0, segments.length - shownCount)
+  const visibleSegments = useMemo(() => hiddenCount > 0 ? segments.slice(-shownCount) : segments, [segments, shownCount, hiddenCount])
+  const byKey = useMemo(() => new Map(visibleSegments.map((segment) => [segment.key, segment])), [visibleSegments])
+  const threadMessages = useMemo(() => toThreadSegments(visibleSegments), [visibleSegments])
+  // Scroll anchor for "show earlier": keep the first visible row pinned
+  // while older rows prepend above it.
+  const anchorBelow = useRef(0)
+  function showEarlier() {
+    const list = listRef.current
+    anchorBelow.current = list ? list.scrollHeight - list.scrollTop : 0
+    setShownCount((count) => count + THREAD_TAIL)
+  }
+  useLayoutEffect(() => {
+    const list = listRef.current
+    if (list && anchorBelow.current > 0) {
+      list.scrollTop = list.scrollHeight - anchorBelow.current
+      anchorBelow.current = 0
+    }
+  }, [visibleSegments, listRef])
+  const lastKey = visibleSegments.length ? visibleSegments[visibleSegments.length - 1]?.key : undefined
   const [reasoningOpen, setReasoningOpen] = useReasoningOpen(chat.busy)
-  const lastReasoningKey = [...segments].reverse().find((segment) =>
+  const lastReasoningKey = [...visibleSegments].reverse().find((segment) =>
     'tools' in segment ? Boolean(segment.reply?.reasoning) : segment.message.kind === 'text' && Boolean(segment.message.reasoning),
   )?.key
   const emptyVariant = model.selected?.kind === 'research' && !model.child ? 'research' as const : 'chat' as const
@@ -526,7 +560,8 @@ function ConversationView({ model, config, onContext }: { model: SectorWorkspace
   const composerError = chat.status === 'ready' && !chat.missedInstructions.length && chat.phase !== 'reconnecting' && chat.phase !== 'failed' && chat.phase !== 'paused' && !threadPaused ? (chat.error ?? null) : null
   const orphanNotice = threadStateReasonLabel(chat.live?.stateReason)
   return <div className="flex min-h-0 flex-1 flex-col"><div className="relative min-h-0 flex-1"><div ref={listRef} onScroll={() => { onListScroll(); if (listRef.current) scrollPositions.set(model.activeThread ?? '', listRef.current.scrollTop) }} role="log" aria-label="Conversation messages" aria-live="polite" className="scroll-slim h-full overflow-y-auto px-4 py-6 sm:px-8"><div className="mx-auto max-w-prose-kd space-y-6"><ResourceNotice resource={notice} label="Conversation" />{chat.status === 'ready' && chat.messages.length === 0 && !chat.echo ? <ConversationEmpty variant={emptyVariant} onSuggest={(text) => { chat.setDraft(text); composer.current?.focus() }} /> : null}
-    {<AssistantRuntimeAdapter messages={toThreadSegments(segments)} isRunning={chat.busy} onSend={() => undefined}><ThreadPrimitive.Root><ThreadPrimitive.Messages>{({ message: runtimeMessage }) => { const segment = segments.find((entry) => entry.key === runtimeMessage.id); if (!segment) return null; const control = segment.key === lastReasoningKey ? { open: reasoningOpen, onOpenChange: setReasoningOpen } : undefined; return 'tools' in segment ? <div key={segment.key} className="space-y-2"><ToolActivity tools={segment.tools} />{segment.reply?.reasoning ? <ReasoningDisclosure reasoning={segment.reply.reasoning} open={control?.open} onOpenChange={control?.onOpenChange} /> : null}{segment.reply ? <AgentBubble copyText={segment.reply.text} timestamp={segment.reply.at} latest={segment.key === lastKey}><Markdown text={segment.reply.text} /></AgentBubble> : null}</div> : segment.message.kind === 'text' ? segment.message.role === 'user' ? <UserBubble key={segment.message.id}>{renderChatRefChips(segment.message.text)}</UserBubble> : <div key={segment.message.id} className="space-y-2">{segment.message.reasoning ? <ReasoningDisclosure reasoning={segment.message.reasoning} open={control?.open} onOpenChange={control?.onOpenChange} /> : null}<AgentBubble copyText={segment.message.text} timestamp={segment.message.at} latest={segment.key === lastKey}><Markdown text={segment.message.text} /></AgentBubble></div> : null }}</ThreadPrimitive.Messages></ThreadPrimitive.Root></AssistantRuntimeAdapter>}
+    {hiddenCount > 0 ? <div className="flex flex-col items-center gap-2 py-2"><Caption as="span" className="tabular-nums">Showing the latest {visibleSegments.length} of {segments.length} messages</Caption><Button type="button" variant="secondary" size="sm" onClick={showEarlier}>Show earlier messages</Button></div> : null}
+    {<AssistantRuntimeAdapter messages={threadMessages} isRunning={chat.busy} onSend={noopSend}><ThreadPrimitive.Root><ThreadPrimitive.Messages>{({ message: runtimeMessage }) => { const segment = byKey.get(runtimeMessage.id); if (!segment) return null; const control = segment.key === lastReasoningKey ? { open: reasoningOpen, onOpenChange: setReasoningOpen } : undefined; return 'tools' in segment ? <div key={segment.key} className="space-y-2 [content-visibility:auto] [contain-intrinsic-size:auto_120px]"><ToolActivity tools={segment.tools} />{segment.reply?.reasoning ? <ReasoningDisclosure reasoning={segment.reply.reasoning} open={control?.open} onOpenChange={control?.onOpenChange} /> : null}{segment.reply ? <AgentBubble copyText={segment.reply.text} timestamp={segment.reply.at} latest={segment.key === lastKey}><Markdown text={segment.reply.text} /></AgentBubble> : null}</div> : segment.message.kind === 'text' ? segment.message.role === 'user' ? <div key={segment.message.id} className="[content-visibility:auto] [contain-intrinsic-size:auto_60px]"><UserBubble>{renderChatRefChips(segment.message.text)}</UserBubble></div> : <div key={segment.message.id} className="space-y-2 [content-visibility:auto] [contain-intrinsic-size:auto_120px]">{segment.message.reasoning ? <ReasoningDisclosure reasoning={segment.message.reasoning} open={control?.open} onOpenChange={control?.onOpenChange} /> : null}<AgentBubble copyText={segment.message.text} timestamp={segment.message.at} latest={segment.key === lastKey}><Markdown text={segment.message.text} /></AgentBubble></div> : null }}</ThreadPrimitive.Messages></ThreadPrimitive.Root></AssistantRuntimeAdapter>}
     {chat.echo ? <UserBubble>{renderChatRefChips(chat.echo)}</UserBubble> : null}{tools.length || chat.live?.pendingReasoning || chat.live?.pendingText ? <div className="space-y-2">{tools.length ? <ToolActivity tools={tools} live /> : null}{chat.live?.pendingReasoning ? <ThinkingRow reasoning={chat.live.pendingReasoning} open={reasoningOpen} onOpenChange={setReasoningOpen} /> : null}{chat.live?.pendingText ? <AgentBubble><Markdown text={chat.live.pendingText} /></AgentBubble> : null}</div> : null}{chat.phase === 'queued' ? <p role="status" className="flex items-center gap-2"><Icons.queued aria-hidden className="size-3.5 text-muted-foreground" /><Caption as="span">Queued, waiting for the agent</Caption></p> : chat.phase === 'reconnecting' ? <div role="status" className="flex gap-2 rounded-md border border-info-border bg-info-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertInfo aria-hidden className="size-4 text-info" /></span><BodySm as="span" className="min-w-0 flex-1">Reconnecting. Your conversation is saved.</BodySm><Button type="button" variant="ghost" size="sm" onClick={chat.retry} className="shrink-0">Reconnect now</Button></div> : chat.phase === 'paused' || threadPaused ? <div role="status" className="flex gap-2 rounded-md border border-warning-border bg-warning-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertWarning aria-hidden className="size-4 text-warning" /></span><BodySm as="span" className="min-w-0 flex-1">This conversation is paused.</BodySm><Button type="button" variant="ghost" size="sm" disabled={Boolean(model.operation)} onClick={() => void model.resume()} className="shrink-0">Resume</Button></div> : chat.phase === 'failed' ? <div role="alert" className="flex gap-2 rounded-md border border-danger-border bg-danger-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertError aria-hidden className="size-4 text-danger" /></span><BodySm as="span" className="min-w-0 flex-1">That reply did not go through.</BodySm><Button type="button" variant="ghost" size="sm" onClick={() => void sendChat()} className="shrink-0">Retry</Button></div> : orphanNotice ? <div role="alert" className="flex gap-2 rounded-md border border-danger-border bg-danger-soft p-3"><span className="flex h-5 shrink-0 items-center"><Icons.alertError aria-hidden className="size-4 text-danger" /></span><BodySm as="span" className="min-w-0 flex-1">{orphanNotice}</BodySm></div> : chat.busy && !chat.live?.pendingText && !tools.length && !chat.live?.pendingReasoning ? <ThinkingRow /> : null}
   </div></div><AnimatePresence>{showLatest ? <div className="absolute bottom-3 left-1/2 -translate-x-1/2"><m.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18, ease: 'easeOut' }}><Button size="sm" variant="secondary" className="rounded-full shadow-sm" onClick={jumpToLatest}><Icons.latest aria-hidden />Latest</Button></m.div></div> : null}</AnimatePresence></div>
   <ConversationComposer label="Message this conversation" input={<>{model.selected?.useGlobalContext === false ? <button type="button" onClick={() => { void (async () => { if (await model.setUseGlobalContext(true)) notify.success('Global context on for this chat') })() }} className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-surface-sunken px-2.5 py-1" aria-label="Global context off. Turn it back on."><Icons.globalContext aria-hidden className="size-3.5 text-muted-foreground" /><Caption as="span">Global context off</Caption></button> : null}<QueueDisclosure model={model} /><Composer

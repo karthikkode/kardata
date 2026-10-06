@@ -166,9 +166,29 @@ export function toLiveMessages(raw: LiveMessage[]): ChatMessage[] {
 /** REST and SSE can finish in either order. Merge by the shared thread seq
  * so a slower history request never erases a newly streamed reply. */
 export function mergeChatMessages(left: ChatMessage[], right: ChatMessage[]): ChatMessage[] {
+  if (right.length === 0) return left
   const byId = new Map(left.map((message) => [message.id, message]))
-  for (const message of right) byId.set(message.id, message)
+  // Replays (REST rereads, stream resubscribes) carry the same values in
+  // fresh objects: keep the stable left refs and the left array itself
+  // unless an id is new or a field actually changed. Values out are
+  // identical either way; identity stability keeps downstream memos hit.
+  let changed = false
+  for (const message of right) {
+    const existing = byId.get(message.id)
+    if (existing === undefined || !sameChatMessage(existing, message)) {
+      byId.set(message.id, message)
+      changed = true
+    }
+  }
+  if (!changed) return left
   return [...byId.values()].sort((a, b) => Number(a.id.slice(2)) - Number(b.id.slice(2)))
+}
+
+/** Value equality for replay detection. Both builders emit keys in one
+ * fixed order; if that ever diverges the compare degrades to "changed",
+ * which is today's behavior, never a wrong keep. */
+function sameChatMessage(a: ChatMessage, b: ChatMessage): boolean {
+  return JSON.stringify(a) === JSON.stringify(b)
 }
 
 export function toChatFile(summary: ArtifactSummary): ChatFile {
