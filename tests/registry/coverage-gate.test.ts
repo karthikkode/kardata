@@ -1,5 +1,7 @@
 // Phase 7 coverage-gate unit tests (fixtures only; the gate script runs
 // at final verification). No [F:] tag: scripts/ are not registry surfaces.
+import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { checkCoreDirs, CORE_DIRS, CORE_MIN_LINES_PCT } from '../../scripts/coverage.mjs'
 
@@ -54,5 +56,20 @@ describe('coverage core gate', () => {
       ['backend/src/temporal/c.ts', 90, 100],
     ]))
     expect(result.every((entry) => entry.pass)).toBe(true)
+  })
+
+  it('importing the script does not run the gate (main guard)', () => {
+    const script = fileURLToPath(new URL('../../scripts/coverage.mjs', import.meta.url))
+    const out = execFileSync(
+      process.execPath,
+      ['-e', `import(${JSON.stringify(script)}).then(() => console.log('import-ok'))`],
+      {
+        encoding: 'utf8',
+        timeout: 15000,
+        env: { ...process.env, TEST_DATABASE_URL: 'postgresql://127.0.0.1:1/none' },
+      },
+    )
+    expect(out).toContain('import-ok')
+    expect(out).not.toContain('test:coverage')
   })
 })

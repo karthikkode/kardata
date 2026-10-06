@@ -67,18 +67,22 @@ function printPlan() {
   console.log(`- backend core gate: ${CORE_DIRS.join(', ')} lines >= ${CORE_MIN_LINES_PCT}% from coverage/coverage-summary.json`)
 }
 
-const args = new Set(process.argv.slice(2))
-if (args.has('--print-plan')) {
-  printPlan()
-} else {
+export function main(argv = process.argv.slice(2), env = process.env) {
+  const args = new Set(argv)
+  if (args.has('--print-plan')) {
+    printPlan()
+    return
+  }
   if (!args.has('--backend-only')) {
     run('npm', ['run', 'test:coverage', '-w', '@kardata/agents'])
     run('npm', ['run', 'test:coverage', '-w', 'frontend'])
   }
-  if (!process.env['TEST_DATABASE_URL']) {
+  if (!env['TEST_DATABASE_URL']) {
     console.log('coverage: backend skipped (TEST_DATABASE_URL unset; runs in verify:full / CI integration)')
   } else {
     run('npm', ['run', 'test:coverage', '-w', '@kardata/backend'])
     gateBackendCore()
   }
 }
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) main()
