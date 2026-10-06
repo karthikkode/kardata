@@ -82,8 +82,9 @@ export const SUPERVISION_THRESHOLDS = {
   queueStaleMs: 5 * 60_000,
   /** Turn wall clock → fail honestly. */
   turnWallMs: 20 * 60_000,
-  /** Coverage: 500 threads a page, a page every 5 s. */
-  reconcilePageSize: 500,
+  /** Coverage: 200 threads a page, a page every 5 s (a 500-page can
+   * exceed the 90 s activity start-to-close at 2 s x 500 / 8). */
+  reconcilePageSize: 200,
   reconcileCadenceMs: 5_000,
 } as const
 
