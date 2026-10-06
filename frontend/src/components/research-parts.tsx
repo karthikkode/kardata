@@ -257,7 +257,7 @@ export function UnavailableNotice({ onRetry }: { onRetry: () => void }) {
 export function DeniedNotice({ heading, onRetry }: { heading: string; onRetry?: () => void }) {
   const DeniedIcon = Icons.denied
   return (
-    <div className="flex flex-col items-center py-12 text-center">
+    <div role="alert" className="flex flex-col items-center py-12 text-center">
       <span className="flex size-10 items-center justify-center rounded-full bg-muted">
         <DeniedIcon className="size-5 text-muted-foreground" aria-hidden="true" />
       </span>
