@@ -151,11 +151,18 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL || !TOXIPROXY_URL)('infrastructur
         const address = app.server.address()
         if (!address || typeof address === 'string') throw new Error('TEST F6: no listen address')
         const received: SseFrame[] = []
+        // The live reader, destroyed in the finally: app.close() waits on
+        // open hijacked sockets, so any throw with a socket open hangs the
+        // close into a 120 s timeout instead of failing fast.
+        let current: ReturnType<typeof track> | undefined
         try {
           const reader = readSse(address.port, sessionId, 0, (frame) => received.push(frame))
+          current = track(reader)
           const started = Date.now()
-          while (received.length < 5 && Date.now() - started < 15_000) await sleep(100)
-          expect(received.length).toBe(5)
+          // Six, not five: the seed's session creation projects its own
+          // birth state frame ahead of the five published ones.
+          while (received.length < 6 && Date.now() - started < 15_000) await sleep(100)
+          expect(received.length).toBe(6)
           const cutAt = Date.now()
           await setProxyEnabled('fault-pg-f6', false)
           // Writers fail fast through the cut instead of hanging.
@@ -173,28 +180,28 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL || !TOXIPROXY_URL)('infrastructur
           // failure) or stalled half-open; either way the client ends with
           // every frame, reconnecting whenever the socket is gone — even on
           // a late post-heal RST.
-          let current = track(reader)
           for (let index = 0; index < 3; index += 1) {
             await publishOutboxFrame(serverPool, sessionId, 'state', { text: `TEST post-heal ${index}` })
           }
           let reconnects = 0
           const endBy = Date.now() + 20_000
-          while (received.length < 8 && Date.now() < endBy) {
-            if (current.eof.value) {
-              current.reader.destroy()
+          while (received.length < 9 && Date.now() < endBy) {
+            if (current!.eof.value) {
+              current!.reader.destroy()
               const lastSeq = received.length > 0 ? received[received.length - 1]!.seq : 0
               current = track(readSse(address.port, sessionId, lastSeq, (frame) => received.push(frame)))
               reconnects += 1
             }
             await sleep(100)
           }
-          current.reader.destroy()
-          expect(received.length).toBe(8)
+          current!.reader.destroy()
+          expect(received.length).toBe(9)
           const seqs = received.map((frame) => frame.seq)
           for (let index = 1; index < seqs.length; index += 1) expect(seqs[index]).toBe(seqs[index - 1]! + 1)
           expect(await latestOutboxSeq(direct, sessionId)).toBe(seqs[seqs.length - 1])
-          console.log(`[fault F6] cutMs=${healedAt - cutAt} frames=8 contiguous reconnects=${reconnects}`)
+          console.log(`[fault F6] cutMs=${healedAt - cutAt} frames=9 contiguous reconnects=${reconnects}`)
         } finally {
+          current?.reader.destroy()
           await app.close()
         }
       } finally {
