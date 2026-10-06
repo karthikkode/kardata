@@ -139,6 +139,13 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
   const inbox: SessionRunInboxItem[] = initialInbox()
   let nonce = initialNonce()
   let cancelRunningTurn: (() => void) | undefined
+  // First-WFT state signals dispatch after registration but before
+  // enterInitialState runs, while the box is still IDLE: their RUNNING /
+  // PAUSED guards would drop them (observed: a pre-entry pause logged
+  // state IDLE and the run proceeded). Record the intent and apply it at
+  // entry; old histories keep the drop via the patch gate.
+  const preEntryState = patched('session-preentry-state-v1')
+  let preEntry: 'PAUSED' | 'CANCELLING' | 'RUNNING' | undefined
 
   const setState = (next: RunState): void => {
     if (!isLegalTransition(box.state, next)) {
@@ -173,16 +180,22 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
   registerQueueHandlers(inbox)
   setHandler(pauseSignal, () => {
     if (currentState() === 'RUNNING') setState('PAUSED')
+    else if (preEntryState && currentState() === 'IDLE' && preEntry !== 'CANCELLING') preEntry = 'PAUSED'
     log.info('signal received', { signal: 'runPause', state: currentState() })
   })
   setHandler(resumeSignal, () => {
     if (currentState() === 'PAUSED') setState('RUNNING')
+    else if (preEntryState && currentState() === 'IDLE' && preEntry !== 'CANCELLING') preEntry = 'RUNNING'
     log.info('signal received', { signal: 'runResume', state: currentState() })
   })
   setHandler(cancelSignal, () => {
     if (currentState() === 'RUNNING' || currentState() === 'PAUSED') {
       setState('CANCELLING')
       cancelRunningTurn?.()
+    } else if (preEntryState && currentState() === 'IDLE') {
+      // Terminal intent wins over any earlier pre-entry pause or resume;
+      // no turn runs before entry so there is nothing to cancel yet.
+      preEntry = 'CANCELLING'
     }
     log.info('signal received', { signal: 'runCancel', state: currentState() })
   })
@@ -210,6 +223,12 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
     }
     setState('RUNNING')
     if (input.resumed?.state === 'PAUSED') setState('PAUSED')
+    // Pre-entry intent is fresher than carried state: a first-WFT pause
+    // or cancel holds, and a first-WFT resume releases a carried pause.
+    // Every apply is source-guarded (no self-transitions exist).
+    if (preEntry === 'CANCELLING' && (currentState() === 'RUNNING' || currentState() === 'PAUSED')) setState('CANCELLING')
+    else if (preEntry === 'PAUSED' && currentState() === 'RUNNING') setState('PAUSED')
+    else if (preEntry === 'RUNNING' && currentState() === 'PAUSED') setState('RUNNING')
   }
   await enterInitialState()
 
