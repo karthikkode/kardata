@@ -196,7 +196,7 @@ const CASES: FaultCase[] = [
   {
     id: 'frontend.src.components.chat.SessionFiles', label: 'POST session artifact', method: 'POST',
     pattern: /\/artifacts/, route: '/',
-    setup: [...DOCK],
+    setup: [...DOCK, { click: { kind: 'role', role: 'button', name: 'Session files' } }],
     errorAnchors: [
       { kind: 'role', role: 'alert' },
       { kind: 'text', text: 'Could not create the file.' },
@@ -208,7 +208,7 @@ const CASES: FaultCase[] = [
     healAnchors: [{ kind: 'css', css: '[aria-label="Session files"]' }],
     healRetrigger: true,
     refetch: { steps: [
-      { click: { kind: 'css', css: '[aria-label="New file"]' } },
+      { click: { kind: 'role', role: 'button', name: 'New file' } },
       { press: 'x' },
       { press: 'x' },
       { press: 'x' },
