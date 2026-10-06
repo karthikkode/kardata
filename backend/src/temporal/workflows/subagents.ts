@@ -787,6 +787,13 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
     await noteParentDone(finalStatus)
     return finalStatus
   } catch (error) {
+    // Continue-as-new unwinds through here: rethrow before the failure
+    // note, or every chain reports the healthy child as failed (freeing
+    // its parent slot), and the awaited note stretches the CAN across
+    // WFTs so signals arriving mid-unwind miss the carry. Same guard as
+    // delegateParent; ungated like it because the CAN is a replay
+    // firewall (closed runs never replay).
+    if (error instanceof ContinueAsNew) throw error
     if (isCancellation(error)) {
       // Parent cancelled: the completion entry still lands (non-cancellable)
       // so the parent thread shows the closed child instead of silence.
