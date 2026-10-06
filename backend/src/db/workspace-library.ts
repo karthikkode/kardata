@@ -3,7 +3,7 @@ import { serveArtifact } from '../artifacts/pipeline.js'
 import type { ArchiveTarget } from '../archive/targets.js'
 import type { Scope } from '../auth/types.js'
 import { appendEvent, findEventByKey, type Db } from './events.js'
-import { listArtifacts, resolveArtifactScope } from './event-artifacts.js'
+import { listArtifactsForSessions, resolveArtifactScope } from './event-artifacts.js'
 import { listSessions } from './sessions.js'
 import { checked, Id, WorkspaceError } from './errors.js'
 import { assertFileVisible, listSectorDocuments, readOriginalSectorDocument } from './sector-documents.js'
@@ -49,17 +49,14 @@ export async function listSectorLibrary(db: Db, sectorId: string, scope?: Scope)
     arrivedAt.set(doc.id, new Date(doc.createdAt).getTime())
   }
   const sessions = await listSessions(db, scope, sectorId)
+  const batched = await listArtifactsForSessions(db, sessions.map((session) => session.id))
   for (const session of sessions) {
-    for (const artifact of await listArtifacts(db, session.id, true)) {
-      if (!files.has(artifact.artifactId)) files.set(artifact.artifactId, { id: artifact.artifactId, filename: artifact.name ?? 'Untitled file', status: artifact.indexed ? 'indexed' : 'processing', hash: artifact.sha256 ?? '', source: artifact.producedBy ?? session.title, hidden: false, included: false, kind: 'artifact', sessionId: session.id })
+    for (const artifact of batched.summaries.get(session.id) ?? []) {
+      if (files.has(artifact.artifactId)) continue
+      files.set(artifact.artifactId, { id: artifact.artifactId, filename: artifact.name ?? 'Untitled file', status: artifact.indexed ? 'indexed' : 'processing', hash: artifact.sha256 ?? '', source: artifact.producedBy ?? session.title, hidden: false, included: false, kind: 'artifact', sessionId: session.id })
+      const at = batched.arrivedAt.get(artifact.artifactId)
+      if (at !== undefined) arrivedAt.set(artifact.artifactId, at)
     }
-  }
-  const artifactIds = [...files.values()].filter((file) => file.kind === 'artifact').map((file) => file.id)
-  if (artifactIds.length) {
-    const arrivals = await db.query<{ id: string; created_at: Date }>(`SELECT payload->>'artifactId' AS id,min(at) AS created_at
-      FROM events WHERE partition=ANY($1::text[]) AND type=ANY($2::text[]) AND payload->>'artifactId'=ANY($3::text[])
-      GROUP BY payload->>'artifactId'`, [sessions.map((session) => `artifact:session:${session.id}`), ['t.artifact.stored', 't.artifact.referenced', 't.artifact.indexed'], artifactIds])
-    for (const arrival of arrivals.rows) arrivedAt.set(arrival.id, new Date(arrival.created_at).getTime())
   }
   for (const flag of flags.rows) {
     const file = files.get(flag.file_id)

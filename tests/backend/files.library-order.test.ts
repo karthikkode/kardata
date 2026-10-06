@@ -11,7 +11,7 @@ import { createArtifact, createSector, createSession, listSectorLibrary, registe
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('mixed sector library arrival order [F:db.index.createSector] [F:db.index.createSession] [F:db.index.registerApiKey] [F:db.keys.registerApiKey] [F:db.index.createArtifact] [F:db.sectors.createSector] [F:db.sessions.createSession] [F:db.index.Db] [F:db.workspace.WorkspaceError] [F:db.workspace.requireSector]', () => {
+describe.skipIf(!TEST_DATABASE_URL)('mixed sector library arrival order [F:db.index.createSector] [F:db.index.createSession] [F:db.index.registerApiKey] [F:db.keys.registerApiKey] [F:db.index.createArtifact] [F:db.sectors.createSector] [F:db.sessions.createSession] [F:db.index.Db] [F:db.workspace.WorkspaceError] [F:db.workspace.requireSector] [F:db.event_artifacts.listArtifactsForSessions]', () => {
   let pool: Pool
   const scope = { tenantId: 'TEST files arrival order', projectId: null }
   const credential = 'TEST isolated file ordering key'

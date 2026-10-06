@@ -77,6 +77,131 @@ const ArtifactSummaryPayload = z
   })
   .passthrough()
 
+const ARTIFACT_LIST_TYPES = ['t.artifact.stored', 't.artifact.indexed', ARTIFACT_REFERENCED_EVENT]
+
+const ARTIFACT_PARTITION_PREFIX = 'artifact:session:'
+
+/** Row-validity mirror of ArtifactSummaryPayload: absent (SQL NULL from ->)
+ * is allowed for every optional field, explicit JSON null is not, strings
+ * keep their length rules, bytes must be a non-negative integer, and
+ * fromScope must carry a known kind plus a non-empty id. */
+const ARTIFACT_VALID_ROW = `jsonb_typeof(payload) = 'object'
+  AND jsonb_typeof(payload->'artifactId') = 'string' AND payload->>'artifactId' <> ''
+  AND (payload->'name' IS NULL OR (jsonb_typeof(payload->'name') = 'string' AND payload->>'name' <> ''))
+  AND (payload->'kind' IS NULL OR jsonb_typeof(payload->'kind') = 'string')
+  AND (payload->'sha256' IS NULL OR jsonb_typeof(payload->'sha256') = 'string')
+  AND (payload->'detail' IS NULL OR jsonb_typeof(payload->'detail') = 'string')
+  AND (payload->'reason' IS NULL OR jsonb_typeof(payload->'reason') = 'string')
+  AND (payload->'producedBy' IS NULL OR jsonb_typeof(payload->'producedBy') = 'string')
+  AND (payload->'bytes' IS NULL OR (jsonb_typeof(payload->'bytes') = 'number'
+    AND (payload->'bytes')::numeric >= 0 AND (payload->'bytes')::numeric = trunc((payload->'bytes')::numeric)))
+  AND (payload->'sourceIndexed' IS NULL OR jsonb_typeof(payload->'sourceIndexed') = 'boolean')
+  AND (payload->'fromScope' IS NULL OR (jsonb_typeof(payload->'fromScope') = 'object'
+    AND (payload->'fromScope'->>'kind') IN ('session', 'task')
+    AND jsonb_typeof(payload->'fromScope'->'id') = 'string' AND (payload->'fromScope'->>'id') <> ''))`
+
+/** The artifact fold in SQL: fetching every artifact event row caps the
+ * sector library at ~860 ms at volume (166k rows), so the database folds
+ * to one row per (partition, artifact) in a single scan: last-write-wins
+ * per field in seq order over valid rows, the indexed flags, the unproven
+ * reference scopes, and the arrival time. The payload ? 'artifactId'
+ * prefilter matches the partial fold index: keyless rows contribute
+ * nothing (invalid for the fold, NULL for the arrival). Summaries come out
+ * in first-appearance order. */
+const ARTIFACT_FOLD_SQL = `SELECT partition AS partition, payload->>'artifactId' AS artifact_id,
+   (array_agg(payload->>'name' ORDER BY seq DESC) FILTER (WHERE ${ARTIFACT_VALID_ROW} AND payload ? 'name'))[1] AS name,
+   (array_agg(payload->>'kind' ORDER BY seq DESC) FILTER (WHERE ${ARTIFACT_VALID_ROW} AND payload ? 'kind'))[1] AS kind,
+   (array_agg(payload->'bytes' ORDER BY seq DESC) FILTER (WHERE ${ARTIFACT_VALID_ROW} AND payload ? 'bytes'))[1] AS bytes,
+   (array_agg(payload->>'sha256' ORDER BY seq DESC) FILTER (WHERE ${ARTIFACT_VALID_ROW} AND payload ? 'sha256'))[1] AS sha256,
+   (array_agg(payload->>'detail' ORDER BY seq DESC) FILTER (WHERE ${ARTIFACT_VALID_ROW} AND payload ? 'detail'))[1] AS detail,
+   (array_agg(payload->>'reason' ORDER BY seq DESC) FILTER (WHERE ${ARTIFACT_VALID_ROW} AND payload ? 'reason'))[1] AS reason,
+   (array_agg(payload->>'producedBy' ORDER BY seq DESC) FILTER (WHERE ${ARTIFACT_VALID_ROW} AND payload ? 'producedBy'))[1] AS produced_by,
+   (array_agg(jsonb_build_object('kind', payload->'fromScope'->>'kind', 'id', payload->'fromScope'->>'id')
+     ORDER BY seq DESC) FILTER (WHERE ${ARTIFACT_VALID_ROW} AND type = 't.artifact.referenced' AND payload ? 'fromScope'))[1] AS referenced_from,
+   bool_or(type = 't.artifact.indexed') FILTER (WHERE ${ARTIFACT_VALID_ROW}) AS direct_indexed,
+   bool_or((payload->'sourceIndexed')::boolean IS TRUE)
+     FILTER (WHERE ${ARTIFACT_VALID_ROW} AND type = 't.artifact.referenced' AND payload ? 'fromScope') AS ref_indexed,
+   array_agg(DISTINCT payload->'fromScope') FILTER (WHERE ${ARTIFACT_VALID_ROW} AND type = 't.artifact.referenced'
+     AND payload ? 'fromScope' AND NOT ((payload->'sourceIndexed')::boolean IS TRUE)) AS unproven_refs,
+   min(seq) FILTER (WHERE ${ARTIFACT_VALID_ROW}) AS first_seq,
+   min(at) FILTER (WHERE payload->>'artifactId' IS NOT NULL) AS arrived
+ FROM events
+ WHERE partition = ANY($1::text[]) AND type = ANY($2::text[]) AND payload ? 'artifactId'
+ GROUP BY partition, payload->>'artifactId'
+ ORDER BY partition ASC, first_seq ASC`
+
+interface ArtifactFoldRow {
+  partition: string
+  artifact_id: string | null
+  name: string | null
+  kind: string | null
+  bytes: number | null
+  sha256: string | null
+  detail: string | null
+  reason: string | null
+  produced_by: string | null
+  referenced_from: ArtifactScope | null
+  direct_indexed: boolean | null
+  ref_indexed: boolean | null
+  unproven_refs: ArtifactScope[] | null
+  first_seq: string | null
+  arrived: Date | null
+}
+
+interface FoldedPartitions {
+  summaries: Map<string, ArtifactSummary[]>
+  arrivedAt: Map<string, number>
+}
+
+function toArtifactSummary(row: ArtifactFoldRow, proven: Set<string>): ArtifactSummary | undefined {
+  if (row.artifact_id === null || row.first_seq === null) return undefined
+  const artifactId = row.artifact_id
+  const entry: ArtifactSummary = { artifactId, indexed: false }
+  if (row.name !== null) entry.name = row.name
+  if (row.kind !== null) entry.kind = row.kind
+  if (row.bytes !== null) entry.bytes = row.bytes
+  if (row.sha256 !== null) entry.sha256 = row.sha256
+  if (row.detail !== null) entry.detail = row.detail
+  if (row.reason !== null) entry.reason = row.reason
+  if (row.produced_by !== null) entry.producedBy = row.produced_by
+  if (row.referenced_from !== null) entry.referencedFrom = row.referenced_from
+  entry.indexed = row.direct_indexed === true || row.ref_indexed === true ||
+    (row.unproven_refs ?? []).some((scope) => proven.has(indexedEventKey(scope, artifactId)))
+  return entry
+}
+
+async function foldArtifactPartitions(db: Db, partitions: string[]): Promise<FoldedPartitions> {
+  const summaries = new Map<string, ArtifactSummary[]>()
+  const arrivedAt = new Map<string, number>()
+  const { rows } = await db.query<ArtifactFoldRow>(ARTIFACT_FOLD_SQL, [partitions, ARTIFACT_LIST_TYPES])
+  const proofKeys = new Set<string>()
+  for (const row of rows) {
+    if (row.artifact_id === null) continue
+    for (const scope of row.unproven_refs ?? []) proofKeys.add(indexedEventKey(scope, row.artifact_id))
+  }
+  const proven = new Set<string>()
+  if (proofKeys.size > 0) {
+    const { rows: proofRows } = await db.query<{ idempotency_key: string; type: string }>(
+      'SELECT idempotency_key, type FROM events WHERE idempotency_key = ANY($1::text[])',
+      [[...proofKeys]],
+    )
+    for (const proof of proofRows) {
+      if (proof.type === 't.artifact.indexed') proven.add(proof.idempotency_key)
+    }
+  }
+  for (const row of rows) {
+    const entry = toArtifactSummary(row, proven)
+    if (!entry || row.arrived === null) continue
+    const sessionId = row.partition.slice(ARTIFACT_PARTITION_PREFIX.length)
+    const list = summaries.get(sessionId) ?? []
+    list.push(entry)
+    summaries.set(sessionId, list)
+    const at = new Date(row.arrived).getTime()
+    if (!arrivedAt.has(entry.artifactId) || at < (arrivedAt.get(entry.artifactId) as number)) arrivedAt.set(entry.artifactId, at)
+  }
+  return { summaries, arrivedAt }
+}
+
 /** Artifact listing for a session scope: joins stored + indexed event
  * records from the artifact partition. Files-menu reads; body serving
  * stays in the pipeline (needs the archive target). */
@@ -84,40 +209,28 @@ export async function listArtifacts(db: Db, sessionId: string, includeHidden = f
   if (!z.string().min(1).safeParse(sessionId).success) {
     throw new DbContractError('sessionId must be a non-empty string')
   }
-  const events = await readPartition(db, `artifact:session:${sessionId}`)
-  const byId = new Map<string, ArtifactSummary>()
-  for (const event of events) {
-    if (
-      event.type !== 't.artifact.stored' &&
-      event.type !== 't.artifact.indexed' &&
-      event.type !== ARTIFACT_REFERENCED_EVENT
-    ) {
-      continue
-    }
-    const parsed = ArtifactSummaryPayload.safeParse(event.payload)
-    if (!parsed.success) continue
-    let entry = byId.get(parsed.data.artifactId)
-    if (!entry) {
-      entry = { artifactId: parsed.data.artifactId, indexed: false }
-      byId.set(parsed.data.artifactId, entry)
-    }
-    if (parsed.data.name !== undefined) entry.name = parsed.data.name
-    if (parsed.data.kind !== undefined) entry.kind = parsed.data.kind
-    if (parsed.data.bytes !== undefined) entry.bytes = parsed.data.bytes
-    if (parsed.data.sha256 !== undefined) entry.sha256 = parsed.data.sha256
-    if (parsed.data.detail !== undefined) entry.detail = parsed.data.detail
-    if (parsed.data.reason !== undefined) entry.reason = parsed.data.reason
-    if (parsed.data.producedBy !== undefined) entry.producedBy = parsed.data.producedBy
-    if (event.type === 't.artifact.indexed') entry.indexed = true
-    if (event.type === ARTIFACT_REFERENCED_EVENT && parsed.data.fromScope !== undefined) {
-      entry.referencedFrom = parsed.data.fromScope
-      const proof = parsed.data.sourceIndexed === true ? undefined : await findEventByKey(db, indexedEventKey(parsed.data.fromScope, parsed.data.artifactId))
-      if (parsed.data.sourceIndexed === true || proof?.type === 't.artifact.indexed') entry.indexed = true
-    }
-  }
+  const folded = await foldArtifactPartitions(db, [`${ARTIFACT_PARTITION_PREFIX}${sessionId}`])
   const session = await getSession(db, sessionId)
   const hidden = !includeHidden && session?.sectorId ? await hiddenFileIds(db, session.sectorId) : new Set<string>()
-  return [...byId.values()].filter((file) => !hidden.has(file.artifactId))
+  return (folded.summaries.get(sessionId) ?? []).filter((file) => !hidden.has(file.artifactId))
+}
+
+export interface BatchedArtifacts {
+  summaries: Map<string, ArtifactSummary[]>
+  /** Global earliest event time per artifactId (arrival order). */
+  arrivedAt: Map<string, number>
+}
+
+/** Batched listing for many sessions: one folding query over all artifact
+ * partitions instead of one readPartition per session. Entries equal
+ * per-session listArtifacts with includeHidden; arrivedAt equals the
+ * library's old min(at) arrivals query. */
+export async function listArtifactsForSessions(db: Db, sessionIds: string[]): Promise<BatchedArtifacts> {
+  if (sessionIds.length === 0) return { summaries: new Map(), arrivedAt: new Map() }
+  for (const sessionId of sessionIds) {
+    if (!z.string().min(1).safeParse(sessionId).success) throw new DbContractError('sessionId must be a non-empty string')
+  }
+  return foldArtifactPartitions(db, sessionIds.map((sessionId) => `${ARTIFACT_PARTITION_PREFIX}${sessionId}`))
 }
 
 /** Attach an existing file to another session without copying bytes. The

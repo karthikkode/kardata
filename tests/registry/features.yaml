@@ -6713,3 +6713,9 @@
   tiers:
     - unit
   states: []
+- id: db.event_artifacts.listArtifactsForSessions
+  layer: db
+  surface: backend/src/db/event-artifacts.ts
+  tiers:
+    - db
+  states: []
