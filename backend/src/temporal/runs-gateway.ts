@@ -599,7 +599,10 @@ export class TemporalRunsGateway implements RunsGateway {
     else if (type === 'subagentRun') {
       await setThreadPaused(this.pool, `agent:${runId}`, false)
       await handle.signal('childResume')
-    } else if (type === 'companyResearch') await handle.signal('childResume')
+    } else if (type === 'companyResearch') {
+      await setThreadPaused(this.pool, `agent:${runId}`, false)
+      await handle.signal('childResume')
+    }
     else throw new ThreadNotAccepting(`run ${runId} (${type}) has no path for this command`)
     return { commandId: commandId(), state: 'accepted' }
   }

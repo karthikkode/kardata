@@ -44,6 +44,17 @@ describe.skipIf(!TEST_DATABASE_URL)('subagent pause controls (A16) [F:db.workspa
     expect(await isThreadPaused(pool, 'agent:TEST-child-1')).toBe(false)
   })
 
+  it('gateway pause and resume clear the flag on a companyResearch run', async () => {
+    fixture.describe.mockResolvedValue({ type: 'companyResearch', status: { name: 'RUNNING' } })
+    const gateway = new TemporalRunsGateway(pool as TransactableDb, {} as Connection)
+    await gateway.pauseRun('TEST-company-1')
+    expect(fixture.signal).toHaveBeenCalledWith('TEST-company-1', 'childPause')
+    expect(await isThreadPaused(pool, 'agent:TEST-company-1')).toBe(true)
+    await gateway.resumeRun('TEST-company-1')
+    expect(fixture.signal).toHaveBeenCalledWith('TEST-company-1', 'childResume')
+    expect(await isThreadPaused(pool, 'agent:TEST-company-1')).toBe(false)
+  })
+
   it('fake gateway mirrors the subagent pause path', async () => {
     runs.addRun({ id: 'TEST-child-2', sessionId: 'TEST session', threadKey: 'agent:TEST-child-2', state: 'RUNNING', budgetUsedRatio: 0, contextUsedRatio: 0, updatedAt: new Date().toISOString() }, 'subagentRun')
     await runs.pauseRun('TEST-child-2')

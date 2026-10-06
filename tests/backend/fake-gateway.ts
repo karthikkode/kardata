@@ -210,7 +210,7 @@ export class FakeRunsGateway implements RunsGateway {
     const type = this.requireRun(runId)
     const args = extendedBudgetMs !== undefined ? [extendedBudgetMs] : []
     if (type === 'subagentRun' || type === 'companyResearch') {
-      if (type === 'subagentRun') await setThreadPaused(this.pool, `agent:${runId}`, false)
+      await setThreadPaused(this.pool, `agent:${runId}`, false)
       this.signals.push({ workflowId: runId, signal: 'childResume', args })
       return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
     }
