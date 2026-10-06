@@ -22,7 +22,7 @@ test('[F:frontend.src.components.global_context_panel] global_context_panel erro
 })
 
 test('[F:frontend.src.components.global_context_panel] global_context_panel denied', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."}] }, 'denied')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'denied')
 })
 
 test('[F:frontend.src.components.global_context_panel] global_context_panel offline', async ({ page }) => {

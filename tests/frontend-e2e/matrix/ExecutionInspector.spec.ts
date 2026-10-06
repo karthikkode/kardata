@@ -46,7 +46,7 @@ test('[F:frontend.src.components.ExecutionInspector] ExecutionInspector error', 
 })
 
 test('[F:frontend.src.components.ExecutionInspector] ExecutionInspector denied', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Conversation options"}], postAnchors: [{"kind":"role","role":"dialog","name":"Execution records"},{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."}] }, 'denied')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Conversation options"}], postAnchors: [{"kind":"role","role":"dialog","name":"Execution records"},{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'denied')
 })
 
 test('[F:frontend.src.components.ExecutionInspector] ExecutionInspector offline', async ({ page }) => {

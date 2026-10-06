@@ -39,7 +39,7 @@ test('[F:frontend.src.components.plan_progress] plan_progress error', async ({ p
 })
 
 test('[F:frontend.src.components.plan_progress] plan_progress denied', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}], postAnchors: [{"kind":"role","role":"region","name":"Research progress"},{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."}] }, 'denied')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}], postAnchors: [{"kind":"role","role":"region","name":"Research progress"},{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'denied')
 })
 
 test('[F:frontend.src.components.plan_progress] plan_progress offline', async ({ page }) => {

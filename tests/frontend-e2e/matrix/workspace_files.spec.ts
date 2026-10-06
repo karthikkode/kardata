@@ -22,7 +22,7 @@ test('[F:frontend.src.components.workspace_files] workspace_files error', async 
 })
 
 test('[F:frontend.src.components.workspace_files] workspace_files denied', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."}] }, 'denied')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'denied')
 })
 
 test('[F:frontend.src.components.workspace_files] workspace_files offline', async ({ page }) => {

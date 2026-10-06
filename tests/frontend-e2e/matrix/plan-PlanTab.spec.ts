@@ -38,7 +38,7 @@ test('[F:frontend.src.components.plan.PlanTab] PlanTab error', async ({ page }) 
 })
 
 test('[F:frontend.src.components.plan.PlanTab] PlanTab denied', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}], postAnchors: [{"kind":"role","role":"tabpanel"},{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."}] }, 'denied')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}], postAnchors: [{"kind":"role","role":"tabpanel"},{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'denied')
 })
 
 test('[F:frontend.src.components.plan.PlanTab] PlanTab offline', async ({ page }) => {

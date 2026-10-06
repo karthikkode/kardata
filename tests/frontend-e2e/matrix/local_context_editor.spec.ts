@@ -41,7 +41,7 @@ test('[F:frontend.src.components.local_context_editor] local_context_editor erro
 })
 
 test('[F:frontend.src.components.local_context_editor] local_context_editor denied', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Conversation options"}], postAnchors: [{"kind":"text","text":"Local context"},{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."}] }, 'denied')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Conversation options"}], postAnchors: [{"kind":"text","text":"Local context"},{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'denied')
 })
 
 test('[F:frontend.src.components.local_context_editor] local_context_editor offline', async ({ page }) => {

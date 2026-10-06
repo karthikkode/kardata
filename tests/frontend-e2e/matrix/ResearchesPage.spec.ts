@@ -36,7 +36,7 @@ test('[F:frontend.src.components.ResearchesPage] ResearchesPage error', async ({
 })
 
 test('[F:frontend.src.components.ResearchesPage] ResearchesPage denied', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."}] }, 'denied')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'denied')
 })
 
 test('[F:frontend.src.components.ResearchesPage] ResearchesPage offline', async ({ page }) => {

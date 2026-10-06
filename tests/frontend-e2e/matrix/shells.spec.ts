@@ -22,7 +22,7 @@ test('[F:frontend.src.components.shells] shells error', async ({ page }) => {
 })
 
 test('[F:frontend.src.components.shells] shells denied', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."}] }, 'denied')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'denied')
 })
 
 test('[F:frontend.src.components.shells] shells offline', async ({ page }) => {

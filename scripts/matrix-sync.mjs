@@ -32,6 +32,7 @@ const CONTENT = {
     denied: [
       { kind: 'role', role: 'alert' },
       { kind: 'text', text: 'Ask an owner for access, then try again.' },
+      { kind: 'role', role: 'button', name: 'Try again' },
     ],
     offline: [
       { kind: 'text', text: 'No connection. Reconnect and try again.' },
@@ -44,7 +45,10 @@ const CONTENT = {
       { kind: 'role', role: 'alert' },
       { kind: 'role', role: 'button', name: 'Try again' },
     ],
-    denied: [{ kind: 'text', text: 'Ask an owner for access, then try again.' }],
+    denied: [
+      { kind: 'text', text: 'Ask an owner for access, then try again.' },
+      { kind: 'role', role: 'button', name: 'Try again' },
+    ],
     offline: [
       { kind: 'text', text: 'No connection' },
       { kind: 'role', role: 'button', name: 'Try again' },

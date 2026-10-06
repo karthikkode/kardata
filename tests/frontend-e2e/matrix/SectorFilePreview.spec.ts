@@ -37,7 +37,7 @@ test('[F:frontend.src.components.SectorFilePreview] SectorFilePreview error', as
 })
 
 test('[F:frontend.src.components.SectorFilePreview] SectorFilePreview denied', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Sector files\"]"}], postAnchors: [{"kind":"text","text":"File preview"},{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."}] }, 'denied')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Sector files\"]"}], postAnchors: [{"kind":"text","text":"File preview"},{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'denied')
 })
 
 test('[F:frontend.src.components.SectorFilePreview] SectorFilePreview offline', async ({ page }) => {

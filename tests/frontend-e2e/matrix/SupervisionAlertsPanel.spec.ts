@@ -26,7 +26,7 @@ test('[F:frontend.src.components.SupervisionAlertsPanel] SupervisionAlertsPanel 
 })
 
 test('[F:frontend.src.components.SupervisionAlertsPanel] SupervisionAlertsPanel denied', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."}] }, 'denied')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'denied')
 })
 
 test('[F:frontend.src.components.SupervisionAlertsPanel] SupervisionAlertsPanel offline', async ({ page }) => {
