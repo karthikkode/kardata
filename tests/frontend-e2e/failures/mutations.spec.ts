@@ -16,6 +16,7 @@ test.describe.configure({ timeout: 120_000 })
 const DOCK = [{ click: { kind: 'role', role: 'button', name: 'Ask Karbot' } }] as const
 const TRY_AGAIN = { kind: 'role', role: 'button', name: 'Try again' } as const
 const CHAT = '/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001'
+const RESEARCH_CHAT = '/?section=SectorChat&sector=sector-matrix&session=session-sector-matrix-research&thread=session-sector-matrix-research'
 const OPTIONS_MENU: MatrixSetup[] = [
   { click: { kind: 'role', role: 'button', name: 'Conversation options' } },
 ]
@@ -83,19 +84,21 @@ const CASES: FaultCase[] = [
   },
   {
     id: 'frontend.src.components.SectorWorkspace', label: 'POST sector pause', method: 'POST',
-    pattern: /\/pause/, route: CHAT,
+    pattern: /\/pause/, route: RESEARCH_CHAT,
     errorAnchors: [{ kind: 'role', role: 'alert' }],
     deniedAnchors: [{ kind: 'role', role: 'alert' }],
+    baseAnchors: [{ kind: 'role', role: 'button', name: 'Pause' }],
     healAnchors: [{ kind: 'role', role: 'button', name: 'Resume' }],
     healRetrigger: true,
     refetch: { steps: [{ click: { kind: 'role', role: 'button', name: 'Pause' } }] },
   },
   {
     id: 'frontend.src.components.SectorWorkspace', label: 'POST sector resume', method: 'POST',
-    pattern: /\/resume/, route: CHAT,
+    pattern: /\/resume/, route: RESEARCH_CHAT,
     setup: [{ click: { kind: 'role', role: 'button', name: 'Pause' } }],
     errorAnchors: [{ kind: 'role', role: 'alert' }],
     deniedAnchors: [{ kind: 'role', role: 'alert' }],
+    baseAnchors: [{ kind: 'role', role: 'button', name: 'Resume' }],
     healAnchors: [{ kind: 'role', role: 'button', name: 'Pause' }],
     healRetrigger: true,
     refetch: { steps: [{ click: { kind: 'role', role: 'button', name: 'Resume' } }] },
