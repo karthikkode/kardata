@@ -118,7 +118,9 @@ All workspaces: `npm run lint`, `npm run typecheck`, `npm test`.
   `KARDATA_PG_SERVER_MAX` / `KARDATA_PG_WORKER_MAX` names still work with
   a deprecation warning. Research fan-out is a plan budget
   (`plan.budgets.concurrency`, 1–64), still under the Meta limiter. `/mcp`
-  has its own per-key rate bucket (600/min default, code option, not env).
+  has its own per-key rate bucket (600/min default, code option, not env);
+  /mcp calls with a verified execution binding are budgeted per thread, so
+  the fleet never shares one budget on the worker token.
   Replicas: `stack.mjs worker --replicas N` (1–16). Turn MCP calls carry
   positional `(run, round, call_index)` keys, so retried rounds dedupe
   server-side instead of doubling effects.

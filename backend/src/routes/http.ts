@@ -18,6 +18,7 @@ import {
   completeIdempotency,
   releaseIdempotency,
 } from '../db/index.js'
+import { verifyExecution } from '../auth/execution.js'
 import { mutationFingerprint, rateBucket } from '../http/limits.js'
 import { getSession } from '../db/index.js'
 import type { RunsGateway } from '../temporal/runs-types.js'
@@ -115,11 +116,27 @@ export async function authorize(
   return { scope: result.scope, keyId: result.caller.keyId }
 }
 
+/** Verified execution binding (P4-M6): turn tool traffic carries an
+ * HMAC-signed thread header. A verified binding scopes the /mcp bucket to
+ * that thread, so the fleet never shares one budget on the worker token.
+ * Unverifiable headers fall back to the per-key bucket — a forged thread
+ * buys no new budget. Sync HMAC, safe in the onRequest hook. */
+function verifiedExecutionThread(request: FastifyRequest): string | undefined {
+  const threadKey = header(request, 'x-kardata-thread')
+  const signature = header(request, 'x-kardata-execution')
+  const workerToken = process.env['KARDATA_MCP_TOKEN']
+  if (!threadKey || !signature || !workerToken) return undefined
+  if (!verifyExecution(threadKey, signature, workerToken)) return undefined
+  return threadKey
+}
+
 /** Per-key fixed-window rate hook (B3.4). Applies to /v1/* only; /healthz
  * stays unthrottled for load-balancer probes. Buckets follow the presented
  * bearer token, or the peer IP for unauthenticated callers. Over-limit
- * requests get 429 rate_limited with a Retry-After hint. A limiter outage
- * fails open so healthy traffic is never 500ed by its own guard. */
+ * requests get 429 rate_limited with a Retry-After hint. /mcp calls with a
+ * verified execution binding get a per-thread bucket instead, so one shared
+ * worker token cannot throttle the fleet. A limiter outage fails open so
+ * healthy traffic is never 500ed by its own guard. */
 export function registerRateLimit(app: FastifyInstance, limitPerMin: number, logger?: Logger): void {
   app.addHook('onRequest', async (request, reply) => {
     // /mcp rides the same per-key budget under its own bucket namespace,
@@ -128,7 +145,11 @@ export function registerRateLimit(app: FastifyInstance, limitPerMin: number, log
     if (limitPerMin <= 0 || (!request.url.startsWith('/v1/') && !isMcp)) return
     const pool = (app as FastifyInstance & { kardataPool?: TransactableDb }).kardataPool
     if (!pool) return
-    const bucket = `${isMcp ? 'mcp:' : ''}${rateBucket(header(request, 'authorization'), request.ip)}`
+    let bucket = `${isMcp ? 'mcp:' : ''}${rateBucket(header(request, 'authorization'), request.ip)}`
+    if (isMcp) {
+      const threadKey = verifiedExecutionThread(request)
+      if (threadKey) bucket = `${bucket}:thread:${threadKey}`
+    }
     let decision
     try {
       decision = await checkRate(pool, bucket, limitPerMin)
