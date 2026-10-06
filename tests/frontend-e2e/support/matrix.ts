@@ -7,7 +7,7 @@
 import { appendFileSync, mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { expect, type Locator, type Page } from '@playwright/test'
+import { expect, type ConsoleMessage, type Locator, type Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { serveApi, type RouteKey } from './api'
 import { FIXED_NOW, matrixApiOptions, type MatrixDataState } from './factory'
@@ -58,6 +58,17 @@ export function anchorLocator(page: Page, anchor: MatrixAnchor): Locator {
   if (anchor.kind === 'role') return page.getByRole(anchor.role as never, anchor.name ? { name: anchor.name } : undefined).first()
   if (anchor.kind === 'text') return page.getByText(anchor.text as string).first()
   return page.locator(anchor.css as string).first()
+}
+
+/** Chromium's own noise for a request the harness faulted by design: the
+ * browser logs "Failed to load resource: ..." as a console error naming
+ * the faulted URL. Drop it for the faulted scope only (the case pattern in
+ * the failures runner, mocked API URLs in faulted-state matrix runs).
+ * App-chunk failures, other URLs, and real console.error calls still fail. */
+export function isFaultedResourceNoise(msg: ConsoleMessage, scope: RegExp): boolean {
+  if (msg.type() !== 'error') return false
+  if (!msg.text().startsWith('Failed to load resource')) return false
+  return scope.test(msg.location().url)
 }
 
 function isEnvState(state: MatrixState): state is MatrixEnvState {
@@ -184,9 +195,16 @@ export async function runMatrixState(page: Page, mc: MatrixCase, state: MatrixSt
   const env = isEnvState(state)
   const dataState: MatrixDataState = env ? (mc.envBasis ?? 'typical') : state
   const width = typeof state === 'string' && WIDTHS[state] ? WIDTHS[state] : 1440
+  // Error/denied/offline states fault the mocked API by design, so the
+  // browser's own resource errors for /v1/ URLs are expected there — and
+  // only there. Healthy-state runs stay strict: an unmocked endpoint's
+  // catch-all 404 must still trip the console assertion.
+  const faultedApi = dataState === 'error' || dataState === 'denied' || dataState === 'offline'
   const errors: string[] = []
   page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text().slice(0, 300))
+    if (msg.type() !== 'error') return
+    if (faultedApi && isFaultedResourceNoise(msg, /\/v1\//)) return
+    errors.push(msg.text().slice(0, 300))
   })
   page.on('pageerror', (error) => errors.push(String(error).slice(0, 300)))
 

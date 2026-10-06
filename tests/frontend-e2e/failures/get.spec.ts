@@ -10,6 +10,7 @@ import { expect, test } from '@playwright/test'
 import { serveApi } from '../support/api'
 import { makeCompanies, makeSessions, matrixSector } from '../support/factory'
 import { FAULTS, runFault, type FaultCase } from '../support/failures'
+import { isFaultedResourceNoise } from '../support/matrix'
 
 test.describe.configure({ timeout: 120_000 })
 
@@ -331,7 +332,11 @@ for (const target of OFFLINE_ROUTES) {
   test(`[F:frontend.src.components.shells] offline ${target.label} shows connection notice`, async ({ page }) => {
     const errors: string[] = []
     page.on('console', (msg) => {
-      if (msg.type() === 'error') errors.push(msg.text().slice(0, 300))
+      if (msg.type() !== 'error') return
+      // Every API response here is faulted by design (offline modes plus
+      // the browser flag), so the browser's own /v1/ resource errors drop.
+      if (isFaultedResourceNoise(msg, /\/v1\//)) return
+      errors.push(msg.text().slice(0, 300))
     })
     page.on('pageerror', (error) => errors.push(String(error).slice(0, 300)))
     await serveApi(page, {
@@ -339,9 +344,14 @@ for (const target of OFFLINE_ROUTES) {
       modes: { sectors: 'offline', companies: 'offline', sessions: 'offline', runs: 'offline', alerts: 'offline', progress: 'offline', plan: 'offline', files: 'offline', global: 'offline' },
       data: { sectors: [matrixSector()], companies: makeCompanies(8), sessions: makeSessions(8) },
     })
+    // Navigate online: with the context offline, goto itself fails and no
+    // app UI ever renders. Load first (aborted fetch -> error UI with
+    // retry), then drop the network and refetch into the offline anatomy.
+    await page.goto(target.route)
+    await expect(page.getByRole('button', { name: 'Try again' }).first()).toBeVisible({ timeout: 15000 })
     await page.context().setOffline(true)
     try {
-      await page.goto(target.route)
+      await page.getByRole('button', { name: 'Try again' }).first().click()
       await expect(page.getByText('No connection').first()).toBeVisible({ timeout: 15000 })
     } finally {
       await page.context().setOffline(false)
