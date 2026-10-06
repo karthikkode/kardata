@@ -261,6 +261,7 @@ const CASES: FaultCase[] = [
   {
     id: 'frontend.src.components.local_context_editor', label: 'GET operation receipt', method: 'GET',
     pattern: /\/operations\//, route: CHAT,
+    apiData: { localVariant: 'pending' },
     setup: [
       { click: { kind: 'role', role: 'button', name: 'Conversation options' } },
       { click: { kind: 'role', role: 'menuitem', name: 'Local context' } },

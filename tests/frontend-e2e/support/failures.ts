@@ -10,7 +10,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, type Page, type Route } from '@playwright/test'
-import { serveApi } from './api'
+import { serveApi, type ApiData } from './api'
 import { makeCompanies, makeRuns, makeSessions, matrixSector } from './factory'
 import { anchorLocator, isFaultedResourceNoise, unattributedNoiseStatus, type MatrixAnchor, type MatrixSetup } from './matrix'
 
@@ -66,6 +66,9 @@ export interface FaultCase {
   refetch: { reload: true } | { steps: RefetchStep[] }
   /** No proven error UI: assert chrome + console + shot, reload-heal. */
   unverified?: boolean
+  /** Fixture-data override, merged into the serveApi data (e.g. a local
+   * variant with pending operations so the trigger exists). */
+  apiData?: Partial<ApiData>
   /** Arm before load; the surface must work regardless of the fault. */
   silent?: boolean
 }
@@ -152,6 +155,7 @@ export async function runFault(page: Page, fc: FaultCase, fault: FaultKind): Pro
       companies: makeCompanies(8),
       sessions: makeSessions(8),
       runs: makeRuns(8),
+      ...fc.apiData,
     },
   })
   let armed = fc.silent === true
