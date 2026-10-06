@@ -1,6 +1,6 @@
 // Context API: global sector context and per-thread local context.
 import { z } from 'zod'
-import { requestValidated, sectorPath, type StagingConfig } from './client'
+import { LONG_REQUEST_TIMEOUT_MS, requestValidated, sectorPath, type StagingConfig } from './client'
 
 export const Sections = z.object({ scope: z.string(), instructions: z.string(), decisions: z.string(), findings: z.string(), questions: z.string() })
 export type Sections = z.infer<typeof Sections>
@@ -35,6 +35,6 @@ export const restoreGlobalContext = (config: StagingConfig, id: string, version:
 export const startGlobalContextRewrite = (config: StagingConfig, id: string, instruction: string) => requestValidated(config, 'POST', `${sectorPath(id)}/global-context/rewrite`, z.object({ sessionId: z.string() }), { instruction })
 export const getLocalContext = (config: StagingConfig, thread: string) => requestValidated(config, 'GET', threadPath(thread), Local)
 export const saveLocalContext = (config: StagingConfig, thread: string, version: number, notes: string) => requestValidated(config, 'PATCH', threadPath(thread), Local, { version, notes })
-export const compactLocalContext = (config: StagingConfig, thread: string) => requestValidated(config, 'POST', `${threadPath(thread)}/compact`, z.object({ compacted: z.boolean(), reason: z.string().optional(), context: Local }))
+export const compactLocalContext = (config: StagingConfig, thread: string) => requestValidated(config, 'POST', `${threadPath(thread)}/compact`, z.object({ compacted: z.boolean(), reason: z.string().optional(), context: Local }), undefined, undefined, LONG_REQUEST_TIMEOUT_MS)
 
 export const rebuildLocalContext = (config: StagingConfig, thread: string, version: number, summary: string) => requestValidated(config, 'POST', `${threadPath(thread)}/rebuild`, Local, { version, summary, independent: true })

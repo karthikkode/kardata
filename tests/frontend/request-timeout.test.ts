@@ -3,7 +3,7 @@
 // untouched. The 30s firing itself is proven by the e2e timeout faults
 // (tests/frontend-e2e/failures/endpoints.spec.ts), not fake timers.
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { REQUEST_TIMEOUT_MS, requestEnvelope } from '@/data/api/client'
+import { LONG_REQUEST_TIMEOUT_MS, REQUEST_TIMEOUT_MS, StagingApiError, requestEnvelope } from '@/data/api/client'
 
 const config = { baseUrl: 'https://test.invalid', apiKey: 'TEST key' }
 
@@ -12,6 +12,23 @@ afterEach(() => vi.unstubAllGlobals())
 describe('request timeout', () => {
   it('locks the unary budget at 30s', () => {
     expect(REQUEST_TIMEOUT_MS).toBe(30_000)
+  })
+
+  it('locks the long-mutation budget at 10 min', () => {
+    expect(LONG_REQUEST_TIMEOUT_MS).toBe(600_000)
+  })
+
+  it('drives the abort from the per-call budget', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+    })))
+    const failure = await requestEnvelope(config, 'GET', '/v1/sectors', undefined, undefined, undefined, 50).then(
+      () => undefined,
+      (error: unknown) => error as StagingApiError,
+    )
+    expect(failure).toBeInstanceOf(StagingApiError)
+    expect(failure?.status).toBe(408)
+    expect(failure?.code).toBe('timeout')
   })
 
   it('passes caller cancels through untouched (no 408 lie)', async () => {

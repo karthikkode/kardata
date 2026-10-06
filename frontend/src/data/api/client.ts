@@ -53,8 +53,14 @@ export function apiErrorStatus(error: unknown): 'offline' | 'denied' | 'error' {
  * excluded: SSE holds the socket open by design. */
 export const REQUEST_TIMEOUT_MS = 30_000
 
-export async function requestEnvelope<T>(config: StagingConfig, method: string, path: string, body?: unknown, signal?: AbortSignal, idempotencyKey?: string): Promise<{ data: T; nextAfterSeq?: number }> {
-  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+/** Uploads and synchronous long mutations (document extraction/OCR,
+ * thread compaction) outlast the unary budget; they fail at 10 min
+ * instead. Still bounded: request() takes no caller signal, so an
+ * unbounded budget could hang the UI forever on a hung server. */
+export const LONG_REQUEST_TIMEOUT_MS = 600_000
+
+export async function requestEnvelope<T>(config: StagingConfig, method: string, path: string, body?: unknown, signal?: AbortSignal, idempotencyKey?: string, timeoutMs = REQUEST_TIMEOUT_MS): Promise<{ data: T; nextAfterSeq?: number }> {
+  const timeout = AbortSignal.timeout(timeoutMs)
   const combined = signal ? AbortSignal.any([signal, timeout]) : timeout
   let response: Response
   try {
@@ -91,12 +97,12 @@ export async function requestEnvelope<T>(config: StagingConfig, method: string, 
   return { data: parsed.data as T, nextAfterSeq: parsed.nextAfterSeq }
 }
 
-export async function request<T>(config: StagingConfig, method: string, path: string, body?: unknown, idempotencyKey?: string): Promise<T> {
-  return (await requestEnvelope<T>(config, method, path, body, undefined, idempotencyKey)).data
+export async function request<T>(config: StagingConfig, method: string, path: string, body?: unknown, idempotencyKey?: string, timeoutMs?: number): Promise<T> {
+  return (await requestEnvelope<T>(config, method, path, body, undefined, idempotencyKey, timeoutMs)).data
 }
 
-export async function requestValidated<T>(config: StagingConfig, method: string, path: string, schema: z.ZodType<T>, body?: unknown, idempotencyKey?: string): Promise<T> {
-  const result = schema.safeParse(await request(config, method, path, body, idempotencyKey))
+export async function requestValidated<T>(config: StagingConfig, method: string, path: string, schema: z.ZodType<T>, body?: unknown, idempotencyKey?: string, timeoutMs?: number): Promise<T> {
+  const result = schema.safeParse(await request(config, method, path, body, idempotencyKey, timeoutMs))
   if (!result.success) throw new StagingApiError(502, 'invalid_response', 'The server returned an invalid workspace response.')
   return result.data
 }

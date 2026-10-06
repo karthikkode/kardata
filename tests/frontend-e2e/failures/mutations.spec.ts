@@ -183,6 +183,9 @@ const CASES: FaultCase[] = [
     setup: [...DOCK],
     errorAnchors: [{ kind: 'text', text: 'Compaction failed. Check connection.' }],
     deniedAnchors: [{ kind: 'text', text: 'Compaction failed. Check connection.' }],
+    // Long-budget endpoint: the 32s-delayed ok succeeds (data [] reads as
+    // not-compacted), proving the 30s abort no longer fires here.
+    timeoutSlow: [{ kind: 'text', text: 'Context already optimal. No compaction needed.' }],
     healAnchors: [{ kind: 'role', role: 'status' }],
     healRetrigger: true,
     refetch: { steps: [

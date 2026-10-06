@@ -494,7 +494,10 @@ only; the omit set is pinned in `tests/frontend/matrix-counts.test.ts`.
 Unary API calls time out at 30s (`REQUEST_TIMEOUT_MS` in
 `data/api/client.ts`) and surface the designed error/denied UI with retry;
 drafts and input survive, and the surface recovers when the endpoint heals
-(`tests/frontend-e2e/failures/` pins every endpoint × fault).
+(`tests/frontend-e2e/failures/` pins every endpoint × fault). Uploads and
+synchronous long mutations (document attach, session/thread compaction)
+run on the 10 min `LONG_REQUEST_TIMEOUT_MS` budget instead; the fault
+harness asserts their slow-success path via `timeoutSlow`.
 
 ## Scale budgets
 

@@ -83,6 +83,10 @@ export interface FaultCase {
   apiData?: Partial<ApiData>
   /** Arm before load; the surface must work regardless of the fault. */
   silent?: boolean
+  /** Long-budget endpoint (uploads, compactions): the 32s 'timeout' fault
+   * lands inside its budget, so assert these slow-success anchors instead
+   * of the error UI. All other faults still assert errorAnchors. */
+  timeoutSlow?: MatrixAnchor[]
 }
 
 const supportDir = dirname(fileURLToPath(import.meta.url))
@@ -208,7 +212,9 @@ export async function runFault(page: Page, fc: FaultCase, fault: FaultKind): Pro
     await runRefetch(page, fc, expected)
   }
 
-  if (fc.unverified) {
+  if (fault === 'timeout' && fc.timeoutSlow) {
+    for (const anchor of fc.timeoutSlow) await expect(anchorLocator(page, anchor)).toBeVisible({ timeout: 45000 })
+  } else if (fc.unverified) {
     for (const anchor of fc.healAnchors) await expect(anchorLocator(page, anchor)).toBeVisible({ timeout: 45000 })
   } else {
     const denied = fault === 'f401' || fault === 'f403'

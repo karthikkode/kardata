@@ -1,5 +1,5 @@
 // Session API: sessions, settings, subagent spawn, compaction.
-import { request, StagingApiError, type StagingConfig } from './client'
+import { LONG_REQUEST_TIMEOUT_MS, request, StagingApiError, type StagingConfig } from './client'
 import { SessionModelSelection } from './models'
 
 export interface Session {
@@ -75,6 +75,9 @@ export function compactSession(
     config,
     'POST',
     `/v1/sessions/${encodeURIComponent(sessionId)}/compact`,
+    undefined,
+    undefined,
+    LONG_REQUEST_TIMEOUT_MS,
   )
 }
 

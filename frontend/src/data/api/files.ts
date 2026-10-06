@@ -1,6 +1,6 @@
 // Sector file API: attached documents, library files, units, processing.
 import { z } from 'zod'
-import { request, requestValidated, sectorPath, type StagingConfig } from './client'
+import { LONG_REQUEST_TIMEOUT_MS, request, requestValidated, sectorPath, type StagingConfig } from './client'
 
 export interface SectorDocumentSummary {
   id: string
@@ -31,6 +31,8 @@ export function attachSectorDocument(
     'POST',
     `/v1/sectors/${encodeURIComponent(sectorId)}/documents`,
     input,
+    undefined,
+    LONG_REQUEST_TIMEOUT_MS,
   )
 }
 
