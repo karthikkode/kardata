@@ -341,7 +341,7 @@ describe('mcp tool parity (Phase 2)', () => {
   it('valid args pass tool schema and layer validation; invalid args fail before any query', async () => {
     for (const name of TOOL_NAMES) {
       const { db, state } = makeFake()
-      const ctx = { pool: db, scope: SCOPE, role: 'approver' as const, keyId: 'test-key', runs: { async startSectorSweep() { throw new Error('Runner must not execute before DB validation') }, async cancelSectorSweep() { throw new Error('Runner must not execute before DB validation') } } }
+      const ctx = { pool: db, scope: SCOPE, role: 'approver' as const, keyId: 'test-key', runs: { async startSectorSweep() { throw new Error('Runner must not execute before DB validation') }, async cancelSectorSweep() { throw new Error('Runner must not execute before DB validation') } }, monitor: { async startMonitorWorkflow() { throw new Error('Runner must not execute before DB validation') }, async stopMonitorWorkflow() { throw new Error('Runner must not execute before DB validation') } } }
       const sample = SAMPLES[name]
       // Retrieval tools touch the network/browser: their valid path is
       // proven by dedicated tests with injected doubles, never here.
