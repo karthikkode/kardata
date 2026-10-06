@@ -62,6 +62,10 @@ export interface FaultCase {
   healAbsent?: MatrixAnchor[]
   /** Heal by re-running the trigger steps (mutations without retry UI). */
   healRetrigger?: boolean
+  /** Heal steps override (default: the trigger steps). Mutations whose
+   * dialog stays open with the error heal through the in-dialog
+   * confirm, not by replaying the opener from behind the modal. */
+  healSteps?: RefetchStep[]
   draftFill?: MatrixAnchor
   draftText?: string
   /** The input is consumed by a successful mutation (dialog closes,
@@ -120,8 +124,8 @@ async function runSetup(page: Page, setup: MatrixSetup[] | undefined): Promise<v
   }
 }
 
-async function runRefetch(page: Page, fc: FaultCase, expected: { draft: string | null }): Promise<void> {
-  const steps = 'steps' in fc.refetch ? fc.refetch.steps : []
+async function runRefetch(page: Page, fc: FaultCase, expected: { draft: string | null }, override?: RefetchStep[]): Promise<void> {
+  const steps = override ?? ('steps' in fc.refetch ? fc.refetch.steps : [])
   for (const step of steps) {
     if ('fill' in step) {
       await anchorLocator(page, step.fill).fill(step.text)
@@ -231,7 +235,7 @@ export async function runFault(page: Page, fc: FaultCase, fault: FaultKind): Pro
   if (!fc.unverified && retry && !fc.healRetrigger) {
     await anchorLocator(page, retry).click()
   } else if (!fc.unverified && fc.healRetrigger) {
-    await runRefetch(page, fc, expected)
+    await runRefetch(page, fc, expected, fc.healSteps)
   } else {
     await page.reload()
     await runSetup(page, fc.setup)

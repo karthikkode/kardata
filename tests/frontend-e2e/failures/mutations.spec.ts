@@ -73,9 +73,13 @@ const CASES: FaultCase[] = [
     pattern: /\/v1\/sessions\/[^/]+$/, route: '/',
     setup: [...DOCK],
     errorAnchors: [{ kind: 'role', role: 'alert' }],
-    deniedAnchors: [{ kind: 'role', role: 'alert' }],
+    deniedAnchors: [
+      { kind: 'role', role: 'alert' },
+      { kind: 'text', text: 'Could not delete. This key cannot delete chats.' },
+    ],
     healAnchors: [{ kind: 'role', role: 'complementary', name: 'Assistant chat' }],
     healRetrigger: true,
+    healSteps: [{ click: { kind: 'role', role: 'button', name: 'Delete conversation' } }],
     refetch: { steps: [
       { click: { kind: 'role', role: 'button', name: 'More actions' } },
       { click: { kind: 'role', role: 'menuitem', name: 'Delete' } },
@@ -159,10 +163,13 @@ const CASES: FaultCase[] = [
       ...OPTIONS_MENU,
       { click: { kind: 'role', role: 'menuitem', name: 'Local context' } },
     ],
-    errorAnchors: [{ kind: 'role', role: 'alert' }],
-    deniedAnchors: [{ kind: 'role', role: 'alert' }],
+    // The blocked-state alert (div) is permanent base UI; the form
+    // failure is the p alert inside the rebuild form.
+    errorAnchors: [{ kind: 'css', css: 'p[role="alert"]' }],
+    deniedAnchors: [{ kind: 'css', css: 'p[role="alert"]' }],
     healAnchors: [{ kind: 'text', text: 'Local context' }],
     healRetrigger: true,
+    healSteps: [{ click: { kind: 'role', role: 'button', name: 'Confirm safe rebuild' } }],
     refetch: { steps: [
       { click: { kind: 'role', role: 'button', name: 'Review safe rebuild' } },
       { fill: { kind: 'role', role: 'textbox', name: 'Independent replacement' }, text: 'rebuild summary text' },
@@ -213,6 +220,7 @@ const CASES: FaultCase[] = [
     ],
     healAnchors: [{ kind: 'css', css: '[aria-label="Session files"]' }],
     healRetrigger: true,
+    healSteps: [{ click: { kind: 'role', role: 'button', name: 'Create file' } }],
     refetch: { steps: [
       { click: { kind: 'role', role: 'button', name: 'New file' } },
       { press: 'x' },

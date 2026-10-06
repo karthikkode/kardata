@@ -309,9 +309,10 @@ export function ChatPanel({
         setConfirmingDelete(false)
       })
       .catch((error: unknown) => {
+        // A denied write keeps the confirm dialog (like any delete
+        // error) instead of killing the chat surface mid-confirm.
         if (isAuthError(error)) {
-          setSessionsState('denied')
-          setConfirmingDelete(false)
+          setDeleteError('Could not delete. This key cannot delete chats.')
           return
         }
         setDeleteError('Could not delete. Try again.')
