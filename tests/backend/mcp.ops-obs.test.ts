@@ -15,6 +15,7 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP ops observability tools [F:mcp.ops.list
   beforeAll(async () => {
     pool = new Pool({ connectionString: await ensureTestDb('kardata_test_mcp_ops_obs'), max: 5 })
     sectorA = (await createSector(pool, { name: 'TEST Obs A', topic: 'A', scope })).sectorId
+    await projectNewEvents(pool)
     sessionA = (await createSession(pool, 'TEST obs chat', scope, sectorA)).id
     await recordPlanVersion(pool, sectorA, '# TEST v1', 'TEST plan v1', scope)
     await projectNewEvents(pool)

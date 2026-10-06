@@ -18,6 +18,7 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP spawn/restart/propose/request tools [F:
     fake = new FakeRunsGateway(pool)
     sectorA = (await createSector(pool, { name: 'TEST Spawn A', topic: 'A', scope })).sectorId
     sectorB = (await createSector(pool, { name: 'TEST Spawn B', topic: 'B', scope })).sectorId
+    await projectNewEvents(pool)
     sessionA = (await createSession(pool, 'TEST spawn chat', scope, sectorA)).id
     karbotSession = (await createSession(pool, 'TEST karbot general', scope)).id
     researchSession = (await ensureResearchSession(pool, sectorA, scope)).id

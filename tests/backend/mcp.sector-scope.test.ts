@@ -17,6 +17,7 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP sector scope for Karbot reads [F:mcp.db
     pool = new Pool({ connectionString: await ensureTestDb('kardata_test_mcp_sector_scope'), max: 5 })
     sectorA = (await createSector(pool, { name: 'TEST Scope A', topic: 'A', scope })).sectorId
     sectorB = (await createSector(pool, { name: 'TEST Scope B', topic: 'B', scope })).sectorId
+    await projectNewEvents(pool)
     sessionA = (await createSession(pool, 'TEST scope chat A', scope, sectorA)).id
     sessionB = (await createSession(pool, 'TEST scope chat B', scope, sectorB)).id
     await recordPlanVersion(pool, sectorA, '# TEST v1', 'TEST plan v1', scope)
