@@ -252,7 +252,7 @@ const CASES: FaultCase[] = [
   {
     id: 'frontend.src.components.SectorWorkspace', label: 'POST session subagents', method: 'POST',
     pattern: /\/subagents/, route: CHAT,
-    healAnchors: [{ kind: 'css', css: '[aria-label="Research views"]' }],
+    healAnchors: [{ kind: 'role', role: 'button', name: 'New subagent' }],
     refetch: { steps: [
       { click: { kind: 'role', role: 'button', name: 'New subagent' } },
       { fill: { kind: 'role', role: 'textbox', name: 'Goal' }, text: 'fault probe goal' },
