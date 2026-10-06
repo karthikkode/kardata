@@ -132,14 +132,9 @@ export async function runFault(page: Page, fc: FaultCase, fault: FaultKind): Pro
   })
   page.on('pageerror', (error) => errors.push(String(error).slice(0, 300)))
 
-  let armed = fc.silent === true
-  await page.route(fc.pattern, async (route) => {
-    if (route.request().method() !== fc.method || !armed) {
-      await route.fallback()
-      return
-    }
-    await fulfillFault(route, fault)
-  })
+  // Route order matters: Playwright matches page.route handlers
+  // last-registered-first, so the fault route goes AFTER serveApi and
+  // falls back to it for everything outside the faulted scope.
   await serveApi(page, {
     stream: 'static',
     data: {
@@ -148,6 +143,14 @@ export async function runFault(page: Page, fc: FaultCase, fault: FaultKind): Pro
       sessions: makeSessions(8),
       runs: makeRuns(8),
     },
+  })
+  let armed = fc.silent === true
+  await page.route(fc.pattern, async (route) => {
+    if (route.request().method() !== fc.method || !armed) {
+      await route.fallback()
+      return
+    }
+    await fulfillFault(route, fault)
   })
 
   await page.setViewportSize({ width: 1440, height: 900 })

@@ -1,8 +1,9 @@
 // Scale budgets (P6.3.3): 100/1000/2000-row datasets render correctly,
 // first render stays within 300ms at 1000 rows, scripted scrolls see no
 // long task over 50ms, and 10 dock open/close cycles grow the heap by
-// less than 50MB. Sizes ride a mutable pre-route (registered before
-// serveApi, failures.ts pattern) so one page walks all three counts.
+// less than 50MB. Sizes ride a mutable world route registered AFTER serveApi
+// (Playwright matches page.route last-registered-first; the world route falls
+// back to serveApi outside its paths) so one page walks all three counts.
 // [F:frontend.src.components.chat.SessionsPanel] [F:frontend.src.components.SubagentsPanel] [F:frontend.src.components.SectorWorkspace] [F:frontend.src.components.SectorLanding] [F:frontend.src.components.workspace_files]
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { serveApi } from './support/api'
@@ -156,8 +157,8 @@ async function openSessionsMenu(page: Page): Promise<void> {
 
 test('sessions render 100/1000/2000 with first render under budget at 1000', async ({ page }) => {
   const world: MutableWorld = { sessions: [], subagents: [], queue: [], messages: [], companies: [], files: [] }
-  await mutableApi(page, world)
   await serveApi(page, { stream: 'static' })
+  await mutableApi(page, world)
   await installPerf(page)
   for (const count of [100, 1000, 2000]) {
     world.sessions = scaleSessions(count)
@@ -184,8 +185,8 @@ test('sessions render 100/1000/2000 with first render under budget at 1000', asy
 
 test('subagents render 100/1000/2000 with first render under budget at 1000', async ({ page }) => {
   const world: MutableWorld = { sessions: [], subagents: [], queue: [], messages: [], companies: [], files: [] }
-  await mutableApi(page, world)
   await serveApi(page, { stream: 'static' })
+  await mutableApi(page, world)
   await installPerf(page)
   for (const count of [100, 1000, 2000]) {
     world.subagents = scaleSubagents(count)
@@ -214,8 +215,8 @@ test('subagents render 100/1000/2000 with first render under budget at 1000', as
 
 test('queue renders 100/1000/2000 with first render under budget at 1000', async ({ page }) => {
   const world: MutableWorld = { sessions: [], subagents: [], queue: [], messages: [], companies: [], files: [] }
-  await mutableApi(page, world)
   await serveApi(page, { stream: 'static', data: { sectors: [matrixSector()] } })
+  await mutableApi(page, world)
   await installPerf(page)
   for (const count of [100, 1000, 2000]) {
     world.queue = scaleQueue(count)
@@ -243,8 +244,8 @@ test('queue renders 100/1000/2000 with first render under budget at 1000', async
 
 test('thread renders 1000 under budget and 5000 with clean scroll', async ({ page }) => {
   const world: MutableWorld = { sessions: [], subagents: [], queue: [], messages: [], companies: [], files: [] }
-  await mutableApi(page, world)
   await serveApi(page, { stream: 'static', data: { sectors: [matrixSector()] } })
+  await mutableApi(page, world)
   await installPerf(page)
   for (const count of [1000, 5000]) {
     world.messages = scaleMessages(count)
@@ -269,8 +270,8 @@ test('thread renders 1000 under budget and 5000 with clean scroll', async ({ pag
 
 test('companies page 100/1000/2000 with first window under budget at 1000', async ({ page }) => {
   const world: MutableWorld = { sessions: [], subagents: [], queue: [], messages: [], companies: [], files: [] }
-  await mutableApi(page, world)
   await serveApi(page, { stream: 'static', data: { sectors: [matrixSector()] } })
+  await mutableApi(page, world)
   await installPerf(page)
   for (const count of [100, 1000, 2000]) {
     world.companies = makeCompanies(count)
@@ -293,8 +294,8 @@ test('companies page 100/1000/2000 with first window under budget at 1000', asyn
 
 test('files window 100/1000/2000 with first window under budget at 1000', async ({ page }) => {
   const world: MutableWorld = { sessions: [], subagents: [], queue: [], messages: [], companies: [], files: [] }
-  await mutableApi(page, world)
   await serveApi(page, { stream: 'static', data: { sectors: [matrixSector()] } })
+  await mutableApi(page, world)
   await installPerf(page)
   await page.setViewportSize({ width: 1440, height: 900 })
   for (const count of [100, 1000, 2000]) {
@@ -322,8 +323,8 @@ test('dock open/close cycles keep heap growth under 50MB', async ({ page }) => {
   const world: MutableWorld = {
     sessions: scaleSessions(2000), subagents: [], queue: [], messages: [], companies: [], files: [],
   }
-  await mutableApi(page, world)
   await serveApi(page, { stream: 'static' })
+  await mutableApi(page, world)
   await installPerf(page)
   await page.goto('/')
   async function cycle(): Promise<void> {
