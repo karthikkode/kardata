@@ -84,12 +84,25 @@ async function readReliability(db: Db, sectorId: string): Promise<KindReliabilit
 }
 
 async function readCost(db: Db, sectorId: string): Promise<SectorCost> {
+  // Direct two-level aggregate: v_thread_cost groups by thread globally,
+  // so a sector filter cannot push and every call scans all rounds; and
+  // COUNT(DISTINCT thread_key) would force a sort of them. Each round
+  // attributes to its own sector, matching the reliability sibling (the
+  // view attributed a whole multi-sector thread to its MAX sector).
   const cost = await db.query<{
     threads: string; rounds: string | null; input_tokens: string | null
     output_tokens: string | null; cached_tokens: string | null; errors: string | null
-  }>(`SELECT COUNT(*) AS threads, SUM(rounds) AS rounds, SUM(input_tokens) AS input_tokens,
-     SUM(output_tokens) AS output_tokens, SUM(cached_tokens) AS cached_tokens, SUM(errors) AS errors
-     FROM v_thread_cost WHERE sector_id = $1`, [sectorId])
+  }>(`SELECT COUNT(*) AS threads, COALESCE(SUM(t.rounds), 0) AS rounds,
+     COALESCE(SUM(t.input_tokens), 0) AS input_tokens,
+     COALESCE(SUM(t.output_tokens), 0) AS output_tokens,
+     COALESCE(SUM(t.cached_tokens), 0) AS cached_tokens,
+     COALESCE(SUM(t.errors), 0) AS errors
+     FROM (SELECT COUNT(*) AS rounds,
+       COALESCE(SUM(input_tokens), 0) AS input_tokens,
+       COALESCE(SUM(output_tokens), 0) AS output_tokens,
+       COALESCE(SUM(cached_tokens), 0) AS cached_tokens,
+       COUNT(*) FILTER (WHERE outcome <> 'ok') AS errors
+       FROM execution_rounds WHERE sector_id = $1 GROUP BY thread_key) t`, [sectorId])
   const row = cost.rows[0]
   return {
     threads: Number(row?.threads ?? 0),

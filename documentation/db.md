@@ -248,6 +248,12 @@ adds auth, transport, and tool schemas, never SQL.
 - 0025: `events.trace_id`/`client`, `alerts`, `execution_rounds`,
   `tool_calls`, `sector_documents.author_thread`, `cold_event_pointers`,
   and the three evaluation views.
+- 0031: hot-query tier indexes (`events` partition/at, `companies`
+  sector/created + sector/updated, `execution_rounds` sector/kind cover,
+  partial artifact-fold cover) and the `v_agent_reliability` restructure
+  (correlated loops/stalls, two-level round counts). Sector cost attributes
+  each round to its own sector; artifact summaries fold in SQL
+  (`foldArtifactPartitions`), one row per (partition, artifact).
 
 Reserved, currently unwritten by product code: `heartbeats.attempt`
 (future per-op attempt counting) and `outbox.delivered_at` (future
