@@ -1,11 +1,15 @@
 import { defineConfig } from 'vitest/config'
 import { randomUUID } from 'node:crypto'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 // Backend tests mirror the area they cover at the repo root
 // (tests/backend/...); the vite root is the repo root so those files are
-// servable, and include is scoped to backend tests only.
+// servable, and include is scoped to backend tests only. The root is
+// config-relative (not cwd-relative '..') so programmatic runners such as
+// Stryker, which start from the repo root or a sandbox, resolve the same.
 export default defineConfig({
-  root: '..',
+  root: join(dirname(fileURLToPath(import.meta.url)), '..'),
   test: {
     include: ['tests/backend/**/*.test.ts', 'tests/registry/**/*.test.ts', 'tests/stress/**/*.test.ts', 'tests/fault/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', '**/var/**'],
