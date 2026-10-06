@@ -140,9 +140,10 @@ describe.skipIf(!ENABLED)('karbotMonitor timer workflow [F:backend.workflow.moni
       activities: {
         monitorTickActivity: async () => {
           ticks++
-          // Hold the 100th (final) tick open so the stop deterministically
-          // lands between the last in-loop check and CAN.
-          if (ticks === 100) await finalTickGate
+          // Hold the final tick open so the stop deterministically lands
+          // between the last in-loop check and CAN. Five ticks reach the
+          // boundary in seconds; 100 real ticks cost ~100s at ~1s/tick.
+          if (ticks === 5) await finalTickGate
           return { ticked: true }
         },
         finishMonitorActivity: async () => ({ finished: true }),
@@ -153,15 +154,15 @@ describe.skipIf(!ENABLED)('karbotMonitor timer workflow [F:backend.workflow.moni
     try {
       const handle = await client.workflow.start('karbotMonitor', {
         workflowId: `karbot-monitor-${randomUUID()}`, taskQueue: queue,
-        args: [{ monitorId: randomUUID(), everyMs: 1, untilMs: Date.now() + 3600000 }],
+        args: [{ monitorId: randomUUID(), everyMs: 1, untilMs: Date.now() + 3600000, maxTicks: 5 }],
       })
-      await vi.waitFor(() => expect(ticks).toBe(100), { timeout: 30000 })
+      await vi.waitFor(() => expect(ticks).toBe(5), { timeout: 30000 })
       await handle.signal('monitorStop')
       releaseFinalTick()
       const result = await Promise.race([handle.result(), new Promise((resolve) => setTimeout(() => resolve('TIMEOUT'), 20000))])
       expect(result).toBe('stopped')
-      // A lost stop continues as new and keeps ticking past 100.
-      expect(ticks).toBe(100)
+      // A lost stop continues as new and keeps ticking past 5.
+      expect(ticks).toBe(5)
     } finally {
       worker.shutdown()
       await running

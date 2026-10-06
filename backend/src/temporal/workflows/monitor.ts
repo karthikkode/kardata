@@ -11,10 +11,10 @@ export const monitorStopSignal = defineSignal('monitorStop')
 /** Karbot monitor: sleep everyMs, fire one tick activity, stop at
  * untilMs or on monitorStop. A failed tick logs and continues on the
  * next interval; history stays bounded via continue-as-new. */
-export async function karbotMonitor(input: { monitorId: string; everyMs: number; untilMs: number }): Promise<string> {
+export async function karbotMonitor(input: { monitorId: string; everyMs: number; untilMs: number; maxTicks?: number }): Promise<string> {
   let stopped = false
   setHandler(monitorStopSignal, () => { stopped = true; log.info('signal received', { signal: 'monitorStop' }) })
-  for (let tick = 0; tick < 100; tick++) {
+  for (let tick = 0; tick < (input.maxTicks ?? 100); tick++) {
     if (stopped) return 'stopped'
     if (Date.now() >= input.untilMs) {
       await monitor.finishMonitorActivity({ monitorId: input.monitorId })
