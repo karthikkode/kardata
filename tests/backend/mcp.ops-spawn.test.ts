@@ -40,6 +40,20 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP spawn/restart/propose/request tools [F:
     await expect(invokeTool('ops.spawn_subagent', karbot('operator', 'agent:child-spawn-1'), { threadKey: 'agent:child-spawn-1', goal: 'x' })).rejects.toMatchObject({ code: 'permission_denied' })
   })
 
+  it('leaf subagents cannot call ops write tools or request plan changes', async () => {
+    // The child calls with the shared worker token at approver role, so
+    // role floors pass: only the subagent restriction denies these.
+    const child = karbot('approver', 'agent:child-spawn-1')
+    fake.addRun({ id: 'run-child-pause', sessionId: sessionA, threadKey: sessionA, state: 'RUNNING', budgetUsedRatio: 0, contextUsedRatio: 0, updatedAt: new Date().toISOString() })
+    await expect(invokeTool('ops.restart_sector_research', child, { sectorId: sectorA })).rejects.toMatchObject({ code: 'permission_denied' })
+    await expect(invokeTool('ops.pause_run', child, { runId: 'run-child-pause' })).rejects.toMatchObject({ code: 'permission_denied' })
+    await expect(invokeTool('ops.start_monitor', child, { sectorId: sectorA, everyMinutes: 5, brief: 'x' })).rejects.toMatchObject({ code: 'permission_denied' })
+    await expect(invokeTool('ops.stop_monitor', child, { sectorId: sectorA })).rejects.toMatchObject({ code: 'permission_denied' })
+    await expect(invokeTool('db.request_plan', child, { sectorId: sectorA, instruction: 'x' })).rejects.toMatchObject({ code: 'permission_denied' })
+    // Ops reads stay open to the child.
+    await expect(invokeTool('ops.list_monitors', child, {})).resolves.toBeDefined()
+  })
+
   it('restart_sector_research restarts failed sectors only', async () => {
     const restarted = await invokeTool('ops.restart_sector_research', karbot('operator'), { sectorId: sectorB }) as { state: string }
     expect(restarted.state).toBe('running')

@@ -322,6 +322,9 @@ export async function invokeTool(
       }
       if (['db.get_thread', 'db.read_sector_thread', 'db.read_outbox', 'ops.thread_queue'].includes(name)) await assertThreadFileContext(ctx.pool, (parsed.data as { threadKey: string }).threadKey, ctx.scope)
       if ((name === 'db.delegate_subagent' || name === 'ops.spawn_subagent') && actor.thread.kind === 'subagent') throw new McpToolError('permission_denied', 'Leaf subagents cannot delegate further.')
+      // Children keep their restrictions: a subagent calling with the
+      // shared worker token must not steer the fleet or the plan.
+      if (actor.thread.kind === 'subagent' && (name === 'db.request_plan' || (name.startsWith('ops.') && toolCapability(name) !== 'read'))) throw new McpToolError('permission_denied', 'Subagents cannot call ops write tools or request plan changes.')
       if (name === 'db.rename_session' && actor.thread.kind === 'subagent') throw new McpToolError('permission_denied', 'Conversation naming belongs to the parent or owner.')
       if (name === 'db.delete_session') throw new McpToolError('permission_denied', 'Conversation deletion requires owner confirmation in the UI.')
       if (name === 'db.set_sector_state') throw new McpToolError('permission_denied', 'Use the approved research lifecycle operations.')
