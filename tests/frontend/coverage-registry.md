@@ -21,7 +21,7 @@ Legend: L/D = light/dark, viewports 390/1440 unless noted, RM = reduced motion.
 | SH-04 TopBar | TopBar.tsx (shells SearchField) | query/clear, chat toggle, theme | TopBar.test.tsx | visual wave1 | wave1-dashboard-filtered.png | pass |
 | SH-05 theme | App.tsx dark toggle | light/dark, persisted | TopBar.test.tsx | matrix L/D | matrix-dark-*.png | pass, no page fade |
 | SH-06 backend-not-connected | App.tsx staging branch | not-configured | Navigation.test.tsx | smoke (no staging) | overview-empty.png | pass, no fake data |
-| SH-07 nav/loading failures | App.tsx + detailData | loading/error/denied per route | navigation-url.test.tsx, SectorDetailPage.test.tsx | workspace, matrix | — | pass |
+| SH-07 nav/loading failures | App.tsx + detailData | loading/error/denied per route | navigation-url.test.tsx | workspace, matrix | — | pass |
 
 ## Overview (OV) — Dashboard.tsx, research-parts.tsx
 
@@ -54,11 +54,11 @@ Legend: L/D = light/dark, viewports 390/1440 unless noted, RM = reduced motion.
 
 | ID | states | component tests | browser | status |
 |---|---|---|---|---|
-| SL-01 header (Back + name) | ready/loading/error/denied | sector-workspace.test.tsx, SectorDetailPage.test.tsx | visual, matrix, workspace | pass |
+| SL-01 header (Back + name) | ready/loading/error/denied | sector-workspace.test.tsx | visual, matrix, workspace | pass |
 | SL-02 status card | draft/planning/planned/approved/running/paused/queued/failed/complete | sector-workspace.test.tsx | workspace, matrix | pass |
 | SL-03 progress dialog | shared PlanProgress | work-review.test.tsx | workspace, work-review.spec | pass |
 | SL-04 Open | pending nav, failed init retry | navigation-url.test.tsx | workspace | pass |
-| SL-05 companies | status-specific empties + paging | SectorDetailPage.test.tsx | visual wave2 | pass |
+| SL-05 companies | status-specific empties + paging | companies-section.test.tsx | visual wave2 | pass |
 
 ## Workspace (WS) — SectorWorkspace.tsx
 
@@ -73,7 +73,6 @@ Legend: L/D = light/dark, viewports 390/1440 unless noted, RM = reduced motion.
 | WS-07 new conversation | pending + acknowledged publish | workspace-session-creation.test.tsx | — | pass |
 | WS-08 header | identity/back/lifecycle/model | — | workspace-*.png | pass |
 | WS-09 research tabs | chat/plan + arrows, drafts kept | workspace-tabs.test.tsx, workspace-conversation.test.tsx | workspace plan-approval-* | pass |
-| WS-10 ResearchControl | plan/approve/start/pause/resume | SectorChatPanel.test.tsx | plan-full (live-gated skip) | pass |
 | WS-11 options/delete | rename + ConfirmAction delete | session-options.test.tsx, nested-overlays.test.tsx | revamp-evidence (open/Escape) | pass |
 | WS-12 URL state | session/thread restore, invalid scope | navigation-url.test.tsx, workspace-session-creation.test.tsx | workspace | pass |
 | WS-13 queue disclosure | Collapsible + move/remove, empty hidden | queue.test.tsx | — | pass |
@@ -106,6 +105,13 @@ Legend: L/D = light/dark, viewports 390/1440 unless noted, RM = reduced motion.
 | CH-21 ToolActivity | summary + per-tool rows, failed tone | chat-staging.test.tsx | conversation.spec | pass |
 | CH-22 ConversationEmpty | per-variant empty + suggestions | workspace-conversation.test.tsx | conversation.spec | pass |
 | CH-23 @chat refs | Chats listbox + marker chips | chat-refs.test.tsx | — | pass |
+| CH-24 ChatComposer | dock composer shell, draft + send + stop | chat-staging.test.tsx | matrix | pass |
+| CH-25 ChatHeader | dock header, sessions entry, model label | chat-staging.test.tsx | matrix | pass |
+| CH-26 ChatLog | message list, tail follow, back-to-latest | chat-staging.test.tsx | scrollbars, matrix | pass |
+| CH-27 ChatStates | loading/error/empty/denied/offline chat states | chat-staging.test.tsx | matrix | pass |
+| CH-28 MessageBubble | bubble chrome, markdown, settled copy | chat-staging.test.tsx, markdown.test.tsx | formatter, matrix | pass |
+| CH-29 SessionFiles | session file list, preview/download entry | session-files.test.tsx, chat-staging.test.tsx | matrix | pass |
+| CH-30 SessionsPanel | session list, search, new/pinned order | chat-staging.test.tsx | matrix | pass |
 
 ## Karbot dock (KB) — ChatPanel.tsx sessions/files/context
 
@@ -114,7 +120,7 @@ Legend: L/D = light/dark, viewports 390/1440 unless noted, RM = reduced motion.
 | KB-01 dock | desktop ≤480px / mobile full | chat-staging.test.tsx | transitions, matrix | pass |
 | KB-02 header/views | rename/picker/files/context/close | chat-staging.test.tsx | visual chat-model-picker | pass |
 | KB-03 sessions popover | selection/new/pinned order | chat-staging.test.tsx | — | pass |
-| KB-04 deletion | ConfirmAction, touch-visible 32px target | chat-staging.test.tsx, SectorChatPanel.test.tsx | revamp-evidence (open/Escape) | revamp-deletion-dialog.png | pass |
+| KB-04 deletion | ConfirmAction, touch-visible 32px target | chat-staging.test.tsx | revamp-evidence (open/Escape) | revamp-deletion-dialog.png | pass |
 | KB-05 files menu | indexed refs, no fake upload | FilesMenu.test.tsx | — | pass |
 | KB-06 mentions | matching/insert/routing | chat-staging.test.tsx | — | pass |
 | KB-07 skills | descriptions/invocation | chat-staging.test.tsx | — | pass |
@@ -124,7 +130,7 @@ Legend: L/D = light/dark, viewports 390/1440 unless noted, RM = reduced motion.
 | KB-11 context view | session vs global distinction | chat-staging.test.tsx | agent-context-db (live-gated) | pass |
 | KB-12 close/reopen | Esc/button/toggle, reopen cancels exit, sibling topmost-only | Navigation.test.tsx, nested-overlays.test.tsx | transitions | pass |
 
-## Markdown/plan (MD/PL) — Markdown.tsx, ResearchPlanEditor.tsx, SectorPlanSection.tsx, workspace-parts PlanProgress
+## Markdown/plan (MD/PL) — Markdown.tsx, ResearchPlanEditor.tsx, workspace-parts PlanProgress
 
 | ID | states | component tests | browser | status |
 |---|---|---|---|---|
@@ -150,6 +156,7 @@ Legend: L/D = light/dark, viewports 390/1440 unless noted, RM = reduced motion.
 | PL-14 intake review | evidence/attempts/stale/idempotency | work-review.test.tsx, work-review-api.test.ts | work-review.spec L/D 390/1440 | pass |
 | PL-15 PlanSteps timeline | segmented rail, medallions, tones, skeleton (frontend/src/components/plan/PlanSteps.tsx) | plan-steps.test.tsx | plan.spec PL-03-* | pass |
 | PL-16 ResearchPlanTab | header status/actions, approve block, empty/planning (frontend/src/components/plan/PlanTab.tsx) | plan-tab.test.tsx, research-plan-editor.test.tsx | plan.spec PL-01-*, PL-05-* | pass |
+| PL-17 plan-progress | progress dialog shell, counts + search | sector-workspace.test.tsx, work-review.test.tsx | matrix | pass |
 
 ## Global context (GC) — workspace-parts GlobalContextPanel
 
@@ -169,6 +176,7 @@ Legend: L/D = light/dark, viewports 390/1440 unless noted, RM = reduced motion.
 | GC-12 compact/restore | menu, labels, confirm | context-file-blocks.test.tsx | — | pass |
 | GC-13 rewrite | dialog, navigate | context-file-blocks.test.tsx | — | pass |
 | GC-14 full viewer | six headings, copy | context-file-blocks.test.tsx | — | pass |
+| GC-15 global-context-panel | panel shell hosting blocks/usage/meter | sector-workspace.test.tsx, context-file-blocks.test.tsx | matrix | pass |
 
 ## Local context/compaction/inspection (LC) — LocalContextEditor, ExecutionInspector
 
@@ -184,6 +192,7 @@ Legend: L/D = light/dark, viewports 390/1440 unless noted, RM = reduced motion.
 | LC-08 inspector dialog | metadata + detail layout | execution-inspection.test.tsx | execution-inspection.spec | pass |
 | LC-09 records | 20/page, selection, versions | execution-inspection.test.tsx | execution-inspection.spec | pass |
 | LC-10 JSON controls | download/more/count | execution-inspection.test.tsx | execution-inspection.spec | pass |
+| LC-11 local-context-editor | editor shell hosting task/notes/usage | sector-workspace.test.tsx | matrix | pass |
 
 ## Files/PDF (FL) — WorkspaceFiles, SectorFilePreview, FileProcessing*
 
@@ -201,7 +210,7 @@ Legend: L/D = light/dark, viewports 390/1440 unless noted, RM = reduced motion.
 | FL-10 missing original | honest retained-content copy | sector-file-preview.test.tsx | — | pass |
 | FL-11 large library | 50+50 windows, truthful totals | workspace-files-scale.test.tsx | files-scale.spec | pass |
 
-## Agents/runs/alerts (AG) — RunsPanel, SubagentsPanel, SupervisionAlertsPanel, RunConsole, AgentDirectory
+## Agents/runs/alerts (AG) — RunsPanel, SubagentsPanel, SupervisionAlertsPanel, AgentDirectory
 
 | ID | states | component tests | browser | status |
 |---|---|---|---|---|
@@ -213,7 +222,6 @@ Legend: L/D = light/dark, viewports 390/1440 unless noted, RM = reduced motion.
 | AG-06 alert rows | title/recovery/scope/links | supervision-alerts.test.tsx | alerts-long.png | pass |
 | AG-07 subagents | strip + open/stop/tag | SubagentsPanel (covered via chat-staging) | — | pass |
 | AG-08 directory | search/50-window/counts | — (SearchField shell-tested; rows reuse session patterns) | — | pass (SearchField adopted; no dedicated directory suite) |
-| AG-09 console | timeline + steer targets + Review | RunConsole.test.tsx | plan-console (live-gated) | pass |
 | AG-10 subagent spawn | dialog + goal/name + toast | subagent-spawn.test.tsx | — | pass |
 | AG-11 pause/resume | strip/directory/dock + Paused badge | subagent-controls.test.tsx | — | pass |
 | AG-12 row stop | confirm + toast + run-id mapping | stop-controls.test.tsx, stop-model.test.tsx | — | pass |
@@ -231,16 +239,13 @@ Legend: L/D = light/dark, viewports 390/1440 unless noted, RM = reduced motion.
 
 ## Legacy + shared utilities (N)
 
+P2 (c4efae3) deleted the unrouted sector views (SectorDetailPage,
+SectorChatPanel, SectorPlanSection, SectorContextDrawer, RunConsole,
+DocumentsSection, CompanySection, ResearchControl); their rows are gone.
+
 | component | treatment | tests | status |
-|---|---|---|---|
-| SectorDetailPage | legacy, unrouted; kept compiling, tests green | SectorDetailPage.test.tsx | pass |
-| DocumentsSection | legacy, unrouted; shared rows/fields/errors/upload states | SectorDetailPage.test.tsx | pass |
-| SectorChatPanel | legacy, unrouted; own conversation styling/composer/activity | SectorChatPanel.test.tsx | pass |
-| SectorPlanSection / PlanEdit | legacy, unrouted; editor shell, legacy version behavior | SectorPlanSection.test.tsx | pass |
-| SectorContextDrawer | legacy, unrouted; estimated view labeled, 60% claim + amber removed; not budget authority | SectorContextDrawer.test.tsx | pass |
-| RunConsole | legacy, unrouted; activity timeline + steer targets kept compiling | RunConsole.test.tsx | pass |
-| CompanySection | legacy, unrouted; landing renders CompaniesSection instead | SectorDetailPage.test.tsx | pass |
-| MeterBar / FileBlock | available estimates only, no invented window | SectorContextDrawer.test.tsx | pass |
+|---|---|---|---|---|
+| MeterBar / FileBlock | available estimates only, no invented window | context-file-blocks.test.tsx | pass |
 | PanelError / UnavailableNotice / DeniedNotice | list-panel notice set; ResourceState is the canonical shell for new surfaces | Dashboard/ResearchesPage suites | pass |
 | SkeletonRows | row-geometry skeletons | Dashboard.test.tsx | pass |
 | StatusPill | delegates to Badge; button variant kept | StatusPill.test.tsx | pass |
@@ -268,6 +273,10 @@ shells.test.tsx, session-options.test.tsx, workspace-tabs.test.tsx.
 - `chat/AssistantRuntimeAdapter`: headless external-store runtime provider,
   renders no DOM of its own; pinned by assistant-runtime.test.tsx and the
   chat/workspace conversation suites.
+- `chat/useChatScroll`: headless scroll/tail-follow hook, no DOM of its
+  own; exercised through the chat-staging and workspace-conversation suites.
+- `chat/useChatSync`: headless sync hook (sessions/threads/stream follow),
+  no DOM of its own; exercised through the chat-staging suite.
 - Motion exit timing (`EXIT_MS`/`POPOVER_MS` + preset classes): pinned by
   motion-presets.test.tsx (durations, distances, reduced-motion guards).
 - Live-gated (stated skips, never silent): plan-02/plan-03 journeys,
@@ -361,7 +370,7 @@ dialog copy (Stage 2 RS-06), static hover/focus shots show limited state
 
 | ID | source | states | component tests | browser | evidence | status |
 |---|---|---|---|---|---|---|
-| SL-01 header | `frontend/src/App.tsx` header config | crumbs/badge/meta/actions, not-found title | sector-workspace.test.tsx (meta line), SectorDetailPage.test.tsx (App flow) | v2/landing.spec | — | pass |
+| SL-01 header | `frontend/src/App.tsx` header config | crumbs/badge/meta/actions, not-found title | sector-workspace.test.tsx (meta line) | v2/landing.spec | — | pass |
 | SL-02 status panel | `frontend/src/components/SectorLanding.tsx` | summary per state, estimate/finished/stopped/unestimated tiles, next-step routes | sector-workspace.test.tsx | v2/landing.spec | — | pass |
 | SL-03 progress dialog | `frontend/src/components/SectorLanding.tsx` + `frontend/src/components/workspace-parts.tsx` WorkspaceOverlay/PlanProgress | controlled open, condensed plan, footer | sector-workspace.test.tsx, work-review.test.tsx | v2/landing.spec | — | pass |
 | SL-05 companies | `frontend/src/components/CompaniesSection.tsx` | toolbar/paging/poll/empties/more-error/denied | companies-section.test.tsx | v2/landing.spec | — | pass |
@@ -378,7 +387,7 @@ dialog copy (Stage 2 RS-06), static hover/focus shots show limited state
 | WS-04 session items | `frontend/src/components/SectorWorkspace.tsx` | selected/hover/menu/empty/paging/long titles | workspace-session-creation.test.tsx | v2/workspace.spec | — | pass |
 | WS-05 new chat | `frontend/src/components/SectorWorkspace.tsx` | pending + acknowledged select | workspace-session-creation.test.tsx | v2/workspace.spec | — | pass |
 | WS-06 chat search | `frontend/src/components/SectorWorkspace.tsx` | filtered list | workspace-session-creation.test.tsx | v2/workspace.spec | — | pass |
-| WS-07 header | `frontend/src/components/SectorWorkspace.tsx` | lifecycle per state, chat/subagent variants | SectorChatPanel.test.tsx | v2/workspace.spec | — | pass |
+| WS-07 header | `frontend/src/components/SectorWorkspace.tsx` | lifecycle per state, chat/subagent variants | sector-workspace.test.tsx | v2/workspace.spec | — | pass |
 | WS-08 tabs | `frontend/src/components/SectorWorkspace.tsx` | chat/plan, needs-approval dot | workspace-tabs.test.tsx, workspace-conversation.test.tsx | v2/workspace.spec | — | pass |
 | WS-09 subagent strip | `frontend/src/components/SectorWorkspace.tsx` | chips + directory link | chat-staging.test.tsx | v2/workspace.spec | — | pass |
 | WS-10 errors | `frontend/src/components/SectorWorkspace.tsx` | inline notice + dismiss, toast outcomes | workspace-conversation.test.tsx | v2/workspace.spec | — | pass |
