@@ -54,7 +54,7 @@ type ListRowProps = {
   className?: string
 } & Omit<React.HTMLAttributes<HTMLElement>, 'onClick'>
 
-export function ListRow({ selected = false, density = 'default', href, target, rel, onClick, children, className, ...rest }: ListRowProps) {
+export function ListRow({ selected = false, density = 'default', href, target, rel, onClick, children, className, ref, ...rest }: ListRowProps & { ref?: React.Ref<HTMLLIElement> }) {
   const cls = listRowClassName({ density, interactive: href !== undefined || onClick !== undefined })
   const inner =
     href !== undefined ? (
@@ -71,7 +71,7 @@ export function ListRow({ selected = false, density = 'default', href, target, r
       </div>
     )
   return (
-    <li className="flex min-w-0 flex-col" {...rest}>
+    <li ref={ref} className="flex min-w-0 flex-col" {...rest}>
       {inner}
     </li>
   )

@@ -157,6 +157,28 @@ async function wheelDown(page: Page, target: Locator, steps = 6): Promise<void> 
   }
 }
 
+async function wheelUp(page: Page, hoverTarget: Locator, steps = 6): Promise<void> {
+  await hoverTarget.hover()
+  for (let i = 0; i < steps; i++) {
+    await page.mouse.wheel(0, -600)
+    await page.waitForTimeout(100)
+  }
+}
+
+// Virtualized reachability: the last row mounts only once scrolled to,
+// so wheel to the end (the virtualizer renders on scroll events). First
+// paint is asserted separately on row 1; this proves every row renders.
+// Hover once on a visible row: the sizer's center is far outside the
+// viewport, and the mouse stays over the scrollport for later wheels.
+async function wheelToEnd(page: Page, hoverTarget: Locator, last: Locator): Promise<void> {
+  await hoverTarget.hover()
+  for (let i = 0; i < 60 && (await last.count()) === 0; i++) {
+    await page.mouse.wheel(0, 2400)
+    await page.waitForTimeout(50)
+  }
+  await expect(last).toBeAttached({ timeout: 15000 })
+}
+
 function dock(page: Page) {
   return page.getByRole('complementary', { name: 'Assistant chat' })
 }
@@ -181,19 +203,23 @@ test('sessions render 100/1000/2000 with first render under budget at 1000', asy
     await page.goto('/')
     await openDock(page)
     await openSessionsMenu(page)
+    const menu = page.getByRole('menu', { name: 'Chat sessions' })
+    const first = page.getByRole('menuitem', { name: 'Open Scale chat 1', exact: true })
     const last = page.getByRole('menuitem', { name: `Open Scale chat ${count}` })
-    await expect(last).toBeAttached({ timeout: 15000 })
+    await wheelToEnd(page, first, last)
     if (count === 1000) {
       await page.keyboard.press('Escape')
+      await expect(menu).not.toBeAttached()
       const started = Date.now()
       await openSessionsMenu(page)
-      await expect(last).toBeAttached({ timeout: 15000 })
+      await expect(first).toBeAttached({ timeout: 15000 })
       expect(Date.now() - started).toBeLessThanOrEqual(300)
+      await wheelToEnd(page, first, last)
     }
     if (count === 2000) {
       await clearLongtasks(page)
-      await wheelDown(page, page.getByRole('menu', { name: 'Chat sessions' }))
-      await expect(last).toBeVisible({ timeout: 15000 })
+      await wheelUp(page, last)
+      await expect(menu).toBeVisible()
       expect(await maxLongtask(page)).toBeLessThanOrEqual(50)
     }
   }
@@ -366,7 +392,9 @@ test('dock open/close cycles keep heap growth under 50MB', async ({ page }, test
   async function cycle(): Promise<void> {
     await openDock(page)
     await openSessionsMenu(page)
-    await expect(page.getByRole('menuitem', { name: 'Open Scale chat 2000' })).toBeAttached({ timeout: 15000 })
+    // First paint only: the dock measures cycle cost, and the menu is
+    // virtualized; last-row reachability belongs to the sessions spec.
+    await expect(page.getByRole('menuitem', { name: 'Open Scale chat 1', exact: true })).toBeAttached({ timeout: 15000 })
     // Dismiss the menu via its backdrop (the trigger sits under it),
     // then close the dock via its Close button: Escape is ambiguous here
     // (menu vs dock exit race) and the trigger is covered while open.

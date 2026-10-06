@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Icons } from '@/lib/icons'
 import { focusRingInset } from '@/lib/interaction'
 import { popoverEnter, popoverExit } from '@/lib/motion'
+import { useVirtualList } from '@/lib/useVirtualList'
 import type { Session } from '../../data/useSessions'
 import { sessionAge } from './messages'
 import { BodySm, Caption, Mono } from '../text'
@@ -43,6 +44,10 @@ export function SessionsPanel({
     if (aPinned === bPinned) return 0
     return aPinned ? -1 : 1
   })
+  // Virtualized: 2000 sessions mount ~20 rows, not 2000. Rows measure
+  // themselves so the 48px estimate self-corrects.
+  const { parentRef, virtualizer } = useVirtualList(ordered.length, 48)
+  const virtualRows = virtualizer.getVirtualItems()
   return (
     <>
       <button
@@ -52,6 +57,7 @@ export function SessionsPanel({
         className="fixed inset-0 z-40 cursor-default bg-transparent"
       />
       <div
+        ref={parentRef}
         role="menu"
         aria-label="Chat sessions"
         onKeyDown={(event) => {
@@ -79,11 +85,20 @@ export function SessionsPanel({
             No chats yet.
           </p>
         ) : null}
-        {ordered.map((session) => {
-          const active = session.id === activeId
-          return (
+        {ordered.length > 0 ? (
+          <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+            {virtualRows.map((virtualRow) => {
+              const session = ordered[virtualRow.index]
+              if (!session) return null
+              const active = session.id === activeId
+              return (
+                <div
+                  key={session.id}
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
+                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${virtualRow.start}px)` }}
+                >
             <div
-              key={session.id}
               className={`group flex min-h-11 items-center gap-1 rounded-md px-1 py-0.5 ${
                 active ? 'bg-surface-active' : 'hover:bg-surface-hover'
               }`}
@@ -97,6 +112,8 @@ export function SessionsPanel({
                 type="button"
                 role="menuitem"
                 aria-current={active ? 'true' : undefined}
+                aria-posinset={virtualRow.index + 1}
+                aria-setsize={ordered.length}
                 aria-label={`Open ${session.title}`}
                 onClick={() => onOpen(session)}
                 className={`flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-sm px-1 py-1 text-left ${focusRingInset}`}
@@ -142,8 +159,11 @@ export function SessionsPanel({
                 <Icons.delete className="size-4" aria-hidden />
               </IconButton>
             </div>
-          )
-        })}
+                </div>
+              )
+            })}
+          </div>
+        ) : null}
       </div>
     </>
   )
