@@ -105,7 +105,9 @@ describe.skipIf(!TEST_DATABASE_URL)('reconciliation production DB/projector path
       await appendEvent(pool,{ idempotencyKey: randomUUID(),partition: `session:${session.id}`,type: 't.message.appended',payload: { threadKey: session.id,kind: 'text',message: { role: 'agent',text: 'TEST durable completion' } } })
       await projectNewEvents(pool)
       expect((await listReconciliationCandidates(pool))[0]?.progressAtMs).not.toBeNull()
-      await expect(listReconciliationCandidates(pool,'',101)).rejects.toThrow('limit')
+      await expect(listReconciliationCandidates(pool,'',501)).rejects.toThrow('limit')
+      await expect(listReconciliationCandidates(pool,'',0)).rejects.toThrow('limit')
+      await expect(listReconciliationCandidates(pool,'',101)).resolves.toBeDefined()
     } finally { await pool.end() }
   })
   it('returns only the queried sector session/thread supervision history', async () => {
