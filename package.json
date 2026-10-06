@@ -13,6 +13,7 @@
     "test:e2e": "npm run test:e2e -w frontend",
     "test:fault": "KARDATA_TEMPORAL_TEST=1 npm test -w @kardata/backend -- tests/fault",
     "test:stress": "npm test -w @kardata/backend -- tests/stress",
+    "test:live": "KARDATA_LIVE_META=1 KARDATA_TEMPORAL_TEST=1 node scripts/with-env.mjs npm test -w @kardata/backend -- tests/backend/live --no-file-parallelism",
     "lint": "npm run lint --workspaces",
     "typecheck": "npm run typecheck --workspaces",
     "build": "npm run build -w frontend",

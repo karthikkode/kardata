@@ -176,7 +176,7 @@ like the routes) seeds 1000 companies plus 12 documents.
 | e2e | Real browser | `npm run test:e2e -w frontend` |
 | fault | Injected failures | `TEST_DATABASE_URL=… TOXIPROXY_URL=… npm run test:fault` (needs `KARDATA_FILE_TEMPORAL_ADDRESS` + `backend/dist` built) |
 | stress | Data volume, DB concurrency | `TEST_DATABASE_URL=… KARDATA_STRESS=1 npm run test:stress` (`KARDATA_STRESS_SCALE=reduced` in CI: 100k events, 10 writers) |
-| live | Real Meta, isolated stack | `npm run test:live` (lands in Phase 5) |
+| live | Real Meta, isolated stack | `TEST_DATABASE_URL=…/kardata_live npm run test:live` (keys via agents/.env; `-t "L-K"` filters) |
 | ui-review | Graded screenshots | `npm run ui:review` (`-- --changed` limits to the branch diff) |
 
 Full gates: `npm run verify` (pr:verify + coverage + quality; the registry
