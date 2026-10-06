@@ -162,6 +162,9 @@ describe.skipIf(!ENABLED)('trace continuity across Temporal, provider, MCP and D
         .filter((line) => line['event'] === 'http.request.start' && line['method'] === 'POST' && line['trace_id'] === TRACE_ID)
       expect(mcpStarts.length).toBeGreaterThanOrEqual(1)
       // DB leg: the activity's event stores the trace with client system.
+      // The probe row lands after the rounds the wait above keys on (the
+      // fake appends it last), so wait for the row itself, not the rounds.
+      await waitFor(async () => (await findEventByKey(pool, `trace-probe-${probe.runKey}`)) != null, 'probe row lands')
       const stored = await findEventByKey(pool, `trace-probe-${probe.runKey}`)
       expect(stored?.traceId).toBe(TRACE_ID)
       expect(stored?.client).toBe('system')
