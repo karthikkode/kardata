@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readPartition } from '../../backend/src/db/index.js'
+import { ensureTemporalTracing } from '../../backend/src/observability/temporal-tracing.js'
 import { connectClient, connectWorker, temporalNamespace } from '../../backend/src/temporal/connection.js'
 import { createLaneWorker } from '../../backend/src/temporal/worker.js'
 import { appendEventActivity, karbotTurnActivity } from '../../backend/src/temporal/activities/turn.js'
@@ -52,6 +53,7 @@ describe.skipIf(!ENABLED)('session-run workflow (B2.2) [F:backend.activity.turn.
   const blocked = new Set<string>()
 
   beforeAll(async () => {
+    ensureTemporalTracing()
     process.env['TEMPORAL_ADDRESS'] = ADDRESS
     // Karbot turns resolve the fake provider with workflow-supplied steps;
     // no keys, no network.
@@ -109,6 +111,26 @@ describe.skipIf(!ENABLED)('session-run workflow (B2.2) [F:backend.activity.turn.
       await handle.signal('runResume')
       await waitFor(async () => (await texts(sessionId)).includes('Recovered answer'), 30000, 'context recovery')
       expect((await texts(sessionId)).filter((text) => text === request)).toHaveLength(1)
+    } finally { await handle.signal('runCancel'); await handle.result() }
+  }, 90000)
+
+  it('runs each message turn under its own trace, not the workflow-start trace', async () => {
+    const sessionId = `trace-turns-${Date.now()}`
+    const handle = await client.workflow.start('sessionRun', { taskQueue: (worker.options as { taskQueue: string }).taskQueue, workflowId: `session-run-${sessionId}`, args: [{ sessionId, fakeSteps: [{ text: 'traced reply', usage: { inputTokens: 1, outputTokens: 1 } }] }] })
+    try {
+      const first = 'a'.repeat(32)
+      const second = 'b'.repeat(32)
+      await handle.signal('runSend', { text: 'first turn', traceparent: `00-${first}-${'1'.repeat(16)}-01` })
+      await handle.signal('runSend', { text: 'second turn', traceparent: `00-${second}-${'2'.repeat(16)}-01` })
+      await waitFor(async () => (await texts(sessionId)).filter((text) => text === 'traced reply').length >= 2, 60000, 'both traced turns')
+      const pool = db()
+      try {
+        await projectNewEvents(pool)
+        const { rows } = await pool.query<{ run_id: string; trace_id: string | null }>(
+          'SELECT DISTINCT run_id, trace_id FROM execution_rounds WHERE thread_key = $1', [sessionId])
+        expect(rows).toHaveLength(2)
+        expect(new Set(rows.map((row) => row.trace_id))).toEqual(new Set([first, second]))
+      } finally { await pool.end() }
     } finally { await handle.signal('runCancel'); await handle.result() }
   }, 90000)
 

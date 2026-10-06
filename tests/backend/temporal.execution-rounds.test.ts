@@ -11,6 +11,7 @@ import { Pool } from 'pg'
 import { MockActivityEnvironment } from '@temporalio/testing'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { appendEvent, createSession } from '../../backend/src/db/index.js'
+import { ensureTemporalTracing, withTraceContext } from '../../backend/src/observability/temporal-tracing.js'
 import { karbotTurnActivity } from '../../backend/src/temporal/activities/turn.js'
 import type { KarbotTurnInput } from '../../backend/src/temporal/activities/karbot-turn-input.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
@@ -106,5 +107,29 @@ describe.skipIf(!TEST_DATABASE_URL || !temporalTier)('execution rounds invariant
     const journal = await pool.query<{ kind: string; n: number }>(
       `SELECT payload->>'kind' AS kind, count(*)::int AS n FROM events WHERE type = 't.execution.recorded' GROUP BY 1 ORDER BY 1`)
     expect(Object.fromEntries(journal.rows.map((row) => [row.kind, row.n]))).toEqual({ request: 6, response: 6, 'tool-result': 4 })
+  }, 60000)
+
+  it('runs each turn under its signal trace, not the ambient workflow trace', async () => {
+    ensureTemporalTracing()
+    const session = await createSession(pool, 'TEST turn traces')
+    await projectNewEvents(pool)
+    const environment = new MockActivityEnvironment()
+    const base = { sessionId: session.id, mcpEndpoint: endpoint, mcpToken: 'TEST turn trace credential', toolAllow: [] as string[] }
+    const ambient = 'c'.repeat(32)
+    const first = 'a'.repeat(32)
+    const second = 'b'.repeat(32)
+    const tp = (id: string): string => `00-${id}-${'1'.repeat(16)}-01`
+    await withTraceContext(ambient, () => environment.run(karbotTurnActivity, { ...base, threadKey: session.id, runKey: 'TEST trace turn one', text: 'TEST one', traceparent: tp(first), fakeSteps: [
+      { text: 'TEST done one.', usage: { inputTokens: 1, outputTokens: 1 } },
+    ] } satisfies KarbotTurnInput))
+    await withTraceContext(ambient, () => environment.run(karbotTurnActivity, { ...base, threadKey: session.id, runKey: 'TEST trace turn two', text: 'TEST two', traceparent: tp(second), fakeSteps: [
+      { text: 'TEST done two.', usage: { inputTokens: 2, outputTokens: 2 } },
+    ] } satisfies KarbotTurnInput))
+    await projectNewEvents(pool)
+    const rounds = await pool.query<{ run_id: string; trace_id: string | null }>(
+      'SELECT run_id, trace_id FROM execution_rounds WHERE thread_key = $1 ORDER BY run_id, round', [session.id])
+    expect(rounds.rows).toHaveLength(2)
+    expect(rounds.rows.find((row) => row.run_id === 'TEST trace turn one')?.trace_id).toBe(first)
+    expect(rounds.rows.find((row) => row.run_id === 'TEST trace turn two')?.trace_id).toBe(second)
   }, 60000)
 })

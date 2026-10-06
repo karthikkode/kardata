@@ -47,6 +47,9 @@ export const KarbotTurnInput = z.object({
   threadKey: z.string().min(1),
   runKey: z.string().min(1),
   text: z.string().min(1),
+  /** The send/steer signal's W3C traceparent: the turn runs under its own
+   * message trace instead of inheriting the workflow-start trace. */
+  traceparent: z.string().regex(/^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/).optional(),
   /** Test/seed path: scripted fake steps. Never set in production. */
   fakeSteps: FakeStepSchema.array().optional(),
   /** MCP endpoint/token overrides so hermetic tests never touch env. The

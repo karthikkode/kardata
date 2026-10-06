@@ -31,6 +31,7 @@ import { shouldContinueAsNew } from './can.js'
 import { resumableTurn } from './resumable-turn.js'
 import { registerQueueHandlers } from './inbox-queue.js'
 import type { OriginalTurnRecovery } from '../turn-recovery.js'
+import type { SendSignalPayload } from '../runs-types.js'
 
 export interface SessionRunInput {
   sessionId: string
@@ -56,6 +57,7 @@ export interface SessionRunInboxItem {
   text: string
   recovery?: OriginalTurnRecovery
   skill?: { prompt: string; tools: string[]; mode: 'default' | 'brainstorm' }
+  traceparent?: string
   id?: string
   queuedAt?: number
 }
@@ -75,13 +77,14 @@ export interface SessionRunState {
   pending: number
 }
 
-export const sendSignal = defineSignal<[string]>('runSend')
-export const steerSignal = defineSignal<[string]>('runSteer')
+export const sendSignal = defineSignal<[string | SendSignalPayload]>('runSend')
+export const steerSignal = defineSignal<[string | SendSignalPayload]>('runSteer')
 export interface SkillSignalArgs {
   prompt: string
   tools: string[]
   text: string
   mode?: 'default' | 'brainstorm'
+  traceparent?: string
 }
 export const skillSignal = defineSignal<[SkillSignalArgs]>('runSkill')
 export const pauseSignal = defineSignal('runPause')
@@ -146,18 +149,24 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
 
   // Workflow-signal log (B5.1): signal name plus queue depth only. Signal
   // payloads are user text and never enter logs.
-  setHandler(sendSignal, (text: string) => {
-    inbox.push(stamp({ text }))
+  // Bare-string payloads are old signals replaying through new code (and
+  // supervision nudges): same text, no per-turn trace.
+  const queueText = (payload: string | SendSignalPayload): void => {
+    inbox.push(stamp(typeof payload === 'string' ? { text: payload } : { text: payload.text, ...(payload.traceparent === undefined ? {} : { traceparent: payload.traceparent }) }))
+  }
+  setHandler(sendSignal, (payload: string | SendSignalPayload) => {
+    queueText(payload)
     log.info('signal received', { signal: 'runSend', pending: inbox.length })
   })
-  setHandler(steerSignal, (text: string) => {
-    inbox.push(stamp({ text }))
+  setHandler(steerSignal, (payload: string | SendSignalPayload) => {
+    queueText(payload)
     log.info('signal received', { signal: 'runSteer', pending: inbox.length })
   })
   setHandler(skillSignal, (args: SkillSignalArgs) => {
     inbox.push(stamp({
       text: args.text,
       skill: { prompt: args.prompt, tools: args.tools, mode: args.mode ?? 'default' },
+      ...(args.traceparent === undefined ? {} : { traceparent: args.traceparent }),
     }))
     log.info('signal received', { signal: 'runSkill', pending: inbox.length })
   })
@@ -310,6 +319,7 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
             threadKey: input.sessionId,
             runKey,
             text: item.text,
+            ...(item.traceparent === undefined ? {} : { traceparent: item.traceparent }),
             fakeSteps: input.fakeSteps,
             ...(item.recovery ? { recovery: item.recovery } : {}),
             ...(input.ownerEpoch ? { ownerEpoch: input.ownerEpoch,ownerFirstExecutionId: workflowInfo().firstExecutionRunId,ownerContinuedFromExecutionId: workflowInfo().continuedFromExecutionRunId } : {}),

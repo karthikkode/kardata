@@ -38,6 +38,7 @@ import {
   delegationWorkflowId,
   ensureApprovedCoordinator,
   mapResearchStatus,
+  sendTraceparent,
   signalRunCancel,
   sleep,
 } from './runs-helpers.js'
@@ -54,6 +55,7 @@ import {
   type RunInfo,
   type RunState,
   type RunsGateway,
+  type SendSignalPayload,
   type SkillInvocation,
 } from './runs-types.js'
 
@@ -177,8 +179,7 @@ export class TemporalRunsGateway implements RunsGateway {
       }
       return runs
     }
-    // Summary-level on purpose: state comes from describe only, no per-run
-    // queries. Detail (cursor, precise pause/suspend) is getRun's job.
+    // Summary-level: describe only; detail (cursor, pause/suspend) is getRun's job.
     const executions = client.workflow.list({ pageSize: 100 })
     for await (const execution of executions) {
       const type = execution.type
@@ -366,9 +367,7 @@ export class TemporalRunsGateway implements RunsGateway {
       ],
       args: [{ sessionId: input.sessionId,ownerEpochProtocol: true,maxInFlight: caps.maxInFlight,maxQueued: caps.maxQueued }],
     }))
-    // Async child start: duplicate ids reject (a timeout, never a silent
-    // idle child); over-cap delegations queue durably; queue-full racers
-    // fail fast on the parent's rejection list.
+    // Async child start: duplicates reject, over-cap queues durably, queue-full racers fail fast.
     const deadline = Date.now() + 30_000
     for (;;) {
       try {
@@ -512,6 +511,7 @@ export class TemporalRunsGateway implements RunsGateway {
         tools: invocation.tools,
         text: invocation.text,
         ...(invocation.mode === undefined ? {} : { mode: invocation.mode }),
+        traceparent: sendTraceparent(),
       },
     ]
     try {
@@ -707,7 +707,7 @@ export class TemporalRunsGateway implements RunsGateway {
     threadKey: string,
     text: string,
     sessionSignal: 'runSend' | 'runSteer',
-  ): Promise<{ workflowId: string; signal: string; args: [string]; sessionId?: string }> {
+  ): Promise<{ workflowId: string; signal: string; args: [string | SendSignalPayload]; sessionId?: string }> {
     // Commands resolve threads, so they project like reads do.
     await projectNewEvents(this.pool)
     const thread = await getThread(this.pool, threadKey)
@@ -727,7 +727,7 @@ export class TemporalRunsGateway implements RunsGateway {
     return {
       workflowId: `${SESSION_PREFIX}${thread.sessionId}`,
       signal: sessionSignal,
-      args: [text],
+      args: [{ text, traceparent: sendTraceparent() }],
       sessionId: thread.sessionId,
     }
   }
@@ -735,15 +735,16 @@ export class TemporalRunsGateway implements RunsGateway {
   private async signalTarget(target: {
     workflowId: string
     signal: string
-    args: [string]
+    args: [string | SendSignalPayload]
     sessionId?: string
   }): Promise<void> {
     const client = await this.client()
-    // Session threads start their workflow on first send: absent workflows
-    // start instead of 404ing, running ones just get the signal. Child
-    // targets keep the strict signal — their parent must already exist.
+    // First send starts absent session workflows; running ones just get the signal. Child targets keep the strict signal.
     if (target.sessionId && (target.signal === 'runSend' || target.signal === 'runSteer')) {
-      const start = buildSessionSignalStart(target.sessionId, target.args[0] ?? '', target.signal)
+      const payload = target.args[0] ?? ''
+      const text = typeof payload === 'string' ? payload : payload.text
+      const traceparent = typeof payload === 'string' || payload.traceparent === undefined ? sendTraceparent() : payload.traceparent
+      const start = buildSessionSignalStart(target.sessionId, text, target.signal, traceparent)
       await this.startWithEpoch(target.sessionId,target.sessionId,start.workflowId,(ownerEpoch) => client.workflow.signalWithStart(start.workflowType, {
         workflowId: start.workflowId,
         taskQueue: start.taskQueue,

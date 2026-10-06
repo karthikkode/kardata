@@ -8,7 +8,8 @@ import { inheritThreadFileRefs, assertThreadFileContext, ContextFileBlocked } fr
 import { createHash, createHmac, randomUUID } from 'node:crypto'
 import { ApplicationFailure, Context } from '@temporalio/activity'
 import { z } from 'zod'
-import { activityLogFields, ambientTraceparent } from '../../observability/temporal-tracing.js'
+import { activityLogFields, ambientTraceparent, withTraceContext } from '../../observability/temporal-tracing.js'
+import { extractTraceContext } from '../../observability/trace.js'
 import {
   BudgetTracker,
   composeSystemPrompt,
@@ -545,6 +546,12 @@ export async function turnContextSnapshot(
 export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOutcome> {
   const context = Context.current()
   input = KarbotTurnInput.parse(input)
+  // Per-turn trace: the signal carried its own message trace, so re-root
+  // the turn under it (stripped on the way in: one re-entry only).
+  if (input.traceparent !== undefined) {
+    const { traceId } = extractTraceContext({ traceparent: input.traceparent })
+    return withTraceContext(traceId, () => karbotTurnActivity({ ...input, traceparent: undefined }))
+  }
   if (input.recovery) input = KarbotTurnInput.parse({ ...input, toolAllow: input.recovery.originalInput.toolAllow, systemPrepend: input.recovery.originalInput.systemPrepend, preloadChunks: input.recovery.originalInput.preloadChunks, mode: input.recovery.originalInput.mode, fakeSteps: input.recovery.originalInput.fakeSteps, runKey: input.recovery.runKey, text: input.recovery.text })
   const pool = workerPoolFromEnv()
   const actual = context.info.workflowExecution

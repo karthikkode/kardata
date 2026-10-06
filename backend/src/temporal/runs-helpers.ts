@@ -4,6 +4,9 @@ import { randomUUID } from 'node:crypto'
 import { CancelledFailure, WorkflowFailedError, WorkflowNotFoundError } from '@temporalio/client'
 import { laneConfig } from './lanes.js'
 import { createLogger, logOp } from '../observability/logging.js'
+import { activeTraceId } from '../observability/temporal-tracing.js'
+import { currentTraceId } from '../observability/tracing.js'
+import { injectTraceparent, newTraceId } from '../observability/trace.js'
 import {
   RunNotFound,
   SESSION_PREFIX,
@@ -63,17 +66,24 @@ export async function signalRunCancel(handle: CancelHandle, runId: string): Prom
 /** Pure builder for the session signal-with-start: first send to a session
  * starts its workflow instead of 404ing; later sends signal the running
  * one (the server routes the signal to the existing execution). */
+/** A send's trace: ambient OTel (MCP/activity callers), else the route ALS
+ * trace, else fresh. Every session send carries its own message trace. */
+export function sendTraceparent(): string {
+  return injectTraceparent({ traceId: activeTraceId() ?? currentTraceId() ?? newTraceId() })
+}
+
 export function buildSessionSignalStart(
   sessionId: string,
   text: string,
   signal: 'runSend' | 'runSteer',
+  traceparent: string,
 ): SessionSignalStart {
   return {
     workflowType: SESSION_WORKFLOW_TYPE,
     workflowId: `${SESSION_PREFIX}${sessionId}`,
     taskQueue: laneConfig('turn').taskQueue,
     signal,
-    signalArgs: [text],
+    signalArgs: [{ text, traceparent }],
     args: [{ sessionId }],
   }
 }

@@ -136,11 +136,20 @@ export interface CancelHandle {
  * workflow code. */
 export const SESSION_WORKFLOW_TYPE = 'sessionRun'
 
+/** runSend/runSteer payload: the text plus the sender's W3C traceparent,
+ * so each turn runs under its own message trace instead of inheriting
+ * the workflow-start trace. Handlers also accept a bare string (old
+ * signals replaying through new code, supervision nudges). */
+export interface SendSignalPayload {
+  text: string
+  traceparent?: string
+}
+
 export interface SessionSignalStart {
   workflowType: typeof SESSION_WORKFLOW_TYPE
   workflowId: string
   taskQueue: string
   signal: 'runSend' | 'runSteer'
-  signalArgs: [string]
+  signalArgs: [SendSignalPayload]
   args: [{ sessionId: string }]
 }
