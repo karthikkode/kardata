@@ -385,8 +385,18 @@ describe.skipIf(!ENABLED)('REST parity (B3.1) [F:http.createSession] [F:http.get
       url: '/v1/commands/pause',
       payload: { runId: 'company-run-c1' },
     })
-    expect(childPause.statusCode).toBe(409)
-    expect((childPause.json() as { error: { code: string } }).error.code).toBe('conflict')
+    expect(childPause.statusCode).toBe(202)
+    expect((childPause.json() as { data: { state: string } }).data.state).toBe('accepted')
+    expect(runs.signals).toContainEqual({ workflowId: 'company-run-c1', signal: 'childPause', args: [] })
+
+    runs.addRun(run('sector-sweep-x', 'sector-sweep-x', 'RUNNING'), 'sectorCoordinator')
+    const wrongType = await app.inject({
+      method: 'POST',
+      url: '/v1/commands/pause',
+      payload: { runId: 'sector-sweep-x' },
+    })
+    expect(wrongType.statusCode).toBe(409)
+    expect((wrongType.json() as { error: { code: string } }).error.code).toBe('conflict')
 
     const researchCancel = await app.inject({
       method: 'POST',
