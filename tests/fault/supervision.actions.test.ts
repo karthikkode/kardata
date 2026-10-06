@@ -110,7 +110,7 @@ describe.skipIf(!TEST_DATABASE_URL)('supervision acts (P3.4) [F:db.reconciliatio
     }
   })
 
-  it('nudges once on stalled progress, then pauses with an owner alert', async () => {
+  it('nudges on stalled progress, waits a full window, then pauses with an owner alert', async () => {
     const pool = await poolFor('kardata_test_supervision_nudge')
     try {
       const session = await createSession(pool, 'TEST nudge', scope)
@@ -119,12 +119,17 @@ describe.skipIf(!TEST_DATABASE_URL)('supervision acts (P3.4) [F:db.reconciliatio
       await appendEvent(pool, { idempotencyKey: randomUUID(), partition: `session:${session.id}`, type: 't.message.appended', payload: { threadKey: session.id, kind: 'text', message: { role: 'agent', text: 'TEST old reply' } } })
       await projectNewEvents(pool)
       await pool.query(`UPDATE thread_messages SET at = now() - interval '16 minutes' WHERE thread_key = $1`, [session.id])
+      await pool.query(`UPDATE thread_context SET active_run_started_at = now() - interval '16 minutes' WHERE thread_key = $1`, [session.id])
       await recordHeartbeat(pool, `session-run-${session.id}`, 'TEST op', true)
       const captured = { signals: [] as Array<{ workflowId: string; signal: string; payload?: string }>, cancels: [] as string[] }
       const control = runningControl(captured)
       await reconcilePage(pool, '', async () => ({ state: 'running' }), Date.now(), () => undefined, control)
       expect(captured.signals).toEqual([{ workflowId: `session-run-${session.id}`, signal: 'runSteer', payload: SUPERVISION_NUDGE }])
       expect((await getThreadHeader(pool, session.id))?.status).not.toBe('PAUSED')
+      await reconcilePage(pool, '', async () => ({ state: 'running' }), Date.now(), () => undefined, control)
+      expect(captured.signals).toHaveLength(1)
+      expect((await getThreadHeader(pool, session.id))?.status).not.toBe('PAUSED')
+      await pool.query(`UPDATE events SET at = now() - interval '16 minutes' WHERE type = 't.reconciliation.finding' AND payload->>'response' = 'nudge'`)
       await reconcilePage(pool, '', async () => ({ state: 'running' }), Date.now(), () => undefined, control)
       expect(captured.signals[1]).toEqual({ workflowId: `session-run-${session.id}`, signal: 'runPause' })
       await projectNewEvents(pool)
