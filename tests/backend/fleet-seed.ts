@@ -170,9 +170,24 @@ export async function seedStressVolume(pool: Pool, volume: Partial<StressVolume>
     const pick = Math.floor(rand() * STRESS_SESSIONS)
     const type = eventTypes[Math.floor(rand() * eventTypes.length)] as string
     const partition = type === 't.artifact.stored' ? `artifact:session:${stressId('session', pick)}` : `session:${stressId('session', pick)}`
+    // Execution fillers must satisfy the strict RecordInput journal schema:
+    // the hot-query tier reads them through listThreadExecutionRecords,
+    // which rejects any row whose binding does not parse and match.
+    const payload =
+      type === 't.execution.recorded'
+        ? {
+            sessionId: stressId('session', (pick * 10) % STRESS_SESSIONS),
+            threadKey: stressId('thread', pick * 10),
+            runKey: `TEST stress run ${pick * 10}`,
+            lease: `123e4567-e89b-42d3-a456-${String(index).padStart(12, '0')}`,
+            round: index % 50,
+            kind: (['request', 'response', 'tool-result'] as const)[index % 3],
+            ref: { key: `TEST stress ref ${index}`, hash: index.toString(16).padStart(64, '0'), bytes: 128 },
+          }
+        : { threadKey: stressId('thread', pick * 10), seq: index, note: 'TEST stress filler' }
     return [
       `TEST stress key ${index}`, partition, type,
-      JSON.stringify({ threadKey: stressId('thread', pick * 10), seq: index, note: 'TEST stress filler' }),
+      JSON.stringify(payload),
       false, new Date(Date.now() - Math.floor(rand() * 30 * 86400_000)).toISOString(),
       rand() < 0.1 ? `TEST stress trace ${index % 1000}` : null,
       rand() < 0.5 ? 'ui' : 'agent-mcp',
