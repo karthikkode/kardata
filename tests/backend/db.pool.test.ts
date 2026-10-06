@@ -6,7 +6,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Writable } from 'node:stream'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createLogger } from '../../backend/src/observability/logging.js'
 import {
   DbContractError,
@@ -20,6 +20,9 @@ import {
 const VARS = [
   'KARDATA_DB_POOL_SERVER',
   'KARDATA_DB_POOL_WORKER',
+  'KARDATA_PG_SERVER_MAX',
+  'KARDATA_PG_WORKER_MAX',
+  'KARDATA_WORKER_REPLICAS',
   'KARDATA_PG_STATEMENT_TIMEOUT_MS',
   'DATABASE_URL',
 ]
@@ -64,7 +67,52 @@ describe('pool budgets [F:db.index.DbContractError] [F:db.index.validatePoolBudg
     expect(() => workerPoolBudget()).toThrow(DbContractError)
   })
 
+  it('warns once when the deprecated pool names are used', () => {
+    // First alias read in this file: the warning must fire here. Later
+    // alias reads stay silent (warnedAliases) but keep working.
+    delete process.env['KARDATA_DB_POOL_SERVER']
+    delete process.env['KARDATA_DB_POOL_WORKER']
+    delete process.env['KARDATA_PG_WORKER_MAX']
+    process.env['KARDATA_PG_SERVER_MAX'] = '22'
+    const spy = vi.spyOn(process, 'emitWarning').mockImplementation(() => {})
+    try {
+      expect(serverPoolBudget()).toMatchObject({ max: 22 })
+      expect(workerPoolBudget()).toMatchObject({ max: 5 })
+      expect(spy).toHaveBeenCalledTimes(1)
+      expect(spy).toHaveBeenCalledWith(
+        'env KARDATA_PG_SERVER_MAX is deprecated, use KARDATA_DB_POOL_SERVER',
+        'DeprecationWarning',
+      )
+      expect(serverPoolBudget()).toMatchObject({ max: 22 })
+      expect(spy).toHaveBeenCalledTimes(1)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('prefers the new pool names over the deprecated aliases', () => {
+    process.env['KARDATA_DB_POOL_SERVER'] = '25'
+    process.env['KARDATA_PG_SERVER_MAX'] = '22'
+    process.env['KARDATA_DB_POOL_WORKER'] = '3'
+    process.env['KARDATA_PG_WORKER_MAX'] = '9'
+    expect(serverPoolBudget()).toMatchObject({ max: 25 })
+    expect(workerPoolBudget()).toMatchObject({ max: 3 })
+  })
+
+  it('reads the deprecated worker alias when the new name is unset', () => {
+    delete process.env['KARDATA_DB_POOL_WORKER']
+    process.env['KARDATA_PG_WORKER_MAX'] = '9'
+    expect(workerPoolBudget()).toMatchObject({ max: 9 })
+  })
+
+  it('rejects an invalid deprecated alias naming the alias', () => {
+    delete process.env['KARDATA_DB_POOL_SERVER']
+    process.env['KARDATA_PG_SERVER_MAX'] = 'lots'
+    expect(() => serverPoolBudget()).toThrow(/KARDATA_PG_SERVER_MAX/)
+  })
+
   it('skips validation with a warning when Postgres is unreachable', async () => {
+    for (const name of VARS) delete process.env[name]
     const logLines: string[] = []
     const logStream = new Writable({
       write(chunk, _encoding, callback) {
@@ -76,10 +124,15 @@ describe('pool budgets [F:db.index.DbContractError] [F:db.index.validatePoolBudg
     })
     const logger = createLogger({ op: 'test' }, logStream)
     await expect(
-      validatePoolBudget('postgresql://u:p@127.0.0.1:1/kardata_nope', 10, 'KARDATA_DB_POOL_SERVER', logger),
+      validatePoolBudget('postgresql://u:p@127.0.0.1:1/kardata_nope', logger),
     ).resolves.toBeUndefined()
     expect(logLines).toHaveLength(1)
-    expect(JSON.parse(logLines[0] as string)).toMatchObject({ op: 'db.pool.validate', env: 'KARDATA_DB_POOL_SERVER' })
+    expect(JSON.parse(logLines[0] as string)).toMatchObject({
+      op: 'db.pool.validate',
+      serverMax: 10,
+      workerMax: 5,
+      replicas: 1,
+    })
   })
 
   it('builds pools only through the factory', () => {

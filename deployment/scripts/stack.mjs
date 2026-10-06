@@ -296,6 +296,9 @@ async function cmdWorker(args) {
     for (const p of procs) console.error(`  $ ${p.user === 'root' ? 'sudo ' : ''}kill ${p.pid}  # ${p.cmd.slice(0, 70)}`)
     process.exit(1)
   }
+  // The fleet pool check reads this: backend and worker validate
+  // server + worker x replicas against max_connections at boot.
+  process.env.KARDATA_WORKER_REPLICAS = String(replicas)
   const out = await run('docker', ['compose', '-f', COMPOSE, 'up', '-d', '--scale', `worker=${replicas}`, 'worker'], { env: composeEnv() })
   process.stdout.write(out.stdout || out.stderr)
   if (!out.ok) process.exit(1)

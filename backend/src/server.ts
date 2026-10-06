@@ -21,7 +21,7 @@ const pool = connectionString && serverBudget ? wrapPool(createDbPool(connection
 // Fail fast on a pool that cannot fit the server; unreachable DB only
 // warns (the server boots without a database).
 if (connectionString && serverBudget) {
-  await validatePoolBudget(connectionString, serverBudget.max, 'KARDATA_DB_POOL_SERVER', logger)
+  await validatePoolBudget(connectionString, logger)
 }
 const app = buildApp({
   pool,

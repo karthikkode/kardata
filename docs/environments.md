@@ -110,8 +110,13 @@ All workspaces: `npm run lint`, `npm run typecheck`, `npm test`.
   `KARDATA_MAX_CHILDREN_IN_FLIGHT` (default 50; over-cap children wait in
   the durable queue), `KARDATA_MAX_CHILDREN_QUEUED` (default 2000; over-cap
   rejects immediately, never a 30 s timeout), `KARDATA_DB_POOL_SERVER`
-  (default 10) and `KARDATA_DB_POOL_WORKER` (default 5, validated against
-  `max_connections` at startup). Research fan-out is a plan budget
+  (default 10) and `KARDATA_DB_POOL_WORKER` (default 5). At startup both
+  entries validate the fleet: server + worker x `KARDATA_WORKER_REPLICAS`
+  (default 1, set by `stack.mjs worker --replicas`) must fit inside
+  `max_connections` minus `superuser_reserved_connections`, else boot
+  fails naming every env var; unreachable DB only warns. The old
+  `KARDATA_PG_SERVER_MAX` / `KARDATA_PG_WORKER_MAX` names still work with
+  a deprecation warning. Research fan-out is a plan budget
   (`plan.budgets.concurrency`, 1–64), still under the Meta limiter. `/mcp`
   has its own per-key rate bucket (600/min default, code option, not env).
   Replicas: `stack.mjs worker --replicas N` (1–16). Turn MCP calls carry
