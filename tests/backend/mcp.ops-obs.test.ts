@@ -53,6 +53,19 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP ops observability tools [F:mcp.ops.list
     await expect(invokeTool('ops.thread_health', karbot(), { threadKey: 'thread-missing' })).rejects.toMatchObject({ code: 'not_found' })
   })
 
+  it('thread_health never reports an idle thread stalled', async () => {
+    const idle = (await createSession(pool, 'TEST idle chat', scope, sectorA)).id
+    await projectNewEvents(pool)
+    await pool.query(
+      `INSERT INTO execution_rounds(trace_id, run_id, thread_key, session_id, sector_id, kind, round, attempt, model, provider, started_at, finished_at, latency_ms, input_tokens, output_tokens, cached_tokens, outcome)
+       VALUES ('test-trace-obs-idle', 'run-obs-idle', $1, $1, $2, 'chat', 1, 0, 'meta-test', 'meta', now() - interval '20 minutes', now() - interval '20 minutes', 120, 100, 50, 0, 'ok')`,
+      [idle, sectorA],
+    )
+    const health = await invokeTool('ops.thread_health', karbot(), { threadKey: idle }) as { status: string; stalled: boolean }
+    expect(health.status).toBe('IDLE')
+    expect(health.stalled).toBe(false)
+  })
+
   it('cost reads thread and sector tokens', async () => {
     await expect(invokeTool('ops.cost', karbot(), { threadKey: sessionA })).resolves.toMatchObject({ rounds: 1, inputTokens: 100, outputTokens: 50 })
     await expect(invokeTool('ops.cost', karbot(), { sectorId: sectorA })).resolves.toMatchObject({ rounds: 1, inputTokens: 100 })

@@ -196,7 +196,7 @@ export async function threadHealth(db: Db, threadKey: string, scope?: Scope, now
       FROM execution_rounds WHERE thread_key = $1 ORDER BY round DESC, attempt DESC LIMIT 1`, [threadKey])
   const last = rows[0]
   const lastAt = last ? new Date(last.finished_at ?? last.started_at).getTime() : new Date(identity.thread.updatedAt).getTime()
-  const live = !['FINISHED', 'ERROR', 'PAUSED', 'SUSPENDED'].includes(identity.thread.status)
+  const live = !['FINISHED', 'ERROR', 'PAUSED', 'SUSPENDED', 'IDLE'].includes(identity.thread.status)
   return {
     threadKey, sessionId: identity.session.id, ...(identity.session.sectorId ? { sectorId: identity.session.sectorId } : {}),
     kind: identity.thread.kind, status: identity.thread.status, acceptingSteer: identity.thread.acceptingSteer,
