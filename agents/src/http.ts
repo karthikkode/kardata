@@ -54,6 +54,10 @@ export interface PostWithDeadlineOptions {
  */
 export async function postWithDeadline(options: PostWithDeadlineOptions): Promise<string> {
   const { describe, url, init, timeoutMs, signal: parentSignal, fetchFn = defaultFetchFn } = options
+  // Already-cancelled callers fail fast with the dispatch error: without
+  // this the pre-rejected abort branch wins the race below and reports
+  // a deadline instead.
+  if (parentSignal?.aborted) throw new Error(`${describe} cancelled before dispatch`)
   const controller = new AbortController()
   const signal = parentSignal ? AbortSignal.any([parentSignal, controller.signal]) : controller.signal
   let rejectAbort: (() => void) | undefined
