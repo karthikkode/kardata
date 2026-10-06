@@ -48,6 +48,10 @@ function scaleQueue(count: number) {
   }))
 }
 
+function sectorSession() {
+  return [{ id: 'mx-session-001', title: 'Matrix chat', createdAt: AT, updatedAt: AT, sectorId: 'sector-matrix', kind: 'normal' }]
+}
+
 function scaleMessages(count: number) {
   return Array.from({ length: count }, (_, i) => ({
     seq: i + 1,
@@ -91,6 +95,9 @@ async function mutableApi(page: Page, world: MutableWorld): Promise<void> {
       data = { companies: world.companies.slice(offset, offset + limit), total: world.companies.length }
     } else if (/^\/v1\/sessions\/[^/]+\/threads$/.test(path) && method === 'GET') data = world.subagents
     else if (/^\/v1\/threads\/[^/]+\/queue$/.test(path) && method === 'GET') data = world.queue
+    // jointState loads threads and artifacts together: a 404 on artifacts
+    // puts the whole dock in its error state (no subagents toggle).
+    else if (/^\/v1\/sessions\/[^/]+\/artifacts$/.test(path) && method === 'GET') data = []
     else if (/^\/v1\/threads\/[^/]+\/messages$/.test(path) && method === 'GET') {
       const afterSeq = Number(url.searchParams.get('afterSeq') ?? 0)
       const limit = Number(url.searchParams.get('limit') ?? 200)
@@ -184,7 +191,8 @@ test('sessions render 100/1000/2000 with first render under budget at 1000', asy
 })
 
 test('subagents render 100/1000/2000 with first render under budget at 1000', async ({ page }) => {
-  const world: MutableWorld = { sessions: [], subagents: [], queue: [], messages: [], companies: [], files: [] }
+  // The dock loads threads for its active session: without one the panel never mounts.
+  const world: MutableWorld = { sessions: scaleSessions(1), subagents: [], queue: [], messages: [], companies: [], files: [] }
   await serveApi(page, { stream: 'static' })
   await mutableApi(page, world)
   await installPerf(page)
@@ -214,7 +222,7 @@ test('subagents render 100/1000/2000 with first render under budget at 1000', as
 })
 
 test('queue renders 100/1000/2000 with first render under budget at 1000', async ({ page }) => {
-  const world: MutableWorld = { sessions: [], subagents: [], queue: [], messages: [], companies: [], files: [] }
+  const world: MutableWorld = { sessions: sectorSession(), subagents: [], queue: [], messages: [], companies: [], files: [] }
   await serveApi(page, { stream: 'static', data: { sectors: [matrixSector()] } })
   await mutableApi(page, world)
   await installPerf(page)
@@ -243,7 +251,7 @@ test('queue renders 100/1000/2000 with first render under budget at 1000', async
 })
 
 test('thread renders 1000 under budget and 5000 with clean scroll', async ({ page }) => {
-  const world: MutableWorld = { sessions: [], subagents: [], queue: [], messages: [], companies: [], files: [] }
+  const world: MutableWorld = { sessions: sectorSession(), subagents: [], queue: [], messages: [], companies: [], files: [] }
   await serveApi(page, { stream: 'static', data: { sectors: [matrixSector()] } })
   await mutableApi(page, world)
   await installPerf(page)
@@ -332,7 +340,7 @@ test('dock open/close cycles keep heap growth under 50MB', async ({ page }) => {
     await openSessionsMenu(page)
     await expect(page.getByRole('menuitem', { name: 'Open Scale chat 2000' })).toBeAttached({ timeout: 15000 })
     await page.keyboard.press('Escape')
-    await dock(page).getByRole('button', { name: 'Close' }).click()
+    await page.keyboard.press('Escape')
     await expect(dock(page)).not.toBeVisible()
   }
   await cycle()
