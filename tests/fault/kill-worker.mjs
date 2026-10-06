@@ -19,6 +19,7 @@ import { Context } from '@temporalio/activity'
 import { StreamableMcpClient } from '@kardata/agents'
 import { persistExecutionRecord, resolveArchiveTarget } from '../../backend/dist/archive/targets.js'
 import { appendEventActivity, executeKarbotTurn, karbotTurnActivity } from '../../backend/dist/temporal/activities/turn.js'
+import { prepareExecutionIntentActivity, settlePreparedExecutionIntentActivity } from '../../backend/dist/temporal/activities/execution-epochs.js'
 import { createRoundRecorder } from '../../backend/dist/temporal/activities/turn-rounds.js'
 import { PRODUCT_TOOLS, productMcpClient } from '../../backend/dist/temporal/activities/turn-palettes.js'
 import { buildApp } from '../../backend/dist/app.js'
@@ -188,7 +189,10 @@ async function main() {
     connection,
     namespace,
     workflowsPath: TURN_BUNDLE_PATH,
-    activities: { appendEventActivity, karbotTurnActivity },
+    // The parent's launch path prepares and settles execution ownership
+    // before startChild: without these the delegation acceptance poll
+    // times out after 30 s (dev-worker registers the same pair).
+    activities: { appendEventActivity, karbotTurnActivity, prepareExecutionIntentActivity, settlePreparedExecutionIntentActivity },
   })
   await Promise.all([worker.run(), turnWorker.run()])
 }

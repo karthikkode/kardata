@@ -34,6 +34,7 @@ const DIST_NEEDS = [
   'backend/dist/temporal/activities/turn.js',
   'backend/dist/temporal/activities/turn-rounds.js',
   'backend/dist/temporal/activities/turn-palettes.js',
+  'backend/dist/temporal/activities/execution-epochs.js',
   'backend/dist/temporal/connection.js',
   'backend/dist/temporal/runs-gateway.js',
   'backend/dist/temporal/worker.js',
