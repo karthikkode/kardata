@@ -174,12 +174,15 @@ describe('derived counts', () => {
 
 describe('coverage', () => {
   const OMITTED: Record<string, string> = {
-    [`${P}SectorLanding`]: 'detail view: typical has no list; longtext asserts the name',
-    [`${P}Markdown`]: 'renderer, not a list: longtext asserts message texts',
     [`${P}ChatPanel`]: 'sessions panel closed by default: no rows in DOM',
     [`${P}ModelsPanel`]: 'sessions feed binding text, render no rows',
   }
-  const ROW_STATES = new Set(['one', 'typical', 'n100', 'n1000'])
+  // Row-count states are the count states: a list declares one/n100/n1000
+  // (and partial where it renders one). Bare `typical` is a content state
+  // for non-lists (primitives, dialogs, shells), never rows, so it does
+  // not require a rows/countText drive. SectorLanding/Markdown omits were
+  // subsumed by this rule.
+  const ROW_STATES = new Set(['one', 'n100', 'n1000', 'partial'])
 
   it('every row-state case drives rows or is a documented omit', () => {
     const states = registryStates()
