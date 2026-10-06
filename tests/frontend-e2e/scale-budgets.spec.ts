@@ -14,6 +14,12 @@ import { makeCompanies, matrixSector } from './support/factory'
 // a11y specs cover motion separately).
 test.use({ reducedMotion: 'reduce' })
 
+// Wall-clock budgets need a quiet renderer: serial mode keeps the seven
+// legs from contending with each other (parallel legs blew the 50ms and
+// 300ms budgets on a loaded box; serial is 7/7 green). A red leg skips
+// the rest of the file; re-run the others with -g while fixing.
+test.describe.configure({ mode: 'serial' })
+
 const AT = '2026-10-01T00:00:00.000Z'
 const SECTOR_ROUTE = '/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001'
 const DETAIL_ROUTE = '/?section=SectorDetail&sector=sector-matrix'
