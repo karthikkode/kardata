@@ -58,6 +58,17 @@ async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+/** Bounded-parallel map. Per-item order is the caller's; items are
+ * independent (distinct workflows), so parallelism only removes serial
+ * RPC latency. A rejection fails fast, same as the serial loop. */
+async function mapLimit<T>(items: T[], limit: number, task: (item: T) => Promise<void>): Promise<void> {
+  const queue = [...items]
+  const runners = Array.from({ length: Math.min(limit, queue.length) }, async () => {
+    while (queue.length > 0) await task(queue.pop()!)
+  })
+  await Promise.all(runners)
+}
+
 describe.skipIf(!LIVE)('1000 queued children drain exactly once [F:backend.activity.turn.appendEventActivity] [F:backend.workflow.subagents.delegateParent] [F:backend.workflow.subagents.subagentRun] [F:backend.workflow.subagents.parentDelegateSignal] [F:backend.workflow.subagents.parentNoteDoneSignal] [F:backend.workflow.subagents.parentFinishSignal] [F:backend.workflow.subagents.parentStateQuery] [F:backend.workflow.subagents.childMessageSignal] [F:backend.workflow.subagents.childFinishSignal] [F:db.index.appendEvent] [F:db.events.appendEvent] [F:db.index.readPartition] [F:db.events.readPartition]', () => {
   let connection: NativeConnection
   let client: WorkflowClient
@@ -228,37 +239,38 @@ describe.skipIf(!LIVE)('1000 queued children drain exactly once [F:backend.activ
     console.log(`[children-1000] queued ${queued.queued.length} behind ${queued.children.length} running`)
     const fed = new Set<string>()
     const finished = new Set<string>()
-    const pumpBy = Date.now() + 900_000
+    // Measured floor: the parent launches serially at ~0.77/s (delegated
+    // activity + startChild per child), so 1000 launches need ~1300s.
+    const pumpBy = Date.now() + 1_650_000
     for (;;) {
       if (finished.size >= CHILDREN) break
       if (Date.now() > pumpBy) throw new Error(`TEST pump stalled at ${finished.size}/${CHILDREN} finished`)
       const state = await parentState(parentId)
-      for (const child of state.children) {
-        if (child.status === 'running' && !child.goalFed && !fed.has(child.childId)) {
-          try {
-            await client.workflow.getHandle(child.childId).signal('childMessage', goals.get(child.childId)!)
-          } catch (error) {
-            if (!(error instanceof Error && error.name === 'WorkflowNotFoundError')) throw error
-          }
-          fed.add(child.childId)
+      const unfed = state.children.filter((child) => child.status === 'running' && !child.goalFed && !fed.has(child.childId))
+      await mapLimit(unfed, 20, async (child) => {
+        try {
+          await client.workflow.getHandle(child.childId).signal('childMessage', goals.get(child.childId)!)
+        } catch (error) {
+          if (!(error instanceof Error && error.name === 'WorkflowNotFoundError')) throw error
         }
-      }
+        fed.add(child.childId)
+      })
       await projectNewEvents(pool)
       const { rows } = await pool.query<{ thread_key: string }>(
         "SELECT DISTINCT thread_key FROM thread_messages WHERE thread_key LIKE 'agent:TEST-kid-' || $1 || '-%' AND payload::text LIKE '%TEST child done%'",
         [runTag],
       )
       const replied = new Set(rows.map((row) => row.thread_key.slice('agent:'.length)))
-      let doneThisRound = 0
-      for (const child of state.children) {
-        if (child.status === 'running' && replied.has(child.childId) && !finished.has(child.childId)) {
-          await client.workflow.getHandle(child.childId).signal('childFinish')
-          expect(await client.workflow.getHandle(child.childId).result()).toBe('finished')
-          await client.workflow.getHandle(parentId).signal('parentNoteDone', { childId: child.childId, status: 'finished' })
-          finished.add(child.childId)
-          doneThisRound += 1
-        }
-      }
+      const toReap = state.children.filter(
+        (child) => child.status === 'running' && replied.has(child.childId) && !finished.has(child.childId),
+      )
+      await mapLimit(toReap, 20, async (child) => {
+        await client.workflow.getHandle(child.childId).signal('childFinish')
+        expect(await client.workflow.getHandle(child.childId).result()).toBe('finished')
+        await client.workflow.getHandle(parentId).signal('parentNoteDone', { childId: child.childId, status: 'finished' })
+        finished.add(child.childId)
+      })
+      const doneThisRound = toReap.length
       console.log(`[children-1000] finished=${finished.size} fed=${fed.size} queued=${state.queued.length}`)
       if (doneThisRound === 0) await sleep(2000)
     }
@@ -290,5 +302,5 @@ describe.skipIf(!LIVE)('1000 queued children drain exactly once [F:backend.activ
       await sleep(2000)
     }
     console.log(`[children-1000] done in ${Date.now() - started}ms: completed=${completed.length} rejected=0 replies=${CHILDREN}`)
-  }, 1_200_000)
+  }, 1_800_000)
 })
