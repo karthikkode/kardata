@@ -240,7 +240,7 @@ export async function seedStressVolume(pool: Pool, volume: Partial<StressVolume>
   ], 1000)
 
   await batchInsert(pool, 'alerts', 'kind,severity,subject,thread_key,sector_id', 50, (index) => [
-    'no-progress', index % 2 === 0 ? 'high' : 'medium', `TEST stress alert ${index}`, threadKey, sectorId,
+    'no-progress', index % 2 === 0 ? 'high' : 'warning', `TEST stress alert ${index}`, threadKey, sectorId,
   ], 50)
 
   await pool.query('ANALYZE')
