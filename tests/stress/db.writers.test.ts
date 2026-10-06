@@ -1,8 +1,9 @@
 // P3.6 writer-contention tier (stress): concurrent writers (appendEvent +
 // tool writes + MCP reads) against the real server pool size (10). Full:
 // 100 writers for 5 minutes; reduced (KARDATA_STRESS_SCALE=reduced, CI):
-// 10 writers for 60 s. Asserts 0 deadlocks, 0 statement timeouts and
-// pool-wait p95 under 50 ms. Gated on KARDATA_STRESS.
+// 25 writers for 60 s (2.5x oversubscribed, so pool-wait p95 can fail).
+// Asserts 0 deadlocks, 0 statement timeouts and pool-wait p95 under
+// 50 ms. Gated on KARDATA_STRESS.
 import { Pool, type PoolClient } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { appendEvent, getThreadHeader, readResearchProgress, recordHeartbeat } from '../../backend/src/db/index.js'
@@ -10,10 +11,19 @@ import { ensureTestDb, TEST_DATABASE_URL } from '../backend/db-helper.js'
 
 const STRESS = Boolean(process.env['KARDATA_STRESS'])
 const REDUCED_SCALE = process.env['KARDATA_STRESS_SCALE'] === 'reduced'
-const WRITERS = REDUCED_SCALE ? 10 : 100
+const REDUCED_WRITERS = 25
+const WRITERS = REDUCED_SCALE ? REDUCED_WRITERS : 100
 const RUN_MS = REDUCED_SCALE ? 60_000 : 5 * 60_000
 const POOL_MAX = 10
 const POOL_WAIT_P95_BUDGET_MS = 50
+
+// P7-M2: ungated pin — reduced writers must oversubscribe the pool, or
+// the p95 budget below can never fail (10 writers vs 10 conns did not).
+describe('stress writer contention ratio', () => {
+  it('reduced scale oversubscribes the pool', () => {
+    expect(REDUCED_WRITERS).toBeGreaterThanOrEqual(2 * POOL_MAX)
+  })
+})
 
 describe.skipIf(!TEST_DATABASE_URL || !STRESS)('stress writer contention [F:db.index.appendEvent] [F:db.index.recordHeartbeat] [F:db.index.getThreadHeader] [F:db.heartbeats.recordHeartbeat] [F:db.workspace_research.readResearchProgress] [F:db.events.appendEvent] [F:db.threads.getThreadHeader] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db]', () => {
   let pool: Pool
