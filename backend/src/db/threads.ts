@@ -560,7 +560,9 @@ function requireInspection<K extends 'listRuns' | 'getRun' | 'listQueue' | 'remo
   const runner = requireMessenger(messenger, tool)
   const fn = runner[method]
   if (typeof fn !== 'function') throw new DbContractError(`${tool} needs a run-inspection runner: the server wires the runs gateway, tests inject a fake`)
-  return fn as NonNullable<ThreadMessenger[K]>
+  // Bound: callers invoke the method detached, and both the real gateway
+  // and the fake read instance state (client, pool, runs, queues).
+  return (fn as NonNullable<ThreadMessenger[K]>).bind(runner)
 }
 
 /** List runs fleet-wide (filtering is the caller's job). Fail-closed
