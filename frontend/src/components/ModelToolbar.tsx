@@ -6,10 +6,10 @@
 // persists immediately with PATCH /v1/sessions/:id/model. No fixtures,
 // no guessed models. Keyboard (arrows, Home/End, Enter, Esc, typeahead)
 // and collision-aware placement come from the Base UI menu primitive.
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Icons } from '@/lib/icons'
-import { getSession } from '../data/useSessions'
-import { setSessionModel, type ProviderEntry } from '../data/useModels'
+import { useSession, type Session } from '../data/useSessions'
+import { useModelActions, type ProviderEntry } from '../data/useModels'
 import { type StagingConfig } from '../data/useApi'
 import { useModelCatalog } from '../data/useModelCatalog'
 import { providerLabel } from './ModelsPanel'
@@ -114,16 +114,20 @@ export function ModelToolbar({
 }) {
   const catalog = useModelCatalog(config)
   const { providers, status } = catalog
+  // The binding follows the session: the session read carries the latest
+  // stored selection, absent until PATCH sets one. The follow-up runs in
+  // the fetch callback (same commit as the data); the post-save refetch
+  // (see persist) reconciles the save/read race.
+  const bindingQuery = useSession(config, sessionId, { onData: applyBinding })
+  const modelActions = useModelActions(config)
   const [draft, setDraft] = useState<Draft>({ provider: '', model: '', reasoning: false })
   const [boundFor, setBoundFor] = useState<string | null>(null)
   const [bindingFailed, setBindingFailed] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [bindingAttempt, setBindingAttempt] = useState(0)
   const [query, setQuery] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [effortOpen, setEffortOpen] = useState(false)
-  const saveEpoch = useRef(0)
 
   // Seed the draft from the catalog once providers land (the binding
   // effect below overwrites with the stored selection when present).
@@ -146,57 +150,53 @@ export function ModelToolbar({
     return () => window.removeEventListener(MODELS_MENU_OPEN_EVENT, onModelsMenuOpen)
   }, [])
 
-  // The draft follows the session: the session read carries the latest
-  // stored selection, absent until PATCH sets one. A session switch shows
-  // a loading line until its own read lands, never the old binding.
-  useEffect(() => {
-    if (!config || !sessionId) return undefined
-    let live = true
-    const epoch = saveEpoch.current
-    // No synchronous resets here: the parent keys this component by
-    // session, so a switch remounts with fresh error state instead of
-    // cascading renders.
-    getSession(config, sessionId)
-      .then((session) => {
-        // A save that resolved after this read started already carries
-        // the newer binding: a stale read must not overwrite it.
-        if (!live || epoch !== saveEpoch.current) return
-        const stored = session.model ?? null
-        if (stored) {
-          // Before the catalog lands there is nothing to validate
-          // against: keep the stored level, re-seeded when providers
-          // arrive (the effect re-runs on providers).
-          const entry = providers.find((item) => item.name === stored.provider)
-          const effort = entry
-            ? seedEffort(stored.model, entry.models, stored.effort)
-            : stored.effort
-          setDraft({
-            provider: stored.provider,
-            model: stored.model,
-            reasoning: stored.reasoning,
-            ...(effort === undefined ? {} : { effort }),
-          })
-        } else {
-          setDraft((current) => {
-            if (current.provider) return current
-            const seeded = defaultsOf(providers, providers[0]?.name ?? '')
-            const entry = providers.find((item) => item.name === seeded.provider)
-            const effort = seedEffort(seeded.model, entry?.models ?? [])
-            return effort === undefined ? seeded : { ...seeded, effort }
-          })
-        }
-        setBoundFor(sessionId)
+  // No synchronous resets here: the parent keys this component by
+  // session, so a switch remounts with fresh error state instead of
+  // cascading renders.
+  function applyBinding(session: Session) {
+    const stored = session.model ?? null
+    if (stored) {
+      // Before the catalog lands there is nothing to validate
+      // against: keep the stored level, re-seeded when providers
+      // arrive (the guard below re-applies from the cached read
+      // instead of refetching to reseed).
+      const entry = providers.find((item) => item.name === stored.provider)
+      const effort = entry
+        ? seedEffort(stored.model, entry.models, stored.effort)
+        : stored.effort
+      setDraft({
+        provider: stored.provider,
+        model: stored.model,
+        reasoning: stored.reasoning,
+        ...(effort === undefined ? {} : { effort }),
       })
-      .catch(() => {
-        if (!live) return
-        setBindingFailed(true)
+    } else {
+      setDraft((current) => {
+        if (current.provider) return current
+        const seeded = defaultsOf(providers, providers[0]?.name ?? '')
+        const entry = providers.find((item) => item.name === seeded.provider)
+        const effort = seedEffort(seeded.model, entry?.models ?? [])
+        return effort === undefined ? seeded : { ...seeded, effort }
       })
-    return () => {
-      live = false
     }
-    // providers is a real input: the seed needs the catalog to fall back
-    // to server defaults, so the effect re-runs when the catalog lands.
-  }, [config?.baseUrl, config?.apiKey, sessionId, bindingAttempt, providers]) // eslint-disable-line react-hooks/exhaustive-deps
+    setBoundFor(session.id)
+  }
+
+  // Re-apply when the catalog lands after the read, from the cached
+  // read (no refetch). Render-time with an identity guard, like the
+  // draft seeding above.
+  const [reseededProviders, setReseededProviders] = useState<ProviderEntry[] | null>(null)
+  if (providers !== reseededProviders) {
+    setReseededProviders(providers)
+    const session = bindingQuery.data
+    if (session && session.id === sessionId) applyBinding(session)
+  }
+
+  // A failed binding read surfaces through bindingFailed; the hook keeps
+  // the error status for it.
+  if (bindingQuery.status !== 'loading' && bindingQuery.status !== 'ready' && !bindingFailed) {
+    setBindingFailed(true)
+  }
 
   function retryCatalog() {
     catalog.reload()
@@ -204,7 +204,7 @@ export function ModelToolbar({
 
   function retryBinding() {
     setBindingFailed(false)
-    setBindingAttempt((value) => value + 1)
+    bindingQuery.reload()
   }
 
   function openMenu(next: boolean) {
@@ -252,14 +252,14 @@ export function ModelToolbar({
     setDraft(outgoing)
     setSaving(true)
     setSaveError(null)
-    setSessionModel(config, sessionId, {
-      provider: entry.name,
-      model: next.model,
-      reasoning: outgoing.reasoning,
-      ...(outgoing.effort === undefined ? {} : { effort: outgoing.effort }),
-    })
+    modelActions.setModel
+      .run(sessionId, {
+        provider: entry.name,
+        model: next.model,
+        reasoning: outgoing.reasoning,
+        ...(outgoing.effort === undefined ? {} : { effort: outgoing.effort }),
+      })
       .then((stored) => {
-        saveEpoch.current += 1
         setDraft({
           provider: stored.provider,
           model: stored.model,
@@ -268,6 +268,9 @@ export function ModelToolbar({
         })
         setBoundFor(sessionId)
         setBindingFailed(false)
+        // Re-read after the write: a session read that started before
+        // the save lands stale, and the refetch reconciles it.
+        bindingQuery.reload()
       })
       .catch(() => {
         setSaveError('The model did not save. Check your connection and try again.')

@@ -4,8 +4,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiErrorStatus, type StagingConfig } from './api/client'
 import { listProviders, type ProviderEntry } from './api/models'
+import type { ResourceStatus } from './useResource'
 
-export type CatalogStatus = 'loading' | 'ready' | 'error' | 'denied' | 'offline'
+export type CatalogStatus = ResourceStatus
 
 export function useModelCatalog(config: StagingConfig | null) {
   const [providers, setProviders] = useState<ProviderEntry[]>([])

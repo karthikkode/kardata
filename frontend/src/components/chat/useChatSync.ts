@@ -3,10 +3,11 @@
 // fetch effects) so stale rows from another session never flash.
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { followThread, isFreshTerminalStatus, listMessages, listThreads, type ThreadView, type ToolPayload } from '../../data/useThreads'
-import { listRuns } from '../../data/useRuns'
+import { useRunsList } from '../../data/useRuns'
+import type { ResourceStatus } from '../../data/useResource'
 import { listSessionArtifacts } from '../../data/useFiles'
-import { listSessions, type Session } from '../../data/useSessions'
-import { listSkills, type SkillSummary } from '../../data/useSkills'
+import { useSessionsList, type Session } from '../../data/useSessions'
+import { useSkillsList, type SkillSummary } from '../../data/useSkills'
 import { type StagingConfig } from '../../data/useApi'
 import {
   loadStateOf,
@@ -20,6 +21,35 @@ import {
   type ChatMessage,
   type LoadState,
 } from './messages'
+
+/** One threads state from the threads/files joint fetch plus the runs
+ * query: loading dominates, then the first failure. (ResourceStatus is
+ * the identical union, so it feeds straight in.) */
+function combineLoadStates(joint: LoadState, runs: LoadState): LoadState {
+  if (joint === 'loading' || runs === 'loading') return 'loading'
+  if (joint !== 'ready') return joint
+  return runs
+}
+
+/** Mirror a query status into panel state, render-time with an applied
+ * guard (effects must not setState synchronously). */
+function useMirrorStatus(status: ResourceStatus, apply: (status: ResourceStatus) => void): void {
+  const [applied, setApplied] = useState<ResourceStatus | null>(null)
+  if (status !== applied) {
+    setApplied(status)
+    apply(status)
+  }
+}
+
+/** Clear panel rows when their query key unsets (was: query
+ * render-reset), render-time with an edge guard. */
+function useClearOnUnset(keyed: boolean, clear: () => void): void {
+  const [wasKeyed, setWasKeyed] = useState(keyed)
+  if (keyed !== wasKeyed) {
+    setWasKeyed(keyed)
+    if (!keyed) clear()
+  }
+}
 
 interface ChatSyncInput {
   config: StagingConfig | null
@@ -83,71 +113,59 @@ export function useChatSync({
   // Latest outbox status seq per thread, kept by the tail below; the
   // panel reads it as the stale-status basis at send time. Keyed by
   // thread because outbox seqs restart per thread (no reset needed).
+  // Latest outbox status seq per thread, kept by the tail below; the
+  // panel reads it as the stale-status basis at send time. Keyed by
+  // thread because outbox seqs restart per thread (no reset needed).
   const statusSeqRef = useRef<Record<string, number>>({})
-  // Sessions reset during render, never in the fetch effect: when the
-  // query changes the previous rows no longer belong to it. The first
-  // session activates; an id that no longer exists falls back to the
-  // first row.
-  const sessionQuery = config ? `${config.baseUrl} ${config.apiKey} ${sessionsAttempt}` : null
-  const [activeSessionQuery, setActiveSessionQuery] = useState<string | null>(null)
-  if (activeSessionQuery !== sessionQuery) {
-    setActiveSessionQuery(sessionQuery)
-    if (sessionQuery === null) {
-      setSessions([])
-      setSessionsState('ready')
-    } else {
-      setSessionsState('loading')
-    }
-  }
+  // Sessions follow-ups run in the fetch callback (same commit as the
+  // data). The first session activates; an id that no longer exists
+  // falls back to the first row.
+  const sessionsQuery = useSessionsList(config, {
+    refreshSignal: sessionsAttempt,
+    onData: (rows) => {
+      setSessions(rows)
+      setActiveSessionId((current) => {
+        if (current && rows.some((row) => row.id === current)) return current
+        return rows[0]?.id ?? null
+      })
+    },
+  })
+  // Skill catalogue for the slash picker: a failed load hides the picker
+  // (plain text still sends).
+  const skillsQuery = useSkillsList(config, {
+    onData: (rows) => {
+      setSkills(rows)
+      setSkillsFailed(false)
+    },
+  })
+  // Null config while a session is active fetches nothing: the runs key
+  // stays null with it.
+  const runsQuery = useRunsList(config && activeSessionId ? config : null, {
+    sessionId: activeSessionId ?? undefined,
+    refreshSignal: threadsAttempt,
+    onData: (rows) => {
+      setRuns(rows.map((run) => ({ id: run.id, threadKey: run.threadKey })))
+    },
+  })
+  // Threads/files joint status (raw fetch below); combined with the runs
+  // query status into the panel's single threads state.
+  const [jointState, setJointState] = useState<LoadState>('ready')
 
-  // Sessions load once per config.
-  useEffect(() => {
-    if (!config) return
-    let live = true
-    listSessions(config)
-      .then((rows) => {
-        if (!live) return
-        setSessions(rows)
-        setSessionsState('ready')
-        setActiveSessionId((current) => {
-          if (current && rows.some((row) => row.id === current)) return current
-          return rows[0]?.id ?? null
-        })
-      })
-      .catch((error: unknown) => {
-        if (!live) return
-        setSessionsState(loadStateOf(error))
-      })
-    return () => {
-      live = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config?.baseUrl, config?.apiKey, sessionsAttempt])
+  // Sessions state mirrors the query status (the query resets to
+  // loading/ready during its own render).
+  useMirrorStatus(sessionsQuery.status, setSessionsState)
+  // Sessions clear when the config disconnects (was: query render-reset).
+  useClearOnUnset(!!config, () => setSessions([]))
+  // Runs clear when their key unsets (was: query render-reset).
+  useClearOnUnset(!!config && !!activeSessionId, () => setRuns([]))
+  // A failed skills load hides the picker.
+  useMirrorStatus(skillsQuery.status, (status) => {
+    if (status !== 'loading' && status !== 'ready') setSkillsFailed(true)
+  })
 
-  // Skill catalogue for the slash picker: loaded once per config, filtered
-  // locally. A failed load hides the picker (plain text still sends).
-  useEffect(() => {
-    if (!config) return
-    let live = true
-    listSkills(config)
-      .then((rows) => {
-        if (!live) return
-        setSkills(rows)
-        setSkillsFailed(false)
-      })
-      .catch(() => {
-        if (!live) return
-        setSkillsFailed(true)
-      })
-    return () => {
-      live = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config?.baseUrl, config?.apiKey])
-
-  // Threads, runs, and the file index reset during render, never in the
-  // fetch effect: when the query changes the previous rows belong to
-  // another session.
+  // Threads and the file index reset during render, never in the fetch
+  // effect: when the query changes the previous rows belong to another
+  // session. (Runs reset through the runs query above.)
   const threadQuery =
     config && activeSessionId ? `${config.baseUrl} ${config.apiKey} ${activeSessionId} ${threadsAttempt}` : null
   const [activeThreadQuery, setActiveThreadQuery] = useState<string | null>(null)
@@ -155,39 +173,37 @@ export function useChatSync({
     setActiveThreadQuery(threadQuery)
     if (threadQuery === null) {
       setThreads([])
-      setRuns([])
       setFiles([])
-      setThreadsState(activeSessionId ? 'loading' : 'ready')
+      setJointState(activeSessionId ? 'loading' : 'ready')
     } else {
-      setThreadsState('loading')
+      setJointState('loading')
     }
   }
 
-  // Threads, runs, and the file index follow the active session.
+  // Threads and the file index follow the active session.
   useEffect(() => {
     if (!config || !activeSessionId) return
     let live = true
-    Promise.all([
-      listThreads(config, activeSessionId),
-      listRuns(config, activeSessionId),
-      listSessionArtifacts(config, activeSessionId),
-    ])
-      .then(([threadRows, runRows, artifacts]) => {
+    Promise.all([listThreads(config, activeSessionId), listSessionArtifacts(config, activeSessionId)])
+      .then(([threadRows, artifacts]) => {
         if (!live) return
         setThreads(threadRows)
-        setRuns(runRows.map((run) => ({ id: run.id, threadKey: run.threadKey })))
         setFiles(artifacts.map(toChatFile))
-        setThreadsState('ready')
+        setJointState('ready')
       })
       .catch((error: unknown) => {
         if (!live) return
-        setThreadsState(loadStateOf(error))
+        setJointState(loadStateOf(error))
       })
     return () => {
       live = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config?.baseUrl, config?.apiKey, activeSessionId, threadsAttempt])
+
+  // One threads state from both fetches: loading dominates, then the
+  // first failure.
+  useMirrorStatus(combineLoadStates(jointState, runsQuery.status), setThreadsState)
 
   // Stream state resets during render, never in the tail effect: the
   // pending delta/reasoning/tools belong to the previous thread.

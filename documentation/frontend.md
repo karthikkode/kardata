@@ -25,6 +25,16 @@ Every component follows props → render → states:
    permission-denied where applicable. A spinner with no empty/error state is
    unfinished.
 
+## Data seams are real hooks
+
+Components read the backend only through `data/use*.ts` hooks built on
+`data/useResource.ts` (`useResource` for queries: data + status +
+reload/refresh; `useAction` for mutations: run + pending + error).
+Seams never re-export api values (`export type` only); eslint bans
+value re-exports except `useThreads`/`useFiles` (live-tail and
+file-pipeline orchestration still unwinding) and `useApi` (error
+plumbing shared with `api/` internals).
+
 ## UI rules live in docs/design-system.md
 
 Styling, theming, interaction affordances, icons, containers, accessibility,

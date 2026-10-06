@@ -2,14 +2,14 @@
 // row comes from the backend: GET /v1/providers for the catalog (key
 // presence only, never key material) and the session read/write pair for
 // the binding. No fixtures, no guessed models.
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Icons } from '@/lib/icons'
 import { humanizeKey } from '@/lib/format'
 import { notify } from '@/lib/toast'
-import { getSession, listSessions, type Session } from '../data/useSessions'
-import { setSessionModel, type ProviderEntry, type SessionModelSelection } from '../data/useModels'
-import { apiErrorStatus, isAuthError, StagingApiError, type StagingConfig } from '../data/useApi'
-import { useModelCatalog, type CatalogStatus } from '../data/useModelCatalog'
+import { useSession, useSessionsList } from '../data/useSessions'
+import { useModelActions, type ProviderEntry, type SessionModelSelection } from '../data/useModels'
+import { isAuthError, StagingApiError, type StagingConfig } from '../data/useApi'
+import { useModelCatalog } from '../data/useModelCatalog'
 import { DeniedNotice, PanelError, UnavailableNotice } from './research-parts'
 import { BodySm, Caption, CardTitle } from './text'
 import { Button } from './ui/button'
@@ -190,44 +190,56 @@ export function ModelsPanel({
 }) {
   const catalog = useModelCatalog(config)
   const { providers, defaultProvider } = catalog
-  const [sessions, setSessions] = useState<Session[]>([])
-  const [sessionsStatus, setSessionsStatus] = useState<CatalogStatus>(() => (config ? 'loading' : 'ready'))
-  const [sessionsAttempt, setSessionsAttempt] = useState(0)
+  // Sessions follow-up runs in the fetch callback (same commit as the
+  // data): keep the selection when it still exists, else fall back to
+  // the first row.
+  const sessionsQuery = useSessionsList(config, {
+    onData: (rows) => {
+      setActiveSessionId((current) => {
+        if (current && rows.some((row) => row.id === current)) return current
+        return rows[0]?.id ?? null
+      })
+    },
+  })
+  const sessions = sessionsQuery.data ?? []
+  const sessionsStatus = sessionsQuery.status
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [binding, setBinding] = useState<SessionModelSelection | null>(null)
   const [boundFor, setBoundFor] = useState<string | null>(null)
   const [bindingFailed, setBindingFailed] = useState(false)
+  // The binding follows the active session: the session read carries the
+  // latest stored selection, absent until PATCH sets one. The banner
+  // renders from boundFor, so a session switch shows a loading line until
+  // its own read lands instead of the previous session's binding. The
+  // post-save refetch (see save) reconciles the save/read race.
+  const bindingQuery = useSession(config, activeSessionId, {
+    onData: (session) => {
+      setBinding(session.model ?? null)
+      setBoundFor(session.id)
+      setBindingFailed(false)
+      const stored = session.model
+      if (stored) {
+        setDrafts((current) => ({
+          ...current,
+          [stored.provider]: {
+            model: stored.model,
+            reasoning: stored.reasoning,
+            ...(stored.effort === undefined ? {} : { effort: stored.effort }),
+          },
+        }))
+      }
+    },
+  })
+  const modelActions = useModelActions(config)
   const [drafts, setDrafts] = useState<Record<string, { model: string; reasoning: boolean; effort?: string }>>({})
   const [saving, setSaving] = useState<string | null>(null)
   const [saveErrors, setSaveErrors] = useState<Record<string, string | null>>({})
-  const [bindingAttempt, setBindingAttempt] = useState(0)
-  // A save that lands after its session read started leaves fresher
-  // state than the read; the read then stays out of the way.
-  const saveEpoch = useRef(0)
   const status = catalog.status !== 'ready' ? catalog.status : sessionsStatus
-
-  useEffect(() => {
-    if (!config) return undefined
-    let live = true
-    listSessions(config)
-      .then((rows) => {
-        if (!live) return
-        setSessions(rows)
-        setActiveSessionId((current) => {
-          if (current && rows.some((row) => row.id === current)) return current
-          return rows[0]?.id ?? null
-        })
-        setSessionsStatus('ready')
-      })
-      .catch((error: unknown) => {
-        if (!live) return
-        setSessionsStatus(apiErrorStatus(error))
-      })
-    return () => {
-      live = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config?.baseUrl, config?.apiKey, sessionsAttempt])
+  // A failed binding read surfaces through bindingFailed; the hook keeps
+  // the error status for it.
+  if (bindingQuery.status !== 'loading' && bindingQuery.status !== 'ready' && !bindingFailed) {
+    setBindingFailed(true)
+  }
 
   // Seed per-provider drafts once the catalog lands. Render-time, like
   // the query keys: retries keep the user's picks.
@@ -244,50 +256,12 @@ export function ModelsPanel({
 
   function retryCatalog() {
     catalog.reload()
-    setSessionsStatus('loading')
-    setSessionsAttempt((value) => value + 1)
+    sessionsQuery.reload()
   }
-
-  // The binding follows the active session: the session read carries the
-  // latest stored selection, absent until PATCH sets one. The banner
-  // renders from boundFor, so a session switch shows a loading line until
-  // its own read lands instead of the previous session's binding.
-  useEffect(() => {
-    if (!config || !activeSessionId) return undefined
-    let live = true
-    const epoch = saveEpoch.current
-    getSession(config, activeSessionId)
-      .then((session) => {
-        if (!live) return
-        if (epoch !== saveEpoch.current) return
-        setBinding(session.model ?? null)
-        setBoundFor(activeSessionId)
-        setBindingFailed(false)
-        const stored = session.model
-        if (stored) {
-          setDrafts((current) => ({
-            ...current,
-            [stored.provider]: {
-              model: stored.model,
-              reasoning: stored.reasoning,
-              ...(stored.effort === undefined ? {} : { effort: stored.effort }),
-            },
-          }))
-        }
-      })
-      .catch(() => {
-        if (!live) return
-        setBindingFailed(true)
-      })
-    return () => {
-      live = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config?.baseUrl, config?.apiKey, activeSessionId, bindingAttempt])
 
   function retryBinding() {
     setBindingFailed(false)
-    setBindingAttempt((value) => value + 1)
+    bindingQuery.reload()
   }
 
   function save(entry: ProviderEntry) {
@@ -303,17 +277,20 @@ export function ModelsPanel({
           : 'high'
     setSaving(entry.name)
     setSaveErrors((current) => ({ ...current, [entry.name]: null }))
-    setSessionModel(config, activeSessionId, {
-      provider: entry.name,
-      model: draft.model,
-      reasoning: selected?.reasoning === 'native' ? draft.reasoning : false,
-      ...(effort === undefined ? {} : { effort }),
-    })
+    modelActions.setModel
+      .run(activeSessionId, {
+        provider: entry.name,
+        model: draft.model,
+        reasoning: selected?.reasoning === 'native' ? draft.reasoning : false,
+        ...(effort === undefined ? {} : { effort }),
+      })
       .then((stored) => {
-        saveEpoch.current += 1
         setBinding(stored)
         setBoundFor(activeSessionId)
         setBindingFailed(false)
+        // Re-read after the write: a session read that started before
+        // the save lands stale, and the refetch reconciles it.
+        bindingQuery.reload()
         notify.success('Saved')
         setDrafts((current) => ({
           ...current,

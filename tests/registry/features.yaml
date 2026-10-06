@@ -6700,3 +6700,9 @@
   tiers:
     - db
   states: []
+- id: frontend.hook.useResource
+  layer: frontend
+  surface: frontend/src/data/useResource.ts
+  tiers:
+    - unit
+  states: []

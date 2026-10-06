@@ -1,4 +1,4 @@
-// [F:frontend.hook.useModelCatalog]
+// [F:frontend.hook.useModelCatalog] [F:frontend.hook.useResource]
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'

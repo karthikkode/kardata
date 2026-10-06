@@ -7,9 +7,9 @@ import { Icons } from '@/lib/icons'
 import { humanizeKey } from '../lib/format'
 import { threadStateReasonLabel } from '../lib/labels'
 import { dockEnter, dockExit, useExitState } from '@/lib/motion'
-import { cancelRun, pauseRun, resumeRun } from '../data/useRuns'
+import { useRunActions } from '../data/useRuns'
 import { sendThreadText, steerThread, type ThreadView, type ToolPayload } from '../data/useThreads'
-import { compactSession, createSession, deleteSession, renameSession, type Session } from '../data/useSessions'
+import { useSessionActions, type Session } from '../data/useSessions'
 import { isAuthError, type StagingConfig } from '../data/useApi'
 import { type SkillSummary } from '../data/useSkills'
 import { useReasoningOpen } from './chat/ReasoningDisclosure'
@@ -52,6 +52,8 @@ export function ChatPanel({
   contextSummary: string | null
   contextDetails?: { label: string; value: string }[]
 }) {
+  const sessionActions = useSessionActions(config)
+  const runActions = useRunActions(config)
   const [sessions, setSessions] = useState<Session[] | null>(null)
   const [sessionsState, setSessionsState] = useState<LoadState>('loading')
   const [sessionsAttempt, setSessionsAttempt] = useState(0)
@@ -252,7 +254,8 @@ export function ChatPanel({
     const sessionId = activeSession.id
     setSavingName(true)
     setRenameError(null)
-    renameSession(config, sessionId, title)
+    sessionActions.rename
+      .run(sessionId, title)
       .then((updated) => {
         setSessions((current) =>
           current ? current.map((row) => (row.id === sessionId ? updated : row)) : current,
@@ -290,7 +293,8 @@ export function ChatPanel({
     if (!config || deletingSession) return
     setDeletingSession(true)
     setDeleteError(null)
-    deleteSession(config, sessionId)
+    sessionActions.remove
+      .run(sessionId)
       .then(() => {
         setSessions((current) => (current ? current.filter((row) => row.id !== sessionId) : current))
         if (sessionId === activeSessionId) {
@@ -315,7 +319,8 @@ export function ChatPanel({
 
   function newSession() {
     if (!config) return
-    createSession(config, 'New chat')
+    sessionActions.create
+      .run('New chat')
       .then((session) => {
         setSessions((current) => (current ? [session, ...current] : [session]))
         setActiveSessionId(session.id)
@@ -354,7 +359,7 @@ export function ChatPanel({
     setCompacting(true)
     setCompactStatus(null)
     try {
-      const res = await compactSession(config, activeSessionId)
+      const res = await sessionActions.compact.run(activeSessionId)
       if (res.compacted) {
         setCompactStatus('Session context compacted: history condensed, token budget restored.')
       } else {
@@ -404,7 +409,8 @@ export function ChatPanel({
       setWorking(true)
       setSendError(null)
       const title = trimmed.length > 40 ? `${trimmed.slice(0, 40)}…` : trimmed
-      createSession(config, title)
+      sessionActions.create
+        .run(title)
         .then((session) => {
           setSessions((current) => (current ? [session, ...current] : [session]))
           setActiveSessionId(session.id)
@@ -469,7 +475,7 @@ export function ChatPanel({
     if (!config || !threadKey) return
     const run = runs.find((entry) => entry.threadKey === threadKey)
     if (run) {
-      cancelRun(config, run.id).catch(() => undefined)
+      runActions.cancel.run(run.id).catch(() => undefined)
     }
     streamControllers.current[threadKey]?.abort()
     setWorking(false)
@@ -485,7 +491,8 @@ export function ChatPanel({
     if (!config) return
     const run = runs.find((entry) => entry.threadKey === key)
     if (run) {
-      cancelRun(config, run.id)
+      runActions.cancel
+        .run(run.id)
         .then(() => setThreadsAttempt((attempt) => attempt + 1))
         .catch(() => undefined)
     }
@@ -495,7 +502,8 @@ export function ChatPanel({
     if (!config) return
     const run = runs.find((entry) => entry.threadKey === key)
     if (run) {
-      pauseRun(config, run.id)
+      runActions.pause
+        .run(run.id)
         .then(() => setThreadsAttempt((attempt) => attempt + 1))
         .catch(() => undefined)
     }
@@ -505,7 +513,8 @@ export function ChatPanel({
     if (!config) return
     const run = runs.find((entry) => entry.threadKey === key)
     if (run) {
-      resumeRun(config, run.id)
+      runActions.resume
+        .run(run.id)
         .then(() => setThreadsAttempt((attempt) => attempt + 1))
         .catch(() => undefined)
     }
