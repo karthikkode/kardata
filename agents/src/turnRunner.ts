@@ -56,7 +56,11 @@ export class OperationRecoveryError extends Error {
 // idempotency dedupes replays instead of doubling effects.
 export function toolOperationId(operationKey: string, round: number, callIndex: number): string {
   const identity = `${operationKey}:${round}:${callIndex}`
-  return identity.length <= 128 && /^[\x21-\x7e](?:[\x20-\x7e]*[\x21-\x7e])?$/.test(identity) ? identity : `op:${createHash('sha256').update(identity).digest('hex')}`
+  // Edge rule on the key, not the composed triple: the ':round:index'
+  // suffix would otherwise launder the key's own edge space into a
+  // passing interior (a suffix of safe chars can only extend a key that
+  // already passes). Length still guards the composed identity.
+  return identity.length <= 128 && /^[\x21-\x7e](?:[\x20-\x7e]*[\x21-\x7e])?$/.test(operationKey) ? identity : `op:${createHash('sha256').update(identity).digest('hex')}`
 }
 
 /** Tool client behind one turn. The Streamable HTTP implementation below
