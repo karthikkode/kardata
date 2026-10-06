@@ -532,6 +532,12 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
         await ok(route, { items: [], nextAfterId: null })
         return
       }
+      if (rest === '/queue' && method === 'GET') {
+        const state = await gate(route, 'messages')
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
+        await ok(route, [])
+        return
+      }
       if (rest === '/events' && method === 'GET') {
         const state = await gate(route, 'events')
         if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
