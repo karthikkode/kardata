@@ -85,10 +85,11 @@ const CASES: FaultCase[] = [
       { kind: 'role', role: 'log', name: 'Chat messages' },
     ],
     retry: TRY_AGAIN,
-    draftFill: { kind: 'role', role: 'textbox' }, draftText: 'unsent draft',
+    // No draftFill: the refetch opens another session, whose composer is
+    // a different draft scope; drafts are pinned by same-surface cases.
     refetch: { steps: [
       { click: { kind: 'css', css: '[aria-label="Chat sessions"]' } },
-      { click: { kind: 'text', text: 'Matrix chat 2' } },
+      { click: { kind: 'role', role: 'menuitem', name: 'Open What is running right now' } },
     ] },
   },
   {
@@ -102,10 +103,11 @@ const CASES: FaultCase[] = [
       { kind: 'role', role: 'log', name: 'Chat messages' },
     ],
     retry: TRY_AGAIN,
-    draftFill: { kind: 'role', role: 'textbox' }, draftText: 'unsent draft',
+    // No draftFill: the refetch opens another session, whose composer is
+    // a different draft scope; drafts are pinned by same-surface cases.
     refetch: { steps: [
       { click: { kind: 'css', css: '[aria-label="Chat sessions"]' } },
-      { click: { kind: 'text', text: 'Matrix chat 2' } },
+      { click: { kind: 'role', role: 'menuitem', name: 'Open What is running right now' } },
     ] },
   },
   {
