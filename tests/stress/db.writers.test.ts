@@ -7,7 +7,7 @@
 import { Pool, type PoolClient } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { appendEvent, getThreadHeader, readResearchProgress, recordHeartbeat } from '../../backend/src/db/index.js'
-import { ensureTestDb, TEST_DATABASE_URL } from '../backend/db-helper.js'
+import { dropTestDb, ensureTestDb, TEST_DATABASE_URL } from '../backend/db-helper.js'
 
 const STRESS = Boolean(process.env['KARDATA_STRESS'])
 const REDUCED_SCALE = process.env['KARDATA_STRESS_SCALE'] === 'reduced'
@@ -27,13 +27,15 @@ describe('stress writer contention ratio', () => {
 
 describe.skipIf(!TEST_DATABASE_URL || !STRESS)('stress writer contention [F:db.index.appendEvent] [F:db.index.recordHeartbeat] [F:db.index.getThreadHeader] [F:db.heartbeats.recordHeartbeat] [F:db.workspace_research.readResearchProgress] [F:db.events.appendEvent] [F:db.threads.getThreadHeader] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db]', () => {
   let pool: Pool
+  let dbUrl = ''
   const sectorId = 'TEST stress writer sector'
   const threadKey = 'TEST stress writer thread'
   const sessionId = 'TEST stress writer session'
 
   beforeAll(async () => {
+    dbUrl = await ensureTestDb('kardata_test_stress_writers')
     pool = new Pool({
-      connectionString: await ensureTestDb('kardata_test_stress_writers'),
+      connectionString: dbUrl,
       max: POOL_MAX,
       statement_timeout: 5000,
     })
@@ -51,7 +53,10 @@ describe.skipIf(!TEST_DATABASE_URL || !STRESS)('stress writer contention [F:db.i
     )
   }, 120_000)
 
-  afterAll(async () => { await pool?.end() })
+  afterAll(async () => {
+    await pool?.end()
+    if (dbUrl) await dropTestDb(dbUrl)
+  })
 
   it(`runs ${WRITERS} writers with no deadlocks, no timeouts, fast pool waits`, async () => {
     const waits: number[] = []

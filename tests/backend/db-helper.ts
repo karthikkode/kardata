@@ -123,6 +123,24 @@ export async function ensureTestDb(dbName: string): Promise<string> {
   return logOp(logger, 'db.test-database.create', () => executeTestDb(dbName))
 }
 
+/** Drop a database created by ensureTestDb. The caller ends its pool
+ * first; the name guard keeps this off real databases. */
+export async function dropTestDb(url: string): Promise<void> {
+  const name = new URL(url).pathname.replace(/^\//, '')
+  if (!/^kardata_(test|live)_[a-z0-9_]+$/.test(name)) {
+    throw new Error('Refusing to drop a non-test database')
+  }
+  return logOp(logger, 'db.test-database.drop', async () => {
+    const admin = adminClient()
+    await admin.connect()
+    try {
+      await admin.query(`DROP DATABASE IF EXISTS "${name}"`)
+    } finally {
+      await admin.end()
+    }
+  })
+}
+
 async function executeTestDb(dbName: string): Promise<string> {
   const isolatedName = `${dbName.slice(0, 46)}_${randomUUID().replaceAll('-', '').slice(0, 16)}`
   const url = derivedUrl(isolatedName)
