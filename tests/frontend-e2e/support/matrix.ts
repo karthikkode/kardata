@@ -257,7 +257,12 @@ export async function runMatrixState(page: Page, mc: MatrixCase, state: MatrixSt
   page.on('pageerror', (error) => errors.push(String(error).slice(0, 300)))
 
   await page.clock.install({ time: new Date(FIXED_NOW) })
-  await serveApi(page, { ...matrixApiOptions(dataState, mc.primary, mc.secondary), stream: 'static' })
+  // Held-open stream: static's instant EOF leaves chat routes stuck on
+  // "Reconnecting" (the tail treats clean EOF as a break), shifting the
+  // log layout at a wall-clock-dependent moment — nondeterministic
+  // screenshots. Live primes the same messages, then holds the socket
+  // open like the real server, so pixel tests see a quiescent stream.
+  await serveApi(page, { ...matrixApiOptions(dataState, mc.primary, mc.secondary), stream: 'live' })
   await page.setViewportSize({ width, height: HEIGHTS[width] ?? 800 })
   if (state === 'dark') await page.emulateMedia({ colorScheme: 'dark' })
   if (state === 'reduced-motion') await page.emulateMedia({ reducedMotion: 'reduce' })
