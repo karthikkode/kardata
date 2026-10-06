@@ -204,6 +204,16 @@ PlanDocument. `ResourceNotice` delegates to ResourceState and `StatusPill`
 delegates to Badge; the Researches list notices keep their pinned copy in
 `research-parts.tsx`. Pinned by `tests/frontend/shells.test.tsx`.
 
+Denied contract: every denied UI renders `role=alert`, the copy "Ask an
+owner for access, then try again.", and a Try again retry — ResourceState,
+DeniedNotice (Models/Runs) and the dock ChatStates alike. Pinned by the 17
+matrix denied states, which assert all three. Multi-resource panels degrade
+per part: ModelsPanel renders independent sessions-picker and catalog states,
+so a providers outage shows an inline catalog error with the picker working
+(pinned by the get.spec providers-panel label). A stream break never clears a
+terminal send outcome: failed/stopped/paused survive EOF instead of flashing
+to reconnecting.
+
 Adopted (including review remediation): App page title/gutters with
 the v2 page frame (Overview-only search removed in favor of the
 palette); Researches type tabs (Base UI Tabs), state selection
