@@ -3,17 +3,17 @@ import { describe, expect, it } from 'vitest'
 import { isFreshTerminalStatus, isTerminalThreadStatus } from '@/data/api/live'
 
 describe('terminal thread status', () => {
-  it('treats FINISHED, ERROR and STOPPED as terminal', () => {
+  it('treats FINISHED, ERROR, STOPPED and CANCELLING as terminal', () => {
     expect(isTerminalThreadStatus('FINISHED')).toBe(true)
     expect(isTerminalThreadStatus('ERROR')).toBe(true)
     expect(isTerminalThreadStatus('STOPPED')).toBe(true)
+    expect(isTerminalThreadStatus('CANCELLING')).toBe(true)
   })
 
   it('ignores running, queued, paused and unknown statuses', () => {
     expect(isTerminalThreadStatus('RUNNING')).toBe(false)
     expect(isTerminalThreadStatus('QUEUED')).toBe(false)
     expect(isTerminalThreadStatus('PAUSED')).toBe(false)
-    expect(isTerminalThreadStatus('CANCELLING')).toBe(false)
     expect(isTerminalThreadStatus(undefined)).toBe(false)
   })
 
@@ -23,5 +23,7 @@ describe('terminal thread status', () => {
     expect(isFreshTerminalStatus('ERROR', 3, 5)).toBe(false)
     expect(isFreshTerminalStatus('ERROR', undefined, 0)).toBe(false)
     expect(isFreshTerminalStatus('RUNNING', 9, 5)).toBe(false)
+    expect(isFreshTerminalStatus('CANCELLING', 9, 5)).toBe(true)
+    expect(isFreshTerminalStatus('CANCELLING', 5, 5)).toBe(false)
   })
 })

@@ -77,6 +77,19 @@ describe.skipIf(!TEST_DATABASE_URL)('reconciliation production DB/projector path
       expect((await getThreadHeader(pool,session.id))?.status).not.toBe('PAUSED')
     } finally { await pool.end() }
   })
+  it('marks the thread CANCELLING when supervision cancels a run', async () => {
+    const pool = new Pool({ connectionString: await ensureTestDb('kardata_test_reconcile_cancel') })
+    try {
+      const session = await createSession(pool,'TEST supervision cancel')
+      await projectNewEvents(pool)
+      await beginThreadTurn(pool,session.id,'run-cancelled')
+      const [found] = await listReconciliationCandidates(pool)
+      const recorded = await recordReconciliation(pool,found!,{ kind: 'orphan-child',response: 'cancel',reason: 'TEST parent ended' },0)
+      expect(recorded).toBe(true)
+      await projectNewEvents(pool)
+      expect((await getThreadHeader(pool,session.id))?.status).toBe('CANCELLING')
+    } finally { await pool.end() }
+  })
   it('separates user messages and unrelated fleet heartbeats from durable agent progress', async () => {
     const pool = new Pool({ connectionString: await ensureTestDb('kardata_test_reconcile_scope') })
     try {

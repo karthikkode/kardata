@@ -10,6 +10,7 @@ import { ensureTemporalTracing } from '../../backend/src/observability/temporal-
 import { connectClient, connectWorker, temporalNamespace } from '../../backend/src/temporal/connection.js'
 import { createLaneWorker } from '../../backend/src/temporal/worker.js'
 import { appendEventActivity, karbotTurnActivity } from '../../backend/src/temporal/activities/turn.js'
+import { TemporalRunsGateway } from '../../backend/src/temporal/runs-gateway.js'
 import { getThread, rebuildFromEvents } from '../../backend/src/db/index.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb } from './db-helper.js'
@@ -276,6 +277,32 @@ describe.skipIf(!ENABLED)('session-run workflow (B2.2) [F:backend.activity.turn.
       'post-stop reply',
     )
     await handle.signal('runCancel')
+    expect(await handle.result()).toBe('cancelled')
+  }, 120_000)
+
+  it('marks the thread CANCELLING through the gateway before the run finishes cancelling [F:backend.workflow.run.cancelSignal]', async () => {
+    const sessionId = `gwcancel-${Date.now()}`
+    const handle = await client.workflow.start('sessionRun', {
+      taskQueue: (worker.options as { taskQueue: string }).taskQueue,
+      workflowId: `session-run-${sessionId}`,
+      args: [{ sessionId, fakeSteps: [{ text: 'fake after', delayMs: 15_000 }] }],
+    })
+    await waitFor(async () => await queryState(handle) === 'RUNNING', 30_000, 'run to start')
+    await handle.signal('runSend', 'doomed-turn')
+    await waitFor(async () => (await texts(sessionId)).includes('doomed-turn'), 15_000, 'user message before turn')
+    const pool = db()
+    try {
+      const gateway = new TemporalRunsGateway(pool)
+      const result = await gateway.cancelRun(`session-run-${sessionId}`)
+      expect(result.state).toBe('accepted')
+      // The CANCELLING state lands ahead of the unwind, so the UI can
+      // release on it instead of waiting for finished.
+      const events = await readPartition(pool, `session:${sessionId}`)
+      const states = events
+        .filter((event) => event.type === 't.thread.state')
+        .map((event) => (event.payload as { status?: string }).status)
+      expect(states).toContain('CANCELLING')
+    } finally { await pool.end() }
     expect(await handle.result()).toBe('cancelled')
   }, 120_000)
 

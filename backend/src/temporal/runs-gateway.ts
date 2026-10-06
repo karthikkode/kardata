@@ -30,6 +30,7 @@ import { defaultPayloadConverter } from '@temporalio/common'
 import { getThread, listThreads, listThreadHeaders, requireThread, setThreadPaused, WorkspaceError } from '../db/index.js'
 
 import {
+  appendCancelState,
   buildSessionSignalStart,
   childNameOf,
   closeState,
@@ -603,6 +604,7 @@ export class TemporalRunsGateway implements RunsGateway {
 
   async cancelRun(runId: string): Promise<CommandResult> {
     const type = await this.requireType(runId, ['sessionRun','subagentRun','companyResearch'])
+    await appendCancelState(this.pool, runId, type)
     const client = await this.client()
     const handle = client.workflow.getHandle(runId)
     if (type === 'companyResearch') await handle.cancel()

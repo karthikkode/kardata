@@ -47,8 +47,9 @@ export interface LiveMessage {
   state?: string
 }
 
-/** Thread statuses after which no reply can arrive: the run is over. */
-const TERMINAL_THREAD_STATUSES = ['FINISHED', 'ERROR', 'STOPPED']
+/** Thread statuses after which no reply can arrive: the run is over
+ * (CANCELLING: the owed reply dies with the turn; finished follows). */
+const TERMINAL_THREAD_STATUSES = ['FINISHED', 'ERROR', 'STOPPED', 'CANCELLING']
 
 export function isTerminalThreadStatus(status: string | undefined): boolean {
   return status !== undefined && TERMINAL_THREAD_STATUSES.includes(status)

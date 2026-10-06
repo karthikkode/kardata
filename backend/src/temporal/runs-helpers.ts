@@ -1,6 +1,7 @@
 // Run gateway helpers: workflow-id builders, the approved-coordinator
 // transition, cancel signaling, and status mapping.
 import { randomUUID } from 'node:crypto'
+import { appendEvent, type TransactableDb } from '../db/index.js'
 import { CancelledFailure, WorkflowFailedError, WorkflowNotFoundError } from '@temporalio/client'
 import { laneConfig } from './lanes.js'
 import { createLogger, logOp } from '../observability/logging.js'
@@ -90,6 +91,26 @@ export function buildSessionSignalStart(
 
 export function commandId(): string {
   return `cmd-${randomUUID()}`
+}
+
+/** Thread + partition a run id cancels: session runs own their session
+ * thread, child runs (subagent, company research) own agent:<childId>. */
+export function cancelThreadTarget(runId: string, type: string): { threadKey: string; partition: string } {
+  if (type === 'sessionRun') {
+    const sessionId = runId.slice(SESSION_PREFIX.length)
+    return { threadKey: sessionId, partition: `session:${sessionId}` }
+  }
+  return { threadKey: `agent:${runId}`, partition: `child:${runId}` }
+}
+
+/** Prompt CANCELLING state for a run about to be cancelled, ahead of the
+ * signal: the run can take seconds to unwind (activity cancellation),
+ * and the UI releases its thinking indicator on the CANCELLING frame
+ * instead of waiting for finished. Fails closed: a DB error aborts
+ * before anything is cancelled. */
+export async function appendCancelState(pool: TransactableDb, runId: string, type: string): Promise<void> {
+  const target = cancelThreadTarget(runId, type)
+  await appendEvent(pool, { idempotencyKey: `cancel-state:${runId}:${randomUUID()}`, partition: target.partition, type: 't.thread.state', payload: { threadKey: target.threadKey, status: 'CANCELLING', acceptingSteer: false } })
 }
 
 export function sleep(ms: number): Promise<void> {

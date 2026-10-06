@@ -264,6 +264,10 @@ async function writeStop(tx: Db, key: string, partition: string, candidate: Reco
 
 async function writeCancel(tx: Db, key: string, partition: string, candidate: ReconciliationCandidate, finding: ReconciliationFinding): Promise<void> {
   await appendEvent(tx, { idempotencyKey: `${key}:message`, partition, type: 't.message.appended', payload: { threadKey: candidate.threadKey, kind: 'text', message: { text: `Supervisor cancelled this run: ${finding.reason}` } } })
+  // Prompt state for live orphan-child threads: the UI releases its
+  // thinking indicator on CANCELLING instead of waiting for finished.
+  // (On gone threads this projects to zero rows: harmless.)
+  await appendEvent(tx, { idempotencyKey: `${key}:state`, partition, type: 't.thread.state', payload: { threadKey: candidate.threadKey, status: 'CANCELLING', acceptingSteer: false } })
   await raiseAlert(tx, { kind: finding.kind, severity: 'high', subject: `Run cancelled on ${candidate.threadKey}: ${finding.reason}`, threadKey: candidate.threadKey })
 }
 
