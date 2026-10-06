@@ -141,6 +141,16 @@ describe.skipIf(!ENABLED)('continue-as-new (P4.2.4) [F:backend.activity.turn.app
     return rows.filter((row) => row.type === 't.message.appended' && (row.payload['message'] as { role?: string } | undefined)?.role === 'agent').length
   }
 
+  async function hasUserMessage(partition: string, text: string): Promise<boolean> {
+    const rows = await events(partition)
+    return rows.some(
+      (row) =>
+        row.type === 't.message.appended' &&
+        (row.payload['message'] as { role?: string; text?: string } | undefined)?.role === 'user' &&
+        (row.payload['message'] as { text?: string } | undefined)?.text === text,
+    )
+  }
+
   // Walks the continue-as-new chain link by link: every run's
   // continuedExecutionRunId resolves to its predecessor, every link shares
   // the first execution id, and the first run's history holds the
@@ -192,6 +202,10 @@ describe.skipIf(!ENABLED)('continue-as-new (P4.2.4) [F:backend.activity.turn.app
     // flight): the turn completes, then the run continues while paused with
     // the fresh message still queued.
     await handle.signal('runSend', 'two')
+    // A CAN hop may delay the shift past any fixed sleep: the user event
+    // proves 'two' left the inbox, so the short sleep lands mid-turn (2 s
+    // dwell) instead of ahead of a still-queued message.
+    await waitFor(async () => hasUserMessage(partition, 'two'), 30_000, 'second user message')
     await sleep(300)
     await client.workflow.getHandle(workflowId).signal('runPause')
     await client.workflow.getHandle(workflowId).signal('runSend', 'three')
@@ -199,7 +213,9 @@ describe.skipIf(!ENABLED)('continue-as-new (P4.2.4) [F:backend.activity.turn.app
       const state = (await client.workflow.getHandle(workflowId).query('runState')) as { state: string; pending: number }
       return state.state === 'PAUSED' && state.pending === 1
     }, 60_000, 'continued run to hold paused with one queued')
-    expect(await agentReplies(partition)).toBe(2)
+    // The pause receipt arrives while the turn still dwells: the reply
+    // lands on the turn's schedule, not the signal's.
+    await waitFor(async () => (await agentReplies(partition)) === 2, 60_000, 'second reply after pause')
     await client.workflow.getHandle(workflowId).signal('runResume')
     await waitFor(async () => (await agentReplies(partition)) === 3, 60_000, 'queued message after resume')
     const state = (await client.workflow.getHandle(workflowId).query('runState')) as { state: string; pending: number }
