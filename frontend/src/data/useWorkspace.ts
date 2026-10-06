@@ -153,7 +153,10 @@ export function useWorkspaceConversation(config: StagingConfig | null, threadKey
             update(key, (state) => reconcileConversation(state, live))
           }
           if (!controller.signal.aborted) {
-            update(key, (state) => ({ ...state, phase: 'reconnecting' }))
+            // A stream break must not clobber a terminal send outcome:
+            // the failed UI (with its re-send retry) stays until the
+            // user retries, instead of flashing to reconnecting.
+            update(key, (state) => (state.phase === 'failed' || state.phase === 'stopped' || state.phase === 'paused' ? state : { ...state, phase: 'reconnecting' }))
             await reconnectDelay(controller.signal)
           }
         }
