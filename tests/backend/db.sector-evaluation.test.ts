@@ -51,7 +51,7 @@ describe.skipIf(!TEST_DATABASE_URL)('sector evaluation views and route [F:db.eva
       [sectorId, `${tag} r1`, `${tag} t1`, `${tag} s`, `${tag} r2`, `${tag} t2`],
     )
     await appendEvent(pool, { idempotencyKey: `${tag} loop`, partition: `thread:${tag} t1`, type: 't.loop.detected', payload: { threadKey: `${tag} t1`, reason: 'TEST loop' } })
-    await appendEvent(pool, { idempotencyKey: `${tag} stall`, partition: `run:${tag} r2`, type: 't.stall.response', payload: { runId: `${tag} r2`, kind: 'no-progress', detail: 'TEST stall', response: 'nudge', reason: 'TEST', at: new Date().toISOString() } })
+    await appendEvent(pool, { idempotencyKey: `${tag} stall`, partition: `session:${tag} s`, type: 't.reconciliation.finding', payload: { threadKey: `${tag} t2`, workflowId: `${tag} wf`, lease: `${tag} lease`, kind: 'stalled-progress', response: 'nudge', reason: 'TEST' } })
     return sectorId
   }
 
