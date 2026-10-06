@@ -58,8 +58,17 @@ export async function listReconciliationCandidates(db: Db, after = '', limit = 1
         THEN 'sector-plan-'||binding.sector_id ELSE NULL END
       ELSE 'session-run-'||t.session_id END) AS workflow_id) owner
     LEFT JOIN LATERAL (SELECT max(at) AS at FROM heartbeats WHERE run_id=owner.workflow_id) beat ON true
-    LEFT JOIN LATERAL (SELECT max(at) AS at FROM thread_messages WHERE thread_key=t.key
-      AND ((kind='text' AND payload->>'role'='agent') OR (kind='tool' AND payload->>'name' IS DISTINCT FROM 'execution.recovery'))) progress ON true
+    LEFT JOIN LATERAL (SELECT max(at) AS at FROM (
+        SELECT m.at FROM thread_messages m WHERE m.thread_key=t.key
+        AND ((m.kind='text' AND m.payload->>'role'='agent') OR (m.kind='tool' AND m.payload->>'name' IS DISTINCT FROM 'execution.recovery'))
+        AND m.at >= COALESCE(c.active_run_started_at, '-infinity'::timestamptz)
+      UNION ALL
+        SELECT COALESCE(r.finished_at, r.started_at) FROM execution_rounds r WHERE r.thread_key=t.key
+        AND (r.run_id = c.active_run OR r.run_id = c.active_run || ':compaction' OR r.started_at >= COALESCE(c.active_run_started_at, '-infinity'::timestamptz))
+      UNION ALL
+        SELECT tc.at FROM tool_calls tc WHERE tc.thread_key=t.key
+        AND tc.at >= COALESCE(c.active_run_started_at, '-infinity'::timestamptz)
+      ) scoped) progress ON true
     WHERE t.key>$1 AND t.status NOT IN ('FINISHED','ERROR','PAUSED','SUSPENDED')
       AND (c.active_lease IS NOT NULL OR t.queue_depth>0 OR intent.state IN ('pending','uncertain'))
     ORDER BY t.key LIMIT $2`, [after, limit])
@@ -86,6 +95,19 @@ export async function controlRecorded(db: Db, threadKey: string, kind: string, r
     [threadKey, kind, response, lease],
   )
   return rows.length > 0
+}
+
+/** When a control effect was recorded for this thread, kind, response and
+ * lease: the nudge→pause escalation waits a full window after the nudge. */
+export async function controlRecordedAt(db: Db, threadKey: string, kind: string, response: string, lease: string | null): Promise<number | null> {
+  const { rows } = await db.query<{ at: Date | null }>(
+    `SELECT max(at) AS at FROM events WHERE type = 't.reconciliation.finding'
+     AND payload->>'threadKey' = $1 AND payload->>'kind' = $2 AND payload->>'response' = $3
+     AND payload->>'lease' IS NOT DISTINCT FROM $4`,
+    [threadKey, kind, response, lease],
+  )
+  const at = rows[0]?.at ?? null
+  return at === null ? null : new Date(at).getTime()
 }
 
 export interface TurnLoopEvidence {

@@ -1,6 +1,6 @@
 import { Context } from '@temporalio/activity'
 import { Client, Connection } from '@temporalio/client'
-import { controlRecorded, listOrphanedWorkflows, listReconciliationCandidates, parentWorkflowsForChildren, recentTurnLoopEvidence, recordOrphanWorkflow, recordReconciliation, workerPoolFromEnv, type OrphanedWorkflow, type ReconciliationCandidate, type ReconciliationFinding, type TransactableDb } from '../../db/index.js'
+import { controlRecorded, controlRecordedAt, listOrphanedWorkflows, listReconciliationCandidates, parentWorkflowsForChildren, recentTurnLoopEvidence, recordOrphanWorkflow, recordReconciliation, workerPoolFromEnv, type OrphanedWorkflow, type ReconciliationCandidate, type ReconciliationFinding, type TransactableDb } from '../../db/index.js'
 import { childLogger, createLogger, logOp } from '../../observability/logging.js'
 import { activityLogContext, activityLogFields, temporalClientInterceptors } from '../../observability/temporal-tracing.js'
 import { decideTurnLoop } from '../../observability/supervision-rules.js'
@@ -46,8 +46,12 @@ async function applyFinding(
   logger: ReturnType<typeof createLogger>,
 ): Promise<boolean> {
   let effective = finding
-  if (finding.response === 'nudge' && (await controlRecorded(db, candidate.threadKey, finding.kind, 'nudge', candidate.lease))) {
-    effective = { ...finding, response: 'pause', reason: `${finding.reason} A nudge already went out for this lease, so the turn pauses for owner review.` }
+  if (finding.response === 'nudge') {
+    const nudgedAt = await controlRecordedAt(db, candidate.threadKey, finding.kind, 'nudge', candidate.lease)
+    if (nudgedAt !== null) {
+      if (now - nudgedAt < RECONCILIATION_LIMITS.progressStaleMs) return false
+      effective = { ...finding, response: 'pause', reason: `${finding.reason} A nudge already went out for this lease over a full window ago, so the turn pauses for owner review.` }
+    }
   }
   if (effective.response === 'nudge' || effective.response === 'pause' || effective.response === 'stop' || effective.response === 'cancel' || (effective.response === 'fail' && effective.kind === 'turn-wall-exceeded')) {
     if (!control) throw new Error(`reconciliation control unavailable for ${effective.kind}/${effective.response}`)

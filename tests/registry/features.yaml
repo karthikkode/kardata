@@ -6002,6 +6002,12 @@
   tiers:
     - fault
   states: []
+- id: db.reconciliation.controlRecordedAt
+  layer: db
+  surface: backend/src/db/reconciliation.ts
+  tiers:
+    - db
+  states: []
 - id: db.reconciliation.listOrphanedWorkflows
   layer: db
   surface: backend/src/db/reconciliation.ts

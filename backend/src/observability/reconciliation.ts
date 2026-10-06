@@ -35,7 +35,7 @@ export function reconcileObservation(
   }
   const findings: ReconciliationFinding[] = []
   const heartbeatAge = now - (candidate.heartbeatAtMs ?? candidate.updatedAtMs)
-  const progressAge = now - (candidate.progressAtMs ?? candidate.updatedAtMs)
+  const progressAge = now - (candidate.progressAtMs ?? candidate.runStartedAtMs ?? candidate.updatedAtMs)
   if (owner.state === 'unavailable') {
     if (candidate.lease && heartbeatAge >= SUPERVISION_THRESHOLDS.turnWallMs) {
       return [{ kind: 'missing-heartbeat', response: 'fail', reason: 'No operation heartbeat arrived for over the wall clock and the owner cannot be described: Temporal retries are exhausted or the worker is gone. The thread failed with this reason and the parent was notified.' }]
@@ -56,7 +56,7 @@ function runningFindings(candidate: ReconciliationCandidate, findings: Reconcili
     findings.push({ kind: 'missing-heartbeat', response: 'observe', reason: 'This workflow has no recent operation heartbeat. Temporal retry/deadline supervision remains authoritative.' })
   }
   if (progressAge >= RECONCILIATION_LIMITS.progressStaleMs) {
-    findings.push({ kind: 'stalled-progress', response: 'nudge', reason: 'No durable agent reply or completed tool boundary was recorded recently. A first steering nudge goes out; a still-stuck turn pauses with an owner alert.' })
+    findings.push({ kind: 'stalled-progress', response: 'nudge', reason: 'No durable agent reply, provider round or completed tool boundary was recorded recently. A first steering nudge goes out; a turn still stuck a full window later pauses with an owner alert.' })
   }
   if (loop?.loop) {
     findings.push({ kind: 'loop-detected', response: 'stop', reason: loop.reason ?? 'A repeated tool loop was detected in this turn.' })

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { appendEvent, beginThreadTurn, createSector, createSession, finishSteering, getThreadHeader, listReconciliationCandidates, readTurnContinuation, recordReconciliation, researchHealth, saveTurnContinuation, type ReconciliationCandidate } from '../../backend/src/db/index.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { reconcileObservation } from '../../backend/src/observability/reconciliation.js'
-import { reconcilePage } from '../../backend/src/temporal/activities/reconciliation.js'
+import { reconcilePage, type ReconciliationControl } from '../../backend/src/temporal/activities/reconciliation.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
 const now = 2_000_000
@@ -24,6 +24,9 @@ describe('bounded execution reconciliation policy', () => {
   })
   it('keeps confirmed terminal ownership advisory until restart intents can be fenced', () => {
     expect(reconcileObservation(candidate(), { state: 'closed' }, now)).toEqual([expect.objectContaining({ kind: 'closed-owner',response: 'observe' })])
+  })
+  it('does not nudge a young turn after a long idle gap', () => {
+    expect(reconcileObservation(candidate({ progressAtMs: null,runStartedAtMs: now - 5 * 60_000,updatedAtMs: 0 }), { state: 'running' }, now)).toEqual([])
   })
   it('does not flag startup silence or fresh work', () => {
     expect(reconcileObservation(candidate({ heartbeatAtMs: null,progressAtMs: null }), { state: 'running' }, now)).toEqual([])
@@ -140,6 +143,55 @@ describe.skipIf(!TEST_DATABASE_URL)('reconciliation production DB/projector path
       expect(stamped.runStartedAtMs!).toBeLessThanOrEqual(Date.now())
       await finishSteering(pool,session.id,'run-stamp')
       expect(await listReconciliationCandidates(pool)).toEqual([])
+    } finally { await pool.end() }
+  })
+  it('leaves a new turn alone after 30 idle minutes', async () => {
+    const pool = new Pool({ connectionString: await ensureTestDb('kardata_test_reconcile_idleturn') })
+    try {
+      const session = await createSession(pool,'TEST idle then new turn')
+      await projectNewEvents(pool)
+      await appendEvent(pool,{ idempotencyKey: randomUUID(),partition: `session:${session.id}`,type: 't.message.appended',payload: { threadKey: session.id,kind: 'text',message: { role: 'agent',text: 'TEST ancient reply' } } })
+      await projectNewEvents(pool)
+      await pool.query('UPDATE thread_messages SET at = now() - interval \'30 minutes\' WHERE thread_key=$1',[session.id])
+      await pool.query('UPDATE threads SET updated_at = now() - interval \'30 minutes\' WHERE key=$1',[session.id])
+      await beginThreadTurn(pool,session.id,'run-fresh')
+      await pool.query('UPDATE thread_context SET active_run_started_at = now() - interval \'5 minutes\' WHERE thread_key=$1',[session.id])
+      const signals: string[] = []
+      const control: ReconciliationControl = {
+        describe: async () => ({ state: 'running' as const }),
+        signal: async (_workflowId, signalName) => { signals.push(signalName) },
+        cancel: async () => { signals.push('cancel') },
+      }
+      await reconcilePage(pool,'',async () => ({ state: 'running' }),Date.now(),() => undefined,control)
+      expect(signals).toEqual([])
+      expect((await getThreadHeader(pool,session.id))?.status).not.toBe('PAUSED')
+      expect((await getThreadHeader(pool,session.id))?.status).not.toBe('ERROR')
+    } finally { await pool.end() }
+  })
+  it('nudges once then pauses only after a full window [F:db.reconciliation.controlRecordedAt]', async () => {
+    const pool = new Pool({ connectionString: await ensureTestDb('kardata_test_reconcile_nudgewait') })
+    try {
+      const session = await createSession(pool,'TEST nudge window')
+      await projectNewEvents(pool)
+      await beginThreadTurn(pool,session.id,'run-stuck')
+      await pool.query('UPDATE thread_context SET active_run_started_at = now() - interval \'16 minutes\' WHERE thread_key=$1',[session.id])
+      await pool.query('UPDATE threads SET updated_at = now() - interval \'16 minutes\' WHERE key=$1',[session.id])
+      const signals: string[] = []
+      const control: ReconciliationControl = {
+        describe: async () => ({ state: 'running' as const }),
+        signal: async (_workflowId, signalName) => { signals.push(signalName) },
+        cancel: async () => { signals.push('cancel') },
+      }
+      const inspect = async () => ({ state: 'running' as const })
+      await reconcilePage(pool,'',inspect,Date.now(),() => undefined,control)
+      expect(signals).toEqual(['runSteer'])
+      await reconcilePage(pool,'',inspect,Date.now(),() => undefined,control)
+      expect(signals).toEqual(['runSteer'])
+      expect((await getThreadHeader(pool,session.id))?.status).not.toBe('PAUSED')
+      await pool.query('UPDATE events SET at = now() - interval \'16 minutes\' WHERE type=\'t.reconciliation.finding\' AND payload->>\'response\'=\'nudge\'')
+      await reconcilePage(pool,'',inspect,Date.now(),() => undefined,control)
+      expect(signals).toEqual(['runSteer','runPause'])
+      expect((await getThreadHeader(pool,session.id))?.status).toBe('PAUSED')
     } finally { await pool.end() }
   })
 })
