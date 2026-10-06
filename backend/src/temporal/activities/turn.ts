@@ -253,7 +253,25 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
     const toolLatencies = new Map<string, number>()
     let boundary: Record<string, unknown> = {}
     const persist = async (round: number, kind: 'request' | 'response' | 'tool-result', data: unknown, original?: Record<string, unknown>, roundKind: 'turn' | 'compaction' = 'turn') => {
-      try { const record = original && typeof original['serializedRecord'] === 'string' ? { ...JSON.parse(original['serializedRecord']) as Record<string, unknown>, preserveProducer: true } : original ? { ...original, data } : { version: 1, provider: providerName, model, round, boundary, roundKind, data }; await deps.persistExecution?.(round, kind, record) }
+      try {
+        // Re-records must be byte-identical to the fresh record: the archive
+        // is content-hashed, and key order is part of the bytes. roundKind
+        // sits after boundary in all three branches; a carried value wins.
+        let record: Record<string, unknown>
+        if (original && typeof original['serializedRecord'] === 'string') {
+          const { data: replayData, roundKind: replayKind, ...head } = JSON.parse(original['serializedRecord']) as Record<string, unknown>
+          record = { ...head, roundKind: replayKind ?? roundKind, data: replayData, preserveProducer: true }
+        } else if (original) {
+          const head = { ...original }
+          const origKind = head['roundKind']
+          delete head['roundKind']
+          delete head['data']
+          record = { ...head, roundKind: origKind ?? roundKind, data }
+        } else {
+          record = { version: 1, provider: providerName, model, round, boundary, roundKind, data }
+        }
+        await deps.persistExecution?.(round, kind, record)
+      }
       catch (error) { throw new ContextBudgetError('Execution content could not be durably recorded. Retry after storage recovers.', { cause: error }) }
     }
     const roundBase = { provider: providerName, ...(model ? { model } : {}), ...(sectorId ? { sectorId } : {}) }
