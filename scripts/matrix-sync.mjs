@@ -46,6 +46,7 @@ const CONTENT = {
       { kind: 'role', role: 'button', name: 'Try again' },
     ],
     denied: [
+      { kind: 'role', role: 'alert' },
       { kind: 'text', text: 'Ask an owner for access, then try again.' },
       { kind: 'role', role: 'button', name: 'Try again' },
     ],

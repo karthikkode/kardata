@@ -43,6 +43,10 @@ test('[F:frontend.src.components.ChatPanel] ChatPanel error', async ({ page }) =
   await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], postAnchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"alert"},{"kind":"role","role":"button","name":"Try again"}] }, 'error')
 })
 
+test('[F:frontend.src.components.ChatPanel] ChatPanel denied', async ({ page }) => {
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], postAnchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'denied')
+})
+
 test('[F:frontend.src.components.ChatPanel] ChatPanel offline', async ({ page }) => {
   await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], postAnchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"text","text":"No connection"},{"kind":"role","role":"button","name":"Try again"}] }, 'offline')
 })

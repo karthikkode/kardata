@@ -38,12 +38,12 @@ export function ChatStates({
           </Button>
         </div>
       ) : denied ? (
-        <div className="flex flex-1 flex-col items-center px-6 py-12 text-center">
+        <div role="alert" className="flex flex-1 flex-col items-center px-6 py-12 text-center">
           <span className="flex size-10 items-center justify-center rounded-full bg-muted">
             <Icons.denied className="size-5 text-muted-foreground" aria-hidden />
           </span>
           <CardTitle as="span" className="mt-3 block">Chat is not shared with this key.</CardTitle>
-          <Description className="mt-1 max-w-80">Ask an admin for access to use it.</Description>
+          <Description className="mt-1 max-w-80">Ask an owner for access, then try again.</Description>
           <Button type="button" variant="secondary" size="sm" className="mt-4" onClick={retryDenied}>
             Try again
           </Button>

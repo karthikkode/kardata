@@ -30,7 +30,7 @@ test('[F:frontend.src.components.RunsPanel] RunsPanel error', async ({ page }) =
 })
 
 test('[F:frontend.src.components.RunsPanel] RunsPanel denied', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"text","text":"Ask an owner for access, then try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'denied')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'denied')
 })
 
 test('[F:frontend.src.components.RunsPanel] RunsPanel offline', async ({ page }) => {
