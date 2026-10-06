@@ -1,5 +1,5 @@
 {
-  "_comment": "Matrix case table (P6.3): one entry per visual component. anchors = chrome asserted for content states; fault/loading/empty states assert the family content anchors instead (shared-state UI replaces content by design). postAnchors assert after setup. gated: true moves per-state content anchors post-setup (the surface renders only after setup opens it); anchors stays the trigger. ThinkingRow (live-only) and the 7 non-visual hook/helper modules have no entry: ThinkingRow is tagged in the 6.3.2 live-state spec, the rest in jsdom unit tests.",
+  "_comment": "Matrix case table (P6.3): one entry per visual component. anchors = chrome asserted for content states; fault/loading/empty states assert the family content anchors instead (shared-state UI replaces content by design). postAnchors assert after setup. gated: true means anchors is the pre-setup trigger (asserted only before setup) and per-state content moves post-setup; modals hide their trigger, so the trigger never asserts post-setup. ThinkingRow (live-only) and the 7 non-visual hook/helper modules have no entry: ThinkingRow is tagged in the 6.3.2 live-state spec, the rest in jsdom unit tests.",
   "frontend.src.components.ChatPanel": {
     "route": "/",
     "setup": [
@@ -178,7 +178,8 @@
       }
     ],
     "primary": "execution",
-    "family": "resource"
+    "family": "resource",
+    "gated": true
   },
   "frontend.src.components.FileProcessingRetry": {
     "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
@@ -364,14 +365,11 @@
       {
         "kind": "text",
         "text": "File preview"
-      },
-      {
-        "kind": "role",
-        "role": "note"
       }
     ],
     "primary": "fileBody",
-    "family": "resource"
+    "family": "resource",
+    "gated": true
   },
   "frontend.src.components.SectorLanding": {
     "route": "/?section=SectorDetail&sector=sector-matrix",
@@ -644,23 +642,32 @@
     "family": "static"
   },
   "frontend.src.components.plan.PlanTab": {
-    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "route": "/?section=SectorChat&sector=sector-matrix&session=session-sector-matrix-research&thread=session-sector-matrix-research",
     "setup": [
       {
         "click": {
-          "kind": "css",
-          "css": "[data-tab-value=\"plan\"]"
+          "kind": "role",
+          "role": "tab",
+          "name": "Plan"
         }
       }
     ],
     "anchors": [
       {
-        "kind": "css",
-        "css": "[data-tab-value=\"plan\"]"
+        "kind": "role",
+        "role": "tab",
+        "name": "Plan"
       }
     ],
     "primary": "plan",
-    "family": "resource"
+    "family": "resource",
+    "gated": true,
+    "postAnchors": [
+      {
+        "kind": "role",
+        "role": "tabpanel"
+      }
+    ]
   },
   "frontend.src.components.research_parts": {
     "route": "/?section=Researches",
@@ -1427,31 +1434,37 @@
       }
     ],
     "primary": "local",
-    "family": "resource"
+    "family": "resource",
+    "gated": true
   },
   "frontend.src.components.plan_progress": {
-    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "route": "/?section=SectorChat&sector=sector-matrix&session=session-sector-matrix-research&thread=session-sector-matrix-research",
     "setup": [
       {
         "click": {
-          "kind": "css",
-          "css": "[data-tab-value=\"plan\"]"
+          "kind": "role",
+          "role": "tab",
+          "name": "Plan"
         }
       }
     ],
     "anchors": [
       {
-        "kind": "css",
-        "css": "[data-tab-value=\"plan\"]"
-      },
+        "kind": "role",
+        "role": "tab",
+        "name": "Plan"
+      }
+    ],
+    "primary": "progress",
+    "family": "resource",
+    "gated": true,
+    "postAnchors": [
       {
         "kind": "role",
         "role": "region",
         "name": "Research progress"
       }
-    ],
-    "primary": "progress",
-    "family": "resource"
+    ]
   },
   "frontend.src.components.workspace_files": {
     "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",

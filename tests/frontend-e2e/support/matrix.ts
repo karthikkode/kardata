@@ -38,6 +38,13 @@ export interface MatrixCase {
   anchors: MatrixAnchor[]
   setup?: MatrixSetup[]
   postAnchors?: MatrixAnchor[]
+  /**
+   * Gated surface (dock, dialog, tab panel): anchors describe the
+   * pre-setup trigger and assert only before setup; postAnchors describe
+   * the opened surface and assert only after. A modal dialog hides its
+   * trigger, so asserting the trigger post-setup fails by design.
+   */
+  gated?: boolean
   emptyAnchors?: MatrixAnchor[]
   /** Focus-state subject (default anchors[0]); leaves focus directly. */
   focusSubject?: MatrixAnchor
@@ -267,7 +274,9 @@ export async function runMatrixState(page: Page, mc: MatrixCase, state: MatrixSt
     else if (step.hover) await anchorLocator(page, step.hover).hover()
     else if (step.press) await page.keyboard.press(step.press)
   }
-  for (const anchor of mc.anchors) await expect(anchorLocator(page, anchor)).toBeVisible({ timeout: 15000 })
+  if (!mc.gated) {
+    for (const anchor of mc.anchors) await expect(anchorLocator(page, anchor)).toBeVisible({ timeout: 15000 })
+  }
   for (const anchor of mc.postAnchors ?? []) await expect(anchorLocator(page, anchor)).toBeVisible({ timeout: 15000 })
   if (mc.expectedRows) {
     await expect(page.locator(mc.expectedRows.selector)).toHaveCount(mc.expectedRows.count, { timeout: 15000 })

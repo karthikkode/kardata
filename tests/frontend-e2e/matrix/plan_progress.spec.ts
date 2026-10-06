@@ -5,46 +5,55 @@ import { runMatrixState, type MatrixCase } from '../support/matrix'
 
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.plan_progress",
-  "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+  "route": "/?section=SectorChat&sector=sector-matrix&session=session-sector-matrix-research&thread=session-sector-matrix-research",
+  "gated": true,
   "setup": [
     {
       "click": {
-        "kind": "css",
-        "css": "[data-tab-value=\"plan\"]"
+        "kind": "role",
+        "role": "tab",
+        "name": "Plan"
       }
+    }
+  ],
+  "postAnchors": [
+    {
+      "kind": "role",
+      "role": "region",
+      "name": "Research progress"
     }
   ],
   "primary": "progress"
 }
 
 test('[F:frontend.src.components.plan_progress] plan_progress loading', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"status"}] }, 'loading')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}], postAnchors: [{"kind":"role","role":"region","name":"Research progress"},{"kind":"role","role":"status"}] }, 'loading')
 })
 
 test('[F:frontend.src.components.plan_progress] plan_progress typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[data-tab-value=\"plan\"]"},{"kind":"role","role":"region","name":"Research progress"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}] }, 'typical')
 })
 
 test('[F:frontend.src.components.plan_progress] plan_progress error', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"role","role":"button","name":"Try again"}] }, 'error')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}], postAnchors: [{"kind":"role","role":"region","name":"Research progress"},{"kind":"role","role":"alert"},{"kind":"role","role":"button","name":"Try again"}] }, 'error')
 })
 
 test('[F:frontend.src.components.plan_progress] plan_progress denied', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."}] }, 'denied')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}], postAnchors: [{"kind":"role","role":"region","name":"Research progress"},{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."}] }, 'denied')
 })
 
 test('[F:frontend.src.components.plan_progress] plan_progress offline', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"text","text":"No connection. Reconnect and try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'offline')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}], postAnchors: [{"kind":"role","role":"region","name":"Research progress"},{"kind":"text","text":"No connection. Reconnect and try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'offline')
 })
 
 test('[F:frontend.src.components.plan_progress] plan_progress dark', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[data-tab-value=\"plan\"]"},{"kind":"role","role":"region","name":"Research progress"}] }, 'dark')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}] }, 'dark')
 })
 
 test('[F:frontend.src.components.plan_progress] plan_progress w390', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[data-tab-value=\"plan\"]"},{"kind":"role","role":"region","name":"Research progress"}] }, 'w390')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}] }, 'w390')
 })
 
 test('[F:frontend.src.components.plan_progress] plan_progress focus', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[data-tab-value=\"plan\"]"},{"kind":"role","role":"region","name":"Research progress"}] }, 'focus')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}] }, 'focus')
 })

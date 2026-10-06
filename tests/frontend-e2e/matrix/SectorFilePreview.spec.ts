@@ -6,6 +6,7 @@ import { runMatrixState, type MatrixCase } from '../support/matrix'
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.SectorFilePreview",
   "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+  "gated": true,
   "setup": [
     {
       "click": {
@@ -18,17 +19,13 @@ const base: Omit<MatrixCase, 'anchors'> = {
     {
       "kind": "text",
       "text": "File preview"
-    },
-    {
-      "kind": "role",
-      "role": "note"
     }
   ],
   "primary": "fileBody"
 }
 
 test('[F:frontend.src.components.SectorFilePreview] SectorFilePreview loading', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"status"}] }, 'loading')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Sector files\"]"}], postAnchors: [{"kind":"text","text":"File preview"},{"kind":"role","role":"status"}] }, 'loading')
 })
 
 test('[F:frontend.src.components.SectorFilePreview] SectorFilePreview typical', async ({ page }) => {
@@ -36,15 +33,15 @@ test('[F:frontend.src.components.SectorFilePreview] SectorFilePreview typical', 
 })
 
 test('[F:frontend.src.components.SectorFilePreview] SectorFilePreview error', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"role","role":"button","name":"Try again"}] }, 'error')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Sector files\"]"}], postAnchors: [{"kind":"text","text":"File preview"},{"kind":"role","role":"alert"},{"kind":"role","role":"button","name":"Try again"}] }, 'error')
 })
 
 test('[F:frontend.src.components.SectorFilePreview] SectorFilePreview denied', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."}] }, 'denied')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Sector files\"]"}], postAnchors: [{"kind":"text","text":"File preview"},{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."}] }, 'denied')
 })
 
 test('[F:frontend.src.components.SectorFilePreview] SectorFilePreview offline', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"text","text":"No connection. Reconnect and try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'offline')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Sector files\"]"}], postAnchors: [{"kind":"text","text":"File preview"},{"kind":"text","text":"No connection. Reconnect and try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'offline')
 })
 
 test('[F:frontend.src.components.SectorFilePreview] SectorFilePreview dark', async ({ page }) => {

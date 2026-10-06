@@ -195,6 +195,7 @@ function main() {
     }
 
     const base = { id, route: mc.route }
+    if (mc.gated) base.gated = true
     if (mc.setup) base.setup = mc.setup
     if (mc.postAnchors) base.postAnchors = mc.postAnchors
     if (mc.focusSubject) base.focusSubject = mc.focusSubject

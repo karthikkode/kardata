@@ -6,6 +6,7 @@ import { runMatrixState, type MatrixCase } from '../support/matrix'
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.local_context_editor",
   "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+  "gated": true,
   "setup": [
     {
       "click": {
@@ -36,15 +37,15 @@ test('[F:frontend.src.components.local_context_editor] local_context_editor typi
 })
 
 test('[F:frontend.src.components.local_context_editor] local_context_editor error', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"role","role":"button","name":"Try again"}] }, 'error')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Conversation options"}], postAnchors: [{"kind":"text","text":"Local context"},{"kind":"role","role":"alert"},{"kind":"role","role":"button","name":"Try again"}] }, 'error')
 })
 
 test('[F:frontend.src.components.local_context_editor] local_context_editor denied', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."}] }, 'denied')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Conversation options"}], postAnchors: [{"kind":"text","text":"Local context"},{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."}] }, 'denied')
 })
 
 test('[F:frontend.src.components.local_context_editor] local_context_editor offline', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"text","text":"No connection. Reconnect and try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'offline')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Conversation options"}], postAnchors: [{"kind":"text","text":"Local context"},{"kind":"text","text":"No connection. Reconnect and try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'offline')
 })
 
 test('[F:frontend.src.components.local_context_editor] local_context_editor dark', async ({ page }) => {

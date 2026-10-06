@@ -6,6 +6,7 @@ import { runMatrixState, type MatrixCase } from '../support/matrix'
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.ExecutionInspector",
   "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+  "gated": true,
   "setup": [
     {
       "click": {
@@ -33,7 +34,7 @@ const base: Omit<MatrixCase, 'anchors'> = {
 }
 
 test('[F:frontend.src.components.ExecutionInspector] ExecutionInspector loading', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"status"}] }, 'loading')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Conversation options"}], postAnchors: [{"kind":"role","role":"dialog","name":"Execution records"},{"kind":"role","role":"status"}] }, 'loading')
 })
 
 test('[F:frontend.src.components.ExecutionInspector] ExecutionInspector typical', async ({ page }) => {
@@ -41,15 +42,15 @@ test('[F:frontend.src.components.ExecutionInspector] ExecutionInspector typical'
 })
 
 test('[F:frontend.src.components.ExecutionInspector] ExecutionInspector error', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"role","role":"button","name":"Try again"}] }, 'error')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Conversation options"}], postAnchors: [{"kind":"role","role":"dialog","name":"Execution records"},{"kind":"role","role":"alert"},{"kind":"role","role":"button","name":"Try again"}] }, 'error')
 })
 
 test('[F:frontend.src.components.ExecutionInspector] ExecutionInspector denied', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."}] }, 'denied')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Conversation options"}], postAnchors: [{"kind":"role","role":"dialog","name":"Execution records"},{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."}] }, 'denied')
 })
 
 test('[F:frontend.src.components.ExecutionInspector] ExecutionInspector offline', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"text","text":"No connection. Reconnect and try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'offline')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Conversation options"}], postAnchors: [{"kind":"role","role":"dialog","name":"Execution records"},{"kind":"text","text":"No connection. Reconnect and try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'offline')
 })
 
 test('[F:frontend.src.components.ExecutionInspector] ExecutionInspector dark', async ({ page }) => {

@@ -5,46 +5,54 @@ import { runMatrixState, type MatrixCase } from '../support/matrix'
 
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.plan.PlanTab",
-  "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+  "route": "/?section=SectorChat&sector=sector-matrix&session=session-sector-matrix-research&thread=session-sector-matrix-research",
+  "gated": true,
   "setup": [
     {
       "click": {
-        "kind": "css",
-        "css": "[data-tab-value=\"plan\"]"
+        "kind": "role",
+        "role": "tab",
+        "name": "Plan"
       }
+    }
+  ],
+  "postAnchors": [
+    {
+      "kind": "role",
+      "role": "tabpanel"
     }
   ],
   "primary": "plan"
 }
 
 test('[F:frontend.src.components.plan.PlanTab] PlanTab loading', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"status"}] }, 'loading')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}], postAnchors: [{"kind":"role","role":"tabpanel"},{"kind":"role","role":"status"}] }, 'loading')
 })
 
 test('[F:frontend.src.components.plan.PlanTab] PlanTab typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[data-tab-value=\"plan\"]"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}] }, 'typical')
 })
 
 test('[F:frontend.src.components.plan.PlanTab] PlanTab error', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"role","role":"button","name":"Try again"}] }, 'error')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}], postAnchors: [{"kind":"role","role":"tabpanel"},{"kind":"role","role":"alert"},{"kind":"role","role":"button","name":"Try again"}] }, 'error')
 })
 
 test('[F:frontend.src.components.plan.PlanTab] PlanTab denied', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."}] }, 'denied')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}], postAnchors: [{"kind":"role","role":"tabpanel"},{"kind":"role","role":"alert"},{"kind":"text","text":"Ask an owner for access, then try again."}] }, 'denied')
 })
 
 test('[F:frontend.src.components.plan.PlanTab] PlanTab offline', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"text","text":"No connection. Reconnect and try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'offline')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}], postAnchors: [{"kind":"role","role":"tabpanel"},{"kind":"text","text":"No connection. Reconnect and try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'offline')
 })
 
 test('[F:frontend.src.components.plan.PlanTab] PlanTab dark', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[data-tab-value=\"plan\"]"}] }, 'dark')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}] }, 'dark')
 })
 
 test('[F:frontend.src.components.plan.PlanTab] PlanTab w390', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[data-tab-value=\"plan\"]"}] }, 'w390')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}] }, 'w390')
 })
 
 test('[F:frontend.src.components.plan.PlanTab] PlanTab focus', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[data-tab-value=\"plan\"]"}] }, 'focus')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}] }, 'focus')
 })
