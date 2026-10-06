@@ -254,7 +254,7 @@ export function UnavailableNotice({ onRetry }: { onRetry: () => void }) {
 
 // The request reached the API and was refused (a key without access).
 // Retry cannot help: an owner must grant access first.
-export function DeniedNotice({ heading }: { heading: string }) {
+export function DeniedNotice({ heading, onRetry }: { heading: string; onRetry?: () => void }) {
   const DeniedIcon = Icons.denied
   return (
     <div className="flex flex-col items-center py-12 text-center">
@@ -265,6 +265,13 @@ export function DeniedNotice({ heading }: { heading: string }) {
       <Description className="mt-1 max-w-80">
         Ask an owner for access, then try again.
       </Description>
+      {onRetry ? (
+        <div className="mt-4">
+          <Button type="button" variant="secondary" size="sm" onClick={onRetry}>
+            Try again
+          </Button>
+        </div>
+      ) : null}
     </div>
   )
 }

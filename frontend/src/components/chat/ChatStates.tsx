@@ -14,6 +14,7 @@ export function ChatStates({
   failed,
   offline,
   retryOffline,
+  retryDenied,
 }: {
   config: StagingConfig | null
   denied: boolean
@@ -21,6 +22,7 @@ export function ChatStates({
   failed: (() => void) | null
   offline: boolean
   retryOffline: () => void
+  retryDenied: () => void
 }) {
   return (
     <>
@@ -42,6 +44,9 @@ export function ChatStates({
           </span>
           <CardTitle as="span" className="mt-3 block">Chat is not shared with this key.</CardTitle>
           <Description className="mt-1 max-w-80">Ask an admin for access to use it.</Description>
+          <Button type="button" variant="secondary" size="sm" className="mt-4" onClick={retryDenied}>
+            Try again
+          </Button>
         </div>
       ) : loading ? (
         <div role="status" aria-label="Chat history is loading" className="flex flex-1 flex-col gap-6 px-4 py-6">

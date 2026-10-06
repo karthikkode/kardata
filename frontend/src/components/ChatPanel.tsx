@@ -607,6 +607,11 @@ export function ChatPanel({
       ? () => setSessionsAttempt((attempt) => attempt + 1)
       : threadsState === 'offline' ? () => setThreadsAttempt((attempt) => attempt + 1)
       : () => setMessagesAttempt((attempt) => attempt + 1)
+  const retryDenied =
+    sessionsState === 'denied'
+      ? () => setSessionsAttempt((attempt) => attempt + 1)
+      : threadsState === 'denied' ? () => setThreadsAttempt((attempt) => attempt + 1)
+      : () => setMessagesAttempt((attempt) => attempt + 1)
   const awaitingCurrentReply = awaitingReply !== null && !messages.some((message) =>
     message.kind === 'text' && message.role === 'agent' && messageSeq(message) > awaitingReply.basis,
   )
@@ -684,6 +689,7 @@ export function ChatPanel({
           failed={failed}
           offline={offline}
           retryOffline={retryOffline}
+          retryDenied={retryDenied}
         />
       ) : activeTab === 'files' ? (
         <SessionFilesView

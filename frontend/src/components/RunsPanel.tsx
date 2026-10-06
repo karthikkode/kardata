@@ -204,7 +204,7 @@ export function RunsPanel({
             onRetry={runsQuery.reload}
           />
         ) : status === 'denied' ? (
-          <DeniedNotice heading="Agent runs are not shared with this key." />
+          <DeniedNotice heading="Agent runs are not shared with this key." onRetry={runsQuery.reload} />
         ) : status === 'offline' ? (
           <UnavailableNotice onRetry={runsQuery.reload} />
         ) : rows.length ? (

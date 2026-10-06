@@ -358,7 +358,7 @@ export function ModelsPanel({
             onRetry={retryCatalog}
           />
         ) : status === 'denied' ? (
-          <DeniedNotice heading="Models are not shared with this key." />
+          <DeniedNotice heading="Models are not shared with this key." onRetry={retryCatalog} />
         ) : status === 'offline' ? (
           <UnavailableNotice onRetry={retryCatalog} />
         ) : (
