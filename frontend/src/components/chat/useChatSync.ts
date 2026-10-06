@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { followThread, isFreshTerminalStatus, listMessages, listThreads, type ThreadView, type ToolPayload } from '../../data/useThreads'
 import { useRunsList } from '../../data/useRuns'
-import type { ResourceStatus } from '../../data/useResource'
+import { useResource, type ResourceStatus } from '../../data/useResource'
 import { listSessionArtifacts } from '../../data/useFiles'
 import { useSessionsList, type Session } from '../../data/useSessions'
 import { useSkillsList, type SkillSummary } from '../../data/useSkills'
@@ -56,7 +56,6 @@ interface ChatSyncInput {
   sessionsAttempt: number
   threadsAttempt: number
   streamAttempt: number
-  messagesAttempt: number
   activeSessionId: string | null
   threadKey: string | null
   setSessions: Dispatch<SetStateAction<Session[] | null>>
@@ -88,7 +87,6 @@ export function useChatSync({
   sessionsAttempt,
   threadsAttempt,
   streamAttempt,
-  messagesAttempt,
   activeSessionId,
   threadKey,
   setSessions,
@@ -209,17 +207,32 @@ export function useChatSync({
   // first failure.
   useMirrorStatus(combineLoadStates(jointState, runsQuery.status), setThreadsState)
 
+  // Message pages follow the visible thread through the shared query
+  // hook (data + status + retry); the fetch key carries the thread so
+  // the merge lands on the thread that was read, not the visible one.
+  const messagesQuery = useResource(
+    () => {
+      if (!config || !threadKey) return null
+      const key = threadKey
+      return listMessages(config, key).then((raw) => ({ key, rows: toChatMessages(raw) }))
+    },
+    config && threadKey ? `${config.baseUrl} ${config.apiKey} ${threadKey}` : null,
+    ({ key, rows }) => {
+      setCaches((current) => ({ ...current, [key]: mergeChatMessages(current[key] ?? [], rows) }))
+    },
+  )
+  useMirrorStatus(messagesQuery.status, setMessagesState)
+
   // Stream state resets during render, never in the tail effect: the
   // pending delta/reasoning/tools belong to the previous thread.
   const streamQuery =
-    config && threadKey ? `${config.baseUrl} ${config.apiKey} ${threadKey} ${streamAttempt} ${messagesAttempt}` : null
+    config && threadKey ? `${config.baseUrl} ${config.apiKey} ${threadKey} ${streamAttempt}` : null
   const [activeStreamQuery, setActiveStreamQuery] = useState<string | null>(null)
   if (activeStreamQuery !== streamQuery) {
     setActiveStreamQuery(streamQuery)
     setPendingText(null)
     setPendingReasoning(null)
     setPendingTools([])
-    setMessagesState(streamQuery ? 'loading' : 'ready')
   }
 
   // Message pages follow the visible thread; the stream tails live frames.
@@ -230,17 +243,6 @@ export function useChatSync({
     if (!config || !threadKey) return
     let live = true
     const key = threadKey
-    listMessages(config, key)
-      .then((raw) => {
-        if (!live) return
-        const rows = toChatMessages(raw)
-        setCaches((current) => ({ ...current, [key]: mergeChatMessages(current[key] ?? [], rows) }))
-        setMessagesState('ready')
-      })
-      .catch((error: unknown) => {
-        if (!live) return
-        setMessagesState(loadStateOf(error))
-      })
     const controller = new AbortController()
     // Ref-sharing: the registry ref is owned by the panel and shared so stop
     // handlers can abort tails; writing .current is the ref's purpose.
@@ -344,6 +346,6 @@ export function useChatSync({
       setEcho(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config?.baseUrl, config?.apiKey, threadKey, streamAttempt, messagesAttempt])
-  return statusSeqRef
+  }, [config?.baseUrl, config?.apiKey, threadKey, streamAttempt])
+  return { statusSeqRef, reloadMessages: messagesQuery.reload }
 }

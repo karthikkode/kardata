@@ -62,7 +62,6 @@ export function ChatPanel({
   const [threadsState, setThreadsState] = useState<LoadState>('loading')
   const [threadsAttempt, setThreadsAttempt] = useState(0)
   const [messagesState, setMessagesState] = useState<LoadState>('loading')
-  const [messagesAttempt, setMessagesAttempt] = useState(0)
   const [openThreadKey, setOpenThreadKey] = useState<string | null>(null)
   const [caches, setCaches] = useState<Record<string, ChatMessage[]>>({})
   const [pendingText, setPendingText] = useState<string | null>(null)
@@ -196,12 +195,11 @@ export function ChatPanel({
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const statusSeqRef = useChatSync({
+  const { statusSeqRef, reloadMessages } = useChatSync({
     config,
     sessionsAttempt,
     threadsAttempt,
     streamAttempt,
-    messagesAttempt,
     activeSessionId,
     threadKey,
     setSessions,
@@ -598,7 +596,7 @@ export function ChatPanel({
   const failed =
     sessionsState === 'error' ? () => setSessionsAttempt((attempt) => attempt + 1)
     : threadsState === 'error' ? () => setThreadsAttempt((attempt) => attempt + 1)
-    : messagesState === 'error' ? () => setMessagesAttempt((attempt) => attempt + 1)
+    : messagesState === 'error' ? reloadMessages
     : null
   const offline =
     sessionsState === 'offline' || threadsState === 'offline' || messagesState === 'offline'
@@ -606,12 +604,12 @@ export function ChatPanel({
     sessionsState === 'offline'
       ? () => setSessionsAttempt((attempt) => attempt + 1)
       : threadsState === 'offline' ? () => setThreadsAttempt((attempt) => attempt + 1)
-      : () => setMessagesAttempt((attempt) => attempt + 1)
+      : reloadMessages
   const retryDenied =
     sessionsState === 'denied'
       ? () => setSessionsAttempt((attempt) => attempt + 1)
       : threadsState === 'denied' ? () => setThreadsAttempt((attempt) => attempt + 1)
-      : () => setMessagesAttempt((attempt) => attempt + 1)
+      : reloadMessages
   const awaitingCurrentReply = awaitingReply !== null && !messages.some((message) =>
     message.kind === 'text' && message.role === 'agent' && messageSeq(message) > awaitingReply.basis,
   )

@@ -27,6 +27,9 @@ export function useResource<T>(
   const [status, setStatus] = useState<ResourceStatus>(() => (key === null ? 'ready' : 'loading'))
   const [activeKey, setActiveKey] = useState<string | null>(key)
   const keyRef = useRef(key)
+  useEffect(() => {
+    keyRef.current = key
+  }, [key])
   const mounted = useRef(true)
   useEffect(() => {
     mounted.current = true
@@ -36,7 +39,6 @@ export function useResource<T>(
   }, [])
   if (activeKey !== key) {
     setActiveKey(key)
-    keyRef.current = key
     if (key === null) {
       setData(undefined)
       setStatus('ready')
