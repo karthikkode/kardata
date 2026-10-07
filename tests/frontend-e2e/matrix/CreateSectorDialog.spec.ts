@@ -20,7 +20,7 @@ const base: Omit<MatrixCase, 'anchors'> = {
     {
       "kind": "role",
       "role": "dialog",
-      "name": "Create a sector"
+      "name": "New sector"
     }
   ],
   "primary": "sectors"
