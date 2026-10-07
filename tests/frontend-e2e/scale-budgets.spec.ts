@@ -215,7 +215,7 @@ async function openDock(page: Page): Promise<void> {
 
 async function openSessionsMenu(page: Page): Promise<void> {
   await dock(page).getByRole('button', { name: 'Chat sessions' }).click()
-  await expect(page.getByRole('menu', { name: 'Chat sessions' })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Chat sessions' })).toBeVisible()
 }
 
 test('sessions render 100/1000/2000 with first render under budget at 1000', async ({ page }) => {
@@ -229,13 +229,13 @@ test('sessions render 100/1000/2000 with first render under budget at 1000', asy
     await page.goto('/')
     await openDock(page)
     await openSessionsMenu(page)
-    const menu = page.getByRole('menu', { name: 'Chat sessions' })
+    const sessions = page.getByRole('group', { name: 'Chat sessions' })
     const first = page.getByRole('button', { name: 'Open Scale chat 1', exact: true })
     const last = page.getByRole('button', { name: `Open Scale chat ${count}` })
     await wheelToEnd(page, first, last)
     if (count === 1000) {
       await page.keyboard.press('Escape')
-      await expect(menu).not.toBeAttached()
+      await expect(sessions).not.toBeAttached()
       const started = Date.now()
       await frozen(freeze, (path) => path === '/v1/sessions', async () => {
         await openSessionsMenu(page)
@@ -248,7 +248,7 @@ test('sessions render 100/1000/2000 with first render under budget at 1000', asy
       await frozen(freeze, allowNone, async () => {
         await clearLongtasks(page)
         await wheelUp(page, last)
-        await expect(menu).toBeVisible()
+        await expect(sessions).toBeVisible()
         expect(await maxLongtask(page)).toBeLessThanOrEqual(50)
       })
     }
@@ -480,7 +480,7 @@ test('dock open/close cycles keep heap growth under 50MB', async ({ page }, test
     // then close the dock via its Close button: Escape is ambiguous here
     // (menu vs dock exit race) and the trigger is covered while open.
     await page.getByRole('button', { name: 'Dismiss sessions' }).click()
-    await expect(page.getByRole('menu', { name: 'Chat sessions' })).not.toBeVisible()
+    await expect(page.getByRole('group', { name: 'Chat sessions' })).not.toBeVisible()
     await dock(page).getByRole('button', { name: 'Close' }).click()
     await expect(dock(page)).not.toBeVisible()
   }

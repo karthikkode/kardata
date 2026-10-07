@@ -106,7 +106,7 @@ test('revamp: karbot deletion uses the shared alert dialog', async ({ page }) =>
   const chat = page.getByRole('complementary', { name: 'Assistant chat' })
   await expect(chat).toBeVisible()
   await chat.getByRole('button', { name: 'Chat sessions' }).click()
-  const sessions = chat.getByRole('menu', { name: 'Chat sessions' })
+  const sessions = chat.getByRole('group', { name: 'Chat sessions' })
   await sessions.getByRole('button', { name: 'Delete Browser chat' }).click()
   const confirm = page.getByRole('alertdialog', { name: 'Delete "Browser chat"?' })
   await expect(confirm).toBeVisible()
@@ -266,9 +266,9 @@ test('revamp: no sustained long tasks and bounded overlay memory', async ({ page
   await expect(chat).toBeVisible()
   for (let cycle = 0; cycle < 25; cycle++) {
     await chat.getByRole('button', { name: 'Chat sessions' }).click()
-    await expect(chat.getByRole('menu', { name: 'Chat sessions' })).toBeVisible()
+    await expect(chat.getByRole('group', { name: 'Chat sessions' })).toBeVisible()
     await page.keyboard.press('Escape')
-    await expect(chat.getByRole('menu', { name: 'Chat sessions' })).not.toBeVisible()
+    await expect(chat.getByRole('group', { name: 'Chat sessions' })).not.toBeVisible()
   }
   await page.keyboard.press('Escape')
   const after = await heap()

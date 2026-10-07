@@ -53,16 +53,16 @@ test('KB-02-long-title', async ({ page }) => {
 test('KB-03-open', async ({ page }) => {
   await capture(page, 'KB-03', 'open', () => gotoDock(page), async () => {
     await dock(page).getByRole('button', { name: 'Chat sessions' }).click()
-    await expect(dock(page).getByRole('menu', { name: 'Chat sessions' })).toBeVisible()
+    await expect(dock(page).getByRole('group', { name: 'Chat sessions' })).toBeVisible()
   })
 })
 
 test('KB-03-many', async ({ page }) => {
   await capture(page, 'KB-03', 'many', () => gotoDock(page), async () => {
     await dock(page).getByRole('button', { name: 'Chat sessions' }).click()
-    const menu = dock(page).getByRole('menu', { name: 'Chat sessions' })
-    await expect(menu).toBeVisible()
-    await menu.evaluate((element) => {
+    const sessions = dock(page).getByRole('group', { name: 'Chat sessions' })
+    await expect(sessions).toBeVisible()
+    await sessions.evaluate((element) => {
       element.scrollTop = element.scrollHeight
     })
   })
