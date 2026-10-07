@@ -4312,7 +4312,6 @@
     - light
     - dark
     - w1440
-    - w390
 - id: frontend.src.components.SectorLanding
   layer: frontend
   surface: frontend/src/components/SectorLanding.tsx

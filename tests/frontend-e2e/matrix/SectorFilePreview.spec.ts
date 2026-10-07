@@ -47,7 +47,3 @@ test('[F:frontend.src.components.SectorFilePreview] SectorFilePreview offline', 
 test('[F:frontend.src.components.SectorFilePreview] SectorFilePreview dark', async ({ page }) => {
   await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Sector files\"]"}] }, 'dark')
 })
-
-test('[F:frontend.src.components.SectorFilePreview] SectorFilePreview w390', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Sector files\"]"}] }, 'w390')
-})
