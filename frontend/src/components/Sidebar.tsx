@@ -78,7 +78,10 @@ export function Sidebar({ active, onSelect }: { active: string; onSelect: (item:
                 if (!disabled) onSelect(label)
               }}
               aria-disabled={disabled || undefined}
-              aria-label={disabled ? `${label} (coming soon)` : undefined}
+              // Icon-rail buttons hide their label text below md (and when
+              // collapsed), leaving icon-only buttons unnamed: always name
+              // them. The string matches the visible label when expanded.
+              aria-label={disabled ? `${label} (coming soon)` : label}
               aria-current={isActive ? 'page' : undefined}
               className={cn(
                 'relative flex h-8 w-full items-center gap-2 rounded-md px-2 text-ui font-medium transition-colors duration-fast ease-out-soft outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring pointer-coarse:h-10',
