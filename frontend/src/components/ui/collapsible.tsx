@@ -4,6 +4,7 @@
 import * as React from 'react'
 import { Collapsible } from '@base-ui/react/collapsible'
 import { cn } from '@/lib/utils'
+import { focusRingInset } from '@/lib/interaction'
 
 function CollapsibleRoot(props: React.ComponentProps<typeof Collapsible.Root>) {
   return <Collapsible.Root data-slot="collapsible" {...props} />
@@ -14,7 +15,7 @@ function CollapsibleTrigger({ className, ...props }: React.ComponentProps<typeof
     <Collapsible.Trigger
       data-slot="collapsible-trigger"
       className={cn(
-        'flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-left text-sm font-medium outline-none transition-colors duration-120 ease-out-soft hover:bg-surface-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 [&_svg[data-chevron]]:transition-transform [&_svg[data-chevron]]:duration-180 [&_svg[data-chevron]]:ease-out data-open:[&_svg[data-chevron]]:rotate-180',
+        `flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-left text-sm font-medium ${focusRingInset} transition-colors duration-120 ease-out-soft hover:bg-surface-hover disabled:pointer-events-none disabled:opacity-50 [&_svg[data-chevron]]:transition-transform [&_svg[data-chevron]]:duration-180 [&_svg[data-chevron]]:ease-out data-open:[&_svg[data-chevron]]:rotate-180`,
         className,
       )}
       {...props}

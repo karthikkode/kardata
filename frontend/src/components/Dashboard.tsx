@@ -8,6 +8,7 @@ import type {
   SectorResearch,
 } from '../data/research'
 import { Icons } from '@/lib/icons'
+import { focusRing } from '@/lib/interaction'
 import { formatCount, formatFullDate, relativeAge } from '@/lib/format'
 import { companyStageLabel } from '@/lib/labels'
 import { useAnimatedNumber } from '@/lib/animate-number'
@@ -44,7 +45,7 @@ function StatTile({
       onClick={onOpen}
       aria-label={`${label}: ${formatCount(value)}, ${caption}. Show in Researches.`}
       style={{ animationDelay: `${index * 30}ms` }}
-      className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-180 flex min-w-0 cursor-pointer flex-col gap-1 rounded-lg border border-border bg-card p-4 text-left transition-colors duration-120 ease-out-soft hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className={`motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-180 flex min-w-0 cursor-pointer flex-col gap-1 rounded-lg border border-border bg-card p-4 text-left transition-colors duration-120 ease-out-soft hover:bg-surface-hover ${focusRing}`}
     >
       <Label>{label}</Label>
       <Numeric ref={valueRef} size="stat">

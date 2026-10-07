@@ -14,6 +14,7 @@ import {
   type SortingState,
 } from '@tanstack/react-table'
 import { cn } from '@/lib/utils'
+import { focusRingInset } from '@/lib/interaction'
 import { Icons } from '@/lib/icons'
 import { tableRowClassName } from './ui/list'
 
@@ -187,7 +188,7 @@ export function DataTable<T extends object>({
                         onClick={header.column.getToggleSortingHandler()}
                         aria-label={`Sort by ${typeof column.header === 'string' ? column.header : column.id}`}
                         className={cn(
-                          'inline-flex h-full w-full cursor-pointer items-center gap-1.5 rounded-sm outline-none transition-colors duration-120 ease-out-soft hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+                          `inline-flex h-full w-full cursor-pointer items-center gap-1.5 rounded-sm ${focusRingInset} transition-colors duration-120 ease-out-soft hover:text-foreground`,
                           column.align === 'right' && 'justify-end',
                           sorted ? 'text-foreground' : 'text-muted-foreground',
                         )}

@@ -108,12 +108,18 @@ even for small components.
   `text-primary-text` check. Read-only indicators use `select-none` so
   no text cursor ever appears over them.
 - Focus is always visible: standalone controls use the outline recipe
-  (`focus-visible:outline-2 focus-visible:outline-offset-2
-  focus-visible:outline-ring`), rows/menu items/tabs/nav/cells use the
-  inset variant (`-outline-offset-2`), inputs add
-  `focus-visible:border-ring` plus `outline-ring/30`. The browser audit
-  Tabs through the first 15 focusables on every page and requires an
-  outline of at least 2px or a visible ring shadow.
+  (`focus-visible:outline-solid focus-visible:outline-2
+  focus-visible:outline-offset-2 focus-visible:outline-ring`),
+  rows/menu items/tabs/nav/cells use the inset variant
+  (`-outline-offset-2`), inputs add `focus-visible:border-ring` plus
+  `outline-ring/30`. The one definition lives in
+  `frontend/src/lib/interaction.ts` (`focusRing`, `focusRingInset`,
+  `focusRingInput`); primitives and feature code import it, never
+  retype it. `outline-solid` is load-bearing: Tailwind v4 `outline-2`
+  sets width only, so without it `outline-none` leaves keyboard focus
+  invisible. The browser audit Tabs through the first 15 focusables on
+  every page and requires an outline of at least 2px or a visible ring
+  shadow.
 
 ## Icons (lucide only, via the map)
 

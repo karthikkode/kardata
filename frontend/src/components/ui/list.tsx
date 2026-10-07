@@ -7,6 +7,7 @@
 // tableRowClassName on <tr>, nav items use the 2.5 nav recipe.
 import * as React from 'react'
 import { cn } from '@/lib/utils'
+import { focusRingInset } from '@/lib/interaction'
 
 export type ListDensity = 'dense' | 'default' | 'comfortable'
 
@@ -16,8 +17,7 @@ const densityClass: Record<ListDensity, string> = {
   comfortable: 'min-h-14',
 }
 
-const rowBase =
-  'relative flex w-full items-center gap-3 rounded-md px-2 text-left transition-colors duration-120 ease-out-soft hover:bg-surface-hover data-[selected]:border data-[selected]:border-border-strong data-[selected]:bg-surface-raised data-[selected]:shadow-sm focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
+const rowBase = `relative flex w-full items-center gap-3 rounded-md px-2 text-left transition-colors duration-120 ease-out-soft hover:bg-surface-hover data-[selected]:border data-[selected]:border-border-strong data-[selected]:bg-surface-raised data-[selected]:shadow-sm ${focusRingInset}`
 
 export function listRowClassName(options: { density?: ListDensity; interactive?: boolean } = {}): string {
   const { density = 'default', interactive = true } = options
@@ -28,7 +28,7 @@ export function listRowClassName(options: { density?: ListDensity; interactive?:
 export function tableRowClassName(options: { selected?: boolean; interactive?: boolean } = {}): string {
   const { selected = false, interactive = true } = options
   return cn(
-    'rounded-md transition-colors duration-120 ease-out-soft hover:bg-surface-hover data-[selected]:border data-[selected]:border-border-strong data-[selected]:bg-surface-raised data-[selected]:shadow-sm focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+    `rounded-md transition-colors duration-120 ease-out-soft hover:bg-surface-hover data-[selected]:border data-[selected]:border-border-strong data-[selected]:bg-surface-raised data-[selected]:shadow-sm ${focusRingInset}`,
     interactive && 'cursor-pointer',
     selected && 'border border-border-strong bg-surface-raised shadow-sm',
   )

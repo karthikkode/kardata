@@ -5,6 +5,7 @@ import * as React from 'react'
 import { Menu } from '@base-ui/react/menu'
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { focusRingInset } from '@/lib/interaction'
 
 function MenuRoot(props: React.ComponentProps<typeof Menu.Root>) {
   return <Menu.Root data-slot="menu" {...props} />
@@ -38,7 +39,7 @@ function MenuItem({ className, ...props }: React.ComponentProps<typeof Menu.Item
     <Menu.Item
       data-slot="menu-item"
       className={cn(
-        'flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1 text-left text-ui outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-surface-hover data-highlighted:text-foreground [&_svg]:size-4 [&_svg]:shrink-0',
+        `flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1 text-left text-ui ${focusRingInset} select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-surface-hover data-highlighted:text-foreground [&_svg]:size-4 [&_svg]:shrink-0`,
         className,
       )}
       {...props}
@@ -55,7 +56,7 @@ function MenuRadioItem({ className, children, ...props }: React.ComponentProps<t
     <Menu.RadioItem
       data-slot="menu-radio-item"
       className={cn(
-        'relative flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm py-1 pr-2 pl-8 text-left text-ui outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-surface-hover data-highlighted:text-foreground [&_svg]:size-4 [&_svg]:shrink-0',
+        `relative flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm py-1 pr-2 pl-8 text-left text-ui ${focusRingInset} select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-surface-hover data-highlighted:text-foreground [&_svg]:size-4 [&_svg]:shrink-0`,
         className,
       )}
       {...props}
@@ -104,7 +105,7 @@ function MenuSubmenuTrigger({ className, children, ...props }: React.ComponentPr
     <Menu.SubmenuTrigger
       data-slot="menu-submenu-trigger"
       className={cn(
-        'flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1 text-left text-ui outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-surface-hover data-highlighted:text-foreground data-popup-open:bg-surface-hover [&_svg]:size-4 [&_svg]:shrink-0',
+        `flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1 text-left text-ui ${focusRingInset} select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-surface-hover data-highlighted:text-foreground data-popup-open:bg-surface-hover [&_svg]:size-4 [&_svg]:shrink-0`,
         className,
       )}
       {...props}

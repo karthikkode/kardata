@@ -7,6 +7,7 @@ import { LazyMotion, domAnimation, m } from 'motion/react'
 import { Icons } from '@/lib/icons'
 import { navIndicatorTransition } from '@/lib/motion'
 import { cn } from '@/lib/utils'
+import { focusRingInset } from '@/lib/interaction'
 import { IconButton } from './IconButton'
 import { Badge } from './ui/badge'
 import { TooltipPopup, TooltipRoot, TooltipTrigger } from './ui/tooltip'
@@ -84,7 +85,7 @@ export function Sidebar({ active, onSelect }: { active: string; onSelect: (item:
               aria-label={disabled ? `${label} (coming soon)` : label}
               aria-current={isActive ? 'page' : undefined}
               className={cn(
-                'relative flex h-8 w-full items-center gap-2 rounded-md px-2 text-ui font-medium transition-colors duration-fast ease-out-soft outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring pointer-coarse:h-10',
+                `relative flex h-8 w-full items-center gap-2 rounded-md px-2 text-ui font-medium transition-colors duration-fast ease-out-soft ${focusRingInset} pointer-coarse:h-10`,
                 collapsed && 'justify-center px-0',
                 isActive
                   ? 'text-foreground'

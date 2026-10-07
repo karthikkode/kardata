@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { Icons } from '@/lib/icons'
+import { focusRing } from '@/lib/interaction'
 import { cn } from '@/lib/utils'
 import { ExecutableResearchPlan, type ExecutableResearchPlan as Plan } from '../data/research-plan'
 import { CounterTile } from './plan-progress'
@@ -515,7 +516,7 @@ function PlanForm({ formId, markdown, executable, busy, error, onDirtyChange, on
  return (
  <form id={formId} className="flex min-w-0 flex-col gap-4" noValidate onSubmit={submit}>
  {executable && Object.keys(errors).length ? (
- <div ref={summaryRef} tabIndex={-1} role="alert" className="rounded-md border border-danger-border bg-danger-soft p-3 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+ <div ref={summaryRef} tabIndex={-1} role="alert" className={`rounded-md border border-danger-border bg-danger-soft p-3 ${focusRing}`}>
  <BodySm as="span" className="font-medium text-danger">Fix {Object.keys(errors).length === 1 ? 'this field' : 'these fields'} before saving.</BodySm>
  <ul className="mt-1.5 flex flex-col gap-1">
  {Object.keys(errors).map((key) => (
