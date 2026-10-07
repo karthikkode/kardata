@@ -475,10 +475,10 @@ describe.skipIf(!ENABLED)('continue-as-new (P4.2.4) [F:backend.activity.turn.app
   }, 120_000)
 
   it('first-run histories replay cleanly through the current bundle', async () => {
-    // Session run 1, parent run 1, survive run 1, child run 1, plus the
-    // child's resumed current run: proves the can-v1 markers and carried
-    // state replay.
-    expect(replayTargets).toHaveLength(5)
+    // Session run 1, parent run 1, survive run 1, cancelled-children run 1,
+    // child run 1, plus the child's resumed current run: proves the can-v1
+    // markers and carried state replay.
+    expect(replayTargets).toHaveLength(6)
     const workflowBundle = await bundleWorkflowCode({ workflowsPath: WORKFLOWS_PATH })
     for (const target of replayTargets) {
       const history =
