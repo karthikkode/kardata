@@ -249,7 +249,10 @@ export async function runMatrixState(page: Page, mc: MatrixCase, state: MatrixSt
   // so the browser's own resource errors for /v1/ URLs are expected there —
   // and only there. Healthy-state runs stay strict: an unmocked endpoint's
   // catch-all 404 must still trip the console assertion.
-  const faultedApi = dataState === 'error' || dataState === 'denied' || dataState === 'offline' || dataState === 'partial'
+  const faultedApi = dataState === 'error' || dataState === 'denied' || dataState === 'offline' || dataState === 'partial' ||
+    // Empty detail is a by-design 404 (sector-empty); other empties serve
+    // 200s and stay strict so unmocked-endpoint 404s still trip.
+    (dataState === 'empty' && mc.primary === 'sector')
   const errors: string[] = []
   page.on('console', (msg) => {
     if (msg.type() !== 'error') return

@@ -204,6 +204,9 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
       if (rest === '' && method === 'GET') {
         const state = await gate(route, 'sector')
         if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
+        // An empty detail fetch is a missing sector (the only sector-empty
+        // consumer asserts the designed not-found UI).
+        if (mode('sector') === 'empty') { await fail(route, 404, 'not_found', 'Sector not found.'); return }
         const rows = liveCompanies().filter((company) => company.sectorId === sectorId)
         await ok(route, {
           ...sector, companiesFound: mode('sector') === 'empty' ? 0 : rows.length,
