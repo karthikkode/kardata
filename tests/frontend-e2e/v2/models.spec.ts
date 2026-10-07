@@ -52,7 +52,7 @@ test('MO-04-empty', async ({ page }) => {
 
 test('MO-04-error', async ({ page }) => {
   await capture(page, 'MO-04', 'error', () => gotoModels(page, { modes: { providers: 'error' } }), async () => {
-    await expect(page.getByText('Models did not load.')).toBeVisible()
+    await expect(page.getByText('The model catalog did not load.')).toBeVisible()
   })
 })
 
