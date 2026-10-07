@@ -248,9 +248,17 @@ const CASES: FaultCase[] = [
     id: 'frontend.src.components.SectorWorkspace', label: 'PATCH session settings', method: 'PATCH',
     pattern: /\/settings/, route: CHAT,
     healAnchors: [{ kind: 'role', role: 'button', name: 'Conversation options' }],
+    // The toggle moved out of the menu (a raw switch under role=menu
+    // fails axe aria-required-children): open the Local context overlay
+    // first, then flip the same Use-global-context switch there. Same
+    // endpoint and heal anchors; only the trigger path moved. (Case is
+    // unverified: it pins the trigger + heal, not the error UI.)
     refetch: { steps: [
       ...OPTIONS_MENU,
+      { click: { kind: 'role', role: 'menuitem', name: 'Local context' } },
       { click: { kind: 'css', css: '[data-slot="switch"]' } },
+      // The overlay is modal: close it so the heal anchor is visible again.
+      { press: 'Escape' },
     ] },
     unverified: true,
   },
