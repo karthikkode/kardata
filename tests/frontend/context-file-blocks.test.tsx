@@ -173,7 +173,7 @@ describe('context compaction and restore', () => {
     const onCompact = vi.fn()
     const view = renderHistory([], { onCompact })
     await user.click(screen.getByRole('button', { name: 'Global context options' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Compact now' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Compact now' }))
     expect(onCompact).toHaveBeenCalledTimes(1)
     view.unmount()
   })
