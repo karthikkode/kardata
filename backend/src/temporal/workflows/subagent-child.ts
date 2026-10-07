@@ -394,6 +394,14 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
         // A cancel that lands after the scope resolves still wins: the
         // finished turn is discarded rather than appended as an orphan.
         if (currentStatus() === 'cancelled') continue
+        // Missed-steer redelivery (F13-child): steers that landed too
+        // late for this turn's rounds were receipted as missed; queue
+        // their texts as one follow-up turn, exactly like sessionRun.
+        const redeliver = outcome.missedSteering ?? []
+        if (redeliver.length > 0) {
+          inbox.push(stamp(redeliver.map((row) => row.text).join('\n\n')))
+          log.info('signal received', { signal: 'childMessage-redeliver', pending: inbox.length })
+        }
         nonce += 1
         await childActivities.appendEventActivity({
           idempotencyKey: idempotencyKey(eventKey, 'reply', nonce),

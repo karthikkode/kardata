@@ -55,4 +55,7 @@ turn carrying its text (workflow inbox push on `outcome.missedSteering`).
 A steer landing while no turn holds the lease stays `pending` and wakes
 one turn via the `runSteer` signal. Either way one steer wakes at most
 one turn, and nothing is lost. Error/cancel paths release the lease
-without reporting, so no turn wakes for a dead run.
+without reporting, so no turn wakes for a dead run. Child turns
+redeliver identically; an idle child wakes via `childMessage`, while a
+finished child is receipted `missed_steer` with a surfaced event and
+never relaunches.

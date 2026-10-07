@@ -560,6 +560,21 @@ export class TemporalRunsGateway implements RunsGateway {
         args: [{ text, traceparent: sendTraceparent() }],
         sessionId: thread.sessionId,
       })
+    } else if (!instruction.active && thread.kind === 'subagent') {
+      // F13-child: an idle child's steer is its next turn's work. The
+      // row above is the receipt; the strict childMessage signal wakes
+      // the parked workflow, whose turn consumes the row (run 2, round
+      // 1). A child that closed in the race records missed instead of
+      // 404ing, like the finished path above.
+      try {
+        await this.signalTarget({ workflowId: thread.key.replace(/^agent:/, ''), signal: 'childMessage', args: [text] })
+      } catch (error) {
+        if (error instanceof RunNotFound) {
+          const current = await getThread(this.pool, threadKey)
+          if (current?.status === 'FINISHED' || current?.status === 'ERROR') return this.recordMissedSteer(threadKey, text)
+        }
+        throw error
+      }
     }
     return { commandId: id, state: instruction.state === 'missed' ? 'missed_steer' : 'accepted' }
   }
