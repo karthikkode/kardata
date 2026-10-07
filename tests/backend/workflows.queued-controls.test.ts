@@ -154,15 +154,17 @@ describe.skipIf(!ENABLED)(
 
         await parent.handle.signal('parentChildControl', { childId: cancelled, action: 'cancel' })
         await waitFor(async () => !((await parentState(sessionId)).queued ?? []).includes(cancelled), 30_000, 'queued cancel')
-        const rows = await events(`session:${sessionId}`)
-        expect(
-          rows.some(
+        // The queue splice is visible before the completion activity
+        // lands: wait for the entry instead of reading once (the single
+        // read flaked under parallel-file load).
+        await waitFor(async () =>
+          (await events(`session:${sessionId}`)).some(
             (event) =>
               event.type === 't.subagent.completed' &&
               (event.payload['summary'] as { id?: string }).id === cancelled &&
               (event.payload['summary'] as { status?: string }).status === 'cancelled',
-          ),
-        ).toBe(true)
+          ), 30_000, 'queued completion entry')
+        const rows = await events(`session:${sessionId}`)
         // Cancelled while queued: never launched, never ran.
         expect(
           rows.some((event) => event.type === 't.subagent.launched' && event.payload['childId'] === cancelled),

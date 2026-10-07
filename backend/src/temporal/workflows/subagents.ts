@@ -221,6 +221,27 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
     }
   }
 
+  // Queued waiters have no workflow to signal: complete them as
+  // cancelled so their threads close instead of sitting QUEUED behind
+  // a dead parent. Promoted requests still awaiting launch count too
+  // (their QUEUED row exists); fresh unprocessed signals were never
+  // announced and need no entry.
+  const cancelWaitingChildren = async (): Promise<void> => {
+    const queued = [...waiting, ...delegations.filter((request) => promoted.has(request.childId))]
+    const seen = new Set<string>()
+    for (const request of queued) {
+      if (seen.has(request.childId)) continue
+      seen.add(request.childId)
+      nonce += 1
+      await childActivities.appendEventActivity({
+        idempotencyKey: idempotencyKey(partition, `cancelled-unwind-${request.childId}`, nonce),
+        partition,
+        type: 't.subagent.completed',
+        payload: { summary: { id: request.childId, status: 'cancelled' } },
+      })
+    }
+  }
+
   // Continued runs skip session.created (the first run recorded it).
   if (!carried) {
     nonce += 1
@@ -236,6 +257,7 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
     for (;;) {
       if (finishRequested) {
         await cancelRunningChildren()
+        await cancelWaitingChildren()
         return 'done'
       }
       // Continue-as-new between iterations: signals, queue, promotions, and
@@ -340,6 +362,7 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
           // Idle close: no running child outlives the parent as an orphan,
           // then complete with a terminal entry.
           await cancelRunningChildren()
+          await cancelWaitingChildren()
           nonce += 1
           await childActivities.appendEventActivity({
             idempotencyKey: idempotencyKey(partition, 'parent-expired', nonce),
@@ -484,7 +507,12 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
   } catch (error) {
     // ABANDON orphans running children on unwind: cancel them explicitly.
     // Continue-as-new restarts cleanly and must not touch them.
-    if (!(error instanceof ContinueAsNew)) await CancellationScope.nonCancellable(() => cancelRunningChildren())
+    if (!(error instanceof ContinueAsNew)) {
+      await CancellationScope.nonCancellable(async () => {
+        await cancelRunningChildren()
+        await cancelWaitingChildren()
+      })
+    }
     throw error
   }
 }
