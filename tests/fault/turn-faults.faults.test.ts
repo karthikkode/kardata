@@ -287,7 +287,13 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9-F10, F13-F14 [F:
       pairs.push(`${round}:${kind}`)
       await persistExecutionRecord(resolveArchiveTarget(), sessionId, record)
     }
-    chmodSync(archiveDir, 0o555)
+    // Fresh dir, not the suite's: chmod 555 locks only the top dir, so an
+    // earlier test's 755 execution-records/ subdir would stay writable and
+    // the persists would succeed (turn ok, workflow idles, result hangs).
+    const f10dir = mkdtempSync(join(tmpdir(), 'fault-archive-f10-'))
+    const savedDir = process.env['KARDATA_ARCHIVE_DIR']
+    process.env['KARDATA_ARCHIVE_DIR'] = f10dir
+    chmodSync(f10dir, 0o555)
     try {
       const { sessionId, handle } = await startTurn('F10 hello')
       expect(await handle.result()).toBe('error')
@@ -312,7 +318,9 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9-F10, F13-F14 [F:
       expect(await resolveArchiveTarget().list('execution-records')).toEqual([])
       console.log('[fault F10] persist-tries=3 result=error honest=true archive=empty refs=null')
     } finally {
-      chmodSync(archiveDir, 0o700)
+      chmodSync(f10dir, 0o700)
+      if (savedDir === undefined) delete process.env['KARDATA_ARCHIVE_DIR']
+      else process.env['KARDATA_ARCHIVE_DIR'] = savedDir
     }
   }, 180_000)
 
