@@ -232,7 +232,8 @@ export function matrixApiOptions(
   // Cases for state-gated UI (the plan editor needs an editable sector)
   // override the matrix sector state; item 0 is always the matrix sector.
   const applySectorState = () => {
-    if (sectorState && data.sectors[0]) data.sectors[0] = { ...data.sectors[0], state: sectorState }
+    const sectors = data.sectors
+    if (sectorState && sectors?.[0]) sectors[0] = { ...sectors[0], state: sectorState }
   }
   switch (state) {
     case 'loading':
