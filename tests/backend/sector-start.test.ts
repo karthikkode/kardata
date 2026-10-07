@@ -21,8 +21,21 @@ function stubDb(
   captured: Captured[],
   session?: { id: string; sector: string | null },
 ): TransactableDb {
-  return {
-    connect: async () => ({}) as unknown as PoolClient,
+  const db: TransactableDb = {
+    connect: async () => ({
+      query: async (text: string, params?: unknown[]) => {
+        // Projector handshake: the stub simulates projection by mutating
+        // state on INSERT, so the projector always finds nothing new and
+        // stays out of `captured` (infrastructure, not product SQL).
+        if (text === 'BEGIN' || text === 'COMMIT' || text === 'ROLLBACK') return { rowCount: 0, rows: [] }
+        if (text.includes('pg_advisory_xact_lock')) return { rowCount: 0, rows: [] }
+        if (text.includes('INSERT INTO projection_checkpoints')) return { rowCount: 1, rows: [{ seq: 0 }] }
+        if (text.includes('UPDATE projection_checkpoints')) return { rowCount: 1, rows: [] }
+        if (text.includes('FROM events WHERE seq >')) return { rowCount: 0, rows: [] }
+        return db.query(text, params ?? [])
+      },
+      release: () => undefined,
+    }) as unknown as PoolClient,
     async query<TRow>(text: string, params: unknown[] = []): Promise<{ rowCount: number | null; rows: TRow[] }> {
       captured.push({ text, params })
       if (text.includes('INSERT INTO events')) {
@@ -63,6 +76,7 @@ function stubDb(
       return { rowCount: 0, rows: [] }
     },
   }
+  return db
 }
 
 const SCOPE = { tenantId: 't', projectId: null }
