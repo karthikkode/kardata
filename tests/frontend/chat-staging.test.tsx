@@ -174,6 +174,35 @@ describe('chat staging (no mocks)', () => {
     }
   })
 
+  // Queued subagents accept pause/stop through the parent (pilot item 3):
+  // the strip offers the buttons and the panel addresses the child by
+  // its derived id (queued children have no run entry yet).
+  it.each([
+    ['Pause', '/v1/commands/pause'],
+    ['Stop', '/v1/commands/cancel'],
+  ])('%s a queued subagent by its derived child id', async (verb, path) => {
+    const queued = [
+      ...THREADS,
+      { key: 'agent:child-9', sessionId: 's-1', kind: 'subagent', name: 'Queued scout', status: 'QUEUED', acceptingSteer: true, queueDepth: 0, updatedAt: '2026-09-26T01:00:00.000Z' },
+    ]
+    const { calls } = stubApi((url) => {
+      if (url.includes('/threads') && !url.includes('/messages') && !url.includes('/events')) {
+        return { status: 200, payload: { ok: true, data: queued } }
+      }
+      if (url.endsWith(path)) return { status: 202, payload: { ok: true, data: { commandId: 'cmd-9', state: 'accepted' } } }
+      return baseHandler(url)
+    })
+    render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
+    fireEvent.click(await screen.findByRole('button', { name: /subagents/ }))
+    fireEvent.click(await screen.findByRole('button', { name: `${verb} Queued scout` }))
+    await vi.waitFor(() => {
+      expect(calls.some((call) => call.url.endsWith(path))).toBe(true)
+    })
+    const command = calls.find((call) => call.url.endsWith(path))
+    expect(command?.method).toBe('POST')
+    expect(command?.body).toBe(JSON.stringify({ runId: 'child-9' }))
+  })
+
   it('starts a session on send when none exists (start-on-send)', async () => {
     const { calls } = stubApi((url, init) => {
       if (url.endsWith('/v1/sessions')) {

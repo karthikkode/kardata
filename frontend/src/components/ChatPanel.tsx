@@ -495,12 +495,23 @@ export function ChatPanel({
     setThreadsAttempt((attempt) => attempt + 1)
   }
 
+  // Run id for a thread control: the live run entry when one exists,
+  // else the child id derived from a subagent thread key (queued
+  // children have no run entry yet). Null when nothing addresses it.
+  function controlRunId(key: string): string | null {
+    const run = runs.find((entry) => entry.threadKey === key)
+    if (run) return run.id
+    const thread = threads.find((entry) => entry.key === key)
+    if (thread?.kind === 'subagent' && key.startsWith('agent:')) return key.slice('agent:'.length)
+    return null
+  }
+
   function stopThread(key: string) {
     if (!config) return
-    const run = runs.find((entry) => entry.threadKey === key)
-    if (run) {
+    const runId = controlRunId(key)
+    if (runId) {
       runActions.cancel
-        .run(run.id)
+        .run(runId)
         .then(() => setThreadsAttempt((attempt) => attempt + 1))
         .catch(() => undefined)
     }
@@ -508,10 +519,10 @@ export function ChatPanel({
 
   function pauseThread(key: string) {
     if (!config) return
-    const run = runs.find((entry) => entry.threadKey === key)
-    if (run) {
+    const runId = controlRunId(key)
+    if (runId) {
       runActions.pause
-        .run(run.id)
+        .run(runId)
         .then(() => setThreadsAttempt((attempt) => attempt + 1))
         .catch(() => undefined)
     }
@@ -519,10 +530,10 @@ export function ChatPanel({
 
   function resumeThread(key: string) {
     if (!config) return
-    const run = runs.find((entry) => entry.threadKey === key)
-    if (run) {
+    const runId = controlRunId(key)
+    if (runId) {
       runActions.resume
-        .run(run.id)
+        .run(runId)
         .then(() => setThreadsAttempt((attempt) => attempt + 1))
         .catch(() => undefined)
     }

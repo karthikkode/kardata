@@ -72,7 +72,10 @@ show in-flight age from client-side first-seen stamps; wire frames are
 unchanged. Agent replies render house markdown (`Markdown.tsx`: GFM subset,
 no raw HTML, http(s)-only links, token styles) without a repeated avatar;
 the subagent strip appears only when
-a subagent exists. Sending with no session creates one first
+a subagent exists. Queued rows carry the same Pause and Stop buttons as
+running rows (the panel addresses the child by its derived id: queued
+children have no run entry yet); paused-queued rows offer Resume.
+Sending with no session creates one first
 (start-on-send, titled from the message); offline sends short-circuit with
 "No connection" and keep the draft. Connection,
 denied, empty, sending, thinking (elapsed clock while no frames have

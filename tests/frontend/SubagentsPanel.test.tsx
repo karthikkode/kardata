@@ -85,4 +85,22 @@ describe('SubagentsPanel', () => {
     expect(screen.queryByText('Running')).not.toBeInTheDocument()
     expect(screen.queryByText('Research agent 1 stopped.')).not.toBeInTheDocument()
   })
+
+  // Queued children accept pause/stop through the parent (pilot item 3).
+  it('pauses and stops a queued thread with announcements', () => {
+    const queued: ThreadView[] = [
+      { key: 'agent:child-9', name: 'Queued scout', sessionId: 's-1', kind: 'subagent', status: 'QUEUED', acceptingSteer: true, queueDepth: 0, updatedAt: '' },
+    ]
+    const onPauseThread = vi.fn()
+    const onStopThread = vi.fn()
+    render(<SubagentsPanel threads={queued} onPauseThread={onPauseThread} onStopThread={onStopThread} />)
+    fireEvent.click(screen.getByRole('button', { name: /subagents/ }))
+    expect(screen.getByText('Queued')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Pause Queued scout' }))
+    expect(onPauseThread).toHaveBeenCalledWith('agent:child-9')
+    expect(screen.getByText('Queued scout paused.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Stop Queued scout' }))
+    expect(onStopThread).toHaveBeenCalledWith('agent:child-9')
+    expect(screen.getByText('Queued scout stopped.')).toBeInTheDocument()
+  })
 })
