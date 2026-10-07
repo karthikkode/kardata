@@ -5,26 +5,39 @@ import { runMatrixState, type MatrixCase } from '../support/matrix'
 
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.ui.textarea",
-  "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+  "route": "/?section=SectorChat&sector=sector-matrix&session=session-sector-matrix-research&thread=session-sector-matrix-research",
+  "gated": true,
   "setup": [
     {
       "click": {
-        "kind": "css",
-        "css": "[data-tab-value=\"plan\"]"
+        "kind": "role",
+        "role": "tab",
+        "name": "Plan"
       }
+    }
+  ],
+  "postAnchors": [
+    {
+      "kind": "role",
+      "role": "tab",
+      "name": "Plan"
+    },
+    {
+      "kind": "css",
+      "css": "[aria-label=\"Plan text\"]"
     }
   ],
   "primary": "plan"
 }
 
 test('[F:frontend.src.components.ui.textarea] textarea typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[data-tab-value=\"plan\"]"},{"kind":"css","css":"[aria-label=\"Plan text\"]"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}] }, 'typical')
 })
 
 test('[F:frontend.src.components.ui.textarea] textarea dark', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[data-tab-value=\"plan\"]"},{"kind":"css","css":"[aria-label=\"Plan text\"]"}] }, 'dark')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}] }, 'dark')
 })
 
 test('[F:frontend.src.components.ui.textarea] textarea focus', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[data-tab-value=\"plan\"]"},{"kind":"css","css":"[aria-label=\"Plan text\"]"}] }, 'focus')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}] }, 'focus')
 })

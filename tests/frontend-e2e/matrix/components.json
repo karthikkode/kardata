@@ -290,19 +290,29 @@
     "family": "direct"
   },
   "frontend.src.components.ResearchPlanEditor": {
-    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "route": "/?section=SectorChat&sector=sector-matrix&session=session-sector-matrix-research&thread=session-sector-matrix-research",
     "setup": [
       {
         "click": {
-          "kind": "css",
-          "css": "[data-tab-value=\"plan\"]"
+          "kind": "role",
+          "role": "tab",
+          "name": "Plan"
         }
       }
     ],
+    "gated": true,
     "anchors": [
       {
-        "kind": "css",
-        "css": "[data-tab-value=\"plan\"]"
+        "kind": "role",
+        "role": "tab",
+        "name": "Plan"
+      }
+    ],
+    "postAnchors": [
+      {
+        "kind": "role",
+        "role": "tab",
+        "name": "Plan"
       },
       {
         "kind": "css",
@@ -652,19 +662,21 @@
     "family": "static"
   },
   "frontend.src.components.plan.PlanSteps": {
-    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "route": "/?section=SectorChat&sector=sector-matrix&session=session-sector-matrix-research&thread=session-sector-matrix-research",
     "setup": [
       {
         "click": {
-          "kind": "css",
-          "css": "[data-tab-value=\"plan\"]"
+          "kind": "role",
+          "role": "tab",
+          "name": "Plan"
         }
       }
     ],
     "anchors": [
       {
-        "kind": "css",
-        "css": "[data-tab-value=\"plan\"]"
+        "kind": "role",
+        "role": "tab",
+        "name": "Plan"
       }
     ],
     "primary": "plan",
@@ -865,19 +877,21 @@
     "family": "static"
   },
   "frontend.src.components.ui.collapsible": {
-    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "route": "/?section=SectorChat&sector=sector-matrix&session=session-sector-matrix-research&thread=session-sector-matrix-research",
     "setup": [
       {
         "click": {
-          "kind": "css",
-          "css": "[data-tab-value=\"plan\"]"
+          "kind": "role",
+          "role": "tab",
+          "name": "Plan"
         }
       }
     ],
     "anchors": [
       {
-        "kind": "css",
-        "css": "[data-tab-value=\"plan\"]"
+        "kind": "role",
+        "role": "tab",
+        "name": "Plan"
       }
     ],
     "postAnchors": [
@@ -1016,19 +1030,29 @@
     }
   },
   "frontend.src.components.ui.progress": {
-    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "route": "/?section=SectorChat&sector=sector-matrix&session=session-sector-matrix-research&thread=session-sector-matrix-research",
     "setup": [
       {
         "click": {
-          "kind": "css",
-          "css": "[data-tab-value=\"plan\"]"
+          "kind": "role",
+          "role": "tab",
+          "name": "Plan"
         }
       }
     ],
+    "gated": true,
     "anchors": [
       {
-        "kind": "css",
-        "css": "[data-tab-value=\"plan\"]"
+        "kind": "role",
+        "role": "tab",
+        "name": "Plan"
+      }
+    ],
+    "postAnchors": [
+      {
+        "kind": "role",
+        "role": "tab",
+        "name": "Plan"
       },
       {
         "kind": "css",
@@ -1144,19 +1168,29 @@
     "family": "static"
   },
   "frontend.src.components.ui.textarea": {
-    "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "route": "/?section=SectorChat&sector=sector-matrix&session=session-sector-matrix-research&thread=session-sector-matrix-research",
     "setup": [
       {
         "click": {
-          "kind": "css",
-          "css": "[data-tab-value=\"plan\"]"
+          "kind": "role",
+          "role": "tab",
+          "name": "Plan"
         }
       }
     ],
+    "gated": true,
     "anchors": [
       {
-        "kind": "css",
-        "css": "[data-tab-value=\"plan\"]"
+        "kind": "role",
+        "role": "tab",
+        "name": "Plan"
+      }
+    ],
+    "postAnchors": [
+      {
+        "kind": "role",
+        "role": "tab",
+        "name": "Plan"
       },
       {
         "kind": "css",

@@ -5,12 +5,13 @@ import { runMatrixState, type MatrixCase } from '../support/matrix'
 
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.ui.collapsible",
-  "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+  "route": "/?section=SectorChat&sector=sector-matrix&session=session-sector-matrix-research&thread=session-sector-matrix-research",
   "setup": [
     {
       "click": {
-        "kind": "css",
-        "css": "[data-tab-value=\"plan\"]"
+        "kind": "role",
+        "role": "tab",
+        "name": "Plan"
       }
     }
   ],
@@ -24,13 +25,13 @@ const base: Omit<MatrixCase, 'anchors'> = {
 }
 
 test('[F:frontend.src.components.ui.collapsible] collapsible typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[data-tab-value=\"plan\"]"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}] }, 'typical')
 })
 
 test('[F:frontend.src.components.ui.collapsible] collapsible dark', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[data-tab-value=\"plan\"]"}] }, 'dark')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}] }, 'dark')
 })
 
 test('[F:frontend.src.components.ui.collapsible] collapsible focus', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[data-tab-value=\"plan\"]"}] }, 'focus')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Plan"}] }, 'focus')
 })
