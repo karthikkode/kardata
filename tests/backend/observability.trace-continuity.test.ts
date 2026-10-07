@@ -156,7 +156,14 @@ describe.skipIf(!ENABLED)('trace continuity across Temporal, provider, MCP and D
       for (const round of probe.rounds) {
         expect(round['trace_id']).toBe(TRACE_ID)
       }
-      // MCP-callback leg: the server continued our traceparent.
+      // MCP-callback leg: the server continued our traceparent. The fake
+      // calls listTools after recording rounds, so the rounds wait above
+      // does not synchronize this leg: wait for its log line instead of
+      // racing it (lost under full-suite load, mcpStarts=0).
+      await waitFor(() => httpLines.some((line) => {
+        const parsed = JSON.parse(line) as Record<string, unknown>
+        return parsed['event'] === 'http.request.start' && parsed['method'] === 'POST' && parsed['trace_id'] === TRACE_ID
+      }), 'mcp leg logs')
       const mcpStarts = httpLines
         .map((line) => JSON.parse(line) as Record<string, unknown>)
         .filter((line) => line['event'] === 'http.request.start' && line['method'] === 'POST' && line['trace_id'] === TRACE_ID)
