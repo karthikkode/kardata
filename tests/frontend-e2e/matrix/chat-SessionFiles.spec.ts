@@ -14,6 +14,13 @@ const base: Omit<MatrixCase, 'anchors'> = {
         "role": "button",
         "name": "Ask Karbot"
       }
+    },
+    {
+      "click": {
+        "kind": "role",
+        "role": "button",
+        "name": "Session files"
+      }
     }
   ],
   "postAnchors": [
