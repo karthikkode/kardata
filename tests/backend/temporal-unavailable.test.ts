@@ -1,8 +1,8 @@
 // Connectivity detector behind honest 503s on Temporal cuts (F8's product
-// half). Pure unit: no DB, no Temporal. Untagged: runs-gateway top-level
+// half). Pure unit: no DB, no Temporal. Untagged: runs-helpers top-level
 // exports are not registry surfaces (only workflows/activities are).
 import { describe, expect, it } from 'vitest'
-import { isTemporalConnectivity } from '../../backend/src/temporal/runs-gateway.js'
+import { isTemporalConnectivity } from '../../backend/src/temporal/runs-helpers.js'
 import { RunNotFound, TemporalUnavailableError } from '../../backend/src/temporal/runs-types.js'
 
 const nest = (depth: number, leaf: unknown): unknown => {

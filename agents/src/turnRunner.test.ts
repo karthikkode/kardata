@@ -1410,36 +1410,6 @@ it.each([false, true])('restores original nested argument order but rejects chan
   else { expect(seen).toEqual([JSON.stringify(call.args)]); expect(result.text).toBe('TEST finished') }
 })
 
-it('runs one follow-up round for late work after a quiet round, then completes', async () => {
-  const provider = new FakeProvider([{ text: 'TEST one' }, { text: 'TEST two' }])
-  const seen: number[] = []
-  const result = await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [{ role: 'user', text: 'TEST hi' }], mcp: memoryMcp(), sink: memorySink().sink,
-    hasPendingFollowUp: async (round) => { seen.push(round); return true }, followUpGraceMs: 60, followUpPollMs: 5 })
-  expect(result.text).toBe('TEST two')
-  expect(provider.calls).toHaveLength(2)
-  expect(seen).toEqual([1])
-})
-
-it('completes a quiet turn when no follow-up arrives inside grace', async () => {
-  const provider = new FakeProvider([{ text: 'TEST one' }])
-  const result = await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [{ role: 'user', text: 'TEST hi' }], mcp: memoryMcp(), sink: memorySink().sink,
-    hasPendingFollowUp: async () => false, followUpGraceMs: 30, followUpPollMs: 5 })
-  expect(provider.calls).toHaveLength(1)
-  expect(result.text).toBe('TEST one')
-})
-
-it('completes normally when aborted during the follow-up grace wait', async () => {
-  const abort = new AbortController()
-  const provider = new FakeProvider([{ text: 'TEST one' }])
-  setTimeout(() => abort.abort(), 10)
-  const started = Date.now()
-  const result = await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [{ role: 'user', text: 'TEST hi' }], mcp: memoryMcp(), sink: memorySink().sink, signal: abort.signal,
-    hasPendingFollowUp: async () => false, followUpGraceMs: 5000, followUpPollMs: 5 })
-  expect(provider.calls).toHaveLength(1)
-  expect(result.text).toBe('TEST one')
-  expect(Date.now() - started).toBeLessThan(2000)
-})
-
 describe('turn request defaults [F:agents.turnRunner.runKarbotTurn]', () => {
   it('sends toolChoice auto when the caller sets none', async () => {
     const provider = new FakeProvider([{ text: 'TEST done' }])
@@ -1468,53 +1438,6 @@ describe('turn request defaults [F:agents.turnRunner.runKarbotTurn]', () => {
     expect(result.text).toBe('')
     expect(result.reasoning).toBe('')
     expect(result.recoveryHalt).toHaveLength(1)
-  })
-})
-
-describe('follow-up grace edges [F:agents.turnRunner.runKarbotTurn]', () => {
-  it('ignores late work when grace is explicitly zero', async () => {
-    const provider = new FakeProvider([{ text: 'TEST one' }])
-    let polls = 0
-    const result = await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [{ role: 'user', text: 'TEST hi' }], mcp: memoryMcp(), sink: memorySink().sink,
-      hasPendingFollowUp: async () => { polls++; return true }, followUpGraceMs: 0 })
-    expect(provider.calls).toHaveLength(1)
-    expect(result.text).toBe('TEST one')
-    expect(polls).toBe(0)
-  })
-
-  it('takes a follow-up that arrives on a later poll', async () => {
-    const provider = new FakeProvider([{ text: 'TEST one' }, { text: 'TEST two' }])
-    let polls = 0
-    const result = await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [{ role: 'user', text: 'TEST hi' }], mcp: memoryMcp(), sink: memorySink().sink,
-      hasPendingFollowUp: async () => ++polls >= 2, followUpGraceMs: 5000, followUpPollMs: 5 })
-    expect(result.text).toBe('TEST two')
-    expect(provider.calls).toHaveLength(2)
-  })
-
-  it('polls a handful of times per grace window, never busy-loops', async () => {
-    const provider = new FakeProvider([{ text: 'TEST one' }])
-    let polls = 0
-    await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [{ role: 'user', text: 'TEST hi' }], mcp: memoryMcp(), sink: memorySink().sink,
-      hasPendingFollowUp: async () => { polls++; return false }, followUpGraceMs: 60 })
-    expect(polls).toBeLessThanOrEqual(3)
-    expect(polls).toBeGreaterThanOrEqual(1)
-  })
-
-  it('stops polling exactly at the deadline', async () => {
-    vi.useFakeTimers()
-    try {
-      vi.setSystemTime(1_000_000)
-      let polls = 0
-      const provider = new FakeProvider([{ text: 'TEST one' }])
-      const pending = runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [{ role: 'user', text: 'TEST hi' }], mcp: memoryMcp(), sink: memorySink().sink,
-        hasPendingFollowUp: async () => { polls++; return false }, followUpGraceMs: 100, followUpPollMs: 250 })
-      await vi.advanceTimersByTimeAsync(500)
-      const result = await pending
-      expect(result.text).toBe('TEST one')
-      expect(polls).toBe(2)
-    } finally {
-      vi.useRealTimers()
-    }
   })
 })
 
@@ -2600,43 +2523,6 @@ describe('stream abort edges [F:agents.turnRunner.runKarbotTurn]', () => {
     await ended
     await expect(pending).rejects.toThrow('TEST owner stopped')
     expect(deltas).toEqual(['TEST one'])
-  })
-
-  it('aborts a grace wait promptly instead of lingering to the deadline', async () => {
-    vi.useFakeTimers()
-    try {
-      vi.setSystemTime(1_000_000)
-      const abort = new AbortController()
-      const provider = new FakeProvider([{ text: 'TEST one' }])
-      let settled = false
-      const pending = runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [{ role: 'user', text: 'TEST hi' }], mcp: memoryMcp(), sink: memorySink().sink,
-        signal: abort.signal,
-        hasPendingFollowUp: async () => { abort.abort(new Error('TEST owner stopped')); return false },
-        followUpGraceMs: 5000, followUpPollMs: 50 })
-        .then((result) => { settled = true; return result })
-      await vi.advanceTimersByTimeAsync(500)
-      expect(settled).toBe(true)
-      expect((await pending).text).toBe('TEST one')
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('caps the final grace sleep at the deadline instead of oversleeping', async () => {
-    vi.useFakeTimers()
-    try {
-      vi.setSystemTime(1_000_000)
-      const provider = new FakeProvider([{ text: 'TEST one' }])
-      let settled = false
-      const pending = runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [{ role: 'user', text: 'TEST hi' }], mcp: memoryMcp(), sink: memorySink().sink,
-        hasPendingFollowUp: async () => false, followUpGraceMs: 100, followUpPollMs: 250 })
-        .then((result) => { settled = true; return result })
-      await vi.advanceTimersByTimeAsync(100)
-      expect(settled).toBe(true)
-      expect((await pending).text).toBe('TEST one')
-    } finally {
-      vi.useRealTimers()
-    }
   })
 
   it('omits the completion key from the pending checkpoint when the provider sends none', async () => {

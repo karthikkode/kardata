@@ -2,7 +2,7 @@
 // environment with the plan defaults; invalid values fail fast naming
 // the variable. Pure unit: no Temporal, no DB.
 import { describe, expect, it } from 'vitest'
-import { childCapsFromEnv } from '../../backend/src/temporal/runs-gateway.js'
+import { childCapsFromEnv } from '../../backend/src/temporal/runs-helpers.js'
 
 describe('delegation caps from env', () => {
   it('defaults to 50 in flight and 2000 queued', () => {

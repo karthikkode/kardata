@@ -1,5 +1,6 @@
 // Run gateway helpers: workflow-id builders, the approved-coordinator
-// transition, cancel signaling, and status mapping.
+// transition, cancel signaling, status mapping, env caps, and
+// connectivity classification.
 import { randomUUID } from 'node:crypto'
 import { appendEvent, enqueueQueuedSteering, getThread, setThreadPaused, type TransactableDb } from '../db/index.js'
 import { CancelledFailure, WorkflowFailedError, WorkflowNotFoundError, type Client } from '@temporalio/client'
@@ -276,3 +277,44 @@ export async function steerQueuedChild(
   await enqueueQueuedSteering(pool, thread.key, text, id)
   return { commandId: id, state: 'accepted' }
 }
+
+/** Delegation caps from the environment (Node side only: workflows take
+ * them via DelegateParentInput). Invalid values fail the delegation fast
+ * with the variable named. */
+export function childCapsFromEnv(env: NodeJS.ProcessEnv = process.env): { maxInFlight: number; maxQueued: number } {
+  const parse = (name: 'KARDATA_MAX_CHILDREN_IN_FLIGHT' | 'KARDATA_MAX_CHILDREN_QUEUED', fallback: number): number => {
+    const raw = env[name]
+    if (raw === undefined || raw === '') return fallback
+    const value = Number(raw)
+    if (!Number.isInteger(value) || value < 1) throw new Error(`${name} must be a positive integer, got ${JSON.stringify(raw)}`)
+    return value
+  }
+  return { maxInFlight: parse('KARDATA_MAX_CHILDREN_IN_FLIGHT', 50), maxQueued: parse('KARDATA_MAX_CHILDREN_QUEUED', 2000) }
+}
+
+const TEMPORAL_CONNECTIVITY_CODES: ReadonlySet<unknown> = new Set([
+  14, 'UNAVAILABLE', 'ECONNREFUSED', 'ENOTFOUND', 'EPIPE', 'ETIMEDOUT', 'ECONNRESET',
+])
+const TEMPORAL_CONNECTIVITY_MESSAGE_PARTS = [
+  'connection refused', 'unavailable', 'failed to connect', 'transport error', 'tonic',
+]
+
+/** True when a Temporal client failure means the server is unreachable
+ * (F8): gRPC UNAVAILABLE, refused/reset/timed-out sockets, or the bridge's
+ * transport errors, found on the error or up to 4 causes deep. Domain
+ * errors (not-found, already-started) and bugs never match. */
+export function isTemporalConnectivity(error: unknown): boolean {
+  let current: unknown = error
+  for (let depth = 0; depth < 5; depth += 1) {
+    if (!current || (typeof current !== 'object' && typeof current !== 'function')) return false
+    if (TEMPORAL_CONNECTIVITY_CODES.has((current as { code?: unknown }).code)) return true
+    const message = (current as { message?: unknown }).message
+    if (typeof message === 'string') {
+      const text = message.toLowerCase()
+      if (TEMPORAL_CONNECTIVITY_MESSAGE_PARTS.some((part) => text.includes(part))) return true
+    }
+    current = (current as { cause?: unknown }).cause
+  }
+  return false
+}
+

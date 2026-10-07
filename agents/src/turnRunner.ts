@@ -128,18 +128,6 @@ export interface KarbotTurnOptions {
    * contended wait queues instead of burning the provider budget) and
    * released when the round settles. Absent means unguarded. */
   acquirePermit?(signal: AbortSignal): Promise<() => Promise<void>>
-  /** Quiet-round follow-up: after a round with no tool calls, the host
-   * may report late-arriving work (owner steering) that deserves one
-   * more round instead of completing. Absent, or grace 0, keeps the
-   * legacy behavior: a quiet round completes the turn. At most one
-   * follow-up round per turn: sustained steering must not hold a turn
-   * open forever. */
-  hasPendingFollowUp?(completedRound: number): Promise<boolean>
-  /** Grace window in ms awaiting late follow-up after a quiet round.
-   * Default 0 (disabled). */
-  followUpGraceMs?: number
-  /** Poll interval inside the grace window. Default 250. */
-  followUpPollMs?: number
   /** Context harness: budgets, repetition screening, per-round snapshots,
    * and pre-round condensation. All optional; absent means the legacy
    * behavior (round cap and timeout only). */
@@ -250,32 +238,7 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
   let budgetTripped: TrippedBudget[] | undefined
   let repetitionHalt: KarbotTurnResult['repetitionHalt']
   let completed = false
-  let followUpUsed = false
   const recoveryHalt: RecoveryOperation[] = []
-
-  // Quiet-round grace: a steer landing just after the response still
-  // gets its round instead of missing a completed turn. Abort during
-  // the wait completes normally: the round already produced its reply,
-  // so there is nothing in flight left to cancel.
-  async function awaitFollowUp(completedRound: number): Promise<boolean> {
-    const graceMs = options.followUpGraceMs ?? 0
-    if (followUpUsed || graceMs <= 0 || !options.hasPendingFollowUp) return false
-    const pollMs = Math.max(1, options.followUpPollMs ?? 250)
-    const deadline = Date.now() + graceMs
-    for (;;) {
-      try {
-        options.signal?.throwIfAborted()
-      } catch {
-        return false
-      }
-      if (await options.hasPendingFollowUp(completedRound)) {
-        followUpUsed = true
-        return true
-      }
-      if (Date.now() >= deadline) return false
-      await new Promise((resolve) => setTimeout(resolve, Math.min(pollMs, Math.max(0, deadline - Date.now()))))
-    }
-  }
 
   if (options.resume && harness?.budgets) {
     for (let index = 0; index < options.resume.round; index++) harness.budgets.noteTurn(true)
@@ -517,7 +480,7 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
         await options.onCheckpoint?.(history, turn, usage, previousToolCalls + executed.length + streamed.toolCalls.length, preparedOperations(streamed.toolCalls, turn), pendingResponse)
         await options.onProviderResponse(turn, pendingResponse.response)
       }
-      if (streamed.toolCalls.length === 0 && !(await awaitFollowUp(turn))) { completed = true; break }
+      if (streamed.toolCalls.length === 0) { completed = true; break }
       await options.onCheckpoint?.(history, turn, usage, previousToolCalls + executed.length + streamed.toolCalls.length, preparedOperations(streamed.toolCalls, turn))
       // Independent calls in one round dispatch together: rounds cost a
       // full provider latency each, so serial MCP calls directly extend

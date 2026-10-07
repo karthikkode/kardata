@@ -110,9 +110,8 @@ export interface TurnOutcome {
   /** Set when the turn halted on a spend guard or repeat loop instead of a
    * model stop. The workflow surfaces it alongside the reply. */
   haltNotice?: string
-  /** Steering that landed too late for this turn's rounds, receipted as
-   * missed at turn end. The workflow redelivers the texts as one
-   * follow-up turn (F13 rework): no grace linger, no extra polls. */
+  /** Late steering receipted as missed; the workflow redelivers the
+   * texts as one follow-up turn (F13 rework, no grace linger). */
   missedSteering?: Array<{ id: string; text: string }>
 }
 
@@ -790,8 +789,7 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
     // without reporting, so no turn wakes for a dead run.
     const finished = await finishSteering(pool, input.threadKey, input.runKey, lease)
     released = true
-    const missed = finished?.missed ?? []
-    return missed.length ? { ...outcome, missedSteering: missed } : outcome
+    return finished?.missed?.length ? { ...outcome, missedSteering: finished.missed } : outcome
   } finally {
     settled = true
     abort.abort()
