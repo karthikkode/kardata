@@ -133,9 +133,9 @@ export function CompaniesSection({
           onChange={setDraft}
           label="Search companies"
           placeholder="Search companies"
-          className="md:w-64 md:shrink-0"
+          className="md:w-64 md:min-w-0"
         />
-        <div className="md:w-52 md:shrink-0">
+        <div className="md:w-52 md:min-w-0">
           <SelectRoot
             value={selectedOption}
             onValueChange={(option) => {

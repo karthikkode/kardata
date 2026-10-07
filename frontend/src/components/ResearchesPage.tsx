@@ -330,9 +330,9 @@ export function ResearchesPage({
           onChange={setDraft}
           label={tab === 'sectors' ? 'Search sectors' : 'Search companies'}
           placeholder={tab === 'sectors' ? 'Search sectors' : 'Search companies'}
-          className="md:w-64 md:shrink-0"
+          className="md:w-64 md:min-w-0"
         />
-        <div className="md:w-52 md:shrink-0">
+        <div className="md:w-52 md:min-w-0">
           <SelectRoot
             value={selectedOption}
             onValueChange={(option) => {
@@ -352,7 +352,7 @@ export function ResearchesPage({
             </SelectPopup>
           </SelectRoot>
         </div>
-        <div className="md:ml-auto">
+        <div className="md:ml-auto md:shrink-0">
           {toolbarCount ? (
             <Caption aria-live="polite" className="tabular-nums">
               {toolbarCount}
