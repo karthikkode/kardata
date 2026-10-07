@@ -1,10 +1,10 @@
 // Karbot turn runner tests. Fake provider plus in-memory MCP/sink doubles
 // only — no network, no credentials, no environment.
 import { describe, expect, it, vi } from 'vitest'
-import { BudgetTracker, RepetitionTracker } from './budgets.js'
+import { BudgetTracker, fingerprintAction, RepetitionTracker } from './budgets.js'
 import { frozenClock } from './clock.js'
 import type { SummaryArtifact } from './condense.js'
-import { estimateMessagesTokens, estimateTokens, type ContextSnapshot } from './context.js'
+import { assembleContext, createSnapshot, estimateMessagesTokens, estimateTokens, type ContextSnapshot } from './context.js'
 import { FakeProvider } from './fake.js'
 import { emptyUsage, type ChatMessage, type ProviderAdapter, type ToolDefinition } from './providers.js'
 import {
@@ -2243,5 +2243,140 @@ describe('round budget accounting [F:agents.turnRunner.runKarbotTurn]', () => {
       harness: { budgets, prices: { inputPricePerMTok: 10, outputPricePerMTok: 20 } } })
     expect(result.text).toBe('TEST done')
     expect(budgets.tripped()).toEqual([])
+  })
+})
+
+describe('round snapshots and request options [F:agents.turnRunner.runKarbotTurn]', () => {
+  it('snapshots the exact round request bytes under the hash chain', async () => {
+    const call = { id: 'c1', name: 'db.list_sessions', args: {} }
+    const provider = new FakeProvider([{ text: '', toolCalls: [call] }, { text: 'TEST done' }])
+    const snapshots: ContextSnapshot[] = []
+    const versions = { tools: { 'db.list_sessions': 'v3' }, prompt: 'p1', policy: 'pol2' }
+    await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages: [{ role: 'user', text: 'hi' }],
+      harness: { versions, onSnapshot: (snapshot) => void snapshots.push(snapshot) } })
+    expect(snapshots).toHaveLength(2)
+    const expectedFirst = createSnapshot(assembleContext({ system: ['sys'], tools: [sessionTool()], references: [], history: [{ role: 'user', text: 'hi' }], tail: [] }), versions, undefined)
+    expect(snapshots[0]).toEqual(expectedFirst)
+    expect(snapshots[1]?.parentHash).toBe(snapshots[0]?.hash)
+    expect(snapshots[1]?.messageCount).toBe(3)
+  })
+
+  it('forwards optional request fields only when set', async () => {
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages: [], maxOutputTokens: 128, reasoningEffort: 'high', temperature: 0.5 })
+    expect(provider.calls[0]?.maxOutputTokens).toBe(128)
+    expect(provider.calls[0]?.reasoningEffort).toBe('high')
+    expect(provider.calls[0]?.temperature).toBe(0.5)
+  })
+
+  it('omits optional request fields when unset', async () => {
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages: [] })
+    const call = provider.calls[0]
+    expect(call && 'maxOutputTokens' in call).toBe(false)
+    expect(call && 'reasoningEffort' in call).toBe(false)
+    expect(call && 'temperature' in call).toBe(false)
+  })
+})
+
+describe('round checkpoints and halt precedence [F:agents.turnRunner.runKarbotTurn]', () => {
+  it('checkpoints provider, dispatch, and post-round totals in order', async () => {
+    const provider = new FakeProvider([
+      { text: '', toolCalls: [{ id: 'c1', name: 'db.list_sessions', args: {} }] },
+      { text: '', toolCalls: [{ id: 'c2', name: 'db.list_sessions', args: {} }] },
+      { text: 'TEST done' },
+    ])
+    const points: Array<{ round: number; total: number; ops: unknown; pending: unknown }> = []
+    await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages: [{ role: 'user', text: 'TEST go' }],
+      operationKey: 'TEST checkpoints', onProviderResponse: async () => undefined,
+      onCheckpoint: async (_history, round, _usage, total, ops, pending) => void points.push({ round, total, ops, pending }) })
+    expect(points.filter((p) => p.pending !== undefined).map((p) => [p.round, p.total])).toEqual([[1, 1], [2, 2], [3, 2]])
+    expect(points.filter((p) => p.pending === undefined && Array.isArray(p.ops) && p.ops.length > 0).map((p) => [p.round, p.total])).toEqual([[1, 1], [2, 2]])
+    expect(points.filter((p) => p.pending === undefined && Array.isArray(p.ops) && p.ops.length === 0).map((p) => [p.round, p.total])).toEqual([[1, 1], [2, 2]])
+  })
+
+  it('completes distinct tool rounds under a repetition screen', async () => {
+    const provider = new FakeProvider([
+      { text: 'a', toolCalls: [{ id: 'c1', name: 't.one', args: {} }] },
+      { text: 'b', toolCalls: [{ id: 'c2', name: 't.two', args: {} }] },
+      { text: 'TEST done' },
+    ])
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys',
+      messages: [{ role: 'user', text: 'hi' }], harness: { repetition: new RepetitionTracker() } })
+    expect(result.text).toBe('TEST done')
+    expect(provider.calls).toHaveLength(3)
+    expect(result.repetitionHalt).toBeUndefined()
+  })
+
+  it('halts a replan verdict with the exact fingerprint and no budget trip', async () => {
+    const repeat = { id: 'c1', name: 'db.list_sessions', args: {} }
+    const provider = new FakeProvider([
+      { text: 'a', toolCalls: [repeat] },
+      { text: 'b', toolCalls: [{ ...repeat, id: 'c2' }] },
+      { text: 'c', toolCalls: [{ ...repeat, id: 'c3' }] },
+      { text: 'unreached' },
+    ])
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys',
+      messages: [{ role: 'user', text: 'hi' }], harness: { repetition: new RepetitionTracker() } })
+    expect(result.repetitionHalt).toEqual({ verdict: 'replan', fingerprint: fingerprintAction('db.list_sessions', {}) })
+    expect(result.budgetTripped).toBeUndefined()
+    expect(provider.remaining).toBe(1)
+  })
+
+  it('halts a blocked verdict with the exact fingerprint and no budget trip', async () => {
+    // The stock tracker escalates through replan (which halts) before any
+    // count reaches blocked, so the blocked arm is pinned with a stub.
+    const provider = new FakeProvider([
+      { text: 'a', toolCalls: [{ id: 'c1', name: 'db.list_sessions', args: {} }] },
+      { text: 'unreached' },
+    ])
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys',
+      messages: [{ role: 'user', text: 'hi' }], harness: { repetition: { note: () => 'blocked' } as never } })
+    expect(result.repetitionHalt).toEqual({ verdict: 'blocked', fingerprint: fingerprintAction('db.list_sessions', {}) })
+    expect(result.budgetTripped).toBeUndefined()
+    expect(provider.remaining).toBe(1)
+  })
+
+  it('reports turns exhaustion as the budget trip', async () => {
+    const provider = new FakeProvider([
+      { text: 'a', toolCalls: [{ id: 'c1', name: 'db.list_sessions', args: {} }] },
+      { text: 'b', toolCalls: [{ id: 'c2', name: 'db.list_sessions', args: {} }] },
+      { text: 'c' },
+    ])
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys',
+      messages: [{ role: 'user', text: 'hi' }], maxTurns: 2 })
+    expect(result.budgetTripped).toEqual(['turns'])
+    expect(result.turns).toBe(2)
+    expect(provider.remaining).toBe(1)
+  })
+
+  it('leaves the budget untripped when recovery halts the turn', async () => {
+    const call = { id: 'b1', name: 'db.list_sessions', args: {} }
+    const operation = { authorityId: 'TEST authority', operationId: 'TEST op', call, serializedCall: JSON.stringify(call), reason: 'TEST blocked' }
+    const result = await runKarbotTurn({ provider: new FakeProvider([{ text: 'TEST never' }]), systemPrompt: 'TEST', messages: [],
+      resume: { round: 1, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] },
+      sink: { onDelta: () => undefined },
+      mcp: { authorityId: 'TEST authority', listTools: async () => [sessionTool()], callTool: async () => ({ content: 'TEST lost', isError: true, recovery: { operationId: 'TEST op', reason: 'TEST uncertain' } }) } })
+    expect(result.recoveryHalt).toHaveLength(1)
+    expect(result.budgetTripped).toBeUndefined()
+  })
+
+  it('aborts the round scope after a successful turn', async () => {
+    let signal: AbortSignal | undefined
+    const provider: ProviderAdapter = {
+      providerName: 'scope-test', chat: async () => { throw new Error('unused') },
+      async *chatStream(request) { signal = request.signal; yield { kind: 'text_delta', text: 'TEST done' }; yield { kind: 'done', usage: emptyUsage() } },
+    }
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages: [] })
+    expect(result.text).toBe('TEST done')
+    expect(signal?.aborted).toBe(true)
+  })
+
+  it('omits unset halt and condensed keys from the result', async () => {
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages: [] })
+    expect('budgetTripped' in result).toBe(false)
+    expect('repetitionHalt' in result).toBe(false)
+    expect('condensed' in result).toBe(false)
   })
 })
