@@ -17,6 +17,13 @@ test('radix-style 1px clipped span is not overflow', async ({ page }) => {
   await assertNoOverflow(page)
 })
 
+test('base-ui hidden input is not overflow', async ({ page }) => {
+  await page.setContent(
+    '<input value="all" style="position:fixed;width:1px;height:40px;overflow:clip;clip-path:inset(50%)" /><p>visible</p>',
+  )
+  await assertNoOverflow(page)
+})
+
 test('ellipsis-truncated text is not overflow', async ({ page }) => {
   await page.setContent(
     '<div style="width:100px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">unbroken-text-that-must-clip-with-ellipsis</div>',

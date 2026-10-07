@@ -123,12 +123,15 @@ export async function assertNoOverflow(page: Page): Promise<void> {
       if (style.overflowX === 'auto' || style.overflowX === 'scroll') continue
       if (html.offsetParent === null && style.position !== 'fixed') continue
       // Not visible overflow: screen-reader-only content (Tailwind's
-      // sr-only class or the 1px clipped pattern Radix renders inline) and
-      // ellipsis truncation (clipped by definition; titles are checked
-      // separately). None can spill visibly past its container.
+      // sr-only class or the 1px clipped pattern Radix renders inline),
+      // Base UI 1.8 hidden inputs (clip-path inset(50%) paints nothing
+      // regardless of box size), and ellipsis truncation (clipped by
+      // definition; titles are checked separately). None can spill
+      // visibly past its container.
       const rect = html.getBoundingClientRect()
       const visuallyHidden =
         html.classList.contains('sr-only') ||
+        style.clipPath === 'inset(50%)' ||
         (rect.width <= 1 &&
           rect.height <= 1 &&
           (style.position === 'absolute' || style.position === 'fixed') &&
