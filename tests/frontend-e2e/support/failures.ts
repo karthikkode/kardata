@@ -66,6 +66,10 @@ export interface FaultCase {
    * dialog stays open with the error heal through the in-dialog
    * confirm, not by replaying the opener from behind the modal. */
   healSteps?: RefetchStep[]
+  /** Heal steps for the 'timeout' variant only (long-budget endpoints):
+   * the 32s-delayed ok succeeds and closes the dialog, so the in-dialog
+   * confirm is gone; replay the full opener flow instead. */
+  healStepsTimeout?: RefetchStep[]
   draftFill?: MatrixAnchor
   draftText?: string
   /** The input is consumed by a successful mutation (dialog closes,
@@ -87,6 +91,12 @@ export interface FaultCase {
    * lands inside its budget, so assert these slow-success anchors instead
    * of the error UI. All other faults still assert errorAnchors. */
   timeoutSlow?: MatrixAnchor[]
+  /** Absence anchors for the 'timeout' variant: asserted hidden alongside
+   * timeoutSlow. Success that only closes a non-modal surface has no
+   * visible marker (the background never hides), so the close itself is
+   * the proof — and the wait keeps heal from unrouting the hung request
+   * before its late ok lands. */
+  timeoutSlowAbsent?: MatrixAnchor[]
 }
 
 const supportDir = dirname(fileURLToPath(import.meta.url))
@@ -214,6 +224,9 @@ export async function runFault(page: Page, fc: FaultCase, fault: FaultKind): Pro
 
   if (fault === 'timeout' && fc.timeoutSlow) {
     for (const anchor of fc.timeoutSlow) await expect(anchorLocator(page, anchor)).toBeVisible({ timeout: 45000 })
+    for (const anchor of fc.timeoutSlowAbsent ?? []) {
+      await expect(anchorLocator(page, anchor)).not.toBeVisible({ timeout: 45000 })
+    }
   } else if (fc.unverified) {
     for (const anchor of fc.healAnchors) await expect(anchorLocator(page, anchor)).toBeVisible({ timeout: 45000 })
   } else {
@@ -241,7 +254,7 @@ export async function runFault(page: Page, fc: FaultCase, fault: FaultKind): Pro
   if (!fc.unverified && retry && !fc.healRetrigger) {
     await anchorLocator(page, retry).click()
   } else if (!fc.unverified && fc.healRetrigger) {
-    await runRefetch(page, fc, expected, fc.healSteps)
+    await runRefetch(page, fc, expected, fault === 'timeout' ? (fc.healStepsTimeout ?? fc.healSteps) : fc.healSteps)
   } else {
     await page.reload()
     await runSetup(page, fc.setup)

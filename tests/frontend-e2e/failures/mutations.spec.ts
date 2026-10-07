@@ -226,6 +226,24 @@ const CASES: FaultCase[] = [
     healAnchors: [{ kind: 'css', css: '[aria-label="Session files"]' }],
     healRetrigger: true,
     healSteps: [{ click: { kind: 'role', role: 'button', name: 'Create file' } }],
+    // Long-budget endpoint (artifact upload rides 10 min since pilot-2):
+    // the 32s-delayed ok succeeds and closes the dialog, so 'timeout'
+    // asserts the dialog is gone instead of error UI. The dialog is
+    // non-modal (the New-file trigger stays visible throughout), so only
+    // the close proves success — and the wait keeps heal from unrouting
+    // the hung request before its late ok lands. Heal then replays the
+    // full opener flow (the in-dialog confirm is gone). The no-abort
+    // property is pinned by the heal-phase check that the error anchors
+    // never appear.
+    timeoutSlow: [{ kind: 'role', role: 'button', name: 'New file' }],
+    timeoutSlowAbsent: [{ kind: 'role', role: 'dialog', name: 'New file' }],
+    healStepsTimeout: [
+      { click: { kind: 'role', role: 'button', name: 'New file' } },
+      { press: 'x' },
+      { press: 'x' },
+      { press: 'x' },
+      { click: { kind: 'role', role: 'button', name: 'Create file' } },
+    ],
     refetch: { steps: [
       { click: { kind: 'role', role: 'button', name: 'New file' } },
       { press: 'x' },
