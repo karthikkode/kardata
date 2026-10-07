@@ -60,7 +60,7 @@ export async function capture(
       page.setDefaultNavigationTimeout(15_000)
       try {
         await prepare()
-      } catch (error) {
+      } catch {
         signal('try1-failed')
         consoleErrors.length = 0
         pageErrors.length = 0
