@@ -16,7 +16,7 @@ test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace loading', asyn
 })
 
 test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace empty', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"text","text":"No chats yet"}] }, 'empty')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"tab","name":"Chats (0)"}] }, 'empty')
 })
 
 test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace typical', async ({ page }) => {

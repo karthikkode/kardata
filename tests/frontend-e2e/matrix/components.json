@@ -428,8 +428,9 @@
     ],
     "emptyAnchors": [
       {
-        "kind": "text",
-        "text": "No chats yet"
+        "kind": "role",
+        "role": "tab",
+        "name": "Chats (0)"
       }
     ],
     "primary": "sessions",
