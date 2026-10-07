@@ -2567,3 +2567,101 @@ describe('blocked retry splice guards [F:agents.turnRunner.runKarbotTurn]', () =
     ])
   })
 })
+
+describe('stream abort edges [F:agents.turnRunner.runKarbotTurn]', () => {
+  it('stops consuming the moment an abort lands, even mid-iteration', async () => {
+    const abort = new AbortController()
+    let release: () => void = () => undefined
+    let finish: () => void = () => undefined
+    let firstSeen: () => void = () => undefined
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const ended = new Promise<void>((resolve) => { finish = resolve })
+    const first = new Promise<void>((resolve) => { firstSeen = resolve })
+    const provider: ProviderAdapter = {
+      providerName: 'abort-race-test', chat: async () => { throw new Error('unused') },
+      async *chatStream() {
+        yield { kind: 'text_delta', text: 'TEST one' }
+        firstSeen()
+        await gate
+        try {
+          yield { kind: 'text_delta', text: 'TEST two' }
+          yield { kind: 'done', usage: emptyUsage() }
+        } finally { finish() }
+      },
+    }
+    const { sink, deltas } = memorySink()
+    const pending = runKarbotTurn({ provider, mcp: memoryMcp(), sink, systemPrompt: 'sys', messages: [], signal: abort.signal })
+    await first
+    // Release then abort with no await between: the queued event hits
+    // the aborted check before the race settlement lands, so the loop
+    // must break on the signal alone.
+    release()
+    abort.abort(new Error('TEST owner stopped'))
+    await ended
+    await expect(pending).rejects.toThrow('TEST owner stopped')
+    expect(deltas).toEqual(['TEST one'])
+  })
+
+  it('aborts a grace wait promptly instead of lingering to the deadline', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      const abort = new AbortController()
+      const provider = new FakeProvider([{ text: 'TEST one' }])
+      let settled = false
+      const pending = runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [{ role: 'user', text: 'TEST hi' }], mcp: memoryMcp(), sink: memorySink().sink,
+        signal: abort.signal,
+        hasPendingFollowUp: async () => { abort.abort(new Error('TEST owner stopped')); return false },
+        followUpGraceMs: 5000, followUpPollMs: 50 })
+        .then((result) => { settled = true; return result })
+      await vi.advanceTimersByTimeAsync(500)
+      expect(settled).toBe(true)
+      expect((await pending).text).toBe('TEST one')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('caps the final grace sleep at the deadline instead of oversleeping', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      const provider = new FakeProvider([{ text: 'TEST one' }])
+      let settled = false
+      const pending = runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [{ role: 'user', text: 'TEST hi' }], mcp: memoryMcp(), sink: memorySink().sink,
+        hasPendingFollowUp: async () => false, followUpGraceMs: 100, followUpPollMs: 250 })
+        .then((result) => { settled = true; return result })
+      await vi.advanceTimersByTimeAsync(100)
+      expect(settled).toBe(true)
+      expect((await pending).text).toBe('TEST one')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('omits the completion key from the pending checkpoint when the provider sends none', async () => {
+    const seen: unknown[] = []
+    const provider: ProviderAdapter = {
+      providerName: 'completion-test', chat: async () => { throw new Error('unused') },
+      async *chatStream() { yield { kind: 'text_delta', text: 'TEST hi' }; yield { kind: 'done', usage: emptyUsage() } },
+    }
+    await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages: [],
+      onProviderResponse: async () => undefined,
+      onCheckpoint: async (_history, _round, _usage, _tools, _ops, pending) => void seen.push(structuredClone(pending)) })
+    expect(seen).toHaveLength(1)
+    expect(seen[0]).toMatchObject({ response: { text: 'TEST hi' } })
+    expect('completion' in (seen[0] as { response: Record<string, unknown> }).response).toBe(false)
+  })
+
+  it('checkpoints the original blocked list when a pending response carries calls', async () => {
+    const call = { id: 'c1', name: 'db.create_session', args: {} }
+    const blocked = [{ operationId: 'TEST op', call, reason: 'TEST lost' }]
+    const provider = new FakeProvider([{ text: 'TEST after' }])
+    const blockeds: unknown[] = []
+    await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [{ role: 'user', text: 'TEST hi' }],
+      resume: { round: 1, usage: emptyUsage(), toolCalls: 0, blockedOperations: blocked, pendingResponse: { round: 1, response: { text: 'TEST pending', reasoning: '', toolCalls: [call], usage: emptyUsage() } } },
+      sink: memorySink().sink, mcp: memoryMcp(),
+      onCheckpoint: async (_history, _round, _usage, _tools, ops) => void blockeds.push(structuredClone(ops)) })
+    expect(blockeds).toContainEqual(blocked)
+  })
+})
