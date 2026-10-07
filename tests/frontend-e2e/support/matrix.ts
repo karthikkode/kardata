@@ -171,14 +171,26 @@ async function assertTruncationTitles(page: Page): Promise<void> {
 
 /** At 390px the subject anchors stay inside the viewport horizontally.
  * Gated cases assert postAnchors: the trigger is aria-hidden behind the
- * modal it opened, so its box is null by design. */
+ * modal it opened, so its box is null by design.
+ * Deliberately scrollable content (markdown tables) measures its scroll
+ * container: the content box legitimately exceeds the viewport. */
 async function assertContained(page: Page, anchors: MatrixAnchor[], postAnchors?: MatrixAnchor[]): Promise<void> {
   if (postAnchors && postAnchors.length > 0) anchors = postAnchors
   for (const anchor of anchors) {
-    const box = await anchorLocator(page, anchor).boundingBox()
-    expect(box, 'anchor has a box').not.toBeNull()
-    expect(box!.x).toBeGreaterThanOrEqual(-1)
-    expect(box!.x + box!.width).toBeLessThanOrEqual(391)
+    const handle = await anchorLocator(page, anchor).elementHandle()
+    expect(handle, 'anchor has a box').not.toBeNull()
+    const box = await page.evaluate((el) => {
+      let node: HTMLElement | null = el as HTMLElement
+      while (node && node !== document.body) {
+        const style = getComputedStyle(node)
+        if (style.overflowX === 'auto' || style.overflowX === 'scroll') break
+        node = node.parentElement
+      }
+      const rect = (node ?? (el as HTMLElement)).getBoundingClientRect()
+      return { x: rect.x, width: rect.width }
+    }, handle)
+    expect(box.x).toBeGreaterThanOrEqual(-1)
+    expect(box.x + box.width).toBeLessThanOrEqual(391)
   }
 }
 
