@@ -29,6 +29,10 @@ function stubDb(
         return { rowCount: 1, rows: [{ seq: captured.length }] as unknown as TRow[] }
       }
       if (text.startsWith('SELECT payload FROM events')) return { rowCount: 1, rows: [{ payload: { sectorId: 'sec-1', state: state.state } }] as unknown as TRow[] }
+      // Sessions read (listSessions/getSession): this suite has no
+      // sessions. Must precede the plan branch: its LATERAL contains
+      // 'FROM events WHERE partition' and would leak plan rows in.
+      if (text.includes('LEFT JOIN renamed r')) return { rowCount: 0, rows: [] }
       if (text.includes('FROM events WHERE partition')) {
         return {
           rowCount: state.plans.length,
