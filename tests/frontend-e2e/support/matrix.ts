@@ -169,8 +169,11 @@ async function assertTruncationTitles(page: Page): Promise<void> {
   expect(bad, `truncated without title: ${bad.join(', ')}`).toEqual([])
 }
 
-/** At 390px the subject anchors stay inside the viewport horizontally. */
-async function assertContained(page: Page, anchors: MatrixAnchor[]): Promise<void> {
+/** At 390px the subject anchors stay inside the viewport horizontally.
+ * Gated cases assert postAnchors: the trigger is aria-hidden behind the
+ * modal it opened, so its box is null by design. */
+async function assertContained(page: Page, anchors: MatrixAnchor[], postAnchors?: MatrixAnchor[]): Promise<void> {
+  if (postAnchors && postAnchors.length > 0) anchors = postAnchors
   for (const anchor of anchors) {
     const box = await anchorLocator(page, anchor).boundingBox()
     expect(box, 'anchor has a box').not.toBeNull()
@@ -309,7 +312,7 @@ export async function runMatrixState(page: Page, mc: MatrixCase, state: MatrixSt
 
   await assertNoOverflow(page)
   await assertTruncationTitles(page)
-  if (state === 'w390') await assertContained(page, mc.anchors)
+  if (state === 'w390') await assertContained(page, mc.anchors, mc.gated ? mc.postAnchors : undefined)
   if (state === 'focus') {
     const subject = mc.focusSubject ?? (mc.anchors[0] as MatrixAnchor)
     await assertFocusVisible(page, anchorLocator(page, subject))
