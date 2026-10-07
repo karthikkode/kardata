@@ -3873,6 +3873,24 @@ entries, enforce-simulated clean outside frontend. No suites run (D1):
 sector/runs/obs/control/monitor/palette/parity/live L-K1..K3 tests are
 written-but-unrun static signal only.
 
+## 2026-10-07 — BLOCKED: backend Stryker infeasible in-session (branch p2-7-fixes)
+HEAD run (var/fv3/64) died in the dry run: default dryRunTimeout 5 min
+vs a 45+ min suite (backend+registry+stress+fault). Fixed the timeout
+(60 min, committed) but the run itself cannot fit: Stryker runs each
+mutant's covering tests with bail-on-kill, and turn.ts's fake-path
+mutants pull the 18-min thousand-leg test, so every surviving mutant
+costs ~18 min. Estimated 5-18 h per run (HEAD and baseline) at safe
+DB concurrency (--concurrency 2; pool math: 2 runners x 2 vitest
+workers x ~15 conns = 60 of the 100 budget). Not launched: the session
+cannot finish it and fv4 needs a quiet box. Recipe for a dedicated
+window: `npx stryker run stryker.backend.json --concurrency 2` with
+TEST_DATABASE_URL/TOXIPROXY_URL/KARDATA_TEMPORAL_TEST=1 exported;
+baseline via `git worktree add /tmp/kardata-mut-baseline 0eb0da6` +
+npm ci + patch coverageAnalysis=all (config-only) in the worktree copy.
+Owner options: (a) fund the dedicated window, (b) scope surgery
+(slow-test exclusion config; NoCoverage score hit), (c) partial
+(workspace+tools only via --mutate), (d) drop backend mutation.
+
 ## 2026-10-07 — BLOCKED: subagents-2000 scroll 54-55ms over the 50ms budget (branch p2-7-fixes)
 Scale file serial-aborts after subagents (5 legs did not run: queue,
 thread, companies, files, dock-heap). Symmetric median-of-3 probe:

@@ -24,5 +24,6 @@
   ],
   "incremental": true,
   "incrementalFile": ".stryker-tmp/incremental-backend.json",
-  "thresholds": { "high": 80, "low": 70, "break": 70 }
+  "thresholds": { "high": 80, "low": 70, "break": 70 },
+  "dryRunTimeoutMinutes": 60
 }
