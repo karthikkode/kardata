@@ -221,7 +221,9 @@ export function matrixApiOptions(
     companies: makeCompanies(8),
     sessions: makeSessions(3),
     runs: runs.slice(0, 8),
-    alerts: alerts.slice(0, 8),
+    // Current warnings (seq 21-24) plus history: the alerts list cases
+    // assert the populated list, not the All-clear empty state.
+    alerts: [...alerts.slice(0, 4), ...alerts.slice(20, 24)],
   }
   // Cases for state-gated UI (the plan editor needs an editable sector)
   // override the matrix sector state; item 0 is always the matrix sector.
