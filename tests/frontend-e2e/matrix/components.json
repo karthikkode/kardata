@@ -1439,7 +1439,7 @@
     ],
     "primary": "messages",
     "family": "static",
-    "rows": "[aria-label=\"Chat messages\"] [data-message-bubble]"
+    "rows": "[aria-label=\"Conversation messages\"] [data-message-bubble]"
   },
   "frontend.src.components.chat.SessionFiles": {
     "route": "/",

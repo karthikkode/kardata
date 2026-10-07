@@ -16,6 +16,7 @@ const COUNT = { one: 1, typical: 8, n100: 100, n1000: 1000 }
 const fmt = (n) => n.toLocaleString('en-AU')
 const isDashboard = (caseId) => caseId.endsWith('.Dashboard')
 const isWorkspace = (caseId) => caseId.endsWith('.SectorWorkspace')
+const isMessageBubble = (caseId) => caseId.endsWith('.chat.MessageBubble')
 
 /** Rows the component renders, or null when the case asserts texts only. */
 export function expectedRowCount(caseId, primary, state) {
@@ -34,6 +35,9 @@ export function expectedRowCount(caseId, primary, state) {
     case 'sectors':
       return isDashboard(caseId) ? Math.min(6, n) : Math.min(50, n)
     case 'messages':
+      // SectorChat renders a 50-segment tail window (SectorWorkspace:502);
+      // the dock log renders every segment.
+      if (isMessageBubble(caseId)) return state === 'typical' ? 28 : Math.min(50, n)
       return state === 'typical' ? 28 : n
     case 'sessions':
       return isWorkspace(caseId) ? n + 6 : n
