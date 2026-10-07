@@ -197,7 +197,7 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9-F10, F13-F14 [F:
       payload: { sessionId, title: `TEST turn ${sessionId}`, sectorId, tenantId: 'TEST turn faults', projectId: null },
     })
     await projectNewEvents(pool)
-    const handle = await client.workflow.start('sessionRun', { taskQueue, workflowId: `TEST-turn-${sessionId}`, args: [{ sessionId }] })
+    const handle = await client.workflow.start('sessionRun', { taskQueue, workflowId: `${SESSION_PREFIX}${sessionId}`, args: [{ sessionId }] })
     await waitFor(async () => ((await handle.query('runState')) as { state: string }).state === 'RUNNING', 30_000, 'run')
     await handle.signal('runSend', text)
     return { sessionId, handle }
