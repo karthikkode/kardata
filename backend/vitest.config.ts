@@ -29,6 +29,11 @@ export default defineConfig({
       provider: 'istanbul',
       reporter: ['text', 'json-summary'],
       include: ['backend/src/**/*.ts'],
+      // Workflow files run inside Temporal's bundled workflow isolate, so
+      // istanbul can never attribute their lines (measured 8/1111). They
+      // stay covered functionally by the temporal tier (replay, CAN,
+      // children-1000, fault drills), not by the line gate.
+      exclude: ['backend/src/temporal/workflows/**'],
       thresholds: { lines: 80 },
     },
   },

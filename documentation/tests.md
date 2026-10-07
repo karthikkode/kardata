@@ -13,7 +13,10 @@ components and Playwright for critical flows. Coverage is istanbul in all
 three workspaces (`npm run test:coverage -w <ws>`); `npm run coverage` runs
 them plus the backend core-dir gate (db/mcp/temporal >= 85% lines). Globals:
 agents >= 85%, backend >= 80%, frontend >= 75%. Thresholds ratchet, never
-drop. Backend coverage needs TEST_DATABASE_URL + Temporal; without a DB it
+drop. `temporal/workflows/**` is excluded from line coverage: workflow code
+runs in Temporal's bundled isolate where istanbul cannot attribute lines;
+those files are covered functionally by the temporal tier instead.
+Backend coverage needs TEST_DATABASE_URL + Temporal; without a DB it
 fails unless COVERAGE_SKIP_BACKEND=1 skips it explicitly (the gate then
 runs in verify:full / CI integration). Mutation (>= 70% per core module)
 is a local gate via `npm run test:mutation`.
