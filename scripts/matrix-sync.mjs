@@ -160,6 +160,7 @@ function main() {
       // after setup opens them, so per-state content anchors move to a
       // post-setup postAnchors override; anchors stays the trigger.
       let post = null
+      let faultGated = false
       if (state === 'empty') {
         if (!mc.emptyAnchors) {
           console.error(`${id}: empty state needs emptyAnchors`)
@@ -173,8 +174,14 @@ function main() {
           process.exit(1)
         }
         if (mc.family !== 'static') {
-          if (mc.gated) post = CONTENT[mc.family][state]
-          else anchors = CONTENT[mc.family][state]
+          if (mc.gated) {
+            post = CONTENT[mc.family][state]
+            // Fault/loading UI replaces the surface content but not the
+            // surface itself: assert the surface marker (postAnchors[0],
+            // the dock/dialog by convention) plus the CONTENT anchors,
+            // not the replaced content anchors.
+            faultGated = true
+          } else anchors = CONTENT[mc.family][state]
         }
       }
       // P6-M4: count states assert rows + totals, longtext asserts snippets.
@@ -191,7 +198,10 @@ function main() {
         needsFactory = true
       }
       if (parts.length > 0) extras.push(`expectedTexts: [${parts.join(', ')}]`)
-      if (post) extras.push(`postAnchors: ${JSON.stringify([...(mc.postAnchors ?? []), ...post])}`)
+      if (post) {
+        const kept = faultGated && mc.postAnchors?.length > 0 ? [mc.postAnchors[0]] : [...(mc.postAnchors ?? [])]
+        extras.push(`postAnchors: ${JSON.stringify([...kept, ...post])}`)
+      }
       tests.push(
         `test('[F:${id}] ${shortName(id)} ${state}', async ({ page }) => {\n` +
         `  await runMatrixState(page, { ...base, anchors: ${JSON.stringify(anchors)}${extras.length > 0 ? `, ${extras.join(', ')}` : ''} }, '${state}')\n` +
