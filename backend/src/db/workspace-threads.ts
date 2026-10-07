@@ -157,6 +157,16 @@ export async function enqueueQueuedSteering(db: TransactableDb, threadKey: strin
     return { id, state: rows[0]?.state ?? 'pending' }
   })
 }
+/** True when unclaimed steering waits: the turn's quiet-round grace
+ * window polls this before completing (F13). Indexed by thread. */
+export async function hasPendingSteering(db: Db, threadKey: string): Promise<boolean> {
+  checked(Id, threadKey)
+  const { rows } = await db.query<{ one: number }>(
+    `SELECT 1 AS one FROM thread_instructions WHERE thread_key=$1 AND state='pending' LIMIT 1`,
+    [threadKey],
+  )
+  return rows.length > 0
+}
 export async function readSteeringReceiptsPage(db: Db, threadKey: string, afterId = '', limit = 200, scope?: Scope): Promise<{ items: Array<{ id: string; state: 'consumed' | 'missed' }>; nextAfterId: string | null }> {
   await requireThread(db, threadKey, scope)
   checked(z.string().max(255), afterId); checked(z.number().int().min(1).max(200), limit)

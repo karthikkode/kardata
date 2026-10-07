@@ -114,6 +114,10 @@ export interface KarbotTurnDeps {
   loadContinuation?(): Promise<{ messages: ChatMessage[]; runKey: string; sources: Array<{ url: string; text: string }>; meta: { round: number; usage: Usage; toolCalls: number; elapsedMs: number; blockedOperations?: RecoveryOperation[]; pendingResponse?: PendingProviderResponse } } | undefined>
   checkpoint?(messages: ChatMessage[], round: number, usage: Usage, toolCalls: number, sources: Array<{ url: string; text: string }>, blockedOperations?: RecoveryOperation[], pendingResponse?: PendingProviderResponse): Promise<void>
   refreshContext?(round: number): Promise<{ references: string[]; notes: string; steering: string[]; paused?: boolean; contextVersion?: number | null; planVersion?: number | null; localVersion?: number }>
+  /** Quiet-round follow-up probe for the steering grace window (F13):
+   * true when late-arriving work deserves one more round instead of
+   * completing. Absent means the legacy behavior (quiet completes). */
+  hasPendingFollowUp?(completedRound: number): Promise<boolean>
   persistSummary?(summary: string, coveredSeq: number): Promise<void>
   loadSessionModel(sessionId: string): Promise<SessionModelSelection | undefined>
   /** Owning sector for sector chats; absent for general Karbot sessions. */

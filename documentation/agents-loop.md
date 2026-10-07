@@ -45,3 +45,11 @@ older epoch is stale and must not be applied. `cancelRun` moves `RUNNING` or
 list through `pending()` and runs only unrecorded keys, giving exactly-once
 effects across kills and retries. Keys are caller-chosen (tool plus canonical
 arguments plus scope).
+
+## Quiet-round follow-up (F13)
+
+A round with no tool calls waits up to `STEER_FOLLOW_UP_GRACE_MS` for
+late steering (`hasPendingFollowUp`) instead of completing at once, so a
+steer landing just after the response still gets its round. At most one
+follow-up round per turn. Abort during the wait completes normally: the
+round already produced its reply.

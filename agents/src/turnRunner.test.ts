@@ -933,3 +933,33 @@ it.each([false, true])('restores original nested argument order but rejects chan
   if (changed) { expect(seen).toEqual([]); expect(provider.calls).toHaveLength(0); expect(result.recoveryHalt).toHaveLength(1) }
   else { expect(seen).toEqual([JSON.stringify(call.args)]); expect(result.text).toBe('TEST finished') }
 })
+
+it('runs one follow-up round for late work after a quiet round, then completes', async () => {
+  const provider = new FakeProvider([{ text: 'TEST one' }, { text: 'TEST two' }])
+  const seen: number[] = []
+  const result = await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [{ role: 'user', text: 'TEST hi' }], mcp: memoryMcp(), sink: memorySink().sink,
+    hasPendingFollowUp: async (round) => { seen.push(round); return true }, followUpGraceMs: 60, followUpPollMs: 5 })
+  expect(result.text).toBe('TEST two')
+  expect(provider.calls).toHaveLength(2)
+  expect(seen).toEqual([1])
+})
+
+it('completes a quiet turn when no follow-up arrives inside grace', async () => {
+  const provider = new FakeProvider([{ text: 'TEST one' }])
+  const result = await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [{ role: 'user', text: 'TEST hi' }], mcp: memoryMcp(), sink: memorySink().sink,
+    hasPendingFollowUp: async () => false, followUpGraceMs: 30, followUpPollMs: 5 })
+  expect(provider.calls).toHaveLength(1)
+  expect(result.text).toBe('TEST one')
+})
+
+it('completes normally when aborted during the follow-up grace wait', async () => {
+  const abort = new AbortController()
+  const provider = new FakeProvider([{ text: 'TEST one' }])
+  setTimeout(() => abort.abort(), 10)
+  const started = Date.now()
+  const result = await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [{ role: 'user', text: 'TEST hi' }], mcp: memoryMcp(), sink: memorySink().sink, signal: abort.signal,
+    hasPendingFollowUp: async () => false, followUpGraceMs: 5000, followUpPollMs: 5 })
+  expect(provider.calls).toHaveLength(1)
+  expect(result.text).toBe('TEST one')
+  expect(Date.now() - started).toBeLessThan(2000)
+})

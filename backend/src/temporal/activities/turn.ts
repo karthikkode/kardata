@@ -29,7 +29,7 @@ import {
 } from '@kardata/agents'
 import {
   appendEvent,
-  beginThreadTurn, consumeSteering, finishSteering, readThreadContext, saveThreadContext, workspaceReferences,
+  beginThreadTurn, consumeSteering, finishSteering, hasPendingSteering, readThreadContext, saveThreadContext, workspaceReferences,
   readTurnContinuation, saveTurnContinuation, clearTurnContinuation,
   recordContextMeasurement,
   readActiveExecutionIdentity, recordTurnExecution, workspaceReferenceSnapshot,
@@ -68,6 +68,7 @@ import {
   turnRoundTimeoutMs,
 } from './turn-prompts.js'
 import { KarbotTurnInput, type KarbotTurnDeps } from './karbot-turn-input.js'
+import { STEER_FOLLOW_UP_GRACE_MS } from '../timeouts.js'
 import {
   freezeOriginalPalette,
   productMcpClient,
@@ -287,6 +288,7 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
       signal: deps.signal,
       timeoutMs,
       ...(providerName === 'meta' && deps.acquirePermit ? { acquirePermit: deps.acquirePermit } : {}),
+      ...(deps.hasPendingFollowUp ? { hasPendingFollowUp: deps.hasPendingFollowUp, followUpGraceMs: STEER_FOLLOW_UP_GRACE_MS } : {}),
       onProviderRequest: (round: number, request: Omit<import('@kardata/agents').ProviderRequest, 'signal'>) => {
         roundStarted.set(round, Date.now())
         if (deps.persistExecution) return persist(round, 'request', request)
@@ -700,6 +702,7 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
             const paused = await isThreadPaused(pool, input.threadKey)
             return { ...snapshot, localVersion: local.version, notes: local.notes, steering: await consumeSteering(pool, input.threadKey, continuation?.runKey ?? input.runKey, round, lease), paused }
           },
+          hasPendingFollowUp: async () => hasPendingSteering(pool, input.threadKey),
           persistSummary: async (summary, coveredSeq) => {
             abort.signal.throwIfAborted()
             const local = await readThreadContext(pool, input.threadKey)

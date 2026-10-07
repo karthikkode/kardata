@@ -35,6 +35,7 @@ import {
   createSector,
   finishSteering,
   getThread,
+  hasPendingSteering,
   readSteeringReceiptsPage,
 } from '../../backend/src/db/index.js'
 import { connectClient, connectWorker, temporalNamespace } from '../../backend/src/temporal/connection.js'
@@ -103,6 +104,7 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9-F10, F13-F14 [F:
     return {
       loadSessionModel: async () => undefined,
       loadHistory: async () => [],
+      hasPendingFollowUp: async () => hasPendingSteering(pool, sessionId),
       resolveTurnAdapter: () => adapterImpl(),
       mcp,
       publishDelta: async () => {},
