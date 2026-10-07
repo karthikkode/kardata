@@ -843,7 +843,7 @@ describe('listTools normalization [F:agents.turnRunner.StreamableMcpClient]', ()
 describe('rpc envelope and handshake [F:agents.turnRunner.StreamableMcpClient]', () => {
   interface Seen { method: string; id: unknown; body: Record<string, unknown>; headers: Record<string, string>; httpMethod: string }
   function rawFetch(respond: (body: { method: string; id: unknown }) => { status?: number; ok?: boolean; text: string }, seen: Seen[] = []) {
-    return async (url: string, init: { method: string; headers: Record<string, string>; body: string }) => {
+    return async (_url: string, init: { method: string; headers: Record<string, string>; body: string }) => {
       const parsed = JSON.parse(init.body) as { method: string; id: unknown }
       seen.push({ method: parsed.method, id: parsed.id, body: JSON.parse(init.body) as Record<string, unknown>, headers: init.headers, httpMethod: init.method })
       const next = respond(parsed)
@@ -990,7 +990,7 @@ describe('rpc envelope and handshake [F:agents.turnRunner.StreamableMcpClient]',
 describe('client construction [F:agents.turnRunner.StreamableMcpClient]', () => {
   it.each([['', 'token', 'endpoint'], [123, 'token', 'endpoint'], ['https://mcp.internal/mcp', '', 'token'], ['https://mcp.internal/mcp', 123, 'token']] as const)(
     'rejects endpoint=%s token=%s (%s invalid)',
-    (endpoint, token) => {
+    (endpoint, token, _label) => {
       expect(() => new StreamableMcpClient({ endpoint: endpoint as string, token: token as string })).toThrow(/endpoint must be a non-empty string|token must be a non-empty string/)
     },
   )
