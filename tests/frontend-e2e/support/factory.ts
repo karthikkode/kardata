@@ -228,6 +228,10 @@ export function matrixApiOptions(
       return { modes, data, loadingMs: 60_000 }
     case 'empty':
       modes[primary] = 'empty'
+      // The live stream primes data.messages (or the showcase thread
+      // when unset) for every state; an empty conversation needs an
+      // empty prime too, or the dock shows messages in empty states.
+      if (primary === 'messages') data.messages = []
       return { modes, data }
     case 'one':
     case 'typical':
