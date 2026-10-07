@@ -138,6 +138,33 @@ export async function assertNoOverflow(page: Page): Promise<void> {
           (style.overflowX === 'hidden' || style.overflowX === 'clip'))
       if (visuallyHidden || style.textOverflow === 'ellipsis') continue
       if (html.scrollWidth > html.clientWidth + 1) {
+        // Attribute the spill: absolutely-positioned overlays (custom
+        // popovers like the sessions menu) overflow their anchor wrapper
+        // by design and paint above surrounding content; only in-flow
+        // content spilling past the padding box counts. Viewport escape
+        // stays guarded by the page-level check above.
+        const padLeft = rect.left + html.clientLeft
+        const padRight = padLeft + html.clientWidth
+        const inFlowSpill = (root: Element): boolean => {
+          for (const child of Array.from(root.children)) {
+            const childStyle = getComputedStyle(child as HTMLElement)
+            if (childStyle.position === 'absolute' || childStyle.position === 'fixed') continue
+            const childRect = (child as HTMLElement).getBoundingClientRect()
+            if (
+              childRect.width > 0 &&
+              childRect.height > 0 &&
+              (childRect.left < padLeft - 1 || childRect.right > padRight + 1)
+            ) {
+              return true
+            }
+            if (inFlowSpill(child)) return true
+          }
+          return false
+        }
+        const directText = Array.from(html.childNodes).some(
+          (node) => node.nodeType === 3 && (node.textContent ?? '').trim() !== '',
+        )
+        if (!directText && !inFlowSpill(html)) continue
         const text = String(html.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40)
         out.push(
           `${html.tagName.toLowerCase()}${html.id ? `#${html.id}` : ''}.${String(html.className).split(' ').slice(0, 2).join('.')} "${text}" sw=${html.scrollWidth} cw=${html.clientWidth}`,

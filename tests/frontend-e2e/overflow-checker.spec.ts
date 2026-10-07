@@ -37,3 +37,17 @@ test('real overflow still fails', async ({ page }) => {
   )
   await expect(assertNoOverflow(page)).rejects.toThrow('horizontal overflow')
 })
+
+test('overlay-only overflow is not overflow', async ({ page }) => {
+  await page.setContent(
+    '<div style="position:relative;width:100px;overflow:visible"><span>trigger</span><div role="menu" style="position:absolute;left:0;top:100%;width:320px">overlay wider than its anchor by design</div></div>',
+  )
+  await assertNoOverflow(page)
+})
+
+test('in-flow child spill still fails', async ({ page }) => {
+  await page.setContent(
+    '<div style="width:100px;overflow:visible"><div style="width:300px">in-flow child wider than its container</div></div>',
+  )
+  await expect(assertNoOverflow(page)).rejects.toThrow('horizontal overflow')
+})
