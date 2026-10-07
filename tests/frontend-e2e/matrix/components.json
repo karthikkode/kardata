@@ -1076,7 +1076,7 @@
       {
         "click": {
           "kind": "css",
-          "css": "[aria-label=\"Research type\"]"
+          "css": "[aria-label^=\"Status:\"]"
         }
       }
     ],
@@ -1088,7 +1088,7 @@
       },
       {
         "kind": "css",
-        "css": "[aria-label=\"Research type\"]"
+        "css": "[aria-label^=\"Status:\"]"
       }
     ],
     "postAnchors": [
@@ -1101,7 +1101,7 @@
     "family": "static",
     "focusSubject": {
       "kind": "css",
-      "css": "[aria-label=\"Research type\"]"
+      "css": "[aria-label^=\"Status:\"]"
     }
   },
   "frontend.src.components.ui.separator": {

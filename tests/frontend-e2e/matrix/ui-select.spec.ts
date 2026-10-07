@@ -10,7 +10,7 @@ const base: Omit<MatrixCase, 'anchors'> = {
     {
       "click": {
         "kind": "css",
-        "css": "[aria-label=\"Research type\"]"
+        "css": "[aria-label^=\"Status:\"]"
       }
     }
   ],
@@ -22,19 +22,19 @@ const base: Omit<MatrixCase, 'anchors'> = {
   ],
   "focusSubject": {
     "kind": "css",
-    "css": "[aria-label=\"Research type\"]"
+    "css": "[aria-label^=\"Status:\"]"
   },
   "primary": "sectors"
 }
 
 test('[F:frontend.src.components.ui.select] select typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Researches"},{"kind":"css","css":"[aria-label=\"Research type\"]"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Researches"},{"kind":"css","css":"[aria-label^=\"Status:\"]"}] }, 'typical')
 })
 
 test('[F:frontend.src.components.ui.select] select dark', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Researches"},{"kind":"css","css":"[aria-label=\"Research type\"]"}] }, 'dark')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Researches"},{"kind":"css","css":"[aria-label^=\"Status:\"]"}] }, 'dark')
 })
 
 test('[F:frontend.src.components.ui.select] select focus', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Researches"},{"kind":"css","css":"[aria-label=\"Research type\"]"}] }, 'focus')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"heading","name":"Researches"},{"kind":"css","css":"[aria-label^=\"Status:\"]"}] }, 'focus')
 })
