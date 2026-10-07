@@ -2050,3 +2050,198 @@ describe('pre-round condensation [F:agents.turnRunner.runKarbotTurn]', () => {
     expect(result.text).toBe('TEST done')
   })
 })
+
+describe('stream accumulation [F:agents.turnRunner.runKarbotTurn]', () => {
+  it('rejects on owner abort mid-stream and suppresses late frames', async () => {
+    const abort = new AbortController()
+    let release: () => void = () => undefined
+    let finish: () => void = () => undefined
+    let entered: () => void = () => undefined
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const ended = new Promise<void>((resolve) => { finish = resolve })
+    const started = new Promise<void>((resolve) => { entered = resolve })
+    let signal: AbortSignal | undefined
+    const provider: ProviderAdapter = {
+      providerName: 'abort-test', chat: async () => { throw new Error('unused') },
+      async *chatStream(request) { signal = request.signal; entered(); await gate; try { yield { kind: 'text_delta', text: 'TEST late' }; yield { kind: 'done', usage: emptyUsage() } } finally { finish() } },
+    }
+    const { sink, deltas } = memorySink()
+    const pending = runKarbotTurn({ provider, mcp: memoryMcp(), sink, systemPrompt: 'sys', messages: [], signal: abort.signal })
+    await started
+    abort.abort(new Error('TEST owner stopped'))
+    release(); await ended
+    await expect(pending).rejects.toThrow('TEST owner stopped')
+    expect(signal?.aborted).toBe(true)
+    expect(deltas).toEqual([])
+  })
+
+  it('accumulates reasoning deltas into the result and the sink', async () => {
+    const provider = new FakeProvider([{ text: 'TEST done', reasoning: 'TEST thinking' }])
+    const heard: Array<{ text: string; round: number }> = []
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: { onDelta: () => undefined, onReasoning: (text, round) => void heard.push({ text, round }) }, systemPrompt: 'sys', messages: [] })
+    expect(result.reasoning).toBe('TEST thinking')
+    expect(heard).toEqual([{ text: 'TEST thinking', round: 1 }])
+  })
+
+  it('completes reasoning rounds without an onReasoning hook', async () => {
+    const provider = new FakeProvider([{ text: 'TEST done', reasoning: 'TEST unheard' }])
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages: [] })
+    expect(result.reasoning).toBe('TEST unheard')
+    expect(result.text).toBe('TEST done')
+  })
+
+  it('announces streamed tool start, end, and dispatch in order', async () => {
+    const events: Array<{ id: string; name: string; state: string; round: number }> = []
+    let round = 0
+    const provider: ProviderAdapter = {
+      providerName: 'seq-test', chat: async () => { throw new Error('unused') },
+      async *chatStream() {
+        round += 1
+        if (round === 1) {
+          yield { kind: 'toolcall_start', index: 0, key: 'c1' }
+          yield { kind: 'toolcall_end', index: 0, call: { id: 'c1', name: 'db.list_sessions', args: {} } }
+          yield { kind: 'done', usage: emptyUsage(), completion: 'complete' }
+        } else {
+          yield { kind: 'text_delta', text: 'TEST done' }
+          yield { kind: 'done', usage: emptyUsage(), completion: 'complete' }
+        }
+      },
+    }
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: { onDelta: () => undefined, onTool: (id, name, state, round) => void events.push({ id, name, state, round }) }, systemPrompt: 'sys', messages: [] })
+    expect(events).toEqual([
+      { id: 'c1', name: 'Tool call', state: 'running', round: 1 },
+      { id: 'c1', name: 'db.list_sessions', state: 'running', round: 1 },
+      { id: 'c1', name: 'db.list_sessions', state: 'done', round: 1 },
+    ])
+    expect(result.toolCalls).toHaveLength(1)
+  })
+
+  it('ignores unknown stream events after done and completes the round', async () => {
+    const provider: ProviderAdapter = {
+      providerName: 'mystery-test', chat: async () => { throw new Error('unused') },
+      async *chatStream() {
+        yield { kind: 'text_delta', text: 'TEST hi' }
+        yield { kind: 'done', usage: emptyUsage(), completion: 'complete' }
+        yield { kind: 'mystery-pulse', payload: 1 } as never
+      },
+    }
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages: [] })
+    expect(result.text).toBe('TEST hi')
+  })
+
+  it('keeps the last completion when a later done frame omits it', async () => {
+    let seen: { completion?: string; usage?: unknown } | undefined
+    const first = { ...emptyUsage(), inputTokens: 1 }
+    const second = { ...emptyUsage(), inputTokens: 2 }
+    const provider: ProviderAdapter = {
+      providerName: 'done-test', chat: async () => { throw new Error('unused') },
+      async *chatStream() {
+        yield { kind: 'text_delta', text: 'TEST hi' }
+        yield { kind: 'done', usage: first, completion: 'complete' }
+        yield { kind: 'done', usage: second }
+      },
+    }
+    await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages: [],
+      onProviderResponse: async (_round, response) => { seen = response } })
+    expect(seen?.completion).toBe('complete')
+    expect(seen?.usage).toEqual(second)
+  })
+
+  it('keeps incomplete sticky against a later complete frame', async () => {
+    let seen: { completion?: string; usage?: unknown } | undefined
+    const first = { ...emptyUsage(), inputTokens: 1 }
+    const second = { ...emptyUsage(), inputTokens: 2 }
+    const provider: ProviderAdapter = {
+      providerName: 'done-test', chat: async () => { throw new Error('unused') },
+      async *chatStream() {
+        yield { kind: 'text_delta', text: 'TEST hi' }
+        yield { kind: 'done', usage: first, completion: 'incomplete' }
+        yield { kind: 'done', usage: second, completion: 'complete' }
+      },
+    }
+    await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages: [],
+      onProviderResponse: async (_round, response) => { seen = response } })
+    expect(seen?.completion).toBe('incomplete')
+    expect(seen?.usage).toEqual(second)
+  })
+
+  it('ledgers the assistant turn with exact role, text, and tool calls', async () => {
+    const call = { id: 'c1', name: 'db.list_sessions', args: {} }
+    const provider = new FakeProvider([{ text: '', toolCalls: [call] }, { text: 'TEST final' }])
+    let finalHistory: ChatMessage[] = []
+    await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages: [{ role: 'user', text: 'TEST go' }],
+      onProviderResponse: async () => undefined,
+      onCheckpoint: async (history) => { finalHistory = structuredClone(history) } })
+    expect(provider.calls[1]?.messages).toEqual([
+      { role: 'user', text: 'TEST go' },
+      { role: 'assistant', text: '', toolCalls: [call] },
+      { role: 'tool', toolResult: { toolCallId: 'c1', toolName: 'db.list_sessions', content: 'sessions: []', isError: false } },
+    ])
+    const finalAssistant = finalHistory.at(-1)
+    expect(finalAssistant?.role).toBe('assistant')
+    expect(finalAssistant?.text).toBe('TEST final')
+    expect(finalAssistant?.toolCalls).toBeUndefined()
+  })
+})
+
+describe('round budget accounting [F:agents.turnRunner.runKarbotTurn]', () => {
+  const generous = { maxTurns: 10, maxToolCalls: 10, maxTokens: 1_000_000_000, maxCost: 1_000_000_000, maxWallMs: 60_000, maxStalledTurns: 5 }
+
+  it('trips stalledTurns on an empty quiet round after progress', async () => {
+    const budgets = new BudgetTracker({ ...generous, maxStalledTurns: 1 }, frozenClock(0))
+    const provider = new FakeProvider([{ text: '', toolCalls: [{ id: 'c1', name: 'db.list_sessions', args: {} }] }, { text: '' }])
+    await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages: [{ role: 'user', text: 'TEST go' }], harness: { budgets } })
+    expect(budgets.tripped()).toEqual(['stalledTurns'])
+  })
+
+  it('counts tool and text rounds as progress against stalledTurns', async () => {
+    const budgets = new BudgetTracker({ ...generous, maxStalledTurns: 1 }, frozenClock(0))
+    const provider = new FakeProvider([{ text: '', toolCalls: [{ id: 'c1', name: 'db.list_sessions', args: {} }] }, { text: 'TEST done' }])
+    await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages: [{ role: 'user', text: 'TEST go' }], harness: { budgets } })
+    expect(budgets.tripped()).toEqual([])
+  })
+
+  it('halts at the loop top when the tool-call budget trips', async () => {
+    const budgets = new BudgetTracker({ ...generous, maxToolCalls: 1 }, frozenClock(0))
+    const provider = new FakeProvider([{ text: '', toolCalls: [{ id: 'c1', name: 'db.list_sessions', args: {} }] }, { text: 'TEST never' }])
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages: [{ role: 'user', text: 'TEST go' }], harness: { budgets } })
+    expect(result.budgetTripped).toEqual(['toolCalls'])
+    expect(provider.calls).toHaveLength(1)
+    expect(result.text).toBe('')
+    expect(result.turns).toBe(2)
+  })
+
+  it('notes exactly one budget call per tool call', async () => {
+    const budgets = new BudgetTracker({ ...generous, maxToolCalls: 3 }, frozenClock(0))
+    const provider = new FakeProvider([{ text: '', toolCalls: [{ id: 'c1', name: 'db.list_sessions', args: {} }, { id: 'c2', name: 'db.list_sessions', args: {} }] }, { text: 'TEST done' }])
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages: [{ role: 'user', text: 'TEST go' }], harness: { budgets } })
+    expect(result.text).toBe('TEST done')
+    expect(provider.calls).toHaveLength(2)
+  })
+
+  it('trips the token budget on the exact input+output sum', async () => {
+    const budgets = new BudgetTracker({ ...generous, maxTokens: 42 }, frozenClock(0))
+    const provider = new FakeProvider([{ text: '', toolCalls: [{ id: 'c1', name: 'db.list_sessions', args: {} }], usage: { inputTokens: 40, outputTokens: 2 } }, { text: 'TEST never' }])
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages: [{ role: 'user', text: 'TEST go' }], harness: { budgets } })
+    expect(result.budgetTripped).toEqual(['tokens'])
+    expect(provider.calls).toHaveLength(1)
+  })
+
+  it('trips the cost budget on exact per-million pricing', async () => {
+    const budgets = new BudgetTracker({ ...generous, maxCost: 40 }, frozenClock(0))
+    const provider = new FakeProvider([{ text: '', toolCalls: [{ id: 'c1', name: 'db.list_sessions', args: {} }], usage: { inputTokens: 2_000_000, outputTokens: 1_000_000 } }, { text: 'TEST never' }])
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages: [{ role: 'user', text: 'TEST go' }],
+      harness: { budgets, prices: { inputPricePerMTok: 10, outputPricePerMTok: 20 } } })
+    expect(result.budgetTripped).toEqual(['cost'])
+    expect(provider.calls).toHaveLength(1)
+  })
+
+  it('does not inflate cost beyond exact per-million pricing', async () => {
+    const budgets = new BudgetTracker({ ...generous, maxCost: 1_000_000 }, frozenClock(0))
+    const provider = new FakeProvider([{ text: '', toolCalls: [{ id: 'c1', name: 'db.list_sessions', args: {} }], usage: { inputTokens: 2000, outputTokens: 1000 } }, { text: 'TEST done' }])
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages: [{ role: 'user', text: 'TEST go' }],
+      harness: { budgets, prices: { inputPricePerMTok: 10, outputPricePerMTok: 20 } } })
+    expect(result.text).toBe('TEST done')
+    expect(budgets.tripped()).toEqual([])
+  })
+})
