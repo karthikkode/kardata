@@ -89,7 +89,7 @@ const CASES: FaultCase[] = [
     // a different draft scope; drafts are pinned by same-surface cases.
     refetch: { steps: [
       { click: { kind: 'css', css: '[aria-label="Chat sessions"]' } },
-      { click: { kind: 'role', role: 'menuitem', name: 'Open What is running right now' } },
+      { click: { kind: 'role', role: 'button', name: 'Open What is running right now' } },
     ] },
   },
   {
@@ -107,7 +107,7 @@ const CASES: FaultCase[] = [
     // a different draft scope; drafts are pinned by same-surface cases.
     refetch: { steps: [
       { click: { kind: 'css', css: '[aria-label="Chat sessions"]' } },
-      { click: { kind: 'role', role: 'menuitem', name: 'Open What is running right now' } },
+      { click: { kind: 'role', role: 'button', name: 'Open What is running right now' } },
     ] },
   },
   {

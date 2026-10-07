@@ -57,7 +57,7 @@ export function SessionsPanel({
       />
       <div
         ref={parentRef}
-        role="menu"
+        role="group"
         aria-label="Chat sessions"
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
@@ -69,7 +69,6 @@ export function SessionsPanel({
       >
         <button
           type="button"
-          role="menuitem"
           aria-label="New chat"
           autoFocus
           onClick={onNew}
@@ -109,10 +108,7 @@ export function SessionsPanel({
               )}
               <button
                 type="button"
-                role="menuitem"
                 aria-current={active ? 'true' : undefined}
-                aria-posinset={virtualRow.index + 1}
-                aria-setsize={ordered.length}
                 aria-label={`Open ${session.title}`}
                 onClick={() => onOpen(session)}
                 className={`flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-sm px-1 py-1 text-left ${focusRingInset}`}

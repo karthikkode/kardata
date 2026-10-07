@@ -82,7 +82,7 @@ describe('chat staging (no mocks)', () => {
     stubApi((url) => baseHandler(url))
     render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
     fireEvent.click(screen.getByRole('button', { name: 'Chat sessions' }))
-    expect(await screen.findByRole('menuitem', { name: 'Open Server chat' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Open Server chat' })).toBeInTheDocument()
     expect(screen.queryByText('0 subagents')).not.toBeInTheDocument()
     // Mock titles stay out of the live render.
     expect(screen.queryByText('ETL Optimization')).not.toBeInTheDocument()
@@ -234,7 +234,7 @@ describe('chat staging (no mocks)', () => {
     expect(send?.body).toBe(JSON.stringify({ threadKey: 's-new', text: 'first question' }))
     // The new session becomes active: it leads the sessions menu.
     fireEvent.click(screen.getByRole('button', { name: 'Chat sessions' }))
-    expect(await screen.findByRole('menuitem', { name: 'Open first question' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Open first question' })).toBeInTheDocument()
   })
 
   it('echoes the sent message instantly, then shows the confirmed copy once', async () => {
@@ -634,7 +634,7 @@ describe('chat staging (no mocks)', () => {
     })
     render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Chat sessions' }))
-    const menu = await screen.findByRole('menu', { name: 'Chat sessions' })
+    const menu = await screen.findByRole('group', { name: 'Chat sessions' })
     fireEvent.click(within(menu).getByRole('button', { name: 'Delete Server chat' }))
     // Arm, not fire: no request until the row confirm.
     expect(calls.some((call) => call.method === 'DELETE')).toBe(false)
@@ -734,7 +734,8 @@ describe('chat staging (no mocks)', () => {
     })
     render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
     fireEvent.click(screen.getByRole('button', { name: 'Chat sessions' }))
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'New chat' }))
+    const menu = await screen.findByRole('group', { name: 'Chat sessions' })
+    fireEvent.click(within(menu).getByRole('button', { name: 'New chat' }))
     await vi.waitFor(() => {
       expect(calls.some((call) => call.url.endsWith('/v1/sessions') && call.method === 'POST')).toBe(true)
     })
@@ -749,7 +750,7 @@ describe('chat staging (no mocks)', () => {
       : baseHandler(url))
     render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
     fireEvent.click(screen.getByRole('button', { name: 'Chat sessions' }))
-    const choices = await screen.findAllByRole('menuitem', { name: 'Open TEST duplicate title' })
+    const choices = await screen.findAllByRole('button', { name: 'Open TEST duplicate title' })
     expect(within(choices[0]!).getByText('s-1', { exact: true })).toBeVisible()
     expect(within(choices[1]!).getByText('s-2', { exact: true })).toBeVisible()
   })

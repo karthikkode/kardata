@@ -230,8 +230,8 @@ test('sessions render 100/1000/2000 with first render under budget at 1000', asy
     await openDock(page)
     await openSessionsMenu(page)
     const menu = page.getByRole('menu', { name: 'Chat sessions' })
-    const first = page.getByRole('menuitem', { name: 'Open Scale chat 1', exact: true })
-    const last = page.getByRole('menuitem', { name: `Open Scale chat ${count}` })
+    const first = page.getByRole('button', { name: 'Open Scale chat 1', exact: true })
+    const last = page.getByRole('button', { name: `Open Scale chat ${count}` })
     await wheelToEnd(page, first, last)
     if (count === 1000) {
       await page.keyboard.press('Escape')
@@ -475,7 +475,7 @@ test('dock open/close cycles keep heap growth under 50MB', async ({ page }, test
     await openSessionsMenu(page)
     // First paint only: the dock measures cycle cost, and the menu is
     // virtualized; last-row reachability belongs to the sessions spec.
-    await expect(page.getByRole('menuitem', { name: 'Open Scale chat 1', exact: true })).toBeAttached({ timeout: 15000 })
+    await expect(page.getByRole('button', { name: 'Open Scale chat 1', exact: true })).toBeAttached({ timeout: 15000 })
     // Dismiss the menu via its backdrop (the trigger sits under it),
     // then close the dock via its Close button: Escape is ambiguous here
     // (menu vs dock exit race) and the trigger is covered while open.
