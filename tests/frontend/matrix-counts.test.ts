@@ -76,11 +76,14 @@ function registryStates(): Map<string, string[]> {
 }
 
 describe('1000-row render', () => {
-  it('messages drain all pages: ChatLog + MessageBubble render 1000 bubbles', () => {
-    for (const id of [CHAT_LOG, MESSAGE_BUBBLE]) {
-      expect(CASES[id]?.rows).toBe('[aria-label="Chat messages"] [data-message-bubble]')
-      expect(expectedRowCount(id, 'messages', 'n1000')).toBe(1000)
-    }
+  it('messages drain all pages: ChatLog renders 1000 bubbles, MessageBubble the 50-window', () => {
+    expect(CASES[CHAT_LOG]?.rows).toBe('[aria-label="Chat messages"] [data-message-bubble]')
+    expect(expectedRowCount(CHAT_LOG, 'messages', 'n1000')).toBe(1000)
+    // D4: MessageBubble runs on a SectorChat route, so its rows are the
+    // Conversation-messages log with the 50-segment tail window.
+    expect(CASES[MESSAGE_BUBBLE]?.rows).toBe('[aria-label="Conversation messages"] [data-message-bubble]')
+    expect(expectedRowCount(MESSAGE_BUBBLE, 'messages', 'n100')).toBe(50)
+    expect(expectedRowCount(MESSAGE_BUBBLE, 'messages', 'n1000')).toBe(50)
   })
 
   it('companies render the first 100 window plus the total', () => {
@@ -162,7 +165,7 @@ describe('derived counts', () => {
     ])
     expect(expectedRowCount(SESSIONS, 'sessions', 'typical')).toBe(8)
     expect(expectedRowCount(SESSIONS, 'sessions', 'n100')).toBe(100)
-    expect(expectedRowCount(WORKSPACE, 'sessions', 'typical')).toBe(12)
+    expect(expectedRowCount(WORKSPACE, 'sessions', 'typical')).toBe(14) // 6 base normal + 8 (1a34cde)
     expect(expectedRowCount(WORKSPACE, 'sessions', 'partial')).toBe(9)
     expect(expectedRowCount(DASHBOARD, 'sectors', 'typical')).toBe(6)
     expect(expectedRowCount(DASHBOARD, 'sectors', 'partial')).toBe(1)
@@ -176,6 +179,10 @@ describe('coverage', () => {
   const OMITTED: Record<string, string> = {
     [`${P}ChatPanel`]: 'sessions panel closed by default: no rows in DOM',
     [`${P}ModelsPanel`]: 'sessions feed binding text, render no rows',
+    // c700e12: the menu virtualizes to ~10 of n100 rows at a self-measured
+    // row height, so DOM counts are viewport-coupled and can never equal n.
+    // Scale rendering stays covered by overflow/axe/shots + scale-budgets.
+    [SESSIONS]: 'virtualized sessions menu: DOM row counts never equal n',
   }
   // Row-count states are the count states: a list declares one/n100/n1000
   // (and partial where it renders one). Bare `typical` is a content state
