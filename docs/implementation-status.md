@@ -3883,7 +3883,8 @@ to 2.76M matching the hundred leg (test-only). (2) Trace-continuity saw
 mcpStarts=0: the test waited on provider rounds but the fake calls
 listTools after recording rounds, so the MCP-log assertion raced the
 MCP leg and lost under load; solo green. Test now waits for the MCP log
-line; load-proof pending the green rerun. Logs var/fv3/30-32.
+line; load-proof green in var/fv3/35 (211 files / 1652 tests, EXIT=0,
+lines 92.2%, core db/mcp/temporal 92.7/87.1/92.7%). Logs var/fv3/30-35.
 
 ## 2026-10-07 — turnRunner mutation: Stryker 27.50 is phantom (branch p2-7-fixes)
 Stryker's perTest subset misses nested-suite kills: direct application
