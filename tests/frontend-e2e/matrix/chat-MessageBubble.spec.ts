@@ -27,7 +27,7 @@ test('[F:frontend.src.components.chat.MessageBubble] MessageBubble n1000', async
 })
 
 test('[F:frontend.src.components.chat.MessageBubble] MessageBubble longtext', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Conversation messages\"]"}], expectedRows: { selector: "[aria-label=\"Conversation messages\"] [data-message-bubble]", count: 2 }, expectedTexts: [...longtextSnippets("messages")] }, 'longtext')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Conversation messages\"]"}], expectedRows: { selector: "[aria-label=\"Conversation messages\"] [data-message-bubble]", count: 3 }, expectedTexts: [...longtextSnippets("messages")] }, 'longtext')
 })
 
 test('[F:frontend.src.components.chat.MessageBubble] MessageBubble dark', async ({ page }) => {

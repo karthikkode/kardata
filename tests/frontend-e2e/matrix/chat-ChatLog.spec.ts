@@ -65,7 +65,7 @@ test('[F:frontend.src.components.chat.ChatLog] ChatLog offline', async ({ page }
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog longtext', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 2 }, expectedTexts: [...longtextSnippets("messages")] }, 'longtext')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 3 }, expectedTexts: [...longtextSnippets("messages")] }, 'longtext')
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog dark', async ({ page }) => {

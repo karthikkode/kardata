@@ -23,7 +23,7 @@ export function expectedRowCount(caseId, primary, state) {
   if (state === 'partial' || state === 'longtext') {
     if (primary === 'sectors') return 1 // baseline [matrixSector]
     if (primary === 'companies') return 1 // longtext single row
-    if (primary === 'messages') return 2 // longtext: 5k + URL bubbles
+    if (primary === 'messages') return 3 // longtext: 5k + URL + table bubbles
     if (primary === 'sessions' && isWorkspace(caseId)) return 9 // 6 base + 3 baseline
     return null // ChatPanel (closed) / ModelsPanel (no rows) / detail views
   }

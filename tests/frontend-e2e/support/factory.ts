@@ -39,6 +39,8 @@ export const LONG_NAME_300 = repeatTo('Association of licensed commercial electr
 export const LONG_MESSAGE_5K = repeatTo('The Parramatta crew comparison covers licensing, crew size, coverage suburbs, review counts and quoted rates. ', 5000)
 /** Unbroken URL with a 200-char path segment (overflow state). */
 export const UNBROKEN_URL = `https://example.com/licence-register/${'a'.repeat(200)}/coverage?suburb=${'b'.repeat(100)}`
+/** Wide markdown table (longtext table-rendering + 390px scroll state). */
+export const LONG_TABLE_MD = `| Company | Crew | Coverage | Reviews | Rate | Notes |\n| --- | --- | --- | --- | --- | --- |\n| Bright Spark Electrical Pty Ltd | 14 | Parramatta, Ryde | 4.8 (212) | Quoted | Licensed, insured |\n| Harbour City Plumbing Services | 9 | Sydney metro | 4.6 (98) | Fixed | After-hours callouts |`
 
 const MATRIX_SECTOR: FixtureSector = {
   id: 'sector-matrix',
@@ -281,6 +283,9 @@ export function matrixApiOptions(
       data.messages = [
         { seq: 1, kind: 'text', role: 'agent', text: LONG_MESSAGE_5K, at: FIXED_NOW },
         { seq: 2, kind: 'text', role: 'user', text: UNBROKEN_URL, at: FIXED_NOW },
+        // Wide markdown table: the Markdown case asserts table rendering
+        // in longtext, and tables exercise the scroll wrapper at 390px.
+        { seq: 3, kind: 'text', role: 'agent', text: LONG_TABLE_MD, at: FIXED_NOW },
       ]
       data.sectors = [{ ...matrixSector(), name: LONG_NAME_300, companiesFound: 1 }]
       applySectorState()
