@@ -54,6 +54,22 @@ async function threadCheck(
   return undefined
 }
 
+/** Queued-child fallback for the run check: a QUEUED (or paused-queued)
+ * subagent thread with no workflow yet is a controllable run, addressed
+ * by its child id. Finished/unknown threads stay 404; out-of-scope
+ * sessions stay unprobbable. The gateway re-validates against the live
+ * parent's queue before signalling. */
+async function queuedChildVisible(
+  pool: TransactableDb,
+  runId: string,
+  scope: Scope | undefined,
+): Promise<boolean> {
+  const thread = await getThread(pool, `agent:${runId}`)
+  if (!thread || thread.kind !== 'subagent') return false
+  if (thread.status !== 'QUEUED' && thread.status !== 'PAUSED') return false
+  return sessionVisible(pool, thread.sessionId, scope)
+}
+
 export function commandRoutes(app: FastifyInstance): void {
   async function scopedRunCheck(
     app: FastifyInstance,
@@ -63,8 +79,16 @@ export function commandRoutes(app: FastifyInstance): void {
     const pool = kardataPool(app)
     const runs = (app as FastifyInstance & { kardataRuns?: RunsGateway }).kardataRuns
     if (!pool || !runs) return failed(503, 'overload', 'runs gateway unavailable')
+    await projectNewEvents(pool)
     const run = await runs.getRun(runId)
-    if (!run || !(await runVisible(pool, run, scope))) {
+    if (!run) {
+      // A queued child has no workflow to describe: accept it by its
+      // thread row so pause/resume/cancel reach the live parent. Any
+      // other workflow-less id stays 404.
+      if (await queuedChildVisible(pool, runId, scope)) return undefined
+      return failed(404, 'not_found', `no such run ${runId}`)
+    }
+    if (!(await runVisible(pool, run, scope))) {
       return failed(404, 'not_found', `no such run ${runId}`)
     }
     return undefined

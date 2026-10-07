@@ -23,6 +23,7 @@ function toneFor(status: string): 'working' | 'ok' | 'failed' | 'idle' {
 function labelFor(status: string): string {
   if (/running/i.test(status)) return 'Running'
   if (/paused/i.test(status)) return 'Paused'
+  if (/queued/i.test(status)) return 'Queued'
   if (/done|finished|complete/i.test(status)) return 'Done'
   if (/fail|error/i.test(status)) return 'Failed'
   if (/stop|cancel/i.test(status)) return 'Stopped'
@@ -71,6 +72,9 @@ const SubagentRow = memo(function SubagentRow({
   const tone = toneFor(thread.status)
   const running = tone === 'working'
   const paused = /paused/i.test(thread.status)
+  // Queued children have no workflow yet but accept pause/stop through
+  // the parent, like running ones.
+  const queued = /queued/i.test(thread.status)
   const name = displayName(thread, index)
   const caption =
     thread.queueDepth > 0 ? `${thread.queueDepth} queued` : labelFor(thread.status)
@@ -93,7 +97,7 @@ const SubagentRow = memo(function SubagentRow({
           <span className="block truncate text-xs text-muted-foreground">{caption}</span>
         </span>
       </button>
-      {running && onPause ? (
+      {(running || queued) && onPause ? (
         <IconButton label={`Pause ${name}`} size="icon-sm" type="button" onClick={() => onPause(thread.key)}
         >
           <Icons.pause className="size-4" aria-hidden />
@@ -105,7 +109,7 @@ const SubagentRow = memo(function SubagentRow({
           <Icons.play className="size-4" aria-hidden />
         </IconButton>
       ) : null}
-      {running ? (
+      {running || queued ? (
         <IconButton label={`Stop ${name}`} size="icon-sm" type="button" onClick={() => onStop(thread.key)}
         >
           <Icons.stopSquare className="size-4" aria-hidden />

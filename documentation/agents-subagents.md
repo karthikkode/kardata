@@ -80,7 +80,11 @@ launches (`queued-controls-v1` patch): pause parks the id past promotion
 cancel completes it as cancelled without starting it. A control racing
 promotion forwards to the live child; a stale QUEUED row with no parent is
 409. Steers land as pending instructions for the first turn
-(`enqueueQueuedSteering`), never missed.
+(`enqueueQueuedSteering`), never missed. The HTTP run check accepts a
+QUEUED or paused-queued subagent thread by its row when no workflow
+describes (any other workflow-less id stays 404), so the routes reach
+the gateway instead of rejecting before it; proven by
+`tests/backend/commands.queued-runs.test.ts` over a live parent.
 
 ## Delegation door (production launch path)
 
