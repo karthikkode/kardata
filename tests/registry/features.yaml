@@ -6743,3 +6743,63 @@
   tiers:
     - db
   states: []
+- id: backend.workflow.subagent_child.DEFAULT_CHILD_FINISH_TIMEOUT_MS
+  layer: backend
+  surface: backend/src/temporal/workflows/subagent-child.ts
+  tiers:
+    - temporal
+  states: []
+- id: backend.workflow.subagent_child.childCanDelegateQuery
+  layer: backend
+  surface: backend/src/temporal/workflows/subagent-child.ts
+  tiers:
+    - temporal
+  states: []
+- id: backend.workflow.subagent_child.childCancelSignal
+  layer: backend
+  surface: backend/src/temporal/workflows/subagent-child.ts
+  tiers:
+    - temporal
+  states: []
+- id: backend.workflow.subagent_child.childFinishSignal
+  layer: backend
+  surface: backend/src/temporal/workflows/subagent-child.ts
+  tiers:
+    - temporal
+  states: []
+- id: backend.workflow.subagent_child.childMessageSignal
+  layer: backend
+  surface: backend/src/temporal/workflows/subagent-child.ts
+  tiers:
+    - temporal
+  states: []
+- id: backend.workflow.subagent_child.childRedirectSignal
+  layer: backend
+  surface: backend/src/temporal/workflows/subagent-child.ts
+  tiers:
+    - temporal
+  states: []
+- id: backend.workflow.subagent_child.childStateQuery
+  layer: backend
+  surface: backend/src/temporal/workflows/subagent-child.ts
+  tiers:
+    - temporal
+  states: []
+- id: backend.workflow.subagent_child.childSummaryQuery
+  layer: backend
+  surface: backend/src/temporal/workflows/subagent-child.ts
+  tiers:
+    - temporal
+  states: []
+- id: backend.workflow.subagent_child.parentNoteDoneSignal
+  layer: backend
+  surface: backend/src/temporal/workflows/subagent-child.ts
+  tiers:
+    - temporal
+  states: []
+- id: backend.workflow.subagent_child.subagentRun
+  layer: backend
+  surface: backend/src/temporal/workflows/subagent-child.ts
+  tiers:
+    - temporal
+  states: []
