@@ -142,8 +142,7 @@ function SubagentVirtualList({
   onPause?: (key: string) => void
   onResume?: (key: string) => void
 }) {
-  const { parentRef, virtualizer } = useVirtualList(threads.length, 64)
-  const virtualRows = virtualizer.getVirtualItems()
+  const { parentRef, virtualizer, items: virtualRows } = useVirtualList(threads.length, 64)
   return (
     <div
       ref={parentRef}

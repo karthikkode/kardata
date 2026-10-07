@@ -46,8 +46,7 @@ export function SessionsPanel({
   })
   // Virtualized: 2000 sessions mount ~20 rows, not 2000. Rows measure
   // themselves so the 48px estimate self-corrects.
-  const { parentRef, virtualizer } = useVirtualList(ordered.length, 48)
-  const virtualRows = virtualizer.getVirtualItems()
+  const { parentRef, virtualizer, items: virtualRows } = useVirtualList(ordered.length, 48)
   return (
     <>
       <button

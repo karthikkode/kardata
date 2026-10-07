@@ -467,8 +467,7 @@ const QueueRowBody = memo(function QueueRowBody({ item, index, total, onMove, on
 // virtualizer subscribes on mount, and 1000 uncapped rows used to blow
 // out the composer and bury the trigger under the log.
 function QueueVirtualList({ model, items }: { model: SectorWorkspaceModel; items: Array<{ id: string; text: string }> }) {
-  const { parentRef, virtualizer } = useVirtualList(items.length, 56)
-  const virtualRows = virtualizer.getVirtualItems()
+  const { parentRef, virtualizer, items: virtualRows } = useVirtualList(items.length, 56)
   const move = useCallback((index: number, delta: -1 | 1) => {
     const next = items.map((item) => item.id)
     const other = index + delta
