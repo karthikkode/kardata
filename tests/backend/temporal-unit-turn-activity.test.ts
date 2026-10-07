@@ -49,6 +49,7 @@ const db = vi.hoisted(() => ({
   saveContext: vi.fn(),
   paused: vi.fn(),
   steering: vi.fn(),
+  pendingSteering: vi.fn(),
   finishSteering: vi.fn(),
   saveContinuation: vi.fn(),
   clearContinuation: vi.fn(),
@@ -83,6 +84,7 @@ vi.mock('../../backend/src/db/index.js', async (original) => {
     searchKb: db.kb,
     appendEvent: db.append,
     consumeSteering: db.steering,
+    hasPendingSteering: db.pendingSteering,
     finishSteering: db.finishSteering,
     readThreadContext: db.threadContext,
     saveThreadContext: db.saveContext,
@@ -97,6 +99,13 @@ vi.mock('../../backend/src/db/index.js', async (original) => {
 vi.mock('../../backend/src/db/workspace.js', async (original) => ({
   ...(await original<typeof import('../../backend/src/db/workspace.js')>()),
   readSessionSettings: db.settings,
+}))
+// Grace timing belongs to the runner unit tests and the F13 fault test;
+// these ownership/frame tests shrink the window so quiet rounds settle
+// in milliseconds while still polling hasPendingSteering.
+vi.mock('../../backend/src/temporal/timeouts.js', async (original) => ({
+  ...(await original<typeof import('../../backend/src/temporal/timeouts.js')>()),
+  STEER_FOLLOW_UP_GRACE_MS: 50,
 }))
 vi.mock('../../backend/src/db/workspace-threads.js', async (original) => ({
   ...(await original<typeof import('../../backend/src/db/workspace-threads.js')>()),
@@ -158,6 +167,7 @@ function ready() {
   db.threadContext.mockResolvedValue({ version: 3, notes: '' })
   db.paused.mockResolvedValue(false)
   db.steering.mockResolvedValue([])
+  db.pendingSteering.mockResolvedValue(false)
   db.saveContinuation.mockResolvedValue(undefined)
   db.clearContinuation.mockResolvedValue(undefined)
   db.recordExecution.mockResolvedValue(undefined)

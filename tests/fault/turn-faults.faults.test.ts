@@ -59,7 +59,7 @@ async function waitFor(condition: () => Promise<boolean>, timeoutMs: number, wha
   }
 }
 
-describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9-F10, F13-F14 [F:backend.workflow.run.sessionRun] [F:backend.activity.turn.karbotTurnActivity] [F:backend.activity.turn.appendEventActivity] [F:http.steerThread] [F:http.pauseRun] [F:http.resumeRun] [F:db.workspace_threads.beginThreadTurn]', () => {
+describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9-F10, F13-F14 [F:backend.workflow.run.sessionRun] [F:backend.activity.turn.karbotTurnActivity] [F:backend.activity.turn.appendEventActivity] [F:http.steerThread] [F:http.pauseRun] [F:http.resumeRun] [F:db.workspace_threads.beginThreadTurn] [F:db.workspace_threads.hasPendingSteering]', () => {
   let pool: Pool
   let connection: NativeConnection
   let client: WorkflowClient
