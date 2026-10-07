@@ -197,6 +197,27 @@ async function assertContained(page: Page, anchors: MatrixAnchor[], postAnchors?
 }
 
 /**
+ * Finite CSS enter/exit transitions settle before geometry checks.
+ * Infinite indicators (spinners, shimmer) never finish and are skipped;
+ * the wait is bounded so a stuck transition fails the checks, not the
+ * wait. JS-driven Motion loops freeze under the harness fake clock and
+ * are not measured here.
+ */
+async function waitForMotionSettled(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const finite = document.getAnimations().filter((animation) => {
+      if (animation.playState !== 'running') return false
+      const timing = (animation.effect as KeyframeEffect | null)?.getTiming?.()
+      return timing !== undefined && timing.iterations !== Infinity
+    })
+    return Promise.race([
+      Promise.all(finite.map((animation) => animation.finished.catch(() => undefined))),
+      new Promise((resolve) => setTimeout(resolve, 2000)),
+    ])
+  }).catch(() => undefined)
+}
+
+/**
  * Keyboard focus reaches the subject and renders a visible indicator.
  * Every subject is reached by Tab like a keyboard user and must show an
  * outline or ring. A programmatic .focus() fast-path used to skip the
@@ -342,6 +363,10 @@ export async function runMatrixState(page: Page, mc: MatrixCase, state: MatrixSt
     await expect(page.getByText(want.text, { exact: want.exact ?? false }).first()).toBeVisible({ timeout: 15000 })
   }
 
+  // Geometry checks measure settled boxes: a setup click opens surfaces
+  // behind 120-240ms enter transitions, and getBoundingClientRect mid
+  // slide reads the translated box (the w390 dock measured 393px).
+  await waitForMotionSettled(page)
   await assertNoOverflow(page)
   await assertTruncationTitles(page)
   if (state === 'w390') await assertContained(page, mc.anchors, mc.gated ? mc.postAnchors : undefined)
