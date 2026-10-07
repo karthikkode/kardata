@@ -399,6 +399,66 @@ describe.skipIf(!ENABLED)('continue-as-new (P4.2.4) [F:backend.activity.turn.app
     await waitFor(async () => (await events(partition)).filter((event) => event.type === 't.subagent.completed').length === 5, 60_000, 'five completions')
   }, 180_000)
 
+  it('a cancelled parent completes its queued pre-continue children', async () => {
+    const tag = randomUUID()
+    const sessionId = `can-qcancel-${tag}`
+    const workflowId = `can-qcancel-run-${tag}`
+    const partition = `session:${sessionId}`
+    const handle = await client.workflow.start('delegateParent', {
+      taskQueue: taskQueue(),
+      workflowId,
+      args: [{ sessionId, maxInFlight: 1, historyEventLimit: 10 }],
+    })
+    await waitFor(
+      async () => (await events(partition)).some((event) => event.type === 't.session.created'),
+      30_000,
+      'parent to start',
+    )
+    const runningId = `can-qcancel-running-${tag}`
+    const queuedIds = [0, 1].map((index) => `can-qcancel-q-${index}-${tag}`)
+    for (const childId of [runningId, ...queuedIds]) {
+      await handle.signal('parentDelegate', {
+        childId,
+        goal: `TEST queued cancel goal ${childId}`,
+        depth: 1,
+        mode: 'empty',
+        maxDepth: 1,
+        queueCapacity: 8,
+        fakeSteps: [{ text: 'queued cancel reply' }],
+      })
+    }
+    await waitFor(
+      async () =>
+        (await events(partition)).filter((event) => event.type === 't.subagent.launched').length === 1 &&
+        (await events(partition)).filter((event) => event.type === 't.subagent.queued').length === 2,
+      60_000,
+      'one launch plus two queued',
+    )
+    // The tiny history limit trips a continue with one running and two
+    // queued: all three are pre-continue children of the new run.
+    await expectContinuedChain(workflowId)
+    const fresh = () => client.workflow.getHandle(workflowId)
+    await fresh().cancel()
+    await expect(fresh().result()).rejects.toThrow()
+    // The running child cancels through its re-derived handle, as pinned
+    // above; the queued pair must complete cancelled without starting,
+    // or their threads sit QUEUED forever behind a dead parent.
+    expect(await client.workflow.getHandle(runningId).result()).toBe('cancelled')
+    await waitFor(async () => (await events(partition)).filter((event) => event.type === 't.subagent.completed').length === 3, 60_000, 'three completions')
+    const completions = (await events(partition)).filter((event) => event.type === 't.subagent.completed')
+    for (const queuedId of queuedIds) {
+      const completion = completions.find(
+        (event) => ((event.payload['summary'] as Record<string, unknown> | undefined)?.['id'] === queuedId),
+      )
+      expect((completion?.payload['summary'] as Record<string, unknown> | undefined)?.['status']).toBe('cancelled')
+      expect(
+        (await events(partition)).some(
+          (event) => event.type === 't.subagent.launched' && event.payload['childId'] === queuedId,
+        ),
+      ).toBe(false)
+    }
+  }, 180_000)
+
   it('subagentRun continues and carries the goal, inbox, and pause', async () => {
     const tag = randomUUID()
     const sessionId = `can-child-session-${tag}`

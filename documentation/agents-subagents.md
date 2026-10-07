@@ -85,6 +85,12 @@ QUEUED or paused-queued subagent thread by its row when no workflow
 describes (any other workflow-less id stays 404), so the routes reach
 the gateway instead of rejecting before it; proven by
 `tests/backend/commands.queued-runs.test.ts` over a live parent.
+Parent unwind (cancel, finish, idle close) completes queued waiters as
+cancelled — including promoted requests still awaiting launch — so no
+thread sits QUEUED behind a dead parent; running children still cancel
+through their (re-derived across continue-as-new) handles. Pinned by
+the pre-continue cancel cases in
+`tests/backend/workflows.continue-as-new.test.ts`.
 
 ## Delegation door (production launch path)
 
