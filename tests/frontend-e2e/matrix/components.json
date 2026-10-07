@@ -203,6 +203,16 @@
   },
   "frontend.src.components.FileProcessingRetry": {
     "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+    "setup": [
+      {
+        "click": {
+          "kind": "role",
+          "role": "button",
+          "name": "Review retry"
+        }
+      }
+    ],
+    "gated": true,
     "anchors": [
       {
         "kind": "css",
@@ -211,10 +221,22 @@
       {
         "kind": "text",
         "text": "ryde-roster-scan.pdf"
+      }
+    ],
+    "postAnchors": [
+      {
+        "kind": "role",
+        "role": "dialog",
+        "name": "Review file processing retry"
+      },
+      {
+        "kind": "text",
+        "text": "ryde-roster-scan.pdf"
       },
       {
         "kind": "role",
-        "role": "alert"
+        "role": "button",
+        "name": "Resume file processing"
       }
     ],
     "primary": "files",

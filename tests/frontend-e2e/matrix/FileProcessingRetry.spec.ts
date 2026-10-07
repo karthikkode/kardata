@@ -6,13 +6,39 @@ import { runMatrixState, type MatrixCase } from '../support/matrix'
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.FileProcessingRetry",
   "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+  "gated": true,
+  "setup": [
+    {
+      "click": {
+        "kind": "role",
+        "role": "button",
+        "name": "Review retry"
+      }
+    }
+  ],
+  "postAnchors": [
+    {
+      "kind": "role",
+      "role": "dialog",
+      "name": "Review file processing retry"
+    },
+    {
+      "kind": "text",
+      "text": "ryde-roster-scan.pdf"
+    },
+    {
+      "kind": "role",
+      "role": "button",
+      "name": "Resume file processing"
+    }
+  ],
   "primary": "files"
 }
 
 test('[F:frontend.src.components.FileProcessingRetry] FileProcessingRetry typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Sector files\"]"},{"kind":"text","text":"ryde-roster-scan.pdf"},{"kind":"role","role":"alert"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Sector files\"]"},{"kind":"text","text":"ryde-roster-scan.pdf"}] }, 'typical')
 })
 
 test('[F:frontend.src.components.FileProcessingRetry] FileProcessingRetry dark', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Sector files\"]"},{"kind":"text","text":"ryde-roster-scan.pdf"},{"kind":"role","role":"alert"}] }, 'dark')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"css","css":"[aria-label=\"Sector files\"]"},{"kind":"text","text":"ryde-roster-scan.pdf"}] }, 'dark')
 })
