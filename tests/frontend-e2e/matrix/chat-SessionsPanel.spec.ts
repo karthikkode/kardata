@@ -29,11 +29,6 @@ const base: Omit<MatrixCase, 'anchors'> = {
       "name": "Assistant chat"
     },
     {
-      "kind": "role",
-      "role": "region",
-      "name": "Chat context"
-    },
-    {
       "kind": "text",
       "text": "New chat"
     }

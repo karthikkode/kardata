@@ -1259,11 +1259,6 @@
         "kind": "role",
         "role": "complementary",
         "name": "Assistant chat"
-      },
-      {
-        "kind": "role",
-        "role": "region",
-        "name": "Chat context"
       }
     ],
     "primary": "sessions",
@@ -1459,11 +1454,6 @@
         "kind": "role",
         "role": "complementary",
         "name": "Assistant chat"
-      },
-      {
-        "kind": "role",
-        "role": "region",
-        "name": "Chat context"
       },
       {
         "kind": "text",
