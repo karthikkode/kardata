@@ -26,6 +26,11 @@ const base: Omit<MatrixCase, 'anchors'> = {
       "name": "Cancel run"
     }
   ],
+  "focusSubject": {
+    "kind": "role",
+    "role": "button",
+    "name": "Cancel run"
+  },
   "primary": "runs"
 }
 

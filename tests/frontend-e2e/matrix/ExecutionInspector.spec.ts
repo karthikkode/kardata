@@ -30,6 +30,11 @@ const base: Omit<MatrixCase, 'anchors'> = {
       "name": "Execution records"
     }
   ],
+  "focusSubject": {
+    "kind": "role",
+    "role": "dialog",
+    "name": "Execution records"
+  },
   "primary": "execution"
 }
 

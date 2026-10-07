@@ -7,6 +7,11 @@ import { longtextSnippets } from '../support/factory'
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.SectorLanding",
   "route": "/?section=SectorDetail&sector=sector-matrix",
+  "focusSubject": {
+    "kind": "role",
+    "role": "button",
+    "name": "Open workspace"
+  },
   "primary": "sector"
 }
 

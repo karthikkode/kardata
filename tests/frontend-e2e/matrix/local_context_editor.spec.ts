@@ -29,6 +29,11 @@ const base: Omit<MatrixCase, 'anchors'> = {
       "text": "Local context"
     }
   ],
+  "focusSubject": {
+    "kind": "role",
+    "role": "dialog",
+    "name": "Local context"
+  },
   "primary": "local"
 }
 

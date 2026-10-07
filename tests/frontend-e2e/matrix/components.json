@@ -61,7 +61,11 @@
       }
     ],
     "primary": "sectors",
-    "family": "static"
+    "family": "static",
+    "focusSubject": {
+      "kind": "role",
+      "role": "dialog"
+    }
   },
   "frontend.src.components.CompaniesSection": {
     "route": "/?section=SectorDetail&sector=sector-matrix",
@@ -109,7 +113,12 @@
       }
     ],
     "primary": "sectors",
-    "family": "static"
+    "family": "static",
+    "focusSubject": {
+      "kind": "role",
+      "role": "dialog",
+      "name": "New sector"
+    }
   },
   "frontend.src.components.Dashboard": {
     "route": "/",
@@ -185,7 +194,12 @@
     ],
     "primary": "execution",
     "family": "resource",
-    "gated": true
+    "gated": true,
+    "focusSubject": {
+      "kind": "role",
+      "role": "dialog",
+      "name": "Execution records"
+    }
   },
   "frontend.src.components.FileProcessingRetry": {
     "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
@@ -415,7 +429,12 @@
       }
     ],
     "primary": "sector",
-    "family": "resource"
+    "family": "resource",
+    "focusSubject": {
+      "kind": "role",
+      "role": "button",
+      "name": "Open workspace"
+    }
   },
   "frontend.src.components.SectorWorkspace": {
     "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
@@ -812,7 +831,12 @@
       }
     ],
     "primary": "runs",
-    "family": "static"
+    "family": "static",
+    "focusSubject": {
+      "kind": "role",
+      "role": "button",
+      "name": "Cancel run"
+    }
   },
   "frontend.src.components.ui.badge": {
     "route": "/",
@@ -939,7 +963,12 @@
       }
     ],
     "primary": "sectors",
-    "family": "static"
+    "family": "static",
+    "focusSubject": {
+      "kind": "role",
+      "role": "dialog",
+      "name": "New sector"
+    }
   },
   "frontend.src.components.ui.field": {
     "route": "/?section=Models",
@@ -1571,7 +1600,12 @@
     ],
     "primary": "local",
     "family": "resource",
-    "gated": true
+    "gated": true,
+    "focusSubject": {
+      "kind": "role",
+      "role": "dialog",
+      "name": "Local context"
+    }
   },
   "frontend.src.components.plan_progress": {
     "route": "/?section=SectorChat&sector=sector-matrix&session=session-sector-matrix-research&thread=session-sector-matrix-research",

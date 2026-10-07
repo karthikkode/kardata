@@ -22,6 +22,10 @@ const base: Omit<MatrixCase, 'anchors'> = {
       "text": "New sector"
     }
   ],
+  "focusSubject": {
+    "kind": "role",
+    "role": "dialog"
+  },
   "primary": "sectors"
 }
 
