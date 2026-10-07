@@ -212,13 +212,17 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('provider fault drills F1-F3 [F:
   it('F2: flapping provider backs off, succeeds, and counts usage once', async () => {
     attempts.length = 0
     const usage: Usage = { ...emptyUsage(), inputTokens: 11, outputTokens: 7 }
-    script = () => new FakeProvider([
+    // One provider across attempts: the adapter resolves per attempt, so a
+    // factory would replay 429 forever. Attempt-persistent state lives in
+    // the test body (like F1's calls counter), never in the factory.
+    const flap = new FakeProvider([
       { error: 'TEST 429 rate limited', retryable: true },
       { error: 'TEST 500 upstream', retryable: true },
       { text: 'recovered', usage },
       { text: 'recovered', usage },
       { text: 'recovered', usage },
     ])
+    script = () => flap
     const { sessionId, handle } = await startTurn('F2 hello')
     await waitFor(async () => (await messages(sessionId)).some((message) => (message.payload['text'] as string) === 'recovered'), 120_000, 'recovery reply')
     expect(attempts.map((entry) => entry.attempt)).toEqual([1, 2, 3])
