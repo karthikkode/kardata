@@ -25,13 +25,15 @@ export function setSessionSettings(
   return request(config, 'PATCH', `/v1/sessions/${encodeURIComponent(sessionId)}/settings`, { useGlobalContext: value }, crypto.randomUUID())
 }
 
-/** Spawn an owner subagent on a session thread (operator+). */
+/** Spawn an owner subagent on a session thread (operator+). The server
+ * polls delegation acceptance up to 30s, so the call rides the long
+ * budget: a 30s client abort would report failure for a live child. */
 export function spawnSessionSubagent(
   config: StagingConfig,
   sessionId: string,
   body: { goal: string; name?: string },
 ): Promise<{ childId: string; threadKey: string; queued?: boolean }> {
-  return request(config, 'POST', `/v1/sessions/${encodeURIComponent(sessionId)}/subagents`, body, crypto.randomUUID())
+  return request(config, 'POST', `/v1/sessions/${encodeURIComponent(sessionId)}/subagents`, body, crypto.randomUUID(), LONG_REQUEST_TIMEOUT_MS)
 }
 
 export function listSessions(config: StagingConfig, sectorId?: string): Promise<Session[]> {

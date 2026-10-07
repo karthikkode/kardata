@@ -1,5 +1,5 @@
 // Artifact API: session artifacts, tenant artifacts, references, bodies.
-import { request, type StagingConfig } from './client'
+import { LONG_REQUEST_TIMEOUT_MS, request, type StagingConfig } from './client'
 
 export interface ArtifactSummary {
   artifactId: string
@@ -40,11 +40,15 @@ export function createArtifact(
   sessionId: string,
   input: CreateArtifactInput,
 ): Promise<ArtifactSummary> {
+  // File bytes upload inline and index synchronously: the long budget,
+  // like sector document attach.
   return request<ArtifactSummary>(
     config,
     'POST',
     `/v1/sessions/${encodeURIComponent(sessionId)}/artifacts`,
     input,
+    undefined,
+    LONG_REQUEST_TIMEOUT_MS,
   )
 }
 
