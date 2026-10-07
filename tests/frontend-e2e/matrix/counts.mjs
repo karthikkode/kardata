@@ -10,7 +10,7 @@
 // - threads: SubagentsPanel takes kind=subagent only (ChatPanel:142)
 //   behind a closed toggle reading "<N> subagents".
 // - karbot sessions (SessionsPanel): data.karbotSessions replaces base.
-// - sector sessions (SectorWorkspace): 4 base normal + data.sessions,
+// - sector sessions (SectorWorkspace): 6 base normal + data.sessions,
 //   group=normal via the route session (limit 50).
 const COUNT = { one: 1, typical: 8, n100: 100, n1000: 1000 }
 const fmt = (n) => n.toLocaleString('en-AU')
@@ -36,7 +36,7 @@ export function expectedRowCount(caseId, primary, state) {
     case 'messages':
       return state === 'typical' ? 28 : n
     case 'sessions':
-      return isWorkspace(caseId) ? n + 4 : n
+      return isWorkspace(caseId) ? n + 6 : n
     case 'runs':
       return n
     default:

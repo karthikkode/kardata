@@ -20,7 +20,7 @@ test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace empty', async 
 })
 
 test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"log","name":"Conversation messages"}], expectedRows: { selector: "[aria-label=\"Chat sessions\"] [data-list-row]", count: 12 } }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"log","name":"Conversation messages"}], expectedRows: { selector: "[aria-label=\"Chat sessions\"] [data-list-row]", count: 14 } }, 'typical')
 })
 
 test('[F:frontend.src.components.SectorWorkspace] SectorWorkspace error', async ({ page }) => {
