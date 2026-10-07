@@ -115,7 +115,10 @@ hand-roll routes or screenshots:
   raw-text guard, focus rings, shell alignment, plan-rail clearance)
   and `writeAuditReport` stores per-page JSON under
   `frontend/test-results/v2/audit/`; `audit.spec.ts` fails on any
-  violation. `color.ts` holds the contrast math.
+  violation. `color.ts` holds the contrast math. The visible-text sweep
+  skips text far outside the viewport under a `content-visibility`
+  auto/hidden gate: skipped subtrees report frozen pre-theme-flip colors
+  no user ever sees (scrolling there re-renders with live tokens).
 - Playwright wipes `frontend/test-results/` at the start of every run:
   chain the archive into the same command
   (`... ; cp test-results/v2/*.png tests/evidence/<area>/`), review

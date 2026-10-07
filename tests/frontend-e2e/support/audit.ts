@@ -72,7 +72,24 @@ export async function auditPage(page: Page, options: AuditOptions = {}): Promise
         if (element.closest('[aria-hidden="true"]')) return false
         const style = getComputedStyle(element)
         if (style.visibility === 'hidden' || style.display === 'none') return false
-        return element.offsetParent !== null || style.position === 'fixed'
+        if (element.offsetParent === null && style.position !== 'fixed') return false
+        // content-visibility skips style recalc for off-screen subtrees, so
+        // getComputedStyle returns frozen pre-theme-flip colors no user ever
+        // sees (scrolling there re-renders with live tokens). Skip text far
+        // outside the viewport under an auto/hidden gate; near-viewport and
+        // un-gated below-fold text still renders live and stays audited.
+        const rect = element.getBoundingClientRect()
+        const vh = window.innerHeight
+        const vw = window.innerWidth
+        if (rect.bottom < -vh || rect.top > 2 * vh || rect.right < -vw || rect.left > 2 * vw) {
+          let ancestor: HTMLElement | null = element
+          while (ancestor) {
+            const gate = getComputedStyle(ancestor).contentVisibility
+            if (gate === 'hidden' || gate === 'auto') return false
+            ancestor = ancestor.parentElement
+          }
+        }
+        return true
       }
       const selectorFor = (element: Element): string => {
         const parts: string[] = []
