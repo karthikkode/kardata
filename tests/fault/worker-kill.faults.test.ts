@@ -78,13 +78,20 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('worker SIGKILL drills F4-F5 [F:
   afterAll(async () => {
     for (const child of children) {
       if (child.exitCode === null && child.signalCode === null) {
+        // Bounded shutdown: the drill is over, so a worker still
+        // draining after 2 s gets SIGKILL. Unbounded SIGTERM waits
+        // blew the 10 s hook with two live replacement workers.
         child.kill('SIGTERM')
-        await once(child, 'exit').catch(() => undefined)
+        const exited = await Promise.race([
+          once(child, 'exit').then(() => true),
+          sleep(2000).then(() => false),
+        ]).catch(() => true)
+        if (!exited && child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
       }
     }
     await pool?.end()
     await connection?.close()
-  })
+  }, 60_000)
 
   function spawnWorker(script: 'f4' | 'f5', taskQueue: string, markerFile: string, archiveDir: string, namespace: string): { child: ChildProcess; stderr: { text: string } } {
     const stderr = { text: '' }
