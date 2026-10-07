@@ -890,6 +890,13 @@
           "role": "menuitem",
           "name": "Local context"
         }
+      },
+      {
+        "click": {
+          "kind": "role",
+          "role": "button",
+          "name": "Review safe rebuild"
+        }
       }
     ],
     "anchors": [
@@ -906,7 +913,13 @@
       }
     ],
     "primary": "local",
-    "family": "static"
+    "family": "static",
+    "gated": true,
+    "localVariant": "blocked",
+    "focusSubject": {
+      "kind": "css",
+      "css": "[aria-label=\"I reviewed this replacement\"]"
+    }
   },
   "frontend.src.components.ui.collapsible": {
     "route": "/?section=SectorChat&sector=sector-matrix&session=session-sector-matrix-research&thread=session-sector-matrix-research",

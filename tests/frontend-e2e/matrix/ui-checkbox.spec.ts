@@ -6,6 +6,7 @@ import { runMatrixState, type MatrixCase } from '../support/matrix'
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.ui.checkbox",
   "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+  "gated": true,
   "setup": [
     {
       "click": {
@@ -20,6 +21,13 @@ const base: Omit<MatrixCase, 'anchors'> = {
         "role": "menuitem",
         "name": "Local context"
       }
+    },
+    {
+      "click": {
+        "kind": "role",
+        "role": "button",
+        "name": "Review safe rebuild"
+      }
     }
   ],
   "postAnchors": [
@@ -28,7 +36,12 @@ const base: Omit<MatrixCase, 'anchors'> = {
       "css": "[aria-label=\"I reviewed this replacement\"]"
     }
   ],
-  "primary": "local"
+  "focusSubject": {
+    "kind": "css",
+    "css": "[aria-label=\"I reviewed this replacement\"]"
+  },
+  "primary": "local",
+  "localVariant": "blocked"
 }
 
 test('[F:frontend.src.components.ui.checkbox] checkbox typical', async ({ page }) => {

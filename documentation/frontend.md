@@ -486,7 +486,8 @@ Every visual component carries `states:` in `tests/registry/features.yaml`;
 asserts the seven checks (overflow, 390 containment, truncation titles,
 focus, clean console, axe serious, `toHaveScreenshot` ≤0.1%): see
 `tests/frontend-e2e/support/matrix.ts`. Fixtures come from the single
-factory `support/factory.ts`. Count states (`one`/`typical`/`n100`/`n1000`,
+factory `support/factory.ts`; cases needing a non-default local-context
+fixture set `localVariant` (blocked surfaces the rebuild review). Count states (`one`/`typical`/`n100`/`n1000`,
 plus `partial`/`longtext` where meaningful) also assert row counts and
 total/toggle texts: components.json carries the row selector (`rows`) or a
 count template (`countText`), `matrix/counts.mjs` pins the expected numbers

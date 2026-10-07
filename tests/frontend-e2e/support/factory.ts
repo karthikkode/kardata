@@ -216,6 +216,7 @@ export function matrixApiOptions(
   primary: RouteKey,
   secondary?: RouteKey,
   sectorState?: FixtureSector['state'],
+  localVariant?: 'full' | 'empty' | 'blocked' | 'pending',
 ): ApiOptions {
   const modes: Partial<Record<RouteKey, RouteMode>> = {}
   const data: ApiData = {
@@ -226,6 +227,7 @@ export function matrixApiOptions(
     // Current warnings (seq 21-24) plus history: the alerts list cases
     // assert the populated list, not the All-clear empty state.
     alerts: [...alerts.slice(0, 4), ...alerts.slice(20, 24)],
+    ...(localVariant ? { localVariant } : {}),
   }
   // Cases for state-gated UI (the plan editor needs an editable sector)
   // override the matrix sector state; item 0 is always the matrix sector.
