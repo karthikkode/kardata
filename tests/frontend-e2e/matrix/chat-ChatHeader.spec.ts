@@ -6,6 +6,7 @@ import { runMatrixState, type MatrixCase } from '../support/matrix'
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.chat.ChatHeader",
   "route": "/",
+  "gated": true,
   "setup": [
     {
       "click": {
@@ -15,17 +16,29 @@ const base: Omit<MatrixCase, 'anchors'> = {
       }
     }
   ],
+  "postAnchors": [
+    {
+      "kind": "role",
+      "role": "complementary",
+      "name": "Assistant chat"
+    },
+    {
+      "kind": "role",
+      "role": "region",
+      "name": "Chat context"
+    }
+  ],
   "primary": "sessions"
 }
 
 test('[F:frontend.src.components.chat.ChatHeader] ChatHeader typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"region","name":"Chat context"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'typical')
 })
 
 test('[F:frontend.src.components.chat.ChatHeader] ChatHeader dark', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"region","name":"Chat context"}] }, 'dark')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'dark')
 })
 
 test('[F:frontend.src.components.chat.ChatHeader] ChatHeader w390', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"region","name":"Chat context"}] }, 'w390')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'w390')
 })

@@ -6,6 +6,7 @@ import { runMatrixState, type MatrixCase } from '../support/matrix'
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.chat.ChatComposer",
   "route": "/",
+  "gated": true,
   "setup": [
     {
       "click": {
@@ -15,21 +16,37 @@ const base: Omit<MatrixCase, 'anchors'> = {
       }
     }
   ],
+  "postAnchors": [
+    {
+      "kind": "role",
+      "role": "complementary",
+      "name": "Assistant chat"
+    },
+    {
+      "kind": "role",
+      "role": "textbox"
+    },
+    {
+      "kind": "role",
+      "role": "button",
+      "name": "Attach file"
+    }
+  ],
   "primary": "messages"
 }
 
 test('[F:frontend.src.components.chat.ChatComposer] ChatComposer typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"textbox"},{"kind":"role","role":"button","name":"Attach file"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'typical')
 })
 
 test('[F:frontend.src.components.chat.ChatComposer] ChatComposer dark', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"textbox"},{"kind":"role","role":"button","name":"Attach file"}] }, 'dark')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'dark')
 })
 
 test('[F:frontend.src.components.chat.ChatComposer] ChatComposer w390', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"textbox"},{"kind":"role","role":"button","name":"Attach file"}] }, 'w390')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'w390')
 })
 
 test('[F:frontend.src.components.chat.ChatComposer] ChatComposer focus', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"textbox"},{"kind":"role","role":"button","name":"Attach file"}] }, 'focus')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'focus')
 })

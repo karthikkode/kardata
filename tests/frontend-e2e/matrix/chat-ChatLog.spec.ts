@@ -7,6 +7,7 @@ import { longtextSnippets } from '../support/factory'
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.chat.ChatLog",
   "route": "/",
+  "gated": true,
   "setup": [
     {
       "click": {
@@ -16,65 +17,77 @@ const base: Omit<MatrixCase, 'anchors'> = {
       }
     }
   ],
+  "postAnchors": [
+    {
+      "kind": "role",
+      "role": "complementary",
+      "name": "Assistant chat"
+    },
+    {
+      "kind": "role",
+      "role": "log",
+      "name": "Chat messages"
+    }
+  ],
   "primary": "messages"
 }
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog loading', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"status"}] }, 'loading')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], postAnchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"},{"kind":"role","role":"status"}] }, 'loading')
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog empty', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"text","text":"Ask Karbot anything"}] }, 'empty')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], postAnchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"},{"kind":"text","text":"Ask Karbot anything"}] }, 'empty')
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog one', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 1 } }, 'one')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 1 } }, 'one')
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 28 } }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 28 } }, 'typical')
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog n100', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 100 } }, 'n100')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 100 } }, 'n100')
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog n1000', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 1000 } }, 'n1000')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 1000 } }, 'n1000')
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog error', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"role","role":"button","name":"Try again"}] }, 'error')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], postAnchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"},{"kind":"role","role":"alert"},{"kind":"role","role":"button","name":"Try again"}] }, 'error')
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog offline', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"text","text":"No connection"},{"kind":"role","role":"button","name":"Try again"}] }, 'offline')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], postAnchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"},{"kind":"text","text":"No connection"},{"kind":"role","role":"button","name":"Try again"}] }, 'offline')
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog longtext', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 2 }, expectedTexts: [...longtextSnippets("messages")] }, 'longtext')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], expectedRows: { selector: "[aria-label=\"Chat messages\"] [data-message-bubble]", count: 2 }, expectedTexts: [...longtextSnippets("messages")] }, 'longtext')
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog dark', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"}] }, 'dark')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'dark')
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog w1280', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"}] }, 'w1280')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'w1280')
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog w768', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"}] }, 'w768')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'w768')
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog w390', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"}] }, 'w390')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'w390')
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog focus', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"}] }, 'focus')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'focus')
 })
 
 test('[F:frontend.src.components.chat.ChatLog] ChatLog reduced-motion', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"log","name":"Chat messages"}] }, 'reduced-motion')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'reduced-motion')
 })

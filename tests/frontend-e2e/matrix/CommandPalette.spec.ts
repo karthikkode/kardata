@@ -6,12 +6,17 @@ import { runMatrixState, type MatrixCase } from '../support/matrix'
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.CommandPalette",
   "route": "/",
+  "gated": true,
   "setup": [
     {
       "press": "Control+k"
     }
   ],
   "postAnchors": [
+    {
+      "kind": "role",
+      "role": "dialog"
+    },
     {
       "kind": "text",
       "text": "New sector"
@@ -21,17 +26,17 @@ const base: Omit<MatrixCase, 'anchors'> = {
 }
 
 test('[F:frontend.src.components.CommandPalette] CommandPalette typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"dialog"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"banner"}] }, 'typical')
 })
 
 test('[F:frontend.src.components.CommandPalette] CommandPalette dark', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"dialog"}] }, 'dark')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"banner"}] }, 'dark')
 })
 
 test('[F:frontend.src.components.CommandPalette] CommandPalette w390', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"dialog"}] }, 'w390')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"banner"}] }, 'w390')
 })
 
 test('[F:frontend.src.components.CommandPalette] CommandPalette focus', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"dialog"}] }, 'focus')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"banner"}] }, 'focus')
 })

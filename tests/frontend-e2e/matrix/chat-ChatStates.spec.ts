@@ -6,6 +6,7 @@ import { runMatrixState, type MatrixCase } from '../support/matrix'
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.chat.ChatStates",
   "route": "/",
+  "gated": true,
   "setup": [
     {
       "click": {
@@ -15,29 +16,36 @@ const base: Omit<MatrixCase, 'anchors'> = {
       }
     }
   ],
+  "postAnchors": [
+    {
+      "kind": "role",
+      "role": "complementary",
+      "name": "Assistant chat"
+    }
+  ],
   "primary": "sessions"
 }
 
 test('[F:frontend.src.components.chat.ChatStates] ChatStates loading', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"status"}] }, 'loading')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], postAnchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"status"}] }, 'loading')
 })
 
 test('[F:frontend.src.components.chat.ChatStates] ChatStates typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'typical')
 })
 
 test('[F:frontend.src.components.chat.ChatStates] ChatStates error', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"alert"},{"kind":"role","role":"button","name":"Try again"}] }, 'error')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], postAnchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"alert"},{"kind":"role","role":"button","name":"Try again"}] }, 'error')
 })
 
 test('[F:frontend.src.components.chat.ChatStates] ChatStates offline', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"text","text":"No connection"},{"kind":"role","role":"button","name":"Try again"}] }, 'offline')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], postAnchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"text","text":"No connection"},{"kind":"role","role":"button","name":"Try again"}] }, 'offline')
 })
 
 test('[F:frontend.src.components.chat.ChatStates] ChatStates dark', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"}] }, 'dark')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'dark')
 })
 
 test('[F:frontend.src.components.chat.ChatStates] ChatStates focus', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"}] }, 'focus')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'focus')
 })

@@ -6,6 +6,7 @@ import { runMatrixState, type MatrixCase } from '../support/matrix'
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.chat.SessionsPanel",
   "route": "/",
+  "gated": true,
   "setup": [
     {
       "click": {
@@ -23,6 +24,16 @@ const base: Omit<MatrixCase, 'anchors'> = {
   ],
   "postAnchors": [
     {
+      "kind": "role",
+      "role": "complementary",
+      "name": "Assistant chat"
+    },
+    {
+      "kind": "role",
+      "role": "region",
+      "name": "Chat context"
+    },
+    {
       "kind": "text",
       "text": "New chat"
     }
@@ -31,21 +42,21 @@ const base: Omit<MatrixCase, 'anchors'> = {
 }
 
 test('[F:frontend.src.components.chat.SessionsPanel] SessionsPanel typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"region","name":"Chat context"}], expectedRows: { selector: "[aria-label=\"Chat sessions\"] [role=\"menuitem\"][aria-label^=\"Open \"]", count: 8 } }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], expectedRows: { selector: "[aria-label=\"Chat sessions\"] [role=\"menuitem\"][aria-label^=\"Open \"]", count: 8 } }, 'typical')
 })
 
 test('[F:frontend.src.components.chat.SessionsPanel] SessionsPanel n100', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"region","name":"Chat context"}], expectedRows: { selector: "[aria-label=\"Chat sessions\"] [role=\"menuitem\"][aria-label^=\"Open \"]", count: 100 } }, 'n100')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], expectedRows: { selector: "[aria-label=\"Chat sessions\"] [role=\"menuitem\"][aria-label^=\"Open \"]", count: 100 } }, 'n100')
 })
 
 test('[F:frontend.src.components.chat.SessionsPanel] SessionsPanel dark', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"region","name":"Chat context"}] }, 'dark')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'dark')
 })
 
 test('[F:frontend.src.components.chat.SessionsPanel] SessionsPanel w390', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"region","name":"Chat context"}] }, 'w390')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'w390')
 })
 
 test('[F:frontend.src.components.chat.SessionsPanel] SessionsPanel focus', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"role","role":"region","name":"Chat context"}] }, 'focus')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'focus')
 })

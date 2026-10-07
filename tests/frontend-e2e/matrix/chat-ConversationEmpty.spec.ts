@@ -6,6 +6,7 @@ import { runMatrixState, type MatrixCase } from '../support/matrix'
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.chat.ConversationEmpty",
   "route": "/",
+  "gated": true,
   "setup": [
     {
       "click": {
@@ -15,22 +16,37 @@ const base: Omit<MatrixCase, 'anchors'> = {
       }
     }
   ],
+  "postAnchors": [
+    {
+      "kind": "role",
+      "role": "complementary",
+      "name": "Assistant chat"
+    },
+    {
+      "kind": "text",
+      "text": "Ask Karbot anything"
+    },
+    {
+      "kind": "text",
+      "text": "Karbot sees every sector you can open."
+    }
+  ],
   "primary": "messages",
   "envBasis": "empty"
 }
 
 test('[F:frontend.src.components.chat.ConversationEmpty] ConversationEmpty empty', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"text","text":"Ask Karbot anything"}] }, 'empty')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], postAnchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"text","text":"Ask Karbot anything"},{"kind":"text","text":"Karbot sees every sector you can open."},{"kind":"text","text":"Ask Karbot anything"}] }, 'empty')
 })
 
 test('[F:frontend.src.components.chat.ConversationEmpty] ConversationEmpty dark', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"text","text":"Ask Karbot anything"},{"kind":"text","text":"Karbot sees every sector you can open."}] }, 'dark')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'dark')
 })
 
 test('[F:frontend.src.components.chat.ConversationEmpty] ConversationEmpty w390', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"text","text":"Ask Karbot anything"},{"kind":"text","text":"Karbot sees every sector you can open."}] }, 'w390')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'w390')
 })
 
 test('[F:frontend.src.components.chat.ConversationEmpty] ConversationEmpty focus', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"text","text":"Ask Karbot anything"},{"kind":"text","text":"Karbot sees every sector you can open."}] }, 'focus')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'focus')
 })

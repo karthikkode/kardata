@@ -6,6 +6,7 @@ import { runMatrixState, type MatrixCase } from '../support/matrix'
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.SubagentsPanel",
   "route": "/",
+  "gated": true,
   "setup": [
     {
       "click": {
@@ -15,33 +16,44 @@ const base: Omit<MatrixCase, 'anchors'> = {
       }
     }
   ],
+  "postAnchors": [
+    {
+      "kind": "role",
+      "role": "complementary",
+      "name": "Assistant chat"
+    },
+    {
+      "kind": "css",
+      "css": "[aria-label=\"Subagent threads\"]"
+    }
+  ],
   "primary": "threads"
 }
 
 test('[F:frontend.src.components.SubagentsPanel] SubagentsPanel typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"css","css":"[aria-label=\"Subagent threads\"]"}], expectedTexts: [{ text: "8 subagents", exact: true }] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], expectedTexts: [{ text: "8 subagents", exact: true }] }, 'typical')
 })
 
 test('[F:frontend.src.components.SubagentsPanel] SubagentsPanel one', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"css","css":"[aria-label=\"Subagent threads\"]"}], expectedTexts: [{ text: "1 subagents", exact: true }] }, 'one')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], expectedTexts: [{ text: "1 subagents", exact: true }] }, 'one')
 })
 
 test('[F:frontend.src.components.SubagentsPanel] SubagentsPanel n100', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"css","css":"[aria-label=\"Subagent threads\"]"}], expectedTexts: [{ text: "100 subagents", exact: true }] }, 'n100')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], expectedTexts: [{ text: "100 subagents", exact: true }] }, 'n100')
 })
 
 test('[F:frontend.src.components.SubagentsPanel] SubagentsPanel n1000', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"css","css":"[aria-label=\"Subagent threads\"]"}], expectedTexts: [{ text: "1000 subagents", exact: true }] }, 'n1000')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], expectedTexts: [{ text: "1000 subagents", exact: true }] }, 'n1000')
 })
 
 test('[F:frontend.src.components.SubagentsPanel] SubagentsPanel dark', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"css","css":"[aria-label=\"Subagent threads\"]"}] }, 'dark')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'dark')
 })
 
 test('[F:frontend.src.components.SubagentsPanel] SubagentsPanel w390', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"css","css":"[aria-label=\"Subagent threads\"]"}] }, 'w390')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'w390')
 })
 
 test('[F:frontend.src.components.SubagentsPanel] SubagentsPanel focus', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"css","css":"[aria-label=\"Subagent threads\"]"}] }, 'focus')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'focus')
 })

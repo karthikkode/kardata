@@ -43,13 +43,18 @@
         "press": "Control+k"
       }
     ],
+    "gated": true,
     "anchors": [
       {
         "kind": "role",
-        "role": "dialog"
+        "role": "banner"
       }
     ],
     "postAnchors": [
+      {
+        "kind": "role",
+        "role": "dialog"
+      },
       {
         "kind": "text",
         "text": "New sector"
@@ -88,6 +93,7 @@
         }
       }
     ],
+    "gated": true,
     "anchors": [
       {
         "kind": "role",
@@ -453,7 +459,15 @@
         }
       }
     ],
+    "gated": true,
     "anchors": [
+      {
+        "kind": "role",
+        "role": "button",
+        "name": "Ask Karbot"
+      }
+    ],
+    "postAnchors": [
       {
         "kind": "role",
         "role": "complementary",
@@ -564,7 +578,15 @@
         }
       }
     ],
+    "gated": true,
     "anchors": [
+      {
+        "kind": "role",
+        "role": "button",
+        "name": "Ask Karbot"
+      }
+    ],
+    "postAnchors": [
       {
         "kind": "role",
         "role": "complementary",
@@ -705,7 +727,15 @@
         }
       }
     ],
+    "gated": true,
     "anchors": [
+      {
+        "kind": "role",
+        "role": "button",
+        "name": "Ask Karbot"
+      }
+    ],
+    "postAnchors": [
       {
         "kind": "text",
         "text": "Ask Karbot anything"
@@ -863,6 +893,7 @@
         }
       }
     ],
+    "gated": true,
     "anchors": [
       {
         "kind": "role",
@@ -1177,7 +1208,15 @@
         }
       }
     ],
+    "gated": true,
     "anchors": [
+      {
+        "kind": "role",
+        "role": "button",
+        "name": "Ask Karbot"
+      }
+    ],
+    "postAnchors": [
       {
         "kind": "role",
         "role": "complementary",
@@ -1207,7 +1246,15 @@
         }
       }
     ],
+    "gated": true,
     "anchors": [
+      {
+        "kind": "role",
+        "role": "button",
+        "name": "Ask Karbot"
+      }
+    ],
+    "postAnchors": [
       {
         "kind": "role",
         "role": "complementary",
@@ -1233,7 +1280,15 @@
         }
       }
     ],
+    "gated": true,
     "anchors": [
+      {
+        "kind": "role",
+        "role": "button",
+        "name": "Ask Karbot"
+      }
+    ],
+    "postAnchors": [
       {
         "kind": "role",
         "role": "complementary",
@@ -1266,7 +1321,15 @@
         }
       }
     ],
+    "gated": true,
     "anchors": [
+      {
+        "kind": "role",
+        "role": "button",
+        "name": "Ask Karbot"
+      }
+    ],
+    "postAnchors": [
       {
         "kind": "role",
         "role": "complementary",
@@ -1294,13 +1357,19 @@
         }
       }
     ],
+    "gated": true,
     "anchors": [
       {
         "kind": "role",
-        "role": "textbox"
+        "role": "button",
+        "name": "Ask Karbot"
       }
     ],
     "postAnchors": [
+      {
+        "kind": "role",
+        "role": "textbox"
+      },
       {
         "kind": "role",
         "role": "menu"
@@ -1332,7 +1401,15 @@
         }
       }
     ],
+    "gated": true,
     "anchors": [
+      {
+        "kind": "role",
+        "role": "button",
+        "name": "Ask Karbot"
+      }
+    ],
+    "postAnchors": [
       {
         "kind": "role",
         "role": "complementary",
@@ -1369,7 +1446,15 @@
         }
       }
     ],
+    "gated": true,
     "anchors": [
+      {
+        "kind": "role",
+        "role": "button",
+        "name": "Ask Karbot"
+      }
+    ],
+    "postAnchors": [
       {
         "kind": "role",
         "role": "complementary",
@@ -1379,9 +1464,7 @@
         "kind": "role",
         "role": "region",
         "name": "Chat context"
-      }
-    ],
-    "postAnchors": [
+      },
       {
         "kind": "text",
         "text": "New chat"

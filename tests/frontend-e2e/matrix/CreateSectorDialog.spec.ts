@@ -6,6 +6,7 @@ import { runMatrixState, type MatrixCase } from '../support/matrix'
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.CreateSectorDialog",
   "route": "/?section=Researches",
+  "gated": true,
   "setup": [
     {
       "click": {

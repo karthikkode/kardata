@@ -6,6 +6,7 @@ import { runMatrixState, type MatrixCase } from '../support/matrix'
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.chat.SessionFiles",
   "route": "/",
+  "gated": true,
   "setup": [
     {
       "click": {
@@ -15,25 +16,36 @@ const base: Omit<MatrixCase, 'anchors'> = {
       }
     }
   ],
+  "postAnchors": [
+    {
+      "kind": "role",
+      "role": "complementary",
+      "name": "Assistant chat"
+    },
+    {
+      "kind": "css",
+      "css": "[aria-label=\"Session files\"]"
+    }
+  ],
   "primary": "artifacts"
 }
 
 test('[F:frontend.src.components.chat.SessionFiles] SessionFiles empty', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"text","text":"No files yet. Files Karbot or subagents create appear here."}] }, 'empty')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], postAnchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"css","css":"[aria-label=\"Session files\"]"},{"kind":"text","text":"No files yet. Files Karbot or subagents create appear here."}] }, 'empty')
 })
 
 test('[F:frontend.src.components.chat.SessionFiles] SessionFiles typical', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"css","css":"[aria-label=\"Session files\"]"}] }, 'typical')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'typical')
 })
 
 test('[F:frontend.src.components.chat.SessionFiles] SessionFiles dark', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"css","css":"[aria-label=\"Session files\"]"}] }, 'dark')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'dark')
 })
 
 test('[F:frontend.src.components.chat.SessionFiles] SessionFiles w390', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"css","css":"[aria-label=\"Session files\"]"}] }, 'w390')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'w390')
 })
 
 test('[F:frontend.src.components.chat.SessionFiles] SessionFiles focus', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"complementary","name":"Assistant chat"},{"kind":"css","css":"[aria-label=\"Session files\"]"}] }, 'focus')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'focus')
 })

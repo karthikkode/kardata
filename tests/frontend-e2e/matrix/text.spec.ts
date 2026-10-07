@@ -6,6 +6,7 @@ import { runMatrixState, type MatrixCase } from '../support/matrix'
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.text",
   "route": "/",
+  "gated": true,
   "setup": [
     {
       "click": {
@@ -15,18 +16,28 @@ const base: Omit<MatrixCase, 'anchors'> = {
       }
     }
   ],
+  "postAnchors": [
+    {
+      "kind": "text",
+      "text": "Ask Karbot anything"
+    },
+    {
+      "kind": "text",
+      "text": "Karbot sees every sector you can open."
+    }
+  ],
   "primary": "messages",
   "envBasis": "empty"
 }
 
 test('[F:frontend.src.components.text] text empty', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"text","text":"Ask Karbot anything"}] }, 'empty')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}], postAnchors: [{"kind":"text","text":"Ask Karbot anything"},{"kind":"text","text":"Karbot sees every sector you can open."},{"kind":"text","text":"Ask Karbot anything"}] }, 'empty')
 })
 
 test('[F:frontend.src.components.text] text dark', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"text","text":"Ask Karbot anything"},{"kind":"text","text":"Karbot sees every sector you can open."}] }, 'dark')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'dark')
 })
 
 test('[F:frontend.src.components.text] text w390', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"text","text":"Ask Karbot anything"},{"kind":"text","text":"Karbot sees every sector you can open."}] }, 'w390')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"role","role":"button","name":"Ask Karbot"}] }, 'w390')
 })
