@@ -3872,3 +3872,14 @@ Parity scripted (69 ops: 45 mapped, 24 owner-only, 6 DEV). Registry 1009
 entries, enforce-simulated clean outside frontend. No suites run (D1):
 sector/runs/obs/control/monitor/palette/parity/live L-K1..K3 tests are
 written-but-unrun static signal only.
+
+## 2026-10-07 — Fix-loop 1 close-out (branch p2-7-fixes, uncommitted)
+Stalled lanes verified/finished solo after the 10-05 FD stall: volume tier
+2/2 green (slowest p95 50.9ms), alerts/ops-runs/F8-unit/trace green, L-K 3/3
+live green after terminating 4 stranded kardata-live test runs (shared
+namespace poisoned the fresh DB), denied-retry + copy green, axe
+button-name + scrollable-region zero (Sidebar aria-labels kept, Markdown
+code/table scroll regions focusable). Left red, diagnosed in
+`documentation/plans/p2-fix-loop-1.md`: color-contrast (token call),
+aria-children (menu), focus-indicator ×9, screenshot drift, factory.ts
+typecheck (D4). Full report: `documentation/plans/p2-fix-loop-1.md`.
