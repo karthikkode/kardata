@@ -17,8 +17,9 @@ const base: Omit<MatrixCase, 'anchors'> = {
   ],
   "postAnchors": [
     {
-      "kind": "css",
-      "css": "[data-slot=\"collapsible-trigger\"]"
+      "kind": "role",
+      "role": "button",
+      "name": "Version history"
     }
   ],
   "primary": "plan"
