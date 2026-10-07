@@ -154,10 +154,15 @@ export function commandRoutes(app: FastifyInstance): void {
     if (!auth) return undefined
     const body = parseInput(RunRefBody, request.body, reply)
     if (!body) return undefined
-    return withIdempotency(request, reply, kardataPool(app), auth.keyId, async () => {
+    const pool = kardataPool(app)
+    return withIdempotency(request, reply, pool, auth.keyId, async () => {
       const blocked = await scopedRunCheck(app, body.runId, auth.scope)
       if (blocked) return blocked
       const result = await runs.cancelRun(body.runId)
+      // The gateway appended CANCELLING ahead of the signal: project now
+      // so the state frame streams promptly and the UI releases its
+      // thinking indicator without waiting for the unwind.
+      if (pool) await projectNewEvents(pool)
       return { status: 202, body: { ok: true, data: result } }
     })
   })
