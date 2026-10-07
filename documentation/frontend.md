@@ -499,9 +499,11 @@ Unary API calls time out at 30s (`REQUEST_TIMEOUT_MS` in
 `data/api/client.ts`) and surface the designed error/denied UI with retry;
 drafts and input survive, and the surface recovers when the endpoint heals
 (`tests/frontend-e2e/failures/` pins every endpoint × fault). Uploads and
-synchronous long mutations (document attach, session/thread compaction)
-run on the 10 min `LONG_REQUEST_TIMEOUT_MS` budget instead; the fault
-harness asserts their slow-success path via `timeoutSlow`.
+synchronous long mutations (document attach, session artifact creation,
+session/thread compaction, subagent spawn — the server polls delegation
+acceptance up to 30s) run on the 10 min `LONG_REQUEST_TIMEOUT_MS` budget
+instead; the fault harness asserts their slow-success path via
+`timeoutSlow`, and `request-timeout.test.ts` pins each site's budget.
 
 ## Scale budgets
 
