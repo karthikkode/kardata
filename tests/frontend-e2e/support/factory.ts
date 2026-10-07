@@ -116,7 +116,7 @@ export function makeMessages(count: number): FixtureMessage[] {
   return Array.from({ length: count }, (_, i) => ({
     seq: i + 1,
     kind: 'text' as const,
-    role: i % 2 === 0 ? 'user' : 'assistant',
+    role: i % 2 === 0 ? 'user' : 'agent',
     text: i % 2 === 0 ? `Matrix question ${i + 1}: which crews cover commercial work?` : `Matrix answer ${i + 1}: Bright Spark covers commercial work across Parramatta and Ryde.`,
     at: FIXED_NOW,
   }))
@@ -277,7 +277,7 @@ export function matrixApiOptions(
     case 'longtext':
       data.companies = longTextCompanies()
       data.messages = [
-        { seq: 1, kind: 'text', role: 'assistant', text: LONG_MESSAGE_5K, at: FIXED_NOW },
+        { seq: 1, kind: 'text', role: 'agent', text: LONG_MESSAGE_5K, at: FIXED_NOW },
         { seq: 2, kind: 'text', role: 'user', text: UNBROKEN_URL, at: FIXED_NOW },
       ]
       data.sectors = [{ ...matrixSector(), name: LONG_NAME_300, companiesFound: 1 }]
