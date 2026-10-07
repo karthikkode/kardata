@@ -3873,6 +3873,19 @@ entries, enforce-simulated clean outside frontend. No suites run (D1):
 sector/runs/obs/control/monitor/palette/parity/live L-K1..K3 tests are
 written-but-unrun static signal only.
 
+## 2026-10-07 — BLOCKED: subagents-2000 scroll 54-55ms over the 50ms budget (branch p2-7-fixes)
+Scale file serial-aborts after subagents (5 legs did not run: queue,
+thread, companies, files, dock-heap). Symmetric median-of-3 probe:
+[54.0, 55.0, 55.0] (var/fv3/48); single-shot 53/54 (var/fv3/44-45);
+fv3/06 passed with no product change since → hovering at the boundary,
+now consistently over. Suspect: per-row mount weight (3 IconButton
+tooltip-trees per SubagentRow × ~10-row turnover per 600px wheel in
+React dev+StrictMode) vs sessions rows (1 tooltip, green). Test is
+right, product is ~4ms slow in dev; budget bump would be weakening.
+Next: React DevTools/Chrome trace attribution; candidate fixes are
+lazy tooltip roots, lighter rows, or owner-approved re-baseline.
+Median probe + samples logging stay (same 50 budget, no masking).
+
 ## 2026-10-07 — coverage-30 red: fleet timeout + trace race (branch p2-7-fixes)
 Full backend coverage (tests/backend + tests/registry) went 1650 passed /
 2 failed, and vitest 5.0.3 prints no coverage table on a red run, so the
