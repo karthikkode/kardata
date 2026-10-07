@@ -455,7 +455,7 @@ library without owner approval.
 | checkbox | `src/components/ui/checkbox.tsx` | Base UI; indeterminate support, error/disabled |
 | switch | `src/components/ui/switch.tsx` | Base UI; boolean settings only, never approval acknowledgment |
 | tabs | `src/components/ui/tabs.tsx` | Base UI; controlled selection, tab/panel keyboard behavior |
-| menu | `src/components/ui/menu.tsx` | Base UI; roving focus, Escape, outside dismissal, trigger restoration |
+| menu | `src/components/ui/menu.tsx` | Base UI; roving focus, Escape, outside dismissal, trigger restoration; in-menu toggles are `MenuCheckboxItem` (a raw switch under `role=menu` fails axe aria-required-children) |
 | popover | `src/components/ui/popover.tsx` | Base UI; portaled, collision-handled, controlled dismissal |
 | dialog | `src/components/ui/dialog.tsx` | Base UI; focus trap, title/description, scrolling body, sticky footer |
 | alert-dialog | `src/components/ui/alert-dialog.tsx` | Base UI + `ConfirmAction`: explicit destructive confirmation |

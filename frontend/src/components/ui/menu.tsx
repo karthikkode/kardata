@@ -1,6 +1,9 @@
 // Action menu over Base UI: trigger plus one expanded option list with
 // keyboard traversal owned by the primitive. One action per row; one
 // submenu level (MenuSubmenu*) for grouped choices like effort levels.
+// Toggles inside a menu are MenuCheckboxItem: role=menu owns only
+// menuitem/checkbox/radio/group/separator, so a raw switch or input
+// under the popup fails axe aria-required-children.
 import * as React from 'react'
 import { Menu } from '@base-ui/react/menu'
 import { Check } from 'lucide-react'
@@ -44,6 +47,33 @@ function MenuItem({ className, ...props }: React.ComponentProps<typeof Menu.Item
       )}
       {...props}
     />
+  )
+}
+
+function MenuCheckboxItem({
+  className,
+  children,
+  closeOnClick = false,
+  ...props
+}: React.ComponentProps<typeof Menu.CheckboxItem>) {
+  return (
+    <Menu.CheckboxItem
+      data-slot="menu-checkbox-item"
+      closeOnClick={closeOnClick}
+      className={cn(
+        `relative flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm py-1 pr-2 pl-8 text-left text-ui ${focusRingInset} select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-surface-hover data-highlighted:text-foreground [&_svg]:size-4 [&_svg]:shrink-0`,
+        className,
+      )}
+      {...props}
+    >
+      <Menu.CheckboxItemIndicator
+        data-slot="menu-checkbox-item-indicator"
+        className="absolute left-2 flex size-4 items-center justify-center text-primary-text"
+      >
+        <Check aria-hidden />
+      </Menu.CheckboxItemIndicator>
+      {children}
+    </Menu.CheckboxItem>
   )
 }
 
@@ -139,6 +169,7 @@ export {
   MenuTrigger,
   MenuPopup,
   MenuItem,
+  MenuCheckboxItem,
   MenuRadioGroup,
   MenuRadioItem,
   MenuLabel,

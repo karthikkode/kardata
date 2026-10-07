@@ -336,7 +336,7 @@ describe('chat model picker', () => {
     })
     render(<ModelToolbar config={config} sessionId="s-1" />)
     await openModelsMenu()
-    const toggle = screen.getByRole('switch', { name: 'Reasoning' })
+    const toggle = screen.getByRole('menuitemcheckbox', { name: 'Reasoning' })
     expect(toggle).toHaveAttribute('aria-checked', 'true')
     fireEvent.click(toggle)
     await waitFor(() => expect(calls.some((call) => call.method === 'PATCH')).toBe(true))

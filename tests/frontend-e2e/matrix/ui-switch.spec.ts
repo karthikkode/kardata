@@ -6,12 +6,20 @@ import { runMatrixState, type MatrixCase } from '../support/matrix'
 const base: Omit<MatrixCase, 'anchors'> = {
   "id": "frontend.src.components.ui.switch",
   "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
+  "gated": true,
   "setup": [
     {
       "click": {
         "kind": "role",
         "role": "button",
         "name": "Conversation options"
+      }
+    },
+    {
+      "click": {
+        "kind": "role",
+        "role": "menuitem",
+        "name": "Local context"
       }
     }
   ],
@@ -21,6 +29,10 @@ const base: Omit<MatrixCase, 'anchors'> = {
       "css": "[data-slot=\"switch\"]"
     }
   ],
+  "focusSubject": {
+    "kind": "css",
+    "css": "[data-slot=\"switch\"]"
+  },
   "primary": "sessions"
 }
 

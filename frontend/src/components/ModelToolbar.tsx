@@ -17,6 +17,7 @@ import { Caption } from './text'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import {
+  MenuCheckboxItem,
   MenuGroup,
   MenuLabel,
   MenuPopup,
@@ -29,7 +30,6 @@ import {
   MenuSubmenuTrigger,
   MenuTrigger,
 } from './ui/menu'
-import { SwitchRoot } from './ui/switch'
 
 interface Draft {
   provider: string
@@ -526,24 +526,20 @@ export function ModelToolbar({
               {showThinking || !canReason ? (
                 <>
                   <MenuSeparator />
-                  <div className="flex items-center gap-2 p-2">
-                    <SwitchRoot
-                      checked={canReason && draft.reasoning}
-                      disabled={!canReason || saving}
-                      onCheckedChange={(checked) =>
-                        persist({ provider: draft.provider, model: draft.model, reasoning: checked })
-                      }
-                      aria-label="Reasoning"
-                    />
-                    <span className="text-ui" aria-hidden>
-                      Reasoning
-                    </span>
+                  <MenuCheckboxItem
+                    checked={canReason && draft.reasoning}
+                    disabled={!canReason || saving}
+                    onCheckedChange={(checked) =>
+                      persist({ provider: draft.provider, model: draft.model, reasoning: checked })
+                    }
+                  >
+                    <span className="min-w-0 flex-1">Reasoning</span>
                     {!canReason ? (
-                      <Caption as="span" className="ml-auto">
+                      <Caption as="span" className="ml-auto shrink-0">
                         Not on this model
                       </Caption>
                     ) : null}
-                  </div>
+                  </MenuCheckboxItem>
                 </>
               ) : null}
             </MenuPopup>
