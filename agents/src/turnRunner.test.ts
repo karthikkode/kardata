@@ -2380,3 +2380,190 @@ describe('round checkpoints and halt precedence [F:agents.turnRunner.runKarbotTu
     expect('condensed' in result).toBe(false)
   })
 })
+
+describe('resume round reporting [F:agents.turnRunner.runKarbotTurn]', () => {
+  it('restores resumed rounds as progress, never as stalled turns', async () => {
+    const budgets = new BudgetTracker({ maxTurns: 10, maxToolCalls: 10, maxTokens: 1_000_000_000, maxCost: 1_000_000_000, maxWallMs: 60_000, maxStalledTurns: 2 }, frozenClock(0))
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'TEST', messages: [],
+      resume: { round: 3, usage: emptyUsage(), toolCalls: 0 }, harness: { budgets } })
+    expect(result.budgetTripped).toBeUndefined()
+    expect(result.text).toBe('TEST done')
+    expect(provider.calls).toHaveLength(1)
+  })
+
+  it('announces a blocked retry with its exact identity, state, and resume round', async () => {
+    const heard: Array<{ id: string; name: string; state: string; round: number }> = []
+    const call = { id: 'b1', name: 'db.create_session', args: {} }
+    const operation = { operationId: 'TEST op', call, reason: 'TEST lost' }
+    await runKarbotTurn({ provider: new FakeProvider([{ text: 'TEST done' }]), systemPrompt: 'TEST', messages: [],
+      resume: { round: 3, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] },
+      sink: { onDelta: () => undefined, onTool: (id, name, state, round) => void heard.push({ id, name, state, round }) },
+      mcp: { listTools: async () => [sessionTool()], callTool: async () => ({ content: 'TEST ok' }) } })
+    expect(heard[0]).toEqual({ id: 'b1', name: 'db.create_session', state: 'running', round: 3 })
+  })
+
+  it('redispatches a blocked retry at its resume round', async () => {
+    const rounds: number[] = []
+    const call = { id: 'b1', name: 'db.create_session', args: {} }
+    const operation = { operationId: 'TEST op', call, reason: 'TEST lost' }
+    await runKarbotTurn({ provider: new FakeProvider([{ text: 'TEST done' }]), systemPrompt: 'TEST', messages: [],
+      resume: { round: 3, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] },
+      sink: memorySink().sink, onToolResult: async (round) => void rounds.push(round),
+      mcp: { listTools: async () => [sessionTool()], callTool: async () => ({ content: 'TEST ok' }) } })
+    expect(rounds).toEqual([3])
+  })
+
+  it('reports round zero on every hook when pending tools resume without resume state', async () => {
+    const call = { id: 'p1', name: 'db.create_session', args: {} }
+    const provider = new FakeProvider([{ text: 'TEST after' }])
+    const sinkRounds: number[] = []
+    const checkpointRounds: number[] = []
+    const result = await runKarbotTurn({ provider, systemPrompt: 'TEST',
+      messages: [{ role: 'assistant', toolCalls: [call] }],
+      sink: { onDelta: () => undefined, onTool: (_id, _name, _state, round) => void sinkRounds.push(round) },
+      onCheckpoint: async (_history, round) => void checkpointRounds.push(round),
+      mcp: memoryMcp() })
+    expect(result.toolCalls).toEqual([call])
+    expect(sinkRounds).toEqual([0, 0])
+    expect(checkpointRounds).toEqual([0, 0])
+  })
+})
+
+describe('pending-response dedup guards [F:agents.turnRunner.runKarbotTurn]', () => {
+  it('does not let a user message with matching text and calls suppress the pending record', async () => {
+    const call = { id: 'c1', name: 'db.create_session', args: {} }
+    const provider = new FakeProvider([{ text: 'TEST after' }])
+    await runKarbotTurn({ provider, systemPrompt: 'TEST',
+      messages: [{ role: 'user', text: 'TEST pending', toolCalls: [call] }],
+      resume: { round: 1, usage: emptyUsage(), toolCalls: 0, pendingResponse: { round: 1, response: { text: 'TEST pending', reasoning: '', toolCalls: [call], usage: emptyUsage() } } },
+      sink: memorySink().sink, mcp: memoryMcp() })
+    const assistants = provider.calls[0]?.messages.filter((m) => m.role === 'assistant') ?? []
+    expect(assistants).toHaveLength(1)
+    expect(assistants[0]).toMatchObject({ text: 'TEST pending', toolCalls: [call] })
+  })
+
+  it('pushes a pending response whose text differs even when its calls match', async () => {
+    const call = { id: 'c1', name: 'db.create_session', args: {} }
+    const provider = new FakeProvider([{ text: 'TEST after' }])
+    await runKarbotTurn({ provider, systemPrompt: 'TEST',
+      messages: [{ role: 'assistant', text: 'TEST other', toolCalls: [call] }],
+      resume: { round: 1, usage: emptyUsage(), toolCalls: 0, pendingResponse: { round: 1, response: { text: 'TEST pending', reasoning: '', toolCalls: [call], usage: emptyUsage() } } },
+      sink: memorySink().sink, mcp: memoryMcp() })
+    const assistants = provider.calls[0]?.messages.filter((m) => m.role === 'assistant') ?? []
+    expect(assistants.map((m) => m.text)).toEqual(['TEST other', 'TEST pending'])
+  })
+
+  it('pushes a pending response whose calls differ even when its text matches', async () => {
+    const other = { id: 'c0', name: 'db.list_sessions', args: {} }
+    const call = { id: 'c1', name: 'db.create_session', args: {} }
+    const provider = new FakeProvider([{ text: 'TEST after' }])
+    await runKarbotTurn({ provider, systemPrompt: 'TEST',
+      messages: [{ role: 'assistant', text: 'TEST pending', toolCalls: [other] }],
+      resume: { round: 1, usage: emptyUsage(), toolCalls: 0, pendingResponse: { round: 1, response: { text: 'TEST pending', reasoning: '', toolCalls: [call], usage: emptyUsage() } } },
+      sink: memorySink().sink, mcp: memoryMcp() })
+    const assistants = provider.calls[0]?.messages.filter((m) => m.role === 'assistant') ?? []
+    expect(assistants).toHaveLength(2)
+    expect(assistants[1]).toMatchObject({ text: 'TEST pending', toolCalls: [call] })
+  })
+})
+
+describe('blocked retry splice guards [F:agents.turnRunner.runKarbotTurn]', () => {
+  const retryCall = { id: 'mutation-1', name: 'db.create_session', args: { title: 'TEST intent' } }
+
+  it('halts with the invalid-serialization reason when the preserved call is not JSON', async () => {
+    const operation: RecoveryOperation = { operationId: 'TEST op', call: retryCall, serializedCall: '{TEST not json', reason: 'TEST lost' }
+    const provider = new FakeProvider([{ text: 'Must not run' }])
+    const result = await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [],
+      resume: { round: 1, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] },
+      sink: memorySink().sink, mcp: memoryMcp() })
+    expect(result.recoveryHalt).toEqual([{ ...operation, reason: 'The original serialized tool call is invalid. Owner review is required.' }])
+    expect(provider.calls).toHaveLength(0)
+  })
+
+  it('retries without an authority check when the tool client reports none', async () => {
+    const mcp = memoryMcp()
+    const operation = { authorityId: 'TEST stale', operationId: 'TEST op', call: retryCall, reason: 'TEST lost' }
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    const result = await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [],
+      resume: { round: 1, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] },
+      sink: memorySink().sink, mcp })
+    expect(result.recoveryHalt).toBeUndefined()
+    expect(mcp.calls).toEqual([{ name: 'db.create_session', args: { title: 'TEST intent' } }])
+    expect(result.text).toBe('TEST done')
+  })
+
+  it('does not match a tool result carried by a non-tool message', async () => {
+    const call = { id: 'b1', name: 'db.create_session', args: {} }
+    const operation = { operationId: 'TEST op', call, reason: 'TEST lost' }
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    await runKarbotTurn({ provider, systemPrompt: 'TEST',
+      messages: [{ role: 'user', text: 'TEST hi', toolResult: { toolCallId: 'b1', toolName: 'db.create_session', content: 'TEST decoy', isError: false } }],
+      resume: { round: 1, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] },
+      sink: memorySink().sink, mcp: { listTools: async () => [sessionTool()], callTool: async () => ({ content: 'TEST ok' }) } })
+    expect(provider.calls[0]?.messages).toEqual([
+      { role: 'user', text: 'TEST hi', toolResult: { toolCallId: 'b1', toolName: 'db.create_session', content: 'TEST decoy', isError: false } },
+      { role: 'assistant', toolCalls: [call] },
+      { role: 'tool', toolResult: { toolCallId: 'b1', toolName: 'db.create_session', content: 'TEST ok', isError: false } },
+    ])
+  })
+
+  it('tolerates a tool message without a result payload while splicing a retry', async () => {
+    const call = { id: 'b1', name: 'db.create_session', args: {} }
+    const operation = { operationId: 'TEST op', call, reason: 'TEST lost' }
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    await runKarbotTurn({ provider, systemPrompt: 'TEST',
+      messages: [{ role: 'tool' }],
+      resume: { round: 1, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] },
+      sink: memorySink().sink, mcp: { listTools: async () => [sessionTool()], callTool: async () => ({ content: 'TEST ok' }) } })
+    expect(provider.calls[0]?.messages).toEqual([
+      { role: 'tool' },
+      { role: 'assistant', toolCalls: [call] },
+      { role: 'tool', toolResult: { toolCallId: 'b1', toolName: 'db.create_session', content: 'TEST ok', isError: false } },
+    ])
+  })
+
+  it('replaces a matching tool message at the head of history in place', async () => {
+    const call = { id: 'b1', name: 'db.create_session', args: {} }
+    const operation = { operationId: 'TEST op', call, reason: 'TEST lost' }
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    await runKarbotTurn({ provider, systemPrompt: 'TEST',
+      messages: [{ role: 'tool', toolResult: { toolCallId: 'b1', toolName: 'db.create_session', content: 'TEST stale', isError: true } }],
+      resume: { round: 1, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] },
+      sink: memorySink().sink, mcp: { listTools: async () => [sessionTool()], callTool: async () => ({ content: 'TEST fresh' }) } })
+    expect(provider.calls[0]?.messages).toEqual([
+      { role: 'tool', toolResult: { toolCallId: 'b1', toolName: 'db.create_session', content: 'TEST fresh', isError: false } },
+    ])
+  })
+
+  it('appends the pair when the assistant calls name a different tool', async () => {
+    const other = { id: 'c0', name: 'db.list_sessions', args: {} }
+    const call = { id: 'b1', name: 'db.create_session', args: {} }
+    const operation = { operationId: 'TEST op', call, reason: 'TEST lost' }
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    await runKarbotTurn({ provider, systemPrompt: 'TEST',
+      messages: [{ role: 'assistant', toolCalls: [other] }],
+      resume: { round: 1, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] },
+      sink: memorySink().sink, mcp: { listTools: async () => [sessionTool()], callTool: async () => ({ content: 'TEST ok' }) } })
+    expect(provider.calls[0]?.messages).toEqual([
+      { role: 'assistant', toolCalls: [other] },
+      { role: 'assistant', toolCalls: [call] },
+      { role: 'tool', toolResult: { toolCallId: 'b1', toolName: 'db.create_session', content: 'TEST ok', isError: false } },
+    ])
+  })
+
+  it('does not match assistant calls carried by a user message', async () => {
+    const call = { id: 'b1', name: 'db.create_session', args: {} }
+    const operation = { operationId: 'TEST op', call, reason: 'TEST lost' }
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    await runKarbotTurn({ provider, systemPrompt: 'TEST',
+      messages: [{ role: 'user', text: 'TEST hi', toolCalls: [call] }],
+      resume: { round: 1, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] },
+      sink: memorySink().sink, mcp: { listTools: async () => [sessionTool()], callTool: async () => ({ content: 'TEST ok' }) } })
+    expect(provider.calls[0]?.messages).toEqual([
+      { role: 'user', text: 'TEST hi', toolCalls: [call] },
+      { role: 'assistant', toolCalls: [call] },
+      { role: 'tool', toolResult: { toolCallId: 'b1', toolName: 'db.create_session', content: 'TEST ok', isError: false } },
+    ])
+  })
+})
