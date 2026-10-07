@@ -133,14 +133,20 @@ export async function rebuildThreadContext(db: TransactableDb, threadKey: string
     return readThreadContext(tx, threadKey, scope)
   })
 }
-export async function enqueueSteering(db: TransactableDb, threadKey: string, text: string, id: string, scope?: Scope): Promise<{ id: string; state: string }> {
+export async function enqueueSteering(db: TransactableDb, threadKey: string, text: string, id: string, scope?: Scope): Promise<{ id: string; state: string; active: boolean }> {
   await requireThread(db, threadKey, scope)
   checked(z.string().trim().min(1).max(24000), text); checked(Id, id)
   return workspaceTransaction(db, threadKey, async (tx) => {
+    // F13 rework: an idle steer waits pending for its triggered turn
+    // instead of stillborn-missing. The active flag rides the same
+    // lock as the insert, so the gateway's wake decision and the turn
+    // end's redelivery decision serialize: exactly one follow-up turn
+    // per steer, never zero, never two.
+    const active = await tx.query<{ active: boolean }>('SELECT EXISTS(SELECT 1 FROM thread_context WHERE thread_key=$1 AND active_run IS NOT NULL) AS active', [threadKey])
     const { rows } = await tx.query<{ state: string }>(`INSERT INTO thread_instructions(id,thread_key,text,state)
-      VALUES($1,$2,$3,CASE WHEN EXISTS(SELECT 1 FROM thread_context WHERE thread_key=$2 AND active_run IS NOT NULL) THEN 'pending' ELSE 'missed' END)
+      VALUES($1,$2,$3,'pending')
       ON CONFLICT(id) DO UPDATE SET id=EXCLUDED.id RETURNING state`, [id, threadKey, text])
-    return { id, state: rows[0]?.state ?? 'missed' }
+    return { id, state: rows[0]?.state ?? 'missed', active: active.rows[0]?.active ?? false }
   })
 }
 /** Steer for a child with no live workflow yet (QUEUED or paused-queued):
@@ -156,16 +162,6 @@ export async function enqueueQueuedSteering(db: TransactableDb, threadKey: strin
       ON CONFLICT(id) DO UPDATE SET state='pending' RETURNING state`, [id, threadKey, text])
     return { id, state: rows[0]?.state ?? 'pending' }
   })
-}
-/** True when unclaimed steering waits: the turn's quiet-round grace
- * window polls this before completing (F13). Indexed by thread. */
-export async function hasPendingSteering(db: Db, threadKey: string): Promise<boolean> {
-  checked(Id, threadKey)
-  const { rows } = await db.query<{ one: number }>(
-    `SELECT 1 AS one FROM thread_instructions WHERE thread_key=$1 AND state='pending' LIMIT 1`,
-    [threadKey],
-  )
-  return rows.length > 0
 }
 export async function readSteeringReceiptsPage(db: Db, threadKey: string, afterId = '', limit = 200, scope?: Scope): Promise<{ items: Array<{ id: string; state: 'consumed' | 'missed' }>; nextAfterId: string | null }> {
   await requireThread(db, threadKey, scope)
@@ -210,14 +206,15 @@ export async function consumeSteering(db: TransactableDb, threadKey: string, run
     return replay.rows.map((row) => row.text)
   })
 }
-export async function finishSteering(db: TransactableDb, threadKey: string, runKey: string, lease?: string): Promise<void> {
+export async function finishSteering(db: TransactableDb, threadKey: string, runKey: string, lease?: string): Promise<{ missed: Array<{ id: string; text: string }> }> {
   checked(Id, threadKey); checked(Id, runKey)
-  await workspaceTransaction(db, threadKey, async (tx) => {
+  return workspaceTransaction(db, threadKey, async (tx) => {
     const active = await tx.query('SELECT active_run FROM thread_context WHERE thread_key=$1 AND active_run=$2 AND ($3::text IS NULL OR active_lease=$3)', [threadKey, runKey, lease ?? null])
-    if (!active.rows.length) return
-    const { rows } = await tx.query<{ id: string }>("UPDATE thread_instructions SET state='missed' WHERE thread_key=$1 AND state='pending' RETURNING id", [threadKey])
+    if (!active.rows.length) return { missed: [] }
+    const { rows } = await tx.query<{ id: string; text: string }>("UPDATE thread_instructions SET state='missed' WHERE thread_key=$1 AND state='pending' RETURNING id, text", [threadKey])
     await tx.query('UPDATE thread_context SET active_run=NULL,active_lease=NULL,active_epoch=NULL,active_workflow_id=NULL,active_execution_id=NULL,active_run_started_at=NULL WHERE thread_key=$1 AND active_run=$2 AND ($3::text IS NULL OR active_lease=$3)', [threadKey, runKey, lease ?? null])
     if (rows.length) await publishOutboxFrame(tx, threadKey, 'steering-consumption', { ids: rows.map((row) => row.id), state: 'missed' })
+    return { missed: rows.map((row) => ({ id: row.id, text: row.text })) }
   })
 }
 

@@ -29,7 +29,7 @@ import {
 } from '@kardata/agents'
 import {
   appendEvent,
-  beginThreadTurn, consumeSteering, finishSteering, hasPendingSteering, readThreadContext, saveThreadContext, workspaceReferences,
+  beginThreadTurn, consumeSteering, finishSteering, readThreadContext, saveThreadContext, workspaceReferences,
   readTurnContinuation, saveTurnContinuation, clearTurnContinuation,
   recordContextMeasurement,
   readActiveExecutionIdentity, recordTurnExecution, workspaceReferenceSnapshot,
@@ -68,7 +68,6 @@ import {
   turnRoundTimeoutMs,
 } from './turn-prompts.js'
 import { KarbotTurnInput, type KarbotTurnDeps } from './karbot-turn-input.js'
-import { STEER_FOLLOW_UP_GRACE_MS } from '../timeouts.js'
 import {
   freezeOriginalPalette,
   productMcpClient,
@@ -111,6 +110,10 @@ export interface TurnOutcome {
   /** Set when the turn halted on a spend guard or repeat loop instead of a
    * model stop. The workflow surfaces it alongside the reply. */
   haltNotice?: string
+  /** Steering that landed too late for this turn's rounds, receipted as
+   * missed at turn end. The workflow redelivers the texts as one
+   * follow-up turn (F13 rework): no grace linger, no extra polls. */
+  missedSteering?: Array<{ id: string; text: string }>
 }
 
 /** Shared beat sleep for turn activities. */
@@ -288,7 +291,6 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
       signal: deps.signal,
       timeoutMs,
       ...(providerName === 'meta' && deps.acquirePermit ? { acquirePermit: deps.acquirePermit } : {}),
-      ...(deps.hasPendingFollowUp ? { hasPendingFollowUp: deps.hasPendingFollowUp, followUpGraceMs: STEER_FOLLOW_UP_GRACE_MS } : {}),
       onProviderRequest: (round: number, request: Omit<import('@kardata/agents').ProviderRequest, 'signal'>) => {
         roundStarted.set(round, Date.now())
         if (deps.persistExecution) return persist(round, 'request', request)
@@ -604,10 +606,11 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
       throw error
     }
   })()
+  let released = false
   try {
     // Cancellation surfaces as a rejected promise (turn.ts pattern): the
     // workflow sees CancelledFailure instead of an orphaned provider call.
-    return await Promise.race([
+    const outcome = await Promise.race([
       (async () => {
         const identity = await readActiveExecutionIdentity(pool, input.threadKey, lease).catch((error: unknown) => {
           context.log.error('karbot.identity.error', { code: 'identity_read_failed', ...activityLogFields({ threadKey: input.threadKey, sessionId: input.sessionId }), runKey: input.runKey })
@@ -702,7 +705,6 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
             const paused = await isThreadPaused(pool, input.threadKey)
             return { ...snapshot, localVersion: local.version, notes: local.notes, steering: await consumeSteering(pool, input.threadKey, continuation?.runKey ?? input.runKey, round, lease), paused }
           },
-          hasPendingFollowUp: async () => hasPendingSteering(pool, input.threadKey),
           persistSummary: async (summary, coveredSeq) => {
             abort.signal.throwIfAborted()
             const local = await readThreadContext(pool, input.threadKey)
@@ -783,10 +785,17 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
       if (error instanceof ContextFileBlocked || error instanceof ContextBudgetError) throw ApplicationFailure.nonRetryable(error.message, 'ContextBlocked')
       throw error
     })
+    // Success path only: receipt late steering and report it for the
+    // workflow's redelivery turn. Error/cancel paths release below
+    // without reporting, so no turn wakes for a dead run.
+    const finished = await finishSteering(pool, input.threadKey, input.runKey, lease)
+    released = true
+    const missed = finished?.missed ?? []
+    return missed.length ? { ...outcome, missedSteering: missed } : outcome
   } finally {
     settled = true
     abort.abort()
-    await finishSteering(pool, input.threadKey, input.runKey, lease)
+    if (!released) await finishSteering(pool, input.threadKey, input.runKey, lease)
     void beating
   }
 }

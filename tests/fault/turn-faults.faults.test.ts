@@ -35,7 +35,6 @@ import {
   createSector,
   finishSteering,
   getThread,
-  hasPendingSteering,
   readSteeringReceiptsPage,
 } from '../../backend/src/db/index.js'
 import { connectClient, connectWorker, temporalNamespace } from '../../backend/src/temporal/connection.js'
@@ -59,7 +58,7 @@ async function waitFor(condition: () => Promise<boolean>, timeoutMs: number, wha
   }
 }
 
-describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9-F10, F13-F14 [F:backend.workflow.run.sessionRun] [F:backend.activity.turn.karbotTurnActivity] [F:backend.activity.turn.appendEventActivity] [F:http.steerThread] [F:http.pauseRun] [F:http.resumeRun] [F:db.workspace_threads.beginThreadTurn] [F:db.workspace_threads.hasPendingSteering]', () => {
+describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9-F10, F13-F14 [F:backend.workflow.run.sessionRun] [F:backend.activity.turn.karbotTurnActivity] [F:backend.activity.turn.appendEventActivity] [F:http.steerThread] [F:http.pauseRun] [F:http.resumeRun] [F:db.workspace_threads.beginThreadTurn]', () => {
   let pool: Pool
   let connection: NativeConnection
   let client: WorkflowClient
@@ -104,7 +103,6 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9-F10, F13-F14 [F:
     return {
       loadSessionModel: async () => undefined,
       loadHistory: async () => [],
-      hasPendingFollowUp: async () => hasPendingSteering(pool, sessionId),
       resolveTurnAdapter: () => adapterImpl(),
       mcp,
       publishDelta: async () => {},
@@ -147,9 +145,14 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9-F10, F13-F14 [F:
             }
           })()
           const lease = steeringImpl ? await beginThreadTurn(pool, input.threadKey, input.runKey) : undefined
+          // Mirrors karbotTurnActivity's success path: receipt late
+          // steering into the outcome so the workflow redelivers it as
+          // one follow-up turn. Error/cancel paths release without
+          // reporting, so no turn wakes for a dead run.
+          let released = false
           try {
             const recorder = createRoundRecorder(pool, `session:${input.sessionId}`, () => undefined)
-            return await executeKarbotTurn(input, {
+            const outcome = await executeKarbotTurn(input, {
               ...deps(input.sessionId),
               ...(lease === undefined
                 ? {}
@@ -164,10 +167,18 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9-F10, F13-F14 [F:
               recordRound: (fields) => recorder.recordRound(fields),
               recordToolCall: (fields) => recorder.recordToolCall(fields),
             })
+            if (lease === undefined) return outcome
+            const finished = await finishSteering(pool, input.threadKey, input.runKey, lease)
+            released = true
+            const missed = finished?.missed ?? []
+            return missed.length ? { ...outcome, missedSteering: missed } : outcome
           } finally {
             settled = true
-            await beating
-            if (lease !== undefined) await finishSteering(pool, input.threadKey, input.runKey, lease)
+            // Fire-and-forget like production (void beating): awaiting
+            // the loop would park up to 5 s in its in-flight heartbeat
+            // sleep after every turn, hiding real turn-end latency.
+            void beating
+            if (lease !== undefined && !released) await finishSteering(pool, input.threadKey, input.runKey, lease)
           }
         },
       },
@@ -325,94 +336,193 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9-F10, F13-F14 [F:
   }, 180_000)
 
   it('F13: steers are applied once now or receipted; nothing is ever lost', async () => {
+    // Rework semantics (no grace linger): a mid-turn steer is receipted
+    // missed at turn end and redelivered as exactly one follow-up turn
+    // carrying its text. Turn 1 runs a single round; turn 2 carries.
     steeringImpl = true
     toolImpl = async () => ({ content: 'TEST unused tool' })
+    let turn = 0
+    const seen: Array<{ turn: number; messages: unknown }> = []
     adapterImpl = () => {
-      let round = 0
+      turn += 1
+      const mine = turn
       return {
         providerName: 'TEST-steer',
         chat: async () => ({ text: 'TEST unexpected chat', reasoning: '', toolCalls: [], usage: emptyUsage(), completion: 'complete' }),
-        chatStream: async function* (): AsyncIterable<StreamEvent> {
-          round += 1
-          if (round === 1) {
-            await sleep(8000)
-            yield { kind: 'text_delta', text: 'TEST one' }
-            yield { kind: 'done', usage: emptyUsage(), completion: 'complete' }
-            return
-          }
-          await sleep(3000)
-          yield { kind: 'text_delta', text: 'TEST turn one done' }
+        chatStream: async function* (request: { messages: unknown }): AsyncIterable<StreamEvent> {
+          seen.push({ turn: mine, messages: request.messages })
+          if (mine === 1) await sleep(8000)
+          yield { kind: 'text_delta', text: mine === 1 ? 'TEST one' : 'TEST two done' }
           yield { kind: 'done', usage: emptyUsage(), completion: 'complete' }
         },
       }
     }
-    persistImpl = async (sessionId, round, kind, record) => {
-      const ref = await persistExecutionRecord(resolveArchiveTarget(), sessionId, record)
-      recordKeys.set(`${sessionId}:${round}:${kind}`, ref.key)
-    }
+    persistImpl = async () => {}
     const { sessionId, handle } = await startTurn('F13 hello')
-    const roundStarted = async (round: number): Promise<boolean> => {
+    const runIds = async (): Promise<string[]> => {
+      await projectNewEvents(pool)
+      const { rows } = await pool.query<{ run_id: string }>(
+        'SELECT run_id FROM execution_rounds WHERE thread_key = $1 GROUP BY run_id ORDER BY MIN(started_at) ASC',
+        [sessionId],
+      )
+      return rows.map((row) => row.run_id)
+    }
+    const roundsForRun = async (runId: string): Promise<number> => {
       await projectNewEvents(pool)
       const { rows } = await pool.query<{ count: string }>(
-        'SELECT COUNT(*) AS count FROM execution_rounds WHERE thread_key = $1 AND round = $2',
-        [sessionId, round],
+        'SELECT COUNT(*) AS count FROM execution_rounds WHERE thread_key = $1 AND run_id = $2',
+        [sessionId, runId],
       )
-      return Number(rows[0]?.count ?? 0) > 0
+      return Number(rows[0]?.count ?? 0)
     }
     const app: FastifyInstance = buildApp({ pool, runs: new TemporalRunsGateway(pool) })
     try {
-      await waitFor(async () => roundStarted(1), 60_000, 'round 1')
-      const steer1 = await app.inject({ method: 'POST', url: '/v1/commands/steer', payload: { threadKey: sessionId, text: 'TEST steer now' } })
-      expect(steer1.statusCode).toBe(202)
-      const first = steer1.json() as { data: { commandId: string; state: string } }
+      // Post mid-turn, not at round end: the round row commits when
+      // the round's stream finishes (~8 s in), but the turn holds its
+      // lease from activity start, so the steer lands mid-turn here.
+      await waitFor(async () => {
+        const { rows: lease } = await pool.query<{ active_run: string | null }>(
+          'SELECT active_run FROM thread_context WHERE thread_key = $1',
+          [sessionId],
+        )
+        return (lease[0]?.active_run ?? null) !== null
+      }, 60_000, 'turn lease')
+      const steer = await app.inject({ method: 'POST', url: '/v1/commands/steer', payload: { threadKey: sessionId, text: 'TEST steer now' } })
+      expect(steer.statusCode).toBe(202)
+      const first = steer.json() as { data: { commandId: string; state: string } }
       expect(first.data.state).toBe('accepted')
-      await waitFor(async () => roundStarted(2), 60_000, 'round 2')
-      const steer2 = await app.inject({ method: 'POST', url: '/v1/commands/steer', payload: { threadKey: sessionId, text: 'TEST steer at end' } })
-      expect(steer2.statusCode).toBe(202)
-      const second = steer2.json() as { data: { commandId: string; state: string } }
-      expect(second.data.state).toBe('accepted')
       await waitFor(async () => {
         await projectNewEvents(pool)
         const thread = await getThread(pool, sessionId)
         return (thread?.messages ?? []).some((message) =>
-          message.kind === 'text' && (message.payload as Record<string, unknown>)['text'] === 'TEST turn one done',
+          message.kind === 'text' && (message.payload as Record<string, unknown>)['text'] === 'TEST one',
         )
-      }, 120_000, 'turn completion')
-      const steer3 = await app.inject({ method: 'POST', url: '/v1/commands/steer', payload: { threadKey: sessionId, text: 'TEST steer idle' } })
-      expect(steer3.statusCode).toBe(202)
-      const third = steer3.json() as { data: { commandId: string; state: string } }
-      expect(third.data.state).toBe('missed_steer')
-      const { rows } = await pool.query<{ id: string; text: string; state: string; run_key: string | null; round: number | null }>(
-        'SELECT id, text, state, run_key, round FROM thread_instructions WHERE thread_key = $1 ORDER BY id ASC',
+      }, 120_000, 'turn 1 completion')
+      // Turn 1's own run held exactly one round: no grace round kept
+      // it open. (The redelivered turn 2 starts instantly, so its
+      // round-1 record can land before turn 1's reply projects.)
+      const firstRuns = await runIds()
+      expect(firstRuns.length).toBeGreaterThanOrEqual(1)
+      expect(await roundsForRun(firstRuns[0]!)).toBe(1)
+      // The mid-turn steer missed turn 1 and was receipted as such.
+      const { rows } = await pool.query<{ id: string; text: string; state: string }>(
+        'SELECT id, text, state FROM thread_instructions WHERE thread_key = $1 ORDER BY id ASC',
         [sessionId],
       )
-      expect(rows.length).toBe(3)
-      const one = rows.find((row) => row.id === first.data.commandId)!
-      const two = rows.find((row) => row.id === second.data.commandId)!
-      const three = rows.find((row) => row.id === third.data.commandId)!
-      expect(one.text).toBe('TEST steer now')
-      expect(one.state).toBe('consumed')
-      expect(one.run_key).not.toBeNull()
-      expect(Number(one.round)).toBe(2)
-      expect(two.text).toBe('TEST steer at end')
-      expect(two.state).toBe('missed')
-      expect(three.text).toBe('TEST steer idle')
-      expect(three.state).toBe('missed')
-      const request2 = recordKeys.get(`${sessionId}:2:request`)
-      expect(request2).toBeDefined()
-      const body2 = await resolveArchiveTarget().read(request2!, 16 * 1024 * 1024)
-      expect(body2).toContain('TEST steer now')
-      expect(body2).not.toContain('TEST steer at end')
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({ id: first.data.commandId, text: 'TEST steer now', state: 'missed' })
+      // Exactly one follow-up turn redelivers its text, then quiet.
+      await waitFor(async () => {
+        await projectNewEvents(pool)
+        const thread = await getThread(pool, sessionId)
+        return (thread?.messages ?? []).some((message) =>
+          message.kind === 'text' && (message.payload as Record<string, unknown>)['text'] === 'TEST two done',
+        )
+      }, 120_000, 'turn 2 completion')
+      const secondRuns = await runIds()
+      expect(secondRuns).toHaveLength(2)
+      expect(JSON.stringify(seen.find((entry) => entry.turn === 2)?.messages ?? [])).toContain('TEST steer now')
+      await sleep(5000)
+      expect(await runIds()).toHaveLength(2)
       const receipts = await readSteeringReceiptsPage(pool, sessionId)
-      expect(receipts.items.map((item) => item.id).sort()).toEqual(
-        [first.data.commandId, second.data.commandId, third.data.commandId].sort(),
-      )
-      console.log('[fault F13] instructions=3 consumed=1 missed=2 receipted=3')
+      expect(receipts.items.map((item) => item.id)).toEqual([first.data.commandId])
+      console.log('[fault F13] instructions=1 missed=1 redelivered-turns=1')
     } finally {
       await app.close()
+      // Cancel even on assertion failure: a live workflow's next turn
+      // would otherwise steal the following test's adapter scripts.
+      steeringImpl = false
+      await handle.signal('runCancel').catch(() => undefined)
     }
-    steeringImpl = false
-    await handle.signal('runCancel')
+    expect(await handle.result()).toBe('cancelled')
+  }, 180_000)
+
+  it('F13-idle: a steer just after quiet completion wakes exactly one turn with no linger', async () => {
+    // The 0-1 s idle window: turn 1 ends with no 5 s linger (pinned
+    // by the latency bound below), the steer is accepted, and exactly
+    // one follow-up turn consumes its row (run 2, round 1). A lingering
+    // turn would either blow the latency bound or consume in-turn.
+    steeringImpl = true
+    toolImpl = async () => ({ content: 'TEST unused tool' })
+    let turn = 0
+    adapterImpl = () => {
+      turn += 1
+      const mine = turn
+      return {
+        providerName: 'TEST-steer-idle',
+        chat: async () => ({ text: 'TEST unexpected chat', reasoning: '', toolCalls: [], usage: emptyUsage(), completion: 'complete' }),
+        chatStream: async function* (): AsyncIterable<StreamEvent> {
+          yield { kind: 'text_delta', text: mine === 1 ? 'TEST idle one' : 'TEST idle two' }
+          yield { kind: 'done', usage: emptyUsage(), completion: 'complete' }
+        },
+      }
+    }
+    persistImpl = async () => {}
+    const { sessionId, handle } = await startTurn('F13 idle hello')
+    const app: FastifyInstance = buildApp({ pool, runs: new TemporalRunsGateway(pool) })
+    try {
+      await waitFor(async () => {
+        await projectNewEvents(pool)
+        const { rows } = await pool.query<{ count: string }>(
+          'SELECT COUNT(*) AS count FROM execution_rounds WHERE thread_key = $1 AND round = 1',
+          [sessionId],
+        )
+        return Number(rows[0]?.count ?? 0) > 0
+      }, 60_000, 'round 1')
+      const quietStart = Date.now()
+      await waitFor(async () => {
+        await projectNewEvents(pool)
+        const thread = await getThread(pool, sessionId)
+        return (thread?.messages ?? []).some((message) =>
+          message.kind === 'text' && (message.payload as Record<string, unknown>)['text'] === 'TEST idle one',
+        )
+      }, 120_000, 'turn 1 completion')
+      // Instant scripts: the 5 s grace/harness linger this rework
+      // removes would land at ~4.5-5 s; the bare path takes ~0.5 s.
+      expect(Date.now() - quietStart).toBeLessThan(4000)
+      await sleep(500)
+      const steer = await app.inject({ method: 'POST', url: '/v1/commands/steer', payload: { threadKey: sessionId, text: 'TEST idle steer' } })
+      expect(steer.statusCode).toBe(202)
+      const only = steer.json() as { data: { commandId: string; state: string } }
+      expect(only.data.state).toBe('accepted')
+      await waitFor(async () => {
+        await projectNewEvents(pool)
+        const thread = await getThread(pool, sessionId)
+        return (thread?.messages ?? []).some((message) =>
+          message.kind === 'text' && (message.payload as Record<string, unknown>)['text'] === 'TEST idle two',
+        )
+      }, 120_000, 'turn 2 completion')
+      await projectNewEvents(pool)
+      const { rows: runs } = await pool.query<{ run_id: string }>(
+        'SELECT run_id FROM execution_rounds WHERE thread_key = $1 GROUP BY run_id ORDER BY MIN(started_at) ASC',
+        [sessionId],
+      )
+      expect(runs).toHaveLength(2)
+      const { rows } = await pool.query<{ id: string; state: string; run_key: string | null; round: number | null }>(
+        'SELECT id, state, run_key, round FROM thread_instructions WHERE thread_key = $1',
+        [sessionId],
+      )
+      expect(rows).toHaveLength(1)
+      expect(rows[0]?.state).toBe('consumed')
+      expect(rows[0]?.run_key).toBe(runs[1]?.run_id)
+      expect(Number(rows[0]?.round)).toBe(1)
+      await sleep(5000)
+      await projectNewEvents(pool)
+      const { rows: settled } = await pool.query<{ run_id: string }>(
+        'SELECT run_id FROM execution_rounds WHERE thread_key = $1 GROUP BY run_id',
+        [sessionId],
+      )
+      expect(settled).toHaveLength(2)
+      const receipts = await readSteeringReceiptsPage(pool, sessionId)
+      expect(receipts.items.map((item) => item.id)).toEqual([only.data.commandId])
+      console.log('[fault F13-idle] instructions=1 consumed=1 redelivered-turns=1')
+    } finally {
+      await app.close()
+      // Cancel even on assertion failure: a live workflow's next turn
+      // would otherwise steal the following test's adapter scripts.
+      steeringImpl = false
+      await handle.signal('runCancel').catch(() => undefined)
+    }
     expect(await handle.result()).toBe('cancelled')
   }, 180_000)
 

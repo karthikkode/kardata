@@ -549,6 +549,18 @@ export class TemporalRunsGateway implements RunsGateway {
     }
     const id = commandId()
     const instruction = await enqueueSteering(this.pool, threadKey, text, id)
+    if (!instruction.active && thread.kind !== 'subagent' && thread.sessionId) {
+      // F13 rework: an idle steer waits for its triggered turn instead
+      // of stillborn-missing. signalWithStart wakes a closed workflow
+      // or queues behind a live one; the active case redelivers via
+      // the turn end instead, so one steer wakes exactly one turn.
+      await this.signalTarget({
+        workflowId: `${SESSION_PREFIX}${thread.sessionId}`,
+        signal: 'runSteer',
+        args: [{ text, traceparent: sendTraceparent() }],
+        sessionId: thread.sessionId,
+      })
+    }
     return { commandId: id, state: instruction.state === 'missed' ? 'missed_steer' : 'accepted' }
   }
 

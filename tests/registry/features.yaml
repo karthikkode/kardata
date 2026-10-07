@@ -6802,9 +6802,3 @@
   tiers:
     - temporal
   states: []
-- id: db.workspace_threads.hasPendingSteering
-  layer: db
-  surface: backend/src/db/workspace-threads.ts
-  tiers:
-    - fault
-  states: []

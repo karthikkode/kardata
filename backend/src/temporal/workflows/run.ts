@@ -395,6 +395,16 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
       // run presents nothing more, so the finished turn is discarded rather
       // than appended as an orphan.
       if (currentState() === 'CANCELLING') continue
+      // Missed-steer redelivery (F13 rework): steers that landed too late
+      // for this turn's rounds were receipted as missed; queue their texts
+      // as one follow-up turn instead of holding turns open. The push
+      // reads the recorded activity result, so replays decide
+      // identically; pause/cancel gates treat it like any queued item.
+      const redeliver = outcome.missedSteering ?? []
+      if (redeliver.length > 0) {
+        inbox.push(stamp({ text: redeliver.map((row) => row.text).join('\n\n') }))
+        log.info('signal received', { signal: 'runSteer-redeliver', pending: inbox.length })
+      }
       if (!userFirst && !item.recovery) {
         nonce += 1
         await turn.appendEventActivity({

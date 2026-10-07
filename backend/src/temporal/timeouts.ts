@@ -88,14 +88,6 @@ export const SUPERVISION_THRESHOLDS = {
   reconcileCadenceMs: 5_000,
 } as const
 
-/** Quiet-round steering grace (F13): after a tool-less round, the turn
- * waits this long for late-arriving steering before completing, so a
- * steer landing just after the response still gets its round instead
- * of missing a finished turn. 5 s covers steer HTTP + test poll (~1 s
- * worst) with margin; at most one follow-up round per turn bounds the
- * cost, and the wait breaks early the moment steering lands. */
-export const STEER_FOLLOW_UP_GRACE_MS = 5_000
-
 /** Drop-in options for proxyActivities<typeof activities>(...). */
 export function activityOptions(lane: Lane): LaneTimeouts {
   return laneTimeouts(lane)

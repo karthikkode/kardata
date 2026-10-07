@@ -46,10 +46,13 @@ list through `pending()` and runs only unrecorded keys, giving exactly-once
 effects across kills and retries. Keys are caller-chosen (tool plus canonical
 arguments plus scope).
 
-## Quiet-round follow-up (F13)
+## Missed-steer redelivery (F13)
 
-A round with no tool calls waits up to `STEER_FOLLOW_UP_GRACE_MS` for
-late steering (`hasPendingFollowUp`) instead of completing at once, so a
-steer landing just after the response still gets its round. At most one
-follow-up round per turn. Abort during the wait completes normally: the
-round already produced its reply.
+Turns never wait for steering: a quiet round completes at once. A steer
+that lands too late for the current turn's rounds is receipted `missed`
+at turn end (`finishSteering`) and redelivered as exactly one follow-up
+turn carrying its text (workflow inbox push on `outcome.missedSteering`).
+A steer landing while no turn holds the lease stays `pending` and wakes
+one turn via the `runSteer` signal. Either way one steer wakes at most
+one turn, and nothing is lost. Error/cancel paths release the lease
+without reporting, so no turn wakes for a dead run.
