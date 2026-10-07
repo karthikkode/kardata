@@ -987,6 +987,50 @@ describe('rpc envelope and handshake [F:agents.turnRunner.StreamableMcpClient]',
   })
 })
 
+describe('client construction [F:agents.turnRunner.StreamableMcpClient]', () => {
+  it.each([['', 'token', 'endpoint'], [123, 'token', 'endpoint'], ['https://mcp.internal/mcp', '', 'token'], ['https://mcp.internal/mcp', 123, 'token']] as const)(
+    'rejects endpoint=%s token=%s (%s invalid)',
+    (endpoint, token) => {
+      expect(() => new StreamableMcpClient({ endpoint: endpoint as string, token: token as string })).toThrow(/endpoint must be a non-empty string|token must be a non-empty string/)
+    },
+  )
+
+  it.each([[0], [-1], [NaN], [Infinity]])('rejects timeoutMs=%s', (timeoutMs) => {
+    expect(() => new StreamableMcpClient({ endpoint: 'https://mcp.internal/mcp', token: 'TEST credential', timeoutMs })).toThrow(/timeoutMs must be positive and finite/)
+  })
+
+  it('accepts a positive timeoutMs and uses it for the exchange deadline', async () => {
+    const client = new StreamableMcpClient({
+      endpoint: 'https://mcp.internal/mcp', token: 'TEST credential', timeoutMs: 10,
+      fetchFn: async () => new Promise(() => undefined),
+    })
+    await expect(client.listTools()).rejects.toThrow(/deadline/)
+  })
+
+  it('stamps a stable 64-hex authority id per endpoint, credential, thread, and grant set', () => {
+    const base = { endpoint: 'https://mcp.internal/mcp', token: 'TEST credential' }
+    const first = new StreamableMcpClient(base)
+    expect(first.authorityId).toMatch(/^[0-9a-f]{64}$/)
+    expect(new StreamableMcpClient(base).authorityId).toBe(first.authorityId)
+    expect(new StreamableMcpClient({ ...base, token: 'other' }).authorityId).not.toBe(first.authorityId)
+    expect(new StreamableMcpClient({ ...base, endpoint: 'https://other/mcp' }).authorityId).not.toBe(first.authorityId)
+    expect(new StreamableMcpClient({ ...base, grant: ['db.a'] }).authorityId).not.toBe(first.authorityId)
+    expect(new StreamableMcpClient({ ...base, execution: { threadKey: 't1', signature: 's' } }).authorityId).not.toBe(first.authorityId)
+    expect(new StreamableMcpClient({ ...base, execution: { threadKey: 't2', signature: 's' } }).authorityId).not.toBe(
+      new StreamableMcpClient({ ...base, execution: { threadKey: 't1', signature: 's' } }).authorityId,
+    )
+  })
+
+  it('treats the grant as a set for identity: order never changes the authority id', () => {
+    const left = new StreamableMcpClient({ endpoint: 'https://mcp.internal/mcp', token: 'TEST credential', grant: ['db.b', 'db.a'] })
+    const right = new StreamableMcpClient({ endpoint: 'https://mcp.internal/mcp', token: 'TEST credential', grant: ['db.a', 'db.b'] })
+    expect(left.authorityId).toBe(right.authorityId)
+    expect(new StreamableMcpClient({ endpoint: 'https://mcp.internal/mcp', token: 'TEST credential', grant: ['db.a'] }).authorityId).not.toBe(
+      new StreamableMcpClient({ endpoint: 'https://mcp.internal/mcp', token: 'TEST credential', grant: ['db.b'] }).authorityId,
+    )
+  })
+})
+
 describe('createClosedMcpClient [F:agents.turnRunner.createClosedMcpClient]', () => {
   it('lists no tools and reports calls unavailable', async () => {
     const client = createClosedMcpClient('mcp unconfigured')
