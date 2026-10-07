@@ -64,8 +64,10 @@ describe.skipIf(!TEST_DATABASE_URL || !STRESS)('stress writer contention [F:db.i
     let deadlocks = 0
     let statementTimeouts = 0
     const otherErrors: string[] = []
-    const endAt = Date.now() + RUN_MS
+    const startMs = Date.now()
+    const endAt = startMs + RUN_MS
     const scope = { tenantId: 'TEST stress tenant', projectId: null }
+    const opName = ['appendEvent', 'recordHeartbeat', 'readResearchProgress', 'getThreadHeader'] as const
 
     async function write(client: PoolClient, worker: number, seq: number): Promise<void> {
       const op = seq % 4
@@ -98,7 +100,10 @@ describe.skipIf(!TEST_DATABASE_URL || !STRESS)('stress writer contention [F:db.i
         } catch (error) {
           const code = (error as { code?: string }).code
           if (code === '40P01') deadlocks += 1
-          else if (code === '57014') statementTimeouts += 1
+          else if (code === '57014') {
+            statementTimeouts += 1
+            if (statementTimeouts <= 10) process.stdout.write(`stress writers: timeout op=${opName[seq % 4]} worker=${worker} at=${Date.now() - startMs}ms\n`)
+          }
           else if (otherErrors.length < 10) otherErrors.push(`${code ?? 'unknown'}: ${(error as Error).message}`)
         } finally {
           client.release()
