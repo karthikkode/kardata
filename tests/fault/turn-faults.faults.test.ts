@@ -463,7 +463,17 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('turn faults F9-F10, F13-F14 [F:
       expect(pause.statusCode).toBe(202)
       await waitFor(async () => ((await handle.query('runState')) as { state: string }).state === 'PAUSED', 90_000, 'parked')
       expect(toolCalls).toBe(1)
-      await projectNewEvents(pool)
+      // PAUSED flips at signal time while the 10 s tool still runs: await
+      // its recorded outcome (boundary semantics) instead of asserting
+      // instantly. Abandonment still fails: the row never lands.
+      await waitFor(async () => {
+        await projectNewEvents(pool)
+        const { rows } = await pool.query<{ outcome: string }>(
+          'SELECT outcome FROM tool_calls WHERE thread_key = $1',
+          [sessionId],
+        )
+        return rows.length === 1 && rows[0]?.outcome === 'ok'
+      }, 60_000, 'tool outcome')
       const { rows: tools } = await pool.query<{ outcome: string }>(
         'SELECT outcome FROM tool_calls WHERE thread_key = $1',
         [sessionId],
