@@ -196,25 +196,43 @@ async function assertContained(page: Page, anchors: MatrixAnchor[], postAnchors?
 
 /**
  * Keyboard focus reaches the subject and renders a visible indicator.
- * Focusable leaves focus directly; containers tab in from the top like a
- * keyboard user; both must show an outline or ring.
+ * Every subject is reached by Tab like a keyboard user and must show an
+ * outline or ring. A programmatic .focus() fast-path used to skip the
+ * tab walk, but after a mouse setup click it never matches
+ * :focus-visible, so it asserted an invisible ring on correct CSS.
  */
 async function assertFocusVisible(page: Page, subject: Locator): Promise<void> {
+  // Bounded attach wait first: a bare elementHandle() hangs to the test
+  // timeout on aria-hidden subjects (modal backdrops), hiding the real
+  // verdict. Attached (not visible) keeps backdrop subjects resolvable
+  // so the tab walk below can report them unreachable instead.
+  await subject.waitFor({ state: 'attached', timeout: 5000 })
   const handle = await subject.elementHandle()
   expect(handle, 'focus subject resolves').not.toBeNull()
-  await subject.focus().catch(() => undefined)
-  let inside = await page.evaluate(
-    (root) => root === document.activeElement || root.contains(document.activeElement),
-    handle,
-  )
-  for (let i = 0; i < 30 && !inside; i++) {
-    await page.keyboard.press('Tab')
-    inside = await page.evaluate(
+  const isInside = () =>
+    page.evaluate(
       (root) => root === document.activeElement || root.contains(document.activeElement),
       handle,
     )
+  // Walk from the current position: blur() cannot reset the sequential
+  // start (Chrome resumes past the blurred element), and tab order wraps,
+  // so a full cycle reaches every stop. Budget 200 covers the longest
+  // matrix walk (SectorChat log plus files rail: ~120 stops, probed).
+  let inside = await isInside()
+  let tabbed = false
+  for (let i = 0; i < 200 && !inside; i++) {
+    await page.keyboard.press('Tab')
+    tabbed = true
+    inside = await isInside()
   }
   expect(inside, 'focus reaches the subject').toBe(true)
+  if (!tabbed) {
+    // Focus arrived by mouse or script (a setup click on the subject,
+    // dialog autofocus): :focus-visible never matches there, so step
+    // out and back in via the keyboard before judging the ring.
+    await page.keyboard.press('Tab')
+    await page.keyboard.press('Shift+Tab')
+  }
   const visible = await page.evaluate(() => {
     const el = document.activeElement as HTMLElement | null
     if (!el || el === document.body) return 'nothing focused'
