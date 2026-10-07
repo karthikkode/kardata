@@ -583,6 +583,16 @@ another work transition/journal event; changed arguments under that key conflict
 The review client keeps the key for an exact failed submission and supplies it on
 retry; editing the reviewed work, decision or owner reason creates a new request.
 
+## Command cancel projection
+
+`POST /v1/commands/cancel` projects after the gateway call returns. The
+gateway appends `t.thread.state`/CANCELLING ahead of the run-cancel signal,
+and only the projector turns that event into the streamed state frame — so
+without the post-cancel catch-up the UI would wait out the whole unwind
+(or spin forever on a stalled one) instead of releasing its thinking
+indicator on the CANCELLING frame. The gateway itself never projects;
+the request path owns the catch-up like every other route.
+
 ## Scoped in-app supervision alerts
 
 `GET /v1/alerts?beforeSeq=&limit=` feeds the existing Agents surface from the
