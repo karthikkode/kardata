@@ -88,7 +88,7 @@ function CodeBlock({ children }: { children: ReactNode }) {
  }
  return (
  <div className="relative my-3 first:mt-0 last:mb-0">
- <pre aria-label="Code block" tabIndex={0} className="scroll-slim overflow-x-auto rounded-lg bg-surface-sunken p-3 pr-11 font-mono text-[13px] leading-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_code]:bg-transparent [&_code]:p-0 [&_code]:break-normal">{children}</pre>
+ <pre role="region" aria-label="Code block" tabIndex={0} className="scroll-slim overflow-x-auto rounded-lg bg-surface-sunken p-3 pr-11 font-mono text-[13px] leading-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_code]:bg-transparent [&_code]:p-0 [&_code]:break-normal">{children}</pre>
  <IconButton label="Copy code" size="icon-sm" onClick={() => void copy()} className="absolute top-2 right-2">
  <Icons.copy className="size-4" aria-hidden />
  </IconButton>
@@ -111,7 +111,7 @@ const components: Components = {
  ),
  pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
  table: ({ children }) => (
- <div tabIndex={0} aria-label="Table" className="scroll-slim my-2 overflow-x-auto rounded-lg border border-border first:mt-0 last:mb-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+ <div role="region" tabIndex={0} aria-label="Table" className="scroll-slim my-2 overflow-x-auto rounded-lg border border-border first:mt-0 last:mb-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
  <table className="w-max min-w-full border-collapse text-ui">{children}</table>
  </div>
  ),
