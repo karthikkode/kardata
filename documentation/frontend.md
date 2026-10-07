@@ -316,6 +316,7 @@ source links and truthful counts. Tests are linked by [F:<id>] tags (registry ar
 
 ## Lists and detail (revamp wave 2)
 
+- `DataTable` is fixed layout (`.v2-table-stack`): in auto layout `w-full` is a floor and unbreakable cell content expands the table past its scrollport (probed: only fixed caps it). Unset columns split the remainder; narrow action columns take `width` via colgroup; sort-header labels truncate; below sm the value side of each stacked row has `min-width: 0` so values truncate to the card.
 - Company lists filter and page server-side: `ResearchesPage` companies
   tab and `SectorDetailPage` company section fetch their own
   `useStagingCompanies` windows (`state`/`query` params in,

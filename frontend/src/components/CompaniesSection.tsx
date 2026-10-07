@@ -97,8 +97,8 @@ export function CompaniesSection({
         id: 'stage',
         header: 'Stage',
         cell: (row) => (
-          <span className="flex items-center gap-2">
-            <BodySm as="span" className="whitespace-nowrap">
+          <span className="flex flex-col gap-1 lg:flex-row lg:items-center lg:gap-2">
+            <BodySm as="span" className="min-w-0 truncate">
               {companyStageLabel(row.stage)}
             </BodySm>
             <StageSteps stage={row.stage} />

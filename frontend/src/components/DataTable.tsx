@@ -1,5 +1,6 @@
 // DataTable (F10): headless TanStack table with our tokens. Sticky
-// header, sortable columns (aria-sort), row hover recipe, empty / loading
+// header, fixed layout (auto expands past the scrollport on unbreakable
+// content), sortable columns (aria-sort), row hover recipe, empty / loading
 // / error slots, footer slot for paging. Below sm each row becomes a
 // stacked card (see .v2-table-stack in index.css). Interactive rows are
 // single router links (role=link, Enter activates); cells never nest a
@@ -26,6 +27,8 @@ export interface DataTableColumn<T extends object> {
   align?: 'left' | 'right'
   /** Stacked-card label below sm. '' hides the label (name cells). */
   stackedLabel?: string
+  /** Fixed-layout width (e.g. '3rem') for narrow action columns. Unset columns split the remainder. */
+  width?: string
 }
 
 function compareValues(a: string | number | null, b: string | number | null): number {
@@ -165,6 +168,13 @@ export function DataTable<T extends object>({
   return (
     <div className={className}>
       <table aria-label={ariaLabel} className="v2-table-stack w-full border-collapse text-left">
+        {columns.some((column) => column.width !== undefined) && (
+          <colgroup>
+            {columns.map((column) => (
+              <col key={column.id} style={column.width ? { width: column.width } : undefined} />
+            ))}
+          </colgroup>
+        )}
         <thead className="sticky top-0 z-10">
           {table.getHeaderGroups().map((group) => (
             <tr key={group.id}>
@@ -193,7 +203,9 @@ export function DataTable<T extends object>({
                           sorted ? 'text-foreground' : 'text-muted-foreground',
                         )}
                       >
-                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        <span className="min-w-0 truncate">
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                        </span>
                         <Icons.sort aria-hidden className={cn('size-3.5 shrink-0 transition-transform duration-180 ease-out', sorted === 'desc' && 'rotate-180')} />
                       </button>
                     ) : (

@@ -423,12 +423,18 @@
       transform: translateX(-50%) !important;
     }
   }
-  /* DataTable stacked cards below sm: the head hides, each row becomes a
+  /* DataTable is fixed layout: in auto layout width:100% is a floor and
+     unbreakable cell content expands the table past its scrollport (only
+     fixed caps it; table/td max-width and td overflow are ignored). Unset
+     columns split the remainder; narrow action columns take `width` via
+     colgroup. Stacked cards below sm: the head hides, each row becomes a
      bordered card, cells pair a muted label with their value. */
+  .v2-table-stack {
+    table-layout: fixed;
+  }
   @media (max-width: 639px) {
-    /* display:table keeps auto layout, where width:100% is a floor: long
-       nowrap truncate content expands the table past the viewport. Block
-       layout constrains it so cells truncate. */
+    /* Block layout (fixed is inert here): rows become cards, and the
+       td > * min-width rule below lets values truncate to the card. */
     .v2-table-stack {
       display: block;
       width: 100%;
@@ -457,6 +463,11 @@
       align-items: center;
       gap: 8px;
       padding: 0;
+    }
+    /* Flex items default to min-width:auto (content-sized): long values
+       push the card past the viewport. The label keeps its fixed gutter. */
+    .v2-table-stack td > * {
+      min-width: 0;
     }
     .v2-table-stack td::before {
       content: attr(data-label);
