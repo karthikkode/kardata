@@ -6,7 +6,7 @@ import { frozenClock } from './clock.js'
 import type { SummaryArtifact } from './condense.js'
 import type { ContextSnapshot } from './context.js'
 import { FakeProvider } from './fake.js'
-import { emptyUsage, type ProviderAdapter, type ToolDefinition } from './providers.js'
+import { emptyUsage, type ChatMessage, type ProviderAdapter, type ToolDefinition } from './providers.js'
 import {
   createClosedMcpClient,
   OperationRecoveryError,
@@ -82,6 +82,7 @@ describe('runKarbotTurn [F:agents.turnRunner.runKarbotTurn]', () => {
     const failure = await turn.then(() => null, (error: unknown) => error)
     release(); await ended
     expect(failure).not.toBeNull()
+    expect((failure as Error).message).toContain('timed out')
     expect(signal?.aborted).toBe(true)
     expect(deltas).toEqual([])
   })
@@ -354,6 +355,88 @@ describe('runKarbotTurn [F:agents.turnRunner.runKarbotTurn]', () => {
       runKarbotTurn({ provider, mcp: memoryMcp(), sink, systemPrompt: 's', messages: [], maxTurns: 0 }),
     ).rejects.toThrow(RangeError)
     expect(provider.remaining).toBe(1)
+  })
+
+  it.each([[1], [10]])('runs with maxTurns=%s (boundaries pass)', async (maxTurns) => {
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    const { sink } = memorySink()
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink, systemPrompt: 'TEST', messages: [], maxTurns })
+    expect(result.text).toBe('TEST done')
+    expect(result.turns).toBe(1)
+  })
+
+  it.each([[0], [11], [1.5], [NaN]])('rejects maxTurns=%s without calling the provider', async (maxTurns) => {
+    const provider = new FakeProvider([{ text: 'TEST unused' }])
+    const { sink } = memorySink()
+    await expect(
+      runKarbotTurn({ provider, mcp: memoryMcp(), sink, systemPrompt: 'TEST', messages: [], maxTurns }),
+    ).rejects.toThrow(/maxTurns must be an integer 1\.\.10/)
+    expect(provider.remaining).toBe(1)
+  })
+
+  it('runs with timeoutMs=1 and rejects non-positive values', async () => {
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    const { sink } = memorySink()
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink, systemPrompt: 'TEST', messages: [], timeoutMs: 1 })
+    expect(result.text).toBe('TEST done')
+    for (const timeoutMs of [0, -1, 2.5]) {
+      const rejected = new FakeProvider([{ text: 'TEST unused' }])
+      await expect(
+        runKarbotTurn({ provider: rejected, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'TEST', messages: [], timeoutMs }),
+      ).rejects.toThrow(/timeoutMs must be a positive integer/)
+      expect(rejected.remaining).toBe(1)
+    }
+  })
+
+  it('rejects a non-string systemPrompt and a non-array messages', async () => {
+    const { sink } = memorySink()
+    await expect(
+      runKarbotTurn({ provider: new FakeProvider([{ text: 'x' }]), mcp: memoryMcp(), sink, systemPrompt: 123 as unknown as string, messages: [] }),
+    ).rejects.toThrow(/systemPrompt must be a string/)
+    await expect(
+      runKarbotTurn({ provider: new FakeProvider([{ text: 'x' }]), mcp: memoryMcp(), sink, systemPrompt: 'TEST', messages: {} as unknown as ChatMessage[] }),
+    ).rejects.toThrow(/messages must be an array/)
+  })
+
+  it.each([[0], [2]])('runs with temperature=%s and forwards it', async (temperature) => {
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    const { sink } = memorySink()
+    await runKarbotTurn({ provider, mcp: memoryMcp(), sink, systemPrompt: 'TEST', messages: [], temperature })
+    expect(provider.calls.map((call) => call.temperature)).toEqual([temperature])
+  })
+
+  it.each([[-0.5], [2.1], [NaN]])('rejects temperature=%s without calling the provider', async (temperature) => {
+    const provider = new FakeProvider([{ text: 'TEST unused' }])
+    const { sink } = memorySink()
+    await expect(
+      runKarbotTurn({ provider, mcp: memoryMcp(), sink, systemPrompt: 'TEST', messages: [], temperature }),
+    ).rejects.toThrow(/temperature must be a number 0\.\.2/)
+    expect(provider.remaining).toBe(1)
+  })
+
+  it('accumulates every usage counter across rounds', async () => {
+    const provider = new FakeProvider([
+      { text: '', toolCalls: [{ id: 'c1', name: 'db.list_sessions', args: {} }], usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 100, cacheWriteTokens: 20, cacheHitTokens: 7, cacheMissTokens: 3 } },
+      { text: 'TEST done', usage: { inputTokens: 4, outputTokens: 6, cacheReadTokens: 50, cacheWriteTokens: 10, cacheHitTokens: 1, cacheMissTokens: 9 } },
+    ])
+    const { sink } = memorySink()
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink, systemPrompt: 'TEST', messages: [] })
+    expect(result.usage).toEqual({ inputTokens: 14, outputTokens: 11, cacheReadTokens: 150, cacheWriteTokens: 30, cacheHitTokens: 8, cacheMissTokens: 12 })
+  })
+})
+
+describe('toolOperationId edges [F:agents.turnRunner.toolOperationId]', () => {
+  it('keeps the readable triple at exactly 128 chars, hashes at 129', () => {
+    expect(toolOperationId('x'.repeat(124), 1, 0)).toBe(`${'x'.repeat(124)}:1:0`)
+    expect(toolOperationId('x'.repeat(125), 1, 0)).toMatch(/^op:[0-9a-f]{64}$/)
+  })
+
+  it('hashes edge-space, empty, and control-char keys but keeps interior spaces and single chars', () => {
+    for (const key of [' a', 'a ', '', 'a\tb']) {
+      expect(toolOperationId(key, 1, 0)).toMatch(/^op:[0-9a-f]{64}$/)
+    }
+    expect(toolOperationId('a b', 1, 0)).toBe('a b:1:0')
+    expect(toolOperationId('a', 1, 0)).toBe('a:1:0')
   })
 })
 
@@ -731,6 +814,7 @@ describe('OperationRecoveryError [F:agents.turnRunner.OperationRecoveryError]', 
     expect(error).toBeInstanceOf(Error)
     expect(error.name).toBe('OperationRecoveryError')
     expect(error.code).toBe('operation_uncertain')
+    expect(error.message).toContain('uncertain')
     expect(error.operations).toBe(operations)
   })
 })
