@@ -84,6 +84,9 @@ describe('parseNavigation', () => {
   })
 })
 
+// Full-App + userEvent flows declare a 30 s hang-guard: istanbul
+// instrumentation plus parallel workers push the slowest past the 5 s
+// default. This guards hangs; no test asserts a duration.
 describe('app navigation sync', () => {
   it('cold-loads a sector landing from the URL without clicking', async () => {
     setUrl('?section=SectorDetail&sector=seed-pet-care')
@@ -91,7 +94,7 @@ describe('app navigation sync', () => {
     render(<App />)
     // The sector route lands on the summary page; chat lives one Open deeper.
     expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
-  })
+  }, 30000)
 
   it('writes navigation clicks into the URL', async () => {
     const user = userEvent.setup()
@@ -114,7 +117,7 @@ describe('app navigation sync', () => {
     expect(await screen.findByRole('table', { name: 'Sectors' })).toBeInTheDocument()
     expect(window.location.search).toContain('section=Researches')
     expect(window.location.search).not.toContain('sector=')
-  })
+  }, 30000)
 
   it('keeps the research tab in the URL', async () => {
     const { default: App } = await import('@/App')
@@ -124,7 +127,7 @@ describe('app navigation sync', () => {
     fireEvent.click(await screen.findByRole('tab', { name: 'Companies 0' }))
     expect(await screen.findByText('No companies yet')).toBeInTheDocument()
     expect(window.location.search).toContain('tab=companies')
-  })
+  }, 30000)
 
   it('restores the previous view on Back', async () => {
     const user = userEvent.setup()
@@ -138,5 +141,5 @@ describe('app navigation sync', () => {
     expect(await screen.findByRole('tablist', { name: 'Session types' })).toBeInTheDocument()
     window.history.back()
     expect(await screen.findByRole('region', { name: 'Research status' })).toBeInTheDocument()
-  })
+  }, 30000)
 })

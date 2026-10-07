@@ -55,6 +55,9 @@ afterEach(() => {
   vi.unstubAllEnvs()
 })
 
+// Full-App + userEvent flows declare a 30 s hang-guard: istanbul
+// instrumentation plus parallel workers push the slowest past the 5 s
+// default. This guards hangs; no test asserts a duration.
 describe('staging research surfaces (F-S2)', () => {
   it('renders dashboard lists from the backend', async () => {
     stubFetch((url) => {
@@ -68,7 +71,7 @@ describe('staging research surfaces (F-S2)', () => {
     expect(await screen.findByText('Server West')).toBeInTheDocument()
     // Mock names stay out of the staging render.
     expect(screen.queryByText('Pet care')).not.toBeInTheDocument()
-  })
+  }, 30000)
 
   it('opens a server sector with companies and chat', async () => {
     stubFetch((url) => {
@@ -89,7 +92,7 @@ describe('staging research surfaces (F-S2)', () => {
     await user.click(await screen.findByRole('button', { name: 'Open workspace' }))
     expect(await screen.findByRole('tablist', { name: 'Session types' })).toBeInTheDocument()
     // The sector activity timeline has no renderer in the workspace UX yet.
-  })
+  }, 30000)
 
   it('tells refused keys apart from connection failures', async () => {
     stubFetch((url) => {
@@ -106,7 +109,7 @@ describe('staging research surfaces (F-S2)', () => {
     ).toBeInTheDocument()
     // The connection-error panel must not appear for a refused key.
     expect(screen.queryByText('Recent sectors did not load.')).not.toBeInTheDocument()
-  })
+  }, 30000)
 
   it('keeps the connection-error panel for transport failures', async () => {
     vi.stubGlobal(
@@ -118,7 +121,7 @@ describe('staging research surfaces (F-S2)', () => {
     const { default: App } = await import('@/App')
     render(<App />)
     expect(await screen.findByText('Recent sectors did not load.')).toBeInTheDocument()
-  })
+  }, 30000)
 
   it('shows the empty first-run copy instead of an error for empty lists', async () => {
     stubFetch((url) => {
@@ -129,7 +132,7 @@ describe('staging research surfaces (F-S2)', () => {
     render(<App />)
     expect(await screen.findByText('No sectors yet')).toBeInTheDocument()
     expect(screen.queryByText('Recent sectors did not load.')).not.toBeInTheDocument()
-  })
+  }, 30000)
 
   it('shows the not-found copy instead of an error for a removed sector', async () => {
     stubFetch((url) => {
@@ -145,7 +148,7 @@ describe('staging research surfaces (F-S2)', () => {
     expect(await screen.findByRole('heading', { name: 'Sector not found', level: 1 })).toBeInTheDocument()
     expect(screen.getByText('This sector may have been removed.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Back to researches' })).toBeInTheDocument()
-  })
+  }, 30000)
 
   it('names a denied sector in the header without repeating the title', async () => {
     stubFetch((url) => {
@@ -161,7 +164,7 @@ describe('staging research surfaces (F-S2)', () => {
     expect(await screen.findByRole('heading', { name: 'Access denied', level: 1 })).toBeInTheDocument()
     expect(screen.getAllByText('Access denied')).toHaveLength(1)
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
-  })
+  }, 30000)
 
   it('shows loading skeletons then the error panel with retry', async () => {
     let failures = 0
@@ -178,5 +181,5 @@ describe('staging research surfaces (F-S2)', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Try again' })[0])
     expect(await screen.findByText('Recent sectors did not load.')).toBeInTheDocument()
     expect(failures).toBeGreaterThan(attempts)
-  })
+  }, 30000)
 })
