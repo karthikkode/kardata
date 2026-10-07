@@ -383,7 +383,7 @@ labels. Source citations stay literal bracket text, never links. User
 bubbles and mention chips stay plain text by design.
 Long tokens never overflow: message bubbles wrap anywhere
 (`[overflow-wrap:anywhere]`), inline code breaks anywhere (`break-all`),
-links wrap anywhere, and `pre`/tables keep their own horizontal scroll.
+links wrap anywhere and stay underlined (color alone fails axe link-in-text-block), and `pre`/tables keep their own horizontal scroll.
 Agent tables size to content (`w-max min-w-full`) inside a bordered
 scroll frame with scoped headers; blockquotes carry a 2px
 `border-border-strong` left rule with muted text; inline code is

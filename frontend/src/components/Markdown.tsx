@@ -126,8 +126,11 @@ const components: Components = {
  </blockquote>
  ),
  a: ({ children, href }) => (
+ // Persistent underline: in-text links distinguished by color alone
+ // fail axe link-in-text-block (the Tab-walk focus state evaluates
+ // them in-view; hover-only underlines do not count).
  <a
- className="text-primary-text underline-offset-4 hover:underline [overflow-wrap:anywhere]"
+ className="text-primary-text underline underline-offset-4 [overflow-wrap:anywhere]"
  href={safeExternalUrl(href ?? '')}
  target="_blank"
  rel="noreferrer"
