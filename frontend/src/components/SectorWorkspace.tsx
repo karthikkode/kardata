@@ -314,6 +314,12 @@ export function SectorWorkspace({ sector, model, config, actions, onBack, initia
   const isResearchView = selected?.kind === 'research' && !model.child
   const planLatest = model.plan.data?.latest
   const planApproved = planLatest != null && model.plan.data?.approvedVersion === planLatest.version
+  const planCaption =
+    planLatest != null
+      ? `Plan v${planLatest.version}${planApproved ? ' approved' : ''}`
+      : model.plan.status === 'ready'
+        ? 'No plan yet'
+        : null
   const subagentStrip = <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border-subtle px-4 py-2 sm:px-6"><Icons.agents className="size-4 shrink-0 text-muted-foreground" aria-hidden /><Caption as="span" className="shrink-0">Subagents</Caption>{children.length ? <div className="flex min-w-60 flex-1 flex-wrap items-center gap-1">{children.slice(0, 3).map((child, index) => {
             const name = subagentDisplayName(child, index)
             const childId = child.key.startsWith('agent:') ? child.key.slice('agent:'.length) : child.key
@@ -343,7 +349,7 @@ export function SectorWorkspace({ sector, model, config, actions, onBack, initia
           ) : selected?.kind === 'research' ? (
             <span className="mt-0.5 flex min-w-0 items-center gap-1.5">
               <StateBadge state={sector.state} />
-              <Caption as="span" className="truncate">{planLatest ? `Plan v${planLatest.version}${planApproved ? ' approved' : ''}` : model.plan.status === 'ready' ? 'No plan yet' : null}</Caption>
+              <Caption as="span" className="truncate" title={planCaption ?? undefined}>{planCaption}</Caption>
             </span>
           ) : selected ? (
             <Caption className="mt-0.5 truncate">Chat · Updated {relativeAge(selected.updatedAt)}</Caption>
