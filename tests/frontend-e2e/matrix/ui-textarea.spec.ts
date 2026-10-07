@@ -14,20 +14,27 @@ const base: Omit<MatrixCase, 'anchors'> = {
         "role": "tab",
         "name": "Plan"
       }
+    },
+    {
+      "click": {
+        "kind": "role",
+        "role": "button",
+        "name": "Edit plan"
+      }
     }
   ],
   "postAnchors": [
-    {
-      "kind": "role",
-      "role": "tab",
-      "name": "Plan"
-    },
     {
       "kind": "css",
       "css": "[aria-label=\"Plan text\"]"
     }
   ],
-  "primary": "plan"
+  "focusSubject": {
+    "kind": "css",
+    "css": "[aria-label=\"Plan text\"]"
+  },
+  "primary": "plan",
+  "sectorState": "planned"
 }
 
 test('[F:frontend.src.components.ui.textarea] textarea typical', async ({ page }) => {

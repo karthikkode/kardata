@@ -51,6 +51,8 @@ export interface MatrixCase {
   primary: RouteKey
   secondary?: RouteKey
   envBasis?: MatrixDataState
+  /** Override the matrix sector state (state-gated UI like the plan editor). */
+  sectorState?: 'planned' | 'approved' | 'paused' | 'running' | 'complete' | 'draft' | 'failed' | 'planning' | 'queued'
   /** P6-M4: repeated-row count for count states (selector from components.json). */
   expectedRows?: { selector: string; count: number }
   /** P6-M4: exact or substring texts (footers, toggle labels, long-text). */
@@ -262,7 +264,7 @@ export async function runMatrixState(page: Page, mc: MatrixCase, state: MatrixSt
   // log layout at a wall-clock-dependent moment — nondeterministic
   // screenshots. Live primes the same messages, then holds the socket
   // open like the real server, so pixel tests see a quiescent stream.
-  await serveApi(page, { ...matrixApiOptions(dataState, mc.primary, mc.secondary), stream: 'live' })
+  await serveApi(page, { ...matrixApiOptions(dataState, mc.primary, mc.secondary, mc.sectorState), stream: 'live' })
   await page.setViewportSize({ width, height: HEIGHTS[width] ?? 800 })
   if (state === 'dark') await page.emulateMedia({ colorScheme: 'dark' })
   if (state === 'reduced-motion') await page.emulateMedia({ reducedMotion: 'reduce' })

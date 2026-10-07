@@ -298,6 +298,13 @@
           "role": "tab",
           "name": "Plan"
         }
+      },
+      {
+        "click": {
+          "kind": "role",
+          "role": "button",
+          "name": "Edit plan"
+        }
       }
     ],
     "gated": true,
@@ -310,17 +317,17 @@
     ],
     "postAnchors": [
       {
-        "kind": "role",
-        "role": "tab",
-        "name": "Plan"
-      },
-      {
         "kind": "css",
         "css": "[aria-label=\"Plan text\"]"
       }
     ],
     "primary": "plan",
-    "family": "static"
+    "family": "static",
+    "sectorState": "planned",
+    "focusSubject": {
+      "kind": "css",
+      "css": "[aria-label=\"Plan text\"]"
+    }
   },
   "frontend.src.components.ResearchesPage": {
     "route": "/?section=Researches",
@@ -896,8 +903,9 @@
     ],
     "postAnchors": [
       {
-        "kind": "css",
-        "css": "[data-slot=\"collapsible-trigger\"]"
+        "kind": "role",
+        "role": "button",
+        "name": "Version history"
       }
     ],
     "primary": "plan",
@@ -1176,6 +1184,13 @@
           "role": "tab",
           "name": "Plan"
         }
+      },
+      {
+        "click": {
+          "kind": "role",
+          "role": "button",
+          "name": "Edit plan"
+        }
       }
     ],
     "gated": true,
@@ -1188,17 +1203,17 @@
     ],
     "postAnchors": [
       {
-        "kind": "role",
-        "role": "tab",
-        "name": "Plan"
-      },
-      {
         "kind": "css",
         "css": "[aria-label=\"Plan text\"]"
       }
     ],
     "primary": "plan",
-    "family": "static"
+    "family": "static",
+    "sectorState": "planned",
+    "focusSubject": {
+      "kind": "css",
+      "css": "[aria-label=\"Plan text\"]"
+    }
   },
   "frontend.src.components.ui.tooltip": {
     "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",

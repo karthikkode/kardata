@@ -213,6 +213,7 @@ export function matrixApiOptions(
   state: MatrixDataState,
   primary: RouteKey,
   secondary?: RouteKey,
+  sectorState?: FixtureSector['state'],
 ): ApiOptions {
   const modes: Partial<Record<RouteKey, RouteMode>> = {}
   const data: ApiData = {
@@ -222,9 +223,15 @@ export function matrixApiOptions(
     runs: runs.slice(0, 8),
     alerts: alerts.slice(0, 8),
   }
+  // Cases for state-gated UI (the plan editor needs an editable sector)
+  // override the matrix sector state; item 0 is always the matrix sector.
+  const applySectorState = () => {
+    if (sectorState && data.sectors[0]) data.sectors[0] = { ...data.sectors[0], state: sectorState }
+  }
   switch (state) {
     case 'loading':
       modes[primary] = 'loading'
+      applySectorState()
       return { modes, data, loadingMs: 60_000 }
     case 'empty':
       modes[primary] = 'empty'
@@ -232,6 +239,7 @@ export function matrixApiOptions(
       // when unset) for every state; an empty conversation needs an
       // empty prime too, or the dock shows messages in empty states.
       if (primary === 'messages') data.messages = []
+      applySectorState()
       return { modes, data }
     case 'one':
     case 'typical':
@@ -247,19 +255,24 @@ export function matrixApiOptions(
       // Typical keeps the showcase thread (tools + reasoning + markdown);
       // only the scaled counts override messages.
       if (state !== 'typical') data.messages = makeMessages(count)
+      applySectorState()
       return { modes, data }
     }
     case 'error':
       modes[primary] = 'error'
+      applySectorState()
       return { modes, data }
     case 'denied':
       modes[primary] = 'denied'
+      applySectorState()
       return { modes, data }
     case 'offline':
       modes[primary] = 'offline'
+      applySectorState()
       return { modes, data }
     case 'partial':
       if (secondary) modes[secondary] = 'error'
+      applySectorState()
       return { modes, data }
     case 'longtext':
       data.companies = longTextCompanies()
@@ -268,6 +281,7 @@ export function matrixApiOptions(
         { seq: 2, kind: 'text', role: 'user', text: UNBROKEN_URL, at: FIXED_NOW },
       ]
       data.sectors = [{ ...matrixSector(), name: LONG_NAME_300, companiesFound: 1 }]
+      applySectorState()
       return { modes, data }
   }
 }
