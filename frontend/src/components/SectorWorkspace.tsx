@@ -325,7 +325,7 @@ export function SectorWorkspace({ sector, model, config, actions, onBack, initia
             const childId = child.key.startsWith('agent:') ? child.key.slice('agent:'.length) : child.key
             const paused = child.status === 'PAUSED'
             return (
-              <span key={child.key} className={cn('flex min-w-36 max-w-52 grow shrink basis-44 items-center', rowEnter)} style={{ animationDelay: `${staggerDelay(index)}s` }}>
+              <span key={child.key} className={cn('flex min-w-36 max-w-64 grow shrink basis-44 items-center', rowEnter)} style={{ animationDelay: `${staggerDelay(index)}s` }}>
                 <Button type="button" variant="ghost" size="sm" onClick={() => model.openThread(child.key)} title={child.key} className="min-w-8 flex-1 shrink"><span aria-hidden className={cn('size-1.5 shrink-0 rounded-full', child.status === 'RUNNING' ? 'bg-success motion-safe:animate-pulse' : 'bg-muted-foreground')} /><span className="min-w-0 truncate">{name}</span></Button>
                 {paused ? <Badge tone="warning">Paused</Badge> : child.status === 'QUEUED' ? <Badge tone="warning">Queued</Badge> : null}
                 {paused
