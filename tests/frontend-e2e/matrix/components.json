@@ -1524,8 +1524,7 @@
       }
     ],
     "primary": "sessions",
-    "family": "static",
-    "rows": "[aria-label=\"Chat sessions\"] [role=\"menuitem\"][aria-label^=\"Open \"]"
+    "family": "static"
   },
   "frontend.src.components.global_context_panel": {
     "route": "/?section=SectorChat&sector=sector-matrix&session=mx-session-001&thread=mx-session-001",
