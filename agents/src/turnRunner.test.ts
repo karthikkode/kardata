@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { BudgetTracker, RepetitionTracker } from './budgets.js'
 import { frozenClock } from './clock.js'
 import type { SummaryArtifact } from './condense.js'
-import type { ContextSnapshot } from './context.js'
+import { estimateMessagesTokens, estimateTokens, type ContextSnapshot } from './context.js'
 import { FakeProvider } from './fake.js'
 import { emptyUsage, type ChatMessage, type ProviderAdapter, type ToolDefinition } from './providers.js'
 import {
@@ -1929,5 +1929,124 @@ describe('resume drain ledger [F:agents.turnRunner.runKarbotTurn]', () => {
       { authorityId: 'TEST outcome authority', operationId: 'TEST drain op', call: drainCalls[0], serializedCall: JSON.stringify(drainCalls[0]), reason: 'TEST uncertain drain' },
       { authorityId: 'TEST outcome authority', operationId: 'TEST drain op', call: drainCalls[1], serializedCall: JSON.stringify(drainCalls[1]), reason: 'TEST uncertain drain' },
     ])
+  })
+})
+
+describe('beforeRound refresh [F:agents.turnRunner.runKarbotTurn]', () => {
+  it('exposes the live system prompt, history, and tools to beforeRound', async () => {
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    const messages: ChatMessage[] = [{ role: 'user', text: 'TEST hello' }]
+    let seen: { systemPrompt?: string; messages?: ChatMessage[]; tools?: unknown } | undefined
+    await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'TEST sys', messages,
+      beforeRound: async (_round, current) => { seen = structuredClone(current); return {} } })
+    expect(seen?.systemPrompt).toBe('TEST sys')
+    expect(seen?.messages).toEqual(messages)
+    expect(seen?.tools).toEqual([sessionTool()])
+  })
+
+  it('sends the refreshed system prompt to the provider', async () => {
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'TEST stale', messages: [],
+      beforeRound: async () => ({ systemPrompt: 'TEST refreshed v1' }) })
+    expect(provider.calls[0]?.systemPrompt).toBe('TEST refreshed v1')
+  })
+
+  it('sends rewritten messages to the provider for the round', async () => {
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    const rewritten: ChatMessage[] = [{ role: 'user', text: 'TEST rewritten' }]
+    await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'TEST sys',
+      messages: [{ role: 'user', text: 'TEST original' }],
+      beforeRound: async () => ({ messages: rewritten }) })
+    expect(provider.calls[0]?.messages).toEqual([{ role: 'user', text: 'TEST rewritten' }])
+  })
+})
+
+describe('pre-round condensation [F:agents.turnRunner.runKarbotTurn]', () => {
+  const forgottenText = `TEST forget me ${'x'.repeat(400)}`
+  function tokenMessages(): ChatMessage[] {
+    return [
+      { role: 'user', text: 'TEST keep head' },
+      { role: 'user', text: forgottenText },
+      { role: 'user', text: `TEST tail 2 ${'y'.repeat(400)}` },
+      { role: 'user', text: `TEST tail 3 ${'y'.repeat(400)}` },
+      { role: 'user', text: `TEST tail 4 ${'y'.repeat(400)}` },
+      { role: 'user', text: `TEST tail 5 ${'y'.repeat(400)}` },
+    ]
+  }
+
+  it('condenses on tokens with few messages and records the tokens reason', async () => {
+    const messages = tokenMessages()
+    const tokenCount = estimateTokens('sys') + estimateMessagesTokens(messages)
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages,
+      harness: { condense: { maxSize: 8, keepFirst: 1, tokenCap: tokenCount - 1, summarize: async (forgotten) => {
+        expect(forgotten.map((m) => m.text)).toEqual([forgottenText])
+        return 'TEST big summary'
+      } } } })
+    expect(result.condensed).toEqual([{ forgetStart: 1, forgetEnd: 2, summaryText: 'TEST big summary', summarizer: 'unit:compaction', reason: 'tokens' }])
+    const sent = provider.calls[0]?.messages ?? []
+    expect(sent).toHaveLength(6)
+    expect(sent[1]?.text).toContain('TEST big summary')
+    expect(sent.some((m) => m.text === forgottenText)).toBe(false)
+  })
+
+  it('leaves history untouched at exactly the token cap', async () => {
+    const messages = tokenMessages()
+    const tokenCount = estimateTokens('sys') + estimateMessagesTokens(messages)
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages,
+      harness: { condense: { maxSize: 8, keepFirst: 1, tokenCap: tokenCount, summarize: async () => 'TEST must not run' } } })
+    expect(result.condensed).toBeUndefined()
+    expect(provider.calls[0]?.messages).toEqual(messages)
+  })
+
+  it('leaves history untouched under the token cap', async () => {
+    const messages = tokenMessages()
+    const tokenCount = estimateTokens('sys') + estimateMessagesTokens(messages)
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages,
+      harness: { condense: { maxSize: 8, keepFirst: 1, tokenCap: tokenCount + 100, summarize: async () => 'TEST must not run' } } })
+    expect(result.condensed).toBeUndefined()
+    expect(provider.calls[0]?.messages).toEqual(messages)
+  })
+
+  it('leaves history untouched without a token cap and few messages', async () => {
+    const messages: ChatMessage[] = [{ role: 'user', text: 'one' }, { role: 'assistant', text: 'two' }, { role: 'user', text: 'three' }]
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages,
+      harness: { condense: { maxSize: 8, keepFirst: 1, summarize: async () => 'TEST must not run' } } })
+    expect(result.condensed).toBeUndefined()
+    expect(provider.calls[0]?.messages).toEqual(messages)
+  })
+
+  it('leaves history untouched at exactly maxSize', async () => {
+    const messages: ChatMessage[] = [{ role: 'user', text: 'one' }, { role: 'assistant', text: 'two' }, { role: 'user', text: 'three' }, { role: 'assistant', text: 'four' }]
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages,
+      harness: { condense: { maxSize: 4, keepFirst: 1, summarize: async () => 'TEST must not run' } } })
+    expect(result.condensed).toBeUndefined()
+    expect(provider.calls[0]?.messages).toEqual(messages)
+  })
+
+  it('condenses on size with the events reason when tokens are under cap', async () => {
+    const messages: ChatMessage[] = ['a', 'b', 'c', 'd', 'e', 'f'].map((text, i) => ({ role: i % 2 ? 'assistant' : 'user', text }) as ChatMessage)
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    const summaries: SummaryArtifact[] = []
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages,
+      harness: { condense: { maxSize: 4, keepFirst: 1, tokenCap: 1_000_000, summarize: async () => 'TEST size summary', onCondense: (summary) => void summaries.push(summary) } } })
+    expect(result.condensed?.[0]?.reason).toBe('events')
+    expect(summaries).toEqual(result.condensed)
+    const sent = provider.calls[0]?.messages ?? []
+    expect(sent.length).toBeLessThan(6)
+    expect(sent.some((m) => m.text?.includes('TEST size summary'))).toBe(true)
+  })
+
+  it('completes condensation without an onCondense hook', async () => {
+    const messages: ChatMessage[] = ['a', 'b', 'c', 'd', 'e', 'f'].map((text, i) => ({ role: i % 2 ? 'assistant' : 'user', text }) as ChatMessage)
+    const provider = new FakeProvider([{ text: 'TEST done' }])
+    const result = await runKarbotTurn({ provider, mcp: memoryMcp(), sink: memorySink().sink, systemPrompt: 'sys', messages,
+      harness: { condense: { maxSize: 4, keepFirst: 1, summarize: async () => 'TEST hookless' } } })
+    expect(result.condensed).toHaveLength(1)
+    expect(result.text).toBe('TEST done')
   })
 })
