@@ -26,7 +26,7 @@ test('[F:frontend.src.components.shells] shells denied', async ({ page }) => {
 })
 
 test('[F:frontend.src.components.shells] shells offline', async ({ page }) => {
-  await runMatrixState(page, { ...base, anchors: [{"kind":"text","text":"No connection. Reconnect and try again."},{"kind":"role","role":"button","name":"Try again"}] }, 'offline')
+  await runMatrixState(page, { ...base, anchors: [{"kind":"text","text":"No connection"},{"kind":"role","role":"button","name":"Try again"}] }, 'offline')
 })
 
 test('[F:frontend.src.components.shells] shells dark', async ({ page }) => {

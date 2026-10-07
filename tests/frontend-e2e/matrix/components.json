@@ -740,7 +740,7 @@
       }
     ],
     "primary": "runs",
-    "family": "resource"
+    "family": "direct"
   },
   "frontend.src.components.text": {
     "route": "/",

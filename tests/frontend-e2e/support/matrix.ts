@@ -269,6 +269,17 @@ export async function runMatrixState(page: Page, mc: MatrixCase, state: MatrixSt
   if (state === 'dark') await page.emulateMedia({ colorScheme: 'dark' })
   if (state === 'reduced-motion') await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto(mc.route)
+  // Navigate online (goto itself fails offline), then drop the network
+  // and refetch into the offline anatomy, like the failures offline
+  // specs: aborted fetch alone renders the error branch (navigator
+  // still online), never the offline branch. Gated surfaces transition
+  // after setup opens them (their retry lives inside the surface).
+  async function goOffline() {
+    await expect(page.getByRole('button', { name: 'Try again' }).first()).toBeVisible({ timeout: 15000 })
+    await page.context().setOffline(true)
+    await page.getByRole('button', { name: 'Try again' }).first().click()
+  }
+  if (dataState === 'offline' && !mc.gated) await goOffline()
   if (state === 'dark') await expect(page.locator('html.dark')).toBeAttached({ timeout: 5000 })
   if (state === 'reduced-motion') {
     const reduced = await page.evaluate(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)
@@ -281,6 +292,7 @@ export async function runMatrixState(page: Page, mc: MatrixCase, state: MatrixSt
     else if (step.hover) await anchorLocator(page, step.hover).hover()
     else if (step.press) await page.keyboard.press(step.press)
   }
+  if (dataState === 'offline' && mc.gated) await goOffline()
   if (!mc.gated) {
     for (const anchor of mc.anchors) await expect(anchorLocator(page, anchor)).toBeVisible({ timeout: 15000 })
   }
@@ -302,4 +314,5 @@ export async function runMatrixState(page: Page, mc: MatrixCase, state: MatrixSt
   await runAxe(page)
   await matrixShot(page, mc.id, state)
   expect(errors, `console errors: ${errors.join(' | ')}`).toEqual([])
+  if (dataState === 'offline') await page.context().setOffline(false)
 }
