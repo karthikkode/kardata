@@ -1134,6 +1134,112 @@ describe('mutation transport certainty', () => {
   })
 })
 
+describe('callTool outcomes [F:agents.turnRunner.StreamableMcpClient]', () => {
+  type CallBehavior = { throw: unknown } | { status: number } | { result: unknown }
+  function callClient(behavior: CallBehavior, tools: unknown[] = [{ name: 't.op' }], signal?: AbortSignal) {
+    const seen: Array<{ method: string; body: Record<string, unknown> }> = []
+    const client = new StreamableMcpClient({
+      endpoint: 'https://mcp.internal/mcp', token: 'TEST credential', signal,
+      fetchFn: async (_url: string, init: { body: string }) => {
+        const body = JSON.parse(init.body) as { method: string; id: unknown }
+        seen.push({ method: body.method, body: JSON.parse(init.body) as Record<string, unknown> })
+        if (body.method === 'tools/call') {
+          if ('throw' in behavior) throw behavior.throw
+          if ('status' in behavior) return { ok: false, status: behavior.status, text: async () => 'TEST refused' }
+          return { ok: true, status: 200, text: async () => JSON.stringify({ jsonrpc: '2.0', id: body.id, result: behavior.result }) }
+        }
+        if (body.method === 'tools/list') {
+          return { ok: true, status: 200, text: async () => JSON.stringify({ jsonrpc: '2.0', id: body.id, result: { tools } }) }
+        }
+        return { ok: true, status: 200, text: async () => JSON.stringify({ jsonrpc: '2.0', id: body.id, result: {} }) }
+      },
+    })
+    return { client, seen }
+  }
+  const READONLY = [{ name: 't.op', annotations: { readOnlyHint: true } }]
+
+  it('parks a lost mutating reply under the original operation with its message', async () => {
+    const { client, seen } = callClient({ throw: new Error('TEST reply lost') })
+    const outcome = await client.callTool('t.op', { a: 1 }, 'op-1')
+    expect(outcome).toEqual({ content: 'TEST reply lost', isError: true, recovery: { authorityId: client.authorityId, operationId: 'op-1', reason: 'The mutation reply was not confirmed.' } })
+    expect(seen.find((s) => s.method === 'tools/call')?.body.params).toEqual({ name: 't.op', arguments: { a: 1 } })
+  })
+
+  it('returns a plain error result for a lost reply with no operation id', async () => {
+    const { client } = callClient({ throw: new Error('TEST reply lost') })
+    expect(await client.callTool('t.op', {})).toEqual({ content: 'TEST reply lost', isError: true })
+  })
+
+  it('returns a plain error result for a lost read-only reply', async () => {
+    const { client } = callClient({ throw: new Error('TEST reply lost') }, READONLY)
+    await client.listTools()
+    expect(await client.callTool('t.op', {}, 'op-1')).toEqual({ content: 'TEST reply lost', isError: true })
+  })
+
+  it('names non-Error transport failures without their value', async () => {
+    const { client } = callClient({ throw: 'TEST string failure' })
+    expect(await client.callTool('t.op', {}, 'op-1')).toEqual({ content: 'mcp tool call failed', isError: true, recovery: { authorityId: client.authorityId, operationId: 'op-1', reason: 'The mutation reply was not confirmed.' } })
+  })
+
+  it('converts a before-effect HTTP failure into a plain error naming the call', async () => {
+    const { client } = callClient({ status: 403 })
+    expect(await client.callTool('t.op', {}, 'op-1')).toEqual({ content: `mcp request 'tools/call' failed with HTTP 403`, isError: true })
+  })
+
+  it('parks an after-effect HTTP failure under the original operation', async () => {
+    const { client } = callClient({ status: 500 })
+    expect(await client.callTool('t.op', {}, 'op-1')).toEqual({ content: `mcp request 'tools/call' failed with HTTP 500`, isError: true, recovery: { authorityId: client.authorityId, operationId: 'op-1', reason: 'The mutation reply was not confirmed.' } })
+  })
+
+  it('throws instead of returning when aborted during a failure', async () => {
+    const abort = new AbortController()
+    abort.abort(new Error('TEST owner cancelled'))
+    const { client } = callClient({ throw: new Error('TEST reply lost') }, [{ name: 't.op' }], abort.signal)
+    await expect(client.callTool('t.op', {}, 'op-1')).rejects.toThrow('TEST owner cancelled')
+  })
+
+  it.each([[42], [{ content: 'x' }]])('parks a malformed result (%s) under the original operation', async (result) => {
+    const { client } = callClient({ result })
+    expect(await client.callTool('t.op', {}, 'op-1')).toEqual({ content: `tool 't.op' returned a malformed result`, isError: true, recovery: { authorityId: client.authorityId, operationId: 'op-1', reason: 'The mutation response was malformed.' } })
+  })
+
+  it('returns a plain error for a malformed result with no operation id or a read-only tool', async () => {
+    const plain = callClient({ result: 42 })
+    expect(await plain.client.callTool('t.op', {})).toEqual({ content: `tool 't.op' returned a malformed result`, isError: true })
+    const ro = callClient({ result: 42 }, READONLY)
+    await ro.client.listTools()
+    expect(await ro.client.callTool('t.op', {}, 'op-1')).toEqual({ content: `tool 't.op' returned a malformed result`, isError: true })
+  })
+
+  it('joins text blocks with newlines, skipping blocks without text', async () => {
+    const { client } = callClient({ result: { content: [{ type: 'text', text: 'a' }, { type: 'image' }, { type: 'text', text: 'b' }, 42, 'x', { text: 7 }] } })
+    expect(await client.callTool('t.op', {}, 'op-1')).toEqual({ content: 'a\nb', isError: false })
+  })
+
+  it('parks an unflagged server error under the original operation', async () => {
+    const { client } = callClient({ result: { content: [{ type: 'text', text: 'TEST broke' }], isError: true } })
+    expect(await client.callTool('t.op', {}, 'op-1')).toEqual({ content: 'TEST broke', isError: true, recovery: { authorityId: client.authorityId, operationId: 'op-1', reason: 'The server could not confirm a retry-safe mutation outcome.' } })
+  })
+
+  it('returns a plain error for a retry-safe server error', async () => {
+    const { client } = callClient({ result: { content: [{ type: 'text', text: 'TEST denied' }], isError: true, _meta: { 'kardata/retry-safe-before-effect': true } } })
+    expect(await client.callTool('t.op', {}, 'op-1')).toEqual({ content: 'TEST denied', isError: true })
+  })
+
+  it('treats non-true isError flags as success', async () => {
+    for (const isError of ['yes', 1]) {
+      const { client } = callClient({ result: { content: [{ type: 'text', text: 'ok' }], isError } })
+      expect(await client.callTool('t.op', {}, 'op-1')).toEqual({ content: 'ok', isError: false })
+    }
+  })
+
+  it('returns a plain error for a read-only server error with an operation id', async () => {
+    const { client } = callClient({ result: { content: [{ type: 'text', text: 'TEST broke' }], isError: true } }, READONLY)
+    await client.listTools()
+    expect(await client.callTool('t.op', {}, 'op-1')).toEqual({ content: 'TEST broke', isError: true })
+  })
+})
+
 
 it('keeps original uncertainty when a retry is denied before effect', async () => {
   const operation = { operationId: 'TEST original identity', call: { id: 'mutation-1', name: 'db.create_session', args: {} }, reason: 'TEST original reply lost' }
