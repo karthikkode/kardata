@@ -840,6 +840,153 @@ describe('listTools normalization [F:agents.turnRunner.StreamableMcpClient]', ()
   })
 })
 
+describe('rpc envelope and handshake [F:agents.turnRunner.StreamableMcpClient]', () => {
+  interface Seen { method: string; id: unknown; body: Record<string, unknown>; headers: Record<string, string>; httpMethod: string }
+  function rawFetch(respond: (body: { method: string; id: unknown }) => { status?: number; ok?: boolean; text: string }, seen: Seen[] = []) {
+    return async (url: string, init: { method: string; headers: Record<string, string>; body: string }) => {
+      const parsed = JSON.parse(init.body) as { method: string; id: unknown }
+      seen.push({ method: parsed.method, id: parsed.id, body: JSON.parse(init.body) as Record<string, unknown>, headers: init.headers, httpMethod: init.method })
+      const next = respond(parsed)
+      return { ok: next.ok ?? true, status: next.status ?? 200, text: async () => next.text }
+    }
+  }
+  const envelope = (id: unknown, result: unknown): string => JSON.stringify({ jsonrpc: '2.0', id, result })
+  function clientForBodies(bodies: Record<string, string>, seen: Seen[] = [], extra: Record<string, unknown> = {}) {
+    return new StreamableMcpClient({
+      endpoint: 'https://mcp.internal/mcp', token: 'TEST credential', ...(extra as { execution?: { threadKey: string; signature: string } }),
+      fetchFn: rawFetch((parsed) => {
+        if (!(parsed.method in bodies)) throw new Error(`unexpected mcp method ${parsed.method}`)
+        return { text: bodies[parsed.method] as string }
+      }, seen),
+    })
+  }
+
+  it('handshakes once, then posts JSON-RPC with sequential ids', async () => {
+    const seen: Seen[] = []
+    const client = clientForBodies({ initialize: envelope(1, {}), 'notifications/initialized': '', 'tools/list': envelope(3, { tools: [] }) }, seen)
+    expect(await client.listTools()).toEqual([])
+    expect(seen.map((s) => s.method)).toEqual(['initialize', 'notifications/initialized', 'tools/list'])
+    expect(seen[0]?.body).toEqual({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'karbot-turn', version: '3' } } })
+    expect(seen[2]?.body).toEqual({ jsonrpc: '2.0', id: 3, method: 'tools/list', params: {} })
+    await client.listTools()
+    expect(seen.map((s) => s.method)).toEqual(['initialize', 'notifications/initialized', 'tools/list', 'tools/list'])
+    expect(seen[3]?.id).toBe(4)
+  })
+
+  it('still lists tools when the hello handshake fails', async () => {
+    const seen: Seen[] = []
+    const client = new StreamableMcpClient({
+      endpoint: 'https://mcp.internal/mcp', token: 'TEST credential',
+      fetchFn: rawFetch((parsed) => {
+        if (parsed.method === 'initialize') throw new Error('TEST stateless responder')
+        if (parsed.method === 'tools/list') return { text: envelope(parsed.id, { tools: [{ name: 'ok.tool' }] }) }
+        throw new Error(`unexpected mcp method ${parsed.method}`)
+      }, seen),
+    })
+    expect((await client.listTools()).map((t) => t.name)).toEqual(['ok.tool'])
+    expect(seen.map((s) => s.method)).toContain('tools/list')
+  })
+
+  it('sends POST with content, accept, auth, idempotency, and execution headers', async () => {
+    const seen: Seen[] = []
+    const client = clientForBodies(
+      { initialize: envelope(1, {}), 'notifications/initialized': '', 'tools/call': envelope('op-1', { content: [{ type: 'text', text: 'ok' }], isError: false }) },
+      seen, { execution: { threadKey: 'thread-1', signature: 'sig-1' } },
+    )
+    const outcome = await client.callTool('some.tool', { a: 1 }, 'op-1')
+    expect(outcome).toEqual({ content: 'ok', isError: false })
+    const call = seen.find((s) => s.method === 'tools/call')
+    expect(call?.httpMethod).toBe('POST')
+    expect(call?.headers['content-type']).toBe('application/json')
+    expect(call?.headers['accept']).toBe('application/json, text/event-stream')
+    expect(call?.headers['authorization']).toBe('Bearer TEST credential')
+    expect(call?.headers['idempotency-key']).toBe('op-1')
+    expect(call?.headers['x-kardata-thread']).toBe('thread-1')
+    expect(call?.headers['x-kardata-execution']).toBe('sig-1')
+    expect(call?.body).toEqual({ jsonrpc: '2.0', id: 'op-1', method: 'tools/call', params: { name: 'some.tool', arguments: { a: 1 } } })
+    expect(seen.find((s) => s.method === 'tools/list')).toBeUndefined()
+  })
+
+  it('omits idempotency and execution headers when the call carries none', async () => {
+    const seen: Seen[] = []
+    const client = clientForBodies({ initialize: envelope(1, {}), 'notifications/initialized': '', 'tools/call': envelope(3, { content: [{ type: 'text', text: 'ok' }], isError: false }) }, seen)
+    await client.callTool('some.tool', {})
+    const call = seen.find((s) => s.method === 'tools/call')
+    expect(call?.headers).not.toHaveProperty('idempotency-key')
+    expect(call?.headers).not.toHaveProperty('x-kardata-thread')
+    expect(call?.headers).not.toHaveProperty('x-kardata-execution')
+    expect(call?.id).toBe(3)
+  })
+
+  it('maps HTTP failures to method-named errors with a before-effect flag', async () => {
+    for (const [status, beforeEffect] of [[500, false], [429, true], [403, true]] as const) {
+      const client = new StreamableMcpClient({
+        endpoint: 'https://mcp.internal/mcp', token: 'TEST credential',
+        fetchFn: async () => ({ ok: false, status, text: async () => 'TEST server refused' }),
+      })
+      const failure = await client.listTools().then(() => null, (error: unknown) => error as Error & { beforeEffect?: boolean })
+      expect(failure?.message).toBe(`mcp request 'tools/list' failed with HTTP ${status}`)
+      expect(failure?.beforeEffect).toBe(beforeEffect)
+    }
+  })
+
+  it('rethrows transport errors unwrapped', async () => {
+    const boom = new Error('TEST down')
+    const client = new StreamableMcpClient({
+      endpoint: 'https://mcp.internal/mcp', token: 'TEST credential',
+      fetchFn: async () => { throw boom },
+    })
+    await expect(client.listTools()).rejects.toBe(boom)
+  })
+
+  it.each([['not json{{{'], ['42'], ['"str"'], ['null']])('rejects a malformed envelope (%s) naming the method', async (body) => {
+    const client = clientForBodies({ initialize: envelope(1, {}), 'notifications/initialized': '', 'tools/list': body })
+    await expect(client.listTools()).rejects.toThrow(`mcp request 'tools/list' returned a malformed envelope`)
+  })
+
+  it('rejects error envelopes with the server message, defaulting when absent', async () => {
+    const failing = clientForBodies({ initialize: envelope(1, {}), 'notifications/initialized': '', 'tools/list': JSON.stringify({ jsonrpc: '2.0', id: 3, error: { message: 'TEST boom' } }) })
+    await expect(failing.listTools()).rejects.toThrow(`mcp request 'tools/list' failed: TEST boom`)
+    const vague = clientForBodies({ initialize: envelope(1, {}), 'notifications/initialized': '', 'tools/list': JSON.stringify({ jsonrpc: '2.0', id: 3, error: { code: -1 } }) })
+    await expect(vague.listTools()).rejects.toThrow(`mcp request 'tools/list' failed: unknown mcp error`)
+  })
+
+  it('caps a runaway server error message at 300 chars', async () => {
+    const long = `TEST ${( 'x'.repeat(400) )}`
+    const client = clientForBodies({ initialize: envelope(1, {}), 'notifications/initialized': '', 'tools/list': JSON.stringify({ jsonrpc: '2.0', id: 3, error: { message: long } }) })
+    const failure = await client.listTools().then(() => null, (error: unknown) => error as Error)
+    expect(failure?.message).toBe(`mcp request 'tools/list' failed: ${long.slice(0, 300)}`)
+  })
+
+  it('rejects a non-SSE body even when a later line looks like data', async () => {
+    const frame = envelope(1, { tools: [{ name: 'must.not.parse' }] })
+    const client = clientForBodies({ initialize: envelope(1, {}), 'notifications/initialized': '', 'tools/list': `garbage\ndata: ${frame}` })
+    await expect(client.listTools()).rejects.toThrow(`mcp request 'tools/list' returned a malformed envelope`)
+  })
+
+  it('parses plain JSON with surrounding whitespace', async () => {
+    const client = clientForBodies({ initialize: envelope(1, {}), 'notifications/initialized': '', 'tools/list': `  ${envelope(3, { tools: [{ name: 'ws.tool' }] })}  ` })
+    expect((await client.listTools()).map((t) => t.name)).toEqual(['ws.tool'])
+  })
+
+  it('reads the first data line of SSE, skipping comments, blanks, and [DONE]', async () => {
+    const frame = envelope(1, { tools: [{ name: 'sse.tool' }] })
+    const client = clientForBodies({ initialize: envelope(1, {}), 'notifications/initialized': '', 'tools/list': `: session open\n\ndata: [DONE]\ndata: \nnote-{"x":1}\ndata: ${frame}\n\n` })
+    expect((await client.listTools()).map((t) => t.name)).toEqual(['sse.tool'])
+  })
+
+  it('parses SSE bodies with leading blank lines and odd trailing whitespace', async () => {
+    const frame = envelope(1, { tools: [{ name: 'odd.tool' }] })
+    const client = clientForBodies({ initialize: envelope(1, {}), 'notifications/initialized': '', 'tools/list': `\n\ndata: ${frame}\u00a0\n\n` })
+    expect((await client.listTools()).map((t) => t.name)).toEqual(['odd.tool'])
+  })
+
+  it('rejects SSE streams with no parseable data line', async () => {
+    const client = clientForBodies({ initialize: envelope(1, {}), 'notifications/initialized': '', 'tools/list': 'data: {{{oops\n: comment\n\n' })
+    await expect(client.listTools()).rejects.toThrow(`mcp request 'tools/list' returned a malformed envelope`)
+  })
+})
+
 describe('createClosedMcpClient [F:agents.turnRunner.createClosedMcpClient]', () => {
   it('lists no tools and reports calls unavailable', async () => {
     const client = createClosedMcpClient('mcp unconfigured')
