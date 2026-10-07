@@ -8,6 +8,16 @@ import { fileURLToPath } from 'node:url'
 // servable, and include is scoped to backend tests only. The root is
 // config-relative (not cwd-relative '..') so programmatic runners such as
 // Stryker, which start from the repo root or a sandbox, resolve the same.
+// Workers never see --coverage (no argv flag, no __coverage__ global,
+// no COV env under the istanbul provider), so the config — which loads
+// in the main process with full argv — stamps the signal into worker
+// env. Consumers: the fleet thousand-leg ceiling (slow only when
+// instrumented). Programmatic runners (Stryker) bypass argv and read
+// 26 min; the mutation config excludes the thousand leg instead.
+const coverageActive =
+  process.argv.includes('--coverage') || process.argv.includes('--coverage.enabled')
+const coverageEnv = coverageActive ? { KARDATA_COVERAGE_ACTIVE: '1' } : {}
+
 export default defineConfig({
   root: join(dirname(fileURLToPath(import.meta.url)), '..'),
   test: {
@@ -17,9 +27,9 @@ export default defineConfig({
     // Postgres budget. Explicit within-file contention/stress remains unchanged.
     ...(process.env['TEST_DATABASE_URL'] ? {
       maxWorkers: 2,
-      env: { KARDATA_TEST_DB_RUN_ID: randomUUID().replaceAll('-', '') },
+      env: { KARDATA_TEST_DB_RUN_ID: randomUUID().replaceAll('-', ''), ...coverageEnv },
       globalSetup: ['tests/backend/db-setup.ts'],
-    } : {}),
+    } : { env: { ...coverageEnv } }),
     // DB-touching files each own a separate database (see the gated suites),
     // so files stay parallel-safe and order-independent by construction.
     // Phase 7 gate: lines >= 80% overall (db/mcp/temporal need >= 85%,

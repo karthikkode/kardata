@@ -301,10 +301,13 @@ describe.skipIf(!LIVE)('fleet load runs (N subagents, real outputs) [F:backend.a
   // Coverage instrumentation slows the serial 1000-child finish loop
   // past 26 min (children done at ~1430 s, 1000/1000), so only then
   // does the ceiling rise to the hundred leg's 2.76M; every other mode
-  // keeps 26 min. __coverage__ is set by any instrumented import,
-  // which is exactly the slowdown's cause (npm script or Stryker).
-  const thousandTimeoutMs =
-    typeof (globalThis as { __coverage__?: unknown }).__coverage__ === 'undefined' ? 1_560_000 : 2_760_000
+  // keeps 26 min. The signal is config-stamped worker env (vitest
+  // workers see no argv flag and no __coverage__ global); the global
+  // stays as a backstop for instrumenting runners that set it.
+  const coverageActive =
+    process.env['KARDATA_COVERAGE_ACTIVE'] === '1' ||
+    typeof (globalThis as { __coverage__?: unknown }).__coverage__ !== 'undefined'
+  const thousandTimeoutMs = coverageActive ? 2_760_000 : 1_560_000
   it('runs 1000 subagents to indexed discovery artifacts', async () => {
     await runLeg({ leg: 'thousand', children: 1000, stage: 'Deep research', timeoutMs: 1_500_000 })
   }, thousandTimeoutMs)
