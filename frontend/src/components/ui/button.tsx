@@ -1,6 +1,6 @@
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
-import { isValidElement } from "react"
+import { cloneElement, isValidElement } from "react"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
@@ -51,20 +51,35 @@ function Button({
   render,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants> & { pending?: boolean }) {
-  // Link-styled buttons render an anchor: tell Base UI so it does not
-  // warn about the missing native button. An explicit nativeButton wins;
-  // function-form render cannot be inspected and keeps the default.
-  const nonNative =
-    nativeButton === undefined &&
-    isValidElement(render) &&
-    typeof render.type === 'string' &&
-    render.type !== 'button'
+  // Anchor renders bypass the primitive entirely: Base UI would force
+  // role="button" onto the anchor (nativeButton={false}) or warn about
+  // the missing native button (default). A link stays a link: clone with
+  // button styling, drop button-only props. Function-form render cannot
+  // be inspected and keeps the primitive path.
+  if (isValidElement(render) && typeof render.type === 'string' && render.type !== 'button') {
+    const { children: renderChildren, className: renderClassName, ...renderRest } = render.props as {
+      children?: React.ReactNode
+      className?: string
+    } & Record<string, unknown>
+    const { children, type: _type, ...rest } = props as { children?: React.ReactNode; type?: string } & Record<string, unknown>
+    return cloneElement(
+      render,
+      {
+        ...renderRest,
+        ...rest,
+        className: cn(buttonVariants({ variant, size, className }), renderClassName),
+        'aria-busy': pending || undefined,
+        'aria-disabled': disabled || pending || undefined,
+      } as Record<string, unknown>,
+      children ?? renderChildren,
+    )
+  }
   return (
     <ButtonPrimitive
       data-slot="button"
       disabled={disabled || pending}
       aria-busy={pending || undefined}
-      nativeButton={nonNative ? false : nativeButton}
+      nativeButton={nativeButton}
       render={render}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
