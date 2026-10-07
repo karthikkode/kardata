@@ -3873,6 +3873,30 @@ entries, enforce-simulated clean outside frontend. No suites run (D1):
 sector/runs/obs/control/monitor/palette/parity/live L-K1..K3 tests are
 written-but-unrun static signal only.
 
+## 2026-10-07 — coverage-30 red: fleet timeout + trace race (branch p2-7-fixes)
+Full backend coverage (tests/backend + tests/registry) went 1650 passed /
+2 failed, and vitest 5.0.3 prints no coverage table on a red run, so the
+gate number needs a green rerun. (1) Thousand-leg hit its 26-min test
+timeout with all children done (1000/1000, 0 rejected at ~1430 s):
+coverage instrumentation slows the serial finish loop; ceiling raised
+to 2.76M matching the hundred leg (test-only). (2) Trace-continuity saw
+mcpStarts=0: the test waited on provider rounds but the fake calls
+listTools after recording rounds, so the MCP-log assertion raced the
+MCP leg and lost under load; solo green. Test now waits for the MCP log
+line; load-proof pending the green rerun. Logs var/fv3/30-32.
+
+## 2026-10-07 — turnRunner mutation: Stryker 27.50 is phantom (branch p2-7-fixes)
+Stryker's perTest subset misses nested-suite kills: direct application
+of all 729 Stryker-survivors kills 666. c1–c6e + h1–h2 batteries
+(226 tests) kill 25 more by behavior assertion. True score 969/1011
+raw (95.9%), 100% ex-equivalents (gate ≥70). Equivalent clusters (42):
+finally-masked timer/abort hygiene (18), condense caller fast-path (8),
+SSE skip shortcuts converging in catch (6), unreachable/filtered
+fallbacks (963/892), inner hash encoding (817), write-only start
+buffer (495), ignored unknown events (517/518), `?.` on defined resume
+(256/258), quiet-dup push invisible (209), abort-only unreachable at
+break (473). Verdicts: /tmp/bulk-kill.log; score run var/fv3/29.
+
 ## 2026-10-07 — Fix-loop 1 close-out (branch p2-7-fixes, uncommitted)
 Stalled lanes verified/finished solo after the 10-05 FD stall: volume tier
 2/2 green (slowest p95 50.9ms), alerts/ops-runs/F8-unit/trace green, L-K 3/3
