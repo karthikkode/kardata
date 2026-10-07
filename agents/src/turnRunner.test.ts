@@ -745,6 +745,101 @@ describe('StreamableMcpClient [F:agents.turnRunner.StreamableMcpClient]', () => 
   })
 })
 
+describe('listTools normalization [F:agents.turnRunner.StreamableMcpClient]', () => {
+  function mcpFetch(responses: Record<string, unknown>) {
+    return async (_url: string, init: { body: string }) => {
+      const body = JSON.parse(init.body) as { method: string; id: unknown }
+      if (!(body.method in responses)) throw new Error(`unexpected mcp method ${body.method}`)
+      return { ok: true, status: 200, text: async () => JSON.stringify({ jsonrpc: '2.0', id: body.id, result: responses[body.method] }) }
+    }
+  }
+  function clientFor(toolsResult: unknown) {
+    return new StreamableMcpClient({
+      endpoint: 'https://mcp.internal/mcp',
+      token: 'TEST credential',
+      fetchFn: mcpFetch({ initialize: {}, 'notifications/initialized': {}, 'tools/list': toolsResult }),
+    })
+  }
+
+  it('drops entries without a string name and keeps the rest in order', async () => {
+    const client = clientFor({ tools: [null, 42, 'x', [], {}, { name: 7 }, { name: 'ok.tool' }, { name: 'second.tool' }] })
+    const tools = await client.listTools()
+    expect(tools.map((tool) => tool.name)).toEqual(['ok.tool', 'second.tool'])
+  })
+
+  it('normalizes schemas: types default, descriptions fall back, enums and required keep strings only', async () => {
+    const client = clientFor({
+      tools: [
+        { name: 's.tool', description: 'Has desc', inputSchema: { properties: { q: { type: 'integer', description: 'Q', enum: ['a', 'b'] }, n: { type: 5 }, x: 'skip', e: { type: 'string', enum: ['ok', 7] } }, required: ['q', 9] } },
+        { name: 'plain' },
+        { name: 'dflt', description: 5 },
+      ],
+    })
+    // Strict: a description/enum the server omits must stay absent, not
+    // arrive as an explicit undefined that downstream spreads forward.
+    expect(await client.listTools()).toStrictEqual([
+      {
+        name: 's.tool', description: 'Has desc',
+        parameters: {
+          type: 'object',
+          properties: { q: { type: 'integer', description: 'Q', enum: ['a', 'b'] }, n: { type: 'string' }, e: { type: 'string' } },
+          required: ['q'], additionalProperties: false,
+        },
+      },
+      { name: 'plain', description: 'plain', parameters: { type: 'object', properties: {}, required: [], additionalProperties: false } },
+      { name: 'dflt', description: 'dflt', parameters: { type: 'object', properties: {}, required: [], additionalProperties: false } },
+    ])
+  })
+
+  it.each([[42], [{ foo: 1 }], [{ tools: 'x' }], [null]])('treats a malformed tools/list result (%s) as no tools', async (result) => {
+    expect(await clientFor(result).listTools()).toEqual([])
+  })
+
+  it('tracks read-only tools from annotations, ignoring malformed entries', async () => {
+    const client = clientFor({
+      tools: [
+        { name: 'ro.tool', annotations: { readOnlyHint: true } },
+        { name: 'rw.tool', annotations: { readOnlyHint: false } },
+        { name: 'na.tool' },
+        { name: 'wx.tool', annotations: 'x' },
+        { name: 7, annotations: { readOnlyHint: true } },
+        null,
+      ],
+    })
+    expect(await client.listTools()).toHaveLength(4)
+    expect(client.isReadOnlyTool('ro.tool')).toBe(true)
+    expect(client.isReadOnlyTool('rw.tool')).toBe(false)
+    expect(client.isReadOnlyTool('na.tool')).toBe(false)
+    expect(client.isReadOnlyTool('wx.tool')).toBe(false)
+    expect((client.isReadOnlyTool as unknown as (name: unknown) => boolean)(7)).toBe(false)
+    expect(client.isReadOnlyTool('missing.tool')).toBe(false)
+  })
+
+  it('re-scans read-only flags on every listTools call', async () => {
+    const sequences: unknown[] = [{ tools: [{ name: 'ro.tool', annotations: { readOnlyHint: true } }] }, { tools: [{ name: 'ro.tool' }] }]
+    let calls = 0
+    const client = new StreamableMcpClient({
+      endpoint: 'https://mcp.internal/mcp',
+      token: 'TEST credential',
+      fetchFn: async (_url: string, init: { body: string }) => {
+        const body = JSON.parse(init.body) as { method: string; id: unknown }
+        if (body.method === 'tools/list') {
+          const result = sequences[Math.min(calls++, sequences.length - 1)]
+          return { ok: true, status: 200, text: async () => JSON.stringify({ jsonrpc: '2.0', id: body.id, result }) }
+        }
+        if (body.method === 'initialize' || body.method === 'notifications/initialized') {
+          return { ok: true, status: 200, text: async () => JSON.stringify({ jsonrpc: '2.0', id: body.id, result: {} }) }
+        }
+        throw new Error(`unexpected mcp method ${body.method}`)
+      },
+    })
+    await client.listTools()
+    expect(client.isReadOnlyTool('ro.tool')).toBe(true)
+    await client.listTools()
+    expect(client.isReadOnlyTool('ro.tool')).toBe(false)
+  })
+})
+
 describe('createClosedMcpClient [F:agents.turnRunner.createClosedMcpClient]', () => {
   it('lists no tools and reports calls unavailable', async () => {
     const client = createClosedMcpClient('mcp unconfigured')
