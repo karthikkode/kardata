@@ -1826,3 +1826,108 @@ describe('pending-tools resume [F:agents.turnRunner.runKarbotTurn]', () => {
     ])
   })
 })
+
+describe('resume drain ledger [F:agents.turnRunner.runKarbotTurn]', () => {
+  const drainCalls = [
+    { id: 'd1', name: 'db.list_sessions', args: {} },
+    { id: 'd2', name: 'db.list_sessions', args: {} },
+  ]
+  type Checkpoint = { round: number; toolCalls: number; ops?: unknown; history: ChatMessage[] }
+  function drainHarness(callTool: (call: { id: string }) => Promise<{ content: string; isError?: boolean; recovery?: { operationId: string; authorityId?: string; reason?: string } }>, resumeToolCalls = 5) {
+    const provider = new FakeProvider([{ text: 'TEST after drain' }])
+    const checkpoints: Checkpoint[] = []
+    const toolEvents: Array<{ state: string; round: number }> = []
+    const resultRounds: number[] = []
+    const options = {
+      provider, operationKey: 'TEST drain', systemPrompt: 'TEST',
+      messages: [{ role: 'assistant' as const, toolCalls: drainCalls }],
+      resume: { round: 3, usage: emptyUsage(), toolCalls: resumeToolCalls },
+      sink: { onDelta: () => undefined, onTool: (_id: string, _name: string, state: 'running' | 'done' | 'failed', round: number) => void toolEvents.push({ state, round }) },
+      mcp: { authorityId: 'TEST drain authority', listTools: async () => [sessionTool()], callTool: async (name: string, _args: Record<string, unknown>) => callTool({ id: name }) },
+      onCheckpoint: async (history: ChatMessage[], round: number, _usage: unknown, toolCalls: number, ops?: unknown) => void checkpoints.push({ round, toolCalls, ops, history: structuredClone(history) }),
+      onToolResult: async (round: number) => void resultRounds.push(round),
+    }
+    return { provider, checkpoints, toolEvents, resultRounds, options }
+  }
+
+  it('keeps a recovery reason verbatim on a failed blocked retry', async () => {
+    const call = { id: 'b1', name: 'db.list_sessions', args: {} }
+    const operation: RecoveryOperation = { authorityId: 'TEST authority', operationId: 'TEST op', call, serializedCall: JSON.stringify(call), reason: 'TEST blocked' }
+    const provider = new FakeProvider([{ text: 'TEST never' }])
+    const result = await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [],
+      resume: { round: 1, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] },
+      sink: { onDelta: () => undefined },
+      mcp: { authorityId: 'TEST authority', listTools: async () => [sessionTool()], callTool: async () => ({ content: 'TEST still lost', isError: true, recovery: { operationId: 'TEST op', reason: 'TEST kept verbatim' } }) } })
+    expect(provider.calls).toHaveLength(0)
+    expect(result.recoveryHalt?.[0]?.reason).toBe('TEST kept verbatim')
+  })
+
+  it('falls back to the default retry note when recovery carries no reason', async () => {
+    const call = { id: 'b1', name: 'db.list_sessions', args: {} }
+    const operation: RecoveryOperation = { authorityId: 'TEST authority', operationId: 'TEST op', call, serializedCall: JSON.stringify(call), reason: 'TEST blocked' }
+    const result = await runKarbotTurn({ provider: new FakeProvider([{ text: 'TEST never' }]), systemPrompt: 'TEST', messages: [],
+      resume: { round: 1, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] },
+      sink: { onDelta: () => undefined },
+      mcp: { authorityId: 'TEST authority', listTools: async () => [sessionTool()], callTool: async () => ({ content: 'TEST failed silently', isError: true }) } })
+    expect(result.recoveryHalt?.[0]?.reason).toBe('This retry failed; the original effect is still unconfirmed.')
+  })
+
+  it('checkpoints the resume round with exact carried totals and prepared operations', async () => {
+    const built = drainHarness(async () => ({ content: 'TEST ok' }))
+    await runKarbotTurn(built.options as never)
+    const drainPoints = built.checkpoints.filter((c) => c.round === 3)
+    expect(drainPoints.map((c) => c.toolCalls)).toEqual([5, 5])
+    expect(drainPoints[0]?.ops).toEqual([
+      { authorityId: 'TEST drain authority', operationId: 'TEST drain:3:0', call: drainCalls[0], serializedCall: JSON.stringify(drainCalls[0]), reason: 'Execution was prepared; its result has not yet been durably confirmed.' },
+      { authorityId: 'TEST drain authority', operationId: 'TEST drain:3:1', call: drainCalls[1], serializedCall: JSON.stringify(drainCalls[1]), reason: 'Execution was prepared; its result has not yet been durably confirmed.' },
+    ])
+    expect(drainPoints[1]?.ops).toEqual([])
+  })
+
+  it('floors carried totals at zero when the pending turn exceeds the count', async () => {
+    const built = drainHarness(async () => ({ content: 'TEST ok' }), 1)
+    await runKarbotTurn(built.options as never)
+    const drainPoints = built.checkpoints.filter((c) => c.round === 3)
+    expect(drainPoints.map((c) => c.toolCalls)).toEqual([2, 2])
+  })
+
+  it('reports drain rounds through the sink and tool-result hooks', async () => {
+    const built = drainHarness(async () => ({ content: 'TEST ok' }))
+    await runKarbotTurn(built.options as never)
+    expect(built.toolEvents).toEqual([
+      { state: 'running', round: 3 }, { state: 'done', round: 3 },
+      { state: 'running', round: 3 }, { state: 'done', round: 3 },
+    ])
+    expect(built.resultRounds).toEqual([3, 3])
+  })
+
+  it('ledgers drained outcomes with exact content and error flags', async () => {
+    let n = 0
+    const built = drainHarness(async () => (++n === 1 ? { content: 'TEST one' } : { content: 'TEST two', isError: true }))
+    const result = await runKarbotTurn(built.options as never)
+    const post = built.checkpoints.filter((c) => c.round === 3)[1]?.history.filter((m) => m.role === 'tool') ?? []
+    expect(post).toHaveLength(2)
+    expect(post[0]?.toolResult).toEqual({ toolCallId: 'd1', toolName: 'db.list_sessions', content: 'TEST one', isError: false })
+    expect(post[1]?.toolResult).toEqual({ toolCallId: 'd2', toolName: 'db.list_sessions', content: 'TEST two', isError: true })
+    expect(result.toolOutcomes).toEqual([
+      { id: 'd1', name: 'db.list_sessions', state: 'done' },
+      { id: 'd2', name: 'db.list_sessions', state: 'failed' },
+    ])
+  })
+
+  it('returns drained calls in execution order', async () => {
+    const built = drainHarness(async () => ({ content: 'TEST ok' }))
+    const result = await runKarbotTurn(built.options as never)
+    expect(result.toolCalls).toEqual(drainCalls)
+  })
+
+  it('halts with the full recovery identity when a drained call is uncertain', async () => {
+    const built = drainHarness(async () => ({ content: 'TEST lost', isError: true, recovery: { operationId: 'TEST drain op', authorityId: 'TEST outcome authority', reason: 'TEST uncertain drain' } }))
+    const result = await runKarbotTurn(built.options as never)
+    expect(built.provider.calls).toHaveLength(0)
+    expect(result.recoveryHalt).toEqual([
+      { authorityId: 'TEST outcome authority', operationId: 'TEST drain op', call: drainCalls[0], serializedCall: JSON.stringify(drainCalls[0]), reason: 'TEST uncertain drain' },
+      { authorityId: 'TEST outcome authority', operationId: 'TEST drain op', call: drainCalls[1], serializedCall: JSON.stringify(drainCalls[1]), reason: 'TEST uncertain drain' },
+    ])
+  })
+})
