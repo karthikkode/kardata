@@ -37,6 +37,11 @@ export interface ContextChange {
   fileRef: { fileId: string; hash: string; filename: string; ords: number[] } | null
 }
 export interface ThreadContext { pendingResponse?: { round: number }; task?: string; sourceRefs?: ContextFileRef[]; contextBlocked?: string; pendingOperations?: Array<{ operationId: string; toolName: string; callId: string; reason: string }>; threadKey: string; notes: string; summary: string; coveredSeq: number; version: number; usage?: { inputTokens: number; budget: number; window: number; method: 'exact' | 'estimated' } }
+/** One global transaction at a time behind the durable-stream lock
+ * (commit order must match sequence order). Never nest: a nested call on
+ * a second client waits for the outer commit on the stream lock while the
+ * outer waits client-side for it — a cycle the deadlock detector cannot
+ * see, so it hangs instead of failing. */
 export async function workspaceTransaction<T>(db: TransactableDb, key: string, fn: (tx: Db) => Promise<T>): Promise<T> {
   checked(Id, key)
   const client = await db.connect()
