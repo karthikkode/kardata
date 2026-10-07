@@ -299,9 +299,13 @@ describe.skipIf(!LIVE)('fleet load runs (N subagents, real outputs) [F:backend.a
   }, 2_760_000)
 
   // Coverage instrumentation slows the serial 1000-child finish loop
-  // past 26 min (children done at ~1430 s, 1000/1000). The ceiling
-  // matches the hundred leg; the leg's own phase timeouts are unchanged.
+  // past 26 min (children done at ~1430 s, 1000/1000), so only then
+  // does the ceiling rise to the hundred leg's 2.76M; every other mode
+  // keeps 26 min. __coverage__ is set by any instrumented import,
+  // which is exactly the slowdown's cause (npm script or Stryker).
+  const thousandTimeoutMs =
+    typeof (globalThis as { __coverage__?: unknown }).__coverage__ === 'undefined' ? 1_560_000 : 2_760_000
   it('runs 1000 subagents to indexed discovery artifacts', async () => {
     await runLeg({ leg: 'thousand', children: 1000, stage: 'Deep research', timeoutMs: 1_500_000 })
-  }, 2_760_000)
+  }, thousandTimeoutMs)
 })
