@@ -2,6 +2,7 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "ignore": ["var/**", "**/test-results/**", "**/coverage/**", "**/dist/**"],
   "ignoreBinaries": ["prlimit"],
+  "ignoreUnresolved": ["tests/backend/db-setup.ts"],
   "workspaces": {
     ".": {
       "entry": ["scripts/*.mjs", "deployment/scripts/*.mjs", "tests/**/*.ts"],

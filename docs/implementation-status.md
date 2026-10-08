@@ -3939,3 +3939,11 @@ code/table scroll regions focusable). Left red, diagnosed in
 `documentation/plans/p2-fix-loop-1.md`: color-contrast (token call),
 aria-children (menu), focus-indicator ×9, screenshot drift, factory.ts
 typecheck (D4). Full report: `documentation/plans/p2-fix-loop-1.md`.
+
+## 2026-10-08 — knip globalSetup false positive ignored (fv4)
+`quality:knip` failed only with TEST_DATABASE_URL set: knip resolves the
+vitest `globalSetup` path relative to the config file while vitest
+resolves it relative to the config `root`, so the DB branch's
+`tests/backend/db-setup.ts` reported unresolved. Latent (no DB-env
+verify run ever reached quality before); narrowed to one
+`ignoreUnresolved` entry, vitest resolution proven by every DB run.
