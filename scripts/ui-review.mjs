@@ -1,8 +1,10 @@
-// npm run ui:review [-- --changed[=BASE]]: the matrix in screenshot mode.
+// npm run ui:review [-- --changed[=BASE] --workers=N]: the matrix in screenshot mode.
 // Cleans frontend/test-results/ui-review, runs the matrix specs with
 // MATRIX_SHOTS=1, assembles manifest.json from the worker-safe .jsonl.
 // --changed limits the run to the matrix specs of components touched by
 // the branch diff against BASE (default main) plus uncommitted files.
+// Extra flags (e.g. --workers=2 for FD-limited boxes) pass through to
+// the playwright spawn; the config default (8) wedges loaded boxes.
 import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -75,7 +77,8 @@ function main() {
   }
   rmSync(SHOTS, { recursive: true, force: true })
   mkdirSync(SHOTS, { recursive: true })
-  const run = spawnSync('npx', ['playwright', 'test', ...filters], {
+  const extra = process.argv.slice(2).filter((arg) => arg !== '--changed' && !arg.startsWith('--changed='))
+  const run = spawnSync('npx', ['playwright', 'test', ...filters, ...extra], {
     cwd: join(ROOT, 'frontend'),
     env: { ...process.env, MATRIX_SHOTS: '1' },
     stdio: 'inherit',
