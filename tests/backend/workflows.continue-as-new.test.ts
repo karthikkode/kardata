@@ -87,6 +87,28 @@ async function waitFor(condition: () => Promise<boolean>, timeoutMs: number, wha
   }
 }
 
+// fetchHistory has no SDK-side deadline: a stalled Temporal call burns
+// the whole test budget with zero diagnostics (fv4 01 attempt 16 hung
+// 176 s here while the thousand-leg storm shared :7233). Bound every
+// history pull so a stall fails fast with the phase named.
+async function fetchHistoryBounded<T>(
+  handle: { fetchHistory: () => Promise<T> },
+  what: string,
+  timeoutMs = 30_000,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      handle.fetchHistory(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`timed out waiting for ${what}`)), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
+  }
+}
+
 describe.skipIf(!ENABLED)('continue-as-new (P4.2.4) [F:backend.activity.turn.appendEventActivity] [F:backend.activity.turn.karbotTurnActivity] [F:backend.workflow.can.CAN_DEFAULT_BYTE_LIMIT] [F:backend.workflow.can.CAN_DEFAULT_EVENT_LIMIT] [F:backend.workflow.can.shouldContinueAsNew] [F:backend.workflow.run.sessionRun] [F:backend.workflow.subagents.delegateParent] [F:backend.activity.coordinator.prepareExecutionIntentActivity] [F:backend.activity.coordinator.settlePreparedExecutionIntentActivity] [F:backend.activity.execution_epochs.originalRecoveryReadyActivity] [F:backend.activity.execution_epochs.prepareExecutionIntentActivity] [F:backend.activity.execution_epochs.settlePreparedExecutionIntentActivity] [F:backend.workflow.epoch_start.withPreparedExecution] [F:backend.workflow.inbox_queue.normalizeQueueItem] [F:backend.workflow.inbox_queue.queueItemsQuery] [F:backend.workflow.inbox_queue.queueRemoveUpdate] [F:backend.workflow.inbox_queue.queueReorderUpdate] [F:backend.workflow.resumable_turn.resumableTurn] [F:backend.workflow.run.DEFAULT_IDLE_TIMEOUT_MS] [F:backend.workflow.run.cancelSignal] [F:backend.workflow.run.pauseSignal] [F:backend.workflow.run.resumeSignal] [F:backend.workflow.run.sendSignal] [F:backend.workflow.run.skillSignal] [F:backend.workflow.run.stateQuery] [F:backend.workflow.run.steerSignal] [F:backend.workflow.subagents.DEFAULT_CHILD_FINISH_TIMEOUT_MS] [F:backend.workflow.subagents.DEFAULT_MAX_IN_FLIGHT_CHILDREN] [F:backend.workflow.subagents.DEFAULT_PARENT_IDLE_TIMEOUT_MS] [F:backend.workflow.subagents.childCanDelegateQuery] [F:backend.workflow.subagents.childCancelSignal] [F:backend.workflow.subagents.childFinishSignal] [F:backend.workflow.subagents.childMessageSignal] [F:backend.workflow.subagents.childRedirectSignal] [F:backend.workflow.subagents.childStateQuery] [F:backend.workflow.subagents.childSummaryQuery] [F:backend.workflow.subagents.parentDelegateSignal] [F:backend.workflow.subagents.parentFinishSignal] [F:backend.workflow.subagents.parentNoteDoneSignal] [F:backend.workflow.subagents.parentRecoverSignal] [F:backend.workflow.subagents.parentStateQuery] [F:backend.workflow.subagents.parentSteerSignal] [F:backend.workflow.inbox_queue.registerQueueHandlers] [F:backend.workflow.subagents.DEFAULT_MAX_QUEUED_CHILDREN] [F:db.index.readPartition] [F:db.events.readPartition] [F:db.context_files.assertThreadFileContext] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.errors.WorkspaceError] [F:db.execution_epochs.readActiveExecutionIdentity] [F:db.index.Db] [F:db.workspace.WorkspaceError] [F:db.workspace_threads.recordContextMeasurement] [F:db.workspace.requireThread]', () => {
   let connection: NativeConnection
   let client: WorkflowClient
@@ -159,7 +181,13 @@ describe.skipIf(!ENABLED)('continue-as-new (P4.2.4) [F:backend.activity.turn.app
     let continued: string | undefined
     let first: string | undefined
     await waitFor(async () => {
-      const current = (await client.workflow.getHandle(workflowId).fetchHistory()) as LooseHistory
+      // A stalled pull degrades to one more poll, not a dead test: the
+      // waitFor budget still bounds the whole phase.
+      const current = (await fetchHistoryBounded(
+        client.workflow.getHandle(workflowId),
+        `${workflowId} continue poll`,
+      ).catch(() => undefined)) as LooseHistory | undefined
+      if (current === undefined) return false
       const started = startedOf(current)
       continued = started.continued
       first = started.first
@@ -167,7 +195,10 @@ describe.skipIf(!ENABLED)('continue-as-new (P4.2.4) [F:backend.activity.turn.app
     }, 60_000, `${workflowId} to continue`)
     let previous = continued as string
     for (let links = 0; links < 50; links += 1) {
-      const history = (await client.workflow.getHandle(workflowId, previous).fetchHistory()) as LooseHistory
+      const history = (await fetchHistoryBounded(
+        client.workflow.getHandle(workflowId, previous),
+        `${workflowId} chain link`,
+      )) as LooseHistory
       const started = startedOf(history)
       expect(started.first).toBe(first)
       if (started.continued === undefined) {
@@ -505,7 +536,7 @@ describe.skipIf(!ENABLED)('continue-as-new (P4.2.4) [F:backend.activity.turn.app
     expect(summary.goal).toBe('TEST new can goal')
     // Pause lands mid-turn: the run continues while paused with the fresh
     // message queued, and the gate holds until resume.
-    const before = startedOf((await child().fetchHistory()) as LooseHistory).continued
+    const before = startedOf((await fetchHistoryBounded(child(), 'child pre-pause history')) as LooseHistory).continued
     await child().signal('childMessage', 'm3')
     // Same CAN-hop race as the session phase: the user event proves 'm3'
     // left the inbox, so the pause lands mid-turn (1.5 s dwell) instead of
@@ -518,7 +549,7 @@ describe.skipIf(!ENABLED)('continue-as-new (P4.2.4) [F:backend.activity.turn.app
       const snapshot = (await child().query('childState')) as { queueDepth: number }
       return snapshot.queueDepth === 1 && (await agentReplies(childPartition)) === 4
     }, 60_000, 'paused run to hold one queued')
-    const after = startedOf((await child().fetchHistory()) as LooseHistory).continued
+    const after = startedOf((await fetchHistoryBounded(child(), 'child post-pause history')) as LooseHistory).continued
     expect(after).toBeDefined()
     expect(after).not.toBe(before)
     await child().signal('childResume')
@@ -548,10 +579,12 @@ describe.skipIf(!ENABLED)('continue-as-new (P4.2.4) [F:backend.activity.turn.app
     expect(replayTargets).toHaveLength(6)
     const workflowBundle = await bundleWorkflowCode({ workflowsPath: WORKFLOWS_PATH })
     for (const target of replayTargets) {
-      const history =
+      const history = await fetchHistoryBounded(
         target.runId === undefined
-          ? await client.workflow.getHandle(target.workflowId).fetchHistory()
-          : await client.workflow.getHandle(target.workflowId, target.runId).fetchHistory()
+          ? client.workflow.getHandle(target.workflowId)
+          : client.workflow.getHandle(target.workflowId, target.runId),
+        `${target.workflowId} replay history`,
+      )
       await Worker.runReplayHistory({ workflowBundle }, history, target.workflowId)
     }
   }, 120_000)

@@ -167,6 +167,9 @@ like the routes) seeds 1000 companies plus 12 documents.
 - Workflow-state assertions poll the query to its expected value: a DB
   event proves the activity completed, not that the workflow processed
   the completion (one WFT later); an immediate query reads stale state.
+- History pulls carry their own deadline (`fetchHistoryBounded`): the
+  SDK call never times out on its own, so a stall burns the test
+  budget with zero diagnostics instead of failing with the phase named.
 - Fleet load (`tests/backend/workflows.fleet-load.test.ts`, needs both
   Temporal flag and `TEST_DATABASE_URL`): 10/50/100/1000 subagents
   against a throwaway database plus an in-process backend over real
