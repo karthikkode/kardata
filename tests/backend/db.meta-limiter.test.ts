@@ -156,7 +156,9 @@ describe.skipIf(!TEST_DATABASE_URL)('meta permit limiter [F:backend.activity.tur
     } finally {
       await release()
     }
-  })
+    // Explicit budget like execution-epochs (ca7d784): ~1.2s of sleeps
+    // plus DB rounds on the 5s default starved once under parallel load.
+  }, 15_000)
 
   it('a small-max replica never steals expired slots past its max', async () => {
     await ensureMetaPermits(pool, 8)
