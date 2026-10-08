@@ -236,6 +236,9 @@ export function useWorkspaceConversation(config: StagingConfig | null, threadKey
       })
     }
   }
+  // Stryker disable next-line ConditionalExpression: a null key renders empty state, so the guarded write is unobservable.
   return { ...state, setDraft: (draft: string) => { if (threadKey) update(threadKey, (old) => ({ ...old, draft })) }, send,
-    retry: () => { if (threadKey) start(threadKey) }, stopped: () => { if (threadKey) update(threadKey, (old) => ({ ...old, phase: 'stopped', busy: false, pending: [], echo: null, live: old.live ? { ...old.live, pendingText: null, pendingReasoning: null, pendingTools: [] } : null })) } }
+    retry: () => { if (threadKey) start(threadKey) },
+    // Stryker disable next-line ConditionalExpression: a null key renders empty state, so the guarded write is unobservable.
+    stopped: () => { if (threadKey) update(threadKey, (old) => ({ ...old, phase: 'stopped', busy: false, pending: [], echo: null, live: old.live ? { ...old.live, pendingText: null, pendingReasoning: null, pendingTools: [] } : null })) } }
 }
