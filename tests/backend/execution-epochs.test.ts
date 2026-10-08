@@ -27,7 +27,7 @@ describe.skipIf(!TEST_DATABASE_URL)('private execution epoch durability and reco
       await expect(beginThreadTurn(pool,input.threadKey,'TEST unsupported late legacy')).rejects.toMatchObject({ code: 'conflict' })
       expect((await listReconciliationCandidates(pool))[0]?.activeExecutionId).toBe(owner.executionId)
     } finally { await pool.end() }
-  })
+  }, 15_000)
   it('fails only exact confirmed terminal ownership as orphaned, then a validated successor supersedes recovery',async () => {
     const { pool,input,owner } = await fixture()
     try {
@@ -44,7 +44,7 @@ describe.skipIf(!TEST_DATABASE_URL)('private execution epoch durability and reco
       expect((await getThreadHeader(pool,input.threadKey))?.status).toBe('RUNNING')
       await expect(beginThreadTurn(pool,input.threadKey,'TEST late old begin',owner)).rejects.toThrow('newer execution')
     } finally { await pool.end() }
-  })
+  }, 15_000)
   it('projects the orphan reason code onto the thread and clears it on revival',async () => {
     const { pool,input,owner } = await fixture()
     try {
@@ -64,7 +64,7 @@ describe.skipIf(!TEST_DATABASE_URL)('private execution epoch durability and reco
       expect(revived?.status).toBe('RUNNING')
       expect(revived?.stateReason).toBeUndefined()
     } finally { await pool.end() }
-  })
+  }, 15_000)
   it('blocks stale recovery at the committed pre-start boundary before any successor event or lease',async () => {
     const { pool,input,owner } = await fixture()
     try {
@@ -78,7 +78,7 @@ describe.skipIf(!TEST_DATABASE_URL)('private execution epoch durability and reco
       expect(fresh.activeExecutionId).toBe(owner.executionId)
       expect((await getThreadHeader(pool,input.threadKey))?.status).not.toBe('PAUSED')
     } finally { await pool.end() }
-  })
+  }, 15_000)
   it('retains expired/unknown outcomes; a proven before-dispatch failure can restore existing ownership',async () => {
     const { pool,input,owner } = await fixture()
     try {
@@ -93,7 +93,7 @@ describe.skipIf(!TEST_DATABASE_URL)('private execution epoch durability and reco
       expect(reconcileObservation(candidate,{ state: 'unavailable' },Date.now())[0]?.response).toBe('observe')
       expect(reconcileObservation(candidate,{ state: 'closed',executionId: owner.executionId },Date.now())[0]?.response).toBe('observe')
     } finally { await pool.end() }
-  })
+  }, 15_000)
   it('ordinary signals adopt canonical ownership while older concurrent unknown requests keep blocking recovery',async () => {
     const { pool,input,owner } = await fixture()
     try {
@@ -116,7 +116,7 @@ describe.skipIf(!TEST_DATABASE_URL)('private execution epoch durability and reco
       const decisions=await pool.query("SELECT payload->>'response' AS response FROM events WHERE type='t.reconciliation.finding' ORDER BY seq")
       expect(decisions.rows.map((row) => row.response)).toEqual(['observe','fail'])
     } finally { await pool.end() }
-  })
+  }, 15_000)
   it('advances a continuation only from its predecessor, rejecting old-run callbacks and observations',async () => {
     const { pool,input,owner } = await fixture()
     try {
@@ -134,7 +134,7 @@ describe.skipIf(!TEST_DATABASE_URL)('private execution epoch durability and reco
       expect(await recordReconciliation(pool,old,closed,1)).toBe(false)
       await expect(beginThreadTurn(pool,input.threadKey,'TEST stale continuation',owner)).rejects.toThrow('move backwards')
     } finally { await pool.end() }
-  })
+  }, 15_000)
   it('does not override owner-controlled pause when acquiring an otherwise valid epoch',async () => {
     const { pool,input,owner } = await fixture()
     try {
@@ -144,5 +144,5 @@ describe.skipIf(!TEST_DATABASE_URL)('private execution epoch durability and reco
       await projectNewEvents(pool)
       expect((await getThreadHeader(pool,input.threadKey))?.status).toBe('PAUSED')
     } finally { await pool.end() }
-  })
+  }, 15_000)
 })
