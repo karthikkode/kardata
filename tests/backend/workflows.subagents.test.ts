@@ -477,6 +477,13 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
       return completed === 60
     }, 240_000, 'all 60 children complete')
     expect(await launched()).toBe(60)
+    // The 60th completion event is written by the closing child; the
+    // parent marks it finished one WFT later when noteDone lands. Poll
+    // workflow state so the query cannot read the pre-flip list (59).
+    await waitFor(async () => {
+      const polled = (await parent.query('parentState')) as { children: Array<{ childId: string; status: string }> }
+      return polled.children.filter((child) => child.status === 'finished').length === 60
+    }, 30_000, 'parent to mark all 60 finished')
     const state = (await parent.query('parentState')) as { children: Array<{ childId: string; status: string }>; queued: string[] }
     expect(state.queued).toEqual([])
     expect(state.children.filter((child) => child.status === 'finished')).toHaveLength(60)
