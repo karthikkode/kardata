@@ -523,7 +523,7 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
       streamClosed = true
       // Stryker disable next-line ConditionalExpression, EqualityOperator, CallExpression: a stray timer touches only dead round-scope bindings and a settled race
       if (timer !== undefined) clearTimeout(timer)
-      // Stryker disable next-line ConditionalExpression, StringLiteral: post-completion removal is hygiene on a round-scoped signal
+      // Stryker disable next-line ConditionalExpression, StringLiteral, CallExpression: post-completion removal is hygiene on a round-scoped signal
       if (onAbort) roundSignal.removeEventListener('abort', onAbort)
       roundController.abort()
       // Best-effort: a release failure must never fail a turn the vendor
@@ -750,8 +750,7 @@ function firstJsonPayload(text: string): unknown {
     if (!payload || payload === '[DONE]') continue
     try {
       return JSON.parse(payload)
-    // Stryker disable next-line BlockStatement: catch-continue is identical to loop-end fallthrough
-    } catch {
+    } /* Stryker disable next-line BlockStatement: catch-continue is identical to loop-end fallthrough */ catch {
       continue
     }
   }
