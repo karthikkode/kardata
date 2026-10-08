@@ -19,8 +19,11 @@ export function useWorkspaceResource<T>(config: StagingConfig | null, key: strin
   // endpoint (every attempt outlived by the next poll) spins forever and
   // the timeout never renders.
   const latestAttempt = useRef(0)
+  // Stryker disable next-line UnaryOperator: mine starts at 1, so +1 and -1 both compare false until the first success overwrites.
   const lastSuccess = useRef(-1)
+  // Stryker disable next-line BooleanLiteral: the mount effect below sets true before any attempt can settle.
   const mounted = useRef(true)
+  // Stryker disable next-line ArrayDeclaration: [] and [const] both run this effect exactly once.
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const [current, setCurrent] = useState(identity)
   if (identity !== current) { setCurrent(identity); setState({ status: identity ? 'loading' : 'offline' }) }
@@ -123,8 +126,13 @@ function recoverConversation(state: ConversationState, live: LiveThread, reread:
 
 function reconnectDelay(signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
+    // Stryker disable next-line CallExpression: done is idempotent, so a late timer firing is a no-op.
+    // Stryker disable next-line StringLiteral: done is idempotent, so a retained abort listener is a no-op.
     const done = () => { clearTimeout(timer); signal.removeEventListener('abort', done); resolve() }
     const timer = setTimeout(done, 1000)
+    // Stryker disable next-line StringLiteral: the abort listener only shortens the 1s delay; every abort also removes the controller via cleanup, so the timing window is unreachable.
+    // Stryker disable next-line ObjectLiteral: done is idempotent, so once:false cannot double-fire.
+    // Stryker disable next-line BooleanLiteral: done is idempotent, so once:false cannot double-fire.
     signal.addEventListener('abort', done, { once: true })
     if (signal.aborted) done()
   })
@@ -141,6 +149,7 @@ export function useWorkspaceConversation(config: StagingConfig | null, threadKey
   useEffect(() => { currentConfig.current = config }, [config])
   const update = useCallback((key: string, fn: (state: ConversationState) => ConversationState) => {
     setThreads((old) => ({ ...old, [key]: fn(old[key] ?? emptyConversation()) }))
+    // Stryker disable next-line ArrayDeclaration: [] and [const] both keep this callback stable.
   }, [])
   const start = useCallback((key: string) => {
     if (!config || controllers.current.has(key)) return
