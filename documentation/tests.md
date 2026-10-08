@@ -19,7 +19,10 @@ those files are covered functionally by the temporal tier instead.
 Backend coverage needs TEST_DATABASE_URL + Temporal; without a DB it
 fails unless COVERAGE_SKIP_BACKEND=1 skips it explicitly (the gate then
 runs in verify:full / CI integration). Mutation (>= 70% per core module)
-is a local gate via `npm run test:mutation`.
+is a local gate via `npm run test:mutation`. The vitest-runner separator
+patch in `patches/` (applied by postinstall) is load-bearing for that
+gate under vitest 5; the guard at the head of `test:mutation` fails
+loud if it is ever missing.
 
 ## The one rule
 

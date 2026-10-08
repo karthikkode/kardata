@@ -3,7 +3,7 @@
   "testRunner": "vitest",
   "coverageAnalysis": "all",
   "vitest": {
-    "configFile": "agents/vitest.config.ts",
+    "configFile": "./agents/vitest.config.ts",
     "related": false
   },
   "mutate": [

@@ -9,6 +9,7 @@
     "backend"
   ],
   "scripts": {
+    "postinstall": "patch-package",
     "test": "npm run test --workspaces",
     "test:e2e": "npm run test:e2e -w frontend",
     "test:fault": "node -e \"for (const k of ['TEST_DATABASE_URL','TOXIPROXY_URL']) if (!process.env[k]) { console.error('test:fault needs ' + k); process.exit(2) }\" && KARDATA_TEMPORAL_TEST=1 npm test -w @kardata/backend -- tests/fault",
@@ -27,7 +28,7 @@
     "quality:dup": "jscpd agents/src && jscpd backend/src && jscpd frontend/src",
     "quality:deps": "cd agents && npx --no-install depcruise --config ../.dependency-cruiser.cjs --ts-config tsconfig.json src && cd ../backend && npx --no-install depcruise --config ../.dependency-cruiser.cjs --ts-config tsconfig.json src ../scripts ../deployment/scripts && cd ../frontend && npx --no-install depcruise --config ../.dependency-cruiser.cjs --ts-config tsconfig.app.json src",
     "quality": "npm run quality:knip && npm run quality:dup && npm run quality:deps",
-    "test:mutation": "stryker run stryker.agents.json -m agents/src/turnRunner.ts && stryker run stryker.backend.json -m backend/src/db/workspace.ts && stryker run stryker.backend.json -m backend/src/mcp/tools.ts && stryker run stryker.backend.json -m backend/src/temporal/activities/turn.ts && stryker run stryker.frontend.json -m frontend/src/data/useWorkspace.ts",
+    "test:mutation": "node scripts/assert-stryker-runner.mjs && stryker run stryker.agents.json -m agents/src/turnRunner.ts && stryker run stryker.backend.json -m backend/src/db/workspace.ts && stryker run stryker.backend.json -m backend/src/mcp/tools.ts && stryker run stryker.backend.json -m backend/src/temporal/activities/turn.ts && stryker run stryker.frontend.json -m frontend/src/data/useWorkspace.ts",
     "verify": "npm run pr:verify && npm run coverage && npm run quality",
     "verify:full": "node -e \"if(!process.env.TEST_DATABASE_URL){console.error('verify:full needs TEST_DATABASE_URL');process.exit(1)}\" && npm run verify && npm test -w @kardata/backend && KARDATA_TEMPORAL_TEST=1 npm test -w @kardata/backend && npm run test:e2e -w frontend",
     "hooks:install": "git config core.hooksPath scripts/hooks && echo hooks installed from scripts/hooks",
@@ -51,6 +52,7 @@
     "dependency-cruiser": "^18.5.0",
     "jscpd": "^5.4.0",
     "knip": "^6.39.0",
+    "patch-package": "^8.0.0",
     "yaml": "^2.9.1"
   }
 }
