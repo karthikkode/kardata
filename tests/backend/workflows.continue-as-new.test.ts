@@ -523,6 +523,13 @@ describe.skipIf(!ENABLED)('continue-as-new (P4.2.4) [F:backend.activity.turn.app
     expect(after).not.toBe(before)
     await child().signal('childResume')
     await waitFor(async () => (await agentReplies(childPartition)) === 5, 60_000, 'queued message after resume')
+    // The fifth reply event lands in the DB when the activity completes;
+    // the workflow's counter increments one WFT later. Poll workflow
+    // state so the query cannot observe the pre-increment value (9).
+    await waitFor(async () => {
+      const polled = (await child().query('childSummary')) as { threadLength: number }
+      return polled.threadLength === 10
+    }, 30_000, 'counter to reach 10')
     const final = (await child().query('childSummary')) as { goal: string; threadLength: number }
     expect(final.goal).toBe('TEST new can goal')
     // Five turns (m1, correction, m2, m3, m4) carried the counter across.
