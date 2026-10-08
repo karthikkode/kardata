@@ -32,7 +32,9 @@ describe.skipIf(!TEST_DATABASE_URL)('execution record durable ownership [F:db.ex
       expect(events[0]?.payload).not.toHaveProperty('data')
       expect(await readExecutionRecord(archive, session.id, input.ref)).toEqual(record)
     } finally { await pool.end() }
-  })
+    // Explicit budget like execution-epochs (ca7d784): first test pays
+    // fixture + connection setup, which starved past 5s under load.
+  }, 15_000)
   it('rejects stale attempts after replacement without discarding previous records', async () => {
     const { pool, session, input } = await fixture()
     try {
