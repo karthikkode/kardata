@@ -279,7 +279,7 @@ describe('owned primitives', () => {
     render(<Harness />)
     expect(screen.getByRole('combobox', { name: 'Status: All' })).toHaveTextContent('Status: All')
     await user.click(screen.getByRole('combobox', { name: 'Status: All' }))
-    await user.click(screen.getByRole('option', { name: 'Failed' }))
+    await user.click(await screen.findByRole('option', { name: 'Failed' }))
     expect(screen.getByRole('combobox', { name: 'Status: Failed' })).toHaveTextContent('Status: Failed')
   })
 })
