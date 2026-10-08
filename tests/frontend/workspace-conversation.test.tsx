@@ -352,9 +352,12 @@ describe('workspace conversation lifecycle', () => {
     await waitFor(() => expect(result.current.status).toBe('ready'))
     act(() => result.current.setDraft('Before recovery'))
     await act(async () => { await result.current.send() })
-    const failure = { ...snapshot([]), error: new StagingApiError(0, 'stream_idle', 'Silent stream') }
+    const failure = { ...snapshot([]), pendingText: 'stale…', pendingTools: [{ runKey: 'r1', id: 't1', name: 'search', state: 'running' }], error: new StagingApiError(0, 'stream_idle', 'Silent stream') }
     await act(async () => { stream.push(failure); stream.push(failure); stream.push(failure) })
     await waitFor(() => expect(result.current.error).toContain('may still be running'))
+    expect(result.current.live?.pendingText).toBeNull()
+    expect(result.current.live?.pendingReasoning).toBeNull()
+    expect(result.current.live?.pendingTools).toEqual([])
     act(() => result.current.setDraft('After recovery'))
     await act(async () => { await result.current.send() })
     await waitFor(() => expect(mocked.follow).toHaveBeenCalledTimes(2))
