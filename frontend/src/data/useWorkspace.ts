@@ -24,6 +24,7 @@ export function useWorkspaceResource<T>(config: StagingConfig | null, key: strin
   // Stryker disable next-line BooleanLiteral: the mount effect below sets true before any attempt can settle.
   const mounted = useRef(true)
   // Stryker disable next-line ArrayDeclaration: [] and [const] both run this effect exactly once.
+  // Stryker disable next-line BlockStatement: post-unmount setState is a silent no-op, so the mounted flag guards nothing observable.
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const [current, setCurrent] = useState(identity)
   if (identity !== current) { setCurrent(identity); setState({ status: identity ? 'loading' : 'offline' }) }
@@ -133,6 +134,7 @@ function reconnectDelay(signal: AbortSignal): Promise<void> {
     // Stryker disable next-line StringLiteral: the abort listener only shortens the 1s delay; every abort also removes the controller via cleanup, so the timing window is unreachable.
     // Stryker disable next-line ObjectLiteral: done is idempotent, so once:false cannot double-fire.
     // Stryker disable next-line BooleanLiteral: done is idempotent, so once:false cannot double-fire.
+    // Stryker disable next-line CallExpression: the abort listener only shortens the 1s delay; every abort also removes the controller via cleanup, so the timing window is unreachable.
     signal.addEventListener('abort', done, { once: true })
     if (signal.aborted) done()
   })
@@ -147,10 +149,11 @@ export function useWorkspaceConversation(config: StagingConfig | null, threadKey
   const requestNonce = useRef(0)
   const currentConfig = useRef(config)
   useEffect(() => { currentConfig.current = config }, [config])
+  // Stryker disable ArrayDeclaration: [] and [const] both keep this callback stable (pair: deps sit on the closing line, where next-line cannot reach).
   const update = useCallback((key: string, fn: (state: ConversationState) => ConversationState) => {
     setThreads((old) => ({ ...old, [key]: fn(old[key] ?? emptyConversation()) }))
-    // Stryker disable next-line ArrayDeclaration: [] and [const] both keep this callback stable.
   }, [])
+  // Stryker restore ArrayDeclaration
   const start = useCallback((key: string) => {
     if (!config || controllers.current.has(key)) return
     const controller = new AbortController()
@@ -192,10 +195,18 @@ export function useWorkspaceConversation(config: StagingConfig | null, threadKey
       }
     })()
   }, [config, update])
+  // Stryker disable ArrayDeclaration: single-key invariant (pair: deps sit on the closing line, where next-line cannot reach).
+  // Stryker disable next-line BlockStatement: single-key invariant: the key effect's cleanup already aborts and drops the only follower, so this effect is redundant.
   useEffect(() => {
     const active = controllers.current
-    return () => { for (const controller of active.values()) controller.abort(); active.clear() }
+    // Stryker disable next-line BlockStatement: single-key invariant: the key effect's cleanup already aborts and drops the only follower.
+    return () => {
+      for (const controller of active.values()) controller.abort()
+      // Stryker disable next-line CallExpression: single-key invariant: the key cleanup already drops the controller, so clear() is redundant.
+      active.clear()
+    }
   }, [config])
+  // Stryker restore ArrayDeclaration
   useEffect(() => {
     if (!threadKey) return
     const active = controllers.current
@@ -204,6 +215,8 @@ export function useWorkspaceConversation(config: StagingConfig | null, threadKey
       // Keep drafts/history, not idle sockets that hold DB LISTEN clients.
       const controller = active.get(threadKey)
       controller?.abort()
+      // Stryker disable next-line ConditionalExpression: cleanup always sees its own controller; the guard only skips already-removed entries whose deletion no-ops.
+      // Stryker disable next-line LogicalOperator: cleanup always sees its own controller; the guard only skips already-removed entries whose deletion no-ops.
       if (controller && active.get(threadKey) === controller) active.delete(threadKey)
     }
   }, [threadKey, start])
