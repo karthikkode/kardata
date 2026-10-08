@@ -499,6 +499,11 @@ count template (`countText`), `matrix/counts.mjs` pins the expected numbers
 `longtextSnippets` in the factory. Cases without rendered rows
 (SectorLanding, Markdown, ChatPanel, ModelsPanel) assert texts or anchors
 only; the omit set is pinned in `tests/frontend/matrix-counts.test.ts`.
+Axe runs with all animations/transitions frozen: enter effects (strip
+stagger, stream fade-ins) can start after the motion wait, sampling
+text mid-fade at a load-dependent opacity — a contrast lottery on
+tokens that pass settled. The freeze measures designed end-state
+colors and stabilizes the screenshot after.
 
 ## Failure handling
 

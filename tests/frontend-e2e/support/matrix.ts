@@ -299,6 +299,14 @@ async function assertFocusVisible(page: Page, subject: Locator): Promise<void> {
 }
 
 async function runAxe(page: Page): Promise<void> {
+  // Freeze motion before measuring: enter animations (the strip's
+  // staggered rowEnter, stream-driven fade-ins) can start after the
+  // motion wait — pending/delayed finite animations are excluded from
+  // it — and axe then samples text mid-fade at a load-dependent
+  // opacity: a color-contrast lottery on tokens that pass settled
+  // (subtle 6.0, warning 5.0 on their surfaces). Settled colors are
+  // what users see; the freeze also stabilizes the screenshot after.
+  await page.addStyleTag({ content: '*,*::before,*::after{animation:none!important;transition:none!important}' })
   const results = await new AxeBuilder({ page }).analyze()
   const serious = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(serious.map((v) => `${v.id}: ${v.nodes.length} nodes`), 'serious axe violations').toEqual([])
