@@ -144,6 +144,17 @@ describe('useWorkspaceResource lifecycle', () => {
     await waitFor(() => expect(view.result.current.data).toBe('fresh'))
     view.unmount()
   })
+  it('ignores a success that lands after config removal', async () => {
+    const stale = deferred<string>()
+    const load = vi.fn().mockResolvedValueOnce(stale.promise)
+    const view = renderHook(({ active }: { active: StagingConfig | null }) => useWorkspaceResource(active, 'key', load), { initialProps: { active: config as StagingConfig | null } })
+    view.rerender({ active: null })
+    expect(view.result.current.status).toBe('offline')
+    await act(async () => { stale.resolve('stale-data') })
+    expect(view.result.current.status).toBe('offline')
+    expect(view.result.current.data).toBeUndefined()
+    view.unmount()
+  })
   it('honors a changed load function', async () => {
     const first = vi.fn(async () => 'v1')
     const second = vi.fn(async () => 'v2')
