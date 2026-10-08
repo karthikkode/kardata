@@ -30,7 +30,9 @@ describe.skipIf(!TEST_DATABASE_URL)('sealed native test templates', () => {
     // Template migration setup belongs outside feature test clocks.
     await Promise.all([prepareTestTemplate(concurrentRunId), prepareTestTemplate(concurrentRunId)])
     await prepareTestTemplate(contaminationRunId)
-  })
+    // Explicit budget like execution-epochs (ca7d784): solo ~1s, but two
+    // bootstraps under parallel pg load starved past the 10s hook default.
+  }, 30_000)
   it('concurrent bootstrap publishes one empty sealed source; clones retain schema and isolate writes', async () => {
     const runId = concurrentRunId
     const identity = templateIdentity(runId)
