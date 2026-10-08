@@ -351,7 +351,9 @@ describe.skipIf(!ENABLED)('1000-agent soak (B5.6) [F:db.index.appendEvent] [F:db
     measured['fleetOutputTokens'] = expectedOut
     measured['fleetCostDollars'] = expectedCost
     measured['fleetSpendDollars'] = expectedCost
-  })
+    // Explicit budget like execution-epochs (ca7d784): solo ~1s, but the
+    // 5s default starved under parallel thousand-leg load in fv4 01.
+  }, 15_000)
 
   it('renders truthful fleet gauges at soak scale', async () => {
     const metrics = createHttpMetrics()
