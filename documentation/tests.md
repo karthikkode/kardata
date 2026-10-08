@@ -334,8 +334,11 @@ retrieval/provider bodies remain explicitly scripted fixtures.
 Live-DB backend suites run at two file workers against the established local
 100-connection budget. Databases remain independent. Within-file concurrent
 migrators, transaction contention and explicit stress tiers retain their original
-fan-out; no timeout/test assertion is relaxed. Unit-only file scheduling is
-unchanged.
+fan-out; no timing assertion is relaxed. The implicit vitest defaults are
+superseded for DB suites only (`testTimeout` 15s, `hookTimeout` 30s when
+`TEST_DATABASE_URL` is set): the 5s/10s defaults starved ~1s tests under
+parallel coverage load, while explicit per-test budgets override unchanged.
+Unit-only file scheduling and timeouts are unchanged.
 
 `TEST_DATABASE_URL=... npm test -w @kardata/backend -- mcp.operation-receipts.test.ts`
 uses an isolated database and actual HTTP/MCP dispatch to fail response-cache

@@ -25,8 +25,16 @@ export default defineConfig({
     exclude: ['**/node_modules/**', '**/dist/**', '**/var/**'],
     // Bound integration-file fan-out against the established 100-connection
     // Postgres budget. Explicit within-file contention/stress remains unchanged.
+    // DB-suite default budgets: vitest's 5s test / 10s hook defaults
+    // starve ~1s DB tests under parallel coverage load (9 instances in
+    // fv4 01: epochs, soak, limiter, records, template hook, file-jobs,
+    // threads x2, inspection hook — all solo-green). 15s/30s keeps 15x+
+    // headroom; explicit per-test budgets and timing assertions override
+    // and are untouched. Unit tiers keep the vitest defaults.
     ...(process.env['TEST_DATABASE_URL'] ? {
       maxWorkers: 2,
+      testTimeout: 15_000,
+      hookTimeout: 30_000,
       env: { KARDATA_TEST_DB_RUN_ID: randomUUID().replaceAll('-', ''), ...coverageEnv },
       globalSetup: ['tests/backend/db-setup.ts'],
     } : { env: { ...coverageEnv } }),
