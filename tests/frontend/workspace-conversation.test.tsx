@@ -27,6 +27,15 @@ function channel() {
   }
 }
 const snapshot = (messages: LiveThread['messages']): LiveThread => ({ messages, pendingText: null, pendingReasoning: null, pendingTools: [], error: null })
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (cause: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
 afterEach(() => { vi.clearAllMocks() })
 
 describe('workspace conversation lifecycle', () => {
@@ -207,6 +216,7 @@ describe('workspace conversation lifecycle', () => {
     await waitFor(() => expect(result.current.status).toBe('ready'))
     act(() => result.current.setDraft('Too late'))
     await act(async () => { await result.current.send(true) })
+    expect(result.current.phase).toBe('working')
     expect(result.current.pending).toHaveLength(0)
     expect(result.current.busy).toBe(false)
     expect(result.current.echo).toBeNull()
@@ -215,10 +225,11 @@ describe('workspace conversation lifecycle', () => {
     unmount()
   })
   it('surfaces a stream failure and drops the send queue', async () => {
-    mocked.history.mockResolvedValue([])
+    mocked.history.mockResolvedValue([{ seq: 1, kind: 'text', role: 'user', text: 'Kept' }])
     mocked.follow.mockImplementation(() => { throw new Error('stream broke') })
     const { result, unmount } = renderHook(() => useWorkspaceConversation(config, 'thread'))
     await waitFor(() => expect(result.current.error).toContain('stream broke'))
+    expect(result.current.messages).toHaveLength(1)
     expect(result.current.status).toBe('error')
     expect(result.current.busy).toBe(false)
     expect(result.current.pending).toHaveLength(0)
@@ -304,6 +315,7 @@ describe('workspace conversation lifecycle', () => {
     mocked.history.mockResolvedValue([])
     mocked.follow.mockImplementation((_config, _key, signal) => channel().read(signal))
     const { result, unmount } = renderHook(() => useWorkspaceConversation(config, null))
+    await act(async () => {})
     expect(mocked.follow).not.toHaveBeenCalled()
     expect(result.current.status).toBe('loading')
     unmount()
@@ -356,6 +368,7 @@ describe('workspace conversation lifecycle', () => {
     const failure = { ...snapshot([]), pendingText: 'stale…', pendingTools: [{ runKey: 'r1', id: 't1', name: 'search', state: 'running' }], error: new StagingApiError(0, 'stream_idle', 'Silent stream') }
     await act(async () => { stream.push(failure); stream.push(failure); stream.push(failure) })
     await waitFor(() => expect(result.current.error).toContain('may still be running'))
+    expect(result.current.phase).toBe('reconnecting')
     expect(result.current.live?.pendingText).toBeNull()
     expect(result.current.live?.pendingReasoning).toBeNull()
     expect(result.current.live?.pendingTools).toEqual([])
@@ -365,12 +378,14 @@ describe('workspace conversation lifecycle', () => {
     unmount()
   })
   it('ignores a superseded load when the key rotates mid-flight', async () => {
-    let resolveHistory: (value: unknown[]) => void = () => undefined
-    mocked.history.mockImplementation(() => new Promise((resolve) => { resolveHistory = resolve }))
+    const stale = deferred<unknown[]>()
+    const fresh = deferred<unknown[]>()
+    mocked.history.mockResolvedValueOnce(stale.promise).mockResolvedValueOnce(fresh.promise)
     mocked.follow.mockImplementation((_config, _key, signal) => channel().read(signal))
     const view = renderHook(({ key }) => useWorkspaceConversation(config, key), { initialProps: { key: 'first' } })
     view.rerender({ key: 'second' })
-    await act(async () => { resolveHistory([]) })
+    await act(async () => { stale.resolve([{ seq: 1, kind: 'text', role: 'agent', text: 'Stale' }]) })
+    await act(async () => { fresh.resolve([]) })
     await waitFor(() => expect(view.result.current.status).toBe('ready'))
     view.rerender({ key: 'first' })
     expect(view.result.current.status).toBe('loading')
@@ -397,6 +412,9 @@ describe('workspace conversation lifecycle', () => {
     mocked.follow.mockImplementation((_config, key: string, signal) => (key === 'first' ? first : channel()).read(signal))
     const view = renderHook(({ key }) => useWorkspaceConversation(config, key), { initialProps: { key: 'first' } })
     await waitFor(() => expect(view.result.current.status).toBe('ready'))
+    mocked.send.mockResolvedValue({ commandId: 'reread-send', state: 'accepted' })
+    act(() => view.result.current.setDraft('Pending work'))
+    await act(async () => { await view.result.current.send() })
     const failure = { ...snapshot([]), error: new StagingApiError(0, 'stream_idle', 'Silent stream') }
     await act(async () => { first.push(failure); first.push(failure); first.push(failure) })
     view.rerender({ key: 'second' })
@@ -901,7 +919,104 @@ describe('workspace conversation lifecycle', () => {
     mocked.follow.mockImplementation((_config, _key, signal) => channel().read(signal))
     const { result, unmount } = renderHook(() => useWorkspaceConversation(config, null))
     act(() => result.current.retry())
+    await act(async () => {})
     expect(mocked.follow).not.toHaveBeenCalled()
+    unmount()
+  })
+  it('holds steering when only another steer was consumed', async () => {
+    const stream = channel()
+    mocked.history.mockResolvedValue([])
+    mocked.follow.mockImplementation((_config, _key, signal) => stream.read(signal))
+    mocked.steer.mockResolvedValue({ commandId: 's1', state: 'accepted' })
+    const { result, unmount } = renderHook(() => useWorkspaceConversation(config, 'thread'))
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+    act(() => result.current.setDraft('Steer me'))
+    await act(async () => { await result.current.send(true) })
+    const reply = [{ seq: 5, kind: 'text', role: 'agent', text: 'Steered answer' }]
+    await act(async () => { stream.push({ ...snapshot(reply), steering: [{ id: 'other', state: 'consumed' }] }) })
+    expect(result.current.pending).toHaveLength(1)
+    expect(result.current.busy).toBe(true)
+    unmount()
+  })
+  it('recomputes the echo on every frame until the ack lands', async () => {
+    const stream = channel()
+    mocked.history.mockResolvedValue([])
+    mocked.follow.mockImplementation((_config, _key, signal) => stream.read(signal))
+    mocked.send.mockResolvedValue({ commandId: 'echo-frame', state: 'accepted' })
+    const { result, unmount } = renderHook(() => useWorkspaceConversation(config, 'thread'))
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+    act(() => result.current.setDraft('Echo me'))
+    await act(async () => { await result.current.send() })
+    await act(async () => { stream.push(snapshot([{ seq: 1, kind: 'text', role: 'agent', text: 'Unrelated' }])) })
+    expect(result.current.echo).toBe('Echo me')
+    unmount()
+  })
+  it('stays complete across clean frames', async () => {
+    const stream = channel()
+    mocked.history.mockResolvedValue([])
+    mocked.follow.mockImplementation((_config, _key, signal) => stream.read(signal))
+    mocked.send.mockResolvedValue({ commandId: 'complete', state: 'accepted' })
+    const { result, unmount } = renderHook(() => useWorkspaceConversation(config, 'thread'))
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+    act(() => result.current.setDraft('Done deal'))
+    await act(async () => { await result.current.send() })
+    const user = [{ seq: 1, kind: 'text', role: 'user', text: 'Done deal' }]
+    await act(async () => { stream.push(snapshot([...user, { seq: 2, kind: 'text', role: 'agent', text: 'Done' }])) })
+    await waitFor(() => expect(result.current.phase).toBe('complete'))
+    await act(async () => { stream.push(snapshot([...user, { seq: 2, kind: 'text', role: 'agent', text: 'Done' }])) })
+    expect(result.current.phase).toBe('complete')
+    unmount()
+  })
+  it('ignores a load that rejects after the key rotated away', async () => {
+    const stale = deferred<unknown[]>()
+    const fresh = deferred<unknown[]>()
+    mocked.history.mockResolvedValueOnce(stale.promise).mockResolvedValueOnce(fresh.promise)
+    mocked.follow.mockImplementation((_config, _key, signal) => channel().read(signal))
+    const view = renderHook(({ key }) => useWorkspaceConversation(config, key), { initialProps: { key: 'first' } })
+    view.rerender({ key: 'second' })
+    await act(async () => { stale.reject(new Error('stale load')) })
+    expect(view.result.current.status).toBe('loading')
+    expect(view.result.current.error).toBeNull()
+    await act(async () => { fresh.resolve([]) })
+    await waitFor(() => expect(view.result.current.status).toBe('ready'))
+    view.unmount()
+  })
+  it('ignores a frame that arrives after its key rotated away', async () => {
+    const first = [{ seq: 1, kind: 'text', role: 'agent', text: 'First' }]
+    const second = [{ seq: 2, kind: 'text', role: 'agent', text: 'Second' }]
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    mocked.history.mockResolvedValue([])
+    mocked.follow.mockImplementation(async function* (_config, key: string, signal: AbortSignal) {
+      if (key !== 'first') { yield* channel().read(signal); return }
+      yield snapshot(first)
+      await gate
+      yield snapshot(second)
+    })
+    const view = renderHook(({ key }) => useWorkspaceConversation(config, key), { initialProps: { key: 'first' } })
+    await waitFor(() => expect(view.result.current.messages).toHaveLength(1))
+    view.rerender({ key: 'second' })
+    await act(async () => { release() })
+    await act(async () => {})
+    view.rerender({ key: 'first' })
+    expect(view.result.current.messages).toHaveLength(1)
+    expect(view.result.current.messages[0]).toMatchObject({ text: 'First' })
+    view.unmount()
+  })
+  it('keeps the surviving steer busy when its sibling misses', async () => {
+    const stream = channel()
+    mocked.history.mockResolvedValue([])
+    mocked.follow.mockImplementation((_config, _key, signal) => stream.read(signal))
+    mocked.steer.mockResolvedValueOnce({ commandId: 'late', state: 'missed_steer' }).mockResolvedValueOnce({ commandId: 'live', state: 'accepted' })
+    const { result, unmount } = renderHook(() => useWorkspaceConversation(config, 'thread'))
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+    act(() => result.current.setDraft('S1'))
+    await act(async () => { await result.current.send(true) })
+    act(() => result.current.setDraft('S2'))
+    await act(async () => { await result.current.send(true) })
+    expect(result.current.pending).toHaveLength(1)
+    expect(result.current.pending[0]?.text).toBe('S2')
+    expect(result.current.busy).toBe(true)
     unmount()
   })
 })
