@@ -155,4 +155,45 @@ describe.skipIf(!ENABLED)('sector plan workflow (P2) [F:backend.activity.turn.ap
       await pool.end()
     }
   }, 180_000)
+
+  it('starts without the harness queue override (sandbox-safe queue default)', async () => {
+    const pool = new Pool({ connectionString: url })
+    const sectorId = `sec-plan-nooverride-${Date.now()}`
+    try {
+      await createSector(pool, {
+        name: 'No override plan',
+        topic: 'Sandbox-safe queue default',
+        scope: { tenantId: 'tenant-plan', projectId: null },
+        sectorId,
+        initialState: 'planning',
+      })
+      await projectNewEvents(pool)
+      const sessionId = (await ensureResearchSession(pool, sectorId, { tenantId: 'tenant-plan', projectId: null })).id
+      const handle = await client.workflow.start('sectorPlan', {
+        taskQueue: taskQueue(),
+        workflowId: `sector-plan-${sectorId}`,
+        args: [{ sectorId, sessionId, scope: { tenantId: 'tenant-plan', projectId: null } }],
+      })
+      try {
+        // planProgress is registered after the turn proxy: a query answer
+        // proves the workflow got past its queue default. An env read in
+        // the default fails the workflow task (ReferenceError: process is
+        // not defined), so the handler never registers and every query fails.
+        let progress: unknown = null
+        for (let attempt = 0; attempt < 30; attempt += 1) {
+          try {
+            progress = await handle.query('planProgress')
+            break
+          } catch {
+            await new Promise((resolve) => setTimeout(resolve, 1_000))
+          }
+        }
+        expect(progress).toMatchObject({ sectorId, status: 'planning' })
+      } finally {
+        await handle.terminate()
+      }
+    } finally {
+      await pool.end()
+    }
+  }, 120_000)
 })

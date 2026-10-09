@@ -9,7 +9,7 @@
 // directly). Turn work runs on the turn lane; plan writes run on the
 // research lane beside the sweep activities.
 import { defineQuery, log, patched, proxyActivities, setHandler, workflowInfo } from '@temporalio/workflow'
-import { laneConfig } from '../lanes.js'
+import { laneTaskQueue } from '../lanes.js'
 import { isSweepCancellation } from '../sweep-rules.js'
 import { activityOptions } from '../timeouts.js'
 import type * as planActivitiesModule from '../activities/plan.js'
@@ -58,7 +58,7 @@ export function planningBrief(name: string, topic: string): string {
 }
 
 export async function sectorPlan(input: SectorPlanInput): Promise<'planned' | 'failed'> {
-  const turn = proxyActivities<typeof turnActivitiesModule>({ ...activityOptions('turn'), taskQueue: input.turnTaskQueue ?? laneConfig('turn').taskQueue })
+  const turn = proxyActivities<typeof turnActivitiesModule>({ ...activityOptions('turn'), taskQueue: input.turnTaskQueue ?? laneTaskQueue('turn') })
   const modern = patched('plan-version-run-v2')
   const transcript = patched('plan-transcript-v1')
   const versionKey = modern ? workflowInfo().runId : input.sectorId

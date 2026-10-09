@@ -6,7 +6,7 @@ import type * as activities from '../activities/coordinator.js'
 import type * as turnActivities from '../activities/turn.js'
 import type { CandidateCompany } from '../sweep-rules.js'
 import type { WorkItem } from '../../research-plan.js'
-import { laneConfig } from '../lanes.js'
+import { laneTaskQueue } from '../lanes.js'
 import { activityOptions } from '../timeouts.js'
 import { isSweepCancellation } from '../sweep-rules.js'
 import { validateDiscoveryIntake } from '../discovery-intake.js'
@@ -166,7 +166,7 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
       if (orderedPause && paused) await condition(() => !paused)
       const recovery = terminalRecovery ? await research.prepareResearchTurnRecoveryActivity({ sectorId: input.sectorId, version, workId: intake.id, childId: intake.childId!, sessionId: initial.sessionId }) : undefined
       const ownerEpoch = epochOwnership ? await research.prepareExecutionIntentActivity({ workflowId: intake.childId!, threadKey: `agent:${intake.childId}`, sessionId: initial.sessionId, requestKey: `child:${intake.id}:${intake.attempts}` }) : undefined
-      const handle = await withPreparedExecution(ownerEpoch, () => startChild(companyResearch, { workflowId: intake.childId!, taskQueue: input.turnTaskQueue ?? laneConfig('turn').taskQueue, parentClosePolicy: ParentClosePolicy.PARENT_CLOSE_POLICY_REQUEST_CANCEL, args: [{ ...input, version, sessionId: initial.sessionId, item: intake, ...(recovery ? { recovery } : {}), ...(ownerEpoch ? { ownerEpoch } : {}), brief: 'Basic source-backed company intake', acceptance: [], assignment, toolAllow: ['web_fetch'] }] }), async () => { if (orderedPause && paused) await condition(() => !paused) })
+      const handle = await withPreparedExecution(ownerEpoch, () => startChild(companyResearch, { workflowId: intake.childId!, taskQueue: input.turnTaskQueue ?? laneTaskQueue('turn'), parentClosePolicy: ParentClosePolicy.PARENT_CLOSE_POLICY_REQUEST_CANCEL, args: [{ ...input, version, sessionId: initial.sessionId, item: intake, ...(recovery ? { recovery } : {}), ...(ownerEpoch ? { ownerEpoch } : {}), brief: 'Basic source-backed company intake', acceptance: [], assignment, toolAllow: ['web_fetch'] }] }), async () => { if (orderedPause && paused) await condition(() => !paused) })
       children.set(intake.id, handle)
       try {
         const outcome = await handle.result()
@@ -325,7 +325,7 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
             if (orderedPause && paused) await condition(() => !paused)
             const recovery = terminalRecovery ? await research.prepareResearchTurnRecoveryActivity({ sectorId: input.sectorId, version, workId: childItem.id, childId: childItem.childId!, sessionId: initial.sessionId }) : undefined
       const ownerEpoch = epochOwnership ? await research.prepareExecutionIntentActivity({ workflowId: childItem.childId!, threadKey: `agent:${childItem.childId}`, sessionId: initial.sessionId, requestKey: `child:${childItem.id}:${childItem.attempts}` }) : undefined
-            const handle = await withPreparedExecution(ownerEpoch, () => startChild(companyResearch, { workflowId: childItem.childId!, taskQueue: input.turnTaskQueue ?? laneConfig('turn').taskQueue, parentClosePolicy: ParentClosePolicy.PARENT_CLOSE_POLICY_REQUEST_CANCEL, args: [{ ...input, version, sessionId: initial.sessionId, item: childItem, ...(recovery ? { recovery } : {}), ...(ownerEpoch ? { ownerEpoch } : {}), brief: 'Validate sector discovery', acceptance: plan.acceptance, assignment, ...(sourceIntake ? { toolAllow: ['web_fetch'] } : {}) }] }), async () => { if (orderedPause && paused) await condition(() => !paused) })
+            const handle = await withPreparedExecution(ownerEpoch, () => startChild(companyResearch, { workflowId: childItem.childId!, taskQueue: input.turnTaskQueue ?? laneTaskQueue('turn'), parentClosePolicy: ParentClosePolicy.PARENT_CLOSE_POLICY_REQUEST_CANCEL, args: [{ ...input, version, sessionId: initial.sessionId, item: childItem, ...(recovery ? { recovery } : {}), ...(ownerEpoch ? { ownerEpoch } : {}), brief: 'Validate sector discovery', acceptance: plan.acceptance, assignment, ...(sourceIntake ? { toolAllow: ['web_fetch'] } : {}) }] }), async () => { if (orderedPause && paused) await condition(() => !paused) })
             children.set(childItem.id, handle)
             try {
               const outcome = await handle.result()
@@ -368,7 +368,7 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
           const childId = item.childId ?? `research-${item.id}`
           const recovery = terminalRecovery ? await research.prepareResearchTurnRecoveryActivity({ sectorId: input.sectorId, version, workId: item.id, childId, sessionId: initial.sessionId }) : undefined
           const ownerEpoch = epochOwnership ? await research.prepareExecutionIntentActivity({ workflowId: childId, threadKey: `agent:${childId}`, sessionId: initial.sessionId, requestKey: `child:${item.id}:${item.attempts + 1}` }) : undefined
-          const handle = await withPreparedExecution(ownerEpoch, () => startChild(companyResearch, { workflowId: item.childId ?? `research-${item.id}`, taskQueue: input.turnTaskQueue ?? laneConfig('turn').taskQueue, ...(sourceIntake ? { parentClosePolicy: ParentClosePolicy.PARENT_CLOSE_POLICY_REQUEST_CANCEL } : {}), args: [{ ...input, version, sessionId: initial.sessionId, item, ...(recovery ? { recovery } : {}), ...(ownerEpoch ? { ownerEpoch } : {}), brief: plan.companyBrief, acceptance: plan.acceptance }] }), async () => { if (orderedPause && paused) await condition(() => !paused) })
+          const handle = await withPreparedExecution(ownerEpoch, () => startChild(companyResearch, { workflowId: item.childId ?? `research-${item.id}`, taskQueue: input.turnTaskQueue ?? laneTaskQueue('turn'), ...(sourceIntake ? { parentClosePolicy: ParentClosePolicy.PARENT_CLOSE_POLICY_REQUEST_CANCEL } : {}), args: [{ ...input, version, sessionId: initial.sessionId, item, ...(recovery ? { recovery } : {}), ...(ownerEpoch ? { ownerEpoch } : {}), brief: plan.companyBrief, acceptance: plan.acceptance }] }), async () => { if (orderedPause && paused) await condition(() => !paused) })
           children.set(item.id, handle)
           const outcome = await handle.result()
           children.delete(item.id)
@@ -398,7 +398,7 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
 
 interface CompanyInput extends activities.CoordinatorInput { recovery?: OriginalTurnRecovery; ownerEpoch?: string; version: number; sessionId: string; item: WorkItem; brief: string; acceptance: string[]; assignment?: string; toolAllow?: string[] }
 export async function companyResearch(input: CompanyInput): Promise<TurnOutcome> {
-  const turn = proxyActivities<typeof turnActivities>({ ...activityOptions('turn'), taskQueue: input.turnTaskQueue ?? laneConfig('turn').taskQueue })
+  const turn = proxyActivities<typeof turnActivities>({ ...activityOptions('turn'), taskQueue: input.turnTaskQueue ?? laneTaskQueue('turn') })
   const childId = workflowInfo().workflowId, threadKey = `agent:${childId}`, partition = `child:${childId}`
   const modernSteering = patched('company-child-steering-v1')
   const eventKey = patched('company-child-run-v2') ? `${childId}:${workflowInfo().runId}` : childId

@@ -37,10 +37,18 @@ const CONCURRENCY: Record<Lane, { workflows: number; activities: number }> = {
   sweep: { workflows: 5, activities: 10 },
 }
 
+/** Static queue name per lane. Pure (no env): the only lanes helper
+ * workflow code may call — laneConfig and turnActivitySlots read
+ * process.env, which does not exist in the workflow sandbox
+ * (ReferenceError, caught by live L-PLAN 2026-10-09). */
+export function laneTaskQueue(lane: Lane): string {
+  return `kardata-${lane}-v1`
+}
+
 export function laneConfig(lane: Lane): LaneConfig {
   return {
     lane,
-    taskQueue: `kardata-${lane}-v1`,
+    taskQueue: laneTaskQueue(lane),
     maxConcurrentWorkflowTaskExecutions: CONCURRENCY[lane].workflows,
     maxConcurrentActivityTaskExecutions: lane === 'turn' ? turnActivitySlots() : CONCURRENCY[lane].activities,
   }

@@ -3,7 +3,7 @@ import { Context } from '@temporalio/activity'
 import { Worker } from '@temporalio/worker'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { connectClient, connectWorker, temporalAddress, temporalNamespace } from '../../backend/src/temporal/connection.js'
-import { allLaneConfigs, laneConfig, turnActivitySlots } from '../../backend/src/temporal/lanes.js'
+import { allLaneConfigs, laneConfig, laneTaskQueue, turnActivitySlots } from '../../backend/src/temporal/lanes.js'
 import { createLaneWorker } from '../../backend/src/temporal/worker.js'
 import type { NativeConnection } from '@temporalio/worker'
 import { dirname, join } from 'node:path'
@@ -113,6 +113,13 @@ describe('lane topology (B2.1)', () => {
       if (previous === undefined) delete process.env['KARDATA_TURN_ACTIVITY_SLOTS']
       else process.env['KARDATA_TURN_ACTIVITY_SLOTS'] = previous
     }
+  })
+
+  it('laneTaskQueue matches laneConfig queues without reading the environment', () => {
+    for (const lane of ['turn', 'tool', 'research', 'sweep'] as const) {
+      expect(laneTaskQueue(lane)).toBe(laneConfig(lane).taskQueue)
+    }
+    expect(laneTaskQueue('turn')).toBe('kardata-turn-v1')
   })
 
   it('turn activity slots reject non-positive integers', () => {
