@@ -50,6 +50,10 @@ the everything-log. Plan: `documentation/plans/2026-09-25-backend-build.md`.
   takes queue names from pure `laneTaskQueue` only: `laneConfig` /
   `turnActivitySlots` read `process.env`, which the workflow sandbox does
   not have (ReferenceError, caught by live L-PLAN 2026-10-09).
+  Guarded two ways: an ESLint sandbox block on workflows/** (no
+  `process`, no env-reading imports) and `workflows.bundle.test.ts`,
+  which runs sectorPlan + companyResearch without the queue override
+  through the production bundle artifact (CI integration job).
 - B2.2 done: session-run workflow (signals, queries, pause/resume/cancel
   mid-tool, no orphans, replay-from-events) proven against the real server;
   agents `/loop` subpath rule recorded for workflow bundles.

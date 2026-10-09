@@ -69,4 +69,54 @@ export default defineConfig([
   },
   ...allowFiles('maxLines').map((file) => ({ files: [file], rules: { 'max-lines': 'off' } })),
   ...allowFiles('globalFetch').map((file) => ({ files: [file], rules: { 'no-restricted-syntax': 'off' } })),
+  // Workflow sandbox boundary (fv4 L-PLAN, 259fb1d): files under
+  // src/temporal/workflows/** execute in Temporal's deterministic VM,
+  // which has no `process` and no Node APIs. Queue names come from the
+  // pure laneTaskQueue helper; env-reading helpers (laneConfig,
+  // turnActivitySlots) and gateway-side modules that read process.env
+  // (runs-helpers, temporal connection) stay out.
+  // Type-only activity imports are unaffected (erased before bundling).
+  {
+    files: ['src/temporal/workflows/**/*.ts'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        {
+          name: 'process',
+          message:
+            'workflow code runs in the Temporal sandbox, which has no process; pass values via workflow input instead.',
+        },
+      ],
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '../connection.js',
+              message:
+                'temporal connection helpers read process.env and hold native handles; workflow code must not import them.',
+            },
+          ],
+          patterns: [
+            {
+              group: ['**/lanes.js', '**/lanes'],
+              importNames: ['laneConfig', 'turnActivitySlots'],
+              message:
+                'laneConfig/turnActivitySlots read process.env, which the workflow sandbox does not have; use laneTaskQueue instead.',
+            },
+            {
+              group: ['**/runs-helpers.js', '**/runs-helpers'],
+              message:
+                'runs-helpers is gateway-side (process.env, node:crypto, db, client); move sandbox-safe helpers to a pure module instead.',
+            },
+            {
+              group: ['**/temporal/connection.js', '**/temporal/connection'],
+              message:
+                'temporal connection helpers read process.env and hold native handles; workflow code must not import them.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ])
