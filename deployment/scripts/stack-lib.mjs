@@ -142,6 +142,31 @@ export function assertDeletablePath(target, { repoRoot }) {
   }
 }
 
+/**
+ * Resource profiles (Phase 3): staging runs lean by default, prod is
+ * favored; `rebalance testing` moves prod to 0 and staging to full.
+ * Values become compose env (pools/meta/browser) + worker --scale.
+ * Each env has its own Postgres (max_connections=100): worst case
+ * server + replicas x worker stays inside budget (runbook table).
+ * The Meta vendor account is SHARED across envs: full+full peaks at
+ * 16 concurrent vendor calls until the B7 ceiling says otherwise.
+ */
+export const RESOURCE_PROFILES = {
+  lean: { workerReplicas: 1, dbPoolServer: 10, dbPoolWorker: 5, metaMaxConcurrent: 4, browserMax: 4 },
+  full: { workerReplicas: 4, dbPoolServer: 20, dbPoolWorker: 10, metaMaxConcurrent: 8, browserMax: 8 },
+}
+
+/** Host ports each env binds (docs/environments.md map). Pure data. */
+export const STAGING_PORTS = [5432, 5433, 7233, 8080, 3001, 3000, 3100, 9090, 15173, 15174, 3201, 25174]
+export const PROD_PORTS = [5434, 8233, 9080, 4001, 4100, 10090, 4000, 45174]
+
+/** The two envs must never share a host port; fail lists collisions. */
+export function portsDisjointVerdict({ staging = STAGING_PORTS, prod = PROD_PORTS } = {}) {
+  const clash = staging.filter((port) => prod.includes(port))
+  if (clash.length === 0) return { level: 'pass', detail: `staging/prod port maps disjoint (${staging.length}+${prod.length} ports)`, fix: [] }
+  return { level: 'fail', detail: `port collision on ${clash.join(', ')}: staging and prod must never share a host port`, fix: ['docs/environments.md   # move the prod port, then re-run doctor'] }
+}
+
 /** Render one verdict line: [PASS|WARN|FAIL] detail (+ indented fix lines). */
 export function formatVerdict(name, verdict) {
   const tag = verdict.level.toUpperCase().padEnd(4)

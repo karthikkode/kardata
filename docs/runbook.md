@@ -7,6 +7,32 @@ log line, or alert description) and open `{container="kardata-backend-1"}
 (platform RED, lanes, heartbeats), **Kardata Runs** (runs, tools,
 provider calls, slow spans).
 
+## env rituals (staging / prod / remote)
+
+Prod is the sibling worktree `/home/karthik/projects/kardata_prod`
+(project `kardata-prod`, own ports/volumes, clean `kardata_prod`
+DB); remote is the `origin/prod` branch. Every release = SHA to
+`origin/prod` + rebuild of the prod dir; `stack:doctor` fails on
+any drift (image labels vs `origin/prod`).
+
+Bootstrap (once): `git worktree add /home/karthik/projects/kardata_prod prod`;
+copy `deployment/env.prod.example` to `agents/.env` inside the prod
+dir (ignored, never committed) and set `KARDATA_UI_KEY`. Provider
+keys are inherited from this checkout's `agents/.env` automatically;
+the prod `agents/.env` only overrides them if prod must differ. First
+deploy: `npm run stack:release -- f6f5bb3; npm run stack:prod -- deploy`
+(provisions DB + migrates). Daily release:
+`npm run stack:release -- <merge-sha>` then `npm run stack:prod -- deploy`.
+
+Rebalance: heavy test window → `npm run stack:rebalance -- testing`
+(production `down`, staging recomposes full); after →
+`npm run stack:rebalance -- normal` (staging lean, prod up full).
+Rollback: `npm run stack:release -- <older-sha> --rollback` then
+`npm run stack:prod -- deploy`; prod data survives (volumes kept
+unless `down --volumes`). Status: `npm run stack:prod -- status`,
+freshness proof: `npm run stack:doctor` (`prod/*` PASS lines).
+Backup: `npm run stack:prod -- backup` (pg_dump to `var/prod-backups/`).
+
 ## stall
 
 The current worker source starts durable `executionReconciliation` on its existing

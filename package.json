@@ -44,7 +44,11 @@
     "stack:worker:host": "node deployment/scripts/stack.mjs worker:host",
     "stack:worker:compose": "node deployment/scripts/stack.mjs worker:compose",
     "stack:worker": "node deployment/scripts/stack.mjs worker",
-    "stack:toxi": "node deployment/scripts/stack.mjs toxi"
+    "stack:toxi": "node deployment/scripts/stack.mjs toxi",
+    "stack:prod": "node deployment/scripts/stack.mjs prod",
+    "stack:release": "node deployment/scripts/stack.mjs release",
+    "stack:resources": "node deployment/scripts/stack.mjs resources",
+    "stack:rebalance": "node deployment/scripts/stack.mjs rebalance"
   },
   "devDependencies": {
     "@stryker-mutator/core": "^10.0.0",

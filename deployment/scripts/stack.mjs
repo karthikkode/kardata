@@ -5,11 +5,11 @@
 // Verdict logic lives in stack-lib.mjs (pure, unit-tested); this file only
 // gathers facts (docker, git, curl) and acts on them.
 import { execFile, execFileSync, spawn } from 'node:child_process'
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readlinkSync } from 'node:fs'
-import { countRepoTools, fleetVerdict, formatVerdict, freshnessVerdict, ownedTestProcs, parityVerdict, parseEnvFile } from './stack-lib.mjs'
+import { countRepoTools, fleetVerdict, formatVerdict, freshnessVerdict, ownedTestProcs, parityVerdict, parseEnvFile, portsDisjointVerdict, RESOURCE_PROFILES } from './stack-lib.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '..', '..')
@@ -125,11 +125,10 @@ function readKey(envPath, key) {
   return value || null
 }
 
-async function servedToolCount() {
-  const apiKey = readKey(join(ROOT, 'frontend', '.env'), 'VITE_STAGING_KEY')
+async function servedToolCount(backendUrl = BACKEND_URL, apiKey = readKey(join(ROOT, 'frontend', '.env'), 'VITE_STAGING_KEY')) {
   if (!apiKey) return null
   try {
-    const response = await fetch(`${BACKEND_URL}/mcp`, {
+    const response = await fetch(`${backendUrl}/mcp`, {
       method: 'POST',
       headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
@@ -220,7 +219,20 @@ async function cmdDoctor() {
     ['backend-image', freshnessVerdict({ service: 'backend', labelSha: await imageLabelSha('backend'), headSha: head.sha, headSubject: head.subject })],
     ['worker-image', freshnessVerdict({ service: 'worker', labelSha: await imageLabelSha('worker'), headSha: head.sha, headSubject: head.subject })],
     ['mcp-parity', parityVerdict({ served: await servedToolCount(), repo: repoToolCount() })],
+    ['ports-disjoint', portsDisjointVerdict({})],
   ]
+  if (!existsSync(join(PROD_DIR, 'deployment', 'compose.yaml'))) {
+    verdicts.push(['prod', { level: 'warn', detail: `prod dir missing at ${PROD_DIR}`, fix: [`git worktree add ${PROD_DIR} prod   # runbook bootstrap`] }])
+  } else {
+    const release = originProdSha()
+    for (const service of ['backend', 'worker', 'ui']) {
+      verdicts.push([`prod/${service}`, prodFreshnessVerdict({ service, labelSha: await prodImageLabelSha(service), releaseSha: release })])
+    }
+    const prodWorkers = (await prodPs()).filter((s) => s.Service === 'worker' && s.State === 'running').length
+    verdicts.push(['prod-fleet', prodWorkers > 0
+      ? { level: 'pass', detail: `prod fleet polling: ${prodWorkers} compose worker(s)`, fix: [] }
+      : { level: 'warn', detail: 'prod stack is down (volumes kept)', fix: ['npm run stack:prod -- up   # restore prod'] }])
+  }
   let failed = false
   for (const [name, verdict] of verdicts) {
     console.log(formatVerdict(name, verdict))
@@ -388,6 +400,365 @@ async function cmdToxi(args) {
   process.exit(1)
 }
 
+// ---- prod / release / resources (Phase 3) ----
+// Prod runs from a sibling worktree pinned to origin/prod; this script
+// drives it (no second script). Prod has its own Temporal + Postgres,
+// so cross-env worker stealing is impossible by topology: the one-fleet
+// rule applies per env, never across envs.
+const PROD_DIR = process.env['KARDATA_PROD_DIR'] ?? join(ROOT, '..', 'kardata_prod')
+const PROD_PROJECT = 'kardata-prod'
+const PROD_BACKEND_URL = 'http://127.0.0.1:4001'
+const PROD_UI_URL = 'http://127.0.0.1:45174'
+const PROD_APP_SERVICES = ['db', 'temporal', 'browser', 'backend', 'worker']
+const PROD_OBS_SERVICES = ['temporal-ui', 'loki', 'promtail', 'prometheus', 'grafana']
+
+function prodComposeFiles() {
+  const base = join(PROD_DIR, 'deployment', 'compose.yaml')
+  const released = join(PROD_DIR, 'deployment', 'compose.prod.yaml')
+  if (existsSync(released)) return ['-f', base, '-f', released]
+  console.log('stack: WARN prod overlay not yet released; using staging copy (bootstrap mode)')
+  return ['-f', base, '-f', join(HERE, '..', 'compose.prod.yaml')]
+}
+
+function requireProdDir() {
+  if (!existsSync(join(PROD_DIR, 'deployment', 'compose.yaml'))) {
+    console.error(`stack: prod dir missing at ${PROD_DIR} (runbook bootstrap: git worktree add ${PROD_DIR} prod)`)
+    process.exit(1)
+  }
+}
+
+function originProdSha() {
+  try {
+    return execFileSync('git', ['rev-parse', 'origin/prod'], { cwd: ROOT, encoding: 'utf8' }).trim()
+  } catch { return null }
+}
+
+function prodWorktreeSha() {
+  try {
+    return execFileSync('git', ['-C', PROD_DIR, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+  } catch { return null }
+}
+
+function profileOf(args, fallback) {
+  const flag = args.indexOf('--profile')
+  const level = flag >= 0 ? args[flag + 1] : fallback
+  if (level !== 'lean' && level !== 'full') {
+    console.error(`stack: --profile must be lean|full, got '${level}'`)
+    process.exit(1)
+  }
+  return level
+}
+
+function profileEnv(level) {
+  const profile = RESOURCE_PROFILES[level]
+  return {
+    KARDATA_DB_POOL_SERVER: String(profile.dbPoolServer),
+    KARDATA_DB_POOL_WORKER: String(profile.dbPoolWorker),
+    KARDATA_META_MAX_CONCURRENT: String(profile.metaMaxConcurrent),
+    KARDATA_BROWSER_MAX: String(profile.browserMax),
+    KARDATA_WORKER_REPLICAS: String(profile.workerReplicas),
+  }
+}
+
+function prodEnv(level) {
+  const env = {
+    ...process.env,
+    KARDATA_STAGING_DIR: ROOT,
+    KARDATA_PROD_DIR: PROD_DIR,
+    GIT_SHA: prodWorktreeSha() ?? 'unknown',
+    ...profileEnv(level),
+  }
+  const keyFile = join(PROD_DIR, 'agents', '.env')
+  if (existsSync(keyFile)) {
+    const uiKey = parseEnvFile(readFileSync(keyFile, 'utf8'))['KARDATA_UI_KEY']
+    if (uiKey) env['KARDATA_UI_KEY'] = uiKey
+  }
+  return env
+}
+
+async function prodCompose(args, level = 'full') {
+  return run('docker', ['compose', '-p', PROD_PROJECT, ...prodComposeFiles(), ...args], { cwd: PROD_DIR, env: prodEnv(level) })
+}
+
+async function prodPs() {
+  const out = await prodCompose(['ps', '--format', 'json'])
+  if (!out.ok) return []
+  const text = out.stdout.trim()
+  if (!text) return []
+  try {
+    return text.startsWith('[') ? JSON.parse(text) : text.split('\n').map((line) => JSON.parse(line))
+  } catch { return [] }
+}
+
+async function prodImageLabelSha(service) {
+  const ps = await prodPs()
+  const image = ps.find((s) => s.Service === service)?.Image
+  if (!image) return null
+  const out = await run('docker', ['image', 'inspect', '--format', '{{index .Config.Labels "org.kardata.git-sha"}}', image])
+  if (!out.ok) return null
+  const sha = out.stdout.trim()
+  return sha && sha !== '<no value>' ? sha : null
+}
+
+async function urlHealthy(url) {
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(5000) })
+    if (url.endsWith('/healthz') && !url.includes('45174')) {
+      const body = await response.json()
+      return response.ok && body?.ok === true
+    }
+    return response.ok
+  } catch { return false }
+}
+
+function prodFreshnessVerdict({ service, labelSha, releaseSha }) {
+  if (!releaseSha) return { level: 'warn', detail: `prod/${service}: origin/prod unknown (fetch first)`, fix: [] }
+  const verdict = freshnessVerdict({ service: `prod/${service}`, labelSha, headSha: releaseSha, headSubject: 'origin/prod' })
+  return { ...verdict, fix: verdict.fix.map((f) => f.replace('stack:deploy', 'stack:prod deploy')) }
+}
+
+async function prodImagePresent(service) {
+  const out = await run('docker', ['image', 'inspect', `${PROD_PROJECT}-${service}`])
+  return out.ok
+}
+
+async function cmdProdUp(args) {
+  requireProdDir()
+  const level = profileOf(args, 'full')
+  const replicas = RESOURCE_PROFILES[level].workerReplicas
+  const services = [...PROD_APP_SERVICES, ...PROD_OBS_SERVICES]
+  if (await prodImagePresent('ui')) services.push('ui')
+  else console.log('stack: WARN no prod UI image; boot it with stack:prod deploy once KARDATA_UI_KEY exists')
+  const out = await prodCompose(['up', '-d', '--scale', `worker=${replicas}`, ...services], level)
+  process.stdout.write(out.stdout || out.stderr)
+  if (!out.ok) process.exit(1)
+  console.log(`stack: prod up (${level}, worker x${replicas})`)
+}
+
+async function cmdProdDown() {
+  requireProdDir()
+  // Never `down -v`: volumes hold the prod database and owner keys.
+  const out = await prodCompose(['down'])
+  process.stdout.write(out.stdout || out.stderr)
+  if (!out.ok) process.exit(1)
+  console.log('stack: prod down (volumes kept)')
+}
+
+async function cmdProdStatus() {
+  requireProdDir()
+  const release = originProdSha()
+  const head = prodWorktreeSha()
+  console.log(`origin/prod ${release?.slice(0, 9) ?? 'unknown'}   prod dir ${head?.slice(0, 9) ?? 'unknown'}${release && head ? (release === head ? ' (match)' : ' (DRIFT: deploy to fix)') : ''}`)
+  const ps = await prodPs()
+  if (ps.length === 0) console.log('(prod stack is down)')
+  for (const svc of ps) console.log(`- ${svc.Service}: ${svc.State} (${svc.Status ?? ''})`.trim())
+  for (const service of ['backend', 'worker', 'ui']) {
+    console.log(formatVerdict(service, prodFreshnessVerdict({ service, labelSha: await prodImageLabelSha(service), releaseSha: release })))
+  }
+  console.log(`prod /healthz: ${await urlHealthy(`${PROD_BACKEND_URL}/healthz`) ? 'ok' : 'unreachable'}`)
+  console.log(`prod ui: ${await urlHealthy(`${PROD_UI_URL}/healthz`) ? 'ok' : 'unreachable (key missing or not deployed)'}`)
+}
+
+async function cmdProdBackup() {
+  requireProdDir()
+  const ps = await prodPs()
+  const db = ps.find((s) => s.Service === 'db' && s.State === 'running')
+  if (!db) {
+    console.log('stack: prod db is not running; nothing to back up (first deploy?)')
+    return false
+  }
+  const dir = join(PROD_DIR, 'var', 'backups')
+  mkdirSync(dir, { recursive: true })
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+  const file = join(dir, `prod-${stamp}.sql`)
+  const dump = await run(
+    'docker',
+    ['compose', '-p', PROD_PROJECT, ...prodComposeFiles(), 'exec', '-T', '-e', 'PGPASSWORD=kardata-dev', 'db', 'pg_dump', '-U', 'kardata', 'kardata_prod'],
+    { cwd: PROD_DIR, env: prodEnv('full'), maxBuffer: 512 * 1024 * 1024 },
+  )
+  if (!dump.ok || !dump.stdout) {
+    console.error(`stack: backup failed${dump.stderr ? `: ${dump.stderr.slice(0, 200)}` : ''}`)
+    return false
+  }
+  writeFileSync(file, dump.stdout)
+  console.log(`stack: prod backup ${file} (${dump.stdout.length} bytes)`)
+  console.log(`restore: docker compose -p ${PROD_PROJECT} exec -T db psql -U kardata kardata_prod < ${file}`)
+  return true
+}
+
+async function cmdProdDeploy(args) {
+  requireProdDir()
+  const level = profileOf(args, 'full')
+  const fetch = await run('git', ['fetch', 'origin', 'prod'], { cwd: ROOT })
+  if (!fetch.ok) {
+    console.error('stack: cannot fetch origin/prod')
+    process.exit(1)
+  }
+  const release = originProdSha()
+  if (!release) {
+    console.error('stack: origin/prod missing; ship one with: npm run stack:release -- <sha>')
+    process.exit(1)
+  }
+  if (!(await cmdProdBackup())) console.log('stack: WARN continuing without a fresh backup (first deploy?)')
+  const prodFetch = await run('git', ['-C', PROD_DIR, 'fetch', 'origin'])
+  if (!prodFetch.ok) {
+    console.error('stack: cannot fetch inside the prod dir')
+    process.exit(1)
+  }
+  const ff = await run('git', ['-C', PROD_DIR, 'merge', '--ff-only', 'origin/prod'])
+  if (!ff.ok) {
+    console.error('stack: prod dir is not fast-forwardable to origin/prod; inspect it, never force it')
+    process.exit(1)
+  }
+  const head = prodWorktreeSha()
+  if (head !== release) {
+    console.error(`stack: prod dir is ${head?.slice(0, 9)} but origin/prod is ${release.slice(0, 9)}; refusing to build a drifted tree`)
+    process.exit(1)
+  }
+  console.log(`stack: deploying prod from origin/prod ${release.slice(0, 9)}`)
+  const uiKey = prodEnv(level)['KARDATA_UI_KEY']
+  const targets = uiKey ? ['backend', 'worker', 'ui'] : ['backend', 'worker']
+  if (!uiKey) console.log('stack: WARN no KARDATA_UI_KEY in prod env; skipping UI (runbook provisioning ritual, then redeploy)')
+  const build = await prodCompose(['build', ...targets], level)
+  process.stdout.write(build.stdout || build.stderr)
+  if (!build.ok) process.exit(1)
+  const replicas = RESOURCE_PROFILES[level].workerReplicas
+  const services = [...PROD_APP_SERVICES, ...PROD_OBS_SERVICES]
+  if (uiKey) services.push('ui')
+  const up = await prodCompose(['up', '-d', '--scale', `worker=${replicas}`, ...services], level)
+  process.stdout.write(up.stdout || up.stderr)
+  if (!up.ok) process.exit(1)
+  const okBackend = await waitFor('prod backend /healthz', () => urlHealthy(`${PROD_BACKEND_URL}/healthz`))
+  const ps = await prodPs()
+  const workerNames = ps.filter((s) => s.Service === 'worker' && s.State === 'running').map((s) => s.Name)
+  let okWorker = workerNames.length > 0
+  for (const name of workerNames) {
+    if (!(await waitFor(`prod worker ${name}`, () => containerLogHas(name, 'turn worker polling')))) okWorker = false
+  }
+  let okUi = true
+  if (uiKey) okUi = await waitFor('prod ui /healthz', () => urlHealthy(`${PROD_UI_URL}/healthz`))
+  if (!okBackend || !okWorker || !okUi) process.exit(1)
+  const backend = ps.find((s) => s.Service === 'backend')?.Name ?? 'kardata-prod-backend-1'
+  for (const name of [backend, ...workerNames]) {
+    if (await containerLogHas(name, '[FATAL]')) {
+      console.error(`stack: ${name} reports [FATAL]; see: docker logs ${name}`)
+      process.exit(1)
+    }
+  }
+  const served = await servedToolCount(PROD_BACKEND_URL, uiKey ?? null)
+  const parity = parityVerdict({ served, repo: repoToolCount() })
+  console.log(formatVerdict('mcp-parity', parity))
+  if (parity.level === 'fail') process.exit(1)
+  console.log(`stack: prod deploy green (${release.slice(0, 9)})`)
+}
+
+async function cmdProd(args) {
+  const [sub, ...rest] = args
+  if (sub === 'up') return cmdProdUp(rest)
+  if (sub === 'down') return cmdProdDown()
+  if (sub === 'status') return cmdProdStatus()
+  if (sub === 'deploy') return cmdProdDeploy(rest)
+  if (sub === 'backup') {
+    if (!(await cmdProdBackup())) process.exit(1)
+    return
+  }
+  console.error('usage: npm run stack:prod -- <up|down|status|deploy|backup> [--profile lean|full]')
+  process.exit(1)
+}
+
+async function cmdRelease(args) {
+  const rollback = args.includes('--rollback')
+  const shaArg = args.find((a) => !a.startsWith('--'))
+  if (!shaArg) {
+    console.error('usage: npm run stack:release -- <sha> [--rollback]')
+    process.exit(1)
+  }
+  const rev = await run('git', ['rev-parse', shaArg], { cwd: ROOT })
+  const sha = rev.ok ? rev.stdout.trim() : null
+  if (!sha) {
+    console.error(`stack: unknown revision '${shaArg}'`)
+    process.exit(1)
+  }
+  await run('git', ['fetch', 'origin', 'main', 'prod'], { cwd: ROOT })
+  if (!rollback) {
+    const onMain = await run('git', ['merge-base', '--is-ancestor', sha, 'origin/main'], { cwd: ROOT })
+    if (!onMain.ok) {
+      console.error('stack: release takes main-line SHAs only; merge first, then release')
+      process.exit(1)
+    }
+    const current = originProdSha()
+    if (current && current !== sha) {
+      const ff = await run('git', ['merge-base', '--is-ancestor', current, sha], { cwd: ROOT })
+      if (!ff.ok) {
+        console.error(`stack: ${sha.slice(0, 9)} is not ahead of origin/prod ${current.slice(0, 9)}; move prod back with --rollback`)
+        process.exit(1)
+      }
+    }
+    const push = await run('git', ['push', 'origin', `${sha}:refs/heads/prod`], { cwd: ROOT })
+    process.stdout.write(push.stdout || push.stderr)
+    if (!push.ok) process.exit(1)
+  } else {
+    console.log(`stack: ROLLBACK — moving origin/prod back to ${sha.slice(0, 9)}`)
+    const push = await run('git', ['push', '--force-with-lease', 'origin', `${sha}:refs/heads/prod`], { cwd: ROOT })
+    process.stdout.write(push.stdout || push.stderr)
+    if (!push.ok) process.exit(1)
+  }
+  console.log(`stack: origin/prod is now ${sha.slice(0, 9)}; run stack:prod deploy to apply it`)
+}
+
+async function cmdResources() {
+  console.log('resource profiles (compose env + worker --scale):')
+  for (const [name, profile] of Object.entries(RESOURCE_PROFILES)) {
+    console.log(`  ${name}: replicas=${profile.workerReplicas} pools=${profile.dbPoolServer}/${profile.dbPoolWorker} meta=${profile.metaMaxConcurrent} browser=${profile.browserMax}`)
+  }
+  console.log('defaults: staging lean, prod full. apply: stack:rebalance <normal|testing>, stack:prod up --profile <lean|full>')
+  console.log('note: the Meta vendor account is shared across envs (full+full peaks at 16 vendor calls)')
+}
+
+async function stagingUp(level) {
+  const profile = profileEnv(level)
+  const env = { ...composeEnv(), ...profile }
+  const replicas = RESOURCE_PROFILES[level].workerReplicas
+  return run('docker', ['compose', '-f', COMPOSE, 'up', '-d', '--scale', `worker=${replicas}`, ...APP_SERVICES, ...OBS_SERVICES], { env })
+}
+
+async function cmdRebalance(args) {
+  const [mode] = args
+  if (mode !== 'normal' && mode !== 'testing') {
+    console.error('usage: npm run stack:rebalance -- <normal|testing>')
+    process.exit(1)
+  }
+  let ok = true
+  if (mode === 'testing') {
+    // Prod to 0 (volumes kept), staging to full.
+    const down = await prodCompose(['down']).catch(() => ({ ok: false, stdout: '', stderr: 'prod dir missing?' }))
+    if (!down.ok) {
+      console.log('stack: WARN prod down failed (already down or dir missing); continuing')
+    } else {
+      console.log('stack: prod down (volumes kept)')
+    }
+    const up = await stagingUp('full')
+    if (!up.ok) {
+      console.log('stack: WARN staging full boot failed (test stack holding ports?); profile recorded, boot skipped')
+      ok = false
+    } else {
+      console.log('stack: staging full (worker x4)')
+    }
+  } else {
+    const up = await stagingUp('lean')
+    if (!up.ok) {
+      console.log('stack: WARN staging lean boot failed; continuing to prod')
+      ok = false
+    } else {
+      console.log('stack: staging lean (worker x1)')
+    }
+    requireProdDir()
+    await cmdProdUp(['--profile', 'full'])
+  }
+  if (!ok) process.exit(1)
+  console.log(`stack: rebalance ${mode} complete`)
+}
+
 const commands = {
   up: ['boot the compose stack with existing images', cmdUp],
   toxi: ['toxiproxy for fault drills: up|down (host network, 127.0.0.1:8474)', cmdToxi],
@@ -400,6 +771,10 @@ const commands = {
   'worker:host': ['refuse if a host worker polls, else stop compose worker and run the laptop one', cmdWorkerHost],
   'worker:compose': ['refuse if a host worker polls, else start the compose worker', cmdWorkerCompose],
   worker: ['scale the compose worker (default 1): stack.mjs worker --replicas N', cmdWorker],
+  prod: ['prod env: up|down|status|deploy|backup [--profile lean|full]', cmdProd],
+  release: ['ship a main-line SHA to origin/prod [--rollback to move back]', cmdRelease],
+  resources: ['show the lean/full resource profiles', cmdResources],
+  rebalance: ['normal (staging lean + prod full) | testing (prod 0 + staging full)', cmdRebalance],
 }
 
 const [command, ...commandArgs] = process.argv.slice(2)

@@ -20,10 +20,19 @@ pilot 3201/25174). Prod takes pg 5434, Temporal 8233, Temporal-UI
 45174. Staging processes must never bind a prod port or mount a
 prod volume; tests use `TEST_DATABASE_URL`-derived databases only.
 
-Resources: staging runs lean by default, prod is favored; either
-side scales via `stack.mjs` profiles, and one script rebalances
-both ways (see `docs/runbook.md`: prod→0/staging→full for heavy
-test windows, back after). Details ship with Phase 3.
+Resources: staging runs lean by default, prod is favored; one
+script rebalances both ways (see `docs/runbook.md`: prod→0 /
+staging→full for heavy test windows, back after). Profiles:
+
+| Profile | Workers | DB pools | Small-model | Browser |
+|---|---|---|---|---|
+| `lean` (staging default) | 1 | 10 + 5 | 4 | 4 |
+| `full` (prod default) | 4 | 20 + 10 | 8 | 8 |
+
+`npm run stack:resources` prints the table; `stack:prod up --profile`
+and `stack:rebalance <normal|testing>` apply it. The Meta vendor
+account is shared across envs (full+full peaks at 16 vendor calls),
+so rebalance to `testing` limits prod interference during big runs.
 
 ## Workspaces
 
