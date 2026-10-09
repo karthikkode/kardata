@@ -52,7 +52,18 @@ describe('sector plan client', () => {
         json: async () => ({ ok: false, error: { code: 'conflict', message: 'not draft or failed' } }),
       })),
     )
-    await expect(planSector(config, 's-1')).rejects.toThrow(/not draft or failed/)
+    // NOTE (2026-10-10): do not rewrite as .rejects.toThrow(/.../):
+    // under the current frontend runner (5.0.3; green under 5.0.1) it
+    // reports "got ''" for this exact rejection, whose message was
+    // verified present via direct catch. These assertions are equivalent.
+    const error = await planSector(config, 's-1').then(
+      () => { throw new Error('planSector resolved, expected rejection') },
+      (e: unknown) => e as { constructor?: { name?: string }; message?: string; status?: unknown; code?: unknown },
+    )
+    expect(error?.constructor?.name).toBe('StagingApiError')
+    expect(error?.status).toBe(409)
+    expect(error?.code).toBe('conflict')
+    expect(error?.message ?? '').toMatch(/not draft or failed/)
   })
 })
 
