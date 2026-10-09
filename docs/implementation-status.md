@@ -3947,3 +3947,22 @@ resolves it relative to the config `root`, so the DB branch's
 `tests/backend/db-setup.ts` reported unresolved. Latent (no DB-env
 verify run ever reached quality before); narrowed to one
 `ignoreUnresolved` entry, vitest resolution proven by every DB run.
+
+## 2026-10-09 — fv4 close-out reds, all root-caused (branch p2-7-fixes)
+Verify: 19 red attempts, coverage-load starvation (DB suites timed out
+under coverage); fixed by 15s/30s budgets (f0f0fc8), green 211 files.
+Temporal: 1 fail, subagents test raced noteDone; poll to 60 finished
+(f207847), rerun 13/13. Playwright: 3 axe contrast fails on unsettled
+colors; freeze motion before axe (37e2c02), 1250 pass. Live battery:
+17 stage fails, cross-suite workflow theft in shared kardata-live
+namespace (FK thread_messages_thread_key_fkey); harness drains stale
+workflows on stack start (eddfd8f), 24/25. L-PLAN 600s timeout:
+sectorPlan called env-reading laneConfig in the workflow sandbox
+(ReferenceError, would have broken all prod planning); pure
+laneTaskQueue helper + same fix at 4 coordinator sites (259fb1d),
+guarded by ESLint sandbox block + production-bundle test (da0e970);
+targeted rerun 56s. Mutation: Stryker 27.x was phantom (runner
+space-joined test filters); durable patch-package fix + guard
+(2ef4cda), perTest in all configs (00ebec4): turnRunner 99.89,
+useWorkspace 98.59. Backend 3-file run dropped by owner (~20h, no
+score); waiver recorded in `documentation/plans/p2-fix-loop-1.md`.
