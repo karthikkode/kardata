@@ -5,6 +5,8 @@
 // Verdict logic lives in stack-lib.mjs (pure, unit-tested); this file only
 // gathers facts (docker, git, curl) and acts on them.
 import { execFile, execFileSync, spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
+import { createRequire } from 'node:module'
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -101,16 +103,34 @@ async function waitFor(label, check, timeoutMs = 120_000) {
   }
 }
 
+/** Probe fetch that always settles: a bare fetch can pend forever
+ * without keeping the loop alive (observed: socket dropped during the
+ * docker-proxy handoff while a backend recreates — the AbortSignal
+ * timeout never fires, the loop drains, node exits 13 silently). The
+ * ref'd timer below both forces settlement and keeps the loop alive. */
+async function probeFetch(url, options = {}, ms = 8000) {
+  let timer
+  try {
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('probe timeout')), ms)
+    })
+    return await Promise.race([fetch(url, options), timeout])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 async function backendHealthy() {
   try {
-    const response = await fetch(`${BACKEND_URL}/healthz`, { signal: AbortSignal.timeout(5000) })
+    const response = await probeFetch(`${BACKEND_URL}/healthz`, { signal: AbortSignal.timeout(5000) })
     const body = await response.json()
     return response.ok && body?.ok === true
   } catch { return false }
 }
 
-async function containerLogHas(container, needle) {
-  const out = await run('docker', ['logs', '--tail', '200', container])
+async function containerLogHas(container, needle, since = null) {
+  const args = since ? ['logs', '--since', since, container] : ['logs', '--tail', '200', container]
+  const out = await run('docker', args)
   return `${out.stdout}\n${out.stderr}`.includes(needle)
 }
 
@@ -128,12 +148,12 @@ function readKey(envPath, key) {
 async function servedToolCount(backendUrl = BACKEND_URL, apiKey = readKey(join(ROOT, 'frontend', '.env'), 'VITE_STAGING_KEY')) {
   if (!apiKey) return null
   try {
-    const response = await fetch(`${backendUrl}/mcp`, {
+    const response = await probeFetch(`${backendUrl}/mcp`, {
       method: 'POST',
       headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
       signal: AbortSignal.timeout(15000),
-    })
+    }, 20000)
     const body = await response.json()
     const tools = body?.result?.tools
     return Array.isArray(tools) ? tools.length : -1
@@ -515,7 +535,7 @@ async function prodImageLabelSha(service) {
 
 async function urlHealthy(url) {
   try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(5000) })
+    const response = await probeFetch(url, { signal: AbortSignal.timeout(5000) })
     if (url.endsWith('/healthz') && !url.includes('45174')) {
       const body = await response.json()
       return response.ok && body?.ok === true
@@ -599,6 +619,49 @@ async function cmdProdBackup() {
   return true
 }
 
+/** The exact secret a prod container sees: prod agents/.env wins,
+ * staging agents/.env is the fallback (compose env_file order). */
+function prodSecret(name) {
+  for (const file of [join(PROD_DIR, 'agents', '.env'), join(ROOT, 'agents', '.env')]) {
+    const value = readKey(file, name)
+    if (value) return value
+  }
+  return null
+}
+
+async function cmdProdProvisionKeys() {
+  requireProdDir()
+  // Values stay in this process: hashed locally, only keyIds printed.
+  // Same pattern as scripts/live-stack.sh (hash-then-insert, no plaintext).
+  const workerKey = prodSecret('KARDATA_MCP_TOKEN')
+  const ownerKey = prodSecret('KARDATA_UI_KEY')
+  if (!workerKey) {
+    console.error('stack: KARDATA_MCP_TOKEN not found in staging or prod agents/.env')
+    process.exit(1)
+  }
+  if (!ownerKey) {
+    console.error('stack: KARDATA_UI_KEY not found in prod agents/.env (runbook provisioning ritual first)')
+    process.exit(1)
+  }
+  const { Pool } = createRequire(import.meta.url)('pg')
+  const pool = new Pool({ connectionString: 'postgresql://kardata:kardata-dev@127.0.0.1:5434/kardata_prod' })
+  try {
+    for (const keyId of ['prod-worker', 'prod-owner']) {
+      const hash = createHash('sha256').update(keyId === 'prod-worker' ? workerKey : ownerKey, 'utf8').digest('hex')
+      await pool.query(
+        'INSERT INTO api_keys(key_id,key_hash,tenant_id,project_id,roles) VALUES($1,$2,$3,$4,$5) ON CONFLICT (key_id) DO UPDATE SET key_hash = EXCLUDED.key_hash',
+        [keyId, hash, 'tenant-prod', null, 'approver'],
+      )
+      console.log(`stack: prod key '${keyId}' registered (tenant-prod, approver)`)
+    }
+  } catch (error) {
+    console.error(`stack: key provisioning failed (prod db up?): ${String(error?.message ?? error).slice(0, 200)}`)
+    process.exit(1)
+  } finally {
+    await pool.end()
+  }
+}
+
 async function cmdProdDeploy(args) {
   requireProdDir()
   const level = profileOf(args, 'full')
@@ -618,10 +681,27 @@ async function cmdProdDeploy(args) {
     console.error('stack: cannot fetch inside the prod dir')
     process.exit(1)
   }
-  const ff = await run('git', ['-C', PROD_DIR, 'merge', '--ff-only', 'origin/prod'])
-  if (!ff.ok) {
-    console.error('stack: prod dir is not fast-forwardable to origin/prod; inspect it, never force it')
-    process.exit(1)
+  if (args.includes('--rollback')) {
+    // Move the release worktree BACKWARD onto the rolled-back release.
+    // Refuse on tracked modifications (the worktree stays pristine);
+    // ignored files (agents/.env, var/backups) survive the reset.
+    const dirty = await run('git', ['-C', PROD_DIR, 'status', '--porcelain', '--untracked-files=no'])
+    if (!dirty.ok || dirty.stdout.trim()) {
+      console.error('stack: prod dir has tracked modifications; inspect it, never force it')
+      process.exit(1)
+    }
+    const reset = await run('git', ['-C', PROD_DIR, 'reset', '--hard', 'origin/prod'])
+    if (!reset.ok) {
+      console.error(`stack: prod reset failed${reset.stderr ? `: ${reset.stderr.slice(0, 200)}` : ''}`)
+      process.exit(1)
+    }
+    console.log(`stack: ROLLBACK — prod dir reset to origin/prod ${release.slice(0, 9)}`)
+  } else {
+    const ff = await run('git', ['-C', PROD_DIR, 'merge', '--ff-only', 'origin/prod'])
+    if (!ff.ok) {
+      console.error('stack: prod dir is not fast-forwardable to origin/prod; inspect it, never force it')
+      process.exit(1)
+    }
   }
   const head = prodWorktreeSha()
   if (head !== release) {
@@ -638,7 +718,15 @@ async function cmdProdDeploy(args) {
   const replicas = RESOURCE_PROFILES[level].workerReplicas
   const services = [...PROD_APP_SERVICES, ...PROD_OBS_SERVICES]
   if (uiKey) services.push('ui')
-  const up = await prodCompose(['up', '-d', '--scale', `worker=${replicas}`, ...services], level)
+  // Fresh containers for the rebuilt services: stale env and stale logs
+  // (a past [FATAL], an old boot line) must never pass or fail this deploy.
+  // db/temporal/obs start but never recreate (volumes hold the data).
+  const since = new Date(Date.now() - 5000).toISOString()
+  const keep = services.filter((s) => !targets.includes(s))
+  const upKeep = await prodCompose(['up', '-d', ...keep], level)
+  process.stdout.write(upKeep.stdout || upKeep.stderr)
+  if (!upKeep.ok) process.exit(1)
+  const up = await prodCompose(['up', '-d', '--scale', `worker=${replicas}`, '--force-recreate', ...targets], level)
   process.stdout.write(up.stdout || up.stderr)
   if (!up.ok) process.exit(1)
   const okBackend = await waitFor('prod backend /healthz', () => urlHealthy(`${PROD_BACKEND_URL}/healthz`))
@@ -646,15 +734,15 @@ async function cmdProdDeploy(args) {
   const workerNames = ps.filter((s) => s.Service === 'worker' && s.State === 'running').map((s) => s.Name)
   let okWorker = workerNames.length > 0
   for (const name of workerNames) {
-    if (!(await waitFor(`prod worker ${name}`, () => containerLogHas(name, 'turn worker polling')))) okWorker = false
+    if (!(await waitFor(`prod worker ${name}`, () => containerLogHas(name, 'turn worker polling', since)))) okWorker = false
   }
   let okUi = true
   if (uiKey) okUi = await waitFor('prod ui /healthz', () => urlHealthy(`${PROD_UI_URL}/healthz`))
   if (!okBackend || !okWorker || !okUi) process.exit(1)
   const backend = ps.find((s) => s.Service === 'backend')?.Name ?? 'kardata-prod-backend-1'
   for (const name of [backend, ...workerNames]) {
-    if (await containerLogHas(name, '[FATAL]')) {
-      console.error(`stack: ${name} reports [FATAL]; see: docker logs ${name}`)
+    if (await containerLogHas(name, '[FATAL]', since)) {
+      console.error(`stack: ${name} reports [FATAL]; see: docker logs --since ${since} ${name}`)
       process.exit(1)
     }
   }
@@ -671,11 +759,12 @@ async function cmdProd(args) {
   if (sub === 'down') return cmdProdDown()
   if (sub === 'status') return cmdProdStatus()
   if (sub === 'deploy') return cmdProdDeploy(rest)
+  if (sub === 'provision-keys') return cmdProdProvisionKeys()
   if (sub === 'backup') {
     if (!(await cmdProdBackup())) process.exit(1)
     return
   }
-  console.error('usage: npm run stack:prod -- <up|down|status|deploy|backup> [--profile lean|full]')
+  console.error('usage: npm run stack:prod -- <up|down|status|deploy [--rollback]|provision-keys|backup> [--profile lean|full]')
   process.exit(1)
 }
 
@@ -784,7 +873,7 @@ const commands = {
   'worker:host': ['refuse if a host worker polls, else stop compose worker and run the laptop one', cmdWorkerHost],
   'worker:compose': ['refuse if a host worker polls, else start the compose worker', cmdWorkerCompose],
   worker: ['scale the compose worker (default 1): stack.mjs worker --replicas N', cmdWorker],
-  prod: ['prod env: up|down|status|deploy|backup [--profile lean|full]', cmdProd],
+  prod: ['prod env: up|down|status|deploy|provision-keys|backup [--profile lean|full]', cmdProd],
   release: ['ship a main-line SHA to origin/prod [--rollback to move back]', cmdRelease],
   resources: ['show the lean/full resource profiles', cmdResources],
   rebalance: ['normal (staging lean + prod full) | testing (prod 0 + staging full)', cmdRebalance],

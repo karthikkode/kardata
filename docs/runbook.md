@@ -20,15 +20,20 @@ copy `deployment/env.prod.example` to `agents/.env` inside the prod
 dir (ignored, never committed) and set `KARDATA_UI_KEY`. Provider
 keys are inherited from this checkout's `agents/.env` automatically;
 the prod `agents/.env` only overrides them if prod must differ. First
-deploy: `npm run stack:release -- f6f5bb3; npm run stack:prod -- deploy`
-(provisions DB + migrates). Daily release:
-`npm run stack:release -- <merge-sha>` then `npm run stack:prod -- deploy`.
+deploy: `npm run stack:release -- <merge-sha>`; `npm run stack:prod -- up`
+(boots everything, migrates the clean DB; workers stay tool-less until
+keys exist); `npm run stack:prod -- provision-keys` (registers the
+`prod-worker` + `prod-owner` API keys, hashes only); `npm run stack:prod
+-- deploy` (fresh backend/worker/ui containers, full verify). Daily
+release: `npm run stack:release -- <merge-sha>` then
+`npm run stack:prod -- deploy` (keys persist in the kept volume).
 
 Rebalance: heavy test window → `npm run stack:rebalance -- testing`
 (production `down`, staging recomposes full); after →
 `npm run stack:rebalance -- normal` (staging lean, prod up full).
 Rollback: `npm run stack:release -- <older-sha> --rollback` then
-`npm run stack:prod -- deploy`; prod data survives (volumes kept
+`npm run stack:prod -- deploy --rollback` (resets the worktree back;
+refuses on tracked modifications); prod data survives (volumes kept
 unless `down --volumes`). Status: `npm run stack:prod -- status`,
 freshness proof: `npm run stack:doctor` (`prod/*` PASS lines).
 Backup: `npm run stack:prod -- backup`
