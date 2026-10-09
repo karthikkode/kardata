@@ -1,4 +1,4 @@
-import { continueAsNew, log, proxyActivities, sleep } from '@temporalio/workflow'
+import { continueAsNew, log, patched, proxyActivities, sleep } from '@temporalio/workflow'
 import type * as activities from '../activities/reconciliation.js'
 
 const supervision = proxyActivities<typeof activities>({ startToCloseTimeout: '90s', scheduleToCloseTimeout: '5m', heartbeatTimeout: '15s', retry: { maximumAttempts: 3, initialInterval: '2s', maximumInterval: '10s' } })
@@ -18,7 +18,9 @@ export async function executionReconciliation(input: { cursor?: string } = {}): 
       // durable supervisor. Retry the same cursor on the next bounded pass.
       log.warn('execution.reconciliation.page_failed', { cursor, code: 'reconciliation_unavailable' })
     }
-    await sleep('30s')
+    // P3.4 coverage: 500-thread pages every 5 s clear 1000 threads
+    // inside 60 s. Patched so in-flight supervisors replay safely.
+    await sleep(patched('reconcile-cadence-v1') ? '5 seconds' : '30s')
   }
   return continueAsNew<typeof executionReconciliation>({ cursor })
 }

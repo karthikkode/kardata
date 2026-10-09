@@ -11,7 +11,7 @@ import { beginThreadTurn, createSession, listThreadExecutionRecords, recordTurnE
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('keyed execution inspection over real HTTP', () => {
+describe.skipIf(!TEST_DATABASE_URL)('keyed execution inspection over real HTTP [F:http.listExecutionRecords] [F:http.getExecutionRecord] [F:db.index.createSession] [F:db.index.registerApiKey] [F:db.workspace_threads.beginThreadTurn] [F:db.keys.registerApiKey] [F:db.index.listThreadExecutionRecords] [F:db.index.recordTurnExecution] [F:db.sessions.createSession] [F:db.execution_epochs.bindExecutionEpoch] [F:db.execution_records.readThreadExecutionReference] [F:db.index.Db] [F:db.index.readThreadExecutionReference]', () => {
   let pool: Pool, app: FastifyInstance, endpoint: string, sessionId: string, lease: string, directory: string, archive: FilesystemTarget
   const scope = { tenantId: 'TEST execution inspection', projectId: null }
   const key = (role: string) => `TEST execution inspection ${role}`

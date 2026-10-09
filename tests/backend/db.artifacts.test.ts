@@ -39,7 +39,7 @@ function deps(pool: Pool): ArtifactDeps {
   }
 }
 
-describe.skipIf(!ENABLED)('artifact references (B-F3)', () => {
+describe.skipIf(!ENABLED)('artifact references (B-F3) [F:db.index.appendEvent] [F:db.index.createSession] [F:db.index.findEventByKey] [F:db.index.DbContractError] [F:db.index.listArtifacts] [F:db.index.listTenantArtifacts] [F:db.index.referenceArtifact] [F:db.index.resolveArtifactScope] [F:db.events.appendEvent] [F:db.sessions.createSession] [F:db.events.findEventByKey] [F:db.errors.DbContractError] [F:db.event_artifacts.listArtifacts] [F:db.event_artifacts.listTenantArtifacts] [F:db.event_artifacts.referenceArtifact] [F:db.event_artifacts.resolveArtifactScope] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.errors.ArtifactImportTimeout] [F:db.errors.WorkspaceError] [F:db.index.Db] [F:db.index.SECTOR_DOCUMENT_MAX_BYTES] [F:db.workspace.WorkspaceError] [F:db.sector_documents.assertFileVisible] [F:db.sector_documents.hiddenFileIds] [F:db.errors.Id] [F:db.errors.checked] [F:db.file_jobs.visible] [F:db.events.KeySchema]', () => {
   let pool: Pool
   let target: FilesystemTarget
   let sessionA = ''

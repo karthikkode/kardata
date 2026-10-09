@@ -42,18 +42,4 @@ function PopoverTitle({ className, ...props }: React.ComponentProps<typeof Popov
   )
 }
 
-function PopoverDescription({ className, ...props }: React.ComponentProps<typeof Popover.Description>) {
-  return (
-    <Popover.Description
-      data-slot="popover-description"
-      className={cn('mt-1 text-ui text-muted-foreground', className)}
-      {...props}
-    />
-  )
-}
-
-function PopoverClose({ className, ...props }: React.ComponentProps<typeof Popover.Close>) {
-  return <Popover.Close data-slot="popover-close" className={className} {...props} />
-}
-
-export { PopoverRoot, PopoverTrigger, PopoverPopup, PopoverTitle, PopoverDescription, PopoverClose }
+export { PopoverRoot, PopoverTrigger, PopoverPopup, PopoverTitle }

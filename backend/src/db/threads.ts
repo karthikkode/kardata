@@ -18,12 +18,14 @@ import {
   SubagentLaunched,
   SubagentLaunchedV2,
   SubagentMissedSteer,
+  SubagentQueued,
   ThreadFinished,
   ThreadState,
   type ThreadView,
 } from '../threads/project.js'
 import { DbContractError } from './errors.js'
-import type { Db, StoredEvent } from './events.js'
+import type { Db, ProjectableEvent, StoredEvent } from './events.js'
+import { projectProviderRound, projectToolCall } from './execution-rounds.js'
 import { publishOutboxFrame } from './outbox.js'
 import { projectSectorEvent } from './sectors.js'
 
@@ -32,6 +34,7 @@ interface ThreadRow {
   session_id: string
   kind: 'session' | 'subagent'
   status: string
+  state_reason: string | null
   accepting_steer: boolean
   queue_depth: number
   updated_at: Date
@@ -121,14 +124,14 @@ async function isSessionDeleted(db: Db, sessionId: string): Promise<boolean> {
 /** Session scope of a thread-mutating event: its session partition, or a
  * bare session-thread target. Null for child/research threads, which
  * outlive any single session tombstone. */
-function sessionScopeOf(event: StoredEvent, threadKey?: string): string | null {
+function sessionScopeOf(event: ProjectableEvent, threadKey?: string): string | null {
   const scoped = /^session:(.+)$/.exec(event.partition)
   if (scoped?.[1]) return scoped[1]
   if (threadKey && !threadKey.includes(':')) return threadKey
   return null
 }
 
-async function applyEvent(db: Db, event: StoredEvent): Promise<boolean> {
+async function applyEvent(db: Db, event: ProjectableEvent): Promise<boolean> {
   const at = event.at
   switch (event.type) {
     case 't.session.created': {
@@ -147,10 +150,30 @@ async function applyEvent(db: Db, event: StoredEvent): Promise<boolean> {
       // thread reads 404 from here on, while the event log keeps history.
       // Local memory and steering rows follow the thread (no hard FK: they
       // must survive rebuildFromEvents, which truncates threads).
+      // The context row stays while a lease is active: the orphan detector
+      // finds (lease set, thread gone) and cancels the workflow, then clears.
       const payload = SessionDeleted.parse(event.payload)
       await db.query(`DELETE FROM threads WHERE key = $1`, [payload.sessionId])
-      await db.query(`DELETE FROM thread_context WHERE thread_key = $1`, [payload.sessionId])
+      await db.query(`DELETE FROM thread_context WHERE thread_key = $1 AND active_lease IS NULL`, [payload.sessionId])
       await db.query(`DELETE FROM thread_instructions WHERE thread_key = $1`, [payload.sessionId])
+      return true
+    }
+    case 't.subagent.queued': {
+      // A waiting child is a visible thread from acceptance: the strip and
+      // directory list it as QUEUED with pause/stop controls, and steers
+      // land as pending instructions for its first turn. Launch flips the
+      // same row to RUNNING; re-queued ids flip back.
+      const payload = SubagentQueued.parse(event.payload)
+      const queuedSession = event.partition.replace(/^session:/, '')
+      if (await isSessionDeleted(db, queuedSession)) return true
+      await db.query(
+        `INSERT INTO threads (key, session_id, kind, status, updated_at)
+         VALUES ($1, $2, 'subagent', 'QUEUED', $3::timestamptz)
+         ON CONFLICT (key) DO UPDATE SET status='QUEUED', accepting_steer=true, updated_at=EXCLUDED.updated_at
+         WHERE threads.session_id=EXCLUDED.session_id`,
+        [`agent:${payload.childId}`, queuedSession, at],
+      )
+      await publishState(db, `agent:${payload.childId}`)
       return true
     }
     case 't.subagent.launched': {
@@ -184,7 +207,7 @@ async function applyEvent(db: Db, event: StoredEvent): Promise<boolean> {
       const payload = SubagentCompleted.parse(event.payload)
       const completedKey = `agent:${payload.summary.id}`
       await db.query(
-        "UPDATE threads SET status = 'FINISHED', accepting_steer = FALSE, updated_at = $2::timestamptz WHERE key = $1",
+        "UPDATE threads SET status = 'FINISHED', accepting_steer = FALSE, state_reason = NULL, updated_at = $2::timestamptz WHERE key = $1",
         [completedKey, at],
       )
       await publishState(db, completedKey)
@@ -276,7 +299,7 @@ async function applyEvent(db: Db, event: StoredEvent): Promise<boolean> {
     case 't.thread.finished': {
       const payload = ThreadFinished.parse(event.payload)
       await db.query(
-        "UPDATE threads SET status = 'FINISHED', accepting_steer = FALSE, updated_at = $2::timestamptz WHERE key = $1",
+        "UPDATE threads SET status = 'FINISHED', accepting_steer = FALSE, state_reason = NULL, updated_at = $2::timestamptz WHERE key = $1",
         [payload.threadKey, at],
       )
       await publishState(db, payload.threadKey)
@@ -284,10 +307,11 @@ async function applyEvent(db: Db, event: StoredEvent): Promise<boolean> {
     }
     case 't.thread.state': {
       const payload = ThreadState.parse(event.payload)
-      await db.query('UPDATE threads SET status = $2, updated_at = $3::timestamptz WHERE key = $1', [
+      await db.query('UPDATE threads SET status = $2, state_reason = $4, updated_at = $3::timestamptz WHERE key = $1', [
         payload.threadKey,
         payload.status,
         at,
+        payload.reasonCode ?? null,
       ])
       if (payload.acceptingSteer !== undefined) {
         await db.query('UPDATE threads SET accepting_steer = $2, updated_at = $3::timestamptz WHERE key = $1', [
@@ -307,6 +331,12 @@ async function applyEvent(db: Db, event: StoredEvent): Promise<boolean> {
     case 'company.state_changed': {
       return projectSectorEvent(db, event)
     }
+    case 't.provider.round': {
+      return projectProviderRound(db, event)
+    }
+    case 't.tool.call': {
+      return projectToolCall(db, event)
+    }
     default:
       return false
   }
@@ -318,7 +348,7 @@ export interface ProjectionResult {
 }
 
 /** Applies a batch of stored events in seq order. Unknown types are ignored. */
-export async function projectBatch(db: Db, events: StoredEvent[]): Promise<ProjectionResult> {
+export async function projectBatch(db: Db, events: ProjectableEvent[]): Promise<ProjectionResult> {
   if (!Array.isArray(events)) throw new DbContractError('events must be an array')
   let applied = 0
   const ignored: string[] = []
@@ -337,7 +367,10 @@ export async function rebuildFromEvents(db: Db, events: StoredEvent[]): Promise<
   if (!Array.isArray(events)) throw new DbContractError('events must be an array')
   // Sector source files and workspace state are authoritative owner data,
   // not disposable projections. Replay upserts sector identity in place.
-  await db.query('TRUNCATE thread_messages, threads, companies')
+  // tool_calls has no natural unique key (parallel duplicate calls in one
+  // round stay distinct rows), so it truncates: replay re-inserts exactly.
+  // execution_rounds is upsert-safe and needs no truncate.
+  await db.query('TRUNCATE thread_messages, threads, companies, tool_calls')
   return projectBatch(db, events)
 }
 
@@ -360,6 +393,7 @@ export async function getThread(db: Db, threadKey: string): Promise<ThreadView |
     sessionId: thread.session_id,
     kind: thread.kind,
     status: thread.status,
+    ...(thread.state_reason ? { stateReason: thread.state_reason } : {}),
     acceptingSteer: thread.accepting_steer,
     queueDepth: Number(thread.queue_depth),
     updatedAt: thread.updated_at.toISOString(),
@@ -392,7 +426,23 @@ export async function getThreadHeader(db: Db, threadKey: string): Promise<Thread
   if (!ThreadKeySchema.safeParse(threadKey).success) throw new DbContractError('threadKey must be non-empty')
   const { rows } = await db.query<ThreadRow>('SELECT * FROM threads WHERE key = $1', [threadKey])
   const thread = rows[0]
-  return thread ? { key: thread.key, sessionId: thread.session_id, kind: thread.kind, status: thread.status, acceptingSteer: thread.accepting_steer, queueDepth: Number(thread.queue_depth), updatedAt: thread.updated_at.toISOString(), messages: [] } : undefined
+  return thread ? { key: thread.key, sessionId: thread.session_id, kind: thread.kind, status: thread.status, ...(thread.state_reason ? { stateReason: thread.state_reason } : {}), acceptingSteer: thread.accepting_steer, queueDepth: Number(thread.queue_depth), updatedAt: thread.updated_at.toISOString(), messages: [] } : undefined
+}
+
+/** True while the thread has a turn in flight (active lease) or queued
+ * work — the same busy signal reconciliation uses. Lightweight probe for
+ * producers (monitor ticks) that must not pile messages onto a working
+ * thread. Missing threads read idle: the send then fails honestly
+ * instead of wedging the producer silent. */
+export async function threadTurnBusy(db: Db, threadKey: string): Promise<boolean> {
+  if (!ThreadKeySchema.safeParse(threadKey).success) throw new DbContractError('threadKey must be non-empty')
+  const { rows } = await db.query<{ queue_depth: number; active_lease: string | null }>(
+    'SELECT t.queue_depth, c.active_lease FROM threads t LEFT JOIN thread_context c ON c.thread_key = t.key WHERE t.key = $1',
+    [threadKey],
+  )
+  const row = rows[0]
+  if (!row) return false
+  return row.active_lease !== null || Number(row.queue_depth) > 0
 }
 
 export async function listThreads(db: Db, sessionId: string): Promise<ThreadView[]> {
@@ -417,7 +467,7 @@ export async function listThreadHeaders(db: Db, sessionId: string): Promise<Thre
     CASE WHEN t.kind='subagent' THEN (SELECT m.payload->>'name' FROM thread_messages m
       WHERE m.thread_key=t.key AND m.payload->>'launched'='true' ORDER BY m.seq ASC LIMIT 1) END AS name
     FROM threads t WHERE t.session_id=$1 ORDER BY t.key`, [sessionId])
-  return rows.map((thread) => ({ key: thread.key, sessionId: thread.session_id, kind: thread.kind, status: thread.status, acceptingSteer: thread.accepting_steer, queueDepth: Number(thread.queue_depth), updatedAt: thread.updated_at.toISOString(), ...(thread.name ? { name: thread.name } : {}), messages: [] }))
+  return rows.map((thread) => ({ key: thread.key, sessionId: thread.session_id, kind: thread.kind, status: thread.status, ...(thread.state_reason ? { stateReason: thread.state_reason } : {}), acceptingSteer: thread.accepting_steer, queueDepth: Number(thread.queue_depth), updatedAt: thread.updated_at.toISOString(), ...(thread.name ? { name: thread.name } : {}), messages: [] }))
 }
 
 /** Outbound thread messaging for Karbot steering. The messenger is the
@@ -432,6 +482,14 @@ export interface ThreadMessenger {
   pauseRun(runId: string): Promise<{ commandId: string; state: 'accepted' | 'missed_steer' }>
   resumeRun(runId: string, extendedBudgetMs?: number): Promise<{ commandId: string; state: 'accepted' | 'missed_steer' }>
   cancelRun(runId: string): Promise<{ commandId: string; state: 'accepted' | 'missed_steer' }>
+  /** Run inspection (the production gateway implements all five; minimal
+   * fakes omit them and the wrappers below fail closed). Structural
+   * shapes keep this module free of temporal imports. */
+  listRuns?(sessionId?: string): Promise<Array<{ id: string; sessionId: string; threadKey: string; state: string; updatedAt: string }>>
+  getRun?(runId: string): Promise<{ id: string; sessionId: string; threadKey: string; state: string; updatedAt: string } | null>
+  listQueue?(threadKey: string): Promise<Array<{ id: string; text: string; queuedAt: number }>>
+  removeQueued?(threadKey: string, id: string): Promise<boolean>
+  reorderQueue?(threadKey: string, ids: string[]): Promise<void>
 }
 
 const ThreadTextSchema = z.string().min(1).max(8000)
@@ -511,4 +569,63 @@ export async function cancelThreadRun(
     throw new DbContractError('runId must be a non-empty string')
   }
   return requireMessenger(messenger, 'db.cancel_run').cancelRun(runId)
+}
+
+function requireInspection<K extends 'listRuns' | 'getRun' | 'listQueue' | 'removeQueued' | 'reorderQueue'>(
+  messenger: ThreadMessenger | undefined,
+  tool: string,
+  method: K,
+): NonNullable<ThreadMessenger[K]> {
+  const runner = requireMessenger(messenger, tool)
+  const fn = runner[method]
+  if (typeof fn !== 'function') throw new DbContractError(`${tool} needs a run-inspection runner: the server wires the runs gateway, tests inject a fake`)
+  // Bound: callers invoke the method detached, and both the real gateway
+  // and the fake read instance state (client, pool, runs, queues). The
+  // unbound-typed hop keeps bind's this-overloads out of the generic.
+  const unbound = fn as (...args: never[]) => unknown
+  return unbound.bind(runner) as NonNullable<ThreadMessenger[K]>
+}
+
+/** List runs fleet-wide (filtering is the caller's job). Fail-closed
+ * without an inspection runner. */
+export async function listThreadRuns(messenger: ThreadMessenger | undefined) {
+  return requireInspection(messenger, 'ops.list_runs', 'listRuns')()
+}
+
+/** Read one run; null when unknown. Fail-closed without a runner. */
+export async function getThreadRun(messenger: ThreadMessenger | undefined, runId: string) {
+  if (!RunIdSchema.safeParse(runId).success) {
+    throw new DbContractError('runId must be a non-empty string')
+  }
+  return requireInspection(messenger, 'ops.get_run', 'getRun')(runId)
+}
+
+/** List a thread's queued messages. Fail-closed without a runner. */
+export async function listThreadQueue(messenger: ThreadMessenger | undefined, threadKey: string) {
+  if (!ThreadKeySchema.safeParse(threadKey).success) {
+    throw new DbContractError('threadKey must be a non-empty string')
+  }
+  return requireInspection(messenger, 'ops.thread_queue', 'listQueue')(threadKey)
+}
+
+/** Remove one queued message; false when the id is unknown. */
+export async function removeThreadQueueItem(messenger: ThreadMessenger | undefined, threadKey: string, id: string): Promise<boolean> {
+  if (!ThreadKeySchema.safeParse(threadKey).success) {
+    throw new DbContractError('threadKey must be a non-empty string')
+  }
+  if (!z.string().min(1).safeParse(id).success) {
+    throw new DbContractError('id must be a non-empty string')
+  }
+  return requireInspection(messenger, 'ops.queue_remove', 'removeQueued')(threadKey, id)
+}
+
+/** Reorder a thread's queue; the id set must match exactly. */
+export async function reorderThreadQueue(messenger: ThreadMessenger | undefined, threadKey: string, ids: string[]): Promise<void> {
+  if (!ThreadKeySchema.safeParse(threadKey).success) {
+    throw new DbContractError('threadKey must be a non-empty string')
+  }
+  if (!z.array(z.string().min(1)).safeParse(ids).success) {
+    throw new DbContractError('ids must be an array of non-empty strings')
+  }
+  return requireInspection(messenger, 'ops.queue_reorder', 'reorderQueue')(threadKey, ids)
 }

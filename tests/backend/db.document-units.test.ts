@@ -22,7 +22,7 @@ const PNG = Buffer.concat([
   Buffer.from('fake-image-bytes'),
 ])
 
-describe.skipIf(!ENABLED)('sector document units', () => {
+describe.skipIf(!ENABLED)('sector document units [F:db.index.createSector] [F:db.index.ingestSectorDocument] [F:db.index.listDocumentUnits] [F:db.index.listSectorDocuments] [F:db.index.countDocumentUnits] [F:db.index.ScriptedOcrAdapter] [F:db.file_pipeline.ScriptedOcrAdapter] [F:db.sectors.createSector] [F:db.sector_documents.listSectorDocuments] [F:db.document_units.listDocumentUnits] [F:db.document_units.countDocumentUnits] [F:db.index.Db] [F:db.index.SECTOR_DOCUMENT_MAX_BYTES] [F:db.workspace.WorkspaceError] [F:db.sector_documents.hiddenFileIds] [F:db.workspace.requireSector]', () => {
   let pool: Pool | undefined
   let sectorId = ''
 

@@ -2,20 +2,11 @@
 // bundles from the backend; without credentials the flag-off path renders
 // a not-configured notice, never sample data.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  getSectorDetail,
-  listCompanies,
-  listSectors,
-  apiErrorStatus,
-  StagingApiError,
-  type CompanyResearch,
-  type SectorActivityEntry,
-  type SectorDetail,
-  type SectorResearch,
-  type StagingConfig,
-} from './staging-api'
+import { getSectorDetail, listSectors, type CompanyResearch, type SectorDetail, type SectorResearch } from './api/sectors'
+import { listCompanies } from './api/companies'
+import { apiErrorStatus, StagingApiError, type StagingConfig } from './api/client'
 
-export type { CompanyResearch, SectorActivityEntry, SectorDetail, SectorResearch }
+export type { CompanyResearch, SectorDetail, SectorResearch }
 
 export type ResearchStatus = 'loading' | 'ready' | 'error' | 'denied' | 'offline'
 
@@ -94,7 +85,7 @@ export interface CompanyFilters {
 }
 
 /** Client window size: matches the server default page. */
-export const COMPANY_WINDOW = 100
+const COMPANY_WINDOW = 100
 
 export interface CompanyData extends ResearchData<CompanyResearch> {
   moreError: string | null
@@ -117,7 +108,6 @@ export function useStagingCompanies(
   const [moreError, setMoreError] = useState<string | null>(null)
   const wantedWindow = useRef(COMPANY_WINDOW)
   const nextOffset = useRef(0)
-  const [attempt, retry] = useRefetch()
   const [moreNonce, setMoreNonce] = useState(0)
   const state = filters.state ?? ''
   const needle = filters.query ?? ''
@@ -156,9 +146,18 @@ export function useStagingCompanies(
     nextOffset.current = 0
   }, [query])
 
-  useEffect(() => {
+  // The fetch trigger lives outside render state (same shape as
+  // useWorkspaceResource): the section polls retry every 5s, and an
+  // attempt counter would re-render the table with identical UI. A
+  // generation counter supersedes stale attempts exactly like the old
+  // per-effect live flag did.
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  const generation = useRef(0)
+  const fetchWindow = useCallback(() => {
     if (!config) return
-    let live = true
+    generation.current += 1
+    const mine = generation.current
     const wanted = wantedWindow.current
     const readWindow = async () => {
       const companies: CompanyResearch[] = []
@@ -166,7 +165,7 @@ export function useStagingCompanies(
       let consumed = 0
       for (let offset = 0; offset < wanted; offset += COMPANY_WINDOW) {
         const page = await listCompanies(config, { ...serverFilters(), limit: COMPANY_WINDOW, offset })
-        if (!live) return undefined
+        if (!mounted.current || mine !== generation.current) return undefined
         companies.push(...page.companies)
         consumed = offset + page.companies.length
         count = page.total
@@ -176,7 +175,7 @@ export function useStagingCompanies(
     }
     readWindow()
       .then((page) => {
-        if (!live || !page || wanted !== wantedWindow.current) return
+        if (!mounted.current || mine !== generation.current || !page || wanted !== wantedWindow.current) return
         setItems(page.companies)
         nextOffset.current = page.nextOffset
         setTotal(page.total)
@@ -185,14 +184,15 @@ export function useStagingCompanies(
         setStatus('ready')
       })
       .catch((error: unknown) => {
-        if (!live) return
+        if (!mounted.current || mine !== generation.current) return
         setStatus(stagingStatus(error))
       })
-    return () => {
-      live = false
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config?.baseUrl, config?.apiKey, state, needle, sector, attempt])
+  }, [config?.baseUrl, config?.apiKey, state, needle, sector])
+
+  useEffect(() => {
+    fetchWindow()
+  }, [fetchWindow])
 
   useEffect(() => {
     if (!config || moreNonce === 0) return
@@ -229,7 +229,7 @@ export function useStagingCompanies(
     setMoreNonce((value) => value + 1)
   }
 
-  return { status, items, total, loadingMore, moreError, showMore, retry }
+  return { status, items, total, loadingMore, moreError, showMore, retry: fetchWindow }
 }
 
 export interface SectorDetailData {
@@ -245,7 +245,6 @@ export function useStagingSectorDetail(
 ): SectorDetailData {
   const [status, setStatus] = useState<ResearchStatus>('loading')
   const [detail, setDetail] = useState<SectorDetail | undefined>(undefined)
-  const [attempt, retry] = useRefetch()
 
   // Reset during render, never in the fetch effect: when the query
   // changes the previous detail no longer belongs to it.
@@ -262,17 +261,29 @@ export function useStagingSectorDetail(
     }
   }
 
-  useEffect(() => {
+  // The fetch trigger lives outside render state (same shape as
+  // useWorkspaceResource): App polls this hook every 5s, and an attempt
+  // counter would re-render the whole tree with identical UI. A
+  // generation counter supersedes stale attempts exactly like the old
+  // per-effect live flag did.
+  const queryRef = useRef(query)
+  useEffect(() => { queryRef.current = query }, [query])
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  const generation = useRef(0)
+  const fetchDetail = useCallback(() => {
     if (!config || !sectorId) return
-    let live = true
+    generation.current += 1
+    const mine = generation.current
+    const startedQuery = queryRef.current
     getSectorDetail(config, sectorId)
       .then((row) => {
-        if (!live) return
+        if (!mounted.current || mine !== generation.current || queryRef.current !== startedQuery) return
         setDetail(row)
         setStatus('ready')
       })
       .catch((error: unknown) => {
-        if (!live) return
+        if (!mounted.current || mine !== generation.current || queryRef.current !== startedQuery) return
         // A 404 is not a failure: the sector is gone, so the not-found
         // empty state renders instead of an error panel.
         if (error instanceof StagingApiError && error.status === 404) {
@@ -284,11 +295,11 @@ export function useStagingSectorDetail(
         if (next === 'denied') setDetail(undefined)
         setStatus(next)
       })
-    return () => {
-      live = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config?.baseUrl, config?.apiKey, sectorId, attempt])
+  }, [config, sectorId])
 
-  return { status, detail, retry, refresh: retry }
+  useEffect(() => {
+    fetchDetail()
+  }, [fetchDetail])
+
+  return { status, detail, retry: fetchDetail, refresh: fetchDetail }
 }

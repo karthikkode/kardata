@@ -10,9 +10,6 @@ import type { Db } from './events.js'
 /** A Db that can hand out a transaction client. pg Pool satisfies this
  * structurally; callers pass the pool through opaquely. */
 export type TransactableDb = Db & { connect(): Promise<PoolClient> }
-/** Both durable streams share one lock: transactions cannot invert event
- * and outbox lock order, and cursors cannot overtake uncommitted seqs. */
-export const DURABLE_STREAM_LOCK_SQL = "SELECT pg_advisory_xact_lock(hashtext('kardata:durable-stream'))"
 
 /** Transaction handle: the client query surface plus checkpoint reads and
  * writes bound to the open transaction. */

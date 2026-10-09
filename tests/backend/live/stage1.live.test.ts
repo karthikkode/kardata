@@ -11,7 +11,7 @@ function dataOf(body: unknown): Record<string, unknown> {
   return (body as { data: Record<string, unknown> }).data
 }
 
-describe.skipIf(!LIVE_META_ENABLED)('live stage 1 (plan lock, sector id)', () => {
+describe.skipIf(!LIVE_META_ENABLED)('live stage 1 (plan lock, sector id) [F:db.index.createSector] [F:db.index.recordPlanVersion] [F:db.sectors.createSector] [F:db.sector_plan.recordPlanVersion] [F:db.workspace.WorkspaceError] [F:db.workspace.requireSector]', () => {
   let stack: LiveStack
 
   beforeAll(async () => {

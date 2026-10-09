@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest'
 import { planningBrief } from '../../backend/src/temporal/workflows/plan.js'
 
-describe('planningBrief', () => {
+describe('planningBrief [F:backend.workflow.plan.planningBrief]', () => {
   it('demands the six readable plan sections with evidence-or-uncertain discipline (B3)', () => {
     const brief = planningBrief('Speciality foods', 'Artisanal packaged foods')
     for (const heading of ['## Goal', '## Search directions', '## Steps', '## Budget and limits', '## Risks', '## Open questions']) {

@@ -5,11 +5,11 @@
 import type { PoolClient } from 'pg'
 import { z } from 'zod'
 import { DbContractError } from './errors.js'
-import type { Db } from './events.js'
-import { DURABLE_STREAM_LOCK_SQL } from './checkpoints.js'
+import { DURABLE_STREAM_LOCK_SQL, type Db } from './events.js'
 import { createLogger, logOp } from '../observability/logging.js'
 
 const subscriptionLogger = createLogger({ op: 'db.outbox.subscription' })
+const publishLogger = createLogger({ op: 'db.outbox.publish' })
 
 /** A Db that can also hand out a dedicated LISTEN client. pg Pool
  * satisfies this structurally; callers pass the pool through opaquely. */
@@ -66,14 +66,16 @@ export async function publishOutboxFrame(
   if (!['message', 'state', 'delta', 'reasoning', 'tool', 'context-version', 'approval', 'work-progress', 'compaction', 'steering-consumption'].includes(type)) {
     throw new DbContractError("type must be 'message', 'state', 'delta', 'reasoning', or 'tool'")
   }
-  const { rows } = await db.query<{ seq: number | string }>(
-    `WITH durable_order AS MATERIALIZED (${DURABLE_STREAM_LOCK_SQL})
-     INSERT INTO outbox (thread_key, type, payload) SELECT $1, $2, $3::jsonb FROM durable_order RETURNING seq`,
-    [threadKey, type, JSON.stringify(payload)],
-  )
-  const row = rows[0]
-  if (!row) throw new Error('publishOutboxFrame: missing RETURNING row')
-  return Number(row.seq)
+  return logOp(publishLogger, 'db.outbox.publish', async () => {
+    const { rows } = await db.query<{ seq: number | string }>(
+      `WITH durable_order AS MATERIALIZED (${DURABLE_STREAM_LOCK_SQL})
+       INSERT INTO outbox (thread_key, type, payload) SELECT $1, $2, $3::jsonb FROM durable_order RETURNING seq`,
+      [threadKey, type, JSON.stringify(payload)],
+    )
+    const row = rows[0]
+    if (!row) throw new Error('publishOutboxFrame: missing RETURNING row')
+    return Number(row.seq)
+  }, { thread_key: threadKey, type })
 }
 
 /** Retention reaper: delete frames older than the cutoff. Consumers resume

@@ -45,7 +45,7 @@ function stubDb(state: StubState): Db {
   }
 }
 
-describe('getSectorContext', () => {
+describe('getSectorContext [F:db.sector_context.getSectorContext] [F:db.index.Db]', () => {
   it('assembles digest-first cited references with estimates', async () => {
     const view = await getSectorContext(stubDb({ exclusions: [], notes: [] }), 'sec-1')
     expect(view.segments.system).toBe('Sector Optics: Lenses')

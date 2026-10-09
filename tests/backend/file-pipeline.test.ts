@@ -27,7 +27,7 @@ const bytes = (text: string): Buffer => Buffer.from(text, 'utf8')
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00])
 const JPEG_MAGIC = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46])
 
-describe('classifyUpload', () => {
+describe('classifyUpload [F:db.file_pipeline.extractFileUnits] [F:db.file_pipeline.chunkTextUnits] [F:db.file_pipeline.classifyUpload] [F:db.file_pipeline.createHttpOcrAdapter] [F:db.file_pipeline.OCR_CONFIDENCE_MIN] [F:db.file_pipeline.ScriptedOcrAdapter] [F:db.file_pipeline.UNIT_MAX_CHARS] [F:db.file_pipeline.SECTOR_DOCUMENT_MAX_BYTES] [F:db.index.classifyUpload]', () => {
   it('sniffs magic bytes ahead of the extension', () => {
     expect(classifyUpload('notes.txt', PNG_MAGIC).kind).toBe('image')
     expect(classifyUpload('photo.png', PNG_MAGIC).kind).toBe('image')

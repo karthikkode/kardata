@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
+    "test:coverage": "KARDATA_TEMPORAL_TEST=1 vitest run --coverage tests/backend tests/registry",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "eslint . && cd ../tests/backend && eslint .",
+    "lint": "eslint . && cd ../tests/backend && eslint . && cd ../fault && eslint .",
     "build": "tsc -p tsconfig.build.json",
     "migrate": "node dist/db/cli.js",
     "worker": "node dist/temporal/dev-worker.js"
@@ -17,9 +18,13 @@
     "@modelcontextprotocol/server": "^2.1.0",
     "@napi-rs/canvas": "^0.1.100",
     "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/context-async-hooks": "^2.11.0",
+    "@opentelemetry/core": "^2.11.0",
+    "@opentelemetry/resources": "^2.11.0",
     "@opentelemetry/sdk-trace-base": "^2.11.0",
     "@temporalio/activity": "^1.24.0",
     "@temporalio/client": "^1.24.0",
+    "@temporalio/interceptors-opentelemetry": "^1.24.0",
     "@temporalio/testing": "^1.24.0",
     "@temporalio/worker": "^1.24.0",
     "@temporalio/workflow": "^1.24.0",
@@ -38,10 +43,10 @@
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.13.3",
     "@types/pg": "^8.23.1",
+    "@vitest/coverage-istanbul": "^5.0.3",
     "eslint": "^10.11.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.70.1",
-    "vitest": "^5.0.1",
-    "yaml": "^2.9.1"
+    "vitest": "^5.0.1"
   }
 }

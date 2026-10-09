@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { discoverySample, validateDiscoveryAcceptance } from '../../backend/src/temporal/discovery-acceptance.js'
-import type { WorkItem } from '../../backend/src/temporal/research-plan.js'
+import { discoverySample, validateDiscoveryAcceptance } from '../../backend/src/discovery-acceptance.js'
+import type { WorkItem } from '../../backend/src/research-plan.js'
 
 const companies: WorkItem[] = ['b', 'a'].map((id) => ({ id, title: `TEST company ${id}`, sourceUrl: `https://${id}.example.test/`, kind: 'company', state: 'complete', attempts: 0, childId: null, evidence: [], detail: '' }))
 const criteria = ['Verified Australian company identities']

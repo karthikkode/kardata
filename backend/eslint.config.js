@@ -1,11 +1,18 @@
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import { defineConfig } from 'eslint/config'
 
+const allowlist = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'quality-allowlist.json')))
+const allowFiles = (key) =>
+  allowlist[key].map((entry) => entry.file).filter((file) => file.startsWith('backend/')).map((file) => file.slice('backend/'.length))
+
 export default defineConfig([
   // Ignored test-evidence output is never linted: generated proof scripts
   // and captures live under test-results/ (also git-ignored).
-  { ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'test-results/**'] },
+  { ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'test-results/**', 'var/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -43,6 +50,73 @@ export default defineConfig([
     files: ['src/db/**/*.ts'],
     rules: {
       'no-restricted-imports': 'off',
+    },
+  },
+  {
+    files: ['src/**/*.ts'],
+    rules: {
+      'max-lines': ['error', { max: 800 }],
+      complexity: ['warn', 20],
+      'max-depth': ['warn', 4],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression[callee.name='fetch']",
+          message: 'use the backend retrieval transport, never global fetch',
+        },
+      ],
+    },
+  },
+  ...allowFiles('maxLines').map((file) => ({ files: [file], rules: { 'max-lines': 'off' } })),
+  ...allowFiles('globalFetch').map((file) => ({ files: [file], rules: { 'no-restricted-syntax': 'off' } })),
+  // Workflow sandbox boundary (fv4 L-PLAN, 259fb1d): files under
+  // src/temporal/workflows/** execute in Temporal's deterministic VM,
+  // which has no `process` and no Node APIs. Queue names come from the
+  // pure laneTaskQueue helper; env-reading helpers (laneConfig,
+  // turnActivitySlots) and gateway-side modules that read process.env
+  // (runs-helpers, temporal connection) stay out.
+  // Type-only activity imports are unaffected (erased before bundling).
+  {
+    files: ['src/temporal/workflows/**/*.ts'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        {
+          name: 'process',
+          message:
+            'workflow code runs in the Temporal sandbox, which has no process; pass values via workflow input instead.',
+        },
+      ],
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '../connection.js',
+              message:
+                'temporal connection helpers read process.env and hold native handles; workflow code must not import them.',
+            },
+          ],
+          patterns: [
+            {
+              group: ['**/lanes.js', '**/lanes'],
+              importNames: ['laneConfig', 'turnActivitySlots'],
+              message:
+                'laneConfig/turnActivitySlots read process.env, which the workflow sandbox does not have; use laneTaskQueue instead.',
+            },
+            {
+              group: ['**/runs-helpers.js', '**/runs-helpers'],
+              message:
+                'runs-helpers is gateway-side (process.env, node:crypto, db, client); move sandbox-safe helpers to a pure module instead.',
+            },
+            {
+              group: ['**/temporal/connection.js', '**/temporal/connection'],
+              message:
+                'temporal connection helpers read process.env and hold native handles; workflow code must not import them.',
+            },
+          ],
+        },
+      ],
     },
   },
 ])

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
 import { FileProcessingStatus } from '@/components/FileProcessingStatus'
 import { FileProcessingRetry } from '@/components/FileProcessingRetry'
-import type { FileProcessingProgress, LibraryFile } from '@/data/workspace-api'
+import type { FileProcessingProgress, LibraryFile } from '@/data/api/files'
 const progress: FileProcessingProgress = { jobId: 'TEST job', state: 'uncertain', revision: 1, totalImages: 12, completedImages: 5, failedImages: 0, uncertainImages: 1, errorCode: 'provider_outcome_unknown', retryRequiresApproval: true }
 const file: LibraryFile = { id: 'TEST file', filename: 'TEST mixed PDF.pdf', status: 'failed', source: 'upload', hash: 'TEST version', hidden: false, included: false, kind: 'document', processing: progress }
 for (const state of ['queued','paused','failed','uncertain','complete'] as const) it(`shows ${state} from durable file status with honest image counts`, () => {

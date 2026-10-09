@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { DeltaAccumulator, ProviderError, type StreamEvent } from './providers.js'
-import { FakeProvider } from './fake.js'
+import { DeltaAccumulator, emptyUsage, ProviderError, type StreamEvent } from './providers.js'
+import { FakeProvider, isFakeError } from './fake.js'
 import type { ProviderRequest } from './providers.js'
 
 function request(): ProviderRequest {
   return { systemPrompt: 'sys', messages: [], tools: [], toolChoice: { mode: 'auto' } }
 }
 
-describe('DeltaAccumulator', () => {
+describe('DeltaAccumulator [F:agents.providers.DeltaAccumulator]', () => {
   it('assembles parallel calls by index in order', () => {
     const accumulator = new DeltaAccumulator()
     const events: StreamEvent[] = [
@@ -38,7 +38,21 @@ describe('DeltaAccumulator', () => {
   })
 })
 
-describe('FakeProvider', () => {
+describe('isFakeError [F:agents.fake.isFakeError]', () => {
+  it('recognizes error steps and nothing else', () => {
+    expect(isFakeError({ error: 'TEST boom' })).toBe(true)
+    expect(isFakeError({ error: 'TEST boom', retryable: true })).toBe(true)
+    expect(isFakeError({ text: 'TEST ok' })).toBe(false)
+  })
+})
+
+describe('emptyUsage [F:agents.providers.emptyUsage]', () => {
+  it('zeroes every counter', () => {
+    expect(emptyUsage()).toEqual({ inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, cacheHitTokens: 0, cacheMissTokens: 0 })
+  })
+})
+
+describe('FakeProvider [F:agents.fake.FakeProvider]', () => {
   it.each(['complete', 'incomplete', null] as const)('scripts explicit terminal completion %s consistently for nonstream and stream fixtures', async (completion) => {
     const fake = new FakeProvider([{ text: 'TEST reply', completion }, { text: 'TEST reply', completion }])
     const response = await fake.chat(request())

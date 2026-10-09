@@ -2,7 +2,7 @@
 // Each owns its pool from env like the sweep activities; the layer's
 // deterministic keys keep retries replaying instead of duplicating.
 import { z } from 'zod'
-import type { Scope } from '../../auth/keys.js'
+import type { Scope } from '../../auth/types.js'
 import {
   DbContractError,
   recordPlanVersion,
@@ -13,7 +13,7 @@ import {
   type SectorPlan,
 } from '../../db/index.js'
 import { projectNewEvents } from '../../projector.js'
-import { parseExecutablePlan } from '../research-plan.js'
+import { parseExecutablePlan } from '../../research-plan.js'
 
 const SectorId = z.string().min(1)
 

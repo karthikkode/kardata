@@ -22,7 +22,7 @@ import {
   WorkspaceError,
   researchSessionBinding,
 } from '../db/index.js'
-import { RunNotFound, SESSION_PREFIX } from '../temporal/gateway.js'
+import { RunNotFound, SESSION_PREFIX } from '../temporal/runs-types.js'
 import { projectNewEvents } from '../projector.js'
 import { compactOwnerThread } from '../context.js'
 import type { ModelCatalog } from '../providers/catalog.js'
@@ -155,7 +155,7 @@ export function sessionRoutes(app: FastifyInstance, catalog: ModelCatalog): void
           await saveInheritedContext(pool, `agent:${childId}`, await buildInheritedContext(pool, params.sessionId))
         },
       })
-      return { status: 201, body: { ok: true, data: { childId: child.childId, threadKey: `agent:${child.childId}` } } }
+      return { status: 201, body: { ok: true, data: { childId: child.childId, threadKey: `agent:${child.childId}`, queued: child.queued } } }
     })
   })
 

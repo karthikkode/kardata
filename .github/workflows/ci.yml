@@ -1,6 +1,7 @@
 # CI verify pipeline (no deploy target: this workflow proves, never ships).
 # Deterministic verification plus isolated Postgres/Temporal integration.
-# Paid provider, full stress and live UI pilot evidence remain release gates.
+# Paid provider, full stress, ui-review grading and live UI pilot evidence
+# remain local release gates.
 name: ci
 
 on:
@@ -18,10 +19,16 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run pr:verify
+      # P7-M3: no DB service here; the backend coverage gate runs in the
+      # integration job, so verify's coverage step skips it explicitly.
+      - run: npm run verify
+        env:
+          COVERAGE_SKIP_BACKEND: '1'
       - run: npm test -w @kardata/backend -- pdf-mixed.test.ts
         env:
           KARDATA_PDF_MEMORY_TEST: '1'
+      - name: No test rewrote tracked files
+        run: git diff --exit-code
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -30,6 +37,7 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -43,7 +51,11 @@ jobs:
       # 1000-row paging inside 30s) are validated on an unloaded
       # machine; parallel workers on shared runners break them with
       # load noise, not product regressions (PR #37 triage).
+      # P6-M5: matrix/ stays out until screenshot baselines are
+      # captured at final verification (a baseless first run fails).
       - run: npm run test:e2e -- --workers=1
+        env:
+          CI_MATRIX: '0'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -52,7 +64,7 @@ jobs:
 
   integration:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     services:
       postgres:
         image: postgres@sha256:a3b7f434b2dc57ce85a67e171163eb8ab1a1ebcb39d27484661f26b1dfbe30d6
@@ -82,10 +94,28 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build -w @kardata/agents
+      - run: npm run build -w @kardata/backend
       - run: npm test -w @kardata/backend
-      - run: npm test -w @kardata/backend -- workflows.run.test.ts workflows.subagents.test.ts workflows.plan.test.ts workflows.coordinator.test.ts workflows.file-processing.test.ts
+      - run: npm test -w @kardata/backend -- workflows.run.test.ts workflows.subagents.test.ts workflows.plan.test.ts workflows.coordinator.test.ts workflows.file-processing.test.ts workflows.bundle.test.ts
         env:
           KARDATA_TEMPORAL_TEST: '1'
+          KARDATA_FILE_TEMPORAL_ADDRESS: localhost:7233
+      # Fault drills F6-F8 need a Toxiproxy server: same image and host
+      # networking as `stack:toxi up`, so proxy ports behave identically.
+      - name: Start toxiproxy
+        run: |
+          docker run -d --name kardata-toxiproxy --network host shopify/toxiproxy@sha256:a6b080af39986b863a1f7c5a3b9bacf2afeb48abab8f0eb7e243f8f7ad38c645
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8474/version && break || sleep 1; done
+      - run: npm run test:fault
+        env:
+          TOXIPROXY_URL: http://127.0.0.1:8474
+          KARDATA_FILE_TEMPORAL_ADDRESS: localhost:7233
+      - run: npm run test:stress
+        env:
+          KARDATA_STRESS: '1'
+          KARDATA_STRESS_SCALE: reduced
+      - run: node scripts/coverage.mjs --backend-only
+        env:
           KARDATA_FILE_TEMPORAL_ADDRESS: localhost:7233
 
       - run: npx playwright install --with-deps chromium
@@ -107,3 +137,5 @@ jobs:
         with:
           name: browser-agent-context-integration
           path: frontend/test-results/
+      - name: No test rewrote tracked files
+        run: git diff --exit-code

@@ -9,13 +9,13 @@
 // directly). Turn work runs on the turn lane; plan writes run on the
 // research lane beside the sweep activities.
 import { defineQuery, log, patched, proxyActivities, setHandler, workflowInfo } from '@temporalio/workflow'
-import { laneConfig } from '../lanes.js'
+import { laneTaskQueue } from '../lanes.js'
 import { isSweepCancellation } from '../sweep-rules.js'
 import { activityOptions } from '../timeouts.js'
 import type * as planActivitiesModule from '../activities/plan.js'
 import type * as sweepActivitiesModule from '../activities/sweep.js'
 import type * as turnActivitiesModule from '../activities/turn.js'
-import { visiblePlan } from '../research-plan.js'
+import { visiblePlan } from '../../research-plan.js'
 
 const plan = proxyActivities<typeof planActivitiesModule>(activityOptions('research'))
 const sweep = proxyActivities<typeof sweepActivitiesModule>(activityOptions('research'))
@@ -53,12 +53,12 @@ export function planningBrief(name: string, topic: string): string {
     'Write the plan in Markdown with these sections, in order: `## Goal` (2-3 sentences on what this research will find and why), `## Search directions` (one `###` subsection per direction: what it targets and why it should surface real companies), `## Steps` (a numbered list of 4-8 concrete steps the research will take, each one sentence starting with a verb), `## Budget and limits`, `## Risks`, `## Open questions`. Never answer a section with a single word: write at least one full sentence, or say what is not known yet and why.',
     'Every claim needs evidence or an explicit uncertain mark — never invent.',
     'Write the plan as the reply. If you cannot evidence a section, say so under its heading.',
-    'Append the executable specification as one fenced block with the exact fence ```research-plan (never ```json or any other fence), containing JSON with exactly: researchDepth ("discovery" for sector discovery; company deep research requires a separately approved phase), discoveryTarget (minimum distinct-company count requested by the owner, 1..2000; do not set it above maxCompanies), discovery (array of {id,title,queries:string[],maxPages:1..10}), companyBrief (instructions to investigate all worthy problems and report evidence), budgets ({maxCompanies:1..2000,maxWallMinutes:1..1440,concurrency:2}), acceptance (nonempty string[]). This is the executable specification the owner will approve. Use real sector queries, bounded budgets and evidence-based completion requirements.',
+    'Append the executable specification as one fenced block with the exact fence ```research-plan (never ```json or any other fence), containing JSON with exactly: researchDepth ("discovery" for sector discovery; company deep research requires a separately approved phase), discoveryTarget (minimum distinct-company count requested by the owner, 1..2000; do not set it above maxCompanies), discovery (array of {id,title,queries:string[],maxPages:1..10}), companyBrief (instructions to investigate all worthy problems and report evidence), budgets ({maxCompanies:1..2000,maxWallMinutes:1..1440,concurrency:1..64}), acceptance (nonempty string[]). This is the executable specification the owner will approve. Use real sector queries, bounded budgets and evidence-based completion requirements.',
   ].join('\n')
 }
 
 export async function sectorPlan(input: SectorPlanInput): Promise<'planned' | 'failed'> {
-  const turn = proxyActivities<typeof turnActivitiesModule>({ ...activityOptions('turn'), taskQueue: input.turnTaskQueue ?? laneConfig('turn').taskQueue })
+  const turn = proxyActivities<typeof turnActivitiesModule>({ ...activityOptions('turn'), taskQueue: input.turnTaskQueue ?? laneTaskQueue('turn') })
   const modern = patched('plan-version-run-v2')
   const transcript = patched('plan-transcript-v1')
   const versionKey = modern ? workflowInfo().runId : input.sectorId

@@ -9,9 +9,20 @@ Durable supervision gates:
 
 Mirrors the area covered: `tests/frontend/...`, `tests/backend/...`.
 Framework per area doc; frontend uses Vitest + Testing Library (jsdom) for
-components and Playwright for critical flows. Coverage via
-`npm run test:coverage -w frontend` (istanbul provider; thresholds ratchet,
-never drop).
+components and Playwright for critical flows. Coverage is istanbul in all
+three workspaces (`npm run test:coverage -w <ws>`); `npm run coverage` runs
+them plus the backend core-dir gate (db/mcp/temporal >= 85% lines). Globals:
+agents >= 85%, backend >= 80%, frontend >= 75%. Thresholds ratchet, never
+drop. `temporal/workflows/**` is excluded from line coverage: workflow code
+runs in Temporal's bundled isolate where istanbul cannot attribute lines;
+those files are covered functionally by the temporal tier instead.
+Backend coverage needs TEST_DATABASE_URL + Temporal; without a DB it
+fails unless COVERAGE_SKIP_BACKEND=1 skips it explicitly (the gate then
+runs in verify:full / CI integration). Mutation (>= 70% per core module)
+is a local gate via `npm run test:mutation`. The vitest-runner separator
+patch in `patches/` (applied by postinstall) is load-bearing for that
+gate under vitest 5; the guard at the head of `test:mutation` fails
+loud if it is ever missing.
 
 ## The one rule
 
@@ -107,7 +118,10 @@ hand-roll routes or screenshots:
   raw-text guard, focus rings, shell alignment, plan-rail clearance)
   and `writeAuditReport` stores per-page JSON under
   `frontend/test-results/v2/audit/`; `audit.spec.ts` fails on any
-  violation. `color.ts` holds the contrast math.
+  violation. `color.ts` holds the contrast math. The visible-text sweep
+  skips text far outside the viewport under a `content-visibility`
+  auto/hidden gate: skipped subtrees report frozen pre-theme-flip colors
+  no user ever sees (scrolling there re-renders with live tokens).
 - Playwright wipes `frontend/test-results/` at the start of every run:
   chain the archive into the same command
   (`... ; cp test-results/v2/*.png tests/evidence/<area>/`), review
@@ -153,6 +167,12 @@ like the routes) seeds 1000 companies plus 12 documents.
   `KARDATA_TEMPORAL_TEST=1`, compose smoke under `KARDATA_COMPOSE=1`,
   provider probes with keys. These prove wiring; hermetic suites prove
   logic. Neither substitutes for the other.
+- Workflow-state assertions poll the query to its expected value: a DB
+  event proves the activity completed, not that the workflow processed
+  the completion (one WFT later); an immediate query reads stale state.
+- History pulls carry their own deadline (`fetchHistoryBounded`): the
+  SDK call never times out on its own, so a stall burns the test
+  budget with zero diagnostics instead of failing with the phase named.
 - Fleet load (`tests/backend/workflows.fleet-load.test.ts`, needs both
   Temporal flag and `TEST_DATABASE_URL`): 10/50/100/1000 subagents
   against a throwaway database plus an in-process backend over real
@@ -161,10 +181,32 @@ like the routes) seeds 1000 companies plus 12 documents.
   run-unique session: reruns never collide with still-running children
   from an aborted run (which correctly reject as duplicates).
 
+## Tiers and commands (Phase 2 plan)
+
+| Tier | Proves | Command |
+|---|---|---|
+| unit | Logic, jsdom components, fake provider | `npm test` |
+| db | Real Postgres, per-suite DB | `TEST_DATABASE_URL=… npm test -w @kardata/backend` |
+| temporal | Real Temporal and DB, scripted provider | add `KARDATA_TEMPORAL_TEST=1` |
+| e2e | Real browser | `npm run test:e2e -w frontend` |
+| fault | Injected failures | `TEST_DATABASE_URL=… TOXIPROXY_URL=… npm run test:fault` (needs `KARDATA_FILE_TEMPORAL_ADDRESS` + `backend/dist` built) |
+| stress | Data volume, DB concurrency | `TEST_DATABASE_URL=… KARDATA_STRESS=1 npm run test:stress` (`KARDATA_STRESS_SCALE=reduced` in CI: 100k events, 10 writers) |
+| live | Real Meta, isolated stack | `TEST_DATABASE_URL=…/kardata_live npm run test:live` (keys via agents/.env; `-t "L-K"` filters) |
+| ui-review | Graded screenshots | `npm run ui:review` (`-- --changed` limits to the branch diff) |
+
+Full gates: `npm run verify` (pr:verify + coverage + quality; the registry
+gate rides inside the backend suite, enforced by default); `npm run
+verify:full` adds the db, temporal, and full Playwright tiers. It needs
+`TEST_DATABASE_URL` in env (fails fast without it) and sets
+`KARDATA_TEMPORAL_TEST=1` itself for the temporal tier; with a DB present,
+verify's coverage step also runs the backend gate.
+
 CI runs a separate pinned Postgres/Temporal integration job. Its databases are
 UUID-suffixed isolated resources; it runs the live DB suite then session, child,
-planning and coordinator workflows. Paid Meta and full stress remain separate
-release gates. Browser outputs are uploaded even on failure. The single local
+planning and coordinator workflows, then the fault tier (with Toxiproxy),
+the reduced stress tier, and the backend coverage gate. Live Meta, full
+stress, ui-review grading, and mutation stay local release gates. Browser
+outputs are uploaded even on failure. The single local
 mechanical entrypoint remains `npm run pr:verify`; live database tests use
 `TEST_DATABASE_URL=... npm test -w @kardata/backend`, Temporal tests additionally
 set `KARDATA_TEMPORAL_TEST=1`. Never run migration tests against a shared DB.
@@ -295,8 +337,11 @@ retrieval/provider bodies remain explicitly scripted fixtures.
 Live-DB backend suites run at two file workers against the established local
 100-connection budget. Databases remain independent. Within-file concurrent
 migrators, transaction contention and explicit stress tiers retain their original
-fan-out; no timeout/test assertion is relaxed. Unit-only file scheduling is
-unchanged.
+fan-out; no timing assertion is relaxed. The implicit vitest defaults are
+superseded for DB suites only (`testTimeout` 15s, `hookTimeout` 30s when
+`TEST_DATABASE_URL` is set): the 5s/10s defaults starved ~1s tests under
+parallel coverage load, while explicit per-test budgets override unchanged.
+Unit-only file scheduling and timeouts are unchanged.
 
 `TEST_DATABASE_URL=... npm test -w @kardata/backend -- mcp.operation-receipts.test.ts`
 uses an isolated database and actual HTTP/MCP dispatch to fail response-cache
@@ -407,6 +452,14 @@ ID-only history/replay, hidden pause/reveal and scoped approver acknowledgement
 for an unknown paid outcome. Providers remain scripted. Declare the owned server
 explicitly; no default server fallback exists. Cleanup cancels only its captured
 owned workflows and closes owned clients/workers; DB/archive records remain.
+
+Fault drills (`tests/fault/`) inject network cuts and latency through Toxiproxy
+(`tests/fault/toxiproxy.ts`, fetch-based, tests-only): provision the server with
+`npm run stack:toxi -- up` (docker, host network, `127.0.0.1:8474`), pass
+`TOXIPROXY_URL=http://127.0.0.1:8474`, and point `TEST_DATABASE_URL` plus
+`KARDATA_FILE_TEMPORAL_ADDRESS` at owned infra. Drills create per-test proxies
+(pg `127.0.0.1:15433`, Temporal `127.0.0.1:17233`) and delete them in `finally`;
+each records detection and recovery time. Drills skip without `TOXIPROXY_URL`.
 The25-second storage cases distinguish preparation health from finalization:
 each asserts its own activity attempt stays at1 and no heartbeat timeout occurs.
 `KARDATA_FILE_TEST_DISABLE_FINALIZE_HEARTBEAT=1` is an explicit test-fixture-only

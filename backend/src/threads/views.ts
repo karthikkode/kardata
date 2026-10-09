@@ -8,6 +8,7 @@ export interface ApiThread {
   sessionId: string
   kind: 'session' | 'subagent'
   status: string
+  stateReason?: string
   acceptingSteer: boolean
   queueDepth: number
   updatedAt: string
@@ -20,6 +21,7 @@ export function toApiThread(view: ThreadView): ApiThread {
     sessionId: view.sessionId,
     kind: view.kind,
     status: view.status,
+    ...(view.stateReason ? { stateReason: view.stateReason } : {}),
     acceptingSteer: view.acceptingSteer,
     queueDepth: view.queueDepth,
     updatedAt: view.updatedAt,

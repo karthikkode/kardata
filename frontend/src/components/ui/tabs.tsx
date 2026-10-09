@@ -10,9 +10,10 @@ import * as React from 'react'
 import { Tabs } from '@base-ui/react/tabs'
 import { LazyMotion, domAnimation, m } from 'motion/react'
 import { tabIndicatorTransition } from '@/lib/motion'
+import { focusRingInset } from '@/lib/interaction'
 import { cn } from '@/lib/utils'
 
-export type TabsVariant = 'underline' | 'segmented'
+type TabsVariant = 'underline' | 'segmented'
 
 const TabsVariantContext = React.createContext<{ variant: TabsVariant; groupId: string }>({
   variant: 'underline',
@@ -68,8 +69,8 @@ function TabsTab({ className, children, ...props }: React.ComponentProps<typeof 
   const { variant } = React.useContext(TabsVariantContext)
   const tabClassName = cn(
     variant === 'segmented'
-      ? 'relative z-0 h-8 pointer-coarse:h-10 shrink-0 cursor-pointer rounded-sm px-3 text-ui font-medium whitespace-nowrap text-muted-foreground outline-none transition-colors duration-120 ease-out-soft hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 data-selected:text-foreground'
-      : 'relative h-10 pointer-coarse:min-w-10 shrink-0 cursor-pointer px-1 text-ui font-medium whitespace-nowrap text-muted-foreground outline-none transition-colors duration-120 ease-out-soft hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 data-selected:text-foreground',
+      ? `relative z-0 h-8 pointer-coarse:h-10 shrink-0 cursor-pointer rounded-sm px-3 text-ui font-medium whitespace-nowrap text-muted-foreground ${focusRingInset} transition-colors duration-120 ease-out-soft hover:text-foreground disabled:pointer-events-none disabled:opacity-50 data-selected:text-foreground`
+      : `relative h-10 pointer-coarse:min-w-10 shrink-0 cursor-pointer px-1 text-ui font-medium whitespace-nowrap text-muted-foreground ${focusRingInset} transition-colors duration-120 ease-out-soft hover:text-foreground disabled:pointer-events-none disabled:opacity-50 data-selected:text-foreground`,
     className,
   )
   return (

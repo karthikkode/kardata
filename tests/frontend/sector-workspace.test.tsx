@@ -3,9 +3,14 @@ import userEvent from '@testing-library/user-event'
 import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { SectorLanding } from '@/components/SectorLanding'
-import { GlobalContextPanel, LocalContextEditor, PlanProgress, ResourceNotice, WorkspaceFiles } from '@/components/workspace-parts'
-import type { SectorDetail } from '@/data/staging-api'
-import type { GlobalContext, GlobalContextUsage, ResearchProgress } from '@/data/workspace-api'
+import { GlobalContextPanel } from '@/components/global-context-panel'
+import { LocalContextEditor } from '@/components/local-context-editor'
+import { PlanProgress } from '@/components/plan-progress'
+import { ResourceNotice } from '@/components/workspace-parts'
+import { WorkspaceFiles } from '@/components/workspace-files'
+import type { SectorDetail } from '@/data/api/sectors'
+import type { GlobalContext, GlobalContextUsage } from '@/data/api/context'
+import type { ResearchProgress } from '@/data/api/progress'
 import type { Resource } from '@/data/useWorkspace'
 
 const sector: SectorDetail = { id: 'test-sector', name: 'TEST sector', topic: 'Topic', state: 'draft', companiesFound: 0, companies: [], companiesTotal: 0, activity: [], activityTotal: 0, researchSessionId: null, createdAt: '2026-09-30', updatedAt: '2026-09-30' }
@@ -20,10 +25,10 @@ it('shows recorded research time without treating it as completion', () => {
 })
 describe('progress panel v2', () => {
   const mixedItems = [
-    { id: 'work-a', title: 'Done company', kind: 'company' as const, state: 'complete' as const, attempts: 1, childId: null, evidence: [] },
-    { id: 'work-b', title: 'Running company', kind: 'company' as const, state: 'running' as const, attempts: 1, childId: null, evidence: [] },
-    { id: 'work-c', title: 'Blocked intake', kind: 'intake' as const, state: 'blocked' as const, attempts: 2, childId: null, evidence: [], detail: 'Waiting on owner' },
-    { id: 'work-d', title: 'Skipped company', kind: 'company' as const, state: 'excluded' as const, attempts: 1, childId: null, evidence: [] },
+    { id: 'work-a', title: 'Done company', kind: 'company' as const, state: 'complete' as const, attempts: 1, childId: null, evidence: [], detail: '' },
+    { id: 'work-b', title: 'Running company', kind: 'company' as const, state: 'running' as const, attempts: 1, childId: null, evidence: [], detail: '' },
+    { id: 'work-c', title: 'Blocked intake', kind: 'discovery' as const, state: 'blocked' as const, attempts: 2, childId: null, evidence: [], detail: 'Waiting on owner' },
+    { id: 'work-d', title: 'Skipped company', kind: 'company' as const, state: 'excluded' as const, attempts: 1, childId: null, evidence: [], detail: '' },
   ]
   it('shows percent caption and counters for running research', () => {
     render(<PlanProgress resource={{ ...progress, data: { ...progress.data!, state: 'running', estimatedPercent: 62, items: mixedItems } }} />)
@@ -50,12 +55,11 @@ describe('progress panel v2', () => {
     expect(screen.getByRole('textbox', { name: 'Search work items' })).toHaveValue('')
   })
   it('keeps the review action to intake items with a receipt', () => {
-    const receipt = { id: 'r-1', key: 'TEST key', state: 'blocked' as const, attempts: 1, version: 1, reason: 'R', sourceUrl: null, sourceTitle: null, updatedAt: '2026-09-30' }
-    render(<PlanProgress resource={{ ...progress, data: { ...progress.data!, state: 'running', items: mixedItems } }} review={{ open: false, onOpenChange: () => {}, loading: false, action: vi.fn(), receipts: { 'work-a': receipt }, busy: false, stale: false, onRetry: () => {}, onExclude: () => {}, onReload: () => {}, policyNote: null, paused: false, draft: '', onDraft: () => {} }} />)
+    render(<PlanProgress resource={{ ...progress, data: { ...progress.data!, state: 'running', items: mixedItems } }} review={{ busy: false, error: null, clearError: () => {}, decide: async () => true }} />)
     expect(screen.queryByRole('button', { name: 'Review' })).not.toBeInTheDocument()
   })
   it('opens sources in a new tab', () => {
-    render(<PlanProgress resource={{ ...progress, data: { ...progress.data!, state: 'running', items: [{ id: 'work-s', title: 'Sourced', kind: 'company' as const, state: 'complete' as const, attempts: 1, childId: null, evidence: [], sourceUrl: 'https://source.example.test/' }] } }} />)
+    render(<PlanProgress resource={{ ...progress, data: { ...progress.data!, state: 'running', items: [{ id: 'work-s', title: 'Sourced', kind: 'company' as const, state: 'complete' as const, attempts: 1, childId: null, evidence: [], detail: '', sourceUrl: 'https://source.example.test/' }] } }} />)
     const link = screen.getByRole('link', { name: 'Open source' })
     expect(link).toHaveAttribute('href', 'https://source.example.test/')
     expect(link).toHaveAttribute('target', '_blank')
@@ -301,16 +305,16 @@ it('requires source preview before approving file-derived context and renders bo
   const props = { resource: { status: 'ready' as const, refresh: vi.fn(), data: { ...global, changes: [change] } }, preview: { status: 'loading' as const, refresh: vi.fn() }, busy: false, onReview: vi.fn(), onSave: vi.fn(async () => true), onDecision }
   const { rerender } = render(<GlobalContextPanel {...props} />)
   await user.click(screen.getByRole('button', { name: 'Review File-derived context update' }))
-  expect(screen.getByRole('button', { name: 'Approve', exact: true })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled()
   const units = ref.ords.map((ord) => ({ ord, text: `TEST exact source unit ${ord}`, uncertain: false }))
   rerender(<GlobalContextPanel {...props} preview={{ status: 'ready', refresh: vi.fn(), data: { change, units: [], sources: [{ ref, units }] } }} />)
-  expect(screen.getByRole('button', { name: 'Approve', exact: true })).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Approve' })).toBeEnabled()
   expect(screen.queryByText('TEST exact source unit 99')).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'Show more source units' }))
   expect(screen.getByText('TEST exact source unit 99')).toBeVisible()
   await user.click(screen.getByText('TEST exact source.md · 100 units'))
   expect(screen.getByText(ref.hash)).toBeVisible()
-  await user.click(screen.getByRole('button', { name: 'Approve', exact: true }))
+  await user.click(screen.getByRole('button', { name: 'Approve' }))
   expect(onDecision).toHaveBeenCalledWith(change.id, true)
 })
 
@@ -388,7 +392,7 @@ describe('global context panel v2', () => {
     const user = userEvent.setup()
     renderPanel({ ...global, version: 2, changes: [pendingChange()] })
     await user.click(screen.getByRole('button', { name: 'Review Shared context update' }))
-    const approve = screen.getByRole('button', { name: 'Approve', exact: true })
+    const approve = screen.getByRole('button', { name: 'Approve' })
     expect(approve).toBeDisabled()
     expect(approve.parentElement).toHaveAttribute('title', 'This update is based on an older version.')
   })
@@ -396,7 +400,7 @@ describe('global context panel v2', () => {
     const user = userEvent.setup()
     renderPanel({ ...global, version: 3, changes: [pendingChange({ baseVersion: 2 })] })
     await user.click(screen.getByRole('button', { name: 'Review Shared context update' }))
-    expect(screen.getByRole('button', { name: 'Approve', exact: true })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled()
     expect(screen.getByText('This update is based on v2; the current version is v3. Ask for a refreshed proposal.')).toBeVisible()
   })
   it('lists revisions with status and expandable sections', async () => {

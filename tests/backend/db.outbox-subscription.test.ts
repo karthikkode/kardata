@@ -17,7 +17,7 @@ function fixture(failCommand?: string) {
   return { listener, query, release, db, failure }
 }
 
-describe('outbox subscription resource lifecycle', () => {
+describe('outbox subscription resource lifecycle [F:db.outbox.subscribeOutbox] [F:db.index.ConnectableDb] [F:db.index.subscribeOutbox]', () => {
   it('destroys the leased client when LISTEN fails and preserves the error', async () => {
     const f = fixture('LISTEN kardata_outbox')
     await expect(subscribeOutbox(f.db)).rejects.toBe(f.failure)

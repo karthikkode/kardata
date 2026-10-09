@@ -8,11 +8,14 @@ import { describe, expect, it } from 'vitest'
 import {
   chatOnce,
   probeProvider,
+  providerRoundFields,
   resolveAdapter,
   resolveSelection,
   streamChat,
+  wrapAdapterWithPermit,
   type ChatLogFields,
-} from '../../backend/src/providers/gateway.js'
+} from '../../backend/src/providers/provider-gateway.js'
+import { MetaPermitTimeout } from '../../backend/src/db/index.js'
 import {
   executeProviderChat,
   type ProviderChatDeps,
@@ -71,7 +74,7 @@ function input(overrides: Partial<ProviderChatInput> = {}): ProviderChatInput {
   }
 }
 
-describe('provider gateway (B4.1)', () => {
+describe('provider gateway (B4.1) [F:backend.activity.providers.executeProviderChat] [F:backend.activity.providers.PROVIDER_ERROR_EVENT] [F:backend.activity.turn.sleep] [F:db.index.MetaPermitTimeout] [F:db.meta_limiter.MetaPermitTimeout]', () => {
   it('uses Responses for reasoning-capable Meta models', () => {
     const config = { ...NO_KEYS, metaApiKey: 'test' }
     const reasoning = resolveAdapter('meta', { config, model: 'muse-spark-1.3-contributor' })
@@ -292,6 +295,162 @@ describe('provider gateway (B4.1)', () => {
     }
     const outcome = await streamChat(hanging, request(), { timeoutMs: 30 })
     expect(outcome).toMatchObject({ ok: false, code: 'provider_timeout', retryable: true })
+  })
+
+  it('emits P3.2.4 round fields on every gateway chat line', async () => {
+    const d = deps()
+    await executeProviderChat(input({ fakeSteps: [{ text: 'hi' }] }), d)
+    expect(d.logs).toHaveLength(1)
+    expect(d.logs[0]).toMatchObject({
+      op: 'provider.chat',
+      provider: 'fake',
+      ok: true,
+      latency_ms: expect.any(Number),
+      input_tokens: expect.any(Number),
+      output_tokens: expect.any(Number),
+      cached_tokens: expect.any(Number),
+      outcome: 'ok',
+    })
+    // Fake rejects pinned models, so the unpinned line carries no model key.
+    expect('model' in (d.logs[0] as object)).toBe(false)
+  })
+
+  it('passes model and round through to the chat line', async () => {
+    const stub: ProviderAdapter = {
+      providerName: 'stub',
+      chat: async () => ({ text: 'hi', reasoning: '', toolCalls: [], usage: emptyUsage() }),
+      chatStream: () => {
+        throw new Error('chatOnce test must not stream')
+      },
+    }
+    const d = deps()
+    await chatOnce(stub, request(), { model: 'm-stub', round: 3, log: d.log })
+    expect(d.logs).toHaveLength(1)
+    expect(d.logs[0]).toMatchObject({ op: 'provider.chat', model: 'm-stub', round: 3, outcome: 'ok' })
+  })
+
+  it('builds provider.round lines with optional model/round/tokens', () => {
+    expect(
+      providerRoundFields({
+        provider: 'meta',
+        model: 'm',
+        round: 2,
+        latencyMs: 41,
+        usage: { ...emptyUsage(), inputTokens: 10, outputTokens: 4 },
+        outcome: 'ok',
+      }),
+    ).toEqual({
+      op: 'provider.round',
+      provider: 'meta',
+      model: 'm',
+      round: 2,
+      latency_ms: 41,
+      input_tokens: 10,
+      output_tokens: 4,
+      cached_tokens: 0,
+      outcome: 'ok',
+    })
+    expect(providerRoundFields({ provider: 'meta', latencyMs: 3, outcome: 'error', code: 'provider_timeout' })).toEqual({
+      op: 'provider.round',
+      provider: 'meta',
+      latency_ms: 3,
+      outcome: 'error',
+      code: 'provider_timeout',
+    })
+  })
+})
+
+describe('fleet meta permit (P4.2)', () => {
+  function stubAdapter(events: string[], fail?: Error): ProviderAdapter {
+    return {
+      providerName: 'meta',
+      chat: async () => {
+        events.push('chat')
+        if (fail) throw fail
+        return { text: 'hi', toolCalls: [], usage: emptyUsage(), completion: 'complete' as const }
+      },
+      chatStream: async function* () {
+        events.push('stream')
+        if (fail) throw fail
+        yield { kind: 'text_delta' as const, text: 'hi' }
+        yield { kind: 'done' as const, usage: emptyUsage() }
+      },
+    }
+  }
+
+  function acquireSpy(events: string[]): { acquire: () => Promise<() => Promise<void>>; released: () => number } {
+    let released = 0
+    return {
+      released: () => released,
+      acquire: async () => {
+        events.push('acquire')
+        return async () => {
+          events.push('release')
+          released += 1
+        }
+      },
+    }
+  }
+
+  it('holds the permit exactly across one chat call', async () => {
+    const events: string[] = []
+    const spy = acquireSpy(events)
+    const wrapped = wrapAdapterWithPermit(stubAdapter(events), spy.acquire)
+    const response = await wrapped.chat(request())
+    expect(response.text).toBe('hi')
+    expect(events).toEqual(['acquire', 'chat', 'release'])
+  })
+
+  it('holds the permit across stream consumption and releases after', async () => {
+    const events: string[] = []
+    const spy = acquireSpy(events)
+    const wrapped = wrapAdapterWithPermit(stubAdapter(events), spy.acquire)
+    let text = ''
+    for await (const event of wrapped.chatStream(request())) {
+      if (event.kind === 'text_delta') text += event.text
+    }
+    expect(text).toBe('hi')
+    expect(events).toEqual(['acquire', 'stream', 'release'])
+  })
+
+  it('releases the permit when the call fails', async () => {
+    const events: string[] = []
+    const spy = acquireSpy(events)
+    const wrapped = wrapAdapterWithPermit(stubAdapter(events, new Error('vendor down')), spy.acquire)
+    await expect(wrapped.chat(request())).rejects.toThrow('vendor down')
+    expect(spy.released()).toBe(1)
+  })
+
+  it('executeProviderChat skips the permit for scripted fake steps', async () => {
+    const d = deps()
+    let acquired = 0
+    const outcome = await executeProviderChat(input({ fakeSteps: [{ text: 'hi' }] }), {
+      ...d,
+      permit: async () => {
+        acquired += 1
+        return async () => undefined
+      },
+    })
+    expect(outcome.ok).toBe(true)
+    expect(acquired).toBe(0)
+  })
+
+  it('a permit timeout throws past the outcome so the activity retries', async () => {
+    const d = deps()
+    await expect(executeProviderChat(
+      input({ provider: 'meta' }),
+      { ...d, permit: async () => { throw new MetaPermitTimeout('TEST no permit') } },
+    )).rejects.toBeInstanceOf(MetaPermitTimeout)
+    expect(d.events).toHaveLength(0)
+  })
+
+  it('a non-timeout permit error fails closed instead of proceeding', async () => {
+    const d = deps()
+    await expect(executeProviderChat(
+      input({ provider: 'meta' }),
+      { ...d, permit: async () => { throw new Error('TEST permit store down') } },
+    )).rejects.toThrow('TEST permit store down')
+    expect(d.events).toHaveLength(0)
   })
 })
 

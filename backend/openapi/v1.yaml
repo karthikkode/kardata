@@ -1637,6 +1637,45 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+  /v1/sectors/{sectorId}/evaluation:
+    get:
+      operationId: getSectorEvaluation
+      tags:
+        - sectors
+      parameters:
+        - name: sectorId
+          in: path
+          required: true
+          schema: *a0
+      responses:
+        "200":
+          description: Workspace response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - ok
+                  - data
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: "#/components/schemas/SectorEvaluation"
+                additionalProperties: false
+        "403":
+          description: Permission denied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Sector not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /v1/sectors/{sectorId}/files:
     get:
       operationId: listSectorFiles
@@ -2234,18 +2273,18 @@ components:
     SupervisionAlert:
       type: object
       additionalProperties: false
-      required: [seq, at, sessionId, sessionTitle, threadKey, sectorId, kind, response, state, threadStatus]
+      required: [seq, at, kind, severity, subject, threadKey, sectorId, sessionId, resolvedAt, state]
       properties:
         seq: { type: integer, minimum: 1 }
         at: { type: string, format: date-time }
-        sessionId: { type: string }
-        sessionTitle: { type: string }
-        threadKey: { type: string }
+        kind: { type: string }
+        severity: { type: string, enum: [info, warning, high, critical] }
+        subject: { type: string }
+        threadKey: { type: [string, 'null'] }
         sectorId: { type: [string, 'null'] }
-        kind: { type: string, enum: [closed-owner, missing-heartbeat, stalled-progress, queue-starvation, owner-unavailable] }
-        response: { type: string, enum: [observe, park] }
+        sessionId: { type: [string, 'null'] }
+        resolvedAt: { type: [string, 'null'], format: date-time }
         state: { type: string, enum: [current-warning, historical] }
-        threadStatus: { type: string }
     SupervisionAlertPage:
       type: object
       additionalProperties: false
@@ -2679,6 +2718,9 @@ components:
           enum: [session, subagent]
         status:
           $ref: '#/components/schemas/RunState'
+        stateReason:
+          type: string
+          description: Supervisor reason code (closed-owner, ...); absent when no failure stands.
         acceptingSteer:
           type: boolean
         queueDepth:
@@ -3043,6 +3085,7 @@ components:
         attemptLease: { type: string, format: uuid }
         round: { type: integer, minimum: 0 }
         kind: { type: string, enum: [request, response, tool-result] }
+        roundKind: { type: string, enum: [turn, compaction] }
         workflowId: { type: string }
         executionId: { type: string }
         ownerEpoch: { type: string, format: uuid }
@@ -3300,6 +3343,55 @@ components:
               maximum: 100
             - type: "null"
       additionalProperties: false
+    SectorEvaluation:
+      type: object
+      required:
+        - sectorId
+        - quality
+        - reliability
+        - cost
+      properties:
+        sectorId: *a1
+        quality:
+          type: object
+          required: [found, accepted, rejected, duplicates, sourceCoverage, costPerAccepted]
+          properties:
+            found: *a2
+            accepted: *a2
+            rejected: *a2
+            duplicates: *a2
+            sourceCoverage: { anyOf: [{ type: number }, { type: "null" }] }
+            costPerAccepted: { anyOf: [{ type: number }, { type: "null" }] }
+          additionalProperties: false
+        reliability:
+          type: array
+          items:
+            type: object
+            required: [kind, runs, rounds, ok, errors, timeouts, cancelled, retries, loops, stalls]
+            properties:
+              kind: *a1
+              runs: *a2
+              rounds: *a2
+              ok: *a2
+              errors: *a2
+              timeouts: *a2
+              cancelled: *a2
+              retries: *a2
+              loops: *a2
+              stalls: *a2
+            additionalProperties: false
+        cost:
+          type: object
+          required: [threads, rounds, inputTokens, outputTokens, cachedTokens, errors]
+          properties:
+            threads: *a2
+            rounds: *a2
+            inputTokens: *a2
+            outputTokens: *a2
+            cachedTokens: *a2
+            errors: *a2
+          additionalProperties: false
+      additionalProperties: false
     ContextPreview:
       type: object
       required:
@@ -3407,7 +3499,8 @@ components:
               maximum: 1440
             concurrency:
               type: integer
-              const: 2
+              minimum: 1
+              maximum: 64
           additionalProperties: false
         acceptance:
           type: array

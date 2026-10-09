@@ -8,7 +8,7 @@ import { msToTs } from '@temporalio/common/lib/time.js'
 import { Pool } from 'pg'
 import { beforeAll,describe,expect,it,vi } from 'vitest'
 import { appendEvent,beginThreadTurn,createSession,listReconciliationCandidates,markExecutionIntent,recordReconciliation,reserveExecutionIntent } from '../../backend/src/db/index.js'
-import { TemporalRunsGateway } from '../../backend/src/temporal/gateway.js'
+import { TemporalRunsGateway } from '../../backend/src/temporal/runs-gateway.js'
 import { connectClient,connectWorker } from '../../backend/src/temporal/connection.js'
 import { inspectWorkflowOwner,reconcilePage } from '../../backend/src/temporal/activities/reconciliation.js'
 import { reconcileObservation } from '../../backend/src/observability/reconciliation.js'
@@ -21,7 +21,7 @@ const base = dirname(fileURLToPath(import.meta.url))
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>((done) => { resolve = done }); return { promise,resolve } }
 async function waitFor(check: () => boolean | Promise<boolean>) { const until = Date.now()+10_000; while (!(await check())) { if (Date.now()>until) throw new Error('TEST owned execution did not reach its boundary'); await new Promise((done) => setTimeout(done,50)) } }
 
-describe.skipIf(!enabled)('private epoch authority through real gateway/Temporal/isolated DB',() => {
+describe.skipIf(!enabled)('private epoch authority through real gateway/Temporal/isolated DB [F:backend.activity.reconciliation.inspectWorkflowOwner] [F:db.index.appendEvent] [F:db.index.createSession] [F:db.workspace_threads.beginThreadTurn] [F:db.reconciliation.listReconciliationCandidates] [F:db.execution_epochs.markExecutionIntent] [F:db.execution_epochs.reserveExecutionIntent] [F:db.events.appendEvent] [F:db.sessions.createSession] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.execution_epochs.bindExecutionEpoch] [F:db.index.Db] [F:db.index.TransactableDb] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked]',() => {
   beforeAll(() => { Runtime.install({ logger: createWorkerLogger() }) })
   it('fences a same-ID restart after reserve but before its first event/lease, then safely parks its exact terminal successor',async () => {
     const pool = new Pool({ connectionString: await ensureTestDb('kardata_test_epoch_gateway') })
@@ -61,7 +61,7 @@ describe.skipIf(!enabled)('private epoch authority through real gateway/Temporal
         const observed = await inspectWorkflowOwner(connection,client,old)
         expect(observed.state).toBe('closed')
         const finding = reconcileObservation(old,observed,Date.now())[0]!
-        expect(finding.response).toBe('park')
+        expect(finding.response).toBe('fail')
         holdNext=true
         const sending = gateway.send(session.id,'TEST successor'); await waitFor(() => heldRpc)
         expect(await recordReconciliation(pool,old,finding,1)).toBe(false)
@@ -73,7 +73,7 @@ describe.skipIf(!enabled)('private epoch authority through real gateway/Temporal
         expect(await recordReconciliation(pool,old,finding,1)).toBe(false)
         await client.workflow.getHandle(fresh.workflowId!,fresh.activeExecutionId!).terminate('TEST isolated exact terminal successor')
         expect(await reconcilePage(pool,'',(row) => inspectWorkflowOwner(connection,client,row))).toMatchObject({ findings: 1 })
-        const state = await pool.query('SELECT status FROM threads WHERE key=$1',[session.id]); expect(state.rows[0]?.status).toBe('PAUSED')
+        const state = await pool.query('SELECT status FROM threads WHERE key=$1',[session.id]); expect(state.rows[0]?.status).toBe('ERROR')
         gates.forEach((gate) => gate.resolve())
       })
     } finally { intercept.mockRestore(); rpcGate.resolve(); gates.forEach((gate) => gate.resolve()); if (previous===undefined) delete process.env['TEMPORAL_NAMESPACE']; else process.env['TEMPORAL_NAMESPACE']=previous; await connection.close(); await native.close(); await pool.end() }

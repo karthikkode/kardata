@@ -1,17 +1,19 @@
 // Shared interaction recipes (plan 2.5). One definition per recipe so
 // hover, press, and focus stay identical across every surface.
+// outline-solid is load-bearing: Tailwind v4 outline-2 sets width only,
+// so without it outline-none leaves keyboard focus invisible.
 
 /** Standalone focus ring: buttons, links, inputs outside containers. */
 export const focusRing =
-  'outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
+  'outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
 
 /** In-container focus ring: rows, menu items, tabs, nav, cells. */
 export const focusRingInset =
-  'outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
+  'outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
 
 /** Input focus: border shift plus a soft ring. */
 export const focusRingInput =
-  'outline-none focus-visible:border-ring focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-ring/30'
+  'outline-none focus-visible:outline-solid focus-visible:border-ring focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-ring/30'
 
 /** Button press: pointer, fast color motion, subtle scale. */
 export const pressable =

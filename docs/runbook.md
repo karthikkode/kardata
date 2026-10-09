@@ -67,7 +67,7 @@ records. Do not treat a seeded metrics test as deployed reconciliation evidence.
 - Diagnose: `kardata_pg_pool_total` vs `kardata_pg_pool_idle` on the
   Fleet board shows the pressure; slow lines (`| json |
   name="db.query" | durationMs > 1000`) name the hogging query.
-- Act: short-term, raise `KARDATA_PG_SERVER_MAX` / `KARDATA_PG_WORKER_MAX`
+- Act: short-term, raise `KARDATA_DB_POOL_SERVER` / `KARDATA_DB_POOL_WORKER`
   and redeploy; mid-term, fix or index the slow query, then update the
   connection budget table in `documentation/db.md`.
 - Close: `kardata_pg_pool_waiting` back at zero for 10 minutes.

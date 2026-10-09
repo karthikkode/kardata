@@ -3,7 +3,7 @@
 // No keys or network: this module is pure data.
 export type RegistryProvider = 'meta'
 
-export type ReasoningCapability = 'native' | 'none'
+type ReasoningCapability = 'native' | 'none'
 
 export interface ModelEntry {
   /** Verified against https://dev.meta.ai/docs/models, 2026-09-30. */
@@ -96,7 +96,7 @@ export function defaultModelFor(provider: RegistryProvider, env: RegistryEnv = p
 }
 
 /** Every catalog entry, in display order. */
-export function listModels(): ModelEntry[] {
+function listModels(): ModelEntry[] {
   return CATALOG.map((entry) => ({ ...entry }))
 }
 

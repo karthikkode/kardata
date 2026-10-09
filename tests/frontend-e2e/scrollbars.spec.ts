@@ -136,7 +136,7 @@ async function shot(page: Page, name: string, anchors: Locator[]): Promise<void>
   await page.screenshot({ path: `test-results/visual/${name}.png`, animations: 'disabled' })
 }
 
-async function thinScrollbar(page: Page, locator: Locator): Promise<void> {
+async function thinScrollbar(_page: Page, locator: Locator): Promise<void> {
   await expect(locator).toHaveClass(/scroll-slim/)
   const width = await locator.evaluate((el) => getComputedStyle(el).scrollbarWidth)
   expect(width).toBe('thin')

@@ -6,6 +6,7 @@ import * as React from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { focusRing } from '@/lib/interaction'
 import { TooltipPopup, TooltipRoot, TooltipTrigger } from './tooltip'
 
 function DialogRoot(props: React.ComponentProps<typeof Dialog.Root>) {
@@ -120,7 +121,7 @@ function DialogClose({ className, ...props }: React.ComponentProps<typeof Dialog
             data-slot="dialog-close"
             aria-label="Close dialog"
             className={cn(
-              'flex size-8 pointer-coarse:size-10 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground outline-none transition-colors duration-120 ease-out-soft hover:bg-surface-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4',
+              `flex size-8 pointer-coarse:size-10 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground ${focusRing} transition-colors duration-120 ease-out-soft hover:bg-surface-hover hover:text-foreground disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4`,
               className,
             )}
             {...props}

@@ -2,22 +2,14 @@
 // row comes from the backend: GET /v1/providers for the catalog (key
 // presence only, never key material) and the session read/write pair for
 // the binding. No fixtures, no guessed models.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Icons } from '@/lib/icons'
 import { humanizeKey } from '@/lib/format'
 import { notify } from '@/lib/toast'
-import {
-  getSession,
-  listProviders,
-  listSessions,
-  setSessionModel,
-  apiErrorStatus,
-  StagingApiError,
-  type ProviderEntry,
-  type Session,
-  type SessionModelSelection,
-  type StagingConfig,
-} from '../data/staging-api'
+import { useSession, useSessionsList } from '../data/useSessions'
+import { useModelActions, type ProviderEntry, type SessionModelSelection } from '../data/useModels'
+import { isAuthError, StagingApiError, type StagingConfig } from '../data/useApi'
+import { useModelCatalog } from '../data/useModelCatalog'
 import { DeniedNotice, PanelError, UnavailableNotice } from './research-parts'
 import { BodySm, Caption, CardTitle } from './text'
 import { Button } from './ui/button'
@@ -25,12 +17,6 @@ import { FieldDescription, FieldLabel, FieldRoot } from './ui/field'
 import { SelectItem, SelectPopup, SelectRoot, SelectTrigger } from './ui/select'
 import { Skeleton } from './ui/skeleton'
 import { SwitchRoot } from './ui/switch'
-
-type LoadStatus = 'loading' | 'ready' | 'error' | 'denied' | 'offline'
-
-function statusOf(error: unknown): LoadStatus {
-  return apiErrorStatus(error)
-}
 
 /** Provider ids stay server spellings on the wire; the card shows the
  * plain-language label, humanized when the provider is unknown. */
@@ -55,10 +41,7 @@ function saveErrorOf(error: unknown): string {
   if (error instanceof StagingApiError && error.status === 404) {
     return 'This session no longer exists. Pick another session.'
   }
-  if (
-    error instanceof StagingApiError &&
-    (error.status === 401 || error.status === 403)
-  ) {
+  if (isAuthError(error)) {
     return 'This key cannot change models. Ask an admin for access, or check the API key.'
   }
   return 'The model did not save. Check your connection and try again.'
@@ -205,105 +188,76 @@ export function ModelsPanel({
    * instead of inventing providers. */
   config: StagingConfig | null
 }) {
-  const [status, setStatus] = useState<LoadStatus>(() => (config ? 'loading' : 'ready'))
-  const [sessions, setSessions] = useState<Session[]>([])
-  const [providers, setProviders] = useState<ProviderEntry[]>([])
-  const [defaultProvider, setDefaultProvider] = useState('')
+  const catalog = useModelCatalog(config)
+  const { providers, defaultProvider } = catalog
+  // Sessions follow-up runs in the fetch callback (same commit as the
+  // data): keep the selection when it still exists, else fall back to
+  // the first row.
+  const sessionsQuery = useSessionsList(config, {
+    onData: (rows) => {
+      setActiveSessionId((current) => {
+        if (current && rows.some((row) => row.id === current)) return current
+        return rows[0]?.id ?? null
+      })
+    },
+  })
+  const sessions = sessionsQuery.data ?? []
+  const sessionsStatus = sessionsQuery.status
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [binding, setBinding] = useState<SessionModelSelection | null>(null)
   const [boundFor, setBoundFor] = useState<string | null>(null)
   const [bindingFailed, setBindingFailed] = useState(false)
-  const [drafts, setDrafts] = useState<Record<string, { model: string; reasoning: boolean; effort?: string }>>({})
-  const [saving, setSaving] = useState<string | null>(null)
-  const [saveErrors, setSaveErrors] = useState<Record<string, string | null>>({})
-  const [attempt, setAttempt] = useState(0)
-  const [bindingAttempt, setBindingAttempt] = useState(0)
-  // A save that lands after its session read started leaves fresher
-  // state than the read; the read then stays out of the way.
-  const saveEpoch = useRef(0)
-
-  // Catalog fetch with no synchronous state writes, so the effect below
-  // only subscribes. Retries set the loading state from their own event
-  // handlers instead.
-  const fetchCatalog = useCallback(() => {
-    if (!config) return undefined
-    let live = true
-    Promise.all([listSessions(config), listProviders(config)])
-      .then(([rows, catalog]) => {
-        if (!live) return
-        setSessions(rows)
-        setProviders(catalog.providers)
-        setDefaultProvider(catalog.defaultProvider)
-        setDrafts(
-          Object.fromEntries(
-            catalog.providers.map((entry) => [
-              entry.name,
-              { model: entry.defaultModel, reasoning: entry.models.find((model) => model.model === entry.defaultModel)?.reasoning === 'native', effort: 'high' },
-            ]),
-          ),
-        )
-        setActiveSessionId((current) => {
-          if (current && rows.some((row) => row.id === current)) return current
-          return rows[0]?.id ?? null
-        })
-        setStatus('ready')
-      })
-      .catch((error: unknown) => {
-        if (!live) return
-        setStatus(statusOf(error))
-      })
-    return () => {
-      live = false
-    }
-  }, [config?.baseUrl, config?.apiKey, attempt]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => fetchCatalog(), [fetchCatalog])
-
-  function retryCatalog() {
-    setStatus('loading')
-    setAttempt((value) => value + 1)
-  }
-
   // The binding follows the active session: the session read carries the
   // latest stored selection, absent until PATCH sets one. The banner
   // renders from boundFor, so a session switch shows a loading line until
-  // its own read lands instead of the previous session's binding.
-  useEffect(() => {
-    if (!config || !activeSessionId) return undefined
-    let live = true
-    const epoch = saveEpoch.current
-    getSession(config, activeSessionId)
-      .then((session) => {
-        if (!live) return
-        if (epoch !== saveEpoch.current) return
-        setBinding(session.model ?? null)
-        setBoundFor(activeSessionId)
-        setBindingFailed(false)
-        const stored = session.model
-        if (stored) {
-          setDrafts((current) => ({
-            ...current,
-            [stored.provider]: {
-              model: stored.model,
-              reasoning: stored.reasoning,
-              ...(stored.effort === undefined ? {} : { effort: stored.effort }),
-            },
-          }))
-        }
-      })
-      .catch(() => {
-        if (!live) return
-        setBindingFailed(true)
-      })
-    return () => {
-      live = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config?.baseUrl, config?.apiKey, activeSessionId, bindingAttempt])
+  // its own read lands instead of the previous session's binding. The
+  // post-save refetch (see save) reconciles the save/read race.
+  const bindingQuery = useSession(config, activeSessionId, {
+    onData: (session) => {
+      setBinding(session.model ?? null)
+      setBoundFor(session.id)
+      setBindingFailed(false)
+      const stored = session.model
+      if (stored) {
+        setDrafts((current) => ({
+          ...current,
+          [stored.provider]: {
+            model: stored.model,
+            reasoning: stored.reasoning,
+            ...(stored.effort === undefined ? {} : { effort: stored.effort }),
+          },
+        }))
+      }
+    },
+  })
+  const modelActions = useModelActions(config)
+  const [drafts, setDrafts] = useState<Record<string, { model: string; reasoning: boolean; effort?: string }>>({})
+  const [saving, setSaving] = useState<string | null>(null)
+  const [saveErrors, setSaveErrors] = useState<Record<string, string | null>>({})
+  // Sessions and catalog fail independently: each part renders its own
+  // state below, so a catalog outage leaves the session picker working.
+  // A failed binding read surfaces through bindingFailed; the hook keeps
+  // the error status for it.
+  if (bindingQuery.status !== 'loading' && bindingQuery.status !== 'ready' && !bindingFailed) {
+    setBindingFailed(true)
+  }
+
+  // Seed per-provider drafts once the catalog lands. Render-time, like
+  // the query keys: retries keep the user's picks.
+  if (providers.length > 0 && Object.keys(drafts).length === 0) {
+    setDrafts(
+      Object.fromEntries(
+        providers.map((entry) => [
+          entry.name,
+          { model: entry.defaultModel, reasoning: entry.models.find((model) => model.model === entry.defaultModel)?.reasoning === 'native', effort: 'high' },
+        ]),
+      ),
+    )
+  }
 
   function retryBinding() {
     setBindingFailed(false)
-    setBindingAttempt((value) => value + 1)
+    bindingQuery.reload()
   }
 
   function save(entry: ProviderEntry) {
@@ -319,17 +273,20 @@ export function ModelsPanel({
           : 'high'
     setSaving(entry.name)
     setSaveErrors((current) => ({ ...current, [entry.name]: null }))
-    setSessionModel(config, activeSessionId, {
-      provider: entry.name,
-      model: draft.model,
-      reasoning: selected?.reasoning === 'native' ? draft.reasoning : false,
-      ...(effort === undefined ? {} : { effort }),
-    })
+    modelActions.setModel
+      .run(activeSessionId, {
+        provider: entry.name,
+        model: draft.model,
+        reasoning: selected?.reasoning === 'native' ? draft.reasoning : false,
+        ...(effort === undefined ? {} : { effort }),
+      })
       .then((stored) => {
-        saveEpoch.current += 1
         setBinding(stored)
         setBoundFor(activeSessionId)
         setBindingFailed(false)
+        // Re-read after the write: a session read that started before
+        // the save lands stale, and the refetch reconciles it.
+        bindingQuery.reload()
         notify.success('Saved')
         setDrafts((current) => ({
           ...current,
@@ -371,40 +328,25 @@ export function ModelsPanel({
               Set the staging API URL and key, then reload.
             </p>
           </div>
-        ) : status === 'loading' ? (
-          <div role="status" aria-label="Models are loading">
-            <span className="sr-only">Loading Models</span>
-            <div aria-hidden className="grid gap-3 lg:grid-cols-2">
-              {[0, 1].map((tile) => (
-                <div key={tile} className="flex flex-col gap-3 rounded-xl border border-border bg-background px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <Skeleton className="size-8 rounded-md" />
-                    <Skeleton className="h-4 flex-1" />
-                    <Skeleton className="h-4 w-16" />
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Skeleton className="h-10" />
-                    <Skeleton className="h-10" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : status === 'error' ? (
-          <PanelError
-            heading="Models did not load."
-            detail="Check your connection and try again."
-            onRetry={retryCatalog}
-          />
-        ) : status === 'denied' ? (
-          <DeniedNotice heading="Models are not shared with this key." />
-        ) : status === 'offline' ? (
-          <UnavailableNotice onRetry={retryCatalog} />
         ) : (
           <div className="space-y-4">
             <FieldRoot className="max-w-sm">
               <FieldLabel id="models-session-label">Session</FieldLabel>
-              {sessions.length === 0 ? (
+              {sessionsStatus === 'loading' ? (
+                <p role="status" className="text-sm text-muted-foreground">
+                  Loading sessions.
+                </p>
+              ) : sessionsStatus === 'error' ? (
+                <PanelError
+                  heading="Sessions did not load."
+                  detail="Check your connection and try again."
+                  onRetry={sessionsQuery.reload}
+                />
+              ) : sessionsStatus === 'denied' ? (
+                <DeniedNotice heading="Sessions are not shared with this key." onRetry={sessionsQuery.reload} />
+              ) : sessionsStatus === 'offline' ? (
+                <UnavailableNotice onRetry={sessionsQuery.reload} />
+              ) : sessions.length === 0 ? (
                 <div className="rounded-lg border border-border p-4">
                   <p className="text-sm text-muted-foreground">
                     No sessions yet. Start one from chat to bind a model.
@@ -453,7 +395,36 @@ export function ModelsPanel({
                 )}
               </div>
             ) : null}
-            {providers.length === 0 ? (
+            {catalog.status === 'loading' ? (
+              <div role="status" aria-label="Models are loading">
+                <span className="sr-only">Loading Models</span>
+                <div aria-hidden className="grid gap-3 lg:grid-cols-2">
+                  {[0, 1].map((tile) => (
+                    <div key={tile} className="flex flex-col gap-3 rounded-xl border border-border bg-background px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="size-8 rounded-md" />
+                        <Skeleton className="h-4 flex-1" />
+                        <Skeleton className="h-4 w-16" />
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Skeleton className="h-10" />
+                        <Skeleton className="h-10" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : catalog.status === 'error' ? (
+              <PanelError
+                heading="The model catalog did not load."
+                detail="Check your connection and try again."
+                onRetry={catalog.reload}
+              />
+            ) : catalog.status === 'denied' ? (
+              <DeniedNotice heading="The model catalog is not shared with this key." onRetry={catalog.reload} />
+            ) : catalog.status === 'offline' ? (
+              <UnavailableNotice onRetry={catalog.reload} />
+            ) : providers.length === 0 ? (
               <div className="rounded-lg border border-border p-4">
                 <p className="text-sm text-muted-foreground">
                   No providers listed. The catalog is empty on the server.

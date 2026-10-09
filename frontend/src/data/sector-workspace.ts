@@ -1,8 +1,16 @@
 import { useRef, useState } from 'react'
-import { apiErrorStatus, attachSectorDocument, cancelRun, createSession, deleteSession, listSessions, listThreadQueue, listThreads, pauseRun, readSectorPlan, removeQueuedMessage, renameSession, reorderThreadQueue, resumeRun, setSessionSettings, spawnSessionSubagent, StagingApiError, type StagingConfig } from './staging-api'
-import { rebuildLocalContext, inspectThreadOperation, compactLocalContext, compactGlobalContext, restoreGlobalContext, startGlobalContextRewrite, decideGlobalContext, ensureResearchSession, getContextPreview, getGlobalContext, getLocalContext, getResearchProgress, getSectorFileBody, getSectorFiles, hideSectorFile, addFileToGlobalContext, summarizeGlobalContextFile, removeGlobalContextFile, saveGlobalContext, saveLocalContext, retryFileProcessing, getFileUnitsPage, type Sections } from './workspace-api'
+import { apiErrorStatus, StagingApiError, type StagingConfig } from './api/client'
+import { attachSectorDocument } from './api/files'
+import { cancelRun, pauseRun, resumeRun } from './api/commands'
+import { createSession, deleteSession, listSessions, renameSession, setSessionSettings, spawnSessionSubagent } from './api/sessions'
+import { listThreadQueue, listThreads, removeQueuedMessage, reorderThreadQueue } from './api/threads'
+import { readSectorPlan } from './api/plans'
+import { rebuildLocalContext, compactLocalContext, compactGlobalContext, restoreGlobalContext, startGlobalContextRewrite, decideGlobalContext, getContextPreview, getGlobalContext, getLocalContext, addFileToGlobalContext, summarizeGlobalContextFile, removeGlobalContextFile, saveGlobalContext, saveLocalContext, type Sections } from './api/context'
+import { inspectThreadOperation } from './api/threads'
+import { ensureResearchSession, getResearchProgress } from './api/progress'
+import { getSectorFileBody, getSectorFiles, hideSectorFile, retryFileProcessing, getFileUnitsPage } from './api/files'
 import { useWorkspaceConversation, useWorkspaceResource } from './useWorkspace'
-import { getExecutionRecord, listExecutionRecords } from './workspace-api'
+import { getExecutionRecord, listExecutionRecords } from './api/execution-records'
 
 export function useSectorWorkspace(config: StagingConfig | null, sectorId: string | null, sessionId: string | null, requestedThread: string | null, onNavigate: (session: string, thread: string) => void) {
   const [execution, setExecution] = useState<{ thread: string; afterSeq: number; previous: number[]; seq: number | null } | null>(null)

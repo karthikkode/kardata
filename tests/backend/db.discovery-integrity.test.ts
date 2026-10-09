@@ -4,7 +4,7 @@ import { createSector, listSectorCompanies, markCompanyFound, readEventsAfter, r
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('discovery identity and evidence preservation', () => {
+describe.skipIf(!TEST_DATABASE_URL)('discovery identity and evidence preservation [F:db.index.createSector] [F:db.index.markCompanyFound] [F:db.index.readEventsAfter] [F:db.index.listSectorCompanies] [F:db.index.rebuildFromEvents] [F:db.index.registerLedgerCandidate] [F:db.index.registerSectorDiscovery] [F:db.index.upsertLedgerCompany] [F:db.sectors.createSector] [F:db.sectors.listSectorCompanies] [F:db.sectors.markCompanyFound] [F:db.events.readEventsAfter] [F:db.threads.rebuildFromEvents] [F:db.company_ledger.registerLedgerCandidate] [F:db.sectors.registerSectorDiscovery] [F:db.company_ledger.upsertLedgerCompany] [F:db.company_ledger.LedgerQualification] [F:db.company_ledger.UpsertCompanyInput] [F:db.index.Db] [F:db.index.LedgerQualification] [F:db.index.StoredEvent] [F:db.index.UpsertCompanyInput] [F:db.workspace.WorkspaceError] [F:db.workspace.requireSector]', () => {
   let pool: Pool
   const scope = { tenantId: 'test-discovery', projectId: null }
   beforeAll(async () => { pool = new Pool({ connectionString: await ensureTestDb('kardata_test_discovery_integrity') }) })

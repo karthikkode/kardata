@@ -7,5 +7,3 @@ export const researchStages = [
   'Problem found',
   'Final validation',
 ] as const
-
-export type ResearchStage = (typeof researchStages)[number]

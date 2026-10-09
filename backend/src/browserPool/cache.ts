@@ -6,8 +6,8 @@
 // never redoes page 1 and a released slot never takes progress with it.
 // RAM is bounded: 500 entries per cache, FIFO eviction, no bodies held
 // past TTL (query 5 min, document 10 min).
-export const BROWSER_QUERY_TTL_MS = 5 * 60_000
-export const BROWSER_DOC_TTL_MS = 10 * 60_000
+const BROWSER_QUERY_TTL_MS = 5 * 60_000
+const BROWSER_DOC_TTL_MS = 10 * 60_000
 const MAX_ENTRIES = 500
 
 /** Search hit as cached: via/engine tags ride along so the ledger never

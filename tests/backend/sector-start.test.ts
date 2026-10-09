@@ -21,8 +21,21 @@ function stubDb(
   captured: Captured[],
   session?: { id: string; sector: string | null },
 ): TransactableDb {
-  return {
-    connect: async () => ({}) as unknown as PoolClient,
+  const db: TransactableDb = {
+    connect: async () => ({
+      query: async (text: string, params?: unknown[]) => {
+        // Projector handshake: the stub simulates projection by mutating
+        // state on INSERT, so the projector always finds nothing new and
+        // stays out of `captured` (infrastructure, not product SQL).
+        if (text === 'BEGIN' || text === 'COMMIT' || text === 'ROLLBACK') return { rowCount: 0, rows: [] }
+        if (text.includes('pg_advisory_xact_lock')) return { rowCount: 0, rows: [] }
+        if (text.includes('INSERT INTO projection_checkpoints')) return { rowCount: 1, rows: [{ seq: 0 }] }
+        if (text.includes('UPDATE projection_checkpoints')) return { rowCount: 1, rows: [] }
+        if (text.includes('FROM events WHERE seq >')) return { rowCount: 0, rows: [] }
+        return db.query(text, params ?? [])
+      },
+      release: () => undefined,
+    }) as unknown as PoolClient,
     async query<TRow>(text: string, params: unknown[] = []): Promise<{ rowCount: number | null; rows: TRow[] }> {
       captured.push({ text, params })
       if (text.includes('INSERT INTO events')) {
@@ -63,11 +76,12 @@ function stubDb(
       return { rowCount: 0, rows: [] }
     },
   }
+  return db
 }
 
 const SCOPE = { tenantId: 't', projectId: null }
 
-describe('startSectorResearch', () => {
+describe('startSectorResearch [F:backend.activity.tools.SENSITIVE_TOOLS] [F:db.sector_start.SectorStartError] [F:db.sector_start.startSectorResearch] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.company_ledger.LedgerQualification] [F:db.company_ledger.RecordProblemInput] [F:db.company_ledger.UpsertCompanyInput] [F:db.workspace.ContextFileRef] [F:db.context_files.agentHistoryBoundary] [F:db.context_files.assertThreadFileContext] [F:db.context_files.mergeFileRefs] [F:db.context_files.recordThreadFileExposure] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.errors.WorkspaceError] [F:db.sessions.deleteSession] [F:db.events.findLaunchParentWorkflowId] [F:db.sessions.renameSession] [F:db.index.CompanyStage] [F:db.index.Db] [F:db.index.LedgerQualification] [F:db.index.RecordProblemInput] [F:db.index.SectorStartError] [F:db.index.SectorState] [F:db.index.SectorSweepRunner] [F:db.index.SectorTransitionError] [F:db.index.StoredEvent] [F:db.index.ThreadMessenger] [F:db.index.TransactableDb] [F:db.index.UpsertCompanyInput] [F:db.index.cancelThreadRun] [F:db.index.deleteSession] [F:db.index.findLaunchParentWorkflowId] [F:db.index.pauseSectorSweep] [F:db.index.pauseThreadRun] [F:db.index.readSectorThread] [F:db.index.renameSession] [F:db.index.resumeSectorSweep] [F:db.index.resumeThreadRun] [F:db.index.sendThreadMessage] [F:db.index.startSectorResearch] [F:db.index.steerThread] [F:db.index.subscribeOutbox] [F:db.sectors.CompanyStage] [F:db.sectors.SectorState] [F:db.threads.cancelThreadRun] [F:db.threads.pauseThreadRun] [F:db.threads.readSectorThread] [F:db.threads.resumeThreadRun] [F:db.threads.sendThreadMessage] [F:db.threads.steerThread] [F:db.workspace.PartialContextSections] [F:db.workspace.WorkspaceError] [F:db.sector_documents.assertFileVisible] [F:db.workspace_global_context.assertGlobalFileContext] [F:db.workspace.listSectorSessions] [F:db.workspace.requireSector] [F:db.workspace.requireThread] [F:db.sessions.sessionKind] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked] [F:db.workspace.workspaceRow] [F:db.file_jobs.visible]', () => {
   it('moves approved -> queued and starts the sweep', async () => {
     const state = { name: 'Optics', topic: 'Lenses', state: 'approved' }
     const captured: Captured[] = []

@@ -6,7 +6,8 @@
 import { describe, expect, it } from 'vitest'
 import type { PoolClient } from 'pg'
 import type { TransactableDb } from '../../backend/src/db/index.js'
-import { invokeTool, McpToolError, TOOL_META } from '../../backend/src/mcp/tools.js'
+import { invokeTool, TOOL_META } from '../../backend/src/mcp/tools.js'
+import { McpToolError } from '../../backend/src/mcp/tools-types.js'
 
 function stubDb(sessions: Array<{ id: string; sector: string | null }>): TransactableDb {
   return {

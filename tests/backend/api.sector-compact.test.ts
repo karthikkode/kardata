@@ -24,7 +24,7 @@ function authHeader(key: string): Record<string, string> {
   return { authorization: `Bearer ${key}` }
 }
 
-describe.skipIf(!ENABLED)('sector context compaction', () => {
+describe.skipIf(!ENABLED)('sector context compaction [F:http.compactSectorContext] [F:db.index.createSector] [F:db.index.addContextNotes] [F:db.sectors.createSector] [F:db.sector_context.addContextNotes] [F:db.sector_context.compactSectorContext] [F:db.workspace.WorkspaceError] [F:db.workspace.requireSector]', () => {
   let app: FastifyInstance
   let pool: Pool
   const sector = `sec-compact-${STAMP}`

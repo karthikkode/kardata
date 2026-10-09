@@ -11,9 +11,9 @@
 import {
   ActivityFailure,
   CancelledFailure,
-  ApplicationFailure,
   CancellationScope,
   condition,
+  continueAsNew,
   defineQuery,
   defineSignal,
   log,
@@ -27,9 +27,11 @@ import { isLegalTransition, type RunState } from '@kardata/agents/loop'
 import type { FakeStep } from '@kardata/agents'
 import { activityOptions } from '../timeouts.js'
 import type * as activities from '../activities/turn.js'
+import { shouldContinueAsNew } from './can.js'
 import { resumableTurn } from './resumable-turn.js'
-import { normalizeQueueItem, queueItemsQuery, queueRemoveUpdate, queueReorderUpdate } from './inbox-queue.js'
+import { registerQueueHandlers } from './inbox-queue.js'
 import type { OriginalTurnRecovery } from '../turn-recovery.js'
+import type { SendSignalPayload } from '../runs-types.js'
 
 export interface SessionRunInput {
   sessionId: string
@@ -42,6 +44,28 @@ export interface SessionRunInput {
   /** Idle close: a RUNNING run with an empty inbox for this long finishes
    * itself instead of persisting abandoned. Defaults to 24 h. */
   idleTimeoutMs?: number
+  /** History caps that trip continue-as-new (defaults 10k events / 10 MB).
+   * Tests set small values; production leaves both undefined. */
+  historyEventLimit?: number
+  historyByteLimit?: number
+  /** Carry-over from the previous run in a continue-as-new chain. Set by
+   * the workflow itself, never by callers. */
+  resumed?: SessionRunResumed
+}
+
+export interface SessionRunInboxItem {
+  text: string
+  recovery?: OriginalTurnRecovery
+  skill?: { prompt: string; tools: string[]; mode: 'default' | 'brainstorm' }
+  traceparent?: string
+  id?: string
+  queuedAt?: number
+}
+
+export interface SessionRunResumed {
+  inbox: SessionRunInboxItem[]
+  state: 'RUNNING' | 'PAUSED'
+  nonce: number
 }
 
 /** Default idle close for abandoned session runs. */
@@ -53,18 +77,20 @@ export interface SessionRunState {
   pending: number
 }
 
-export const sendSignal = defineSignal<[string]>('runSend')
-export const steerSignal = defineSignal<[string]>('runSteer')
+export const sendSignal = defineSignal<[string | SendSignalPayload]>('runSend')
+export const steerSignal = defineSignal<[string | SendSignalPayload]>('runSteer')
 export interface SkillSignalArgs {
   prompt: string
   tools: string[]
   text: string
   mode?: 'default' | 'brainstorm'
+  traceparent?: string
 }
 export const skillSignal = defineSignal<[SkillSignalArgs]>('runSkill')
 export const pauseSignal = defineSignal('runPause')
 export const resumeSignal = defineSignal('runResume')
 export const cancelSignal = defineSignal('runCancel')
+export const stopTurnSignal = defineSignal('runStopTurn')
 export const stateQuery = defineQuery<SessionRunState>('runState')
 
 const turn = proxyActivities<typeof activities>(activityOptions('turn'))
@@ -102,9 +128,24 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
   function stamp<T extends { text: string }>(item: T): T & { id?: string; queuedAt?: number } {
     return inboxIds ? { ...item, id: uuid4(), queuedAt: Date.now() } : item
   }
-  const inbox: Array<{ text: string; recovery?: OriginalTurnRecovery; skill?: { prompt: string; tools: string[]; mode: 'default' | 'brainstorm' }; id?: string; queuedAt?: number }> = input.recovery ? [stamp({ text: input.recovery.text,recovery: input.recovery })] : []
-  let nonce = 0
+  // Continued runs reuse the carried inbox and nonce; fresh runs seed
+  // from the recovery proof exactly like before the can-v1 patch.
+  function initialInbox(): SessionRunInboxItem[] {
+    return input.resumed?.inbox ?? (input.recovery ? [stamp({ text: input.recovery.text,recovery: input.recovery })] : [])
+  }
+  function initialNonce(): number {
+    return input.resumed?.nonce ?? 0
+  }
+  const inbox: SessionRunInboxItem[] = initialInbox()
+  let nonce = initialNonce()
   let cancelRunningTurn: (() => void) | undefined
+  // First-WFT state signals dispatch after registration but before
+  // enterInitialState runs, while the box is still IDLE: their RUNNING /
+  // PAUSED guards would drop them (observed: a pre-entry pause logged
+  // state IDLE and the run proceeded). Record the intent and apply it at
+  // entry; old histories keep the drop via the patch gate.
+  const preEntryState = patched('session-preentry-state-v1')
+  let preEntry: 'PAUSED' | 'CANCELLING' | 'RUNNING' | undefined
 
   const setState = (next: RunState): void => {
     if (!isLegalTransition(box.state, next)) {
@@ -115,69 +156,122 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
 
   // Workflow-signal log (B5.1): signal name plus queue depth only. Signal
   // payloads are user text and never enter logs.
-  setHandler(sendSignal, (text: string) => {
-    inbox.push(stamp({ text }))
+  // Bare-string payloads are old signals replaying through new code (and
+  // supervision nudges): same text, no per-turn trace.
+  const queueText = (payload: string | SendSignalPayload): void => {
+    inbox.push(stamp(typeof payload === 'string' ? { text: payload } : { text: payload.text, ...(payload.traceparent === undefined ? {} : { traceparent: payload.traceparent }) }))
+  }
+  setHandler(sendSignal, (payload: string | SendSignalPayload) => {
+    queueText(payload)
     log.info('signal received', { signal: 'runSend', pending: inbox.length })
   })
-  setHandler(steerSignal, (text: string) => {
-    inbox.push(stamp({ text }))
+  setHandler(steerSignal, (payload: string | SendSignalPayload) => {
+    queueText(payload)
     log.info('signal received', { signal: 'runSteer', pending: inbox.length })
   })
   setHandler(skillSignal, (args: SkillSignalArgs) => {
     inbox.push(stamp({
       text: args.text,
       skill: { prompt: args.prompt, tools: args.tools, mode: args.mode ?? 'default' },
+      ...(args.traceparent === undefined ? {} : { traceparent: args.traceparent }),
     }))
     log.info('signal received', { signal: 'runSkill', pending: inbox.length })
   })
-  setHandler(queueItemsQuery, () => inbox.map((item, index) => normalizeQueueItem(item, index)))
-  setHandler(queueRemoveUpdate, (id: string) => {
-    const at = inbox.findIndex((item, index) => normalizeQueueItem(item, index).id === id)
-    if (at < 0) return false
-    inbox.splice(at, 1)
-    return true
-  })
-  setHandler(queueReorderUpdate, (ids: string[]) => {
-    const current = inbox.map((item, index) => normalizeQueueItem(item, index))
-    const known = new Set(current.map((item) => item.id))
-    if (ids.length !== current.length || new Set(ids).size !== ids.length || !ids.every((id) => known.has(id))) {
-      throw ApplicationFailure.nonRetryable('Queue ids must exactly match the current queue.', 'QueueMismatch')
-    }
-    const byId = new Map(current.map((item, index) => [item.id, index] as const))
-    const entries = inbox.slice()
-    inbox.length = 0
-    for (const id of ids) {
-      const at = byId.get(id)
-      const entry = at === undefined ? undefined : entries[at]
-      if (entry) inbox.push(entry)
-    }
-    return true
-  })
+  registerQueueHandlers(inbox)
   setHandler(pauseSignal, () => {
     if (currentState() === 'RUNNING') setState('PAUSED')
+    else if (preEntryState && currentState() === 'IDLE' && preEntry !== 'CANCELLING') preEntry = 'PAUSED'
     log.info('signal received', { signal: 'runPause', state: currentState() })
   })
   setHandler(resumeSignal, () => {
     if (currentState() === 'PAUSED') setState('RUNNING')
+    else if (preEntryState && currentState() === 'IDLE' && preEntry !== 'CANCELLING') preEntry = 'RUNNING'
     log.info('signal received', { signal: 'runResume', state: currentState() })
   })
   setHandler(cancelSignal, () => {
     if (currentState() === 'RUNNING' || currentState() === 'PAUSED') {
       setState('CANCELLING')
       cancelRunningTurn?.()
+    } else if (preEntryState && currentState() === 'IDLE') {
+      // Terminal intent wins over any earlier pre-entry pause or resume;
+      // no turn runs before entry so there is nothing to cancel yet.
+      preEntry = 'CANCELLING'
     }
     log.info('signal received', { signal: 'runCancel', state: currentState() })
   })
+  setHandler(stopTurnSignal, () => {
+    // Loop stop: cancel the in-flight turn only. The run stays alive: the
+    // turn catch discards the partial outcome and the loop continues, and
+    // the cancelled activity releases its lease in its own finally.
+    cancelRunningTurn?.()
+    log.info('signal received', { signal: 'runStopTurn', state: currentState() })
+  })
   setHandler(stateQuery, () => ({ state: box.state, sessionId: input.sessionId, pending: inbox.length }))
 
-  nonce += 1
-  await turn.appendEventActivity({
-    idempotencyKey: idempotencyKey(input.sessionId, runTag, 'session', 0),
-    partition,
-    type: 't.session.created',
-    payload: { sessionId: input.sessionId, title: input.sessionId },
-  })
-  setState('RUNNING')
+  // Continued runs skip session.created (the first run recorded it; a
+  // second row would double it) and re-enter PAUSED when the chain
+  // continued mid-pause, so the pause gate holds across runs.
+  async function enterInitialState(): Promise<void> {
+    if (!input.resumed) {
+      nonce += 1
+      await turn.appendEventActivity({
+        idempotencyKey: idempotencyKey(input.sessionId, runTag, 'session', 0),
+        partition,
+        type: 't.session.created',
+        payload: { sessionId: input.sessionId, title: input.sessionId },
+      })
+    }
+    setState('RUNNING')
+    if (input.resumed?.state === 'PAUSED') setState('PAUSED')
+    // Pre-entry intent is fresher than carried state: a first-WFT pause
+    // or cancel holds, and a first-WFT resume releases a carried pause.
+    // Every apply is source-guarded (no self-transitions exist).
+    if (preEntry === 'CANCELLING' && (currentState() === 'RUNNING' || currentState() === 'PAUSED')) setState('CANCELLING')
+    else if (preEntry === 'PAUSED' && currentState() === 'RUNNING') setState('PAUSED')
+    else if (preEntry === 'RUNNING' && currentState() === 'PAUSED') setState('RUNNING')
+  }
+  await enterInitialState()
+
+  // A turn killed while the run survives (runStopTurn: loop guard,
+  // supervision) must still answer: without a receipt the UI waits for a
+  // reply that never arrives and the thinking indicator sticks forever. A
+  // run-level cancel (CANCELLING) owns its own receipt ('run cancelled' +
+  // finished) at the loop top, so it skips this.
+  async function appendTurnStoppedReceipt(): Promise<void> {
+    if (currentState() === 'CANCELLING' || !patched('turn-cancel-receipt-v1')) return
+    nonce += 1
+    await turn.appendEventActivity({
+      idempotencyKey: idempotencyKey(input.sessionId, runTag, 'turn-stopped', nonce),
+      partition,
+      type: 't.message.appended',
+      payload: {
+        threadKey: input.sessionId,
+        kind: 'text',
+        message: {
+          text: 'That reply was stopped before it finished. Tell me how to proceed and I will continue.',
+          role: 'agent',
+          stopped: true,
+        },
+      },
+    })
+  }
+
+  function buildContinuation(): SessionRunInput | undefined {
+    const info = workflowInfo()
+    if (!patched('can-v1')) return undefined
+    if (!shouldContinueAsNew(info.historyLength, info.historySize, info.continueAsNewSuggested, input.historyEventLimit, input.historyByteLimit)) {
+      return undefined
+    }
+    return {
+      sessionId: input.sessionId,
+      ...(input.ownerEpoch === undefined ? {} : { ownerEpoch: input.ownerEpoch }),
+      ...(input.fakeSteps === undefined ? {} : { fakeSteps: input.fakeSteps }),
+      ...(input.idleTimeoutMs === undefined ? {} : { idleTimeoutMs: input.idleTimeoutMs }),
+      ...(input.historyEventLimit === undefined ? {} : { historyEventLimit: input.historyEventLimit }),
+      ...(input.historyByteLimit === undefined ? {} : { historyByteLimit: input.historyByteLimit }),
+      resumed: { inbox, state: currentState() === 'PAUSED' ? 'PAUSED' : 'RUNNING', nonce },
+    }
+  }
 
   for (;;) {
     if (currentState() === 'CANCELLING') {
@@ -197,6 +291,15 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
       })
       setState('FINISHED')
       return 'cancelled'
+    }
+    // Continue-as-new between turns: the inbox, pause state, and nonce
+    // carry into a fresh run. Idempotency keys and runKeys embed the run
+    // id, so nothing collides; old histories skip via the patch gate.
+    const continued = buildContinuation()
+    if (continued !== undefined) {
+      await continueAsNew<typeof sessionRun>(continued)
+      // Unreachable: the new run owns the inbox now.
+      return 'continued'
     }
     if (currentState() === 'PAUSED') {
       await condition(() => currentState() !== 'PAUSED')
@@ -259,6 +362,7 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
             threadKey: input.sessionId,
             runKey,
             text: item.text,
+            ...(item.traceparent === undefined ? {} : { traceparent: item.traceparent }),
             fakeSteps: input.fakeSteps,
             ...(item.recovery ? { recovery: item.recovery } : {}),
             ...(input.ownerEpoch ? { ownerEpoch: input.ownerEpoch,ownerFirstExecutionId: workflowInfo().firstExecutionRunId,ownerContinuedFromExecutionId: workflowInfo().continuedFromExecutionRunId } : {}),
@@ -291,6 +395,16 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
       // run presents nothing more, so the finished turn is discarded rather
       // than appended as an orphan.
       if (currentState() === 'CANCELLING') continue
+      // Missed-steer redelivery (F13 rework): steers that landed too late
+      // for this turn's rounds were receipted as missed; queue their texts
+      // as one follow-up turn instead of holding turns open. The push
+      // reads the recorded activity result, so replays decide
+      // identically; pause/cancel gates treat it like any queued item.
+      const redeliver = outcome.missedSteering ?? []
+      if (redeliver.length > 0) {
+        inbox.push(stamp({ text: redeliver.map((row) => row.text).join('\n\n') }))
+        log.info('signal received', { signal: 'runSteer-redeliver', pending: inbox.length })
+      }
       if (!userFirst && !item.recovery) {
         nonce += 1
         await turn.appendEventActivity({
@@ -329,6 +443,7 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
       })
     } catch (error) {
       if (isCancellation(error)) {
+        await appendTurnStoppedReceipt()
         continue
       }
       nonce += 1

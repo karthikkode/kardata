@@ -1,6 +1,6 @@
 // Execution receipts are research records, not operational log bodies.
 import { createHash } from 'node:crypto'
-import type { Scope } from '../auth/keys.js'
+import type { Scope } from '../auth/types.js'
 import { appendEvent, findEventByKey, type Db } from './events.js'
 import { requireThread, WorkspaceError } from './workspace.js'
 

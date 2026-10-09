@@ -54,14 +54,43 @@ because durable children have no wall clock across replays. Proven by
   (`parent-idle-timeout`); a cancelled child with no finish for
   `childFinishTimeoutMs` (default 1 h) completes itself as cancelled.
   Fan-out cap: delegations arriving while `maxInFlight` children run
-  (default 50) reject as `t.subagent.rejected` with
-  `max in-flight children N reached` instead of starting — backpressure,
-  never a wedged queue. Finished slots free on `parentNoteDone`, so a
-  re-signalled delegation starts once room opens.
+  (default 50) wait in the durable queue (`t.subagent.queued`, cap
+  `maxQueued` default 2000; past it they reject and the gateway refuses
+  fast with 409). A freed slot promotes the queue head on
+  `parentNoteDone`, and the parent feeds the promoted goal itself.
   Duplicate delegation for a running child rejects as `t.subagent.rejected`
   instead of failing the parent — and whoever observes a child close must
   signal `parentNoteDone`, or the parent's in-memory entry stays `running`
   and later relaunches of that id keep rejecting.
+- Continue-as-new past 10k history events or 10 MB (`can-v1` patch):
+  the parent carries pending signals, the durable queue, promotion sets,
+  and the children map (running handles re-derive by id); the child
+  carries inbox, missed steer, goal, thread length, and pause flags.
+  Continued runs skip the created/launched row. Proven by
+  `tests/backend/workflows.continue-as-new.test.ts`.
+
+## Queued-child controls (C6/2)
+
+A waiting child has no workflow yet, so pause/resume/cancel route through
+its live parent: the gateway checks the parent's queue, signals
+`parentChildControl`, and polls the projected state (5 s cap, then
+accepted anyway). The parent drains controls with steers, ahead of
+launches (`queued-controls-v1` patch): pause parks the id past promotion
+(`pausedQueued`, carried across continue-as-new), resume releases it,
+cancel completes it as cancelled without starting it. A control racing
+promotion forwards to the live child; a stale QUEUED row with no parent is
+409. Steers land as pending instructions for the first turn
+(`enqueueQueuedSteering`), never missed. The HTTP run check accepts a
+QUEUED or paused-queued subagent thread by its row when no workflow
+describes (any other workflow-less id stays 404), so the routes reach
+the gateway instead of rejecting before it; proven by
+`tests/backend/commands.queued-runs.test.ts` over a live parent.
+Parent unwind (cancel, finish, idle close) completes queued waiters as
+cancelled — including promoted requests still awaiting launch — so no
+thread sits QUEUED behind a dead parent; running children still cancel
+through their (re-derived across continue-as-new) handles. Pinned by
+the pre-continue cancel cases in
+`tests/backend/workflows.continue-as-new.test.ts`.
 
 ## Delegation door (production launch path)
 

@@ -42,7 +42,7 @@ const ArtifactScope = z.object({
 export const TOOL_SCHEMAS = {
   'db.commit_child_context': z.object({ proposalId: NonEmpty }).strict(),
   'db.get_global_context': z.object({ sectorId: NonEmpty.optional() }).strict(),
-  'db.propose_global_context': z.object({ baseVersion: z.number().int().nonnegative(), sections: PartialContextSections, idempotencyKey: NonEmpty }).strict(),
+  'db.propose_global_context': z.object({ baseVersion: z.number().int().nonnegative(), sections: PartialContextSections, idempotencyKey: NonEmpty, sectorId: NonEmpty.optional() }).strict(),
   'db.list_sector_files': z.object({}).strict(),
   'db.propose_file_context': z.object({ fileId: NonEmpty, baseVersion: z.number().int().nonnegative(), ords: z.array(z.number().int().nonnegative()).optional() }).strict(),
   'db.get_local_context': z.object({}).strict(),
@@ -195,11 +195,12 @@ export const TOOL_SCHEMAS = {
   'db.get_thread': z.object({
     threadKey: NonEmpty,
   }),
-  'db.get_sector_plan': z.object({}).strict(),
-  'db.get_research_progress': z.object({}).strict(),
-  'db.list_sector_sessions': z.object({}).strict(),
+  'db.get_sector_plan': z.object({ sectorId: NonEmpty.optional() }).strict(),
+  'db.get_research_progress': z.object({ sectorId: NonEmpty.optional() }).strict(),
+  'db.list_sector_sessions': z.object({ sectorId: NonEmpty.optional() }).strict(),
   'db.read_sector_thread': z.object({
     threadKey: NonEmpty,
+    sectorId: NonEmpty.optional(),
     fromSeq: AfterSeq.optional(),
     limit: z.number().int().min(1).max(100).optional(),
   }).strict(),
@@ -330,6 +331,80 @@ export const TOOL_SCHEMAS = {
   'db.ledger_list_problems': z.object({
     companyId: NonEmpty,
   }),
+  'ops.list_runs': z.object({
+    sectorId: NonEmpty.optional(),
+    state: z.enum(['IDLE', 'RUNNING', 'PAUSED', 'SUSPENDED', 'CANCELLING', 'FINISHED', 'ERROR']).optional(),
+    kind: z.enum(['session', 'subagent']).optional(),
+  }).strict(),
+  'ops.get_run': z.object({
+    runId: NonEmpty,
+  }).strict(),
+  'ops.thread_queue': z.object({
+    threadKey: NonEmpty,
+  }).strict(),
+  'ops.queue_remove': z.object({
+    threadKey: NonEmpty,
+    id: NonEmpty,
+  }).strict(),
+  'ops.queue_reorder': z.object({
+    threadKey: NonEmpty,
+    ids: z.array(NonEmpty),
+  }).strict(),
+  'ops.list_alerts': z.object({
+    sectorId: NonEmpty.optional(),
+    beforeSeq: z.number().int().positive().optional(),
+    limit: z.number().int().min(1).max(100).optional(),
+  }).strict(),
+  'ops.thread_health': z.object({
+    threadKey: NonEmpty,
+  }).strict(),
+  'ops.cost': z.object({
+    threadKey: NonEmpty.optional(),
+    sectorId: NonEmpty.optional(),
+  }).strict(),
+  'ops.sector_evaluation': z.object({
+    sectorId: NonEmpty.optional(),
+  }).strict(),
+  'ops.recent_activity': z.object({
+    traceId: NonEmpty.optional(),
+    threadKey: NonEmpty.optional(),
+    limit: z.number().int().min(1).max(200).optional(),
+  }).strict(),
+  'ops.pause_run': z.object({
+    runId: NonEmpty,
+  }).strict(),
+  'ops.resume_run': z.object({
+    runId: NonEmpty,
+    extendedBudgetMs: z.number().int().positive().optional(),
+  }).strict(),
+  'ops.cancel_run': z.object({
+    runId: NonEmpty,
+  }).strict(),
+  'ops.spawn_subagent': z.object({
+    threadKey: NonEmpty,
+    goal: z.string().min(1).max(8000),
+  }).strict(),
+  'ops.restart_sector_research': z.object({
+    sectorId: NonEmpty,
+    idempotencyKey: NonEmpty.optional(),
+  }).strict(),
+  'db.request_plan': z.object({
+    sectorId: NonEmpty,
+    instruction: z.string().min(1).max(8000),
+  }).strict(),
+  'ops.start_monitor': z.object({
+    sectorId: NonEmpty.optional(),
+    threadKey: NonEmpty.optional(),
+    everyMinutes: z.number().int().min(5).max(120),
+    brief: z.string().min(1).max(2000),
+    until: NonEmpty.optional(),
+  }).strict(),
+  'ops.stop_monitor': z.object({
+    monitorId: NonEmpty.optional(),
+    sectorId: NonEmpty.optional(),
+    threadKey: NonEmpty.optional(),
+  }).strict(),
+  'ops.list_monitors': z.object({}).strict(),
 }
 
 export type McpToolName = keyof typeof TOOL_SCHEMAS

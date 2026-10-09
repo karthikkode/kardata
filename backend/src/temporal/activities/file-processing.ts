@@ -1,11 +1,12 @@
 // File-owned work on the existing worker. Workflow histories contain IDs only.
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
 import { Context } from '@temporalio/activity'
 import type { ProviderAdapter, ProviderResponse } from '@kardata/agents'
 import { assembledTokens, measureInputTokens } from '@kardata/agents'
 import { z } from 'zod'
 import { resolveArchiveTarget, withArchiveDeadline, type ArchiveTarget } from '../../archive/targets.js'
-import { workerPoolFromEnv, type TransactableDb } from '../../db/index.js'
+import { appendProviderRoundEvent } from '../../db/execution-rounds.js'
+import { acquireMetaPermit, workerPoolFromEnv, type TransactableDb } from '../../db/index.js'
 import {
   readFileProcessingJob, registerFileImages, claimFileImage,
   readFileImage, readFileImageAttempt, readCurrentFileImageAttempt, readNextFileImage, readFileJobBoundary, pauseFileProcessingJob, beginFileProcessingJob, markFileImageRequestStarted,
@@ -17,9 +18,10 @@ import { planPdfExtraction } from '../../db/pdf-extraction.js'
 import { sha256Hex, chunkTextUnits } from '../../db/file-pipeline.js'
 import { WorkspaceError } from '../../db/errors.js'
 import { documentImageRequest, DOCUMENT_IMAGE_PROMPT_VERSION } from '../../ocr.js'
-import { resolveAdapter } from '../../providers/gateway.js'
+import { providerRoundFields, resolveAdapter, wrapAdapterWithPermit } from '../../providers/provider-gateway.js'
 import { findModel } from '../../providers/registry.js'
 import { createLogger, logOp } from '../../observability/logging.js'
+import { activityLogFields } from '../../observability/temporal-tracing.js'
 
 export interface FileProcessingInput { jobId: string; revision: number }
 interface WorkContext { producerId: string; signal?: AbortSignal; heartbeat(phase: string): void }
@@ -163,7 +165,7 @@ export function createFileProcessingActivities(deps: FileProcessingDependencies)
         await registerFileImages(deps.db, input.jobId, reference, images, archive, input.revision)
         return { state: 'processing', totalImages: images.length }
         } finally { clearInterval(pulse) }
-      }, { jobId: input.jobId, revision: input.revision })
+      }, { ...activityLogFields(), jobId: input.jobId, revision: input.revision })
     },
     async nextFileImageActivity(input: FileProcessingInput & { cursor: { page: number; ordinal: number } | null }): Promise<{ imageId: string | null; nextCursor: { page: number; ordinal: number } | null; state?: 'paused' }> {
       return logOp(logger, 'file.processing.cursor', async () => {
@@ -180,7 +182,7 @@ export function createFileProcessingActivities(deps: FileProcessingDependencies)
         return { imageId: null, nextCursor: input.cursor, state: 'paused' }
       }
       return { imageId: next?.imageId ?? null, nextCursor: next ? { page: next.page, ordinal: next.ordinal } : input.cursor }
-      }, { jobId: input.jobId, revision: input.revision, cursor: input.cursor })
+      }, { ...activityLogFields(), jobId: input.jobId, revision: input.revision, cursor: input.cursor })
     },
     async processFileImageActivity(input: FileProcessingInput & { imageId: string }): Promise<{ state: string }> {
       return logOp(logger, 'file.processing.image', () => pulsed('image', async (context) => {
@@ -210,20 +212,46 @@ export function createFileProcessingActivities(deps: FileProcessingDependencies)
           if (current.promptVersion !== DOCUMENT_IMAGE_PROMPT_VERSION || current.provider !== 'meta') throw new WorkspaceError('conflict', 'File image processing contract is unavailable.')
           const adapter = deps.provider(current.model)
           const controller = new AbortController(), signal = context.signal ? AbortSignal.any([controller.signal, context.signal]) : controller.signal
-          timeout = setTimeout(() => controller.abort(), providerDeadlineMs)
+          let providerTimedOut = false
+          timeout = setTimeout(() => { providerTimedOut = true; controller.abort() }, providerDeadlineMs)
           heartbeat = setInterval(() => { try { context.heartbeat('image') } catch (error) { controller.abort(error) } }, 5_000)
           const request = documentImageRequest(png, signal, image.role ?? 'embedded')
           const inputBudget = Math.min(80_000, Math.min(100_000, deps.modelWindow?.(current.model) ?? 100_000) - 16384)
           if (!Number.isFinite(inputBudget) || inputBudget <= 0) throw new WorkspaceError('conflict', 'The image model has no verified fitting request budget.')
-          const measurement = await logOp(logger, 'file.processing.input-budget', () => abortableFileWork(() => measureInputTokens(adapter, request, () => assembledTokens(request.systemPrompt, request.messages, request.tools) + Math.ceil(image.width * image.height / 256) * 2 + 512), signal), { jobId: input.jobId, imageId: input.imageId })
+          const measurement = await logOp(logger, 'file.processing.input-budget', () => abortableFileWork(() => measureInputTokens(adapter, request, () => assembledTokens(request.systemPrompt, request.messages, request.tools) + Math.ceil(image.width * image.height / 256) * 2 + 512), signal), { ...activityLogFields(), jobId: input.jobId, imageId: input.imageId })
           const { inputTokens } = measurement
           if (!Number.isFinite(inputTokens) || inputTokens < 0 || inputTokens > inputBudget) throw new WorkspaceError('conflict', 'Image input exceeds the verified request budget.')
           logger.info({ event: 'file.processing.input-budget.reading', jobId: input.jobId, imageId: input.imageId, basis: measurement.method, inputTokens, inputBudget, outputReserve: 16384 }, 'File image request budget')
           signal.throwIfAborted()
           await markFileImageRequestStarted(deps.db, input.jobId, input.imageId, claim.attempt, lease, input.revision)
           dispatched = true
+          const recordImageRound = async (outcome: 'ok' | 'error' | 'timeout' | 'cancelled', startedAt: number, usage?: ProviderResponse['usage'], errorCode?: string): Promise<void> => {
+            const finishedAt = Date.now()
+            try {
+              await appendProviderRoundEvent(deps.db, `sector:${current.sectorId}`, `provider-round:file-image:${input.jobId}:${input.imageId}:${claim.attempt}`, {
+                runId: `file-image:${input.jobId}:${input.imageId}`, threadKey: `file:${current.sectorId}:${current.documentId}`, sessionId: null, sectorId: current.sectorId, turnKind: 'file-summary',
+                round: 1, attempt: claim.attempt, model: current.model, provider: adapter.providerName,
+                startedAt: new Date(startedAt).toISOString(), finishedAt: new Date(finishedAt).toISOString(), latencyMs: finishedAt - startedAt,
+                inputTokens: usage?.inputTokens ?? null, outputTokens: usage?.outputTokens ?? null, cachedTokens: usage?.cacheReadTokens ?? null,
+                outcome, ...(errorCode ? { errorCode } : {}),
+              })
+            } catch (error) {
+              logger.warn({ event: 'file.processing.round_record_failed', ...activityLogFields(), code: error instanceof Error ? error.name : 'unknown', jobId: input.jobId, imageId: input.imageId })
+            }
+          }
           const serialized = await abortableFileWork(async () => {
-            const response: ProviderResponse = await adapter.chat(request)
+            const roundStarted = Date.now()
+            let response: ProviderResponse
+            try {
+              response = await adapter.chat(request)
+            } catch (error) {
+              logger.error({ ...activityLogFields(), ...providerRoundFields({ provider: adapter.providerName, model: current.model, latencyMs: Date.now() - roundStarted, outcome: 'error', code: error instanceof Error && 'code' in error && typeof error.code === 'string' ? error.code : 'provider_failed' }), jobId: input.jobId, imageId: input.imageId })
+              const cancelled = context.signal?.aborted === true && !providerTimedOut
+              await recordImageRound(cancelled ? 'cancelled' : providerTimedOut ? 'timeout' : 'error', roundStarted, undefined, cancelled ? 'turn_cancelled' : providerTimedOut ? 'provider_timeout' : error instanceof Error && 'code' in error && typeof error.code === 'string' ? error.code : 'provider_failed')
+              throw error
+            }
+            logger.info({ ...activityLogFields(), ...providerRoundFields({ provider: adapter.providerName, model: current.model, latencyMs: Date.now() - roundStarted, usage: response.usage, outcome: 'ok' }), jobId: input.jobId, imageId: input.imageId })
+            await recordImageRound('ok', roundStarted, response.usage)
             const serialized = JSON.stringify(response)
             if (Buffer.byteLength(serialized) > MAX_REPLY_BYTES) throw new WorkspaceError('conflict', 'Image provider reply exceeds its storage budget.')
             // Independent durable stores: failure in one must not prevent trying
@@ -243,14 +271,14 @@ export function createFileProcessingActivities(deps: FileProcessingDependencies)
           if (timeout) clearTimeout(timeout)
           if (heartbeat) clearInterval(heartbeat)
         }
-      }), { jobId: input.jobId, imageId: input.imageId, revision: input.revision })
+      }), { ...activityLogFields(), jobId: input.jobId, imageId: input.imageId, revision: input.revision })
     },
     async finalizeFileProcessingActivity(input: FileProcessingInput): Promise<void> {
       await logOp(logger, 'file.processing.finalize', () => pulsed('finalize', async (context) => {
         await job(input)
         const cancellable: ArchiveTarget = { read: (key, maxBytes) => archive.read(key, maxBytes, context.signal), write: (key, body) => archive.write(key, body, context.signal), list: (directory) => archive.list(directory) }
         await stageAndPublishFileProcessingJob(deps.db, input.jobId, cancellable, input.revision)
-      }), { jobId: input.jobId, revision: input.revision })
+      }), { ...activityLogFields(), jobId: input.jobId, revision: input.revision })
     },
     async failFileProcessingActivity(input: FileProcessingInput & { code: string }): Promise<void> {
       await failFileProcessingJob(deps.db, input.jobId, input.code, input.revision)
@@ -259,10 +287,11 @@ export function createFileProcessingActivities(deps: FileProcessingDependencies)
 }
 
 function production() {
+  const db = workerPoolFromEnv()
   return createFileProcessingActivities({
-    db: workerPoolFromEnv(), archive: resolveArchiveTarget(), provider: (model) => {
+    db, archive: resolveArchiveTarget(), provider: (model) => {
       if (process.env['KARDATA_OCR_DISABLED']?.trim() === '1') throw new WorkspaceError('permission_denied', 'AI image processing is disabled by the owner.')
-      return resolveAdapter('meta', { model })
+      return wrapAdapterWithPermit(resolveAdapter('meta', { model }), () => acquireMetaPermit(db, `file-image:${randomUUID()}`))
     },
     modelWindow: (model) => {
       const window = findModel('meta', model)?.contextWindow

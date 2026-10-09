@@ -3,8 +3,9 @@
 // No fixture imports: the mock sessions, files, and agents must not appear.
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ChatPanel, mergeChatMessages, toChatMessages, toLiveMessages } from '@/components/ChatPanel'
-import type { StagingConfig } from '@/data/staging-api'
+import { ChatPanel } from '@/components/ChatPanel'
+import { mergeChatMessages, toChatMessages, toLiveMessages } from '@/components/chat/messages'
+import type { StagingConfig } from '@/data/api/client'
 
 const config: StagingConfig = { baseUrl: 'https://staging.test', apiKey: 'key' }
 
@@ -81,7 +82,7 @@ describe('chat staging (no mocks)', () => {
     stubApi((url) => baseHandler(url))
     render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
     fireEvent.click(screen.getByRole('button', { name: 'Chat sessions' }))
-    expect(await screen.findByRole('menuitem', { name: 'Open Server chat' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Open Server chat' })).toBeInTheDocument()
     expect(screen.queryByText('0 subagents')).not.toBeInTheDocument()
     // Mock titles stay out of the live render.
     expect(screen.queryByText('ETL Optimization')).not.toBeInTheDocument()
@@ -173,6 +174,35 @@ describe('chat staging (no mocks)', () => {
     }
   })
 
+  // Queued subagents accept pause/stop through the parent (pilot item 3):
+  // the strip offers the buttons and the panel addresses the child by
+  // its derived id (queued children have no run entry yet).
+  it.each([
+    ['Pause', '/v1/commands/pause'],
+    ['Stop', '/v1/commands/cancel'],
+  ])('%s a queued subagent by its derived child id', async (verb, path) => {
+    const queued = [
+      ...THREADS,
+      { key: 'agent:child-9', sessionId: 's-1', kind: 'subagent', name: 'Queued scout', status: 'QUEUED', acceptingSteer: true, queueDepth: 0, updatedAt: '2026-09-26T01:00:00.000Z' },
+    ]
+    const { calls } = stubApi((url) => {
+      if (url.includes('/threads') && !url.includes('/messages') && !url.includes('/events')) {
+        return { status: 200, payload: { ok: true, data: queued } }
+      }
+      if (url.endsWith(path)) return { status: 202, payload: { ok: true, data: { commandId: 'cmd-9', state: 'accepted' } } }
+      return baseHandler(url)
+    })
+    render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
+    fireEvent.click(await screen.findByRole('button', { name: /subagents/ }))
+    fireEvent.click(await screen.findByRole('button', { name: `${verb} Queued scout` }))
+    await vi.waitFor(() => {
+      expect(calls.some((call) => call.url.endsWith(path))).toBe(true)
+    })
+    const command = calls.find((call) => call.url.endsWith(path))
+    expect(command?.method).toBe('POST')
+    expect(command?.body).toBe(JSON.stringify({ runId: 'child-9' }))
+  })
+
   it('starts a session on send when none exists (start-on-send)', async () => {
     const { calls } = stubApi((url, init) => {
       if (url.endsWith('/v1/sessions')) {
@@ -204,12 +234,12 @@ describe('chat staging (no mocks)', () => {
     expect(send?.body).toBe(JSON.stringify({ threadKey: 's-new', text: 'first question' }))
     // The new session becomes active: it leads the sessions menu.
     fireEvent.click(screen.getByRole('button', { name: 'Chat sessions' }))
-    expect(await screen.findByRole('menuitem', { name: 'Open first question' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Open first question' })).toBeInTheDocument()
   })
 
   it('echoes the sent message instantly, then shows the confirmed copy once', async () => {
     let push: ((bytes: Uint8Array) => void) | undefined
-    let acceptSend = () => undefined
+    let acceptSend: () => void = () => undefined
     const encode = (frames: unknown[]) =>
       new TextEncoder().encode(frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join(''))
     stubApi((url) => {
@@ -604,7 +634,7 @@ describe('chat staging (no mocks)', () => {
     })
     render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Chat sessions' }))
-    const menu = await screen.findByRole('menu', { name: 'Chat sessions' })
+    const menu = await screen.findByRole('group', { name: 'Chat sessions' })
     fireEvent.click(within(menu).getByRole('button', { name: 'Delete Server chat' }))
     // Arm, not fire: no request until the row confirm.
     expect(calls.some((call) => call.method === 'DELETE')).toBe(false)
@@ -704,7 +734,8 @@ describe('chat staging (no mocks)', () => {
     })
     render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
     fireEvent.click(screen.getByRole('button', { name: 'Chat sessions' }))
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'New chat' }))
+    const menu = await screen.findByRole('group', { name: 'Chat sessions' })
+    fireEvent.click(within(menu).getByRole('button', { name: 'New chat' }))
     await vi.waitFor(() => {
       expect(calls.some((call) => call.url.endsWith('/v1/sessions') && call.method === 'POST')).toBe(true)
     })
@@ -719,7 +750,7 @@ describe('chat staging (no mocks)', () => {
       : baseHandler(url))
     render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
     fireEvent.click(screen.getByRole('button', { name: 'Chat sessions' }))
-    const choices = await screen.findAllByRole('menuitem', { name: 'Open TEST duplicate title' })
+    const choices = await screen.findAllByRole('button', { name: 'Open TEST duplicate title' })
     expect(within(choices[0]!).getByText('s-1', { exact: true })).toBeVisible()
     expect(within(choices[1]!).getByText('s-2', { exact: true })).toBeVisible()
   })

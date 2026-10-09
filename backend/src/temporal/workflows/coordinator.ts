@@ -5,12 +5,12 @@ import type { TurnOutcome } from '../activities/turn.js'
 import type * as activities from '../activities/coordinator.js'
 import type * as turnActivities from '../activities/turn.js'
 import type { CandidateCompany } from '../sweep-rules.js'
-import type { WorkItem } from '../research-plan.js'
-import { laneConfig } from '../lanes.js'
+import type { WorkItem } from '../../research-plan.js'
+import { laneTaskQueue } from '../lanes.js'
 import { activityOptions } from '../timeouts.js'
 import { isSweepCancellation } from '../sweep-rules.js'
 import { validateDiscoveryIntake } from '../discovery-intake.js'
-import { discoverySample, validateDiscoveryAcceptance } from '../discovery-acceptance.js'
+import { discoverySample, validateDiscoveryAcceptance } from '../../discovery-acceptance.js'
 
 const research = proxyActivities<typeof activities>(activityOptions('research'))
 export const coordinatorPause = defineSignal('coordinatorPause')
@@ -78,6 +78,10 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
   const version = initial.plan.version
   currentPlanVersion = version
   const plan = initial.plan.executable
+  // Plan budget (1..64, schema-enforced): intake, recovery, validation,
+  // and company fan-out all batch by this. Reads from the approved plan,
+  // so replays reproduce the identical slices.
+  const concurrency = plan.budgets.concurrency
   const compactState = compactTransport && plan.researchDepth === 'discovery'
   if (compactState && input.pinnedVersion !== undefined && input.pinnedVersion !== version) throw ApplicationFailure.nonRetryable('The approved plan changed across history rotation. Owner review/start is required.', 'ResearchPlanChanged')
   if (compactState && intentGeneration === 0 && initial.sector.state === 'paused') { desiredPaused = true; paused = true; pauseStarted = Date.now() }
@@ -162,7 +166,7 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
       if (orderedPause && paused) await condition(() => !paused)
       const recovery = terminalRecovery ? await research.prepareResearchTurnRecoveryActivity({ sectorId: input.sectorId, version, workId: intake.id, childId: intake.childId!, sessionId: initial.sessionId }) : undefined
       const ownerEpoch = epochOwnership ? await research.prepareExecutionIntentActivity({ workflowId: intake.childId!, threadKey: `agent:${intake.childId}`, sessionId: initial.sessionId, requestKey: `child:${intake.id}:${intake.attempts}` }) : undefined
-      const handle = await withPreparedExecution(ownerEpoch, () => startChild(companyResearch, { workflowId: intake.childId!, taskQueue: input.turnTaskQueue ?? laneConfig('turn').taskQueue, parentClosePolicy: ParentClosePolicy.PARENT_CLOSE_POLICY_REQUEST_CANCEL, args: [{ ...input, version, sessionId: initial.sessionId, item: intake, ...(recovery ? { recovery } : {}), ...(ownerEpoch ? { ownerEpoch } : {}), brief: 'Basic source-backed company intake', acceptance: [], assignment, toolAllow: ['web_fetch'] }] }), async () => { if (orderedPause && paused) await condition(() => !paused) })
+      const handle = await withPreparedExecution(ownerEpoch, () => startChild(companyResearch, { workflowId: intake.childId!, taskQueue: input.turnTaskQueue ?? laneTaskQueue('turn'), parentClosePolicy: ParentClosePolicy.PARENT_CLOSE_POLICY_REQUEST_CANCEL, args: [{ ...input, version, sessionId: initial.sessionId, item: intake, ...(recovery ? { recovery } : {}), ...(ownerEpoch ? { ownerEpoch } : {}), brief: 'Basic source-backed company intake', acceptance: [], assignment, toolAllow: ['web_fetch'] }] }), async () => { if (orderedPause && paused) await condition(() => !paused) })
       children.set(intake.id, handle)
       try {
         const outcome = await handle.result()
@@ -194,7 +198,7 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
           for (const entry of interrupted.slice(offset)) await research.researchCheckpointActivity({ ...input, version, item: { ...entry, state: 'blocked', detail: 'Approved company limit reached. Owner review and a revised limit are required.' } })
           break
         }
-        const batch = interrupted.slice(offset, offset + Math.min(2, plan.budgets.maxCompanies - known.length))
+        const batch = interrupted.slice(offset, offset + Math.min(concurrency, plan.budgets.maxCompanies - known.length))
         active = batch.length
         const accepted = await bounded(() => Promise.all(batch.map((entry) => screen({ domain: new URL(entry.sourceUrl!).hostname.replace(/^www\./, ''), name: entry.title.replace(/^Screen /, ''), url: entry.sourceUrl!, intakeKey: entry.id.split(':').at(-1)! }))))
         known = [...new Set([...known, ...accepted.filter((value): value is string => value !== null)])]
@@ -208,9 +212,9 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
       let snapshot = initial
       for (;;) {
         const interrupted = snapshot.progress.items.filter((entry) => entry.kind === 'discovery' && entry.id.includes(':intake:') && ['pending','running','blocked','failed'].includes(entry.state) && (entry.state === 'pending' || !entry.detail.startsWith('uncertain:')) && (compactState || entry.sourceUrl))
-        for (let offset = 0; offset < interrupted.length; offset += 2) {
+        for (let offset = 0; offset < interrupted.length; offset += concurrency) {
           await check()
-          const references = interrupted.slice(offset, offset + 2)
+          const references = interrupted.slice(offset, offset + concurrency)
           const batch = compactState ? await Promise.all(references.map((entry) => research.researchWorkItemActivity({ ...input, version, id: entry.id }))) : references
           for (const entry of batch) settledIntakes.set(entry.id, entry)
           if (companyTotal() >= plan.budgets.maxCompanies) {
@@ -263,7 +267,7 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
             for (let offset = 0; offset < result.candidates.length;) {
               await check()
               if (companyTotal() >= plan.budgets.maxCompanies) break
-              const batch = result.candidates.slice(offset, offset + Math.min(2, plan.budgets.maxCompanies - companyTotal()))
+              const batch = result.candidates.slice(offset, offset + Math.min(concurrency, plan.budgets.maxCompanies - companyTotal()))
               active = batch.length
               const accepted = await bounded(() => Promise.all(batch.map(screen)))
               const previousSize = known.length
@@ -301,9 +305,9 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
       const sample = discoverySample(companies)
       const outcomes: TurnOutcome[] = []
       try {
-        for (let start = 0; start < sample.length; start += 20) {
+        for (let start = 0; start < sample.length; start += 10 * concurrency) {
           await check()
-          const batches = [sample.slice(start, start + 10), sample.slice(start + 10, start + 20)].filter((part) => part.length)
+          const batches = Array.from({ length: concurrency }, (_, index) => sample.slice(start + index * 10, start + (index + 1) * 10)).filter((part) => part.length)
           active = batches.length
           const results = await bounded(() => Promise.all(batches.map(async (part, offset) => {
             const index = Math.floor(start / 10) + offset
@@ -321,7 +325,7 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
             if (orderedPause && paused) await condition(() => !paused)
             const recovery = terminalRecovery ? await research.prepareResearchTurnRecoveryActivity({ sectorId: input.sectorId, version, workId: childItem.id, childId: childItem.childId!, sessionId: initial.sessionId }) : undefined
       const ownerEpoch = epochOwnership ? await research.prepareExecutionIntentActivity({ workflowId: childItem.childId!, threadKey: `agent:${childItem.childId}`, sessionId: initial.sessionId, requestKey: `child:${childItem.id}:${childItem.attempts}` }) : undefined
-            const handle = await withPreparedExecution(ownerEpoch, () => startChild(companyResearch, { workflowId: childItem.childId!, taskQueue: input.turnTaskQueue ?? laneConfig('turn').taskQueue, parentClosePolicy: ParentClosePolicy.PARENT_CLOSE_POLICY_REQUEST_CANCEL, args: [{ ...input, version, sessionId: initial.sessionId, item: childItem, ...(recovery ? { recovery } : {}), ...(ownerEpoch ? { ownerEpoch } : {}), brief: 'Validate sector discovery', acceptance: plan.acceptance, assignment, ...(sourceIntake ? { toolAllow: ['web_fetch'] } : {}) }] }), async () => { if (orderedPause && paused) await condition(() => !paused) })
+            const handle = await withPreparedExecution(ownerEpoch, () => startChild(companyResearch, { workflowId: childItem.childId!, taskQueue: input.turnTaskQueue ?? laneTaskQueue('turn'), parentClosePolicy: ParentClosePolicy.PARENT_CLOSE_POLICY_REQUEST_CANCEL, args: [{ ...input, version, sessionId: initial.sessionId, item: childItem, ...(recovery ? { recovery } : {}), ...(ownerEpoch ? { ownerEpoch } : {}), brief: 'Validate sector discovery', acceptance: plan.acceptance, assignment, ...(sourceIntake ? { toolAllow: ['web_fetch'] } : {}) }] }), async () => { if (orderedPause && paused) await condition(() => !paused) })
             children.set(childItem.id, handle)
             try {
               const outcome = await handle.result()
@@ -353,9 +357,9 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
     }
     const companies = discovered.progress.items.filter((item) => item.kind === 'company' && item.state !== 'complete')
     let failures = 0
-    for (let index = 0; index < companies.length; index += 2) {
+    for (let index = 0; index < companies.length; index += concurrency) {
       await check()
-      const batch = companies.slice(index, index + 2)
+      const batch = companies.slice(index, index + concurrency)
       active = batch.length
       const results = await bounded(() => Promise.all(batch.map(async (item) => {
         await research.researchCheckpointActivity({ ...input, version, item: { ...item, state: 'running', attempts: item.attempts + 1 } })
@@ -364,7 +368,7 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
           const childId = item.childId ?? `research-${item.id}`
           const recovery = terminalRecovery ? await research.prepareResearchTurnRecoveryActivity({ sectorId: input.sectorId, version, workId: item.id, childId, sessionId: initial.sessionId }) : undefined
           const ownerEpoch = epochOwnership ? await research.prepareExecutionIntentActivity({ workflowId: childId, threadKey: `agent:${childId}`, sessionId: initial.sessionId, requestKey: `child:${item.id}:${item.attempts + 1}` }) : undefined
-          const handle = await withPreparedExecution(ownerEpoch, () => startChild(companyResearch, { workflowId: item.childId ?? `research-${item.id}`, taskQueue: input.turnTaskQueue ?? laneConfig('turn').taskQueue, ...(sourceIntake ? { parentClosePolicy: ParentClosePolicy.PARENT_CLOSE_POLICY_REQUEST_CANCEL } : {}), args: [{ ...input, version, sessionId: initial.sessionId, item, ...(recovery ? { recovery } : {}), ...(ownerEpoch ? { ownerEpoch } : {}), brief: plan.companyBrief, acceptance: plan.acceptance }] }), async () => { if (orderedPause && paused) await condition(() => !paused) })
+          const handle = await withPreparedExecution(ownerEpoch, () => startChild(companyResearch, { workflowId: item.childId ?? `research-${item.id}`, taskQueue: input.turnTaskQueue ?? laneTaskQueue('turn'), ...(sourceIntake ? { parentClosePolicy: ParentClosePolicy.PARENT_CLOSE_POLICY_REQUEST_CANCEL } : {}), args: [{ ...input, version, sessionId: initial.sessionId, item, ...(recovery ? { recovery } : {}), ...(ownerEpoch ? { ownerEpoch } : {}), brief: plan.companyBrief, acceptance: plan.acceptance }] }), async () => { if (orderedPause && paused) await condition(() => !paused) })
           children.set(item.id, handle)
           const outcome = await handle.result()
           children.delete(item.id)
@@ -394,19 +398,28 @@ export async function sectorCoordinator(input: activities.CoordinatorInput): Pro
 
 interface CompanyInput extends activities.CoordinatorInput { recovery?: OriginalTurnRecovery; ownerEpoch?: string; version: number; sessionId: string; item: WorkItem; brief: string; acceptance: string[]; assignment?: string; toolAllow?: string[] }
 export async function companyResearch(input: CompanyInput): Promise<TurnOutcome> {
-  const turn = proxyActivities<typeof turnActivities>({ ...activityOptions('turn'), taskQueue: input.turnTaskQueue ?? laneConfig('turn').taskQueue })
+  const turn = proxyActivities<typeof turnActivities>({ ...activityOptions('turn'), taskQueue: input.turnTaskQueue ?? laneTaskQueue('turn') })
   const childId = workflowInfo().workflowId, threadKey = `agent:${childId}`, partition = `child:${childId}`
   const modernSteering = patched('company-child-steering-v1')
   const eventKey = patched('company-child-run-v2') ? `${childId}:${workflowInfo().runId}` : childId
+  const externalPause = patched('company-child-pause-v1')
   const parent = `session:${input.sessionId}`
   let cancelled = false
   let failed = false
   let threadLength = 1
   let parked = false
+  let pauseCount = 0
   const inbox: string[] = []
   setHandler(defineQuery('childState'), () => ({ id: childId, status: cancelled ? 'cancelled' : parked ? 'paused' : 'running', acceptingSteer: !cancelled && !parked, queueDepth: inbox.length }))
   setHandler(defineSignal('childResume'), () => { parked = false; log.info('signal received', { signal: 'childResume' }) })
   setHandler(defineSignal<[string]>('childMessage'), (text) => { inbox.push(text); log.info('signal received', { signal: 'childMessage', pending: inbox.length }) })
+  if (externalPause) setHandler(defineSignal('childPause'), async () => {
+    if (cancelled || parked) return
+    parked = true
+    pauseCount++
+    log.info('signal received', { signal: 'childPause' })
+    await append(`pause:${pauseCount}`, 't.thread.state', { threadKey, status: 'PAUSED', acceptingSteer: false })
+  })
   const append = (key: string, type: string, payload: Record<string, unknown>, target = partition) => turn.appendEventActivity({ idempotencyKey: `${eventKey}:${key}`, partition: target, type, payload })
   await append('launch', 't.subagent.launched', { sessionId: input.sessionId, parentSessionId: input.sessionId, childId, name: input.item.title, parentWorkflowId: workflowInfo().parent?.workflowId, depth: 0, mode: 'empty', goal: input.brief, queueCapacity: 10, canDelegate: false }, parent)
   const text = input.assignment ?? [`Research ${input.item.title}: ${input.item.sourceUrl ?? input.item.evidence[0]}.`, input.brief,
@@ -430,14 +443,21 @@ export async function companyResearch(input: CompanyInput): Promise<TurnOutcome>
       }
     }
   }
+  const parkAtBoundary = async () => {
+    if (!externalPause || !parked || cancelled) return
+    await condition(() => !parked)
+    await append(`resume:ext:${pauseCount}`, 't.thread.state', { threadKey, status: 'RUNNING', acceptingSteer: true })
+  }
   try {
     let outcome = await runTurn(input.recovery?.text ?? text, input.recovery?.runKey ?? `${eventKey}:research`, input.recovery)
+    await parkAtBoundary()
     await append('reply', 't.message.appended', { threadKey, kind: 'text', message: { role: 'agent', text: outcome.reply.replace(/```(?:research|discovery|intake)-result[\s\S]*?```/g, '').trim() || 'Research finished. The evidence verdict is being validated.', reasoning: outcome.reasoning } })
     threadLength++
     let followup = 0
     while (inbox.length) {
       const next = inbox.shift()
       if (!next) continue
+      await parkAtBoundary()
       followup++
       await append(`followup-user:${followup}`, 't.message.appended', { threadKey, kind: 'text', message: { role: 'user', text: next } })
       threadLength++

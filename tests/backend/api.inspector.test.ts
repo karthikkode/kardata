@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../backend/src/app.js'
 import { appendEvent } from '../../backend/src/db/index.js'
 import { hashKey } from '../../backend/src/auth/keys.js'
-import type { RunInfo } from '../../backend/src/temporal/gateway.js'
+import type { RunInfo } from '../../backend/src/temporal/runs-types.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import { FakeRunsGateway } from './fake-gateway.js'
 
@@ -53,7 +53,7 @@ class CountingGateway extends FakeRunsGateway {
   }
 }
 
-describe.skipIf(!ENABLED)('run inspector (B5.5)', () => {
+describe.skipIf(!ENABLED)('run inspector (B5.5) [F:http.inspectRun] [F:db.index.appendEvent] [F:db.events.appendEvent] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db]', () => {
   let app: FastifyInstance
   let pool: Pool
   let runs: CountingGateway

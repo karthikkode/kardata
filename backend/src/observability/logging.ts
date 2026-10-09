@@ -1,5 +1,6 @@
 // B0.5 logging contract. Every log line is JSON with join keys
-// (trace_id, run_id, op, attempt, tenant) so logs join to traces and events.
+// (trace_id, run_id, op, attempt, tenant, thread_key, session_id,
+// sector_id, round) so logs join to traces and events.
 // Secret scrubbing is fail-closed: keys matching the sensitive pattern are
 // redacted even when the exact field name was never allow-listed.
 import { createHash } from 'node:crypto'
@@ -12,6 +13,10 @@ export interface LogContext {
   op?: string
   attempt?: number
   tenant?: string
+  threadKey?: string
+  sessionId?: string
+  sectorId?: string
+  round?: number
 }
 
 // Fail-closed pattern: any key containing one of these fragments (case
@@ -76,6 +81,10 @@ export function createLogger(context: LogContext = {}, destination?: pino.Destin
         ...(context.op ? { op: context.op } : {}),
         ...(context.attempt !== undefined ? { attempt: context.attempt } : {}),
         ...(context.tenant ? { tenant: context.tenant } : {}),
+        ...(context.threadKey ? { thread_key: context.threadKey } : {}),
+        ...(context.sessionId ? { session_id: context.sessionId } : {}),
+        ...(context.sectorId ? { sector_id: context.sectorId } : {}),
+        ...(context.round !== undefined ? { round: context.round } : {}),
       },
     },
     destination,
@@ -89,6 +98,10 @@ export function childLogger(parent: Logger, context: LogContext): Logger {
     ...(context.op ? { op: context.op } : {}),
     ...(context.attempt !== undefined ? { attempt: context.attempt } : {}),
     ...(context.tenant ? { tenant: context.tenant } : {}),
+    ...(context.threadKey ? { thread_key: context.threadKey } : {}),
+    ...(context.sessionId ? { session_id: context.sessionId } : {}),
+    ...(context.sectorId ? { sector_id: context.sectorId } : {}),
+    ...(context.round !== undefined ? { round: context.round } : {}),
   })
 }
 

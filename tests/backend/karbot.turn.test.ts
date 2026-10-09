@@ -1,24 +1,17 @@
 // Karbot turn activity (Phase 3). executeKarbotTurn over injected doubles —
 // no Temporal worker, no database, no network: per-session model wins, env
 // fallback resolves the fake, deltas reach the sink, logs stay key-free.
+import { Writable } from 'node:stream'
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
-import {
-  executeKarbotTurn,
-  chatHistory,
-  KARBOT_SYSTEM_PROMPT,
-  parseChatRefs,
-  productMcpClient,
-  RESEARCH_TURN_WALL_MS,
-  researchMcpClient,
-  RESEARCH_TOOLS,
-  sectorMcpClient,
-  SECTOR_TOOLS,
-  type KarbotTurnDeps,
-  type KarbotTurnInput,
-  KarbotTurnInput as KarbotTurnInputSchema,
-  type KarbotTurnLogFields,
-} from '../../backend/src/temporal/activities/turn.js'
-import type { ProviderSelection } from '../../backend/src/providers/gateway.js'
+import { createLogger } from '../../backend/src/observability/logging.js'
+import { ensureTracing } from '../../backend/src/observability/tracing.js'
+import { executeKarbotTurn } from '../../backend/src/temporal/activities/turn.js'
+import { KarbotTurnInput as KarbotTurnInputSchema } from '../../backend/src/temporal/activities/karbot-turn-input.js'
+import { chatHistory, parseChatRefs } from '../../backend/src/temporal/activities/turn-chatrefs.js'
+import { KARBOT_SYSTEM_PROMPT, RESEARCH_TURN_WALL_MS } from '../../backend/src/temporal/activities/turn-prompts.js'
+import { productMcpClient, researchMcpClient, RESEARCH_TOOLS, sectorMcpClient, SECTOR_TOOLS } from '../../backend/src/temporal/activities/turn-palettes.js'
+import { type KarbotTurnDeps, type KarbotTurnInput, type KarbotTurnLogFields } from '../../backend/src/temporal/activities/karbot-turn-input.js'
+import type { ProviderRoundLogFields, ProviderSelection } from '../../backend/src/providers/provider-gateway.js'
 import type { SessionModelSelection } from '../../backend/src/db/index.js'
 import {
   FakeProvider,
@@ -40,7 +33,7 @@ interface MemoryWorld {
   deltas: Array<{ threadKey: string; runKey: string; text: string }>
   reasoningFrames: Array<{ threadKey: string; runKey: string; text: string }>
   toolFrames: Array<{ threadKey: string; runKey: string; id: string; name: string; state: string }>
-  logs: KarbotTurnLogFields[]
+  logs: Array<KarbotTurnLogFields | ProviderRoundLogFields>
   seenSelections: Array<{ selection: ProviderSelection; model?: string }>
   adapter: FakeProvider
 }
@@ -49,7 +42,7 @@ function memoryWorld(adapter: FakeProvider, stored?: SessionModelSelection): Mem
   const deltas: MemoryWorld['deltas'] = []
   const reasoningFrames: MemoryWorld['reasoningFrames'] = []
   const toolFrames: MemoryWorld['toolFrames'] = []
-  const logs: KarbotTurnLogFields[] = []
+  const logs: Array<KarbotTurnLogFields | ProviderRoundLogFields> = []
   const seenSelections: MemoryWorld['seenSelections'] = []
   const mcp: TurnRunnerMcpClient = {
     async listTools(): Promise<ToolDefinition[]> {
@@ -111,7 +104,7 @@ afterEach(() => {
   else process.env[ENV_KEY] = savedEnv
 })
 
-describe('executeKarbotTurn', () => {
+describe('executeKarbotTurn [F:backend.activity.turn.executeKarbotTurn] [F:backend.activity.karbot_turn_input.KarbotTurnInput] [F:backend.activity.turn_chatrefs.chatHistory] [F:backend.activity.turn_chatrefs.parseChatRefs] [F:backend.activity.turn_prompts.KARBOT_SYSTEM_PROMPT] [F:backend.activity.turn_prompts.RESEARCH_TURN_WALL_MS] [F:backend.activity.turn_palettes.productMcpClient] [F:backend.activity.turn_palettes.researchMcpClient] [F:backend.activity.turn_palettes.RESEARCH_TOOLS] [F:backend.activity.turn_palettes.sectorMcpClient] [F:backend.activity.turn_palettes.SECTOR_TOOLS] [F:backend.activity.turn_prompts.CONTEXT_PROPOSAL_NUDGE] [F:backend.activity.turn_prompts.CONTEXT_REWRITE_PREAMBLE] [F:backend.activity.turn_palettes.PRODUCT_TOOLS] [F:backend.activity.turn.ResearchPausedError] [F:backend.activity.turn.sleep] [F:db.errors.WorkspaceError] [F:db.sessions.SessionModelSelection] [F:db.index.Db] [F:db.index.SessionModelSelection] [F:db.workspace.WorkspaceError] [F:db.sector_documents.assertFileVisible] [F:db.errors.Id] [F:db.errors.checked] [F:db.file_jobs.visible]', () => {
   it('uses Contributor at high effort for an unbound session', async () => {
     process.env[ENV_KEY] = 'meta'
     const world = memoryWorld(new FakeProvider([{ text: 'ready' }]))
@@ -263,8 +256,12 @@ describe('executeKarbotTurn', () => {
       { threadKey: 'sess-1', runKey: 'karbot:sess-1:0:1', id: 'c1', name: 'db.list_sessions', state: 'done' },
     ])
     expect(world.seenSelections).toEqual([{ selection: 'fake', model: undefined }])
-    expect(world.logs).toEqual([
+    expect(world.logs.filter((line) => line.op === 'karbot.turn')).toEqual([
       expect.objectContaining({ op: 'karbot.turn', provider: 'fake', ok: true, turns: 2 }),
+    ])
+    expect(world.logs.filter((line) => line.op === 'provider.round')).toEqual([
+      expect.objectContaining({ op: 'provider.round', provider: 'fake', round: 1, latency_ms: expect.any(Number), input_tokens: expect.any(Number), output_tokens: expect.any(Number), cached_tokens: expect.any(Number), outcome: 'ok' }),
+      expect.objectContaining({ op: 'provider.round', provider: 'fake', round: 2, latency_ms: expect.any(Number), input_tokens: expect.any(Number), output_tokens: expect.any(Number), cached_tokens: expect.any(Number), outcome: 'ok' }),
     ])
   })
 
@@ -276,7 +273,7 @@ describe('executeKarbotTurn', () => {
       ]),
     )
     await executeKarbotTurn(input(), world.deps)
-    expect(world.logs).toEqual([
+    expect(world.logs.filter((line) => line.op === 'karbot.turn')).toEqual([
       expect.objectContaining({
         op: 'karbot.turn',
         ok: true,
@@ -285,7 +282,7 @@ describe('executeKarbotTurn', () => {
         firstDeltaMs: expect.any(Number),
       }),
     ])
-    const entry = world.logs[0] as { firstToolMs: number; firstReasoningMs: number; firstDeltaMs: number }
+    const entry = world.logs.find((line) => line.op === 'karbot.turn') as unknown as { firstToolMs: number; firstReasoningMs: number; firstDeltaMs: number }
     expect(entry.firstToolMs).toBeGreaterThanOrEqual(0)
     expect(entry.firstReasoningMs).toBeGreaterThanOrEqual(0)
     expect(entry.firstDeltaMs).toBeGreaterThanOrEqual(0)
@@ -301,7 +298,7 @@ describe('executeKarbotTurn', () => {
     const outcome = await executeKarbotTurn(input(), world.deps)
     expect(outcome.reply).toBe('pinned')
     expect(world.seenSelections).toEqual([{ selection: 'meta', model: 'muse-spark-1.3' }])
-    expect(world.logs[0]).toMatchObject({ provider: 'meta', ok: true })
+    expect(world.logs.find((line) => line.op === 'karbot.turn')).toMatchObject({ provider: 'meta', ok: true })
   })
 
   it('streams thinking trace to reasoning frames and the outcome', async () => {
@@ -368,8 +365,11 @@ describe('executeKarbotTurn', () => {
   it('logs the provider message with a failed turn so measurement-style outages are diagnosable', async () => {
     const world = memoryWorld(new FakeProvider([{ error: 'HTTP 402 from provider', retryable: false }]))
     await expect(executeKarbotTurn(input(), world.deps)).rejects.toThrow('karbot turn failed')
-    expect(world.logs).toEqual([
+    expect(world.logs.filter((line) => line.op === 'karbot.turn')).toEqual([
       expect.objectContaining({ op: 'karbot.turn', ok: false, code: 'provider_failed', errorDetail: 'HTTP 402 from provider' }),
+    ])
+    expect(world.logs.filter((line) => line.op === 'provider.round')).toEqual([
+      expect.objectContaining({ op: 'provider.round', provider: 'fake', round: 1, latency_ms: expect.any(Number), outcome: 'error', code: 'provider_failed' }),
     ])
   })
 
@@ -416,7 +416,7 @@ describe('executeKarbotTurn', () => {
     const outcome = await executeKarbotTurn(input(), world.deps)
     expect(outcome.haltNotice).toContain("repeated the 'db.list_sessions' call")
     expect(world.adapter.remaining).toBe(1)
-    expect(world.logs).toEqual([
+    expect(world.logs.filter((line) => line.op === 'karbot.turn')).toEqual([
       expect.objectContaining({ op: 'karbot.turn', ok: true, code: 'repetition_halt' }),
     ])
   })
@@ -434,7 +434,7 @@ describe('executeKarbotTurn', () => {
     const sent = world.adapter.calls[1]?.messages ?? []
     expect(sent.length).toBeLessThan(36)
     expect(sent.some((message) => message.text?.includes('earlier summary'))).toBe(true)
-    expect(world.logs).toEqual([
+    expect(world.logs.filter((line) => line.op === 'karbot.turn')).toEqual([
       expect.objectContaining({
         op: 'karbot.turn',
         ok: true,
@@ -443,6 +443,7 @@ describe('executeKarbotTurn', () => {
         snapshotHead: expect.stringMatching(/^[0-9a-f]{64}$/),
       }),
     ])
+    expect(world.logs.filter((line) => line.op === 'provider.round')).toHaveLength(2)
   })
 })
 
@@ -646,5 +647,47 @@ describe('sector identity preload (B2)', () => {
     const line = 'Current sector: "TEST Sector" (sector id: sector-9). Use exactly this sector id for every sector tool call; never derive an id from the name.'
     expect(world.adapter.calls[0]?.systemPrompt ?? '').toContain(line)
     expect(world.adapter.calls[1]?.systemPrompt ?? '').toContain(line)
+  })
+  it('leaks no env key material into turn logs or spans (P3.3)', async () => {
+    const fakeKey = 'TEST-FAKE-KEY-9f8e7d6c5b4a'
+    const savedMetaKey = process.env['KARDATA_META_KEY']
+    process.env['KARDATA_META_KEY'] = fakeKey
+    try {
+      const world = memoryWorld(
+        new FakeProvider([
+          { text: 'checking ', toolCalls: [{ id: 'c1', name: 'db.list_sessions', args: { q: fakeKey } }] },
+          { text: 'TEST done' },
+        ]),
+      )
+      const spanLines: string[] = []
+      const stream = new Writable({
+        write(chunk, _encoding, callback) {
+          for (const line of String(chunk).split('\n')) {
+            if (line.trim()) spanLines.push(line)
+          }
+          callback()
+        },
+      })
+      const { tracer, shutdown } = ensureTracing({ logger: createLogger({ op: 'TEST secrets' }, stream) })
+      try {
+        await tracer.startActiveSpan('TEST secrets turn', async (span) => {
+          try {
+            await executeKarbotTurn(input({ text: `key check ${fakeKey}` }), world.deps)
+          } finally {
+            span.end()
+          }
+        })
+        const failing = memoryWorld(new FakeProvider([{ error: 'TEST provider blew up' }]))
+        await expect(executeKarbotTurn(input(), failing.deps)).rejects.toThrow('karbot turn failed')
+        const haystack = `${JSON.stringify(world.logs)}\n${JSON.stringify(failing.logs)}\n${spanLines.join('\n')}`
+        expect(haystack).not.toContain(fakeKey)
+        expect(haystack).not.toContain('TEST-FAKE-KEY')
+      } finally {
+        await shutdown()
+      }
+    } finally {
+      if (savedMetaKey === undefined) delete process.env['KARDATA_META_KEY']
+      else process.env['KARDATA_META_KEY'] = savedMetaKey
+    }
   })
 })

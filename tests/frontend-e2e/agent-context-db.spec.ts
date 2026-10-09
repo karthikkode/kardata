@@ -9,7 +9,7 @@ test('general Karbot reads own local and authorized sector context through real 
   const [{ Pool }, { randomUUID }, { join }, { mkdtempSync }, { tmpdir }, { ensureTestDb }, { buildApp }, db, { projectNewEvents }, connectivity, { TemporalRunsGateway }, { createLaneWorker }, activities, { Client }] = await Promise.all([
     import('pg'), import('node:crypto'), import('node:path'), import('node:fs'), import('node:os'), import('../backend/db-helper.js'),
     import('../../backend/src/app.js'), import('../../backend/src/db/index.js'), import('../../backend/src/projector.js'),
-    import('../../backend/src/temporal/connection.js'), import('../../backend/src/temporal/gateway.js'), import('../../backend/src/temporal/worker.js'),
+    import('../../backend/src/temporal/connection.js'), import('../../backend/src/temporal/runs-gateway.js'), import('../../backend/src/temporal/worker.js'),
     import('../../backend/src/temporal/activities/turn.js'), import('@temporalio/client'),
   ])
   const { hashKey } = await import('../../backend/src/auth/keys.js')

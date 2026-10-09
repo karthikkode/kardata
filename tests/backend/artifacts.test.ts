@@ -47,6 +47,8 @@ function testDeps(): ArtifactDeps & { logs: unknown[]; events: Map<string, Store
         payload: event.payload,
         redacted: false,
         at: new Date().toISOString(),
+        traceId: null,
+        client: null,
       })
     },
   }

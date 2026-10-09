@@ -1,10 +1,11 @@
+// [F:frontend.hook.useModelCatalog] [F:frontend.hook.useResource]
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ModelsPanel } from '@/components/ModelsPanel'
 import { ModelToolbar } from '@/components/ModelToolbar'
 import { notify } from '@/lib/toast'
-import type { StagingConfig } from '@/data/staging-api'
+import type { StagingConfig } from '@/data/api/client'
 
 vi.mock('@/lib/toast', () => ({ notify: { success: vi.fn(), error: vi.fn() } }))
 
@@ -82,12 +83,14 @@ describe('Meta-only Models tab', () => {
     vi.unstubAllGlobals()
     stubApi(() => ({ status: 503, payload: { ok: false, error: { code: 'overload', message: 'offline' } } }))
     const error = render(<ModelsPanel config={config} />)
-    expect(await screen.findByText('Models did not load.')).toBeInTheDocument()
+    expect(await screen.findByText('Sessions did not load.')).toBeInTheDocument()
+    expect(await screen.findByText('The model catalog did not load.')).toBeInTheDocument()
     error.unmount()
     vi.unstubAllGlobals()
     stubApi(() => ({ status: 403, payload: { ok: false, error: { code: 'permission_denied', message: 'no' } } }))
     render(<ModelsPanel config={config} />)
-    expect(await screen.findByText('Models are not shared with this key.')).toBeInTheDocument()
+    expect(await screen.findByText('Sessions are not shared with this key.')).toBeInTheDocument()
+    expect(await screen.findByText('The model catalog is not shared with this key.')).toBeInTheDocument()
   })
 
   it('explains missing backend configuration', () => {
@@ -333,7 +336,7 @@ describe('chat model picker', () => {
     })
     render(<ModelToolbar config={config} sessionId="s-1" />)
     await openModelsMenu()
-    const toggle = screen.getByRole('switch', { name: 'Reasoning' })
+    const toggle = screen.getByRole('menuitemcheckbox', { name: 'Reasoning' })
     expect(toggle).toHaveAttribute('aria-checked', 'true')
     fireEvent.click(toggle)
     await waitFor(() => expect(calls.some((call) => call.method === 'PATCH')).toBe(true))

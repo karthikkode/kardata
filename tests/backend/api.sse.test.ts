@@ -66,7 +66,7 @@ async function take(
   }
 }
 
-describe.skipIf(!ENABLED)('SSE streaming contract (B3.2)', () => {
+describe.skipIf(!ENABLED)('SSE streaming contract (B3.2) [F:http.streamThread] [F:db.index.appendEvent] [F:db.index.publishOutboxFrame] [F:db.events.appendEvent] [F:db.outbox.publishOutboxFrame] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db]', () => {
   let app: FastifyInstance
   let pool: Pool
 

@@ -5,16 +5,14 @@
 // include units, never raw bytes. Pure extraction is unit-tested without a
 // database.
 import { z } from 'zod'
-import type { Scope } from '../auth/keys.js'
-import { DbContractError, WorkspaceError } from './errors.js'
-import { assertFileVisible, hiddenFileIds } from './workspace.js'
+import type { Scope } from '../auth/types.js'
+import { checked, DbContractError, Id, WorkspaceError } from './errors.js'
 import type { ArchiveTarget } from '../archive/targets.js'
 import { withArchiveDeadline } from '../archive/targets.js'
 import type { Db } from './events.js'
 import { createLogger, logOp } from '../observability/logging.js'
 
 import {
-  documentExtension,
   extractFileUnits,
   SECTOR_DOCUMENT_MAX_BYTES,
   sha256Hex,
@@ -25,7 +23,18 @@ import { getSector } from './sectors.js'
 
 const documentLogger = createLogger({ op: 'file.ingest' })
 
-export { documentExtension, SECTOR_DOCUMENT_MAX_BYTES, sha256Hex }
+export async function assertFileVisible(db: Db, sectorId: string, fileId: string): Promise<void> {
+  checked(Id, sectorId); checked(Id, fileId)
+  const { rows } = await db.query<{ hidden: boolean }>('SELECT hidden FROM workspace_files WHERE sector_id=$1 AND (file_id=$2 OR document_id=$2)', [sectorId, fileId])
+  if (rows.some((row) => row.hidden)) throw new WorkspaceError('permission_denied', 'This file is hidden from agents.')
+}
+export async function hiddenFileIds(db: Db, sectorId: string): Promise<Set<string>> {
+  checked(Id, sectorId)
+  const { rows } = await db.query<{ file_id: string; document_id: string | null }>('SELECT file_id,document_id FROM workspace_files WHERE sector_id=$1 AND hidden', [sectorId])
+  return new Set(rows.flatMap((row) => row.document_id ? [row.file_id, row.document_id] : [row.file_id]))
+}
+
+export { SECTOR_DOCUMENT_MAX_BYTES }
 
 /** Legacy single-text extraction over the pipeline. needs-ocr degrades to
  * the historical rejection so existing callers keep their contract; new
@@ -54,6 +63,8 @@ export interface SectorDocument {
   fullChars?: number
   textTruncated?: boolean
   nextOrd?: number | null
+  /** Author thread for artifact-registered documents; uploads stay null. */
+  authorThread?: string | null
 }
 
 export interface IngestedDocument extends SectorDocument {
@@ -72,7 +83,7 @@ const ContentSchema = z.string().min(1)
  * ingest is idempotent on content hash. */
 export async function ingestSectorDocument(
   db: Db,
-  input: { sectorId: string; filename: string; contentBase64: string; scope?: Scope; ocr?: OcrAdapter; archive?: ArchiveTarget; source?: 'artifact' },
+  input: { sectorId: string; filename: string; contentBase64: string; scope?: Scope; ocr?: OcrAdapter; archive?: ArchiveTarget; source?: 'artifact'; authorThread?: string },
 ): Promise<IngestedDocument> {
   return logOp(documentLogger, 'file.ingest', async () => {
     if (!FilenameSchema.safeParse(input.filename).success) throw new DbContractError('filename must be 1-255 characters')
@@ -105,19 +116,20 @@ export async function ingestSectorDocument(
     // One statement owns publication: an index failure rolls back the row and
     // its byte reference too. Content identity coalesces concurrent uploads via
     // the existing document primary key, while adopting legacy matching IDs.
-    const { rows } = await db.query<{ id: string; filename: string; media_type: string; text: string; sha256: string; created_at: Date | string; status: ExtractionStatus }>(
+    const { rows } = await db.query<{ id: string; filename: string; media_type: string; text: string; sha256: string; created_at: Date | string; status: ExtractionStatus; author_thread: string | null }>(
       `WITH document AS (
-         INSERT INTO sector_documents (id, sector_id, filename, media_type, text, sha256, status, tenant_id, project_id, archive_key, original_hash)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         INSERT INTO sector_documents (id, sector_id, filename, media_type, text, sha256, status, tenant_id, project_id, archive_key, original_hash, author_thread)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
          ON CONFLICT(id) DO UPDATE SET
            archive_key=COALESCE(sector_documents.archive_key,EXCLUDED.archive_key),
-           original_hash=COALESCE(sector_documents.original_hash,EXCLUDED.original_hash)
+           original_hash=COALESCE(sector_documents.original_hash,EXCLUDED.original_hash),
+           author_thread=COALESCE(sector_documents.author_thread,EXCLUDED.author_thread)
          WHERE sector_documents.sector_id=EXCLUDED.sector_id AND sector_documents.sha256=EXCLUDED.sha256
-         RETURNING id,filename,media_type,text,sha256,created_at,status
+         RETURNING id,filename,media_type,text,sha256,created_at,status,author_thread
        ), indexed AS (
          INSERT INTO sector_document_units (document_id,ord,kind,text,confidence,uncertain,sha256)
          SELECT document.id,u.ord,u.kind,u.text,u.confidence,u.uncertain,u.sha256
-         FROM document CROSS JOIN jsonb_to_recordset($12::jsonb)
+         FROM document CROSS JOIN jsonb_to_recordset($13::jsonb)
            AS u(ord integer,kind text,text text,confidence double precision,uncertain boolean,sha256 text)
          ON CONFLICT(document_id,ord) DO UPDATE SET kind=EXCLUDED.kind,text=EXCLUDED.text,
            confidence=EXCLUDED.confidence,uncertain=EXCLUDED.uncertain,sha256=EXCLUDED.sha256
@@ -125,7 +137,7 @@ export async function ingestSectorDocument(
        ) SELECT document.* FROM document`,
       [id, input.sectorId, input.filename, extraction.mediaType, text, sha256, extraction.status,
         input.scope?.tenantId ?? null, input.scope?.projectId ?? null, input.archive ? archiveKey : null,
-        input.archive ? originalHash : null,
+        input.archive ? originalHash : null, input.authorThread ?? null,
         JSON.stringify(extraction.units.map((unit) => ({ ...unit, confidence: unit.confidence ?? null, sha256: sha256Hex(unit.text) })))],
     )
     const stored = rows[0]
@@ -135,6 +147,7 @@ export async function ingestSectorDocument(
       chars: stored.text.length, sha256: stored.sha256,
       createdAt: stored.created_at instanceof Date ? stored.created_at.toISOString() : String(stored.created_at),
       status: stored.status, ...(extraction.detail ? { detail: extraction.detail } : {}),
+      ...(stored.author_thread ? { authorThread: stored.author_thread } : {}),
       unitCount: extraction.units.length,
     }
   }, { sectorId: input.sectorId })
@@ -157,8 +170,9 @@ export async function listSectorDocuments(db: Db, sectorId: string, scope?: Scop
     sha256: string
     status: string
     created_at: Date | string
+    author_thread: string | null
   }>(
-    `SELECT id, sector_id, filename, media_type, CASE WHEN status='indexed' THEN COALESCE(full_chars,char_length(text)) ELSE 0 END AS chars, full_chars, text_truncated, sha256, status, created_at
+    `SELECT id, sector_id, filename, media_type, CASE WHEN status='indexed' THEN COALESCE(full_chars,char_length(text)) ELSE 0 END AS chars, full_chars, text_truncated, sha256, status, created_at, author_thread
      FROM sector_documents WHERE sector_id = $1 ORDER BY created_at ASC`,
     [sectorId],
   )
@@ -172,6 +186,7 @@ export async function listSectorDocuments(db: Db, sectorId: string, scope?: Scop
     sha256: row.sha256,
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
     status: storedDocumentStatus(row.status),
+    ...(row.author_thread ? { authorThread: row.author_thread } : {}),
   }))
 }
 
@@ -198,8 +213,9 @@ export async function readSectorDocument(
     full_chars: string | null
     text_truncated: boolean
     created_at: Date | string
+    author_thread: string | null
   }>(
-    `SELECT id, filename, media_type, text, sha256, status, full_chars, text_truncated, created_at
+    `SELECT id, filename, media_type, text, sha256, status, full_chars, text_truncated, created_at, author_thread
      FROM sector_documents WHERE sector_id = $1 AND id = $2`,
     [sectorId, documentId],
   )
@@ -217,6 +233,7 @@ export async function readSectorDocument(
     sha256: row.sha256,
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
     status: storedDocumentStatus(row.status),
+    ...(row.author_thread ? { authorThread: row.author_thread } : {}),
     text: row.status === 'indexed' ? row.text : '',
   }
 }
@@ -239,14 +256,14 @@ export async function readOriginalSectorDocument(db: Db, sectorId: string, docum
   return { filename: doc.filename, mediaType: doc.mediaType, text: doc.text, fullChars: doc.fullChars??doc.chars, textTruncated: doc.textTruncated??false, nextOrd: doc.nextOrd??null, contentBase64, originalAvailable: true }
 }
 
-export interface DocumentTocEntry {
+interface DocumentTocEntry {
   ord: number
   kind: string
   preview: string
   uncertain: boolean
 }
 
-export interface DocumentSummaryResult {
+interface DocumentSummaryResult {
   documentId: string
   filename: string
   status: SectorDocumentStatus
@@ -257,7 +274,7 @@ export interface DocumentSummaryResult {
   nextOrd?: number | null
 }
 
-export interface DocumentChunksResult {
+interface DocumentChunksResult {
   documentId: string
   filename: string
   status: SectorDocumentStatus

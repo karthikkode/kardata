@@ -15,7 +15,7 @@ function thresholds(): SweepThresholds {
   return { idleStaleMs: 1_000, inToolStaleMs: 5_000, nearRatio: 0.9 }
 }
 
-describe('HeartbeatMonitor', () => {
+describe('HeartbeatMonitor [F:agents.supervision.HeartbeatMonitor]', () => {
   it('backfills stored beats so table ages drive the same thresholds', () => {
     const clock = frozenClock(10_000)
     const monitor = new HeartbeatMonitor(clock)
@@ -41,7 +41,7 @@ describe('HeartbeatMonitor', () => {
   })
 })
 
-describe('sweep and decide', () => {
+describe('sweep and decide [F:agents.supervision.sweep] [F:agents.supervision.decide] [F:agents.supervision.AuditLog]', () => {
   it('detects every stall class and records a response per finding', () => {
     const clock = frozenClock(0)
     const monitor = new HeartbeatMonitor(clock)
@@ -82,7 +82,7 @@ describe('sweep and decide', () => {
   })
 })
 
-describe('MetricsBoard', () => {
+describe('MetricsBoard [F:agents.metrics.MetricsBoard]', () => {
   it('builds an accurate dashboard-shape snapshot from a scripted fleet', () => {
     const clock = frozenClock(9_000)
     const board = new MetricsBoard(clock)

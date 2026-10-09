@@ -8,9 +8,9 @@ import { formatDurationMs, formatShortDate, relativeAge } from '@/lib/format'
 import { researchNextStep, statusSummary } from '@/lib/labels'
 import { useWorkReview } from '../data/useWorkReview'
 import type { ResearchStatus, SectorDetail } from '../data/research'
-import type { StagingConfig } from '../data/staging-api'
+import type { StagingConfig } from '../data/useApi'
 import type { Resource } from '../data/useWorkspace'
-import type { ResearchProgress } from '../data/workspace-api'
+import type { ResearchProgress } from '../data/useSectors'
 import { CompaniesSection } from './CompaniesSection'
 import { IconButton } from './IconButton'
 import { ExecutablePlanDetails, NarrativePlanWarning, PlanBriefTimeline } from './ResearchPlanEditor'
@@ -21,7 +21,8 @@ import { Button } from './ui/button'
 import { CollapsiblePanel, CollapsibleRoot, CollapsibleTrigger } from './ui/collapsible'
 import { ProgressRoot } from './ui/progress'
 import { Skeleton } from './ui/skeleton'
-import { CounterTile, PlanProgress, ResourceNotice, WorkspaceOverlay } from './workspace-parts'
+import { CounterTile, PlanProgress } from './plan-progress'
+import { ResourceNotice, WorkspaceOverlay } from './workspace-parts'
 
 function ProgressTile({
   progress,
@@ -180,21 +181,30 @@ export function SectorLanding({
     )
   }
   if (!sector) {
+    // A missing sector is an error state, not an empty list: transient
+    // 404s heal through retry, removed sectors exit through Back.
     return (
-      <ResourceState
-        resource={{ status: 'ready', refresh: onRetry }}
-        label="Sector"
-        emptyKind="first"
-        hideTitle
-        icon={<Icons.notFound aria-hidden />}
-        emptyTitle="Sector not found"
-        emptyBody="This sector may have been removed."
-        emptyAction={
-          <Button type="button" variant="primary" size="sm" onClick={onBack}>
-            Back to researches
-          </Button>
-        }
-      />
+      <div role="alert">
+        <ResourceState
+          resource={{ status: 'ready', refresh: onRetry }}
+          label="Sector"
+          emptyKind="first"
+          hideTitle
+          icon={<Icons.notFound aria-hidden />}
+          emptyTitle="Sector not found"
+          emptyBody="This sector may have been removed."
+          emptyAction={
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button type="button" variant="secondary" size="sm" onClick={onRetry}>
+                Try again
+              </Button>
+              <Button type="button" variant="primary" size="sm" onClick={onBack}>
+                Back to researches
+              </Button>
+            </div>
+          }
+        />
+      </div>
     )
   }
   return (

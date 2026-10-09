@@ -7,7 +7,7 @@ import { inspectOperationReceipt, recordOperationIntent, recordOperationResult, 
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('durable MCP operation receipts', () => {
+describe.skipIf(!TEST_DATABASE_URL)('durable MCP operation receipts [F:http.inspectThreadOperation] [F:http.mcpRpc] [F:db.index.createSession] [F:db.index.listSessions] [F:db.operation_receipts.inspectOperationReceipt] [F:db.operation_receipts.recordOperationIntent] [F:db.operation_receipts.recordOperationResult] [F:db.operation_receipts.recoverOperationResult] [F:db.sessions.createSession] [F:db.sessions.listSessions] [F:db.errors.WorkspaceError] [F:db.sessions.SessionModelSelection] [F:db.index.Db] [F:db.index.SessionModelSelection] [F:db.workspace.WorkspaceError] [F:db.sector_documents.assertFileVisible] [F:db.workspace.requireThread] [F:db.errors.Id] [F:db.errors.checked] [F:db.file_jobs.visible]', () => {
   let pool: Pool
   beforeAll(async () => { pool = new Pool({ connectionString: await ensureTestDb('kardata_test_mcp_receipts') }); vi.stubEnv('KARDATA_MCP_TOKEN', 'TEST receipt execution secret') })
   afterAll(async () => { await pool?.end(); vi.unstubAllEnvs() })

@@ -3,6 +3,7 @@
 // requests; these own layout, hierarchy, and state copy only.
 import * as React from 'react'
 import { Icons } from '@/lib/icons'
+import { focusRing } from '@/lib/interaction'
 import { cn } from '@/lib/utils'
 import type { Resource } from '@/data/useWorkspace'
 import { Body, Caption, CardTitle, Description, Mono, PageDescription, PageTitle, SectionTitle } from './text'
@@ -57,7 +58,7 @@ export const PageHeader = React.forwardRef<
  <button
  type="button"
  onClick={crumb.onSelect}
- className="cursor-pointer truncate text-xs text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+ className={`cursor-pointer truncate text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline ${focusRing}`}
  >
  {crumb.label}
  </button>

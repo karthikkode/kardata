@@ -16,7 +16,7 @@ const REGISTRY = join(import.meta.dirname, 'coverage-registry.md')
 // Nonvisual by construction: pure utilities and headless runtime providers
 // that render no DOM of their own. Everything else must appear in the
 // registry by basename.
-const NONVISUAL = new Set(['assistantAdapter', 'AssistantRuntimeAdapter'])
+const NONVISUAL = new Set(['assistantAdapter', 'AssistantRuntimeAdapter', 'useChatScroll', 'useChatSync'])
 
 function componentFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {

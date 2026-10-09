@@ -1,7 +1,7 @@
 import { describe,expect,it,vi } from 'vitest'
-import { freezeOriginalPalette } from '../../backend/src/temporal/activities/turn.js'
+import { freezeOriginalPalette } from '../../backend/src/temporal/activities/turn-palettes.js'
 
-describe('original-turn permission ceiling',() => {
+describe('original-turn permission ceiling [F:backend.activity.turn_palettes.freezeOriginalPalette]',() => {
   it('hides and refuses newly available tools while preserving cached operation authority and identities',async () => {
     const call=vi.fn(async () => ({ content: 'TEST confirmed original result' }))
     const original={ authorityId: 'TEST original transport authority',listTools: async () => [{ name: 'old.read',description: 'original allowed read',parameters: { type: 'object' as const } },{ name: 'new.mutate',description: 'new capability',parameters: { type: 'object' as const } }],callTool: call }

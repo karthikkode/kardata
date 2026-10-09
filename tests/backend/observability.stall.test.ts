@@ -10,14 +10,12 @@ import { describe, expect, it } from 'vitest'
 import { appendEvent, readPartition } from '../../backend/src/db/index.js'
 import { listHeartbeats, recordHeartbeat } from '../../backend/src/db/index.js'
 import {
+  STALL_RESPONSE_EVENT,
+  stallResponseEvent,
   stalledTurnsFor,
   sweepStalls,
   type RunObservation,
-} from '../../backend/src/observability/stalls.js'
-import {
-  STALL_RESPONSE_EVENT,
-  stallResponseEvent,
-} from '../../backend/src/temporal/activities/stalls.js'
+} from '../../backend/src/observability/supervision-rules.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
 const ENABLED = TEST_DATABASE_URL !== undefined && TEST_DATABASE_URL !== ''
@@ -175,7 +173,7 @@ describe('stall detection (B5.3)', () => {
     expect(adhoc.partition).toBe('run:research-run-r1')
   })
 
-  describe.skipIf(!ENABLED)('against Postgres', () => {
+  describe.skipIf(!ENABLED)('against Postgres [F:db.index.appendEvent] [F:db.index.readPartition] [F:db.index.recordHeartbeat] [F:db.heartbeats.recordHeartbeat] [F:db.events.readPartition] [F:db.index.listHeartbeats] [F:db.events.appendEvent] [F:db.heartbeats.listHeartbeats] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db]', () => {
     it('round-trips heartbeats and records responses with dedup', async () => {
       const url = await ensureTestDb('kardata_test_stalls')
       const pool = new Pool({ connectionString: url })

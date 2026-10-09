@@ -5,6 +5,7 @@ import * as React from 'react'
 import { Select } from '@base-ui/react/select'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { focusRingInput } from '@/lib/interaction'
 
 function SelectRoot<T>(props: React.ComponentProps<typeof Select.Root<T>>) {
   return <Select.Root<T> data-slot="select" {...props} />
@@ -22,7 +23,7 @@ function SelectTrigger({
     <Select.Trigger
       data-slot="select-trigger"
       className={cn(
-        'flex h-10 w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-md border border-input bg-surface-sunken px-3 text-sm transition-colors duration-120 ease-out-soft outline-none hover:border-border-strong focus-visible:border-ring focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-ring/30 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground',
+        `flex h-10 w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-md border border-input bg-surface-sunken px-3 text-sm transition-colors duration-120 ease-out-soft ${focusRingInput} hover:border-border-strong disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground`,
         className,
       )}
       {...props}

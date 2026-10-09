@@ -5,7 +5,7 @@ import { createSession, listSessions, type TransactableDb } from '../../backend/
 import { route, withIdempotency } from '../../backend/src/routes/http.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('mutation completion-record failure safety', () => {
+describe.skipIf(!TEST_DATABASE_URL)('mutation completion-record failure safety [F:db.index.createSession] [F:db.index.listSessions] [F:db.sessions.createSession] [F:db.sessions.listSessions] [F:db.errors.WorkspaceError] [F:db.sessions.SessionModelSelection] [F:db.index.Db] [F:db.index.SessionModelSelection] [F:db.workspace.WorkspaceError] [F:db.sector_documents.assertFileVisible] [F:db.errors.Id] [F:db.errors.checked] [F:db.file_jobs.visible]', () => {
   let pool: Pool
   beforeAll(async () => { pool = new Pool({ connectionString: await ensureTestDb('kardata_test_http_recovery') }) })
   afterAll(async () => { await pool?.end() })

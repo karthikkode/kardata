@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Pool } from 'pg'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { appendEvent, readPartition } from '../../backend/src/db/index.js'
+import { appendEvent, listColdPointers, readPartition } from '../../backend/src/db/index.js'
 import {
   FilesystemTarget,
   GcsTarget,
@@ -11,7 +11,7 @@ import {
   type GcsBucketHandle,
   type GcsFileHandle,
 } from '../../backend/src/archive/targets.js'
-import { readArchive, runRetention } from '../../backend/src/archive/retention.js'
+import { KNOWLEDGE_EVENT_TYPES, readArchive, runRetention } from '../../backend/src/archive/retention.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
 // In-memory GCS bucket double: exercises GcsTarget write/read/list without
@@ -62,7 +62,7 @@ describe('archive targets (B1.4)', () => {
   })
 })
 
-describe.skipIf(!TEST_DATABASE_URL)('retention job (B1.4)', () => {
+describe.skipIf(!TEST_DATABASE_URL)('retention job (B1.4) [F:db.events.listColdPointers] [F:db.events.recordColdPointers] [F:db.events.readEventsOlderThan] [F:db.index.ColdEventPointer] [F:db.index.listColdPointers] [F:db.index.recordColdPointers] [F:db.index.appendEvent] [F:db.index.readPartition] [F:db.events.readPartition] [F:db.events.appendEvent] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.index.readEventsOlderThan] [F:db.events.deleteEventsBySeq] [F:db.index.deleteEventsBySeq]', () => {
   let url = ''
 
   beforeAll(async () => {
@@ -106,6 +106,12 @@ describe.skipIf(!TEST_DATABASE_URL)('retention job (B1.4)', () => {
       const replayed = [...cold, ...hot].sort((a, b) => a.seq - b.seq)
       expect(replayed).toHaveLength(2)
 
+      // The moved event keeps a DB pointer to its archive bytes.
+      const pointers = await listColdPointers(db, 'retention:fixture')
+      expect(pointers).toHaveLength(1)
+      expect(pointers[0]).toMatchObject({ type: 't.run.started' })
+      expect(await target.read(pointers[0]!.archiveKey)).toContain('ret-old')
+
       // Second run is a no-op.
       expect(await runRetention(db, target, { olderThanDays: 30 })).toEqual({ archived: 0, deleted: 0 })
     } finally {
@@ -113,46 +119,84 @@ describe.skipIf(!TEST_DATABASE_URL)('retention job (B1.4)', () => {
     }
   })
 
-  it('archives artifact index events together and never touches bodies', async () => {
+  it('keeps knowledge events hot while operational events move with pointers', async () => {
     const db = pool()
     try {
-      const partition = 'artifact:session:ret-old'
-      await db.query('DELETE FROM events WHERE partition = $1', [partition])
+      const knowledge = 'artifact:session:ret-keep'
+      const operational = 'retention:ops-fixture'
+      await db.query('DELETE FROM events WHERE partition = ANY($1)', [[knowledge, operational]])
       await appendEvent(db, {
-        idempotencyKey: 'artifact-stored:session:ret-old:art-keep',
-        partition,
+        idempotencyKey: 'artifact-stored:session:ret-keep:art-keep',
+        partition: knowledge,
         type: 't.artifact.stored',
-        payload: {
-          artifactId: 'art-keep',
-          name: 'keep.md',
-          reason: 'subagent_output',
-          producedBy: 'run-ret',
-        },
+        payload: { artifactId: 'art-keep', name: 'keep.md', reason: 'subagent_output', producedBy: 'run-ret' },
       })
       await appendEvent(db, {
-        idempotencyKey: 'artifact-indexed:session:ret-old:art-keep',
-        partition,
+        idempotencyKey: 'artifact-indexed:session:ret-keep:art-keep',
+        partition: knowledge,
         type: 't.artifact.indexed',
         payload: { artifactId: 'art-keep', name: 'keep.md', sha256: 'abc' },
       })
-      await db.query(`UPDATE events SET at = now() - make_interval(days => 60) WHERE partition = $1`, [
-        partition,
+      await appendEvent(db, {
+        idempotencyKey: 'exec-record-keep',
+        partition: knowledge,
+        type: 't.execution.recorded',
+        payload: { threadKey: 'ret-keep', runKey: 'run-1', kind: 'request', round: 1 },
+      })
+      await appendEvent(db, {
+        idempotencyKey: 'company-found-keep',
+        partition: knowledge,
+        type: 'company.found',
+        payload: { companyId: 'com-keep', sectorId: 'sec-keep', name: 'Keep Co' },
+      })
+      await appendEvent(db, {
+        idempotencyKey: 'artifact-referenced-keep',
+        partition: knowledge,
+        type: 't.artifact.referenced',
+        payload: { artifactId: 'art-keep', fromScope: { kind: 'session', id: 'ret-keep' } },
+      })
+      await appendEvent(db, {
+        idempotencyKey: 'company-stage-keep',
+        partition: knowledge,
+        type: 'company.stage_changed',
+        payload: { companyId: 'com-keep', stage: 'Filter' },
+      })
+      await appendEvent(db, {
+        idempotencyKey: 'company-state-keep',
+        partition: knowledge,
+        type: 'company.state_changed',
+        payload: { companyId: 'com-keep', state: 'running' },
+      })
+      await appendEvent(db, {
+        idempotencyKey: 'ret-ops-old',
+        partition: operational,
+        type: 't.run.started',
+        payload: {},
+      })
+      await db.query(`UPDATE events SET at = now() - make_interval(days => 60) WHERE partition = ANY($1)`, [
+        [knowledge, operational],
       ])
 
-      const target = new FilesystemTarget(mkdtempSync(join(tmpdir(), 'kardata-ret-art-')))
-      await target.write('artifacts/session/ret-old/art-keep', 'goldmine bytes')
-
+      const target = new FilesystemTarget(mkdtempSync(join(tmpdir(), 'kardata-ret-keep-')))
       const result = await runRetention(db, target, { olderThanDays: 30 })
-      expect(result).toEqual({ archived: 2, deleted: 2 })
+      expect(result).toEqual({ archived: 1, deleted: 1 })
 
-      // Index rows are cold but replayable together; the bytes never moved.
-      const cold = await readArchive(target, partition)
-      expect(cold.map((event) => event.type).sort()).toEqual([
-        't.artifact.indexed',
-        't.artifact.stored',
+      // Knowledge survives hot and readable; only the operational event moved.
+      const survivors = await readPartition(db, knowledge)
+      expect(survivors.map((event) => event.idempotencyKey).sort()).toEqual([
+        'artifact-indexed:session:ret-keep:art-keep',
+        'artifact-referenced-keep',
+        'artifact-stored:session:ret-keep:art-keep',
+        'company-found-keep',
+        'company-stage-keep',
+        'company-state-keep',
+        'exec-record-keep',
       ])
-      expect(await readPartition(db, partition)).toEqual([])
-      expect(await target.read('artifacts/session/ret-old/art-keep')).toBe('goldmine bytes')
+      expect(new Set(survivors.map((event) => event.type))).toEqual(new Set(KNOWLEDGE_EVENT_TYPES))
+      expect(await readPartition(db, operational)).toEqual([])
+      expect(await listColdPointers(db, knowledge)).toEqual([])
+      expect(await listColdPointers(db, operational)).toHaveLength(1)
+      expect((await readArchive(target, operational)).map((event) => event.idempotencyKey)).toEqual(['ret-ops-old'])
     } finally {
       await db.end()
     }

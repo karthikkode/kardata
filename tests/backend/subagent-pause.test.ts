@@ -6,7 +6,7 @@
 import { Pool } from 'pg'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { isThreadPaused, setThreadPaused } from '../../backend/src/db/index.js'
-import { TemporalRunsGateway } from '../../backend/src/temporal/gateway.js'
+import { TemporalRunsGateway } from '../../backend/src/temporal/runs-gateway.js'
 import type { TransactableDb } from '../../backend/src/db/index.js'
 import type { Connection } from '@temporalio/client'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
@@ -16,7 +16,7 @@ const fixture = vi.hoisted(() => ({ describe: vi.fn(), signal: vi.fn() }))
 vi.mock('@temporalio/client', async (original) => ({ ...await original<typeof import('@temporalio/client')>(), Client: class { workflow = { getHandle: (id: string) => ({ describe: () => fixture.describe(id), signal: (...args: unknown[]) => fixture.signal(id, ...args) }) } } }))
 afterEach(() => vi.resetAllMocks())
 
-describe.skipIf(!TEST_DATABASE_URL)('subagent pause controls (A16)', () => {
+describe.skipIf(!TEST_DATABASE_URL)('subagent pause controls (A16) [F:db.workspace_threads.isThreadPaused] [F:db.workspace_threads.setThreadPaused]', () => {
   let pool: Pool
   let runs: FakeRunsGateway
   beforeAll(async () => {
@@ -42,6 +42,17 @@ describe.skipIf(!TEST_DATABASE_URL)('subagent pause controls (A16)', () => {
     await gateway.resumeRun('TEST-child-1')
     expect(fixture.signal).toHaveBeenCalledWith('TEST-child-1', 'childResume')
     expect(await isThreadPaused(pool, 'agent:TEST-child-1')).toBe(false)
+  })
+
+  it('gateway pause and resume clear the flag on a companyResearch run', async () => {
+    fixture.describe.mockResolvedValue({ type: 'companyResearch', status: { name: 'RUNNING' } })
+    const gateway = new TemporalRunsGateway(pool as TransactableDb, {} as Connection)
+    await gateway.pauseRun('TEST-company-1')
+    expect(fixture.signal).toHaveBeenCalledWith('TEST-company-1', 'childPause')
+    expect(await isThreadPaused(pool, 'agent:TEST-company-1')).toBe(true)
+    await gateway.resumeRun('TEST-company-1')
+    expect(fixture.signal).toHaveBeenCalledWith('TEST-company-1', 'childResume')
+    expect(await isThreadPaused(pool, 'agent:TEST-company-1')).toBe(false)
   })
 
   it('fake gateway mirrors the subagent pause path', async () => {

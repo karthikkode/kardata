@@ -3,7 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { SectorWorkspace } from '@/components/SectorWorkspace'
 import type { SectorWorkspaceModel } from '@/data/sector-workspace'
-import type { Session, StagingConfig, ThreadView } from '@/data/staging-api'
+import type { Session } from '@/data/api/sessions'
+import type { StagingConfig } from '@/data/api/client'
+import type { ThreadView } from '@/data/api/threads'
 import { notify } from '@/lib/toast'
 
 vi.mock('@/lib/toast', () => ({ notify: { success: vi.fn(), error: vi.fn() } }))

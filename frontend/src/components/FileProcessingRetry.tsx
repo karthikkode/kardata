@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { LibraryFile } from '../data/workspace-api'
+import type { LibraryFile } from '../data/useFiles'
 import { Button } from './ui/button'
 
 export function FileProcessingRetry({ file, latest, busy, error, onRetry, onClose }: {

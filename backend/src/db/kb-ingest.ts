@@ -60,7 +60,7 @@ export function parseKbFile(file: string, text: string): ParsedKbDoc | undefined
   return { topic: meta.data.topic, title, file, sources: meta.data.sources, chunks }
 }
 
-export function sha256Hex(data: string | Buffer): string {
+function sha256Hex(data: string | Buffer): string {
   return createHash('sha256').update(data).digest('hex')
 }
 
@@ -69,7 +69,7 @@ const SOURCE_ROOT = '/home/karthik/projects/kardata'
 /** Provenance pin: SHA-256 over the curated text plus every readable listed
  * source file, so the pin covers both the curation and its sources. No
  * readable source yields an explicit unpinned marker. */
-export function provenanceSha(doc: ParsedKbDoc, curatedText: string): string {
+function provenanceSha(doc: ParsedKbDoc, curatedText: string): string {
   const hash = createHash('sha256')
   hash.update(curatedText)
   let pinned = 0

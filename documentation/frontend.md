@@ -25,6 +25,16 @@ Every component follows props → render → states:
    permission-denied where applicable. A spinner with no empty/error state is
    unfinished.
 
+## Data seams are real hooks
+
+Components read the backend only through `data/use*.ts` hooks built on
+`data/useResource.ts` (`useResource` for queries: data + status +
+reload/refresh; `useAction` for mutations: run + pending + error).
+Seams never re-export api values (`export type` only); eslint bans
+value re-exports except `useThreads`/`useFiles` (live-tail and
+file-pipeline orchestration still unwinding) and `useApi` (error
+plumbing shared with `api/` internals).
+
 ## UI rules live in docs/design-system.md
 
 Styling, theming, interaction affordances, icons, containers, accessibility,
@@ -62,7 +72,12 @@ show in-flight age from client-side first-seen stamps; wire frames are
 unchanged. Agent replies render house markdown (`Markdown.tsx`: GFM subset,
 no raw HTML, http(s)-only links, token styles) without a repeated avatar;
 the subagent strip appears only when
-a subagent exists. Sending with no session creates one first
+a subagent exists. Strip rows wrap past two per row (basis-44), so three
+agents with badges and Pause/Stop actions stack instead of crushing the
+name button below the 32px target floor. Queued rows carry the same Pause and Stop buttons as
+running rows (the panel addresses the child by its derived id: queued
+children have no run entry yet); paused-queued rows offer Resume.
+Sending with no session creates one first
 (start-on-send, titled from the message); offline sends short-circuit with
 "No connection" and keep the draft. Connection,
 denied, empty, sending, thinking (elapsed clock while no frames have
@@ -73,6 +88,17 @@ the tail re-reads once (a reply may have landed without a frame) and, if
 no fresh agent message arrived, clears Replying and shows the send failure
 with the sent text restored for retry — a dead stream never spins the
 indicator. Pinned by the dead-stream test in `chat-staging.test.tsx`.
+A terminal thread status (FINISHED/ERROR/STOPPED/CANCELLING) newer
+than the send releases the owed reply even when no agent message
+arrives (orphan, honest failure); staleness is judged by outbox seq,
+and in-flight deltas/tools still win. A terminal (or pause) state frame
+drops the in-flight text, thinking and tools — the clear-set follows
+the terminal set, so a stop can never strand them. Local stop clears
+the live deltas too. An ERROR with reason `closed-owner` shows the
+"Stopped unexpectedly" banner in both chat variants. Pinned by
+`terminal-status.test.ts`, `workspace-conversation.test.tsx`,
+`follow-resume.test.ts`, `execution-epochs.test.ts`, and
+`live-state.spec.ts`.
 MCP tool start/completion frames open the in-flight Activity disclosure and
 show each running/done/failed status before the turn finishes. Persisted tool
 messages take its place when they arrive; the stream carries no tool
@@ -187,6 +213,16 @@ PlanDocument. `ResourceNotice` delegates to ResourceState and `StatusPill`
 delegates to Badge; the Researches list notices keep their pinned copy in
 `research-parts.tsx`. Pinned by `tests/frontend/shells.test.tsx`.
 
+Denied contract: every denied UI renders `role=alert`, the copy "Ask an
+owner for access, then try again.", and a Try again retry — ResourceState,
+DeniedNotice (Models/Runs) and the dock ChatStates alike. Pinned by the 17
+matrix denied states, which assert all three. Multi-resource panels degrade
+per part: ModelsPanel renders independent sessions-picker and catalog states,
+so a providers outage shows an inline catalog error with the picker working
+(pinned by the get.spec providers-panel label). A stream break never clears a
+terminal send outcome: failed/stopped/paused survive EOF instead of flashing
+to reconnecting.
+
 Adopted (including review remediation): App page title/gutters with
 the v2 page frame (Overview-only search removed in favor of the
 palette); Researches type tabs (Base UI Tabs), state selection
@@ -282,6 +318,7 @@ source links and truthful counts. Tests are linked by [F:<id>] tags (registry ar
 
 ## Lists and detail (revamp wave 2)
 
+- `DataTable` is fixed layout (`.v2-table-stack`): in auto layout `w-full` is a floor and unbreakable cell content expands the table past its scrollport (probed: only fixed caps it). Unset columns split the remainder; narrow action columns take `width` via colgroup; sort-header labels truncate; below sm the value side of each stacked row has `min-width: 0` so values truncate to the card.
 - Company lists filter and page server-side: `ResearchesPage` companies
   tab and `SectorDetailPage` company section fetch their own
   `useStagingCompanies` windows (`state`/`query` params in,
@@ -443,3 +480,56 @@ provenance; model interpretation is explicitly uncertain. This presentation does
 not truncate the stored content or promote it into shared context automatically.
 The body refreshes after a file's terminal status changes. Design authority:
 [PDF ingestion](plans/2026-10-01-pdf-ingestion.md).
+
+## State matrix (generated e2e)
+
+Every visual component carries `states:` in `tests/registry/features.yaml`;
+`npm run matrix:sync` generates one spec per component from
+`tests/frontend-e2e/matrix/components.json` (route + anchors). Each state
+asserts the seven checks (overflow, 390 containment, truncation titles,
+focus, clean console, axe serious, `toHaveScreenshot` ≤0.1%): see
+`tests/frontend-e2e/support/matrix.ts`. Fixtures come from the single
+factory `support/factory.ts`; cases needing a non-default local-context
+fixture set `localVariant` (blocked surfaces the rebuild review). Count states (`one`/`typical`/`n100`/`n1000`,
+plus `partial`/`longtext` where meaningful) also assert row counts and
+total/toggle texts: components.json carries the row selector (`rows`) or a
+count template (`countText`), `matrix/counts.mjs` pins the expected numbers
+(windows, page drains, showcase sizes), and `matrix-sync` emits them as
+`expectedRows`/`expectedTexts`. Long-text snippets come from
+`longtextSnippets` in the factory. Cases without rendered rows
+(SectorLanding, Markdown, ChatPanel, ModelsPanel) assert texts or anchors
+only; the omit set is pinned in `tests/frontend/matrix-counts.test.ts`.
+Axe runs with all animations/transitions frozen: enter effects (strip
+stagger, stream fade-ins) can start after the motion wait, sampling
+text mid-fade at a load-dependent opacity — a contrast lottery on
+tokens that pass settled. The freeze measures designed end-state
+colors and stabilizes the screenshot after.
+
+## Failure handling
+
+Unary API calls time out at 30s (`REQUEST_TIMEOUT_MS` in
+`data/api/client.ts`) and surface the designed error/denied UI with retry;
+drafts and input survive, and the surface recovers when the endpoint heals
+(`tests/frontend-e2e/failures/` pins every endpoint × fault). Uploads and
+synchronous long mutations (document attach, session artifact creation,
+session/thread compaction, subagent spawn — the server polls delegation
+acceptance up to 30s) run on the 10 min `LONG_REQUEST_TIMEOUT_MS` budget
+instead; the fault harness asserts their slow-success path via
+`timeoutSlow`, and `request-timeout.test.ts` pins each site's budget.
+
+## Scale budgets
+
+Lists render 100/1000/2000 rows correctly; first render ≤300ms at 1000
+rows, no long task >50ms during a scripted scroll, heap growth <50MB over
+10 open/close cycles (`tests/frontend-e2e/scale-budgets.spec.ts`). Lists
+past 200 rows virtualize with TanStack Virtual when a budget misses.
+
+## Agentic UI review
+
+`npm run ui:review` shoots the matrix (`MATRIX_SHOTS=1`) into
+`frontend/test-results/ui-review/` with `manifest.json`; `-- --changed`
+limits the run to the branch diff's components. The agent grades every
+screenshot pass/fail on alignment, spacing, typography, contrast,
+truncation, copy, icons, state clarity, system match, and breakage, and
+writes failures-first to `docs/ui-review/<date>.md`; each failure gets a
+fix plus a coded assertion, or a baseline update with its reason.

@@ -8,7 +8,7 @@ import { Pool } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../backend/src/app.js'
 import { appendEvent } from '../../backend/src/db/index.js'
-import type { RunInfo } from '../../backend/src/temporal/gateway.js'
+import type { RunInfo } from '../../backend/src/temporal/runs-types.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import { FakeRunsGateway } from './fake-gateway.js'
 
@@ -26,7 +26,7 @@ function run(id: string, sessionId: string, state: RunInfo['state'], threadKey?:
   }
 }
 
-describe.skipIf(!ENABLED)('REST parity (B3.1)', () => {
+describe.skipIf(!ENABLED)('REST parity (B3.1) [F:http.createSession] [F:http.getSession] [F:http.listSessions] [F:http.renameSession] [F:http.deleteSession] [F:http.listThreads] [F:http.getThread] [F:http.listMessages] [F:http.listRuns] [F:http.getRun] [F:http.sendMessage] [F:http.steerThread] [F:http.pauseRun] [F:http.resumeRun] [F:http.cancelRun] [F:http.decideApproval] [F:http.listSkills] [F:db.index.appendEvent] [F:db.events.appendEvent] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.errors.WorkspaceError] [F:db.sessions.deleteSession] [F:db.sessions.renameSession] [F:db.index.Db] [F:db.index.deleteSession] [F:db.index.renameSession] [F:db.workspace.WorkspaceError] [F:db.sector_documents.assertFileVisible] [F:db.workspace.researchSessionBinding] [F:db.sessions.sessionKind] [F:db.errors.Id] [F:db.errors.checked] [F:db.workspace.workspaceRow] [F:db.file_jobs.visible]', () => {
   let app: FastifyInstance
   let pool: Pool
   let runs: FakeRunsGateway
@@ -38,8 +38,8 @@ describe.skipIf(!ENABLED)('REST parity (B3.1)', () => {
     runs.addRun(run('session-run-s-a', 's-a', 'RUNNING'))
     runs.addRun(run('session-run-s-b', 's-b', 'IDLE'))
     runs.addRun(
-      run('guarded-run-g1', 'guarded-run-g1', 'SUSPENDED', 'research:guarded-run-g1'),
-      'guardedResearchRun',
+      run('company-run-c1', 'company-run-c1', 'IDLE', 'agent:company-run-c1'),
+      'companyResearch',
     )
     runs.addRun(run('research-run-r1', 'research-run-r1', 'RUNNING'), 'researchRun')
     app = buildApp({ pool, runs })
@@ -220,7 +220,7 @@ describe.skipIf(!ENABLED)('REST parity (B3.1)', () => {
     const listed = await app.inject({ method: 'GET', url: '/v1/runs' })
     expect(listed.statusCode).toBe(200)
     expect((listed.json() as { data: Array<{ id: string }> }).data.map((run) => run.id).sort()).toEqual([
-      'guarded-run-g1',
+      'company-run-c1',
       'research-run-r1',
       'session-run-s-a',
       'session-run-s-b',
@@ -243,13 +243,13 @@ describe.skipIf(!ENABLED)('REST parity (B3.1)', () => {
     const missing = await app.inject({ method: 'GET', url: '/v1/runs/session-run-nope' })
     expect(missing.statusCode).toBe(404)
 
-    const guarded = await app.inject({ method: 'GET', url: '/v1/runs/guarded-run-g1' })
-    expect(guarded.statusCode).toBe(200)
-    expect((guarded.json() as { data: Record<string, unknown> }).data).toMatchObject({
-      id: 'guarded-run-g1',
-      sessionId: 'guarded-run-g1',
-      threadKey: 'research:guarded-run-g1',
-      state: 'SUSPENDED',
+    const child = await app.inject({ method: 'GET', url: '/v1/runs/company-run-c1' })
+    expect(child.statusCode).toBe(200)
+    expect((child.json() as { data: Record<string, unknown> }).data).toMatchObject({
+      id: 'company-run-c1',
+      sessionId: 'company-run-c1',
+      threadKey: 'agent:company-run-c1',
+      state: 'IDLE',
     })
   })
 
@@ -380,13 +380,23 @@ describe.skipIf(!ENABLED)('REST parity (B3.1)', () => {
     })
     expect(missing.statusCode).toBe(404)
 
-    const guardedPause = await app.inject({
+    const childPause = await app.inject({
       method: 'POST',
       url: '/v1/commands/pause',
-      payload: { runId: 'guarded-run-g1' },
+      payload: { runId: 'company-run-c1' },
     })
-    expect(guardedPause.statusCode).toBe(409)
-    expect((guardedPause.json() as { error: { code: string } }).error.code).toBe('conflict')
+    expect(childPause.statusCode).toBe(202)
+    expect((childPause.json() as { data: { state: string } }).data.state).toBe('accepted')
+    expect(runs.signals).toContainEqual({ workflowId: 'company-run-c1', signal: 'childPause', args: [] })
+
+    runs.addRun(run('sector-sweep-x', 'sector-sweep-x', 'RUNNING'), 'sectorCoordinator')
+    const wrongType = await app.inject({
+      method: 'POST',
+      url: '/v1/commands/pause',
+      payload: { runId: 'sector-sweep-x' },
+    })
+    expect(wrongType.statusCode).toBe(409)
+    expect((wrongType.json() as { error: { code: string } }).error.code).toBe('conflict')
 
     const researchCancel = await app.inject({
       method: 'POST',

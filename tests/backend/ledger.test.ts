@@ -21,7 +21,7 @@ describe('ledger rounding (B1.3)', () => {
   })
 })
 
-describe.skipIf(!TEST_DATABASE_URL)('ledger projection (B1.3)', () => {
+describe.skipIf(!TEST_DATABASE_URL)('ledger projection (B1.3) [F:db.index.appendEvent] [F:db.index.readPartition] [F:db.index.projectUsage] [F:db.index.runTotals] [F:db.index.fleetTotals] [F:db.index.rebuildLedger] [F:db.events.readPartition] [F:db.events.appendEvent] [F:db.ledger.projectUsage] [F:db.ledger.runTotals] [F:db.ledger.fleetTotals] [F:db.ledger.rebuildLedger] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.index.StoredEvent]', () => {
   let url = ''
 
   beforeAll(async () => {

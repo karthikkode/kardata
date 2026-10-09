@@ -5,8 +5,9 @@ import {defaultPayloadConverter} from '@temporalio/common'
 import {listFileAdmissionCandidates,readFileJobBoundary,pauseFileProcessingJob,markFileProcessingDispatchOutcome,failFileProcessingJob,fileProcessingWorkflowId,workerPoolFromEnv,type TransactableDb,type FileProcessingJob} from '../../db/index.js'
 import {projectNewEvents} from '../../projector.js'
 import {createLogger,logOp} from '../../observability/logging.js'
+import {activityLogContext,activityLogFields,temporalClientInterceptors} from '../../observability/temporal-tracing.js'
 import {connectClient,temporalNamespace} from '../connection.js'
-import {TemporalRunsGateway} from '../gateway.js'
+import { TemporalRunsGateway } from '../runs-gateway.js'
 
 export type FileAdmissionOwner={state:'running'|'closed';executionId:string}|{state:'absent'|'unavailable'|'mismatch'}
 export async function inspectFileAdmissionOwner(client:Client,job:FileProcessingJob):Promise<FileAdmissionOwner>{
@@ -24,12 +25,12 @@ export async function inspectFileAdmissionOwner(client:Client,job:FileProcessing
   return {state:description.status.name==='RUNNING'?'running':'closed',executionId:description.runId}
  }catch(error){
   if(error instanceof WorkflowNotFoundError||(error&&typeof error==='object'&&'code'in error&&error.code===5))return {state:'absent'}
-  createLogger().warn({event:'file.admission.owner_unavailable',jobId:job.jobId,code:error instanceof Error?error.name:'unknown'},'File owner status unavailable')
+  createLogger().warn({event:'file.admission.owner_unavailable',...activityLogFields(),jobId:job.jobId,code:error instanceof Error?error.name:'unknown'},'File owner status unavailable')
   return {state:'unavailable'}
  }
 }
 export async function reconcileFileAdmissionPage(db:TransactableDb,cursor:string,inspect:(job:FileProcessingJob)=>Promise<FileAdmissionOwner>,start:(jobId:string,revision:number)=>Promise<void>,heartbeat:()=>void=()=>{}){
- return logOp(createLogger({op:'file.admission'}),'file.admission.page',async()=>{
+ return logOp(createLogger({op:'file.admission',...activityLogContext()}),'file.admission.page',async()=>{
   const projection=await projectNewEvents(db)
   if(!projection.caughtUp)return {cursor,inspected:0,started:0,recovered:0,parked:0,deferred:true}
   const candidates=await listFileAdmissionCandidates(db,cursor,100)
@@ -43,7 +44,7 @@ export async function reconcileFileAdmissionPage(db:TransactableDb,cursor:string
    if(owner.state==='unavailable'&&['unreserved','confirmed'].includes(job.dispatchState))return
    if(owner.state==='closed'){await failFileProcessingJob(db,job.jobId,'file_owner_closed',job.revision);parked++;return}
    if(owner.state==='absent'&&job.dispatchState==='unreserved'&&job.state==='queued'){
-    try{await start(job.jobId,job.revision);started++}catch(error){await failFileProcessingJob(db,job.jobId,'dispatch_outcome_unknown',job.revision);createLogger().warn({event:'file.admission.dispatch_unresolved',jobId:job.jobId,code:error instanceof Error?error.name:'unknown'},'File admission requires owner review');parked++}
+    try{await start(job.jobId,job.revision);started++}catch(error){await failFileProcessingJob(db,job.jobId,'dispatch_outcome_unknown',job.revision);createLogger().warn({event:'file.admission.dispatch_unresolved',...activityLogFields(),jobId:job.jobId,code:error instanceof Error?error.name:'unknown'},'File admission requires owner review');parked++}
     return
    }
    if(job.dispatchNonce){await markFileProcessingDispatchOutcome(db,{jobId:job.jobId,revision:job.revision,nonce:job.dispatchNonce,workflowId:fileProcessingWorkflowId(job.jobId,job.revision),outcome:'uncertain'})}
@@ -56,7 +57,7 @@ export async function reconcileFileAdmissionPage(db:TransactableDb,cursor:string
 export async function fileAdmissionPageActivity(cursor:string){
  const connection:Connection=await connectClient(),context=Context.current()
  try{
-  const client=new Client({connection,namespace:context.info.namespace??temporalNamespace()})
+  const client=new Client({connection,namespace:context.info.namespace??temporalNamespace(),interceptors:{workflow:temporalClientInterceptors()}})
   const db=workerPoolFromEnv(),gateway=new TemporalRunsGateway(db,connection)
   return await reconcileFileAdmissionPage(db,cursor,job=>inspectFileAdmissionOwner(client,job),(id,revision)=>gateway.startFileProcessing(id,revision),()=>context.heartbeat({phase:'file-admission'}))
  }finally{await connection.close()}

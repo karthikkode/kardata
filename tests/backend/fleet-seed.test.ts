@@ -49,7 +49,7 @@ describe('generateFleet (hermetic)', () => {
   })
 })
 
-describe.skipIf(!LIVE)('fleet seed at volume (live)', () => {
+describe.skipIf(!LIVE)('fleet seed at volume (live) [F:db.pool.createDbPool] [F:db.sectors.createSector] [F:db.sectors.getSector] [F:db.sectors.listSectorCompanies] [F:db.sectors.markCompanyFound] [F:db.sector_documents.listSectorDocuments] [F:db.index.SECTOR_DOCUMENT_MAX_BYTES] [F:db.workspace.WorkspaceError] [F:db.sector_documents.hiddenFileIds] [F:db.workspace.requireSector]', () => {
   it(
     'seeds 1000 companies plus 12 documents into an isolated TEST scope',
     async () => {

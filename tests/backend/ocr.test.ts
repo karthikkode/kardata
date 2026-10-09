@@ -11,7 +11,7 @@ const PNG = Buffer.concat([
   Buffer.from('fake-image-bytes'),
 ])
 
-describe('createModelOcrAdapter', () => {
+describe('createModelOcrAdapter [F:db.file_pipeline.extractFileUnits]', () => {
   it('transcribes through a vision chat call carrying the image', async () => {
     const provider = new FakeProvider([{ text: 'printed words' }])
     const adapter = createModelOcrAdapter(provider)

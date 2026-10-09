@@ -8,7 +8,7 @@ afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 function urls() {
   const create = vi.fn(() => 'blob:test-file'), revoke = vi.fn()
   const clicked: string[] = []
-  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function () { clicked.push(this.download) })
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { clicked.push(this.download) })
   vi.stubGlobal('URL', class extends NativeUrl { static createObjectURL = create; static revokeObjectURL = revoke })
   return { create, revoke, clicked }
 }

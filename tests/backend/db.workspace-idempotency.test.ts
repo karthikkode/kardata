@@ -5,12 +5,9 @@
 import { describe, expect, it } from 'vitest'
 import type { PoolClient } from 'pg'
 import { DbContractError, type TransactableDb } from '../../backend/src/db/index.js'
-import {
-  commitChildContext,
-  indexSectorArtifact,
-  proposeFileContext,
-  workspaceReferences,
-} from '../../backend/src/db/workspace.js'
+import { commitChildContext, proposeFileContext } from '../../backend/src/db/workspace-global-context.js'
+import { indexSectorArtifact } from '../../backend/src/db/event-artifacts.js'
+import { workspaceReferences } from '../../backend/src/db/workspace-research.js'
 
 const SECTIONS = { scope: 'Widgets', decisions: '', findings: '', questions: '' }
 
@@ -66,7 +63,7 @@ function stubDb(captured: { text: string; params: unknown[] }[]): TransactableDb
 
 const SCOPE = { tenantId: 'tenant-ws', projectId: null }
 
-describe('workspace retry-safety and validation', () => {
+describe('workspace retry-safety and validation [F:db.workspace_global_context.proposeFileContext] [F:db.workspace_research.workspaceReferences] [F:db.index.DbContractError] [F:db.workspace_global_context.commitChildContext] [F:db.errors.DbContractError] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.workspace.ContextFileRef] [F:db.context_files.listContextFileBlocks] [F:db.context_files.markContextFileBlockFailed] [F:db.context_files.mergeFileRefs] [F:db.context_files.recordThreadFileExposure] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.errors.WorkspaceError] [F:db.index.Db] [F:db.index.TransactableDb] [F:db.workspace.WorkspaceError] [F:db.sector_documents.assertFileVisible] [F:db.workspace_global_context.assertGlobalFileContext] [F:db.workspace_global_context.previewContextChange] [F:db.workspace.requireSector] [F:db.sessions.sessionKind] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked] [F:db.workspace.workspaceRow] [F:db.file_jobs.visible]', () => {
   it('replays an approved child commit instead of re-guarding', async () => {
     const captured: { text: string; params: unknown[] }[] = []
     const result = await commitChildContext(stubDb(captured), 'sess-1', 'c1', SCOPE)

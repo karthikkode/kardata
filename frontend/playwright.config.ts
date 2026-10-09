@@ -2,9 +2,16 @@ import { defineConfig, devices } from '@playwright/test'
 
 const testPort = Number(process.env.KARDATA_E2E_PORT ?? 5174)
 if (!Number.isInteger(testPort) || testPort < 1024 || testPort > 65535) throw new Error('Invalid isolated E2E port')
+// Scale budgets measure the production build (vite build + preview),
+// not dev/StrictMode: KARDATA_E2E_SERVER=preview selects it. Default
+// stays `npm run dev` so ordinary runs keep fast startup.
+const usePreview = process.env.KARDATA_E2E_SERVER === 'preview'
 
 export default defineConfig({
   testDir: '../tests/frontend-e2e',
+  // P6-M5: CI e2e skips the matrix until screenshot baselines are
+  // captured at final verification (a baseless first run fails).
+  ...(process.env.CI_MATRIX === '0' ? { testIgnore: '**/matrix/**' } : {}),
   fullyParallel: true,
   reporter: 'list',
   use: {
@@ -13,7 +20,9 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: `npm run dev -- --host 127.0.0.1 --port ${testPort} --strictPort`,
+    command: usePreview
+      ? `npm run build && npx vite preview --host 127.0.0.1 --port ${testPort} --strictPort`
+      : `npm run dev -- --host 127.0.0.1 --port ${testPort} --strictPort`,
     url: `http://127.0.0.1:${testPort}`,
     reuseExistingServer: false,
     env: {

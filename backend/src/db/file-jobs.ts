@@ -2,19 +2,19 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
-import type { Scope } from '../auth/keys.js';
+import type { Scope } from '../auth/types.js';
 import { ResearchSourceError, withArchiveDeadline, type ArchiveTarget } from '../archive/targets.js';
 import { createLogger, logOp } from '../observability/logging.js';
 import { appendEvent, type Db } from './events.js';
 import type { TransactableDb } from './checkpoints.js';
-import { DbContractError, WorkspaceError } from './errors.js';
+import { DbContractError, Id, WorkspaceError } from './errors.js';
 import { getSector } from './sectors.js';
-import { assertFileVisible, requireThread, workspaceTransaction } from './workspace.js';
+import { assertFileVisible, type IngestedDocument } from './sector-documents.js'
+import { requireThread, workspaceTransaction } from './workspace.js';
 import { SECTOR_DOCUMENT_MAX_BYTES, sha256Hex, chunkTextUnits, type ExtractedUnit } from './file-pipeline.js';
-import type { IngestedDocument } from './sector-documents.js';
+
 const logger = createLogger({ op: 'file.processing' });
 const Hash = z.string().regex(/^[a-f0-9]{64}$/);
-const Id = z.string().min(1).max(255);
 export const FileArchiveRef = z.object({ key: z.string().min(1).max(1024), hash: Hash, bytes: z.number().int().positive() }).strict();
 export type FileArchiveRef = z.infer<typeof FileArchiveRef>;
 export const FileImageIdentity = z.object({ imageId: Id, page: z.number().int().positive(), ordinal: z.number().int().nonnegative(), imageHash: Hash, inputRef: FileArchiveRef, width: z.number().int().positive(), height: z.number().int().positive(), role: z.enum(['embedded', 'page-visual']).default('embedded') }).strict();
@@ -44,7 +44,8 @@ export interface FileProcessingJob extends FileProcessingProgress {
     dispatchState:'unreserved'|'reserved'|'confirmed'|'uncertain';
     dispatchNonce:string|null; dispatchWorkflowId:string|null; dispatchExecutionId:string|null;
 }
-function assertRevision(job: FileProcessingJob, revision: number) {
+/** Shared revision guard for the file-processing slices. */
+export function assertRevision(job: FileProcessingJob, revision: number) {
     if (!Number.isInteger(revision) || job.revision !== revision)
         throw new WorkspaceError('conflict', 'A newer file processing revision owns this work.');
 }
@@ -80,7 +81,8 @@ export async function readFileProcessingJob(db: Db, jobId: string, scope?: Scope
         throw new WorkspaceError('not_found', 'File processing job not found.');
     return view(row);
 }
-async function visible(db: Db, job: FileProcessingJob) { await assertFileVisible(db, job.sectorId, job.documentId); }
+/** Shared visibility check for the file-processing slices. */
+export async function visible(db: Db, job: FileProcessingJob) { await assertFileVisible(db, job.sectorId, job.documentId); }
 function coded(code: string): string { return z.string().regex(/^[a-z][a-z0-9_]{0,79}$/).parse(code); }
 function identity(input: {
     sectorId: string;
@@ -167,7 +169,7 @@ async function verifiedJson(archive: ArchiveTarget, ref: FileArchiveRef): Promis
     }
 }
 export const FileProcessingManifest = z.object({ version: z.literal(1), records: z.array(z.union([z.object({ kind: z.literal('text'), page: z.number().int().positive(), text: z.string() }).strict(), FileImageIdentity.extend({ kind: z.literal('image') })])) }).strict();
-export const FileProcessingPagedManifest = z.object({ version: z.literal(2), parts: z.array(FileArchiveRef) }).strict();
+const FileProcessingPagedManifest = z.object({ version: z.literal(2), parts: z.array(FileArchiveRef) }).strict();
 export type FileProcessingManifest = z.infer<typeof FileProcessingManifest>;
 export interface FileProcessingUnit extends ExtractedUnit {
     page?: number;
@@ -292,7 +294,8 @@ export async function claimFileImage(db: TransactableDb, jobId: string, imageId:
         return { state: 'claimed', attempt, lease };
     }), { jobId, imageId });
 }
-async function receiptTransaction<T>(db: TransactableDb, jobId: string, scope: Scope | undefined, operation: string, work: (tx: Db, job: FileProcessingJob) => Promise<T>): Promise<T> {
+/** Shared receipt ledger for the file-processing slices. */
+export async function receiptTransaction<T>(db: TransactableDb, jobId: string, scope: Scope | undefined, operation: string, work: (tx: Db, job: FileProcessingJob) => Promise<T>): Promise<T> {
     const job = await readFileProcessingJob(db, jobId, scope);
     return logOp(logger, operation, () => workspaceTransaction(db, job.sectorId, async (tx) => work(tx, await readFileProcessingJob(tx, jobId, scope))), { jobId });
 }
@@ -455,7 +458,7 @@ async function* expectedUnits(db: Db, job: FileProcessingJob, archive: ArchiveTa
         }
     }
 }
-export async function* streamFileProcessingUnits(db: Db, jobId: string, archive: ArchiveTarget, revision: number, scope?: Scope): AsyncGenerator<FileProcessingUnit> {
+async function* streamFileProcessingUnits(db: Db, jobId: string, archive: ArchiveTarget, revision: number, scope?: Scope): AsyncGenerator<FileProcessingUnit> {
     const job = await readFileProcessingJob(db, jobId, scope);
     assertRevision(job, revision);
     await visible(db, job);
@@ -649,18 +652,6 @@ async function readImageIdentity(db: Db, jobId: string, imageId: string, scope: 
         throw new WorkspaceError('not_found', 'File image not found.');
     return FileImageIdentity.parse({ imageId: r.image_id, page: r.page, ordinal: r.ordinal, imageHash: r.image_hash, inputRef: r.input_ref, width: r.width, height: r.height, role: r.role });
 }
-export async function listFileProcessingJobs(db: Db, afterId = '', limit = 100): Promise<Array<{
-    jobId: string;
-    revision: number;
-}>> {
-    if (!Number.isInteger(limit) || limit < 1 || limit > 100)
-        throw new DbContractError('File processing page must be1–100.');
-    const { rows } = await db.query<{
-        id: string;
-        revision: number;
-    }>("SELECT id,revision FROM file_processing_jobs WHERE state='queued' AND id>$1 ORDER BY id LIMIT $2", [afterId, limit]);
-    return rows.map(r => ({ jobId: r.id, revision: r.revision }));
-}
 export async function listSectorFileProcessing(db: Db, sectorId: string, scope?: Scope): Promise<Record<string, FileProcessingProgress>> {
     if (!(await getSector(db, sectorId, scope)))
         throw new WorkspaceError('not_found', 'Sector not found.');
@@ -802,40 +793,4 @@ export async function beginFileProcessingJob(db: TransactableDb, jobId: string, 
             throw new WorkspaceError('conflict', 'File processing is not ready to prepare.');
         await tx.query("UPDATE file_processing_jobs SET state='processing',last_error_code=NULL,updated_at=now() WHERE id=$1", [jobId]);
     });
-}
-export function fileProcessingWorkflowId(jobId:string,revision:number):string {Id.parse(jobId);if(!Number.isInteger(revision)||revision<0)throw new DbContractError('File revision must be nonnegative.');return `file-processing-${jobId}-r${revision}`;}
-export async function reserveFileProcessingDispatch(db:TransactableDb,jobId:string,revision:number,nonce:string=randomUUID(),scope?:Scope):Promise<{workflowId:string;nonce:string;ownsReservation:boolean;state:FileProcessingJob['dispatchState']}> {
- z.string().uuid().parse(nonce)
- return receiptTransaction(db,jobId,scope,'file.processing.dispatch.reserve',async(tx,job)=>{
-  assertRevision(job,revision);await visible(tx,job)
-  const workflowId=fileProcessingWorkflowId(jobId,revision)
-  if(!['queued','processing'].includes(job.state))throw new WorkspaceError('conflict','File admission is awaiting owner review.')
-  if(job.dispatchState!=='unreserved'&&!job.dispatchNonce)throw new WorkspaceError('conflict','File admission is missing its canonical reservation.');
-  if(job.dispatchState!=='unreserved')return {workflowId,nonce:job.dispatchNonce!,ownsReservation:job.dispatchState==='reserved'&&job.dispatchNonce===nonce,state:job.dispatchState}
-  await tx.query("UPDATE file_processing_jobs SET dispatch_state='reserved',dispatch_nonce=$2,dispatch_workflow_id=$3,updated_at=now() WHERE id=$1",[jobId,nonce,workflowId])
-  await appendEvent(tx,{idempotencyKey:`file-job:${jobId}:dispatch:${revision}:reserve`,partition:`sector:${job.sectorId}`,type:'sector.file.dispatch.reserved',payload:{jobId,revision,workflowId,nonce}})
-  return {workflowId,nonce,ownsReservation:true,state:'reserved'}
- })
-}
-export async function markFileProcessingDispatchOutcome(db:TransactableDb,input:{jobId:string;revision:number;nonce:string;workflowId:string;outcome:'confirmed'|'uncertain';executionId?:string;scope?:Scope}):Promise<void> {
- return receiptTransaction(db,input.jobId,input.scope,'file.processing.dispatch.outcome',async(tx,job)=>{
-  assertRevision(job,input.revision)
-  if(job.dispatchNonce!==input.nonce||job.dispatchWorkflowId!==input.workflowId||input.workflowId!==fileProcessingWorkflowId(input.jobId,input.revision))throw new WorkspaceError('conflict','A different file admission owns this outcome.')
-  if(input.outcome==='confirmed'&&!input.executionId)throw new DbContractError('Confirmed file admission requires exact execution identity.')
-  if(job.dispatchState==='confirmed'&&input.outcome==='uncertain')return
-  await tx.query('UPDATE file_processing_jobs SET dispatch_state=$2,dispatch_execution_id=COALESCE($3,dispatch_execution_id),updated_at=now() WHERE id=$1',[input.jobId,input.outcome,input.executionId??null])
-  await appendEvent(tx,{idempotencyKey:`file-job:${input.jobId}:dispatch:${input.revision}:${input.outcome}:${input.executionId??'unknown'}`,partition:`sector:${job.sectorId}`,type:'sector.file.dispatch.outcome',payload:{jobId:input.jobId,revision:input.revision,workflowId:input.workflowId,outcome:input.outcome,...(input.executionId?{executionId:input.executionId}:{})}})
-  if(input.outcome==='uncertain'&&job.state!=='complete'){
-   await tx.query("UPDATE file_processing_jobs SET state='uncertain',last_error_code='dispatch_outcome_unknown' WHERE id=$1",[input.jobId])
-   await tx.query("UPDATE sector_documents SET status='failed' WHERE id=$1 AND status<>'indexed'",[job.documentId])
-  }else if(input.outcome==='confirmed'&&job.state==='uncertain'&&job.errorCode==='dispatch_outcome_unknown'&&!job.uncertainImages){
-   const flags=await tx.query('SELECT 1 FROM workspace_files WHERE sector_id=$1 AND file_id=$2 AND hidden=true',[job.sectorId,job.documentId])
-   if(!flags.rows.length){await tx.query("UPDATE file_processing_jobs SET state='queued',last_error_code=NULL WHERE id=$1",[input.jobId]);await tx.query("UPDATE sector_documents SET status='processing' WHERE id=$1",[job.documentId])}
-  }
- })
-}
-export async function listFileAdmissionCandidates(db:Db,afterId='',limit=100):Promise<Array<{jobId:string;revision:number}>> {
- if(!Number.isInteger(limit)||limit<1||limit>100)throw new DbContractError('File admission pages require1–100 jobs.')
- const {rows}=await db.query<{id:string;revision:number}>("SELECT id,revision FROM file_processing_jobs WHERE id>$1 AND (state='queued' OR (state='uncertain' AND last_error_code='dispatch_outcome_unknown')) ORDER BY id LIMIT $2",[afterId,limit])
- return rows.map(r=>({jobId:r.id,revision:r.revision}))
 }

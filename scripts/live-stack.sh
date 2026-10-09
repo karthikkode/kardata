@@ -14,7 +14,15 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LIVE_DIR="${TMPDIR:-/tmp}/kardata-live"
 ARCHIVE_DIR="${TMPDIR:-/tmp}/kardata-live-archive"
 mkdir -p "$LIVE_DIR" "$ARCHIVE_DIR"
-export PATH="/home/karthik/.nvm/versions/node/v22.23.3/bin:$PATH"
+# Node comes from the caller's PATH (same rule as scripts/hooks/pre-push).
+if ! command -v node >/dev/null 2>&1; then
+  echo "live-stack: node not found on PATH" >&2
+  exit 2
+fi
+if [ "$(node -p 'process.versions.node.split(".")[0]')" != "22" ]; then
+  echo "live-stack: need node 22, found $(node --version)" >&2
+  exit 2
+fi
 
 # Refuse while the live battery runs: its in-process app holds 3102 and
 # both poll kardata-live, so a second starter steals activities and fails

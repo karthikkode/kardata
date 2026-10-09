@@ -3,7 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { SectorWorkspace } from '@/components/SectorWorkspace'
 import type { SectorWorkspaceModel } from '@/data/sector-workspace'
-import type { Session, StagingConfig, ThreadView } from '@/data/staging-api'
+import type { Session } from '@/data/api/sessions'
+import type { StagingConfig } from '@/data/api/client'
+import type { ThreadView } from '@/data/api/threads'
 
 const config: StagingConfig = { baseUrl: 'https://test.invalid', apiKey: 'TEST owner' }
 const sector = { id: 'sec-1', name: 'Foods', topic: '', state: 'draft', companiesFound: 0 } as never
@@ -18,7 +20,7 @@ function child(key: string, status: string): ThreadView {
   return { key, kind: 'subagent', name: `Child ${key}`, status, queueDepth: 0, acceptingSteer: true } as ThreadView
 }
 
-function stubModel(overrides: { threads?: ThreadView[]; pauseSubagent?: (childId: string) => Promise<boolean>; resumeSubagent?: (childId: string) => Promise<boolean> }) {
+function stubModel(overrides: { threads?: ThreadView[]; pauseSubagent?: (childId: string) => Promise<boolean>; resumeSubagent?: (childId: string) => Promise<boolean>; stopSubagent?: (childId: string) => Promise<boolean> }) {
   const chat = {
     status: 'ready' as const, messages: [], draft: '', busy: false, live: null, error: null,
     missedInstructions: [], phase: 'idle' as const, echo: null, retry: vi.fn(), setDraft: vi.fn(), send: vi.fn(),
@@ -32,7 +34,7 @@ function stubModel(overrides: { threads?: ThreadView[]; pauseSubagent?: (childId
     previewFileId: null, previewFile: vi.fn(),
     error: null, openSession: vi.fn(), openThread: vi.fn(), createChat: vi.fn(), renameChat: vi.fn(),
     setUseGlobalContext: vi.fn(async () => true), deleteChat: vi.fn(), stop: vi.fn(), resume: vi.fn(), saveGlobal: vi.fn(),
-    stopSubagent: vi.fn(async () => true),
+    stopSubagent: overrides.stopSubagent ?? vi.fn(async () => true),
     decide: vi.fn(), retryFile: vi.fn(), hideFile: vi.fn(), includeFile: vi.fn(), upload: vi.fn(),
     saveLocal: vi.fn(), rebuildLocal: vi.fn(), compact: vi.fn(),
     spawnSubagent: vi.fn(async () => true),
@@ -66,5 +68,31 @@ describe('subagent pause and resume (A16)', () => {
     const dialog = screen.getByRole('dialog', { name: 'Subagents' })
     await user.click(within(dialog).getByRole('button', { name: 'Resume Child agent:child-1' }))
     expect(resumeSubagent).toHaveBeenCalledWith('child-1')
+  })
+})
+
+describe('queued subagent controls (C6/2)', () => {
+  it('shows Pause and Stop for a queued child on the strip', async () => {
+    const user = userEvent.setup()
+    const pauseSubagent = vi.fn(async () => true)
+    const stopSubagent = vi.fn(async () => true)
+    render(<SectorWorkspace sector={sector} model={stubModel({ threads: [child('agent:child-9', 'QUEUED')], pauseSubagent, stopSubagent })} config={config} actions={actions} onBack={vi.fn()} />)
+    expect(screen.getByText('Queued')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Pause Child agent:child-9' }))
+    expect(pauseSubagent).toHaveBeenCalledWith('child-9')
+    await user.click(screen.getByRole('button', { name: 'Stop Child agent:child-9' }))
+    await user.click(screen.getByRole('button', { name: 'Stop agent' }))
+    expect(stopSubagent).toHaveBeenCalledWith('child-9')
+  })
+
+  it('shows Pause and Stop for a queued child in the directory', async () => {
+    const user = userEvent.setup()
+    const pauseSubagent = vi.fn(async () => true)
+    render(<SectorWorkspace sector={sector} model={stubModel({ threads: [child('agent:child-9', 'QUEUED')], pauseSubagent })} config={config} actions={actions} onBack={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'View all 1' }))
+    const dialog = screen.getByRole('dialog', { name: 'Subagents' })
+    await user.click(within(dialog).getByRole('button', { name: 'Pause Child agent:child-9' }))
+    expect(pauseSubagent).toHaveBeenCalledWith('child-9')
+    expect(within(dialog).getByRole('button', { name: 'Stop Child agent:child-9' })).toBeInTheDocument()
   })
 })

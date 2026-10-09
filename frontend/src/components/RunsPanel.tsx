@@ -2,18 +2,12 @@
 // run state, thread link, and stage; running runs can be cancelled after
 // an explicit confirm. There is no launching: the backend exposes no
 // primitive for it, so the view observes and stops only.
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Icons } from '@/lib/icons'
 import { humanizeKey } from '@/lib/format'
 import { notify } from '@/lib/toast'
-import {
-  cancelRun,
-  listRuns,
-  StagingApiError,
-  type RunSummary,
-  type RunState,
-  type StagingConfig,
-} from '../data/staging-api'
+import { useRunActions, useRunsList, type RunSummary, type RunState } from '../data/useRuns'
+import { type StagingConfig } from '../data/useApi'
 import { DataTable, type DataTableColumn } from './DataTable'
 import { IconButton } from './IconButton'
 import { DeniedNotice, PanelError, SkeletonRows, UnavailableNotice } from './research-parts'
@@ -76,81 +70,37 @@ export function RunsPanel({
   /** Reports the loading state so the header Refresh can spin honestly. */
   onLoadingChange?: (loading: boolean) => void
 }) {
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'denied' | 'offline'>('loading')
-  const [runs, setRuns] = useState<RunSummary[]>([])
+  const runsQuery = useRunsList(config, { refreshSignal })
+  const runActions = useRunActions(config)
+  const runs = runsQuery.data ?? []
+  const { refresh: refreshRuns, status } = runsQuery
   const [query, setQuery] = useState('')
-  const [attempt, setAttempt] = useState(0)
   const [cancelling, setCancelling] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<RunSummary | null>(null)
-
-  // Reset during render, never in the load callback: when the query
-  // changes the previous rows no longer belong to it.
-  const queryKey = config ? `${config.baseUrl} ${config.apiKey} ${attempt} ${refreshSignal}` : null
-  const [activeQuery, setActiveQuery] = useState<string | null>(null)
-  if (activeQuery !== queryKey) {
-    setActiveQuery(queryKey)
-    if (queryKey === null) {
-      setRuns([])
-      setStatus('ready')
-    } else {
-      setStatus('loading')
-    }
-  }
-
-  const load = useCallback(() => {
-    if (!config) return () => undefined
-    let live = true
-    listRuns(config)
-      .then((rows) => {
-        if (!live) return
-        setRuns(rows)
-        setStatus('ready')
-      })
-      .catch((error: unknown) => {
-        if (!live) return
-        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-          setStatus('offline')
-        } else if (
-          error instanceof StagingApiError &&
-          (error.status === 401 || error.status === 403)
-        ) {
-          setStatus('denied')
-        } else {
-          setStatus('error')
-        }
-      })
-    return () => {
-      live = false
-    }
-  }, [config?.baseUrl, config?.apiKey, attempt, refreshSignal]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    const cleanup = load()
-    return cleanup
-  }, [load])
 
   useEffect(() => {
     onLoadingChange?.(status === 'loading')
   }, [status, onLoadingChange])
 
   // Live list while the tab is visible; hidden tabs keep their rows
-  // without churning the backend.
+  // without churning the backend. Silent refresh: polling never flashes
+  // the loading skeleton.
   useEffect(() => {
     if (!config) return
     const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') load()
+      if (document.visibilityState === 'visible') refreshRuns()
     }, 5000)
     return () => window.clearInterval(timer)
-  }, [config, load])
+  }, [config, refreshRuns])
 
   async function confirmCancel() {
     const run = confirming
     if (!config || !run) return
     setCancelling(run.id)
     try {
-      await cancelRun(config, run.id)
+      await runActions.cancel.run(run.id)
       setConfirming(null)
-      load()
+      refreshRuns()
     } catch {
       notify.error(`Could not cancel run ${shortId(run.id)}. Try again.`)
     } finally {
@@ -251,12 +201,12 @@ export function RunsPanel({
           <PanelError
             heading="Agent runs did not load."
             detail="Check your connection and try again."
-            onRetry={() => setAttempt((value) => value + 1)}
+            onRetry={runsQuery.reload}
           />
         ) : status === 'denied' ? (
-          <DeniedNotice heading="Agent runs are not shared with this key." />
+          <DeniedNotice heading="Agent runs are not shared with this key." onRetry={runsQuery.reload} />
         ) : status === 'offline' ? (
-          <UnavailableNotice onRetry={() => setAttempt((value) => value + 1)} />
+          <UnavailableNotice onRetry={runsQuery.reload} />
         ) : rows.length ? (
           <DataTable
             data={rows}

@@ -10,7 +10,7 @@ import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import { FakeRunsGateway } from './fake-gateway.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('inbox queue routes (A17)', () => {
+describe.skipIf(!TEST_DATABASE_URL)('inbox queue routes (A17) [F:db.index.createSector] [F:db.index.createSession] [F:db.sectors.createSector] [F:db.sessions.createSession] [F:db.workspace.WorkspaceError] [F:db.workspace.requireSector]', () => {
   let app: FastifyInstance
   let pool: Pool
   let runs: FakeRunsGateway

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { frozenClock, seededRng, systemClock } from './clock.js'
 
-describe('frozenClock', () => {
+describe('frozenClock [F:agents.clock.frozenClock]', () => {
   it('holds time still until advanced', () => {
     const clock = frozenClock(1_000)
     expect(clock.now()).toBe(1_000)
@@ -11,13 +11,13 @@ describe('frozenClock', () => {
   })
 })
 
-describe('systemClock', () => {
+describe('systemClock [F:agents.clock.systemClock]', () => {
   it('returns a plausible epoch ms', () => {
     expect(systemClock().now()).toBeGreaterThan(1_700_000_000_000)
   })
 })
 
-describe('seededRng', () => {
+describe('seededRng [F:agents.clock.seededRng]', () => {
   it('reproduces the same sequence per seed', () => {
     const first = seededRng(42)
     const second = seededRng(42)

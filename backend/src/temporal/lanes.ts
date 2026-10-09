@@ -13,6 +13,16 @@ export interface LaneConfig {
   maxConcurrentActivityTaskExecutions: number
 }
 
+/** Turn activity slots per worker. Default 4; invalid values fail fast at
+ * worker startup so a typo never silently paces (or storms) the vendor. */
+export function turnActivitySlots(): number {
+  const raw = process.env['KARDATA_TURN_ACTIVITY_SLOTS']
+  if (raw === undefined || raw === '') return 4
+  const slots = Number(raw)
+  if (!Number.isInteger(slots) || slots < 1) throw new Error(`KARDATA_TURN_ACTIVITY_SLOTS must be a positive integer, got ${JSON.stringify(raw)}`)
+  return slots
+}
+
 const CONCURRENCY: Record<Lane, { workflows: number; activities: number }> = {
   // Vendor pacing: at most 4 concurrent turn activities per worker. The
   // pilot proved a 20-way concurrent research-turn fan-out saturates the
@@ -27,12 +37,20 @@ const CONCURRENCY: Record<Lane, { workflows: number; activities: number }> = {
   sweep: { workflows: 5, activities: 10 },
 }
 
+/** Static queue name per lane. Pure (no env): the only lanes helper
+ * workflow code may call — laneConfig and turnActivitySlots read
+ * process.env, which does not exist in the workflow sandbox
+ * (ReferenceError, caught by live L-PLAN 2026-10-09). */
+export function laneTaskQueue(lane: Lane): string {
+  return `kardata-${lane}-v1`
+}
+
 export function laneConfig(lane: Lane): LaneConfig {
   return {
     lane,
-    taskQueue: `kardata-${lane}-v1`,
+    taskQueue: laneTaskQueue(lane),
     maxConcurrentWorkflowTaskExecutions: CONCURRENCY[lane].workflows,
-    maxConcurrentActivityTaskExecutions: CONCURRENCY[lane].activities,
+    maxConcurrentActivityTaskExecutions: lane === 'turn' ? turnActivitySlots() : CONCURRENCY[lane].activities,
   }
 }
 

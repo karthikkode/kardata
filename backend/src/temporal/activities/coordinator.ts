@@ -3,17 +3,18 @@ import { createHash } from 'node:crypto'
 import { hydrateResearchSources, persistResearchSource, resolveArchiveTarget } from '../../archive/targets.js'
 import { ApplicationFailure, Context } from '@temporalio/activity'
 import { z } from 'zod'
-import type { Scope } from '../../auth/keys.js'
+import type { Scope } from '../../auth/types.js'
 import { appendEvent, closeDiscovery, createArtifact, ensureResearchSession, getSector, getSession, sessionKind, readGlobalContext, readResearchProgress, readDiscoveryPublicationState, readResearchCoordinatorProgress, readResearchWorkItem, researchIntakeReceipts, readResearchBudget, recordResearchBudget, readSectorPlan, recordLedgerProblem, registerSectorDiscovery, registerLedgerCandidate, readSectorExecutionState, recordResearchWork, setCompanyStage, setCompanyState, setSectorState, upsertLedgerCompany, workerPoolFromEnv, workspaceTransaction, type PlanVersion } from '../../db/index.js'
 import { projectNewEvents } from '../../projector.js'
 import { createLogger, logOp } from '../../observability/logging.js'
+import { activityLogFields } from '../../observability/temporal-tracing.js'
 import { extractNewDomains, sectorSignals } from '../sweep-rules.js'
-import type { WorkItem } from '../research-plan.js'
+import type { WorkItem } from '../../research-plan.js'
 import { recordSweepCompanyActivity, searchWebPageActivity } from './sweep.js'
 import type { TurnOutcome } from './turn.js'
 import { validateDiscoveryIntake } from '../discovery-intake.js'
 import type { CandidateCompany } from '../sweep-rules.js'
-import { discoverySample, validateDiscoveryAcceptance } from '../discovery-acceptance.js'
+import { discoverySample, validateDiscoveryAcceptance } from '../../discovery-acceptance.js'
 
 export interface CoordinatorInput { sectorId: string; scope?: Scope; /** Isolated harness queue override; never accepted by product APIs. */ turnTaskQueue?: string; /** Internal versioned transport; never accepted by product APIs. */ compactState?: boolean; statusOnly?: boolean; recoveryAfter?: string; recoveryDone?: boolean; pinnedVersion?: number; /** Harness-only history boundary override. */ historyEventLimit?: number }
 const logger = createLogger({ op: 'research.coordinator' })
@@ -32,7 +33,7 @@ async function sourceWork<T>(op: string, input: CoordinatorInput, work: (signal:
       const running = Promise.race([Promise.resolve().then(() => { signal.throwIfAborted(); return work(signal) }), context.cancelled, failed])
       beat()
       return running
-    }, { sectorId: input.sectorId, workflowId: context.info.workflowExecution?.workflowId, runId: context.info.workflowExecution?.runId })
+    }, { ...activityLogFields({ sectorId: input.sectorId }), executionRunId: context.info.workflowExecution?.runId })
   } finally { clearInterval(timer); controller.abort() }
 }
 export async function loadCoordinatorActivity(input: CoordinatorInput) {
@@ -53,10 +54,10 @@ export async function loadCoordinatorActivity(input: CoordinatorInput) {
     const loaded = { ...(reviewSequence === undefined ? {} : { reviewSequence }), sector, plan: approved as PlanVersion & { executable: NonNullable<PlanVersion['executable']> }, sessionId: session.id, approvedScope: plan?.approvedContext?.scope, context: compact ? { ...context, sections: { scope: context.sections.scope, instructions: '', decisions: '', findings: '', questions: '' }, markdown: '', changes: [] } : context, progress }
     if (compact && Buffer.byteLength(JSON.stringify(loaded)) > 1_500_000) throw ApplicationFailure.nonRetryable('Coordinator state exceeds its safe transport budget. Review the queued work.', 'CoordinatorStateBlocked')
     return loaded
-  })
+  }, activityLogFields({ sectorId: input.sectorId }))
 }
 export async function researchWorkItemActivity(input: CoordinatorInput & { version: number; id: string }) {
-  return logOp(logger, 'research.work.read', async () => { const item = await readResearchWorkItem(workerPoolFromEnv(), input.sectorId, input.version, input.id, input.scope); if (Buffer.byteLength(JSON.stringify(item)) > 1_500_000) throw ApplicationFailure.nonRetryable('Work details exceed the safe transport budget. Owner review is required.', 'CoordinatorStateBlocked'); return item }, { sectorId: input.sectorId, planVersion: input.version })
+  return logOp(logger, 'research.work.read', async () => { const item = await readResearchWorkItem(workerPoolFromEnv(), input.sectorId, input.version, input.id, input.scope); if (Buffer.byteLength(JSON.stringify(item)) > 1_500_000) throw ApplicationFailure.nonRetryable('Work details exceed the safe transport budget. Owner review is required.', 'CoordinatorStateBlocked'); return item }, { ...activityLogFields({ sectorId: input.sectorId }), planVersion: input.version })
 }
 
 export async function researchCheckpointActivity(input: CoordinatorInput & { version: number; item: WorkItem }) {
@@ -66,10 +67,10 @@ export async function researchCheckpointActivity(input: CoordinatorInput & { ver
     if (existing && (existing.state === 'excluded' || (input.item.id.includes(':intake:') && input.item.receiptVersion && input.item.receiptVersion !== existing.receiptVersion))) return existing
     await recordResearchWork(tx, { ...input, planVersion: input.version })
     return readResearchWorkItem(tx, input.sectorId, input.version, input.item.id, input.scope)
-  }))
+  }), activityLogFields({ sectorId: input.sectorId }))
 }
 export async function researchBudgetActivity(input: CoordinatorInput & { runId: string; spentMs: number; checkpoint: number }) {
-  return logOp(logger, 'research.budget.checkpoint', () => recordResearchBudget(workerPoolFromEnv(), input))
+  return logOp(logger, 'research.budget.checkpoint', () => recordResearchBudget(workerPoolFromEnv(), input), activityLogFields({ sectorId: input.sectorId }))
 }
 export async function researchSearchActivity(input: CoordinatorInput & { version: number; query: string; page: number; seen: string[]; remaining: number; basicFiltering?: boolean; sourceIntake?: boolean }) {
   return logOp(logger, 'research.discovery', async () => {
@@ -93,7 +94,7 @@ export async function researchSearchActivity(input: CoordinatorInput & { version
       await recordResearchWork(db, { sectorId: input.sectorId, planVersion: input.version, scope: input.scope, item: { id: `${input.sectorId}:v${input.version}:${companyId}`, kind: 'company', title: company.name, state: depth === 'discovery' ? 'complete' : 'pending', attempts: 0, childId: depth === 'discovery' ? null : `research-${input.sectorId}-v${input.version}-${companyId}`, sourceUrl: company.url, evidence: [], detail: depth === 'discovery' ? 'Discovered from search results. Company deep research has not run.' : '' } })
     }
     return { domains: candidates.map((company) => company.domain), exhausted: hits.length === 0 }
-  })
+  }, activityLogFields({ sectorId: input.sectorId }))
 }
 export async function researchIntakeActivity(input: CoordinatorInput & { version: number; sessionId: string; item: WorkItem; candidate: CandidateCompany; outcome: TurnOutcome }) {
   return sourceWork('research.discovery.intake', input, async (signal) => {
@@ -156,7 +157,7 @@ export async function researchDiscoveryAcceptanceActivity(input: CoordinatorInpu
     for (const outcome of input.outcomes) outcomes.push(await hydrateResearchSources(resolveArchiveTarget(), input.sessionId, outcome, signal))
     const verifiedParts = outcomes.map((outcome, index) => validateDiscoveryAcceptance(outcome, sample.slice(index * 10, (index + 1) * 10), plan.acceptance))
     const combined = { checks: plan.acceptance.map((criterion) => ({ criterion, met: verifiedParts.every((part) => part.checks.some((check) => check.criterion === criterion && check.met)), evidence: verifiedParts.flatMap((part) => part.checks.find((check) => check.criterion === criterion)?.evidence ?? []) })), sample: verifiedParts.flatMap((part) => part.sample) }
-    const verified = validateDiscoveryAcceptance({ reply: JSON.stringify(combined), sources: outcomes.flatMap((outcome) => outcome.sources ?? []), toolCalls: [] }, sample, plan.acceptance)
+    const verified = validateDiscoveryAcceptance({ reply: JSON.stringify(combined), sources: outcomes.flatMap((outcome) => outcome.sources ?? []) }, sample, plan.acceptance)
     const report = ['# Discovery acceptance', `Population count: ${companies.length} discovered companies. Approved target: ${plan.discoveryTarget ?? 1}.`, `Evidence review covers a reproducibly selected sample of ${verified.sample.length} companies. Identity, geography and sector checks have not been established individually for the remainder of the population.`, '## Approved criteria: sampled evidence review', ...verified.checks.map((check) => `- ${check.criterion}: passed for the reviewed sample`), '## Source-backed sample', ...verified.sample.map((entry) => `### ${companies.find((item) => item.id === entry.id)?.title ?? entry.id}\n\n[Company source](${entry.url})\n\n> ${entry.excerpt}`)].join('\n\n')
     await createArtifact(db, { sessionId: input.sessionId, name: 'Discovery acceptance report.md', content: report, producedBy: input.sessionId, reason: 'report', artifactId: `discovery-acceptance-${input.sectorId}-v${input.version}-${Context.current().info.workflowExecution?.runId ?? Context.current().info.activityId}`, scope: input.scope })
     signal.throwIfAborted()
@@ -176,7 +177,7 @@ export async function researchDiscoveryAcceptanceActivity(input: CoordinatorInpu
   })
 }
 export async function researchDiscoveryClosedActivity(input: CoordinatorInput) {
-  return logOp(logger, 'research.discovery.closed', () => closeDiscovery(workerPoolFromEnv(), input.sectorId))
+  return logOp(logger, 'research.discovery.closed', () => closeDiscovery(workerPoolFromEnv(), input.sectorId), activityLogFields({ sectorId: input.sectorId }))
 }
 export async function researchLifecycleActivity(input: CoordinatorInput & { state: 'running' | 'complete' | 'failed' | 'paused'; planVersion?: number }) {
   return logOp(logger, 'research.lifecycle', async () => {
@@ -197,7 +198,7 @@ export async function researchLifecycleActivity(input: CoordinatorInput & { stat
     })
     await projectNewEvents(db)
     return applied
-  })
+  }, activityLogFields({ sectorId: input.sectorId }))
 }
 const Verdict = z.object({
   qualification: z.enum(['qualified','disqualified']), reason: z.string().min(1).max(2000),

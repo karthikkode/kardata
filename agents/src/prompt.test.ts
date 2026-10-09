@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { composeSystemPrompt, modePromptFor } from './prompt.js'
 
-describe('composeSystemPrompt', () => {
+describe('composeSystemPrompt [F:agents.prompt.composeSystemPrompt] [F:agents.prompt.modePromptFor]', () => {
   it('returns the base alone when no parts are given', () => {
     expect(composeSystemPrompt('base')).toBe('base')
   })

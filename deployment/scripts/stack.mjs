@@ -277,6 +277,45 @@ async function cmdWorkerCompose() {
   console.log('stack: compose worker polling')
 }
 
+async function cmdWorker(args) {
+  // Compose replica scaling: every replica polls the same lanes, and the
+  // Meta permit table caps the fleet. Cap 16: 16 workers x 5 PG
+  // connections + server pool stays inside a 100-connection budget.
+  let replicas = 1
+  const flag = args.indexOf('--replicas')
+  if (flag >= 0) {
+    replicas = Number(args[flag + 1])
+    if (!Number.isInteger(replicas) || replicas < 1 || replicas > 16) {
+      console.error('stack: --replicas must be an integer from 1 to 16')
+      process.exit(1)
+    }
+  }
+  const procs = (await hostStackProcs()).filter((p) => isWorkerCmd(p.cmd))
+  if (procs.length > 0) {
+    console.error('stack: refusing to scale the compose worker: host worker(s) already polling:')
+    for (const p of procs) console.error(`  $ ${p.user === 'root' ? 'sudo ' : ''}kill ${p.pid}  # ${p.cmd.slice(0, 70)}`)
+    process.exit(1)
+  }
+  // The fleet pool check reads this: backend and worker validate
+  // server + worker x replicas against max_connections at boot.
+  process.env.KARDATA_WORKER_REPLICAS = String(replicas)
+  const out = await run('docker', ['compose', '-f', COMPOSE, 'up', '-d', '--scale', `worker=${replicas}`, 'worker'], { env: composeEnv() })
+  process.stdout.write(out.stdout || out.stderr)
+  if (!out.ok) process.exit(1)
+  const ok = await waitFor(`${replicas} worker(s) polling`, async () => {
+    const names = (await composePs())
+      .filter((s) => s.Service === 'worker' && s.State === 'running')
+      .map((s) => s.Name)
+    if (names.length < replicas) return false
+    for (const name of names) {
+      if (!(await containerLogHas(name, 'turn worker polling'))) return false
+    }
+    return true
+  })
+  if (!ok) process.exit(1)
+  console.log(`stack: ${replicas} compose worker(s) polling`)
+}
+
 async function cmdClean() {
   // Recorded live-stack PIDs first (provably owned), then owned test
   // servers/workers only. Browsers, foreign checkouts, other users, and
@@ -309,8 +348,49 @@ async function cmdClean() {
   console.log(`stack: clean stopped ${stopped} owned test process(es)`)
 }
 
+async function cmdToxi(args) {
+  const [sub] = args
+  if (sub === 'up') {
+    const existing = await run('docker', ['inspect', '-f', '{{.State.Running}}', 'kardata-toxiproxy'])
+    if (existing.ok && existing.stdout.trim() === 'true') {
+      console.log('stack: toxiproxy already running (127.0.0.1:8474)')
+      return
+    }
+    if (existing.ok) await run('docker', ['rm', '-f', 'kardata-toxiproxy'])
+    const created = await run('docker', ['run', '-d', '--name', 'kardata-toxiproxy', '--network', 'host', 'shopify/toxiproxy@sha256:a6b080af39986b863a1f7c5a3b9bacf2afeb48abab8f0eb7e243f8f7ad38c645'])
+    process.stdout.write(created.stdout || created.stderr)
+    if (!created.ok) process.exit(1)
+    for (let i = 0; i < 30; i++) {
+      try {
+        const res = await fetch('http://127.0.0.1:8474/version')
+        if (res.ok) {
+          console.log('stack: toxiproxy up (127.0.0.1:8474)')
+          return
+        }
+      } catch { /* starting */ }
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+    }
+    console.error('stack: toxiproxy did not answer on 127.0.0.1:8474')
+    process.exit(1)
+  }
+  if (sub === 'down') {
+    const existing = await run('docker', ['inspect', '-f', '{{.State.Running}}', 'kardata-toxiproxy'])
+    if (!existing.ok) {
+      console.log('stack: toxiproxy not present')
+      return
+    }
+    const removed = await run('docker', ['rm', '-f', 'kardata-toxiproxy'])
+    process.stdout.write(removed.stdout || removed.stderr)
+    if (!removed.ok) process.exit(1)
+    return
+  }
+  console.error('usage: npm run stack:toxi -- <up|down>')
+  process.exit(1)
+}
+
 const commands = {
   up: ['boot the compose stack with existing images', cmdUp],
+  toxi: ['toxiproxy for fault drills: up|down (host network, 127.0.0.1:8474)', cmdToxi],
   clean: ['stop the live stack plus owned stale test servers/workers', cmdClean],
   down: ['stop the stack (volumes kept, never deleted)', cmdDown],
   obs: ['start temporal-ui + telemetry (fails if another stack holds the ports)', cmdObs],
@@ -319,12 +399,13 @@ const commands = {
   doctor: ['fail on duplicate fleets / stale images; warn + fixes otherwise', cmdDoctor],
   'worker:host': ['refuse if a host worker polls, else stop compose worker and run the laptop one', cmdWorkerHost],
   'worker:compose': ['refuse if a host worker polls, else start the compose worker', cmdWorkerCompose],
+  worker: ['scale the compose worker (default 1): stack.mjs worker --replicas N', cmdWorker],
 }
 
-const [command] = process.argv.slice(2)
+const [command, ...commandArgs] = process.argv.slice(2)
 if (!command || !(command in commands)) {
   console.log('usage: npm run stack:<command>')
   for (const [name, [help]] of Object.entries(commands)) console.log(`  ${name.padEnd(14)} ${help}`)
   process.exit(command ? 1 : 0)
 }
-await commands[command][1]()
+await commands[command][1](commandArgs)

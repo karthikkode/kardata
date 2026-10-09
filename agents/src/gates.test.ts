@@ -5,6 +5,8 @@ import { TaskLedger, taskTools } from './tasks.js'
 import { ToolRegistry, dispatch, type ToolContext } from './tools.js'
 import {
   assertNoTripwire,
+  checkBudgetsClear,
+  checkSubmissionShape,
   checkSubmitterScope,
   checkTodosComplete,
   runGateChain,
@@ -17,7 +19,7 @@ function ctx(): ToolContext {
   return { toolCallId: 'c1', toolName: 'task.submit', clock: frozenClock(0), signal: new AbortController().signal }
 }
 
-describe('runGateChain', () => {
+describe('runGateChain [F:agents.gates.runGateChain] [F:agents.gates.checkTodosComplete] [F:agents.gates.checkSubmitterScope]', () => {
   it('rejects incomplete todos, bad shape, tripped budgets, child submitters', () => {
     expect(
       runGateChain({
@@ -88,7 +90,21 @@ describe('runGateChain', () => {
   })
 })
 
-describe('assertNoTripwire', () => {
+describe('checkSubmissionShape [F:agents.gates.checkSubmissionShape]', () => {
+  it('passes a non-empty summary and flags a blank one', () => {
+    expect(checkSubmissionShape({ summary: 'TEST done' })).toEqual([])
+    expect(checkSubmissionShape({ summary: '   ' })).toEqual(['submit needs a non-empty summary'])
+  })
+})
+
+describe('checkBudgetsClear [F:agents.gates.checkBudgetsClear]', () => {
+  it('passes clear budgets and names tripped ones', () => {
+    expect(checkBudgetsClear([])).toEqual([])
+    expect(checkBudgetsClear(['tokens'])).toEqual(['budgets tripped: tokens'])
+  })
+})
+
+describe('assertNoTripwire [F:agents.gates.assertNoTripwire] [F:agents.gates.TripwireError]', () => {
   it('halts on empty results and open blockers with typed errors', () => {
     expect(() => assertNoTripwire({ summary: '', detail: '' }, 0)).toThrow(TripwireError)
     try {
@@ -103,7 +119,7 @@ describe('assertNoTripwire', () => {
   })
 })
 
-describe('runRubric', () => {
+describe('runRubric [F:agents.gates.runRubric]', () => {
   it('returns satisfied immediately and fails after max iterations', async () => {
     const quick = await runRubric(() => Promise.resolve('satisfied' as const), 3)
     expect(quick).toEqual({ verdict: 'satisfied', iterations: 1 })
@@ -120,7 +136,7 @@ describe('runRubric', () => {
   })
 })
 
-describe('runPreflight', () => {
+describe('runPreflight [F:agents.preflight.runPreflight] [F:agents.preflight.freezeBrief]', () => {
   function input() {
     return {
       scope: 'deep research acme',

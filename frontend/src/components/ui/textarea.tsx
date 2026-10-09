@@ -3,8 +3,9 @@
 // disabled, and invalid styling plus label connection via native props.
 import * as React from 'react'
 import { cn } from '@/lib/utils'
+import { focusRingInput } from '@/lib/interaction'
 
-export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   invalid?: boolean
 }
 
@@ -17,7 +18,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         data-slot="textarea"
         aria-invalid={invalid || props['aria-invalid']}
         className={cn(
-          'min-h-10 w-full min-w-0 rounded-md border border-input bg-surface-sunken px-3 py-2 text-base transition-colors duration-120 ease-out-soft outline-none placeholder:text-foreground-subtle focus-visible:border-ring focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-ring/30 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive md:text-sm',
+          `min-h-10 w-full min-w-0 rounded-md border border-input bg-surface-sunken px-3 py-2 text-base transition-colors duration-120 ease-out-soft ${focusRingInput} placeholder:text-foreground-subtle disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive md:text-sm`,
           className,
         )}
         {...props}

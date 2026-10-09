@@ -1,11 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import { appendEvent, getSession, type Db } from './events.js'
+import { appendEvent, type Db } from './events.js'
+import { getSession } from './sessions.js'
 import { DbContractError,WorkspaceError } from './errors.js'
 import type { TransactableDb } from './checkpoints.js'
 import { workspaceTransaction } from './workspace.js'
-import type { TurnContinuation } from './workspace.js'
+import type { ChatMessage, PendingProviderResponse, RecoveryOperation, Usage } from '@kardata/agents'
 import { createHash } from 'node:crypto'
+
+export interface TurnContinuation { user: string; messages: ChatMessage[]; runKey: string; sources: Array<{ url: string; key: string; hash: string }>; meta: { round: number; usage: Usage; toolCalls: number; elapsedMs: number; blockedOperations?: RecoveryOperation[]; pendingResponse?: PendingProviderResponse } }
 
 const Id = z.string().min(1).max(512)
 export interface ExecutionIntentInput { workflowId: string; threadKey: string; sessionId: string; requestKey: string }

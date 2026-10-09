@@ -55,7 +55,7 @@ async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-describe.skipIf(!LIVE)('fleet load runs (N subagents, real outputs)', () => {
+describe.skipIf(!LIVE)('fleet load runs (N subagents, real outputs) [F:backend.activity.turn.appendEventActivity] [F:backend.activity.turn.karbotTurnActivity] [F:backend.workflow.subagents.delegateParent] [F:backend.activity.coordinator.prepareExecutionIntentActivity] [F:backend.activity.coordinator.settlePreparedExecutionIntentActivity] [F:backend.activity.execution_epochs.originalRecoveryReadyActivity] [F:backend.activity.execution_epochs.prepareExecutionIntentActivity] [F:backend.activity.execution_epochs.settlePreparedExecutionIntentActivity] [F:backend.workflow.epoch_start.withPreparedExecution] [F:backend.workflow.subagents.DEFAULT_CHILD_FINISH_TIMEOUT_MS] [F:backend.workflow.subagents.DEFAULT_MAX_IN_FLIGHT_CHILDREN] [F:backend.workflow.subagents.DEFAULT_PARENT_IDLE_TIMEOUT_MS] [F:backend.workflow.subagents.childCanDelegateQuery] [F:backend.workflow.subagents.childCancelSignal] [F:backend.workflow.subagents.childFinishSignal] [F:backend.workflow.subagents.childMessageSignal] [F:backend.workflow.subagents.childRedirectSignal] [F:backend.workflow.subagents.childStateQuery] [F:backend.workflow.subagents.childSummaryQuery] [F:backend.workflow.subagents.parentDelegateSignal] [F:backend.workflow.subagents.parentFinishSignal] [F:backend.workflow.subagents.parentNoteDoneSignal] [F:backend.workflow.subagents.parentRecoverSignal] [F:backend.workflow.subagents.parentStateQuery] [F:backend.workflow.subagents.parentSteerSignal] [F:backend.workflow.subagents.DEFAULT_MAX_QUEUED_CHILDREN] [F:db.index.appendEvent] [F:db.index.createSector] [F:db.index.markCompanyFound] [F:db.index.readPartition] [F:db.index.setCompanyStage] [F:db.sectors.createSector] [F:db.sectors.markCompanyFound] [F:db.events.readPartition] [F:db.events.appendEvent] [F:db.sectors.setCompanyStage] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.context_files.assertThreadFileContext] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.errors.WorkspaceError] [F:db.execution_epochs.readActiveExecutionIdentity] [F:db.index.Db] [F:db.workspace.WorkspaceError] [F:db.workspace_threads.recordContextMeasurement] [F:db.workspace.requireSector] [F:db.workspace.requireThread]', () => {
   let connection: NativeConnection
   let client: WorkflowClient
   let url = ''
@@ -298,7 +298,17 @@ describe.skipIf(!LIVE)('fleet load runs (N subagents, real outputs)', () => {
     await runLeg({ leg: 'hundred', children: 100, stage: 'Final validation', timeoutMs: 2_700_000 })
   }, 2_760_000)
 
+  // Coverage instrumentation slows the serial 1000-child finish loop
+  // past 26 min (children done at ~1430 s, 1000/1000), so only then
+  // does the ceiling rise to the hundred leg's 2.76M; every other mode
+  // keeps 26 min. The signal is config-stamped worker env (vitest
+  // workers see no argv flag and no __coverage__ global); the global
+  // stays as a backstop for instrumenting runners that set it.
+  const coverageActive =
+    process.env['KARDATA_COVERAGE_ACTIVE'] === '1' ||
+    typeof (globalThis as { __coverage__?: unknown }).__coverage__ !== 'undefined'
+  const thousandTimeoutMs = coverageActive ? 2_760_000 : 1_560_000
   it('runs 1000 subagents to indexed discovery artifacts', async () => {
     await runLeg({ leg: 'thousand', children: 1000, stage: 'Deep research', timeoutMs: 1_500_000 })
-  }, 1_560_000)
+  }, thousandTimeoutMs)
 })

@@ -5,3 +5,4 @@
 export * from './run.js'
 export * from './subagents.js'
 export { companyResearch } from './coordinator.js'
+export * from './monitor.js'

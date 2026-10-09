@@ -19,7 +19,7 @@ if (typeof window !== 'undefined' && !('ResizeObserver' in window)) {
 }
 import { AssistantRuntimeAdapter } from '@/components/chat/AssistantRuntimeAdapter'
 import { toThreadMessages } from '@/components/chat/assistantAdapter'
-import type { ChatMessage } from '@/components/ChatPanel'
+import type { ChatMessage } from '@/components/chat/messages'
 
 const settled: ChatMessage[] = [
   { id: 'm:1', kind: 'text', role: 'user', text: 'Find worthy problems' },

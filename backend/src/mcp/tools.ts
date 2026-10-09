@@ -1,144 +1,26 @@
-import { agentHistoryBoundary, ContextFileBlocked, recordThreadFileExposure, assertThreadFileContext, validateFileRefs } from '../db/context-files.js'
-import { assertGlobalFileContext, sessionKind } from '../db/workspace.js'
+import { ContextFileBlocked, assertThreadFileContext } from '../db/context-files.js'
 // MCP tool bindings (Phase 2). Each tool wires one semantic operation
 // from the binding table in documentation/db.md — the server adds
 // auth, transport, and tool schemas, never SQL. Projector-only
 // publishOutboxFrame/runCheckpointTx are intentionally absent.
 import { McpServer } from '@modelcontextprotocol/server'
-import type { Logger } from 'pino'
 import { z } from 'zod'
-import type { Role, Scope } from '../auth/keys.js'
+import type { Role } from '../auth/keys.js'
 import { roleLevelAtLeast } from '../auth/keys.js'
 import { childLogger, logOp } from '../observability/logging.js'
 
 /** Role ladder lives in auth/keys.ts (viewer < operator < approver). */
 import {
-  appendEvent,
-  readGlobalContext, proposeGlobalContext, readThreadContext, listSectorLibrary, proposeFileContext, requireThread, WorkspaceError, commitChildContext,
-  checkRate,
-  claimIdempotency,
-  completeIdempotency,
-  createArtifact,
-  createSector,
-  createSession,
+  requireThread, WorkspaceError,
   DbContractError,
-  findEventByKey,
-  findKeyByHash,
-  findLaunchParentWorkflowId,
-  fleetTotals,
-  getLedgerCompany,
-  getSector,
   getSession,
-  getThread,
-  latestOutboxSeq,
-  listLedgerCompanies,
-  listLedgerProblems,
-  listArtifacts,
-  listCompanies,
-  listHeartbeats,
-  listSectorCompanies,
-  listSectorDocuments,
-  listSectorSessions,
-  listSectors,
-  listSessions,
-  listTenantArtifacts,
-  listThreadHeaders,
-  markCompanyFound,
-  projectBatch,
-  projectUsage,
-  querySectorDocument,
-  readEventsAfter,
-  readOutboxBacklog,
-  readPartition,
-  readResearchProgress,
-  readSectorDocument,
-  readSectorPlan,
-  readSectorThread,
-  recordHeartbeat,
-  recordLedgerProblem,
-  deleteSession,
-  renameSession,
-  researchHealth,
-  searchKb,
-  referenceArtifact,
-  releaseIdempotency,
-  pauseSectorSweep,
-  resolveArtifactScope,
-  buildInheritedContext,
-  saveInheritedContext,
-  resumeSectorSweep,
-  cancelThreadRun,
-  pauseThreadRun,
-  resumeThreadRun,
-  runTotals,
-  sectorActivity,
-  sendThreadMessage,
-  steerThread,
-  SectorTransitionError,
-  setCompanyStage,
-  setCompanyState,
-  SectorStartError,
-  setSectorState,
-  startSectorResearch,
-  type SectorSweepRunner,
-  subscribeOutbox,
-  type ThreadMessenger,
-  type TransactableDb,
-  upsertLedgerCompany,
-  updateSectorPlan,
+  sessionKind,
 } from '../db/index.js'
-import { RunNotFound, ThreadNotAccepting, type SubagentDelegator } from '../temporal/gateway.js'
 import { TOOL_NAMES, TOOL_SCHEMAS, type McpToolName } from './schemas.js'
-import {
-  pooledBrowserAct,
-  pooledBrowserClose,
-  pooledBrowserNavigate,
-  pooledBrowserScreenshot,
-  pooledBrowserSnapshot,
-  pooledWebFetch,
-  pooledWebSearch,
-} from '../browserPool/facade.js'
-import type { BrowserAct } from '../retrieval/browser.js'
-import { RetrievalError } from '../retrieval/web.js'
-import type { ArchiveTarget } from '../archive/targets.js'
-import { attachSectorDocument, isPdfDocumentUpload, type FileProcessorRunner } from '../file-ingestion.js'
+import { isPdfDocumentUpload } from '../file-ingestion.js'
 
-type BrowserActArgs = BrowserAct
-
-export interface McpToolContext {
-  /** Trusted file-processing capability; PDF attachment fails before effects
-   * when absent. Model arguments cannot install a runner or choose authority. */
-  fileProcessor?: FileProcessorRunner
-  runReader?: { getRun(runId: string): Promise<{ sessionId: string; threadKey: string } | null> }
-  executionThread?: string
-  pool: TransactableDb
-  scope: Scope | undefined
-  role: Role
-  /** Caller key id: idempotency keys are namespaced per caller, matching
-   * the HTTP withIdempotency `${keyId}:${key}` convention. */
-  keyId: string
-  /** Sweep runner for research-start tools. Absent (tests, minimal embeds):
-   * start tools fail closed instead of half-starting a sector. */
-  runs?: SectorSweepRunner
-  /** Subagent delegator for the delegation door. Absent: delegate calls
-   * fail closed instead of half-launching a child. */
-  delegator?: SubagentDelegator
-  /** Thread messenger (runs gateway) for Karbot steering tools. Absent
-   * outside the server: send/steer fail closed instead of half-signaling. */
-  messenger?: ThreadMessenger
-  /** Archive target for file body storage. Absent: the layer resolves its
-   * default (filesystem dev target, GCS when configured). */
-  archive?: ArchiveTarget
-  /** Optional join-key logger. When present every tool execution emits the
-   * start/done/error triple (op tool.call, tool name, latencyMs, outcome)
-   * so cross-module calls always leave evidence. Absent in unit tests. */
-  logger?: Logger
-}
-
-/** Ownership is derived only from validated server context, never tool arguments. */
-function browserCaller(ctx: McpToolContext): string {
-  return JSON.stringify([ctx.scope?.tenantId ?? null, ctx.scope?.projectId ?? null, ctx.keyId, ctx.executionThread ?? null])
-}
+import { INVOKERS } from './tool-invokers.js'
+import { McpPreconditionError, McpToolError, type McpToolContext, type ToolGrant } from './tools-types.js'
 
 /** Layer function behind each tool; the parity test pins this table. */
 export const TOOL_LAYER: Record<McpToolName, string> = {
@@ -220,6 +102,25 @@ export const TOOL_LAYER: Record<McpToolName, string> = {
   'db.ledger_list_companies': 'listLedgerCompanies',
   'db.ledger_record_problem': 'recordLedgerProblem',
   'db.ledger_list_problems': 'listLedgerProblems',
+  'ops.list_runs': 'listThreadRuns',
+  'ops.get_run': 'getThreadRun',
+  'ops.thread_queue': 'listThreadQueue',
+  'ops.queue_remove': 'removeThreadQueueItem',
+  'ops.queue_reorder': 'reorderThreadQueue',
+  'ops.list_alerts': 'listSupervisionAlerts',
+  'ops.thread_health': 'threadHealth',
+  'ops.cost': 'readThreadCost+readSectorCost',
+  'ops.sector_evaluation': 'readSectorEvaluation',
+  'ops.recent_activity': 'recentActivity',
+  'ops.pause_run': 'pauseThreadRun',
+  'ops.resume_run': 'resumeThreadRun',
+  'ops.cancel_run': 'cancelThreadRun',
+  'ops.spawn_subagent': 'delegateSubagent',
+  'ops.restart_sector_research': 'restartSectorSweep',
+  'db.request_plan': 'sendThreadMessage',
+  'ops.start_monitor': 'startMonitor',
+  'ops.stop_monitor': 'stopMonitor',
+  'ops.list_monitors': 'listMonitors',
 }
 
 /** Capability tier: read (viewer), write (operator), sensitive (approver
@@ -250,6 +151,13 @@ const SENSITIVE_TOOLS: ReadonlySet<McpToolName> = new Set([
   'db.send_message',
   'db.steer_thread',
   'db.resume_run',
+  // Queue surgery drops or reorders someone else's queued turns: the
+  // same side-effect class as steering, never a quiet write.
+  'ops.queue_remove',
+  'ops.queue_reorder',
+  'ops.resume_run',
+  // A plan instruction moves the research turn: steer-class, like send.
+  'db.request_plan',
 ])
 
 export function toolCapability(name: McpToolName): ToolCapability {
@@ -347,419 +255,25 @@ export const TOOL_META: Record<McpToolName, { description: string; minRole: Role
   'db.ledger_list_companies': { description: 'List master-ledger companies with qualification/sector/query filters.', minRole: 'viewer' },
   'db.ledger_record_problem': { description: 'Append one researched problem to a ledger company (call per problem).', minRole: 'operator' },
   'db.ledger_list_problems': { description: 'List every researched problem for one ledger company.', minRole: 'viewer' },
-}
-
-type SchemaMap = typeof TOOL_SCHEMAS
-type Invokers = {
-  [K in McpToolName]: (ctx: McpToolContext, args: z.output<SchemaMap[K]>) => Promise<unknown>
-}
-
-/** Namespace a caller-supplied idempotency key to the calling key, so one
- * MCP caller can never claim, complete, or release another caller's key. */
-function scopedIdempotencyKey(ctx: McpToolContext, key: string): string {
-  return `${ctx.keyId}:${key}`
-}
-
-async function workspaceIdentity(ctx: McpToolContext) {
-  if (!ctx.executionThread) throw new McpToolError('permission_denied', 'Verified execution context is required.')
-  const identity = await requireThread(ctx.pool, ctx.executionThread, ctx.scope)
-  if (!identity.session.sectorId) throw new McpToolError('permission_denied', 'A sector conversation is required.')
-  return { sectorId: identity.session.sectorId, threadKey: ctx.executionThread }
-}
-
-const INVOKERS: Invokers = {
-  'db.commit_child_context': async (ctx, args) => { const identity = await workspaceIdentity(ctx); await assertThreadFileContext(ctx.pool, identity.threadKey, ctx.scope); return commitChildContext(ctx.pool, identity.threadKey, args.proposalId, ctx.scope) },
-  'db.get_global_context': async (ctx, args) => {
-    const actor = ctx.executionThread ? await requireThread(ctx.pool, ctx.executionThread, ctx.scope) : undefined
-    const sectorId = actor?.session.sectorId ?? args.sectorId
-    if (!sectorId) throw new McpToolError('validation_failed', 'Specify sectorId outside a sector conversation.')
-    if (actor?.session.sectorId && args.sectorId && args.sectorId !== actor.session.sectorId) throw new McpToolError('permission_denied', 'This execution is bound to another sector.')
-    await assertGlobalFileContext(ctx.pool, sectorId, ctx.scope)
-    const context = await readGlobalContext(ctx.pool, sectorId, ctx.scope)
-    const parent = actor?.thread.kind === 'session' && actor.session.id === context.researchSessionId
-    const visibleChanges = []
-    for (const change of context.changes.filter((change) => (change.sourceRefs !== undefined || change.fileRef !== null) && actor && (change.sourceThread === ctx.executionThread || (parent && change.state === 'parent-review')))) {
-      try { if (change.sourceRefs?.length) await validateFileRefs(ctx.pool, sectorId, change.sourceRefs, ctx.scope); visibleChanges.push(change) }
-      catch (error) { if (!(error instanceof ContextFileBlocked)) throw error }
-    }
-    return { ...context, changes: visibleChanges }
-
-  },
-  'db.propose_global_context': async (ctx, args) => {
-    const identity = await workspaceIdentity(ctx)
-    await assertThreadFileContext(ctx.pool, identity.threadKey, ctx.scope)
-    return proposeGlobalContext(ctx.pool, { ...args, sectorId: identity.sectorId, sourceThread: identity.threadKey, owner: false, trustedResearch: true, scope: ctx.scope, id: `${identity.sectorId}:${scopedIdempotencyKey(ctx, args.idempotencyKey)}` })
-  },
-  'db.list_sector_files': async (ctx) => {
-    const identity = await workspaceIdentity(ctx)
-    return (await listSectorLibrary(ctx.pool, identity.sectorId, ctx.scope)).filter((file) => !file.hidden)
-  },
-  'db.propose_file_context': async (ctx, args) => {
-    const identity = await workspaceIdentity(ctx)
-    return proposeFileContext(ctx.pool, { ...args, sectorId: identity.sectorId, sourceThread: identity.threadKey, scope: ctx.scope })
-  },
-  'db.get_local_context': async (ctx) => {
-    if (!ctx.executionThread) throw new McpToolError('permission_denied', 'Verified execution context is required.')
-    await assertThreadFileContext(ctx.pool, ctx.executionThread, ctx.scope)
-    const local = await readThreadContext(ctx.pool, ctx.executionThread, ctx.scope)
-    const { task: _ownerTask, ...agentLocal } = local
-    return agentLocal
-  },
-  // Approval verdicts flow only through POST /v1/commands/approve (approver
-  // floor): an operator caller must not forge t.approval.* events here.
-  'db.append_event': (ctx, args) => {
-    if (args.type.startsWith('t.approval.')) {
-      throw new McpToolError('permission_denied', `db.append_event cannot write ${args.type}; use the approve command`)
-    }
-    return appendEvent(ctx.pool, args)
-  },
-  'db.read_partition': (ctx, args) => readPartition(ctx.pool, args.partition, args.afterSeq ?? 0),
-  'db.find_event': (ctx, args) => findEventByKey(ctx.pool, args.idempotencyKey),
-  'db.read_events_after': (ctx, args) => readEventsAfter(ctx.pool, args.fromSeq, args.limit),
-  'db.create_session': (ctx, args) => createSession(ctx.pool, args.title, ctx.scope),
-  'db.rename_session': async (ctx, args) => {
-    const record = await renameSession(ctx.pool, args.sessionId, args.title, ctx.scope)
-    if (!record) throw new DbContractError(`unknown session ${args.sessionId}`)
-    return record
-  },
-  'db.delete_session': async (ctx, args) => {
-    const deleted = await deleteSession(ctx.pool, args.sessionId, ctx.scope)
-    if (!deleted) throw new DbContractError(`unknown session ${args.sessionId}`)
-    return { sessionId: args.sessionId, deleted: true }
-  },
-  'db.get_session': (ctx, args) => getSession(ctx.pool, args.sessionId, ctx.scope),
-  'db.list_sessions': (ctx, args) => listSessions(ctx.pool, ctx.scope, args.sectorId),
-  'db.list_sectors': async (ctx, args) => {
-    const rows = await listSectors(ctx.pool, ctx.scope, args)
-    if (!ctx.executionThread) return rows
-    const actor = await requireThread(ctx.pool, ctx.executionThread, ctx.scope)
-    return actor.session.sectorId ? rows.filter((sector) => sector.id === actor.session.sectorId) : rows
-  },
-  'db.get_sector': (ctx, args) => getSector(ctx.pool, args.sectorId, ctx.scope),
-  'db.list_companies': (ctx, args) =>
-    listCompanies(ctx.pool, ctx.scope, args, { limit: args.limit, offset: args.offset }),
-  'db.list_sector_companies': (ctx, args) =>
-    listSectorCompanies(ctx.pool, args.sectorId, ctx.scope, { state: args.state, query: args.query }, { limit: args.limit, offset: args.offset }),
-  'db.sector_activity': (ctx, args) =>
-    sectorActivity(ctx.pool, args.sectorId, ctx.scope, { limit: args.limit, offset: args.offset }),
-  'db.create_sector': (ctx, args) =>
-    createSector(ctx.pool, {
-      name: args.name,
-      topic: args.topic,
-      sectorId: args.sectorId,
-      idempotencyKey: args.idempotencyKey,
-      initialState: args.state,
-      scope: ctx.scope,
-    }),
-  'db.attach_sector_document': (ctx, args) =>
-    attachSectorDocument(ctx.pool, { sectorId: args.sectorId, filename: args.filename, contentBase64: args.contentBase64, scope: ctx.scope, archive: ctx.archive, fileProcessor: ctx.fileProcessor, sourceThread: ctx.executionThread, logger: ctx.logger }),
-  'db.list_sector_documents': (ctx, args) => listSectorDocuments(ctx.pool, args.sectorId, ctx.scope),
-  'db.read_sector_document': async (ctx, args) => {
-    const result = await readSectorDocument(ctx.pool, args.sectorId, args.documentId, ctx.scope)
-    if (ctx.executionThread && result.text) await recordThreadFileExposure(ctx.pool, ctx.executionThread, args.sectorId, args.documentId, undefined, ctx.scope, result.sha256)
-    return result
-  },
-  'db.query_document': async (ctx, args) => {
-    const identity = ctx.executionThread ? await requireThread(ctx.pool, ctx.executionThread, ctx.scope) : undefined
-    const sourceSector = args.sectorId ?? identity?.session.sectorId
-    const source = sourceSector ? await readSectorDocument(ctx.pool, sourceSector, args.documentId, ctx.scope) : undefined
-    const result = await querySectorDocument(ctx.pool, {
-      documentId: args.documentId,
-      ...(args.sectorId === undefined ? {} : { sectorId: args.sectorId }),
-      ...(args.mode === undefined ? {} : { mode: args.mode }),
-      ...(args.query === undefined ? {} : { query: args.query }),
-      ...(args.ords === undefined ? {} : { ords: args.ords }),
-      scope: ctx.scope,
-    })
-    if (ctx.executionThread && source?.text) { const identity = await requireThread(ctx.pool, ctx.executionThread, ctx.scope); const sectorId = args.sectorId ?? identity.session.sectorId; if (!sectorId || !source) throw new McpToolError('permission_denied', 'Specify sectorId to retain the file source scope.'); await recordThreadFileExposure(ctx.pool, ctx.executionThread, sectorId, args.documentId, 'units' in result ? result.units.map((unit) => unit.ord) : undefined, ctx.scope, source.sha256) }
-    return result
-  },
-  'db.set_sector_state': (ctx, args) =>
-    setSectorState(ctx.pool, args.sectorId, args.state, { scope: ctx.scope, idempotencyKey: args.idempotencyKey }).then(() => ({ ok: true })),
-  'db.start_sector_research': async (ctx, args) => {
-    const key = args.idempotencyKey ? `sector-start:${args.sectorId}:${ctx.keyId}:${args.idempotencyKey}` : undefined
-    try {
-      return await startSectorResearch(ctx.pool, ctx.runs, args.sectorId, ctx.scope, key, args.sessionId)
-    } catch (error: unknown) {
-      if (error instanceof SectorStartError) throw new DbContractError(`${error.failure}: ${error.message}`)
-      throw error
-    }
-  },
-  'db.pause_sector_research': async (ctx, args) => {
-    const key = args.idempotencyKey ? `sector-pause:${args.sectorId}:${ctx.keyId}:${args.idempotencyKey}` : undefined
-    try {
-      // Same lifecycle as the route: halt the run before recording paused.
-      // Without a sweep runner this fails closed instead of relabeling.
-      return await pauseSectorSweep(ctx.pool, ctx.runs, args.sectorId, ctx.scope, key)
-    } catch (error: unknown) {
-      if (error instanceof SectorTransitionError) throw new DbContractError(`${error.failure}: ${error.message}`)
-      throw error
-    }
-  },
-  'db.resume_sector_research': async (ctx, args) => {
-    const key = args.idempotencyKey ? `sector-resume:${args.sectorId}:${ctx.keyId}:${args.idempotencyKey}` : undefined
-    try {
-      return await resumeSectorSweep(ctx.pool, ctx.runs, args.sectorId, ctx.scope, key)
-    } catch (error: unknown) {
-      if (error instanceof SectorTransitionError) throw new DbContractError(`${error.failure}: ${error.message}`)
-      throw error
-    }
-  },
-  'db.mark_company_found': (ctx, args) =>
-    markCompanyFound(ctx.pool, {
-      sectorId: args.sectorId,
-      name: args.name,
-      stage: args.stage,
-      state: args.state,
-      companyId: args.companyId,
-      idempotencyKey: args.idempotencyKey,
-      scope: ctx.scope,
-    }),
-  'db.set_company_stage': (ctx, args) =>
-    setCompanyStage(ctx.pool, args.companyId, args.stage, { scope: ctx.scope, idempotencyKey: args.idempotencyKey }).then(() => ({ ok: true })),
-  'db.set_company_state': (ctx, args) =>
-    setCompanyState(ctx.pool, args.companyId, args.state, { scope: ctx.scope, idempotencyKey: args.idempotencyKey }).then(() => ({ ok: true })),
-  'db.list_artifacts': (ctx, args) => listArtifacts(ctx.pool, args.sessionId),
-  // Session files: bytes land in the request archive target when the
-  // server provides one, else the layer's resolved default.
-  'db.create_artifact': (ctx, args) =>
-    createArtifact(
-      ctx.pool,
-      {
-        sessionId: args.sessionId,
-        name: args.name,
-        content: args.content,
-        ...(args.kind === undefined ? {} : { kind: args.kind }),
-        ...(args.detail === undefined ? {} : { detail: args.detail }),
-        ...(args.reason === undefined ? {} : { reason: args.reason }),
-        scope: ctx.scope,
-        producedBy: ctx.executionThread,
-      },
-      ctx.archive,
-    ),
-  'db.reference_artifact': (ctx, args) =>
-    referenceArtifact(ctx.pool, { artifactId: args.artifactId, fromScope: args.fromScope, toSessionId: args.toSessionId, scope: ctx.scope }, ctx.archive),
-  'db.resolve_artifact_scope': (ctx, args) => resolveArtifactScope(ctx.pool, args.sessionId, args.artifactId),
-  'db.list_tenant_artifacts': (ctx, args) => {
-    const scope = ctx.scope ?? (args.tenantId === undefined
-      ? undefined
-      : { tenantId: args.tenantId, projectId: args.projectId ?? null })
-    if (!scope) throw new DbContractError('tenant scope required: sign in or pass tenantId')
-    return listTenantArtifacts(ctx.pool, scope)
-  },
-  'db.find_launch_parent': (ctx, args) => findLaunchParentWorkflowId(ctx.pool, args.childId),
-  'db.get_thread': async (ctx, args) => {
-    let target = await getThread(ctx.pool, args.threadKey)
-    if (target && ctx.executionThread) { const boundary = await agentHistoryBoundary(ctx.pool, args.threadKey); target = { ...target, messages: target.messages.filter((message) => message.seq > boundary.coveredSeq) } }
-    if (!target || !ctx.executionThread || args.threadKey === ctx.executionThread) return target
-    const actor = await requireThread(ctx.pool, ctx.executionThread, ctx.scope)
-    if (actor.session.sectorId && target.kind === 'subagent') {
-      const reply = [...target.messages].reverse().find((message) => typeof message.payload === 'object' && message.payload !== null && 'role' in message.payload && message.payload.role === 'agent')
-      return { ...target, messages: reply && target.status === 'FINISHED' ? [reply] : [] }
-    }
-    return target
-  },
-  'db.get_sector_plan': async (ctx) => {
-    const identity = await workspaceIdentity(ctx)
-    return readSectorPlan(ctx.pool, identity.sectorId, ctx.scope)
-  },
-  'db.get_research_progress': async (ctx) => {
-    const identity = await workspaceIdentity(ctx)
-    return readResearchProgress(ctx.pool, identity.sectorId, ctx.scope)
-  },
-  'db.list_sector_sessions': async (ctx) => {
-    const identity = await workspaceIdentity(ctx)
-    return listSectorSessions(ctx.pool, identity.sectorId, ctx.scope)
-  },
-  'db.read_sector_thread': async (ctx, args) => {
-    await workspaceIdentity(ctx)
-    return readSectorThread(ctx.pool, args.threadKey, { fromSeq: args.fromSeq, limit: args.limit })
-  },
-  'db.list_threads': (ctx, args) => listThreadHeaders(ctx.pool, args.sessionId),
-  'db.send_message': async (ctx, args) => {
-    try {
-      return await sendThreadMessage(ctx.messenger, args.threadKey, args.text)
-    } catch (error: unknown) {
-      if (error instanceof RunNotFound) throw new McpToolError('not_found', error.message)
-      if (error instanceof ThreadNotAccepting) throw new McpToolError('conflict', error.message)
-      throw error
-    }
-  },
-  'db.steer_thread': async (ctx, args) => {
-    try {
-      return await steerThread(ctx.messenger, args.threadKey, args.text)
-    } catch (error: unknown) {
-      if (error instanceof RunNotFound) throw new McpToolError('not_found', error.message)
-      if (error instanceof ThreadNotAccepting) throw new McpToolError('conflict', error.message)
-      throw error
-    }
-  },
-  'db.pause_run': async (ctx, args) => {
-    try {
-      return await pauseThreadRun(ctx.messenger, args.runId)
-    } catch (error: unknown) {
-      if (error instanceof RunNotFound) throw new McpToolError('not_found', error.message)
-      if (error instanceof ThreadNotAccepting) throw new McpToolError('conflict', error.message)
-      throw error
-    }
-  },
-  'db.resume_run': async (ctx, args) => {
-    try {
-      return await resumeThreadRun(ctx.messenger, args.runId, args.extendedBudgetMs)
-    } catch (error: unknown) {
-      if (error instanceof RunNotFound) throw new McpToolError('not_found', error.message)
-      if (error instanceof ThreadNotAccepting) throw new McpToolError('conflict', error.message)
-      throw error
-    }
-  },
-  'db.cancel_run': async (ctx, args) => {
-    try {
-      return await cancelThreadRun(ctx.messenger, args.runId)
-    } catch (error: unknown) {
-      if (error instanceof RunNotFound) throw new McpToolError('not_found', error.message)
-      if (error instanceof ThreadNotAccepting) throw new McpToolError('conflict', error.message)
-      throw error
-    }
-  },
-  'db.research_health': (ctx, args) => researchHealth(ctx.pool, args.sectorId, ctx.scope),
-  'db.project_batch': (ctx, args) => projectBatch(ctx.pool, args.events),
-  'db.record_heartbeat': (ctx, args) =>
-    recordHeartbeat(ctx.pool, args.runId, args.op, args.busy, args.nowMs ?? Date.now()).then(() => ({ ok: true })),
-  'db.list_heartbeats': (ctx) => listHeartbeats(ctx.pool),
-  'db.read_outbox': async (ctx, args) => {
-    const boundary = ctx.executionThread ? await agentHistoryBoundary(ctx.pool, args.threadKey) : { outboxAfter: 0 }
-    const afterSeq = Math.max(args.afterSeq ?? 0, boundary.outboxAfter)
-    const [frames, latestSeq] = await Promise.all([
-      readOutboxBacklog(ctx.pool, args.threadKey, afterSeq, args.limit),
-      latestOutboxSeq(ctx.pool, args.threadKey),
-    ])
-    return { frames, latestSeq }
-  },
-  'db.subscribe_outbox': async (ctx, args) => {
-    const timeoutMs = args.timeoutMs ?? 1000
-    const subscription = await subscribeOutbox(ctx.pool)
-    try {
-      const payload = await new Promise<string | undefined>((resolve, reject) => {
-        const timer = setTimeout(() => resolve(undefined), timeoutMs)
-        subscription.onError((error) => {
-          clearTimeout(timer)
-          reject(error)
-        })
-        subscription.onNotification((next) => {
-          clearTimeout(timer)
-          resolve(next)
-        })
-      })
-      return { notified: payload !== undefined, payload: payload ?? null }
-    } finally {
-      await subscription.close()
-    }
-  },
-  'db.project_usage': (ctx, args) => projectUsage(ctx.pool, args.events),
-  'db.run_totals': (ctx, args) => runTotals(ctx.pool, args.runId),
-  'db.fleet_totals': (ctx) => fleetTotals(ctx.pool),
-  'db.find_key': (ctx, args) => findKeyByHash(ctx.pool, args.keyHash),
-  'db.check_rate': (ctx, args) => checkRate(ctx.pool, args.bucket, args.limitPerMin, args.nowMs ?? Date.now()),
-  'db.claim_idempotency': (ctx, args) => claimIdempotency(ctx.pool, scopedIdempotencyKey(ctx, args.key), args.fingerprint),
-  'db.complete_idempotency': (ctx, args) =>
-    completeIdempotency(ctx.pool, scopedIdempotencyKey(ctx, args.key), args.status, args.body ?? null).then(() => ({ ok: true })),
-  'db.release_idempotency': (ctx, args) =>
-    releaseIdempotency(ctx.pool, scopedIdempotencyKey(ctx, args.key)).then(() => ({ ok: true })),
-  'db.kb_search': (ctx, args) => searchKb(ctx.pool, args.query, args.limit ?? 5),
-  // Brainstorm edits: versioned, planned-or-approved only, fail-closed
-  // without or outside those states (never a silent overwrite).
-  'db.update_sector_plan': async (ctx, args) => {
-    const key = args.idempotencyKey ? `${ctx.keyId}:${args.idempotencyKey}` : undefined
-    try {
-      return await updateSectorPlan(ctx.pool, args.sectorId, args.markdown, ctx.scope, key)
-    } catch (error: unknown) {
-      if (error instanceof SectorTransitionError) throw new DbContractError(`${error.failure}: ${error.message}`)
-      throw error
-    }
-  },
-  // Delegation door: the main agent launches leaf researchers by
-  // instruction. Session ownership is verified first (unknown or
-  // out-of-scope sessions never launch); without a delegator the call
-  // fails closed instead of half-launching a child.
-  'db.delegate_subagent': async (ctx, args) => {
-    if (!ctx.delegator) throw new McpPreconditionError('Delegation is unavailable: no subagent delegator attached.')
-    const goal = args.goal.trim()
-    if (!goal) throw new DbContractError('goal must be a non-empty string')
-    const session = await getSession(ctx.pool, args.sessionId, ctx.scope)
-    if (!session) throw new DbContractError(`unknown session ${args.sessionId}`)
-    const parentThread = ctx.executionThread ?? args.sessionId
-    const siblings = (await listThreadHeaders(ctx.pool, args.sessionId)).filter((thread) => thread.kind === 'subagent')
-    return ctx.delegator.delegateSubagent({
-      sessionId: args.sessionId,
-      goal,
-      name: `Subagent ${siblings.length + 1}`,
-      mode: args.mode ?? 'empty',
-      queueCapacity: args.queueCapacity ?? 8,
-      onAccepted: async (childId) => {
-        await saveInheritedContext(ctx.pool, `agent:${childId}`, await buildInheritedContext(ctx.pool, parentThread))
-      },
-    })
-  },
-  // Retrieval tools route through the browser-pool facade (single entry:
-  // bounded 0-16 slots, query/document caches, tiered fallback). Tool
-  // names, schemas, roles, and error codes are unchanged; TOOL_LAYER
-  // still names the underlying layer functions (parity test intact).
-  'web_search': (_ctx, args) =>
-    rethrowRetrieval(pooledWebSearch(process.env, args.query, { count: args.count, page: args.page })),
-  'web_fetch': (_ctx, args) => rethrowRetrieval(pooledWebFetch(args.url)),
-  'browser_navigate': (ctx, args) => rethrowRetrieval(pooledBrowserNavigate(args.url, { caller: browserCaller(ctx), logger: ctx.logger })),
-  'browser_snapshot': (ctx, args) => rethrowRetrieval(pooledBrowserSnapshot(args.sessionId, browserCaller(ctx))),
-  'browser_act': (ctx, args) =>
-    rethrowRetrieval(
-      pooledBrowserAct(args.sessionId, {
-        kind: args.kind,
-        ...(args.selector === undefined ? {} : { selector: args.selector }),
-        ...(args.text === undefined ? {} : { text: args.text }),
-        ...(args.key === undefined ? {} : { key: args.key }),
-        ...(args.direction === undefined ? {} : { direction: args.direction }),
-        ...(args.pixels === undefined ? {} : { pixels: args.pixels }),
-      } as BrowserActArgs, browserCaller(ctx)),
-    ),
-  'browser_close': (ctx, args) => rethrowRetrieval(pooledBrowserClose(args.sessionId, browserCaller(ctx))),
-  'browser_screenshot': (ctx, args) => rethrowRetrieval(pooledBrowserScreenshot(args.sessionId, { fullPage: args.fullPage }, browserCaller(ctx))),
-  'db.ledger_upsert_company': (ctx, args) => upsertLedgerCompany(ctx.pool, args),
-  'db.ledger_get_company': (ctx, args) => getLedgerCompany(ctx.pool, args.companyId),
-  'db.ledger_list_companies': (ctx, args) =>
-    listLedgerCompanies(ctx.pool, { qualification: args.qualification, sector: args.sector, query: args.query }),
-  'db.ledger_record_problem': (ctx, args) => recordLedgerProblem(ctx.pool, args),
-  'db.ledger_list_problems': (ctx, args) => listLedgerProblems(ctx.pool, args.companyId),
-}
-
-/** Tool-level failure: answered as an MCP isError result, never thrown. */
-export class McpToolError extends Error {
-  readonly code: string
-  constructor(code: string, message: string) {
-    super(message)
-    this.code = code
-  }
-}
-
-/** Only explicit pre-dispatch failures may release a mutation replay guard. */
-class McpPreconditionError extends DbContractError {
-  readonly wireCode = 'unconfigured'
-}
-
-/** Retrieval failures become isError text with their own code
- * (unconfigured/blocked/fetch_failed/overload), never a throw. */
-async function rethrowRetrieval<T>(work: Promise<T>): Promise<T> {
-  try {
-    return await work
-  } catch (error) {
-    if (error instanceof RetrievalError) throw new McpToolError(error.code, error.message)
-    throw error
-  }
-}
-
-/** Skill-scoped grant: when present, only the listed tools may run. Skill
- * invocation passes its declared tool set so one skill can never reach
- * another skill's (or sensitive plumbing) tools. */
-export interface ToolGrant {
-  allow?: ReadonlySet<McpToolName>
+  'ops.list_runs': { description: 'List runs fleet-wide with sector/state/kind filters.', minRole: 'viewer' },
+  'ops.get_run': { description: 'Read one run by id.', minRole: 'viewer' },
+  'ops.thread_queue': { description: 'List a thread’s queued messages.', minRole: 'viewer' },
+  'ops.queue_remove': { description: 'Remove one queued message. Sensitive: approver plus user confirmation.', minRole: 'approver' },
+  'ops.queue_reorder': { description: 'Reorder a thread’s queue (ids must match exactly). Sensitive: approver plus user confirmation.', minRole: 'approver' },
+  'ops.list_alerts': { description: 'List supervision alerts, newest first, with an optional sector filter.', minRole: 'viewer' },
+  'ops.thread_health': { description: 'One thread’s liveness snapshot: state, queue, latest round, stalled flag.', minRole: 'viewer' },
+  'ops.cost': { description: 'Token cost for one thread (threadKey) or one sector (sectorId).', minRole: 'viewer' },
+  'ops.sector_evaluation': { description: 'Sector research quality, reliability and cost.', minRole: 'viewer' },
+  'ops.recent_activity': { description: 'Recent rounds, tool calls and events by trace or thread. No bodies or refs.', minRole: 'viewer' },
+  'ops.pause_run': { description: 'Pause any run kind, including company research. Mirrors the route floor: operator.', minRole: 'operator' },
+  'ops.resume_run': { description: 'Resume a paused run. Sensitive: approver plus user confirmation.', minRole: 'approver' },
+  'ops.cancel_run': { description: 'Cancel any run kind, including company research. Mirrors the route floor: operator.', minRole: 'operator' },
+  'ops.spawn_subagent': { description: 'Launch a leaf subagent under one thread’s session, inheriting that thread. Mirrors db.delegate_subagent: operator.', minRole: 'operator' },
+  'ops.restart_sector_research': { description: 'Restart a sector’s research sweep. Mirrors the route floor: operator.', minRole: 'operator' },
+  'db.request_plan': { description: 'Send a plan instruction to a sector’s research session. Karbot never writes the plan. Sensitive: approver plus user confirmation.', minRole: 'approver' },
+  'ops.start_monitor': { description: 'Watch a sector or thread: post the brief plus a health snapshot into this session every 5-120 minutes, until `until` (default 24h). One monitor per target.', minRole: 'operator' },
+  'ops.stop_monitor': { description: 'Stop a monitor by id or target. Already-stopped monitors accept quietly.', minRole: 'operator' },
+  'ops.list_monitors': { description: 'List monitors in scope, newest first.', minRole: 'viewer' },
 }
 
 const preDispatchFailures = new WeakSet<object>()
@@ -790,7 +304,7 @@ export async function invokeTool(
       const where = first ? [...first.path.map(String), first.message].join(': ') : 'invalid input'
       throw new McpToolError('validation_failed', `${name}: ${where}`)
     }
-    if (ctx.scope && ['db.get_thread', 'db.read_sector_thread', 'db.send_message', 'db.steer_thread', 'db.read_outbox'].includes(name)) {
+    if (ctx.scope && ['db.get_thread', 'db.read_sector_thread', 'db.send_message', 'db.steer_thread', 'db.read_outbox', 'ops.thread_queue', 'ops.queue_remove', 'ops.queue_reorder', 'ops.spawn_subagent'].includes(name)) {
       await requireThread(ctx.pool, (parsed.data as { threadKey: string }).threadKey, ctx.scope)
     }
     if (ctx.scope && name === 'db.subscribe_outbox') throw new McpToolError('permission_denied', 'Unattributed fleet notifications are unavailable to scoped callers.')
@@ -806,12 +320,15 @@ export async function invokeTool(
           throw new McpToolError('permission_denied', 'Only the research conversation can change the plan. Suggest the change to the owner instead.')
         }
       }
-      if (['db.get_thread', 'db.read_sector_thread', 'db.read_outbox'].includes(name)) await assertThreadFileContext(ctx.pool, (parsed.data as { threadKey: string }).threadKey, ctx.scope)
-      if (name === 'db.delegate_subagent' && actor.thread.kind === 'subagent') throw new McpToolError('permission_denied', 'Leaf subagents cannot delegate further.')
+      if (['db.get_thread', 'db.read_sector_thread', 'db.read_outbox', 'ops.thread_queue'].includes(name)) await assertThreadFileContext(ctx.pool, (parsed.data as { threadKey: string }).threadKey, ctx.scope)
+      if ((name === 'db.delegate_subagent' || name === 'ops.spawn_subagent') && actor.thread.kind === 'subagent') throw new McpToolError('permission_denied', 'Leaf subagents cannot delegate further.')
+      // Children keep their restrictions: a subagent calling with the
+      // shared worker token must not steer the fleet or the plan.
+      if (actor.thread.kind === 'subagent' && (name === 'db.request_plan' || (name.startsWith('ops.') && toolCapability(name) !== 'read'))) throw new McpToolError('permission_denied', 'Subagents cannot call ops write tools or request plan changes.')
       if (name === 'db.rename_session' && actor.thread.kind === 'subagent') throw new McpToolError('permission_denied', 'Conversation naming belongs to the parent or owner.')
       if (name === 'db.delete_session') throw new McpToolError('permission_denied', 'Conversation deletion requires owner confirmation in the UI.')
       if (name === 'db.set_sector_state') throw new McpToolError('permission_denied', 'Use the approved research lifecycle operations.')
-      if (name === 'db.resume_run' && typeof parsed.data === 'object' && parsed.data !== null && 'extendedBudgetMs' in parsed.data && parsed.data.extendedBudgetMs !== undefined) throw new McpToolError('permission_denied', 'Budget changes require owner approval in the UI.')
+      if ((name === 'db.resume_run' || name === 'ops.resume_run') && typeof parsed.data === 'object' && parsed.data !== null && 'extendedBudgetMs' in parsed.data && parsed.data.extendedBudgetMs !== undefined) throw new McpToolError('permission_denied', 'Budget changes require owner approval in the UI.')
       if (actor.thread.kind === 'subagent' && typeof parsed.data === 'object' && parsed.data !== null) {
         const args = parsed.data as Record<string, unknown>
         if (typeof args['threadKey'] === 'string' && args['threadKey'] !== actor.thread.key) throw new McpToolError('permission_denied', 'Child conversations are isolated. Use the assigned parent brief.')
@@ -831,15 +348,18 @@ export async function invokeTool(
         if (typeof args['threadKey'] === 'string') {
           const target = await requireThread(ctx.pool, args['threadKey'], ctx.scope)
           if (target.session.sectorId !== sectorId) throw new McpToolError('permission_denied', 'Thread is outside this sector.')
-          if (name !== 'db.read_sector_thread' && (target.session.id !== actor.session.id || (actor.thread.kind === 'subagent' && target.thread.key !== actor.thread.key))) throw new McpToolError('permission_denied', 'Local conversations are isolated. Use shared context to communicate.')
+          // Monitors watch other sessions by design (Karbot calls from its
+          // own session); the layer still enforces tenant scope per target.
+          if (!['db.read_sector_thread', 'ops.start_monitor', 'ops.stop_monitor'].includes(name) && (target.session.id !== actor.session.id || (actor.thread.kind === 'subagent' && target.thread.key !== actor.thread.key))) throw new McpToolError('permission_denied', 'Local conversations are isolated. Use shared context to communicate.')
         }
         if (['db.list_sessions','db.list_companies','db.research_health','db.query_document'].includes(name)) args['sectorId'] = sectorId
         if (name === 'db.create_artifact') args['producedBy'] = ctx.executionThread
       }
     }
-    if (['db.send_message', 'db.steer_thread', 'db.pause_run', 'db.resume_run', 'db.cancel_run'].includes(name) && !ctx.messenger) throw new McpPreconditionError('Thread control is unavailable: no messenger attached.')
-    if (['db.start_sector_research', 'db.pause_sector_research', 'db.resume_sector_research'].includes(name) && !ctx.runs) throw new McpPreconditionError('Research control is unavailable: no sweep runner attached.')
-    if (['db.pause_run', 'db.resume_run', 'db.cancel_run'].includes(name) && (ctx.scope || ctx.executionThread)) {
+    if (['db.send_message', 'db.steer_thread', 'db.pause_run', 'db.resume_run', 'db.cancel_run', 'ops.list_runs', 'ops.get_run', 'ops.thread_queue', 'ops.queue_remove', 'ops.queue_reorder', 'ops.pause_run', 'ops.resume_run', 'ops.cancel_run', 'db.request_plan'].includes(name) && !ctx.messenger) throw new McpPreconditionError('Thread control is unavailable: no messenger attached.')
+    if (['db.start_sector_research', 'db.pause_sector_research', 'db.resume_sector_research', 'ops.restart_sector_research'].includes(name) && !ctx.runs) throw new McpPreconditionError('Research control is unavailable: no sweep runner attached.')
+    if (['ops.start_monitor', 'ops.stop_monitor'].includes(name) && !ctx.monitor) throw new McpPreconditionError('Monitor control is unavailable: no monitor runner attached.')
+    if (['db.pause_run', 'db.resume_run', 'db.cancel_run', 'ops.pause_run', 'ops.resume_run', 'ops.cancel_run'].includes(name) && (ctx.scope || ctx.executionThread)) {
       if (!ctx.runReader) throw new McpPreconditionError('A scoped run reader is required.')
       const run = await ctx.runReader.getRun((parsed.data as { runId: string }).runId)
       const target = run ? await getSession(ctx.pool, run.sessionId, ctx.scope) : undefined

@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useStagingCompanies } from '@/data/research'
-import type { CompanyResearch } from '@/data/staging-api'
+import type { CompanyResearch } from '@/data/api/sectors'
 
 const config = { baseUrl: 'https://test.invalid', apiKey: 'TEST key' }
 const rows: CompanyResearch[] = Array.from({ length: 1000 }, (_, index) => ({ id: `TEST-${index}`, name: `TEST company ${index}`, sectorId: 'TEST sector', sectorName: 'TEST sector', state: 'running', stage: 'Filter' }))

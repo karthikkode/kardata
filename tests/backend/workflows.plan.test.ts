@@ -35,7 +35,7 @@ const WORKFLOWS_PATH = join(
   'plan.ts',
 )
 
-describe.skipIf(!ENABLED)('sector plan workflow (P2)', () => {
+describe.skipIf(!ENABLED)('sector plan workflow (P2) [F:backend.activity.turn.appendEventActivity] [F:backend.activity.turn.karbotTurnActivity] [F:backend.workflow.plan.planningBrief] [F:backend.activity.sweep.loadSweepContextActivity] [F:backend.activity.plan.readSectorPlanActivity] [F:backend.activity.plan.setPlanStateActivity] [F:backend.activity.plan.writePlanArtifactActivity] [F:backend.workflow.plan.sectorPlan] [F:backend.activity.plan.SectorPlan] [F:backend.workflow.plan.planProgressQuery] [F:backend.activity.plan.PlanVersion] [F:db.index.createSector] [F:db.workspace.ensureResearchSession] [F:db.index.getThread] [F:db.index.listSectorCompanies] [F:db.sectors.createSector] [F:db.sectors.listSectorCompanies] [F:db.threads.getThread] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.context_files.assertThreadFileContext] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.execution_epochs.readActiveExecutionIdentity] [F:db.index.Db] [F:db.index.TransactableDb] [F:db.workspace.WorkspaceError] [F:db.workspace_threads.recordContextMeasurement] [F:db.workspace.requireSector] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked] [F:db.index.PlanVersion]', () => {
   let connection: NativeConnection
   let client: WorkflowClient
   let url = ''
@@ -155,4 +155,45 @@ describe.skipIf(!ENABLED)('sector plan workflow (P2)', () => {
       await pool.end()
     }
   }, 180_000)
+
+  it('starts without the harness queue override (sandbox-safe queue default)', async () => {
+    const pool = new Pool({ connectionString: url })
+    const sectorId = `sec-plan-nooverride-${Date.now()}`
+    try {
+      await createSector(pool, {
+        name: 'No override plan',
+        topic: 'Sandbox-safe queue default',
+        scope: { tenantId: 'tenant-plan', projectId: null },
+        sectorId,
+        initialState: 'planning',
+      })
+      await projectNewEvents(pool)
+      const sessionId = (await ensureResearchSession(pool, sectorId, { tenantId: 'tenant-plan', projectId: null })).id
+      const handle = await client.workflow.start('sectorPlan', {
+        taskQueue: taskQueue(),
+        workflowId: `sector-plan-${sectorId}`,
+        args: [{ sectorId, sessionId, scope: { tenantId: 'tenant-plan', projectId: null } }],
+      })
+      try {
+        // planProgress is registered after the turn proxy: a query answer
+        // proves the workflow got past its queue default. An env read in
+        // the default fails the workflow task (ReferenceError: process is
+        // not defined), so the handler never registers and every query fails.
+        let progress: unknown = null
+        for (let attempt = 0; attempt < 30; attempt += 1) {
+          try {
+            progress = await handle.query('planProgress')
+            break
+          } catch {
+            await new Promise((resolve) => setTimeout(resolve, 1_000))
+          }
+        }
+        expect(progress).toMatchObject({ sectorId, status: 'planning' })
+      } finally {
+        await handle.terminate()
+      }
+    } finally {
+      await pool.end()
+    }
+  }, 120_000)
 })

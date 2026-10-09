@@ -61,7 +61,7 @@ async function shot(page: Page, name: string, anchors: Locator[]): Promise<void>
 
 interface Box { x: number; y: number; width: number; height: number }
 
-function intersectsPort(box: Box, port: Box): boolean {
+function intersectsPort(box: Pick<Box, 'y' | 'height'>, port: Pick<Box, 'y' | 'height'>): boolean {
   return box.y < port.y + port.height && box.y + box.height > port.y
 }
 

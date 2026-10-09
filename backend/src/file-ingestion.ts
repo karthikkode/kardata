@@ -2,7 +2,7 @@
 // inside db/. HTTP and MCP must not choose different PDF processing behavior.
 import type { Logger } from 'pino'
 import type { ArchiveTarget } from './archive/targets.js'
-import type { Scope } from './auth/keys.js'
+import type { Scope } from './auth/types.js'
 import { classifyUpload, SECTOR_DOCUMENT_MAX_BYTES, createFileProcessingJob, failFileProcessingJob, fileProcessingProgress, readFileProcessingJob, ingestSectorDocument, listSectorDocuments, countDocumentUnits, DbContractError, WorkspaceError, type OcrAdapter, type TransactableDb } from './db/index.js'
 import { documentImageSelection } from './ocr.js'
 import { createLogger, logOp } from './observability/logging.js'

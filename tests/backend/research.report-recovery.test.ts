@@ -8,7 +8,7 @@ import { FilesystemTarget } from '../../backend/src/archive/targets.js'
 import { approveSectorPlan, createSector, ensureResearchSession, listArtifacts, readResearchProgress, readSectorLibraryFile, recordPlanVersion, recordResearchWork, setSectorState } from '../../backend/src/db/index.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { researchDiscoveryAcceptanceActivity } from '../../backend/src/temporal/activities/coordinator.js'
-import type { WorkItem } from '../../backend/src/temporal/research-plan.js'
+import type { WorkItem } from '../../backend/src/research-plan.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
 const faults = vi.hoisted(() => ({ checkpoint: false }))
@@ -19,7 +19,7 @@ vi.mock('../../backend/src/db/index.js', async (original) => {
     return actual.recordResearchWork(...args)
   } }
 })
-describe.skipIf(!TEST_DATABASE_URL)('research report attempt recovery', () => {
+describe.skipIf(!TEST_DATABASE_URL)('research report attempt recovery [F:backend.activity.coordinator.researchDiscoveryAcceptanceActivity]', () => {
   let pool: Pool, archive: FilesystemTarget, sectorId: string, sessionId: string
   const scope = { tenantId: 'test-report-recovery', projectId: null }
   beforeAll(async () => {

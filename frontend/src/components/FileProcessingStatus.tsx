@@ -1,4 +1,5 @@
-import type { FileProcessingProgress } from '../data/workspace-api'
+import type { FileProcessingProgress } from '../data/useFiles'
+import { focusRing } from '../lib/interaction'
 import { Button } from './ui/button'
 
 const labels: Record<FileProcessingProgress['state'], string> = {
@@ -45,7 +46,7 @@ export function FileProcessingStatus({ progress, hidden, busy, onRetry }: {
       ) : null}
       {progress.errorCode ? (
         <details className="mt-1 text-xs text-muted-foreground">
-          <summary className="w-fit cursor-pointer rounded-sm outline-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">Processing details</summary>
+          <summary className={`w-fit cursor-pointer rounded-sm hover:text-foreground ${focusRing}`}>Processing details</summary>
           <p className="mt-0.5 font-mono text-xs break-all">{progress.errorCode}</p>
         </details>
       ) : null}

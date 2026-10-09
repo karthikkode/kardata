@@ -11,7 +11,8 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readPartition } from '../../backend/src/db/index.js'
 import { connectClient, connectWorker, temporalNamespace } from '../../backend/src/temporal/connection.js'
-import { delegationWorkflowId, TemporalRunsGateway } from '../../backend/src/temporal/gateway.js'
+import { delegationWorkflowId } from '../../backend/src/temporal/runs-helpers.js'
+import { TemporalRunsGateway } from '../../backend/src/temporal/runs-gateway.js'
 import * as epochActivities from '../../backend/src/temporal/activities/execution-epochs.js'
 import { createLaneWorker } from '../../backend/src/temporal/worker.js'
 import { appendEventActivity, karbotTurnActivity } from '../../backend/src/temporal/activities/turn.js'
@@ -43,7 +44,7 @@ async function waitFor(what: () => Promise<boolean>, timeoutMs: number, name: st
   }
 }
 
-describe.skipIf(!ENABLED)('delegation door (db.delegate_subagent gateway)', () => {
+describe.skipIf(!ENABLED)('delegation door (db.delegate_subagent gateway) [F:backend.activity.turn.appendEventActivity] [F:backend.activity.turn.karbotTurnActivity] [F:db.index.readPartition] [F:db.events.readPartition] [F:db.context_files.assertThreadFileContext] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.execution_epochs.readActiveExecutionIdentity] [F:db.index.Db] [F:db.workspace_threads.recordContextMeasurement]', () => {
   let connection: NativeConnection
   let client: WorkflowClient
   let url = ''
@@ -134,6 +135,46 @@ describe.skipIf(!ENABLED)('delegation door (db.delegate_subagent gateway)', () =
       }, 60_000, 'child to finish')
     } finally {
       await pool.end()
+    }
+  }, 180_000)
+
+  it('queues the over-cap delegation and refuses past the queue cap fast', async () => {
+    const previousFlight = process.env['KARDATA_MAX_CHILDREN_IN_FLIGHT']
+    const previousQueued = process.env['KARDATA_MAX_CHILDREN_QUEUED']
+    process.env['KARDATA_MAX_CHILDREN_IN_FLIGHT'] = '1'
+    process.env['KARDATA_MAX_CHILDREN_QUEUED'] = '1'
+    try {
+      const sessionId = `door-queue-${Date.now()}`
+      const door = (goal: string) => gateway.delegateSubagent({
+        sessionId,
+        goal,
+        mode: 'empty',
+        queueCapacity: 8,
+        fakeSteps: [{ text: `${goal} reply` }],
+        taskQueue: taskQueue(),
+      })
+      const first = await door('first queued goal')
+      expect(first.queued).toBe(false)
+      const second = await door('second queued goal')
+      expect(second.queued).toBe(true)
+      // Past both caps: an immediate conflict, never the 30 s poll.
+      const started = Date.now()
+      await expect(door('third queued goal')).rejects.toThrow('child queue full (1 waiting)')
+      expect(Date.now() - started).toBeLessThan(10_000)
+      // Finishing the first promotes the second with its goal fed.
+      await client.workflow.getHandle(first.childId).signal('childFinish')
+      const parentHandle = client.workflow.getHandle(delegationWorkflowId(sessionId))
+      await parentHandle.signal('parentNoteDone', { childId: first.childId, status: 'finished' })
+      await waitFor(async () => {
+        const state = (await parentHandle.query('parentState')) as { children: Array<{ childId: string }> }
+        return state.children.some((child) => child.childId === second.childId)
+      }, 30_000, 'queued child to launch')
+      await client.workflow.getHandle(second.childId).signal('childFinish')
+    } finally {
+      if (previousFlight === undefined) delete process.env['KARDATA_MAX_CHILDREN_IN_FLIGHT']
+      else process.env['KARDATA_MAX_CHILDREN_IN_FLIGHT'] = previousFlight
+      if (previousQueued === undefined) delete process.env['KARDATA_MAX_CHILDREN_QUEUED']
+      else process.env['KARDATA_MAX_CHILDREN_QUEUED'] = previousQueued
     }
   }, 180_000)
 })

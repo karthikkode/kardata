@@ -3,8 +3,7 @@ import { Icons } from '@/lib/icons'
 import { companyStageLabel } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 import { researchStages } from '../data/stages'
-import type { CompanyResearch, SectorResearch } from '../data/research'
-import { StatusPill } from './StatusPill'
+import type { CompanyResearch } from '../data/research'
 import { CardTitle, Description, Label } from './text'
 import { Badge, type BadgeTone } from './ui/badge'
 import { Button } from './ui/button'
@@ -21,18 +20,6 @@ export const stateLabel = {
   queued: 'Queued',
   failed: 'Failed',
   complete: 'Complete',
-} as const
-
-export const stateTone = {
-  draft: 'idle',
-  planning: 'working',
-  planned: 'paused',
-  approved: 'ok',
-  running: 'working',
-  paused: 'paused',
-  queued: 'idle',
-  failed: 'failed',
-  complete: 'ok',
 } as const
 
 /** Badge tone for a research state. Only lifecycle status ever wears a badge. */
@@ -64,70 +51,6 @@ export function StateBadge({ state }: { state: keyof typeof stateLabel }) {
   )
 }
 
-export const firstRunCopy = {
-  sectors:
-    'No sector researches yet. Start one from Researches to see companies found here.',
-  companies:
-    'No company researches yet. Companies picked from a sector research show up here.',
-} as const
-
-// Both row anatomies share one height so side-by-side lists keep the same
-// rhythm. Content centers vertically; sector rows gain even breathing room,
-// never filler content.
-export function SectorRow({
-  research,
-  onOpen,
-}: {
-  research: SectorResearch
-  onOpen: (id: string) => void
-}) {
-  return (
-    <li className="border-b border-border last:border-0">
-      <button
-        type="button"
-        onClick={() => onOpen(research.id)}
-        aria-label={`Open ${research.name}`}
-        className="flex min-h-14 w-full cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 py-3 text-left transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:bg-surface-hover motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
-      >
-        <span className="min-w-32 flex-1 basis-32">
-          <span className="block truncate text-sm font-medium">{research.name}</span>
-          <span className="block truncate text-xs text-muted-foreground">
-            {research.topic}
-          </span>
-        </span>
-        <span className="inline-flex h-7 w-24 shrink-0 items-center justify-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-sm">
-          <span className="font-medium tabular-nums">{research.companiesFound}</span>
-          <span className="text-muted-foreground">found</span>
-        </span>
-        <StatusPill tone={stateTone[research.state]} label={stateLabel[research.state]} className="h-7 w-32 justify-center" />
-        <Icons.chevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-      </button>
-    </li>
-  )
-}
-
-function StageDots({ stage }: { stage: CompanyResearch['stage'] }) {
-  const current = researchStages.findIndex((name) => name === stage)
-  return (
-    <ol
-      aria-label={`Stage: ${stage}`}
-      className="mt-2 flex items-center gap-1.5"
-    >
-      {researchStages.map((name, index) => (
-        <li
-          key={name}
-          title={name}
-          aria-current={index === current ? 'step' : undefined}
-          className={cn(
-            'h-1.5 flex-1 rounded-full',
-            index <= current ? 'bg-primary' : 'bg-muted',
-          )}
-        />
-      ))}
-    </ol>
-  )
-}
-
 /** Four-segment stage indicator: filled up to the current stage. */
 export function StageSteps({ stage }: { stage: CompanyResearch['stage'] }) {
   const current = researchStages.findIndex((name) => name === stage)
@@ -149,27 +72,6 @@ export function StageSteps({ stage }: { stage: CompanyResearch['stage'] }) {
         />
       ))}
     </ol>
-  )
-}
-
-export function CompanyRow({
-  research,
-}: {
-  research: CompanyResearch
-}) {
-  return (
-    <li className="flex min-h-14 flex-col justify-center border-b border-border py-3 last:border-0 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <div className="min-w-32 flex-1 basis-32">
-          <p className="truncate text-sm font-medium">{research.name}</p>
-          <p className="truncate text-xs text-muted-foreground">
-            {research.sectorName} : {research.stage}
-          </p>
-        </div>
-        <StatusPill tone={stateTone[research.state]} label={stateLabel[research.state]} className="h-7 w-32 justify-center" />
-      </div>
-      <StageDots stage={research.stage} />
-    </li>
   )
 }
 
@@ -300,7 +202,7 @@ export function PanelError({
 // Overflow standard: past OVERFLOW_THRESHOLD rows the list scrolls in
 // place under a truthful total chip instead of growing the page. One
 // implementation for every surface; small lists render plain rows.
-export const OVERFLOW_THRESHOLD = 50
+const OVERFLOW_THRESHOLD = 50
 
 export function OverflowList({
   total,
@@ -352,10 +254,10 @@ export function UnavailableNotice({ onRetry }: { onRetry: () => void }) {
 
 // The request reached the API and was refused (a key without access).
 // Retry cannot help: an owner must grant access first.
-export function DeniedNotice({ heading }: { heading: string }) {
+export function DeniedNotice({ heading, onRetry }: { heading: string; onRetry?: () => void }) {
   const DeniedIcon = Icons.denied
   return (
-    <div className="flex flex-col items-center py-12 text-center">
+    <div role="alert" className="flex flex-col items-center py-12 text-center">
       <span className="flex size-10 items-center justify-center rounded-full bg-muted">
         <DeniedIcon className="size-5 text-muted-foreground" aria-hidden="true" />
       </span>
@@ -363,6 +265,13 @@ export function DeniedNotice({ heading }: { heading: string }) {
       <Description className="mt-1 max-w-80">
         Ask an owner for access, then try again.
       </Description>
+      {onRetry ? (
+        <div className="mt-4">
+          <Button type="button" variant="secondary" size="sm" onClick={onRetry}>
+            Try again
+          </Button>
+        </div>
+      ) : null}
     </div>
   )
 }

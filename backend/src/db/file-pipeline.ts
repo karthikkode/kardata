@@ -68,19 +68,19 @@ export const OCR_CONFIDENCE_MIN = 0.5
 export const UNIT_MAX_CHARS = 2000
 
 /** At most this many embedded images OCR per document: bounded spend. */
-export const MAX_OCR_IMAGES = 10
+const MAX_OCR_IMAGES = 10
 
 const TEXT_EXTENSIONS = new Set(['.md', '.markdown', '.txt', '.csv', '.json', '.text'])
 
 const SUPPORTED_LIST = 'attach .md, .txt, .csv, .json, .pdf, .docx, .png, .jpg, or .webp'
 
-export function documentExtension(filename: string): string {
+function documentExtension(filename: string): string {
   const dot = filename.lastIndexOf('.')
   if (dot <= 0) return ''
   return filename.slice(dot).toLowerCase()
 }
 
-export type FileKind = 'text' | 'pdf' | 'docx' | 'image' | 'unsupported'
+type FileKind = 'text' | 'pdf' | 'docx' | 'image' | 'unsupported'
 
 export interface ClassifiedFile {
   kind: FileKind
@@ -212,7 +212,7 @@ export function createHttpOcrAdapter(config: HttpOcrConfig): OcrAdapter {
   }
 }
 
-export type UnitKind = 'text' | 'ocr' | 'table' | 'heading'
+type UnitKind = 'text' | 'ocr' | 'table' | 'heading'
 
 export interface ExtractedUnit {
   ord: number

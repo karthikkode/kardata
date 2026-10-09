@@ -107,6 +107,17 @@ describe('logging contract (B0.5)', () => {
     expect(newTraceId()).toMatch(/^[0-9a-f]{32}$/)
   })
 
+  it('emits the activity join keys in snake_case (P3.2.3)', () => {
+    const { lines, stream } = capture()
+    const logger = createLogger({ traceId: 'TEST trace', runId: 'TEST run', threadKey: 'TEST thread', sessionId: 'TEST session', sectorId: 'TEST sector', round: 3 }, stream)
+    logger.info({ event: 'TEST.op' })
+    const child = childLogger(createLogger({}, stream), { threadKey: 'TEST child thread', round: 4 })
+    child.info({ event: 'TEST.child' })
+    expect(JSON.parse(lines[0]!)).toMatchObject({ trace_id: 'TEST trace', run_id: 'TEST run', thread_key: 'TEST thread', session_id: 'TEST session', sector_id: 'TEST sector', round: 3 })
+    expect(JSON.parse(lines[1]!)).toMatchObject({ thread_key: 'TEST child thread', round: 4 })
+    expect(JSON.parse(lines[1]!)).not.toHaveProperty('trace_id')
+  })
+
 describe('logOp long-operation triple', () => {
   function parsed(lines: string[]): Array<Record<string, unknown>> {
     return lines.map((line) => JSON.parse(line) as Record<string, unknown>)

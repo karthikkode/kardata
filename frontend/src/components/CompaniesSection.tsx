@@ -8,8 +8,8 @@ import { formatCount } from '@/lib/format'
 import { companiesEmptyCopy, companyStageLabel } from '@/lib/labels'
 import type { CompanyResearch } from '../data/research'
 import { useStagingCompanies } from '../data/research'
-import type { StagingConfig } from '../data/staging-api'
-import type { ResearchState } from '../data/staging-api'
+import type { StagingConfig } from '../data/useApi'
+import type { ResearchState } from '../data/useSectors'
 import { DataTable, type DataTableColumn } from './DataTable'
 import { type StateFilter, stateOptions } from './ResearchesPage'
 import { StageSteps, StateBadge } from './research-parts'
@@ -97,8 +97,8 @@ export function CompaniesSection({
         id: 'stage',
         header: 'Stage',
         cell: (row) => (
-          <span className="flex items-center gap-2">
-            <BodySm as="span" className="whitespace-nowrap">
+          <span className="flex flex-col gap-1 lg:flex-row lg:items-center lg:gap-2">
+            <BodySm as="span" className="min-w-0 truncate">
               {companyStageLabel(row.stage)}
             </BodySm>
             <StageSteps stage={row.stage} />
@@ -133,9 +133,9 @@ export function CompaniesSection({
           onChange={setDraft}
           label="Search companies"
           placeholder="Search companies"
-          className="md:w-64 md:shrink-0"
+          className="md:w-64 md:min-w-0"
         />
-        <div className="md:w-52 md:shrink-0">
+        <div className="md:w-52 md:min-w-0">
           <SelectRoot
             value={selectedOption}
             onValueChange={(option) => {

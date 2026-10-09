@@ -29,6 +29,10 @@ function stubDb(
         return { rowCount: 1, rows: [{ seq: captured.length }] as unknown as TRow[] }
       }
       if (text.startsWith('SELECT payload FROM events')) return { rowCount: 1, rows: [{ payload: { sectorId: 'sec-1', state: state.state } }] as unknown as TRow[] }
+      // Sessions read (listSessions/getSession): this suite has no
+      // sessions. Must precede the plan branch: its LATERAL contains
+      // 'FROM events WHERE partition' and would leak plan rows in.
+      if (text.includes('LEFT JOIN renamed r')) return { rowCount: 0, rows: [] }
       if (text.includes('FROM events WHERE partition')) {
         return {
           rowCount: state.plans.length,
@@ -61,7 +65,7 @@ function stubDb(
 
 const SCOPE = { tenantId: 't', projectId: null }
 
-describe('updateSectorPlan', () => {
+describe('updateSectorPlan [F:db.sector_plan.approveSectorPlan] [F:db.sector_plan.updateSectorPlan] [F:db.sectors.SectorTransitionError] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.errors.WorkspaceError] [F:db.index.Db] [F:db.index.SectorTransitionError] [F:db.index.TransactableDb] [F:db.workspace.WorkspaceError] [F:db.workspace.requireSector] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked]', () => {
   it('versions edits on planned sectors', async () => {
     const state = { name: 'n', topic: 't', state: 'planned', plans: ['## scope\nv1'] }
     const outcome = await updateSectorPlan(stubDb(state, []), 'sec-1', '## scope\nv2', SCOPE)

@@ -13,11 +13,11 @@ import { hashKey } from '../../backend/src/auth/keys.js'
 import { appendEvent, createSector, ensureResearchSession, listSectorDocuments, listSectorLibrary, readGlobalContext, readPartition, registerApiKey } from '../../backend/src/db/index.js'
 import { listSectorFileProcessing } from '../../backend/src/db/file-jobs.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
-import type { RunsGateway } from '../../backend/src/temporal/gateway.js'
+import type { RunsGateway } from '../../backend/src/temporal/runs-types.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import { testPdf } from './pdf-fixtures.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('scoped full-PDF admission through HTTP/MCP', () => {
+describe.skipIf(!TEST_DATABASE_URL)('scoped full-PDF admission through HTTP/MCP [F:db.index.appendEvent] [F:db.index.createSector] [F:db.index.registerApiKey] [F:db.workspace.ensureResearchSession] [F:db.workspace_global_context.readGlobalContext] [F:db.index.readPartition] [F:db.index.listSectorDocuments] [F:db.keys.registerApiKey] [F:db.sectors.createSector] [F:db.sector_documents.listSectorDocuments] [F:db.file_jobs.listSectorFileProcessing] [F:db.events.readPartition] [F:db.events.appendEvent] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.workspace.ContextFileRef] [F:db.context_files.listContextFileBlocks] [F:db.file_jobs.fileProcessingProgress] [F:db.index.Db] [F:db.index.SECTOR_DOCUMENT_MAX_BYTES] [F:db.index.TransactableDb] [F:db.workspace.WorkspaceError] [F:db.sector_documents.hiddenFileIds] [F:db.workspace.requireSector] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked] [F:db.workspace.globalContextUsageFrom]', () => {
   let pool: Pool, app: FastifyInstance, archive: FilesystemTarget, sectorId: string, secondSector: string, child: string
   const scope = { tenantId: 'TEST PDF attachment tenant', projectId: null }, foreign = { tenantId: 'TEST foreign PDF tenant', projectId: null }
   const workerToken = 'TEST PDF execution binding', operator = 'TEST PDF operator', viewer = 'TEST PDF viewer', foreignKey = 'TEST foreign PDF operator'

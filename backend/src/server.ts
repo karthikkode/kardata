@@ -3,17 +3,26 @@
 // (lazy: construction never connects) and the Temporal runs gateway (lazy:
 // connects on first command). Without DATABASE_URL the routes fail closed.
 import { buildApp } from './app.js'
-import { createDbPool, serverPoolBudget } from './db/index.js'
+import { createDbPool, serverPoolBudget, validatePoolBudget } from './db/index.js'
 import { createLogger } from './observability/logging.js'
+import { ensureTemporalTracing } from './observability/temporal-tracing.js'
 import { ensureTracing, wrapPool } from './observability/tracing.js'
-import { TemporalRunsGateway } from './temporal/gateway.js'
+import { TemporalRunsGateway } from './temporal/runs-gateway.js'
 
 const port = Number(process.env['PORT'] ?? 3001)
 const connectionString = process.env['DATABASE_URL']
 const logger = createLogger({ op: 'http' })
 // Spans export as JSONL through the app logger (B5.2 staging path).
 ensureTracing({ logger })
-const pool = connectionString ? wrapPool(createDbPool(connectionString, serverPoolBudget())) : undefined
+// OTel context manager + propagator for the Temporal interceptors (P3.2).
+ensureTemporalTracing()
+const serverBudget = connectionString ? serverPoolBudget() : undefined
+const pool = connectionString && serverBudget ? wrapPool(createDbPool(connectionString, serverBudget)) : undefined
+// Fail fast on a pool that cannot fit the server; unreachable DB only
+// warns (the server boots without a database).
+if (connectionString && serverBudget) {
+  await validatePoolBudget(connectionString, logger)
+}
 const app = buildApp({
   pool,
   runs: pool ? new TemporalRunsGateway(pool) : undefined,

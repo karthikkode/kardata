@@ -1,12 +1,14 @@
 # DB
 
 Durable supervision uses `backend/src/db/reconciliation.ts` for bounded keyset
-thread reads and matched-state observation recording inside existing workspace/
+thread reads and matched-state finding recording inside existing workspace/
 durable transaction locks. Migration0021 adds retained execution intents, a
 per-thread epoch head and private active epoch/workflow/execution lease fields.
 Only exact terminal execution proof with unchanged head/lease and no unresolved
-starts permits recovery parking; legacy/unknown ownership remains advisory.
-No research content or execution history is deleted. Sector health limits reads to that sector's
+starts permits recovery failing; legacy/unknown ownership remains advisory.
+Acting responses (nudge, pause, stop, cancel, fail, alert) run through the same
+fences; every action writes an `alerts` row (migration0025). No research
+content or execution history is deleted. Sector health limits reads to that sector's
 persisted session/thread IDs. See [supervision](agents-supervision.md).
 
 Postgres schema, migrations, and the single access layer. No seeds
@@ -84,8 +86,11 @@ server-side and counts from totals, never window lengths.
   a 30 s statement timeout as a runaway backstop. Starting values;
   retune against measured contention, not vibes.
 - Env overrides (compose sets them; unset means the code default):
-  `KARDATA_PG_SERVER_MAX`, `KARDATA_PG_WORKER_MAX`,
+  `KARDATA_DB_POOL_SERVER`, `KARDATA_DB_POOL_WORKER`,
   `KARDATA_PG_STATEMENT_TIMEOUT_MS`. Invalid values throw at startup.
+- Startup guard: server and worker validate their pool max against the
+  server's `max_connections` (`validatePoolBudget`); over budget fails
+  fast naming the env var, unreachable DB only warns (boot continues).
 - Pool pressure reports via `kardata_pg_pool_total/idle/waiting`
   (`poolStats()` in the factory); `KardataPoolExhaustion` pages on
   sustained waiting. Slow queries surface in Postgres logs
@@ -200,6 +205,25 @@ adds auth, transport, and tool schemas, never SQL.
 | `db.ledger_upsert_company` / `db.ledger_get_company` / `db.ledger_list_companies` | `upsertLedgerCompany` / `getLedgerCompany` / `listLedgerCompanies` | master-ledger company record |
 | `db.ledger_record_problem` / `db.ledger_list_problems` | `recordLedgerProblem` / `listLedgerProblems` | one row per researched problem |
 
+## What is stored where
+
+| Data | Store | Notes |
+|---|---|---|
+| Event log | `events` (+`trace_id`, `client`) | append-only; knowledge types never cold-move |
+| Execution journal | `t.execution.recorded` events | request/response/tool bytes via archive refs |
+| Rounds / tool calls | `execution_rounds`, `tool_calls` | projected from `t.provider.round` / `t.tool.call` |
+| Documents / units | `sector_documents` (+`author_thread`), `sector_document_units` | direct writes, never events |
+| Artifacts | `t.artifact.*` events + archive bytes | referenced across sessions by key |
+| Companies / work | `companies`, `research_work` | projected from company.* events |
+| Cold pointers | `cold_event_pointers` | one row per moved operational event |
+| Alerts | `alerts` | supervision findings, resolved_at nullable |
+| Thread failure reason | `threads.state_reason` | supervisor kind (closed-owner, ...); cleared on next state |
+| Evaluation | `v_thread_cost`, `v_research_quality`, `v_agent_reliability` | read via `GET /v1/sectors/:id/evaluation` |
+
+Files (`listSectorLibrary`) folds each indexed artifact with its sector
+document into one artifact-flavored row (artifact id, `documentId` link,
+doc hash, doc `authorThread`); the doc-id row never lists twice.
+
 ## Current schema (0001–0019)
 
 - 0009–0013: sector drafts, document units index, context selection
@@ -225,6 +249,15 @@ adds auth, transport, and tool schemas, never SQL.
   (mutation claims + replays).
 - 0007: `sectors`, `companies` (sector research projections over
   sector.*/company.* events; state/stage CHECKs mirror the product vocab).
+- 0025: `events.trace_id`/`client`, `alerts`, `execution_rounds`,
+  `tool_calls`, `sector_documents.author_thread`, `cold_event_pointers`,
+  and the three evaluation views.
+- 0031: hot-query tier indexes (`events` partition/at, `companies`
+  sector/created + sector/updated, `execution_rounds` sector/kind cover,
+  partial artifact-fold cover) and the `v_agent_reliability` restructure
+  (correlated loops/stalls, two-level round counts). Sector cost attributes
+  each round to its own sector; artifact summaries fold in SQL
+  (`foldArtifactPartitions`), one row per (partition, artifact).
 
 Reserved, currently unwritten by product code: `heartbeats.attempt`
 (future per-op attempt counting) and `outbox.delivered_at` (future
@@ -416,7 +449,11 @@ binding and current lease; stale attempts cannot publish current execution recor
 Archive IO occurs before that transaction. Unreferenced bytes after a failed commit
 are retained for reconciliation; no DB pointer certifies unverified content.
 Records describe normalized adapter inputs/results, not raw vendor HTTP payloads.
-Production callbacks, keyed owner inspection and UI proof are pending separately.
+Every karbot turn round journals request/response/tool-result in production,
+including in-turn compaction rounds (marked `roundKind: compaction`; recovery
+replays turn requests only). Keyed owner inspection
+(`GET /v1/threads/:threadKey/execution-records`) and the ExecutionInspector UI
+read the same journal.
 
 `listSectorLibrary` orders uploaded and generated metadata together by arrival,
 descending, then file ID. A single scoped aggregate reads artifact arrival times
@@ -447,21 +484,17 @@ overwrite completed/excluded receipts. No company publication occurs here.
 
 ## Scoped in-app supervision alert reads
 
-`backend/src/db/alerts.ts` reads only `t.reconciliation.finding` events whose
-partition and thread ownership agree with an undeleted, tenant/project-scoped
-session. Exclusive descending sequence pages fetch at most limit+1 (limit1–100).
-No new table, migration, agent DB credentials or raw fleet read is introduced.
-The current-warning predicate joins the tagged parking event, latest thread state
-and current execution head, and excludes every unresolved start intent. A
-successor or manual state change demotes the prior warning to historical. Sector
-links are returned only when the sector row agrees with caller scope. Reads use
-logOp; private execution fields and unbounded reason bodies never enter output.
-HTTP shapes/roles are authoritative in `documentation/backend.md`; liveness
-semantics are in `documentation/agents-supervision.md`.
-
-Alert sessionTitle follows current scoped session metadata: latest rename title,
-otherwise original creation title. It is an identification aid alongside UUID,
-not execution content or authorization. Duplicate titles retain distinct IDs.
+`backend/src/db/alerts.ts` reads the `alerts` table (migration 0025): one row
+per action with kind, severity, subject, thread/sector attribution and an
+explicit resolved timestamp. Raises dedupe to the open row per
+kind/severity/subject/thread/sector; every raise needs a thread or a sector so
+reads stay scope-checkable. Exclusive descending sequence pages fetch at most
+limit+1 (limit1–100). Thread alerts scope through thread → session → owner
+event and exclude deleted sessions; sector alerts scope through the sector row.
+Reads use logOp; private execution fields and unbounded reason bodies never
+enter output. HTTP shapes/roles are authoritative in
+`documentation/backend.md`; liveness semantics are in
+`documentation/agents-supervision.md`.
 
 Durable file processing retains stored processing/failed/needs-ocr status on all
 document and library reads. Agent document queries expose no text, units or TOC

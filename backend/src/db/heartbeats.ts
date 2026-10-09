@@ -9,11 +9,11 @@ import { DbContractError } from './errors.js'
 import type { Db } from './events.js'
 
 /** Minimum milliseconds between table writes for one (run, op). */
-export const HEARTBEAT_WRITE_MS = 5_000
+const HEARTBEAT_WRITE_MS = 5_000
 
 const lastWrites = new WeakMap<Db, Map<string, { at: number; busy: boolean }>>()
 
-export function heartbeatThrottleKey(runId: string, op: string): string {
+function heartbeatThrottleKey(runId: string, op: string): string {
   return JSON.stringify([runId, op])
 }
 
@@ -42,10 +42,10 @@ export async function recordHeartbeat(
   if (last !== undefined && last.busy === busy && nowMs - last.at >= 0 && nowMs - last.at < HEARTBEAT_WRITE_MS) return
   await db.query(
     `INSERT INTO heartbeats (run_id, op, at, busy)
-     VALUES ($1, $2, now(), $3)
+     VALUES ($1, $2, to_timestamp($4 / 1000.0), $3)
      ON CONFLICT (run_id, op)
      DO UPDATE SET at = EXCLUDED.at, busy = EXCLUDED.busy`,
-    [runId, op, busy],
+    [runId, op, busy, nowMs],
   )
   // Failed writes must never appear as persisted beats. Cache only success.
   lastWrite.set(key, { at: nowMs, busy })

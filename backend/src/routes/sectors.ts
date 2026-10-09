@@ -22,7 +22,7 @@ import { SectorStartError, startSectorResearch } from '../db/sector-start.js'
 import { createModelOcrAdapter } from '../ocr.js'
 import { attachSectorDocument, FileIngestionUnavailable } from '../file-ingestion.js'
 import { childLogger } from '../observability/logging.js'
-import { resolveAdapter } from '../providers/gateway.js'
+import { resolveAdapter } from '../providers/provider-gateway.js'
 import { projectNewEvents } from '../projector.js'
 import {
   createSector,
@@ -45,6 +45,12 @@ import {
   sendError,
   withIdempotency,
 } from './http.js'
+
+function transitionFailureResponse(error: SectorTransitionError) {
+  const status = error.failure === 'not_found' ? 404 : error.failure === 'overload' ? 503 : 409
+  const code = error.failure === 'overload' ? 'overload' : error.failure
+  return { status, body: { ok: false, error: { code, message: error.message } } }
+}
 
 const StateFilter = z.enum(['draft', 'running', 'paused', 'queued', 'failed', 'complete'])
 
@@ -324,7 +330,7 @@ export function sectorRoutes(app: FastifyInstance): void {
     return withIdempotency(request, reply, pool, auth.keyId, async () => {
       await projectNewEvents(pool)
       try {
-        const dependencies = app as FastifyInstance & { kardataRuns?: import('../temporal/gateway.js').RunsGateway; kardataArchive?: import('../archive/targets.js').ArchiveTarget; kardataLogger?: import('pino').Logger }
+        const dependencies = app as FastifyInstance & { kardataRuns?: import('../temporal/runs-types.js').RunsGateway; kardataArchive?: import('../archive/targets.js').ArchiveTarget; kardataLogger?: import('pino').Logger }
         const document = await attachSectorDocument(pool, {
           sectorId,
           filename: body.filename,
@@ -468,11 +474,7 @@ export function sectorRoutes(app: FastifyInstance): void {
         await restartSectorSweep(pool, runs, sectorId, auth.scope, key)
         await projectNewEvents(pool)
       } catch (error: unknown) {
-        if (error instanceof SectorTransitionError) {
-          const status = error.failure === 'not_found' ? 404 : error.failure === 'overload' ? 503 : 409
-          const code = error.failure === 'overload' ? 'overload' : error.failure
-          return { status, body: { ok: false, error: { code, message: error.message } } }
-        }
+        if (error instanceof SectorTransitionError) return transitionFailureResponse(error)
         throw error
       }
       const restarted = await getSector(pool, sectorId, auth.scope)
@@ -499,11 +501,7 @@ export function sectorRoutes(app: FastifyInstance): void {
         const paused = await getSector(pool, sectorId, auth.scope)
         return { status: 200, body: { ok: true, data: paused } }
       } catch (error: unknown) {
-        if (error instanceof SectorTransitionError) {
-          const status = error.failure === 'not_found' ? 404 : error.failure === 'overload' ? 503 : 409
-          const code = error.failure === 'overload' ? 'overload' : error.failure
-          return { status, body: { ok: false, error: { code, message: error.message } } }
-        }
+        if (error instanceof SectorTransitionError) return transitionFailureResponse(error)
         throw error
       }
     })
@@ -528,11 +526,7 @@ export function sectorRoutes(app: FastifyInstance): void {
         const running = await getSector(pool, sectorId, auth.scope)
         return { status: 200, body: { ok: true, data: running } }
       } catch (error: unknown) {
-        if (error instanceof SectorTransitionError) {
-          const status = error.failure === 'not_found' ? 404 : error.failure === 'overload' ? 503 : 409
-          const code = error.failure === 'overload' ? 'overload' : error.failure
-          return { status, body: { ok: false, error: { code, message: error.message } } }
-        }
+        if (error instanceof SectorTransitionError) return transitionFailureResponse(error)
         throw error
       }
     })

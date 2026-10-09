@@ -7,7 +7,7 @@ import {
   alerts, allSectors, artifacts, companies, executablePlan, executionBody, executionPage,
   FILE_MARKDOWN, fileUnits, globalFor, karbotSessions, largeLibrary, libraryFiles,
   localFor, planView, planVersions, progressFor, providers, providersEmpty, providersNoKey,
-  runs, sectorActivity, sectorById, sectorSessions, sessionById, sessionThreads, skills,
+  runs, sectorActivity, sectorSessions, sessionById, sessionThreads, skills,
   threadMessages, HEX64, type FixtureCompany, type FixtureMessage, type FixtureSector,
   type FixtureSession, type ResearchState,
 } from './fixtures'
@@ -37,8 +37,19 @@ export interface ApiData {
   subagents?: number
 }
 
+/** Background-sync freeze for wall-clock budgets: while current, every
+ * request whose full /v1/* path the allow predicate rejects hangs open
+ * (no response, no render). Perf specs freeze around measured windows so
+ * the 5s poll wave cannot land inside them; the measured action's own
+ * endpoint stays allowed. Hangs die with navigation or page close. */
+export interface PollFreeze {
+  current: boolean
+  allow: (fullPath: string) => boolean
+}
+
 export interface ApiOptions {
   modes?: Partial<Record<RouteKey, RouteMode>>
+  freeze?: PollFreeze
   data?: ApiData
   /** static: fulfill frames then close. live: held-open stream, auto-primed.
    * quiet: held-open stream, test pushes frames itself. */
@@ -110,8 +121,10 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
     await page.addInitScript((primed: unknown[]) => {
       const nativeFetch = window.fetch.bind(window)
       const controllers = new Set<ReadableStreamDefaultController<Uint8Array>>()
+      let connections = 0
       window.fetch = (input, init) => {
         if (String(input).includes('/events?')) {
+          connections += 1
           return Promise.resolve(new Response(new ReadableStream<Uint8Array>({
             start(controller) {
               controllers.add(controller)
@@ -129,6 +142,15 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
             try { controller.enqueue(bytes) } catch { controllers.delete(controller) }
           }
         },
+        dropChatStream() {
+          for (const controller of controllers) {
+            try { controller.error(new Error('injected stream drop')) } catch { /* already closed */ }
+            controllers.delete(controller)
+          }
+        },
+        chatStreamCount() {
+          return connections
+        },
       })
     }, frames)
   }
@@ -136,7 +158,9 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
   await page.route('**/v1/**', async (route) => {
     const url = new URL(route.request().url())
     const method = route.request().method()
-    const path = url.pathname.replace(/^\/v1/, '') || '/'
+    const fullPath = url.pathname
+    if (options.freeze?.current && !options.freeze.allow(fullPath)) return new Promise<never>(() => {})
+    const path = fullPath.replace(/^\/v1/, '') || '/'
     const body = (): Record<string, unknown> => {
       try { return (route.request().postDataJSON() ?? {}) as Record<string, unknown> } catch { return {} }
     }
@@ -180,6 +204,9 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
       if (rest === '' && method === 'GET') {
         const state = await gate(route, 'sector')
         if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
+        // An empty detail fetch is a missing sector (the only sector-empty
+        // consumer asserts the designed not-found UI).
+        if (mode('sector') === 'empty') { await fail(route, 404, 'not_found', 'Sector not found.'); return }
         const rows = liveCompanies().filter((company) => company.sectorId === sectorId)
         await ok(route, {
           ...sector, companiesFound: mode('sector') === 'empty' ? 0 : rows.length,
@@ -521,6 +548,12 @@ export async function serveApi(page: Page, options: ApiOptions = {}): Promise<vo
         await ok(route, { items: [], nextAfterId: null })
         return
       }
+      if (rest === '/queue' && method === 'GET') {
+        const state = await gate(route, 'messages')
+        if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
+        await ok(route, [])
+        return
+      }
       if (rest === '/events' && method === 'GET') {
         const state = await gate(route, 'events')
         if (state !== 'ok' && state !== 'loading' && state !== 'empty') return
@@ -638,6 +671,20 @@ export async function pushFrame(page: Page, frame: unknown): Promise<void> {
   await page.evaluate((value) => {
     (window as unknown as { pushChatFrame(frame: unknown): void }).pushChatFrame(value)
   }, frame)
+}
+
+/** Drop every held-open stream (the client sees a socket error and resubscribes). */
+export async function dropStream(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    (window as unknown as { dropChatStream(): void }).dropChatStream()
+  })
+}
+
+/** How many /events? streams the page has opened (resubscribe detection). */
+export async function streamCount(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    return (window as unknown as { chatStreamCount(): number }).chatStreamCount()
+  })
 }
 
 export { executablePlan }

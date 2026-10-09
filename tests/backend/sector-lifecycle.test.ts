@@ -62,7 +62,7 @@ function runnerDouble(log: string[], behavior: { cancel?: 'ok' | 'gone' | 'down'
   }
 }
 
-describe('pauseSectorSweep', () => {
+describe('pauseSectorSweep [F:db.sectors.SectorTransitionError] [F:db.sector_lifecycle.pauseSectorSweep] [F:db.sector_lifecycle.restartSectorSweep] [F:db.sector_lifecycle.resumeSectorSweep] [F:db.index.Db] [F:db.index.SectorTransitionError] [F:db.index.pauseSectorSweep] [F:db.index.resumeSectorSweep]', () => {
   it('cancels the run before recording paused', async () => {
     const state = { name: 'n', topic: 't', state: 'running' }
     const captured: Captured[] = []

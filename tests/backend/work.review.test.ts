@@ -10,7 +10,7 @@ import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import { FakeRunsGateway } from './fake-gateway.js'
 const scope = { tenantId: 'TEST review', projectId: null }
-describe.skipIf(!TEST_DATABASE_URL)('owner intake review over real HTTP and isolated PG', () => {
+describe.skipIf(!TEST_DATABASE_URL)('owner intake review over real HTTP and isolated PG [F:http.reviewResearchWork] [F:db.index.appendEvent] [F:db.index.createSector] [F:db.index.recordPlanVersion] [F:db.index.setSectorState] [F:db.sectors.createSector] [F:db.workspace_research.readResearchProgress] [F:db.workspace_research.recordResearchWork] [F:db.workspace_research.readResearchWorkItem] [F:db.work_review.readResearchWorkReviewSequence] [F:db.events.appendEvent] [F:db.sector_plan.recordPlanVersion] [F:db.sectors.setSectorState] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.work_review.WorkReviewDecision] [F:db.workspace.WorkspaceError] [F:db.workspace_global_context.notifyWorkspace] [F:db.workspace.requireSector] [F:db.errors.Id]', () => {
   let pool: Pool, app: FastifyInstance, origin: string
   const sectorId = `TEST-review-${randomUUID()}`
   const id = (suffix: string) => `${sectorId}:v1:intake:${suffix}`

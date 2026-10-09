@@ -22,7 +22,7 @@ the everything-log. Plan: `documentation/plans/2026-09-25-backend-build.md`.
 - B0.1 done: workspace scaffold, health + 404 envelope, `tests/backend/`
   harness, gates green.
 - B0.2 done: `backend/openapi/v1.yaml` (34 operations, envelopes, SSE resume,
-  idempotency, denied paths) with a parity table in `backend/src/contract.ts`
+  idempotency, denied paths) with a parity table in `tests/backend/contract-harness.ts`
   covering all 19 mock/scenario/UI shapes; contract tests green.
 - B0.3 done: `db/migrations/0001_init.sql` (events, heartbeats, outbox,
   projections) + transactional migrator; up/down round-trip, duplicate
@@ -46,7 +46,14 @@ the everything-log. Plan: `documentation/plans/2026-09-25-backend-build.md`.
   target for tests/dev); archive-then-delete ordering and hot+archive replay
   proven; schedule wiring deferred to B2.1.
 - B2.1 done: lane topology + worker factory + Temporal connectivity; crash-path
-  redelivery and lane isolation proven against the real server.
+  redelivery and lane isolation proven against the real server. Workflow code
+  takes queue names from pure `laneTaskQueue` only: `laneConfig` /
+  `turnActivitySlots` read `process.env`, which the workflow sandbox does
+  not have (ReferenceError, caught by live L-PLAN 2026-10-09).
+  Guarded two ways: an ESLint sandbox block on workflows/** (no
+  `process`, no env-reading imports) and `workflows.bundle.test.ts`,
+  which runs sectorPlan + companyResearch without the queue override
+  through the production bundle artifact (CI integration job).
 - B2.2 done: session-run workflow (signals, queries, pause/resume/cancel
   mid-tool, no orphans, replay-from-events) proven against the real server;
   agents `/loop` subpath rule recorded for workflow bundles.
@@ -85,6 +92,9 @@ the everything-log. Plan: `documentation/plans/2026-09-25-backend-build.md`.
   server — A→B→A loop suspends in bound, over-budget suspends, unauthorized
   resume denied (`tests/backend/workflows.loopguards.test.ts`, needs
   `KARDATA_TEMPORAL_TEST=1`); rules + bounds table in `docs/architecture.md`.
+  Retired in Phase 2: the guarded workflow and detector/stage activities are
+  deleted (never registered on a worker); the pure `decideLoop` rule now lives
+  in `backend/src/observability/supervision-rules.ts` for Phase 3 reconciliation.
 - B3.1 done: REST parity (sessions/threads/runs/commands per OpenAPI v1,
   Zod I/O, envelope errors; request-scoped projector with checkpoint;
   Temporal runs gateway with @name routing and missed_steer via launch
@@ -140,6 +150,14 @@ the everything-log. Plan: `documentation/plans/2026-09-25-backend-build.md`.
   `session-user-before-turn-v1` patch. Existing workflow histories replay
   the old order; newly executed turns use the new order. The guard stays
   until every old run has closed.
+- `sessionRun`, `delegateParent`, and `subagentRun` continue-as-new past
+  10k history events or 10 MB (`can-v1` patch; old histories skip). The
+  session carries its inbox, pause state, and nonce; the parent carries
+  pending signals, the durable queue, promotion sets, and the children map
+  (running handles re-derive by child id); the child carries its inbox,
+  missed steer, goal, thread length, and pause flags. Continued runs skip
+  the created/launched row. Proven by
+  `tests/backend/workflows.continue-as-new.test.ts` (chain walk + replay).
 - Karbot tool calls publish ephemeral `tool` outbox frames at provider
   call-start (provisional name), call-end (real name), and MCP completion
   (`runKey`, call id, name, state). Arguments and results stay out
@@ -182,6 +200,12 @@ the everything-log. Plan: `documentation/plans/2026-09-25-backend-build.md`.
   Proven by `tests/backend/sector-lifecycle.test.ts` (stub-DB order +
   fail-closed), `tests/backend/workflows.sweep.test.ts` (live cancel),
   and `tests/backend/api.sectors.test.ts` (route lifecycle).
+- Honest 503 on Temporal cuts (Phase 4): gateway `send` maps connectivity
+  failures (`isTemporalConnectivity`) to `temporal_unavailable` (503) and
+  drops the cached client so post-heal commands reconnect; domain errors
+  and bugs keep their existing codes. Proven by
+  `tests/backend/temporal-unavailable.test.ts` (detector) and the F8 drill
+  (`tests/fault/infra-cuts.faults.test.ts`).
 - Sector context citations are human-readable (`backend/src/db/sector-context.ts`):
   reference units cite `filename:ord` (repeats take a stable `name (2)`
   suffix via `citationLabels`), notes cite `[note:1]` by creation order,
@@ -484,6 +508,19 @@ share one minted/validated trace ID despite plugin registration order; unmatched
 routes collapse to `*unmatched*`. URLs, query strings, headers, request bodies and
 exception bodies/stacks are excluded. Existing metrics keep bounded route labels.
 
+Temporal carries the same trace end to end (P3.2). The runs gateway, worker
+factory, and every other Temporal client install the OTel interceptors from
+`backend/src/observability/temporal-tracing.ts`, with the OTel context manager
+and W3C propagator registered in both entries. Workflow starts wrap in
+`withAmbientTrace` (ambient OTel trace, else the request trace, else a fresh
+id); the mandatory workflow-span sink exports as JSONL beside server spans.
+One `trace_id` joins the HTTP log, workflow start, activity logs, provider
+rounds, MCP callbacks, and DB events; no collector or new service.
+Every activity line also carries `run_id`, `attempt`, and the thread, session,
+sector, and round ids its input knows (`activityLogContext`/`activityLogFields`;
+unknown keys stay absent, never empty). The OTel outbound interceptor adds
+`trace_id`/`span_id` to `context.log` lines automatically.
+
 New discovery coordinators use the compact-state Temporal patch. Status checks
 carry scope/version/budget only; snapshots carry bounded retry references and a
 validation sample, with a1.5MB serialized guard. Full records are read through
@@ -553,25 +590,35 @@ another work transition/journal event; changed arguments under that key conflict
 The review client keeps the key for an exact failed submission and supplies it on
 retry; editing the reviewed work, decision or owner reason creates a new request.
 
+## Command cancel projection
+
+`POST /v1/commands/cancel` projects after the gateway call returns. The
+gateway appends `t.thread.state`/CANCELLING ahead of the run-cancel signal,
+and only the projector turns that event into the streamed state frame — so
+without the post-cancel catch-up the UI would wait out the whole unwind
+(or spin forever on a stalled one) instead of releasing its thinking
+indicator on the CANCELLING frame. The gateway itself never projects;
+the request path owns the catch-up like every other route.
+
 ## Scoped in-app supervision alerts
 
-`GET /v1/alerts?beforeSeq=&limit=` feeds the existing Agents surface using durable
-`t.reconciliation.finding` events. Always validate a viewer-or-higher key, even
-in test/open app mode. Derive tenant/project/session/thread scope from the
-validated caller and stored ownership; exclude deleted/unattributed sessions.
-Descending exclusive sequence pagination defaults to20 and caps at100. Response
-data is `{items,nextBeforeSeq}`; items contain seq, at, sessionId, sessionTitle, threadKey,
-nullable sectorId, kind, response, threadStatus and state (`current-warning` or
-`historical`). Omit free-text reasons, execution IDs, leases and raw payloads.
+`GET /v1/alerts?beforeSeq=&limit=` feeds the existing Agents surface from the
+table-backed `alerts` rows that acting supervision writes. Always validate a
+viewer-or-higher key, even in test/open app mode. Derive tenant/project scope
+from the validated caller and stored ownership (thread → session → owner
+event, or the sector row); exclude deleted/unattributed sessions. Descending
+exclusive sequence pagination defaults to20 and caps at100. Response data is
+`{items,nextBeforeSeq}`; items contain seq, at, kind, severity, subject,
+nullable threadKey/sectorId/sessionId, nullable resolvedAt and state
+(`current-warning` or `historical`). Omit free-text reasons, execution IDs,
+leases and raw payloads.
 
-Only a closed-owner parking observation whose tagged recovery pause remains the
-latest thread-state event, whose thread is PAUSED, whose recovery epoch matches
-the current execution head, and which has no pending/uncertain starts is a current
-warning. All advisory or superseded observations are historical; age never
-proves liveness or justifies cancellation. Reads perform no recovery mutation. The route catches up the projector first;
-a still-behind bounded catch-up returns recoverable503 instead of stale current status.
-Delivery means supervisor → durable DB → authenticated UI; external Prometheus
-notification delivery remains a separate unconfigured capability.
+Unresolved rows are current warnings; resolved rows are history. Resolution is
+explicit, never inferred from age or successor state. Reads perform no recovery
+mutation. The route catches up the projector first; a still-behind bounded
+catch-up returns recoverable503 instead of stale current status. Delivery means
+supervisor → durable DB → authenticated UI; external Prometheus notification
+delivery remains a separate unconfigured capability.
 
 ## Recoverable PDF file operations
 

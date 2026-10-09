@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest'
 import { assertSectorTransition, SECTOR_TRANSITIONS } from '../../backend/src/db/sectors.js'
 
-describe('SECTOR_TRANSITIONS', () => {
+describe('SECTOR_TRANSITIONS [F:db.sectors.assertSectorTransition] [F:db.sectors.SECTOR_TRANSITIONS] [F:db.index.SectorState] [F:db.sectors.SectorState]', () => {
   it('plans every sector including old drafts, and approves before start', () => {
     expect(SECTOR_TRANSITIONS.draft).toContain('planning')
     expect(SECTOR_TRANSITIONS.planning).toContain('planned')

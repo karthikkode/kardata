@@ -9,7 +9,8 @@ import type { Logger } from 'pino'
 import type { ArchiveTarget } from '../archive/targets.js'
 import type { Db, TransactableDb } from '../db/index.js'
 import { z } from 'zod'
-import { resolveCaller, roleAtLeast, type Role, type Scope } from '../auth/keys.js'
+import type { Role, Scope } from '../auth/types.js'
+import { resolveCaller, roleAtLeast } from '../auth/keys.js'
 import {
   checkRate,
   WorkspaceError,
@@ -17,15 +18,12 @@ import {
   completeIdempotency,
   releaseIdempotency,
 } from '../db/index.js'
+import { verifyExecution } from '../auth/execution.js'
 import { mutationFingerprint, rateBucket } from '../http/limits.js'
 import { getSession } from '../db/index.js'
-import type { RunsGateway } from '../temporal/gateway.js'
-import { RunNotFound, ThreadNotAccepting } from '../temporal/gateway.js'
-
-export interface RouteDeps {
-  pool?: TransactableDb
-  runs?: RunsGateway
-}
+import type { RunsGateway } from '../temporal/runs-types.js'
+import { RunNotFound, TemporalUnavailableError, ThreadNotAccepting } from '../temporal/runs-types.js'
+import { runWithEventClient, type EventClient } from '../observability/ambient.js'
 
 export type ErrorCode =
   | 'not_found'
@@ -34,6 +32,7 @@ export type ErrorCode =
   | 'conflict'
   | 'validation_failed'
   | 'overload'
+  | 'temporal_unavailable'
 
 export function sendError(reply: FastifyReply, status: number, code: ErrorCode, message: string): unknown {
   return reply.code(status).send({ ok: false, error: { code, message } })
@@ -117,17 +116,40 @@ export async function authorize(
   return { scope: result.scope, keyId: result.caller.keyId }
 }
 
+/** Verified execution binding (P4-M6): turn tool traffic carries an
+ * HMAC-signed thread header. A verified binding scopes the /mcp bucket to
+ * that thread, so the fleet never shares one budget on the worker token.
+ * Unverifiable headers fall back to the per-key bucket — a forged thread
+ * buys no new budget. Sync HMAC, safe in the onRequest hook. */
+function verifiedExecutionThread(request: FastifyRequest): string | undefined {
+  const threadKey = header(request, 'x-kardata-thread')
+  const signature = header(request, 'x-kardata-execution')
+  const workerToken = process.env['KARDATA_MCP_TOKEN']
+  if (!threadKey || !signature || !workerToken) return undefined
+  if (!verifyExecution(threadKey, signature, workerToken)) return undefined
+  return threadKey
+}
+
 /** Per-key fixed-window rate hook (B3.4). Applies to /v1/* only; /healthz
  * stays unthrottled for load-balancer probes. Buckets follow the presented
  * bearer token, or the peer IP for unauthenticated callers. Over-limit
- * requests get 429 rate_limited with a Retry-After hint. A limiter outage
- * fails open so healthy traffic is never 500ed by its own guard. */
+ * requests get 429 rate_limited with a Retry-After hint. /mcp calls with a
+ * verified execution binding get a per-thread bucket instead, so one shared
+ * worker token cannot throttle the fleet. A limiter outage fails open so
+ * healthy traffic is never 500ed by its own guard. */
 export function registerRateLimit(app: FastifyInstance, limitPerMin: number, logger?: Logger): void {
   app.addHook('onRequest', async (request, reply) => {
-    if (limitPerMin <= 0 || !request.url.startsWith('/v1/')) return
+    // /mcp rides the same per-key budget under its own bucket namespace,
+    // so worker tool traffic never starves a key's /v1 budget or reverse.
+    const isMcp = request.url === '/mcp' || request.url.startsWith('/mcp?')
+    if (limitPerMin <= 0 || (!request.url.startsWith('/v1/') && !isMcp)) return
     const pool = (app as FastifyInstance & { kardataPool?: TransactableDb }).kardataPool
     if (!pool) return
-    const bucket = rateBucket(header(request, 'authorization'), request.ip)
+    let bucket = `${isMcp ? 'mcp:' : ''}${rateBucket(header(request, 'authorization'), request.ip)}`
+    if (isMcp) {
+      const threadKey = verifiedExecutionThread(request)
+      if (threadKey) bucket = `${bucket}:thread:${threadKey}`
+    }
     let decision
     try {
       decision = await checkRate(pool, bucket, limitPerMin)
@@ -243,10 +265,11 @@ export async function requireSessionScope(
   return false
 }
 
-export function mapRouteError(reply: FastifyReply, error: unknown): unknown {
+function mapRouteError(reply: FastifyReply, error: unknown): unknown {
   if (error instanceof WorkspaceError) return sendError(reply, { not_found: 404, permission_denied: 403, conflict: 409, validation_failed: 400 }[error.code], error.code, error.message)
   if (error instanceof RunNotFound) return sendError(reply, 404, 'not_found', error.message)
   if (error instanceof ThreadNotAccepting) return sendError(reply, 409, 'conflict', error.message)
+  if (error instanceof TemporalUnavailableError) return sendError(reply, 503, 'temporal_unavailable', error.message)
   return sendError(reply, 500, 'overload', 'internal error')
 }
 
@@ -255,6 +278,15 @@ export type RouteHandler = (
   reply: FastifyReply,
   app: FastifyInstance,
 ) => Promise<unknown>
+
+/** Event caller from the registered route (P3.2.6): the UI owns /v1,
+ * agents own /mcp. Auth failures return before any write, so an
+ * unauthenticated caller can never land a mislabeled event. */
+export function eventClientForRoute(url: string): EventClient {
+  if (url === '/mcp' || url.startsWith('/mcp/')) return 'agent-mcp'
+  if (url.startsWith('/v1/')) return 'ui'
+  return 'other'
+}
 
 /** Registers a handler with gateway/domain errors mapped to envelopes. */
 export function route(
@@ -265,7 +297,7 @@ export function route(
 ): void {
   const wrapped = async (request: FastifyRequest, reply: FastifyReply): Promise<unknown> => {
     try {
-      return await handler(request, reply, app)
+      return await runWithEventClient(eventClientForRoute(url), () => handler(request, reply, app))
     } catch (error) {
       // Route errors never vanish into an envelope: the app logger records
       // route + trace + code so a 500 joins to Loki via trace_id. The
@@ -277,7 +309,7 @@ export function route(
         op: 'http.route',
         route: `${method.toUpperCase()} ${url}`,
         ...(request.traceContext ? { trace_id: request.traceContext.traceId } : {}),
-        code: error instanceof WorkspaceError ? error.code : error instanceof RunNotFound ? 'not_found' : error instanceof ThreadNotAccepting ? 'conflict' : 'internal',
+        code: error instanceof WorkspaceError ? error.code : error instanceof RunNotFound ? 'not_found' : error instanceof ThreadNotAccepting ? 'conflict' : error instanceof TemporalUnavailableError ? 'temporal_unavailable' : 'internal',
         errorType: error instanceof Error ? error.constructor.name : 'unknown',
       })
       return mapRouteError(reply, error)

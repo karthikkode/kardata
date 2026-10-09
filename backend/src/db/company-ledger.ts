@@ -12,8 +12,8 @@ import type { Db } from './events.js'
 export const LedgerQualification = z.enum(['unresearched', 'qualified', 'disqualified'])
 export type LedgerQualification = z.infer<typeof LedgerQualification>
 
-export const ProblemStatus = z.enum(['candidate', 'worthy', 'rejected'])
-export type ProblemStatus = z.infer<typeof ProblemStatus>
+const ProblemStatus = z.enum(['candidate', 'worthy', 'rejected'])
+type ProblemStatus = z.infer<typeof ProblemStatus>
 
 export const UpsertCompanyInput = z.object({
   domain: z.string().min(1).max(253),

@@ -25,7 +25,7 @@ function route(name: string, overrides: Partial<ProviderRoute> = {}): ProviderRo
   }
 }
 
-describe('Router', () => {
+describe('Router [F:agents.router.Router] [F:agents.router.NoSatisfyingRouteError]', () => {
   it('routes to the cheapest satisfying route by default', () => {
     const router = new Router({
       routes: [
@@ -74,7 +74,7 @@ describe('Router', () => {
   })
 })
 
-describe('RateLimiter', () => {
+describe('RateLimiter [F:agents.router.RateLimiter]', () => {
   it('admits within budget and reports retry delay past it', () => {
     const clock = frozenClock(0)
     const limiter = new RateLimiter(1, 100, clock)

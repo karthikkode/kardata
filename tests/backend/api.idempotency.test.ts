@@ -4,7 +4,7 @@
 // per-key budget isolation; the idempotency matrix asserts replay (same
 // status and body, no re-execution), 409 on key reuse for a different
 // request, and caller-scoped records.
-import { randomUUID } from 'node:crypto'
+import { createHmac, randomUUID } from 'node:crypto'
 import { Writable } from 'node:stream'
 import type { FastifyInstance } from 'fastify'
 import { Pool } from 'pg'
@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../backend/src/app.js'
 import { hashKey } from '../../backend/src/auth/keys.js'
 import { createLogger } from '../../backend/src/observability/logging.js'
-import type { RunInfo } from '../../backend/src/temporal/gateway.js'
+import type { RunInfo } from '../../backend/src/temporal/runs-types.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import { FakeRunsGateway } from './fake-gateway.js'
 
@@ -33,6 +33,13 @@ function authHeader(key: string, extra: Record<string, string> = {}): Record<str
   return { authorization: `Bearer ${key}`, ...extra }
 }
 
+let mcpNonce = 0
+
+function mcpPayload(): Record<string, unknown> {
+  mcpNonce += 1
+  return { jsonrpc: '2.0', id: mcpNonce, method: 'tools/call', params: { name: 'db.get_local_context', arguments: {} } }
+}
+
 function run(id: string, sessionId: string): RunInfo {
   return {
     id,
@@ -45,7 +52,7 @@ function run(id: string, sessionId: string): RunInfo {
   }
 }
 
-describe.skipIf(!ENABLED)('rate limits and idempotency (B3.4)', () => {
+describe.skipIf(!ENABLED)('rate limits and idempotency (B3.4) [F:http.createSession] [F:http.sendMessage] [F:http.mcpRpc]', () => {
   let app: FastifyInstance
   let throttled: FastifyInstance
   let pool: Pool
@@ -142,6 +149,171 @@ describe.skipIf(!ENABLED)('rate limits and idempotency (B3.4)', () => {
     expect(other.statusCode).toBe(200)
     const health = await throttled.inject({ method: 'GET', url: '/healthz' })
     expect(health.statusCode).toBe(200)
+  })
+
+  it('429s /mcp past the per-key budget with the same envelope', async () => {
+    for (let n = 0; n < 3; n += 1) {
+      const ok = await throttled.inject({
+        method: 'POST',
+        url: '/mcp',
+        headers: authHeader(RATE_KEY),
+        payload: mcpPayload(),
+      })
+      expect(ok.statusCode).not.toBe(429)
+    }
+    const limited = await throttled.inject({
+      method: 'POST',
+      url: '/mcp',
+      headers: authHeader(RATE_KEY),
+      payload: mcpPayload(),
+    })
+    expect(limited.statusCode).toBe(429)
+    expect(limited.json()).toEqual({
+      ok: false,
+      error: { code: 'rate_limited', message: expect.stringMatching(/retry after \d+ seconds/i) },
+    })
+    const retryAfter = Number(limited.headers['retry-after'])
+    expect(Number.isInteger(retryAfter)).toBe(true)
+    expect(retryAfter).toBeGreaterThanOrEqual(1)
+    expect(retryAfter).toBeLessThanOrEqual(60)
+  })
+
+  it('isolates /mcp budgets per key', async () => {
+    const other = await throttled.inject({
+      method: 'POST',
+      url: '/mcp',
+      headers: authHeader(RATE_KEY_OTHER),
+      payload: mcpPayload(),
+    })
+    expect(other.statusCode).not.toBe(429)
+  })
+
+  it('counts /mcp against its own bucket, never the /v1 budget', async () => {
+    for (let n = 0; n < 3; n += 1) {
+      const ok = await throttled.inject({
+        method: 'POST',
+        url: '/mcp',
+        headers: authHeader(OPERATOR),
+        payload: mcpPayload(),
+      })
+      expect(ok.statusCode).not.toBe(429)
+    }
+    const exhausted = await throttled.inject({
+      method: 'POST',
+      url: '/mcp',
+      headers: authHeader(OPERATOR),
+      payload: mcpPayload(),
+    })
+    expect(exhausted.statusCode).toBe(429)
+    const v1 = await throttled.inject({
+      method: 'GET',
+      url: '/v1/sessions',
+      headers: authHeader(OPERATOR),
+    })
+    expect(v1.statusCode).toBe(200)
+  })
+
+  describe('execution-bound /mcp budgets (P4-M6)', () => {
+    const EXEC_KEY = `key-limits-exec-${STAMP}`
+    const FORGE_KEY = `key-limits-forge-${STAMP}`
+    const MCP_TOKEN = `mcp-token-${STAMP}`
+    const THREAD_A = `agent:limits-thread-a-${STAMP}`
+    const THREAD_B = `agent:limits-thread-b-${STAMP}`
+    let savedToken: string | undefined
+
+    function binding(threadKey: string, signature?: string): Record<string, string> {
+      const signed = signature ?? createHmac('sha256', MCP_TOKEN).update(threadKey).digest('hex')
+      return { 'x-kardata-thread': threadKey, 'x-kardata-execution': signed }
+    }
+
+    beforeAll(async () => {
+      savedToken = process.env['KARDATA_MCP_TOKEN']
+      process.env['KARDATA_MCP_TOKEN'] = MCP_TOKEN
+      await pool.query(
+        `INSERT INTO api_keys (key_id, key_hash, tenant_id, project_id, roles)
+         VALUES ('limits-exec', $1, 'tenant-a', NULL, 'operator'),
+                ('limits-forge', $2, 'tenant-a', NULL, 'operator')
+         ON CONFLICT (key_id) DO UPDATE SET key_hash = EXCLUDED.key_hash`,
+        [hashKey(EXEC_KEY), hashKey(FORGE_KEY)],
+      )
+    })
+
+    afterAll(() => {
+      if (savedToken === undefined) delete process.env['KARDATA_MCP_TOKEN']
+      else process.env['KARDATA_MCP_TOKEN'] = savedToken
+    })
+
+    it('isolates /mcp budgets per execution thread on one shared key', async () => {
+      // Thread A exhausts its own budget (limit 3): the 4th call 429s.
+      for (let n = 0; n < 3; n += 1) {
+        const ok = await throttled.inject({
+          method: 'POST',
+          url: '/mcp',
+          headers: authHeader(EXEC_KEY, binding(THREAD_A)),
+          payload: mcpPayload(),
+        })
+        expect(ok.statusCode).not.toBe(429)
+      }
+      const limited = await throttled.inject({
+        method: 'POST',
+        url: '/mcp',
+        headers: authHeader(EXEC_KEY, binding(THREAD_A)),
+        payload: mcpPayload(),
+      })
+      expect(limited.statusCode).toBe(429)
+      // Thread B on the SAME key still has a full budget: per-thread
+      // buckets, not one fleet budget on the shared token. B is capped
+      // too — per-thread budgeting, not an exemption.
+      for (let n = 0; n < 3; n += 1) {
+        const ok = await throttled.inject({
+          method: 'POST',
+          url: '/mcp',
+          headers: authHeader(EXEC_KEY, binding(THREAD_B)),
+          payload: mcpPayload(),
+        })
+        expect(ok.statusCode).not.toBe(429)
+      }
+      const capped = await throttled.inject({
+        method: 'POST',
+        url: '/mcp',
+        headers: authHeader(EXEC_KEY, binding(THREAD_B)),
+        payload: mcpPayload(),
+      })
+      expect(capped.statusCode).toBe(429)
+    })
+
+    it('keeps a forged execution binding on the shared per-key budget', async () => {
+      // Each forgery names a DIFFERENT thread: if forged names minted
+      // per-thread buckets, every call would pass. Sharing one per-key
+      // bucket, the 4th total 429s.
+      const forged = (n: number): Record<string, string> =>
+        binding(`agent:limits-forged-${n}-${STAMP}`, '0'.repeat(64))
+      for (let n = 0; n < 3; n += 1) {
+        const ok = await throttled.inject({
+          method: 'POST',
+          url: '/mcp',
+          headers: authHeader(FORGE_KEY, forged(n)),
+          payload: mcpPayload(),
+        })
+        expect(ok.statusCode).not.toBe(429)
+      }
+      const limited = await throttled.inject({
+        method: 'POST',
+        url: '/mcp',
+        headers: authHeader(FORGE_KEY, forged(3)),
+        payload: mcpPayload(),
+      })
+      expect(limited.statusCode).toBe(429)
+      // A valid binding on the same key still passes: per-thread buckets
+      // sit beside the exhausted per-key bucket.
+      const bound = await throttled.inject({
+        method: 'POST',
+        url: '/mcp',
+        headers: authHeader(FORGE_KEY, binding(`agent:limits-bound-${STAMP}`)),
+        payload: mcpPayload(),
+      })
+      expect(bound.statusCode).not.toBe(429)
+    })
   })
 
   it('replays identical session creates without a second session', async () => {

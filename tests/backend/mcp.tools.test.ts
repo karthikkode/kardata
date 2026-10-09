@@ -14,7 +14,8 @@ import { buildApp } from '../../backend/src/app.js'
 import { createSector, createSession } from '../../backend/src/db/index.js'
 import { createLogger } from '../../backend/src/observability/logging.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
-import { RunNotFound, TemporalRunsGateway, ThreadNotAccepting } from '../../backend/src/temporal/gateway.js'
+import { RunNotFound, ThreadNotAccepting } from '../../backend/src/temporal/runs-types.js'
+import { TemporalRunsGateway } from '../../backend/src/temporal/runs-gateway.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import type { DbQueryResult } from '../../backend/src/db/index.js'
 import { DbContractError } from '../../backend/src/db/index.js'
@@ -22,7 +23,9 @@ import * as dbLayer from '../../backend/src/db/index.js'
 import * as fileIngestion from '../../backend/src/file-ingestion.js'
 import * as retrievalBrowser from '../../backend/src/retrieval/browser.js'
 import * as retrievalWeb from '../../backend/src/retrieval/web.js'
-import { createMcpServer, invokeTool, McpToolError, TOOL_LAYER, TOOL_META, toolCapability, PLATFORM_INTERNAL_TOOLS } from '../../backend/src/mcp/tools.js'
+import { createMcpServer, invokeTool, TOOL_LAYER, TOOL_META, toolCapability, PLATFORM_INTERNAL_TOOLS } from '../../backend/src/mcp/tools.js'
+import { McpToolError } from '../../backend/src/mcp/tools-types.js'
+import { ChildQueueFull } from '../../backend/src/temporal/runs-types.js'
 import { TOOL_NAMES, type McpToolName } from '../../backend/src/mcp/schemas.js'
 import type { TransactableDb } from '../../backend/src/db/index.js'
 
@@ -56,6 +59,21 @@ function makeFake(impl?: QueryImpl): { db: TransactableDb; state: FakeState } {
 
 const SCOPE = { tenantId: 'tenant-a', projectId: null }
 
+// Matrix coverage: the parity, schema, role-floor and capability loops below
+// exercise every tool in EXPECTED_TOOLS (valid/invalid samples per tool).
+// [F:mcp.db.commit_child_context] [F:mcp.db.get_global_context] [F:mcp.db.propose_global_context] [F:mcp.db.list_sector_files] [F:mcp.db.propose_file_context] [F:mcp.db.get_local_context] [F:mcp.db.append_event] [F:mcp.db.read_partition]
+// [F:mcp.db.find_event] [F:mcp.db.read_events_after] [F:mcp.db.create_session] [F:mcp.db.rename_session] [F:mcp.db.delete_session] [F:mcp.db.get_session] [F:mcp.db.list_sessions] [F:mcp.db.list_sectors]
+// [F:mcp.db.get_sector] [F:mcp.db.list_companies] [F:mcp.db.list_sector_companies] [F:mcp.db.sector_activity] [F:mcp.db.create_sector] [F:mcp.db.attach_sector_document] [F:mcp.db.list_sector_documents] [F:mcp.db.read_sector_document]
+// [F:mcp.db.query_document] [F:mcp.db.set_sector_state] [F:mcp.db.start_sector_research] [F:mcp.db.pause_sector_research] [F:mcp.db.resume_sector_research] [F:mcp.db.mark_company_found] [F:mcp.db.set_company_stage] [F:mcp.db.set_company_state]
+// [F:mcp.db.list_artifacts] [F:mcp.db.create_artifact] [F:mcp.db.reference_artifact] [F:mcp.db.resolve_artifact_scope] [F:mcp.db.list_tenant_artifacts] [F:mcp.db.find_launch_parent] [F:mcp.db.get_thread] [F:mcp.db.get_sector_plan]
+// [F:mcp.db.get_research_progress] [F:mcp.db.list_sector_sessions] [F:mcp.db.read_sector_thread] [F:mcp.db.list_threads] [F:mcp.db.send_message] [F:mcp.db.steer_thread] [F:mcp.db.pause_run] [F:mcp.db.resume_run]
+// [F:mcp.db.cancel_run] [F:mcp.db.research_health] [F:mcp.db.project_batch] [F:mcp.db.record_heartbeat] [F:mcp.db.list_heartbeats] [F:mcp.db.read_outbox] [F:mcp.db.subscribe_outbox] [F:mcp.db.project_usage]
+// [F:mcp.db.run_totals] [F:mcp.db.fleet_totals] [F:mcp.db.find_key] [F:mcp.db.check_rate] [F:mcp.db.claim_idempotency] [F:mcp.db.complete_idempotency] [F:mcp.db.release_idempotency] [F:mcp.db.kb_search]
+// [F:mcp.db.update_sector_plan] [F:mcp.db.delegate_subagent] [F:mcp.db.ledger_upsert_company] [F:mcp.db.ledger_get_company] [F:mcp.db.ledger_list_companies] [F:mcp.db.ledger_record_problem] [F:mcp.db.ledger_list_problems] [F:mcp.ops.list_runs]
+// [F:mcp.ops.get_run] [F:mcp.ops.thread_queue] [F:mcp.ops.queue_remove] [F:mcp.ops.queue_reorder] [F:mcp.ops.list_alerts] [F:mcp.ops.thread_health] [F:mcp.ops.cost] [F:mcp.ops.sector_evaluation]
+// [F:mcp.ops.recent_activity] [F:mcp.ops.pause_run] [F:mcp.ops.resume_run] [F:mcp.ops.cancel_run] [F:mcp.ops.spawn_subagent] [F:mcp.ops.restart_sector_research] [F:mcp.db.request_plan] [F:mcp.ops.start_monitor]
+// [F:mcp.ops.stop_monitor] [F:mcp.ops.list_monitors] [F:mcp.web_search] [F:mcp.web_fetch] [F:mcp.browser_navigate] [F:mcp.browser_snapshot] [F:mcp.browser_act] [F:mcp.browser_close]
+// [F:mcp.browser_screenshot]
 /** Per-tool parity samples: valid args must pass both the tool schema and
  * layer validation (reaching the fake DB or succeeding without one);
  * invalid args must fail the tool schema before any query runs. */
@@ -174,6 +192,25 @@ const SAMPLES: Record<McpToolName, { valid: unknown; invalid: unknown; invoke?: 
   'db.ledger_list_companies': { valid: { qualification: 'qualified', query: 'ex' }, invalid: { qualification: 'nope' } },
   'db.ledger_record_problem': { valid: { companyId: 'c', problem: 'p' }, invalid: { companyId: 'c', problem: '' } },
   'db.ledger_list_problems': { valid: { companyId: 'c' }, invalid: {} },
+  'ops.list_runs': { valid: {}, invalid: { state: 'nope' }, invoke: false },
+  'ops.get_run': { valid: { runId: 'r' }, invalid: {}, invoke: false },
+  'ops.thread_queue': { valid: { threadKey: 't' }, invalid: {}, invoke: false },
+  'ops.queue_remove': { valid: { threadKey: 't', id: 'q1' }, invalid: { threadKey: 't' }, invoke: false },
+  'ops.queue_reorder': { valid: { threadKey: 't', ids: ['q1'] }, invalid: { threadKey: 't', ids: [''] }, invoke: false },
+  'ops.list_alerts': { valid: {}, invalid: { limit: 0 } },
+  'ops.thread_health': { valid: { threadKey: 't' }, invalid: {} },
+  'ops.cost': { valid: { threadKey: 't' }, invalid: {} },
+  'ops.sector_evaluation': { valid: { sectorId: 's' }, invalid: { sectorId: '' } },
+  'ops.recent_activity': { valid: { threadKey: 't' }, invalid: {} },
+  'ops.pause_run': { valid: { runId: 'r' }, invalid: {}, invoke: false },
+  'ops.resume_run': { valid: { runId: 'r' }, invalid: { runId: '' }, invoke: false },
+  'ops.cancel_run': { valid: { runId: 'r' }, invalid: {}, invoke: false },
+  'ops.spawn_subagent': { valid: { threadKey: 't', goal: 'research this' }, invalid: { threadKey: 't' }, invoke: false },
+  'ops.restart_sector_research': { valid: { sectorId: 's' }, invalid: { sectorId: '' } },
+  'db.request_plan': { valid: { sectorId: 's', instruction: 'focus on Sydney' }, invalid: { sectorId: 's' }, invoke: false },
+  'ops.start_monitor': { valid: { sectorId: 's', everyMinutes: 5, brief: 'watch it' }, invalid: { sectorId: 's', everyMinutes: 4, brief: 'b' }, invoke: false },
+  'ops.stop_monitor': { valid: { monitorId: 'm' }, invalid: { monitorId: '' } },
+  'ops.list_monitors': { valid: {}, invalid: { unexpected: true } },
 }
 
 const EXPECTED_TOOLS: McpToolName[] = [
@@ -244,6 +281,25 @@ const EXPECTED_TOOLS: McpToolName[] = [
   'db.ledger_list_companies',
   'db.ledger_record_problem',
   'db.ledger_list_problems',
+  'ops.list_runs',
+  'ops.get_run',
+  'ops.thread_queue',
+  'ops.queue_remove',
+  'ops.queue_reorder',
+  'ops.list_alerts',
+  'ops.thread_health',
+  'ops.cost',
+  'ops.sector_evaluation',
+  'ops.recent_activity',
+  'ops.pause_run',
+  'ops.resume_run',
+  'ops.cancel_run',
+  'ops.spawn_subagent',
+  'ops.restart_sector_research',
+  'db.request_plan',
+  'ops.start_monitor',
+  'ops.stop_monitor',
+  'ops.list_monitors',
   'web_search',
   'web_fetch',
   'browser_navigate',
@@ -285,7 +341,7 @@ describe('mcp tool parity (Phase 2)', () => {
   it('valid args pass tool schema and layer validation; invalid args fail before any query', async () => {
     for (const name of TOOL_NAMES) {
       const { db, state } = makeFake()
-      const ctx = { pool: db, scope: SCOPE, role: 'approver' as const, keyId: 'test-key', runs: { async startSectorSweep() { throw new Error('Runner must not execute before DB validation') }, async cancelSectorSweep() { throw new Error('Runner must not execute before DB validation') } } }
+      const ctx = { pool: db, scope: SCOPE, role: 'approver' as const, keyId: 'test-key', runs: { async startSectorSweep() { throw new Error('Runner must not execute before DB validation') }, async cancelSectorSweep() { throw new Error('Runner must not execute before DB validation') } }, monitor: { async startMonitorWorkflow() { throw new Error('Runner must not execute before DB validation') }, async stopMonitorWorkflow() { throw new Error('Runner must not execute before DB validation') } } }
       const sample = SAMPLES[name]
       // Retrieval tools touch the network/browser: their valid path is
       // proven by dedicated tests with injected doubles, never here.
@@ -377,7 +433,7 @@ async function initialize(app: FastifyInstance, extraHeaders: Record<string, str
   expect((response.json.result as { serverInfo?: { name?: string } }).serverInfo?.name).toBe('kardata')
 }
 
-describe('mcp transport (Phase 2)', () => {
+describe('mcp transport (Phase 2) [F:http.mcpRpc]', () => {
   it('serves initialize, tools/list, and tools/call over POST /mcp', async () => {
     const { db } = makeFake(async (text) => {
       if (/FROM heartbeats/.test(text)) {
@@ -406,6 +462,43 @@ describe('mcp transport (Phase 2)', () => {
       const unknown = await postMcp(app, rpc('tools/call', { name: 'db.nope', arguments: {} }, 4))
       expect(unknown.status).toBe(200)
       expect(unknown.json.error ?? unknown.json.result).toBeTruthy()
+    } finally {
+      await app.close()
+    }
+  })
+
+  it('lists ops.cost and ops.recent_activity with visible selector properties [F:mcp.ops.cost] [F:mcp.ops.recent_activity]', async () => {
+    // Unions list as an empty schema, hiding every selector from the
+    // model; single objects list their properties (P5-M2). The fake
+    // throws on any query: listing must stay query-free.
+    const { db } = makeFake(async (text) => {
+      throw new QueryReached(text)
+    })
+    const app = buildApp({ pool: db })
+    try {
+      await initialize(app)
+      const listed = await postMcp(app, rpc('tools/list', {}, 1))
+      expect(listed.status).toBe(200)
+      const tools = (listed.json.result as { tools: Array<{ name: string; inputSchema: { properties?: Record<string, unknown> } }> }).tools
+      const byName = new Map(tools.map((tool) => [tool.name, tool.inputSchema]))
+      expect(Object.keys(byName.get('ops.cost')?.properties ?? {})).toEqual(
+        expect.arrayContaining(['threadKey', 'sectorId']),
+      )
+      expect(Object.keys(byName.get('ops.recent_activity')?.properties ?? {})).toEqual(
+        expect.arrayContaining(['traceId', 'threadKey', 'limit']),
+      )
+      // The exactly-one rule moved into the handlers: both selectors at
+      // once fails before any query runs.
+      for (const [tool, args] of [
+        ['ops.cost', { threadKey: 't', sectorId: 's' }],
+        ['ops.recent_activity', { traceId: 'x', threadKey: 't' }],
+      ] as const) {
+        const both = await postMcp(app, rpc('tools/call', { name: tool, arguments: args }, 2))
+        expect(both.status).toBe(200)
+        const result = both.json.result as { isError?: boolean; content: Array<{ text: string }> }
+        expect(result.isError, tool).toBe(true)
+        expect(result.content[0]?.text, tool).toContain('exactly one of')
+      }
     } finally {
       await app.close()
     }
@@ -988,7 +1081,7 @@ describe('mcp monitor and steer tools', () => {
   })
 })
 
-describe.skipIf(!TEST_DATABASE_URL)('mcp research health over live db', () => {
+describe.skipIf(!TEST_DATABASE_URL)('mcp research health over live db [F:backend.activity.tools.SENSITIVE_TOOLS] [F:db.index.createSector] [F:db.index.createSession] [F:db.index.DbContractError] [F:db.sectors.createSector] [F:db.sessions.createSession] [F:db.errors.DbContractError] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.company_ledger.LedgerQualification] [F:db.company_ledger.RecordProblemInput] [F:db.company_ledger.UpsertCompanyInput] [F:db.workspace.ContextFileRef] [F:db.context_files.agentHistoryBoundary] [F:db.context_files.assertThreadFileContext] [F:db.context_files.mergeFileRefs] [F:db.context_files.recordThreadFileExposure] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.errors.WorkspaceError] [F:db.sessions.deleteSession] [F:db.events.findLaunchParentWorkflowId] [F:db.sessions.renameSession] [F:db.index.CompanyStage] [F:db.index.Db] [F:db.index.LedgerQualification] [F:db.index.RecordProblemInput] [F:db.index.SectorStartError] [F:db.index.SectorState] [F:db.index.SectorSweepRunner] [F:db.index.SectorTransitionError] [F:db.index.StoredEvent] [F:db.index.ThreadMessenger] [F:db.index.TransactableDb] [F:db.index.UpsertCompanyInput] [F:db.index.cancelThreadRun] [F:db.index.deleteSession] [F:db.index.findLaunchParentWorkflowId] [F:db.index.pauseSectorSweep] [F:db.index.pauseThreadRun] [F:db.index.readSectorThread] [F:db.index.renameSession] [F:db.index.resumeSectorSweep] [F:db.index.resumeThreadRun] [F:db.index.sendThreadMessage] [F:db.index.startSectorResearch] [F:db.index.steerThread] [F:db.index.subscribeOutbox] [F:db.sectors.CompanyStage] [F:db.sectors.SectorState] [F:db.threads.cancelThreadRun] [F:db.threads.pauseThreadRun] [F:db.threads.readSectorThread] [F:db.threads.resumeThreadRun] [F:db.threads.sendThreadMessage] [F:db.threads.steerThread] [F:db.workspace.PartialContextSections] [F:db.workspace.WorkspaceError] [F:db.sector_documents.assertFileVisible] [F:db.workspace_global_context.assertGlobalFileContext] [F:db.workspace.listSectorSessions] [F:db.workspace.requireSector] [F:db.workspace.requireThread] [F:db.sessions.sessionKind] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked] [F:db.workspace.workspaceRow] [F:db.file_jobs.visible] [F:db.index.DbQueryResult]', () => {
   it('reports live, stalled, and non-running sectors honestly', async () => {
     const pool = new Pool({ connectionString: await ensureTestDb('kardata_test_health') })
     try {
@@ -1046,5 +1139,29 @@ describe.skipIf(!TEST_DATABASE_URL)('mcp research health over live db', () => {
     } finally {
       await pool.end()
     }
+  })
+})
+
+describe('delegate queue-full mapping (P4.2)', () => {
+  it('db.delegate_subagent maps a full queue to a conflict tool error', async () => {
+    const { db } = makeFake(async (text: string) => {
+      if (text.includes('FROM created c')) {
+        return { rowCount: 1, rows: [{ id: 's-1', title: 'Chat', sector: null, created_at: '2026-01-01T00:00:00.000Z', updated_at: '2026-01-01T00:00:00.000Z' }] } as never
+      }
+      return { rowCount: 0, rows: [] } as never
+    })
+    const failure = await invokeTool(
+      'db.delegate_subagent',
+      {
+        pool: db, scope: SCOPE, role: 'operator', keyId: 'key-a',
+        delegator: { delegateSubagent: async () => { throw new ChildQueueFull('child queue full (1 waiting)') } },
+      },
+      { sessionId: 's-1', goal: 'research the question' },
+    ).then(
+      () => undefined,
+      (error: unknown) => error,
+    )
+    expect(failure).toBeInstanceOf(McpToolError)
+    expect((failure as McpToolError).code).toBe('conflict')
   })
 })

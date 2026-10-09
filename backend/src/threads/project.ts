@@ -44,7 +44,11 @@ export const SubagentMissedSteer = z.object({
   text: z.string().min(1),
 })
 
-export const MessageKind = z.enum(['text', 'tool', 'approval'])
+export const SubagentQueued = z.object({
+  childId: z.string().min(1),
+})
+
+const MessageKind = z.enum(['text', 'tool', 'approval'])
 
 export const MessageAppended = z.object({
   threadKey: z.string().min(1),
@@ -75,6 +79,7 @@ export const ThreadState = z.object({
   threadKey: z.string().min(1),
   status: z.string().min(1),
   acceptingSteer: z.boolean().optional(),
+  reasonCode: z.string().optional(),
 })
 
 export interface ChildRef {
@@ -101,6 +106,8 @@ export interface ThreadView {
   sessionId: string
   kind: 'session' | 'subagent'
   status: string
+  /** Supervisor reason code (closed-owner, ...); absent when no failure stands. */
+  stateReason?: string
   acceptingSteer: boolean
   queueDepth: number
   updatedAt: string

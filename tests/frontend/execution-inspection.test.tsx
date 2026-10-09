@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
 import { ExecutionInspector } from '@/components/ExecutionInspector'
-import { getExecutionRecord, listExecutionRecords, type ExecutionRecordMetadata, type ExecutionRecordPage } from '@/data/workspace-api'
+import { getExecutionRecord, listExecutionRecords, type ExecutionRecordMetadata, type ExecutionRecordPage } from '@/data/api/execution-records'
 import type { Resource } from '@/data/useWorkspace'
 
 const entry: ExecutionRecordMetadata = { seq: 12, at: '2026-10-01T00:00:00Z', runKey: 'TEST original operation', attemptLease: 'a8f8c1d9-8d8f-4e0c-a929-941f672b35b0', round: 2, kind: 'request', workflowId: 'TEST workflow', executionId: 'TEST actual execution', ref: { hash: 'a'.repeat(64), bytes: 80000 } }

@@ -2,13 +2,14 @@
 
 /** Humanize one data key: snake_case and camelCase become sentence case,
  * with known acronyms uppercased. Unknown keys fall back to this. */
+const HUMANIZE_ACRONYMS = new Set(['id', 'url', 'pdf', 'csv', 'json', 'ocr', 'api', 'ip', 'ui', 'db'])
 export function humanizeKey(key: string): string {
   const words = key
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .replace(/[_-]+/g, ' ')
     .trim()
     .split(/\s+/)
-  const acronyms = new Set(['id', 'url', 'pdf', 'csv', 'json', 'ocr', 'api', 'ip', 'ui', 'db'])
+  const acronyms = HUMANIZE_ACRONYMS
   return words
     .map((word, index) => {
       const lower = word.toLowerCase()

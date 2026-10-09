@@ -1,0 +1,591 @@
+// Continue-as-new for session, parent, and child runs (P4.2.4). Small
+// historyEventLimit values trip a continue after nearly every turn, so the
+// carry-over (inbox, queue, children map, goals, pause flags) is exercised
+// repeatedly; production keeps the 10k events / 10 MB defaults. Each
+// first-run history is walked link by link (continuedExecutionRunId) and
+// replayed through the current bundle. Gated by KARDATA_TEMPORAL_TEST=1
+// like the other workflow suites; the trigger matrix runs ungated.
+import { randomUUID } from 'node:crypto'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { Client as WorkflowClient } from '@temporalio/client'
+import { temporal } from '@temporalio/proto'
+import { bundleWorkflowCode, Worker, type NativeConnection, type Worker as WorkerType } from '@temporalio/worker'
+import { Pool } from 'pg'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { readPartition } from '../../backend/src/db/index.js'
+import { appendEventActivity, karbotTurnActivity } from '../../backend/src/temporal/activities/turn.js'
+import { connectClient, connectWorker, temporalNamespace } from '../../backend/src/temporal/connection.js'
+import { createLaneWorker } from '../../backend/src/temporal/worker.js'
+import { CAN_DEFAULT_BYTE_LIMIT, CAN_DEFAULT_EVENT_LIMIT, shouldContinueAsNew } from '../../backend/src/temporal/workflows/can.js'
+import { ensureTestDb } from './db-helper.js'
+
+describe('shouldContinueAsNew trigger matrix', () => {
+  it('keeps the 10k events / 10 MB production defaults', () => {
+    expect(CAN_DEFAULT_EVENT_LIMIT).toBe(10_000)
+    expect(CAN_DEFAULT_BYTE_LIMIT).toBe(10 * 1024 * 1024)
+  })
+  const cases: Array<[number, number, boolean, number | undefined, number | undefined, boolean]> = [
+    [9999, 1, false, undefined, undefined, false],
+    [10_000, 1, false, undefined, undefined, true],
+    [100, 10 * 1024 * 1024, false, undefined, undefined, true],
+    [100, 10 * 1024 * 1024 - 1, false, undefined, undefined, false],
+    [100, 1, true, undefined, undefined, true],
+    [50, 1, false, 40, undefined, true],
+    [30, 1, false, 40, undefined, false],
+    [30, 200, false, undefined, 100, true],
+    [30, 50, false, undefined, 100, false],
+  ]
+  it.each(cases)('length=%i size=%i suggested=%s eventLimit=%s byteLimit=%s -> %s', (length, size, suggested, eventLimit, byteLimit, expected) => {
+    expect(shouldContinueAsNew(length, size, suggested, eventLimit, byteLimit)).toBe(expected)
+  })
+})
+
+const ENABLED = process.env['KARDATA_TEMPORAL_TEST'] === '1'
+const ADDRESS = process.env['KARDATA_TEMPORAL_ADDRESS'] ?? 'localhost:7233'
+const WORKFLOWS_PATH = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  'backend',
+  'src',
+  'temporal',
+  'workflows',
+  'turn-bundle.ts',
+)
+const CONTINUED = temporal.api.enums.v1.EventType.EVENT_TYPE_WORKFLOW_EXECUTION_CONTINUED_AS_NEW
+
+interface LooseHistory {
+  events?: Array<{
+    eventType?: unknown
+    workflowExecutionStartedEventAttributes?: { continuedExecutionRunId?: string; firstExecutionRunId?: string } | null
+  }> | null
+}
+
+function startedOf(history: LooseHistory): { continued?: string; first?: string } {
+  const started = (history.events ?? []).find((event) => event.workflowExecutionStartedEventAttributes !== undefined && event.workflowExecutionStartedEventAttributes !== null)
+  const attrs = started?.workflowExecutionStartedEventAttributes
+  return {
+    continued: attrs?.continuedExecutionRunId || undefined,
+    first: attrs?.firstExecutionRunId || undefined,
+  }
+}
+
+function hasContinued(history: LooseHistory): boolean {
+  return (history.events ?? []).some((event) => event.eventType === CONTINUED)
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function waitFor(condition: () => Promise<boolean>, timeoutMs: number, what: string): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (!(await condition())) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`)
+    await sleep(200)
+  }
+}
+
+// fetchHistory has no SDK-side deadline: a stalled Temporal call burns
+// the whole test budget with zero diagnostics (fv4 01 attempt 16 hung
+// 176 s here while the thousand-leg storm shared :7233). Bound every
+// history pull so a stall fails fast with the phase named.
+async function fetchHistoryBounded<T>(
+  handle: { fetchHistory: () => Promise<T> },
+  what: string,
+  timeoutMs = 30_000,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      handle.fetchHistory(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`timed out waiting for ${what}`)), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
+  }
+}
+
+describe.skipIf(!ENABLED)('continue-as-new (P4.2.4) [F:backend.activity.turn.appendEventActivity] [F:backend.activity.turn.karbotTurnActivity] [F:backend.workflow.can.CAN_DEFAULT_BYTE_LIMIT] [F:backend.workflow.can.CAN_DEFAULT_EVENT_LIMIT] [F:backend.workflow.can.shouldContinueAsNew] [F:backend.workflow.run.sessionRun] [F:backend.workflow.subagents.delegateParent] [F:backend.activity.coordinator.prepareExecutionIntentActivity] [F:backend.activity.coordinator.settlePreparedExecutionIntentActivity] [F:backend.activity.execution_epochs.originalRecoveryReadyActivity] [F:backend.activity.execution_epochs.prepareExecutionIntentActivity] [F:backend.activity.execution_epochs.settlePreparedExecutionIntentActivity] [F:backend.workflow.epoch_start.withPreparedExecution] [F:backend.workflow.inbox_queue.normalizeQueueItem] [F:backend.workflow.inbox_queue.queueItemsQuery] [F:backend.workflow.inbox_queue.queueRemoveUpdate] [F:backend.workflow.inbox_queue.queueReorderUpdate] [F:backend.workflow.resumable_turn.resumableTurn] [F:backend.workflow.run.DEFAULT_IDLE_TIMEOUT_MS] [F:backend.workflow.run.cancelSignal] [F:backend.workflow.run.pauseSignal] [F:backend.workflow.run.resumeSignal] [F:backend.workflow.run.sendSignal] [F:backend.workflow.run.skillSignal] [F:backend.workflow.run.stateQuery] [F:backend.workflow.run.steerSignal] [F:backend.workflow.subagents.DEFAULT_CHILD_FINISH_TIMEOUT_MS] [F:backend.workflow.subagents.DEFAULT_MAX_IN_FLIGHT_CHILDREN] [F:backend.workflow.subagents.DEFAULT_PARENT_IDLE_TIMEOUT_MS] [F:backend.workflow.subagents.childCanDelegateQuery] [F:backend.workflow.subagents.childCancelSignal] [F:backend.workflow.subagents.childFinishSignal] [F:backend.workflow.subagents.childMessageSignal] [F:backend.workflow.subagents.childRedirectSignal] [F:backend.workflow.subagents.childStateQuery] [F:backend.workflow.subagents.childSummaryQuery] [F:backend.workflow.subagents.parentDelegateSignal] [F:backend.workflow.subagents.parentFinishSignal] [F:backend.workflow.subagents.parentNoteDoneSignal] [F:backend.workflow.subagents.parentRecoverSignal] [F:backend.workflow.subagents.parentStateQuery] [F:backend.workflow.subagents.parentSteerSignal] [F:backend.workflow.inbox_queue.registerQueueHandlers] [F:backend.workflow.subagents.DEFAULT_MAX_QUEUED_CHILDREN] [F:db.index.readPartition] [F:db.events.readPartition] [F:db.context_files.assertThreadFileContext] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.errors.WorkspaceError] [F:db.execution_epochs.readActiveExecutionIdentity] [F:db.index.Db] [F:db.workspace.WorkspaceError] [F:db.workspace_threads.recordContextMeasurement] [F:db.workspace.requireThread]', () => {
+  let connection: NativeConnection
+  let client: WorkflowClient
+  let url = ''
+  let worker: WorkerType
+  let run: Promise<void>
+  const replayTargets: Array<{ workflowId: string; runId?: string }> = []
+
+  beforeAll(async () => {
+    process.env['TEMPORAL_ADDRESS'] = ADDRESS
+    process.env['KARDATA_PROVIDER'] = 'fake'
+    url = await ensureTestDb('kardata_test_can')
+    process.env['DATABASE_URL'] = url
+    connection = await connectWorker()
+    client = new WorkflowClient({ connection: await connectClient() })
+    worker = await createLaneWorker({
+      lane: 'turn',
+      connection,
+      namespace: temporalNamespace(),
+      workflowsPath: WORKFLOWS_PATH,
+      activities: { appendEventActivity, karbotTurnActivity },
+      taskQueue: `kardata-test-can-${Date.now()}`,
+    })
+    run = worker.run()
+    run.catch(() => undefined)
+  }, 120_000)
+
+  afterAll(async () => {
+    worker.shutdown()
+    await run
+    await connection.close()
+    delete process.env['DATABASE_URL']
+    delete process.env['KARDATA_PROVIDER']
+  }, 60_000)
+
+  function taskQueue(): string {
+    return (worker.options as { taskQueue: string }).taskQueue
+  }
+
+  async function events(partition: string): Promise<Array<{ type: string; payload: Record<string, unknown> }>> {
+    const pool = new Pool({ connectionString: url })
+    try {
+      const rows = await readPartition(pool, partition)
+      return rows.map((row) => ({ type: row.type, payload: row.payload as Record<string, unknown> }))
+    } finally {
+      await pool.end()
+    }
+  }
+
+  async function agentReplies(partition: string): Promise<number> {
+    const rows = await events(partition)
+    return rows.filter((row) => row.type === 't.message.appended' && (row.payload['message'] as { role?: string } | undefined)?.role === 'agent').length
+  }
+
+  async function hasUserMessage(partition: string, text: string): Promise<boolean> {
+    const rows = await events(partition)
+    return rows.some(
+      (row) =>
+        row.type === 't.message.appended' &&
+        (row.payload['message'] as { role?: string; text?: string } | undefined)?.role === 'user' &&
+        (row.payload['message'] as { text?: string } | undefined)?.text === text,
+    )
+  }
+
+  // Walks the continue-as-new chain link by link: every run's
+  // continuedExecutionRunId resolves to its predecessor, every link shares
+  // the first execution id, and the first run's history holds the
+  // ContinueAsNew event. Returns the first run id for the replay test.
+  async function expectContinuedChain(workflowId: string): Promise<string> {
+    let continued: string | undefined
+    let first: string | undefined
+    await waitFor(async () => {
+      // A stalled pull degrades to one more poll, not a dead test: the
+      // waitFor budget still bounds the whole phase.
+      const current = (await fetchHistoryBounded(
+        client.workflow.getHandle(workflowId),
+        `${workflowId} continue poll`,
+      ).catch(() => undefined)) as LooseHistory | undefined
+      if (current === undefined) return false
+      const started = startedOf(current)
+      continued = started.continued
+      first = started.first
+      return continued !== undefined
+    }, 60_000, `${workflowId} to continue`)
+    let previous = continued as string
+    for (let links = 0; links < 50; links += 1) {
+      const history = (await fetchHistoryBounded(
+        client.workflow.getHandle(workflowId, previous),
+        `${workflowId} chain link`,
+      )) as LooseHistory
+      const started = startedOf(history)
+      expect(started.first).toBe(first)
+      if (started.continued === undefined) {
+        expect(hasContinued(history)).toBe(true)
+        return previous
+      }
+      previous = started.continued
+    }
+    throw new Error(`chain walk for ${workflowId} exceeded 50 links`)
+  }
+
+  it('sessionRun continues and carries the inbox plus the pause', async () => {
+    const tag = randomUUID()
+    const sessionId = `can-session-${tag}`
+    const workflowId = `can-session-run-${tag}`
+    const partition = `session:${sessionId}`
+    const handle = await client.workflow.start('sessionRun', {
+      taskQueue: taskQueue(),
+      workflowId,
+      args: [{ sessionId, fakeSteps: [{ text: 'can reply', delayMs: 2000 }], historyEventLimit: 10 }],
+    })
+    await waitFor(
+      async () => (await events(partition)).some((event) => event.type === 't.session.created'),
+      30_000,
+      'session to start',
+    )
+    await handle.signal('runSend', 'one')
+    await waitFor(async () => (await agentReplies(partition)) === 1, 60_000, 'first reply')
+    const firstRunId = await expectContinuedChain(workflowId)
+    replayTargets.push({ workflowId, runId: firstRunId })
+    // Pause lands mid-turn (the 2 s dwell guarantees the turn is still in
+    // flight): the turn completes, then the run continues while paused with
+    // the fresh message still queued.
+    await handle.signal('runSend', 'two')
+    // A CAN hop may delay the shift past any fixed sleep: the user event
+    // proves 'two' left the inbox, so the short sleep lands mid-turn (2 s
+    // dwell) instead of ahead of a still-queued message.
+    await waitFor(async () => hasUserMessage(partition, 'two'), 30_000, 'second user message')
+    await sleep(300)
+    await client.workflow.getHandle(workflowId).signal('runPause')
+    await client.workflow.getHandle(workflowId).signal('runSend', 'three')
+    await waitFor(async () => {
+      const state = (await client.workflow.getHandle(workflowId).query('runState')) as { state: string; pending: number }
+      return state.state === 'PAUSED' && state.pending === 1
+    }, 60_000, 'continued run to hold paused with one queued')
+    // The pause receipt arrives while the turn still dwells: the reply
+    // lands on the turn's schedule, not the signal's.
+    await waitFor(async () => (await agentReplies(partition)) === 2, 60_000, 'second reply after pause')
+    await client.workflow.getHandle(workflowId).signal('runResume')
+    await waitFor(async () => (await agentReplies(partition)) === 3, 60_000, 'queued message after resume')
+    const state = (await client.workflow.getHandle(workflowId).query('runState')) as { state: string; pending: number }
+    expect(state.pending).toBe(0)
+    await client.workflow.getHandle(workflowId).signal('runCancel')
+  }, 120_000)
+
+  it('delegateParent continues and carries the queue plus the children map', async () => {
+    const tag = randomUUID()
+    const sessionId = `can-parent-${tag}`
+    const workflowId = `can-parent-run-${tag}`
+    const partition = `session:${sessionId}`
+    const handle = await client.workflow.start('delegateParent', {
+      taskQueue: taskQueue(),
+      workflowId,
+      args: [{ sessionId, maxInFlight: 2, historyEventLimit: 10 }],
+    })
+    await waitFor(
+      async () => (await events(partition)).some((event) => event.type === 't.session.created'),
+      30_000,
+      'parent to start',
+    )
+    const childIds = [0, 1, 2, 3, 4, 5].map((index) => `can-child-b-${index}-${tag}`)
+    for (const childId of childIds) {
+      await handle.signal('parentDelegate', {
+        childId,
+        goal: `TEST can goal ${childId}`,
+        depth: 1,
+        mode: 'empty',
+        maxDepth: 1,
+        queueCapacity: 8,
+        fakeSteps: [{ text: 'child reply' }],
+      })
+    }
+    await waitFor(async () => {
+      const rows = await events(partition)
+      const launched = rows.filter((row) => row.type === 't.subagent.launched').length
+      const queued = rows.filter((row) => row.type === 't.subagent.queued').length
+      return launched === 2 && queued === 4
+    }, 60_000, 'two launches plus four queued')
+    const firstRunId = await expectContinuedChain(workflowId)
+    replayTargets.push({ workflowId, runId: firstRunId })
+    const fresh = () => client.workflow.getHandle(workflowId)
+    const state = (await fresh().query('parentState')) as {
+      children: Array<{ childId: string; status: string }>
+      queued: string[]
+    }
+    expect(state.children.filter((child) => child.status === 'running')).toHaveLength(2)
+    expect(state.queued).toHaveLength(4)
+    // Direct launches leave the first feed to the caller: both running
+    // children get their goal and turn it into a reply.
+    const running = state.children.filter((child) => child.status === 'running').map((child) => child.childId)
+    for (const childId of running) {
+      await client.workflow.getHandle(childId).signal('childMessage', `TEST can goal ${childId}`)
+    }
+    for (const childId of running) {
+      await waitFor(async () => (await agentReplies(`child:${childId}`)) >= 1, 60_000, `${childId} first reply`)
+    }
+    // A steer through the continued parent routes through the re-derived
+    // external handle, not a stale pre-chain stub.
+    await fresh().signal('parentSteer', { childId: running[0], text: 'skip franchises' })
+    await waitFor(async () => (await agentReplies(`child:${running[0]}`)) === 2, 60_000, 'steered second reply')
+    // Closing one child frees a slot: the head of the carried queue
+    // promotes, launches, and gets its goal fed parent-side.
+    await client.workflow.getHandle(running[0]).signal('childCancel')
+    await client.workflow.getHandle(running[0]).signal('childFinish')
+    await waitFor(
+      async () =>
+        (await events(partition)).some(
+          (event) => event.type === 't.subagent.completed' && ((event.payload['summary'] as { id?: string } | undefined)?.id === running[0]),
+        ),
+      60_000,
+      'completion entry',
+    )
+    await fresh().signal('parentNoteDone', { childId: running[0], status: 'cancelled' })
+    await waitFor(async () => (await events(partition)).filter((event) => event.type === 't.subagent.launched').length === 3, 60_000, 'promoted launch')
+    const promoted = (await fresh().query('parentState')) as { children: Array<{ childId: string; status: string }> }
+    const promotedId = promoted.children.find((child) => !running.includes(child.childId) && child.status === 'running')?.childId
+    expect(promotedId).toBeDefined()
+    await waitFor(async () => (await agentReplies(`child:${promotedId as string}`)) >= 1, 60_000, 'promoted child fed reply')
+    await fresh().signal('parentFinish')
+    for (const childId of [...running.slice(1), promotedId as string]) {
+      await client.workflow.getHandle(childId).signal('childCancel')
+      await client.workflow.getHandle(childId).signal('childFinish')
+    }
+  }, 120_000)
+
+  it('running children survive a parent continue and all complete', async () => {
+    const tag = randomUUID()
+    const sessionId = `can-survive-${tag}`
+    const workflowId = `can-survive-run-${tag}`
+    const partition = `session:${sessionId}`
+    const handle = await client.workflow.start('delegateParent', {
+      taskQueue: taskQueue(),
+      workflowId,
+      args: [{ sessionId, maxInFlight: 10, historyEventLimit: 10 }],
+    })
+    await waitFor(
+      async () => (await events(partition)).some((event) => event.type === 't.session.created'),
+      30_000,
+      'parent to start',
+    )
+    const childIds = [0, 1, 2, 3, 4].map((index) => `can-survive-c-${index}-${tag}`)
+    for (const childId of childIds) {
+      await handle.signal('parentDelegate', {
+        childId,
+        goal: `TEST survive goal ${childId}`,
+        depth: 1,
+        mode: 'empty',
+        maxDepth: 1,
+        queueCapacity: 8,
+        fakeSteps: [{ text: 'survive reply' }],
+      })
+    }
+    await waitFor(async () => (await events(partition)).filter((event) => event.type === 't.subagent.launched').length === 5, 60_000, 'five launches')
+    // The tiny history limit trips a continue while all five run: with
+    // REQUEST_CANCEL the old run's close would cancel them.
+    const firstRunId = await expectContinuedChain(workflowId)
+    replayTargets.push({ workflowId, runId: firstRunId })
+    for (const childId of childIds) {
+      const state = (await client.workflow.getHandle(childId).query('childState')) as { status: string }
+      expect(state.status).toBe('running')
+    }
+    // Every child still finishes normally through the continued parent, and
+    // noteDone crosses the chain: all five read finished, none re-queued.
+    for (const childId of childIds) {
+      await client.workflow.getHandle(childId).signal('childFinish')
+      expect(await client.workflow.getHandle(childId).result()).toBe('finished')
+    }
+    await waitFor(async () => (await events(partition)).filter((event) => event.type === 't.subagent.completed').length === 5, 60_000, 'five completions')
+    const fresh = () => client.workflow.getHandle(workflowId)
+    const state = (await fresh().query('parentState')) as { children: Array<{ childId: string; status: string }>; queued: string[] }
+    expect(state.children.filter((child) => child.status === 'finished')).toHaveLength(5)
+    expect(state.queued).toEqual([])
+    await fresh().signal('parentFinish')
+    expect(await fresh().result()).toBe('done')
+  }, 180_000)
+
+  it('a cancelled parent cancels its pre-continue children', async () => {
+    const tag = randomUUID()
+    const sessionId = `can-cancel-${tag}`
+    const workflowId = `can-cancel-run-${tag}`
+    const partition = `session:${sessionId}`
+    const handle = await client.workflow.start('delegateParent', {
+      taskQueue: taskQueue(),
+      workflowId,
+      args: [{ sessionId, maxInFlight: 10, historyEventLimit: 10 }],
+    })
+    await waitFor(
+      async () => (await events(partition)).some((event) => event.type === 't.session.created'),
+      30_000,
+      'parent to start',
+    )
+    const childIds = [0, 1, 2, 3, 4].map((index) => `can-cancel-c-${index}-${tag}`)
+    for (const childId of childIds) {
+      await handle.signal('parentDelegate', {
+        childId,
+        goal: `TEST cancel goal ${childId}`,
+        depth: 1,
+        mode: 'empty',
+        maxDepth: 1,
+        queueCapacity: 8,
+        fakeSteps: [{ text: 'cancel reply' }],
+      })
+    }
+    await waitFor(async () => (await events(partition)).filter((event) => event.type === 't.subagent.launched').length === 5, 60_000, 'five launches')
+    // The tiny history limit trips a continue while all five run: from
+    // here they are pre-continue children under re-derived handles.
+    const firstRunId = await expectContinuedChain(workflowId)
+    replayTargets.push({ workflowId, runId: firstRunId })
+    const fresh = () => client.workflow.getHandle(workflowId)
+    await fresh().cancel()
+    await expect(fresh().result()).rejects.toThrow()
+    // The parent's own unwind cancels all five through the re-derived
+    // external handles: no orphan survives, no supervision needed. Each
+    // child still lands its own completion entry; noteDone to the dead
+    // parent fails best-effort inside the child.
+    for (const childId of childIds) {
+      expect(await client.workflow.getHandle(childId).result()).toBe('cancelled')
+    }
+    await waitFor(async () => (await events(partition)).filter((event) => event.type === 't.subagent.completed').length === 5, 60_000, 'five completions')
+  }, 180_000)
+
+  it('a cancelled parent completes its queued pre-continue children', async () => {
+    const tag = randomUUID()
+    const sessionId = `can-qcancel-${tag}`
+    const workflowId = `can-qcancel-run-${tag}`
+    const partition = `session:${sessionId}`
+    const handle = await client.workflow.start('delegateParent', {
+      taskQueue: taskQueue(),
+      workflowId,
+      args: [{ sessionId, maxInFlight: 1, historyEventLimit: 10 }],
+    })
+    await waitFor(
+      async () => (await events(partition)).some((event) => event.type === 't.session.created'),
+      30_000,
+      'parent to start',
+    )
+    const runningId = `can-qcancel-running-${tag}`
+    const queuedIds = [0, 1].map((index) => `can-qcancel-q-${index}-${tag}`)
+    for (const childId of [runningId, ...queuedIds]) {
+      await handle.signal('parentDelegate', {
+        childId,
+        goal: `TEST queued cancel goal ${childId}`,
+        depth: 1,
+        mode: 'empty',
+        maxDepth: 1,
+        queueCapacity: 8,
+        fakeSteps: [{ text: 'queued cancel reply' }],
+      })
+    }
+    await waitFor(
+      async () =>
+        (await events(partition)).filter((event) => event.type === 't.subagent.launched').length === 1 &&
+        (await events(partition)).filter((event) => event.type === 't.subagent.queued').length === 2,
+      60_000,
+      'one launch plus two queued',
+    )
+    // The tiny history limit trips a continue with one running and two
+    // queued: all three are pre-continue children of the new run.
+    await expectContinuedChain(workflowId)
+    const fresh = () => client.workflow.getHandle(workflowId)
+    await fresh().cancel()
+    await expect(fresh().result()).rejects.toThrow()
+    // The running child cancels through its re-derived handle, as pinned
+    // above; the queued pair must complete cancelled without starting,
+    // or their threads sit QUEUED forever behind a dead parent.
+    expect(await client.workflow.getHandle(runningId).result()).toBe('cancelled')
+    await waitFor(async () => (await events(partition)).filter((event) => event.type === 't.subagent.completed').length === 3, 60_000, 'three completions')
+    const completions = (await events(partition)).filter((event) => event.type === 't.subagent.completed')
+    for (const queuedId of queuedIds) {
+      const completion = completions.find(
+        (event) => ((event.payload['summary'] as Record<string, unknown> | undefined)?.['id'] === queuedId),
+      )
+      expect((completion?.payload['summary'] as Record<string, unknown> | undefined)?.['status']).toBe('cancelled')
+      expect(
+        (await events(partition)).some(
+          (event) => event.type === 't.subagent.launched' && event.payload['childId'] === queuedId,
+        ),
+      ).toBe(false)
+    }
+  }, 180_000)
+
+  it('subagentRun continues and carries the goal, inbox, and pause', async () => {
+    const tag = randomUUID()
+    const sessionId = `can-child-session-${tag}`
+    const workflowId = `can-child-parent-${tag}`
+    const childId = `can-child-c-${tag}`
+    const partition = `session:${sessionId}`
+    const childPartition = `child:${childId}`
+    const parent = await client.workflow.start('delegateParent', {
+      taskQueue: taskQueue(),
+      workflowId,
+      args: [{ sessionId, maxInFlight: 10 }],
+    })
+    await waitFor(
+      async () => (await events(partition)).some((event) => event.type === 't.session.created'),
+      30_000,
+      'parent to start',
+    )
+    await parent.signal('parentDelegate', {
+      childId,
+      goal: 'TEST original can goal',
+      depth: 1,
+      mode: 'empty',
+      maxDepth: 1,
+      queueCapacity: 8,
+      fakeSteps: [{ text: 'can child reply', delayMs: 1500 }],
+      historyEventLimit: 10,
+    })
+    await waitFor(
+      async () => (await events(partition)).some((event) => event.type === 't.subagent.launched'),
+      30_000,
+      'child to launch',
+    )
+    const child = () => client.workflow.getHandle(childId)
+    await child().signal('childMessage', 'm1')
+    await waitFor(async () => (await agentReplies(childPartition)) === 1, 60_000, 'child first reply')
+    const firstRunId = await expectContinuedChain(childId)
+    replayTargets.push({ workflowId: childId, runId: firstRunId })
+    // The redirect lands before the next continue: the new goal must
+    // survive the chain, not revert to the delegation goal.
+    await child().signal('childRedirect', 'TEST new can goal')
+    await child().signal('childMessage', 'm2')
+    await waitFor(async () => (await agentReplies(childPartition)) === 3, 60_000, 'correction plus m2 replies')
+    const summary = (await child().query('childSummary')) as { goal: string }
+    expect(summary.goal).toBe('TEST new can goal')
+    // Pause lands mid-turn: the run continues while paused with the fresh
+    // message queued, and the gate holds until resume.
+    const before = startedOf((await fetchHistoryBounded(child(), 'child pre-pause history')) as LooseHistory).continued
+    await child().signal('childMessage', 'm3')
+    // Same CAN-hop race as the session phase: the user event proves 'm3'
+    // left the inbox, so the pause lands mid-turn (1.5 s dwell) instead of
+    // ahead of a still-queued message (queueDepth 2 forever).
+    await waitFor(async () => hasUserMessage(childPartition, 'm3'), 30_000, 'third user message')
+    await sleep(300)
+    await child().signal('childPause')
+    await child().signal('childMessage', 'm4')
+    await waitFor(async () => {
+      const snapshot = (await child().query('childState')) as { queueDepth: number }
+      return snapshot.queueDepth === 1 && (await agentReplies(childPartition)) === 4
+    }, 60_000, 'paused run to hold one queued')
+    const after = startedOf((await fetchHistoryBounded(child(), 'child post-pause history')) as LooseHistory).continued
+    expect(after).toBeDefined()
+    expect(after).not.toBe(before)
+    await child().signal('childResume')
+    await waitFor(async () => (await agentReplies(childPartition)) === 5, 60_000, 'queued message after resume')
+    // The fifth reply event lands in the DB when the activity completes;
+    // the workflow's counter increments one WFT later. Poll workflow
+    // state so the query cannot observe the pre-increment value (9).
+    await waitFor(async () => {
+      const polled = (await child().query('childSummary')) as { threadLength: number }
+      return polled.threadLength === 10
+    }, 30_000, 'counter to reach 10')
+    const final = (await child().query('childSummary')) as { goal: string; threadLength: number }
+    expect(final.goal).toBe('TEST new can goal')
+    // Five turns (m1, correction, m2, m3, m4) carried the counter across.
+    expect(final.threadLength).toBe(10)
+    replayTargets.push({ workflowId: childId })
+    await child().signal('childCancel')
+    await child().signal('childFinish')
+    await parent.signal('parentNoteDone', { childId, status: 'cancelled' })
+    await parent.signal('parentFinish')
+  }, 120_000)
+
+  it('first-run histories replay cleanly through the current bundle', async () => {
+    // Session run 1, parent run 1, survive run 1, cancelled-children run 1,
+    // child run 1, plus the child's resumed current run: proves the can-v1
+    // markers and carried state replay.
+    expect(replayTargets).toHaveLength(6)
+    const workflowBundle = await bundleWorkflowCode({ workflowsPath: WORKFLOWS_PATH })
+    for (const target of replayTargets) {
+      const history = await fetchHistoryBounded(
+        target.runId === undefined
+          ? client.workflow.getHandle(target.workflowId)
+          : client.workflow.getHandle(target.workflowId, target.runId),
+        `${target.workflowId} replay history`,
+      )
+      await Worker.runReplayHistory({ workflowBundle }, history, target.workflowId)
+    }
+  }, 120_000)
+})

@@ -37,7 +37,7 @@ function untouchedDb(): {
   return { db: { query: fail, connect: fail }, wasQueried: () => queried }
 }
 
-describe('db layer contract', () => {
+describe('db layer contract [F:db.index.getSession] [F:db.index.getThread] [F:db.index.DbContractError] [F:db.index.latestOutboxSeq] [F:db.index.readOutboxBacklog] [F:db.index.checkRate] [F:db.index.claimIdempotency] [F:db.index.completeIdempotency] [F:db.index.findKeyByHash] [F:db.index.listThreads] [F:db.index.projectBatch] [F:db.index.projectUsage] [F:db.index.pruneHeartbeats] [F:db.index.pruneOutbox] [F:db.index.readEventsAfter] [F:db.index.recordHeartbeat] [F:db.index.releaseIdempotency] [F:db.index.runCheckpointTx] [F:db.index.runTotals] [F:db.index.sweepIdempotency] [F:db.keys.findKeyByHash] [F:db.heartbeats.recordHeartbeat] [F:db.sessions.getSession] [F:db.threads.getThread] [F:db.errors.DbContractError] [F:db.outbox.latestOutboxSeq] [F:db.outbox.readOutboxBacklog] [F:db.quotas.checkRate] [F:db.quotas.claimIdempotency] [F:db.quotas.completeIdempotency] [F:db.threads.listThreads] [F:db.threads.projectBatch] [F:db.ledger.projectUsage] [F:db.heartbeats.pruneHeartbeats] [F:db.outbox.pruneOutbox] [F:db.events.readEventsAfter] [F:db.quotas.releaseIdempotency] [F:db.checkpoints.runCheckpointTx] [F:db.ledger.runTotals] [F:db.quotas.sweepIdempotency] [F:db.index.Db] [F:db.index.OutboxRow] [F:db.index.TransactableDb] [F:db.events.KeySchema]', () => {
   it('rejects empty key hashes without SQL', async () => {
     const { db, wasQueried } = untouchedDb()
     await expect(findKeyByHash(db, '')).rejects.toBeInstanceOf(DbContractError)

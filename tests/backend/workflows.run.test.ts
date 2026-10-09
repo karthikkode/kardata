@@ -6,9 +6,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readPartition } from '../../backend/src/db/index.js'
+import { ensureTemporalTracing } from '../../backend/src/observability/temporal-tracing.js'
 import { connectClient, connectWorker, temporalNamespace } from '../../backend/src/temporal/connection.js'
 import { createLaneWorker } from '../../backend/src/temporal/worker.js'
 import { appendEventActivity, karbotTurnActivity } from '../../backend/src/temporal/activities/turn.js'
+import { TemporalRunsGateway } from '../../backend/src/temporal/runs-gateway.js'
 import { getThread, rebuildFromEvents } from '../../backend/src/db/index.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb } from './db-helper.js'
@@ -43,7 +45,7 @@ async function waitFor(condition: () => Promise<boolean>, timeoutMs: number, wha
   }
 }
 
-describe.skipIf(!ENABLED)('session-run workflow (B2.2)', () => {
+describe.skipIf(!ENABLED)('session-run workflow (B2.2) [F:backend.activity.turn.appendEventActivity] [F:backend.activity.turn.karbotTurnActivity] [F:backend.workflow.run.sessionRun] [F:backend.workflow.inbox_queue.normalizeQueueItem] [F:backend.workflow.inbox_queue.queueItemsQuery] [F:backend.workflow.inbox_queue.queueRemoveUpdate] [F:backend.workflow.inbox_queue.queueReorderUpdate] [F:backend.workflow.resumable_turn.resumableTurn] [F:backend.workflow.run.DEFAULT_IDLE_TIMEOUT_MS] [F:backend.workflow.run.cancelSignal] [F:backend.workflow.run.pauseSignal] [F:backend.workflow.run.resumeSignal] [F:backend.workflow.run.sendSignal] [F:backend.workflow.run.skillSignal] [F:backend.workflow.run.stateQuery] [F:backend.workflow.run.steerSignal] [F:backend.workflow.inbox_queue.registerQueueHandlers] [F:db.index.readPartition] [F:db.index.getThread] [F:db.index.rebuildFromEvents] [F:db.events.readPartition] [F:db.threads.getThread] [F:db.threads.rebuildFromEvents] [F:db.context_files.assertThreadFileContext] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.execution_epochs.readActiveExecutionIdentity] [F:db.index.Db] [F:db.index.StoredEvent] [F:db.workspace_threads.recordContextMeasurement]', () => {
   let connection: NativeConnection
   let client: WorkflowClient
   let url = ''
@@ -52,6 +54,7 @@ describe.skipIf(!ENABLED)('session-run workflow (B2.2)', () => {
   const blocked = new Set<string>()
 
   beforeAll(async () => {
+    ensureTemporalTracing()
     process.env['TEMPORAL_ADDRESS'] = ADDRESS
     // Karbot turns resolve the fake provider with workflow-supplied steps;
     // no keys, no network.
@@ -109,6 +112,26 @@ describe.skipIf(!ENABLED)('session-run workflow (B2.2)', () => {
       await handle.signal('runResume')
       await waitFor(async () => (await texts(sessionId)).includes('Recovered answer'), 30000, 'context recovery')
       expect((await texts(sessionId)).filter((text) => text === request)).toHaveLength(1)
+    } finally { await handle.signal('runCancel'); await handle.result() }
+  }, 90000)
+
+  it('runs each message turn under its own trace, not the workflow-start trace', async () => {
+    const sessionId = `trace-turns-${Date.now()}`
+    const handle = await client.workflow.start('sessionRun', { taskQueue: (worker.options as { taskQueue: string }).taskQueue, workflowId: `session-run-${sessionId}`, args: [{ sessionId, fakeSteps: [{ text: 'traced reply', usage: { inputTokens: 1, outputTokens: 1 } }] }] })
+    try {
+      const first = 'a'.repeat(32)
+      const second = 'b'.repeat(32)
+      await handle.signal('runSend', { text: 'first turn', traceparent: `00-${first}-${'1'.repeat(16)}-01` })
+      await handle.signal('runSend', { text: 'second turn', traceparent: `00-${second}-${'2'.repeat(16)}-01` })
+      await waitFor(async () => (await texts(sessionId)).filter((text) => text === 'traced reply').length >= 2, 60000, 'both traced turns')
+      const pool = db()
+      try {
+        await projectNewEvents(pool)
+        const { rows } = await pool.query<{ run_id: string; trace_id: string | null }>(
+          'SELECT DISTINCT run_id, trace_id FROM execution_rounds WHERE thread_key = $1', [sessionId])
+        expect(rows).toHaveLength(2)
+        expect(new Set(rows.map((row) => row.trace_id))).toEqual(new Set([first, second]))
+      } finally { await pool.end() }
     } finally { await handle.signal('runCancel'); await handle.result() }
   }, 90000)
 
@@ -201,6 +224,86 @@ describe.skipIf(!ENABLED)('session-run workflow (B2.2)', () => {
     expect(final).toContain('run cancelled')
     expect(final).toContain('doomed-turn')
     expect(final).not.toContain('doomed reply')
+  }, 120_000)
+
+  it('stops the in-flight turn via runStopTurn while the run stays alive [F:backend.workflow.run.stopTurnSignal]', async () => {
+    const sessionId = `stopturn-${Date.now()}`
+    const handle = await client.workflow.start('sessionRun', {
+      taskQueue: (worker.options as { taskQueue: string }).taskQueue,
+      workflowId: `session-run-${sessionId}`,
+      args: [{ sessionId, fakeSteps: [{ text: 'fake after', delayMs: 15_000 }] }],
+    })
+    await waitFor(async () => await queryState(handle) === 'RUNNING', 30_000, 'run to start')
+    await handle.signal('runSend', 'looping-turn')
+    await waitFor(async () => (await texts(sessionId)).includes('looping-turn'), 15_000, 'user message before turn')
+    await sleep(1_000)
+    await handle.signal('runStopTurn')
+    await sleep(3_000)
+    expect(await queryState(handle)).toBe('RUNNING')
+    await handle.signal('runSend', 'after-stop')
+    await waitFor(
+      async () => (await texts(sessionId)).filter((text) => text === 'fake after').length === 1,
+      45_000,
+      'post-stop reply',
+    )
+    await handle.signal('runCancel')
+    expect(await handle.result()).toBe('cancelled')
+  }, 120_000)
+
+  it('answers a stopped turn with a receipt while the run survives [F:backend.workflow.run.stopTurnSignal]', async () => {
+    const sessionId = `stopreceipt-${Date.now()}`
+    const handle = await client.workflow.start('sessionRun', {
+      taskQueue: (worker.options as { taskQueue: string }).taskQueue,
+      workflowId: `session-run-${sessionId}`,
+      args: [{ sessionId, fakeSteps: [{ text: 'fake after', delayMs: 15_000 }] }],
+    })
+    await waitFor(async () => await queryState(handle) === 'RUNNING', 30_000, 'run to start')
+    await handle.signal('runSend', 'doomed-turn')
+    await waitFor(async () => (await texts(sessionId)).includes('doomed-turn'), 15_000, 'user message before turn')
+    await sleep(1_000)
+    // The bare signal, with no reconciliation message: the race that left
+    // the owed reply unanswered and the thinking indicator stuck forever.
+    await handle.signal('runStopTurn')
+    await waitFor(
+      async () => (await texts(sessionId)).some((text) => text.startsWith('That reply was stopped before it finished.')),
+      45_000,
+      'stopped receipt',
+    )
+    expect(await queryState(handle)).toBe('RUNNING')
+    await handle.signal('runSend', 'after-stop')
+    await waitFor(
+      async () => (await texts(sessionId)).filter((text) => text === 'fake after').length === 1,
+      45_000,
+      'post-stop reply',
+    )
+    await handle.signal('runCancel')
+    expect(await handle.result()).toBe('cancelled')
+  }, 120_000)
+
+  it('marks the thread CANCELLING through the gateway before the run finishes cancelling [F:backend.workflow.run.cancelSignal]', async () => {
+    const sessionId = `gwcancel-${Date.now()}`
+    const handle = await client.workflow.start('sessionRun', {
+      taskQueue: (worker.options as { taskQueue: string }).taskQueue,
+      workflowId: `session-run-${sessionId}`,
+      args: [{ sessionId, fakeSteps: [{ text: 'fake after', delayMs: 15_000 }] }],
+    })
+    await waitFor(async () => await queryState(handle) === 'RUNNING', 30_000, 'run to start')
+    await handle.signal('runSend', 'doomed-turn')
+    await waitFor(async () => (await texts(sessionId)).includes('doomed-turn'), 15_000, 'user message before turn')
+    const pool = db()
+    try {
+      const gateway = new TemporalRunsGateway(pool)
+      const result = await gateway.cancelRun(`session-run-${sessionId}`)
+      expect(result.state).toBe('accepted')
+      // The CANCELLING state lands ahead of the unwind, so the UI can
+      // release on it instead of waiting for finished.
+      const events = await readPartition(pool, `session:${sessionId}`)
+      const states = events
+        .filter((event) => event.type === 't.thread.state')
+        .map((event) => (event.payload as { status?: string }).status)
+      expect(states).toContain('CANCELLING')
+    } finally { await pool.end() }
+    expect(await handle.result()).toBe('cancelled')
   }, 120_000)
 
   it('an idle run with an empty inbox closes itself instead of persisting', async () => {

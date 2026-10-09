@@ -53,9 +53,9 @@ const RefSchema = z.string().trim().min(1).max(120)
 
 /** Idle sessions die here: browser tabs are task-scoped, never pooled
  * across unrelated work. */
-export const BROWSER_IDLE_TIMEOUT_MS = 5 * 60_000
+const BROWSER_IDLE_TIMEOUT_MS = 5 * 60_000
 /** One page has this long: hung sites fail, the sweep moves on. */
-export const BROWSER_NAV_TIMEOUT_MS = 30_000
+const BROWSER_NAV_TIMEOUT_MS = 30_000
 
 interface BrowserSession {
   id: string
@@ -376,7 +376,7 @@ export async function browserAct(
 }
 
 /** Largest screenshot: viewport JPEGs stay small; full pages balloon. */
-export const BROWSER_SCREENSHOT_MAX_BYTES = 400 * 1024
+const BROWSER_SCREENSHOT_MAX_BYTES = 400 * 1024
 
 /** On-demand pixels for what the aria snapshot cannot show (visual
  * layout, canvas/WebGL, maps, CAPTCHA state) plus sha256 page-state

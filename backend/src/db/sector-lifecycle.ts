@@ -5,9 +5,9 @@
 // on resume/restart (a start that never lands must not relabel). Without a
 // runner every path fails closed — a state-only transition would lie about
 // a run that keeps going (pause) or never starts (resume/restart).
-import { readGlobalContext } from './workspace.js'
+import { readGlobalContext } from './workspace-global-context.js'
 import { readSectorPlan } from './sector-plan.js'
-import type { Scope } from '../auth/keys.js'
+import type { Scope } from '../auth/types.js'
 import { DbContractError } from './errors.js'
 import type { Db } from './events.js'
 import { getSector, SectorTransitionError, setSectorState, type SectorRecord } from './sectors.js'

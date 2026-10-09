@@ -15,8 +15,8 @@ import { buildApp } from '../../backend/src/app.js'
 import { hashKey } from '../../backend/src/auth/keys.js'
 import { createSession,readPartition,readTurnContinuation,registerApiKey,workerPoolFromEnv } from '../../backend/src/db/index.js'
 import * as dbLayer from '../../backend/src/db/index.js'
-import { TemporalRunsGateway } from '../../backend/src/temporal/gateway.js'
-import { appendEventActivity,karbotTurnActivity } from '../../backend/src/temporal/activities/turn.js'
+import { TemporalRunsGateway } from '../../backend/src/temporal/runs-gateway.js'
+import { appendEventActivity, karbotTurnActivity } from '../../backend/src/temporal/activities/turn.js'
 import * as epochs from '../../backend/src/temporal/activities/execution-epochs.js'
 import { connectClient,connectWorker } from '../../backend/src/temporal/connection.js'
 import { createWorkerLogger,workerLoggingOptions } from '../../backend/src/observability/logging.js'
@@ -25,7 +25,7 @@ import { ensureTestDb,TEST_DATABASE_URL } from './db-helper.js'
 
 const enabled=process.env['KARDATA_TEMPORAL_TEST']==='1' && !!TEST_DATABASE_URL
 async function waitFor(check: () => Promise<boolean>) { const limit=Date.now()+15_000; while (!(await check())) { if (Date.now()>limit) throw new Error('TEST owner recovery did not reach its durable boundary'); await new Promise((done) => setTimeout(done,50)) } }
-describe.skipIf(!enabled)('owner Resume of a confirmed terminal original turn',() => {
+describe.skipIf(!enabled)('owner Resume of a confirmed terminal original turn [F:backend.activity.turn.appendEventActivity] [F:backend.activity.turn.karbotTurnActivity] [F:db.index.createSession] [F:db.index.registerApiKey] [F:db.index.readPartition] [F:db.workspace_threads.readTurnContinuation] [F:db.keys.registerApiKey] [F:db.index.workerPoolFromEnv] [F:db.events.readPartition] [F:db.sessions.createSession] [F:db.pool.workerPoolFromEnv] [F:db.context_files.assertThreadFileContext] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.execution_epochs.readActiveExecutionIdentity] [F:db.index.Db] [F:db.workspace_threads.recordContextMeasurement]',() => {
   beforeAll(() => Runtime.install({ logger: createWorkerLogger(),telemetryOptions: { logging: workerLoggingOptions() } }))
   it.each(['session','child'] as const)('owner Resume restores a terminal %s paid response without duplicate user/provider work',async (kind) => {
     const url=await ensureTestDb('kardata_test_owner_resume'); const pool=new Pool({ connectionString: url })

@@ -18,9 +18,8 @@ import {
   refreshFleetGauges,
   renderMetrics,
 } from '../../backend/src/observability/metrics.js'
-import { sweepStalls, type LoopEvidence, type RunObservation } from '../../backend/src/observability/stalls.js'
-import { stallResponseEvent } from '../../backend/src/temporal/activities/stalls.js'
-import type { RunInfo, RunState } from '../../backend/src/temporal/gateway.js'
+import { sweepStalls, stallResponseEvent, type LoopEvidence, type RunObservation } from '../../backend/src/observability/supervision-rules.js'
+import type { RunInfo, RunState } from '../../backend/src/temporal/runs-types.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import { FakeRunsGateway } from './fake-gateway.js'
 
@@ -180,7 +179,7 @@ function percentile(sorted: number[], p: number): number {
   return sorted[at] ?? 0
 }
 
-describe.skipIf(!ENABLED)('1000-agent soak (B5.6)', () => {
+describe.skipIf(!ENABLED)('1000-agent soak (B5.6) [F:db.index.appendEvent] [F:db.index.readPartition] [F:db.index.projectUsage] [F:db.index.fleetTotals] [F:db.events.readPartition] [F:db.index.listHeartbeats] [F:db.events.appendEvent] [F:db.ledger.projectUsage] [F:db.ledger.fleetTotals] [F:db.heartbeats.listHeartbeats] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db]', () => {
   let pool: Pool
   let runs: FakeRunsGateway
   let agents: SoakAgent[] = []
@@ -352,7 +351,9 @@ describe.skipIf(!ENABLED)('1000-agent soak (B5.6)', () => {
     measured['fleetOutputTokens'] = expectedOut
     measured['fleetCostDollars'] = expectedCost
     measured['fleetSpendDollars'] = expectedCost
-  })
+    // Explicit budget like execution-epochs (ca7d784): solo ~1s, but the
+    // 5s default starved under parallel thousand-leg load in fv4 01.
+  }, 15_000)
 
   it('renders truthful fleet gauges at soak scale', async () => {
     const metrics = createHttpMetrics()

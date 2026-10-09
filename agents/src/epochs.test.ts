@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createRun, IllegalTransitionError, transition } from './loop.js'
 import { cancelRun, IdempotencyLog, pauseRun, resumeRun } from './epochs.js'
 
-describe('pause and resume', () => {
+describe('pause and resume [F:agents.epochs.IdempotencyLog] [F:agents.epochs.pauseRun] [F:agents.epochs.resumeRun]', () => {
   it('parks at the boundary and resumes into a new epoch', () => {
     const run = createRun()
     transition(run, 'RUNNING')
@@ -39,7 +39,7 @@ describe('pause and resume', () => {
   })
 })
 
-describe('cancel', () => {
+describe('cancel [F:agents.epochs.cancelRun]', () => {
   it('cancels from running and from paused, then finishes once', () => {
     const run = createRun()
     transition(run, 'RUNNING')

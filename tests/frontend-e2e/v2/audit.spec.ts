@@ -59,7 +59,7 @@ async function auditView(page: Page, browser: Browser, view: ViewAudit): Promise
   for (const settled of view.anchors) await expect(page.locator(settled)).toBeVisible()
   await shot(page, `${view.shotPrefix}-${view.state}`, 'default', {
     anchors: view.anchors,
-    ...(view.interact ? { prepare: (page: Page) => view.interact?.(page) } : {}),
+    ...(view.interact ? { prepare: async (page: Page) => { await view.interact?.(page) } } : {}),
   })
 
   for (const theme of THEMES) {

@@ -3,7 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { SectorWorkspace } from '@/components/SectorWorkspace'
 import type { SectorWorkspaceModel } from '@/data/sector-workspace'
-import type { Session, StagingConfig } from '@/data/staging-api'
+import type { Session } from '@/data/api/sessions'
+import type { StagingConfig } from '@/data/api/client'
 
 const config: StagingConfig = { baseUrl: 'https://test.invalid', apiKey: 'TEST owner' }
 const sector = { id: 'sec-1', name: 'Foods', topic: '', state: 'draft', companiesFound: 0 } as never
@@ -44,11 +45,12 @@ function stubModel(selected: Session, setUseGlobalContext = vi.fn(async () => tr
 const actions = { busy: false, error: null, plan: vi.fn(), approve: vi.fn(), start: vi.fn(), pause: vi.fn(), resume: vi.fn(), edit: vi.fn(async () => true) }
 
 describe('per-chat global context switch (A5)', () => {
-  it('toggles the switch from the conversation options menu', async () => {
+  it('toggles the switch from the local context surface', async () => {
     const user = userEvent.setup()
     const setUseGlobalContext = vi.fn(async () => true)
     render(<SectorWorkspace sector={sector} model={stubModel(session(), setUseGlobalContext)} config={config} actions={actions} onBack={vi.fn()} />)
     await user.click(screen.getByRole('button', { name: 'Conversation options' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Local context' }))
     const toggle = screen.getByRole('switch', { name: 'Use global context' })
     expect(toggle).toBeChecked()
     await user.click(toggle)

@@ -4,7 +4,7 @@ import { DbContractError } from './errors.js'
 // include units (cited document_id:ord), never raw file bytes. Pure SQL
 // helpers; extraction itself lives in file-pipeline.ts.
 import type { Db } from './events.js'
-import { sha256Hex, type ExtractedUnit } from './file-pipeline.js'
+import { type ExtractedUnit } from './file-pipeline.js'
 
 export interface DocumentUnit extends ExtractedUnit {
   documentId: string
@@ -13,27 +13,6 @@ export interface DocumentUnit extends ExtractedUnit {
   imageId?: string
   imageOrdinal?: number
   imageRole?: 'embedded' | 'page-visual'
-}
-
-export async function insertDocumentUnits(db: Db, documentId: string, units: ExtractedUnit[]): Promise<void> {
-  for (const unit of units) {
-    await db.query(
-      `INSERT INTO sector_document_units (document_id, ord, kind, text, confidence, uncertain, sha256)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT (document_id, ord) DO UPDATE
-       SET kind = EXCLUDED.kind, text = EXCLUDED.text, confidence = EXCLUDED.confidence,
-           uncertain = EXCLUDED.uncertain, sha256 = EXCLUDED.sha256`,
-      [
-        documentId,
-        unit.ord,
-        unit.kind,
-        unit.text,
-        unit.confidence ?? null,
-        unit.uncertain,
-        sha256Hex(unit.text),
-      ],
-    )
-  }
 }
 
 export async function listDocumentUnits(db: Db, documentId: string): Promise<DocumentUnit[]> {

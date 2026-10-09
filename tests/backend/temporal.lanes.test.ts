@@ -3,7 +3,7 @@ import { Context } from '@temporalio/activity'
 import { Worker } from '@temporalio/worker'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { connectClient, connectWorker, temporalAddress, temporalNamespace } from '../../backend/src/temporal/connection.js'
-import { allLaneConfigs, laneConfig } from '../../backend/src/temporal/lanes.js'
+import { allLaneConfigs, laneConfig, laneTaskQueue, turnActivitySlots } from '../../backend/src/temporal/lanes.js'
 import { createLaneWorker } from '../../backend/src/temporal/worker.js'
 import type { NativeConnection } from '@temporalio/worker'
 import { dirname, join } from 'node:path'
@@ -97,6 +97,42 @@ describe('lane topology (B2.1)', () => {
     expect(laneConfig('sweep').maxConcurrentActivityTaskExecutions).toBeLessThan(
       laneConfig('tool').maxConcurrentActivityTaskExecutions,
     )
+  })
+
+  it('turn activity slots default to 4 and honor the environment', () => {
+    const previous = process.env['KARDATA_TURN_ACTIVITY_SLOTS']
+    try {
+      delete process.env['KARDATA_TURN_ACTIVITY_SLOTS']
+      expect(turnActivitySlots()).toBe(4)
+      expect(laneConfig('turn').maxConcurrentActivityTaskExecutions).toBe(4)
+      process.env['KARDATA_TURN_ACTIVITY_SLOTS'] = '8'
+      expect(turnActivitySlots()).toBe(8)
+      expect(laneConfig('turn').maxConcurrentActivityTaskExecutions).toBe(8)
+      expect(laneConfig('tool').maxConcurrentActivityTaskExecutions).toBe(100)
+    } finally {
+      if (previous === undefined) delete process.env['KARDATA_TURN_ACTIVITY_SLOTS']
+      else process.env['KARDATA_TURN_ACTIVITY_SLOTS'] = previous
+    }
+  })
+
+  it('laneTaskQueue matches laneConfig queues without reading the environment', () => {
+    for (const lane of ['turn', 'tool', 'research', 'sweep'] as const) {
+      expect(laneTaskQueue(lane)).toBe(laneConfig(lane).taskQueue)
+    }
+    expect(laneTaskQueue('turn')).toBe('kardata-turn-v1')
+  })
+
+  it('turn activity slots reject non-positive integers', () => {
+    const previous = process.env['KARDATA_TURN_ACTIVITY_SLOTS']
+    try {
+      for (const raw of ['0', '-2', '1.5', 'many']) {
+        process.env['KARDATA_TURN_ACTIVITY_SLOTS'] = raw
+        expect(() => turnActivitySlots()).toThrow('KARDATA_TURN_ACTIVITY_SLOTS must be a positive integer')
+      }
+    } finally {
+      if (previous === undefined) delete process.env['KARDATA_TURN_ACTIVITY_SLOTS']
+      else process.env['KARDATA_TURN_ACTIVITY_SLOTS'] = previous
+    }
   })
 
   it('temporal address defaults locally and honors the environment', () => {

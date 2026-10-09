@@ -5,13 +5,18 @@
 // is a conflict; a plan run that never starts compensates back so a
 // retry stays a plan instead of a 409 dead end.
 import { z } from 'zod'
-import { readGlobalContext, researchSessionBinding, retainCompatibleDiscovery, workspaceTransaction } from './workspace.js'
+import { createLogger, logOp } from '../observability/logging.js'
+import { readGlobalContext } from './workspace-global-context.js'
+import { requireSector, researchSessionBinding, workspaceTransaction } from './workspace.js'
 import { readSectorExecutionState } from './sectors.js'
 import type { TransactableDb } from './checkpoints.js'
-import type { Scope } from '../auth/keys.js'
-import { DbContractError, WorkspaceError } from './errors.js'
-import { parseExecutablePlan, visiblePlan, type ExecutablePlan } from '../temporal/research-plan.js'
-import { appendEvent, getSession, readPartition, type Db } from './events.js'
+import type { Scope } from '../auth/types.js'
+import { checked, DbContractError, WorkspaceError } from './errors.js'
+
+const planLogger = createLogger({ op: 'workspace' })
+import { parseExecutablePlan, visiblePlan, type ExecutablePlan } from '../research-plan.js'
+import { appendEvent, readPartition, type Db } from './events.js'
+import { getSession } from './sessions.js'
 import {
   getSector,
   SECTOR_PLAN_APPROVED_EVENT,
@@ -133,6 +138,32 @@ export async function updateSectorPlan(
     }
     return { version: stored.version, state: sector.state === 'approved' || sector.state === 'paused' ? 'planned' : sector.state }
   })
+}
+
+async function retainCompatibleDiscovery(db: Db, input: { sectorId: string; version: number; plan: SectorPlan; contextScope: string; contextDecisions: string; scope?: Scope }): Promise<number> {
+  return logOp(planLogger, 'research.work.retain', async () => {
+    checked(z.number().int().positive(), input.version)
+    if (input.plan.sectorId !== input.sectorId) throw new WorkspaceError('permission_denied', 'Plan belongs to another sector.')
+    await requireSector(db, input.sectorId, input.scope)
+    const previousVersion = input.plan.approvedVersion
+    const previous = input.plan.versions.find((version) => version.version === previousVersion)?.executable
+    const next = input.plan.versions.find((version) => version.version === input.version)?.executable
+    if (!previousVersion || previousVersion >= input.version || !previous || !next || previous.researchDepth !== 'discovery' || next.researchDepth !== 'discovery' || !input.plan.approvedContext || input.plan.approvedContext.scope !== input.contextScope || input.plan.approvedContext.decisions !== input.contextDecisions || previous.companyBrief !== next.companyBrief || JSON.stringify(previous.acceptance) !== JSON.stringify(next.acceptance)) return 0
+    const oldPrefix = `${input.sectorId}:v${previousVersion}:`
+    const newPrefix = `${input.sectorId}:v${input.version}:`
+    const counts = await db.query<{ n: string }>(`SELECT count(*) AS n FROM research_work WHERE sector_id=$1 AND plan_version=$2 AND state='complete' AND kind='company' AND source_url IS NOT NULL AND jsonb_array_length(evidence)>=3 AND left(id,length($3))=$3`, [input.sectorId, previousVersion, oldPrefix])
+    if (Number(counts.rows[0]?.n ?? 0) > next.budgets.maxCompanies) throw new WorkspaceError('conflict', 'The revised limit is below the completed discoveries. Review their retention before reducing the limit.')
+    const directionIds = previous.budgets.maxCompanies === next.budgets.maxCompanies && previous.discoveryTarget === next.discoveryTarget ? next.discovery.filter((direction) => previous.discovery.some((old) => JSON.stringify(old) === JSON.stringify(direction))).map((direction) => `${oldPrefix}discovery:${direction.id}`) : []
+    const copied = await db.query(`INSERT INTO research_work(id,sector_id,plan_version,kind,title,state,attempts,child_id,evidence,detail,cursor,source_url)
+      SELECT $4||substring(id from length($3)+1),sector_id,$5,kind,title,state,attempts,child_id,evidence,detail||$6,cursor,source_url
+      FROM research_work WHERE sector_id=$1 AND plan_version=$2 AND left(id,length($3))=$3 AND (
+        (state='complete' AND kind='company' AND source_url IS NOT NULL AND jsonb_array_length(evidence)>=3) OR
+        (kind='discovery' AND position(':intake:' in id)>0) OR (state='complete' AND id=ANY($7::text[])))
+      ON CONFLICT(id) DO NOTHING`, [input.sectorId, previousVersion, oldPrefix, newPrefix, input.version, `\nRetained from approved plan v${previousVersion}; scope and acceptance unchanged.`, directionIds])
+    const count = copied.rowCount ?? 0
+    await appendEvent(db, { idempotencyKey: `research-retained:${input.sectorId}:v${input.version}`, partition: `sector:${input.sectorId}`, type: 'sector.research.work_retained', payload: { sourceVersion: previousVersion, planVersion: input.version, count, sourcePrefix: oldPrefix, destinationPrefix: newPrefix } })
+    return count
+  }, { sectorId: input.sectorId, planVersion: input.version })
 }
 
 /** Owner approval: pins an existing version and moves planned to

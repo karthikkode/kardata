@@ -1,5 +1,5 @@
 // Durable file owner. No PDF bytes, provider responses or credentials in history.
-import { continueAsNew, proxyActivities, sleep } from '@temporalio/workflow'
+import { continueAsNew, log, proxyActivities, sleep } from '@temporalio/workflow'
 import type * as activities from '../activities/file-processing.js'
 import type { FileProcessingInput } from '../activities/file-processing.js'
 
@@ -14,6 +14,7 @@ const reads = proxyActivities<typeof activities>({
 
 export async function fileProcessing(input: FileProcessingInput & { cursor?: { page: number; ordinal: number } | null; waits?: number }): Promise<{ state: string }> {
   let cursor = input.cursor ?? null, waits = input.waits ?? 0
+  log.info('workflow.file_processing.start', { jobId: input.jobId })
   try {
     const prepared = await work.prepareFileProcessingActivity(input)
     if (prepared.state === 'complete') return { state: 'complete' }
@@ -44,6 +45,7 @@ export async function fileProcessing(input: FileProcessingInput & { cursor?: { p
   } catch (error) {
     // The private activity boundary logged the coded failure and preserves
     // paid receipts. This owner parks without weakening retry authority.
+    log.error('workflow.file_processing.error', { jobId: input.jobId, code: error instanceof Error ? error.name : 'unknown' })
     await reads.failFileProcessingActivity({ ...input, code: 'file_processing_needs_review' })
     throw error
   }

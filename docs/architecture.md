@@ -277,7 +277,8 @@ events ──retention──▶ cold archive (GCS) ──replay──┘
 - Denied behavior: role 403s on resume/approve arrive with B3.3 auth.
   Without pool/gateway the routes fail closed with 503 `overload`.
 - Rate limits + mutation idempotency (B3.4). Fixed-window per-key budgets
-  on `/v1/*` (`rate_windows`; `/healthz` exempt for probes); breaches are
+  on `/v1/*` and `/mcp` (`rate_windows`, separate bucket namespaces;
+  `/healthz` exempt for probes); breaches are
   429 `rate_limited` with `Retry-After` and a `http.rate_limited` log line.
   All twelve mutating routes honor `Idempotency-Key` (`idempotency_records`,
   caller-scoped): the six command POSTs, session create/rename/model/delete,
@@ -693,40 +694,16 @@ events ──retention──▶ cold archive (GCS) ──replay──┘
   action stays Karbot-only. Proven by `tests/backend/karbot.turn.test.ts`
   (grant advertisement + stacking order).
 
-## Research loop and time guards (B2.6)
+## Research loop and time guards (B2.6, retired in Phase 2)
 
-- `backend/src/temporal/workflows/loopguards.ts#guardedResearchRun` ports the
-  agents A11.3/A11.4 rules onto the B2.5 pipeline. Route visits run as
-  `runGuardedStageActivity` (each execution logs `t.research.stage_attempt`
-  with its Temporal attempt number); after each stage `detectLoopActivity`
-  judges the visit history with the shared pure rule in
-  `backend/src/temporal/guards.ts#decideLoop`.
-- Loop rule: a revisit (a stage seen before) that adds zero new evidence is
-  fruitless; genuine new evidence resets the streak. `maxFruitlessRevisits`
-  consecutive fruitless revisits suspend with a `repeated-calls` (acted) or
-  `no-progress` (never acted) finding logged as `t.research.loop_finding`.
-  Verdicts reuse the `supervision.ts` sweep finding kinds.
-- Time rule: unit and run wall-clock budgets race each active span as durable
-  `sleep` timers in nested cancellation scopes. A fired timer cancels its
-  scope (never orphans the activity) and suspends the run with the reason
-  logged as `t.research.suspended`. No wall clock exists in workflow code, so
-  each resumed span receives the approved budget window; the cursor never
-  advances past unlogged work, and idempotency keys plus content-hash dedupe
-  keep retries row- and finding-exact.
-- Suspend parks everything: no span timer or scope is pending while
-  suspended. `guardResume{ approved }` resumes; `{ approved: false }`
-  appends `t.research.resume_denied` and stays suspended. Approved resume
-  after a loop suspend restarts the detector window as an operator
-  override; budget extensions (`extendUnitMs`/`extendRunMs`) apply to the
-  next span. A suspend with no resume for `suspendTimeoutMs` (default 1 h)
-  expires with `t.research.suspend_expired` and closes through the terminal
-  tail (partial report, or refused when there is no evidence).
-- Query `guardState` (`{ status, cursor, suspendKind?, suspendReason? }`).
-  Proven against the real server
-  (`tests/backend/workflows.loopguards.test.ts` for the three acceptances,
-  `tests/backend/loopguards.rules.test.ts` for the pure rule matrix).
-- Like the other workflows, only type-only agents shapes cross the sandbox
-  boundary (erased at bundle time); the barrel runtime is never imported.
+- Retired: `guardedResearchRun`, `runGuardedStageActivity`, `detectLoopActivity`,
+  `stallSweepActivity` and the guard signals/queries are deleted — none was
+  ever registered on a worker. The pure checks survive in
+  `backend/src/observability/supervision-rules.ts` (`decideLoop` loop rule,
+  `sweepStalls` stall sweeper, `stallResponseEvent` envelope) as the seam
+  Phase 3 reconciliation builds on. Proven by
+  `tests/backend/loopguards.rules.test.ts` (rule matrix) and
+  `tests/backend/observability.stall.test.ts` (chaos matrix over the sweeper).
 
 ### Guard bounds (starting values, held by B5.6)
 

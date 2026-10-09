@@ -4,6 +4,7 @@
 import * as React from 'react'
 import { Command } from 'cmdk'
 import { Icons } from '@/lib/icons'
+import { focusRingInput } from '@/lib/interaction'
 import { Caption, Kbd } from './text'
 import { DialogPopup, DialogRoot, DialogTitle } from './ui/dialog'
 
@@ -72,7 +73,7 @@ export function CommandPalette({
             <Icons.search aria-hidden className="size-4 shrink-0 text-muted-foreground" />
             <Command.Input
               placeholder="Search commands and sectors..."
-              className="h-full w-full bg-transparent text-sm outline-none placeholder:text-foreground-subtle"
+              className={`h-full w-full bg-transparent text-sm placeholder:text-foreground-subtle ${focusRingInput}`}
             />
             <Kbd>Esc</Kbd>
           </div>

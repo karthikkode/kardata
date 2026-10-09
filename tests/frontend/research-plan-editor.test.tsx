@@ -15,7 +15,7 @@ describe('owner review of executable plans', () => {
     expect(screen.getByText(executable.acceptance[0]!)).toBeInTheDocument()
   })
   it('preserves failed edits across refreshed plan data and saves the reviewed work', async () => {
-    const user = userEvent.setup(), onSave = vi.fn(async () => false)
+    const user = userEvent.setup(), onSave = vi.fn(async (_text: string) => false)
     const props = { markdown: 'Original plan', executable, busy: false, error: null, onSave }
     const view = render(<ResearchPlanEditor {...props} />)
     await user.click(screen.getByRole('button', { name: 'Edit plan' }))
@@ -29,6 +29,15 @@ describe('owner review of executable plans', () => {
     expect(onSave.mock.calls[0]?.[0]).toContain('Australian wholesalers')
     expect(onSave.mock.calls[0]?.[0]).toContain('"maxCompanies":2000')
     expect(screen.getByRole('alert')).toHaveTextContent('Save failed')
+  })
+  it('preserves the approved concurrency budget on owner edits', async () => {
+    const user = userEvent.setup(), onSave = vi.fn(async (_text: string) => true)
+    const budgeted = { ...executable, budgets: { ...executable.budgets, concurrency: 8 } }
+    render(<ResearchPlanEditor markdown="Plan" executable={budgeted} busy={false} error={null} onSave={onSave} />)
+    await user.click(screen.getByRole('button', { name: 'Edit plan' }))
+    await user.type(screen.getByRole('textbox', { name: 'Plan text' }), ' touched')
+    await user.click(screen.getByRole('button', { name: 'Save plan' }))
+    expect(onSave.mock.calls[0]?.[0]).toContain('"concurrency":8')
   })
   it('closes only after a successful save', async () => {
     const user = userEvent.setup()
@@ -84,7 +93,7 @@ describe('executable plan presentation contract', () => {
 
   it('keeps blank numerics editable and reports field errors with a focused summary', async () => {
     const user = userEvent.setup()
-    const onSave = vi.fn(async () => true)
+    const onSave = vi.fn(async (_text: string) => true)
     render(<ResearchPlanEditor markdown="Plan" executable={executable} busy={false} error={null} onSave={onSave} />)
     await user.click(screen.getByRole('button', { name: 'Edit plan' }))
     const limit = screen.getByLabelText('Company limit')
@@ -99,7 +108,7 @@ describe('executable plan presentation contract', () => {
   })
   it('rejects a cleared discovery target instead of defaulting to one', async () => {
     const user = userEvent.setup()
-    const onSave = vi.fn(async () => true)
+    const onSave = vi.fn(async (_text: string) => true)
     const discovery = {
       ...executable,
       researchDepth: 'discovery' as const,
@@ -118,7 +127,7 @@ describe('executable plan presentation contract', () => {
   })
   it('leaves a never-set discovery target unset instead of erroring', async () => {
     const user = userEvent.setup()
-    const onSave = vi.fn(async () => true)
+    const onSave = vi.fn(async (_text: string) => true)
     const discovery = { ...executable, researchDepth: 'discovery' as const }
     render(<ResearchPlanEditor markdown="Plan" executable={discovery} busy={false} error={null} onSave={onSave} />)
     await user.click(screen.getByRole('button', { name: 'Edit plan' }))

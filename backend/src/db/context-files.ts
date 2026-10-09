@@ -1,15 +1,14 @@
 import { createHash } from 'node:crypto'
 // Server-derived provenance. Agent text and arguments never grant inclusion.
-import { z } from 'zod'
-import type { Scope } from '../auth/keys.js'
-import { appendEvent, listArtifacts, type Db } from './events.js'
+import type { Scope } from '../auth/types.js'
+import { appendEvent, type Db } from './events.js'
+import { listArtifacts } from './event-artifacts.js'
 import type { TransactableDb } from './checkpoints.js'
 import { WorkspaceError } from './errors.js'
 import { listDocumentUnitOrdinals } from './document-units.js'
-import { listSectorLibrary, requireThread, workspaceTransaction } from './workspace.js'
+import { listSectorLibrary } from './workspace-library.js'
+import { requireThread, workspaceTransaction, type ContextFileRef } from './workspace.js'
 
-export const ContextFileRef = z.object({ readSectorId: z.string().min(1).optional(), fileId: z.string().min(1), hash: z.string().min(1), filename: z.string().min(1), ords: z.array(z.number().int().nonnegative()) }).strict()
-export type ContextFileRef = z.infer<typeof ContextFileRef>
 export class ContextFileBlocked extends WorkspaceError {
   constructor(message = 'Context depends on a hidden, changed, or unverified file. Reveal the exact source version or safely rebuild context before resuming.') { super('conflict', message) }
 }
@@ -94,7 +93,7 @@ export async function agentHistoryBoundary(db: Db, threadKey: string): Promise<{
 
 // A6: one standardized summary block per context file. The block row is the
 // provenance record; the version bumps only when the summary lands.
-export type ContextFileBlockState = 'summarizing' | 'ready' | 'failed' | 'legacy'
+type ContextFileBlockState = 'summarizing' | 'ready' | 'failed' | 'legacy'
 export interface ContextFileBlock {
   sectorId: string; fileId: string; documentId: string; hash: string; filename: string
   state: ContextFileBlockState; summary: string; tokens: number; error: string | null

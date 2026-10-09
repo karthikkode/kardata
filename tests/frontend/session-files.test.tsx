@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { toast } from 'sonner'
-import { SessionFilesView, type ChatFile } from '@/components/ChatPanel'
-import type { StagingConfig } from '@/data/staging-api'
+import { SessionFilesView } from '@/components/chat/SessionFiles'
+import type { ChatFile } from '@/components/chat/messages'
+import type { StagingConfig } from '@/data/api/client'
 
 vi.mock('sonner', () => {
   const toastFn = vi.fn()

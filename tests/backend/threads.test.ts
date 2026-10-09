@@ -2,12 +2,16 @@ import { Pool } from 'pg'
 import { beforeAll, describe, expect, it } from 'vitest'
 import {
   appendEvent,
+  beginThreadTurn,
+  finishSteering,
   getThread,
+  listOrphanedWorkflows,
   listThreadHeaders,
   listThreads,
   projectBatch,
   readPartition,
   rebuildFromEvents,
+  recordOrphanWorkflow,
   type StoredEvent,
 } from '../../backend/src/db/index.js'
 import { routeSend } from '../../backend/src/threads/project.js'
@@ -56,7 +60,7 @@ describe('thread routing (B1.2)', () => {
   })
 })
 
-describe.skipIf(!TEST_DATABASE_URL)('transcript projection (B1.2)', () => {
+describe.skipIf(!TEST_DATABASE_URL)('transcript projection (B1.2) [F:db.index.appendEvent] [F:db.index.readPartition] [F:db.index.getThread] [F:db.index.listThreads] [F:db.index.projectBatch] [F:db.index.rebuildFromEvents] [F:db.index.listThreadHeaders] [F:db.events.readPartition] [F:db.events.appendEvent] [F:db.threads.getThread] [F:db.threads.listThreads] [F:db.threads.projectBatch] [F:db.threads.rebuildFromEvents] [F:db.threads.listThreadHeaders] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.index.SectorSweepRunner] [F:db.index.StoredEvent]', () => {
   let url = ''
 
   beforeAll(async () => {
@@ -194,6 +198,55 @@ describe.skipIf(!TEST_DATABASE_URL)('transcript projection (B1.2)', () => {
     }
   })
 
+  it('deleted session with an active lease surfaces in the orphan detector then clears [F:db.reconciliation.listOrphanedWorkflows] [F:db.reconciliation.recordOrphanWorkflow]', async () => {
+    const db = pool()
+    try {
+      await db.query("DELETE FROM events WHERE partition = 'session:s-del'")
+      await db.query("DELETE FROM thread_messages WHERE thread_key = 's-del'")
+      await db.query("DELETE FROM threads WHERE key = 's-del'")
+      await db.query("DELETE FROM thread_context WHERE thread_key = 's-del'")
+      await appendEvent(db, { idempotencyKey: 'del-session', partition: 'session:s-del', type: 't.session.created', payload: { sessionId: 's-del', title: 'Doomed' } })
+      await projectBatch(db, await readPartition(db, 'session:s-del'))
+      await beginThreadTurn(db, 's-del', 'run-del-1')
+      const before = await readPartition(db, 'session:s-del')
+      await appendEvent(db, { idempotencyKey: 'del-tombstone', partition: 'session:s-del', type: 't.session.deleted', payload: { sessionId: 's-del' } })
+      await projectBatch(db, await readPartition(db, 'session:s-del', before[before.length - 1]?.seq ?? 0))
+      // Thread reads 404 but the leased context row stays for the detector.
+      expect(await getThread(db, 's-del')).toBeUndefined()
+      const kept = await db.query<{ active_lease: string | null }>('SELECT active_lease FROM thread_context WHERE thread_key = $1', ['s-del'])
+      expect(kept.rows[0]?.active_lease).toEqual(expect.any(String))
+      const orphan = (await listOrphanedWorkflows(db)).find((row) => row.threadKey === 's-del')
+      expect(orphan?.lease).toBe(kept.rows[0]?.active_lease)
+      expect(await recordOrphanWorkflow(db, orphan!, { kind: 'orphan-workflow', response: 'cancel', reason: 'test' })).toBe(true)
+      const husk = await db.query('SELECT thread_key FROM thread_context WHERE thread_key = $1', ['s-del'])
+      expect(husk.rows).toEqual([])
+    } finally {
+      await db.end()
+    }
+  })
+
+  it('deleted idle session removes its context row and never surfaces as orphan', async () => {
+    const db = pool()
+    try {
+      await db.query("DELETE FROM events WHERE partition = 'session:s-idle'")
+      await db.query("DELETE FROM thread_messages WHERE thread_key = 's-idle'")
+      await db.query("DELETE FROM threads WHERE key = 's-idle'")
+      await db.query("DELETE FROM thread_context WHERE thread_key = 's-idle'")
+      await appendEvent(db, { idempotencyKey: 'idle-session', partition: 'session:s-idle', type: 't.session.created', payload: { sessionId: 's-idle', title: 'Idle' } })
+      await projectBatch(db, await readPartition(db, 'session:s-idle'))
+      await beginThreadTurn(db, 's-idle', 'run-idle-1')
+      await finishSteering(db, 's-idle', 'run-idle-1')
+      const before = await readPartition(db, 'session:s-idle')
+      await appendEvent(db, { idempotencyKey: 'idle-tombstone', partition: 'session:s-idle', type: 't.session.deleted', payload: { sessionId: 's-idle' } })
+      await projectBatch(db, await readPartition(db, 'session:s-idle', before[before.length - 1]?.seq ?? 0))
+      const kept = await db.query('SELECT thread_key FROM thread_context WHERE thread_key = $1', ['s-idle'])
+      expect(kept.rows).toEqual([])
+      expect((await listOrphanedWorkflows(db)).some((row) => row.threadKey === 's-idle')).toBe(false)
+    } finally {
+      await db.end()
+    }
+  })
+
   it('ignores unknown event types without failing the batch', async () => {
     const db = pool()
     try {
@@ -204,6 +257,34 @@ describe.skipIf(!TEST_DATABASE_URL)('transcript projection (B1.2)', () => {
       const tail = await readPartition(db, 'session:s1', lastSeq)
       const result = await projectBatch(db, tail)
       expect(result).toEqual({ applied: 0, ignored: ['t.future.something'] })
+    } finally {
+      await db.end()
+    }
+  })
+
+  // Last: rebuild truncates the shared projection tables (every test above
+  // rebuilds its own state, so nothing after this can observe the wipe).
+  it('rebuild replays tool calls exactly, keeping legitimate parallel duplicates [F:db.threads.rebuildFromEvents]', async () => {
+    const db = pool()
+    try {
+      await db.query("DELETE FROM events WHERE partition = 'session:s-rebuild'")
+      await db.query("DELETE FROM thread_messages WHERE thread_key = 's-rebuild'")
+      await db.query("DELETE FROM threads WHERE key = 's-rebuild'")
+      await db.query("DELETE FROM tool_calls WHERE thread_key = 's-rebuild'")
+      await appendEvent(db, { idempotencyKey: 'rb-session', partition: 'session:s-rebuild', type: 't.session.created', payload: { sessionId: 's-rebuild', title: 'Rebuild' } })
+      const call = (key: string, callId: string): Promise<unknown> => appendEvent(db, { idempotencyKey: key, partition: 'session:s-rebuild', type: 't.tool.call', payload: {
+        runId: 'run-rb-1', threadKey: 's-rebuild', round: 1, attempt: 1, callId, tool: 'web_fetch',
+        argsHash: 'a'.repeat(64), outcome: 'ok', latencyMs: 10, at: new Date().toISOString(),
+      } })
+      // Parallel duplicates: same round, tool and args, distinct calls.
+      await call('rb-call-a', 'call-a')
+      await call('rb-call-b', 'call-b')
+      await projectBatch(db, await readPartition(db, 'session:s-rebuild'))
+      const before = await db.query('SELECT id FROM tool_calls WHERE thread_key = $1', ['s-rebuild'])
+      expect(before.rows).toHaveLength(2)
+      await rebuildFromEvents(db, await readPartition(db, 'session:s-rebuild'))
+      const after = await db.query('SELECT id FROM tool_calls WHERE thread_key = $1', ['s-rebuild'])
+      expect(after.rows).toHaveLength(2)
     } finally {
       await db.end()
     }

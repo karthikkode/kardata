@@ -1,5 +1,45 @@
 # Implementation status
 
+## 2026-10-06 — Phase 7 gate lock (branch p2-7-gates, unmerged)
+Registry enforced by default (REGISTRY_ENFORCE=0 opts out). Coverage:
+istanbul in all workspaces (agents 85 / backend 80 / frontend 75) +
+scripts/coverage.mjs core-dir gate (db/mcp/temporal 85); `verify` runs
+coverage between pr:verify and quality. Stryker break=70 all configs.
+CI integration adds backend build, toxiproxy, fault, reduced stress
+(100k events, 10 writers), backend coverage; timeout 45min. Backend
+coverage needs DB+Temporal (documented skip otherwise). No suites run
+(D1): gates are wired-but-unproven until final verification.
+
+## 2026-10-06 — Phase 6 frontend matrix (branch p2-6-frontend, unmerged)
+35 commits: seam hooks (27 components, 0 dep violations), shared
+Skeleton, 69 matrix specs (373 tests, 7 checks each), failure matrix
+(23 GET + 16 mutations x9 + 6 offline), 30s timeout, live-state truth
+(terminal release + orphan banner, migration 0028), scale budgets
+(7 specs), ui:review wiring, registry 1019 entries at 0 todos.
+`npm run quality` green. No suites run (D1): ~740 frontend tests are
+written-but-unrun; grading + budget measurement await final verify.
+
+Phase 2 Phase 4: capacity, recovery, fault drills (2026-10-06, branch
+`p2-4-capacity`, 30 commits, reviews deferred to post-Phase-7 per
+owner directive). P4.2 knobs (slots, Meta permit table, child caps,
+pool budgets, plan budget 1–64, positional keys); P4.3 matrices at 0
+todos/0 unknown tags (951 entries); P4.4 F1–F16 drills + 1000-queued-
+children test, all written, none executed (D1). One product fix: honest
+503 `temporal_unavailable` on gateway send. Gates: typecheck/lint/
+quality all exit 0. (No red along the way that changed product; knip
+needed `ignoreBinaries: [prlimit]` for the F16 worker cap.)
+
+Phase 2 Phase 1: foundation (2026-10-05, branch `p2-1-foundation`).
+Registry: `tests/registry/features.yaml` (1025 entries) + sync + gate
+(report mode; unknown-tag and missing-surface fail). Quality: knip
+(9 files, 5+5 deps, 7 unlisted, 252 exports), jscpd (agents 2.04%,
+backend 3.12%, frontend 1.03%), cruiser (agents 0, backend 92 circular,
+frontend 6 circular, 0 layering breaks), eslint max-lines 800 + 10-file
+allowlist + fetch ban. Mutation baselines in the review package.
+verify/verify:full/hooks wired; CI verify runs verify + tracked-file
+diff check. var/ excluded everywhere (guard test); stack refuses pilot
+archive deletes; `git clean -x` banned.
+
 Simple merges + deploys (2026-10-05, branch `simple-merge-deploy`):
 retired the file catalogue + functionality matrix (archived with the old
 README, hardening tests deleted, regen instructions scrubbed) so file
@@ -3822,3 +3862,107 @@ the one-fleet rule is enforced, not just documented.
 Verified live: doctor flags the machine's real duplicate
 fleet (compose + 2 root host workers) and exits 1; deploy
 run green end to end (health + 74/74 parity).
+
+## 2026-10-05 — Phase 5 MCP/Karbot (branch p2-5-mcp, unmerged)
+19 new tools (97 total): 4 db reads + propose take optional sectorId;
+ops runs/queue (5), obs (5), control incl. companyResearch pause (3),
+spawn/restart, request_plan, monitors (3) via durable karbotMonitor
+workflow. Palettes: Karbot all, sector-bound reads+spawn, research+plan.
+Parity scripted (69 ops: 45 mapped, 24 owner-only, 6 DEV). Registry 1009
+entries, enforce-simulated clean outside frontend. No suites run (D1):
+sector/runs/obs/control/monitor/palette/parity/live L-K1..K3 tests are
+written-but-unrun static signal only.
+
+## 2026-10-07 — BLOCKED: backend Stryker infeasible in-session (branch p2-7-fixes)
+HEAD run (var/fv3/64) died in the dry run: default dryRunTimeout 5 min
+vs a 45+ min suite (backend+registry+stress+fault). Fixed the timeout
+(60 min, committed) but the run itself cannot fit: Stryker runs each
+mutant's covering tests with bail-on-kill, and turn.ts's fake-path
+mutants pull the 18-min thousand-leg test, so every surviving mutant
+costs ~18 min. Estimated 5-18 h per run (HEAD and baseline) at safe
+DB concurrency (--concurrency 2; pool math: 2 runners x 2 vitest
+workers x ~15 conns = 60 of the 100 budget). Not launched: the session
+cannot finish it and fv4 needs a quiet box. Recipe for a dedicated
+window: `npx stryker run stryker.backend.json --concurrency 2` with
+TEST_DATABASE_URL/TOXIPROXY_URL/KARDATA_TEMPORAL_TEST=1 exported;
+baseline via `git worktree add /tmp/kardata-mut-baseline 0eb0da6` +
+npm ci + patch coverageAnalysis=all (config-only) in the worktree copy.
+Owner options: (a) fund the dedicated window, (b) scope surgery
+(slow-test exclusion config; NoCoverage score hit), (c) partial
+(workspace+tools only via --mutate), (d) drop backend mutation.
+
+## 2026-10-07 — BLOCKED: subagents-2000 scroll 54-55ms over the 50ms budget (branch p2-7-fixes)
+Scale file serial-aborts after subagents (5 legs did not run: queue,
+thread, companies, files, dock-heap). Symmetric median-of-3 probe:
+[54.0, 55.0, 55.0] (var/fv3/48); single-shot 53/54 (var/fv3/44-45);
+fv3/06 passed with no product change since → hovering at the boundary,
+now consistently over. Suspect: per-row mount weight (3 IconButton
+tooltip-trees per SubagentRow × ~10-row turnover per 600px wheel in
+React dev+StrictMode) vs sessions rows (1 tooltip, green). Test is
+right, product is ~4ms slow in dev; budget bump would be weakening.
+Next: React DevTools/Chrome trace attribution; candidate fixes are
+lazy tooltip roots, lighter rows, or owner-approved re-baseline.
+Median probe + samples logging stay (same 50 budget, no masking).
+
+## 2026-10-07 — coverage-30 red: fleet timeout + trace race (branch p2-7-fixes)
+Full backend coverage (tests/backend + tests/registry) went 1650 passed /
+2 failed, and vitest 5.0.3 prints no coverage table on a red run, so the
+gate number needs a green rerun. (1) Thousand-leg hit its 26-min test
+timeout with all children done (1000/1000, 0 rejected at ~1430 s):
+coverage instrumentation slows the serial finish loop; ceiling raised
+to 2.76M matching the hundred leg (test-only). (2) Trace-continuity saw
+mcpStarts=0: the test waited on provider rounds but the fake calls
+listTools after recording rounds, so the MCP-log assertion raced the
+MCP leg and lost under load; solo green. Test now waits for the MCP log
+line; load-proof green in var/fv3/35 (211 files / 1652 tests, EXIT=0,
+lines 92.2%, core db/mcp/temporal 92.7/87.1/92.7%). Logs var/fv3/30-35.
+
+## 2026-10-07 — turnRunner mutation: Stryker 27.50 is phantom (branch p2-7-fixes)
+Stryker's perTest subset misses nested-suite kills: direct application
+of all 729 Stryker-survivors kills 666. c1–c6e + h1–h2 batteries
+(226 tests) kill 25 more by behavior assertion. True score 969/1011
+raw (95.9%), 100% ex-equivalents (gate ≥70). Equivalent clusters (42):
+finally-masked timer/abort hygiene (18), condense caller fast-path (8),
+SSE skip shortcuts converging in catch (6), unreachable/filtered
+fallbacks (963/892), inner hash encoding (817), write-only start
+buffer (495), ignored unknown events (517/518), `?.` on defined resume
+(256/258), quiet-dup push invisible (209), abort-only unreachable at
+break (473). Verdicts: /tmp/bulk-kill.log; score run var/fv3/29.
+
+## 2026-10-07 — Fix-loop 1 close-out (branch p2-7-fixes, uncommitted)
+Stalled lanes verified/finished solo after the 10-05 FD stall: volume tier
+2/2 green (slowest p95 50.9ms), alerts/ops-runs/F8-unit/trace green, L-K 3/3
+live green after terminating 4 stranded kardata-live test runs (shared
+namespace poisoned the fresh DB), denied-retry + copy green, axe
+button-name + scrollable-region zero (Sidebar aria-labels kept, Markdown
+code/table scroll regions focusable). Left red, diagnosed in
+`documentation/plans/p2-fix-loop-1.md`: color-contrast (token call),
+aria-children (menu), focus-indicator ×9, screenshot drift, factory.ts
+typecheck (D4). Full report: `documentation/plans/p2-fix-loop-1.md`.
+
+## 2026-10-08 — knip globalSetup false positive ignored (fv4)
+`quality:knip` failed only with TEST_DATABASE_URL set: knip resolves the
+vitest `globalSetup` path relative to the config file while vitest
+resolves it relative to the config `root`, so the DB branch's
+`tests/backend/db-setup.ts` reported unresolved. Latent (no DB-env
+verify run ever reached quality before); narrowed to one
+`ignoreUnresolved` entry, vitest resolution proven by every DB run.
+
+## 2026-10-09 — fv4 close-out reds, all root-caused (branch p2-7-fixes)
+Verify: 19 red attempts, coverage-load starvation (DB suites timed out
+under coverage); fixed by 15s/30s budgets (f0f0fc8), green 211 files.
+Temporal: 1 fail, subagents test raced noteDone; poll to 60 finished
+(f207847), rerun 13/13. Playwright: 3 axe contrast fails on unsettled
+colors; freeze motion before axe (37e2c02), 1250 pass. Live battery:
+17 stage fails, cross-suite workflow theft in shared kardata-live
+namespace (FK thread_messages_thread_key_fkey); harness drains stale
+workflows on stack start (eddfd8f), 24/25. L-PLAN 600s timeout:
+sectorPlan called env-reading laneConfig in the workflow sandbox
+(ReferenceError, would have broken all prod planning); pure
+laneTaskQueue helper + same fix at 4 coordinator sites (259fb1d),
+guarded by ESLint sandbox block + production-bundle test (da0e970);
+targeted rerun 56s. Mutation: Stryker 27.x was phantom (runner
+space-joined test filters); durable patch-package fix + guard
+(2ef4cda), perTest in all configs (00ebec4): turnRunner 99.89,
+useWorkspace 98.59. Backend 3-file run dropped by owner (~20h, no
+score); waiver recorded in `documentation/plans/p2-fix-loop-1.md`.

@@ -9,13 +9,29 @@
     "backend"
   ],
   "scripts": {
+    "postinstall": "patch-package",
     "test": "npm run test --workspaces",
     "test:e2e": "npm run test:e2e -w frontend",
+    "test:fault": "node -e \"for (const k of ['TEST_DATABASE_URL','TOXIPROXY_URL']) if (!process.env[k]) { console.error('test:fault needs ' + k); process.exit(2) }\" && KARDATA_TEMPORAL_TEST=1 npm test -w @kardata/backend -- tests/fault",
+    "test:stress": "npm test -w @kardata/backend -- tests/stress",
+    "test:live": "KARDATA_LIVE_META=1 KARDATA_TEMPORAL_TEST=1 node scripts/with-env.mjs npm test -w @kardata/backend -- tests/backend/live --no-file-parallelism",
     "lint": "npm run lint --workspaces",
     "typecheck": "npm run typecheck --workspaces",
     "build": "npm run build -w frontend",
+    "coverage": "node scripts/coverage.mjs",
     "dev": "npm run dev -w frontend",
     "pr:verify": "npm run build -w @kardata/agents && npm run lint --workspaces && npm run typecheck --workspaces && npm run test --workspaces && npm run build -w frontend",
+    "registry:sync": "node scripts/registry-sync.mjs",
+    "matrix:sync": "node scripts/matrix-sync.mjs",
+    "ui:review": "node scripts/ui-review.mjs",
+    "quality:knip": "knip",
+    "quality:dup": "jscpd agents/src && jscpd backend/src && jscpd frontend/src",
+    "quality:deps": "cd agents && npx --no-install depcruise --config ../.dependency-cruiser.cjs --ts-config tsconfig.json src && cd ../backend && npx --no-install depcruise --config ../.dependency-cruiser.cjs --ts-config tsconfig.json src ../scripts ../deployment/scripts && cd ../frontend && npx --no-install depcruise --config ../.dependency-cruiser.cjs --ts-config tsconfig.app.json src",
+    "quality": "npm run quality:knip && npm run quality:dup && npm run quality:deps",
+    "test:mutation": "node scripts/assert-stryker-runner.mjs && stryker run stryker.agents.json -m agents/src/turnRunner.ts && stryker run stryker.backend.json -m backend/src/db/workspace.ts && stryker run stryker.backend.json -m backend/src/mcp/tools.ts && stryker run stryker.backend.json -m backend/src/temporal/activities/turn.ts && stryker run stryker.frontend.json -m frontend/src/data/useWorkspace.ts",
+    "verify": "npm run pr:verify && npm run coverage && npm run quality",
+    "verify:full": "node -e \"if(!process.env.TEST_DATABASE_URL){console.error('verify:full needs TEST_DATABASE_URL');process.exit(1)}\" && npm run verify && npm test -w @kardata/backend && KARDATA_TEMPORAL_TEST=1 npm test -w @kardata/backend && npm run test:e2e -w frontend",
+    "hooks:install": "git config core.hooksPath scripts/hooks && echo hooks installed from scripts/hooks",
     "prom:check": "docker run --rm --entrypoint promtool -v ./deployment:/rules prom/prometheus:v3.0.0 check rules /rules/prometheus-rules.yaml",
     "prom:test": "docker run --rm --entrypoint promtool -v ./deployment:/rules prom/prometheus:v3.0.0 test rules /rules/prometheus-rules.test.yaml",
     "stack:up": "node deployment/scripts/stack.mjs up",
@@ -26,6 +42,17 @@
     "stack:status": "node deployment/scripts/stack.mjs status",
     "stack:doctor": "node deployment/scripts/stack.mjs doctor",
     "stack:worker:host": "node deployment/scripts/stack.mjs worker:host",
-    "stack:worker:compose": "node deployment/scripts/stack.mjs worker:compose"
+    "stack:worker:compose": "node deployment/scripts/stack.mjs worker:compose",
+    "stack:worker": "node deployment/scripts/stack.mjs worker",
+    "stack:toxi": "node deployment/scripts/stack.mjs toxi"
+  },
+  "devDependencies": {
+    "@stryker-mutator/core": "^10.0.0",
+    "@stryker-mutator/vitest-runner": "^10.0.0",
+    "dependency-cruiser": "^18.5.0",
+    "jscpd": "^5.4.0",
+    "knip": "^6.39.0",
+    "patch-package": "^8.0.0",
+    "yaml": "^2.9.1"
   }
 }

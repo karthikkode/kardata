@@ -1,7 +1,7 @@
 // Pure loop-guard rules (B2.6). No server, no database: the shared decideLoop
 // matrix the detector activity and guarded workflow both execute.
 import { describe, expect, it } from 'vitest'
-import { decideLoop, type GuardVisit } from '../../backend/src/temporal/guards.js'
+import { decideLoop, type GuardVisit } from '../../backend/src/observability/supervision-rules.js'
 
 function visit(stage: string, acted = true, newEvidence = 1): GuardVisit {
   return { stage, acted, newEvidence }

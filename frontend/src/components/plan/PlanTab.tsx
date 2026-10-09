@@ -5,13 +5,14 @@
 import { useState } from 'react'
 import { Icons } from '@/lib/icons'
 import type { Resource } from '../../data/useWorkspace'
-import type { ResearchState, SectorPlanView } from '../../data/staging-api'
-import type { GlobalContext, ResearchProgress } from '../../data/workspace-api'
-import type { ResearchActions } from '../SectorWorkspace'
-import type { WorkReview } from '../workspace-parts'
+import type { ResearchProgress, ResearchState } from '../../data/useSectors'
+import type { SectorPlanView } from '../../data/usePlans'
+import type { GlobalContext } from '../../data/useContexts'
+import type { WorkReview } from '../plan-progress'
 import { formatFullDate, relativeAge } from '../../lib/format'
 import { PlanDocument } from '../shells'
-import { PlanProgress, ResourceNotice } from '../workspace-parts'
+import { PlanProgress } from '../plan-progress'
+import { ResourceNotice } from '../workspace-parts'
 import {
   ExecutablePlanDetails,
   NarrativePlanWarning,
@@ -24,6 +25,11 @@ import { Caption, CardTitle, Description } from '../text'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { TooltipPopup, TooltipRoot, TooltipTrigger } from '../ui/tooltip'
+
+export interface ResearchActions {
+  busy: boolean; error: string | null
+  plan(): void; approve(version: number, contextVersion?: number): void; start(): void; pause(): void; resume(): void; edit(markdown: string): Promise<boolean>
+}
 
 export function ResearchPlanTab({
   sectorState,
@@ -155,7 +161,7 @@ export function ResearchPlanTab({
 
 /** Empty plan (PL-05): first-run empty, or the planning skeleton while
  * the agent drafts. */
-export function PlanEmpty({ planning, onPlan }: { planning: boolean; onPlan(): void }) {
+function PlanEmpty({ planning, onPlan }: { planning: boolean; onPlan(): void }) {
   if (planning) {
     return (
       <div>

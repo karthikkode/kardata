@@ -46,7 +46,7 @@ function researcherSteps(docId: string, excerpt: string) {
   ]
 }
 
-describe('captureFinding', () => {
+describe('captureFinding [F:agents.research.captureFinding]', () => {
   it('builds hashed findings and rejects claims without sources', () => {
     const finding = captureFinding({ claim: 'founded 2020', docId: 'doc-1', url: 'https://example.com/acme', excerpt: 'founded 2020' })
     expect(finding.contentHash).toHaveLength(64)
@@ -55,7 +55,7 @@ describe('captureFinding', () => {
   })
 })
 
-describe('assembleReport', () => {
+describe('assembleReport [F:agents.research.assembleReport]', () => {
   it('dedupes by content hash and renders findings plus sources', () => {
     const finding = captureFinding({ claim: 'c', docId: 'd', url: 'u', excerpt: 'e' })
     const report = assembleReport([finding, finding])
@@ -66,7 +66,7 @@ describe('assembleReport', () => {
   })
 })
 
-describe('StubRetriever', () => {
+describe('StubRetriever [F:agents.research.StubRetriever]', () => {
   it('splits search from fetch behind the seam', async () => {
     const retriever = new StubRetriever()
     const hits = await retriever.search('acme', 5)
@@ -77,7 +77,7 @@ describe('StubRetriever', () => {
   })
 })
 
-describe('runResearchWorkflow', () => {
+describe('runResearchWorkflow [F:agents.research.runResearchWorkflow]', () => {
   function base(overrides: Record<string, unknown> = {}) {
     return {
       scope: 'acme research',

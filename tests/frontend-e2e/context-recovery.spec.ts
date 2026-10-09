@@ -10,7 +10,12 @@ const sector = { id: sectorId, name: 'TEST Recovery evidence', topic: sections.s
 const operationId = 'op:'.concat('a'.repeat(64))
 async function fixture(page: Page, blocked: boolean) {
   let failRebuild = true
-  let local = { threadKey: sessionId, notes: 'TEST keep draft notes', summary: '## Stored summary\n\nTEST objectives and retained historical evidence.', version: 2, coveredSeq: 4, task: 'TEST preserve original research objective', sourceRefs: [{ fileId: 'TEST source', filename: `TEST ${'long-source-'.repeat(15)}.md`, hash: 'b'.repeat(64), ords: [0, 1] }], ...(blocked ? { contextBlocked: 'TEST source is hidden. Reveal its exact version or rebuild independently.' } : { pendingOperations: [{ operationId, toolName: 'db.create_session', callId: 'TEST call', reason: 'TEST reply delivery was lost; avoid repeating a change.' }] }) }
+  let local: {
+    threadKey: string; notes: string; summary: string; version: number; coveredSeq: number; task: string
+    sourceRefs: Array<{ fileId: string; filename: string; hash: string; ords: number[] }>
+    contextBlocked?: string
+    pendingOperations?: Array<{ operationId: string; toolName: string; callId: string; reason: string }>
+  } = { threadKey: sessionId, notes: 'TEST keep draft notes', summary: '## Stored summary\n\nTEST objectives and retained historical evidence.', version: 2, coveredSeq: 4, task: 'TEST preserve original research objective', sourceRefs: [{ fileId: 'TEST source', filename: `TEST ${'long-source-'.repeat(15)}.md`, hash: 'b'.repeat(64), ords: [0, 1] }], ...(blocked ? { contextBlocked: 'TEST source is hidden. Reveal its exact version or rebuild independently.' } : { pendingOperations: [{ operationId, toolName: 'db.create_session', callId: 'TEST call', reason: 'TEST reply delivery was lost; avoid repeating a change.' }] }) }
   await page.route('**/v1/**', async (route) => {
     const request = route.request(), path = new URL(request.url()).pathname
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' } })

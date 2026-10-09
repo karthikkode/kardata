@@ -21,7 +21,7 @@ const ALL_EDGES: Array<[RunState, RunState]> = [
   ['CANCELLING', 'ERROR'],
 ]
 
-describe('run transitions', () => {
+describe('run transitions [F:agents.loop.createRun] [F:agents.loop.isLegalTransition] [F:agents.loop.transition] [F:agents.loop.IllegalTransitionError]', () => {
   it('allows exactly the legal edges', () => {
     for (const from of RUN_STATES) {
       for (const to of RUN_STATES) {

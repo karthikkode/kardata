@@ -1,0 +1,26 @@
+{
+  "$schema": "https://stryker-mutator.io/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "coverageAnalysis": "perTest",
+  "vitest": {
+    "configFile": "./agents/vitest.config.ts",
+    "related": false
+  },
+  "mutate": [
+    "agents/src/turnRunner.ts"
+  ],
+  "ignorePatterns": [
+    "var/**",
+    "**/test-results/**",
+    "**/coverage/**",
+    "**/dist/**",
+    "reports/**"
+  ],
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "incremental": true,
+  "incrementalFile": ".stryker-tmp/incremental-agents.json",
+  "thresholds": { "high": 80, "low": 70, "break": 70 }
+}

@@ -3,7 +3,7 @@
 // turn activities; every write is idempotent (deterministic keys), so
 // retries and re-sweeps replay instead of duplicating.
 import { z } from 'zod'
-import type { Scope } from '../../auth/keys.js'
+import type { Scope } from '../../auth/types.js'
 import {
   DbContractError,
   getSector,

@@ -13,7 +13,7 @@ function registry(): ToolRegistry {
   return tools
 }
 
-describe('domainTools', () => {
+describe('domainTools [F:agents.domain.domainTools]', () => {
   it('lists sectors and filters companies by sector', async () => {
     const tools = registry()
     const sectors = await dispatch(tools, { id: 'c1', name: 'sector.list', args: {} }, ctx('sector.list'))

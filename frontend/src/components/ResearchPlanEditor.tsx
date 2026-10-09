@@ -1,8 +1,10 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { Icons } from '@/lib/icons'
+import { focusRing } from '@/lib/interaction'
 import { cn } from '@/lib/utils'
 import { ExecutableResearchPlan, type ExecutableResearchPlan as Plan } from '../data/research-plan'
-import { CounterTile, WorkspaceOverlay } from './workspace-parts'
+import { CounterTile } from './plan-progress'
+import { WorkspaceOverlay } from './workspace-parts'
 import { Markdown, planSectionIcon } from './Markdown'
 import { planSectionLabel } from '../lib/labels'
 import { formatCount, formatDurationMs } from '../lib/format'
@@ -491,7 +493,7 @@ function PlanForm({ formId, markdown, executable, busy, error, onDirtyChange, on
  discoveryTarget: depth === 'discovery' ? parsedTarget : undefined,
  discovery: parsedDirections,
  companyBrief: brief,
- budgets: { maxCompanies: parsedCompanies, maxWallMinutes: parsedMinutes, concurrency: 2 },
+ budgets: { maxCompanies: parsedCompanies, maxWallMinutes: parsedMinutes, concurrency: executable?.budgets.concurrency ?? 2 },
  acceptance: criteria,
  }
  if (!ExecutableResearchPlan.safeParse(parsed).success) next.plan = 'Check the queries, limits and acceptance criteria. All fields must be valid.'
@@ -514,7 +516,7 @@ function PlanForm({ formId, markdown, executable, busy, error, onDirtyChange, on
  return (
  <form id={formId} className="flex min-w-0 flex-col gap-4" noValidate onSubmit={submit}>
  {executable && Object.keys(errors).length ? (
- <div ref={summaryRef} tabIndex={-1} role="alert" className="rounded-md border border-danger-border bg-danger-soft p-3 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+ <div ref={summaryRef} tabIndex={-1} role="alert" className={`rounded-md border border-danger-border bg-danger-soft p-3 ${focusRing}`}>
  <BodySm as="span" className="font-medium text-danger">Fix {Object.keys(errors).length === 1 ? 'this field' : 'these fields'} before saving.</BodySm>
  <ul className="mt-1.5 flex flex-col gap-1">
  {Object.keys(errors).map((key) => (

@@ -30,7 +30,7 @@ function ctx(): ToolContext {
   }
 }
 
-describe('PlanStore', () => {
+describe('PlanStore [F:agents.planning.PlanStore]', () => {
   it('creates with exactly one in progress, rejects zero or two', () => {
     const store = new PlanStore()
     expect(store.create([{ content: 'a', status: 'pending' }]).ok).toBe(false)
@@ -73,7 +73,7 @@ describe('PlanStore', () => {
   })
 })
 
-describe('plan tools', () => {
+describe('plan tools [F:agents.planning.planTools] [F:agents.planning.suppressDuplicatePlanWrites]', () => {
   it('enforce discipline through the registry', async () => {
     const registry = new ToolRegistry()
     for (const tool of planTools(new PlanStore())) registry.register(tool)
@@ -102,7 +102,7 @@ describe('plan tools', () => {
   })
 })
 
-describe('task tools', () => {
+describe('task tools [F:agents.tasks.TaskLedger] [F:agents.tasks.taskTools]', () => {
   it('records lifecycle entries and gates submit through the hook', async () => {
     const ledger = new TaskLedger()
     const registry = new ToolRegistry()
@@ -131,7 +131,7 @@ describe('task tools', () => {
   })
 })
 
-describe('runTurn', () => {
+describe('runTurn [F:agents.turn.runTurn]', () => {
   function harness(provider: FakeProvider, registry: ToolRegistry) {
     const run = createRun()
     transition(run, 'RUNNING')

@@ -1,0 +1,161 @@
+# Phases 3–7 handoff for Claude review
+
+Owner instruction (2026-10-05): build Phases 3–7 without per-phase Claude/owner
+approvals, then stop after Phase 7 for approval before Claude review. D1/D2 stay
+in force: lint/typecheck only while building, one item per commit, stacked phase
+branches, no merges/pushes, no full suites until final verification.
+
+## Where to look
+
+- Plan: `/home/karthik/.claude/plans/now-i-need-you-scalable-brooks.md`.
+- Phase review packages: `documentation/plans/p2-<N>-review.md` (written per phase,
+  no stop until Phase 7 is complete).
+- Branches, stacked, unmerged: `p2-2-quality` (accepted) →
+  `p2-3-observability` → `p2-4-capacity` → `p2-5-mcp` →
+  `p2-6-frontend` → `p2-7-gates` (HEAD, all phases built).
+
+## Phase 3 status
+
+Done on `p2-3-observability` (all `TC_EXIT=0 LINT_EXIT=0 QUALITY_EXIT=0`):
+
+- `cad5962`: hooks-only dependency rule + 27 grandfathered component importers.
+- `45baf35`: jscpd threshold 3.
+- `b15e15a`: Temporal OTel client/workflow/activity interceptors end to end.
+- `9848a60`: activity log join keys (`trace_id`, run/thread/session/sector, attempt, round).
+- `dde96f6`: provider round fields on turn rounds, compaction, direct callers, gateway lines.
+- `efb49ca`: worker→`/mcp` `traceparent`; server continues via global trace plugin.
+- `2b16f2a`: migration 0025 `events.trace_id/client` + indexes; ambient trace/client
+  defaults; route caller ALS; gated temporal continuity e2e.
+- `59f9cdf`: this handoff doc started.
+- `7e35334`: P3.3 log coverage (activity wrapper, outbox, workflow triples,
+  static coverage + secrets tests).
+- `90bb0d7`: P3.4 supervision that acts (control-before-record findings,
+  `alerts` table + `GET /v1/alerts` + Agents panel, fault drills per row,
+  1000-thread coverage test).
+- `5adf469`: P3.5.1 execution records every round incl. in-turn compaction
+  (`roundKind`, recovery replays turn requests only).
+- `ac6cbb3`: P3.5.2 `execution_rounds`/`tool_calls` + all emitters + temporal
+  invariant test; `turn.ts` split (`turn-rounds.ts`, `worker-mcp-auth.ts`).
+- `6af52c1`: P3.5.3 `sector_documents.author_thread` (create/reference paths,
+  keep-first, Files surface; uploads null).
+- `156f7d0`: P3.5.4 retention keeps 7 knowledge event types hot;
+  `cold_event_pointers` for moved operational events.
+- `f30bddb`: P3.5.5 evaluation views + `GET /v1/sectors/:id/evaluation` +
+  db.md stored-where table.
+- `d62a4c9`: P3.6a stress seed (1M/200k/100k/20k/5k) + hot-20 p95 tier;
+  tsconfig now covers tests/stress + tests/fault.
+- `546c958`: P3.6b 100-writer × 5 min contention tier.
+- `a6ef558`: tiers+tags for the 34 touched entries, [none]+why on 10
+  re-exports; fixed the registry gate self-tag false positive.
+
+Key design notes:
+
+- `provider.chat` keeps its legacy op name; round fields are flattened onto it and
+  also emitted as `provider.round`.
+- `backend/src/observability/ambient.ts` is a leaf ALS module so `db/events.ts`
+  can read trace/caller context without a `db → tracing → db` cycle.
+- `ProjectableEvent` keeps MCP/projector replay compatible with pre-0025 events.
+- Event `client` is route-derived for now (`/v1` → `ui`, `/mcp` → `agent-mcp`,
+  else `other`; background → `system`). `api_keys.client` arrives in Phase 8.
+- P3.4 ordering: Temporal signal/cancel runs BEFORE the finding record lands
+  (a lost effect retries next page; `controlRecorded` dedupes per lease).
+  Fail uses revivable ERROR, not PAUSED; a successor begin flips it RUNNING.
+- P3.4 contract change: alerts are table-backed; the Agents panel renders
+  kind/severity/subject (no sessionTitle/response/threadStatus). The `alerts`
+  e2e fixture and panel copy were updated in the same commit.
+
+Remaining Phase 3: `p2-3-review.md` only (build complete).
+
+Phase 3 deviations (see review package): legacy db registry todos stay
+(only the 34 touched entries tiered); `readThreadExecutionReference`
+untested; P3.1 research table lives in the review package; retention
+test rewritten (old artifact cold-move assertions contradicted 3.5.4);
+`listSessions`-sector is the at-risk p95 query (unmeasured under D1).
+
+## Phase 4 (branch `p2-4-capacity`, stacked on Phase 3)
+
+- P4.2.1 turn slots + global Meta limiter; P4.2.2 worker replicas;
+  P4.2.3 durable child queue + 409 refusal; P4.2.4 continue-as-new
+  (`can.ts`, `patched('can-v1')`); P4.2.5 pool validation + `/mcp` rate
+  limit; P4.2.6 coordinator concurrency 1..64; P4.2.7 positional
+  idempotent turn keys. One commit each, all gated.
+- P4.3 functional matrix DONE (commits 4.3a-f): agents 109 unit + 12
+  none; routes 69 http.* tagged 1:1 + 2 gap tests; backend 146 +
+  db 416 tagged via import/start/caller-chain attribution (worker and
+  gateway registration excluded as non-execution); 3 dead activities
+  deleted; 3 export-star barrels [none]; 10 gap tests (context-file
+  factory/workflows, kb ingest, route gaps). 0 todos, 0 unknown tags
+  across agents/backend/db/http.
+- Findings for review: live routes without operationIds
+  (queue/subagents/settings/context-files) are registry-invisible
+  (Phase 5 spec-drift note); transitive tags prove execution, aspects
+  at entry-point depth.
+
+Phase 4 complete (30 commits `ae3df6f..e39cb5a` + package): P4.4a harness,
+P4.4b–m F1–F16 drills + 1000-child test + tags, P4.4n–o docs + knip fix.
+Drill map: F1–F3 provider (`tests/fault/provider.faults`), F4–F5 kill
+(`worker-kill` + `kill-worker.mjs` on dist), F6–F8 cuts (`infra-cuts`,
+toxi 15433/17233), F9/F10/F13/F14 turns (`turn-faults`), F11/F12/F15 db
+(`db-faults`), F16 full (`archive-faults`, prlimit), 1000 queued
+(`tests/backend/workflows.children-1000`, temporal tier). One product
+fix: 503 `temporal_unavailable` (P4.4e). Key readings for review: no
+production `loadContinuation` (retries re-run, keys dedupe); 10 s pg cut
+exceeds turn retry budget (F6 proves path recovery, not turn survival);
+steer instructions never carry to next turn; only `send` maps 503.
+Gates at package: typecheck/lint/quality all 0; no suites per D1.
+
+Phase 5 complete (20 commits `95a92c4..d99168b` incl. package): P5.1a–b
+sectorId scope + tests, P5.1c–d runs/queue + tests, P5.1e–f obs + tests,
+P5.1g–h control + tests, P5.1i–j spawn/restart/propose/request + tests,
+P5.1k palettes, P5.1l parity script, P5.2a–c monitor + db/temporal tests,
+P5.2d live L-K1..K3 (unrun), P5.2e tiering, P5.2f–h docs + package.
+Key readings: sectorScope binding-wins; queue surgery approver+sensitive;
+companyResearch pause via patched(); Karbot propose pending-only;
+karbotMonitor is a timer workflow not a Schedule; 6 DEV owner-only ops;
+registry 1009, enforce-sim clean outside frontend. Gates: typecheck/
+lint 0 per commit; parity standalone OK; no suites per D1.
+
+Phase 6 complete (36 commits `a6ea453..dbdff4f` incl. package, branch
+`p2-6-frontend`): P6.0a deps, P6.1a–d seam hooks (27 components, 0 dep
+violations) + isAuthError, P6.2 Skeleton sweep, P6.3a–f matrix factory/
+runner/cases/generator (69 specs, 373 tests, 7 checks each), P6.4a–d
+30s timeout + failure harness + GET 23×9 + mutations 16×9 + fixes,
+P6.3.2a–j live-state truth (migration 0028 state_reason, terminal
+release both chats, orphan banner, 4 e2e + unit + db tests), P6.3.3
+scale budgets (7 specs), P6.4a–b ui:review wiring + docs, P6.5
+registry no-todo (tiers from tag evidence, gap tests), P6.6 quality
+green, P6.7 package. Key readings: writeFail reason now reaches the
+UI as a stable kind code; terminal status releases only when newer
+than the send (outbox-seq basis, replay-safe); virtualization is the
+stated (not applied) fix for budget misses; matrix-sync parses both
+YAML states formats; ui:review grading + all runtime signal deferred
+to final verification. Registry 1019, 0 todos, 0 missing/unknown
+(static). Gates: typecheck/lint/quality 0; no suites per D1.
+
+Phase 7 complete (14 commits `1dea447..014459c` incl. package, branch
+`p2-7-gates`): enforce default + opt-out, istanbul in agents/backend
+(85/80) + frontend 75, scripts/coverage.mjs core-dir gate (db/mcp/
+temporal 85) + root `coverage`, backend = evergreen tiers + temporal
+env, verify wiring, stryker break=70 ×3, KARDATA_STRESS_SCALE=reduced
+(100k events, 10 writers, 60s), CI integration (backend build, toxi,
+fault, reduced stress, backend coverage; 45min), AGENTS.md bug-fix
+rule, tests.md gate docs, status note. Key readings: backend coverage
+skips bare with a printed note (DB+Temporal needed, documented); CI
+toxi mirrors stack:toxi (host network, :latest); 3 removed-surface
+YAML entries are load-bearing (live tags reference them); mutation
+"tests where low" deferred to fix loop (unmeasurable under D1).
+Registry 1019, sync +0/-3 (stale, retained). Gates: typecheck/lint/
+quality 0; coverage --print-plan OK; YAML/JSON parsed; no suites D1.
+
+## Verification status
+
+- Per-commit gates only: `npm run typecheck`, `npm run lint`, `npm run quality`.
+- No phase suites have been run yet under D1 (`verify`, `verify:full`, fault,
+  stress, live, mutation, ui:review all deferred).
+- Tests are written with each item but remain unexecuted until final verification.
+
+## For Claude
+
+Review each `p2-<N>-review.md` against the plan AC, then the stacked diff. Expect
+unexecuted tests and unmeasured thresholds; do not ask for a suite until the owner
+approves final verification after Phase 7.

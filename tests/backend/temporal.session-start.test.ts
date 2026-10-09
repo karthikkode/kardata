@@ -3,30 +3,27 @@
 // with the runSend/runSteer signal and a { sessionId } start payload.
 // No Temporal server, no network.
 import { describe, expect, it } from 'vitest'
-import {
-  buildSessionSignalStart,
-  SESSION_PREFIX,
-  SESSION_WORKFLOW_TYPE,
-} from '../../backend/src/temporal/gateway.js'
+import { buildSessionSignalStart } from '../../backend/src/temporal/runs-helpers.js'
+import { SESSION_PREFIX, SESSION_WORKFLOW_TYPE } from '../../backend/src/temporal/runs-types.js'
 import { laneConfig } from '../../backend/src/temporal/lanes.js'
 
 describe('buildSessionSignalStart', () => {
   it('starts runSend on the session workflow with the session payload', () => {
-    const start = buildSessionSignalStart('s-1', 'hello', 'runSend')
+    const start = buildSessionSignalStart('s-1', 'hello', 'runSend', `00-${'a'.repeat(32)}-${'1'.repeat(16)}-01`)
     expect(start.workflowType).toBe(SESSION_WORKFLOW_TYPE)
     expect(start.workflowType).toBe('sessionRun')
     expect(start.workflowId).toBe(`${SESSION_PREFIX}s-1`)
     expect(start.taskQueue).toBe(laneConfig('turn').taskQueue)
     expect(start.signal).toBe('runSend')
-    expect(start.signalArgs).toEqual(['hello'])
+    expect(start.signalArgs).toEqual([{ text: 'hello', traceparent: `00-${'a'.repeat(32)}-${'1'.repeat(16)}-01` }])
     expect(start.args).toEqual([{ sessionId: 's-1' }])
   })
 
   it('starts runSteer with the same addressing', () => {
-    const start = buildSessionSignalStart('s-9', 'redirect', 'runSteer')
+    const start = buildSessionSignalStart('s-9', 'redirect', 'runSteer', `00-${'b'.repeat(32)}-${'2'.repeat(16)}-01`)
     expect(start.workflowId).toBe(`${SESSION_PREFIX}s-9`)
     expect(start.signal).toBe('runSteer')
-    expect(start.signalArgs).toEqual(['redirect'])
+    expect(start.signalArgs).toEqual([{ text: 'redirect', traceparent: `00-${'b'.repeat(32)}-${'2'.repeat(16)}-01` }])
     expect(start.args).toEqual([{ sessionId: 's-9' }])
   })
 })

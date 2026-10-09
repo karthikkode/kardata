@@ -3,10 +3,11 @@
 // status caption. Stopping cancels the thread's run through the parent.
 // There is no local launching or staged progress: every row on screen
 // was served by the API.
-import { useState } from 'react'
+import { memo, useState } from 'react'
+import { useVirtualList } from '@/lib/useVirtualList'
 import { Icons } from '@/lib/icons'
 import { popoverEnter, popoverExit, useExitState } from '@/lib/motion'
-import type { ThreadView } from '../data/staging-api'
+import type { ThreadView } from '../data/useThreads'
 import { toneDot } from './StatusPill'
 import { Button } from './ui/button'
 import { IconButton } from './IconButton'
@@ -22,6 +23,7 @@ function toneFor(status: string): 'working' | 'ok' | 'failed' | 'idle' {
 function labelFor(status: string): string {
   if (/running/i.test(status)) return 'Running'
   if (/paused/i.test(status)) return 'Paused'
+  if (/queued/i.test(status)) return 'Queued'
   if (/done|finished|complete/i.test(status)) return 'Done'
   if (/fail|error/i.test(status)) return 'Failed'
   if (/stop|cancel/i.test(status)) return 'Stopped'
@@ -44,7 +46,11 @@ function displayName(thread: ThreadView, index: number): string {
 // row uses the shared ListRow recipe (plan 2.5.1) as a non-interactive
 // container: the tag button and the trailing icons stay separate controls
 // because buttons cannot nest. Callbacks still travel by thread key.
-function SubagentRow({
+// Memoized apart from the positioned wrapper: the wrapper's translateY
+// changes on every scroll tick, but a row that stays in range keeps the
+// same innards (each IconButton mounts a tooltip tree, so re-rendering
+// them per tick janks).
+const SubagentRow = memo(function SubagentRow({
   thread,
   index,
   active,
@@ -66,11 +72,14 @@ function SubagentRow({
   const tone = toneFor(thread.status)
   const running = tone === 'working'
   const paused = /paused/i.test(thread.status)
+  // Queued children have no workflow yet but accept pause/stop through
+  // the parent, like running ones.
+  const queued = /queued/i.test(thread.status)
   const name = displayName(thread, index)
   const caption =
     thread.queueDepth > 0 ? `${thread.queueDepth} queued` : labelFor(thread.status)
   return (
-    <ListRow selected={active} density="dense">
+    <>
       <button
         type="button"
         onClick={() => onTagThread?.(thread.key)}
@@ -88,7 +97,7 @@ function SubagentRow({
           <span className="block truncate text-xs text-muted-foreground">{caption}</span>
         </span>
       </button>
-      {running && onPause ? (
+      {(running || queued) && onPause ? (
         <IconButton label={`Pause ${name}`} size="icon-sm" type="button" onClick={() => onPause(thread.key)}
         >
           <Icons.pause className="size-4" aria-hidden />
@@ -100,7 +109,7 @@ function SubagentRow({
           <Icons.play className="size-4" aria-hidden />
         </IconButton>
       ) : null}
-      {running ? (
+      {running || queued ? (
         <IconButton label={`Stop ${name}`} size="icon-sm" type="button" onClick={() => onStop(thread.key)}
         >
           <Icons.stopSquare className="size-4" aria-hidden />
@@ -110,7 +119,73 @@ function SubagentRow({
       >
         <Icons.chatMessage className="size-4" aria-hidden />
       </IconButton>
-    </ListRow>
+    </>
+  )
+})
+
+// Virtualized subagent list. Mounts with its scrollport (never above a
+// conditional mount): the virtualizer subscribes to the scroll element
+// on mount, so a hook above the open/close conditional would keep a
+// stale or null element across remounts.
+function SubagentVirtualList({
+  threads,
+  taggedKey,
+  closing,
+  onTagThread,
+  onOpenThread,
+  onStop,
+  onPause,
+  onResume,
+}: {
+  threads: ThreadView[]
+  taggedKey: string | null
+  closing: boolean
+  onTagThread?: (key: string) => void
+  onOpenThread?: (key: string) => void
+  onStop: (key: string) => void
+  onPause?: (key: string) => void
+  onResume?: (key: string) => void
+}) {
+  const { parentRef, virtualizer, items: virtualRows } = useVirtualList(threads.length, 64)
+  return (
+    <div
+      ref={parentRef}
+      className={`flex max-h-56 scroll-slim origin-top flex-col gap-2 overflow-y-auto py-2 ${closing ? popoverExit : popoverEnter}`}
+    >
+      {threads.length === 0 ? (
+        <p className="py-2 text-center text-sm text-muted-foreground">No subagents yet.</p>
+      ) : (
+        <List aria-label="Subagent threads" className="shrink-0" style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+          {virtualRows.map((virtualRow) => {
+            const thread = threads[virtualRow.index]
+            if (!thread) return null
+            return (
+              <ListRow
+                key={thread.key}
+                selected={thread.key === taggedKey}
+                density="dense"
+                ref={virtualizer.measureElement}
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${virtualRow.start}px)` }}
+                data-index={virtualRow.index}
+                aria-posinset={virtualRow.index + 1}
+                aria-setsize={threads.length}
+              >
+                <SubagentRow
+                  thread={thread}
+                  index={virtualRow.index}
+                  active={thread.key === taggedKey}
+                  onTagThread={onTagThread}
+                  onOpenThread={onOpenThread}
+                  onStop={onStop}
+                  onPause={onPause}
+                  onResume={onResume}
+                />
+              </ListRow>
+            )
+          })}
+        </List>
+      )}
+    </div>
   )
 }
 
@@ -186,29 +261,16 @@ export function SubagentsPanel({
         />
       </Button>
       {subagentList.mounted ? (
-        <div
-          className={`flex max-h-56 scroll-slim origin-top flex-col gap-2 overflow-y-auto py-2 ${subagentList.closing ? popoverExit : popoverEnter}`}
-        >
-          {threads.length === 0 ? (
-            <p className="py-2 text-center text-sm text-muted-foreground">No subagents yet.</p>
-          ) : (
-            <List className="gap-2" aria-label="Subagent threads">
-              {threads.map((thread, index) => (
-                <SubagentRow
-                  key={thread.key}
-                  thread={thread}
-                  index={index}
-                  active={thread.key === taggedKey}
-                  onTagThread={onTagThread}
-                  onOpenThread={onOpenThread}
-                  onStop={stop}
-                  onPause={onPauseThread ? pause : undefined}
-                  onResume={onResumeThread ? resume : undefined}
-                />
-              ))}
-            </List>
-          )}
-        </div>
+        <SubagentVirtualList
+          threads={threads}
+          taggedKey={taggedKey}
+          closing={subagentList.closing}
+          onTagThread={onTagThread}
+          onOpenThread={onOpenThread}
+          onStop={stop}
+          onPause={onPauseThread ? pause : undefined}
+          onResume={onResumeThread ? resume : undefined}
+        />
       ) : null}
     </div>
   )

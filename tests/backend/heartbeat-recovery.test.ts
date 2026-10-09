@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { recordHeartbeat } from '../../backend/src/db/heartbeats.js'
 
-describe('heartbeat persistence recovery', () => {
+describe('heartbeat persistence recovery [F:db.heartbeats.recordHeartbeat]', () => {
   it('persists busy/idle transitions inside the throttle interval and recovers from clock rollback', async () => {
     const db = { query: vi.fn().mockResolvedValue({ rows: [], rowCount: 1 }) }
     await recordHeartbeat(db, 'busy-transition', 'stage', true, 10000)

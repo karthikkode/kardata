@@ -31,7 +31,7 @@ function echoRegistry(): ToolRegistry {
   return registry
 }
 
-describe('validateArgs', () => {
+describe('validateArgs [F:agents.tools.validateArgs]', () => {
   it('accepts valid args and reports missing, unknown, mistyped, off-enum', () => {
     const registry = echoRegistry()
     const definition = registry.get('echo')?.definition
@@ -56,7 +56,7 @@ describe('validateArgs', () => {
   })
 })
 
-describe('dispatch', () => {
+describe('dispatch [F:agents.tools.dispatch] [F:agents.tools.ToolRegistry]', () => {
   it('executes and returns content results', async () => {
     const result = await dispatch(echoRegistry(), call('echo', { text: 'hi' }), ctx())
     expect(result).toMatchObject({ toolCallId: 'c1', toolName: 'echo', content: 'hi', isError: false })
@@ -187,7 +187,7 @@ describe('dispatch', () => {
   })
 })
 
-describe('BoundedQueue', () => {
+describe('BoundedQueue [F:agents.queue.BoundedQueue]', () => {
   it('rejects past capacity with reason and keeps FIFO order', () => {
     const queue = new BoundedQueue<string>(2)
     expect(queue.enqueue('a')).toEqual({ ok: true })

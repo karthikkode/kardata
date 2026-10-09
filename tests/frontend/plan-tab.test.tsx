@@ -2,11 +2,13 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { ResearchPlanTab } from '@/components/plan/PlanTab'
-import type { ResearchActions } from '@/components/SectorWorkspace'
-import type { WorkReview } from '@/components/workspace-parts'
+import type { ResearchActions } from '@/components/plan/PlanTab'
+import type { WorkReview } from '@/components/plan-progress'
 import type { Resource } from '@/data/useWorkspace'
-import type { ResearchState, SectorPlanView } from '@/data/staging-api'
-import type { GlobalContext, ResearchProgress } from '@/data/workspace-api'
+import type { ResearchState } from '@/data/api/sectors'
+import type { SectorPlanView } from '@/data/api/plans'
+import type { GlobalContext } from '@/data/api/context'
+import type { ResearchProgress } from '@/data/api/progress'
 import type { ExecutableResearchPlan } from '@/data/research-plan'
 
 const executable: ExecutableResearchPlan = {
@@ -127,7 +129,7 @@ describe('ResearchPlanTab brief and states', () => {
     const user = userEvent.setup()
     const bare = planView()
     renderTab('planned', ready({ ...bare, latest: { ...bare.latest!, executable: undefined } }))
-    const warning = screen.getByText(/no executable search steps yet/).closest('[role="alert"]')!
+    const warning = screen.getByText(/no executable search steps yet/).closest('[role="alert"]')! as HTMLElement
     await user.click(within(warning).getByRole('button', { name: 'Edit plan' }))
     expect(screen.getByRole('dialog', { name: 'Edit research plan' })).toBeInTheDocument()
   })

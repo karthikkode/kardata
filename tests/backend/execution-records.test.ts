@@ -4,12 +4,12 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { Pool } from 'pg'
 import { describe, expect, it } from 'vitest'
-import { beginThreadTurn, createSector, createSession,finishSteering,listThreadExecutionRecords, proposeGlobalContext, readPartition, recordTurnExecution,reserveExecutionIntent, workspaceReferenceSnapshot, type Db } from '../../backend/src/db/index.js'
+import { beginThreadTurn, createSector, createSession,finishSteering,listThreadExecutionRecords, proposeGlobalContext, readPartition, readRecoveryRequestReference, recordTurnExecution,reserveExecutionIntent, workspaceReferenceSnapshot, type Db } from '../../backend/src/db/index.js'
 import { FilesystemTarget, persistExecutionRecord, readExecutionRecord } from '../../backend/src/archive/targets.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('execution record durable ownership', () => {
+describe.skipIf(!TEST_DATABASE_URL)('execution record durable ownership [F:db.execution_records.recordTurnExecution] [F:db.execution_records.listThreadExecutionRecords] [F:db.execution_records.readRecoveryRequestReference] [F:db.index.createSector] [F:db.index.createSession] [F:db.index.readPartition] [F:db.workspace_threads.beginThreadTurn] [F:db.workspace_threads.finishSteering] [F:db.execution_epochs.reserveExecutionIntent] [F:db.index.listThreadExecutionRecords] [F:db.workspace_global_context.proposeGlobalContext] [F:db.index.readRecoveryRequestReference] [F:db.index.recordTurnExecution] [F:db.index.workspaceReferenceSnapshot] [F:db.sectors.createSector] [F:db.events.readPartition] [F:db.sessions.createSession] [F:db.workspace_research.workspaceReferenceSnapshot] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.context_files.assertThreadFileContext] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.errors.WorkspaceError] [F:db.execution_epochs.bindExecutionEpoch] [F:db.index.Db] [F:db.index.TransactableDb] [F:db.workspace.PartialContextSections] [F:db.workspace.WorkspaceError] [F:db.workspace_global_context.notifyWorkspace] [F:db.workspace.requireSector] [F:db.workspace.requireThread] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked]', () => {
   async function fixture() {
     const pool = new Pool({ connectionString: await ensureTestDb('kardata_test_execution_record') })
     const session = await createSession(pool, 'TEST execution records')
@@ -32,7 +32,9 @@ describe.skipIf(!TEST_DATABASE_URL)('execution record durable ownership', () => 
       expect(events[0]?.payload).not.toHaveProperty('data')
       expect(await readExecutionRecord(archive, session.id, input.ref)).toEqual(record)
     } finally { await pool.end() }
-  })
+    // Explicit budget like execution-epochs (ca7d784): first test pays
+    // fixture + connection setup, which starved past 5s under load.
+  }, 15_000)
   it('rejects stale attempts after replacement without discarding previous records', async () => {
     const { pool, session, input } = await fixture()
     try {
@@ -57,6 +59,19 @@ describe.skipIf(!TEST_DATABASE_URL)('execution record durable ownership', () => 
       expect(records.records).toHaveLength(1)
       expect(records.records[0]).toMatchObject({ workflowId,executionId,ownerEpoch,attemptLease: lease })
       expect((await pool.query('SELECT active_epoch,active_workflow_id,active_execution_id FROM thread_context WHERE thread_key=$1',[session.id])).rows[0]).toEqual({ active_epoch: null,active_workflow_id: null,active_execution_id: null })
+    } finally { await pool.end() }
+  })
+  it('journals compaction rounds beside turn rounds while recovery replays only turn requests', async () => {
+    const { pool, session, archive, input } = await fixture()
+    try {
+      const turnRef = await persistExecutionRecord(archive, session.id, { version: 1, provider: 'TEST', model: 'TEST model', round: 1, boundary: {}, roundKind: 'turn', data: { text: 'TEST turn request' } })
+      await recordTurnExecution(pool, { ...input, kind: 'request', roundKind: 'turn', ref: turnRef })
+      const compactRef = await persistExecutionRecord(archive, session.id, { version: 1, provider: 'TEST', model: 'TEST model', round: 2, boundary: {}, roundKind: 'compaction', data: { text: 'TEST compaction summary' } })
+      await recordTurnExecution(pool, { ...input, round: 2, kind: 'request', roundKind: 'compaction', ref: compactRef })
+      const records = await listThreadExecutionRecords(pool, session.id)
+      expect(records.records.map((entry) => [entry.round, entry.kind, entry.roundKind])).toEqual([[1, 'request', 'turn'], [2, 'request', 'compaction']])
+      const recovery = await readRecoveryRequestReference(pool, session.id, 'TEST original run')
+      expect(recovery?.metadata).toMatchObject({ round: 1, roundKind: 'turn' })
     } finally { await pool.end() }
   })
   it('rejects cross-session attribution even with a valid current lease', async () => {

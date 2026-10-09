@@ -5,11 +5,11 @@
 import { Pool } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createSector, createSession, ensureResearchSession } from '../../backend/src/db/index.js'
-import { resolveChatRefTurn } from '../../backend/src/temporal/activities/turn.js'
+import { resolveChatRefTurn } from '../../backend/src/temporal/activities/turn-chatrefs.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('research @chat references (A14)', () => {
+describe.skipIf(!TEST_DATABASE_URL)('research @chat references (A14) [F:backend.activity.turn_chatrefs.resolveChatRefTurn] [F:db.index.createSector] [F:db.index.createSession] [F:db.workspace.ensureResearchSession] [F:db.sectors.createSector] [F:db.sessions.createSession] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.index.TransactableDb] [F:db.workspace.WorkspaceError] [F:db.workspace.requireSector] [F:db.sessions.sessionKind] [F:db.workspace.workspaceTransaction] [F:db.errors.Id] [F:db.errors.checked]', () => {
   let pool: Pool
   const scope = { tenantId: 'test-chat-refs', projectId: null }
   let sectorId: string, research: string, normal: string

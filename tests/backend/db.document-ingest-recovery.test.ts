@@ -9,7 +9,7 @@ import { createSector, ingestSectorDocument, readOriginalSectorDocument } from '
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('document upload atomicity and retry recovery', () => {
+describe.skipIf(!TEST_DATABASE_URL)('document upload atomicity and retry recovery [F:db.index.createSector] [F:db.index.ingestSectorDocument] [F:db.index.readOriginalSectorDocument] [F:db.file_pipeline.extractFileUnits] [F:db.file_pipeline.sha256Hex] [F:db.sectors.createSector] [F:db.sector_documents.readOriginalSectorDocument] [F:db.workspace.WorkspaceError] [F:db.workspace.requireSector]', () => {
   let pool: Pool
   const archive = new FilesystemTarget(mkdtempSync(join(tmpdir(), 'kardata-ingest-recovery-')))
   const sectorId = `sec-${randomUUID()}`

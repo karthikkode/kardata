@@ -1,8 +1,10 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { GlobalContextPanel, WorkspaceFiles } from '@/components/workspace-parts'
-import type { ContextChange, ContextFileBlock, GlobalContext, LibraryFile } from '@/data/workspace-api'
+import { GlobalContextPanel } from '@/components/global-context-panel'
+import { WorkspaceFiles } from '@/components/workspace-files'
+import type { ContextChange, ContextFileBlock, GlobalContext } from '@/data/api/context'
+import type { LibraryFile } from '@/data/api/files'
 
 function block(overrides: Partial<ContextFileBlock> = {}): ContextFileBlock {
   return { fileId: 'file-1', filename: 'notes.md', state: 'ready', tokens: 1240, summary: '### notes.md (MD)\n**Overview.** TEST summary.', error: null, ...overrides }
@@ -171,7 +173,7 @@ describe('context compaction and restore', () => {
     const onCompact = vi.fn()
     const view = renderHistory([], { onCompact })
     await user.click(screen.getByRole('button', { name: 'Global context options' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Compact now' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Compact now' }))
     expect(onCompact).toHaveBeenCalledTimes(1)
     view.unmount()
   })
@@ -245,7 +247,7 @@ describe('context compaction and restore', () => {
     await user.click(rows[0]!)
     await user.click(screen.getByRole('button', { name: 'Restore this version' }))
     expect(screen.getByRole('alertdialog', { name: 'Restore version 2?' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Restore version', exact: true }))
+    await user.click(screen.getByRole('button', { name: 'Restore version' }))
     expect(onRestore).toHaveBeenCalledWith(2)
   })
 })

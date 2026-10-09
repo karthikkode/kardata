@@ -9,16 +9,6 @@ import { cn } from '@/lib/utils'
 import { useTopmostOverlay } from '@/lib/overlay'
 import { Button } from './button'
 
-function AlertDialogRoot(props: React.ComponentProps<typeof AlertDialog.Root>) {
-  return <AlertDialog.Root data-slot="alert-dialog" {...props} />
-}
-
-function AlertDialogTrigger({ className, ...props }: React.ComponentProps<typeof AlertDialog.Trigger>) {
-  return <AlertDialog.Trigger data-slot="alert-dialog-trigger" className={className} {...props} />
-}
-
-export { AlertDialogRoot, AlertDialogTrigger }
-
 export function ConfirmAction({
   open,
   onOpenChange,

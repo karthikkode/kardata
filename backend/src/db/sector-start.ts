@@ -4,11 +4,12 @@
 // anything past approved is a conflict; a sweep that never starts
 // compensates back to approved so a retry stays a start instead of a
 // 409 dead end.
-import type { Scope } from '../auth/keys.js'
+import type { Scope } from '../auth/types.js'
 import { DbContractError } from './errors.js'
-import { getSession, type Db } from './events.js'
+import { getSession } from './sessions.js'
+import { type Db } from './events.js'
 import { getSector, recordResearchSession, setSectorState } from './sectors.js'
-import { readGlobalContext } from './workspace.js'
+import { readGlobalContext } from './workspace-global-context.js'
 import { readSectorPlan } from './sector-plan.js'
 
 export type SectorStartFailure = 'not_found' | 'conflict' | 'overload'

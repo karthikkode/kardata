@@ -7,7 +7,7 @@ import { extractDocumentText, SECTOR_DOCUMENT_MAX_BYTES } from '../../backend/sr
 
 const bytes = (text: string): Buffer => Buffer.from(text, 'utf8')
 
-describe('extractDocumentText', () => {
+describe('extractDocumentText [F:db.index.DbContractError] [F:db.sector_documents.extractDocumentText] [F:db.sector_documents.SECTOR_DOCUMENT_MAX_BYTES] [F:db.errors.DbContractError]', () => {
   it('extracts markdown, text, csv, and json verbatim', async () => {
     for (const filename of ['notes.md', 'dump.txt', 'rows.csv', 'data.json']) {
       const { text, mediaType } = await extractDocumentText(filename, bytes('# hello\nbody'))

@@ -14,7 +14,8 @@ import type {
   SectorResearch,
 } from '../data/research'
 import { useStagingCompanies } from '../data/research'
-import type { ResearchState, StagingConfig } from '../data/staging-api'
+import type { ResearchState } from '../data/useSectors'
+import type { StagingConfig } from '../data/useApi'
 import type { ResearchList } from './Dashboard'
 import { StageSteps, StateBadge } from './research-parts'
 import { ResourceState, SearchField } from './shells'
@@ -230,6 +231,7 @@ export function ResearchesPage({
         id: 'open',
         header: <span className="sr-only">Open</span>,
         stackedLabel: '',
+        width: '3rem',
         cell: () => <Icons.chevronRight aria-hidden className="size-4 text-muted-foreground" />,
       },
     ],
@@ -263,8 +265,8 @@ export function ResearchesPage({
         id: 'stage',
         header: 'Stage',
         cell: (row) => (
-          <span className="flex items-center gap-2">
-            <BodySm as="span" className="whitespace-nowrap">
+          <span className="flex flex-col gap-1 lg:flex-row lg:items-center lg:gap-2">
+            <BodySm as="span" className="min-w-0 truncate">
               {companyStageLabel(row.stage)}
             </BodySm>
             <StageSteps stage={row.stage} />
@@ -280,6 +282,7 @@ export function ResearchesPage({
         id: 'open',
         header: <span className="sr-only">Open</span>,
         stackedLabel: '',
+        width: '3rem',
         cell: () => <Icons.chevronRight aria-hidden className="size-4 text-muted-foreground" />,
       },
     ],
@@ -327,9 +330,9 @@ export function ResearchesPage({
           onChange={setDraft}
           label={tab === 'sectors' ? 'Search sectors' : 'Search companies'}
           placeholder={tab === 'sectors' ? 'Search sectors' : 'Search companies'}
-          className="md:w-64 md:shrink-0"
+          className="md:w-64 md:min-w-0"
         />
-        <div className="md:w-52 md:shrink-0">
+        <div className="md:w-52 md:min-w-0">
           <SelectRoot
             value={selectedOption}
             onValueChange={(option) => {
@@ -349,7 +352,7 @@ export function ResearchesPage({
             </SelectPopup>
           </SelectRoot>
         </div>
-        <div className="md:ml-auto">
+        <div className="md:ml-auto md:shrink-0">
           {toolbarCount ? (
             <Caption aria-live="polite" className="tabular-nums">
               {toolbarCount}

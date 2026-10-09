@@ -21,7 +21,32 @@ import { toApiMessage, toApiThread } from '../threads/views.js'
 
 export const SNAPSHOT_THRESHOLD = 200
 
-export type StreamFrameType = 'message' | 'state' | 'delta' | 'reasoning' | 'tool' | 'finding' | 'error' | 'context-version' | 'approval' | 'work-progress' | 'compaction' | 'steering-consumption'
+/** Tail-read budget: a cut can wedge a pool query on a half-open socket
+ * (raw pools carry no statement timeout), stalling the stream silent
+ * instead of closing it. Past the budget the tail throws, the socket
+ * closes, and the client resumes from its token. Normal tail reads are
+ * milliseconds; fault drills add seconds at most. */
+const TAIL_READ_TIMEOUT_MS = 5_000
+
+async function readTailBacklog(pool: ConnectableDb, threadKey: string, cursor: number): Promise<OutboxRow[]> {
+  const pending = readOutboxBacklog(pool, threadKey, cursor)
+  // Loser of the race still settles later: swallow so a post-timeout
+  // socket error never surfaces as an unhandled rejection.
+  pending.catch(() => undefined)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      pending,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`outbox tail read exceeded ${TAIL_READ_TIMEOUT_MS} ms`)), TAIL_READ_TIMEOUT_MS)
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+type StreamFrameType = 'message' | 'state' | 'delta' | 'reasoning' | 'tool' | 'finding' | 'error' | 'context-version' | 'approval' | 'work-progress' | 'compaction' | 'steering-consumption'
 
 export interface StreamFrame {
   seq: number
@@ -131,7 +156,7 @@ export async function* openThreadStream(
         // only a seq, so the table is the source of truth and missed wakes
         // cannot gap the stream.
         pending.length = 0
-        const fresh = await readOutboxBacklog(pool, threadKey, cursor)
+        const fresh = await readTailBacklog(pool, threadKey, cursor)
         for (const row of fresh) {
           const frame = frameFromRow(row)
           if (!frame) continue

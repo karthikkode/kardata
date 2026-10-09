@@ -11,7 +11,7 @@ export const ExecutableResearchPlan = z.object({
     maxPages: z.number().int().min(1).max(10),
   }).strict()).min(1).max(30),
   companyBrief: z.string().min(1).max(12000),
-  budgets: z.object({ maxCompanies: z.number().int().min(1).max(2000), maxWallMinutes: z.number().int().min(1).max(1440), concurrency: z.literal(2) }).strict(),
+  budgets: z.object({ maxCompanies: z.number().int().min(1).max(2000), maxWallMinutes: z.number().int().min(1).max(1440), concurrency: z.number().int().min(1).max(64) }).strict(),
   acceptance: z.array(z.string().min(1)).min(1).max(20),
 }).strict().superRefine((plan, ctx) => {
   if (new Set(plan.discovery.map((direction) => direction.id)).size !== plan.discovery.length) ctx.addIssue({ code: 'custom', path: ['discovery'], message: 'Discovery direction ids must be unique.' })

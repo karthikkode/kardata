@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../backend/src/app.js'
 import { appendEvent } from '../../backend/src/db/index.js'
 import { hashKey } from '../../backend/src/auth/keys.js'
-import type { RunInfo } from '../../backend/src/temporal/gateway.js'
+import type { RunInfo } from '../../backend/src/temporal/runs-types.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 import { FakeRunsGateway } from './fake-gateway.js'
 
@@ -27,7 +27,7 @@ function authHeader(key: string, extra: Record<string, string> = {}): Record<str
   return { authorization: `Bearer ${key}`, ...extra }
 }
 
-describe.skipIf(!ENABLED)('auth and tenancy (B3.3)', () => {
+describe.skipIf(!ENABLED)('auth and tenancy (B3.3) [F:http.createSession] [F:http.listSessions] [F:http.getSession] [F:http.sendMessage] [F:http.decideApproval] [F:http.resumeRun] [F:http.pauseRun] [F:http.listThreads] [F:http.getThread] [F:http.listMessages] [F:http.streamThread] [F:db.index.appendEvent] [F:db.events.appendEvent] [F:db.events.DURABLE_STREAM_LOCK_SQL] [F:db.index.Db] [F:db.workspace.researchSessionBinding] [F:db.sessions.sessionKind] [F:db.errors.Id] [F:db.errors.checked] [F:db.workspace.workspaceRow]', () => {
   let app: FastifyInstance
   let pool: Pool
   let runs: FakeRunsGateway

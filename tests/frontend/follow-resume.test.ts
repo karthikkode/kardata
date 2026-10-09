@@ -2,7 +2,8 @@
 // and malformed frames without losing or duplicating messages, resuming
 // from the last good token. fetch is stubbed per connection attempt.
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { followThread, type StagingConfig } from '@/data/staging-api'
+import { followThread } from '@/data/api/live'
+import { type StagingConfig } from '@/data/api/client'
 
 const config: StagingConfig = { baseUrl: 'https://staging.test', apiKey: 'k' }
 
@@ -36,7 +37,7 @@ function streamOf(chunks: Array<Uint8Array | 'die'>): Response {
 }
 
 function hangingStream(): Response {
-  return { ok: true, status: 200, body: new ReadableStream<Uint8Array>(() => undefined) } as Response
+  return { ok: true, status: 200, body: new ReadableStream<Uint8Array>({ start() {} }) } as Response
 }
 
 async function drain<T>(gen: AsyncGenerator<T>): Promise<T[]> {
@@ -226,6 +227,18 @@ describe('followThread resume', () => {
     expect(recovered[0]?.pendingText).toBe('Saved prefix and suffix')
     expect(recovered.at(-1)?.steering).toEqual([{ id: 'TEST steer', state: 'consumed' }])
     expect(recovered.at(-1)?.pendingText).toBeNull()
+  })
+
+  it.each(['FINISHED', 'ERROR', 'STOPPED', 'CANCELLING'])('drops in-flight deltas on a %s state frame', async (status) => {
+    vi.stubGlobal('fetch', vi.fn(async () => streamOf([
+      frame({ seq: 1, type: 'tool', payload: { runKey: 'TEST run', id: 'TEST tool', name: 'search', state: 'running' } }),
+      frame({ seq: 2, type: 'delta', payload: { runKey: 'TEST run', text: 'partial…' } }),
+      frame({ seq: 3, type: 'state', payload: { status } }),
+    ])))
+    const snapshots = await drain(followThread(config, 'terminal-clear'))
+    expect(snapshots[1]).toMatchObject({ pendingText: 'partial…' })
+    expect(snapshots[1]?.pendingTools).toHaveLength(1)
+    expect(snapshots.at(-1)).toMatchObject({ pendingText: null, pendingReasoning: null, pendingTools: [], threadStatus: status, error: null })
   })
 
 })

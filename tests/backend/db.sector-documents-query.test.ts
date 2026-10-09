@@ -55,7 +55,7 @@ function stubDb(state: { sector: boolean; doc: boolean; status?: string }): Tran
 
 const SCOPE = { tenantId: 't', projectId: null }
 
-describe('querySectorDocument', () => {
+describe('querySectorDocument [F:db.index.DbContractError] [F:db.sector_documents.querySectorDocument] [F:db.errors.DbContractError]', () => {
   it.each(['processing','failed','needs-ocr'])('never exposes partial stored units or text for %s', async (status) => {
     const db=stubDb({sector:true,doc:true,status})
     expect(await querySectorDocument(db,{documentId:'sdoc-1',sectorId:'sec-1'})).toMatchObject({status,chars:0,totalUnits:0,toc:[]})

@@ -9,11 +9,12 @@ import { MockActivityEnvironment } from '@temporalio/testing'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { hydrateResearchSources, resolveArchiveTarget } from '../../backend/src/archive/targets.js'
 import { createSession, readPartition, readTurnContinuation } from '../../backend/src/db/index.js'
-import { karbotTurnActivity, type KarbotTurnInput, type TurnOutcome } from '../../backend/src/temporal/activities/turn.js'
+import { karbotTurnActivity, type TurnOutcome } from '../../backend/src/temporal/activities/turn.js'
+import { type KarbotTurnInput } from '../../backend/src/temporal/activities/karbot-turn-input.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('production turn source receipts', () => {
+describe.skipIf(!TEST_DATABASE_URL)('production turn source receipts [F:backend.activity.turn.karbotTurnActivity] [F:db.index.createSession] [F:db.index.readPartition] [F:db.workspace_threads.readTurnContinuation] [F:db.events.readPartition] [F:db.sessions.createSession] [F:db.context_files.assertThreadFileContext] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.execution_epochs.readActiveExecutionIdentity] [F:db.index.Db] [F:db.workspace_threads.recordContextMeasurement]', () => {
   let pool: Pool, server: Server, endpoint: string
   const text = 'TEST Australian company evidence '.repeat(100)
   beforeAll(async () => {

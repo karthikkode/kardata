@@ -7,14 +7,16 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { verifyExecution } from '../auth/execution.js'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import type { Logger } from 'pino'
-import { resolveCaller, roleAtLeast, roleLevelAtLeast, type Role, type Scope } from '../auth/keys.js'
+import type { Role, Scope } from '../auth/types.js'
+import { resolveCaller, roleAtLeast, roleLevelAtLeast } from '../auth/keys.js'
 import type { TransactableDb } from '../db/index.js'
 import { WorkspaceError, requireThread } from '../db/index.js'
-import type { RunsGateway } from '../temporal/gateway.js'
+import type { RunsGateway } from '../temporal/runs-types.js'
 import type { ArchiveTarget } from '../archive/targets.js'
 import { childLogger } from '../observability/logging.js'
 import { TOOL_NAMES, type McpToolName } from './schemas.js'
-import { createMcpServer, toolCapability, TOOL_META, type ToolGrant } from './tools.js'
+import { createMcpServer, toolCapability, TOOL_META } from './tools.js'
+import { type ToolGrant } from './tools-types.js'
 import { requirePool, route, sendError, withIdempotency, header } from '../routes/http.js'
 import { inspectOperationReceipt, recordOperationIntent, recordOperationResult, recoverOperationResult } from '../db/operation-receipts.js'
 
@@ -146,7 +148,7 @@ async function serveMcp(
   // The runs gateway satisfies every runner interface structurally
   // (sweep starter, thread messenger, subagent delegator); absent runners
   // fail their tools closed instead of half-acting.
-  const server = createMcpServer({ pool, scope: auth.scope, role: auth.role, keyId: auth.keyId, executionThread, ...(toolLogger ? { logger: toolLogger } : {}), ...(runs ? { runs, messenger: runs, delegator: runs, runReader: runs } : {}), ...(typeof runs?.startFileProcessing === 'function' ? { fileProcessor: { startFileProcessing: runs.startFileProcessing.bind(runs) } } : {}), ...(archive ? { archive } : {}) }, grant)
+  const server = createMcpServer({ pool, scope: auth.scope, role: auth.role, keyId: auth.keyId, executionThread, ...(toolLogger ? { logger: toolLogger } : {}), ...(runs ? { runs, messenger: runs, delegator: runs, runReader: runs, monitor: runs } : {}), ...(typeof runs?.startFileProcessing === 'function' ? { fileProcessor: { startFileProcessing: runs.startFileProcessing.bind(runs) } } : {}), ...(archive ? { archive } : {}) }, grant)
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,

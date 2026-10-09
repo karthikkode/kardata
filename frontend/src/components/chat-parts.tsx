@@ -7,12 +7,12 @@ import { Icons } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { formatFullDate } from '../lib/format'
 import { notify } from '../lib/toast'
-import { sessionAge } from './ChatPanel'
+import { sessionAge } from './chat/messages'
 import { Caption } from './text'
 import { Button } from './ui/button'
 
 /** Gap that opens a timestamp divider between two stamped rows. */
-export const DIVIDER_GAP_MS = 5 * 60 * 1000
+const DIVIDER_GAP_MS = 5 * 60 * 1000
 
 /** True when two ISO timestamps are far enough apart to split the flow. */
 export function splitAfter(previous: string | undefined, next: string | undefined): boolean {

@@ -48,6 +48,13 @@ updates the name at `toolcall_end`, then emits `done` or `failed` after MCP
 settles. Frames carry call id, name, state, and round only: no arguments or
 result body. The terminal reply remains one persisted message.
 
+Every side-effecting MCP call carries the idempotent key
+`(run_id, round, call_index)` (`toolOperationId`, sent as the
+`idempotency-key` header): positional, never the provider's call id, so
+a regenerated round replays identical keys and the server dedupes
+instead of doubling effects. Blocked-operation retries reuse the
+stored key verbatim.
+
 ## Stub domain tools (T3.3)
 
 `domainTools()` registers `sector.list`, `company.list`, `documents.search`,
@@ -57,7 +64,7 @@ Evidence items always carry doc id, URL, and excerpt (provenance minimum).
 
 ## Backend conformance (B4.2)
 
-The backend executes plan/task tools through `toolCallActivity` in
+The backend executes plan/task tools through `executeToolCall` in
 `backend/src/temporal/activities/tools.ts`, reusing agents `dispatch`,
 `planTools`, and `taskTools`. Rules the backend adds on top of the agents
 contract:

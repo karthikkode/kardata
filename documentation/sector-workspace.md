@@ -178,3 +178,9 @@ checkpoint, and resumes from it. Waiting inbox messages list with stable ids
 under `GET /v1/threads/{key}/queue`; the running item is never listed, and
 reorder requires exactly the current set. Stop (header, every running
 subagent row, Runs) confirms with "Stop this agent?" and toasts "Stopped".
+
+Queued children (past the in-flight cap) list as QUEUED rows with the same
+Pause and Stop buttons in the strip and directory, plus a Queued badge in
+the strip; paused-queued rows show Resume. Pause parks the child past
+promotion, Stop cancels it without ever starting it, and steering a queued
+child waits pending for its first turn instead of recording missed.

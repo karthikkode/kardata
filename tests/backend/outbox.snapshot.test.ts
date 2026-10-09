@@ -8,7 +8,7 @@ import { projectNewEvents } from '../../backend/src/projector.js'
 import { openThreadStream, SNAPSHOT_THRESHOLD } from '../../backend/src/streams/outbox.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('outbox snapshot overflow', () => {
+describe.skipIf(!TEST_DATABASE_URL)('outbox snapshot overflow [F:db.index.createSession] [F:db.index.publishOutboxFrame] [F:db.sessions.createSession] [F:db.outbox.publishOutboxFrame] [F:db.events.DURABLE_STREAM_LOCK_SQL]', () => {
   let url = ''
   let pool: Pool
 

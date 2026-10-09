@@ -1,0 +1,17 @@
+{
+  "_comment": "Quality allowlist (Phase 1 baseline). Each entry names the phase that fixes it. Phase 2 AC: repo-wide allowlist <= 25 entries.",
+  "maxLines": [],
+  "globalFetch": [],
+  "knip": [
+    {
+      "scope": "root ignoreDependencies (21 test deps)",
+      "phase": null,
+      "reason": "knip attributes mirror tests/ to root; each dep is listed in its owning workspace (backend/frontend)"
+    },
+    {
+      "scope": "frontend ignoreDependencies (fontsource x2, shadcn, tw-animate-css, tailwindcss)",
+      "phase": null,
+      "reason": "imported from index.css and vite.config.ts, which knip does not trace"
+    }
+  ]
+}

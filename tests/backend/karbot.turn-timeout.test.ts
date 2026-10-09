@@ -15,10 +15,12 @@ vi.mock('@kardata/agents', async (importOriginal) => {
   }
 })
 
-import { executeKarbotTurn, PLANNING_ROUND_TIMEOUT_MS, turnRoundTimeoutMs, type KarbotTurnDeps } from '../../backend/src/temporal/activities/turn.js'
+import { executeKarbotTurn } from '../../backend/src/temporal/activities/turn.js'
+import { PLANNING_ROUND_TIMEOUT_MS, turnRoundTimeoutMs } from '../../backend/src/temporal/activities/turn-prompts.js'
+import { type KarbotTurnDeps } from '../../backend/src/temporal/activities/karbot-turn-input.js'
 import { FakeProvider } from '@kardata/agents'
 
-describe('turnRoundTimeoutMs', () => {
+describe('turnRoundTimeoutMs [F:backend.activity.turn.executeKarbotTurn] [F:backend.activity.turn_prompts.PLANNING_ROUND_TIMEOUT_MS] [F:backend.activity.turn_prompts.turnRoundTimeoutMs] [F:backend.activity.turn_prompts.CONTEXT_PROPOSAL_NUDGE] [F:backend.activity.turn_prompts.CONTEXT_REWRITE_PREAMBLE] [F:backend.activity.turn.ResearchPausedError] [F:backend.activity.turn.sleep] [F:db.errors.WorkspaceError] [F:db.sessions.SessionModelSelection] [F:db.index.Db] [F:db.index.SessionModelSelection] [F:db.workspace.WorkspaceError] [F:db.sector_documents.assertFileVisible] [F:db.sessions.sessionKind] [F:db.errors.Id] [F:db.errors.checked] [F:db.file_jobs.visible]', () => {
   it('gives sectorPlan workflow runKeys the 180 s planning budget', () => {
     expect(turnRoundTimeoutMs({ runKey: 'plan:sector-1:v3' })).toBe(180_000)
     expect(PLANNING_ROUND_TIMEOUT_MS).toBe(180_000)

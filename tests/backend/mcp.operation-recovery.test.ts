@@ -12,10 +12,11 @@ import { commitThreadCompaction, createSession, listSessions, readThreadContext,
 import { readPartition } from '../../backend/src/db/events.js'
 import { readExecutionRecord, resolveArchiveTarget, type ArchivedExecutionRecord } from '../../backend/src/archive/targets.js'
 import { projectNewEvents } from '../../backend/src/projector.js'
-import { karbotTurnActivity, type KarbotTurnInput, type TurnOutcome } from '../../backend/src/temporal/activities/turn.js'
+import { karbotTurnActivity, type TurnOutcome } from '../../backend/src/temporal/activities/turn.js'
+import { type KarbotTurnInput } from '../../backend/src/temporal/activities/karbot-turn-input.js'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 
-describe.skipIf(!TEST_DATABASE_URL)('uncertain mutation recovery over real HTTP', () => {
+describe.skipIf(!TEST_DATABASE_URL)('uncertain mutation recovery over real HTTP [F:backend.activity.turn.karbotTurnActivity] [F:db.index.createSession] [F:db.index.registerApiKey] [F:db.workspace_threads.commitThreadCompaction] [F:db.workspace_threads.readThreadContext] [F:db.workspace_threads.readTurnContinuation] [F:db.keys.registerApiKey] [F:db.index.listSessions] [F:db.events.readPartition] [F:db.sessions.createSession] [F:db.sessions.listSessions] [F:db.context_files.assertThreadFileContext] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.errors.WorkspaceError] [F:db.sessions.SessionModelSelection] [F:db.execution_epochs.readActiveExecutionIdentity] [F:db.index.Db] [F:db.index.SessionModelSelection] [F:db.workspace.WorkspaceError] [F:db.sector_documents.assertFileVisible] [F:db.workspace_threads.recordContextMeasurement] [F:db.errors.Id] [F:db.errors.checked] [F:db.file_jobs.visible]', () => {
   let pool: Pool, app: FastifyInstance, endpoint: string
   const scope = { tenantId: 'test-mutation-recovery', projectId: null }
   const credential = 'TEST operation recovery worker credential'
@@ -58,7 +59,7 @@ describe.skipIf(!TEST_DATABASE_URL)('uncertain mutation recovery over real HTTP'
     expect(entries.map((entry) => (entry.payload as { kind: string }).kind)).toEqual(['request','response','tool-result','request','response'])
     const contents = await Promise.all(entries.map((entry) => readExecutionRecord(resolveArchiveTarget(), session.id, (entry.payload as { ref: ArchivedExecutionRecord }).ref)))
     expect(contents[0]).toMatchObject({ version: 1, provider: 'fake', round: 1, data: { messages: [{ role: 'user', text: 'TEST inspect own session' }] } })
-    expect(contents[2]).toMatchObject({ data: { call: { id: 'TEST archived read', name: 'db.get_session' }, operationId: 'TEST archived execution:TEST archived read', outcome: { isError: false } } })
+    expect(contents[2]).toMatchObject({ data: { call: { id: 'TEST archived read', name: 'db.get_session' }, operationId: 'TEST archived execution:1:0', outcome: { isError: false } } })
     expect(contents[4]).toMatchObject({ round: 2, data: { text: outcome.reply } })
     expect(JSON.stringify(contents)).not.toContain(credential)
     expect(JSON.stringify(entries)).not.toContain(outcome.reply)
@@ -87,7 +88,7 @@ describe.skipIf(!TEST_DATABASE_URL)('uncertain mutation recovery over real HTTP'
     await expect(environment.run(karbotTurnActivity, { ...input, runKey: 'TEST replacement run', text: 'TEST new task', fakeSteps: [{ text: 'Must not run a new task' }] })).rejects.toMatchObject({ type: 'OperationBlocked' })
     expect((await readTurnContinuation(pool, session.id))?.runKey).toBe(input.runKey)
     const pending = await readThreadContext(pool, session.id, scope)
-    expect(pending.pendingOperations?.[0]?.operationId).toBe('TEST mutation operation:TEST mutation call')
+    expect(pending.pendingOperations?.[0]?.operationId).toBe('TEST mutation operation:1:0')
     expect((await listSessions(pool, scope)).filter((entry) => entry.title === 'TEST created once')).toHaveLength(1)
     await pool.query("UPDATE api_keys SET roles='viewer' WHERE key_id=$1", ['TEST recovery key'])
     await expect(environment.run(karbotTurnActivity, { ...input, fakeSteps: [{ text: 'Must not continue after authority denial' }] })).rejects.toMatchObject({ type: 'OperationBlocked' })

@@ -3,15 +3,7 @@
 // Temporal. Never imported by product code.
 import { randomUUID } from 'node:crypto'
 import type { Pool } from 'pg'
-import {
-  RunNotFound,
-  SESSION_PREFIX,
-  ThreadNotAccepting,
-  type CommandResult,
-  type RunInfo,
-  type RunsGateway,
-  type SkillInvocation,
-} from '../../backend/src/temporal/gateway.js'
+import { RunNotFound, SESSION_PREFIX, ThreadNotAccepting, type CommandResult, type RunInfo, type RunsGateway, type SkillInvocation } from '../../backend/src/temporal/runs-types.js'
 import { getThread, listThreads, requireThread, setThreadPaused, WorkspaceError } from '../../backend/src/db/index.js'
 
 export class FakeRunsGateway implements RunsGateway {
@@ -135,9 +127,22 @@ export class FakeRunsGateway implements RunsGateway {
     queue.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id))
   }
 
+  readonly monitorsStarted: Array<{ monitorId: string; everyMs: number; untilMs: number }> = []
+  readonly monitorsStopped: string[] = []
+
+  async startMonitorWorkflow(input: { monitorId: string; everyMs: number; untilMs: number }): Promise<{ workflowId: string }> {
+    this.monitorsStarted.push(input)
+    return { workflowId: `karbot-monitor-${input.monitorId}` }
+  }
+
+  async stopMonitorWorkflow(workflowId: string): Promise<void> {
+    this.monitorsStopped.push(workflowId)
+  }
+
   async delegateSubagent(input: { sessionId: string; goal: string; mode: string; queueCapacity: number; name?: string; onAccepted?: (childId: string) => Promise<void> }): Promise<{
     childId: string
     commandId: string
+    queued: boolean
   }> {
     const childId = `child-fake-${this.delegated.length + 1}`
     const { onAccepted, ...recorded } = input
@@ -145,7 +150,7 @@ export class FakeRunsGateway implements RunsGateway {
     this.delegationOrder.push(`accepted:${childId}`)
     await onAccepted?.(childId)
     this.delegationOrder.push(`goal:${childId}`)
-    return { childId, commandId: `cmd-${randomUUID()}` }
+    return { childId, commandId: `cmd-${randomUUID()}`, queued: false }
   }
 
   async sendSkill(threadKey: string, invocation: SkillInvocation): Promise<CommandResult> {
@@ -186,12 +191,12 @@ export class FakeRunsGateway implements RunsGateway {
   }
 
   async pauseRun(runId: string): Promise<CommandResult> {
-    // Mirrors production requireType: research runs pause, guarded runs 409.
+    // Mirrors production requireType: session, research, subagent and company runs pause.
     const type = this.requireRun(runId)
-    if (type !== 'sessionRun' && type !== 'researchRun' && type !== 'subagentRun') {
+    if (type !== 'sessionRun' && type !== 'researchRun' && type !== 'subagentRun' && type !== 'companyResearch') {
       throw new ThreadNotAccepting(`run ${runId} (${type}) has no path for this command`)
     }
-    if (type === 'subagentRun') {
+    if (type === 'subagentRun' || type === 'companyResearch') {
       await setThreadPaused(this.pool, `agent:${runId}`, true)
       this.signals.push({ workflowId: runId, signal: 'childPause', args: [] })
       return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
@@ -201,14 +206,15 @@ export class FakeRunsGateway implements RunsGateway {
   }
 
   async resumeRun(runId: string, extendedBudgetMs?: number): Promise<CommandResult> {
+    // Mirrors production per-type resume signals.
     const type = this.requireRun(runId)
     const args = extendedBudgetMs !== undefined ? [extendedBudgetMs] : []
-    if (type === 'subagentRun') {
+    if (type === 'subagentRun' || type === 'companyResearch') {
       await setThreadPaused(this.pool, `agent:${runId}`, false)
       this.signals.push({ workflowId: runId, signal: 'childResume', args })
       return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
     }
-    this.signals.push({ workflowId: runId, signal: 'runResume', args })
+    this.signals.push({ workflowId: runId, signal: type === 'researchRun' ? 'researchResume' : 'runResume', args })
     return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
   }
 
@@ -221,13 +227,19 @@ export class FakeRunsGateway implements RunsGateway {
   }
 
   async cancelRun(runId: string): Promise<CommandResult> {
-    // Mirrors production: only session runs cancel.
+    // Mirrors production: session, subagent and company runs cancel (any
+    // other type 409s); a company cancel is a handle cancel, recorded here
+    // as the 'cancel' signal for observability.
     const type = this.requireRun(runId)
-    if (type !== 'sessionRun') {
+    if (type !== 'sessionRun' && type !== 'subagentRun' && type !== 'companyResearch') {
       throw new ThreadNotAccepting(`run ${runId} (${type}) has no path for this command`)
     }
     if (this.closedRuns.has(runId)) throw new RunNotFound(`no such run ${runId}`)
-    this.signals.push({ workflowId: runId, signal: 'runCancel', args: [] })
+    if (type === 'companyResearch') this.signals.push({ workflowId: runId, signal: 'cancel', args: [] })
+    else if (type === 'subagentRun') {
+      this.signals.push({ workflowId: runId, signal: 'childCancel', args: [] })
+      this.signals.push({ workflowId: runId, signal: 'childFinish', args: [] })
+    } else this.signals.push({ workflowId: runId, signal: 'runCancel', args: [] })
     return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
   }
 

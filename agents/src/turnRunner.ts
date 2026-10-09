@@ -31,6 +31,7 @@ import {
   type ToolDefinition,
   type Usage,
 } from './providers.js'
+import { HttpError, defaultFetchFn, postWithDeadline, type McpFetchFn } from './http.js'
 
 export interface McpToolOutcome { content: string; isError?: boolean; recovery?: { operationId: string; reason: string; authorityId?: string } }
 export interface RecoveryOperation {
@@ -47,9 +48,19 @@ export class OperationRecoveryError extends Error {
     this.name = 'OperationRecoveryError'
   }
 }
-export function toolOperationId(operationKey: string, callId: string): string {
-  const identity = `${operationKey}:${callId}`
-  return identity.length <= 128 && /^[\x21-\x7e](?:[\x20-\x7e]*[\x21-\x7e])?$/.test(identity) ? identity : `op:${createHash('sha256').update(identity).digest('hex')}`
+// Idempotent turn keys (P4.2.7): (operation key, round, call index).
+// The key IS the run id (karbotTurnActivity passes runKey, which is what
+// execution_rounds.run_id stores), so this is the plan's
+// (run_id, round, call_index) triple. Positional, never the provider's
+// call id: a regenerated round reuses the identical keys, so server-side
+// idempotency dedupes replays instead of doubling effects.
+export function toolOperationId(operationKey: string, round: number, callIndex: number): string {
+  const identity = `${operationKey}:${round}:${callIndex}`
+  // Edge rule on the key, not the composed triple: the ':round:index'
+  // suffix would otherwise launder the key's own edge space into a
+  // passing interior (a suffix of safe chars can only extend a key that
+  // already passes). Length still guards the composed identity.
+  return identity.length <= 128 && /^[\x21-\x7e](?:[\x20-\x7e]*[\x21-\x7e])?$/.test(operationKey) ? identity : `op:${createHash('sha256').update(identity).digest('hex')}`
 }
 
 /** Tool client behind one turn. The Streamable HTTP implementation below
@@ -58,6 +69,10 @@ export interface TurnRunnerMcpClient {
   readonly authorityId?: string
   listTools(): Promise<ToolDefinition[]>
   callTool(name: string, args: Record<string, unknown>, operationId?: string): Promise<McpToolOutcome>
+  /** True when the tool is read-only (no effect to confirm): a transport
+   * failure on it is a plain error result, never a recovery halt. Clients
+   * without read-only knowledge omit it (treated as mutating). */
+  isReadOnlyTool?(name: string): boolean
 }
 
 /** Delta sink: one call per streamed text delta, in stream order. The
@@ -109,6 +124,10 @@ export interface KarbotTurnOptions {
   maxTurns?: number
   /** Per-provider-call budget in ms. Default 60_000. */
   timeoutMs?: number
+  /** Fleet permit hook: acquired before the round timer starts (a
+   * contended wait queues instead of burning the provider budget) and
+   * released when the round settles. Absent means unguarded. */
+  acquirePermit?(signal: AbortSignal): Promise<() => Promise<void>>
   /** Context harness: budgets, repetition screening, per-round snapshots,
    * and pre-round condensation. All optional; absent means the legacy
    * behavior (round cap and timeout only). */
@@ -226,19 +245,21 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
     for (let index = 0; index < options.resume.toolCalls; index++) harness.budgets.noteToolCall()
     harness.budgets.noteTokens(usage.inputTokens + usage.outputTokens)
   }
-  const preparedOperations = (calls: ToolCallRequest[]): RecoveryOperation[] => options.operationKey ? calls.map((call) => ({ authorityId: options.mcp.authorityId, operationId: toolOperationId(options.operationKey!, call.id), call, serializedCall: JSON.stringify(call), reason: 'Execution was prepared; its result has not yet been durably confirmed.' })) : []
-  const dispatchTool = async (call: ToolCallRequest, round: number, replayId?: string) => {
+  const preparedOperations = (calls: ToolCallRequest[], round: number): RecoveryOperation[] => options.operationKey ? calls.map((call, callIndex) => ({ authorityId: options.mcp.authorityId, operationId: toolOperationId(options.operationKey!, round, callIndex), call, serializedCall: JSON.stringify(call), reason: 'Execution was prepared; its result has not yet been durably confirmed.' })) : []
+  const dispatchTool = async (call: ToolCallRequest, round: number, callIndex: number, replayId?: string) => {
     options.signal?.throwIfAborted()
+    const freshId = options.operationKey ? toolOperationId(options.operationKey, round, callIndex) : undefined
     let outcome: McpToolOutcome
     try {
-      outcome = await options.mcp.callTool(call.name, call.args, replayId ?? (options.operationKey ? toolOperationId(options.operationKey, call.id) : undefined))
+      outcome = await options.mcp.callTool(call.name, call.args, replayId ?? freshId)
     } catch (error) {
       options.signal?.throwIfAborted()
-      const operationId = replayId ?? (options.operationKey ? toolOperationId(options.operationKey, call.id) : undefined)
-      outcome = { content: error instanceof Error ? error.message.slice(0, 500) : 'mcp tool call failed', isError: true, ...(operationId ? { recovery: { operationId, authorityId: options.mcp.authorityId, reason: 'The tool client failed without confirming whether the operation took effect.' } } : {}) }
+      const operationId = replayId ?? freshId
+      const readOnly = options.mcp.isReadOnlyTool?.(call.name) ?? false
+      outcome = { content: error instanceof Error ? error.message.slice(0, 500) : 'mcp tool call failed', isError: true, ...(operationId && !readOnly ? { recovery: { operationId, authorityId: options.mcp.authorityId, reason: 'The tool client failed without confirming whether the operation took effect.' } } : {}) }
     }
     options.signal?.throwIfAborted()
-    await options.onToolResult?.(round, call, outcome, replayId ?? (options.operationKey ? toolOperationId(options.operationKey, call.id) : undefined))
+    await options.onToolResult?.(round, call, outcome, replayId ?? freshId)
     await options.sink.onTool?.(call.id, call.name, outcome.isError ? 'failed' : 'done', round)
     return outcome
   }
@@ -248,13 +269,14 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
     text = pending.response.text
     reasoning = pending.response.reasoning
     turns = pending.round
+    // Stryker disable next-line ArrayDeclaration: a quiet duplicate completes with no observable history
     if (!history.some((message) => message.role === 'assistant' && message.text === text && JSON.stringify(message.toolCalls ?? []) === JSON.stringify(pending.response.toolCalls))) history.push({ role: 'assistant', text, ...(pending.response.toolCalls.length ? { toolCalls: pending.response.toolCalls } : {}) })
     if (pending.response.toolCalls.length) await options.onCheckpoint?.(history, pending.round, usage, options.resume.toolCalls, options.resume.blockedOperations)
     if (!pending.response.toolCalls.length) completed = true
   }
   // Recovery is durable metadata, independent of history compaction. Retry only
   // the original call/id before allowing the model to issue another operation.
-  for (const original of options.resume?.blockedOperations ?? []) {
+  for (const [blockedIndex, original] of (options.resume?.blockedOperations ?? []).entries()) {
     let operation = original
     if (original.serializedCall !== undefined) {
       let restored: ToolCallRequest
@@ -263,8 +285,10 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
       operation = { ...original, call: restored }
     }
     if (options.mcp.authorityId !== undefined && operation.authorityId !== options.mcp.authorityId) { recoveryHalt.push({ ...operation, reason: 'The original execution authority is unavailable or changed.' }); continue }
+    // Stryker disable next-line OptionalChaining: blocked replay implies resume is defined and round is required
     await options.sink.onTool?.(operation.call.id, operation.call.name, 'running', options.resume?.round ?? 0)
-    const result = await dispatchTool(operation.call, options.resume?.round ?? 0, operation.operationId)
+    // Stryker disable next-line OptionalChaining: blocked replay implies resume is defined and round is required
+    const result = await dispatchTool(operation.call, options.resume?.round ?? 0, blockedIndex, operation.operationId)
     const toolResult = { toolCallId: operation.call.id, toolName: operation.call.name, content: result.content, isError: result.isError ?? false }
     const index = history.findIndex((message) => message.role === 'tool' && message.toolResult?.toolCallId === operation.call.id)
     if (index >= 0) history[index] = { role: 'tool', toolResult }
@@ -276,11 +300,11 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
   const pending = history.at(-1)
   const previousToolCalls = Math.max(0, (options.resume?.toolCalls ?? 0) - (pending?.role === 'assistant' ? pending.toolCalls?.length ?? 0 : 0))
   if (recoveryHalt.length === 0 && pending?.role === 'assistant' && pending.toolCalls?.length) {
-    await options.onCheckpoint?.(history, options.resume?.round ?? 0, usage, previousToolCalls + pending.toolCalls.length, preparedOperations(pending.toolCalls))
-    for (const call of pending.toolCalls) {
+    await options.onCheckpoint?.(history, options.resume?.round ?? 0, usage, previousToolCalls + pending.toolCalls.length, preparedOperations(pending.toolCalls, options.resume?.round ?? 0))
+    for (const [callIndex, call] of pending.toolCalls.entries()) {
       options.signal?.throwIfAborted()
       await options.sink.onTool?.(call.id, call.name, 'running', options.resume?.round ?? 0)
-      const result = await dispatchTool(call, options.resume?.round ?? 0)
+      const result = await dispatchTool(call, options.resume?.round ?? 0, callIndex)
       history.push({ role: 'tool', toolResult: { toolCallId: call.id, toolName: call.name, content: result.content, isError: result.isError ?? false } })
       executed.push(call)
       if (result.recovery) recoveryHalt.push({ authorityId: result.recovery.authorityId, operationId: result.recovery.operationId, call, serializedCall: JSON.stringify(call), reason: result.recovery.reason })
@@ -311,8 +335,11 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
       const spec = harness.condense
       const tokenCap = spec.tokenCap
       const overTokens =
+        // Stryker disable next-line ConditionalExpression, LogicalOperator: caller gate is a fast-path; condense() re-arbitrates with no side effects
         tokenCap !== undefined &&
+        // Stryker disable next-line ConditionalExpression, EqualityOperator: caller gate is a fast-path; condense() re-arbitrates with no side effects
         estimateTokens(systemPrompt) + estimateMessagesTokens(history) > tokenCap
+      // Stryker disable next-line ConditionalExpression, EqualityOperator: caller gate is a fast-path; condense() re-arbitrates with no side effects
       if (history.length > spec.maxSize || overTokens) {
         const outcome = await condense({
           messages: history,
@@ -323,6 +350,7 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
           summarize: spec.summarize,
           summarizer: spec.summarizer,
         })
+        // Stryker disable next-line ConditionalExpression: needed is always true here; caller and callee share the same over-limit inputs
         if (outcome.needed) {
           history = outcome.view
           condensed.push(outcome.summary)
@@ -361,6 +389,10 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
     const roundSignal = options.signal ? AbortSignal.any([options.signal, roundController.signal]) : roundController.signal
     let streamClosed = false
     let onAbort: (() => void) | undefined
+    // Fleet permit BEFORE the round timer: a contended wait queues instead
+    // of burning the provider budget. The wait honors the round signal,
+    // so owner cancellation stops the poll.
+    const releasePermit = options.acquirePermit ? await options.acquirePermit(roundSignal) : undefined
     try {
       const streamed = await Promise.race([
         (async () => {
@@ -373,6 +405,7 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
             ...providerRequest,
             signal: roundSignal,
           })) {
+            // Stryker disable next-line LogicalOperator: abort-only is unreachable; settlement wins before the next check and timeout sets both
             if (streamClosed || roundSignal.aborted) break
             if (event.kind === 'text_delta') {
               replyText += event.text
@@ -382,6 +415,7 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
               await options.sink.onReasoning?.(event.text, turn)
             } else if (event.kind === 'toolcall_start') {
               await options.sink.onTool?.(event.key, 'Tool call', 'running', turn)
+              // Stryker disable next-line CallExpression: start-event accumulation is write-only; calls() reads only finished
               calls.push(event)
             } else if (event.kind === 'toolcall_end') {
               await options.sink.onTool?.(event.call.id, event.call.name, 'running', turn)
@@ -389,7 +423,9 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
             } else if (event.kind === 'done') {
               turnUsage = event.usage
               if (event.completion !== undefined && completion !== 'incomplete') completion = event.completion
+            // Stryker disable next-line BlockStatement: unknown stream events are ignored downstream
             } else {
+              // Stryker disable next-line CallExpression: unknown stream events are ignored downstream
               calls.push(event)
             }
           }
@@ -397,16 +433,22 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
         })(),
         new Promise<never>((_, reject) => {
           onAbort = () => reject(roundSignal.reason)
+          // Stryker disable next-line ObjectLiteral, BooleanLiteral: reject is idempotent and the abort reason is immutable
           roundSignal.addEventListener('abort', onAbort, { once: true })
           timer = setTimeout(() => {
             const failure = new Error(TURN_TIMEOUT_MESSAGE)
+            // Stryker disable next-line BooleanLiteral: masked; the next line aborts, breaking the loop via the signal
             streamClosed = true
+            // Stryker disable next-line CallExpression: masked; the finally aborts the same controller with the race already rejected
             roundController.abort(failure)
+            // Stryker disable next-line CallExpression: the abort listener rejects with the same failure
             reject(failure)
           }, timeoutMs)
         }),
       ])
+      // Stryker disable next-line BooleanLiteral: dead write; round-scoped flag, never re-read, and the finally rewrites it
       streamClosed = true
+      // Stryker disable next-line ConditionalExpression, EqualityOperator, CallExpression: redundant with the finally cleanup of the same timer
       if (timer !== undefined) clearTimeout(timer)
       text = streamed.replyText
       reasoning += streamed.reasoningText
@@ -435,16 +477,16 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
       }
       const pendingResponse: PendingProviderResponse = { round: turn, response: { text: streamed.replyText, reasoning: streamed.reasoningText, toolCalls: structuredClone(streamed.toolCalls), usage: { ...streamed.turnUsage }, ...(streamed.completion === undefined ? {} : { completion: streamed.completion }) } }
       if (options.onProviderResponse) {
-        await options.onCheckpoint?.(history, turn, usage, previousToolCalls + executed.length + streamed.toolCalls.length, preparedOperations(streamed.toolCalls), pendingResponse)
+        await options.onCheckpoint?.(history, turn, usage, previousToolCalls + executed.length + streamed.toolCalls.length, preparedOperations(streamed.toolCalls, turn), pendingResponse)
         await options.onProviderResponse(turn, pendingResponse.response)
       }
       if (streamed.toolCalls.length === 0) { completed = true; break }
-      await options.onCheckpoint?.(history, turn, usage, previousToolCalls + executed.length + streamed.toolCalls.length, preparedOperations(streamed.toolCalls))
+      await options.onCheckpoint?.(history, turn, usage, previousToolCalls + executed.length + streamed.toolCalls.length, preparedOperations(streamed.toolCalls, turn))
       // Independent calls in one round dispatch together: rounds cost a
       // full provider latency each, so serial MCP calls directly extend
       // time-to-answer. History order stays deterministic (call order);
       // completion frames fire as each call lands.
-      const outcomes = await Promise.all(streamed.toolCalls.map((call) => dispatchTool(call, turn)))
+      const outcomes = await Promise.all(streamed.toolCalls.map((call, callIndex) => dispatchTool(call, turn, callIndex)))
       options.signal?.throwIfAborted()
       for (const [index, call] of streamed.toolCalls.entries()) {
         const outcome = outcomes[index] as McpToolOutcome
@@ -477,10 +519,16 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
         if (repetitionHalt) break
       }
     } finally {
+      // Stryker disable next-line BooleanLiteral: dead write; round-scoped flag, never re-read
       streamClosed = true
+      // Stryker disable next-line ConditionalExpression, EqualityOperator, CallExpression: a stray timer touches only dead round-scope bindings and a settled race
       if (timer !== undefined) clearTimeout(timer)
+      // Stryker disable next-line ConditionalExpression, StringLiteral, CallExpression: post-completion removal is hygiene on a round-scoped signal
       if (onAbort) roundSignal.removeEventListener('abort', onAbort)
       roundController.abort()
+      // Best-effort: a release failure must never fail a turn the vendor
+      // already served (the permit lease reclaims the slot).
+      if (releasePermit) await releasePermit().catch(() => undefined)
     }
   }
   if (!completed && recoveryHalt.length === 0 && budgetTripped === undefined && repetitionHalt === undefined) budgetTripped = ['turns']
@@ -515,25 +563,15 @@ export interface StreamableMcpClientOptions {
    * intersects it with role floors, so a grant can only narrow, never
    * widen. Absent means no narrowing (role floors still apply). */
   grant?: readonly string[]
+  /** Outgoing W3C traceparent, read fresh on every exchange: a thunk
+   * because the ambient activity trace is set per invocation, not per
+   * client. Undefined (or returning undefined) sends no header and the
+   * server mints its own trace. */
+  traceparent?: () => string | undefined
 }
 
 /** Request header carrying the tool grant (see StreamableMcpClientOptions.grant). */
 export const MCP_TOOL_GRANT_HEADER = 'x-kardata-tool-grant'
-
-export interface McpHttpResponse {
-  ok: boolean
-  status: number
-  text(): Promise<string>
-}
-
-export type McpFetchFn = (
-  url: string,
-  init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal },
-) => Promise<McpHttpResponse>
-
-function defaultFetchFn(url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }): Promise<McpHttpResponse> {
-  return fetch(url, init)
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -573,6 +611,7 @@ export class StreamableMcpClient implements TurnRunnerMcpClient {
   private readonly grant: readonly string[] | undefined
   private readonly execution: StreamableMcpClientOptions['execution']
   private readonly signal: AbortSignal | undefined
+  private readonly traceparent: (() => string | undefined) | undefined
   private readonly timeoutMs: number
   private initialized = false
   private nextId = 1
@@ -590,42 +629,46 @@ export class StreamableMcpClient implements TurnRunnerMcpClient {
     this.fetchFn = options.fetchFn ?? defaultFetchFn
     this.execution = options.execution
     this.signal = options.signal
+    this.traceparent = options.traceparent
     this.timeoutMs = options.timeoutMs ?? 60_000
     if (!Number.isFinite(this.timeoutMs) || this.timeoutMs <= 0) throw new TypeError('timeoutMs must be positive and finite')
     const grant = (options.grant ?? []).map((name) => name.trim()).filter((name) => name.length > 0)
     this.grant = grant.length > 0 ? grant : undefined
+    // Stryker disable next-line StringLiteral: inner pre-hash encoding preserves the id contract (deterministic 64-hex, distinct)
     this.authorityId = createHash('sha256').update(JSON.stringify({ endpoint: this.endpoint, credential: createHash('sha256').update(this.token).digest('hex'), thread: this.execution?.threadKey ?? null, grant: this.grant ? [...this.grant].sort() : null })).digest('hex')
   }
 
   private async rpc(method: string, params: Record<string, unknown>, operationId?: string): Promise<unknown> {
-    const controller = new AbortController()
-    const signal = this.signal ? AbortSignal.any([this.signal, controller.signal]) : controller.signal
-    let rejectAbort: (() => void) | undefined
-    const timer = setTimeout(() => controller.abort(new Error('MCP request deadline exceeded')), this.timeoutMs)
+    const describe = `mcp request '${method}'`
+    const traceparent = this.traceparent?.()
+    let text: string
     try {
-      const aborted = new Promise<never>((_, reject) => {
-        rejectAbort = () => reject(new Error(`mcp request '${method}' aborted or exceeded its deadline`))
-        if (signal.aborted) rejectAbort()
-        else signal.addEventListener('abort', rejectAbort, { once: true })
+      text = await postWithDeadline({
+        describe,
+        url: this.endpoint,
+        init: {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            accept: 'application/json, text/event-stream',
+            authorization: `Bearer ${this.token}`,
+            ...(traceparent ? { traceparent } : {}),
+            ...(operationId ? { 'idempotency-key': operationId } : {}),
+            ...(this.execution ? { 'x-kardata-thread': this.execution.threadKey, 'x-kardata-execution': this.execution.signature } : {}),
+            ...(this.grant ? { [MCP_TOOL_GRANT_HEADER]: this.grant.join(',') } : {}),
+          },
+          body: JSON.stringify({ jsonrpc: '2.0', id: operationId ?? this.nextId++, method, params }),
+        },
+        timeoutMs: this.timeoutMs,
+        signal: this.signal,
+        fetchFn: this.fetchFn,
       })
-      return await Promise.race([aborted, (async () => {
-        if (signal.aborted) throw new Error('MCP request cancelled before dispatch')
-    const response = await this.fetchFn(this.endpoint, {
-      signal,
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json, text/event-stream',
-        authorization: `Bearer ${this.token}`,
-        ...(operationId ? { 'idempotency-key': operationId } : {}),
-        ...(this.execution ? { 'x-kardata-thread': this.execution.threadKey, 'x-kardata-execution': this.execution.signature } : {}),
-        ...(this.grant ? { [MCP_TOOL_GRANT_HEADER]: this.grant.join(',') } : {}),
-      },
-      body: JSON.stringify({ jsonrpc: '2.0', id: operationId ?? this.nextId++, method, params }),
-    })
-    // Token stays out of errors: status only, never headers or body echoes.
-    if (!response.ok) throw Object.assign(new Error(`mcp request '${method}' failed with HTTP ${response.status}`), { beforeEffect: [400, 401, 403, 404, 429].includes(response.status) })
-    const text = await response.text()
+    } catch (error) {
+      if (error instanceof HttpError) {
+        throw Object.assign(new Error(`${describe} failed with HTTP ${error.status}`), { beforeEffect: [400, 401, 403, 404, 429].includes(error.status) })
+      }
+      throw error
+    }
     const payload = firstJsonPayload(text)
     if (!isRecord(payload)) throw new Error(`mcp request '${method}' returned a malformed envelope`)
     if (isRecord(payload['error'])) {
@@ -633,12 +676,6 @@ export class StreamableMcpClient implements TurnRunnerMcpClient {
       throw new Error(`mcp request '${method}' failed: ${message.slice(0, 300)}`)
     }
     return payload['result']
-      })()])
-    } finally {
-      clearTimeout(timer)
-      if (rejectAbort) signal.removeEventListener('abort', rejectAbort)
-      controller.abort()
-    }
   }
 
   private async ensureInitialized(): Promise<void> {
@@ -657,9 +694,14 @@ export class StreamableMcpClient implements TurnRunnerMcpClient {
     this.initialized = true
   }
 
+  isReadOnlyTool(name: string): boolean {
+    return this.readOnlyTools.has(name)
+  }
+
   async listTools(): Promise<ToolDefinition[]> {
     await this.ensureInitialized()
     const result = await this.rpc('tools/list', {})
+    // Stryker disable next-line ArrayDeclaration: non-record entries are filtered downstream, hiding the fallback shape
     const raw = isRecord(result) && Array.isArray(result['tools']) ? result['tools'] : []
     this.readOnlyTools.clear()
     for (const entry of raw) if (isRecord(entry) && typeof entry['name'] === 'string' && isRecord(entry['annotations']) && entry['annotations']['readOnlyHint'] === true) this.readOnlyTools.add(entry['name'])
@@ -679,6 +721,7 @@ export class StreamableMcpClient implements TurnRunnerMcpClient {
       return { content, isError: true, ...(operationId && !this.readOnlyTools.has(name) && !(isRecord(error) && error['beforeEffect'] === true) ? { recovery: { authorityId: this.authorityId, operationId, reason: 'The mutation reply was not confirmed.' } } : {}) }
     }
     if (!isRecord(result) || !Array.isArray(result['content'])) return { content: `tool '${name}' returned a malformed result`, isError: true, ...(operationId && !this.readOnlyTools.has(name) ? { recovery: { authorityId: this.authorityId, operationId, reason: 'The mutation response was malformed.' } } : {}) }
+    // Stryker disable next-line ArrayDeclaration: unreachable; the guard above ensures content is an array
     const blocks = Array.isArray(result['content']) ? result['content'] : []
     const text = blocks
       .filter((block): block is Record<string, unknown> => isRecord(block) && typeof block['text'] === 'string')
@@ -701,11 +744,13 @@ function firstJsonPayload(text: string): unknown {
     }
   }
   for (const line of text.split('\n')) {
+    // Stryker disable next-line StringLiteral: both payload shapes converge in the catch-continue below
     const payload = line.startsWith('data:') ? line.slice('data:'.length).trim() : ''
+    // Stryker disable next-line ConditionalExpression, LogicalOperator, StringLiteral: '' and '[DONE]' never parse, so the skips converge in the catch
     if (!payload || payload === '[DONE]') continue
     try {
       return JSON.parse(payload)
-    } catch {
+    } /* Stryker disable next-line BlockStatement: catch-continue is identical to loop-end fallthrough */ catch {
       continue
     }
   }

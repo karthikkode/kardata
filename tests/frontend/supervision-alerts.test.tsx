@@ -4,8 +4,8 @@ import { expect, it, vi } from 'vitest'
 import { SupervisionAlertsPanel } from '@/components/SupervisionAlertsPanel'
 import type { Resource } from '@/data/useWorkspace'
 import type { SupervisionAlert, SupervisionAlertsPage } from '@/data/alerts'
-const item: SupervisionAlert = { seq: 5, at: '2026-10-01T00:00:00.000Z', sessionId: 'TEST session', sessionTitle: 'TEST named conversation', threadKey: 'agent:TEST child', sectorId: 'TEST sector', kind: 'closed-owner', response: 'park', state: 'current-warning', threadStatus: 'PAUSED' }
-const historical: SupervisionAlert = { ...item, seq: 4, kind: 'missing-heartbeat', state: 'historical', response: 'observe', sectorId: null }
+const item: SupervisionAlert = { seq: 5, at: '2026-10-01T00:00:00.000Z', kind: 'closed-owner', severity: 'high', subject: 'TEST owning execution ended with work leased', threadKey: 'agent:TEST child', sectorId: 'TEST sector', sessionId: 'TEST session', resolvedAt: null, state: 'current-warning' }
+const historical: SupervisionAlert = { ...item, seq: 4, kind: 'missing-heartbeat', severity: 'warning', subject: 'TEST heartbeat flatline', state: 'historical', sectorId: null }
 const ready = (items: SupervisionAlert[] = [], nextBeforeSeq: number | null = null): Resource<SupervisionAlertsPage> => ({ status: 'ready', data: { items, nextBeforeSeq }, refresh: vi.fn() })
 const props = { viewingOlder: false, onOlder: vi.fn(), onLatest: vi.fn(), onOpenConversation: vi.fn() }
 it('shows All clear on the current tab and an honest empty on history', async () => {
@@ -38,7 +38,7 @@ it('filters the current tab to live warnings and opens conversations without rel
   expect(onOpenConversation).toHaveBeenCalledWith(item)
   await userEvent.click(screen.getByRole('tab', { name: 'History' }))
   expect(screen.getByText('Heartbeat needs review')).toBeVisible()
-  expect(screen.getByText(/match session TEST session/)).toBeVisible()
+  expect(screen.getByText(/Match thread agent:TEST child/)).toBeVisible()
 })
 it('pages explicitly and returns to latest without modifying work', async () => {
   const older = vi.fn(), latest = vi.fn()
