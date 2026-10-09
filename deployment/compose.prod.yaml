@@ -3,6 +3,9 @@
 #   docker compose -p kardata-prod -f deployment/compose.yaml \
 #     -f deployment/compose.prod.yaml up -d
 # Every host port differs from staging (see docs/environments.md port map).
+# Compose APPENDS sequences across files, so every ports block carries
+# !override: without it the staging bindings survive the merge and the
+# prod stack fails with "port is already allocated".
 # The database is a separate server + volume (kardata_prod), clean at boot.
 # Postgres flags stay dev values (deployment.md); real prod hardening later.
 # KARDATA_STAGING_DIR + KARDATA_UI_KEY come from the environment (stack.mjs);
@@ -12,17 +15,17 @@ services:
   db:
     environment:
       POSTGRES_DB: kardata_prod
-    ports:
+    ports: !override
       - '5434:5432'
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U kardata -d kardata_prod']
 
   temporal:
-    ports:
+    ports: !override
       - '8233:7233'
 
   temporal-ui:
-    ports:
+    ports: !override
       - '9080:8080'
 
   backend:
@@ -39,7 +42,7 @@ services:
       KARDATA_DB_POOL_WORKER: ${KARDATA_DB_POOL_WORKER:-10}
       KARDATA_META_MAX_CONCURRENT: ${KARDATA_META_MAX_CONCURRENT:-8}
       KARDATA_BROWSER_MAX: ${KARDATA_BROWSER_MAX:-8}
-    ports:
+    ports: !override
       - '4001:4001'
 
   worker:
@@ -55,15 +58,15 @@ services:
       KARDATA_BROWSER_MAX: ${KARDATA_BROWSER_MAX:-8}
 
   loki:
-    ports:
+    ports: !override
       - '4100:3100'
 
   prometheus:
-    ports:
+    ports: !override
       - '10090:9090'
 
   grafana:
-    ports:
+    ports: !override
       - '4000:3000'
 
 # The prod UI lives in compose.prod.ui.yaml, included only when
