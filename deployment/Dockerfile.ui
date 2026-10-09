@@ -12,7 +12,10 @@ COPY agents/package.json agents/package.json
 COPY backend/package.json backend/package.json
 RUN npm ci
 COPY frontend/index.html frontend/vite.config.ts frontend/
-COPY frontend/tsconfig.json frontend/tsconfig.app.json frontend/tsconfig.node.json frontend/
+# tsconfig.test.json must EXIST (vite walks the reference graph) but is
+# never typechecked here: the build below covers app+node projects only,
+# and the tests tree it points at stays out of the image.
+COPY frontend/tsconfig.json frontend/tsconfig.app.json frontend/tsconfig.node.json frontend/tsconfig.test.json frontend/
 COPY frontend/public frontend/public
 COPY frontend/src frontend/src
 ARG VITE_STAGING_API=1
