@@ -3,6 +3,28 @@
 Local operations for Kardata. Every command runs from the repo root unless
 noted. Node 22.
 
+## Staging / prod / remote (2026-10-10)
+
+Three places, one box. Staging is THIS checkout
+(`/home/karthik/projects/kardata_app`): dev, tests, and the pilot
+stack. Prod is the sibling worktree `/home/karthik/projects/kardata_prod`
+pinned to `origin/prod`: the owner's daily work, clean separate DB,
+never runs tests. Remote is the `origin/prod` branch itself (the
+release ref). Deploy = push a SHA to `origin/prod` + rebuild the
+prod dir from it; `stack.mjs doctor` fails on any drift.
+
+Port map (never overlap): staging keeps today's ports (pg 5432/5433,
+Temporal 7233, backend 3001, obs 3000/3100/9090, vite 15173/15174,
+pilot 3201/25174). Prod takes pg 5434, Temporal 8233, Temporal-UI
+9080, backend 4001, Loki 4100, Prometheus 10090, Grafana 4000, UI
+45174. Staging processes must never bind a prod port or mount a
+prod volume; tests use `TEST_DATABASE_URL`-derived databases only.
+
+Resources: staging runs lean by default, prod is favored; either
+side scales via `stack.mjs` profiles, and one script rebalances
+both ways (see `docs/runbook.md`: prod→0/staging→full for heavy
+test windows, back after). Details ship with Phase 3.
+
 ## Workspaces
 
 | Workspace | Commands |
