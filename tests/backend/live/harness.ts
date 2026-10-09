@@ -11,13 +11,14 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { FastifyInstance } from 'fastify'
+import { Client as WorkflowClient } from '@temporalio/client'
 import type { NativeConnection, Worker } from '@temporalio/worker'
 import { Pool } from 'pg'
 import { parseEnvFile } from '../../../deployment/scripts/stack-lib.mjs'
 import { buildApp } from '../../../backend/src/app.js'
 import { readExecutionRecord, resolveArchiveTarget } from '../../../backend/src/archive/targets.js'
 import { hashKey } from '../../../backend/src/auth/keys.js'
-import { connectWorker } from '../../../backend/src/temporal/connection.js'
+import { connectClient, connectWorker } from '../../../backend/src/temporal/connection.js'
 import { createDevWorkers } from '../../../backend/src/temporal/dev-worker.js'
 import { TemporalRunsGateway } from '../../../backend/src/temporal/runs-gateway.js'
 import { ensureTestDb } from '../db-helper.js'
@@ -80,6 +81,29 @@ function loadLiveKeys(): void {
   }
 }
 
+/** Test workflow types a live suite may leave open. Session/monitor runs
+ * stay Running by design after their tests pass; without a drain the next
+ * suite's workers steal their retried activities and poison the fresh
+ * per-suite database (fv4: 17 stage failures from karbot's leftovers).
+ * The *-reconciliation-v1 singletons are environment-owned and spared. */
+const DRAINABLE_LIVE_TYPES = new Set(['sessionRun', 'researchRun', 'subagentRun', 'companyResearch', 'karbotMonitor'])
+
+async function drainStaleLiveWorkflows(): Promise<number> {
+  const connection = await connectClient()
+  try {
+    const client = new WorkflowClient({ connection, namespace: LIVE_NAMESPACE })
+    let drained = 0
+    for await (const info of client.workflow.list({ query: 'ExecutionStatus = "Running"' })) {
+      if (!DRAINABLE_LIVE_TYPES.has(info.type)) continue
+      await client.workflow.getHandle(info.workflowId).terminate('live harness drain: stale test workflow from an earlier suite')
+      drained += 1
+    }
+    return drained
+  } finally {
+    await connection.close()
+  }
+}
+
 export async function startLiveStack(suite: string): Promise<LiveStack> {
   loadLiveKeys()
   await assertBrowserStackDown(() => probeHealthz(BROWSER_STACK_PORT))
@@ -119,6 +143,10 @@ export async function startLiveStack(suite: string): Promise<LiveStack> {
   process.env['KARDATA_MCP_URL'] = `http://127.0.0.1:${LIVE_PORT}/mcp`
   process.env['KARDATA_MCP_TOKEN'] = workerKey
 
+  // Drain before polling: stale runs' retried activities would land in
+  // this suite's fresh database (shared namespace, per-suite DBs).
+  const drained = await drainStaleLiveWorkflows()
+  if (drained > 0) console.log(`live harness: drained ${drained} stale workflow(s) from earlier suites`)
   const connection: NativeConnection = await connectWorker()
   const { turnWorker, researchWorker } = await createDevWorkers(connection, {
     turnBundle: join(WORKFLOWS_DIR, 'turn-bundle.ts'),
