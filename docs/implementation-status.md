@@ -3966,3 +3966,12 @@ space-joined test filters); durable patch-package fix + guard
 (2ef4cda), perTest in all configs (00ebec4): turnRunner 99.89,
 useWorkspace 98.59. Backend 3-file run dropped by owner (~20h, no
 score); waiver recorded in `documentation/plans/p2-fix-loop-1.md`.
+
+## 2026-10-10 — Tests disabled until development completes (owner)
+Suites stay in place but unenforced through the coming refactors:
+`.github/workflows/ci.yml` renamed to `.disabled`, required status
+checks removed from the `main` ruleset and classic protection (PR
+requirement, no-force-push, no-delete kept). Re-enable: rename back
++ restore checks (verify, e2e, integration). Known open flake for
+the post-dev pass: CI-only `db-template` template-sealer race
+(`Test template still has active connections`, passed locally).
