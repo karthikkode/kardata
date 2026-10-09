@@ -1,0 +1,22 @@
+# Kardata PROD UI overlay. Included ONLY when KARDATA_UI_KEY exists
+# (stack.mjs prodComposeFiles): the required build arg below would
+# otherwise fail compose config load for every keyless command
+# (status, up, keyless deploy). Never applied standalone — always
+# after compose.yaml + compose.prod.yaml with project kardata-prod.
+services:
+  # Prod UI: static nginx serving the production vite build. Built at
+  # deploy time with the prod API URL + UI key (deploy-time args, local
+  # image only). Never in the default up list: `prod deploy` adds it
+  # once KARDATA_UI_KEY exists (see runbook provisioning ritual).
+  ui:
+    restart: unless-stopped
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile.ui
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
+        VITE_STAGING_API: '1'
+        VITE_STAGING_URL: ${KARDATA_UI_API_URL:-http://127.0.0.1:4001}
+        VITE_STAGING_KEY: ${KARDATA_UI_KEY:?provision KARDATA_UI_KEY first (runbook), then redeploy}
+    ports:
+      - '45174:80'

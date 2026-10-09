@@ -1,0 +1,71 @@
+# Kardata PROD overlay. Applied over compose.yaml with project kardata-prod,
+# from the release worktree (stack.mjs prod commands do this):
+#   docker compose -p kardata-prod -f deployment/compose.yaml \
+#     -f deployment/compose.prod.yaml up -d
+# Every host port differs from staging (see docs/environments.md port map).
+# The database is a separate server + volume (kardata_prod), clean at boot.
+# Postgres flags stay dev values (deployment.md); real prod hardening later.
+# KARDATA_STAGING_DIR + KARDATA_UI_KEY come from the environment (stack.mjs);
+# direct compose users must export both (see docs/runbook.md).
+
+services:
+  db:
+    environment:
+      POSTGRES_DB: kardata_prod
+    ports:
+      - '5434:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U kardata -d kardata_prod']
+
+  temporal:
+    ports:
+      - '8233:7233'
+
+  temporal-ui:
+    ports:
+      - '9080:8080'
+
+  backend:
+    env_file:
+      - ${KARDATA_STAGING_DIR:?export KARDATA_STAGING_DIR (stack.mjs sets it)}/agents/.env
+      - ../agents/.env
+    environment:
+      DATABASE_URL: postgresql://kardata:kardata-dev@db:5432/kardata_prod # DEV ONLY values
+      PORT: '4001'
+      BUILD_SHA: ${GIT_SHA:-unknown}
+      KARDATA_BROWSER_PROXY_URL: http://backend:4001
+      KARDATA_CORS_ORIGINS: ${KARDATA_CORS_ORIGINS:-http://localhost:45174}
+      KARDATA_DB_POOL_SERVER: ${KARDATA_DB_POOL_SERVER:-20}
+      KARDATA_DB_POOL_WORKER: ${KARDATA_DB_POOL_WORKER:-10}
+      KARDATA_META_MAX_CONCURRENT: ${KARDATA_META_MAX_CONCURRENT:-8}
+      KARDATA_BROWSER_MAX: ${KARDATA_BROWSER_MAX:-8}
+    ports:
+      - '4001:4001'
+
+  worker:
+    env_file:
+      - ${KARDATA_STAGING_DIR:?export KARDATA_STAGING_DIR (stack.mjs sets it)}/agents/.env
+      - ../agents/.env
+    environment:
+      DATABASE_URL: postgresql://kardata:kardata-dev@db:5432/kardata_prod # DEV ONLY values
+      KARDATA_MCP_URL: http://backend:4001/mcp
+      KARDATA_DB_POOL_SERVER: ${KARDATA_DB_POOL_SERVER:-20}
+      KARDATA_DB_POOL_WORKER: ${KARDATA_DB_POOL_WORKER:-10}
+      KARDATA_META_MAX_CONCURRENT: ${KARDATA_META_MAX_CONCURRENT:-8}
+      KARDATA_BROWSER_MAX: ${KARDATA_BROWSER_MAX:-8}
+
+  loki:
+    ports:
+      - '4100:3100'
+
+  prometheus:
+    ports:
+      - '10090:9090'
+
+  grafana:
+    ports:
+      - '4000:3000'
+
+# The prod UI lives in compose.prod.ui.yaml, included only when
+# KARDATA_UI_KEY exists (a required build arg would otherwise fail
+# config load for every keyless command).

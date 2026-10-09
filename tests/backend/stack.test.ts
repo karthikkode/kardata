@@ -10,6 +10,10 @@ import {
   ownedTestProcs,
   parityVerdict,
   parseEnvFile,
+  PROD_PORTS,
+  RESOURCE_PROFILES,
+  STAGING_PORTS,
+  portsDisjointVerdict,
 } from '../../deployment/scripts/stack-lib.mjs'
 
 describe('parseEnvFile', () => {
@@ -188,5 +192,26 @@ describe('formatVerdict', () => {
     const text = formatVerdict('fleet', { level: 'fail', detail: 'dup', fix: ['sudo kill 1'] })
     expect(text).toContain('[FAIL] fleet: dup')
     expect(text).toContain('$ sudo kill 1')
+  })
+})
+
+describe('portsDisjointVerdict', () => {
+  it('passes on the committed staging/prod port maps', () => {
+    expect(portsDisjointVerdict({}).level).toBe('pass')
+    expect(new Set([...STAGING_PORTS, ...PROD_PORTS]).size).toBe(STAGING_PORTS.length + PROD_PORTS.length)
+  })
+
+  it('fails naming the colliding port', () => {
+    const verdict = portsDisjointVerdict({ staging: [5432], prod: [5432] })
+    expect(verdict.level).toBe('fail')
+    expect(verdict.detail).toContain('5432')
+  })
+})
+
+describe('RESOURCE_PROFILES', () => {
+  it('keeps staging lean and prod favored', () => {
+    expect(RESOURCE_PROFILES.lean.workerReplicas).toBe(1)
+    expect(RESOURCE_PROFILES.full.workerReplicas).toBeGreaterThan(RESOURCE_PROFILES.lean.workerReplicas)
+    expect(RESOURCE_PROFILES.full.dbPoolServer).toBeGreaterThan(RESOURCE_PROFILES.lean.dbPoolServer)
   })
 })

@@ -36,3 +36,14 @@ export function ownedTestProcs(
   args: { repoRoot: string; user: string },
 ): { kill: HostProc[]; notes: string[] }
 export function assertDeletablePath(target: string, args: { repoRoot: string }): void
+export interface ResourceProfile {
+  workerReplicas: number
+  dbPoolServer: number
+  dbPoolWorker: number
+  metaMaxConcurrent: number
+  browserMax: number
+}
+export const RESOURCE_PROFILES: { lean: ResourceProfile; full: ResourceProfile }
+export const STAGING_PORTS: number[]
+export const PROD_PORTS: number[]
+export function portsDisjointVerdict(args?: { staging?: number[]; prod?: number[] }): Verdict
