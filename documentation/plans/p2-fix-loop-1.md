@@ -31,8 +31,10 @@ coordinator 35/35, L-PLAN live 1/1 (56s). No full re-run post-fix.
 
 ## Remaining failures: none, except
 
-- Backend mutation ≥70 UNVERIFIED (dropped, ~20h). The gate has no
-  number; re-run scoped (5e05573 configs) or waive explicitly.
+- Backend mutation ≥70 UNVERIFIED (dropped, ~20h). OWNER WAIVER
+  2026-10-09: exhaustive testing deferred until after the pilot
+  runs; backend HEAD+baseline mutation resumes on staging
+  post-pilot with the 5e05573 configs (perTest, 4h caps).
 
 ## Split proposal (report only, no code)
 
