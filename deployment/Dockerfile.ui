@@ -19,7 +19,9 @@ ARG VITE_STAGING_API=1
 ARG VITE_STAGING_URL
 ARG VITE_STAGING_KEY
 ENV VITE_STAGING_API=$VITE_STAGING_API VITE_STAGING_URL=$VITE_STAGING_URL VITE_STAGING_KEY=$VITE_STAGING_KEY
-RUN npm run build -w frontend
+# App-only: tsconfig.json also references tsconfig.test.json (tests tree),
+# which is deliberately absent from this image. Typecheck + bundle src.
+RUN cd frontend && npx tsc -b tsconfig.app.json tsconfig.node.json && npx vite build
 
 FROM nginx@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
 # Source SHA the image was built from; doctor compares it against
