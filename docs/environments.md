@@ -14,8 +14,8 @@ release ref). Deploy = push a SHA to `origin/prod` + rebuild the
 prod dir from it; `stack.mjs doctor` fails on any drift.
 
 Port map (never overlap): staging keeps today's ports (pg 5432/5433,
-Temporal 7233, backend 3001, obs 3000/3100/9090, vite 15173/15174,
-pilot 3201/25174). Prod takes pg 5434, Temporal 8233, Temporal-UI
+Temporal 7233, Temporal-UI 8080, backend 3001, obs 3000/3100/9090,
+vite 15173/15174, pilot 3201/25174). Prod takes pg 5434, Temporal 8233, Temporal-UI
 9080, backend 4001, Loki 4100, Prometheus 10090, Grafana 4000, UI
 45174. Staging processes must never bind a prod port or mount a
 prod volume; tests use `TEST_DATABASE_URL`-derived databases only.

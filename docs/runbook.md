@@ -31,7 +31,8 @@ Rollback: `npm run stack:release -- <older-sha> --rollback` then
 `npm run stack:prod -- deploy`; prod data survives (volumes kept
 unless `down --volumes`). Status: `npm run stack:prod -- status`,
 freshness proof: `npm run stack:doctor` (`prod/*` PASS lines).
-Backup: `npm run stack:prod -- backup` (pg_dump to `var/prod-backups/`).
+Backup: `npm run stack:prod -- backup`
+(pg_dump to `<prod-dir>/var/backups/`).
 
 ## stall
 

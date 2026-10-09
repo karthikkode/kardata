@@ -412,12 +412,28 @@ const PROD_UI_URL = 'http://127.0.0.1:45174'
 const PROD_APP_SERVICES = ['db', 'temporal', 'browser', 'backend', 'worker']
 const PROD_OBS_SERVICES = ['temporal-ui', 'loki', 'promtail', 'prometheus', 'grafana']
 
+function prodUiKey() {
+  if (process.env['KARDATA_UI_KEY']) return process.env['KARDATA_UI_KEY']
+  const keyFile = join(PROD_DIR, 'agents', '.env')
+  if (existsSync(keyFile)) return parseEnvFile(readFileSync(keyFile, 'utf8'))['KARDATA_UI_KEY'] ?? null
+  return null
+}
+
 function prodComposeFiles() {
   const base = join(PROD_DIR, 'deployment', 'compose.yaml')
   const released = join(PROD_DIR, 'deployment', 'compose.prod.yaml')
-  if (existsSync(released)) return ['-f', base, '-f', released]
-  console.log('stack: WARN prod overlay not yet released; using staging copy (bootstrap mode)')
-  return ['-f', base, '-f', join(HERE, '..', 'compose.prod.yaml')]
+  const files = existsSync(released)
+    ? ['-f', base, '-f', released]
+    : (console.log('stack: WARN prod overlay not yet released; using staging copy (bootstrap mode)'),
+      ['-f', base, '-f', join(HERE, '..', 'compose.prod.yaml')])
+  // The UI overlay carries a required build arg: include it only when
+  // the key exists, so keyless commands (status, up, keyless deploy)
+  // still load the config.
+  if (prodUiKey()) {
+    const uiReleased = join(PROD_DIR, 'deployment', 'compose.prod.ui.yaml')
+    files.push('-f', existsSync(uiReleased) ? uiReleased : join(HERE, '..', 'compose.prod.ui.yaml'))
+  }
+  return files
 }
 
 function requireProdDir() {
@@ -468,11 +484,8 @@ function prodEnv(level) {
     GIT_SHA: prodWorktreeSha() ?? 'unknown',
     ...profileEnv(level),
   }
-  const keyFile = join(PROD_DIR, 'agents', '.env')
-  if (existsSync(keyFile)) {
-    const uiKey = parseEnvFile(readFileSync(keyFile, 'utf8'))['KARDATA_UI_KEY']
-    if (uiKey) env['KARDATA_UI_KEY'] = uiKey
-  }
+  const uiKey = prodUiKey()
+  if (uiKey) env['KARDATA_UI_KEY'] = uiKey
   return env
 }
 
