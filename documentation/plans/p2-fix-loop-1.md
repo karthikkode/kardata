@@ -1,42 +1,47 @@
-# P2 fix-loop 1: stalled-remainder close-out (HEAD 78cdbbf, 2026-10-07)
+# P2 fix-loop 1 close-out (fv4, branch p2-7-fixes, HEAD eddfd8f)
 
-Closes the lanes the 2026-10-05 session left stalled on FD exhaustion
-(ulimit 1024; parallel lane setup wedged the box). Worked solo and
-serially. Most items were already fixed on the branch; this loop
-re-verified each at HEAD and fixed the one open axe rule.
+Full rerun into var/fv4/ at frozen product src (3bff925), then two
+fix commits with targeted reruns. Solo serial, TEST_DATABASE_URL =
+kardata_test on :5433, Stryker coverageAnalysis "all".
 
-## Results by item
+## Per-suite table (EXIT, pass/fail/skip)
 
-| # | Item | Verdict | Evidence |
+| Suite | EXIT | Result | True path |
 |---|---|---|---|
-| 1 | 5 slow queries + companies seq-scan | GREEN, no change | `tests/stress/db.volume.test.ts` 2/2: session.list 4.0, context.global 50.9, library.list 42.8, evaluation.sector 49.8, agent_reliability 44.3 ms p95; plan gate passes |
-| 2 | alerts 403s, ops-runs `this` | GREEN, no change | `alerts.test.ts`, `mcp.ops-runs.test.ts` pass at HEAD |
-| 3 | F8 503 on Temporal cut | GREEN, no change | `temporal-unavailable.test.ts` passes (C4/10 proved full F8 500→503) |
-| 4 | trace continuity | GREEN, no change | `observability.trace-continuity.test.ts` passes (temporal tier) |
-| 5 | L-K live setup + reach Meta | GREEN after env fix | 3/3 live (tries 1/2/1, real spend). Was red: stale `session-run-*` in shared `kardata-live` namespace poisoned the fresh DB (FK 23503); terminated 4 stranded test runs, kept 2 singletons |
-| 6 | denied-state retry, "8 across 0 sectors" | GREEN, no change | ChatPanel + Dashboard `denied` pass (Try-again pinned); Dashboard copy assertions pass |
-| 7 | axe button-name (Sidebar aria-label) | FIXED+VERIFIED | Uncommitted Sidebar edit kept; `button-name` zero in Dashboard, ChatPanel, 14-spec sweep |
-| 8 | axe scrollable-region-focusable | FIXED+VERIFIED | `Markdown.tsx`: code `pre` + table wrapper gain `tabIndex={0}` + aria-label + focus ring (mirrors `ExecutionInspector`). ChatPanel 6 axe fails → 0; sweep zero |
+| verify (build+lint+typecheck+test+coverage+quality) | 0 | 211 files pass, 10 skip; backend lines 92.2% (≥80) | 19 red attempts → f0f0fc8 (15s/30s DB budgets; cause: coverage-load starvation) |
+| temporal | 0* | 219 pass, 11 skip + 1 fail → rerun 13/13 | 1 fail (subagents race) → f207847 (poll to 60 finished) |
+| fault | 0 | 8 files, 32/32 | green first run |
+| stress | 0 | 2 files, 4/4 | green first run |
+| Playwright -u (final) | 0 | 1250 pass, 21 skip (42m) | 1247 + 3 axe → 37e2c02 (freeze motion) → rerun |
+| ui:review | 0 | 373 shots graded, snapshot dirs committed | green |
+| mutation agents (turnRunner) | 0 | 99.89 ≥ 70 | durable runner 2ef4cda (patch-package + guard + npm-ci proof) |
+| mutation frontend (useWorkspace) | 0 | 98.59 ≥ 70 | W0–W9 batteries; baselines agents 56.18, frontend 42.25 |
+| mutation backend (3 files) | — | NO SCORE, gate UNVERIFIED | dropped by owner: 2165 mutants, dry run 36m41s, ~20h killed. Configs in 5e05573 (test-scope only) |
+| live L-K + stages | 0* | battery 24/25 → L-PLAN targeted 1/1 (25/25 effective) | 17 FK fails → eddfd8f (drain stale workflows); L-PLAN 600s timeout → 259fb1d (sandbox env read) |
+| scale preview | 0 | 7/7 on vite build+preview (58.9s) | committed switch cf21659 (KARDATA_E2E_SERVER=preview) |
 
-## Changes in tree (uncommitted)
+*temporal/live EXIT=0 after the named targeted rerun, not in one shot.
 
-- `frontend/src/components/Sidebar.tsx`: always name icon-rail buttons (old session's edit, verified here).
-- `frontend/src/components/Markdown.tsx`: focusable scroll regions (this loop).
-- Frontend `lint` clean (2 pre-existing complexity warnings); app `typecheck` clean.
+## Product-src note
 
-## Remaining (out of scope, diagnosed)
+Suites measured 3bff925. One product change after: 259fb1d
+(pure laneTaskQueue; identical queue string, replay-safe, no
+patched() gate). Re-verified targeted: plan 3/3, lanes 7/7,
+coordinator 35/35, L-PLAN live 1/1 (56s). No full re-run post-fix.
 
-| Finding | Detail |
-|---|---|
-| axe color-contrast (7) | `text-foreground-subtle` captions fail on card surfaces (Sidebar, TopBar). Token-value call: needs owner/design decision |
-| axe aria-required-children (4) | Base-UI `role=menu` popup without menuitem children (ui.menu, ui.switch). Data-vs-product undetermined |
-| focus indicator (9+) | Every matrix `focus` state: "no visible indicator" on click-focused subject. Systemic, needs own batch |
-| screenshot diffs (26+) | Pre-existing drift vs old baselines (e.g. Dashboard offline ratio 0.02). Needs `ui:review` grading, not blind `-u` |
-| factory.ts typecheck | Pre-existing `data.sectors` possibly-undefined (D4) fails test/node configs; app config clean |
-| ModelsPanel-partial | Excluded throughout (was coordinator-owned); untouched |
+## Remaining failures: none, except
 
-## Hygiene notes
+- Backend mutation ≥70 UNVERIFIED (dropped, ~20h). The gate has no
+  number; re-run scoped (5e05573 configs) or waive explicitly.
 
-- Stale `.muse/worktrees/*` + `.stryker-tmp/*` match vitest path filters and run dead code; scope live runs with `--exclude`.
-- `kardata-live` namespace has no inter-run cleanup; stranded runs poison the next live suite. Consider pre-run guard.
-- This loop ran every suite once per unchanged tree; logs in ignored `test-results/`.
+## Split proposal (report only, no code)
+
+turnRunner.ts (772) → turnRunner.ts (runKarbotTurn + turn loop) +
+mcp-client.ts (StreamableMcpClient, closed client, tool-def parse,
+grant header). Import sites: agents barrel + own test only.
+runs-gateway.ts (785) → runs-gateway.ts (shell + run lifecycle) +
+runs-interaction.ts (send/sendSkill/steer/missed-steer/queue) +
+runs-launches.ts (sector sweep/plan, subagent delegate, file,
+context, monitor starts). Barrel re-exports keep import sites stable.
+
+## Done, stopped for review
