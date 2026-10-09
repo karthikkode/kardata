@@ -365,7 +365,7 @@ describe('workspace conversation lifecycle', () => {
     await waitFor(() => expect(result.current.status).toBe('ready'))
     act(() => result.current.setDraft('Before recovery'))
     await act(async () => { await result.current.send() })
-    const failure = { ...snapshot([]), pendingText: 'stale…', pendingTools: [{ runKey: 'r1', id: 't1', name: 'search', state: 'running' }], error: new StagingApiError(0, 'stream_idle', 'Silent stream') }
+    const failure = { ...snapshot([]), pendingText: 'stale…', pendingTools: [{ runKey: 'r1', id: 't1', name: 'search', state: 'running' as const }], error: new StagingApiError(0, 'stream_idle', 'Silent stream') }
     await act(async () => { stream.push(failure); stream.push(failure); stream.push(failure) })
     await waitFor(() => expect(result.current.error).toContain('may still be running'))
     expect(result.current.phase).toBe('reconnecting')
@@ -568,7 +568,7 @@ describe('workspace conversation lifecycle', () => {
     expect(result.current.acknowledgedUsers).toEqual([])
     await act(async () => { stream.push(snapshot([{ seq: 2, kind: 'text', role: 'agent', text: 'Alpha' }])) })
     expect(result.current.acknowledgedUsers).toEqual([])
-    await act(async () => { stream.push(snapshot([{ seq: 3, kind: 'tool', name: 'Alpha', detail: '', state: 'done' }])) })
+    await act(async () => { stream.push(snapshot([{ seq: 3, kind: 'tool', role: 'agent', text: '', name: 'Alpha', detail: '', state: 'done' }])) })
     expect(result.current.acknowledgedUsers).toEqual([])
     expect(result.current.busy).toBe(true)
     unmount()
@@ -620,7 +620,7 @@ describe('workspace conversation lifecycle', () => {
     expect(result.current.busy).toBe(true)
     await act(async () => { stream.push(snapshot([...user, { seq: 2, kind: 'text', role: 'user', text: 'Boundary' }])) })
     expect(result.current.busy).toBe(true)
-    await act(async () => { stream.push(snapshot([...user, { seq: 3, kind: 'tool', name: 'search', detail: '', state: 'done' }])) })
+    await act(async () => { stream.push(snapshot([...user, { seq: 3, kind: 'tool', role: 'agent', text: '', name: 'search', detail: '', state: 'done' }])) })
     expect(result.current.busy).toBe(true)
     await act(async () => { stream.push(snapshot([...user, { seq: 4, kind: 'text', role: 'agent', text: 'Real answer' }])) })
     await waitFor(() => expect(result.current.busy).toBe(false))
