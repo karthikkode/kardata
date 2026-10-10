@@ -117,6 +117,10 @@ export async function authorize(
   }
   if (process.env['KARDATA_UI_ONLY'] === '1') {
     // Phase 8: events carry the key's client, not the route's default.
+    // Deliberately NOT covered: legacy ('other') keys hit this same gate
+    // (never blocked outright), and the role check above runs first — a
+    // viewer key on an approver route gets permission_denied with no
+    // ui_only_violation alert.
     setEventClient(keyClientToEvent(result.caller.client))
     const url = request.routeOptions?.url ?? ''
     if (url.startsWith('/v1/') && MUTATING_METHODS.has(request.method)) {

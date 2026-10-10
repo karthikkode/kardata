@@ -49,6 +49,7 @@ try {
   console.log(`pilot:audit events since ${since}:`)
   for (const [client, n] of Object.entries(counts.eventsByClient)) console.log(`  client ${client}: ${n}`)
   console.log(`pilot:audit ui_only_violation alerts: ${counts.violationAlerts}`)
+  console.log('pilot:audit limit: the gate binds key+origin+header; a key holder can fake the header+origin')
   if (ok) {
     console.log(`pilot:audit clean: tag ${tag} since ${since}`)
   } else {

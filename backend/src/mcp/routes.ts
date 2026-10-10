@@ -46,6 +46,12 @@ async function authorizeMcp(
     return undefined
   }
   if (process.env['KARDATA_UI_ONLY'] === '1') {
+    // /mcp has no UI-only gate of its own, so client-less (legacy,
+    // 'other') keys are indistinct here: reject them outright.
+    if (result.caller.client === 'other') {
+      void sendError(reply, 403, 'permission_denied', 'UI-only pilot: keys without a client cannot use /mcp')
+      return undefined
+    }
     // Phase 8 (P8-M1): tool writes carry the key's client, not the /mcp default.
     setEventClient(keyClientToEvent(result.caller.client))
   }

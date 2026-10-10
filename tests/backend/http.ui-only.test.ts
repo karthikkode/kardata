@@ -176,6 +176,47 @@ describe.skipIf(!TEST_DATABASE_URL)('UI-only gate over real HTTP [F:http.authori
     expect(response.status).toBe(200)
   })
 
+  it('rejects legacy keys on /mcp under the flag, allows them with the flag off', async () => {
+    const call = async () =>
+      fetch(`${origin}/mcp`, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${KEYS.legacy}`,
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+        },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+      })
+    const blocked = await call()
+    expect(blocked.status).toBe(403)
+    expect(((await blocked.json()) as { error?: { code?: string } }).error?.code).toBe('permission_denied')
+    delete process.env['KARDATA_UI_ONLY']
+    try {
+      expect((await call()).status).toBe(200)
+    } finally {
+      process.env['KARDATA_UI_ONLY'] = '1'
+    }
+  })
+
+  it('viewer key on an approver route gets permission_denied with no violation alert', async () => {
+    const before = (await violations()).length
+    const response = await fetch(`${origin}/v1/commands/approve`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${KEYS.viewer}`,
+        'content-type': 'application/json',
+        'idempotency-key': randomUUID(),
+        origin: UI_ORIGIN,
+        'x-kardata-client': 'ui',
+      },
+      body: JSON.stringify({}),
+    })
+    expect(response.status).toBe(403)
+    const body = (await response.json()) as { error?: { code?: string } }
+    expect(body.error?.code).toBe('permission_denied')
+    expect((await violations()).length).toBe(before)
+  })
+
   it('flag off keeps route-based behavior: any key mutates, event client=ui', async () => {
     delete process.env['KARDATA_UI_ONLY']
     try {
