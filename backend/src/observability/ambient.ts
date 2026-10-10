@@ -36,21 +36,23 @@ export function currentTraceId(): string | undefined {
  * api_keys client column instead of the route. */
 export type EventClient = 'ui' | 'agent-mcp' | 'system' | 'other'
 
-const callerAls = new AsyncLocalStorage<EventClient>()
+const callerAls = new AsyncLocalStorage<{ client: EventClient }>()
 
 /** Run `fn` with `client` as the ambient event caller. */
 export function runWithEventClient<T>(client: EventClient, fn: () => T): T {
-  return callerAls.run(client, fn)
+  return callerAls.run({ client }, fn)
 }
 
 /** Ambient event caller, when a route entered one. */
 export function currentEventClient(): EventClient | undefined {
-  return callerAls.getStore()
+  return callerAls.getStore()?.client
 }
 
-/** Enter `client` for the current execution chain (post-auth override:
- * Phase 8 stamps the key's client, not the route's default). Mirrors
- * enterSpanContext: same-chain reads see it, siblings never do. */
-export function enterEventClient(client: EventClient): void {
-  callerAls.enterWith(client)
+/** Override the ambient client after auth (Phase 8: the key's client,
+ * not the route's default). Mutates the holder route() installed, so
+ * the caller's continuation sees it: enterWith inside an async fn only
+ * reaches that fn's own chain (P8-M1). No-op without a holder. */
+export function setEventClient(client: EventClient): void {
+  const holder = callerAls.getStore()
+  if (holder) holder.client = client
 }

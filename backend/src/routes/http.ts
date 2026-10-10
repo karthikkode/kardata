@@ -24,7 +24,7 @@ import { mutationFingerprint, rateBucket } from '../http/limits.js'
 import { getSession } from '../db/index.js'
 import type { RunsGateway } from '../temporal/runs-types.js'
 import { RunNotFound, TemporalUnavailableError, ThreadNotAccepting } from '../temporal/runs-types.js'
-import { enterEventClient, runWithEventClient, type EventClient } from '../observability/ambient.js'
+import { runWithEventClient, setEventClient, type EventClient } from '../observability/ambient.js'
 import type { KeyClient } from '../db/keys.js'
 
 export type ErrorCode =
@@ -117,7 +117,7 @@ export async function authorize(
   }
   if (process.env['KARDATA_UI_ONLY'] === '1') {
     // Phase 8: events carry the key's client, not the route's default.
-    enterEventClient(keyClientToEvent(result.caller.client))
+    setEventClient(keyClientToEvent(result.caller.client))
     const url = request.routeOptions?.url ?? ''
     if (url.startsWith('/v1/') && MUTATING_METHODS.has(request.method)) {
       const origin = header(request, 'origin')
@@ -142,7 +142,9 @@ export async function authorize(
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
-function keyClientToEvent(client: KeyClient): EventClient {
+/** Key client to event client (shared by authorize() and authorizeMcp():
+ * both gates stamp the holder under the UI-only flag). */
+export function keyClientToEvent(client: KeyClient): EventClient {
   if (client === 'ui') return 'ui'
   if (client === 'agent-mcp') return 'agent-mcp'
   return 'other'
@@ -320,6 +322,14 @@ export function eventClientForRoute(url: string): EventClient {
   return 'other'
 }
 
+/** One registered route (the UI-only coverage tripwire enumerates these:
+ * Fastify v5 exposes no programmatic route list, and every app route
+ * funnels through here except GET /healthz and /metrics). */
+export interface RegisteredRoute {
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE'
+  url: string
+}
+
 /** Registers a handler with gateway/domain errors mapped to envelopes. */
 export function route(
   app: FastifyInstance,
@@ -327,6 +337,8 @@ export function route(
   url: string,
   handler: RouteHandler,
 ): void {
+  const registrar = app as FastifyInstance & { kardataRoutes?: RegisteredRoute[] }
+  ;(registrar.kardataRoutes ??= []).push({ method: method.toUpperCase() as RegisteredRoute['method'], url })
   const wrapped = async (request: FastifyRequest, reply: FastifyReply): Promise<unknown> => {
     try {
       return await runWithEventClient(eventClientForRoute(url), () => handler(request, reply, app))

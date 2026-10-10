@@ -174,16 +174,17 @@ export function workspaceRoutes(app: FastifyInstance): void {
   route(app, 'post', '/v1/sectors/:sectorId/files/:fileId/retry', async (request, reply, app) => {
     const pool = requirePool(app, reply), runs = requireRuns(app, reply)
     if (!pool || !runs) return undefined
-    const auth = await resolveCaller(pool, header(request, 'authorization'), header(request, 'x-tenant'), header(request, 'x-project'))
-    if ('denied' in auth || !roleAtLeast(auth.caller, 'approver')) return sendError(reply, 403, 'permission_denied', 'File retries require an approver key.')
-    request.kardataCaller = { keyId: auth.caller.keyId, tenantId: auth.scope.tenantId }
+    // P8-M1: through authorize(), not resolveCaller directly — the direct
+    // call skipped the UI-only gate (the coverage tripwire caught it).
+    const auth = await authorize(app, request, reply, 'approver')
+    if (!auth) return undefined
     const body = parseInput(z.object({ jobId: z.string().min(1).max(255), revision: z.number().int().nonnegative(), allowDuplicatePaid: z.boolean().default(false) }).strict(), request.body, reply)
     if (!body) return undefined
     if (!runs.startFileProcessing) return sendError(reply, 503, 'overload', 'File processing worker unavailable.')
-    return withIdempotency(request, reply, pool, auth.caller.keyId, async () => {
+    return withIdempotency(request, reply, pool, auth.keyId, async () => {
       try {
         const params = request.params as { sectorId: string; fileId: string }
-        const job = await retryFileProcessingJob(pool, { ...body, ...params, author: auth.caller.keyId, scope: auth.scope })
+        const job = await retryFileProcessingJob(pool, { ...body, ...params, author: auth.keyId, scope: auth.scope })
         try { await runs.startFileProcessing!(job.jobId, job.revision) }
         catch (error) { await failFileProcessingJob(pool, job.jobId, 'dispatch_outcome_unknown', job.revision, auth.scope); throw error }
         return { status: 200, body: { ok: true, data: fileProcessingProgress(job) } }

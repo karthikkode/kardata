@@ -17,7 +17,8 @@ import { childLogger } from '../observability/logging.js'
 import { TOOL_NAMES, type McpToolName } from './schemas.js'
 import { createMcpServer, toolCapability, TOOL_META } from './tools.js'
 import { type ToolGrant } from './tools-types.js'
-import { requirePool, route, sendError, withIdempotency, header } from '../routes/http.js'
+import { keyClientToEvent, requirePool, route, sendError, withIdempotency, header } from '../routes/http.js'
+import { setEventClient } from '../observability/ambient.js'
 import { inspectOperationReceipt, recordOperationIntent, recordOperationResult, recoverOperationResult } from '../db/operation-receipts.js'
 
 /** API-key gate mirroring authorize(): open mode skips auth with full local
@@ -43,6 +44,10 @@ async function authorizeMcp(
   if (!roleAtLeast(result.caller, 'viewer')) {
     void sendError(reply, 403, 'permission_denied', `role ${result.caller.role} cannot perform this action`)
     return undefined
+  }
+  if (process.env['KARDATA_UI_ONLY'] === '1') {
+    // Phase 8 (P8-M1): tool writes carry the key's client, not the /mcp default.
+    setEventClient(keyClientToEvent(result.caller.client))
   }
   request.kardataCaller = { keyId: result.caller.keyId, tenantId: result.scope.tenantId }
   return { scope: result.scope, role: result.caller.role, keyId: result.caller.keyId }

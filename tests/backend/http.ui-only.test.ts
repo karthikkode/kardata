@@ -118,6 +118,57 @@ describe.skipIf(!TEST_DATABASE_URL)('UI-only gate over real HTTP [F:http.authori
     expect(rows[0]!.client).toBe('ui')
   })
 
+  it('stamps /mcp writes with the key client, not the route default (P8-M1)', async () => {
+    const title = `TEST mcp client probe ${randomUUID()}`
+    const response = await fetch(`${origin}/mcp`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${KEYS.ui}`,
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'db.create_session', arguments: { title } },
+      }),
+    })
+    expect(response.status).toBe(200)
+    const { rows } = await pool.query<{ client: string }>(
+      `SELECT client FROM events WHERE type = 't.session.created' AND payload->>'title' = $1`,
+      [title],
+    )
+    expect(rows).toHaveLength(1)
+    // The UI key's client — not the /mcp route default (agent-mcp).
+    expect(rows[0]!.client).toBe('ui')
+  })
+
+  it('every mutating /v1 route 403s a non-UI key: no authorize() bypass (P8-M1)', async () => {
+    const registered =
+      (app as FastifyInstance & { kardataRoutes?: { method: string; url: string }[] }).kardataRoutes ?? []
+    const mutating = registered.filter(
+      ({ method, url }) => url.startsWith('/v1/') && ['POST', 'PATCH', 'DELETE'].includes(method.toUpperCase()),
+    )
+    expect(mutating.length).toBeGreaterThan(20)
+    for (const { method, url } of mutating) {
+      const target = url.replace(/:[A-Za-z0-9_]+/g, 'TEST')
+      const response = await fetch(`${origin}${target}`, {
+        method,
+        headers: {
+          authorization: `Bearer ${KEYS.mcp}`,
+          'content-type': 'application/json',
+          origin: UI_ORIGIN,
+          'x-kardata-client': 'ui',
+        },
+        body: JSON.stringify({}),
+      })
+      const body = (await response.json().catch(() => null)) as { error?: { code?: string } } | null
+      expect(response.status, `${method} ${url} → ${response.status} ${body?.error?.code}`).toBe(403)
+      expect(body?.error?.code, `${method} ${url}`).toBe('ui_only_violation')
+    }
+  })
+
   it('leaves reads ungated under the flag', async () => {
     const response = await fetch(`${origin}/v1/sectors?limit=1`, {
       headers: { authorization: `Bearer ${KEYS.mcp}` },
