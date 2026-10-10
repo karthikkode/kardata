@@ -6,6 +6,7 @@ recurrence. New rows append at the top.
 
 | date | bug | found by | tier that should have caught it | test added | rule added |
 |---|---|---|---|---|---|
+| 2026-10-10 | Agents announced writes without writing: no prompt rule tied announcements to same-turn tool calls | pilot r0 (R0-16, F8b) | unit | karbot.turn announce-write contract case | system prompt: never announce a write without writing in the same turn, or say why you cannot |
 | 2026-10-10 | Agent with unconfigured web_search had no proceed-without-it instruction: retried or stalled instead of working from KB and fetched pages | pilot r0 (R0-5, F8a) | unit | mcp.tools once-and-proceed description case | web_search description says once-and-proceed (say so once, then db.kb_search + web_fetch) |
 | 2026-10-10 | Mention picker offered every child as a live thread: finished children read identically to running ones | pilot r0 (R0-13b, F6e) | frontend | chat-staging mention-hint case + finished-children guards (directory badge/controls, composer Send-not-Steer) | thread mention hints carry the live status; directory + finished-composer behavior pinned as-is |
 | 2026-10-10 | Queue view went stale: it polled only while busy and no control refreshed it, so paused/idle queues never tracked drains | pilot r0 (R0-11, F6d) | frontend | queue-refresh (send/pause/resume re-read + poll-while-items + stop-when-empty) | queue re-reads on send/pause/resume and polls every 3 s while non-empty |

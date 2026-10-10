@@ -335,6 +335,11 @@ describe('executeKarbotTurn [F:backend.activity.turn.executeKarbotTurn] [F:backe
     expect(KARBOT_SYSTEM_PROMPT).toContain('never fill the gap from parametric knowledge')
   })
 
+  it('contracts announce-write discipline in the system prompt (F8b/R0-16)', () => {
+    expect(KARBOT_SYSTEM_PROMPT).toContain('announce a write without writing')
+    expect(KARBOT_SYSTEM_PROMPT).toContain('in this same turn, or say why you cannot')
+  })
+
   it('contracts sector-evidence verification in the system prompt', () => {
     expect(KARBOT_SYSTEM_PROMPT).toContain('call db.get_sector or db.list_sector_documents first')
     expect(KARBOT_SYSTEM_PROMPT).toContain('call db.read_sector_document for that document id and quote its text')
