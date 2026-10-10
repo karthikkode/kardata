@@ -957,9 +957,9 @@ function pilotSecrets(worktree) {
   return parsed
 }
 
-function spawnPilotProc(worktree, name, cmd, args, env, marker) {
+function spawnPilotProc(worktree, name, cmd, args, env, marker, cwd = null) {
   const log = openSync(join(worktree, 'var', 'pilot', `${name}.log`), 'a')
-  const child = spawn(cmd, args, { cwd: worktree, env, detached: true, stdio: ['ignore', log, log] })
+  const child = spawn(cmd, args, { cwd: cwd ?? worktree, env, detached: true, stdio: ['ignore', log, log] })
   child.unref()
   return { pid: child.pid, marker }
 }
@@ -984,7 +984,9 @@ async function cmdPilotUp(args) {
     }
   }
   const cfg = pilotConfig()
-  for (const port of [cfg.backendPort, cfg.uiPort]) {
+  // 9464 is the worker's Temporal metrics port (Runtime.install binds it;
+  // a second worker dies instantly with EADDRINUSE).
+  for (const port of [cfg.backendPort, cfg.uiPort, 9464]) {
     if (await portTaken(port)) {
       console.error(`stack: pilot port ${port} is taken; stop its owner first`)
       process.exit(1)
@@ -1016,6 +1018,27 @@ async function cmdPilotUp(args) {
   writeFileSync(join(worktree, 'var', 'pilot', 'migrate.log'), migrate.out)
   if (!migrate.ok) {
     console.error(`stack: pilot migrate failed; see ${join(worktree, 'var', 'pilot', 'migrate.log')}`)
+    process.exit(1)
+  }
+  const registerNs = await new Promise((resolveNs) => {
+    execFile(process.execPath, ['--input-type=module', '-e', `
+      const { connectClient } = await import(${JSON.stringify(join(worktree, 'backend', 'dist', 'temporal', 'connection.js'))});
+      const connection = await connectClient();
+      try {
+        await connection.workflowService.registerNamespace({ namespace: ${JSON.stringify(cfg.namespace)}, workflowExecutionRetentionPeriod: { seconds: 86400, nanos: 0 } });
+        console.log('namespace registered');
+      } catch (error) {
+        if (!/already exists/i.test(error?.message ?? '')) throw error;
+        console.log('namespace exists');
+      } finally {
+        await connection.close();
+      }
+    `], { cwd: worktree, env: { ...process.env, TEMPORAL_ADDRESS: cfg.temporalAddress } }, (error, stdout, stderr) => {
+      resolveNs({ ok: !error, out: String(stdout ?? '') + String(stderr ?? '') })
+    })
+  })
+  if (!registerNs.ok) {
+    console.error(`stack: pilot namespace registration failed: ${registerNs.out.slice(-500)}`)
     process.exit(1)
   }
   const db = new Pool({ connectionString: cfg.databaseUrl })
@@ -1073,13 +1096,23 @@ async function cmdPilotUp(args) {
     KARDATA_ARCHIVE_DIR: join(worktree, 'var', 'pilot', 'archive'),
     KARDATA_MCP_URL: cfg.mcpUrl,
   }
+  // Backend first, alone: the worker probes backend /mcp at boot, so a
+  // simultaneous start lets it win the race and bake an "unreachable"
+  // [FATAL] into fresh logs (same lesson as prod deploy).
   const procs = {
     backend: spawnPilotProc(worktree, 'backend', process.execPath, ['backend/dist/server.js'], backendEnv, 'backend/dist/server.js'),
-    worker: spawnPilotProc(worktree, 'worker', process.execPath, ['backend/dist/temporal/dev-worker.js'], workerEnv, 'dev-worker.js'),
-    ui: spawnPilotProc(worktree, 'ui', process.execPath, ['frontend/node_modules/vite/bin/vite.js', 'preview', '--port', String(cfg.uiPort), '--host', '127.0.0.1', '--strictPort'], { ...process.env, PATH: process.env['PATH'] ?? '' }, 'vite/bin/vite.js'),
   }
   writeFileSync(pilotPidFile(worktree), JSON.stringify(procs, null, 2))
   const okBackend = await waitFor('pilot backend /healthz', () => urlHealthy(`${cfg.backendUrl}/healthz`))
+  if (!okBackend) process.exit(1)
+  // npm workspaces hoist vite to the root node_modules; preview must run
+  // with cwd=frontend (dist + config live there).
+  const viteBin = existsSync(join(worktree, 'node_modules', 'vite', 'bin', 'vite.js'))
+    ? join(worktree, 'node_modules', 'vite', 'bin', 'vite.js')
+    : join(worktree, 'frontend', 'node_modules', 'vite', 'bin', 'vite.js')
+  procs.worker = spawnPilotProc(worktree, 'worker', process.execPath, ['backend/dist/temporal/dev-worker.js'], workerEnv, 'dev-worker.js')
+  procs.ui = spawnPilotProc(worktree, 'ui', process.execPath, [viteBin, 'preview', '--port', String(cfg.uiPort), '--host', '127.0.0.1', '--strictPort'], { ...process.env, PATH: process.env['PATH'] ?? '' }, 'vite/bin/vite.js', join(worktree, 'frontend'))
+  writeFileSync(pilotPidFile(worktree), JSON.stringify(procs, null, 2))
   const okWorker = await waitFor('pilot worker polling', async () => {
     try {
       return readFileSync(join(worktree, 'var', 'pilot', 'worker.log'), 'utf8').includes('turn worker polling')
@@ -1088,7 +1121,7 @@ async function cmdPilotUp(args) {
     }
   })
   const okUi = await waitFor('pilot ui /', () => urlHealthy(cfg.uiUrl))
-  if (!okBackend || !okWorker || !okUi) process.exit(1)
+  if (!okWorker || !okUi) process.exit(1)
   console.log(`stack: pilot up (backend :${cfg.backendPort}, ui :${cfg.uiPort}, db ${cfg.dbName}, namespace ${cfg.namespace})`)
 }
 
