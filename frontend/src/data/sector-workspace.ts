@@ -57,15 +57,23 @@ export function useSectorWorkspace(config: StagingConfig | null, sectorId: strin
   const operationReceipt = useWorkspaceResource(config, inspection?.thread === activeThread ? `operation:${activeThread}:${inspection.operationId}` : null, (cfg) => inspectThreadOperation(cfg, activeThread ?? '', inspection?.operationId ?? ''))
   const chat = useWorkspaceConversation(config, activeThread)
   // No running workflow answers 404: an idle thread simply has no queue.
-  // Poll every 3 s while a run is active so the disclosure tracks drains.
+  // Poll every 3 s while a run is active OR items remain, so the
+  // disclosure tracks drains even after busy clears or under pause. The
+  // flag sets where each load lands (never a render sync effect).
+  const [queueHasItems, setQueueHasItems] = useState(false)
   const queue = useWorkspaceResource(config, activeThread, async (cfg) => {
     try {
-      return await listThreadQueue(cfg, activeThread ?? '')
+      const rows = await listThreadQueue(cfg, activeThread ?? '')
+      setQueueHasItems(rows.length > 0)
+      return rows
     } catch (error) {
-      if (error instanceof StagingApiError && error.status === 404) return []
+      if (error instanceof StagingApiError && error.status === 404) {
+        setQueueHasItems(false)
+        return []
+      }
       throw error
     }
-  }, chat.busy ? 3000 : false)
+  }, chat.busy || queueHasItems ? 3000 : false)
   const currentExecution = execution?.thread === activeThread ? execution : null
   const executionPage = useWorkspaceResource(config, currentExecution ? `execution-page:${activeThread}:${currentExecution.afterSeq}` : null, (cfg) => listExecutionRecords(cfg, activeThread ?? '', currentExecution?.afterSeq ?? 0))
   const executionBody = useWorkspaceResource(config, currentExecution?.seq ? `execution-record:${activeThread}:${currentExecution.seq}` : null, (cfg) => getExecutionRecord(cfg, activeThread ?? '', currentExecution?.seq ?? 0))
@@ -84,7 +92,10 @@ export function useSectorWorkspace(config: StagingConfig | null, sectorId: strin
     closeExecution: () => setExecution(null), selectExecution: (seq: number) => setExecution((current) => current ? { ...current, seq } : null),
     nextExecutionPage: () => setExecution((current) => current && executionPage.data?.nextAfterSeq ? { ...current, afterSeq: executionPage.data.nextAfterSeq, previous: [...current.previous, current.afterSeq], seq: null } : current),
     previousExecutionPage: () => setExecution((current) => current?.previous.length ? { ...current, afterSeq: current.previous.at(-1)!, previous: current.previous.slice(0, -1), seq: null } : current),
-    operationReceipt: inspection?.thread === activeThread ? operationReceipt : undefined, inspectOperation: (operationId: string) => { if (activeThread) { if (inspection?.thread === activeThread && inspection.operationId === operationId) operationReceipt.refresh(); else setInspection({ thread: activeThread, operationId }) } }, sessions, selected, activeThread, threads, child, global, files, progress, plan, local, chat, operation, preview, reviewProposal: setProposalId, fileBody, fileUnits: currentFilePage ? fileUnits : undefined, fileHasPrevious: Boolean(currentFilePage?.previous.length),
+    operationReceipt: inspection?.thread === activeThread ? operationReceipt : undefined, inspectOperation: (operationId: string) => { if (activeThread) { if (inspection?.thread === activeThread && inspection.operationId === operationId) operationReceipt.refresh(); else setInspection({ thread: activeThread, operationId }) } }, sessions, selected, activeThread, threads, child, global, files, progress, plan, local, operation, preview,
+    // Sends re-read the queue: the busy poll starts within 3 s, but the
+    // disclosure must reflect the send at once, not on the next tick.
+    chat: { ...chat, send: async (steer = false, text?: string) => { try { await chat.send(steer, text) } finally { queue.refresh() } } }, reviewProposal: setProposalId, fileBody, fileUnits: currentFilePage ? fileUnits : undefined, fileHasPrevious: Boolean(currentFilePage?.previous.length),
     browseFileUnits: () => { if (previewFileId) setFilePage({ id: previewFileId, fromOrd: 0, previous: [] }) },
     nextFileUnits: () => setFilePage((current) => current && fileUnits.data?.nextOrd !== null && fileUnits.data?.nextOrd !== undefined ? { ...current, fromOrd: fileUnits.data.nextOrd, previous: [...current.previous, current.fromOrd] } : current),
     previousFileUnits: () => setFilePage((current) => current?.previous.length ? { ...current, fromOrd: current.previous.at(-1)!, previous: current.previous.slice(0, -1) } : current),
@@ -95,8 +106,8 @@ export function useSectorWorkspace(config: StagingConfig | null, sectorId: strin
     createChat: () => act('create', async (cfg) => { const session = await createSession(cfg, 'New conversation', sectorId ?? undefined); if (sessions.acknowledge([...(sessions.data ?? []), { ...session, kind: 'normal' as const }])) onNavigate(session.id, session.id) }),
     renameChat: (title: string) => act('rename', async (cfg) => { if (selected) await renameSession(cfg, selected.id, title); sessions.refresh() }),
     spawnSubagent: (goal: string, name?: string) => act('spawn', async (cfg) => { if (selected) await spawnSessionSubagent(cfg, selected.id, name ? { goal, name } : { goal }); threads.refresh() }),
-    pauseSubagent: (childId: string) => act('pause', async (cfg) => { await pauseRun(cfg, childId); threads.refresh() }),
-    resumeSubagent: (childId: string) => act('resume', async (cfg) => { await resumeRun(cfg, childId); threads.refresh() }),
+    pauseSubagent: (childId: string) => act('pause', async (cfg) => { await pauseRun(cfg, childId); threads.refresh(); queue.refresh() }),
+    resumeSubagent: (childId: string) => act('resume', async (cfg) => { await resumeRun(cfg, childId); threads.refresh(); queue.refresh() }),
     queue,
     removeQueued: (id: string) => (async () => {
       const before = queue.data ?? []
@@ -117,7 +128,7 @@ export function useSectorWorkspace(config: StagingConfig | null, sectorId: strin
     deleteChat: () => act('delete', async (cfg) => { if (!selected || selected.kind === 'research') return; await deleteSession(cfg, selected.id); sessions.refresh(); const research = sessions.data?.find((session) => session.kind === 'research'); if (research) onNavigate(research.id, research.id) }),
     stop: () => act('stop', async (cfg) => { if (activeThread) await cancelRun(cfg, child ? child.key.replace(/^agent:/, '') : `session-run-${selected?.id}`); chat.stopped() }),
     stopSubagent: (childId: string) => act('stop', async (cfg) => { await cancelRun(cfg, childId); threads.refresh(); if (activeThread === `agent:${childId}`) chat.stopped() }),
-    resume: () => act('resume', async (cfg) => { if (activeThread) await resumeRun(cfg, child ? child.key.replace(/^agent:/, '') : `session-run-${selected?.id}`); threads.refresh(); local.refresh() }),
+    resume: () => act('resume', async (cfg) => { if (activeThread) await resumeRun(cfg, child ? child.key.replace(/^agent:/, '') : `session-run-${selected?.id}`); threads.refresh(); local.refresh(); queue.refresh() }),
     discardBlockedOperations: () => act('resume', async (cfg) => { if (activeThread) await discardBlockedOperationsApi(cfg, child ? child.key.replace(/^agent:/, '') : `session-run-${selected?.id}`); threads.refresh(); local.refresh() }),
     saveGlobal: (sections: Sections, baseVersion: number) => act('global', async (cfg) => { if (!sectorId) return; await saveGlobalContext(cfg, sectorId, baseVersion, sections); global.refresh() }),
     compactGlobal: () => act('global', async (cfg) => { if (!sectorId) return; await compactGlobalContext(cfg, sectorId); global.refresh() }),

@@ -263,7 +263,9 @@ by Plan and progress dialog. `SectorFilePreview` displays retained extracts and
 uses shared `downloadBlob` for original/extracted downloads. The data hooks own
 all fetching. Queued, reconnecting and paused chat states are explicit; missed
 steering remains visible. A paused thread (live phase or projected status)
-always shows the Resume banner ahead of the queued/reconnecting states. Work-item lists are searchable and windowed, with
+always shows the Resume banner ahead of the queued/reconnecting states.
+The queue disclosure re-reads on send, pause and resume, and polls every
+3 s while it holds items (stopping once empty). Work-item lists are searchable and windowed, with
 source links and truthful counts. Tests are linked by [F:<id>] tags (registry arrives in Phase 1).
 
 - The sector route lands on the summary page (`SectorLanding`): a
