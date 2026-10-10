@@ -95,7 +95,12 @@ describe.skipIf(!LIVE)('fleet load runs (N subagents, real outputs) [F:backend.a
     url = await ensureTestDb('kardata_test_fleet_load')
     process.env['DATABASE_URL'] = url
     process.env['KARDATA_ARCHIVE_DIR'] = mkdtempSync(join(tmpdir(), 'kardata-fleet-archive-'))
-    pool = new Pool({ connectionString: url, max: 20 })
+    // One shared pool for app + worker + pollers (production spreads the
+    // same load over per-process pools): 16 turn slots on max 20 starved
+    // it — outbox publish slowed 3 ms -> 26 ms avg and turns stretched
+    // 4 s -> 15 s. 40 covers 16 slots plus pollers inside the 100-cap
+    // server (Temporal holds ~38 steady).
+    pool = new Pool({ connectionString: url, max: 40 })
     await pool.query(
       `INSERT INTO api_keys (key_id, key_hash, tenant_id, project_id, roles)
        VALUES ($1, $2, $3, $4, $5)
@@ -276,15 +281,23 @@ describe.skipIf(!LIVE)('fleet load runs (N subagents, real outputs) [F:backend.a
     // run in bounded chunks past the reply gate only: 1000 concurrent
     // childState queries deadline-exceed under turn load. A failed query
     // means "not settled yet" and retries next round, never a failure.
+    // Settled children drop out of later rounds (the drain decays): the
+    // redelivery push precedes the reply append, so replies>=2 with an
+    // empty inbox can never unsettle — and a turn still in flight then
+    // is safe to finish (nothing remains inbound to strand).
+    const drained = new Set<string>()
     await waitFor(async () => {
-      for (let i = 0; i < childIds.length; i += 50) {
-        const settled = await Promise.all(childIds.slice(i, i + 50).map(async (childId) => {
+      const pending = childIds.filter((childId) => !drained.has(childId as string))
+      for (let i = 0; i < pending.length; i += 50) {
+        const settled = await Promise.all(pending.slice(i, i + 50).map(async (childId) => {
           const rows = await readPartition(pool, `child:${childId}`)
           const replies = rows.filter((row) => row.type === 't.message.appended' && (row.payload as { message?: { role?: string } }).message?.role === 'agent').length
           if (replies < 2) return false
           try {
             const state = (await client.workflow.getHandle(childId as string).query('childState')) as { queueDepth: number }
-            return state.queueDepth === 0
+            if (state.queueDepth !== 0) return false
+            drained.add(childId as string)
+            return true
           } catch {
             return false
           }
