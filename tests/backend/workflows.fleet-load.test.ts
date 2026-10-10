@@ -272,17 +272,26 @@ describe.skipIf(!LIVE)('fleet load runs (N subagents, real outputs) [F:backend.a
     // a leftover inbox item drains to missed_steer and fails the suite.
     // Two agent replies plus an empty inbox per child proves both scripted
     // turns (fed goal + steer) fully processed; no new steers can arrive
-    // after the artifacts gate, so the conjunction holds stably.
+    // after the artifacts gate, so the conjunction holds stably. Queries
+    // run in bounded chunks past the reply gate only: 1000 concurrent
+    // childState queries deadline-exceed under turn load. A failed query
+    // means "not settled yet" and retries next round, never a failure.
     await waitFor(async () => {
-      const settled = await Promise.all(childIds.map(async (childId) => {
-        const [rows, state] = await Promise.all([
-          readPartition(pool, `child:${childId}`),
-          client.workflow.getHandle(childId as string).query('childState') as Promise<{ queueDepth: number }>,
-        ])
-        const replies = rows.filter((row) => row.type === 't.message.appended' && (row.payload as { message?: { role?: string } }).message?.role === 'agent').length
-        return replies >= 2 && state.queueDepth === 0
-      }))
-      return settled.every(Boolean)
+      for (let i = 0; i < childIds.length; i += 50) {
+        const settled = await Promise.all(childIds.slice(i, i + 50).map(async (childId) => {
+          const rows = await readPartition(pool, `child:${childId}`)
+          const replies = rows.filter((row) => row.type === 't.message.appended' && (row.payload as { message?: { role?: string } }).message?.role === 'agent').length
+          if (replies < 2) return false
+          try {
+            const state = (await client.workflow.getHandle(childId as string).query('childState')) as { queueDepth: number }
+            return state.queueDepth === 0
+          } catch {
+            return false
+          }
+        }))
+        if (!settled.every(Boolean)) return false
+      }
+      return true
     }, options.timeoutMs, 'steer turns to drain')
     // Pipelined close-out: signal every child, then collect results in
     // bounded batches. Serial collect is ~0.9 s/child (900 s at the
