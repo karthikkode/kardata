@@ -202,13 +202,15 @@ async function applyEvent(db: Db, event: ProjectableEvent): Promise<boolean> {
       return true
     }
     case 't.subagent.completed': {
-      // A closed child (finished or cancelled) stops accepting steer. Both
-      // map to FINISHED: the run is over, only the completion entry remains.
+      // A closed child (done, idle, or cancelled) stops accepting steer.
+      // All map to FINISHED; the close kind stays as the reason so the UI
+      // tells done from idle. Legacy 'finished' entries read as done.
       const payload = SubagentCompleted.parse(event.payload)
       const completedKey = `agent:${payload.summary.id}`
+      const closeKind = payload.summary.status === 'finished' ? 'done' : payload.summary.status
       await db.query(
-        "UPDATE threads SET status = 'FINISHED', accepting_steer = FALSE, state_reason = NULL, updated_at = $2::timestamptz WHERE key = $1",
-        [completedKey, at],
+        "UPDATE threads SET status = 'FINISHED', accepting_steer = FALSE, state_reason = $3, updated_at = $2::timestamptz WHERE key = $1",
+        [completedKey, at, closeKind],
       )
       await publishState(db, completedKey)
       return true

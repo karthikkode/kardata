@@ -468,6 +468,6 @@ export async function companyResearch(input: CompanyInput): Promise<TurnOutcome>
     }
     return outcome
   } catch (error) { cancelled = isSweepCancellation(error); failed = !cancelled; throw error } finally {
-    await CancellationScope.nonCancellable(() => append('completion', 't.subagent.completed', { summary: { id: childId, goal: input.brief, status: cancelled ? 'cancelled' : modernSteering && failed ? 'failed' : 'finished', depth: 0, mode: 'empty', threadLength: modernSteering ? threadLength : 2, missedSteer: [...inbox] } }, parent))
+    await CancellationScope.nonCancellable(() => append('completion', 't.subagent.completed', { summary: { id: childId, goal: input.brief, status: cancelled ? 'cancelled' : modernSteering && failed ? 'failed' : 'done', depth: 0, mode: 'empty', threadLength: modernSteering ? threadLength : 2, missedSteer: [...inbox] } }, parent))
   }
 }

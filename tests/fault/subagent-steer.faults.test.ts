@@ -267,7 +267,7 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('subagent steer faults F13-child
       steeringImpl = false
       await handle.signal('childFinish').catch(() => undefined)
     }
-    expect(await handle.result()).toBe('finished')
+    expect(await handle.result()).toBe('done')
   }, 180_000)
 
   it('F13-child-midturn: a mid-turn steer is receipted missed and redelivered once', async () => {
@@ -337,7 +337,7 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('subagent steer faults F13-child
       steeringImpl = false
       await handle.signal('childFinish').catch(() => undefined)
     }
-    expect(await handle.result()).toBe('finished')
+    expect(await handle.result()).toBe('done')
   }, 180_000)
 
   it('F13-child-finished: a steer on a finished child is receipted missed, never relaunched', async () => {
@@ -357,7 +357,7 @@ describe.skipIf(!ENABLED || !TEST_DATABASE_URL)('subagent steer faults F13-child
       await handle.signal('childMessage', 'F13 child work')
       await waitFor(async () => childSays(threadKey, 'TEST child done'), 120_000, 'child turn 1')
       await handle.signal('childFinish')
-      expect(await handle.result()).toBe('finished')
+      expect(await handle.result()).toBe('done')
       await projectNewEvents(pool)
       expect((await getThread(pool, threadKey))?.status).toBe('FINISHED')
       const steer = await app.inject({ method: 'POST', url: '/v1/commands/steer', payload: { threadKey, text: 'TEST late steer' } })

@@ -374,12 +374,12 @@ describe.skipIf(!ENABLED)('continue-as-new (P4.2.4) [F:backend.activity.turn.app
     // noteDone crosses the chain: all five read finished, none re-queued.
     for (const childId of childIds) {
       await client.workflow.getHandle(childId).signal('childFinish')
-      expect(await client.workflow.getHandle(childId).result()).toBe('finished')
+      expect(await client.workflow.getHandle(childId).result()).toBe('done')
     }
     await waitFor(async () => (await events(partition)).filter((event) => event.type === 't.subagent.completed').length === 5, 60_000, 'five completions')
     const fresh = () => client.workflow.getHandle(workflowId)
     const state = (await fresh().query('parentState')) as { children: Array<{ childId: string; status: string }>; queued: string[] }
-    expect(state.children.filter((child) => child.status === 'finished')).toHaveLength(5)
+    expect(state.children.filter((child) => child.status === 'done')).toHaveLength(5)
     expect(state.queued).toEqual([])
     await fresh().signal('parentFinish')
     expect(await fresh().result()).toBe('done')

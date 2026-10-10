@@ -153,7 +153,7 @@ describe.skipIf(!ENABLED)('inbox queue view and edit (A17) [F:backend.activity.t
       expect(turnTexts[seen + 1]).toBe('THREE')
       expect(turnTexts[seen + 2]).toBe('TWO')
       await handle.signal('childFinish')
-      expect(await handle.result()).toBe('finished')
+      expect(await handle.result()).toBe('done')
     } finally {
       gateTurn = false
       turnReleased = true

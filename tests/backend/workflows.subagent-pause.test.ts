@@ -104,7 +104,7 @@ describe.skipIf(!ENABLED)('subagent pause workflow (A16) [F:backend.activity.tur
     await waitFor(() => turnCalls === callsBefore + 2, 'resumed turn')
     await waitFor(() => appended.some((event) => mine(event) && event.type === 't.thread.state' && event.payload['status'] === 'RUNNING'), 'running state')
     await handle.signal('childFinish')
-    expect(await handle.result()).toBe('finished')
+    expect(await handle.result()).toBe('done')
   }, 120_000)
 
   it('parks a mid-turn pause at the boundary and retries from the checkpoint', async () => {
@@ -136,6 +136,6 @@ describe.skipIf(!ENABLED)('subagent pause workflow (A16) [F:backend.activity.tur
     await waitFor(() => turnCalls === callsBefore + 2, 'turn retry')
     await waitFor(() => appended.some((event) => mine(event) && event.type === 't.message.appended' && (event.payload['message'] as { text?: string })?.text === 'TEST resumed reply'), 'resumed reply')
     await handle.signal('childFinish')
-    expect(await handle.result()).toBe('finished')
+    expect(await handle.result()).toBe('done')
   }, 120_000)
 })

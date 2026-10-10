@@ -179,7 +179,7 @@ describe.skipIf(!ENABLED)('REST parity (B3.1) [F:http.createSession] [F:http.get
     const threads = (response.json() as { data: Array<{ key: string; kind: string; status: string; acceptingSteer: boolean }> }).data
     expect(threads.map((thread) => thread.key).sort()).toEqual(['agent:c1', 's-a'])
     const child = threads.find((thread) => thread.key === 'agent:c1')
-    expect(child).toMatchObject({ kind: 'subagent', status: 'FINISHED', acceptingSteer: false })
+    expect(child).toMatchObject({ kind: 'subagent', status: 'FINISHED', acceptingSteer: false, stateReason: 'done' })
   })
 
   it('gets one thread with live steer availability', async () => {

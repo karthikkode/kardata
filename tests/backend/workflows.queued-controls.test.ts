@@ -171,7 +171,7 @@ describe.skipIf(!ENABLED)(
         ).toBe(false)
 
         await client.workflow.getHandle(running).signal('childFinish')
-        expect(await client.workflow.getHandle(running).result()).toBe('finished')
+        expect(await client.workflow.getHandle(running).result()).toBe('done')
       } finally {
         await parent.handle.cancel()
         await parent.handle.result().catch(() => undefined)
@@ -198,18 +198,18 @@ describe.skipIf(!ENABLED)(
         await waitFor(async () => ((await parentState(sessionId)).pausedQueued ?? []).includes(held), 30_000, 'queued pause')
 
         await client.workflow.getHandle(first).signal('childFinish')
-        expect(await client.workflow.getHandle(first).result()).toBe('finished')
+        expect(await client.workflow.getHandle(first).result()).toBe('done')
         // The paused head stays queued; the next unpaused child promotes.
         await launchedRecord(sessionId, next)
         expect(((await parentState(sessionId)).queued ?? []).includes(held)).toBe(true)
 
         await parent.handle.signal('parentChildControl', { childId: held, action: 'resume' })
         await client.workflow.getHandle(next).signal('childFinish')
-        expect(await client.workflow.getHandle(next).result()).toBe('finished')
+        expect(await client.workflow.getHandle(next).result()).toBe('done')
         await launchedRecord(sessionId, held)
 
         await client.workflow.getHandle(held).signal('childFinish')
-        expect(await client.workflow.getHandle(held).result()).toBe('finished')
+        expect(await client.workflow.getHandle(held).result()).toBe('done')
       } finally {
         await parent.handle.cancel()
         await parent.handle.result().catch(() => undefined)

@@ -63,7 +63,7 @@ async function waitFor(condition: () => Promise<boolean>, timeoutMs: number, wha
   }
 }
 
-describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.turn.appendEventActivity] [F:backend.activity.turn.karbotTurnActivity] [F:backend.workflow.subagents.delegateParent] [F:backend.activity.coordinator.prepareExecutionIntentActivity] [F:backend.activity.coordinator.settlePreparedExecutionIntentActivity] [F:backend.activity.execution_epochs.originalRecoveryReadyActivity] [F:backend.activity.execution_epochs.prepareExecutionIntentActivity] [F:backend.activity.execution_epochs.settlePreparedExecutionIntentActivity] [F:backend.workflow.epoch_start.withPreparedExecution] [F:backend.workflow.subagents.DEFAULT_CHILD_FINISH_TIMEOUT_MS] [F:backend.workflow.subagents.DEFAULT_MAX_IN_FLIGHT_CHILDREN] [F:backend.workflow.subagents.DEFAULT_PARENT_IDLE_TIMEOUT_MS] [F:backend.workflow.subagents.childCanDelegateQuery] [F:backend.workflow.subagents.childCancelSignal] [F:backend.workflow.subagents.childFinishSignal] [F:backend.workflow.subagents.childMessageSignal] [F:backend.workflow.subagents.childRedirectSignal] [F:backend.workflow.subagents.childStateQuery] [F:backend.workflow.subagents.childSummaryQuery] [F:backend.workflow.subagents.parentDelegateSignal] [F:backend.workflow.subagents.parentFinishSignal] [F:backend.workflow.subagents.parentNoteDoneSignal] [F:backend.workflow.subagents.parentRecoverSignal] [F:backend.workflow.subagents.parentStateQuery] [F:backend.workflow.subagents.parentSteerSignal] [F:backend.workflow.subagents.DEFAULT_MAX_QUEUED_CHILDREN] [F:db.index.readPartition] [F:db.index.getThread] [F:db.events.readPartition] [F:db.threads.getThread] [F:db.context_files.assertThreadFileContext] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.errors.WorkspaceError] [F:db.execution_epochs.readActiveExecutionIdentity] [F:db.index.Db] [F:db.workspace.WorkspaceError] [F:db.workspace_threads.recordContextMeasurement] [F:db.workspace.requireThread [F:backend.workflow.subagent_child.childCancelSignal] [F:backend.workflow.subagent_child.childCanDelegateQuery] [F:backend.workflow.subagent_child.childFinishSignal] [F:backend.workflow.subagent_child.childMessageSignal] [F:backend.workflow.subagent_child.childRedirectSignal] [F:backend.workflow.subagent_child.childStateQuery] [F:backend.workflow.subagent_child.childSummaryQuery] [F:backend.workflow.subagent_child.DEFAULT_CHILD_FINISH_TIMEOUT_MS] [F:backend.workflow.subagent_child.parentNoteDoneSignal]]', () => {
+describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.turn.appendEventActivity] [F:backend.activity.turn.karbotTurnActivity] [F:backend.workflow.subagents.delegateParent] [F:backend.activity.coordinator.prepareExecutionIntentActivity] [F:backend.activity.coordinator.settlePreparedExecutionIntentActivity] [F:backend.activity.execution_epochs.originalRecoveryReadyActivity] [F:backend.activity.execution_epochs.prepareExecutionIntentActivity] [F:backend.activity.execution_epochs.settlePreparedExecutionIntentActivity] [F:backend.workflow.epoch_start.withPreparedExecution] [F:backend.workflow.subagents.DEFAULT_CHILD_FINISH_TIMEOUT_MS] [F:backend.workflow.subagents.DEFAULT_MAX_IN_FLIGHT_CHILDREN] [F:backend.workflow.subagents.DEFAULT_PARENT_IDLE_TIMEOUT_MS] [F:backend.workflow.subagents.childCanDelegateQuery] [F:backend.workflow.subagents.childCancelSignal] [F:backend.workflow.subagents.childFinishSignal] [F:backend.workflow.subagents.childMessageSignal] [F:backend.workflow.subagents.childRedirectSignal] [F:backend.workflow.subagents.childStateQuery] [F:backend.workflow.subagents.childSummaryQuery] [F:backend.workflow.subagents.parentDelegateSignal] [F:backend.workflow.subagents.parentFinishSignal] [F:backend.workflow.subagents.parentNoteDoneSignal] [F:backend.workflow.subagents.parentRecoverSignal] [F:backend.workflow.subagents.parentStateQuery] [F:backend.workflow.subagents.parentSteerSignal] [F:backend.workflow.subagents.DEFAULT_MAX_QUEUED_CHILDREN] [F:db.index.readPartition] [F:db.index.getThread] [F:db.events.readPartition] [F:db.threads.getThread] [F:db.context_files.assertThreadFileContext] [F:db.context_files.validateFileRefs] [F:db.document_units.listDocumentUnitOrdinals] [F:db.errors.WorkspaceError] [F:db.execution_epochs.readActiveExecutionIdentity] [F:db.index.Db] [F:db.workspace.WorkspaceError] [F:db.workspace_threads.recordContextMeasurement] [F:db.workspace.requireThread [F:backend.workflow.subagent_child.childCancelSignal] [F:backend.workflow.subagent_child.childCanDelegateQuery] [F:backend.workflow.subagent_child.childFinishSignal] [F:backend.workflow.subagent_child.childMessageSignal] [F:backend.workflow.subagent_child.childRedirectSignal] [F:backend.workflow.subagent_child.childStateQuery] [F:backend.workflow.subagent_child.childSummaryQuery] [F:backend.workflow.subagent_child.DEFAULT_CHILD_FINISH_TIMEOUT_MS] [F:backend.workflow.subagent_child.DEFAULT_CHILD_IDLE_TIMEOUT_MS] [F:backend.workflow.subagent_child.parentNoteDoneSignal]]', () => {
   let connection: NativeConnection
   let client: WorkflowClient
   let url = ''
@@ -154,6 +154,51 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
     return (await client.workflow.getHandle(childId).query('childSummary')) as Summary
   }
 
+  it('F3b: a finished child completes done, visible to the parent', async () => {
+    const sessionId = `f3b-done-${Date.now()}`, childId = `f3b-done-child-${Date.now()}`
+    const parent = await startParent(sessionId)
+    try {
+      await parent.handle.signal('parentDelegate', delegate(childId, 'TEST done goal', { fakeSteps: [{ text: 'done reply' }] }))
+      await launchedRecord(sessionId, childId)
+      const child = client.workflow.getHandle(childId)
+      await child.signal('childMessage', 'ping')
+      await waitFor(async () => (await events(`child:${childId}`)).filter((event) => (event.payload['message'] as { text?: string } | undefined)?.text === 'done reply').length === 2, 30000, 'done child turns')
+      await child.signal('childFinish')
+      expect(await child.result()).toBe('done')
+      const rows = await events(`session:${sessionId}`)
+      const entry = rows.find((event) => event.type === 't.subagent.completed' && ((event.payload['summary'] as { id?: string } | undefined)?.id === childId))
+      expect((entry?.payload['summary'] as { status?: string } | undefined)?.status).toBe('done')
+      const state = (await parent.handle.query('parentState')) as { children: Array<{ childId: string; status: string }> }
+      expect(state.children.find((entry) => entry.childId === childId)?.status).toBe('done')
+      const pool = new Pool({ connectionString: url })
+      try {
+        await projectNewEvents(pool)
+        expect((await getThread(pool, `agent:${childId}`))?.status).toBe('FINISHED')
+        expect((await getThread(pool, `agent:${childId}`))?.stateReason).toBe('done')
+      } finally { await pool.end() }
+    } finally { await parent.handle.cancel(); await parent.handle.result().catch(() => undefined) }
+  }, 120000)
+
+  it('F3b: an idle child is reaped with status idle, visible to the parent', async () => {
+    const sessionId = `f3b-idle-${Date.now()}`, childId = `f3b-idle-child-${Date.now()}`
+    const parent = await startParent(sessionId)
+    try {
+      await parent.handle.signal('parentDelegate', delegate(childId, 'TEST idle goal', { fakeSteps: [{ text: 'idle reply' }], childIdleTimeoutMs: 1500 }))
+      const child = client.workflow.getHandle(childId)
+      await waitFor(async () => (await events(`child:${childId}`)).some((event) => (event.payload['message'] as { text?: string } | undefined)?.text === 'idle reply'), 30000, 'idle child goal turn')
+      await waitFor(async () => (await events(`session:${sessionId}`)).some((event) => event.type === 't.subagent.completed' && ((event.payload['summary'] as { id?: string } | undefined)?.id === childId)), 20000, 'idle reap')
+      expect(await child.result()).toBe('idle')
+      const state = (await parent.handle.query('parentState')) as { children: Array<{ childId: string; status: string }> }
+      expect(state.children.find((entry) => entry.childId === childId)?.status).toBe('idle')
+      const pool = new Pool({ connectionString: url })
+      try {
+        await projectNewEvents(pool)
+        expect((await getThread(pool, `agent:${childId}`))?.status).toBe('FINISHED')
+        expect((await getThread(pool, `agent:${childId}`))?.stateReason).toBe('idle')
+      } finally { await pool.end() }
+    } finally { await parent.handle.cancel(); await parent.handle.result().catch(() => undefined) }
+  }, 120000)
+
   it('keeps fresh lifecycle and reply events when a closed child identity is reused', async () => {
     const sessionId = `reuse-${Date.now()}`, childId = `reuse-child-${Date.now()}`
     for (const label of ['first', 'second']) {
@@ -167,7 +212,7 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
         await child.signal('childMessage', `${label} request`)
         await waitFor(async () => (await events(`child:${childId}`)).some((event) => (event.payload['message'] as { text?: string } | undefined)?.text === `${label} reply`), 30000, 'fresh child reply')
         await child.signal('childFinish')
-        expect(await child.result()).toBe('finished')
+        expect(await child.result()).toBe('done')
       } finally { await parent.handle.cancel(); await parent.handle.result().catch(() => undefined) }
     }
     const rows = await events(`session:${sessionId}`)
@@ -198,8 +243,8 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
     expect(state.acceptingSteer).toBe(true)
 
     await client.workflow.getHandle(childId).signal('childFinish')
-    expect(await client.workflow.getHandle(childId).result()).toBe('finished')
-    await parent.handle.signal('parentNoteDone', { childId, status: 'finished' })
+    expect(await client.workflow.getHandle(childId).result()).toBe('done')
+    await parent.handle.signal('parentNoteDone', { childId, status: 'done' })
     await parent.handle.signal('parentFinish')
     expect(await parent.handle.result()).toBe('done')
   }, 120_000)
@@ -249,7 +294,7 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
 
     // finish: the completion entry lands in the parent partition.
     await child.signal('childFinish')
-    expect(await child.result()).toBe('finished')
+    expect(await child.result()).toBe('done')
     let completed: Summary | undefined
     await waitFor(
       async () => {
@@ -261,7 +306,7 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
       30_000,
       'completion entry',
     )
-    expect(completed?.status).toBe('finished')
+    expect(completed?.status).toBe('done')
     expect(completed?.threadLength).toBeGreaterThanOrEqual(2)
 
     // Parent-thread contract: delegation call + launch + completion, and no
@@ -276,7 +321,7 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
     // The child reply lands in the child's own partition instead.
     expect(JSON.stringify(await events(`child:${childId}`))).toContain('fake child reply')
 
-    await parent.handle.signal('parentNoteDone', { childId, status: 'finished' })
+    await parent.handle.signal('parentNoteDone', { childId, status: 'done' })
     await parent.handle.signal('parentFinish')
     expect(await parent.handle.result()).toBe('done')
   }, 180_000)
@@ -384,8 +429,8 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
     expect(launches).toHaveLength(1)
 
     await client.workflow.getHandle(childId).signal('childFinish')
-    expect(await client.workflow.getHandle(childId).result()).toBe('finished')
-    await parent.handle.signal('parentNoteDone', { childId, status: 'finished' })
+    expect(await client.workflow.getHandle(childId).result()).toBe('done')
+    await parent.handle.signal('parentNoteDone', { childId, status: 'done' })
     await parent.handle.signal('parentFinish')
     expect(await parent.handle.result()).toBe('done')
   }, 180_000)
@@ -428,8 +473,8 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
     // Finishing the first child promotes the third: it launches with its
     // goal fed parent-side, so its partition carries the goal text.
     await client.workflow.getHandle(first).signal('childFinish')
-    expect(await client.workflow.getHandle(first).result()).toBe('finished')
-    await parent.signal('parentNoteDone', { childId: first, status: 'finished' })
+    expect(await client.workflow.getHandle(first).result()).toBe('done')
+    await parent.signal('parentNoteDone', { childId: first, status: 'done' })
     await launchedRecord(sessionId, third)
     await waitFor(
       async () => (await events(`child:${third}`)).some((event) => JSON.stringify(event.payload).includes('third goal')),
@@ -439,8 +484,8 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
 
     for (const childId of [second, third]) {
       await client.workflow.getHandle(childId).signal('childFinish')
-      expect(await client.workflow.getHandle(childId).result()).toBe('finished')
-      await parent.signal('parentNoteDone', { childId, status: 'finished' })
+      expect(await client.workflow.getHandle(childId).result()).toBe('done')
+      await parent.signal('parentNoteDone', { childId, status: 'done' })
     }
     await parent.signal('parentFinish')
     expect(await parent.result()).toBe('done')
@@ -492,11 +537,11 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
     // workflow state so the query cannot read the pre-flip list (59).
     await waitFor(async () => {
       const polled = (await parent.query('parentState')) as { children: Array<{ childId: string; status: string }> }
-      return polled.children.filter((child) => child.status === 'finished').length === 60
+      return polled.children.filter((child) => child.status === 'done').length === 60
     }, 30_000, 'parent to mark all 60 finished')
     const state = (await parent.query('parentState')) as { children: Array<{ childId: string; status: string }>; queued: string[] }
     expect(state.queued).toEqual([])
-    expect(state.children.filter((child) => child.status === 'finished')).toHaveLength(60)
+    expect(state.children.filter((child) => child.status === 'done')).toHaveLength(60)
     await parent.signal('parentFinish')
     expect(await parent.result()).toBe('done')
   }, 300_000)
@@ -546,12 +591,12 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
     expect(state.rejected).toContainEqual({ childId: third, reason: 'child queue full (1 waiting)' })
 
     await client.workflow.getHandle(first).signal('childFinish')
-    expect(await client.workflow.getHandle(first).result()).toBe('finished')
-    await parent.signal('parentNoteDone', { childId: first, status: 'finished' })
+    expect(await client.workflow.getHandle(first).result()).toBe('done')
+    await parent.signal('parentNoteDone', { childId: first, status: 'done' })
     await launchedRecord(sessionId, second)
     await client.workflow.getHandle(second).signal('childFinish')
-    expect(await client.workflow.getHandle(second).result()).toBe('finished')
-    await parent.signal('parentNoteDone', { childId: second, status: 'finished' })
+    expect(await client.workflow.getHandle(second).result()).toBe('done')
+    await parent.signal('parentNoteDone', { childId: second, status: 'done' })
     await parent.signal('parentFinish')
     expect(await parent.result()).toBe('done')
   }, 180_000)
@@ -626,8 +671,8 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
 
     for (const childId of [forkId, nestedId]) {
       await client.workflow.getHandle(childId).signal('childFinish')
-      expect(await client.workflow.getHandle(childId).result()).toBe('finished')
-      await parent.handle.signal('parentNoteDone', { childId, status: 'finished' })
+      expect(await client.workflow.getHandle(childId).result()).toBe('done')
+      await parent.handle.signal('parentNoteDone', { childId, status: 'done' })
     }
     await parent.handle.signal('parentFinish')
     expect(await parent.handle.result()).toBe('done')
@@ -650,8 +695,8 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
     await child.signal('childMessage', 'only item')
     await waitFor(async () => (await childSummary(childId)).threadLength >= 1, 30_000, 'child work')
     await child.signal('childFinish')
-    expect(await child.result()).toBe('finished')
-    await parent.handle.signal('parentNoteDone', { childId, status: 'finished' })
+    expect(await child.result()).toBe('done')
+    await parent.handle.signal('parentNoteDone', { childId, status: 'done' })
 
     await parent.handle.signal('parentSteer', { childId, text: 'too late' })
     await waitFor(

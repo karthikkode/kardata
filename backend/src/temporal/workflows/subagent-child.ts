@@ -62,6 +62,9 @@ export interface DelegateRequest {
   /** Finish close for a cancelled child (see SubagentChildInput).
    * Forwarded verbatim into the child input. */
   childFinishTimeoutMs?: number
+  /** Idle reap for a running child (see SubagentChildInput). Forwarded
+   * verbatim into the child input. */
+  childIdleTimeoutMs?: number
   /** History caps that trip the child's continue-as-new (defaults 10k
    * events / 10 MB). Forwarded verbatim into the child input. */
   historyEventLimit?: number
@@ -76,6 +79,11 @@ export interface SubagentChildInput extends DelegateRequest {
    * completes itself (status cancelled) instead of waiting forever.
    * Defaults to 1 h. */
   childFinishTimeoutMs?: number
+  /** Idle reap: a running child with an empty inbox and no live turn for
+   * this long completes itself (status idle) instead of parking RUNNING
+   * forever. Defaults to 15 min. Paused children wait at the pause gate
+   * and are never reaped. */
+  childIdleTimeoutMs?: number
   /** Carry-over from the previous run in a continue-as-new chain. Set by
    * the workflow itself, never by callers. */
   resumed?: SubagentRunResumed
@@ -96,6 +104,9 @@ export interface SubagentRunResumed {
 
 /** Default finish close for cancelled children. */
 export const DEFAULT_CHILD_FINISH_TIMEOUT_MS = 3_600_000
+
+/** Default idle reap for running children with an empty inbox. */
+export const DEFAULT_CHILD_IDLE_TIMEOUT_MS = 900_000
 
 export interface SteerRequest {
   childId: string
@@ -164,6 +175,7 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
   let paused = carried?.paused ?? false
   const eventKey = patched('child-event-run-v2') ? `${childPartition}:${workflowInfo().runId}` : childPartition
   let finishRequested = false
+  let idleReaped = false
   let cancelRunningTurn: (() => void) | undefined
 
   const summary = (): ChildSummary => ({
@@ -314,6 +326,7 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
           ...(input.name === undefined ? {} : { name: input.name }),
           ...(input.fakeSteps === undefined ? {} : { fakeSteps: input.fakeSteps }),
           ...(input.childFinishTimeoutMs === undefined ? {} : { childFinishTimeoutMs: input.childFinishTimeoutMs }),
+          ...(input.childIdleTimeoutMs === undefined ? {} : { childIdleTimeoutMs: input.childIdleTimeoutMs }),
           ...(input.historyEventLimit === undefined ? {} : { historyEventLimit: input.historyEventLimit }),
           ...(input.historyByteLimit === undefined ? {} : { historyByteLimit: input.historyByteLimit }),
           ...(input.ownerEpoch === undefined ? {} : { ownerEpoch: input.ownerEpoch }),
@@ -343,7 +356,17 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
       }
       const next = inbox.shift()
       if (next === undefined) {
-        await condition(() => inbox.length > 0 || finishRequested || currentStatus() === 'cancelled')
+        // Idle reap: an empty inbox with no live turn waits bounded, then
+        // completes as idle. Patched: pre-fix histories wait unbounded.
+        const idleMs = input.childIdleTimeoutMs ?? DEFAULT_CHILD_IDLE_TIMEOUT_MS
+        const woke = patched('child-idle-reap-v1')
+          ? await condition(() => inbox.length > 0 || finishRequested || currentStatus() === 'cancelled', idleMs)
+          : await condition(() => inbox.length > 0 || finishRequested || currentStatus() === 'cancelled')
+        if (!woke) {
+          idleReaped = true
+          finishRequested = true
+          log.info('child idle reap', { childId: input.childId, idleMs })
+        }
         continue
       }
       const text = typeof next === 'string' ? next : next.text
@@ -418,10 +441,11 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
     }
 
     // Finish drains the leftover inbox into missed steer, exactly like
-    // agents finish(); a cancelled child reports cancelled, never finished.
+    // agents finish(); a cancelled child reports cancelled, a reaped one
+    // idle, and an explicit finish reports done.
     missedSteer.push(...inbox.splice(0, inbox.length).map((item) => (typeof item === 'string' ? item : item.text)))
     acceptingSteer = false
-    const finalStatus: ChildStatus = currentStatus() === 'cancelled' ? 'cancelled' : 'finished'
+    const finalStatus: ChildStatus = currentStatus() === 'cancelled' ? 'cancelled' : idleReaped ? 'idle' : 'done'
     box.status = finalStatus
     await appendCompletion()
     await noteParentDone(finalStatus)

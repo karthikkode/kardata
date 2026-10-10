@@ -21,7 +21,9 @@ semantics.
   steer; bounded recent-completions map (200) keeps late attributions.
   A live child finishes itself with `db.finish_subagent` (zero-arg, caller
   thread only): the gateway signals `childFinish` alone, so the run
-  completes `finished`, never `cancelled`.
+  completes `done`, never `cancelled`. Terminal statuses are
+  `done`/`idle`/`cancelled`/`failed`; an empty inbox with no live turn
+  for `childIdleTimeoutMs` (default 15 min) reaps the child as `idle`.
 
 ## Guards
 
@@ -56,6 +58,8 @@ because durable children have no wall clock across replays. Proven by
   children and completes with `t.subagent.parent_expired`
   (`parent-idle-timeout`); a cancelled child with no finish for
   `childFinishTimeoutMs` (default 1 h) completes itself as cancelled.
+  The completion entry carries the close kind (`done`/`idle`/…); the
+  thread row keeps it as `state_reason` (legacy `finished` reads `done`).
   Fan-out cap: delegations arriving while `maxInFlight` children run
   (default 50) wait in the durable queue (`t.subagent.queued`, cap
   `maxQueued` default 2000; past it they reject and the gateway refuses

@@ -6,7 +6,7 @@ import { BoundedQueue } from './queue.js'
 import type { ChatMessage } from './providers.js'
 import type { Clock } from './clock.js'
 
-export type ChildStatus = 'running' | 'finished' | 'cancelled' | 'failed'
+export type ChildStatus = 'running' | 'done' | 'idle' | 'cancelled' | 'failed'
 export type ContextMode = 'empty' | 'fork'
 
 export interface ChildSummary {

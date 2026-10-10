@@ -76,8 +76,8 @@ describe('subagent fleet soak (100 children, mixed fates)', () => {
       expect(summary.missedSteer).toContain('steer: focus on pricing evidence')
     }
     for (const id of [...stalled, ...active]) {
-      const summary = manager.collect(manager.finish(id, 'finished').id)
-      expect(summary.status).toBe('finished')
+      const summary = manager.collect(manager.finish(id, 'done').id)
+      expect(summary.status).toBe('done')
       expect(Object.keys(summary)).toEqual(
         expect.arrayContaining(['id', 'goal', 'status', 'depth', 'mode', 'threadLength', 'missedSteer']),
       )

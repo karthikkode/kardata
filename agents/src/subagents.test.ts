@@ -14,8 +14,8 @@ describe('SubagentManager lifecycle [F:agents.subagents.SubagentManager]', () =>
     expect(subagents.message(child.id, 'also check pricing')).toEqual({ delivered: 'queued' })
     expect(subagents.get(child.id).queueDepth).toBe(1)
     subagents.appendToThread(child.id, { role: 'assistant', text: 'working' })
-    const summary = subagents.finish(child.id, 'finished')
-    expect(summary.status).toBe('finished')
+    const summary = subagents.finish(child.id, 'done')
+    expect(summary.status).toBe('done')
     expect(summary.threadLength).toBe(1)
     // Parent sees summary, never intermediates.
     expect(subagents.collect(child.id)).toEqual(summary)
@@ -27,8 +27,8 @@ describe('SubagentManager lifecycle [F:agents.subagents.SubagentManager]', () =>
     expect(() => subagents.launch('  ')).toThrow()
     expect(() => subagents.get('missing')).toThrow()
     const child = subagents.launch('goal')
-    subagents.finish(child.id, 'finished')
-    expect(() => subagents.finish(child.id, 'finished')).toThrow()
+    subagents.finish(child.id, 'done')
+    expect(() => subagents.finish(child.id, 'done')).toThrow()
   })
 
   it('enforces depth and concurrency caps', () => {
@@ -62,7 +62,7 @@ describe('SubagentManager lifecycle [F:agents.subagents.SubagentManager]', () =>
   it('rejects messages to finished children as missed steer, never relaunches', () => {
     const subagents = manager()
     const child = subagents.launch('goal')
-    subagents.finish(child.id, 'finished')
+    subagents.finish(child.id, 'done')
     const verdict = subagents.message(child.id, 'too late')
     expect(verdict.delivered).toBe('rejected')
     expect(subagents.collect(child.id).missedSteer).toContain('too late')

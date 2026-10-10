@@ -266,8 +266,8 @@ describe.skipIf(!LIVE)('1000 queued children drain exactly once [F:backend.activ
       )
       await mapLimit(toReap, 20, async (child) => {
         await client.workflow.getHandle(child.childId).signal('childFinish')
-        expect(await client.workflow.getHandle(child.childId).result()).toBe('finished')
-        await client.workflow.getHandle(parentId).signal('parentNoteDone', { childId: child.childId, status: 'finished' })
+        expect(await client.workflow.getHandle(child.childId).result()).toBe('done')
+        await client.workflow.getHandle(parentId).signal('parentNoteDone', { childId: child.childId, status: 'done' })
         finished.add(child.childId)
       })
       const doneThisRound = toReap.length
@@ -276,7 +276,7 @@ describe.skipIf(!LIVE)('1000 queued children drain exactly once [F:backend.activ
     }
     const final = await parentState(parentId)
     expect(final.children.length).toBe(CHILDREN)
-    expect(final.children.every((child) => child.status === 'finished')).toBe(true)
+    expect(final.children.every((child) => child.status === 'done')).toBe(true)
     expect(final.queued).toEqual([])
     expect(final.rejected).toEqual([])
     await client.workflow.getHandle(parentId).signal('parentFinish')

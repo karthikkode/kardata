@@ -6850,3 +6850,9 @@
   tiers:
     - todo
   states: []
+- id: backend.workflow.subagent_child.DEFAULT_CHILD_IDLE_TIMEOUT_MS
+  layer: backend
+  surface: backend/src/temporal/workflows/subagent-child.ts
+  tiers:
+    - todo
+  states: []

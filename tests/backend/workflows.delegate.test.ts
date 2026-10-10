@@ -131,7 +131,7 @@ describe.skipIf(!ENABLED)('delegation door (db.delegate_subagent gateway) [F:bac
       await client.workflow.getHandle(childId).signal('childFinish')
       await waitFor(async () => {
         const summary = (await client.workflow.getHandle(childId).query('childSummary')) as { status: string }
-        return summary.status === 'finished'
+        return summary.status === 'done'
       }, 60_000, 'child to finish')
     } finally {
       await pool.end()
@@ -170,7 +170,7 @@ describe.skipIf(!ENABLED)('delegation door (db.delegate_subagent gateway) [F:bac
       expect(Date.now() - started).toBeLessThan(10_000)
       // Finishing the first promotes the second with its goal fed.
       await client.workflow.getHandle(first.childId).signal('childFinish')
-      await parentHandle.signal('parentNoteDone', { childId: first.childId, status: 'finished' })
+      await parentHandle.signal('parentNoteDone', { childId: first.childId, status: 'done' })
       await waitFor(async () => {
         const state = (await parentHandle.query('parentState')) as { children: Array<{ childId: string }> }
         return state.children.some((child) => child.childId === second.childId)
