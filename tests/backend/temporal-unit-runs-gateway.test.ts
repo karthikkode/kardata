@@ -376,23 +376,27 @@ describe('delegateSubagent acceptance', () => {
     })
     return () => childId
   }
-  it('fails fast when the durable queue rejects the child', async () => {
-    const g = gateway()
-    const childIdOf = parentMock()
-    let polls = 0
-    temporal.handles.set('delegation-sess-1', handle({
-      query: async () => (++polls === 1 ? { queued: [] } : { children: [], queued: [], rejected: [{ childId: childIdOf(), reason: 'child queue full (2000 waiting); retry later' }] }),
-    }))
-    const error = await g.delegateSubagent({ sessionId: 'sess-1', goal: 'research', mode: 'empty', queueCapacity: 1 }).then(() => null, (e: unknown) => e as Error)
-    expect(error).toBeInstanceOf(ChildQueueFull)
+  it('refuses fast when the pre-check observes a full queue', async () => {
+    // F2 contract: the best-effort pre-check is the only synchronous
+    // refusal; post-start capacity races resolve async in parentState.
+    const previous = process.env['KARDATA_MAX_CHILDREN_QUEUED']
+    process.env['KARDATA_MAX_CHILDREN_QUEUED'] = '1'
+    try {
+      const g = gateway()
+      parentMock()
+      temporal.handles.set('delegation-sess-1', handle({ query: async () => ({ queued: ['child-old'] }) }))
+      const error = await g.delegateSubagent({ sessionId: 'sess-1', goal: 'research', mode: 'empty', queueCapacity: 1 }).then(() => null, (e: unknown) => e as Error)
+      expect(error).toBeInstanceOf(ChildQueueFull)
+      expect(temporal.signalWithStart).not.toHaveBeenCalled()
+    } finally {
+      if (previous === undefined) delete process.env['KARDATA_MAX_CHILDREN_QUEUED']
+      else process.env['KARDATA_MAX_CHILDREN_QUEUED'] = previous
+    }
   })
-  it('propagates a queue-full accept hook instead of polling past it', async () => {
+  it('runs the accept hook after the durable start and propagates its failure', async () => {
     const g = gateway()
     const childIdOf = parentMock()
-    let polls = 0
-    temporal.handles.set('delegation-sess-1', handle({
-      query: async () => (++polls === 1 ? { queued: [] } : { children: [{ childId: childIdOf(), goalFed: true }], queued: [] }),
-    }))
+    temporal.handles.set('delegation-sess-1', handle({ query: async () => ({ queued: [] }) }))
     const accepted: string[] = []
     const error = await g.delegateSubagent({
       sessionId: 'sess-1', goal: 'research', mode: 'empty', queueCapacity: 1,
@@ -402,17 +406,23 @@ describe('delegateSubagent acceptance', () => {
       },
     }).then(() => null, (e: unknown) => e as Error)
     expect(error).toBeInstanceOf(ChildQueueFull)
-    expect(accepted).toHaveLength(1)
+    expect(accepted).toEqual([childIdOf()])
+    expect(temporal.signalWithStart).toHaveBeenCalledOnce()
   })
-  it('times out polling a parent that never accepts', async () => {
-    vi.useFakeTimers()
+  it('returns accepted after the durable start without polling', async () => {
+    // F2 contract: no acceptance poll. One parentState query (the capacity
+    // pre-check), then the durable start, then accepted with the child id.
     const g = gateway()
-    parentMock()
-    temporal.handles.set('delegation-sess-1', handle({ query: async () => ({ children: [], queued: [] }) }))
-    const pending = g.delegateSubagent({ sessionId: 'sess-1', goal: 'research', mode: 'empty', queueCapacity: 1 })
-    const assertion = expect(pending).rejects.toThrow('not accepted (duplicate id?)')
-    await vi.advanceTimersByTimeAsync(31_000)
-    await assertion
+    const childIdOf = parentMock()
+    let queries = 0
+    temporal.handles.set('delegation-sess-1', handle({ query: async () => { queries += 1; return { children: [], queued: [] } } }))
+    const started = Date.now()
+    const result = await g.delegateSubagent({ sessionId: 'sess-1', goal: 'research', mode: 'empty', queueCapacity: 1 })
+    expect(Date.now() - started).toBeLessThan(10_000)
+    expect(result.childId).toBe(childIdOf())
+    expect(result.queued).toBe(true)
+    expect(queries).toBe(1)
+    expect(temporal.signalWithStart).toHaveBeenCalledOnce()
   })
 })
 

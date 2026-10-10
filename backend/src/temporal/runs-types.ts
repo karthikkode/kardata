@@ -116,7 +116,8 @@ export interface DelegateSubagentInput {
 export interface DelegatedChild {
   childId: string
   commandId: string
-  /** True when the child waits in the durable queue instead of running. */
+  /** Accepted with async confirmation: launch, queueing and goal feeding
+   * happen parent-side after the return; the child list shows the truth. */
   queued: boolean
 }
 

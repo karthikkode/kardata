@@ -154,16 +154,22 @@ describe.skipIf(!ENABLED)('delegation door (db.delegate_subagent gateway) [F:bac
         taskQueue: taskQueue(),
       })
       const first = await door('first queued goal')
-      expect(first.queued).toBe(false)
+      expect(first.queued).toBe(true)
       const second = await door('second queued goal')
       expect(second.queued).toBe(true)
-      // Past both caps: an immediate conflict, never the 30 s poll.
+      // Past both caps: an immediate conflict once the queue is observably
+      // full, never a wait. (F2: the pre-check is best-effort; post-start
+      // races resolve async in parentState.)
+      const parentHandle = client.workflow.getHandle(delegationWorkflowId(sessionId))
+      await waitFor(async () => {
+        const state = (await parentHandle.query('parentState')) as { queued?: string[] }
+        return (state.queued ?? []).includes(second.childId)
+      }, 30_000, 'second child to queue')
       const started = Date.now()
       await expect(door('third queued goal')).rejects.toThrow('child queue full (1 waiting)')
       expect(Date.now() - started).toBeLessThan(10_000)
       // Finishing the first promotes the second with its goal fed.
       await client.workflow.getHandle(first.childId).signal('childFinish')
-      const parentHandle = client.workflow.getHandle(delegationWorkflowId(sessionId))
       await parentHandle.signal('parentNoteDone', { childId: first.childId, status: 'finished' })
       await waitFor(async () => {
         const state = (await parentHandle.query('parentState')) as { children: Array<{ childId: string }> }
@@ -177,4 +183,36 @@ describe.skipIf(!ENABLED)('delegation door (db.delegate_subagent gateway) [F:bac
       else process.env['KARDATA_MAX_CHILDREN_QUEUED'] = previousQueued
     }
   }, 180_000)
+
+  it('accepts 10 parallel delegates without waiting and keeps the parent running', async () => {
+    // F2: delegation returns accepted with the child id as soon as the
+    // start is durably recorded; launch, queueing and goal feeding are
+    // async parent-side. No delegation waits on another.
+    const sessionId = `door-parallel-${Date.now()}`
+    const door = (n: number) => gateway.delegateSubagent({
+      sessionId,
+      goal: `parallel goal ${n}`,
+      mode: 'empty',
+      queueCapacity: 8,
+      fakeSteps: [{ text: `parallel reply ${n}` }],
+      taskQueue: taskQueue(),
+    })
+    const started = Date.now()
+    const results = await Promise.all(Array.from({ length: 10 }, (_, n) => door(n)))
+    expect(Date.now() - started).toBeLessThan(10_000)
+    expect(results).toHaveLength(10)
+    for (const result of results) {
+      expect(result.childId).toMatch(/^child-/)
+      expect(result.queued).toBe(true)
+    }
+    expect(new Set(results.map((result) => result.childId)).size).toBe(10)
+    const parentHandle = client.workflow.getHandle(delegationWorkflowId(sessionId))
+    await waitFor(async () => {
+      const state = (await parentHandle.query('parentState')) as { children: Array<{ childId: string }>; queued?: string[] }
+      const seen = new Set([...state.children.map((child) => child.childId), ...(state.queued ?? [])])
+      return results.every((result) => seen.has(result.childId))
+    }, 30_000, 'all 10 accepted children to land')
+    const launched = ((await parentHandle.query('parentState')) as { children: Array<{ childId: string }> }).children.map((child) => child.childId)
+    for (const childId of launched) await client.workflow.getHandle(childId).signal('childFinish')
+  }, 120_000)
 })

@@ -45,7 +45,6 @@ import {
   requireWorkflowType,
   sendTraceparent,
   signalRunCancel,
-  sleep,
   steerQueuedChild,
 } from './runs-helpers.js'
 import {
@@ -292,14 +291,15 @@ export class TemporalRunsGateway implements RunsGateway {
     return { commandId: commandId(), state: 'accepted' }
   }
 
-  /** Delegation door: refuse fast when the durable queue is full (409,
-   * never the 30 s poll), else signal-with-start the session's parent
-   * (first delegation creates it), wait for the child to start or queue,
-   * then feed the goal as its first work item unless the parent already
-   * fed it on promotion. The child id is caller-generated — workflows
-   * never mint ids — so the caller learns it synchronously for
-   * collect/steer. Depth 0 and maxDepth 0 keep pilot children leaf
-   * researchers. */
+  /** Delegation door: refuse fast when the durable queue is observably
+   * full (409, best-effort pre-check), else signal-with-start the
+   * session's parent (first delegation creates it) and return accepted
+   * with the child id as soon as the start is durably recorded. Launch,
+   * queueing and goal feeding are async parent-side; confirmation —
+   * including capacity refusals — is observed via the child list, never
+   * awaited. The child id is caller-generated — workflows never mint
+   * ids — so the caller learns it synchronously for collect/steer.
+   * Depth 0 and maxDepth 0 keep pilot children leaf researchers. */
   async delegateSubagent(input: DelegateSubagentInput): Promise<DelegatedChild> {
     const childId = `child-${randomUUID()}`
     const client = await this.client()
@@ -333,38 +333,11 @@ export class TemporalRunsGateway implements RunsGateway {
       ],
       args: [{ sessionId: input.sessionId,ownerEpochProtocol: true,maxInFlight: caps.maxInFlight,maxQueued: caps.maxQueued }],
     }))
-    // Async child start: duplicates reject, over-cap queues durably, queue-full racers fail fast.
-    const deadline = Date.now() + 30_000
-    for (;;) {
-      try {
-        const state = (await parent.query('parentState')) as {
-          children: Array<{ childId: string; goalFed?: boolean }>
-          queued?: string[]
-          rejected?: Array<{ childId: string; reason: string }>
-        }
-        const launched = state.children.find((child) => child.childId === childId)
-        if (launched) {
-          await input.onAccepted?.(childId)
-          if (!launched.goalFed) await client.workflow.getHandle(childId).signal('childMessage', input.goal)
-          return { childId, commandId: commandId(), queued: false }
-        }
-        const refusal = (state.rejected ?? []).find((entry) => entry.childId === childId)
-        if (refusal && refusal.reason.startsWith('child queue full')) throw new ChildQueueFull(refusal.reason)
-        if ((state.queued ?? []).includes(childId)) {
-          await input.onAccepted?.(childId)
-          return { childId, commandId: commandId(), queued: true }
-        }
-      } catch (error) {
-        if (error instanceof ChildQueueFull) throw error
-        // Parent not yet picked up: keep polling until the deadline.
-      }
-      if (Date.now() > deadline) {
-        throw new Error(
-          `delegation ${childId} not accepted (duplicate id?)`,
-        )
-      }
-      await sleep(500)
-    }
+    // Accepted once durably recorded: the parent launches or queues the
+    // child and feeds the goal async. Post-start capacity refusals surface
+    // in parentState, never here.
+    await input.onAccepted?.(childId)
+    return { childId, commandId: commandId(), queued: true }
   }
 
   /** Sector plan start: one workflow per sector, idempotent by

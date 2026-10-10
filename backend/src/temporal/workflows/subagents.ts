@@ -498,9 +498,11 @@ export async function delegateParent(input: DelegateParentInput): Promise<string
         }
         throw error
       }
-      // Promoted launches feed the goal parent-side (the gateway returned
-      // queued without signalling); direct launches leave it to the gateway.
-      const fed = promoted.delete(request.childId)
+      // The gateway returns accepted without waiting, so the parent feeds
+      // every launch (direct and promoted). Old histories keep the
+      // gateway-fed contract via patching.
+      const promotedLaunch = promoted.delete(request.childId)
+      const fed = promotedLaunch || patched('parent-feeds-goal-v1')
       if (fed) await handle.signal(childMessageSignal, request.goal)
       children.set(request.childId, { status: 'running', goalFed: fed, handle })
     }

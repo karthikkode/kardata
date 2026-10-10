@@ -98,9 +98,10 @@ Workflows existed with no production door: nothing could signal
 `parentDelegate`. Now `db.delegate_subagent` (Karbot-only, `operator`)
 launches a leaf researcher: the gateway signal-with-starts the session's
 parent (`delegation-<sessionId>` on the turn lane, served by the
-subagents worker in `dev-worker.ts`), waits for the child to start, then
-feeds the goal as its first work (a launched child with an empty inbox
-would idle forever). Children launch at depth 0 with maxDepth 0:
+subagents worker in `dev-worker.ts`) and returns accepted with the child
+id once recorded; the parent feeds the goal on every launch, async (a
+launched child with an empty inbox would idle forever). Confirmation —
+launch, queueing, capacity refusal — is async via the child list. Children launch at depth 0 with maxDepth 0:
 pilot researchers research, never delegate further. Steering launched
 children stays approver-gated (`db.send_message` / `db.steer_thread`);
 collecting reads the child thread (`agent:<childId>`) plus
