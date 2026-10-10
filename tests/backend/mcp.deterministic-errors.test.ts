@@ -1,9 +1,11 @@
 // F1a: deterministic pre-effect tool errors are retry-safe, never
 // operation-uncertain. Reproduces pilot r0 R0-2 (propose conflict),
 // R0-4 (plan conflict), R0-9 (commit permission) and R0-15 (duplicate
-// monitor) over actual HTTP/MCP dispatch: each must answer isError
+// monitor) over actual HTTP/MCP dispatch: errors must answer isError
 // with the retry-safe marker (so the turn hands the text to the agent
 // instead of parking a blocked operation) and no uncertain marker.
+// R0-15 is idempotent since F4 (same id back, success), which keeps
+// the never-uncertain leg green by construction.
 import { createHmac } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import { Pool } from 'pg'
@@ -90,17 +92,15 @@ describe.skipIf(!TEST_DATABASE_URL)('deterministic tool errors are retry-safe [F
     expect(again.meta?.['kardata/retry-safe-before-effect']).toBe(true)
   })
 
-  it('R0-15: a duplicate start_monitor conflicts retry-safe', async () => {
+  it('R0-15: a duplicate start_monitor returns the existing monitor (F4 idempotent; never uncertain)', async () => {
     const args = { threadKey: normal, everyMinutes: 5, brief: 'TEST duplicate monitor' }
     const first = await call('ops.start_monitor', args, normal)
     expect(first.status).toBe(200)
     expect(first.isError).not.toBe(true)
     const result = await call('ops.start_monitor', args, normal)
     expect(result.status).toBe(200)
-    expect(result.isError).toBe(true)
-    expect(result.text).toContain('conflict')
-    expect(result.text).toContain('already running')
-    expect(result.meta?.['kardata/retry-safe-before-effect']).toBe(true)
+    expect(result.isError).not.toBe(true)
+    expect((JSON.parse(result.text) as { id: string }).id).toBe((JSON.parse(first.text) as { id: string }).id)
     expect(result.meta?.['kardata/operation-uncertain']).toBeUndefined()
   })
 })
