@@ -3,7 +3,7 @@
 // the handler table (tool-invokers.ts).
 import type { Logger } from 'pino'
 import type { Role, Scope } from '../auth/types.js'
-import { DbContractError, type MonitorRunner, type SectorSweepRunner, type ThreadMessenger, type TransactableDb } from '../db/index.js'
+import { DbContractError, WorkspaceError, type MonitorRunner, type SectorSweepRunner, type ThreadMessenger, type TransactableDb } from '../db/index.js'
 import { type SubagentDelegator } from '../temporal/runs-types.js'
 import type { ArchiveTarget } from '../archive/targets.js'
 import { type FileProcessorRunner } from '../file-ingestion.js'
@@ -54,6 +54,20 @@ export class McpToolError extends Error {
 /** Only explicit pre-dispatch failures may release a mutation replay guard. */
 export class McpPreconditionError extends DbContractError {
   readonly wireCode = 'unconfigured'
+}
+
+/** Deterministic pre-effect failures are retry-safe by construction, like
+ * McpPreconditionError: DbContractError is input parsing, WorkspaceError is
+ * a guard verdict (not_found/conflict/permission_denied/validation_failed),
+ * and McpToolError carries the same guard codes from the dispatcher and
+ * invokers. Retrieval codes (unconfigured/blocked/fetch_failed/overload)
+ * and unknown failures stay uncertain: a partial effect after dispatch
+ * cannot be ruled out. */
+const RETRY_SAFE_TOOL_CODES = new Set(['validation_failed', 'permission_denied', 'conflict', 'not_found'])
+export function isRetrySafeBeforeEffect(error: unknown): boolean {
+  if (error instanceof DbContractError) return true
+  if (error instanceof WorkspaceError) return true
+  return error instanceof McpToolError && RETRY_SAFE_TOOL_CODES.has(error.code)
 }
 
 /** Skill-scoped grant: when present, only the listed tools may run. Skill

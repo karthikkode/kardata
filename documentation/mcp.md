@@ -183,10 +183,14 @@ cannot read or control a parent conversation merely because the parent has no
 sector binding. Human UI inspection and general Karbot parent monitoring remain
 separate authorized paths.
 
-Only server-typed missing-runner preconditions are marked retry-safe before
-an effect. Those failures release their replay guard so the same operation can
-recover after configuration returns. Ordinary/uncertain mutation errors remain
-recorded and are not blindly re-executed. Children cannot rename parent sessions.
+Deterministic pre-effect failures are marked retry-safe before an effect:
+missing-runner preconditions, input-contract violations (DbContractError),
+guard verdicts (WorkspaceError), and the same guard codes from the
+dispatcher and invokers (McpToolError validation/permission/conflict/
+not-found). Those failures release their replay guard and hand their
+text to the agent instead of parking a blocked operation. Genuinely
+uncertain outcomes (timeouts/transport after dispatch) remain recorded
+and are not blindly re-executed. Children cannot rename parent sessions.
 
 The internal outbox subscription tool rejects a supervised connection failure
 instead of returning a healthy timeout. Its wait timer is cleared on failure;

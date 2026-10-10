@@ -20,7 +20,7 @@ import { TOOL_NAMES, TOOL_SCHEMAS, type McpToolName } from './schemas.js'
 import { isPdfDocumentUpload } from '../file-ingestion.js'
 
 import { INVOKERS } from './tool-invokers.js'
-import { McpPreconditionError, McpToolError, type McpToolContext, type ToolGrant } from './tools-types.js'
+import { isRetrySafeBeforeEffect, McpPreconditionError, McpToolError, type McpToolContext, type ToolGrant } from './tools-types.js'
 
 /** Layer function behind each tool; the parity test pins this table. */
 export const TOOL_LAYER: Record<McpToolName, string> = {
@@ -416,7 +416,7 @@ export function createMcpServer(ctx: McpToolContext, grant: ToolGrant = {}): Mcp
               ? ' Do not fill this gap from memory: report what you could not verify, or retry once with a narrower query.'
               : ''
           const text = code === 'internal' ? `${name}: internal error` : `${code}: ${message}${directive}`
-          const beforeEffect = error instanceof ContextFileBlocked && ['db.propose_global_context','db.propose_file_context','db.commit_child_context'].includes(name) || error instanceof McpPreconditionError || (typeof error === 'object' && error !== null && preDispatchFailures.has(error))
+          const beforeEffect = error instanceof ContextFileBlocked && ['db.propose_global_context','db.propose_file_context','db.commit_child_context'].includes(name) || (typeof error === 'object' && error !== null && preDispatchFailures.has(error)) || isRetrySafeBeforeEffect(error)
           return { content: [{ type: 'text' as const, text }], isError: true, ...(beforeEffect ? { _meta: { 'kardata/retry-safe-before-effect': true } } : toolCapability(name) !== 'read' ? { _meta: { 'kardata/operation-uncertain': true } } : {}) }
         }
       },
