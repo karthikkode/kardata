@@ -522,7 +522,7 @@ describe('mcp transport (Phase 2) [F:http.mcpRpc]', () => {
       if (/FROM api_keys/.test(text)) {
         return {
           rowCount: 1,
-          rows: [{ key_id: `k-${role}`, tenant_id: 'tenant-a', project_id: null, roles: role }] as never,
+          rows: [{ key_id: `k-${role}`, tenant_id: 'tenant-a', project_id: null, roles: role, client: 'agent-mcp' }] as never,
         }
       }
       if (/FROM heartbeats|FROM events/.test(text)) {
@@ -567,7 +567,7 @@ describe('mcp transport (Phase 2) [F:http.mcpRpc]', () => {
       if (/FROM api_keys/.test(text)) {
         return {
           rowCount: 1,
-          rows: [{ key_id: 'k-viewer', tenant_id: 'tenant-a', project_id: null, roles: 'viewer' }] as never,
+          rows: [{ key_id: 'k-viewer', tenant_id: 'tenant-a', project_id: null, roles: 'viewer', client: 'agent-mcp' }] as never,
         }
       }
       throw new QueryReached(text)

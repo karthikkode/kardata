@@ -3996,3 +3996,11 @@ allows both origins. PR #48: deploy boots backend before workers
 (simultaneous recreate let workers probe `/mcp` too early and bake an
 "unreachable" FATAL into fresh logs). Deploy green, preflight 204,
 authenticated `/v1/sectors` 200.
+
+## 2026-10-10 — F1a verification: mcp.tools keyRow drift fixed
+Pre-existing red at HEAD (2 tests): `keyRow` fakes returned api_keys
+rows without `client`, so strict KeyRow parsing threw DbContractError
+→ 500 on every authenticated call. Test-side drift from the P8-M1
+client column; `as never` hid it from typecheck. Fixed the fakes
+(client 'agent-mcp'); 32/32 green. Same family unverified:
+db.key-provisioning toEqual without client.
