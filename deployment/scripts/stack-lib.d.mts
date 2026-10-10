@@ -47,3 +47,5 @@ export const RESOURCE_PROFILES: { lean: ResourceProfile; full: ResourceProfile }
 export const STAGING_PORTS: number[]
 export const PROD_PORTS: number[]
 export function portsDisjointVerdict(args?: { staging?: number[]; prod?: number[] }): Verdict
+export const PILOT_RO_ROLE: string
+export function pilotRoStatements(args: { role?: string; owner: string; password: string; database: string }): string[]

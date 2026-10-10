@@ -174,3 +174,24 @@ export function formatVerdict(name, verdict) {
   for (const fix of verdict.fix) lines.push(`         $ ${fix}`)
   return lines.join('\n')
 }
+
+/** Pilot read-only role (B2): CONNECT + SELECT only, default privileges
+ * for future tables. Cluster-global, so migrations (schema-local) must
+ * never create it — `pilot up` runs these statements instead. */
+export const PILOT_RO_ROLE = 'kardata_pilot_ro'
+
+/** Idempotent RO-role statements; run connected to the pilot database.
+ * Reruns rotate nothing: an existing role keeps working (password is
+ * only set at creation; rotation is an explicit owner ritual). */
+export function pilotRoStatements({ role = PILOT_RO_ROLE, owner, password, database }) {
+  if (!owner || !password || !database) throw new Error('pilotRoStatements needs owner, password, database')
+  const ident = (name) => `"${String(name).replace(/"/g, '""')}"`
+  const literal = (value) => `'${String(value).replace(/'/g, "''")}'`
+  return [
+    `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ${literal(role)}) THEN CREATE ROLE ${ident(role)} WITH LOGIN PASSWORD ${literal(password)}; END IF; END $$`,
+    `GRANT CONNECT ON DATABASE ${ident(database)} TO ${ident(role)}`,
+    `GRANT USAGE ON SCHEMA public TO ${ident(role)}`,
+    `GRANT SELECT ON ALL TABLES IN SCHEMA public TO ${ident(role)}`,
+    `ALTER DEFAULT PRIVILEGES FOR ROLE ${ident(owner)} IN SCHEMA public GRANT SELECT ON TABLES TO ${ident(role)}`,
+  ]
+}

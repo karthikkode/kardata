@@ -10,6 +10,8 @@ import {
   ownedTestProcs,
   parityVerdict,
   parseEnvFile,
+  PILOT_RO_ROLE,
+  pilotRoStatements,
   PROD_PORTS,
   RESOURCE_PROFILES,
   STAGING_PORTS,
@@ -213,5 +215,26 @@ describe('RESOURCE_PROFILES', () => {
     expect(RESOURCE_PROFILES.lean.workerReplicas).toBe(1)
     expect(RESOURCE_PROFILES.full.workerReplicas).toBeGreaterThan(RESOURCE_PROFILES.lean.workerReplicas)
     expect(RESOURCE_PROFILES.full.dbPoolServer).toBeGreaterThan(RESOURCE_PROFILES.lean.dbPoolServer)
+  })
+})
+
+describe('pilotRoStatements', () => {
+  const statements = pilotRoStatements({ owner: 'kardata', password: 'TEST-pw', database: 'kardata_pilot' })
+  const text = statements.join('\n')
+
+  it('creates the role idempotently and grants connect + select only', () => {
+    expect(PILOT_RO_ROLE).toBe('kardata_pilot_ro')
+    expect(text).toContain('IF NOT EXISTS')
+    expect(text).toContain('GRANT CONNECT')
+    expect(text).toContain('GRANT SELECT ON ALL TABLES')
+    expect(text).toContain('ALTER DEFAULT PRIVILEGES')
+    expect(text).not.toMatch(/GRANT (INSERT|UPDATE|DELETE|TRUNCATE|ALL PRIVILEGES|CREATE)/)
+  })
+
+  it('requires owner, password and database, and quotes identifiers', () => {
+    expect(() => pilotRoStatements({ owner: '', password: 'x', database: 'd' })).toThrow('owner, password, database')
+    const quoted = pilotRoStatements({ role: 'we"ird', owner: 'kardata', password: "p'w", database: 'd' }).join('\n')
+    expect(quoted).toContain('"we""ird"')
+    expect(quoted).toContain("'p''w'")
   })
 })
