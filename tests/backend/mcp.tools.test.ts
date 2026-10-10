@@ -605,6 +605,13 @@ describe('mcp transport (Phase 2) [F:http.mcpRpc]', () => {
     }
   })
 
+  it('web_search description says once-and-proceed when unconfigured (F8a/R0-5)', () => {
+    const description = TOOL_META['web_search'].description
+    expect(description).toContain('say so once')
+    expect(description).toContain('db.kb_search')
+    expect(description).toContain('web_fetch')
+  })
+
   it('a grant header narrows list and blocks calls outside it server-side', async () => {
     const { db } = makeFake(async (text) => {
       if (/FROM heartbeats/.test(text)) {
