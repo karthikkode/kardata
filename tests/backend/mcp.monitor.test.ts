@@ -56,7 +56,12 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP monitor tools [F:mcp.ops.start_monitor]
     expect(started.karbotSessionId).toBe(karbotSession)
     expect(new Date(started.until).getTime()).toBeGreaterThan(Date.now() + 23 * 60 * 60 * 1000)
     expect(fake.monitorsStarted.at(-1)).toMatchObject({ monitorId: started.id, everyMs: 5 * 60 * 1000 })
-    await expect(invokeTool('ops.start_monitor', karbot(), { sectorId: sectorA, everyMinutes: 10, brief: 'again' })).rejects.toMatchObject({ code: 'conflict' })
+    // F4: a tick that re-registers gets the existing id back (no runner
+    // restart), not a conflict — the conflict used to ride the uncertain
+    // recovery path and brick the tick thread.
+    const again = await invokeTool('ops.start_monitor', karbot(), { sectorId: sectorA, everyMinutes: 10, brief: 'again' }) as { id: string }
+    expect(again.id).toBe(started.id)
+    expect(fake.monitorsStarted.filter((entry) => entry.monitorId === started.id)).toHaveLength(1)
     const threaded = await invokeTool('ops.start_monitor', karbot(), { threadKey: sessionA, everyMinutes: 120, brief: 'watch thread' }) as { id: string }
     expect(threaded.id).not.toBe(started.id)
   })

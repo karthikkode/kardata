@@ -65,7 +65,7 @@ export async function monitorTickActivity(input: { monitorId: string }): Promise
       // leaked one: own the connection here and close it in finally.
       const connection = await connectClient()
       try {
-        await new TemporalRunsGateway(pool, connection).send(claimed.karbotThreadKey, `[Monitor ${claimed.id}] ${claimed.brief}\n${snapshot}`)
+        await new TemporalRunsGateway(pool, connection).send(claimed.karbotThreadKey, `[Monitor ${claimed.id}] ${claimed.brief}\n${snapshot}\nThis monitor is already running: do not call ops.start_monitor for this target; report the snapshot, nothing more.`)
       } finally {
         await connection.close()
       }

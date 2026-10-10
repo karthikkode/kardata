@@ -142,7 +142,10 @@ it grants no research-parent, context-inclusion or owner-approval authority.
   idempotent replay; fake/di doubles only, no live keys).
 - Monitor lifecycle: a tick skips while the Karbot thread runs a turn; a
   stopped row ends the workflow run; starting on a target whose active
-  row passed `until` retires it instead of conflicting.
+  row passed `until` retires it instead of conflicting. Re-registering a
+  live target returns the existing monitor (tenant-scoped read; the
+  runner never restarts), and every tick text tells the turn never to
+  re-register.
 
 Thread-directory MCP reads return metadata and empty message arrays. A directory
 lookup never hydrates parent, sibling or child local transcripts; conversation

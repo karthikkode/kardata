@@ -55,6 +55,18 @@ function toRecord(row: MonitorDbRow): MonitorRecord {
   }
 }
 
+/** Live monitor on one target in one tenant, if any. Tenant-scoped:
+ * the active-target unique index is global, so an unscoped read would
+ * hand back another tenant's row. */
+async function liveMonitorOnTarget(db: TransactableDb, sectorId: string | null, threadKey: string | null, tenantId: string): Promise<MonitorRecord | null> {
+  const row = (
+    sectorId
+      ? await db.query<MonitorDbRow>('SELECT * FROM monitors WHERE stopped_at IS NULL AND target_sector_id = $1 AND tenant_id = $2', [sectorId, tenantId])
+      : await db.query<MonitorDbRow>('SELECT * FROM monitors WHERE stopped_at IS NULL AND target_thread_key = $1 AND tenant_id = $2', [threadKey as string, tenantId])
+  ).rows[0]
+  return row ? toRecord(row) : null
+}
+
 export interface StartMonitorInput {
   sectorId?: string
   threadKey?: string
@@ -67,7 +79,9 @@ export interface StartMonitorInput {
 }
 
 /** Start one monitor. Exactly one target; a live monitor on the same
- * target conflicts. A failed workflow start compensates by deleting
+ * target in this scope returns as-is (idempotent re-register: a tick
+ * that calls start_monitor gets the existing id back, and the runner
+ * never restarts). A failed workflow start compensates by deleting
  * the row, so a retry never sees a phantom monitor. */
 export async function startMonitor(db: TransactableDb, runner: MonitorRunner | undefined, input: StartMonitorInput): Promise<MonitorRecord> {
   const targets = [input.sectorId, input.threadKey].filter((target): target is string => typeof target === 'string')
@@ -84,10 +98,13 @@ export async function startMonitor(db: TransactableDb, runner: MonitorRunner | u
   if (threadKey) await requireThread(db, threadKey, input.scope)
   // A row whose workflow died with it (a failed finishMonitorActivity
   // closes the execution) never finishes itself: retire expired rows on
-  // this target so the unique index stops blocking new monitors. Live
-  // rows still conflict below.
+  // this target so the unique index stops blocking new monitors.
   if (sectorId) await db.query('UPDATE monitors SET stopped_at = now() WHERE stopped_at IS NULL AND until < now() AND target_sector_id = $1', [sectorId])
   else await db.query('UPDATE monitors SET stopped_at = now() WHERE stopped_at IS NULL AND until < now() AND target_thread_key = $1', [threadKey as string])
+  // Idempotent fast path: the unique index is global per target, so the
+  // read stays tenant-scoped — another tenant's row never returns here.
+  const live = await liveMonitorOnTarget(db, sectorId ?? null, threadKey ?? null, input.scope.tenantId)
+  if (live) return live
   const id = randomUUID()
   try {
     await db.query(
@@ -96,7 +113,13 @@ export async function startMonitor(db: TransactableDb, runner: MonitorRunner | u
       [id, sectorId ?? null, threadKey ?? null, input.everyMinutes, input.brief, new Date(untilMs).toISOString(), input.karbotSessionId, input.karbotThreadKey, `karbot-monitor-${id}`, input.scope.tenantId, input.scope.projectId],
     )
   } catch (error: unknown) {
-    if (error instanceof Error && 'code' in error && (error as { code: string }).code === '23505') throw new WorkspaceError('conflict', 'A monitor is already running on this target.')
+    if (error instanceof Error && 'code' in error && (error as { code: string }).code === '23505') {
+      // Lost a start race, or the scope checks passed a target another
+      // tenant holds: return ours when it is ours, else stay conflicted.
+      const winner = await liveMonitorOnTarget(db, sectorId ?? null, threadKey ?? null, input.scope.tenantId)
+      if (winner) return winner
+      throw new WorkspaceError('conflict', 'A monitor is already running on this target.')
+    }
     throw error
   }
   try {

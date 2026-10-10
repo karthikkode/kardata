@@ -273,7 +273,7 @@ export const TOOL_META: Record<McpToolName, { description: string; minRole: Role
   'ops.spawn_subagent': { description: 'Launch a leaf subagent under one thread’s session, inheriting that thread. Mirrors db.delegate_subagent: operator.', minRole: 'operator' },
   'ops.restart_sector_research': { description: 'Restart a sector’s research sweep. Mirrors the route floor: operator.', minRole: 'operator' },
   'db.request_plan': { description: 'Send a plan instruction to a sector’s research session. Karbot never writes the plan. Sensitive: approver plus user confirmation.', minRole: 'approver' },
-  'ops.start_monitor': { description: 'Watch a sector or thread: post the brief plus a health snapshot into this session every 5-120 minutes, until `until` (default 24h). One monitor per target.', minRole: 'operator' },
+  'ops.start_monitor': { description: 'Watch a sector or thread: post the brief plus a health snapshot into this session every 5-120 minutes, until `until` (default 24h). One monitor per target; re-registering the same target returns the existing monitor.', minRole: 'operator' },
   'ops.stop_monitor': { description: 'Stop a monitor by id or target. Already-stopped monitors accept quietly.', minRole: 'operator' },
   'ops.list_monitors': { description: 'List monitors in scope, newest first.', minRole: 'viewer' },
 }

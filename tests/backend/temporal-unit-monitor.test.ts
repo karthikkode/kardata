@@ -97,6 +97,19 @@ describe('monitor tick [F:backend.activity.monitor.monitorTickActivity] [F:backe
     expect(db.releaseMonitorTick).toHaveBeenCalledWith(db.pool, 'mon-1')
     expect(net.close).toHaveBeenCalledOnce()
   })
+  it('tells the tick turn never to re-register this monitor', async () => {
+    const claimed = monitor({ targetSectorId: 'sec-1' })
+    db.getMonitor.mockResolvedValueOnce(monitor({ targetSectorId: 'sec-1' }))
+    db.threadTurnBusy.mockResolvedValueOnce(false)
+    db.claimMonitorTick.mockResolvedValueOnce(claimed)
+    db.researchHealth.mockResolvedValueOnce({ sector: { name: 'Optics', state: 'running' }, liveThreads: 0, recentSupervision: [] })
+    db.listSupervisionAlerts.mockResolvedValueOnce({ items: [] })
+    net.connect.mockResolvedValueOnce({ close: net.close })
+    net.send.mockResolvedValueOnce({ commandId: 'c', state: 'accepted' })
+    await expect(monitorTickActivity({ monitorId: 'mon-1' })).resolves.toEqual({ ticked: true })
+    const [, text] = net.send.mock.calls[0] as [string, string]
+    expect(text).toContain('do not call ops.start_monitor')
+  })
   it('posts a thread snapshot with stalled and last-round detail', async () => {
     db.getMonitor.mockResolvedValueOnce(monitor({ targetThreadKey: 'sess-9' }))
     db.threadTurnBusy.mockResolvedValueOnce(false)
