@@ -63,6 +63,8 @@ because durable children have no wall clock across replays. Proven by
   `childFinishTimeoutMs` (default 1 h) completes itself as cancelled.
   The completion entry carries the close kind (`done`/`idle`/…); the
   thread row keeps it as `state_reason` (legacy `finished` reads `done`).
+  `SubagentsPanel` captions FINISHED+`idle` as Idle (idle tone) and
+  FINISHED+`done` as Done (ok tone): the close kind is visible as such.
   Fan-out cap: delegations arriving while `maxInFlight` children run
   (default 50) wait in the durable queue (`t.subagent.queued`, cap
   `maxQueued` default 2000; past it they reject and the gateway refuses

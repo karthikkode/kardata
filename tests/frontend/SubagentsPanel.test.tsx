@@ -103,4 +103,17 @@ describe('SubagentsPanel', () => {
     expect(onStopThread).toHaveBeenCalledWith('agent:child-9')
     expect(screen.getByText('Queued scout stopped.')).toBeInTheDocument()
   })
+
+  // F3d: the FINISHED close kind rides state_reason, and the caption
+  // tells done from idle instead of calling both done.
+  it('captions a reaped child Idle and a finished child Done', () => {
+    const closed: ThreadView[] = [
+      { key: 'agent:child-d', name: 'Done scout', sessionId: 's-1', kind: 'subagent', status: 'FINISHED', stateReason: 'done', acceptingSteer: false, queueDepth: 0, updatedAt: '' },
+      { key: 'agent:child-i', name: 'Idle scout', sessionId: 's-1', kind: 'subagent', status: 'FINISHED', stateReason: 'idle', acceptingSteer: false, queueDepth: 0, updatedAt: '' },
+    ]
+    render(<SubagentsPanel threads={closed} />)
+    fireEvent.click(screen.getByRole('button', { name: /subagents/ }))
+    expect(screen.getByText('Done')).toBeInTheDocument()
+    expect(screen.getByText('Idle')).toBeInTheDocument()
+  })
 })

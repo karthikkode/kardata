@@ -13,18 +13,18 @@ import { Button } from './ui/button'
 import { IconButton } from './IconButton'
 import { List, ListRow } from './ui/list'
 
-function toneFor(status: string): 'working' | 'ok' | 'failed' | 'idle' {
+function toneFor(status: string, stateReason?: string): 'working' | 'ok' | 'failed' | 'idle' {
   if (/running/i.test(status)) return 'working'
-  if (/done|finished|complete/i.test(status)) return 'ok'
+  if (/done|finished|complete/i.test(status)) return stateReason === 'idle' ? 'idle' : 'ok'
   if (/fail|error/i.test(status)) return 'failed'
   return 'idle'
 }
 
-function labelFor(status: string): string {
+function labelFor(status: string, stateReason?: string): string {
   if (/running/i.test(status)) return 'Running'
   if (/paused/i.test(status)) return 'Paused'
   if (/queued/i.test(status)) return 'Queued'
-  if (/done|finished|complete/i.test(status)) return 'Done'
+  if (/done|finished|complete/i.test(status)) return stateReason === 'idle' ? 'Idle' : 'Done'
   if (/fail|error/i.test(status)) return 'Failed'
   if (/stop|cancel/i.test(status)) return 'Stopped'
   return status
@@ -69,7 +69,7 @@ const SubagentRow = memo(function SubagentRow({
   onPause?: (key: string) => void
   onResume?: (key: string) => void
 }) {
-  const tone = toneFor(thread.status)
+  const tone = toneFor(thread.status, thread.stateReason)
   const running = tone === 'working'
   const paused = /paused/i.test(thread.status)
   // Queued children have no workflow yet but accept pause/stop through
@@ -77,7 +77,7 @@ const SubagentRow = memo(function SubagentRow({
   const queued = /queued/i.test(thread.status)
   const name = displayName(thread, index)
   const caption =
-    thread.queueDepth > 0 ? `${thread.queueDepth} queued` : labelFor(thread.status)
+    thread.queueDepth > 0 ? `${thread.queueDepth} queued` : labelFor(thread.status, thread.stateReason)
   return (
     <>
       <button
@@ -210,7 +210,7 @@ export function SubagentsPanel({
 }) {
   const subagentList = useExitState()
   const [announcement, setAnnouncement] = useState<string | null>(null)
-  const runningThreads = threads.filter((thread) => toneFor(thread.status) === 'working').length
+  const runningThreads = threads.filter((thread) => toneFor(thread.status, thread.stateReason) === 'working').length
 
   const toggleLabel =
     runningThreads > 0
