@@ -14,8 +14,10 @@ test.describe('P10 hundred companies', () => {
     const state = loadState()
     if (!state.sectorName) throw new Error('P1 must run first (no sectorName in state)')
     await rec.mark('wait-hundred', async () => {
+      // SectorDetail landing: the header count ('N companies') plus the
+      // Research status region carry the live totals.
       await page.goto('/?section=Researches')
-      await page.getByText(state.sectorName!).first().click()
+      await page.getByRole('table', { name: 'Sectors' }).getByRole('link', { name: state.sectorName }).first().click()
       await waitVisible(page, page.getByText(/10\d|100\+? companies/i), {
         step: 'p10',
         ceilingMs: 3_400_000,

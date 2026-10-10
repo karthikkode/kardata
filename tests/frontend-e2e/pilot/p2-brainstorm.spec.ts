@@ -5,7 +5,7 @@
 import { expect, test } from '@playwright/test'
 import { join } from 'node:path'
 import { loadState, pilotRunEnabled, repoRoot, saveState } from './state.js'
-import { expectClean, startRecording, waitVisible } from './record.js'
+import { expectClean, openResourceRail, openWorkspace, renameChat, startRecording, waitVisible } from './record.js'
 import { closePilotRo, pilotRoQuery } from './ro.js'
 
 const PROMPTS: Record<string, string> = {
@@ -23,38 +23,39 @@ test.describe('P2 brainstorm chats', () => {
     const state = loadState()
     if (!state.sectorName) throw new Error('P1 must run first (no sectorName in state)')
     await rec.mark('open-sector', async () => {
-      await page.goto('/?section=Researches')
-      await page.getByText(state.sectorName!).first().click()
+      await openWorkspace(page, state.sectorName!)
     })
     const chats: Record<string, string> = { ...state.chats }
     for (const [key, prompt] of Object.entries(PROMPTS)) {
       if (chats[key]) continue
       await rec.mark(`new-chat-${key}`, async () => {
         await page.getByRole('button', { name: 'New chat' }).click()
-        await page.getByLabel(/Message the .* chat/).fill(prompt)
-        await page.getByRole('button', { name: 'Send' }).click()
+        // Deterministic titles: P4/P5 open chats by name.
+        await renameChat(page, `pilot-${key}`)
+        await page.getByLabel('Message this conversation').fill(prompt)
+        await page.getByRole('button', { name: 'Send message' }).click()
         chats[key] = prompt
       })
     }
     saveState({ chats })
+    const rail = await openResourceRail(page)
     await rec.mark('findings-files', async () => {
-      await page.getByRole('link', { name: 'Files' }).click()
+      const files = rail.getByRole('list', { name: 'Files' })
       for (const key of Object.keys(PROMPTS)) {
-        await waitVisible(page, page.getByText('findings', { exact: false }).or(page.getByText(key)), {
+        await waitVisible(page, files.getByText('findings', { exact: false }).or(files.getByText(key)), {
           step: 'p2',
           ceilingMs: 3_000_000,
         })
       }
     })
     await rec.mark('uploads', async () => {
-      const chooser = page.waitForEvent('filechooser')
-      await page.getByRole('button', { name: 'Attach file' }).click()
-      await (await chooser).setFiles([
-        join(repoRoot(), 'tests', 'backend', 'live', 'fixtures', 'market-notes.md'),
-        join(repoRoot(), 'tests', 'backend', 'live', 'fixtures', 'report.pdf'),
-      ])
-      await expect(page.getByText('market-notes.md')).toBeVisible({ timeout: 60000 })
-      await expect(page.getByText('report.pdf')).toBeVisible({ timeout: 60000 })
+      // One file per Upload: the picker warns and takes the first on multi-pick.
+      for (const filename of ['market-notes.md', 'report.pdf']) {
+        const chooser = page.waitForEvent('filechooser')
+        await rail.getByRole('button', { name: 'Upload file' }).click()
+        await (await chooser).setFiles([join(repoRoot(), 'tests', 'backend', 'live', 'fixtures', filename)])
+        await expect(rail.getByRole('list', { name: 'Files' }).getByText(filename)).toBeVisible({ timeout: 60000 })
+      }
     })
     await rec.shot('files')
     await rec.mark('ro-verify', async () => {

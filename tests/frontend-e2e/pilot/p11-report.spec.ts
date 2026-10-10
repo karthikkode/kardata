@@ -3,7 +3,7 @@
 // and readable from Files.
 import { expect, test } from '@playwright/test'
 import { loadState, pilotRunEnabled } from './state.js'
-import { expectClean, startRecording, waitVisible } from './record.js'
+import { expectClean, openResourceRail, openWorkspace, startRecording, waitVisible } from './record.js'
 import { closePilotRo, pilotRoQuery } from './ro.js'
 
 test.describe('P11 final report', () => {
@@ -15,22 +15,24 @@ test.describe('P11 final report', () => {
     const state = loadState()
     if (!state.sectorName) throw new Error('P1 must run first (no sectorName in state)')
     await rec.mark('ask-report', async () => {
-      await page.goto('/?section=Researches')
-      await page.getByText(state.sectorName!).first().click()
-      await page.getByRole('link', { name: 'Chats' }).click()
-      await page.getByLabel(/Message the .* chat/).fill('Write a final summary report of the 100 researched companies.')
-      await page.getByRole('button', { name: 'Send' }).click()
-    })
-    await rec.mark('report-file', async () => {
-      await page.getByRole('link', { name: 'Files' }).click()
-      await waitVisible(page, page.getByText(/report|summary/i).first(), {
+      await openWorkspace(page, state.sectorName!)
+      // The research chat lives under the Chats tab; P5 named it.
+      await page.getByRole('tab', { name: /Chats/ }).click()
+      await page.getByRole('button', { name: 'Open pilot-research' }).click()
+      await page.getByLabel('Message this conversation').fill('Write the final report as a file.')
+      await page.getByRole('button', { name: 'Send message' }).click()
+      await waitVisible(page, page.getByText(/report|summary|complete|done/i), {
         step: 'p11',
         ceilingMs: 1_800_000,
       })
-      await page.getByText(/report|summary/i).first().click()
+    })
+    await rec.mark('report-file', async () => {
+      const rail = await openResourceRail(page)
+      const files = rail.getByRole('list', { name: 'Files' }).getByRole('button', { name: /report|summary/i }).first()
+      await expect(files).toBeVisible({ timeout: 300000 })
+      await files.click()
       await expect(page.getByText(/100|companies/i).first()).toBeVisible({ timeout: 60000 })
     })
-    await rec.shot('report')
     await rec.mark('indexed', async () => {
       const rows = await pilotRoQuery<{ units: string }>(
         `SELECT count(*) AS units FROM sector_document_units WHERE document_id IN

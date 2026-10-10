@@ -84,6 +84,55 @@ export async function waitVisible(
   }
 }
 
+/** Open the sector workspace: Researches → sector row link (v2
+ * researches.spec.ts) → Open workspace → session rail ready. */
+export async function openWorkspace(page: Page, sectorName: string): Promise<void> {
+  await page.goto('/?section=Researches')
+  await page.getByRole('table', { name: 'Sectors' }).getByRole('link', { name: sectorName }).first().click()
+  await page.getByRole('button', { name: 'Open workspace' }).click()
+  await expect(page.getByRole('tablist', { name: 'Session types' })).toBeVisible({ timeout: 15000 })
+}
+
+/** Open the resource rail dialog (Sector files + Global context).
+ * The pilot runs at 1280px (Desktop Chrome), so the rail is always the
+ * 'Files and global context' dialog (v2 context.spec.ts railScope). */
+export async function openResourceRail(page: Page): Promise<Locator> {
+  await page.getByRole('button', { name: 'Open files and global context' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Files and global context' })
+  await expect(dialog).toBeVisible()
+  return dialog
+}
+
+/** Rename the current chat (Conversation options → Rename dialog). */
+export async function renameChat(page: Page, title: string): Promise<void> {
+  await page.getByRole('button', { name: 'Conversation options' }).click()
+  await page.getByRole('menuitem', { name: 'Rename' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Rename chat' })
+  await dialog.getByLabel('Chat name').fill(title)
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await expect(dialog).toBeHidden()
+}
+
+/** Poll a text getter until it differs from `before` (captured here
+ * unless the caller passes one — needed when the action navigates and
+ * the getter only works afterwards), or the ceiling. */
+export async function waitTextChange(
+  page: Page,
+  get: () => Promise<string | null>,
+  options: { step: string; ceilingMs: number; before?: string | null },
+): Promise<string> {
+  const before = options.before ?? (await get())
+  const start = Date.now()
+  for (;;) {
+    const now = await get()
+    if (now !== null && now !== before) return now
+    if (Date.now() - start > options.ceilingMs) {
+      throw new Error(`pilot ${options.step}: ceiling ${options.ceilingMs}ms reached; text still: ${before ?? 'unknown'}`)
+    }
+    await page.waitForTimeout(5000)
+  }
+}
+
 /** Every step ends clean: no console errors, no failed /v1 calls. */
 export function expectClean(record: StepRecord): void {
   expect(record.consoleErrors, `console errors: ${record.consoleErrors.join(' | ')}`).toEqual([])

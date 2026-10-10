@@ -3,7 +3,7 @@
 // Proves no stuck spinners, no duplicated rows, drafts kept.
 import { expect, test } from '@playwright/test'
 import { loadState, pilotRunEnabled } from './state.js'
-import { expectClean, startRecording } from './record.js'
+import { expectClean, openWorkspace, startRecording } from './record.js'
 
 test.describe('P12 reconnect', () => {
   test.skip(!pilotRunEnabled(), 'needs KARDATA_PILOT_RUN=1 (pilot stack)')
@@ -14,10 +14,10 @@ test.describe('P12 reconnect', () => {
     const state = loadState()
     if (!state.sectorName) throw new Error('P1 must run first (no sectorName in state)')
     await rec.mark('start-stream', async () => {
-      await page.goto('/?section=Researches')
-      await page.getByText(state.sectorName!).first().click()
-      await page.getByLabel(/Message the .* chat/).fill('Summarise the current research state in one paragraph.')
-      await page.getByRole('button', { name: 'Send' }).click()
+      await openWorkspace(page, state.sectorName!)
+      await page.getByRole('button', { name: 'Open pilot-research' }).click()
+      await page.getByLabel('Message this conversation').fill('Summarise the current research state in one paragraph.')
+      await page.getByRole('button', { name: 'Send message' }).click()
       await page.waitForTimeout(3000)
     })
     await rec.mark('reload-mid-stream', async () => {
@@ -26,8 +26,9 @@ test.describe('P12 reconnect', () => {
       await expect(page.getByRole('progressbar')).toHaveCount(0, { timeout: 90000 })
     })
     await rec.mark('switch-sessions', async () => {
-      await page.getByRole('link', { name: 'Researches' }).click()
-      await page.getByText(state.sectorName!).first().click()
+      // Research chat → brainstorm chat → back: nothing stuck.
+      await page.getByRole('button', { name: 'Open pilot-icp' }).click()
+      await page.getByRole('button', { name: 'Open pilot-research' }).click()
       await expect(page.getByRole('progressbar')).toHaveCount(0, { timeout: 90000 })
     })
     await rec.mark('reopen-tab', async () => {
