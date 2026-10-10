@@ -15,8 +15,8 @@ import type { RunsGateway } from '../temporal/runs-types.js'
 import type { ArchiveTarget } from '../archive/targets.js'
 import { childLogger } from '../observability/logging.js'
 import { TOOL_NAMES, type McpToolName } from './schemas.js'
-import { createMcpServer, toolCapability, TOOL_META } from './tools.js'
-import { type ToolGrant } from './tools-types.js'
+import { createMcpServer, parseToolArgs, PLATFORM_INTERNAL_TOOLS, toolCapability, TOOL_META } from './tools.js'
+import { McpToolError, type ToolGrant } from './tools-types.js'
 import { keyClientToEvent, requirePool, route, sendError, withIdempotency, header } from '../routes/http.js'
 import { setEventClient } from '../observability/ambient.js'
 import { inspectOperationReceipt, recordOperationIntent, recordOperationResult, recoverOperationResult } from '../db/operation-receipts.js'
@@ -102,6 +102,24 @@ export function mcpRoutes(app: FastifyInstance): void {
     const params = typeof rpc?.['params'] === 'object' && rpc['params'] !== null ? rpc['params'] as Record<string, unknown> : undefined
     const name = params?.['name']
     const toolName = rpc?.['method'] === 'tools/call' && typeof name === 'string' && (TOOL_NAMES as readonly string[]).includes(name) ? name as McpToolName : undefined
+    if (rpc?.['method'] === 'tools/call' && toolName !== undefined && params
+      && roleLevelAtLeast(auth.role, TOOL_META[toolName].minRole)
+      && (grant.allow === undefined || grant.allow.has(toolName))
+      && !((auth.scope !== undefined || executionThread !== undefined) && PLATFORM_INTERNAL_TOOLS.has(toolName))) {
+      // Boundary pre-validation (R0-6): the SDK validates args before our
+      // handler runs and answers bare isError results our marker logic
+      // never sees, so violations bricked as uncertain. Enforce the
+      // identical schema here with our marked verdict instead — behind the
+      // same role/grant/platform gates the dispatcher checks first, so
+      // verdict order is unchanged. Invalid input never dispatches and
+      // never claims an idempotency guard.
+      try {
+        parseToolArgs(toolName, params['arguments'])
+      } catch (error) {
+        if (!(error instanceof McpToolError)) throw error
+        return reply.code(200).send(JSON.stringify({ jsonrpc: '2.0', id: rpc['id'], result: { content: [{ type: 'text', text: `validation_failed: ${error.message}` }], isError: true, _meta: { 'kardata/retry-safe-before-effect': true } } }))
+      }
+    }
     const cacheable = toolName !== undefined && toolCapability(toolName) !== 'read'
       && roleLevelAtLeast(auth.role, TOOL_META[toolName].minRole)
       && (grant.allow === undefined || grant.allow.has(toolName))

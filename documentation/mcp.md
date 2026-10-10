@@ -28,6 +28,11 @@ Rules in force:
   first response byte-identical, key reuse for a different request is
   409). Without a pool the route fails closed with 503 `overload`;
   without a JSON body it answers 400 `validation_failed`.
+- `tools/call` arguments are pre-validated against the tool schema at
+  the boundary, behind the dispatcher's role/grant/platform gates:
+  violations answer the marked retry-safe `validation_failed` result
+  without dispatching and without claiming a guard, since the SDK's
+  own check would otherwise swallow the marker.
 - Spec: `POST /mcp` (`operationId: mcpRpc`) in `backend/openapi/v1.yaml`.
 
 ## Auth

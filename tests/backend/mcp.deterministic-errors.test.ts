@@ -72,6 +72,24 @@ describe.skipIf(!TEST_DATABASE_URL)('deterministic tool errors are retry-safe [F
     expect(result.meta?.['kardata/operation-uncertain']).toBeUndefined()
   })
 
+  it('R0-6: oversized update_sector_plan markdown fails retry-safe without dispatching', async () => {
+    const args = { sectorId, markdown: `# TEST oversized\n${'x'.repeat(8000)}` }
+    const key = 'TEST r0-6 oversized markdown'
+    const result = await call('db.update_sector_plan', args, research, key)
+    expect(result.status).toBe(200)
+    expect(result.isError).toBe(true)
+    expect(result.text).toContain('validation_failed')
+    expect(result.text).toContain('Too big')
+    expect(result.meta?.['kardata/retry-safe-before-effect']).toBe(true)
+    expect(result.meta?.['kardata/operation-uncertain']).toBeUndefined()
+    // Invalid input never claims the idempotency guard: the same key
+    // recomputes the same verdict instead of replaying a stored one.
+    const again = await call('db.update_sector_plan', args, research, key)
+    expect(again.status).toBe(200)
+    expect(again.isError).toBe(true)
+    expect(again.meta?.['kardata/retry-safe-before-effect']).toBe(true)
+  })
+
   it('R0-15: a duplicate start_monitor conflicts retry-safe', async () => {
     const args = { threadKey: normal, everyMinutes: 5, brief: 'TEST duplicate monitor' }
     const first = await call('ops.start_monitor', args, normal)

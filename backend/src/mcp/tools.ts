@@ -278,6 +278,19 @@ export const TOOL_META: Record<McpToolName, { description: string; minRole: Role
 
 const preDispatchFailures = new WeakSet<object>()
 
+/** Validates args against the tool schema. Shared by the dispatcher and
+ * the HTTP boundary pre-check so both enforce the identical schema. */
+export function parseToolArgs(name: McpToolName, args: unknown): unknown {
+  const schema = TOOL_SCHEMAS[name] as z.ZodType
+  const parsed = schema.safeParse(args)
+  if (!parsed.success) {
+    const first = parsed.error.issues[0]
+    const where = first ? [...first.path.map(String), first.message].join(': ') : 'invalid input'
+    throw new McpToolError('validation_failed', `${name}: ${where}`)
+  }
+  return parsed.data
+}
+
 /** Validates args against the tool schema, enforces the tool role floor
  * plus the optional skill grant, and dispatches to the bound layer
  * function. */
@@ -297,13 +310,7 @@ export async function invokeTool(
     if (grant.allow !== undefined && !grant.allow.has(name)) {
       throw new McpToolError('permission_denied', `tool ${name} is outside this skill's grant`)
     }
-    const schema = TOOL_SCHEMAS[name] as z.ZodType
-    const parsed = schema.safeParse(args)
-    if (!parsed.success) {
-      const first = parsed.error.issues[0]
-      const where = first ? [...first.path.map(String), first.message].join(': ') : 'invalid input'
-      throw new McpToolError('validation_failed', `${name}: ${where}`)
-    }
+    const parsed = { data: parseToolArgs(name, args) }
     if (ctx.scope && ['db.get_thread', 'db.read_sector_thread', 'db.send_message', 'db.steer_thread', 'db.read_outbox', 'ops.thread_queue', 'ops.queue_remove', 'ops.queue_reorder', 'ops.spawn_subagent'].includes(name)) {
       await requireThread(ctx.pool, (parsed.data as { threadKey: string }).threadKey, ctx.scope)
     }
