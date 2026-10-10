@@ -207,14 +207,18 @@ export function pilotConfig({ pgPort = 5433, pgHost = '127.0.0.1', temporalAddre
 }
 
 /** Idempotent RO-role statements; run connected to the pilot database.
- * Reruns rotate nothing: an existing role keeps working (password is
- * only set at creation; rotation is an explicit owner ritual). */
+ * The ALTER re-asserts the shared password on every run: the role is
+ * cluster-global, so a ghost from an older run (B3 validation's
+ * per-worktree password survived its DB drop) would otherwise keep a
+ * stale secret. The value comes from the never-rotated shared file,
+ * so in steady state this is a no-op, not a rotation. */
 export function pilotRoStatements({ role = PILOT_RO_ROLE, owner, password, database }) {
   if (!owner || !password || !database) throw new Error('pilotRoStatements needs owner, password, database')
   const ident = (name) => `"${String(name).replace(/"/g, '""')}"`
   const literal = (value) => `'${String(value).replace(/'/g, "''")}'`
   return [
     `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ${literal(role)}) THEN CREATE ROLE ${ident(role)} WITH LOGIN PASSWORD ${literal(password)}; END IF; END $$`,
+    `ALTER ROLE ${ident(role)} WITH PASSWORD ${literal(password)}`,
     `GRANT CONNECT ON DATABASE ${ident(database)} TO ${ident(role)}`,
     `GRANT USAGE ON SCHEMA public TO ${ident(role)}`,
     `GRANT SELECT ON ALL TABLES IN SCHEMA public TO ${ident(role)}`,

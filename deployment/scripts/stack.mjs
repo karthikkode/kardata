@@ -5,14 +5,15 @@
 // Verdict logic lives in stack-lib.mjs (pure, unit-tested); this file only
 // gathers facts (docker, git, curl) and acts on them.
 import { execFile, execFileSync, spawn } from 'node:child_process'
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
-import { readFileSync, existsSync, mkdirSync, writeFileSync, openSync, chmodSync, unlinkSync } from 'node:fs'
+import { readFileSync, existsSync, mkdirSync, writeFileSync, openSync, unlinkSync } from 'node:fs'
 import { connect } from 'node:net'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readlinkSync } from 'node:fs'
 import { countRepoTools, fleetVerdict, formatVerdict, freshnessVerdict, ownedTestProcs, parityVerdict, parseEnvFile, PILOT_RO_ROLE, pilotConfig, pilotRoStatements, portsDisjointVerdict, RESOURCE_PROFILES } from './stack-lib.mjs'
+import { loadPilotSecrets } from './pilot-secrets.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '..', '..')
@@ -923,38 +924,18 @@ async function portTaken(port) {
   })
 }
 
-/** Create the pilot agents/.env once (provider keys copied from this
- * checkout, service keys generated); afterwards read-only, never
- * rotated or rewritten. Values stay in this process. */
+/** Pilot secrets (P8-B2): the four service keys live in ONE shared file
+ * in this checkout (var/pilot/secrets.env, generated once, never
+ * rotated) so every run worktree (r1, r2, final-rc) authenticates against
+ * the same pilot-DB key hashes. Values stay in this process. */
 function pilotSecrets(worktree) {
-  const file = join(worktree, 'agents', '.env')
-  if (!existsSync(file)) {
-    const staging = parseEnvFile(readFileSync(join(ROOT, 'agents', '.env'), 'utf8'))
-    const lines = []
-    for (const [key, value] of Object.entries(staging)) {
-      if (['KARDATA_MCP_TOKEN', 'KARDATA_UI_KEY', 'KARDATA_PILOT_VIEWER_KEY', 'KARDATA_PILOT_RO_PASSWORD'].includes(key)) continue
-      lines.push(`${key}=${value}`)
-    }
-    const generated = {
-      KARDATA_MCP_TOKEN: randomBytes(24).toString('hex'),
-      KARDATA_UI_KEY: randomBytes(24).toString('hex'),
-      KARDATA_PILOT_VIEWER_KEY: randomBytes(24).toString('hex'),
-      KARDATA_PILOT_RO_PASSWORD: randomBytes(24).toString('hex'),
-    }
-    for (const [key, value] of Object.entries(generated)) lines.push(`${key}=${value}`)
-    mkdirSync(join(worktree, 'agents'), { recursive: true })
-    writeFileSync(file, `${lines.join('\n')}\n`)
-    chmodSync(file, 0o600)
-    console.log('stack: pilot agents/.env created (provider keys copied, service keys generated)')
+  const stagingEnvText = readFileSync(join(ROOT, 'agents', '.env'), 'utf8')
+  try {
+    return loadPilotSecrets({ checkoutDir: ROOT, worktreeDir: worktree, stagingEnvText })
+  } catch (error) {
+    console.error(error.message)
+    process.exit(1)
   }
-  const parsed = parseEnvFile(readFileSync(file, 'utf8'))
-  for (const key of ['KARDATA_MCP_TOKEN', 'KARDATA_UI_KEY', 'KARDATA_PILOT_VIEWER_KEY', 'KARDATA_PILOT_RO_PASSWORD']) {
-    if (!parsed[key]) {
-      console.error(`stack: pilot ${file} is missing ${key}; add it explicitly (pilot up never rewrites secrets)`)
-      process.exit(1)
-    }
-  }
-  return parsed
 }
 
 function spawnPilotProc(worktree, name, cmd, args, env, marker, cwd = null) {
@@ -977,7 +958,7 @@ async function cmdPilotUp(args) {
   const worktree = resolve(args[flag + 1])
   // agents/.env may legitimately not exist yet (first up creates it);
   // everything else must be built.
-  for (const required of ['backend/dist/server.js', 'backend/dist/temporal/dev-worker.js', 'backend/dist/db/cli.js', 'frontend/package.json']) {
+  for (const required of ['backend/dist/server.js', 'backend/dist/temporal/dev-worker.js', 'backend/dist/db/cli.js', 'agents/dist/index.js', 'frontend/package.json']) {
     if (!existsSync(join(worktree, required))) {
       console.error(`stack: pilot worktree ${worktree} is missing ${required}; build it (npm ci + builds) first`)
       process.exit(1)
@@ -997,7 +978,8 @@ async function cmdPilotUp(args) {
     console.error('stack: pilot stack already up in this worktree (pilot down first)')
     process.exit(1)
   }
-  mkdirSync(join(worktree, 'var', 'pilot', 'archive'), { recursive: true })
+  mkdirSync(join(ROOT, 'var', 'pilot', 'archive'), { recursive: true })
+  mkdirSync(join(worktree, 'var', 'pilot'), { recursive: true })
   const secrets = pilotSecrets(worktree)
   const { Pool } = createRequire(import.meta.url)('pg')
   const server = new Pool({ connectionString: `postgresql://kardata:kardata-dev@127.0.0.1:${PG_PORT}/kardata` })
@@ -1084,7 +1066,7 @@ async function cmdPilotUp(args) {
     TEMPORAL_NAMESPACE: cfg.namespace,
     TEMPORAL_ADDRESS: cfg.temporalAddress,
     KARDATA_CORS_ORIGINS: cfg.corsOrigins,
-    KARDATA_ARCHIVE_DIR: join(worktree, 'var', 'pilot', 'archive'),
+    KARDATA_ARCHIVE_DIR: join(ROOT, 'var', 'pilot', 'archive'),
     KARDATA_UI_ONLY: cfg.uiOnly,
     KARDATA_UI_ORIGIN: cfg.uiOrigin,
   }
@@ -1093,7 +1075,7 @@ async function cmdPilotUp(args) {
     DATABASE_URL: cfg.databaseUrl,
     TEMPORAL_NAMESPACE: cfg.namespace,
     TEMPORAL_ADDRESS: cfg.temporalAddress,
-    KARDATA_ARCHIVE_DIR: join(worktree, 'var', 'pilot', 'archive'),
+    KARDATA_ARCHIVE_DIR: join(ROOT, 'var', 'pilot', 'archive'),
     KARDATA_MCP_URL: cfg.mcpUrl,
   }
   // Backend first, alone: the worker probes backend /mcp at boot, so a
@@ -1144,6 +1126,25 @@ async function cmdPilotDown(args) {
       console.log(`stack: pilot ${name} already gone (pid ${entry.pid})`)
     }
   }
+  // Down→up sequencing (r1→r2, the A→B test): SIGTERM is async and the
+  // Temporal worker lingers on :9464, so an immediate `up` sees a taken
+  // port. Wait for real exit; SIGKILL stragglers with the marker
+  // re-verified (a recycled PID never matches). The next up's port
+  // check stays the backstop for the unkillable.
+  const pending = () => Object.entries(live).filter(([, entry]) => pidMatches(entry.pid, entry.marker))
+  const deadline = Date.now() + 20_000
+  while (pending().length > 0 && Date.now() < deadline) {
+    await new Promise((resolveSoon) => setTimeout(resolveSoon, 250))
+  }
+  for (const [name, entry] of pending()) {
+    try {
+      process.kill(entry.pid, 'SIGKILL')
+      console.log(`stack: pilot ${name} killed (pid ${entry.pid}, ignored SIGTERM)`)
+    } catch {
+      // Gone between the check and the kill: already what we want.
+    }
+  }
+  await new Promise((resolveSoon) => setTimeout(resolveSoon, 500))
   unlinkSync(pilotPidFile(worktree))
   console.log('stack: pilot down (DB, namespace and archive kept)')
 }

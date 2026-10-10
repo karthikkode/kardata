@@ -263,6 +263,9 @@ describe('pilotRoStatements', () => {
   it('creates the role idempotently and grants connect + select only', () => {
     expect(PILOT_RO_ROLE).toBe('kardata_pilot_ro')
     expect(text).toContain('IF NOT EXISTS')
+    // Every run re-asserts the shared password: the role outlives any
+    // one database, so a ghost keeps a stale secret otherwise (P8-B2).
+    expect(text).toContain('ALTER ROLE "kardata_pilot_ro" WITH PASSWORD')
     expect(text).toContain('GRANT CONNECT')
     expect(text).toContain('GRANT SELECT ON ALL TABLES')
     expect(text).toContain('ALTER DEFAULT PRIVILEGES')
