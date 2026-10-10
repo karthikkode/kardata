@@ -4030,3 +4030,15 @@ and indexed all artifacts). Next step (not done): chunked signals with an
 inter-chunk delay (ramp), or a rerun on an idle box (both crashes ran
 while frontend suites used the same box). Ten-leg green with batching
 (10/10, 5 s). Product path unblocked; scale tier only.
+
+## 2026-10-10 — F6f (R0-14): rail accessible names not reproduced, logged
+45-min reproduce budget spent: no rail surface renders unnamed rows.
+Evidence: (1) throwaway jsdom probe rendered the full workspace
+(session rail + subagent strip + conversation) — 0 unnamed buttons;
+(2) browser audit names/targets check green on audit-workspace-default,
+-chat, and -sessions-loading (3/3); (3) titles enforced non-empty
+backend-side, research sessions titled 'Research', artifacts fall back
+to 'Untitled file'; (4) sidebar collapse and IconButton carry names by
+construction (typed). No code change. If r1 still sees it, the trigger
+is dynamic data not present in fixtures (suspect: a row fed by a
+non-session source).
