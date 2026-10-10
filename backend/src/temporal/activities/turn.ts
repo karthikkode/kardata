@@ -65,6 +65,7 @@ import {
   KARBOT_SYSTEM_PROMPT,
   RESEARCH_TURN_WALL_MS,
   TURN_HEARTBEAT_MS,
+  subagentPreambleFor,
   turnRoundTimeoutMs,
 } from './turn-prompts.js'
 import { KarbotTurnInput, type KarbotTurnDeps } from './karbot-turn-input.js'
@@ -223,6 +224,7 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
     const pinned = [...inherited, ...preload, ...sectorRefs.slice(0, 1)]
     const prepend = [...(parsed.systemPrepend ?? [])]
     if ((await deps.loadSessionPurpose?.(parsed.sessionId)) === 'context-rewrite') prepend.push(CONTEXT_REWRITE_PREAMBLE)
+    prepend.push(...subagentPreambleFor(turnKind))
     const systemPrompt = composeSystemPrompt(KARBOT_SYSTEM_PROMPT, {
       prepend,
       modePrompt: parsed.mode ? modePromptFor(parsed.mode) : undefined,

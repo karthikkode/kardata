@@ -4,19 +4,21 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 
 const seenTimeouts: Array<number | undefined> = []
+const seenPrompts: Array<string | undefined> = []
 vi.mock('@kardata/agents', async (importOriginal) => {
   const original = await importOriginal<typeof import('@kardata/agents')>()
   return {
     ...original,
-    runKarbotTurn: async (options: { timeoutMs?: number }) => {
+    runKarbotTurn: async (options: { timeoutMs?: number; systemPrompt?: string }) => {
       seenTimeouts.push(options.timeoutMs)
+      seenPrompts.push(options.systemPrompt)
       return original.runKarbotTurn(options as never)
     },
   }
 })
 
 import { executeKarbotTurn } from '../../backend/src/temporal/activities/turn.js'
-import { PLANNING_ROUND_TIMEOUT_MS, turnRoundTimeoutMs } from '../../backend/src/temporal/activities/turn-prompts.js'
+import { PLANNING_ROUND_TIMEOUT_MS, SUBAGENT_FINISH_PREAMBLE, subagentPreambleFor, turnRoundTimeoutMs } from '../../backend/src/temporal/activities/turn-prompts.js'
 import { type KarbotTurnDeps } from '../../backend/src/temporal/activities/karbot-turn-input.js'
 import { FakeProvider } from '@kardata/agents'
 
@@ -34,10 +36,22 @@ describe('turnRoundTimeoutMs [F:backend.activity.turn.executeKarbotTurn] [F:back
   })
 })
 
+describe('subagentPreambleFor [F:backend.activity.turn_prompts.SUBAGENT_FINISH_PREAMBLE] [F:backend.activity.turn_prompts.subagentPreambleFor]', () => {
+  it('gives subagent turns the finish-honestly preamble', () => {
+    expect(subagentPreambleFor('subagent')).toEqual([SUBAGENT_FINISH_PREAMBLE])
+    expect(SUBAGENT_FINISH_PREAMBLE).toContain('db.finish_subagent')
+    expect(SUBAGENT_FINISH_PREAMBLE).toContain('0 findings')
+  })
+  it('gives chat, research, and plan turns no preamble', () => {
+    for (const kind of ['chat', 'research', 'plan']) expect(subagentPreambleFor(kind)).toEqual([])
+  })
+})
+
 describe('executeKarbotTurn timeout plumbing', () => {
   let savedEnv: string | undefined
   beforeEach(() => {
     seenTimeouts.length = 0
+    seenPrompts.length = 0
     savedEnv = process.env['KARDATA_PROVIDER']
     process.env['KARDATA_PROVIDER'] = 'fake'
   })
@@ -45,7 +59,7 @@ describe('executeKarbotTurn timeout plumbing', () => {
     if (savedEnv === undefined) delete process.env['KARDATA_PROVIDER']
     else process.env['KARDATA_PROVIDER'] = savedEnv
   })
-  async function runTurn(input: { runKey: string; sessionKind?: string }): Promise<void> {
+  async function runTurn(input: { runKey: string; sessionKind?: string; threadKey?: string }): Promise<void> {
     const deps: KarbotTurnDeps = {
       loadSessionModel: async () => undefined,
       ...(input.sessionKind === undefined ? {} : { loadSessionKind: async () => input.sessionKind }),
@@ -58,7 +72,7 @@ describe('executeKarbotTurn timeout plumbing', () => {
       log: () => {},
     }
     await executeKarbotTurn(
-      { sessionId: 's1', threadKey: 's1', runKey: input.runKey, text: 'hi', fakeSteps: [{ text: 'ok' }] },
+      { sessionId: 's1', threadKey: input.threadKey ?? 's1', runKey: input.runKey, text: 'hi', fakeSteps: [{ text: 'ok' }] },
       deps,
     )
   }
@@ -77,5 +91,13 @@ describe('executeKarbotTurn timeout plumbing', () => {
   it('passes 60 s when the kind is unknown', async () => {
     await runTurn({ runKey: 'chat:9' })
     expect(seenTimeouts).toEqual([60_000])
+  })
+  it('carries the finish preamble on subagent threads only', async () => {
+    await runTurn({ runKey: 'karbot:child:c1:0', threadKey: 'agent:c1' })
+    expect(seenPrompts).toHaveLength(1)
+    expect(seenPrompts[0]).toContain('db.finish_subagent')
+    await runTurn({ runKey: 'chat:9', threadKey: 's1' })
+    expect(seenPrompts).toHaveLength(2)
+    expect(seenPrompts[1]).not.toContain('db.finish_subagent')
   })
 })

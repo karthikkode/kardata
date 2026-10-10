@@ -6,6 +6,7 @@ recurrence. New rows append at the top.
 
 | date | bug | found by | tier that should have caught it | test added | rule added |
 |---|---|---|---|---|---|
+| 2026-10-10 | Child turns carried no finish instruction: unmeetable goals parked instead of reporting 0 findings honestly | pilot r0 (R0-17, F3c) | unit | karbot.turn-timeout subagentPreambleFor + prompt-plumbing cases | subagent turns carry the finish-discipline preamble (report, then db.finish_subagent); session turns carry nothing |
 | 2026-10-10 | Children parked RUNNING forever after reporting: no tier could reach 98% complete; close kind invisible (all FINISHED, no reason) | pilot r0 (R0-17, F3b) | temporal | workflows.subagents F3b done + idle cases | explicit finish → done; idle reap (15 min default, patched) → idle; close kind persisted as state_reason |
 | 2026-10-10 | Subagent children had no finish path: goal-satisfied children churned empty turns forever (Meta/token drain at pilot scale) | pilot r0 (R0-17, F3a) | db | mcp.finish-subagent.test.ts (4 cases) | child self-finish tool (zero-arg, caller-only, finish-signal-alone = done never cancelled) |
 | 2026-10-10 | pilot stack ran 1 worker vs 4 elsewhere: delegate/turn throughput starved under fan-out | pilot r0 (R0-3b) | unit | stack.test.ts pilotWorkerCount | pilot up fans out to N workers (default 4, --workers N), one metrics port each |

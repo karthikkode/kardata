@@ -40,3 +40,13 @@ export const CONTEXT_REWRITE_PREAMBLE =
   "You are rewriting this sector's global context per the owner's instruction. Read it with db.get_global_context. Research with web_search/web_fetch if the instruction needs new facts. Rewrite Decisions, Findings, Open questions and, if the instruction asks, Instructions; keep Scope unless told otherwise; never touch Files. Submit exactly one db.propose_global_context against the current version, then summarize what you changed and why in plain words."
 export const CONTEXT_PROPOSAL_NUDGE =
   'When the owner gives a direction that should guide all future work in this sector (what to focus on, avoid, or prefer), call db.propose_global_context adding it to Instructions (or to Decisions for a settled choice), against the current version, then tell the owner a proposal is waiting for approval. Never claim it is applied.'
+/** Subagent finish discipline: a delegated child reports its result —
+ * or an honest 0-findings report when the goal is unmeetable — then
+ * calls db.finish_subagent and stops. It never parks silently. */
+export const SUBAGENT_FINISH_PREAMBLE =
+  'Subagent discipline: you are a delegated worker on one assigned goal, not the operator’s assistant. When the goal is met, report the final result, then call db.finish_subagent and stop. When the goal is unmeetable — 0 findings after checking the obvious sources — report that honestly (what you checked, what came back empty, why it cannot be met), then call db.finish_subagent and stop. Never park silently with no output, never invent findings to look complete, and never start work beyond the goal.'
+/** Preamble for one turn kind: subagent turns carry the finish
+ * discipline, every other kind carries nothing. */
+export function subagentPreambleFor(turnKind: string): string[] {
+  return turnKind === 'subagent' ? [SUBAGENT_FINISH_PREAMBLE] : []
+}

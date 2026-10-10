@@ -24,6 +24,9 @@ semantics.
   completes `done`, never `cancelled`. Terminal statuses are
   `done`/`idle`/`cancelled`/`failed`; an empty inbox with no live turn
   for `childIdleTimeoutMs` (default 15 min) reaps the child as `idle`.
+  Every subagent turn carries the finish-discipline preamble (report the
+  result — or an honest 0-findings report — then `db.finish_subagent);
+  session turns carry nothing extra.
 
 ## Guards
 

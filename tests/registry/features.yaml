@@ -6856,3 +6856,15 @@
   tiers:
     - todo
   states: []
+- id: backend.activity.turn_prompts.SUBAGENT_FINISH_PREAMBLE
+  layer: backend
+  surface: backend/src/temporal/activities/turn-prompts.ts
+  tiers:
+    - todo
+  states: []
+- id: backend.activity.turn_prompts.subagentPreambleFor
+  layer: backend
+  surface: backend/src/temporal/activities/turn-prompts.ts
+  tiers:
+    - todo
+  states: []
