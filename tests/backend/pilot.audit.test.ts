@@ -55,7 +55,7 @@ describe.skipIf(!TEST_DATABASE_URL)('pilot UI-only audit [F:pilot.audit]', () =>
       await plant(db)
       const result = await runPilotAudit(db, { since: SINCE })
       await db.query('ROLLBACK')
-      return result as { ok: boolean; counts: { eventsByClient: Record<string, number>; violationAlerts: number }; violations: string[] }
+      return result as { ok: boolean; counts: { eventsByClient: Record<string, number>; violationAlerts: number; cancellingByClient: Record<string, number> }; violations: string[] }
     } finally {
       db.release()
     }
@@ -126,12 +126,15 @@ describe.skipIf(!TEST_DATABASE_URL)('pilot UI-only audit [F:pilot.audit]', () =>
     expect(good).toMatchObject({ ok: true, violations: [] })
   })
 
-  it('fails a non-UI CANCELLING but ignores other thread states', async () => {
-    const bad = await auditCase(async (db) => {
+  it('reports CANCELLING by client without gating (ui/system/agent-mcp all pass)', async () => {
+    const result = await auditCase(async (db) => {
+      await plantEvent(db, 't.thread.state', 'ui', { payload: { status: 'CANCELLING' } })
+      await plantEvent(db, 't.thread.state', 'system', { payload: { status: 'CANCELLING' } })
       await plantEvent(db, 't.thread.state', 'agent-mcp', { payload: { status: 'CANCELLING' } })
+      await plantEvent(db, 't.thread.state', 'system', { payload: { status: 'RUNNING' } })
     })
-    expect(bad.ok).toBe(false)
-    expect(bad.violations[0]).toMatch(/owner-type event t\.thread\.state #\d+ has client 'agent-mcp'/)
+    expect(result).toMatchObject({ ok: true, violations: [] })
+    expect(result.counts.cancellingByClient).toEqual({ ui: 1, system: 1, 'agent-mcp': 1 })
   })
 
   it('CLI exits 0 clean / 1 naming the violation, with no state.json', async () => {

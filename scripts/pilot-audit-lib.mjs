@@ -14,7 +14,10 @@
 // - sector.context.decided: context decision (decideContextChange, handler inline) — ui only.
 // - sector.file.processing.created/.source: upload intake (createFileProcessingJob, handler inline) — ui only.
 // - sector.state_changed: pause/resume/restart (ui) + sweep/lifecycle (system) — ui or system.
-// - t.thread.state + status CANCELLING: owner stop (appendCancelState, gateway inline) — ui only.
+// - t.thread.state + status CANCELLING: stops come from the owner (ui),
+//   supervision auto-cancel / parent unwind (system), and Karbot stops on
+//   owner command (agent-mcp) — reported by client, never gated. Only
+//   approvals (sector.plan_approved) stay ui-only.
 // - spawn, steer: NO inline event (Temporal signal + thread_instructions
 //   row); their routes are UI-gated and the M1 coverage test pins the
 //   403 for non-UI keys, so a bypass attempt lands in (b).
@@ -46,10 +49,17 @@ export async function runPilotAudit(pool, { since }) {
     `SELECT seq, type, client FROM events WHERE at >= $1 AND (
        (type = ANY($2) AND client IS DISTINCT FROM 'ui')
        OR (type = ANY($3) AND client IS DISTINCT FROM 'ui' AND client IS DISTINCT FROM 'system')
-       OR (type = 't.thread.state' AND payload->>'status' = 'CANCELLING' AND client IS DISTINCT FROM 'ui')
      ) ORDER BY seq`,
     [since, OWNER_UI_ONLY_TYPES, OWNER_UI_OR_SYSTEM_TYPES],
   )
+  const cancelling = await pool.query(
+    `SELECT client, count(*) AS n FROM events
+     WHERE at >= $1 AND type = 't.thread.state' AND payload->>'status' = 'CANCELLING'
+     GROUP BY 1 ORDER BY 1`,
+    [since],
+  )
+  const cancellingByClient = {}
+  for (const row of cancelling.rows) cancellingByClient[row.client ?? '(null)'] = Number(row.n)
 
   const violations = []
   const other = (eventsByClient['other'] ?? 0) + (eventsByClient['(null)'] ?? 0)
@@ -61,5 +71,5 @@ export async function runPilotAudit(pool, { since }) {
   if (offenders.rows.length > MAX_OFFENDERS) {
     violations.push(`... and ${offenders.rows.length - MAX_OFFENDERS} more owner-type offenders`)
   }
-  return { ok: violations.length === 0, counts: { eventsByClient, violationAlerts }, violations }
+  return { ok: violations.length === 0, counts: { eventsByClient, violationAlerts, cancellingByClient }, violations }
 }
