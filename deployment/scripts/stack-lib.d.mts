@@ -52,3 +52,12 @@ export function pilotRoStatements(args: { role?: string; owner: string; password
 export const PILOT_DEFAULTS: { dbName: string; namespace: string; backendPort: number; uiPort: number; uiOrigin: string; tenant: string; uiOnly: string }
 export function pilotConfig(args?: { pgPort?: number; pgHost?: string; temporalAddress?: string }): Record<string, string | number>
 export function pilotWorkerCount(args: string[]): number
+export const SUPERVISE_DEFAULTS: { maxBytes: number; keep: number }
+export interface SuperviseArgs {
+  logPath: string
+  maxBytes: number
+  keep: number
+  cmd: string
+  cmdArgs: string[]
+}
+export function parseSuperviseArgs(args: string[]): SuperviseArgs

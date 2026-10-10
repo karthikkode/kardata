@@ -67,18 +67,19 @@ for (const [id, key] of [['live-owner', process.env.OWNER_KEY], ['live-worker', 
 await pool.end();
 "
 
-# Backend then worker, each with its own log.
+# Backend then worker, each under a capped rotating log (32 MB x 3 files
+# per stream; PIDs below are the supervisors, which forward signals).
 DATABASE_URL="$DATABASE_URL" PORT="$PORT" TEMPORAL_NAMESPACE="$TEMPORAL_NAMESPACE" \
   KARDATA_CORS_ORIGINS="$KARDATA_CORS_ORIGINS" KARDATA_ARCHIVE_DIR="$ARCHIVE_DIR" \
   KARDATA_MCP_TOKEN="$WORKER_KEY" KARDATA_META_KEY="${KARDATA_META_KEY:-}" \
   KARDATA_META_MODEL="${KARDATA_META_MODEL:-}" \
-  nohup node "$ROOT/backend/dist/server.js" >"$LIVE_DIR/backend.log" 2>&1 &
+  nohup node "$ROOT/deployment/scripts/stack.mjs" __supervise --log "$LIVE_DIR/backend.log" -- node "$ROOT/backend/dist/server.js" >/dev/null 2>&1 &
 BACKEND_PID=$!
 DATABASE_URL="$DATABASE_URL" TEMPORAL_NAMESPACE="$TEMPORAL_NAMESPACE" TEMPORAL_ADDRESS="$TEMPORAL_ADDRESS" \
   KARDATA_ARCHIVE_DIR="$ARCHIVE_DIR" KARDATA_MCP_URL="http://127.0.0.1:3101/mcp" \
   KARDATA_MCP_TOKEN="$WORKER_KEY" KARDATA_META_KEY="${KARDATA_META_KEY:-}" \
   KARDATA_META_MODEL="${KARDATA_META_MODEL:-}" KARDATA_WEB_SEARCH_KEY="${KARDATA_WEB_SEARCH_KEY:-}" \
-  nohup node "$ROOT/backend/dist/temporal/dev-worker.js" >"$LIVE_DIR/worker.log" 2>&1 &
+  nohup node "$ROOT/deployment/scripts/stack.mjs" __supervise --log "$LIVE_DIR/worker.log" -- node "$ROOT/backend/dist/temporal/dev-worker.js" >/dev/null 2>&1 &
 WORKER_PID=$!
 echo "$BACKEND_PID $WORKER_PID" >"$LIVE_DIR/pids"
 

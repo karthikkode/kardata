@@ -220,6 +220,40 @@ export function pilotWorkerCount(args) {
   return value
 }
 
+/** Capped-log defaults: 32 MB x 3 files = 96 MB per supervised
+ * stream. The pilot's 6 streams (backend + 4 workers + ui) stay under
+ * ~600 MB a run; the live stack's 2 streams under ~200 MB. */
+export const SUPERVISE_DEFAULTS = { maxBytes: 33_554_432, keep: 3 }
+
+/** Parse `stack.mjs __supervise` args: `--log PATH [--max-bytes N]
+ * [--keep K] -- cmd [args...]`. Returns { logPath, maxBytes, keep,
+ * cmd, cmdArgs }; throws a usage error for anything else. Pure: the
+ * supervisor in stack.mjs consumes it verbatim. */
+export function parseSuperviseArgs(args) {
+  const sep = args.indexOf('--')
+  if (sep < 0) throw new Error('stack: __supervise needs -- <command> [args...]')
+  const flags = args.slice(0, sep)
+  const take = (flag) => {
+    const at = flags.indexOf(flag)
+    if (at < 0) return undefined
+    const value = flags[at + 1]
+    if (value === undefined) throw new Error(`stack: __supervise ${flag} needs a value`)
+    return value
+  }
+  const logPath = take('--log')
+  if (!logPath) throw new Error('stack: __supervise needs --log <path>')
+  const positiveInt = (flag, def) => {
+    const raw = take(flag)
+    if (raw === undefined) return def
+    const value = Number(raw)
+    if (!Number.isInteger(value) || value < 1) throw new Error(`stack: __supervise ${flag} must be a positive integer, got ${JSON.stringify(raw)}`)
+    return value
+  }
+  const [cmd, ...cmdArgs] = args.slice(sep + 1)
+  if (!cmd) throw new Error('stack: __supervise needs a command after --')
+  return { logPath, maxBytes: positiveInt('--max-bytes', SUPERVISE_DEFAULTS.maxBytes), keep: positiveInt('--keep', SUPERVISE_DEFAULTS.keep), cmd, cmdArgs }
+}
+
 /** Idempotent RO-role statements; run connected to the pilot database.
  * The ALTER re-asserts the shared password on every run: the role is
  * cluster-global, so a ghost from an older run (B3 validation's

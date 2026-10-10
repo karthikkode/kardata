@@ -7,12 +7,12 @@
 import { execFile, execFileSync, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
-import { readFileSync, existsSync, mkdirSync, writeFileSync, openSync, unlinkSync } from 'node:fs'
+import { readFileSync, existsSync, mkdirSync, writeFileSync, openSync, unlinkSync, fstatSync, writeSync, closeSync, renameSync } from 'node:fs'
 import { connect } from 'node:net'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readlinkSync } from 'node:fs'
-import { countRepoTools, fleetVerdict, formatVerdict, freshnessVerdict, ownedTestProcs, parityVerdict, parseEnvFile, PILOT_RO_ROLE, pilotConfig, pilotRoStatements, pilotWorkerCount, portsDisjointVerdict, RESOURCE_PROFILES } from './stack-lib.mjs'
+import { countRepoTools, fleetVerdict, formatVerdict, freshnessVerdict, ownedTestProcs, parityVerdict, parseEnvFile, parseSuperviseArgs, PILOT_RO_ROLE, pilotConfig, pilotRoStatements, pilotWorkerCount, portsDisjointVerdict, RESOURCE_PROFILES } from './stack-lib.mjs'
 import { loadPilotSecrets } from './pilot-secrets.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -939,10 +939,94 @@ function pilotSecrets(worktree) {
 }
 
 function spawnPilotProc(worktree, name, cmd, args, env, marker, cwd = null) {
-  const log = openSync(join(worktree, 'var', 'pilot', `${name}.log`), 'a')
-  const child = spawn(cmd, args, { cwd: cwd ?? worktree, env, detached: true, stdio: ['ignore', log, log] })
+  const child = spawn(
+    process.execPath,
+    [join(HERE, 'stack.mjs'), '__supervise', '--log', join(worktree, 'var', 'pilot', `${name}.log`), '--', cmd, ...args],
+    { cwd: cwd ?? worktree, env, detached: true, stdio: 'ignore' },
+  )
   child.unref()
   return { pid: child.pid, marker }
+}
+
+/** Size-capped log writer: at most `keep` files (`log`, `log.1`, …)
+ * of `maxBytes` bytes each, total bounded by `keep` x `maxBytes`.
+ * Chunks split across the boundary, so a mid-line rotation can cut a
+ * line; recency (`log` holds the newest bytes) always holds. */
+function openCappedLog(logPath, maxBytes, keep) {
+  let fd = openSync(logPath, 'a')
+  let size = fstatSync(fd).size
+  const rotate = () => {
+    closeSync(fd)
+    try {
+      unlinkSync(`${logPath}.${keep}`)
+    } catch { /* absent generation: nothing to drop */ }
+    for (let i = keep - 1; i >= 1; i--) {
+      try {
+        renameSync(`${logPath}.${i}`, `${logPath}.${i + 1}`)
+      } catch { /* absent generation: nothing to shift */ }
+    }
+    try {
+      renameSync(logPath, `${logPath}.1`)
+    } catch { /* first rotation of an empty log */ }
+    fd = openSync(logPath, 'w')
+    size = 0
+  }
+  return {
+    write(chunk) {
+      let offset = 0
+      while (offset < chunk.length) {
+        if (size >= maxBytes) rotate()
+        const slice = chunk.subarray(offset, offset + (maxBytes - size))
+        writeSync(fd, slice)
+        size += slice.length
+        offset += slice.length
+      }
+    },
+    close() {
+      try {
+        closeSync(fd)
+      } catch { /* already closed on the write-failure path */ }
+    },
+  }
+}
+
+/** `__supervise`: run the child with merged stdio through a capped
+ * rotating log (r0 filled the disk with unbounded worker/backend
+ * logs). Env/cwd inherit into the child, so no secrets ride argv.
+ * The supervisor's own argv carries the child command, so pilot
+ * down/status marker checks keep matching the recorded PID.
+ * TERM/INT/HUP forward to the child; the exit code propagates. */
+async function cmdSupervise(args) {
+  let parsed
+  try {
+    parsed = parseSuperviseArgs(args)
+  } catch (error) {
+    console.error(error.message)
+    process.exit(1)
+  }
+  const log = openCappedLog(parsed.logPath, parsed.maxBytes, parsed.keep)
+  const child = spawn(parsed.cmd, parsed.cmdArgs, { stdio: ['ignore', 'pipe', 'pipe'] })
+  for (const stream of [child.stdout, child.stderr]) {
+    stream.on('data', (chunk) => {
+      try {
+        log.write(chunk)
+      } catch (error) {
+        // Disk full (or the log dir gone): fail closed — note it if we
+        // can, kill the child, exit nonzero so status/down report the
+        // stream gone instead of wedging on a silent broken pipe.
+        try {
+          log.write(`\nsupervise: log write failed, stopping child: ${error.message}\n`)
+        } catch { /* the disk is gone; nothing more to say */ }
+        child.kill('SIGKILL')
+        log.close()
+        process.exit(1)
+      }
+    })
+  }
+  for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(signal, () => child.kill(signal))
+  const code = await new Promise((resolve) => child.on('close', (exitCode) => resolve(exitCode)))
+  log.close()
+  process.exit(code ?? 1)
 }
 
 /** r0 scratch identity: KARDATA_PILOT_DB_NAME / KARDATA_PILOT_NAMESPACE
@@ -1235,6 +1319,7 @@ const commands = {
   'worker:compose': ['refuse if a host worker polls, else start the compose worker', cmdWorkerCompose],
   worker: ['scale the compose worker (default 1): stack.mjs worker --replicas N', cmdWorker],
   pilot: ['pilot stack: up|down|status --worktree <path>', cmdPilot],
+  __supervise: ['internal: run a child under a capped rotating log (pilot/live stacks call this; never run it directly)', cmdSupervise],
   prod: ['prod env: up|down|status|deploy|provision-keys|backup [--profile lean|full]', cmdProd],
   release: ['ship a main-line SHA to origin/prod [--rollback to move back]', cmdRelease],
   resources: ['show the lean/full resource profiles', cmdResources],

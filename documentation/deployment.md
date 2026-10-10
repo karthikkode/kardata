@@ -66,6 +66,16 @@ foreign checkouts, other users, and the owner's dev servers print as
 kill hints and are never auto-killed. Selection logic is pure in
 `stack-lib.mjs`, pinned by `tests/backend/stack.test.ts`.
 
+Pilot and live stacks run every stream under `stack.mjs __supervise`,
+which pipes merged stdio through a capped rotating log: 32 MB x 3
+files (`log`, `log.1`, `log.2`, newest bytes in `log`) per stream, so a
+multi-day run cannot fill the disk (r0 wrote 1.1 GB of unbounded logs).
+Recorded PIDs are the supervisors; they forward signals and propagate
+exit codes, and their argv carries the child command so pilot
+down/status marker checks keep matching. A log write failure fails
+closed (child SIGKILLed, nonzero exit). Pinned by the `__supervise`
+cases in `tests/backend/stack.test.ts`.
+
 The existing worker now initializes Temporal SDK logging/metrics before its
 connection. SDK metrics bind port 9464 by default; Prometheus uses the worker
 target, not the Temporal server. Deploy its matching scrape configuration with

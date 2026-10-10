@@ -1,6 +1,8 @@
 // Unit tests for deployment/scripts/stack-lib.mjs: the verdict logic
 // behind `npm run stack:*`. No docker, no network, no git.
-import { readFileSync } from 'node:fs'
+import { execFile } from 'node:child_process'
+import { mkdtempSync, readFileSync, readdirSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -17,6 +19,7 @@ import {
   pilotConfig,
   pilotRoStatements,
   pilotWorkerCount,
+  parseSuperviseArgs,
   PROD_PORTS,
   RESOURCE_PROFILES,
   STAGING_PORTS,
@@ -311,4 +314,88 @@ describe('pilotWorkerCount', () => {
     }
     expect(() => pilotWorkerCount(['up', '--worktree', '/tmp/x', '--workers'])).toThrow('--workers must be a positive integer')
   })
+})
+
+describe('parseSuperviseArgs', () => {
+  it('parses --log/--max-bytes/--keep with a 32MB x 3 default', () => {
+    expect(parseSuperviseArgs(['--log', '/tmp/x.log', '--', 'node', 'a.js'])).toEqual({
+      logPath: '/tmp/x.log',
+      maxBytes: 33554432,
+      keep: 3,
+      cmd: 'node',
+      cmdArgs: ['a.js'],
+    })
+    expect(parseSuperviseArgs(['--log', 'l', '--max-bytes', '100', '--keep', '2', '--', 'x'])).toMatchObject({ maxBytes: 100, keep: 2, cmd: 'x', cmdArgs: [] })
+  })
+  it('rejects a missing log, separator, command, or non-positive sizes', () => {
+    expect(() => parseSuperviseArgs(['--', 'x'])).toThrow('--log')
+    expect(() => parseSuperviseArgs(['--log', 'l'])).toThrow('--')
+    expect(() => parseSuperviseArgs(['--log', 'l', '--'])).toThrow('command')
+    expect(() => parseSuperviseArgs(['--log', 'l', '--max-bytes', '0', '--', 'x'])).toThrow('--max-bytes')
+    expect(() => parseSuperviseArgs(['--log', 'l', '--keep', 'many', '--', 'x'])).toThrow('--keep')
+  })
+})
+
+describe('__supervise (capped log rotation)', () => {
+  const stackMjs = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'deployment', 'scripts', 'stack.mjs')
+  const runSupervised = (args: string[]) =>
+    new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve) => {
+      execFile(process.execPath, [stackMjs, '__supervise', ...args], { timeout: 20000 }, (error, stdout, stderr) => {
+        resolve({ code: error && 'code' in error ? (error.code as number) : 0, stdout, stderr })
+      })
+    })
+
+  it('rotates a flooding child into bounded files and propagates its exit code', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'supervise-'))
+    const log = join(dir, 't.log')
+    const flood = `for (let i = 0; i < 40; i++) console.log('L' + String(i).padStart(2, '0') + 'x'.repeat(97)); process.exitCode = 3`
+    const { code } = await runSupervised(['--log', log, '--max-bytes', '200', '--keep', '2', '--', process.execPath, '-e', flood])
+    expect(code).toBe(3)
+    expect(readdirSync(dir).sort()).toEqual(['t.log', 't.log.1', 't.log.2'])
+    const lines = Array.from({ length: 40 }, (_, i) => `L${String(i).padStart(2, '0')}${'x'.repeat(97)}\n`).join('')
+    const kept = ['t.log.2', 't.log.1', 't.log'].map((name) => readFileSync(join(dir, name), 'utf8')).join('')
+    expect(kept.length).toBeLessThan(lines.length)
+    expect(kept.length).toBeLessThanOrEqual(3 * 200)
+    expect(kept).toBe(lines.slice(-kept.length))
+  }, 30000)
+
+  it('forwards SIGTERM to the child so down/stop reap both', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'supervise-'))
+    const token = `supervise-term-child-${Date.now()}`
+    const { spawn } = await import('node:child_process')
+    const sup = spawn(process.execPath, [stackMjs, '__supervise', '--log', join(dir, 's.log'), '--', process.execPath, '-e', `void '${token}'; setInterval(() => {}, 500)`], { stdio: 'ignore' })
+    const childAlive = () =>
+      readdirSync('/proc').some((name) => {
+        if (!/^\d+$/.test(name)) return false
+        try {
+          return readFileSync(`/proc/${name}/cmdline`, 'utf8').includes(token)
+        } catch {
+          return false
+        }
+      })
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+      expect(childAlive()).toBe(true)
+      sup.kill('SIGTERM')
+      const exited = await new Promise<boolean>((resolve) => {
+        const timer = setTimeout(() => resolve(false), 8000)
+        sup.on('exit', () => {
+          clearTimeout(timer)
+          resolve(true)
+        })
+      })
+      expect(exited).toBe(true)
+      expect(childAlive()).toBe(false)
+    } finally {
+      if (sup.exitCode === null) sup.kill('SIGKILL')
+      for (const name of readdirSync('/proc')) {
+        if (!/^\d+$/.test(name)) continue
+        try {
+          if (readFileSync(`/proc/${name}/cmdline`, 'utf8').includes(token)) process.kill(Number(name), 'SIGKILL')
+        } catch {
+          // Raced out from under us: already what we want.
+        }
+      }
+    }
+  }, 30000)
 })
