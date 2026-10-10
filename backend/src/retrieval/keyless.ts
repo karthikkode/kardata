@@ -4,7 +4,9 @@
 // best-effort and skipped on any failure, and the sweep falls through to
 // the real-Chromium browser leg when the pool yields nothing. Hits carry
 // their engine so the ledger never mistakes them for keyed results.
+import type { Logger } from 'pino'
 import { z } from 'zod'
+import { createLogger } from '../observability/logging.js'
 import {
   RetrievalError,
   requestSearchPage,
@@ -12,6 +14,8 @@ import {
   type FetchImpl,
   type SearchHit,
 } from './web.js'
+
+const keylessLogger = createLogger({ op: 'retrieval.keyless' })
 
 const QuerySchema = z.string().trim().min(2).max(300)
 
@@ -42,6 +46,12 @@ const BROWSER_UA =
 // bot-wall machinery; anything subtler falls through to the zero-hits
 // rule below (a challenge page never parses into results).
 const CHALLENGE = /anomaly-modal|\/sorry\/|unusual traffic|g-recaptcha|data-sitekey|verify you are (a )?human/i
+
+/** True when a page names actual bot-wall machinery (shared with the
+ * browser leg: one tuned matcher, never bare suspicious words). */
+export function isChallengePage(html: string): boolean {
+  return CHALLENGE.test(html)
+}
 
 function stripTags(html: string): string {
   return html
@@ -234,31 +244,46 @@ const ENGINES: Engine[] = [
  * run on fixtures, never the open internet. */
 export async function keylessSearch(
   rawQuery: string,
-  options: { count?: number; page?: number; fetchImpl?: FetchImpl; region?: string } = {},
+  options: { count?: number; page?: number; fetchImpl?: FetchImpl; region?: string; logger?: Logger } = {},
 ): Promise<KeylessHit[]> {
   const parsed = QuerySchema.safeParse(rawQuery)
   if (!parsed.success) throw new RetrievalError('validation_failed', 'query must be 2-300 characters')
   const query = parsed.data
   const { count, offset } = searchPagination(options)
   const region = searchRegion(options.region)
+  const log = options.logger ?? keylessLogger
+  const challenged: string[] = []
+  const empty: string[] = []
+  const failed: string[] = []
 
   for (const engine of ENGINES) {
     try {
       const response = await requestSearchPage(engine.buildUrl(query, offset, region), { headers: { Accept: 'text/html', 'Accept-Language': `en-${region.toUpperCase()},en;q=0.9`, 'User-Agent': BROWSER_UA }, maxBytes: KEYLESS_MAX_BYTES, followRedirects: true, fetchImpl: options.fetchImpl })
-      if (response.contentType && !response.contentType.includes('html')) continue
-      const html = response.text
-      if (CHALLENGE.test(html)) continue
+      if (response.contentType && !response.contentType.includes('html')) {
+        failed.push(engine.name)
+        continue
+      }
+      if (isChallengePage(response.text)) {
+        challenged.push(engine.name)
+        continue
+      }
       const hits = engine
-        .parse(html)
+        .parse(response.text)
         .slice(0, count)
         .map((hit) => ({ ...hit, engine: engine.name }))
-      if (hits.length > 0) return hits
+      if (hits.length > 0) {
+        log.info({ event: 'retrieval.keyless.search', outcome: engine.name, challenged, empty, failed, hits: hits.length })
+        return hits
+      }
+      empty.push(engine.name)
     } catch {
+      failed.push(engine.name)
       continue
     }
   }
+  log.info({ event: 'retrieval.keyless.search', outcome: 'exhausted', challenged, empty, failed, hits: 0 })
   throw new RetrievalError(
     'fetch_failed',
-    'keyless search returned no results (engines may be rate-limiting automated search)',
+    `keyless search returned no results (challenged: ${challenged.join(', ') || 'none'}; empty: ${empty.join(', ') || 'none'}; failed: ${failed.join(', ') || 'none'})`,
   )
 }

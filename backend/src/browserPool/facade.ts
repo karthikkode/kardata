@@ -7,6 +7,7 @@
 // Tool names, schemas, roles, and `via` tags are unchanged: the pool and
 // caches sit underneath the existing contract.
 import type { Logger } from 'pino'
+import { createLogger } from '../observability/logging.js'
 import {
   browserAct,
   browserClose,
@@ -15,7 +16,9 @@ import {
   browserSnapshot,
   type BrowserAct,
 } from '../retrieval/browser.js'
-import { keylessSearch, searchRegion, type KeylessHit } from '../retrieval/keyless.js'
+import { isChallengePage, keylessSearch, searchRegion, type KeylessHit } from '../retrieval/keyless.js'
+
+const sweepLogger = createLogger({ op: 'retrieval.sweep' })
 import { RetrievalError, webFetch, webSearch, type FetchImpl, type SearchEnv, type SearchHit } from '../retrieval/web.js'
 import {
   dedupInflight,
@@ -46,6 +49,7 @@ export interface SweepSearchDeps {
   keyed?: (query: string, page: number) => Promise<SearchHit[]>
   keyless?: (query: string, page: number) => Promise<KeylessHit[]>
   browser?: (query: string, region?: string) => Promise<SweepSearchHit[]>
+  logger?: Logger
 }
 
 /** Search-engine hosts that must never become company candidates. */
@@ -98,6 +102,11 @@ export function browserSearchUrl(query: string, region?: string): string {
 async function defaultBrowserLeg(query: string, region?: string, count = 10): Promise<SweepSearchHit[]> {
   const { sessionId, snapshot } = await browserNavigate(browserSearchUrl(query, region), { caller: 'sweep' })
   try {
+    // A challenged browser page fails, never parses: the wall means no
+    // honest results exist, and bypassing it is out of the question.
+    if (isChallengePage(snapshot)) {
+      throw new RetrievalError('blocked', 'browser search challenged by a bot wall; challenges are never bypassed')
+    }
     return linksFromSnapshot(snapshot, count)
   } finally {
     await browserClose(sessionId, 'sweep').catch(() => undefined)
@@ -128,11 +137,21 @@ export async function pooledSearchWebPage(
   const region = searchRegion(input.region)
   const count = Math.min(Math.max(input.count ?? 10, 1), 20)
   const key = queryCacheKey(query, count, input.page, region)
+  const log = deps.logger ?? sweepLogger
+  const report = (leg: string, hits: number): void => {
+    log.info({ event: 'retrieval.sweep.search', leg, hits, page: input.page, region })
+  }
   const cached = getCachedQuery(key)
-  if (cached) return [...cached]
+  if (cached) {
+    report('cached', cached.length)
+    return [...cached]
+  }
   return dedupInflight(key, async () => {
     const again = getCachedQuery(key)
-    if (again) return [...again]
+    if (again) {
+      report('cached', again.length)
+      return [...again]
+    }
     const keyed = deps.keyed ?? ((q, page) => pooledWebSearch(process.env, q, { count, page }))
     const keyless = deps.keyless ?? ((q, page) => keylessSearch(q, { count, page, region }))
     const browser = deps.browser ?? ((q) => defaultBrowserLeg(q, region, count))
@@ -143,6 +162,7 @@ export async function pooledSearchWebPage(
         if (hits.length > 0) {
           const tagged = hits.slice(0, count).map((hit) => ({ ...hit, via: 'keyed' as const }))
           setCachedQuery(key, tagged)
+          report('keyed', tagged.length)
           return tagged
         }
       } catch (error) {
@@ -160,6 +180,7 @@ export async function pooledSearchWebPage(
           engine: hit.engine,
         }))
         setCachedQuery(key, tagged)
+        report('keyless', tagged.length)
         return tagged
       }
     } catch (error) {
@@ -167,14 +188,19 @@ export async function pooledSearchWebPage(
     }
     if (input.page > 0) {
       setCachedQuery(key, [])
+      report('empty', 0)
       return []
     }
     try {
       const hits = (await browser(query)).slice(0, count)
       setCachedQuery(key, hits)
+      report('browser', hits.length)
       return hits
     } catch (error) {
-      if (error instanceof RetrievalError && error.code === 'overload') throw error
+      // Overload and bot-wall blocks stay coded: the caller retries the
+      // former later and reports the latter, instead of recording a
+      // false exhaustive miss for either.
+      if (error instanceof RetrievalError && (error.code === 'overload' || error.code === 'blocked')) throw error
       throw new RetrievalError(
         'fetch_failed',
         `sweep search exhausted every leg: ${error instanceof Error ? error.message : 'unknown'}`,

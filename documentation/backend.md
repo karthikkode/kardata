@@ -486,6 +486,9 @@ Mojeek has no documented region parameter and runs unlocalized.
 The agents' web_search rides the same chain (keyed with a key, else
 keyless pool, else browser leg); hits carry via/engine, and only
 exhaustion of every leg fails. Count threads through every leg (1-20).
+Each keyless search logs its per-engine dispositions and each served
+page logs its leg, so runs count hits per leg and the challenge rate;
+challenged browser pages fail coded (never bypassed, never wrapped).
 Contract authority: [Brave pagination](https://api-dashboard.search.brave.com/app/documentation/web-search/codes)
 and [response schema](https://api-dashboard.search.brave.com/api-reference/web/search/post).
 

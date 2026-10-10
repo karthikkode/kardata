@@ -6,6 +6,7 @@ recurrence. New rows append at the top.
 
 | date | bug | found by | tier that should have caught it | test added | rule added |
 |---|---|---|---|---|---|
+| 2026-10-10 | Search legs ran silent: no per-leg hit counts, no challenge visibility, challenged browser pages parsed as empty | pilot r0 (R0-7, F10c) | unit | sweep.search dispositions/log/challenge cases + browser-pool blocked/leg-log cases | keyless logs dispositions (exhaustion message lists them), pages log their leg, bot-wall blocks stay coded |
 | 2026-10-10 | Agents' web_search failed closed without a key while the sweep had a working keyless+browser chain: agents got nothing, sweeps got results | pilot r0 (R0-7, F10b) | unit | mcp.tools chain-seam + via/engine + exhaustion cases | web_search rides pooledSearchWebPage (count threaded); hits carry via/engine; exhaustion is the honest failure |
 | 2026-10-10 | Keyless and browser search ran unlocalized: AU sector research got global/US-ranked results with no region control | pilot r0 (R0-7, F10a) | unit | sweep.search locale/region cases + browser-pool browser-URL/cache cases | engines and browser leg carry the region (override → KARDATA_SEARCH_REGION → AU); cache keys on region |
 | 2026-10-10 | Spec workarounds (nudges, reload recoveries, resumes, re-picks) ran silently: r0 counts hid the product issues they papered over | pilot r0 (F8c) | e2e | pilot-occurrences append-order case | logOccurrence appends every workaround to the run's occurrences.json (deliberate test actions stay step marks) |

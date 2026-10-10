@@ -1,11 +1,13 @@
 // Sweep search fallback (keyed -> keyless -> browser). No open-internet
 // calls: engines answer from fixture doubles, the chain runs on stub
 // legs, and the real browser leg stays behind KARDATA_BROWSER_TEST.
+import { Writable } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { clearBrowserCacheForTests } from '../../backend/src/browserPool/cache.js'
 import { resetBrowserPoolForTests } from '../../backend/src/browserPool/pool.js'
+import { createLogger } from '../../backend/src/observability/logging.js'
 import { RetrievalError } from '../../backend/src/retrieval/web.js'
-import { keylessSearch, type KeylessHit } from '../../backend/src/retrieval/keyless.js'
+import { isChallengePage, keylessSearch, type KeylessHit } from '../../backend/src/retrieval/keyless.js'
 import {
   linksFromSnapshot,
   searchWebPageActivity,
@@ -125,6 +127,50 @@ describe('keylessSearch [F:backend.activity.sweep.linksFromSnapshot] [F:backend.
     } finally {
       delete process.env['KARDATA_SEARCH_REGION']
     }
+  })
+
+  it('lists per-engine dispositions when the pool exhausts (F10c/R0-7)', async () => {
+    const challenged = '<div class="anomaly-modal">challenge wall</div>'
+    const failure = await keylessSearch('acme foods', {
+      fetchImpl: routeDouble([
+        { match: 'bing.com', status: 200, body: challenged },
+        { match: 'html.duckduckgo.com', status: 200, body: challenged },
+        { match: 'lite.duckduckgo.com', status: 200, body: '<html><body>no results here</body></html>' },
+        { match: 'mojeek.com', status: 500, body: 'down' },
+      ]),
+    }).then(
+      () => 'served',
+      (error: unknown) => (error instanceof Error ? error.message : String(error)),
+    )
+    expect(failure).toContain('challenged: bing, duckduckgo')
+    expect(failure).toContain('duckduckgo-lite')
+    expect(failure).toContain('mojeek')
+  })
+
+  it('logs per-engine dispositions on every search (F10c/R0-7)', async () => {
+    const lines: string[] = []
+    const stream = new Writable({
+      write(chunk, _encoding, callback) {
+        for (const line of String(chunk).split('\n')) if (line.trim()) lines.push(line)
+        callback()
+      },
+    })
+    const logger = createLogger({ op: 'TEST keyless' }, stream)
+    await keylessSearch('acme foods', {
+      logger,
+      fetchImpl: routeDouble([
+        { match: 'bing.com', status: 200, body: '<div class="anomaly-modal">challenge wall</div>' },
+        { match: 'lite.duckduckgo.com', status: 200, body: LITE_HTML },
+      ]),
+    })
+    const logged = lines.map((line) => JSON.parse(line) as { challenged?: string[]; outcome?: string })
+    expect(logged.some((entry) => entry.outcome === 'duckduckgo-lite' && entry.challenged?.includes('bing'))).toBe(true)
+  })
+
+  it('detects challenge pages by bot-wall machinery (F10c/R0-7)', () => {
+    expect(isChallengePage('<div class="anomaly-modal">verify you are human</div>')).toBe(true)
+    expect(isChallengePage(BING_HTML)).toBe(false)
+    expect(isChallengePage('<p>results for captcha research tools</p>')).toBe(false)
   })
 
   it('fails loudly when the whole pool yields nothing, validates first', async () => {

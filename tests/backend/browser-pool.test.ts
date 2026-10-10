@@ -2,7 +2,9 @@
 // Failing-first: imports below do not exist yet; green means routing,
 // bounds, caching, and progress preservation hold hermetically (no
 // Chromium, no network: stub legs only).
+import { Writable } from 'node:stream'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { createLogger } from '../../backend/src/observability/logging.js'
 import { browserNavigate, browserClose, browserSnapshot } from '../../backend/src/retrieval/browser.js'
 import { RetrievalError } from '../../backend/src/retrieval/web.js'
 import {
@@ -178,6 +180,29 @@ describe('facade routing (single entry, cached pages)', () => {
     } finally {
       delete process.env['KARDATA_SEARCH_REGION']
     }
+  })
+
+  it('preserves a browser bot-wall block instead of wrapping it (F10c/R0-7)', async () => {
+    const walled = async (): Promise<never> => {
+      throw new RetrievalError('blocked', 'browser search challenged by a bot wall; challenges are never bypassed')
+    }
+    await expect(pooledSearchWebPage({ query: 'walled probe', page: 0 }, { keyless: async () => [], browser: walled })).rejects.toMatchObject({
+      code: 'blocked',
+    })
+  })
+
+  it('logs the serving leg for the r1 per-leg count (F10c/R0-7)', async () => {
+    const lines: string[] = []
+    const stream = new Writable({
+      write(chunk, _encoding, callback) {
+        for (const line of String(chunk).split('\n')) if (line.trim()) lines.push(line)
+        callback()
+      },
+    })
+    const logger = createLogger({ op: 'TEST sweep' }, stream)
+    await pooledSearchWebPage({ query: 'leg probe', page: 0 }, { keyless: async () => keylessHits, logger })
+    const logged = lines.map((line) => JSON.parse(line) as { leg?: string; event?: string })
+    expect(logged.some((entry) => entry.event === 'retrieval.sweep.search' && entry.leg === 'keyless')).toBe(true)
   })
 
   it('scopes the query cache by region (F10a/R0-7)', async () => {
