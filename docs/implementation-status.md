@@ -3975,3 +3975,15 @@ requirement, no-force-push, no-delete kept). Re-enable: rename back
 + restore checks (verify, e2e, integration). Known open flake for
 the post-dev pass: CI-only `db-template` template-sealer race
 (`Test template still has active connections`, passed locally).
+
+## 2026-10-10 — Phase 3 done: prod live on origin/prod 854c363
+Staging = this checkout (lean), prod = `/home/karthik/projects/kardata_prod`
+(full, clean `kardata_prod` DB, keys `prod-worker`/`prod-owner`), remote =
+`origin/prod`. PRs #42-46 (merge commits): overlay + UI image,
+prod/release/rebalance commands, image-build fixes, `!override` ports,
+provision-keys + deploy rollback + probe hard-timeout. Proven: deploy
+green (97/97 MCP), rollback back+forward, rebalance testing↔normal,
+doctor `prod/*` PASS. UI key in ignored prod `agents/.env`. Stopped
+stale `kardata-fv4-pg` (was squatting 5434; stopped, not removed).
+Pre-existing, untouched: staging images stale (63a41c43c), 1 host
+dev-worker duplicating the staging fleet, owner smoke pending.
