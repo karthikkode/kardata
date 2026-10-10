@@ -1067,12 +1067,16 @@ describe('uncertain mutation recovery', () => {
     expect(result.recoveryHalt).toBeUndefined()
     expect(provider.calls[0]?.messages.filter((message) => message.role === 'tool')).toHaveLength(1)
   })
-  it('keeps a still-pending operation parked without another provider call', async () => {
+  it('reports a still-pending replay as outcome-unknown and continues the turn', async () => {
+    // F1 contract: a replay that cannot resolve reports outcome-unknown
+    // with the state to check instead of parking again. Never bricks.
     const operation = { operationId: 'TEST original identity', call: { id: 'mutation-1', name: 'db.create_session', args: {} }, reason: 'TEST pending' }
-    const provider = new FakeProvider([{ text: 'Must not run' }])
+    const provider = new FakeProvider([{ text: 'TEST agent verifies' }])
     const result = await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [], resume: { round: 1, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] }, sink: { onDelta: () => undefined }, mcp: { listTools: async () => [sessionTool()], callTool: async () => ({ content: 'TEST pending', isError: true, recovery: { operationId: operation.operationId, reason: 'TEST pending' } }) } })
-    expect(provider.calls).toHaveLength(0)
-    expect(result.recoveryHalt).toHaveLength(1)
+    expect(provider.calls).toHaveLength(1)
+    expect(result.recoveryHalt).toBeUndefined()
+    expect(result.text).toBe('TEST agent verifies')
+    expect(provider.calls[0]?.messages.find((message) => message.role === 'tool')?.toolResult?.content).toBe('Outcome unknown: db.create_session TEST original identity was not confirmed. Check the session list before retrying.')
   })
   it('keys operations by run, round, and call index with bounded long identities [F:agents.turnRunner.toolOperationId]', () => {
     expect(toolOperationId('run', 1, 0)).toBe('run:1:0')
@@ -1241,12 +1245,17 @@ describe('callTool outcomes [F:agents.turnRunner.StreamableMcpClient]', () => {
 })
 
 
-it('keeps original uncertainty when a retry is denied before effect', async () => {
+it('hands a denied retry to the agent with its text and continues', async () => {
+  // F1 contract: a deterministic retry verdict reaches the agent with
+  // its text plus the unconfirmed caveat instead of halting. Never bricks.
   const operation = { operationId: 'TEST original identity', call: { id: 'mutation-1', name: 'db.create_session', args: {} }, reason: 'TEST original reply lost' }
-  const provider = new FakeProvider([{ text: 'Must not run' }])
+  const provider = new FakeProvider([{ text: 'TEST agent reacts' }])
   const result = await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [], resume: { round: 1, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] }, sink: { onDelta: () => undefined }, mcp: { listTools: async () => [sessionTool()], callTool: async () => ({ content: 'TEST permission denied before retry', isError: true }) } })
-  expect(provider.calls).toHaveLength(0)
-  expect(result.recoveryHalt?.[0]?.operationId).toBe(operation.operationId)
+  expect(provider.calls).toHaveLength(1)
+  expect(result.recoveryHalt).toBeUndefined()
+  const content = provider.calls[0]?.messages.find((message) => message.role === 'tool')?.toolResult?.content ?? ''
+  expect(content).toContain('TEST permission denied before retry')
+  expect(content).toContain('Outcome unknown: db.create_session TEST original identity was not confirmed. Check the session list before retrying.')
 })
 it('never dispatches an old operation under a changed execution authority', async () => {
   const operation = { authorityId: 'TEST old authority', operationId: 'TEST original identity', call: { id: 'mutation-1', name: 'db.create_session', args: {} }, reason: 'TEST original reply lost' }
@@ -1432,9 +1441,11 @@ describe('turn request defaults [F:agents.turnRunner.runKarbotTurn]', () => {
   })
 
   it('returns empty text and reasoning when recovery halts before any round', async () => {
-    const operation = { operationId: 'TEST original identity', call: { id: 'mutation-1', name: 'db.create_session', args: {} }, reason: 'TEST pending' }
+    // Halt purity now exercises the surviving authority path: F1 retired
+    // halting on re-dispatch outcomes.
+    const operation = { authorityId: 'TEST old authority', operationId: 'TEST original identity', call: { id: 'mutation-1', name: 'db.create_session', args: {} }, reason: 'TEST pending' }
     const provider = new FakeProvider([{ text: 'Must not run' }])
-    const result = await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [], resume: { round: 1, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] }, sink: { onDelta: () => undefined }, mcp: { listTools: async () => [sessionTool()], callTool: async () => ({ content: 'TEST pending', isError: true, recovery: { operationId: operation.operationId, reason: 'TEST pending' } }) } })
+    const result = await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [], resume: { round: 1, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] }, sink: { onDelta: () => undefined }, mcp: { authorityId: 'TEST new authority', listTools: async () => [sessionTool()], callTool: async () => ({ content: 'Must not run' }) } })
     expect(result.text).toBe('')
     expect(result.reasoning).toBe('')
     expect(result.recoveryHalt).toHaveLength(1)
@@ -1665,19 +1676,66 @@ describe('blocked-operation retry [F:agents.turnRunner.runKarbotTurn]', () => {
     ])
   })
 
-  it('keeps the server recovery reason and falls back when it carries none', async () => {
-    for (const [recovery, reason] of [
-      [{ operationId: 'TEST op', reason: 'TEST server reason' }, 'TEST server reason'],
-      [{ operationId: 'TEST op' } as { operationId: string; reason: string }, 'This retry failed; the original effect is still unconfirmed.'],
-    ] as const) {
+  it('reports unconfirmed replays as outcome-unknown with the state to check', async () => {
+    // F1 contract: the server recovery reason is diagnostic only; the
+    // agent gets outcome-unknown with the state to check. Never bricks.
+    for (const recovery of [
+      { operationId: 'TEST op', reason: 'TEST server reason' },
+      { operationId: 'TEST op' },
+    ]) {
       const operation = { operationId: 'TEST op', call: retryCall, reason: 'TEST lost' }
-      const provider = new FakeProvider([{ text: 'Must not run' }])
+      const provider = new FakeProvider([{ text: 'TEST agent verifies' }])
       const result = await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [],
         resume: { round: 1, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] },
-        sink: memorySink().sink, mcp: { listTools: async () => [sessionTool()], callTool: async () => ({ content: 'TEST bad', isError: true, recovery }) } })
-      expect(result.recoveryHalt?.[0]?.reason).toBe(reason)
-      expect(provider.calls).toHaveLength(0)
+        sink: memorySink().sink, mcp: { listTools: async () => [sessionTool()], callTool: async () => ({ content: 'TEST bad', isError: true, recovery: recovery as { operationId: string; reason: string } }) } })
+      expect(result.recoveryHalt).toBeUndefined()
+      expect(provider.calls).toHaveLength(1)
+      expect(provider.calls[0]?.messages.find((message) => message.role === 'tool')?.toolResult?.content).toBe('Outcome unknown: db.create_session TEST op was not confirmed. Check the session list before retrying.')
     }
+  })
+})
+
+describe('unconfirmed replay reporting [F:agents.turnRunner.runKarbotTurn]', () => {
+  // F1: re-dispatch outcomes never halt the turn; only authority and
+  // serialization verdicts do. A still-unconfirmed replay reports
+  // outcome-unknown with the state to check, and the turn continues.
+  it.each([
+    ['db.delegate_subagent', 'the session child list'],
+    ['ops.spawn_subagent', 'the session child list'],
+    ['ops.start_monitor', 'ops.list_monitors'],
+    ['db.propose_global_context', 'the current context version'],
+    ['db.propose_file_context', 'the current context version'],
+    ['db.commit_child_context', 'the current context version'],
+    ['db.update_sector_plan', 'the plan versions'],
+    ['db.create_session', 'the session list'],
+    ['db.append_event', 'the current state'],
+  ] as const)('reports a still-unconfirmed %s replay against %s and continues', async (tool, state) => {
+    const call = { id: 'mutation-1', name: tool, args: {} }
+    const operation = { operationId: 'TEST op', call, reason: 'TEST lost' }
+    const provider = new FakeProvider([{ text: 'TEST agent reacts' }])
+    const result = await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [],
+      resume: { round: 1, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] },
+      sink: memorySink().sink, mcp: { listTools: async () => [sessionTool()], callTool: async () => ({ content: 'TEST still lost', isError: true, recovery: { operationId: 'TEST op', reason: 'TEST uncertain' } }) } })
+    expect(result.recoveryHalt).toBeUndefined()
+    expect(result.text).toBe('TEST agent reacts')
+    expect(provider.calls).toHaveLength(1)
+    const toolMessage = provider.calls[0]?.messages.find((message) => message.role === 'tool')
+    expect(toolMessage?.toolResult?.content).toBe(`Outcome unknown: ${tool} TEST op was not confirmed. Check ${state} before retrying.`)
+    expect(toolMessage?.toolResult?.isError).toBe(true)
+  })
+
+  it('hands a legacy deterministic block to the agent with its text and continues (R0-9 shape)', async () => {
+    const call = { id: 'mutation-1', name: 'db.commit_child_context', args: { proposalId: 'TEST p' } }
+    const operation = { operationId: 'TEST legacy op', call, reason: 'The server could not confirm a retry-safe mutation outcome.' }
+    const provider = new FakeProvider([{ text: 'TEST agent re-reads context' }])
+    const result = await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [],
+      resume: { round: 1, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] },
+      sink: memorySink().sink, mcp: { listTools: async () => [sessionTool()], callTool: async () => ({ content: 'permission_denied: Only the research parent can commit a child update.', isError: true }) } })
+    expect(result.recoveryHalt).toBeUndefined()
+    expect(result.text).toBe('TEST agent re-reads context')
+    const toolMessage = provider.calls[0]?.messages.find((message) => message.role === 'tool')
+    expect(toolMessage?.toolResult?.content).toContain('permission_denied: Only the research parent can commit a child update.')
+    expect(toolMessage?.toolResult?.content).toContain('Outcome unknown: db.commit_child_context TEST legacy op was not confirmed. Check the current context version before retrying.')
   })
 })
 
@@ -1773,26 +1831,36 @@ describe('resume drain ledger [F:agents.turnRunner.runKarbotTurn]', () => {
     return { provider, checkpoints, toolEvents, resultRounds, options }
   }
 
-  it('keeps a recovery reason verbatim on a failed blocked retry', async () => {
+  it('reports an unconfirmed retry against the current state and continues', async () => {
+    // F1 contract: still-unconfirmed replays report outcome-unknown
+    // (db.list_sessions is outside the check-state map). Never bricks.
     const call = { id: 'b1', name: 'db.list_sessions', args: {} }
     const operation: RecoveryOperation = { authorityId: 'TEST authority', operationId: 'TEST op', call, serializedCall: JSON.stringify(call), reason: 'TEST blocked' }
-    const provider = new FakeProvider([{ text: 'TEST never' }])
+    const provider = new FakeProvider([{ text: 'TEST agent verifies' }])
     const result = await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [],
       resume: { round: 1, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] },
       sink: { onDelta: () => undefined },
       mcp: { authorityId: 'TEST authority', listTools: async () => [sessionTool()], callTool: async () => ({ content: 'TEST still lost', isError: true, recovery: { operationId: 'TEST op', reason: 'TEST kept verbatim' } }) } })
-    expect(provider.calls).toHaveLength(0)
-    expect(result.recoveryHalt?.[0]?.reason).toBe('TEST kept verbatim')
+    expect(provider.calls).toHaveLength(1)
+    expect(result.recoveryHalt).toBeUndefined()
+    expect(provider.calls[0]?.messages.find((message) => message.role === 'tool')?.toolResult?.content).toBe('Outcome unknown: db.list_sessions TEST op was not confirmed. Check the current state before retrying.')
   })
 
-  it('falls back to the default retry note when recovery carries no reason', async () => {
+  it('hands a bare retry error to the agent with the unconfirmed caveat', async () => {
+    // F1 contract: a replay error without a recovery claim still clears
+    // the block; the text plus caveat reach the agent. Never bricks.
     const call = { id: 'b1', name: 'db.list_sessions', args: {} }
     const operation: RecoveryOperation = { authorityId: 'TEST authority', operationId: 'TEST op', call, serializedCall: JSON.stringify(call), reason: 'TEST blocked' }
-    const result = await runKarbotTurn({ provider: new FakeProvider([{ text: 'TEST never' }]), systemPrompt: 'TEST', messages: [],
+    const provider = new FakeProvider([{ text: 'TEST agent reacts' }])
+    const result = await runKarbotTurn({ provider, systemPrompt: 'TEST', messages: [],
       resume: { round: 1, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] },
       sink: { onDelta: () => undefined },
       mcp: { authorityId: 'TEST authority', listTools: async () => [sessionTool()], callTool: async () => ({ content: 'TEST failed silently', isError: true }) } })
-    expect(result.recoveryHalt?.[0]?.reason).toBe('This retry failed; the original effect is still unconfirmed.')
+    expect(result.recoveryHalt).toBeUndefined()
+    expect(result.text).toBe('TEST agent reacts')
+    const content = provider.calls[0]?.messages.find((message) => message.role === 'tool')?.toolResult?.content ?? ''
+    expect(content).toContain('TEST failed silently')
+    expect(content).toContain('Outcome unknown: db.list_sessions TEST op was not confirmed. Check the current state before retrying.')
   })
 
   it('checkpoints the resume round with exact carried totals and prepared operations', async () => {
@@ -2274,12 +2342,12 @@ describe('round checkpoints and halt precedence [F:agents.turnRunner.runKarbotTu
   })
 
   it('leaves the budget untripped when recovery halts the turn', async () => {
-    const call = { id: 'b1', name: 'db.list_sessions', args: {} }
-    const operation = { authorityId: 'TEST authority', operationId: 'TEST op', call, serializedCall: JSON.stringify(call), reason: 'TEST blocked' }
-    const result = await runKarbotTurn({ provider: new FakeProvider([{ text: 'TEST never' }]), systemPrompt: 'TEST', messages: [],
-      resume: { round: 1, usage: emptyUsage(), toolCalls: 1, blockedOperations: [operation] },
+    // Halt/budget precedence now exercises the surviving fresh-uncertain
+    // path: F1 retired halting on re-dispatch outcomes.
+    const call = { id: 'b1', name: 'db.create_session', args: {} }
+    const result = await runKarbotTurn({ provider: new FakeProvider([{ text: '', toolCalls: [call] }, { text: 'TEST never' }]), operationKey: 'TEST budget run', systemPrompt: 'TEST', messages: [{ role: 'user', text: 'TEST go' }],
       sink: { onDelta: () => undefined },
-      mcp: { authorityId: 'TEST authority', listTools: async () => [sessionTool()], callTool: async () => ({ content: 'TEST lost', isError: true, recovery: { operationId: 'TEST op', reason: 'TEST uncertain' } }) } })
+      mcp: { listTools: async () => [sessionTool()], callTool: async (_name, _args, operationId) => ({ content: 'TEST lost', isError: true, recovery: { operationId: operationId!, reason: 'TEST uncertain' } }) } })
     expect(result.recoveryHalt).toHaveLength(1)
     expect(result.budgetTripped).toBeUndefined()
   })

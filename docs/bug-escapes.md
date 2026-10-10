@@ -6,6 +6,7 @@ recurrence. New rows append at the top.
 
 | date | bug | found by | tier that should have caught it | test added | rule added |
 |---|---|---|---|---|---|
+| 2026-10-10 | blocked-operation replay halted on any re-dispatch failure (error or still-uncertain) → pause → replay → brick; deterministic denials never reached the agent | pilot r0 (R0-2/R0-3/R0-3b/R0-4/R0-6/R0-9/R0-15 replay leg) | unit | turnRunner.test.ts unconfirmed-replay suite + mcp.operation-recovery demotion case | re-dispatch outcomes never halt: still-uncertain → outcome-unknown + check-state; denials → text + caveat; only authority/serialization halt |
 | 2026-10-10 | MCP SDK validates tool args before our handler: violations answered bare isError, never reaching the retry-safe marker → uncertain → R0-6 brick | pilot r0 (R0-6) | db | mcp.deterministic-errors.test.ts R0-6 case | boundary pre-validates tools/call args with markers behind dispatcher gates |
 | 2026-10-10 | mcp.tools keyRow fakes lack api_keys.client → KeyRow parse throws DbContractError → 500 on every authenticated call (2 red) | F1a verification | unit | mcp.tools.test.ts keyed suites (2 red→green) | fakes mirror KeyRow; `as never` hides drift |
 | 2026-10-10 | deterministic tool errors (propose conflict, plan conflict, commit permission, monitor duplicate) classified operation-uncertain → recovery halt → pause → replay → bricked threads | pilot r0 (R0-2/R0-4/R0-9/R0-15) | db | mcp.deterministic-errors.test.ts (4 live-DB repros) | guard/contract failures are retry-safe by type (isRetrySafeBeforeEffect), never uncertain |

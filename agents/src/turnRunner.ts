@@ -63,6 +63,22 @@ export function toolOperationId(operationKey: string, round: number, callIndex: 
   return identity.length <= 128 && /^[\x21-\x7e](?:[\x20-\x7e]*[\x21-\x7e])?$/.test(operationKey) ? identity : `op:${createHash('sha256').update(identity).digest('hex')}`
 }
 
+/** State an agent checks before retrying an unconfirmed operation, per
+ * tool. The map stays small: tools outside it name the current state. */
+const RECOVERY_CHECK_STATE: Record<string, string> = {
+  'db.delegate_subagent': 'the session child list',
+  'ops.spawn_subagent': 'the session child list',
+  'ops.start_monitor': 'ops.list_monitors',
+  'db.propose_global_context': 'the current context version',
+  'db.propose_file_context': 'the current context version',
+  'db.commit_child_context': 'the current context version',
+  'db.update_sector_plan': 'the plan versions',
+  'db.create_session': 'the session list',
+}
+function recoveryCheckState(toolName: string): string {
+  return RECOVERY_CHECK_STATE[toolName] ?? 'the current state'
+}
+
 /** Tool client behind one turn. The Streamable HTTP implementation below
  * speaks MCP over an injected endpoint+token; tests inject a memory double. */
 export interface TurnRunnerMcpClient {
@@ -289,12 +305,18 @@ export async function runKarbotTurn(options: KarbotTurnOptions): Promise<KarbotT
     await options.sink.onTool?.(operation.call.id, operation.call.name, 'running', options.resume?.round ?? 0)
     // Stryker disable next-line OptionalChaining: blocked replay implies resume is defined and round is required
     const result = await dispatchTool(operation.call, options.resume?.round ?? 0, blockedIndex, operation.operationId)
-    const toolResult = { toolCallId: operation.call.id, toolName: operation.call.name, content: result.content, isError: result.isError ?? false }
+    // Re-dispatch outcomes never halt: a still-unconfirmed retry reports
+    // outcome-unknown with the state to check, and a deterministic retry
+    // verdict reaches the agent with its text plus the unconfirmed caveat
+    // (the retry verdict says nothing about the original attempt). Only
+    // authority and serialization verdicts above still halt.
+    const unconfirmed = `Outcome unknown: ${operation.call.name} ${operation.operationId} was not confirmed. Check ${recoveryCheckState(operation.call.name)} before retrying.`
+    const content = result.recovery !== undefined ? unconfirmed : result.isError ? `${result.content}\n${unconfirmed}` : result.content
+    const toolResult = { toolCallId: operation.call.id, toolName: operation.call.name, content, isError: result.isError ?? false }
     const index = history.findIndex((message) => message.role === 'tool' && message.toolResult?.toolCallId === operation.call.id)
     if (index >= 0) history[index] = { role: 'tool', toolResult }
     else if (history.some((message) => message.role === 'assistant' && message.toolCalls?.some((call) => call.id === operation.call.id))) history.push({ role: 'tool', toolResult })
     else history.push({ role: 'assistant', toolCalls: [operation.call] }, { role: 'tool', toolResult })
-    if (result.recovery || result.isError) recoveryHalt.push({ ...operation, reason: result.recovery?.reason ?? 'This retry failed; the original effect is still unconfirmed.' })
   }
   if (options.resume?.blockedOperations?.length) await options.onCheckpoint?.(history, options.resume.round, usage, options.resume.toolCalls, recoveryHalt)
   const pending = history.at(-1)

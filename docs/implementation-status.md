@@ -4004,3 +4004,10 @@ rows without `client`, so strict KeyRow parsing threw DbContractError
 client column; `as never` hid it from typecheck. Fixed the fakes
 (client 'agent-mcp'); 32/32 green. Same family unverified:
 db.key-provisioning toEqual without client.
+
+## 2026-10-10 — F1b verification: registry gate pre-existing red
+2 failures at HEAD, untouched by F1: 3 missing surfaces
+(db.alerts/db.index recordUiOnlyViolation, db.keys.KeyClient) and 6
+unknown tags in pilot-era files (db.pilot-ro, http.ui-only,
+pilot.audit/quality/locators). Pilot B-work never synced; needs
+registry:sync plus hand-written pilot entries. F1 adds no surfaces.

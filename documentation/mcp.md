@@ -247,12 +247,16 @@ arguments; they never create a fresh operation to bypass its guard. Long interna
 identities are deterministically hashed to the existing128-character header cap.
 
 Unresolved operations remain durable independently of compaction. Resume retries
-the original operation and can reuse its verified completed reply; pending,
-authority-conflicting or legacy-unprovable effects remain parked for owner review.
+the original operation and can reuse its verified completed reply; a retry that
+still cannot resolve reports outcome-unknown with the state to check, and a
+deterministic retry verdict reaches the agent with its text — the turn continues,
+never bricks. Authority-conflicting or receipt-corrupt effects remain parked for
+owner review.
 Owner inspection/reconciliation is scoped and cannot grant agent approval,
 release an uncertain effect blindly or expose another thread/sector's records.
 Legacy records are reconciled only with exact request/result and current authority
-proof; otherwise explicit parking is the compatible outcome, not silent trust.
+proof; otherwise the receipt stays unresolved while the turn reports
+outcome-unknown — never silently trusted, never bricked.
 
 Bound mutation calls record an intent and a successful transport result in the
 existing event log under the validated execution thread. Receipts bind caller

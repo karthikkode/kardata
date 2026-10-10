@@ -90,10 +90,6 @@ describe.skipIf(!TEST_DATABASE_URL)('uncertain mutation recovery over real HTTP 
     const pending = await readThreadContext(pool, session.id, scope)
     expect(pending.pendingOperations?.[0]?.operationId).toBe('TEST mutation operation:1:0')
     expect((await listSessions(pool, scope)).filter((entry) => entry.title === 'TEST created once')).toHaveLength(1)
-    await pool.query("UPDATE api_keys SET roles='viewer' WHERE key_id=$1", ['TEST recovery key'])
-    await expect(environment.run(karbotTurnActivity, { ...input, fakeSteps: [{ text: 'Must not continue after authority denial' }] })).rejects.toMatchObject({ type: 'OperationBlocked' })
-    expect((await readTurnContinuation(pool, session.id))?.meta.blockedOperations?.[0]?.operationId).toBe(saved?.meta.blockedOperations?.[0]?.operationId)
-    await pool.query("UPDATE api_keys SET roles='operator' WHERE key_id=$1", ['TEST recovery key'])
     const latest = await readTurnContinuation(pool, session.id)
     const local = await readThreadContext(pool, session.id, scope)
     await commitThreadCompaction(pool, session.id, { version: local.version, summary: 'TEST preserve task and unresolved operation', coveredSeq: 0, continuation: { previous: latest!, messages: [{ role: 'assistant', text: 'TEST compacted working history' }] } }, scope)
@@ -103,5 +99,32 @@ describe.skipIf(!TEST_DATABASE_URL)('uncertain mutation recovery over real HTTP 
     expect((await listSessions(pool, scope)).filter((entry) => entry.title === 'TEST created once')).toHaveLength(1)
     expect(await readTurnContinuation(pool, session.id)).toBeUndefined()
     expect((await readThreadContext(pool, session.id, scope)).pendingOperations).toBeUndefined()
+  }, 20000)
+  it('hands a denied replay to the agent with its text instead of parking again', async () => {
+    // F1 contract: a deterministic replay verdict (here: role demotion)
+    // reaches the agent with its text plus the unconfirmed caveat; the
+    // block clears and the turn continues. Never bricks.
+    const session = await createSession(pool, 'TEST demotion caller', scope)
+    await projectNewEvents(pool)
+    const environment = new MockActivityEnvironment()
+    const input: KarbotTurnInput = { sessionId: session.id, threadKey: session.id, runKey: 'TEST demotion operation', text: 'TEST create demoted session', mcpEndpoint: `${endpoint}/mcp`, mcpToken: credential, toolAllow: ['db.create_session'], fakeSteps: [
+      { text: '', toolCalls: [{ id: 'TEST demotion call', name: 'db.create_session', args: { title: 'TEST demoted once' } }] },
+      { text: 'Must not continue after an uncertain mutation.' },
+    ] }
+    dropReply = true
+    await expect(environment.run(karbotTurnActivity, input)).rejects.toMatchObject({ type: 'OperationBlocked', nonRetryable: true })
+    expect((await readTurnContinuation(pool, session.id))?.meta.blockedOperations).toHaveLength(1)
+    await pool.query("UPDATE api_keys SET roles='viewer' WHERE key_id=$1", ['TEST recovery key'])
+    try {
+      const resumed = await environment.run<[KarbotTurnInput], TurnOutcome, typeof karbotTurnActivity>(karbotTurnActivity, { ...input, fakeSteps: [{ text: 'TEST agent verifies the session list' }] })
+      expect(resumed.reply).toBe('TEST agent verifies the session list')
+      expect(await readTurnContinuation(pool, session.id)).toBeUndefined()
+      expect((await listSessions(pool, scope)).filter((entry) => entry.title === 'TEST demoted once')).toHaveLength(1)
+      const records = (await readPartition(pool, `session:${session.id}`)).filter((entry) => entry.type === 't.execution.recorded' && (entry.payload as { kind: string }).kind === 'tool-result')
+      const bodies = await Promise.all(records.map((entry) => readExecutionRecord(resolveArchiveTarget(), session.id, (entry.payload as { ref: ArchivedExecutionRecord }).ref)))
+      expect(JSON.stringify(bodies)).toContain('permission_denied')
+    } finally {
+      await pool.query("UPDATE api_keys SET roles='operator' WHERE key_id=$1", ['TEST recovery key'])
+    }
   }, 20000)
 })
