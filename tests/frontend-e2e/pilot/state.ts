@@ -56,6 +56,14 @@ export function pilotRunEnabled(): boolean {
   return process.env['KARDATA_PILOT_RUN'] === '1'
 }
 
+/** Company target for the run: r0 shakes out with 5, r1 counts 100. */
+export function pilotCompanies(): number {
+  const raw = process.env['KARDATA_PILOT_COMPANIES'] ?? '100'
+  const n = Number.parseInt(raw, 10)
+  if (!Number.isInteger(n) || n < 1) throw new Error(`KARDATA_PILOT_COMPANIES=${raw} is not a positive integer`)
+  return n
+}
+
 export function repoRoot(): string {
   return join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 }

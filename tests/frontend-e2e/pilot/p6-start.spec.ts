@@ -1,7 +1,7 @@
 // P6: edit the plan once, approve, start research. Proves landing
 // and plan views show identical progress.
 import { expect, test } from '@playwright/test'
-import { loadState, pilotRunEnabled } from './state.js'
+import { loadState, pilotCompanies, pilotRunEnabled } from './state.js'
 import { expectClean, startRecording, waitVisible } from './record.js'
 
 test.describe('P6 approve and start', () => {
@@ -22,7 +22,7 @@ test.describe('P6 approve and start', () => {
     await rec.mark('edit-once', async () => {
       await page.getByRole('button', { name: 'Edit plan', exact: true }).click()
       const dialog = page.getByRole('dialog', { name: 'Edit research plan' })
-      await dialog.getByLabel('Plan text').fill('Target 100 AU electrical, plumbing and HVAC companies.')
+      await dialog.getByLabel('Plan text').fill(`Target ${pilotCompanies()} AU electrical, plumbing and HVAC companies.`)
       await dialog.getByRole('button', { name: 'Save plan' }).click()
       // Toast: 'Plan saved as v<N>. Review reopens.'
       await expect(page.getByText('Plan saved')).toBeVisible({ timeout: 60000 })

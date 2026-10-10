@@ -39,7 +39,8 @@ if (!connectionString) {
     console.error('pilot:audit: worktree agents/.env is missing KARDATA_PILOT_RO_PASSWORD')
     process.exit(2)
   }
-  connectionString = `postgresql://kardata_pilot_ro:${encodeURIComponent(password)}@127.0.0.1:5433/kardata_pilot`
+  const dbName = process.env['KARDATA_PILOT_DB_NAME'] ?? 'kardata_pilot'
+  connectionString = `postgresql://kardata_pilot_ro:${encodeURIComponent(password)}@127.0.0.1:5433/${dbName}`
 }
 
 const { Pool } = createRequire(import.meta.url)('pg')

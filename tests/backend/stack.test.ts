@@ -240,6 +240,15 @@ describe('pilotConfig', () => {
     expect(cfg.corsOrigins).toContain('http://localhost:25174')
     expect(cfg.corsOrigins).toContain('http://127.0.0.1:25174')
   })
+
+  it('takes r0 scratch dbName/namespace overrides (defaults unchanged)', () => {
+    const cfg = pilotConfig({ dbName: 'kardata_pilot_r0', namespace: 'kardata-pilot-r0' })
+    expect(cfg.dbName).toBe('kardata_pilot_r0')
+    expect(cfg.namespace).toBe('kardata-pilot-r0')
+    expect(cfg.databaseUrl).toContain('/kardata_pilot_r0')
+    expect(cfg.backendUrl).toBe('http://127.0.0.1:3201')
+    expect(pilotConfig().dbName).toBe('kardata_pilot')
+  })
 })
 
 describe('pilot startup (static)', () => {
@@ -253,6 +262,13 @@ describe('pilot startup (static)', () => {
     expect(section.length).toBeGreaterThan(1000)
     expect(section).toContain('cmdPilotDown')
     expect(section).not.toMatch(/\b(terminateWorkflow|cancelWorkflow|deleteWorkflow|requestCancel)\b/)
+  })
+
+  it('plumbs KARDATA_PILOT_DB_NAME/NAMESPACE into up + status (r0 scratch)', () => {
+    expect(STACK).toContain('KARDATA_PILOT_DB_NAME')
+    expect(STACK).toContain('KARDATA_PILOT_NAMESPACE')
+    expect(STACK).toContain('pilotConfig(pilotEnvOverrides())')
+    expect(STACK).toContain('is not identifier-safe')
   })
 })
 

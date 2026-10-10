@@ -193,11 +193,15 @@ export const PILOT_DEFAULTS = {
   uiOnly: '1',
 }
 
-/** Derived pilot wiring (pure; `pilot up` consumes it verbatim). */
-export function pilotConfig({ pgPort = 5433, pgHost = '127.0.0.1', temporalAddress = 'localhost:7233' } = {}) {
+/** Derived pilot wiring (pure; `pilot up` consumes it verbatim).
+ * r0 overrides dbName/namespace via env (review-mandated scratch
+ * names); defaults are the r1 pilot identity. */
+export function pilotConfig({ pgPort = 5433, pgHost = '127.0.0.1', temporalAddress = 'localhost:7233', dbName = PILOT_DEFAULTS.dbName, namespace = PILOT_DEFAULTS.namespace } = {}) {
   return {
     ...PILOT_DEFAULTS,
-    databaseUrl: `postgresql://kardata:kardata-dev@${pgHost}:${pgPort}/${PILOT_DEFAULTS.dbName}`,
+    dbName,
+    namespace,
+    databaseUrl: `postgresql://kardata:kardata-dev@${pgHost}:${pgPort}/${dbName}`,
     backendUrl: `http://127.0.0.1:${PILOT_DEFAULTS.backendPort}`,
     uiUrl: `http://127.0.0.1:${PILOT_DEFAULTS.uiPort}`,
     mcpUrl: `http://127.0.0.1:${PILOT_DEFAULTS.backendPort}/mcp`,

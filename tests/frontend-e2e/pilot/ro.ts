@@ -20,8 +20,9 @@ function roPool(): Pool {
     ?.slice('KARDATA_PILOT_RO_PASSWORD='.length)
     .trim()
   if (!password) throw new Error('pilot worktree agents/.env is missing KARDATA_PILOT_RO_PASSWORD')
+  const dbName = process.env['KARDATA_PILOT_DB_NAME'] ?? 'kardata_pilot'
   pool = new Pool({
-    connectionString: `postgresql://kardata_pilot_ro:${encodeURIComponent(password)}@127.0.0.1:5433/kardata_pilot`,
+    connectionString: `postgresql://kardata_pilot_ro:${encodeURIComponent(password)}@127.0.0.1:5433/${dbName}`,
   })
   return pool
 }

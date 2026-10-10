@@ -945,6 +945,23 @@ function spawnPilotProc(worktree, name, cmd, args, env, marker, cwd = null) {
   return { pid: child.pid, marker }
 }
 
+/** r0 scratch identity: KARDATA_PILOT_DB_NAME / KARDATA_PILOT_NAMESPACE
+ * override the r1 defaults. Guarded to identifier-safe names (the db
+ * name is interpolated into quoted DDL). */
+function pilotEnvOverrides() {
+  const overrides = {}
+  for (const [env, key] of [['KARDATA_PILOT_DB_NAME', 'dbName'], ['KARDATA_PILOT_NAMESPACE', 'namespace']]) {
+    const value = process.env[env]
+    if (!value) continue
+    if (!/^[A-Za-z0-9_-]+$/.test(value)) {
+      console.error(`stack: ${env}=${value} is not identifier-safe`)
+      process.exit(1)
+    }
+    overrides[key] = value
+  }
+  return overrides
+}
+
 async function cmdPilotUp(args) {
   if (process.versions.node.split('.')[0] !== '22') {
     console.error(`stack: pilot needs node 22, this is ${process.version}`)
@@ -964,7 +981,7 @@ async function cmdPilotUp(args) {
       process.exit(1)
     }
   }
-  const cfg = pilotConfig()
+  const cfg = pilotConfig(pilotEnvOverrides())
   // 9464 is the worker's Temporal metrics port (Runtime.install binds it;
   // a second worker dies instantly with EADDRINUSE).
   for (const port of [cfg.backendPort, cfg.uiPort, 9464]) {
@@ -1151,7 +1168,7 @@ async function cmdPilotDown(args) {
 
 async function cmdPilotStatus(args) {
   const worktree = pilotWorktree(args)
-  const cfg = pilotConfig()
+  const cfg = pilotConfig(pilotEnvOverrides())
   const live = pilotPids(worktree)
   let ok = true
   for (const [name, marker] of [['backend', 'backend/dist/server.js'], ['worker', 'dev-worker.js'], ['ui', 'vite/bin/vite.js']]) {
@@ -1163,7 +1180,7 @@ async function cmdPilotStatus(args) {
   const checks = [
     ['backend /healthz :3201', urlHealthy(`${cfg.backendUrl}/healthz`)],
     ['ui / :25174', urlHealthy(cfg.uiUrl)],
-    ['pg :5433 (kardata_pilot)', (async () => {
+    [`pg :5433 (${cfg.dbName})`, (async () => {
       const { Pool } = createRequire(import.meta.url)('pg')
       const pool = new Pool({ connectionString: cfg.databaseUrl })
       try {

@@ -1,24 +1,33 @@
-// P10: wait for ≥100 accepted companies. Proves the landing count
-// never exceeds the DB count (no phantom rows).
+// P10: wait for ≥target accepted companies (r0: 5, r1: 100).
+// Proves the landing count never exceeds the DB count (no phantom rows).
 import { expect, test } from '@playwright/test'
-import { loadState, pilotRunEnabled } from './state.js'
+import { loadState, pilotCompanies, pilotRunEnabled } from './state.js'
 import { expectClean, startRecording, waitVisible } from './record.js'
 import { closePilotRo, pilotRoQuery } from './ro.js'
+
+/** Landing text meaning "at least n companies accepted". Only the two
+ * real targets exist (r0 5, r1 100); anything else fails fast. */
+function countReachedText(n: number): RegExp {
+  if (n >= 100) return /10\d|100\+? companies/i
+  if (n >= 1 && n <= 9) return new RegExp(`([${n}-9]|[1-9]\\d+) companies`, 'i')
+  throw new Error(`P10 has no wait text for target ${n}`)
+}
 
 test.describe('P10 hundred companies', () => {
   test.skip(!pilotRunEnabled(), 'needs KARDATA_PILOT_RUN=1 (pilot stack)')
 
-  test('landing reaches 100; DB agrees', async ({ page }) => {
+  test('landing reaches target; DB agrees', async ({ page }) => {
     test.setTimeout(3_600_000)
     const rec = startRecording(page, 'p10')
     const state = loadState()
     if (!state.sectorName) throw new Error('P1 must run first (no sectorName in state)')
+    const target = pilotCompanies()
     await rec.mark('wait-hundred', async () => {
       // SectorDetail landing: the header count ('N companies') plus the
       // Research status region carry the live totals.
       await page.goto('/?section=Researches')
       await page.getByRole('table', { name: 'Sectors' }).getByRole('link', { name: state.sectorName }).first().click()
-      await waitVisible(page, page.getByText(/10\d|100\+? companies/i), {
+      await waitVisible(page, page.getByText(countReachedText(target)), {
         step: 'p10',
         ceilingMs: 3_400_000,
         status: page.getByRole('region', { name: 'Research status' }),
@@ -30,7 +39,7 @@ test.describe('P10 hundred companies', () => {
         `SELECT count(*) AS n FROM research_work WHERE sector_id = (SELECT id FROM sectors WHERE name = $1) AND state = 'complete' AND kind = 'company'`,
         [state.sectorName],
       )
-      expect(Number(rows[0]?.n ?? 0)).toBeGreaterThanOrEqual(100)
+      expect(Number(rows[0]?.n ?? 0)).toBeGreaterThanOrEqual(target)
     })
     await closePilotRo()
     rec.finish()
