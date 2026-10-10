@@ -259,7 +259,8 @@ controls and retains drafts on failed saves. `ExecutablePlanDetails` is shared
 by Plan and progress dialog. `SectorFilePreview` displays retained extracts and
 uses shared `downloadBlob` for original/extracted downloads. The data hooks own
 all fetching. Queued, reconnecting and paused chat states are explicit; missed
-steering remains visible. Work-item lists are searchable and windowed, with
+steering remains visible. A paused thread (live phase or projected status)
+always shows the Resume banner ahead of the queued/reconnecting states. Work-item lists are searchable and windowed, with
 source links and truthful counts. Tests are linked by [F:<id>] tags (registry arrives in Phase 1).
 
 - The sector route lands on the summary page (`SectorLanding`): a
