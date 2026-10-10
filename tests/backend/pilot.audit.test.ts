@@ -1,14 +1,15 @@
-// Phase 8 B5: the audit fails on planted violations and passes a
-// clean run. Fixtures live in an isolated database (one sector per
-// case); the CLI exit mapping is covered by spawning it with
-// PILOT_AUDIT_URL against a fake worktree.
+// Phase 8 B5 UI-only audit (P8-B1): (a) events by client, (b)
+// violation alerts, (c) owner-type client rules. Each lib case runs in
+// its own rolled-back transaction (the audit is DB-wide, so committed
+// fixtures would leak across cases); the CLI case owns a second
+// database. No state.json anywhere: the audit needs no sector.
 import { execFile } from 'node:child_process'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
-import { Pool } from 'pg'
+import { Pool, type PoolClient } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { runPilotAudit } from '../../scripts/pilot-audit-lib.mjs'
 import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
@@ -16,126 +17,154 @@ import { ensureTestDb, TEST_DATABASE_URL } from './db-helper.js'
 const run = promisify(execFile)
 const HERE = dirname(fileURLToPath(import.meta.url))
 const SINCE = '2026-01-01T00:00:00.000Z'
+const BEFORE = '2025-06-01T00:00:00.000Z'
+let nonce = 0
 
-async function plantSector(pool: Pool, name: string, mutate?: (index: number) => Record<string, unknown>): Promise<string> {
-  const sectorId = `sec-audit-${name}`
-  await pool.query(
-    `INSERT INTO sectors(id, name, topic, state, tenant_id) VALUES($1, $2, 'TEST audit', 'running', 'TEST audit')`,
-    [sectorId, `TEST audit ${name}`],
+async function plantEvent(
+  db: PoolClient,
+  type: string,
+  client: string | null,
+  extra: { at?: string; payload?: Record<string, unknown> } = {},
+) {
+  await db.query(
+    'INSERT INTO events(idempotency_key, partition, type, payload, client, at) VALUES($1, $2, $3, $4, $5, $6)',
+    [`TEST audit ${++nonce}`, 'TEST', type, JSON.stringify(extra.payload ?? {}), client, extra.at ?? '2026-03-01T00:00:00.000Z'],
   )
-  for (let index = 0; index < 100; index++) {
-    const id = `audit-${name}-c${index}`
-    const child = `audit-${name}-t${index}`
-    const override = mutate?.(index) ?? {}
-    await pool.query(
-      `INSERT INTO threads(key, session_id, kind, status) VALUES($1, $2, $3, 'done')
-       ON CONFLICT (key) DO UPDATE SET kind = EXCLUDED.kind, session_id = EXCLUDED.session_id`,
-      [child, override.sessionId === null ? null : `sess-${index}`, override.threadKind ?? 'subagent'],
-    )
-    await pool.query(
-      `INSERT INTO execution_rounds(run_id, thread_key, kind, round, attempt, model, provider, started_at, outcome, session_id)
-       VALUES($1, $2, 'turn', 1, 1, 'TEST-model', 'TEST', now(), 'ok', $3)`,
-      [`run-${id}`, child, override.roundSessionId === null ? null : `sess-${index}`],
-    )
-    await pool.query(
-      `INSERT INTO research_work(id, sector_id, plan_version, kind, title, state, child_id, evidence, source_url, at)
-       VALUES($1, $2, 1, 'company', $3, 'complete', $4, $5, $6, now())`,
-      [
-        id,
-        sectorId,
-        `TEST Co ${index}`,
-        override.childId === null ? null : child,
-        JSON.stringify(override.evidence ?? ['https://test.invalid/1', 'https://test.invalid/2', 'https://test.invalid/3']),
-        override.sourceUrl === null ? null : `https://test.invalid/co-${index}`,
-      ],
-    )
-  }
-  return `TEST audit ${name}`
 }
 
-describe.skipIf(!TEST_DATABASE_URL)('pilot audit [F:pilot.audit]', () => {
+async function plantAlert(db: PoolClient, at: string) {
+  await db.query("INSERT INTO alerts(kind, severity, subject, created_at) VALUES('ui_only_violation', 'high', 'TEST', $1)", [
+    at,
+  ])
+}
+
+describe.skipIf(!TEST_DATABASE_URL)('pilot UI-only audit [F:pilot.audit]', () => {
   let pool: Pool
-  let connectionString: string
-  const sectors: Record<string, string> = {}
 
   beforeAll(async () => {
-    connectionString = await ensureTestDb('kardata_test_pilot_audit')
-    pool = new Pool({ connectionString })
-    sectors.clean = await plantSector(pool, 'clean')
-    sectors.short = await plantSector(pool, 'short', (index) => (index === 0 ? { childId: null } : {}))
-    await pool.query(`DELETE FROM research_work WHERE id = 'audit-short-c0'`)
-    sectors.nosource = await plantSector(pool, 'nosource', (index) => (index === 7 ? { sourceUrl: null } : {}))
-    sectors.thin = await plantSector(pool, 'thin', (index) =>
-      index === 9 ? { evidence: ['https://test.invalid/1'] } : {},
-    )
-    sectors.nochild = await plantSector(pool, 'nochild', (index) => (index === 11 ? { childId: null } : {}))
-    sectors.nosession = await plantSector(pool, 'nosession', (index) => (index === 13 ? { roundSessionId: null } : {}))
-  }, 180000)
+    pool = new Pool({ connectionString: await ensureTestDb('kardata_test_pilot_audit') })
+  }, 120000)
   afterAll(async () => {
     await pool?.end()
   })
 
-  async function audit(name: string) {
-    const { rows } = await pool.query<{ id: string }>('SELECT id FROM sectors WHERE name = $1', [sectors[name]])
-    return runPilotAudit(pool, { sectorId: rows[0]!.id, since: SINCE })
+  async function auditCase(plant: (db: PoolClient) => Promise<void>) {
+    const db = await pool.connect()
+    try {
+      await db.query('BEGIN')
+      await plant(db)
+      const result = await runPilotAudit(db, { since: SINCE })
+      await db.query('ROLLBACK')
+      return result as { ok: boolean; counts: { eventsByClient: Record<string, number>; violationAlerts: number }; violations: string[] }
+    } finally {
+      db.release()
+    }
   }
 
-  it('passes a clean run', async () => {
-    expect(await audit('clean')).toEqual({ ok: true, violations: [] })
+  it('passes a clean run (ui + system + agent-mcp traffic, old junk ignored)', async () => {
+    const result = await auditCase(async (db) => {
+      await plantEvent(db, 'sector.created', 'ui')
+      await plantEvent(db, 'sector.plan_approved', 'ui')
+      await plantEvent(db, 'sector.context.decided', 'ui')
+      await plantEvent(db, 'sector.file.processing.created', 'ui')
+      await plantEvent(db, 'sector.plan_written', 'system')
+      await plantEvent(db, 'sector.state_changed', 'system')
+      await plantEvent(db, 't.thread.state', 'ui', { payload: { status: 'CANCELLING' } })
+      await plantEvent(db, 't.message.appended', 'agent-mcp')
+      await plantEvent(db, 't.thread.state', 'system', { payload: { status: 'RUNNING' } })
+      // Outside the window: must not trip anything.
+      await plantEvent(db, 't.message.appended', 'other', { at: BEFORE })
+      await plantAlert(db, BEFORE)
+    })
+    expect(result).toMatchObject({ ok: true, violations: [] })
+    expect(result.counts.eventsByClient).toMatchObject({ ui: 5, system: 3, 'agent-mcp': 1 })
+    expect(result.counts.violationAlerts).toBe(0)
   })
 
-  it('fails below 100 accepted', async () => {
-    const result = await audit('short')
+  it("fails on 'other' and unstamped events", async () => {
+    const other = await auditCase(async (db) => {
+      await plantEvent(db, 't.message.appended', 'other')
+    })
+    expect(other.ok).toBe(false)
+    expect(other.violations[0]).toMatch(/1 events with client 'other' or unstamped/)
+    const unstamped = await auditCase(async (db) => {
+      await plantEvent(db, 't.message.appended', null)
+    })
+    expect(unstamped.ok).toBe(false)
+    expect(unstamped.violations[0]).toMatch(/1 events with client 'other' or unstamped/)
+  })
+
+  it('fails on a violation alert in the window', async () => {
+    const result = await auditCase(async (db) => {
+      await plantAlert(db, '2026-04-01T00:00:00.000Z')
+    })
     expect(result.ok).toBe(false)
-    expect(result.violations[0]).toMatch(/fewer than 100 accepted companies \(99/)
+    expect(result.violations).toContain('1 ui_only_violation alerts since 2026-01-01T00:00:00.000Z')
   })
 
-  it('names the company missing a source URL', async () => {
-    const result = await audit('nosource')
+  it('fails an owner-type event with a non-UI client', async () => {
+    const result = await auditCase(async (db) => {
+      await plantEvent(db, 'sector.created', 'agent-mcp')
+    })
     expect(result.ok).toBe(false)
-    expect(result.violations).toContain('company audit-nosource-c7 has no fetched source URL')
+    expect(result.violations).toHaveLength(1)
+    expect(result.violations[0]).toMatch(/owner-type event sector\.created #\d+ has client 'agent-mcp'/)
   })
 
-  it('names the company with thin evidence', async () => {
-    const result = await audit('thin')
-    expect(result.ok).toBe(false)
-    expect(result.violations).toContain('company audit-thin-c9 has 1 evidence items (need 3)')
+  it('fails dual-producer types on agent-mcp/other but admits ui and system', async () => {
+    const bad = await auditCase(async (db) => {
+      await plantEvent(db, 'sector.plan_written', 'agent-mcp')
+      await plantEvent(db, 'sector.state_changed', 'other')
+    })
+    expect(bad.ok).toBe(false)
+    expect(bad.violations.filter((v) => v.includes('sector.plan_written'))).toHaveLength(1)
+    expect(bad.violations.filter((v) => v.includes('sector.state_changed'))).toHaveLength(1)
+    const good = await auditCase(async (db) => {
+      await plantEvent(db, 'sector.plan_written', 'ui')
+      await plantEvent(db, 'sector.state_changed', 'system')
+    })
+    expect(good).toMatchObject({ ok: true, violations: [] })
   })
 
-  it('names the company with no producing subagent', async () => {
-    const result = await audit('nochild')
-    expect(result.ok).toBe(false)
-    expect(result.violations).toContain('company audit-nochild-c11 has no producing subagent (child_id null)')
+  it('fails a non-UI CANCELLING but ignores other thread states', async () => {
+    const bad = await auditCase(async (db) => {
+      await plantEvent(db, 't.thread.state', 'agent-mcp', { payload: { status: 'CANCELLING' } })
+    })
+    expect(bad.ok).toBe(false)
+    expect(bad.violations[0]).toMatch(/owner-type event t\.thread\.state #\d+ has client 'agent-mcp'/)
   })
 
-  it('names the company whose child lacks session attribution', async () => {
-    const result = await audit('nosession')
-    expect(result.ok).toBe(false)
-    expect(result.violations[0]).toMatch(/audit-nosession-c13.*session/)
-  })
-
-  it('CLI exits 0 clean / 1 naming the violation', async () => {
-    const worktree = join(tmpdir(), `pilot-audit-cli-${Date.now()}`)
-    mkdirSync(join(worktree, 'var', 'pilot', 'run-t1'), { recursive: true })
-    writeFileSync(
-      join(worktree, 'var', 'pilot', 'run-t1', 'state.json'),
-      JSON.stringify({ tag: 't1', sectorName: sectors.clean }),
-    )
-    const cli = join(HERE, '..', '..', 'scripts', 'pilot-audit.mjs')
-    const env = { ...process.env, PILOT_AUDIT_URL: connectionString }
-    const clean = await run(process.execPath, [cli, '--worktree', worktree, '--tag', 't1', '--since', SINCE], { env })
-    expect(clean.stdout).toContain('pilot:audit clean')
-    writeFileSync(
-      join(worktree, 'var', 'pilot', 'run-t1', 'state.json'),
-      JSON.stringify({ tag: 't1', sectorName: sectors.nosource }),
-    )
-    const failed = await run(process.execPath, [cli, '--worktree', worktree, '--tag', 't1', '--since', SINCE], {
-      env,
-    }).then(
-      () => ({ code: 0, stdout: '' }),
-      (error: { code?: number; stdout?: string }) => ({ code: error.code ?? 1, stdout: String(error.stdout ?? '') }),
-    )
-    expect(failed.code).toBe(1)
-    expect(failed.stdout).toContain('audit-nosource-c7 has no fetched source URL')
+  it('CLI exits 0 clean / 1 naming the violation, with no state.json', async () => {
+    const connectionString = await ensureTestDb('kardata_test_pilot_audit_cli')
+    const cliPool = new Pool({ connectionString })
+    try {
+      const db = await cliPool.connect()
+      try {
+        await plantEvent(db, 'sector.created', 'ui')
+      } finally {
+        db.release()
+      }
+      const worktree = mkdtempSync(join(tmpdir(), 'pilot-audit-cli-'))
+      const cli = join(HERE, '..', '..', 'scripts', 'pilot-audit.mjs')
+      const env = { ...process.env, PILOT_AUDIT_URL: connectionString }
+      const args = ['--worktree', worktree, '--tag', 't1', '--since', SINCE]
+      const clean = await run(process.execPath, [cli, ...args], { env })
+      expect(clean.stdout).toContain('client ui: 1')
+      expect(clean.stdout).toContain('pilot:audit clean')
+      const db2 = await cliPool.connect()
+      try {
+        await plantAlert(db2, '2026-04-01T00:00:00.000Z')
+      } finally {
+        db2.release()
+      }
+      const failed = await run(process.execPath, [cli, ...args], { env }).then(
+        () => ({ code: 0, stdout: '' }),
+        (error: { code?: number; stdout?: string }) => ({ code: error.code ?? 1, stdout: String(error.stdout ?? '') }),
+      )
+      expect(failed.code).toBe(1)
+      expect(failed.stdout).toContain('1 ui_only_violation alerts')
+    } finally {
+      await cliPool.end()
+    }
   }, 120000)
 })

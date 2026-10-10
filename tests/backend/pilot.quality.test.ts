@@ -1,6 +1,7 @@
 // Phase 8 B8: quality counts flag planted defects and the sampler
 // returns machine-readable companies with sources. One isolated
-// database, one sector per case.
+// database, one sector; P8-B1 moved the B5 company checks here (the
+// accepted-count gate, child attribution, plan filter 6).
 import { Pool } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { runPilotQuality } from '../../scripts/pilot-quality-lib.mjs'
@@ -21,11 +22,32 @@ async function plantCompany(
       id,
       sectorId,
       extra.title ?? `TEST Quality Co ${id}`,
-      extra.childId === null ? null : `t-${id}`,
+      extra.childId === null ? null : (extra.childId ?? `t-${id}`),
       JSON.stringify(extra.evidence ?? ['https://test.invalid/1', 'https://test.invalid/2', 'https://test.invalid/3']),
       extra.sourceUrl === null ? null : (extra.sourceUrl ?? `https://${id}.test.invalid`),
     ],
   )
+}
+
+async function plantChild(
+  pool: Pool,
+  sectorId: string,
+  childKey: string,
+  opts: { kind?: 'session' | 'subagent'; round?: 'healthy' | null } = {},
+) {
+  await pool.query('INSERT INTO threads(key, session_id, kind, status) VALUES($1, $2, $3, $4)', [
+    childKey,
+    'sess-q',
+    opts.kind ?? 'subagent',
+    'running',
+  ])
+  if (opts.round === 'healthy') {
+    await pool.query(
+      `INSERT INTO execution_rounds(run_id, thread_key, kind, round, attempt, model, provider, started_at, finished_at, outcome, session_id, sector_id)
+       VALUES($1, $2, 'turn', 1, 1, 'TEST-model', 'TEST', now() - make_interval(mins => 60), now() - make_interval(mins => 50), 'ok', 'sess-q', $3)`,
+      [`run-${childKey}`, childKey, sectorId],
+    )
+  }
 }
 
 describe.skipIf(!TEST_DATABASE_URL)('pilot quality [F:pilot.quality]', () => {
@@ -40,6 +62,9 @@ describe.skipIf(!TEST_DATABASE_URL)('pilot quality [F:pilot.quality]', () => {
       `INSERT INTO sectors(id, name, topic, state, tenant_id) VALUES($1, 'TEST quality', 'TEST', 'running', 'TEST')`,
       [sectorId],
     )
+    for (const id of ['q-dup-a', 'q-dup-b', 'q-nosrc', 'q-thin', 'q-franchise']) {
+      await plantChild(pool, sectorId, `t-${id}`, { round: 'healthy' })
+    }
     await plantCompany(pool, sectorId, 'q-dup-a', { sourceUrl: 'https://dup.test.invalid/a' })
     await plantCompany(pool, sectorId, 'q-dup-b', { sourceUrl: 'https://dup.test.invalid/b' })
     await plantCompany(pool, sectorId, 'q-nosrc', { sourceUrl: null })
@@ -52,22 +77,43 @@ describe.skipIf(!TEST_DATABASE_URL)('pilot quality [F:pilot.quality]', () => {
        VALUES('run-stuck', 't-q-stuck-child', 'turn', 1, 1, 'TEST-model', 'TEST', now() - make_interval(mins => 45), 'running', $1)`,
       [sectorId],
     )
+    await plantCompany(pool, sectorId, 'q-nochild', { childId: null })
+    await plantCompany(pool, sectorId, 'q-nonsub', {})
+    await plantChild(pool, sectorId, 't-q-nonsub', { kind: 'session' })
+    await plantCompany(pool, sectorId, 'q-noround', {})
+    await plantChild(pool, sectorId, 't-q-noround', {})
+    await plantCompany(pool, sectorId, 'q-empty', { evidence: [] })
   }, 120000)
   afterAll(async () => {
     await pool?.end()
   })
 
   it('counts every defect class', async () => {
-    const result = await runPilotQuality(pool, { sectorId, since: SINCE })
+    const result = await runPilotQuality(pool, { sectorId, since: SINCE, minAccepted: 10 })
     expect(result.ok).toBe(false)
     expect(result.counts).toMatchObject({
+      acceptedCompanies: 10,
       duplicatesByDomain: 1,
       noSourceUrl: 1,
-      thinEvidence: 1,
+      // q-thin (1 URL) passes filter 6; only q-empty (no URLs) fails it.
+      filter6Failures: 1,
       offIcpKeywords: 1,
       stuckSubagents: 1,
+      nullChildId: 1,
+      // q-nonsub (session thread) + q-empty (no thread at all).
+      nonSubagentChild: 2,
+      // q-stuck-child (sessionless round) + q-nonsub + q-noround + q-empty.
+      childWithoutRound: 4,
     })
-    expect(result.violations).toHaveLength(5)
+    expect(result.violations).toHaveLength(8)
+  })
+
+  it('gates the accepted count by tier', async () => {
+    const short = await runPilotQuality(pool, { sectorId, since: SINCE, minAccepted: 11 })
+    expect(short.ok).toBe(false)
+    expect(short.violations[0]).toMatch(/fewer than 11 accepted companies \(10/)
+    const met = await runPilotQuality(pool, { sectorId, since: SINCE, minAccepted: 10 })
+    expect(met.violations.filter((v: string) => v.includes('fewer than'))).toHaveLength(0)
   })
 
   it('samples companies with sources as JSON', async () => {

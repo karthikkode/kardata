@@ -1,70 +1,65 @@
-// Phase 8 B5 audit checks (pure SQL over an injected pool). The CLI
-// (pilot-audit.mjs) connects as the RO role; tests inject an owner
-// pool on an isolated database. All checks scope to the sector's
-// latest plan version (P9 copies kept work forward) and the run
-// window (--since). Returns every violation; the first names the
-// offender so the report can quote it.
+// Phase 8 B5 UI-only audit (P8-B1): pure SQL over an injected pool. The
+// CLI (pilot-audit.mjs) connects as the RO role; tests inject an owner
+// pool on an isolated database. The pilot database holds one run, so
+// the audit scopes by time (--since), not by sector.
+// (a) run-window events grouped by client; (b) ui_only_violation alerts
+// in the window; (c) owner-type events carry the UI client. Exit 1
+// unless other=0, violations=0 and (c) holds.
+//
+// Owner action -> checked event types, one line each. Handler-inline
+// appends carry ambient 'ui'; worker activities carry 'system'.
+// - sector.created: sector create (createSector, handler inline) — ui only.
+// - sector.plan_approved: plan approve (approveSectorPlan, handler inline) — ui only.
+// - sector.plan_written: plan edit (ui) + planner writes (system) — ui or system.
+// - sector.context.decided: context decision (decideContextChange, handler inline) — ui only.
+// - sector.file.processing.created/.source: upload intake (createFileProcessingJob, handler inline) — ui only.
+// - sector.state_changed: pause/resume/restart (ui) + sweep/lifecycle (system) — ui or system.
+// - t.thread.state + status CANCELLING: owner stop (appendCancelState, gateway inline) — ui only.
+// - spawn, steer: NO inline event (Temporal signal + thread_instructions
+//   row); their routes are UI-gated and the M1 coverage test pins the
+//   403 for non-UI keys, so a bypass attempt lands in (b).
 
-export async function runPilotAudit(pool, { sectorId, since }) {
+export const OWNER_UI_ONLY_TYPES = [
+  'sector.created',
+  'sector.plan_approved',
+  'sector.context.decided',
+  'sector.file.processing.created',
+  'sector.file.processing.source',
+]
+
+export const OWNER_UI_OR_SYSTEM_TYPES = ['sector.plan_written', 'sector.state_changed']
+
+const MAX_OFFENDERS = 10
+
+export async function runPilotAudit(pool, { since }) {
+  const byClient = await pool.query('SELECT client, count(*) AS n FROM events WHERE at >= $1 GROUP BY 1 ORDER BY 1', [
+    since,
+  ])
+  const eventsByClient = {}
+  for (const row of byClient.rows) eventsByClient[row.client ?? '(null)'] = Number(row.n)
+  const alerts = await pool.query(
+    "SELECT count(*) AS n FROM alerts WHERE kind = 'ui_only_violation' AND created_at >= $1",
+    [since],
+  )
+  const violationAlerts = Number(alerts.rows[0]?.n ?? 0)
+  const offenders = await pool.query(
+    `SELECT seq, type, client FROM events WHERE at >= $1 AND (
+       (type = ANY($2) AND client IS DISTINCT FROM 'ui')
+       OR (type = ANY($3) AND client IS DISTINCT FROM 'ui' AND client IS DISTINCT FROM 'system')
+       OR (type = 't.thread.state' AND payload->>'status' = 'CANCELLING' AND client IS DISTINCT FROM 'ui')
+     ) ORDER BY seq`,
+    [since, OWNER_UI_ONLY_TYPES, OWNER_UI_OR_SYSTEM_TYPES],
+  )
+
   const violations = []
-
-  const versions = await pool.query(
-    'SELECT max(plan_version) AS latest FROM research_work WHERE sector_id = $1',
-    [sectorId],
-  )
-  const latest = Number(versions.rows[0]?.latest ?? 0)
-  if (!latest) {
-    return { ok: false, violations: [`no research work for sector ${sectorId}`] }
+  const other = (eventsByClient['other'] ?? 0) + (eventsByClient['(null)'] ?? 0)
+  if (other > 0) violations.push(`${other} events with client 'other' or unstamped since ${since}`)
+  if (violationAlerts > 0) violations.push(`${violationAlerts} ui_only_violation alerts since ${since}`)
+  for (const row of offenders.rows.slice(0, MAX_OFFENDERS)) {
+    violations.push(`owner-type event ${row.type} #${row.seq} has client '${row.client ?? '(null)'}'`)
   }
-
-  const accepted = await pool.query(
-    `SELECT id, source_url, evidence, child_id FROM research_work
-     WHERE sector_id = $1 AND plan_version = $2 AND kind = 'company' AND state = 'complete' AND at >= $3
-     ORDER BY id`,
-    [sectorId, latest, since],
-  )
-  if (accepted.rows.length < 100) {
-    violations.push(
-      `fewer than 100 accepted companies (${accepted.rows.length} complete at plan v${latest} since ${since})`,
-    )
+  if (offenders.rows.length > MAX_OFFENDERS) {
+    violations.push(`... and ${offenders.rows.length - MAX_OFFENDERS} more owner-type offenders`)
   }
-
-  for (const row of accepted.rows) {
-    if (!row.source_url) {
-      violations.push(`company ${row.id} has no fetched source URL`)
-      break
-    }
-    const evidence = Array.isArray(row.evidence) ? row.evidence : []
-    if (evidence.length < 3) {
-      violations.push(`company ${row.id} has ${evidence.length} evidence items (need 3)`)
-      break
-    }
-  }
-
-  for (const row of accepted.rows) {
-    if (!row.child_id) {
-      violations.push(`company ${row.id} has no producing subagent (child_id null)`)
-      break
-    }
-    const threads = await pool.query('SELECT kind, session_id FROM threads WHERE key = $1', [row.child_id])
-    const thread = threads.rows[0]
-    if (!thread || thread.kind !== 'subagent') {
-      violations.push(`company ${row.id} child ${row.child_id} is not a subagent thread`)
-      break
-    }
-    if (!thread.session_id) {
-      violations.push(`company ${row.id} child ${row.child_id} has no session id`)
-      break
-    }
-    const rounds = await pool.query(
-      'SELECT count(*) AS n FROM execution_rounds WHERE thread_key = $1 AND session_id IS NOT NULL AND model IS NOT NULL',
-      [row.child_id],
-    )
-    if (Number(rounds.rows[0]?.n ?? 0) < 1) {
-      violations.push(`company ${row.id} child ${row.child_id} has no execution round with session id + model`)
-      break
-    }
-  }
-
-  return { ok: violations.length === 0, violations }
+  return { ok: violations.length === 0, counts: { eventsByClient, violationAlerts }, violations }
 }

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// Phase 8 B8: npm run pilot:quality -- --worktree <path> --tag <tag> --since <ISO>
-// Prints the five quality counts and writes the 30-company sample to
+// Phase 8 B8: npm run pilot:quality -- --worktree <path> --tag <tag> --since <ISO> [--min-accepted N]
+// Prints the quality counts and writes the 30-company sample to
 // var/pilot/run-<tag>/quality-sample.json. Exit 1 on any violation.
+// --min-accepted sizes the accepted-count gate to the tier (default 100).
 // PILOT_QUALITY_URL overrides the RO connection (tests only).
 import { readFileSync, existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -16,12 +17,17 @@ function arg(name) {
 const worktree = arg('worktree')
 const tag = arg('tag')
 const since = arg('since')
+const minAccepted = Number(arg('min-accepted') ?? '100')
 if (!worktree || !tag || !since) {
-  console.error('usage: npm run pilot:quality -- --worktree <path> --tag <tag> --since <ISO>')
+  console.error('usage: npm run pilot:quality -- --worktree <path> --tag <tag> --since <ISO> [--min-accepted N]')
   process.exit(2)
 }
 if (Number.isNaN(Date.parse(since))) {
   console.error(`pilot:quality: --since is not a date: ${since}`)
+  process.exit(2)
+}
+if (!Number.isInteger(minAccepted) || minAccepted < 1) {
+  console.error(`pilot:quality: --min-accepted must be a positive integer: ${arg('min-accepted')}`)
   process.exit(2)
 }
 
@@ -62,7 +68,7 @@ try {
     console.error(`pilot:quality: sector not found: ${sectorName}`)
     process.exit(2)
   }
-  const { ok, counts, sample, violations } = await runPilotQuality(pool, { sectorId, since })
+  const { ok, counts, sample, violations } = await runPilotQuality(pool, { sectorId, since, minAccepted })
   console.log(`pilot:quality counts: ${JSON.stringify(counts)}`)
   writeFileSync(join(runDir, 'quality-sample.json'), JSON.stringify(sample, null, 2))
   console.log(`pilot:quality sample: ${sample.length} companies -> run-${tag}/quality-sample.json`)

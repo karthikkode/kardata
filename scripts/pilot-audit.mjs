@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-// Phase 8 B5: npm run pilot:audit -- --worktree <path> --tag <tag> --since <ISO>
-// Reads the run's sector from state.json, connects as the RO role, and
-// exits 1 naming the first violation (0 when the run is clean).
+// Phase 8 B5 UI-only audit (P8-B1): npm run pilot:audit -- --worktree <path> --tag <tag> --since <ISO>
+// The pilot database holds one run: audits the whole run window (no
+// sector lookup, no state.json). Prints the (a) counts table + (b) the
+// violation count, exits 1 naming every violation (0 when clean).
 // PILOT_AUDIT_URL overrides the RO connection (tests only).
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
 import { runPilotAudit } from './pilot-audit-lib.mjs'
@@ -22,17 +23,6 @@ if (!worktree || !tag || !since) {
 }
 if (Number.isNaN(Date.parse(since))) {
   console.error(`pilot:audit: --since is not a date: ${since}`)
-  process.exit(2)
-}
-
-const stateFile = join(worktree, 'var', 'pilot', `run-${tag}`, 'state.json')
-if (!existsSync(stateFile)) {
-  console.error(`pilot:audit: no state at ${stateFile}`)
-  process.exit(2)
-}
-const sectorName = JSON.parse(readFileSync(stateFile, 'utf8')).sectorName
-if (!sectorName) {
-  console.error('pilot:audit: state.json has no sectorName (P1 must run first)')
   process.exit(2)
 }
 
@@ -55,15 +45,12 @@ if (!connectionString) {
 const { Pool } = createRequire(import.meta.url)('pg')
 const pool = new Pool({ connectionString })
 try {
-  const sectors = await pool.query('SELECT id FROM sectors WHERE name = $1', [sectorName])
-  const sectorId = sectors.rows[0]?.id
-  if (!sectorId) {
-    console.error(`pilot:audit: sector not found: ${sectorName}`)
-    process.exit(2)
-  }
-  const { ok, violations } = await runPilotAudit(pool, { sectorId, since })
+  const { ok, counts, violations } = await runPilotAudit(pool, { since })
+  console.log(`pilot:audit events since ${since}:`)
+  for (const [client, n] of Object.entries(counts.eventsByClient)) console.log(`  client ${client}: ${n}`)
+  console.log(`pilot:audit ui_only_violation alerts: ${counts.violationAlerts}`)
   if (ok) {
-    console.log(`pilot:audit clean: sector ${sectorName} since ${since}`)
+    console.log(`pilot:audit clean: tag ${tag} since ${since}`)
   } else {
     for (const violation of violations) console.log(`pilot:audit VIOLATION: ${violation}`)
     process.exit(1)
