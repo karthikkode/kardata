@@ -93,12 +93,45 @@ export async function openWorkspace(page: Page, sectorName: string): Promise<voi
   await expect(page.getByRole('tablist', { name: 'Session types' })).toBeVisible({ timeout: 15000 })
 }
 
+/** Select the Chats tab (v2 workspace.spec.ts openChats): 'New chat'
+ * renders only under group 'normal' (SectorWorkspace sessionRail).
+ * r0 hung an hour on the bare click (actionTimeout defaults to 0). */
+export async function openChats(page: Page): Promise<void> {
+  await page.getByRole('tab', { name: /^Chats/ }).click()
+  // Ready = 'New chat' (renders empty and non-empty; the v2 list
+  // assertion fails on the live empty rail: 'No chats yet' instead).
+  await expect(page.getByRole('button', { name: 'New chat' })).toBeVisible()
+}
+
+/** Open a rail chat and wait for the switch to land (aria-current):
+ * instant reads after the bare click race the old chat's DOM (r0 P3
+ * read icp's paused banner while opening geo). With sectorName, a
+ * missing button gets one reload recovery: the rail can get stuck
+ * with its rows rendered but unresolvable (r0c post-stop: 60s
+ * not-found for a chat that opened fine minutes before, R0-14). */
+export async function openChat(page: Page, title: string, sectorName?: string): Promise<void> {
+  const open = page.getByRole('button', { name: `Open ${title}` })
+  try {
+    await open.click({ timeout: 30000 })
+  } catch (error) {
+    if (!sectorName) throw error
+    await page.reload()
+    await openWorkspace(page, sectorName)
+    await openChats(page)
+    await open.click()
+  }
+  await expect(open).toHaveAttribute('aria-current', 'page')
+}
+
 /** Open the resource rail dialog (Sector files + Global context).
  * The pilot runs at 1280px (Desktop Chrome), so the rail is always the
  * 'Files and global context' dialog (v2 context.spec.ts railScope). */
 export async function openResourceRail(page: Page): Promise<Locator> {
-  await page.getByRole('button', { name: 'Open files and global context' }).click()
   const dialog = page.getByRole('dialog', { name: 'Files and global context' })
+  // Idempotent: P3's rewrite re-opens after a navigation that may or
+  // may not have closed the rail (r0: already open → no Open button).
+  if (await dialog.isVisible().catch(() => false)) return dialog
+  await page.getByRole('button', { name: 'Open files and global context' }).click()
   await expect(dialog).toBeVisible()
   return dialog
 }
@@ -133,8 +166,26 @@ export async function waitTextChange(
   }
 }
 
-/** Every step ends clean: no console errors, no failed /v1 calls. */
+/** Every step ends clean: no console errors, no failed /v1 calls —
+ * except the documented idle-thread queue 404 (sector-workspace.ts:
+ * "an idle thread simply has no queue"; the UI maps 404 to []). The
+ * browser still logs the 404 as a console error, so both lists filter
+ * exactly that one case. */
 export function expectClean(record: StepRecord): void {
-  expect(record.consoleErrors, `console errors: ${record.consoleErrors.join(' | ')}`).toEqual([])
-  expect(record.failedRequests, `failed requests: ${record.failedRequests.join(' | ')}`).toEqual([])
+  const queue404 = (entry: string): boolean => entry.startsWith('404 ') && /\/v1\/threads\/[^/]+\/queue/.test(entry)
+  const queue404Count = record.failedRequests.filter(queue404).length
+  const failedRequests = record.failedRequests.filter((entry) => !queue404(entry))
+  // The browser logs each failed load to the console too; forgive at
+  // most one console 404 per recorded queue 404 (never the reverse:
+  // an unlogged queue 404 must not fail, an extra 404 must).
+  let budget = queue404Count
+  const consoleErrors = record.consoleErrors.filter((message) => {
+    if (budget > 0 && message.includes('404')) {
+      budget -= 1
+      return false
+    }
+    return true
+  })
+  expect(consoleErrors, `console errors: ${record.consoleErrors.join(' | ')}`).toEqual([])
+  expect(failedRequests, `failed requests: ${record.failedRequests.join(' | ')}`).toEqual([])
 }

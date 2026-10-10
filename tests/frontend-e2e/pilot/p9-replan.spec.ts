@@ -22,21 +22,47 @@ test.describe('P9 replan', () => {
       return Number(rows[0]?.n ?? 0)
     }
     const before = await completeCount()
+    // 'Start research' renders twice (page header + plan region).
+    const startResearch = page.getByRole('region', { name: 'Research plan' }).getByRole('button', { name: 'Start research' })
     await rec.mark('edit-approve-restart', async () => {
+      // P6's 3-way open-plan: failed sectors show no detail-level
+      // 'Review plan' (detail offers View progress + Open workspace),
+      // so fall through to the workspace Plan tab.
       await page.goto('/?section=Researches')
       await page.getByRole('table', { name: 'Sectors' }).getByRole('link', { name: state.sectorName }).first().click()
-      await page.getByRole('button', { name: 'Review plan' }).click()
+      const review = page.getByRole('button', { name: 'Review plan' })
+      if ((await review.count()) > 0) {
+        await review.click()
+      } else {
+        await page.getByRole('button', { name: 'Open workspace' }).first().click()
+        const wsReview = page.getByRole('button', { name: 'Review plan' })
+        if ((await wsReview.count()) > 0) {
+          await wsReview.click()
+        } else {
+          await page.getByRole('tablist', { name: 'Research views' }).getByRole('tab', { name: /^Plan/ }).click()
+        }
+      }
       await expect(page.getByRole('tabpanel', { name: 'Plan' })).toBeVisible({ timeout: 15000 })
+      // Post-start plans are read-only (version history only): failed
+      // sectors replan via the lifecycle 'Create plan' (draft+failed
+      // states, SectorWorkspace), which returns the sector to draft.
+      // Preservation is untestable in r0 (0 completed; R0-7) — the
+      // mark proves the replan→approve→restart path runs.
+      if ((await page.getByRole('button', { name: 'Edit plan', exact: true }).count()) === 0) {
+        await page.getByRole('button', { name: 'Create plan' }).click()
+        await expect(page.getByRole('button', { name: 'Edit plan', exact: true })).toBeVisible({ timeout: 120000 })
+      }
       await page.getByRole('button', { name: 'Edit plan', exact: true }).click()
       const dialog = page.getByRole('dialog', { name: 'Edit research plan' })
-      const editor = dialog.getByLabel('Plan text')
+      // Textbox, not getByLabel: a wrapping region shares the label (P6).
+      const editor = dialog.getByRole('textbox', { name: 'Plan text' })
       await editor.fill(`${await editor.inputValue()}\nAdd HVAC companies across AU.`)
       await dialog.getByRole('button', { name: 'Save plan' }).click()
       await expect(page.getByText('Plan saved')).toBeVisible({ timeout: 60000 })
       await page.getByRole('button', { name: /Approve v\d+/ }).click()
       // Approved/running ⟺ the state-driven action buttons (SectorWorkspace).
-      await expect(page.getByRole('button', { name: 'Start research' })).toBeVisible({ timeout: 90000 })
-      await page.getByRole('button', { name: 'Start research' }).click()
+      await expect(startResearch).toBeVisible({ timeout: 90000 })
+      await startResearch.click()
       await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible({ timeout: 300000 })
     })
     await rec.shot('replanned')

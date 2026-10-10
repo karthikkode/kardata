@@ -13,8 +13,14 @@ const PILOT = join(ROOT, 'tests', 'frontend-e2e', 'pilot')
 
 // literal -> why it is not in frontend/src verbatim.
 const ALLOWLIST: Record<string, string> = {
+  'Close Context history': 'shape `Close ${title}` (workspace-parts WorkspaceOverlay) + P3 history',
+  'Close Files and global context': 'shape `Close ${title}` (workspace-parts WorkspaceOverlay) + P3 rail',
+  'Close Review context update': 'shape `Close ${title}` (workspace-parts WorkspaceOverlay) + P3 review',
   'Move pilot-p7-queued-b up': 'shape `Move ${text} up` (SectorWorkspace QueueRowBody) + P7 data',
+  'Open Research': 'shape `Open ${title}` (SectorWorkspace session rail) + research session',
+  'Open pilot-geo': 'shape `Open ${title}` (SectorWorkspace session rail) + P2 rename',
   'Open pilot-icp': 'shape `Open ${title}` (SectorWorkspace session rail) + P2 rename',
+  'Open pilot-sources': 'shape `Open ${title}` (SectorWorkspace session rail) + P2 rename',
   'Open pilot-research': 'shape `Open ${title}` (SectorWorkspace session rail) + P5 rename',
   'Queued (1)': 'shape `Queued (${n})` (SectorWorkspace QueueDisclosure)',
   'Queued (2)': 'shape `Queued (${n})` (SectorWorkspace QueueDisclosure)',
@@ -70,9 +76,15 @@ describe('pilot spec locators resolve to product or v2 [F:pilot.locators]', () =
 
   it('the allowlist stays pinned (no silent growth)', () => {
     expect(Object.keys(ALLOWLIST).sort()).toEqual([
+      'Close Context history',
+      'Close Files and global context',
+      'Close Review context update',
       'Move pilot-p7-queued-b up',
+      'Open Research',
+      'Open pilot-geo',
       'Open pilot-icp',
       'Open pilot-research',
+      'Open pilot-sources',
       'Queued (1)',
       'Queued (2)',
       'Remove market-notes.md from global context',

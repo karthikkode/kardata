@@ -14,7 +14,16 @@ test.describe('P1 create sector', () => {
     await rec.mark('create-draft', async () => {
       await page.goto('/?section=Researches')
       await expect(page.getByRole('heading', { name: 'Researches', exact: true })).toBeVisible()
-      await page.getByRole('button', { name: 'New sector' }).click()
+      // Resume: a re-run must not duplicate the sector (r0b restarts the
+      // run on a fresh tag after the r0a sector wedged — R0-4).
+      if (state.sectorName) {
+        await expect(page.getByText(name).first()).toBeVisible()
+        return
+      }
+      // Two 'New sector' buttons render on an empty landing (header +
+      // Sectors-tab empty state); the header one is first in DOM order
+      // and survives once sectors exist.
+      await page.getByRole('button', { name: 'New sector' }).first().click()
       const dialog = page.getByRole('dialog', { name: 'New sector' })
       await expect(dialog).toBeVisible()
       const form = dialog.getByRole('form', { name: 'Create a sector' })

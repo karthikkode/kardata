@@ -4,7 +4,7 @@
 // tick reports or steers, and the DB agrees.
 import { expect, test } from '@playwright/test'
 import { loadState, pilotRunEnabled } from './state.js'
-import { expectClean, openWorkspace, startRecording, waitVisible } from './record.js'
+import { expectClean, startRecording, waitVisible } from './record.js'
 import { closePilotRo, pilotRoQuery } from './ro.js'
 
 test.describe('P8 monitor', () => {
@@ -18,7 +18,9 @@ test.describe('P8 monitor', () => {
     await rec.mark('ask-monitor', async () => {
       // No Monitor tab exists: Karbot monitors surface as dock messages.
       // The dock takes no sector scope, so the prompt names the sector.
-      await openWorkspace(page, state.sectorName!)
+      // List view, not the workspace: the SectorChat shell has no TopBar
+      // (no Ask Karbot) and never mounts the ChatPanel dock (App.tsx).
+      await page.goto('/?section=Researches')
       await page.getByRole('button', { name: 'Ask Karbot' }).click()
       const dock = page.getByRole('complementary', { name: 'Assistant chat' })
       await expect(dock).toBeVisible()

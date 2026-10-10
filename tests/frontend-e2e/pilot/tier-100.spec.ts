@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { evidenceDir, loadState, pilotRunEnabled, saveState } from './state.js'
-import { expectClean, openResourceRail, openWorkspace, renameChat, startRecording, waitVisible } from './record.js'
+import { expectClean, openChats, openResourceRail, openWorkspace, renameChat, startRecording, waitVisible } from './record.js'
 import { closePilotRo, pilotRoQuery } from './ro.js'
 
 test.describe('tier 100 subagents', () => {
@@ -20,8 +20,10 @@ test.describe('tier 100 subagents', () => {
     writeFileSync(listFile, Array.from({ length: 100 }, (_, i) => `- Suburb ${i + 1}`).join('\n'))
     await rec.mark('spawn-100', async () => {
       await openWorkspace(page, state.sectorName!)
+      await openChats(page)
       await page.getByRole('button', { name: 'New chat' }).click()
-      await renameChat(page, 'pilot-tier-100')
+      // Unique per attempt: reruns must not duplicate rail titles.
+      await renameChat(page, `pilot-tier-100-${Date.now()}`)
       // Upload (Sector files), not Attach (which references indexed files).
       const rail = await openResourceRail(page)
       const chooser = page.waitForEvent('filechooser')
@@ -29,7 +31,11 @@ test.describe('tier 100 subagents', () => {
       await (await chooser).setFiles([listFile])
       await expect(rail.getByRole('list', { name: 'Files' }).getByText('suburbs-100.md')).toBeVisible({ timeout: 120000 })
       await page.keyboard.press('Escape')
-      await page.getByLabel('Message this conversation').fill('Spawn one subagent per suburb in suburbs-100.md.')
+      // Batched: parallel delegates beyond ~5 starve the single
+      // pilot worker into uncertain-poison (R0-3, tier-10 proof).
+      await page.getByLabel('Message this conversation').fill(
+        'Spawn one subagent per suburb in suburbs-100.md, five at a time: wait for each batch of five to confirm before spawning the next.',
+      )
       await page.getByRole('button', { name: 'Send message' }).click()
       await waitVisible(page, page.getByRole('button', { name: /View all \d+/ }), {
         step: 'tier-100',

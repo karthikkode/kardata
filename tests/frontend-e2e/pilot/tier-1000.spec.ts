@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { evidenceDir, loadState, pilotRunEnabled, repoRoot, saveState } from './state.js'
-import { expectClean, openResourceRail, openWorkspace, renameChat, startRecording, waitVisible } from './record.js'
+import { expectClean, openChats, openResourceRail, openWorkspace, renameChat, startRecording, waitVisible } from './record.js'
 import { closePilotRo, pilotRoQuery } from './ro.js'
 
 test.describe('tier 1000 subagents', () => {
@@ -32,6 +32,7 @@ test.describe('tier 1000 subagents', () => {
     writeFileSync(listFile, Array.from({ length: 1000 }, (_, i) => `- Locality ${i + 1}`).join('\n'))
     await rec.mark('spawn-1000', async () => {
       await openWorkspace(page, state.sectorName!)
+      await openChats(page)
       await page.getByRole('button', { name: 'New chat' }).click()
       await renameChat(page, 'pilot-tier-1000')
       const rail = await openResourceRail(page)

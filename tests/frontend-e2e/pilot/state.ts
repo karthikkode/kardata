@@ -12,6 +12,14 @@ export interface PilotState {
   chats: Record<string, string>
   tiersDone: string[]
   notes: string[]
+  /** P2: uploads done (re-runs skip re-uploading the same fixtures). */
+  uploadsDone?: boolean
+  /** P4: completed spawn marks (re-runs resume past them). */
+  p4done?: string[]
+  /** P5: completed plan marks (advise/write; turns take ~30 min). */
+  p5done?: string[]
+  /** P2: nudge timestamps per chat key (idle turn ended with no findings doc). */
+  p2nudges?: Record<string, number[]>
 }
 
 export function pilotTag(): string {
