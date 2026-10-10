@@ -2,7 +2,7 @@
 // the 100 companies. Proves the report file is written, indexed,
 // and readable from Files.
 import { expect, test } from '@playwright/test'
-import { loadState, pilotRunEnabled } from './state.js'
+import { loadState, logOccurrence, pilotRunEnabled } from './state.js'
 import { expectClean, openChat, openChats, openResourceRail, openWorkspace, startRecording } from './record.js'
 import { closePilotRo, pilotRoQuery } from './ro.js'
 
@@ -61,6 +61,7 @@ test.describe('P11 final report', () => {
         const idleMs = Date.now() - new Date(fresh[0]?.at ?? start).getTime()
         if (idleMs > 180000 && status[0]?.status === 'IDLE' && nudges < 2) {
           nudges++
+          logOccurrence('p11-report', 'nudge', `${filename} missing, thread IDLE ${Math.round(idleMs / 1000)}s, nudge ${nudges}/2`)
           await box.fill(`Write the file ${filename} now with the evidence gathered so far.`)
           await send.click()
         }

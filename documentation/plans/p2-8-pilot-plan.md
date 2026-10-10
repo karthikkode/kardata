@@ -82,7 +82,9 @@ first; the audit means nothing without it.
   one fixture file per banned form.
 - Each step records wall time, console errors, failed requests and screenshots
   into `var/pilot/run-<tag>/evidence/<step>/` (reuse the recording pattern of
-  `tests/frontend-e2e/pilot-live.spec.ts`).
+  `tests/frontend-e2e/pilot-live.spec.ts`). Every nudge, reload recovery,
+  resume click or re-pick appends to `occurrences.json` beside `state.json`,
+  so r1 counts workarounds as occurrences instead of hiding product issues.
 - Long waits poll visible UI state with an explicit ceiling, and fail with the
   step and the last visible status when the ceiling is reached.
 - Checks that need the DB use the RO role through one read-only helper, never

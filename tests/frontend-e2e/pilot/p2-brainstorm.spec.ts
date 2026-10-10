@@ -5,7 +5,7 @@
 // author (file-ingestion never stamps one; only agent artifacts do).
 import { expect, test, type Page } from '@playwright/test'
 import { join } from 'node:path'
-import { loadState, pilotRunEnabled, repoRoot, saveState } from './state.js'
+import { loadState, logOccurrence, pilotRunEnabled, repoRoot, saveState } from './state.js'
 import { expectClean, openChat, openChats, openResourceRail, openWorkspace, renameChat, startRecording } from './record.js'
 import { closePilotRo, pilotRoQuery } from './ro.js'
 
@@ -58,6 +58,7 @@ async function nudgeIdleChats(page: Page, sectorName: string, missing: string[])
         `findings-${key}.md now (mark unverified claims as such).`,
     )
     await page.getByRole('button', { name: 'Send message' }).click()
+    logOccurrence('p2-brainstorm', 'nudge', `pilot-${key} IDLE with agent reply but no findings doc, nudge ${prior.length + 1}/2`)
     nudges[key] = [...prior, Date.now()]
   }
   saveState({ p2nudges: nudges })
@@ -122,6 +123,7 @@ test.describe('P2 brainstorm chats', () => {
     await rec.mark('uploads', async () => {
       if (state.uploadsDone) return
       // Re-acquire: a nudge's Escape may have closed the rail dialog.
+      logOccurrence('p2-brainstorm', 're-pick', 'rail dialog re-acquired after nudge Escape (uploads mark)')
       const uploadRail = await openResourceRail(page)
       // One file per Upload: the picker warns and takes the first on multi-pick.
       for (const filename of ['market-notes.md', 'report.pdf']) {

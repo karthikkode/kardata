@@ -4039,6 +4039,8 @@ Evidence: (1) throwaway jsdom probe rendered the full workspace
 -chat, and -sessions-loading (3/3); (3) titles enforced non-empty
 backend-side, research sessions titled 'Research', artifacts fall back
 to 'Untitled file'; (4) sidebar collapse and IconButton carry names by
-construction (typed). No code change. If r1 still sees it, the trigger
-is dynamic data not present in fixtures (suspect: a row fed by a
-non-session source).
+construction (typed). No code change. Postscript (F8c): record.ts
+`openChat` names the live trigger — rail rows rendered but unresolvable
+in the browser a11y tree (r0c post-stop) — and its reload recovery is
+now an `occurrences.json` entry, so r1 counts R0-14 instead of masking
+it. If r1 still sees it, reproduce from a logged occurrence.

@@ -75,3 +75,25 @@ export function pilotCompanies(): number {
 export function repoRoot(): string {
   return join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 }
+
+/** Occurrence kinds: harness workarounds a spec performs. Deliberate
+ * test actions (p12's own reload) are step marks, not occurrences. */
+export type OccurrenceKind = 'nudge' | 'reload' | 'resume' | 're-pick'
+
+export interface PilotOccurrence {
+  at: string
+  step: string
+  kind: OccurrenceKind
+  detail: string
+}
+
+/** Append one workaround occurrence to the run's issue-log input
+ * (`var/pilot/run-<tag>/occurrences.json`). Every nudge, reload
+ * recovery, resume click or re-pick logs here, so r1 counts the
+ * workarounds instead of letting them hide product issues (F8). */
+export function logOccurrence(step: string, kind: OccurrenceKind, detail: string, tag = pilotTag()): void {
+  const file = join(runDir(tag), 'occurrences.json')
+  const existing = existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as PilotOccurrence[]) : []
+  existing.push({ at: new Date().toISOString(), step, kind, detail: detail.slice(0, 300) })
+  writeFileSync(file, JSON.stringify(existing, null, 2))
+}

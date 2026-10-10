@@ -3,7 +3,7 @@
 // rewrites once with a direction. Proves history shows each and the
 // rejection changed nothing (RO SQL before/after).
 import { expect, test } from '@playwright/test'
-import { loadState, pilotRunEnabled } from './state.js'
+import { loadState, logOccurrence, pilotRunEnabled } from './state.js'
 import { expectClean, openChat, openChats, openResourceRail, openWorkspace, startRecording, waitTextChange, waitVisible } from './record.js'
 import { closePilotRo, pilotRoQuery } from './ro.js'
 
@@ -29,6 +29,7 @@ test.describe('P3 global context', () => {
       // the elicitation below starts a live turn instead of queueing.
       const pausedBanner = page.getByRole('status').filter({ hasText: 'This conversation is paused.' })
       if ((await pausedBanner.count()) > 0) {
+        logOccurrence('p3-context', 'resume', 'pilot-sources paused after crashed turn, resumed before elicitation')
         await pausedBanner.getByRole('button', { name: 'Resume', exact: true }).click()
         await expect(pausedBanner).toBeHidden({ timeout: 60000 })
       }

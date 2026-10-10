@@ -5,7 +5,7 @@
 // and the last visible status.
 import { writeFileSync } from 'node:fs'
 import { expect, type Locator, type Page } from '@playwright/test'
-import { evidenceDir } from './state.js'
+import { evidenceDir, logOccurrence } from './state.js'
 
 export interface StepMark {
   step: string
@@ -115,6 +115,7 @@ export async function openChat(page: Page, title: string, sectorName?: string): 
     await open.click({ timeout: 30000 })
   } catch (error) {
     if (!sectorName) throw error
+    logOccurrence('openChat', 'reload', `rail row unresolvable for '${title}', reloaded + re-navigated (R0-14 recovery)`)
     await page.reload()
     await openWorkspace(page, sectorName)
     await openChats(page)
