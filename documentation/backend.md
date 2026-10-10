@@ -479,6 +479,10 @@ send the requested page directly and fail before networking above9; the existing
 sector discovery fallback may then use keyless/browser search. Keyless engines
 retain row offsets. Nullable descriptions yield an empty snippet; absent/null
 web content counts as exhausted only with explicit more_results_available=false.
+Keyless engines and the browser leg carry a region locale (Bing cc/mkt,
+DuckDuckGo kl, Accept-Language): per-call override, else
+KARDATA_SEARCH_REGION, else AU. The query cache keys on the region;
+Mojeek has no documented region parameter and runs unlocalized.
 Contract authority: [Brave pagination](https://api-dashboard.search.brave.com/app/documentation/web-search/codes)
 and [response schema](https://api-dashboard.search.brave.com/api-reference/web/search/post).
 

@@ -15,7 +15,7 @@ import {
   browserSnapshot,
   type BrowserAct,
 } from '../retrieval/browser.js'
-import { keylessSearch, type KeylessHit } from '../retrieval/keyless.js'
+import { keylessSearch, searchRegion, type KeylessHit } from '../retrieval/keyless.js'
 import { RetrievalError, webFetch, webSearch, type FetchImpl, type SearchEnv, type SearchHit } from '../retrieval/web.js'
 import {
   dedupInflight,
@@ -45,7 +45,7 @@ export interface SweepSearchHit {
 export interface SweepSearchDeps {
   keyed?: (query: string, page: number) => Promise<SearchHit[]>
   keyless?: (query: string, page: number) => Promise<KeylessHit[]>
-  browser?: (query: string) => Promise<SweepSearchHit[]>
+  browser?: (query: string, region?: string) => Promise<SweepSearchHit[]>
 }
 
 /** Search-engine hosts that must never become company candidates. */
@@ -85,15 +85,18 @@ export function linksFromSnapshot(snapshot: string, limit = 10): SweepSearchHit[
   return hits
 }
 
+/** Browser-leg search URL: DDG html endpoint with the region locale
+ * (same kl param as the keyless DDG engines). Pure: unit-tested. */
+export function browserSearchUrl(query: string, region?: string): string {
+  return `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query.trim())}&kl=${searchRegion(region)}-en`
+}
+
 /** Browser leg: real Chromium on the DDG html endpoint (the page curl
  * cannot reach past the anomaly wall), snapshot links out, session
  * always closed. Slot accounting lives inside browserNavigate/close, so
  * saturation surfaces here as `overload` and never evicts a holder. */
-async function defaultBrowserLeg(query: string): Promise<SweepSearchHit[]> {
-  const { sessionId, snapshot } = await browserNavigate(
-    `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query.trim())}`,
-    { caller: 'sweep' },
-  )
+async function defaultBrowserLeg(query: string, region?: string): Promise<SweepSearchHit[]> {
+  const { sessionId, snapshot } = await browserNavigate(browserSearchUrl(query, region), { caller: 'sweep' })
   try {
     return linksFromSnapshot(snapshot)
   } finally {
@@ -118,19 +121,20 @@ function validateSearchPage(input: { query: string; page: number }): string {
  * propagates as overload so the caller retries later instead of
  * recording a false exhaustive miss. */
 export async function pooledSearchWebPage(
-  input: { query: string; page: number },
+  input: { query: string; page: number; region?: string },
   deps: SweepSearchDeps = {},
 ): Promise<SweepSearchHit[]> {
   const query = validateSearchPage(input)
-  const key = queryCacheKey(query, 10, input.page)
+  const region = searchRegion(input.region)
+  const key = queryCacheKey(query, 10, input.page, region)
   const cached = getCachedQuery(key)
   if (cached) return [...cached]
   return dedupInflight(key, async () => {
     const again = getCachedQuery(key)
     if (again) return [...again]
     const keyed = deps.keyed ?? ((q, page) => pooledWebSearch(process.env, q, { count: 10, page }))
-    const keyless = deps.keyless ?? ((q, page) => keylessSearch(q, { count: 10, page }))
-    const browser = deps.browser ?? defaultBrowserLeg
+    const keyless = deps.keyless ?? ((q, page) => keylessSearch(q, { count: 10, page, region }))
+    const browser = deps.browser ?? ((q) => defaultBrowserLeg(q, region))
 
     if (process.env['KARDATA_WEB_SEARCH_KEY']?.trim()) {
       try {

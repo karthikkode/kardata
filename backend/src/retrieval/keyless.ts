@@ -15,6 +15,15 @@ import {
 
 const QuerySchema = z.string().trim().min(2).max(300)
 
+/** Search region: per-call override, else KARDATA_SEARCH_REGION, else AU.
+ * Two-letter codes only; anything else falls back to AU. Callers
+ * (sector sweeps, plans) pass their own region; the env holds the
+ * deployment default. */
+export function searchRegion(override?: string): string {
+  const code = (override ?? process.env['KARDATA_SEARCH_REGION'] ?? 'au').trim().toLowerCase()
+  return /^[a-z]{2}$/.test(code) ? code : 'au'
+}
+
 /** Keyless hits name their engine; keyed hits leave it absent. */
 export interface KeylessHit extends SearchHit {
   engine: string
@@ -73,7 +82,7 @@ function hostOf(rawUrl: string): string {
 interface Engine {
   name: string
   internalHosts: string[]
-  buildUrl: (query: string, offset: number) => string
+  buildUrl: (query: string, offset: number, region: string) => string
   parse: (html: string) => Array<{ title: string; url: string; snippet: string }>
 }
 
@@ -169,15 +178,15 @@ const ENGINES: Engine[] = [
     // Any challenged network falls through to the rest like any engine.
     name: 'bing',
     internalHosts: ['bing.com', 'www.bing.com', 'microsoft.com', 'go.microsoft.com'],
-    buildUrl: (query, offset) =>
-      `https://www.bing.com/search?q=${encodeURIComponent(query)}${offset > 0 ? `&first=${offset + 1}` : ''}`,
+    buildUrl: (query, offset, region) =>
+      `https://www.bing.com/search?q=${encodeURIComponent(query)}&cc=${region.toUpperCase()}&mkt=en-${region.toUpperCase()}${offset > 0 ? `&first=${offset + 1}` : ''}`,
     parse: (html) => parseBing(html, ['bing.com', 'microsoft.com'], 20),
   },
   {
     name: 'duckduckgo',
     internalHosts: ['duckduckgo.com'],
-    buildUrl: (query, offset) =>
-      `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}${offset > 0 ? `&s=${offset}` : ''}`,
+    buildUrl: (query, offset, region) =>
+      `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&kl=${region}-en${offset > 0 ? `&s=${offset}` : ''}`,
     parse: (html) =>
       zipAnchors(
         html,
@@ -190,7 +199,7 @@ const ENGINES: Engine[] = [
   {
     name: 'duckduckgo-lite',
     internalHosts: ['duckduckgo.com', 'lite.duckduckgo.com'],
-    buildUrl: (query) => `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`,
+    buildUrl: (query, _offset, region) => `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}&kl=${region}-en`,
     parse: (html) =>
       zipAnchors(
         html,
@@ -201,6 +210,8 @@ const ENGINES: Engine[] = [
       ),
   },
   {
+    // Mojeek has no documented region parameter, so it runs unlocalized;
+    // the pool order still prefers the localized engines above it.
     name: 'mojeek',
     internalHosts: ['mojeek.com', 'www.mojeek.com'],
     buildUrl: (query, offset) =>
@@ -223,16 +234,17 @@ const ENGINES: Engine[] = [
  * run on fixtures, never the open internet. */
 export async function keylessSearch(
   rawQuery: string,
-  options: { count?: number; page?: number; fetchImpl?: FetchImpl } = {},
+  options: { count?: number; page?: number; fetchImpl?: FetchImpl; region?: string } = {},
 ): Promise<KeylessHit[]> {
   const parsed = QuerySchema.safeParse(rawQuery)
   if (!parsed.success) throw new RetrievalError('validation_failed', 'query must be 2-300 characters')
   const query = parsed.data
   const { count, offset } = searchPagination(options)
+  const region = searchRegion(options.region)
 
   for (const engine of ENGINES) {
     try {
-      const response = await requestSearchPage(engine.buildUrl(query, offset), { headers: { Accept: 'text/html', 'Accept-Language': 'en-US,en;q=0.9', 'User-Agent': BROWSER_UA }, maxBytes: KEYLESS_MAX_BYTES, followRedirects: true, fetchImpl: options.fetchImpl })
+      const response = await requestSearchPage(engine.buildUrl(query, offset, region), { headers: { Accept: 'text/html', 'Accept-Language': `en-${region.toUpperCase()},en;q=0.9`, 'User-Agent': BROWSER_UA }, maxBytes: KEYLESS_MAX_BYTES, followRedirects: true, fetchImpl: options.fetchImpl })
       if (response.contentType && !response.contentType.includes('html')) continue
       const html = response.text
       if (CHALLENGE.test(html)) continue

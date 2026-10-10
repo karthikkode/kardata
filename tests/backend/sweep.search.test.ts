@@ -92,6 +92,41 @@ describe('keylessSearch [F:backend.activity.sweep.linksFromSnapshot] [F:backend.
     expect(challenged[0]?.engine).toBe('duckduckgo-lite')
   })
 
+  it('carries the AU locale on every keyless engine by default (F10a/R0-7)', async () => {
+    const urls: string[] = []
+    const capture = (async (url: string) => {
+      urls.push(String(url))
+      return new Response('missing', { status: 500 })
+    }) as typeof fetch
+    delete process.env['KARDATA_SEARCH_REGION']
+    await expect(keylessSearch('acme foods', { fetchImpl: capture })).rejects.toMatchObject({ code: 'fetch_failed' })
+    const bing = urls.find((url) => url.includes('bing.com')) ?? ''
+    expect(bing).toContain('cc=AU')
+    expect(bing).toContain('mkt=en-AU')
+    for (const host of ['html.duckduckgo.com', 'lite.duckduckgo.com']) {
+      const ddg = urls.find((url) => url.includes(host)) ?? ''
+      expect(ddg).toContain('kl=au-en')
+    }
+  })
+
+  it('resolves the region from override, env, then AU (F10a/R0-7)', async () => {
+    const urls: string[] = []
+    const capture = (async (url: string) => {
+      urls.push(String(url))
+      return new Response('missing', { status: 500 })
+    }) as typeof fetch
+    process.env['KARDATA_SEARCH_REGION'] = 'gb'
+    try {
+      await expect(keylessSearch('acme foods', { fetchImpl: capture })).rejects.toMatchObject({ code: 'fetch_failed' })
+      expect(urls.find((url) => url.includes('bing.com')) ?? '').toContain('cc=GB')
+      urls.length = 0
+      await expect(keylessSearch('acme foods', { fetchImpl: capture, region: 'nz' })).rejects.toMatchObject({ code: 'fetch_failed' })
+      expect(urls.find((url) => url.includes('bing.com')) ?? '').toContain('cc=NZ')
+    } finally {
+      delete process.env['KARDATA_SEARCH_REGION']
+    }
+  })
+
   it('fails loudly when the whole pool yields nothing, validates first', async () => {
     const dead = routeDouble([])
     await expect(keylessSearch('acme foods', { fetchImpl: dead })).rejects.toMatchObject({ code: 'fetch_failed' })

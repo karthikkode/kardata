@@ -49,8 +49,9 @@ function prune<T>(map: Map<string, Entry<T>>): void {
 
 /** Query cursor key: normalized text + count + page. Page N never redoes
  * pages before it; each page caches independently. */
-export function queryCacheKey(query: string, count: number, page: number): string {
-  return `${query.trim().replace(/\s+/g, ' ').toLowerCase()}|${count}|${page}`
+export function queryCacheKey(query: string, count: number, page: number, region = ''): string {
+  const base = `${query.trim().replace(/\s+/g, ' ').toLowerCase()}|${count}|${page}`
+  return region ? `${base}|${region.toLowerCase()}` : base
 }
 
 /** Normalize a URL for dedup: lowercase host, drop default ports and

@@ -17,7 +17,7 @@ import {
   normalizeBrowserUrl,
   queryCacheKey,
 } from '../../backend/src/browserPool/cache.js'
-import { pooledSearchWebPage } from '../../backend/src/browserPool/facade.js'
+import { browserSearchUrl, pooledSearchWebPage } from '../../backend/src/browserPool/facade.js'
 import type { KeylessHit } from '../../backend/src/retrieval/keyless.js'
 import type { SearchHit } from '../../backend/src/retrieval/web.js'
 
@@ -166,6 +166,31 @@ describe('facade routing (single entry, cached pages)', () => {
       code: 'validation_failed',
     })
     expect(called).toBe(0)
+  })
+
+  it('carries the region on the browser leg URL (F10a/R0-7)', () => {
+    delete process.env['KARDATA_SEARCH_REGION']
+    expect(browserSearchUrl('acme foods')).toContain('kl=au-en')
+    process.env['KARDATA_SEARCH_REGION'] = 'gb'
+    try {
+      expect(browserSearchUrl('acme foods')).toContain('kl=gb-en')
+      expect(browserSearchUrl('acme foods', 'nz')).toContain('kl=nz-en')
+    } finally {
+      delete process.env['KARDATA_SEARCH_REGION']
+    }
+  })
+
+  it('scopes the query cache by region (F10a/R0-7)', async () => {
+    let calls = 0
+    const deps = {
+      keyless: async () => {
+        calls += 1
+        return keylessHits
+      },
+    }
+    await pooledSearchWebPage({ query: 'region probe', page: 0, region: 'au' }, deps)
+    await pooledSearchWebPage({ query: 'region probe', page: 0, region: 'nz' }, deps)
+    expect(calls).toBe(2)
   })
 })
 
