@@ -3987,3 +3987,12 @@ doctor `prod/*` PASS. UI key in ignored prod `agents/.env`. Stopped
 stale `kardata-fv4-pg` (was squatting 5434; stopped, not removed).
 Pre-existing, untouched: staging images stale (63a41c43c), 1 host
 dev-worker duplicating the staging fleet, owner smoke pending.
+
+## 2026-10-10 — Prod CORS fix (owner smoke): origin/prod 956ef5d
+Owner screenshot: UI shell rendered, all surfaces connection errors.
+Cause: overlay allowed only `http://localhost:45174`; owner on
+`http://127.0.0.1:45174` failed every preflight (OPTIONS 403). PR #47
+allows both origins. PR #48: deploy boots backend before workers
+(simultaneous recreate let workers probe `/mcp` too early and bake an
+"unreachable" FATAL into fresh logs). Deploy green, preflight 204,
+authenticated `/v1/sectors` 200.
