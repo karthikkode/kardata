@@ -146,6 +146,10 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
   // entry; old histories keep the drop via the patch gate.
   const preEntryState = patched('session-preentry-state-v1')
   let preEntry: 'PAUSED' | 'CANCELLING' | 'RUNNING' | undefined
+  // F6a/R0-10: the loop-top pause gate emits t.thread.state so the UI's
+  // projected status flips on owner pause/resume. Old histories replay
+  // the silent wait.
+  const idleStateEmit = patched('session-idle-state-v1')
 
   const setState = (next: RunState): void => {
     if (!isLegalTransition(box.state, next)) {
@@ -302,7 +306,17 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
       return 'continued'
     }
     if (currentState() === 'PAUSED') {
+      if (idleStateEmit) {
+        nonce += 1
+        await turn.appendEventActivity({ idempotencyKey: idempotencyKey(input.sessionId, runTag, 'owner-paused', nonce), partition, type: 't.thread.state', payload: { threadKey: input.sessionId, status: 'PAUSED', acceptingSteer: false } })
+      }
       await condition(() => currentState() !== 'PAUSED')
+      // A cancel landing in the wait owns the outcome (the loop-top arm
+      // above); only a live resume flips the status back to RUNNING.
+      if (idleStateEmit && currentState() === 'RUNNING') {
+        nonce += 1
+        await turn.appendEventActivity({ idempotencyKey: idempotencyKey(input.sessionId, runTag, 'owner-resumed', nonce), partition, type: 't.thread.state', payload: { threadKey: input.sessionId, status: 'RUNNING', acceptingSteer: true } })
+      }
       continue
     }
     const item = inbox.shift()

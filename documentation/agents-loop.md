@@ -40,6 +40,10 @@ Fingerprints are independent across tools and argument shapes.
 to `RUNNING` and bumps `run.epoch`. Anything recorded but unconsumed under an
 older epoch is stale and must not be applied. `cancelRun` moves `RUNNING` or
 `PAUSED` to `CANCELLING`; a second cancel is illegal, so cancel applies once.
+The session loop-top gate emits `t.thread.state` on both transitions
+(`session-idle-state-v1`), so an owner pause/resume of an idle thread flips
+the projected status the UI binds; a cancel landing in the wait skips the
+resume emission.
 
 `IdempotencyLog` records completed action keys. Resume replays the action
 list through `pending()` and runs only unrecorded keys, giving exactly-once
