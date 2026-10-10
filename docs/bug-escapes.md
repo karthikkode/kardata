@@ -6,6 +6,7 @@ recurrence. New rows append at the top.
 
 | date | bug | found by | tier that should have caught it | test added | rule added |
 |---|---|---|---|---|---|
+| 2026-10-10 | Transient provider failure killed the turn outright: no in-activity retry, terminal ERROR/failed instead of a resumable pause | pilot r0 (R0-8, F5) | unit | karbot.turn-timeout retry/exhaustion cases + resumable-turn park mapping | retryable provider errors retry 3x with backoff in-activity, then park with the last detail as the visible reason |
 | 2026-10-10 | Tick re-registered its own monitor: duplicate conflict rode uncertain recovery and bricked the tick thread | pilot r0 (R0-15, F4) | db | mcp.monitor idempotent re-register + unit tick-text cases | start_monitor returns the existing same-tenant monitor (runner untouched); tick text says never to re-register |
 | 2026-10-10 | Reaped children captioned Done: FINISHED+idle was invisible in the subagent list | pilot r0 (R0-17, F3d) | frontend | SubagentsPanel.test done/idle caption case | FINISHED captions from state_reason: idle → Idle (idle tone), done → Done (ok tone) |
 | 2026-10-10 | Child turns carried no finish instruction: unmeetable goals parked instead of reporting 0 findings honestly | pilot r0 (R0-17, F3c) | unit | karbot.turn-timeout subagentPreambleFor + prompt-plumbing cases | subagent turns carry the finish-discipline preamble (report, then db.finish_subagent); session turns carry nothing |

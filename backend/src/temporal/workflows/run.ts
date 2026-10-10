@@ -28,7 +28,7 @@ import type { FakeStep } from '@kardata/agents'
 import { activityOptions } from '../timeouts.js'
 import type * as activities from '../activities/turn.js'
 import { shouldContinueAsNew } from './can.js'
-import { resumableTurn } from './resumable-turn.js'
+import { parkMessageName, resumableTurn } from './resumable-turn.js'
 import { registerQueueHandlers } from './inbox-queue.js'
 import type { OriginalTurnRecovery } from '../turn-recovery.js'
 import type { SendSignalPayload } from '../runs-types.js'
@@ -380,7 +380,7 @@ export async function sessionRun(input: SessionRunInput): Promise<string> {
             nonce += 1
             await turn.appendEventActivity({ idempotencyKey: idempotencyKey(input.sessionId, runTag, 'context-paused', nonce), partition, type: 't.thread.state', payload: { threadKey: input.sessionId, status: 'PAUSED', acceptingSteer: false } })
             nonce += 1
-            await turn.appendEventActivity({ idempotencyKey: idempotencyKey(input.sessionId, runTag, 'context-error', nonce), partition, type: 't.message.appended', payload: { threadKey: input.sessionId, kind: 'tool', message: { id: `context-${nonce}`, name: kind === 'operation' ? 'operation.recovery' : 'context.compaction', state: 'failed', detail: reason } } })
+            await turn.appendEventActivity({ idempotencyKey: idempotencyKey(input.sessionId, runTag, 'context-error', nonce), partition, type: 't.message.appended', payload: { threadKey: input.sessionId, kind: 'tool', message: { id: `context-${nonce}`, name: parkMessageName(kind), state: 'failed', detail: reason } } })
           }, async () => {
             await condition(() => currentState() !== 'PAUSED')
             if (currentState() === 'CANCELLING') throw new CancelledFailure('Cancelled while context was paused')

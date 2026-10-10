@@ -66,6 +66,18 @@ export function laneTimeouts(lane: Lane): LaneTimeouts {
   return TABLE[lane]
 }
 
+/** In-activity provider retry (F5): a retryable provider failure
+ * retries the turn inside karbotTurnActivity before the thread parks.
+ * attempts counts total tries; the backoff sleeps initialMs before
+ * retry 2, times backoffCoefficient per further retry. Exhaustion
+ * parks with the last detail as the visible reason; non-retryable
+ * provider errors never enter the loop. */
+export const PROVIDER_CALL_RETRY = {
+  attempts: 3,
+  initialMs: 2000,
+  backoffCoefficient: 2,
+} as const
+
 /** Supervision thresholds (P3.4): the single tuning surface for
  * executionReconciliation. Detection windows plus the coverage tuning
  * (page size × cadence clears 1000 threads inside 60 s). */

@@ -46,6 +46,13 @@ list through `pending()` and runs only unrecorded keys, giving exactly-once
 effects across kills and retries. Keys are caller-chosen (tool plus canonical
 arguments plus scope).
 
+Retryable provider failures retry inside the turn activity (3 tries,
+2 s x 2 backoff, checkpoint resume between tries) before anything
+parks. Exhaustion parks the thread with the last detail as the
+visible reason (`provider.outage` message, `provider-park-v1` patch);
+resume re-runs the turn. Non-retryable provider errors never enter
+the loop.
+
 ## Missed-steer redelivery (F13)
 
 Turns never wait for steering: a quiet round completes at once. A steer

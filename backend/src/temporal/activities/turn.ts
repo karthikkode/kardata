@@ -17,6 +17,7 @@ import {
   ContextBudgetError,
   OperationRecoveryError,
   type PendingProviderResponse,
+  ProviderError,
   createClosedMcpClient,
   modePromptFor,
   RepetitionTracker,
@@ -48,6 +49,7 @@ import {
 import { isThreadPaused, readInheritedContext } from '../../db/workspace-threads.js'
 import { readSessionSettings } from '../../db/workspace.js'
 import { createRoundRecorder, roundOutcomeFor, stashToolRef, turnKindForRun } from './turn-rounds.js'
+import { PROVIDER_CALL_RETRY } from '../timeouts.js'
 import { projectNewEvents } from '../../projector.js'
 import { localContextMessages } from '../../context.js'
 import { findModel } from '../../providers/registry.js'
@@ -79,6 +81,15 @@ import {
 import { resolveChatRefTurn } from './turn-chatrefs.js'
 
 export class ResearchPausedError extends Error {}
+
+/** Retryable provider failures exhausted the in-activity attempts
+ * (F5). The message is the visible park reason: resumable turns park
+ * on it and resume retries the turn. */
+export class ProviderExhaustedError extends Error {
+  constructor(providerName: string, attempts: number, detail: string) {
+    super(`Provider ${providerName} failed after ${attempts} attempts: ${detail.slice(0, 200)}. Resume to retry.`)
+  }
+}
 
 export interface AppendEventInput {
   idempotencyKey: string
@@ -483,11 +494,28 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
       ...(haltNotice === undefined ? {} : { haltNotice }),
     }
   } catch (error) {
+    // F5: retryable provider failures retry inside the activity — the
+    // recursion re-resolves, reloads history plus continuation, and
+    // resumes past checkpointed rounds (the same shape as a Temporal
+    // activity retry, with provider-aware backoff). Exhaustion converts
+    // to the park-typed error and falls through, so the sweep below
+    // still journals the failed rounds; aborts and non-retryable
+    // errors fall through untouched.
+    const providerTry = deps.providerAttempt ?? 1
+    if (error instanceof ProviderError && error.retryable && !deps.signal?.aborted && providerTry < PROVIDER_CALL_RETRY.attempts) {
+      deps.log({ op: 'karbot.turn', provider: providerName, ok: false, latencyMs: Date.now() - started, code: 'provider_failed', errorDetail: error.message.slice(0, 200) })
+      await sleep(PROVIDER_CALL_RETRY.initialMs * PROVIDER_CALL_RETRY.backoffCoefficient ** (providerTry - 1), deps.signal)
+      deps.signal?.throwIfAborted()
+      return executeKarbotTurn(input, { ...deps, providerAttempt: providerTry + 1 })
+    }
+    const effective = error instanceof ProviderError && error.retryable && !deps.signal?.aborted
+      ? new ProviderExhaustedError(providerName, PROVIDER_CALL_RETRY.attempts, error.message)
+      : error
     const latencyMs = Date.now() - started
-    const detail = error instanceof Error ? error.message.slice(0, 200) : 'unknown provider error'
-    const roundCode = error instanceof OperationRecoveryError ? 'operation_uncertain' : 'provider_failed'
+    const detail = effective instanceof Error ? effective.message.slice(0, 200) : 'unknown provider error'
+    const roundCode = effective instanceof OperationRecoveryError ? 'operation_uncertain' : 'provider_failed'
     const roundBase = { provider: providerName, ...(model ? { model } : {}), ...(roundSectorId ? { sectorId: roundSectorId } : {}) }
-    const mapped = roundOutcomeFor(error, deps.signal)
+    const mapped = roundOutcomeFor(effective, deps.signal)
     for (const [round, startedAt] of roundStarted) {
       deps.log(providerRoundFields({ ...roundBase, round, latencyMs: Date.now() - startedAt, outcome: 'error', code: roundCode }))
       if (deps.recordRound) {
@@ -502,8 +530,8 @@ export async function executeKarbotTurn(input: KarbotTurnInput, deps: KarbotTurn
     }
     roundStarted.clear()
     deps.log({ op: 'karbot.turn', provider: providerName, ok: false, latencyMs, code: roundCode, errorDetail: detail })
-    if (error instanceof ContextFileBlocked || error instanceof ResearchPausedError || error instanceof ContextBudgetError || error instanceof OperationRecoveryError) throw error
-    throw new Error(`karbot turn failed: ${detail}`, { cause: error })
+    if (effective instanceof ContextFileBlocked || effective instanceof ResearchPausedError || effective instanceof ContextBudgetError || effective instanceof OperationRecoveryError || effective instanceof ProviderExhaustedError) throw effective
+    throw new Error(`karbot turn failed: ${detail}`, { cause: effective })
   }
 }
 
@@ -784,6 +812,7 @@ export async function karbotTurnActivity(input: KarbotTurnInput): Promise<TurnOu
       if (error instanceof ResearchPausedError) throw ApplicationFailure.nonRetryable(error.message, 'ResearchPaused')
       if (error instanceof OperationRecoveryError) throw ApplicationFailure.nonRetryable(error.message, 'OperationBlocked', error.operations)
       if (error instanceof ContextFileBlocked || error instanceof ContextBudgetError) throw ApplicationFailure.nonRetryable(error.message, 'ContextBlocked')
+      if (error instanceof ProviderExhaustedError) throw ApplicationFailure.nonRetryable(error.message, 'ProviderExhausted')
       throw error
     })
     // Success path only: receipt late steering and report it for the

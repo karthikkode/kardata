@@ -101,3 +101,71 @@ describe('executeKarbotTurn timeout plumbing', () => {
     expect(seenPrompts[1]).not.toContain('db.finish_subagent')
   })
 })
+
+describe('provider retry inside the activity (F5)', () => {
+  let savedEnv: string | undefined
+  beforeEach(() => {
+    savedEnv = process.env['KARDATA_PROVIDER']
+    process.env['KARDATA_PROVIDER'] = 'fake'
+  })
+  afterEach(() => {
+    if (savedEnv === undefined) delete process.env['KARDATA_PROVIDER']
+    else process.env['KARDATA_PROVIDER'] = savedEnv
+  })
+  type Step = { text?: string; error?: string; retryable?: boolean }
+  async function runScripted(scripts: Step[][]): Promise<{ adapters: FakeProvider[]; outcome: unknown }> {
+    const adapters: FakeProvider[] = []
+    let attempt = 0
+    const deps: KarbotTurnDeps = {
+      loadSessionModel: async () => undefined,
+      loadHistory: async () => [],
+      resolveTurnAdapter: () => {
+        const adapter = new FakeProvider([...(scripts[Math.min(attempt, scripts.length - 1)] ?? [])] as never)
+        attempt += 1
+        adapters.push(adapter)
+        return adapter
+      },
+      mcp: { listTools: async () => [], callTool: async () => ({ content: '' }) },
+      publishDelta: async () => {},
+      publishReasoning: async () => {},
+      publishTool: async () => {},
+      log: () => {},
+    }
+    const outcome = await executeKarbotTurn(
+      { sessionId: 's1', threadKey: 's1', runKey: 'chat:9', text: 'hi', fakeSteps: [{ text: 'ok' }] },
+      deps,
+    )
+    return { adapters, outcome }
+  }
+  it('retries retryable provider failures with backoff, then succeeds', async () => {
+    const { adapters, outcome } = await runScripted([[{ error: 'blip', retryable: true }], [{ error: 'blip', retryable: true }], [{ text: 'ok' }]])
+    expect((outcome as { reply: string }).reply).toBe('ok')
+    expect(adapters).toHaveLength(3)
+    expect(adapters.map((adapter) => adapter.calls.length)).toEqual([1, 1, 1])
+  }, 30000)
+  it('parks with a visible reason after the retries are exhausted', async () => {
+    const scripts = [[{ error: 'down', retryable: true }], [{ error: 'down', retryable: true }], [{ error: 'down', retryable: true }]]
+    await expect(runScripted(scripts)).rejects.toThrow(/failed after 3 attempts.*down/)
+  }, 30000)
+  it('does not retry non-retryable provider failures', async () => {
+    const adapters: FakeProvider[] = []
+    const deps: KarbotTurnDeps = {
+      loadSessionModel: async () => undefined,
+      loadHistory: async () => [],
+      resolveTurnAdapter: () => {
+        const adapter = new FakeProvider([{ error: 'bad key', retryable: false }] as never)
+        adapters.push(adapter)
+        return adapter
+      },
+      mcp: { listTools: async () => [], callTool: async () => ({ content: '' }) },
+      publishDelta: async () => {},
+      publishReasoning: async () => {},
+      publishTool: async () => {},
+      log: () => {},
+    }
+    await expect(
+      executeKarbotTurn({ sessionId: 's1', threadKey: 's1', runKey: 'chat:9', text: 'hi', fakeSteps: [{ text: 'ok' }] }, deps),
+    ).rejects.toThrow('bad key')
+    expect(adapters).toHaveLength(1)
+  })
+})

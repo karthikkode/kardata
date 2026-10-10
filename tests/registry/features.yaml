@@ -6868,3 +6868,21 @@
   tiers:
     - todo
   states: []
+- id: backend.activity.turn.ProviderExhaustedError
+  layer: backend
+  surface: backend/src/temporal/activities/turn.ts
+  tiers:
+    - todo
+  states: []
+- id: backend.workflow.resumable_turn.parkKindFor
+  layer: backend
+  surface: backend/src/temporal/workflows/resumable-turn.ts
+  tiers:
+    - todo
+  states: []
+- id: backend.workflow.resumable_turn.parkMessageName
+  layer: backend
+  surface: backend/src/temporal/workflows/resumable-turn.ts
+  tiers:
+    - todo
+  states: []

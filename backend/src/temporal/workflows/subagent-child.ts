@@ -32,7 +32,7 @@ import {
 } from '@temporalio/workflow'
 import { shouldContinueAsNew } from './can.js'
 import { registerQueueHandlers } from './inbox-queue.js'
-import { resumableTurn } from './resumable-turn.js'
+import { parkMessageName, resumableTurn } from './resumable-turn.js'
 import type { OriginalTurnRecovery } from '../turn-recovery.js'
 import type {
   ChildSnapshot,
@@ -402,7 +402,7 @@ export async function subagentRun(input: SubagentChildInput): Promise<string> {
               await childActivities.appendEventActivity({ idempotencyKey: idempotencyKey(eventKey, kind === 'pause' ? 'owner-paused' : 'context-paused', nonce), partition: childPartition, type: 't.thread.state', payload: { threadKey, status: 'PAUSED', acceptingSteer: false } })
               if (kind !== 'pause') {
                 nonce += 1
-                await childActivities.appendEventActivity({ idempotencyKey: idempotencyKey(eventKey, 'context-error', nonce), partition: childPartition, type: 't.message.appended', payload: { threadKey, kind: 'tool', message: { id: `context-${nonce}`, name: kind === 'operation' ? 'operation.recovery' : 'context.compaction', state: 'failed', detail: reason } } })
+                await childActivities.appendEventActivity({ idempotencyKey: idempotencyKey(eventKey, 'context-error', nonce), partition: childPartition, type: 't.message.appended', payload: { threadKey, kind: 'tool', message: { id: `context-${nonce}`, name: parkMessageName(kind), state: 'failed', detail: reason } } })
               }
             }, async () => {
               await condition(() => (!contextPaused && !paused) || currentStatus() === 'cancelled' || finishRequested)

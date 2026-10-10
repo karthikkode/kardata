@@ -105,6 +105,9 @@ export interface KarbotTurnDeps {
   recordToolCall?(call: ToolCallInput): Promise<void>
   /** Activity attempt for round attribution; absent means 1. */
   attempt?: number
+  /** In-activity provider attempt (F5); absent means 1. The retry
+   * recursion threads it through; callers never set it. */
+  providerAttempt?: number
   measureContext?(usage: { inputTokens: number; budget: number; window: number; method: 'exact' | 'estimated' }): Promise<void>
   signal?: AbortSignal
   /** Fleet Meta permit hook (live Meta only): the turn runner acquires
