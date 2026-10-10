@@ -105,6 +105,42 @@ describe('workspace conversation lifecycle', () => {
     await waitFor(() => expect(result.current.busy).toBe(false))
     unmount()
   })
+  it('fills a gapped user row from history so the visible reply releases the send (F6c)', async () => {
+    const stream = channel()
+    mocked.history.mockResolvedValue([])
+    mocked.follow.mockImplementation((_config, _key, signal) => stream.read(signal))
+    mocked.send.mockResolvedValue({ commandId: 'gapped', state: 'accepted' })
+    const { result, unmount } = renderHook(() => useWorkspaceConversation(config, 'thread'))
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+    act(() => result.current.setDraft('gapped request'))
+    await act(async () => { await result.current.send() })
+    expect(result.current.busy).toBe(true)
+    // The reply frame arrives but the user append frame was lost in a
+    // stream break: the reply is on screen, the user row is missing.
+    mocked.history.mockResolvedValue([
+      { seq: 3, kind: 'text', role: 'user', text: 'gapped request' },
+      { seq: 4, kind: 'text', role: 'agent', text: 'Gapped answer' },
+    ])
+    await act(async () => { stream.push(snapshot([{ seq: 4, kind: 'text', role: 'agent', text: 'Gapped answer' }])) })
+    await waitFor(() => expect(result.current.busy).toBe(false))
+    expect(result.current.echo).toBeNull()
+    expect(mocked.history).toHaveBeenCalledTimes(2)
+    unmount()
+  })
+  it('does not re-read history when the stream carries the user row', async () => {
+    const stream = channel()
+    mocked.history.mockResolvedValue([])
+    mocked.follow.mockImplementation((_config, _key, signal) => stream.read(signal))
+    mocked.send.mockResolvedValue({ commandId: 'streamed', state: 'accepted' })
+    const { result, unmount } = renderHook(() => useWorkspaceConversation(config, 'thread'))
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+    act(() => result.current.setDraft('streamed request'))
+    await act(async () => { await result.current.send() })
+    await act(async () => { stream.push(snapshot([{ seq: 1, kind: 'text', role: 'user', text: 'streamed request' }, { seq: 2, kind: 'text', role: 'agent', text: 'Streamed answer' }])) })
+    await waitFor(() => expect(result.current.busy).toBe(false))
+    expect(mocked.history).toHaveBeenCalledTimes(1)
+    unmount()
+  })
   it('reconnects after graceful EOF rather than leaving the conversation unfollowed', async () => {
     const first = channel(), second = channel()
     mocked.history.mockResolvedValue([])

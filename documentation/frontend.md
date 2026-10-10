@@ -57,6 +57,9 @@ before calling the provider. REST history and SSE frames merge by thread
 message sequence, so either request may finish first without hiding a reply.
 Replying also clears by the durable sequence: a resumed stream may contain
 only a short tail, so its array length cannot identify the finished turn.
+When a send's user row is missing from the streamed view but a candidate
+reply newer than its basis is present, the conversation re-reads history
+once per request (server truth) so busy, echo and Steer clear.
 
 Provider text appears incrementally below the current conversation; the
 persisted terminal message replaces the pending text. In-flight turns show

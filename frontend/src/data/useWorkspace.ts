@@ -78,6 +78,7 @@ interface PendingRequest {
   userSeq?: number
   commandId?: string
   statusSeq?: number
+  gapFilled?: boolean
 }
 interface ConversationState {
   phase: 'idle' | 'queued' | 'working' | 'reconnecting' | 'paused' | 'failed' | 'stopped' | 'complete'
@@ -220,6 +221,35 @@ export function useWorkspaceConversation(config: StagingConfig | null, threadKey
       if (controller && active.get(threadKey) === controller) active.delete(threadKey)
     }
   }, [threadKey, start])
+  // Gap-fill (F6c/R0-12): a stream break can lose a send's user-append
+  // frame while its reply frame lands, so the reply is on screen but the
+  // userSeq match never fires and busy/echo/Steer stick forever. When an
+  // unmatched send has a candidate reply newer than its basis, re-read
+  // history once per request (server truth) and let the normal match run.
+  // No effect cleanup: frames re-render constantly, and a cleanup would
+  // cancel the refill it just started. The in-flight set dedupes across
+  // renders; the config guard drops rotations like send() does.
+  const gapInflight = useRef(new Set<number>())
+  useEffect(() => {
+    if (!config || !threadKey) return
+    const conv = threads[threadKey]
+    if (!conv || conv.status !== 'ready') return
+    const target = conv.pending.find((request) => !request.steer && !request.gapFilled && request.userSeq === undefined && !gapInflight.current.has(request.key) &&
+      conv.messages.some((message) => message.kind === 'text' && message.role === 'agent' && messageSeq(message) > request.basis))
+    if (!target) return
+    gapInflight.current.add(target.key)
+    void listMessages(config, threadKey).then(
+      (rows) => {
+        gapInflight.current.delete(target.key)
+        if (currentConfig.current !== config) return
+        update(threadKey, (old) => {
+          const merged = old.live ? reconcileConversation({ ...old, messages: mergeChatMessages(old.messages, toChatMessages(rows)) }, old.live) : old
+          return { ...merged, pending: merged.pending.map((request) => request.key === target.key ? { ...request, gapFilled: true } : request) }
+        })
+      },
+      () => { gapInflight.current.delete(target.key) },
+    )
+  }, [config, threadKey, threads, update])
   const state = threadKey ? threads[threadKey] ?? emptyConversation() : emptyConversation()
   async function send(steer = false, text?: string) {
     const display = state.draft
