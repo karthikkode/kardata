@@ -726,10 +726,19 @@ async function cmdProdDeploy(args) {
   const upKeep = await prodCompose(['up', '-d', ...keep], level)
   process.stdout.write(upKeep.stdout || upKeep.stderr)
   if (!upKeep.ok) process.exit(1)
-  const up = await prodCompose(['up', '-d', '--scale', `worker=${replicas}`, '--force-recreate', ...targets], level)
+  // Backend first, alone: workers probe backend /mcp at boot, so a
+  // simultaneous recreate lets them win the race and bake an
+  // "unreachable" [FATAL] into fresh logs. Workers + UI only start
+  // once the backend answers.
+  const upBackend = await prodCompose(['up', '-d', '--force-recreate', 'backend'], level)
+  process.stdout.write(upBackend.stdout || upBackend.stderr)
+  if (!upBackend.ok) process.exit(1)
+  const okBackend = await waitFor('prod backend /healthz', () => urlHealthy(`${PROD_BACKEND_URL}/healthz`))
+  if (!okBackend) process.exit(1)
+  const rest = targets.filter((t) => t !== 'backend')
+  const up = await prodCompose(['up', '-d', '--scale', `worker=${replicas}`, '--force-recreate', ...rest], level)
   process.stdout.write(up.stdout || up.stderr)
   if (!up.ok) process.exit(1)
-  const okBackend = await waitFor('prod backend /healthz', () => urlHealthy(`${PROD_BACKEND_URL}/healthz`))
   const ps = await prodPs()
   const workerNames = ps.filter((s) => s.Service === 'worker' && s.State === 'running').map((s) => s.Name)
   let okWorker = workerNames.length > 0
@@ -738,7 +747,7 @@ async function cmdProdDeploy(args) {
   }
   let okUi = true
   if (uiKey) okUi = await waitFor('prod ui /healthz', () => urlHealthy(`${PROD_UI_URL}/healthz`))
-  if (!okBackend || !okWorker || !okUi) process.exit(1)
+  if (!okWorker || !okUi) process.exit(1)
   const backend = ps.find((s) => s.Service === 'backend')?.Name ?? 'kardata-prod-backend-1'
   for (const name of [backend, ...workerNames]) {
     if (await containerLogHas(name, '[FATAL]', since)) {
