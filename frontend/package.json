@@ -10,7 +10,8 @@
     "lint": "eslint . && cd ../tests/frontend && eslint . && cd ../frontend-e2e && eslint .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:pilot": "playwright test -c ../tests/frontend-e2e/pilot/playwright.pilot.config.ts"
   },
   "dependencies": {
     "@assistant-ui/react": "0.15.23",
