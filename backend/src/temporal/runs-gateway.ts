@@ -595,7 +595,7 @@ export class TemporalRunsGateway implements RunsGateway {
     const runId = threadKey.slice('agent:'.length)
     await requireWorkflowType(client, runId, ['subagentRun'])
     // Done, never cancelled: only the finish signal, so the child
-    // completes with status finished and frees the parent slot.
+    // completes with status done and frees the parent slot.
     await client.workflow.getHandle(runId).signal('childFinish')
     return { commandId: commandId(), state: 'accepted' }
   }

@@ -168,7 +168,7 @@ export function toolCapability(name: McpToolName): ToolCapability {
 
 export const TOOL_META: Record<McpToolName, { description: string; minRole: Role }> = {
   'db.commit_child_context': { description: 'Research parent: commit a child finding or open question. Scope, decisions and file inclusion require owner approval.', minRole: 'operator' },
-  'db.finish_subagent': { description: 'End your own subagent run: call when the goal is satisfied and findings are committed or reported. The run completes as finished (never cancelled) and frees the parent slot. Only subagent threads.', minRole: 'operator' },
+  'db.finish_subagent': { description: 'End your own subagent run: call when the goal is satisfied and findings are committed or reported. The run completes as done (never cancelled) and frees the parent slot. Only subagent threads.', minRole: 'operator' },
   'db.get_global_context': { description: 'Read approved sector shared context. Sector chats use their binding; general Karbot must provide sectorId. Pending updates remain private to their source/research parent.', minRole: 'viewer' },
   'db.propose_global_context': { description: 'Propose a versioned shared-context edit. Send only the sections you change; omitted sections stay unchanged, explicit empty string clears. Normal chats require owner approval; research children report to their parent.', minRole: 'operator' },
   'db.list_sector_files': { description: 'List visible indexed files shared by this sector.', minRole: 'viewer' },
