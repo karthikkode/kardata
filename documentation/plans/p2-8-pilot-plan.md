@@ -36,8 +36,9 @@ first; the audit means nothing without it.
 - `api_keys` gains `client text NOT NULL DEFAULT 'other'` (`ui`, `agent-mcp`,
   `viewer`, `other`). Migration with up/down markers.
 - With `KARDATA_UI_ONLY=1`, every mutating `/v1/*` request (POST, PUT, PATCH,
-  DELETE) needs all three: a key whose `client='ui'`; `Origin` equal to the
-  pilot UI origin (`KARDATA_UI_ORIGIN`); header `X-Kardata-Client: ui`.
+  DELETE) needs all three: a key whose `client='ui'`; `Origin` in the CORS
+  origin list (both localhost and 127.0.0.1 spellings); header
+  `X-Kardata-Client: ui`.
   Otherwise 403 `ui_only_violation` and one `alerts` row with route, key_id
   (never the key), origin and trace_id.
 - The worker MCP key works only on `/mcp`; on `/v1/*` it is a violation.
@@ -59,8 +60,7 @@ first; the audit means nothing without it.
 
 ### B3. Pilot stack (extend `deployment/scripts/stack.mjs`; no new scripts)
 - `stack.mjs pilot up --worktree <path>`: Temporal namespace `kardata-pilot`, DB
-  `kardata_pilot`, backend 3201, UI 25174, `KARDATA_UI_ONLY=1`,
-  `KARDATA_UI_ORIGIN=http://localhost:25174`. The UI is the **production build**
+  `kardata_pilot`, backend 3201, UI 25174, `KARDATA_UI_ONLY=1`. The UI is the **production build**
   (`vite build` + `vite preview`), not the dev server, with the UI key baked in
   at stack start. Runs migrations; creates the RO role and the keys.
 - `stack.mjs pilot down` stops processes only. `stack.mjs pilot status`.

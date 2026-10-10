@@ -17,9 +17,8 @@ export default defineConfig({
     // r0: actions default to NO timeout (0) — a missing control burns the
     // whole hour. 60s fails fast; long live waits use explicit ceilings.
     actionTimeout: 60000,
-    // localhost, not 127.0.0.1: the UI-only gate pins KARDATA_UI_ORIGIN
-    // exactly (http.ts authorize), and the pilot value is the localhost
-    // spelling. r0 found the 127.0.0.1 spelling 403s every mutation.
+    // F7: the UI-only gate accepts the CORS list (both spellings);
+    // baseURL stays localhost, either spelling passes the gate now.
     baseURL: 'http://localhost:25174',
     trace: 'on-first-retry',
   },

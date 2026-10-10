@@ -181,14 +181,13 @@ export function formatVerdict(name, verdict) {
 export const PILOT_RO_ROLE = 'kardata_pilot_ro'
 
 /** Pilot stack identity (B3): own database + Temporal namespace on the
- * shared staging servers, own backend/UI ports. The pilot UI origin is
- * the value KARDATA_UI_ONLY gates on; CORS allows both spellings. */
+ * shared staging servers, own backend/UI ports. The UI-only gate and
+ * CORS share one origin list (both localhost and 127.0.0.1 spellings). */
 export const PILOT_DEFAULTS = {
   dbName: 'kardata_pilot',
   namespace: 'kardata-pilot',
   backendPort: 3201,
   uiPort: 25174,
-  uiOrigin: 'http://localhost:25174',
   tenant: 'tenant-pilot',
   uiOnly: '1',
 }

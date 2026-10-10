@@ -234,7 +234,6 @@ describe('pilotConfig', () => {
       namespace: 'kardata-pilot',
       backendPort: 3201,
       uiPort: 25174,
-      uiOrigin: 'http://localhost:25174',
       tenant: 'tenant-pilot',
       uiOnly: '1',
     })

@@ -6,6 +6,7 @@ recurrence. New rows append at the top.
 
 | date | bug | found by | tier that should have caught it | test added | rule added |
 |---|---|---|---|---|---|
+| 2026-10-10 | UI-only gate pinned one origin spelling while CORS allowed both: the pilot UI at 127.0.0.1 got 403 on every mutation | pilot r0 (R0-1, F7) | db | http.ui-only 127.0.0.1-spelling case | the gate checks origin membership in the CORS list; no second pinned origin value |
 | 2026-10-10 | Transient provider failure killed the turn outright: no in-activity retry, terminal ERROR/failed instead of a resumable pause | pilot r0 (R0-8, F5) | unit | karbot.turn-timeout retry/exhaustion cases + resumable-turn park mapping | retryable provider errors retry 3x with backoff in-activity, then park with the last detail as the visible reason |
 | 2026-10-10 | Tick re-registered its own monitor: duplicate conflict rode uncertain recovery and bricked the tick thread | pilot r0 (R0-15, F4) | db | mcp.monitor idempotent re-register + unit tick-text cases | start_monitor returns the existing same-tenant monitor (runner untouched); tick text says never to re-register |
 | 2026-10-10 | Reaped children captioned Done: FINISHED+idle was invisible in the subagent list | pilot r0 (R0-17, F3d) | frontend | SubagentsPanel.test done/idle caption case | FINISHED captions from state_reason: idle → Idle (idle tone), done → Done (ok tone) |

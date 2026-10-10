@@ -1176,7 +1176,6 @@ async function cmdPilotUp(args) {
     KARDATA_CORS_ORIGINS: cfg.corsOrigins,
     KARDATA_ARCHIVE_DIR: join(ROOT, 'var', 'pilot', 'archive'),
     KARDATA_UI_ONLY: cfg.uiOnly,
-    KARDATA_UI_ORIGIN: cfg.uiOrigin,
   }
   const workerEnv = {
     ...baseEnv,

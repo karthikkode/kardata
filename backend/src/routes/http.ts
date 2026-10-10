@@ -21,6 +21,7 @@ import {
 } from '../db/index.js'
 import { verifyExecution } from '../auth/execution.js'
 import { mutationFingerprint, rateBucket } from '../http/limits.js'
+import { parseCorsOrigins } from '../http/cors.js'
 import { getSession } from '../db/index.js'
 import type { RunsGateway } from '../temporal/runs-types.js'
 import { RunNotFound, TemporalUnavailableError, ThreadNotAccepting } from '../temporal/runs-types.js'
@@ -126,8 +127,12 @@ export async function authorize(
     if (url.startsWith('/v1/') && MUTATING_METHODS.has(request.method)) {
       const origin = header(request, 'origin')
       const clientHeader = header(request, 'x-kardata-client')
-      const expectedOrigin = process.env['KARDATA_UI_ORIGIN']
-      const uiCall = result.caller.client === 'ui' && clientHeader === 'ui' && !!expectedOrigin && origin === expectedOrigin
+      // F7/R0-1: the gate accepts the same origin list as CORS (both
+      // localhost and 127.0.0.1 spellings); a second pinned value here
+      // 403s the pilot's own UI depending on which spelling it opened.
+      const allowedOrigins = parseCorsOrigins(process.env['KARDATA_CORS_ORIGINS'])
+      const uiCall =
+        result.caller.client === 'ui' && clientHeader === 'ui' && !!origin && allowedOrigins.includes(origin)
       if (!uiCall) {
         await recordUiOnlyViolation(pool, {
           route: `${request.method} ${url}`,

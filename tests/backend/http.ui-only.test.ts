@@ -15,6 +15,8 @@ import { FakeRunsGateway } from './fake-gateway.js'
 
 const scope = { tenantId: 'TEST ui-only', projectId: null }
 const UI_ORIGIN = 'http://localhost:25174'
+const UI_ORIGIN_ALT = 'http://127.0.0.1:25174'
+const CORS_BOTH = `${UI_ORIGIN},${UI_ORIGIN_ALT}`
 const KEYS = {
   ui: 'TEST-ui-only-ui-key',
   mcp: 'TEST-ui-only-mcp-key',
@@ -27,7 +29,7 @@ describe.skipIf(!TEST_DATABASE_URL)('UI-only gate over real HTTP [F:http.authori
   let app: FastifyInstance
   let origin: string
   const savedFlag = process.env['KARDATA_UI_ONLY']
-  const savedOrigin = process.env['KARDATA_UI_ORIGIN']
+  const savedCors = process.env['KARDATA_CORS_ORIGINS']
 
   beforeAll(async () => {
     pool = new Pool({ connectionString: await ensureTestDb('kardata_test_ui_only') })
@@ -36,15 +38,15 @@ describe.skipIf(!TEST_DATABASE_URL)('UI-only gate over real HTTP [F:http.authori
     await registerApiKey(pool, { keyId: 'viewer-key', keyHash: hashKey(KEYS.viewer), scope, role: 'operator', client: 'viewer' })
     await registerApiKey(pool, { keyId: 'legacy-key', keyHash: hashKey(KEYS.legacy), scope, role: 'approver' })
     process.env['KARDATA_UI_ONLY'] = '1'
-    process.env['KARDATA_UI_ORIGIN'] = UI_ORIGIN
+    process.env['KARDATA_CORS_ORIGINS'] = CORS_BOTH
     app = buildApp({ pool, runs: new FakeRunsGateway(pool), auth: true })
     origin = await app.listen({ port: 0, host: '127.0.0.1' })
   })
   afterAll(async () => {
     if (savedFlag === undefined) delete process.env['KARDATA_UI_ONLY']
     else process.env['KARDATA_UI_ONLY'] = savedFlag
-    if (savedOrigin === undefined) delete process.env['KARDATA_UI_ORIGIN']
-    else process.env['KARDATA_UI_ORIGIN'] = savedOrigin
+    if (savedCors === undefined) delete process.env['KARDATA_CORS_ORIGINS']
+    else process.env['KARDATA_CORS_ORIGINS'] = savedCors
     await app?.close()
     await pool?.end()
   })
@@ -116,6 +118,11 @@ describe.skipIf(!TEST_DATABASE_URL)('UI-only gate over real HTTP [F:http.authori
     )
     expect(rows).toHaveLength(1)
     expect(rows[0]!.client).toBe('ui')
+  })
+
+  it('accepts the 127.0.0.1 spelling of the pilot origin (F7/R0-1)', async () => {
+    const result = await postSector(KEYS.ui, { origin: UI_ORIGIN_ALT, 'x-kardata-client': 'ui' })
+    expect(result.status).toBe(201)
   })
 
   it('stamps /mcp writes with the key client, not the route default (P8-M1)', async () => {
