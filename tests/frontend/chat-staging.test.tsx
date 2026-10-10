@@ -754,5 +754,29 @@ describe('chat staging (no mocks)', () => {
     expect(within(choices[0]!).getByText('s-1', { exact: true })).toBeVisible()
     expect(within(choices[1]!).getByText('s-2', { exact: true })).toBeVisible()
   })
+  it('labels finished subagents as finished in the mention picker (F6e)', async () => {
+    stubApi((url) => {
+      if (url.includes('/threads') && !url.includes('/messages') && !url.includes('/events')) {
+        return {
+          status: 200,
+          payload: {
+            ok: true,
+            data: [
+              ...THREADS,
+              { key: 'agent:live-1', sessionId: 's-1', kind: 'subagent', name: 'Live child', status: 'RUNNING', acceptingSteer: true, queueDepth: 0, updatedAt: '2026-09-26T01:00:00.000Z' },
+              { key: 'agent:done-1', sessionId: 's-1', kind: 'subagent', name: 'Done child', status: 'FINISHED', acceptingSteer: false, queueDepth: 0, updatedAt: '2026-09-26T01:00:00.000Z' },
+            ],
+          },
+        }
+      }
+      return baseHandler(url)
+    })
+    render(<ChatPanel config={config} scope={null} contextSummary={null} onClose={() => undefined} />)
+    const box = (await screen.findByLabelText('Message the agent')) as HTMLTextAreaElement
+    fireEvent.change(box, { target: { value: '@agent' } })
+    expect(await screen.findByRole('listbox', { name: 'Mention a thread or file' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '@agent:done-1 Finished' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '@agent:live-1 Running' })).toBeInTheDocument()
+  })
 
 })

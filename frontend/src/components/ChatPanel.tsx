@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Icons } from '@/lib/icons'
 import { humanizeKey } from '../lib/format'
-import { threadStateReasonLabel } from '../lib/labels'
+import { threadStateReasonLabel, threadStatusLabel } from '../lib/labels'
 import { dockEnter, dockExit, useExitState } from '@/lib/motion'
 import { useRunActions } from '../data/useRuns'
 import { sendThreadText, steerThread, type ThreadView, type ToolPayload } from '../data/useThreads'
@@ -150,7 +150,9 @@ export function ChatPanel({
       ? [
           ...subagentThreads
             .filter((thread) => thread.key.toLowerCase().includes(mentionQuery))
-            .map((thread) => ({ id: thread.key, name: thread.key, hint: 'Thread', kind: 'thread' as const })),
+            // F6e/R0-13b: the hint carries the live status (the kind icon
+            // already says thread), so finished children read as finished.
+            .map((thread) => ({ id: thread.key, name: thread.key, hint: threadStatusLabel(thread.status), kind: 'thread' as const })),
           ...files
             .filter((file) => file.name.toLowerCase().includes(mentionQuery))
             .map((file) => ({ id: file.id, name: file.name, hint: humanizeKey(file.source), kind: 'file' as const })),

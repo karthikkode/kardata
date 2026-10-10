@@ -108,7 +108,9 @@ messages take its place when they arrive; the stream carries no tool
 arguments or result content.
 
 The session picker and subagent thread controls use backend-owned records.
-`@` references can address subagents and indexed files.
+`@` references can address subagents and indexed files. Mention options
+carry each thread's live status, so finished children read as finished;
+Steer is never offered on them (it needs a live turn on the open thread).
 Karbot includes a Session Files tab with in-app artifact preview, download,
 and file creation, a Plan Mode toggle for milestone planning (`/plan`), and
 a live mid-run Steer action to guide agents and subagents on the fly.
