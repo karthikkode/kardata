@@ -1,5 +1,8 @@
 // Unit tests for deployment/scripts/stack-lib.mjs: the verdict logic
 // behind `npm run stack:*`. No docker, no network, no git.
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   assertDeletablePath,
@@ -11,6 +14,7 @@ import {
   parityVerdict,
   parseEnvFile,
   PILOT_RO_ROLE,
+  pilotConfig,
   pilotRoStatements,
   PROD_PORTS,
   RESOURCE_PROFILES,
@@ -215,6 +219,40 @@ describe('RESOURCE_PROFILES', () => {
     expect(RESOURCE_PROFILES.lean.workerReplicas).toBe(1)
     expect(RESOURCE_PROFILES.full.workerReplicas).toBeGreaterThan(RESOURCE_PROFILES.lean.workerReplicas)
     expect(RESOURCE_PROFILES.full.dbPoolServer).toBeGreaterThan(RESOURCE_PROFILES.lean.dbPoolServer)
+  })
+})
+
+describe('pilotConfig', () => {
+  it('pins the pilot wiring (B3)', () => {
+    const cfg = pilotConfig()
+    expect(cfg).toMatchObject({
+      dbName: 'kardata_pilot',
+      namespace: 'kardata-pilot',
+      backendPort: 3201,
+      uiPort: 25174,
+      uiOrigin: 'http://localhost:25174',
+      tenant: 'tenant-pilot',
+      uiOnly: '1',
+    })
+    expect(cfg.databaseUrl).toContain('/kardata_pilot')
+    expect(cfg.backendUrl).toBe('http://127.0.0.1:3201')
+    expect(cfg.mcpUrl).toBe('http://127.0.0.1:3201/mcp')
+    expect(cfg.corsOrigins).toContain('http://localhost:25174')
+    expect(cfg.corsOrigins).toContain('http://127.0.0.1:25174')
+  })
+})
+
+describe('pilot startup (static)', () => {
+  const STACK = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'deployment', 'scripts', 'stack.mjs'),
+    'utf8',
+  )
+  const section = STACK.slice(STACK.indexOf('async function cmdPilotUp'), STACK.indexOf('const commands = {'))
+
+  it('never terminates workflows (B3: pilot runs are kept for Phase 9)', () => {
+    expect(section.length).toBeGreaterThan(1000)
+    expect(section).toContain('cmdPilotDown')
+    expect(section).not.toMatch(/\b(terminateWorkflow|cancelWorkflow|deleteWorkflow|requestCancel)\b/)
   })
 })
 

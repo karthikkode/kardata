@@ -39,6 +39,17 @@ freshness proof: `npm run stack:doctor` (`prod/*` PASS lines).
 Backup: `npm run stack:prod -- backup`
 (pg_dump to `<prod-dir>/var/backups/`).
 
+Pilot stack (Phase 8): host processes from a frozen worktree, own DB
+(`kardata_pilot`) + Temporal namespace (`kardata-pilot`) on the shared
+staging servers, backend :3201, prod-build UI :25174, `KARDATA_UI_ONLY=1`.
+`npm run stack:pilot -- up --worktree <path>` (node 22; creates the DB,
+migrates, ensures the RO role + pilot keys, builds the UI with the baked
+key, boots backend/worker/preview; refuses taken ports or a live stack).
+`pilot status` checks the three processes + four ports;
+`pilot down` stops processes only — DB, namespace and `var/pilot/archive`
+are never dropped (the archive path refuses delete). No browser sidecar
+(mirrors laptop dev). No drain step: pilot runs are kept for Phase 9.
+
 ## stall
 
 The current worker source starts durable `executionReconciliation` on its existing

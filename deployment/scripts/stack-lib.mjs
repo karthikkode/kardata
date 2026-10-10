@@ -180,6 +180,32 @@ export function formatVerdict(name, verdict) {
  * never create it — `pilot up` runs these statements instead. */
 export const PILOT_RO_ROLE = 'kardata_pilot_ro'
 
+/** Pilot stack identity (B3): own database + Temporal namespace on the
+ * shared staging servers, own backend/UI ports. The pilot UI origin is
+ * the value KARDATA_UI_ONLY gates on; CORS allows both spellings. */
+export const PILOT_DEFAULTS = {
+  dbName: 'kardata_pilot',
+  namespace: 'kardata-pilot',
+  backendPort: 3201,
+  uiPort: 25174,
+  uiOrigin: 'http://localhost:25174',
+  tenant: 'tenant-pilot',
+  uiOnly: '1',
+}
+
+/** Derived pilot wiring (pure; `pilot up` consumes it verbatim). */
+export function pilotConfig({ pgPort = 5433, pgHost = '127.0.0.1', temporalAddress = 'localhost:7233' } = {}) {
+  return {
+    ...PILOT_DEFAULTS,
+    databaseUrl: `postgresql://kardata:kardata-dev@${pgHost}:${pgPort}/${PILOT_DEFAULTS.dbName}`,
+    backendUrl: `http://127.0.0.1:${PILOT_DEFAULTS.backendPort}`,
+    uiUrl: `http://127.0.0.1:${PILOT_DEFAULTS.uiPort}`,
+    mcpUrl: `http://127.0.0.1:${PILOT_DEFAULTS.backendPort}/mcp`,
+    corsOrigins: 'http://localhost:25174,http://127.0.0.1:25174',
+    temporalAddress,
+  }
+}
+
 /** Idempotent RO-role statements; run connected to the pilot database.
  * Reruns rotate nothing: an existing role keeps working (password is
  * only set at creation; rotation is an explicit owner ritual). */

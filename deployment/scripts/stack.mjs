@@ -5,13 +5,14 @@
 // Verdict logic lives in stack-lib.mjs (pure, unit-tested); this file only
 // gathers facts (docker, git, curl) and acts on them.
 import { execFile, execFileSync, spawn } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { createRequire } from 'node:module'
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { readFileSync, existsSync, mkdirSync, writeFileSync, openSync, chmodSync, unlinkSync } from 'node:fs'
+import { connect } from 'node:net'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readlinkSync } from 'node:fs'
-import { countRepoTools, fleetVerdict, formatVerdict, freshnessVerdict, ownedTestProcs, parityVerdict, parseEnvFile, portsDisjointVerdict, RESOURCE_PROFILES } from './stack-lib.mjs'
+import { countRepoTools, fleetVerdict, formatVerdict, freshnessVerdict, ownedTestProcs, parityVerdict, parseEnvFile, PILOT_RO_ROLE, pilotConfig, pilotRoStatements, portsDisjointVerdict, RESOURCE_PROFILES } from './stack-lib.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '..', '..')
@@ -870,6 +871,295 @@ async function cmdRebalance(args) {
   console.log(`stack: rebalance ${mode} complete`)
 }
 
+function pilotWorktree(args) {
+  const flag = args.indexOf('--worktree')
+  const path = flag >= 0 ? args[flag + 1] : null
+  if (!path) {
+    console.error('stack: pilot needs --worktree <path> (the frozen pilot-rN worktree)')
+    process.exit(1)
+  }
+  const dir = resolve(path)
+  for (const required of ['backend/dist/server.js', 'backend/dist/temporal/dev-worker.js', 'backend/dist/db/cli.js', 'frontend/package.json', 'agents/.env']) {
+    if (!existsSync(join(dir, required))) {
+      console.error(`stack: pilot worktree ${dir} is missing ${required} (build it first, or run pilot up once to create agents/.env)`)
+      process.exit(1)
+    }
+  }
+  return dir
+}
+
+function pilotPidFile(worktree) {
+  return join(worktree, 'var', 'pilot', 'stack.json')
+}
+
+function pilotPids(worktree) {
+  const file = pilotPidFile(worktree)
+  if (!existsSync(file)) return null
+  try {
+    return JSON.parse(readFileSync(file, 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+/** A stale pidfile must never kill an unrelated recycled PID: the
+ * command line has to contain the expected marker. */
+function pidMatches(pid, marker) {
+  try {
+    const cmdline = readFileSync(`/proc/${pid}/cmdline`, 'utf8').replace(/\0/g, ' ')
+    return cmdline.includes(marker)
+  } catch {
+    return false
+  }
+}
+
+async function portTaken(port) {
+  return new Promise((resolvePort) => {
+    const socket = connect({ host: '127.0.0.1', port }, () => {
+      socket.destroy()
+      resolvePort(true)
+    })
+    socket.on('error', () => resolvePort(false))
+  })
+}
+
+/** Create the pilot agents/.env once (provider keys copied from this
+ * checkout, service keys generated); afterwards read-only, never
+ * rotated or rewritten. Values stay in this process. */
+function pilotSecrets(worktree) {
+  const file = join(worktree, 'agents', '.env')
+  if (!existsSync(file)) {
+    const staging = parseEnvFile(readFileSync(join(ROOT, 'agents', '.env'), 'utf8'))
+    const lines = []
+    for (const [key, value] of Object.entries(staging)) {
+      if (['KARDATA_MCP_TOKEN', 'KARDATA_UI_KEY', 'KARDATA_PILOT_VIEWER_KEY', 'KARDATA_PILOT_RO_PASSWORD'].includes(key)) continue
+      lines.push(`${key}=${value}`)
+    }
+    const generated = {
+      KARDATA_MCP_TOKEN: randomBytes(24).toString('hex'),
+      KARDATA_UI_KEY: randomBytes(24).toString('hex'),
+      KARDATA_PILOT_VIEWER_KEY: randomBytes(24).toString('hex'),
+      KARDATA_PILOT_RO_PASSWORD: randomBytes(24).toString('hex'),
+    }
+    for (const [key, value] of Object.entries(generated)) lines.push(`${key}=${value}`)
+    mkdirSync(join(worktree, 'agents'), { recursive: true })
+    writeFileSync(file, `${lines.join('\n')}\n`)
+    chmodSync(file, 0o600)
+    console.log('stack: pilot agents/.env created (provider keys copied, service keys generated)')
+  }
+  const parsed = parseEnvFile(readFileSync(file, 'utf8'))
+  for (const key of ['KARDATA_MCP_TOKEN', 'KARDATA_UI_KEY', 'KARDATA_PILOT_VIEWER_KEY', 'KARDATA_PILOT_RO_PASSWORD']) {
+    if (!parsed[key]) {
+      console.error(`stack: pilot ${file} is missing ${key}; add it explicitly (pilot up never rewrites secrets)`)
+      process.exit(1)
+    }
+  }
+  return parsed
+}
+
+function spawnPilotProc(worktree, name, cmd, args, env, marker) {
+  const log = openSync(join(worktree, 'var', 'pilot', `${name}.log`), 'a')
+  const child = spawn(cmd, args, { cwd: worktree, env, detached: true, stdio: ['ignore', log, log] })
+  child.unref()
+  return { pid: child.pid, marker }
+}
+
+async function cmdPilotUp(args) {
+  if (process.versions.node.split('.')[0] !== '22') {
+    console.error(`stack: pilot needs node 22, this is ${process.version}`)
+    process.exit(1)
+  }
+  const flag = args.indexOf('--worktree')
+  if (flag < 0 || !args[flag + 1]) {
+    console.error('stack: pilot needs --worktree <path> (the frozen pilot-rN worktree)')
+    process.exit(1)
+  }
+  const worktree = resolve(args[flag + 1])
+  // agents/.env may legitimately not exist yet (first up creates it);
+  // everything else must be built.
+  for (const required of ['backend/dist/server.js', 'backend/dist/temporal/dev-worker.js', 'backend/dist/db/cli.js', 'frontend/package.json']) {
+    if (!existsSync(join(worktree, required))) {
+      console.error(`stack: pilot worktree ${worktree} is missing ${required}; build it (npm ci + builds) first`)
+      process.exit(1)
+    }
+  }
+  const cfg = pilotConfig()
+  for (const port of [cfg.backendPort, cfg.uiPort]) {
+    if (await portTaken(port)) {
+      console.error(`stack: pilot port ${port} is taken; stop its owner first`)
+      process.exit(1)
+    }
+  }
+  const live = pilotPids(worktree)
+  if (live && Object.values(live).some((entry) => pidMatches(entry.pid, entry.marker))) {
+    console.error('stack: pilot stack already up in this worktree (pilot down first)')
+    process.exit(1)
+  }
+  mkdirSync(join(worktree, 'var', 'pilot', 'archive'), { recursive: true })
+  const secrets = pilotSecrets(worktree)
+  const { Pool } = createRequire(import.meta.url)('pg')
+  const server = new Pool({ connectionString: `postgresql://kardata:kardata-dev@127.0.0.1:${PG_PORT}/kardata` })
+  try {
+    const exists = await server.query('SELECT 1 FROM pg_database WHERE datname = $1', [cfg.dbName])
+    if (!exists.rows[0]) {
+      await server.query(`CREATE DATABASE "${cfg.dbName}"`)
+      console.log(`stack: pilot database ${cfg.dbName} created`)
+    }
+  } finally {
+    await server.end()
+  }
+  const migrate = await new Promise((resolveMigrate) => {
+    execFile(process.execPath, ['backend/dist/db/cli.js', 'up'], { cwd: worktree, env: { ...process.env, DATABASE_URL: cfg.databaseUrl } }, (error, stdout, stderr) => {
+      resolveMigrate({ ok: !error, out: String(stdout ?? '') + String(stderr ?? '') })
+    })
+  })
+  writeFileSync(join(worktree, 'var', 'pilot', 'migrate.log'), migrate.out)
+  if (!migrate.ok) {
+    console.error(`stack: pilot migrate failed; see ${join(worktree, 'var', 'pilot', 'migrate.log')}`)
+    process.exit(1)
+  }
+  const db = new Pool({ connectionString: cfg.databaseUrl })
+  try {
+    for (const statement of pilotRoStatements({ owner: 'kardata', password: secrets['KARDATA_PILOT_RO_PASSWORD'], database: cfg.dbName })) {
+      await db.query(statement)
+    }
+    const keys = [
+      ['pilot-ui', secrets['KARDATA_UI_KEY'], 'approver', 'ui'],
+      ['pilot-worker', secrets['KARDATA_MCP_TOKEN'], 'approver', 'agent-mcp'],
+      ['pilot-viewer', secrets['KARDATA_PILOT_VIEWER_KEY'], 'viewer', 'viewer'],
+    ]
+    for (const [keyId, key, role, client] of keys) {
+      const hash = createHash('sha256').update(key, 'utf8').digest('hex')
+      await db.query(
+        'INSERT INTO api_keys(key_id,key_hash,tenant_id,project_id,roles,client) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT (key_id) DO NOTHING',
+        [keyId, hash, cfg.tenant, null, role, client],
+      )
+    }
+    console.log('stack: pilot RO role + api keys ensured (never rotated)')
+  } finally {
+    await db.end()
+  }
+  const build = await new Promise((resolveBuild) => {
+    execFile('npm', ['run', 'build', '-w', 'frontend'], {
+      cwd: worktree,
+      env: { ...process.env, VITE_STAGING_API: '1', VITE_STAGING_URL: cfg.backendUrl, VITE_STAGING_KEY: secrets['KARDATA_UI_KEY'] },
+      maxBuffer: 32 * 1024 * 1024,
+    }, (error, stdout, stderr) => {
+      resolveBuild({ ok: !error, out: String(stdout ?? '').slice(-2000) + String(stderr ?? '').slice(-2000) })
+    })
+  })
+  if (!build.ok) {
+    console.error(`stack: pilot UI build failed: ${build.out.slice(-500)}`)
+    process.exit(1)
+  }
+  const baseEnv = { ...process.env, ...secrets }
+  delete baseEnv['KARDATA_PROVIDER']
+  const backendEnv = {
+    ...baseEnv,
+    PORT: String(cfg.backendPort),
+    DATABASE_URL: cfg.databaseUrl,
+    TEMPORAL_NAMESPACE: cfg.namespace,
+    TEMPORAL_ADDRESS: cfg.temporalAddress,
+    KARDATA_CORS_ORIGINS: cfg.corsOrigins,
+    KARDATA_ARCHIVE_DIR: join(worktree, 'var', 'pilot', 'archive'),
+    KARDATA_UI_ONLY: cfg.uiOnly,
+    KARDATA_UI_ORIGIN: cfg.uiOrigin,
+  }
+  const workerEnv = {
+    ...baseEnv,
+    DATABASE_URL: cfg.databaseUrl,
+    TEMPORAL_NAMESPACE: cfg.namespace,
+    TEMPORAL_ADDRESS: cfg.temporalAddress,
+    KARDATA_ARCHIVE_DIR: join(worktree, 'var', 'pilot', 'archive'),
+    KARDATA_MCP_URL: cfg.mcpUrl,
+  }
+  const procs = {
+    backend: spawnPilotProc(worktree, 'backend', process.execPath, ['backend/dist/server.js'], backendEnv, 'backend/dist/server.js'),
+    worker: spawnPilotProc(worktree, 'worker', process.execPath, ['backend/dist/temporal/dev-worker.js'], workerEnv, 'dev-worker.js'),
+    ui: spawnPilotProc(worktree, 'ui', process.execPath, ['frontend/node_modules/vite/bin/vite.js', 'preview', '--port', String(cfg.uiPort), '--host', '127.0.0.1', '--strictPort'], { ...process.env, PATH: process.env['PATH'] ?? '' }, 'vite/bin/vite.js'),
+  }
+  writeFileSync(pilotPidFile(worktree), JSON.stringify(procs, null, 2))
+  const okBackend = await waitFor('pilot backend /healthz', () => urlHealthy(`${cfg.backendUrl}/healthz`))
+  const okWorker = await waitFor('pilot worker polling', async () => {
+    try {
+      return readFileSync(join(worktree, 'var', 'pilot', 'worker.log'), 'utf8').includes('turn worker polling')
+    } catch {
+      return false
+    }
+  })
+  const okUi = await waitFor('pilot ui /', () => urlHealthy(cfg.uiUrl))
+  if (!okBackend || !okWorker || !okUi) process.exit(1)
+  console.log(`stack: pilot up (backend :${cfg.backendPort}, ui :${cfg.uiPort}, db ${cfg.dbName}, namespace ${cfg.namespace})`)
+}
+
+async function cmdPilotDown(args) {
+  const worktree = pilotWorktree(args)
+  const live = pilotPids(worktree)
+  if (!live) {
+    console.log('stack: pilot not running in this worktree (no pidfile)')
+    return
+  }
+  for (const [name, entry] of Object.entries(live)) {
+    if (pidMatches(entry.pid, entry.marker)) {
+      try {
+        process.kill(entry.pid, 'SIGTERM')
+        console.log(`stack: pilot ${name} stopped (pid ${entry.pid})`)
+      } catch {
+        console.log(`stack: pilot ${name} already gone (pid ${entry.pid})`)
+      }
+    } else {
+      console.log(`stack: pilot ${name} already gone (pid ${entry.pid})`)
+    }
+  }
+  unlinkSync(pilotPidFile(worktree))
+  console.log('stack: pilot down (DB, namespace and archive kept)')
+}
+
+async function cmdPilotStatus(args) {
+  const worktree = pilotWorktree(args)
+  const cfg = pilotConfig()
+  const live = pilotPids(worktree)
+  let ok = true
+  for (const [name, marker] of [['backend', 'backend/dist/server.js'], ['worker', 'dev-worker.js'], ['ui', 'vite/bin/vite.js']]) {
+    const entry = live?.[name]
+    const alive = !!entry && pidMatches(entry.pid, marker)
+    if (!alive) ok = false
+    console.log(`pilot ${name}: ${alive ? `up (pid ${entry.pid})` : 'down'}`)
+  }
+  const checks = [
+    ['backend /healthz :3201', urlHealthy(`${cfg.backendUrl}/healthz`)],
+    ['ui / :25174', urlHealthy(cfg.uiUrl)],
+    ['pg :5433 (kardata_pilot)', (async () => {
+      const { Pool } = createRequire(import.meta.url)('pg')
+      const pool = new Pool({ connectionString: cfg.databaseUrl })
+      try {
+        await pool.query('SELECT 1')
+        return true
+      } catch {
+        return false
+      } finally {
+        await pool.end()
+      }
+    })()],
+    ['temporal :7233', portTaken(7233)],
+  ]
+  for (const [label, promise] of checks) {
+    const healthy = await promise
+    if (!healthy) ok = false
+    console.log(`pilot ${label}: ${healthy ? 'healthy' : 'DOWN'}`)
+  }
+  if (!ok) process.exit(1)
+}
+
+async function cmdPilot(args) {
+  const [sub, ...rest] = args
+  if (sub === 'up') return cmdPilotUp(rest)
+  if (sub === 'down') return cmdPilotDown(rest)
+  if (sub === 'status') return cmdPilotStatus(rest)
+  console.error('usage: npm run stack:pilot -- <up|down|status> --worktree <path>')
+  process.exit(1)
+}
+
 const commands = {
   up: ['boot the compose stack with existing images', cmdUp],
   toxi: ['toxiproxy for fault drills: up|down (host network, 127.0.0.1:8474)', cmdToxi],
@@ -882,6 +1172,7 @@ const commands = {
   'worker:host': ['refuse if a host worker polls, else stop compose worker and run the laptop one', cmdWorkerHost],
   'worker:compose': ['refuse if a host worker polls, else start the compose worker', cmdWorkerCompose],
   worker: ['scale the compose worker (default 1): stack.mjs worker --replicas N', cmdWorker],
+  pilot: ['pilot stack: up|down|status --worktree <path>', cmdPilot],
   prod: ['prod env: up|down|status|deploy|provision-keys|backup [--profile lean|full]', cmdProd],
   release: ['ship a main-line SHA to origin/prod [--rollback to move back]', cmdRelease],
   resources: ['show the lean/full resource profiles', cmdResources],

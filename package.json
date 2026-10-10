@@ -45,6 +45,7 @@
     "stack:worker:compose": "node deployment/scripts/stack.mjs worker:compose",
     "stack:worker": "node deployment/scripts/stack.mjs worker",
     "stack:toxi": "node deployment/scripts/stack.mjs toxi",
+    "stack:pilot": "node deployment/scripts/stack.mjs pilot",
     "stack:prod": "node deployment/scripts/stack.mjs prod",
     "stack:release": "node deployment/scripts/stack.mjs release",
     "stack:resources": "node deployment/scripts/stack.mjs resources",
