@@ -19,6 +19,9 @@ semantics.
   missed steer). Parents never see intermediates.
 - `finish(id, status)`: terminal mark plus final inbox drain into missed
   steer; bounded recent-completions map (200) keeps late attributions.
+  A live child finishes itself with `db.finish_subagent` (zero-arg, caller
+  thread only): the gateway signals `childFinish` alone, so the run
+  completes `finished`, never `cancelled`.
 
 ## Guards
 

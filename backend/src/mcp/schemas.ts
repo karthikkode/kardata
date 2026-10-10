@@ -41,6 +41,7 @@ const ArtifactScope = z.object({
 
 export const TOOL_SCHEMAS = {
   'db.commit_child_context': z.object({ proposalId: NonEmpty }).strict(),
+  'db.finish_subagent': z.object({}).strict(),
   'db.get_global_context': z.object({ sectorId: NonEmpty.optional() }).strict(),
   'db.propose_global_context': z.object({ baseVersion: z.number().int().nonnegative(), sections: PartialContextSections, idempotencyKey: NonEmpty, sectorId: NonEmpty.optional() }).strict(),
   'db.list_sector_files': z.object({}).strict(),

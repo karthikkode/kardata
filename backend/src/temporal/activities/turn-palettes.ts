@@ -10,6 +10,7 @@ import type { TurnRunnerMcpClient } from '@kardata/agents'
 // operators and other clients.
 export const PRODUCT_TOOLS: ReadonlySet<string> = new Set([
   'db.commit_child_context',
+  'db.finish_subagent',
   'db.get_global_context', 'db.propose_global_context', 'db.list_sector_files', 'db.propose_file_context', 'db.get_local_context',
   'db.get_sector_plan', 'db.get_research_progress', 'db.list_sector_sessions', 'db.read_sector_thread',
   'db.create_session',
@@ -66,6 +67,7 @@ export function productMcpClient(client: TurnRunnerMcpClient): TurnRunnerMcpClie
 // the keyed MCP boundary still enforces role floors per call.
 export const SECTOR_TOOLS: ReadonlySet<string> = new Set([
   'db.commit_child_context',
+  'db.finish_subagent',
   'db.delegate_subagent',
   'db.get_global_context', 'db.propose_global_context', 'db.list_sector_files', 'db.propose_file_context', 'db.get_local_context',
   'db.get_session',

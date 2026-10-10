@@ -78,6 +78,10 @@ export interface RunsGateway {
   pauseRun(runId: string): Promise<CommandResult>
   resumeRun(runId: string, extendedBudgetMs?: number): Promise<CommandResult>
   cancelRun(runId: string): Promise<CommandResult>
+  /** A subagent ends its own run when the goal is satisfied: the child
+   * workflow completes with status finished (never cancelled). Only
+   * subagent threads; any other caller conflicts. */
+  finishSubagentRun(threadKey: string): Promise<CommandResult>
   listQueue(threadKey: string): Promise<Array<{ id: string; text: string; queuedAt: number }>>
   removeQueued(threadKey: string, id: string): Promise<boolean>
   reorderQueue(threadKey: string, ids: string[]): Promise<void>

@@ -78,6 +78,7 @@ import {
   saveInheritedContext,
   resumeSectorSweep,
   cancelThreadRun,
+  finishSubagentRun,
   getThreadHeader,
   getThreadRun,
   listThreadQueue,
@@ -154,6 +155,16 @@ async function sectorScope(ctx: McpToolContext, argSectorId?: string) {
 
 export const INVOKERS: Invokers = {
   'db.commit_child_context': async (ctx, args) => { const identity = await workspaceIdentity(ctx); await assertThreadFileContext(ctx.pool, identity.threadKey, ctx.scope); return commitChildContext(ctx.pool, identity.threadKey, args.proposalId, ctx.scope) },
+  'db.finish_subagent': async (ctx) => {
+    const identity = await workspaceIdentity(ctx)
+    try {
+      return await finishSubagentRun(ctx.messenger, identity.threadKey)
+    } catch (error: unknown) {
+      if (error instanceof RunNotFound) throw new McpToolError('not_found', error.message)
+      if (error instanceof ThreadNotAccepting) throw new McpToolError('conflict', error.message)
+      throw error
+    }
+  },
   'db.get_global_context': async (ctx, args) => {
     const { sectorId, actor } = await sectorScope(ctx, args.sectorId)
     await assertGlobalFileContext(ctx.pool, sectorId, ctx.scope)

@@ -57,6 +57,7 @@ export {
   projectBatch,
   rebuildFromEvents,
   cancelThreadRun,
+  finishSubagentRun,
   getThreadRun,
   listThreadQueue,
   listThreadRuns,

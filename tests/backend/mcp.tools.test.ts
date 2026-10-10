@@ -61,7 +61,7 @@ const SCOPE = { tenantId: 'tenant-a', projectId: null }
 
 // Matrix coverage: the parity, schema, role-floor and capability loops below
 // exercise every tool in EXPECTED_TOOLS (valid/invalid samples per tool).
-// [F:mcp.db.commit_child_context] [F:mcp.db.get_global_context] [F:mcp.db.propose_global_context] [F:mcp.db.list_sector_files] [F:mcp.db.propose_file_context] [F:mcp.db.get_local_context] [F:mcp.db.append_event] [F:mcp.db.read_partition]
+// [F:mcp.db.commit_child_context] [F:mcp.db.finish_subagent] [F:mcp.db.get_global_context] [F:mcp.db.propose_global_context] [F:mcp.db.list_sector_files] [F:mcp.db.propose_file_context] [F:mcp.db.get_local_context] [F:mcp.db.append_event] [F:mcp.db.read_partition]
 // [F:mcp.db.find_event] [F:mcp.db.read_events_after] [F:mcp.db.create_session] [F:mcp.db.rename_session] [F:mcp.db.delete_session] [F:mcp.db.get_session] [F:mcp.db.list_sessions] [F:mcp.db.list_sectors]
 // [F:mcp.db.get_sector] [F:mcp.db.list_companies] [F:mcp.db.list_sector_companies] [F:mcp.db.sector_activity] [F:mcp.db.create_sector] [F:mcp.db.attach_sector_document] [F:mcp.db.list_sector_documents] [F:mcp.db.read_sector_document]
 // [F:mcp.db.query_document] [F:mcp.db.set_sector_state] [F:mcp.db.start_sector_research] [F:mcp.db.pause_sector_research] [F:mcp.db.resume_sector_research] [F:mcp.db.mark_company_found] [F:mcp.db.set_company_stage] [F:mcp.db.set_company_state]
@@ -79,6 +79,7 @@ const SCOPE = { tenantId: 'tenant-a', projectId: null }
  * invalid args must fail the tool schema before any query runs. */
 const SAMPLES: Record<McpToolName, { valid: unknown; invalid: unknown; invoke?: boolean }> = {
   'db.commit_child_context': { valid: { proposalId: 'child-update' }, invalid: {}, invoke: false },
+  'db.finish_subagent': { valid: {}, invalid: { unexpected: true }, invoke: false },
   'db.get_global_context': { valid: {}, invalid: { unexpected: true }, invoke: false },
   'db.propose_global_context': { valid: { baseVersion: 0, sections: {}, idempotencyKey: 'change' }, invalid: { baseVersion: -1 }, invoke: false },
   'db.list_sector_files': { valid: {}, invalid: { unexpected: true }, invoke: false },
@@ -215,6 +216,7 @@ const SAMPLES: Record<McpToolName, { valid: unknown; invalid: unknown; invoke?: 
 
 const EXPECTED_TOOLS: McpToolName[] = [
   'db.commit_child_context',
+  'db.finish_subagent',
   'db.get_global_context', 'db.propose_global_context', 'db.list_sector_files', 'db.propose_file_context', 'db.get_local_context',
   'db.append_event',
   'db.read_partition',

@@ -123,8 +123,10 @@ it grants no research-parent, context-inclusion or owner-approval authority.
   `db.request_plan`, `ops.start_monitor` / `ops.stop_monitor` /
   `ops.list_monitors`, plus `db.delegate_subagent` (Karbot-only,
   operator: launches a leaf subagent researcher under the session's
-  delegation parent; the retrieval seven and the delegate door bind to
-  the retrieval modules and the runs gateway, not the db layer).
+  delegation parent) and `db.finish_subagent` (subagent-only, operator:
+  the child ends its own run as finished; the retrieval seven, the
+  delegate door, and the finish tool bind to the retrieval modules and
+  the runs gateway, not the db layer).
 - Tool input schemas live in `backend/src/mcp/schemas.ts`, reusing the
   layer's exported zod schemas (`EventEnvelope`, `SectorState`,
   `CompanyStage`) and mirroring the layer's inline validation

@@ -25,6 +25,7 @@ import { isRetrySafeBeforeEffect, McpPreconditionError, McpToolError, type McpTo
 /** Layer function behind each tool; the parity test pins this table. */
 export const TOOL_LAYER: Record<McpToolName, string> = {
   'db.commit_child_context': 'commitChildContext',
+  'db.finish_subagent': 'finishSubagentRun',
   'db.get_global_context': 'readGlobalContext',
   'db.propose_global_context': 'proposeGlobalContext',
   'db.list_sector_files': 'listSectorLibrary',
@@ -167,6 +168,7 @@ export function toolCapability(name: McpToolName): ToolCapability {
 
 export const TOOL_META: Record<McpToolName, { description: string; minRole: Role }> = {
   'db.commit_child_context': { description: 'Research parent: commit a child finding or open question. Scope, decisions and file inclusion require owner approval.', minRole: 'operator' },
+  'db.finish_subagent': { description: 'End your own subagent run: call when the goal is satisfied and findings are committed or reported. The run completes as finished (never cancelled) and frees the parent slot. Only subagent threads.', minRole: 'operator' },
   'db.get_global_context': { description: 'Read approved sector shared context. Sector chats use their binding; general Karbot must provide sectorId. Pending updates remain private to their source/research parent.', minRole: 'viewer' },
   'db.propose_global_context': { description: 'Propose a versioned shared-context edit. Send only the sections you change; omitted sections stay unchanged, explicit empty string clears. Normal chats require owner approval; research children report to their parent.', minRole: 'operator' },
   'db.list_sector_files': { description: 'List visible indexed files shared by this sector.', minRole: 'viewer' },
@@ -329,6 +331,7 @@ export async function invokeTool(
       }
       if (['db.get_thread', 'db.read_sector_thread', 'db.read_outbox', 'ops.thread_queue'].includes(name)) await assertThreadFileContext(ctx.pool, (parsed.data as { threadKey: string }).threadKey, ctx.scope)
       if ((name === 'db.delegate_subagent' || name === 'ops.spawn_subagent') && actor.thread.kind === 'subagent') throw new McpToolError('permission_denied', 'Leaf subagents cannot delegate further.')
+      if (name === 'db.finish_subagent' && actor.thread.kind !== 'subagent') throw new McpToolError('permission_denied', 'db.finish_subagent ends the caller subagent run: the caller is not a subagent thread.')
       // Children keep their restrictions: a subagent calling with the
       // shared worker token must not steer the fleet or the plan.
       if (actor.thread.kind === 'subagent' && (name === 'db.request_plan' || (name.startsWith('ops.') && toolCapability(name) !== 'read'))) throw new McpToolError('permission_denied', 'Subagents cannot call ops write tools or request plan changes.')

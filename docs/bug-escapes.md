@@ -6,6 +6,7 @@ recurrence. New rows append at the top.
 
 | date | bug | found by | tier that should have caught it | test added | rule added |
 |---|---|---|---|---|---|
+| 2026-10-10 | Subagent children had no finish path: goal-satisfied children churned empty turns forever (Meta/token drain at pilot scale) | pilot r0 (R0-17, F3a) | db | mcp.finish-subagent.test.ts (4 cases) | child self-finish tool (zero-arg, caller-only, finish-signal-alone = finished never cancelled) |
 | 2026-10-10 | pilot stack ran 1 worker vs 4 elsewhere: delegate/turn throughput starved under fan-out | pilot r0 (R0-3b) | unit | stack.test.ts pilotWorkerCount | pilot up fans out to N workers (default 4, --workers N), one metrics port each |
 | 2026-10-10 | delegate_subagent blocked on a 30s acceptance poll per child: 10 parallel delegates timed out uncertain and bricked the parent | pilot r0 (R0-3/R0-3b) | temporal | workflows.delegate 10-parallel test + unit rewrites | delegation returns accepted on durable record; parent feeds every launch (patched); confirmation async |
 | 2026-10-10 | no owner escape from paused-by-recovery threads: authority-halted or legacy-poisoned threads could never resume (R0-4 wedge) | pilot r0 (R0-4) | db | commands.discard-blocked.test.ts + banner/api/model tests | discard-blocked-operations clears the block, notes the transcript (ui-audited), resumes |

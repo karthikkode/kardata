@@ -586,6 +586,20 @@ export class TemporalRunsGateway implements RunsGateway {
     return { commandId: commandId(), state: 'accepted' }
   }
 
+  async finishSubagentRun(threadKey: string): Promise<CommandResult> {
+    const identity = await requireThread(this.pool, threadKey)
+    if (identity.thread.kind !== 'subagent' || !threadKey.startsWith('agent:')) {
+      throw new ThreadNotAccepting('db.finish_subagent ends the caller subagent run: the caller is not a subagent thread.')
+    }
+    const client = await this.client()
+    const runId = threadKey.slice('agent:'.length)
+    await requireWorkflowType(client, runId, ['subagentRun'])
+    // Done, never cancelled: only the finish signal, so the child
+    // completes with status finished and frees the parent slot.
+    await client.workflow.getHandle(runId).signal('childFinish')
+    return { commandId: commandId(), state: 'accepted' }
+  }
+
   /** Resolve a thread to its run workflow: session threads to
    * session-run-<sessionId>, agent:<childId> to the child. */
   private async queueWorkflowId(threadKey: string): Promise<string> {

@@ -5334,6 +5334,12 @@
   tiers:
     - db
   states: []
+- id: mcp.db.finish_subagent
+  layer: mcp
+  surface: backend/src/mcp/tools.ts
+  tiers:
+    - db
+  states: []
 - id: mcp.db.fleet_totals
   layer: mcp
   surface: backend/src/mcp/tools.ts
@@ -6831,4 +6837,16 @@
   surface: backend/openapi/v1.yaml (POST /v1/commands/discard-blocked-operations)
   tiers:
     - db
+  states: []
+- id: db.index.finishSubagentRun
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.threads.finishSubagentRun
+  layer: db
+  surface: backend/src/db/threads.ts
+  tiers:
+    - todo
   states: []

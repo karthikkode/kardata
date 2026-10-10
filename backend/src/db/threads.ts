@@ -482,6 +482,9 @@ export interface ThreadMessenger {
   pauseRun(runId: string): Promise<{ commandId: string; state: 'accepted' | 'missed_steer' }>
   resumeRun(runId: string, extendedBudgetMs?: number): Promise<{ commandId: string; state: 'accepted' | 'missed_steer' }>
   cancelRun(runId: string): Promise<{ commandId: string; state: 'accepted' | 'missed_steer' }>
+  /** Self-finish for subagent turns: optional so minimal doubles omit it
+   * and the wrapper below fails closed. */
+  finishSubagentRun?(threadKey: string): Promise<{ commandId: string; state: 'accepted' | 'missed_steer' }>
   /** Run inspection (the production gateway implements all five; minimal
    * fakes omit them and the wrappers below fail closed). Structural
    * shapes keep this module free of temporal imports. */
@@ -569,6 +572,17 @@ export async function cancelThreadRun(
     throw new DbContractError('runId must be a non-empty string')
   }
   return requireMessenger(messenger, 'db.cancel_run').cancelRun(runId)
+}
+
+export async function finishSubagentRun(
+  messenger: ThreadMessenger | undefined,
+  threadKey: string,
+): Promise<{ commandId: string; state: 'accepted' | 'missed_steer' }> {
+  const runner = requireMessenger(messenger, 'db.finish_subagent')
+  if (typeof runner.finishSubagentRun !== 'function') {
+    throw new DbContractError('db.finish_subagent needs a message runner with finishSubagentRun: the server wires the runs gateway, tests inject a fake')
+  }
+  return runner.finishSubagentRun(threadKey)
 }
 
 function requireInspection<K extends 'listRuns' | 'getRun' | 'listQueue' | 'removeQueued' | 'reorderQueue'>(

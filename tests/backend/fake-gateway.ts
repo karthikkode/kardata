@@ -243,6 +243,19 @@ export class FakeRunsGateway implements RunsGateway {
     return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
   }
 
+  /** Subagent self-finish calls, in order (mirrors production kind check). */
+  readonly finished: string[] = []
+
+  async finishSubagentRun(threadKey: string): Promise<CommandResult> {
+    const thread = await getThread(this.pool, threadKey)
+    if (!thread || thread.kind !== 'subagent' || !threadKey.startsWith('agent:')) {
+      throw new ThreadNotAccepting('db.finish_subagent ends the caller subagent run: the caller is not a subagent thread.')
+    }
+    this.finished.push(threadKey)
+    this.signals.push({ workflowId: threadKey.slice('agent:'.length), signal: 'childFinish', args: [] })
+    return { commandId: `cmd-${randomUUID()}`, state: 'accepted' }
+  }
+
   private requireRun(runId: string): string {
     if (!this.runs.has(runId)) throw new RunNotFound(`no such run ${runId}`)
     return this.types.get(runId) ?? 'sessionRun'
