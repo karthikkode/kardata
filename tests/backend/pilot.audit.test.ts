@@ -113,17 +113,35 @@ describe.skipIf(!TEST_DATABASE_URL)('pilot UI-only audit [F:pilot.audit]', () =>
 
   it('fails dual-producer types on agent-mcp/other but admits ui and system', async () => {
     const bad = await auditCase(async (db) => {
-      await plantEvent(db, 'sector.plan_written', 'agent-mcp')
+      await plantEvent(db, 'sector.state_changed', 'agent-mcp')
       await plantEvent(db, 'sector.state_changed', 'other')
     })
     expect(bad.ok).toBe(false)
-    expect(bad.violations.filter((v) => v.includes('sector.plan_written'))).toHaveLength(1)
-    expect(bad.violations.filter((v) => v.includes('sector.state_changed'))).toHaveLength(1)
+    expect(bad.violations.filter((v) => v.includes('sector.state_changed'))).toHaveLength(2)
     const good = await auditCase(async (db) => {
-      await plantEvent(db, 'sector.plan_written', 'ui')
+      await plantEvent(db, 'sector.state_changed', 'ui')
       await plantEvent(db, 'sector.state_changed', 'system')
     })
     expect(good).toMatchObject({ ok: true, violations: [] })
+  })
+
+  it('admits plan_written from ui, system and the research agent (agent-mcp), rejects other/null', async () => {
+    const good = await auditCase(async (db) => {
+      await plantEvent(db, 'sector.plan_written', 'ui')
+      await plantEvent(db, 'sector.plan_written', 'system')
+      await plantEvent(db, 'sector.plan_written', 'agent-mcp')
+    })
+    expect(good).toMatchObject({ ok: true, violations: [] })
+    const bad = await auditCase(async (db) => {
+      await plantEvent(db, 'sector.plan_written', 'other')
+    })
+    expect(bad.ok).toBe(false)
+    expect(bad.violations.filter((v) => v.includes('sector.plan_written'))).toHaveLength(1)
+    const unstamped = await auditCase(async (db) => {
+      await plantEvent(db, 'sector.plan_written', null)
+    })
+    expect(unstamped.ok).toBe(false)
+    expect(unstamped.violations.filter((v) => v.includes('sector.plan_written'))).toHaveLength(1)
   })
 
   it('reports CANCELLING by client without gating (ui/system/agent-mcp all pass)', async () => {

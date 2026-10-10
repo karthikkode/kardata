@@ -10,7 +10,10 @@
 // appends carry ambient 'ui'; worker activities carry 'system'.
 // - sector.created: sector create (createSector, handler inline) — ui only.
 // - sector.plan_approved: plan approve (approveSectorPlan, handler inline) — ui only.
-// - sector.plan_written: plan edit (ui) + planner writes (system) — ui or system.
+// - sector.plan_written: plan edit (ui) + planner writes (system) +
+//   research brainstorm writes (agent-mcp: db.update_sector_plan is
+//   explicitly the research conversation's tool, P5) — ui, system
+//   or agent-mcp. Only the approval stays ui-only.
 // - sector.context.decided: context decision (decideContextChange, handler inline) — ui only.
 // - sector.file.processing.created/.source: upload intake (createFileProcessingJob, handler inline) — ui only.
 // - sector.state_changed: pause/resume/restart (ui) + sweep/lifecycle (system) — ui or system.
@@ -30,7 +33,9 @@ export const OWNER_UI_ONLY_TYPES = [
   'sector.file.processing.source',
 ]
 
-export const OWNER_UI_OR_SYSTEM_TYPES = ['sector.plan_written', 'sector.state_changed']
+export const OWNER_UI_OR_SYSTEM_TYPES = ['sector.state_changed']
+
+export const OWNER_UI_SYSTEM_AGENT_TYPES = ['sector.plan_written']
 
 const MAX_OFFENDERS = 10
 
@@ -49,8 +54,9 @@ export async function runPilotAudit(pool, { since }) {
     `SELECT seq, type, client FROM events WHERE at >= $1 AND (
        (type = ANY($2) AND client IS DISTINCT FROM 'ui')
        OR (type = ANY($3) AND client IS DISTINCT FROM 'ui' AND client IS DISTINCT FROM 'system')
+       OR (type = ANY($4) AND client IS DISTINCT FROM 'ui' AND client IS DISTINCT FROM 'system' AND client IS DISTINCT FROM 'agent-mcp')
      ) ORDER BY seq`,
-    [since, OWNER_UI_ONLY_TYPES, OWNER_UI_OR_SYSTEM_TYPES],
+    [since, OWNER_UI_ONLY_TYPES, OWNER_UI_OR_SYSTEM_TYPES, OWNER_UI_SYSTEM_AGENT_TYPES],
   )
   const cancelling = await pool.query(
     `SELECT client, count(*) AS n FROM events
