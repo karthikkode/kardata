@@ -23,6 +23,7 @@
     "pr:verify": "npm run build -w @kardata/agents && npm run lint --workspaces && npm run typecheck --workspaces && npm run test --workspaces && npm run build -w frontend",
     "registry:sync": "node scripts/registry-sync.mjs",
     "pilot:audit": "node scripts/pilot-audit.mjs",
+    "pilot:quality": "node scripts/pilot-quality.mjs",
     "matrix:sync": "node scripts/matrix-sync.mjs",
     "ui:review": "node scripts/ui-review.mjs",
     "quality:knip": "knip",
