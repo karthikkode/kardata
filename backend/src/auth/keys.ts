@@ -7,6 +7,7 @@
 // distinguish missing keys from wrong roles.
 import { createHash } from 'node:crypto'
 import { type Db, findKeyByHash } from '../db/index.js'
+import type { KeyClient } from '../db/keys.js'
 import type { Role, Scope } from './types.js'
 
 export type { Role, Scope } from './types.js'
@@ -18,6 +19,7 @@ export interface Caller {
   tenantId: string
   projectId: string | null
   role: Role
+  client: KeyClient
 }
 
 export function hashKey(presented: string): string {
@@ -52,6 +54,7 @@ export async function resolveCaller(
     tenantId: row.tenant_id,
     projectId: row.project_id,
     role: toRole(row.roles),
+    client: row.client,
   }
   return { caller, scope: { tenantId: row.tenant_id, projectId: projectHeader ?? row.project_id } }
 }

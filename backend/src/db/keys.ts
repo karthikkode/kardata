@@ -7,11 +7,15 @@ import { DbContractError } from './errors.js'
 import type { Db } from './events.js'
 import { createLogger, logOp } from '../observability/logging.js'
 
+export const KeyClient = z.enum(['ui', 'agent-mcp', 'viewer', 'other'])
+export type KeyClient = z.infer<typeof KeyClient>
+
 const KeyRow = z.object({
   key_id: z.string().min(1),
   tenant_id: z.string().min(1),
   project_id: z.string().min(1).nullable(),
   roles: z.string().min(1),
+  client: KeyClient,
 })
 
 export type KeyRecord = z.infer<typeof KeyRow>
@@ -21,6 +25,7 @@ const ProvisionKey = z.object({
   keyHash: z.string().regex(/^[a-f0-9]{64}$/),
   scope: z.object({ tenantId: z.string().min(1), projectId: z.string().min(1).nullable() }).strict(),
   role: z.enum(['viewer', 'operator', 'approver']),
+  client: KeyClient.default('other'),
 }).strict()
 const provisioningLogger = createLogger({ op: 'db.key.provision' })
 
@@ -30,19 +35,19 @@ export async function registerApiKey(db: Db, input: z.input<typeof ProvisionKey>
   return logOp(provisioningLogger, 'db.key.provision', async () => {
     const parsed = ProvisionKey.safeParse(input)
     if (!parsed.success) throw new DbContractError('Invalid hashed key provisioning input')
-    const { keyId, keyHash, scope, role } = parsed.data
+    const { keyId, keyHash, scope, role, client } = parsed.data
     try {
       const { rows } = await db.query(
-        `INSERT INTO api_keys(key_id,key_hash,tenant_id,project_id,roles) VALUES($1,$2,$3,$4,$5)
+        `INSERT INTO api_keys(key_id,key_hash,tenant_id,project_id,roles,client) VALUES($1,$2,$3,$4,$5,$6)
          ON CONFLICT DO NOTHING
-         RETURNING key_id,tenant_id,project_id,roles`,
-        [keyId, keyHash, scope.tenantId, scope.projectId, role],
+         RETURNING key_id,tenant_id,project_id,roles,client`,
+        [keyId, keyHash, scope.tenantId, scope.projectId, role, client],
       )
       if (rows[0]) return KeyRow.parse(rows[0])
       // A second READ COMMITTED statement sees a winning concurrent insert.
       // Targeting only key_id misses a twin conflict on the separate hash index.
       const existing = await findKeyByHash(db, keyHash)
-      if (!existing || existing.key_id !== keyId || existing.tenant_id !== scope.tenantId || existing.project_id !== scope.projectId || existing.roles !== role) throw new DbContractError('Key provisioning conflict; existing credential was not changed')
+      if (!existing || existing.key_id !== keyId || existing.tenant_id !== scope.tenantId || existing.project_id !== scope.projectId || existing.roles !== role || existing.client !== client) throw new DbContractError('Key provisioning conflict; existing credential was not changed')
       return existing
     } catch (error) {
       if (error && typeof error === 'object' && 'code' in error && error.code === '23505') throw new DbContractError('Key provisioning conflict; hash already belongs to a credential')
@@ -56,7 +61,7 @@ export async function findKeyByHash(db: Db, keyHash: string): Promise<KeyRecord 
     throw new DbContractError('keyHash must be a non-empty string')
   }
   const { rows } = await db.query(
-    'SELECT key_id, tenant_id, project_id, roles FROM api_keys WHERE key_hash = $1',
+    'SELECT key_id, tenant_id, project_id, roles, client FROM api_keys WHERE key_hash = $1',
     [keyHash],
   )
   const row = rows[0]

@@ -36,6 +36,34 @@ export interface RaisedAlert {
   duplicate: boolean
 }
 
+const UiOnlyViolation = z.object({
+  route: z.string().min(1).max(200),
+  keyId: z.string().min(1).max(128),
+  origin: z.string().max(200).nullable(),
+  traceId: z.string().max(100).nullable(),
+}).strict()
+
+/** Phase 8 UI-only violation row (B1). Deliberately unscoped (no thread
+ * or sector): the pilot audit (B5) counts these rows with raw SQL, and
+ * scoped supervision reads never surface them. Subject carries route,
+ * key_id (never the key), origin and trace_id, capped at 500 chars. */
+export async function recordUiOnlyViolation(db: Db, input: unknown): Promise<RaisedAlert> {
+  const parsed = UiOnlyViolation.safeParse(input)
+  if (!parsed.success) throw new DbContractError('violation needs route, keyId, origin and traceId')
+  const { route, keyId, origin, traceId } = parsed.data
+  const subject = `route ${route} key ${keyId} origin ${origin ?? 'none'} trace ${traceId ?? 'none'}`.slice(0, 500)
+  return logOp(createLogger({ op: 'alerts.ui_only_violation' }), 'alerts.ui_only_violation', async () => {
+    const inserted = await db.query<{ id: number }>(
+      `INSERT INTO alerts (kind, severity, subject, thread_key, sector_id)
+       VALUES ('ui_only_violation', 'high', $1, NULL, NULL) RETURNING id`,
+      [subject],
+    )
+    const row = inserted.rows[0]
+    if (!row) throw new Error('recordUiOnlyViolation: missing RETURNING row')
+    return { id: Number(row.id), duplicate: false }
+  }, { route })
+}
+
 /** One unresolved row per (kind, subject, thread, sector): repeats while
  * unresolved dedupe to the first id. Requires a thread or a sector so
  * every alert stays scope-checkable. */

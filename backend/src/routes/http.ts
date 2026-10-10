@@ -16,6 +16,7 @@ import {
   WorkspaceError,
   claimIdempotency,
   completeIdempotency,
+  recordUiOnlyViolation,
   releaseIdempotency,
 } from '../db/index.js'
 import { verifyExecution } from '../auth/execution.js'
@@ -23,7 +24,8 @@ import { mutationFingerprint, rateBucket } from '../http/limits.js'
 import { getSession } from '../db/index.js'
 import type { RunsGateway } from '../temporal/runs-types.js'
 import { RunNotFound, TemporalUnavailableError, ThreadNotAccepting } from '../temporal/runs-types.js'
-import { runWithEventClient, type EventClient } from '../observability/ambient.js'
+import { enterEventClient, runWithEventClient, type EventClient } from '../observability/ambient.js'
+import type { KeyClient } from '../db/keys.js'
 
 export type ErrorCode =
   | 'not_found'
@@ -33,6 +35,7 @@ export type ErrorCode =
   | 'validation_failed'
   | 'overload'
   | 'temporal_unavailable'
+  | 'ui_only_violation'
 
 export function sendError(reply: FastifyReply, status: number, code: ErrorCode, message: string): unknown {
   return reply.code(status).send({ ok: false, error: { code, message } })
@@ -112,8 +115,37 @@ export async function authorize(
     void sendError(reply, 403, 'permission_denied', `role ${result.caller.role} cannot perform this action`)
     return undefined
   }
+  if (process.env['KARDATA_UI_ONLY'] === '1') {
+    // Phase 8: events carry the key's client, not the route's default.
+    enterEventClient(keyClientToEvent(result.caller.client))
+    const url = request.routeOptions?.url ?? ''
+    if (url.startsWith('/v1/') && MUTATING_METHODS.has(request.method)) {
+      const origin = header(request, 'origin')
+      const clientHeader = header(request, 'x-kardata-client')
+      const expectedOrigin = process.env['KARDATA_UI_ORIGIN']
+      const uiCall = result.caller.client === 'ui' && clientHeader === 'ui' && !!expectedOrigin && origin === expectedOrigin
+      if (!uiCall) {
+        await recordUiOnlyViolation(pool, {
+          route: `${request.method} ${url}`,
+          keyId: result.caller.keyId,
+          origin: origin ?? null,
+          traceId: request.traceContext?.traceId ?? null,
+        })
+        void sendError(reply, 403, 'ui_only_violation', 'UI-only pilot: mutations need the UI key, origin and client header')
+        return undefined
+      }
+    }
+  }
   request.kardataCaller = { keyId: result.caller.keyId, tenantId: result.scope.tenantId }
   return { scope: result.scope, keyId: result.caller.keyId }
+}
+
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+
+function keyClientToEvent(client: KeyClient): EventClient {
+  if (client === 'ui') return 'ui'
+  if (client === 'agent-mcp') return 'agent-mcp'
+  return 'other'
 }
 
 /** Verified execution binding (P4-M6): turn tool traffic carries an

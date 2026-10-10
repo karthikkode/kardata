@@ -69,6 +69,9 @@ export async function requestEnvelope<T>(config: StagingConfig, method: string, 
       signal: combined,
       headers: {
         authorization: `Bearer ${config.apiKey}`,
+        // Phase 8 UI-only gate: the pilot backend requires this marker on
+        // mutating calls (harmless elsewhere; servers ignore it when off).
+        'X-Kardata-Client': 'ui',
         ...(idempotencyKey ? { 'idempotency-key': idempotencyKey } : {}),
         ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       },

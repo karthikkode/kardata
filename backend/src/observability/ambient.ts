@@ -47,3 +47,10 @@ export function runWithEventClient<T>(client: EventClient, fn: () => T): T {
 export function currentEventClient(): EventClient | undefined {
   return callerAls.getStore()
 }
+
+/** Enter `client` for the current execution chain (post-auth override:
+ * Phase 8 stamps the key's client, not the route's default). Mirrors
+ * enterSpanContext: same-chain reads see it, siblings never do. */
+export function enterEventClient(client: EventClient): void {
+  callerAls.enterWith(client)
+}
