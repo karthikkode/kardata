@@ -559,12 +559,12 @@ describe.skipIf(!ENABLED)('continue-as-new (P4.2.4) [F:backend.activity.turn.app
     // state so the query cannot observe the pre-increment value (9).
     await waitFor(async () => {
       const polled = (await child().query('childSummary')) as { threadLength: number }
-      return polled.threadLength === 10
-    }, 30_000, 'counter to reach 10')
+      return polled.threadLength === 12
+    }, 30_000, 'counter to reach 12')
     const final = (await child().query('childSummary')) as { goal: string; threadLength: number }
     expect(final.goal).toBe('TEST new can goal')
-    // Five turns (m1, correction, m2, m3, m4) carried the counter across.
-    expect(final.threadLength).toBe(10)
+    // Six turns (goal, m1, correction, m2, m3, m4) carried the counter across.
+    expect(final.threadLength).toBe(12)
     replayTargets.push({ workflowId: childId })
     await child().signal('childCancel')
     await child().signal('childFinish')

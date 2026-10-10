@@ -178,7 +178,7 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
     const sessionId = `iso-${Date.now()}`
     const parent = await startParent(sessionId)
     const childId = `sag-iso-${Date.now()}`
-    await parent.handle.signal('parentDelegate', delegate(childId))
+    await parent.handle.signal('parentDelegate', delegate(childId, 'research the question', { fakeSteps: [{ text: 'iso reply' }] }))
 
     const record = await launchedRecord(sessionId, childId)
     expect(record.parentSessionId).toBe(sessionId)
@@ -217,13 +217,14 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
     )
     await launchedRecord(sessionId, childId)
 
+    // The parent-fed goal turn runs first; message choreography starts
+    // after its reply so queue and thread assertions read the item turn.
+    const agentReplies = async () => (await events(`child:${childId}`)).filter((event) => event.type === 't.message.appended' && (event.payload['message'] as { role?: string } | undefined)?.role === 'agent').length
+    await waitFor(async () => (await agentReplies()) >= 1, 30_000, 'goal reply')
+
     // message: the child works the item in its own partition.
     await child.signal('childMessage', 'work item')
-    await waitFor(
-      async () => (await events(`child:${childId}`)).some((event) => event.type === 't.message.appended'),
-      30_000,
-      'child reply',
-    )
+    await waitFor(async () => (await agentReplies()) >= 2, 30_000, 'child reply')
 
     // get: live snapshot while running.
     const mid = (await child.query('childState')) as { status: string; queueDepth: number }
@@ -291,6 +292,13 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
     )
     await launchedRecord(sessionId, childId)
 
+    // The parent-fed goal turn runs first and completes (its reply is a
+    // finished turn, not an orphan); the message turn below is the doomed one.
+    await waitFor(
+      async () => (await events(`child:${childId}`)).some((event) => (event.payload['message'] as { text?: string } | undefined)?.text === 'fake doomed'),
+      30_000,
+      'goal reply',
+    )
     await child.signal('childMessage', 'doomed item')
     // The doomed fake step dwells 15 s: at 500 ms the activity is in
     // flight, so this cancel lands mid-turn, not pre-start.
@@ -322,9 +330,11 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
     )
     expect(completed?.status).toBe('cancelled')
     expect(completed?.missedSteer).toContain('late steer')
-    // No orphan: the cancelled turn left no reply in either partition.
-    expect(JSON.stringify(await events(`session:${sessionId}`))).not.toContain('fake doomed')
-    expect(JSON.stringify(await events(`child:${childId}`))).not.toContain('fake doomed')
+    // No orphan: only the finished goal turn replied; the cancelled
+    // message turn left no reply in either partition.
+    const doomed = (rows: Array<{ payload: Record<string, unknown> }>) => rows.filter((event) => ((event.payload['message'] as { text?: string } | undefined)?.text ?? '').includes('fake doomed')).length
+    expect(doomed(await events(`session:${sessionId}`))).toBe(0)
+    expect(doomed(await events(`child:${childId}`))).toBe(1)
 
     await parent.handle.signal('parentNoteDone', { childId, status: 'cancelled' })
     await parent.handle.signal('parentFinish')
@@ -353,7 +363,7 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
     const sessionId = `dup-${Date.now()}`
     const parent = await startParent(sessionId)
     const childId = `sag-dup-${Date.now()}`
-    await parent.handle.signal('parentDelegate', delegate(childId))
+    await parent.handle.signal('parentDelegate', delegate(childId, 'research the question', { fakeSteps: [{ text: 'dup reply' }] }))
     await launchedRecord(sessionId, childId)
 
     // Same id while the child runs: rejected, parent and child unaffected.
@@ -607,8 +617,8 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
     // an empty child at the same depth with headroom may.
     const forkId = `sag-fork-${Date.now()}`
     const nestedId = `sag-nested-${Date.now()}`
-    await parent.handle.signal('parentDelegate', delegate(forkId, 'forked work', { mode: 'fork', maxDepth: 2 }))
-    await parent.handle.signal('parentDelegate', delegate(nestedId, 'nesting work', { maxDepth: 2 }))
+    await parent.handle.signal('parentDelegate', delegate(forkId, 'forked work', { mode: 'fork', maxDepth: 2, fakeSteps: [{ text: 'fork reply' }] }))
+    await parent.handle.signal('parentDelegate', delegate(nestedId, 'nesting work', { maxDepth: 2, fakeSteps: [{ text: 'nested reply' }] }))
     await launchedRecord(sessionId, forkId)
     await launchedRecord(sessionId, nestedId)
     expect(await client.workflow.getHandle(forkId).query('childCanDelegate')).toBe(false)
@@ -665,7 +675,7 @@ describe.skipIf(!ENABLED)('subagent child workflows (B2.4) [F:backend.activity.t
     const parent = await startParent(sessionId)
     const childId = `sag-pc-${Date.now()}`
     const child = client.workflow.getHandle(childId)
-    await parent.handle.signal('parentDelegate', delegate(childId))
+    await parent.handle.signal('parentDelegate', delegate(childId, 'research the question', { fakeSteps: [{ text: 'pc reply' }] }))
     await launchedRecord(sessionId, childId)
 
     await child.signal('childMessage', 'interrupted item')
