@@ -241,35 +241,44 @@ describe.skipIf(!LIVE)('fleet load runs (N subagents, real outputs) [F:backend.a
       60_000,
       'parent to start',
     )
-    for (let i = 0; i < options.children; i++) {
-      const childId = childIds[i] as string
-      const companyId = companyFor(options.leg, i)
-      await parent.signal('parentDelegate', {
-        childId,
-        goal: `verify TEST company ${companyId}`,
-        depth: 1,
-        mode: 'empty',
-        maxDepth: 1,
-        queueCapacity: 8,
-        fakeSteps: [
-          {
-            text: 'reading the sector',
-            toolCalls: [{ id: `r${i}`, name: 'db.list_sector_companies', args: { sectorId } }],
-          },
-          {
-            text: 'indexing TEST discovery evidence',
-            toolCalls: [{ id: `v${i}`, name: 'db.create_artifact', args: { sessionId, name: `TEST discovery ${i}.md`, content: `# TEST DATA discovery evidence\n\nSynthetic company ${companyId}.`, reason: 'report' } }],
-          },
-          { text: 'done' },
-        ],
-      })
+    // Batched fan-out: serial signals are a Temporal round-trip each
+    // (~0.5 s under load: 1000 children = 8+ min per loop), so the
+    // thousand leg burned its whole budget signalling. Delegations are
+    // independent; the parent queues them in arrival order.
+    for (let i = 0; i < options.children; i += 50) {
+      await Promise.all(childIds.slice(i, i + 50).map(async (childId, j) => {
+        const at = i + j
+        const companyId = companyFor(options.leg, at)
+        await parent.signal('parentDelegate', {
+          childId: childId as string,
+          goal: `verify TEST company ${companyId}`,
+          depth: 1,
+          mode: 'empty',
+          maxDepth: 1,
+          queueCapacity: 8,
+          fakeSteps: [
+            {
+              text: 'reading the sector',
+              toolCalls: [{ id: `r${at}`, name: 'db.list_sector_companies', args: { sectorId } }],
+            },
+            {
+              text: 'indexing TEST discovery evidence',
+              toolCalls: [{ id: `v${at}`, name: 'db.create_artifact', args: { sessionId, name: `TEST discovery ${at}.md`, content: `# TEST DATA discovery evidence\n\nSynthetic company ${companyId}.`, reason: 'report' } }],
+            },
+            { text: 'done' },
+          ],
+        })
+      }))
     }
     const launchedMs = Date.now() - started
     const launched = async (): Promise<number> =>
       (await events(`session:${sessionId}`)).filter((event) => event.type === 't.subagent.launched').length
     await waitFor(async () => (await launched()) >= options.children, options.timeoutMs, `${options.children} launches`)
-    for (let i = 0; i < options.children; i++) {
-      await parent.signal('parentSteer', { childId: childIds[i] as string, text: `verify TEST company ${companyFor(options.leg, i)}` })
+    for (let i = 0; i < options.children; i += 50) {
+      await Promise.all(childIds.slice(i, i + 50).map(async (childId, j) => {
+        const at = i + j
+        await parent.signal('parentSteer', { childId: childId as string, text: `verify TEST company ${companyFor(options.leg, at)}` })
+      }))
     }
     await waitFor(async () => (await artifactCount(sectorId, sessionId)) >= options.children, options.timeoutMs, 'indexed discovery artifacts')
     const outputsMs = Date.now() - started
@@ -316,7 +325,7 @@ describe.skipIf(!LIVE)('fleet load runs (N subagents, real outputs) [F:backend.a
       const batch = handles.slice(i, i + 20)
       const results = await Promise.all(batch.map((handle) => handle.result()))
       for (const result of results) expect(result).toBe('done')
-      for (const childId of childIds.slice(i, i + 20)) await parent.signal('parentNoteDone', { childId, status: 'done' })
+      await Promise.all(childIds.slice(i, i + 20).map((childId) => parent.signal('parentNoteDone', { childId, status: 'done' })))
     }
     await parent.signal('parentFinish')
     expect(await parent.result()).toBe('done')
