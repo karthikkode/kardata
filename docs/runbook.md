@@ -49,6 +49,9 @@ key, boots backend/worker/preview; refuses taken ports or a live stack).
 `pilot down` stops processes only — DB, namespace and `var/pilot/archive`
 are never dropped (the archive path refuses delete). No browser sidecar
 (mirrors laptop dev). No drain step: pilot runs are kept for Phase 9.
+Meta ceiling (once, after acceptance, prod idle, owner-picked time):
+`KARDATA_LIVE_META=1 npm test -w @kardata/backend -- tests/stress/meta-ceiling.test.ts`
+writes `var/pilot/meta-ceiling.json`; tier-1000 degrades to a skip below it.
 
 ## stall
 

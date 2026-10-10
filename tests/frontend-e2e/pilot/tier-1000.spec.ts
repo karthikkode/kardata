@@ -4,9 +4,9 @@
 // steer/remove through the landing strip, and requires ≥980 complete
 // with zero stuck spinners. Longest single step of the pilot.
 import { expect, test } from '@playwright/test'
-import { writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { evidenceDir, loadState, pilotRunEnabled, saveState } from './state.js'
+import { evidenceDir, loadState, pilotRunEnabled, repoRoot, saveState } from './state.js'
 import { expectClean, startRecording, waitVisible } from './record.js'
 import { closePilotRo, pilotRoQuery } from './ro.js'
 
@@ -15,6 +15,16 @@ test.describe('tier 1000 subagents', () => {
 
   test('1000 spawn; spot controls; 980+ complete', async ({ page }) => {
     test.setTimeout(3_600_000)
+    // B7 ceiling: without a measurement this tier is a shakedown; with
+    // one below 1000 it degrades to an explicit skip, never a surprise.
+    const ceilingFile = join(repoRoot(), 'var', 'pilot', 'meta-ceiling.json')
+    if (existsSync(ceilingFile)) {
+      const ceiling = JSON.parse(readFileSync(ceilingFile, 'utf8')) as { maxSustainable?: number }
+      test.skip(
+        typeof ceiling.maxSustainable === 'number' && ceiling.maxSustainable < 1000,
+        `B7 ceiling ${ceiling.maxSustainable} < 1000: full tier deferred`,
+      )
+    }
     const rec = startRecording(page, 'tier-1000')
     const state = loadState()
     if (!state.sectorName) throw new Error('P1 must run first (no sectorName in state)')
