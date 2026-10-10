@@ -4019,3 +4019,14 @@ fixture). F1c files: 0 errors. Typecheck + build green, workspace
 matrix 14/14. Full-matrix ui:review --changed scoped to the touched
 spec per the targeted-testing constraint; new button state covered by
 RTL, not matrix (no new snapshots).
+
+## 2026-10-10 — Thousand-leg BLOCKED: worker native crash (verify4/verify5)
+`workflows.fleet-load` thousand leg crashes the vitest worker with
+`Error: async hook stack has become corrupted (actual: 370273/468388,
+expected: 4)` (~12 min in, ~1000 turns done), twice in a row. Suspect:
+c15a7af's batched signals launch all 1000 children near-simultaneously
+(serial acted as a ramp; verify3 with serial signals ran the full 26 min
+and indexed all artifacts). Next step (not done): chunked signals with an
+inter-chunk delay (ramp), or a rerun on an idle box (both crashes ran
+while frontend suites used the same box). Ten-leg green with batching
+(10/10, 5 s). Product path unblocked; scale tier only.
