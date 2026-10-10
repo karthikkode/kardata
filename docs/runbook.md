@@ -52,8 +52,11 @@ are never dropped (the archive path refuses delete). No browser sidecar
 Meta ceiling (once, after acceptance, prod idle, owner-picked time):
 `KARDATA_LIVE_META=1 npm test -w @kardata/backend -- tests/stress/meta-ceiling.test.ts`
 writes `var/pilot/meta-ceiling.json`; tier-1000 degrades to a skip below it.
+r0 shakedown uses scratch identity `kardata_pilot_r0` / `kardata-pilot-r0`
+(`KARDATA_PILOT_DB_NAME` + `KARDATA_PILOT_NAMESPACE`), 5 companies
+(`KARDATA_PILOT_COMPANIES=5`); spec files only may change during r0.
 Pilot-DB reset (r0 shakedown only — never during a counted run):
-`pilot down`, drop `kardata_pilot`, remove the `kardata-pilot` namespace
+`pilot down`, drop the run DB, remove the run namespace
 via the Temporal UI (no CLI delete), `pilot up` again. Never delete
 `var/pilot/secrets.env`: every future run authenticates against it
 (regenerating orphans the DB's key hashes).
