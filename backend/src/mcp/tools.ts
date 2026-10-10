@@ -241,7 +241,7 @@ export const TOOL_META: Record<McpToolName, { description: string; minRole: Role
       'Launch a leaf subagent researcher on a session goal (Karbot-only, operator). The child researches independently and reports back; collect via session threads. Pilot children never delegate further. Write self-contained goals carrying the facts the child needs; never point the child at global context for anything said in this conversation (the child inherits this conversation separately).',
     minRole: 'operator',
   },
-  'web_search': { description: 'Web search (needs KARDATA_WEB_SEARCH_KEY, fails closed without it). If a call fails unconfigured, say so once, then work from the knowledge base (db.kb_search) and fetched pages (web_fetch) instead of retrying search.', minRole: 'viewer' },
+  'web_search': { description: 'Web search over the keyed API when KARDATA_WEB_SEARCH_KEY is set, else the keyless engine pool, else the browser leg. Hits carry via (keyed/keyless/browser) and engine. If every leg fails, say so once, then work from the knowledge base (db.kb_search) and fetched pages (web_fetch) instead of retrying search.', minRole: 'viewer' },
   'web_fetch': { description: 'Fetch a page as text (caps + SSRF guards).', minRole: 'viewer' },
   'browser_navigate': { description: 'Open a Chromium session on a URL (needs local Chromium).', minRole: 'operator' },
   'browser_snapshot': { description: 'Accessibility snapshot of a browser session.', minRole: 'viewer' },

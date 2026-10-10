@@ -6,6 +6,7 @@ recurrence. New rows append at the top.
 
 | date | bug | found by | tier that should have caught it | test added | rule added |
 |---|---|---|---|---|---|
+| 2026-10-10 | Agents' web_search failed closed without a key while the sweep had a working keyless+browser chain: agents got nothing, sweeps got results | pilot r0 (R0-7, F10b) | unit | mcp.tools chain-seam + via/engine + exhaustion cases | web_search rides pooledSearchWebPage (count threaded); hits carry via/engine; exhaustion is the honest failure |
 | 2026-10-10 | Keyless and browser search ran unlocalized: AU sector research got global/US-ranked results with no region control | pilot r0 (R0-7, F10a) | unit | sweep.search locale/region cases + browser-pool browser-URL/cache cases | engines and browser leg carry the region (override → KARDATA_SEARCH_REGION → AU); cache keys on region |
 | 2026-10-10 | Spec workarounds (nudges, reload recoveries, resumes, re-picks) ran silently: r0 counts hid the product issues they papered over | pilot r0 (F8c) | e2e | pilot-occurrences append-order case | logOccurrence appends every workaround to the run's occurrences.json (deliberate test actions stay step marks) |
 | 2026-10-10 | Agents announced writes without writing: no prompt rule tied announcements to same-turn tool calls | pilot r0 (R0-16, F8b) | unit | karbot.turn announce-write contract case | system prompt: never announce a write without writing in the same turn, or say why you cannot |

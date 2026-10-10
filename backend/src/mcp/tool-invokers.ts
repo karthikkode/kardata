@@ -109,8 +109,8 @@ import {
   pooledBrowserNavigate,
   pooledBrowserScreenshot,
   pooledBrowserSnapshot,
+  pooledSearchWebPage,
   pooledWebFetch,
-  pooledWebSearch,
 } from '../browserPool/facade.js'
 import type { BrowserAct } from '../retrieval/browser.js'
 import { RetrievalError } from '../retrieval/web.js'
@@ -512,8 +512,11 @@ export const INVOKERS: Invokers = {
   // bounded 0-16 slots, query/document caches, tiered fallback). Tool
   // names, schemas, roles, and error codes are unchanged; TOOL_LAYER
   // still names the underlying layer functions (parity test intact).
+  // F10b: the agents' search rides the same chain as the sweep
+  // (keyed if a key exists, keyless pool, browser leg) instead of
+  // failing closed; hits carry via/engine, exhaustion stays honest.
   'web_search': (_ctx, args) =>
-    rethrowRetrieval(pooledWebSearch(process.env, args.query, { count: args.count, page: args.page })),
+    rethrowRetrieval(pooledSearchWebPage({ query: args.query, page: args.page ?? 0, count: args.count })),
   'web_fetch': (_ctx, args) => rethrowRetrieval(pooledWebFetch(args.url)),
   'browser_navigate': (ctx, args) => rethrowRetrieval(pooledBrowserNavigate(args.url, { caller: browserCaller(ctx), logger: ctx.logger })),
   'browser_snapshot': (ctx, args) => rethrowRetrieval(pooledBrowserSnapshot(args.sessionId, browserCaller(ctx))),

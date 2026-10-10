@@ -95,10 +95,10 @@ export function browserSearchUrl(query: string, region?: string): string {
  * cannot reach past the anomaly wall), snapshot links out, session
  * always closed. Slot accounting lives inside browserNavigate/close, so
  * saturation surfaces here as `overload` and never evicts a holder. */
-async function defaultBrowserLeg(query: string, region?: string): Promise<SweepSearchHit[]> {
+async function defaultBrowserLeg(query: string, region?: string, count = 10): Promise<SweepSearchHit[]> {
   const { sessionId, snapshot } = await browserNavigate(browserSearchUrl(query, region), { caller: 'sweep' })
   try {
-    return linksFromSnapshot(snapshot)
+    return linksFromSnapshot(snapshot, count)
   } finally {
     await browserClose(sessionId, 'sweep').catch(() => undefined)
   }
@@ -121,26 +121,27 @@ function validateSearchPage(input: { query: string; page: number }): string {
  * propagates as overload so the caller retries later instead of
  * recording a false exhaustive miss. */
 export async function pooledSearchWebPage(
-  input: { query: string; page: number; region?: string },
+  input: { query: string; page: number; region?: string; count?: number },
   deps: SweepSearchDeps = {},
 ): Promise<SweepSearchHit[]> {
   const query = validateSearchPage(input)
   const region = searchRegion(input.region)
-  const key = queryCacheKey(query, 10, input.page, region)
+  const count = Math.min(Math.max(input.count ?? 10, 1), 20)
+  const key = queryCacheKey(query, count, input.page, region)
   const cached = getCachedQuery(key)
   if (cached) return [...cached]
   return dedupInflight(key, async () => {
     const again = getCachedQuery(key)
     if (again) return [...again]
-    const keyed = deps.keyed ?? ((q, page) => pooledWebSearch(process.env, q, { count: 10, page }))
-    const keyless = deps.keyless ?? ((q, page) => keylessSearch(q, { count: 10, page, region }))
-    const browser = deps.browser ?? ((q) => defaultBrowserLeg(q, region))
+    const keyed = deps.keyed ?? ((q, page) => pooledWebSearch(process.env, q, { count, page }))
+    const keyless = deps.keyless ?? ((q, page) => keylessSearch(q, { count, page, region }))
+    const browser = deps.browser ?? ((q) => defaultBrowserLeg(q, region, count))
 
     if (process.env['KARDATA_WEB_SEARCH_KEY']?.trim()) {
       try {
         const hits = await keyed(query, input.page)
         if (hits.length > 0) {
-          const tagged = hits.map((hit) => ({ ...hit, via: 'keyed' as const }))
+          const tagged = hits.slice(0, count).map((hit) => ({ ...hit, via: 'keyed' as const }))
           setCachedQuery(key, tagged)
           return tagged
         }
@@ -151,7 +152,7 @@ export async function pooledSearchWebPage(
     try {
       const hits = await keyless(query, input.page)
       if (hits.length > 0) {
-        const tagged: CachedSearchHit[] = hits.map((hit) => ({
+        const tagged: CachedSearchHit[] = hits.slice(0, count).map((hit) => ({
           title: hit.title,
           url: hit.url,
           snippet: hit.snippet,
@@ -169,7 +170,7 @@ export async function pooledSearchWebPage(
       return []
     }
     try {
-      const hits = await browser(query)
+      const hits = (await browser(query)).slice(0, count)
       setCachedQuery(key, hits)
       return hits
     } catch (error) {

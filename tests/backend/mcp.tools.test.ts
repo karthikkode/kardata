@@ -9,7 +9,7 @@ import { Writable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import type { FastifyInstance } from 'fastify'
 import { Pool } from 'pg'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../backend/src/app.js'
 import { createSector, createSession } from '../../backend/src/db/index.js'
 import { createLogger } from '../../backend/src/observability/logging.js'
@@ -31,6 +31,16 @@ import type { TransactableDb } from '../../backend/src/db/index.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REPO = join(HERE, '..', '..')
+
+// F10b: web_search rides the pooled chain (keyed -> keyless -> browser),
+// whose real legs need network/Chromium. Tests drive the seam with a
+// mocked chain; the chain itself is pinned hermetically in
+// browser-pool/sweep.search suites. Only web_search uses this seam.
+const mockedChain = vi.hoisted(() => ({ search: vi.fn() }))
+vi.mock('../../backend/src/browserPool/facade.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../backend/src/browserPool/facade.js')>()
+  return { ...original, pooledSearchWebPage: mockedChain.search }
+})
 
 class QueryReached extends Error {}
 
@@ -578,6 +588,9 @@ describe('mcp transport (Phase 2) [F:http.mcpRpc]', () => {
     try {
       await initialize(app, { authorization: 'Bearer [REDACTED]' })
       const auth = { authorization: 'Bearer [REDACTED]' }
+      // F10b: no key no longer fails closed; exhaustion of every leg is
+      // the honest failure, and it still carries the directive.
+      mockedChain.search.mockRejectedValue(new retrievalWeb.RetrievalError('fetch_failed', 'sweep search exhausted every leg: down'))
       const failed = await postMcp(
         app,
         rpc('tools/call', { name: 'web_search', arguments: { query: 'acme widgets' } }, 1),
@@ -586,7 +599,7 @@ describe('mcp transport (Phase 2) [F:http.mcpRpc]', () => {
       expect(failed.status).toBe(200)
       const failedResult = failed.json.result as { content: Array<{ text: string }>; isError?: boolean }
       expect(failedResult.isError).toBe(true)
-      expect(failedResult.content[0]?.text).toContain('unconfigured')
+      expect(failedResult.content[0]?.text).toContain('fetch_failed')
       expect(failedResult.content[0]?.text).toContain('Do not fill this gap from memory')
       const blocked = await postMcp(
         app,
@@ -610,6 +623,13 @@ describe('mcp transport (Phase 2) [F:http.mcpRpc]', () => {
     expect(description).toContain('say so once')
     expect(description).toContain('db.kb_search')
     expect(description).toContain('web_fetch')
+  })
+
+  it('web_search description names the fallback chain and hit tags (F10b/R0-7)', () => {
+    const description = TOOL_META['web_search'].description
+    expect(description).toContain('keyless engine pool')
+    expect(description).toContain('browser leg')
+    expect(description).toContain('via')
   })
 
   it('a grant header narrows list and blocks calls outside it server-side', async () => {
@@ -816,6 +836,7 @@ describe('mcp authz hardening (Wave 1)', () => {
 
   it('retrieval failures map to isError codes with zero queries', async () => {
     delete process.env['KARDATA_WEB_SEARCH_KEY']
+    mockedChain.search.mockRejectedValue(new retrievalWeb.RetrievalError('fetch_failed', 'sweep search exhausted every leg: down'))
     const { db, state } = makeFake()
     const ctx = ctxFor(db, 'viewer', 'key-a')
     const search = await invokeTool('web_search', ctx, { query: 'acme widgets' }).then(
@@ -823,7 +844,7 @@ describe('mcp authz hardening (Wave 1)', () => {
       (error: unknown) => error,
     )
     expect(search).toBeInstanceOf(McpToolError)
-    expect((search as McpToolError).code).toBe('unconfigured')
+    expect((search as McpToolError).code).toBe('fetch_failed')
     const blocked = await invokeTool('web_fetch', ctx, { url: 'http://localhost:9/x' }).then(
       () => undefined,
       (error: unknown) => error,
@@ -831,6 +852,18 @@ describe('mcp authz hardening (Wave 1)', () => {
     expect(blocked).toBeInstanceOf(McpToolError)
     expect((blocked as McpToolError).code).toBe('blocked')
     expect(state.queries).toBe(0)
+  })
+
+  it('web_search without a key returns keyless hits with via/engine (F10b/R0-7)', async () => {
+    delete process.env['KARDATA_WEB_SEARCH_KEY']
+    mockedChain.search.mockClear()
+    mockedChain.search.mockResolvedValue([{ title: 'Free', url: 'https://free.example', snippet: '', via: 'keyless', engine: 'duckduckgo' }])
+    const { db } = makeFake()
+    const ctx = ctxFor(db, 'viewer', 'key-a')
+    const hits = await invokeTool('web_search', ctx, { query: 'acme widgets' })
+    expect(hits).toEqual([{ title: 'Free', url: 'https://free.example', snippet: '', via: 'keyless', engine: 'duckduckgo' }])
+    expect(mockedChain.search).toHaveBeenCalledTimes(1)
+    expect(mockedChain.search.mock.calls[0]?.[0]).toMatchObject({ query: 'acme widgets', page: 0 })
   })
 
   it('skill grants confine calls to the declared tool set', async () => {

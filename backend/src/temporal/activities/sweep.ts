@@ -70,7 +70,7 @@ export const linksFromSnapshot = linksFromSnapshotPool
  * (keyed first, keyless second, pooled Chromium last with page-0-only
  * termination), preserving the injectable-leg contract for tests. */
 export async function searchWebPageActivity(
-  input: { query: string; page: number; region?: string },
+  input: { query: string; page: number; region?: string; count?: number },
   deps: SweepSearchDeps = {},
 ): Promise<SweepSearchHit[]> {
   return pooledSearchWebPage(input, deps)

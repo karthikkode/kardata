@@ -483,6 +483,9 @@ Keyless engines and the browser leg carry a region locale (Bing cc/mkt,
 DuckDuckGo kl, Accept-Language): per-call override, else
 KARDATA_SEARCH_REGION, else AU. The query cache keys on the region;
 Mojeek has no documented region parameter and runs unlocalized.
+The agents' web_search rides the same chain (keyed with a key, else
+keyless pool, else browser leg); hits carry via/engine, and only
+exhaustion of every leg fails. Count threads through every leg (1-20).
 Contract authority: [Brave pagination](https://api-dashboard.search.brave.com/app/documentation/web-search/codes)
 and [response schema](https://api-dashboard.search.brave.com/api-reference/web/search/post).
 
