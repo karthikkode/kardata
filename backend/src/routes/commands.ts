@@ -10,7 +10,7 @@
 import type { FastifyInstance } from 'fastify'
 import type { TransactableDb } from '../db/index.js'
 import { z } from 'zod'
-import { appendEvent, readPartition } from '../db/index.js'
+import { appendEvent, discardBlockedOperations, readPartition } from '../db/index.js'
 import { projectNewEvents } from '../projector.js'
 import { getThread } from '../db/index.js'
 import type { Scope } from '../auth/types.js'
@@ -167,6 +167,37 @@ export function commandRoutes(app: FastifyInstance): void {
       const blocked = await scopedRunCheck(app, body.runId, auth.scope)
       if (blocked) return blocked
       const result = await runs.resumeRun(body.runId, body.extendedBudgetMs)
+      return { status: 202, body: { ok: true, data: result } }
+    })
+  })
+
+  route(app, 'post', '/v1/commands/discard-blocked-operations', async (request, reply, app) => {
+    const runs = requireRuns(app, reply)
+    if (!runs) return undefined
+    const auth = await authorize(app, request, reply, 'approver')
+    if (!auth) return undefined
+    const body = parseInput(RunRefBody, request.body, reply)
+    if (!body) return undefined
+    return withIdempotency(request, reply, kardataPool(app), auth.keyId, async () => {
+      const pool = kardataPool(app)
+      if (!pool) return failed(503, 'overload', 'database unavailable')
+      const blocked = await scopedRunCheck(app, body.runId, auth.scope)
+      if (blocked) return blocked
+      const run = await runs.getRun(body.runId)
+      if (!run) return failed(409, 'conflict', `run ${body.runId} has no live workflow to continue`)
+      const thread = await getThread(pool, run.threadKey)
+      if (!thread) return failed(404, 'not_found', `no such thread ${run.threadKey}`)
+      const discarded = await discardBlockedOperations(pool, run.threadKey)
+      if (!discarded.length) return failed(409, 'conflict', 'no blocked operation to discard')
+      const first = discarded[0]!
+      await appendEvent(pool, {
+        idempotencyKey: `discard-blocked:${run.threadKey}:${first.operationId}`,
+        partition: run.threadKey.startsWith('agent:') ? `child:${run.threadKey.slice(6)}` : `session:${thread.sessionId}`,
+        type: 't.message.appended',
+        payload: { threadKey: run.threadKey, kind: 'tool', message: { id: `discard:${first.operationId}`, name: 'operation.discard', state: 'done', detail: `Owner discarded ${discarded.length} blocked operation${discarded.length === 1 ? '' : 's'}: ${discarded.map((op) => op.toolName).join(', ')}.` } },
+      })
+      await projectNewEvents(pool)
+      const result = await runs.resumeRun(body.runId)
       return { status: 202, body: { ok: true, data: result } }
     })
   })

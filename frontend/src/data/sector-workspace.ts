@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { apiErrorStatus, StagingApiError, type StagingConfig } from './api/client'
 import { attachSectorDocument } from './api/files'
-import { cancelRun, pauseRun, resumeRun } from './api/commands'
+import { cancelRun, discardBlockedOperations as discardBlockedOperationsApi, pauseRun, resumeRun } from './api/commands'
 import { createSession, deleteSession, listSessions, renameSession, setSessionSettings, spawnSessionSubagent } from './api/sessions'
 import { listThreadQueue, listThreads, removeQueuedMessage, reorderThreadQueue } from './api/threads'
 import { readSectorPlan } from './api/plans'
@@ -118,6 +118,7 @@ export function useSectorWorkspace(config: StagingConfig | null, sectorId: strin
     stop: () => act('stop', async (cfg) => { if (activeThread) await cancelRun(cfg, child ? child.key.replace(/^agent:/, '') : `session-run-${selected?.id}`); chat.stopped() }),
     stopSubagent: (childId: string) => act('stop', async (cfg) => { await cancelRun(cfg, childId); threads.refresh(); if (activeThread === `agent:${childId}`) chat.stopped() }),
     resume: () => act('resume', async (cfg) => { if (activeThread) await resumeRun(cfg, child ? child.key.replace(/^agent:/, '') : `session-run-${selected?.id}`); threads.refresh(); local.refresh() }),
+    discardBlockedOperations: () => act('resume', async (cfg) => { if (activeThread) await discardBlockedOperationsApi(cfg, child ? child.key.replace(/^agent:/, '') : `session-run-${selected?.id}`); threads.refresh(); local.refresh() }),
     saveGlobal: (sections: Sections, baseVersion: number) => act('global', async (cfg) => { if (!sectorId) return; await saveGlobalContext(cfg, sectorId, baseVersion, sections); global.refresh() }),
     compactGlobal: () => act('global', async (cfg) => { if (!sectorId) return; await compactGlobalContext(cfg, sectorId); global.refresh() }),
     restoreGlobal: (version: number) => act('global', async (cfg) => { if (!sectorId) return; await restoreGlobalContext(cfg, sectorId, version); global.refresh() }),

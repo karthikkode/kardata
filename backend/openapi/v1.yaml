@@ -579,6 +579,28 @@ paths:
                 $ref: '#/components/schemas/CommandEnvelope'
         '403':
           $ref: '#/components/responses/Denied'
+  /v1/commands/discard-blocked-operations:
+    post:
+      operationId: discardBlockedOperations
+      tags: [commands]
+      summary: Drop a run's blocked operations, note the transcript, and resume. Never replays settled effects.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunRef'
+      responses:
+        '202':
+          description: Accepted command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandEnvelope'
+        '403':
+          $ref: '#/components/responses/Denied'
   /v1/commands/cancel:
     post:
       operationId: cancelRun

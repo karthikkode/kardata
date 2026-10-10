@@ -6802,3 +6802,33 @@
   tiers:
     - temporal
   states: []
+- id: db.alerts.recordUiOnlyViolation
+  layer: db
+  surface: backend/src/db/alerts.ts
+  tiers:
+    - todo
+  states: []
+- id: db.index.recordUiOnlyViolation
+  layer: db
+  surface: backend/src/db/index.ts
+  tiers:
+    - todo
+  states: []
+- id: db.keys.KeyClient
+  layer: db
+  surface: backend/src/db/keys.ts
+  tiers:
+    - todo
+  states: []
+- id: db.workspace_threads.discardBlockedOperations
+  layer: db
+  surface: backend/src/db/workspace-threads.ts
+  tiers:
+    - db
+  states: []
+- id: http.discardBlockedOperations
+  layer: backend
+  surface: backend/openapi/v1.yaml (POST /v1/commands/discard-blocked-operations)
+  tiers:
+    - db
+  states: []

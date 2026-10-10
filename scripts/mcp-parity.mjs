@@ -38,6 +38,7 @@ const PARITY = {
   pauseRun: 'ops.pause_run',
   resumeRun: 'ops.resume_run',
   cancelRun: 'ops.cancel_run',
+  discardBlockedOperations: 'owner-only: protected approval (blocked-operation discard; owner escape from a recovery park)',
   decideApproval: 'owner-only: protected approval',
   listSectors: 'db.list_sectors',
   createSector: 'db.create_sector',

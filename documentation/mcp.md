@@ -251,7 +251,9 @@ the original operation and can reuse its verified completed reply; a retry that
 still cannot resolve reports outcome-unknown with the state to check, and a
 deterministic retry verdict reaches the agent with its text — the turn continues,
 never bricks. Authority-conflicting or receipt-corrupt effects remain parked for
-owner review.
+owner review. An owner escape clears the block: POST
+/v1/commands/discard-blocked-operations drops the thread's blocked operations,
+appends an audited (client='ui') transcript note, and resumes the run.
 Owner inspection/reconciliation is scoped and cannot grant agent approval,
 release an uncertain effect blindly or expose another thread/sector's records.
 Legacy records are reconciled only with exact request/result and current authority

@@ -40,6 +40,9 @@ export function cancelRun(config: StagingConfig, runId: string): Promise<Command
 export function resumeRun(config: StagingConfig, runId: string): Promise<CommandAccepted> {
   return request(config, 'POST', '/v1/commands/resume', { runId })
 }
+export function discardBlockedOperations(config: StagingConfig, runId: string): Promise<CommandAccepted> {
+  return request(config, 'POST', '/v1/commands/discard-blocked-operations', { runId })
+}
 export function pauseRun(config: StagingConfig, runId: string): Promise<CommandAccepted> {
   return request(config, 'POST', '/v1/commands/pause', { runId })
 }

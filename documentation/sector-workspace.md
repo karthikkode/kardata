@@ -73,8 +73,10 @@ Visibility/scope and archive integrity are enforced. Legacy extracted-only files
 state that their original was not archived. Hide/reveal never deletes bytes.
 
 Workspace sends distinguish queued requests, active work, reconnecting and paused
-conversations. Steering requires its durable consumption receipt; missed steering
-is retained for an explicit next turn. Switching keeps drafts/history and closes
+conversations. A paused conversation with blocked operations offers the owner
+escape Discard blocked operation and continue beside Resume: it drops the block,
+notes the transcript, and resumes the run. Steering requires its durable
+consumption receipt; missed steering is retained for an explicit next turn. Switching keeps drafts/history and closes
 inactive listeners. Full release evidence and the real-provider pilot remain
 separate from fixture browser verification.
 

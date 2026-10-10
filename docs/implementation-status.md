@@ -4011,3 +4011,11 @@ db.key-provisioning toEqual without client.
 unknown tags in pilot-era files (db.pilot-ro, http.ui-only,
 pilot.audit/quality/locators). Pilot B-work never synced; needs
 registry:sync plus hand-written pilot entries. F1 adds no surfaces.
+
+## 2026-10-10 — F1c verification: frontend lint pre-existing red
+`npm run lint -w frontend` fails on 2 errors in untouched pilot e2e
+specs (p2-brainstorm no-useless-assignment, p7-controls request
+fixture). F1c files: 0 errors. Typecheck + build green, workspace
+matrix 14/14. Full-matrix ui:review --changed scoped to the touched
+spec per the targeted-testing constraint; new button state covered by
+RTL, not matrix (no new snapshots).

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { SectorLanding } from '@/components/SectorLanding'
+import { PausedConversationBanner } from '@/components/SectorWorkspace'
 import { GlobalContextPanel } from '@/components/global-context-panel'
 import { LocalContextEditor } from '@/components/local-context-editor'
 import { PlanProgress } from '@/components/plan-progress'
@@ -444,5 +445,25 @@ describe('local context editor v2', () => {
     await user.click(screen.getByRole('button', { name: 'Continue in a new conversation' }))
     composer.remove()
     expect(scroll).toHaveBeenCalledOnce()
+  })
+})
+describe('paused conversation banner', () => {
+  it('offers resume, plus the discard escape only when an operation is blocked', async () => {
+    const user = userEvent.setup()
+    const onResume = vi.fn()
+    const onDiscard = vi.fn()
+    const { rerender } = render(<PausedConversationBanner busy={false} canDiscard={false} onResume={onResume} onDiscard={onDiscard} />)
+    expect(screen.getByRole('status')).toHaveTextContent('This conversation is paused.')
+    await user.click(screen.getByRole('button', { name: 'Resume' }))
+    expect(onResume).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('button', { name: 'Discard blocked operation and continue' })).not.toBeInTheDocument()
+    rerender(<PausedConversationBanner busy={false} canDiscard onResume={onResume} onDiscard={onDiscard} />)
+    await user.click(screen.getByRole('button', { name: 'Discard blocked operation and continue' }))
+    expect(onDiscard).toHaveBeenCalledOnce()
+  })
+  it('disables both actions while an operation is in flight', () => {
+    render(<PausedConversationBanner busy canDiscard onResume={vi.fn()} onDiscard={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Discard blocked operation and continue' })).toBeDisabled()
   })
 })

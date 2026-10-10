@@ -240,6 +240,20 @@ export async function clearTurnContinuation(db: Db, threadKey: string, lease?: s
   checked(Id, threadKey)
   await db.query('UPDATE thread_context SET working_user=NULL,working_messages=NULL,working_run=NULL,working_meta=NULL,working_sources=\'[]\'::jsonb WHERE thread_key=$1 AND ($2::text IS NULL OR active_lease=$2)', [threadKey, lease ?? null])
 }
+/** Owner escape from a parked working view: drops the thread's blocked
+ * operations while keeping its messages and run identity, so the next
+ * turn continues instead of replaying. Returns the discarded summaries
+ * for the transcript note; empty when nothing was blocked. */
+export async function discardBlockedOperations(db: Db, threadKey: string): Promise<Array<{ operationId: string; toolName: string; callId: string; reason: string }>> {
+  checked(Id, threadKey)
+  const existing = await readTurnContinuation(db, threadKey)
+  const blocked = existing?.meta.blockedOperations ?? []
+  if (!existing || blocked.length === 0) return []
+  const meta = { ...existing.meta }
+  delete meta.blockedOperations
+  await saveTurnContinuation(db, threadKey, { ...existing, meta })
+  return blocked.map((operation) => ({ operationId: operation.operationId, toolName: operation.call.name, callId: operation.call.id, reason: operation.reason }))
+}
 /** Atomically repair durable history and the parked working view. A
  * running activity or changed checkpoint prevents stale replacement. */
 export async function commitThreadCompaction(db: TransactableDb, threadKey: string, input: { version: number; summary: string; coveredSeq: number; continuation?: { previous: TurnContinuation; messages: ChatMessage[] } }, scope?: Scope): Promise<ThreadContext> {
