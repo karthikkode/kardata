@@ -86,6 +86,12 @@ describe.skipIf(!LIVE)('fleet load runs (N subagents, real outputs) [F:backend.a
   beforeAll(async () => {
     process.env['TEMPORAL_ADDRESS'] = ADDRESS
     process.env['KARDATA_PROVIDER'] = 'fake'
+    // Pilot parity: post-F2a every child runs two scripted turns (fed
+    // goal + steer), so 1000 children need 2000 turns in 26 min. The
+    // default 4 slots are vendor pacing for the live provider; the fake
+    // needs none, and the pilot runs 4 workers x 4 slots = 16. One test
+    // worker with 16 slots matches pilot turn throughput.
+    process.env['KARDATA_TURN_ACTIVITY_SLOTS'] = '16'
     url = await ensureTestDb('kardata_test_fleet_load')
     process.env['DATABASE_URL'] = url
     process.env['KARDATA_ARCHIVE_DIR'] = mkdtempSync(join(tmpdir(), 'kardata-fleet-archive-'))
@@ -171,6 +177,7 @@ describe.skipIf(!LIVE)('fleet load runs (N subagents, real outputs) [F:backend.a
     await connection?.close().catch(() => undefined)
     delete process.env['DATABASE_URL']
     delete process.env['KARDATA_PROVIDER']
+    delete process.env['KARDATA_TURN_ACTIVITY_SLOTS']
     delete process.env['KARDATA_MCP_URL']
     delete process.env['KARDATA_MCP_TOKEN']
     delete process.env['KARDATA_ARCHIVE_DIR']
@@ -261,11 +268,33 @@ describe.skipIf(!LIVE)('fleet load runs (N subagents, real outputs) [F:backend.a
     }
     await waitFor(async () => (await artifactCount(sectorId, sessionId)) >= options.children, options.timeoutMs, 'indexed discovery artifacts')
     const outputsMs = Date.now() - started
-    for (let i = 0; i < options.children; i++) {
-      const childId = childIds[i] as string
-      await client.workflow.getHandle(childId).signal('childFinish')
-      expect(await client.workflow.getHandle(childId).result()).toBe('finished')
-      await parent.signal('parentNoteDone', { childId, status: 'finished' })
+    // Drain: every steer must finish its turn before any finish lands, or
+    // a leftover inbox item drains to missed_steer and fails the suite.
+    // Two agent replies plus an empty inbox per child proves both scripted
+    // turns (fed goal + steer) fully processed; no new steers can arrive
+    // after the artifacts gate, so the conjunction holds stably.
+    await waitFor(async () => {
+      const settled = await Promise.all(childIds.map(async (childId) => {
+        const [rows, state] = await Promise.all([
+          readPartition(pool, `child:${childId}`),
+          client.workflow.getHandle(childId as string).query('childState') as Promise<{ queueDepth: number }>,
+        ])
+        const replies = rows.filter((row) => row.type === 't.message.appended' && (row.payload as { message?: { role?: string } }).message?.role === 'agent').length
+        return replies >= 2 && state.queueDepth === 0
+      }))
+      return settled.every(Boolean)
+    }, options.timeoutMs, 'steer turns to drain')
+    // Pipelined close-out: signal every child, then collect results in
+    // bounded batches. Serial collect is ~0.9 s/child (900 s at the
+    // thousand tier); completions are independent and parentNoteDone is
+    // order-free per child, so batching only removes the round-trip wait.
+    const handles = childIds.map((childId) => client.workflow.getHandle(childId as string))
+    await Promise.all(handles.map((handle) => handle.signal('childFinish')))
+    for (let i = 0; i < handles.length; i += 20) {
+      const batch = handles.slice(i, i + 20)
+      const results = await Promise.all(batch.map((handle) => handle.result()))
+      for (const result of results) expect(result).toBe('done')
+      for (const childId of childIds.slice(i, i + 20)) await parent.signal('parentNoteDone', { childId, status: 'done' })
     }
     await parent.signal('parentFinish')
     expect(await parent.result()).toBe('done')
