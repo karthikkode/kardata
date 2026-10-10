@@ -6,6 +6,7 @@ recurrence. New rows append at the top.
 
 | date | bug | found by | tier that should have caught it | test added | rule added |
 |---|---|---|---|---|---|
+| 2026-10-10 | pilot stack ran 1 worker vs 4 elsewhere: delegate/turn throughput starved under fan-out | pilot r0 (R0-3b) | unit | stack.test.ts pilotWorkerCount | pilot up fans out to N workers (default 4, --workers N), one metrics port each |
 | 2026-10-10 | delegate_subagent blocked on a 30s acceptance poll per child: 10 parallel delegates timed out uncertain and bricked the parent | pilot r0 (R0-3/R0-3b) | temporal | workflows.delegate 10-parallel test + unit rewrites | delegation returns accepted on durable record; parent feeds every launch (patched); confirmation async |
 | 2026-10-10 | no owner escape from paused-by-recovery threads: authority-halted or legacy-poisoned threads could never resume (R0-4 wedge) | pilot r0 (R0-4) | db | commands.discard-blocked.test.ts + banner/api/model tests | discard-blocked-operations clears the block, notes the transcript (ui-audited), resumes |
 | 2026-10-10 | blocked-operation replay halted on any re-dispatch failure (error or still-uncertain) → pause → replay → brick; deterministic denials never reached the agent | pilot r0 (R0-2/R0-3/R0-3b/R0-4/R0-6/R0-9/R0-15 replay leg) | unit | turnRunner.test.ts unconfirmed-replay suite + mcp.operation-recovery demotion case | re-dispatch outcomes never halt: still-uncertain → outcome-unknown + check-state; denials → text + caveat; only authority/serialization halt |

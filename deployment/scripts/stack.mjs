@@ -12,7 +12,7 @@ import { connect } from 'node:net'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readlinkSync } from 'node:fs'
-import { countRepoTools, fleetVerdict, formatVerdict, freshnessVerdict, ownedTestProcs, parityVerdict, parseEnvFile, PILOT_RO_ROLE, pilotConfig, pilotRoStatements, portsDisjointVerdict, RESOURCE_PROFILES } from './stack-lib.mjs'
+import { countRepoTools, fleetVerdict, formatVerdict, freshnessVerdict, ownedTestProcs, parityVerdict, parseEnvFile, PILOT_RO_ROLE, pilotConfig, pilotRoStatements, pilotWorkerCount, portsDisjointVerdict, RESOURCE_PROFILES } from './stack-lib.mjs'
 import { loadPilotSecrets } from './pilot-secrets.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -973,6 +973,13 @@ async function cmdPilotUp(args) {
     process.exit(1)
   }
   const worktree = resolve(args[flag + 1])
+  let workers = 4
+  try {
+    workers = pilotWorkerCount(args)
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error)
+    process.exit(1)
+  }
   // agents/.env may legitimately not exist yet (first up creates it);
   // everything else must be built.
   for (const required of ['backend/dist/server.js', 'backend/dist/temporal/dev-worker.js', 'backend/dist/db/cli.js', 'agents/dist/index.js', 'frontend/package.json']) {
@@ -982,9 +989,9 @@ async function cmdPilotUp(args) {
     }
   }
   const cfg = pilotConfig(pilotEnvOverrides())
-  // 9464 is the worker's Temporal metrics port (Runtime.install binds it;
-  // a second worker dies instantly with EADDRINUSE).
-  for (const port of [cfg.backendPort, cfg.uiPort, 9464]) {
+  // 9464+i is worker i's Temporal metrics port (Runtime.install binds it;
+  // a second worker on one port dies instantly with EADDRINUSE).
+  for (const port of [cfg.backendPort, cfg.uiPort, ...Array.from({ length: workers }, (_, i) => 9464 + i)]) {
     if (await portTaken(port)) {
       console.error(`stack: pilot port ${port} is taken; stop its owner first`)
       process.exit(1)
@@ -1109,19 +1116,21 @@ async function cmdPilotUp(args) {
   const viteBin = existsSync(join(worktree, 'node_modules', 'vite', 'bin', 'vite.js'))
     ? join(worktree, 'node_modules', 'vite', 'bin', 'vite.js')
     : join(worktree, 'frontend', 'node_modules', 'vite', 'bin', 'vite.js')
-  procs.worker = spawnPilotProc(worktree, 'worker', process.execPath, ['backend/dist/temporal/dev-worker.js'], workerEnv, 'dev-worker.js')
+  for (let i = 1; i <= workers; i += 1) {
+    procs[`worker-${i}`] = spawnPilotProc(worktree, `worker-${i}`, process.execPath, ['backend/dist/temporal/dev-worker.js'], { ...workerEnv, KARDATA_TEMPORAL_METRICS_PORT: String(9464 + i - 1) }, 'dev-worker.js')
+  }
   procs.ui = spawnPilotProc(worktree, 'ui', process.execPath, [viteBin, 'preview', '--port', String(cfg.uiPort), '--host', '127.0.0.1', '--strictPort'], { ...process.env, PATH: process.env['PATH'] ?? '' }, 'vite/bin/vite.js', join(worktree, 'frontend'))
   writeFileSync(pilotPidFile(worktree), JSON.stringify(procs, null, 2))
-  const okWorker = await waitFor('pilot worker polling', async () => {
+  const okWorker = await waitFor('pilot workers polling', async () => {
     try {
-      return readFileSync(join(worktree, 'var', 'pilot', 'worker.log'), 'utf8').includes('turn worker polling')
+      return Array.from({ length: workers }, (_, i) => readFileSync(join(worktree, 'var', 'pilot', `worker-${i + 1}.log`), 'utf8')).every((log) => log.includes('turn worker polling'))
     } catch {
       return false
     }
   })
   const okUi = await waitFor('pilot ui /', () => urlHealthy(cfg.uiUrl))
   if (!okWorker || !okUi) process.exit(1)
-  console.log(`stack: pilot up (backend :${cfg.backendPort}, ui :${cfg.uiPort}, db ${cfg.dbName}, namespace ${cfg.namespace})`)
+  console.log(`stack: pilot up (backend :${cfg.backendPort}, ui :${cfg.uiPort}, ${workers} workers, db ${cfg.dbName}, namespace ${cfg.namespace})`)
 }
 
 async function cmdPilotDown(args) {
@@ -1171,7 +1180,9 @@ async function cmdPilotStatus(args) {
   const cfg = pilotConfig(pilotEnvOverrides())
   const live = pilotPids(worktree)
   let ok = true
-  for (const [name, marker] of [['backend', 'backend/dist/server.js'], ['worker', 'dev-worker.js'], ['ui', 'vite/bin/vite.js']]) {
+  // worker-N (current) plus legacy worker (pre-fan-out pidfiles).
+  const workerNames = Object.keys(live ?? {}).filter((name) => name === 'worker' || name.startsWith('worker-')).sort()
+  for (const [name, marker] of [['backend', 'backend/dist/server.js'], ...workerNames.map((name) => [name, 'dev-worker.js']), ['ui', 'vite/bin/vite.js']]) {
     const entry = live?.[name]
     const alive = !!entry && pidMatches(entry.pid, marker)
     if (!alive) ok = false
@@ -1207,7 +1218,7 @@ async function cmdPilot(args) {
   if (sub === 'up') return cmdPilotUp(rest)
   if (sub === 'down') return cmdPilotDown(rest)
   if (sub === 'status') return cmdPilotStatus(rest)
-  console.error('usage: npm run stack:pilot -- <up|down|status> --worktree <path>')
+  console.error('usage: npm run stack:pilot -- <up|down|status> --worktree <path> [--workers N]')
   process.exit(1)
 }
 

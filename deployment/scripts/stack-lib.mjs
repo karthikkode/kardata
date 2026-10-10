@@ -210,6 +210,16 @@ export function pilotConfig({ pgPort = 5433, pgHost = '127.0.0.1', temporalAddre
   }
 }
 
+/** Pilot worker fan-out: `--workers N` (default 4, like staging/prod).
+ * Throws a usage error for missing or non-positive-integer values. */
+export function pilotWorkerCount(args) {
+  const flag = args.indexOf('--workers')
+  if (flag < 0) return 4
+  const value = Number(args[flag + 1])
+  if (!Number.isInteger(value) || value < 1) throw new Error(`stack: pilot --workers must be a positive integer, got ${JSON.stringify(args[flag + 1] ?? null)}`)
+  return value
+}
+
 /** Idempotent RO-role statements; run connected to the pilot database.
  * The ALTER re-asserts the shared password on every run: the role is
  * cluster-global, so a ghost from an older run (B3 validation's

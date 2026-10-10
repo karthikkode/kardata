@@ -16,6 +16,7 @@ import {
   PILOT_RO_ROLE,
   pilotConfig,
   pilotRoStatements,
+  pilotWorkerCount,
   PROD_PORTS,
   RESOURCE_PROFILES,
   STAGING_PORTS,
@@ -293,5 +294,21 @@ describe('pilotRoStatements', () => {
     const quoted = pilotRoStatements({ role: 'we"ird', owner: 'kardata', password: "p'w", database: 'd' }).join('\n')
     expect(quoted).toContain('"we""ird"')
     expect(quoted).toContain("'p''w'")
+  })
+})
+
+describe('pilotWorkerCount', () => {
+  it('defaults to 4 workers like staging/prod', () => {
+    expect(pilotWorkerCount(['up', '--worktree', '/tmp/x'])).toBe(4)
+  })
+  it('takes --workers N', () => {
+    expect(pilotWorkerCount(['up', '--worktree', '/tmp/x', '--workers', '8'])).toBe(8)
+    expect(pilotWorkerCount(['up', '--worktree', '/tmp/x', '--workers', '1'])).toBe(1)
+  })
+  it('rejects non-positive integers', () => {
+    for (const bad of ['0', '-2', '1.5', 'many']) {
+      expect(() => pilotWorkerCount(['up', '--worktree', '/tmp/x', '--workers', bad])).toThrow('--workers must be a positive integer')
+    }
+    expect(() => pilotWorkerCount(['up', '--worktree', '/tmp/x', '--workers'])).toThrow('--workers must be a positive integer')
   })
 })
