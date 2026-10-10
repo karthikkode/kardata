@@ -39,11 +39,14 @@ export function startRecording(page: Page, step: string): StepRecord {
     marks,
     consoleErrors,
     failedRequests,
-    shot: (name: string) => page.screenshot({ path: `${dir}/${name}.png` }),
-    mark: async (name: string, work: () => Promise<void>) => {
+    shot: async (name: string) => {
+      await page.screenshot({ path: `${dir}/${name}.png` })
+    },
+    mark: async <T>(name: string, work: () => Promise<T>): Promise<T> => {
       const start = Date.now()
-      await work()
+      const out = await work()
       marks.push({ step: name, ms: Date.now() - start })
+      return out
     },
     finish: () => {
       writeFileSync(
