@@ -4044,3 +4044,15 @@ construction (typed). No code change. Postscript (F8c): record.ts
 in the browser a11y tree (r0c post-stop) — and its reload recovery is
 now an `occurrences.json` entry, so r1 counts R0-14 instead of masking
 it. If r1 still sees it, reproduce from a logged occurrence.
+
+## 2026-10-11 — pre-tag: ramp + orphan cleanup, thousand-leg queued
+Ramp committed (`0b9616b`): delegate/steer/close-out signals move in
+chunks of 50 with 1 s gaps (~57 s of the 26-min budget); ten-leg
+green with the ramp. The box was not idle: ~4.3k terminated-test
+orphan workflows (verify4/5 fleet runs + historical suite fallout)
+had the dev backend describing them hot (Temporal 90%). Terminated
+all open test orphans (kept the 2 reconciliation singletons); open
+count is 2. The backend is still syncing stale rows group-by-group
+(finite, sequential, slow). Thousand-leg reruns once the box is
+idle, before the pilot tier-1000 step; a persisting async-hook crash
+is a product blocker for tier-1000 only.
