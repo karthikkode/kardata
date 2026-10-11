@@ -1,8 +1,8 @@
 // Tier 10: spawn 10 subagents from one chat in the pilot sector.
 // Proves the strip shows all 10 running and ≥9 complete.
 import { expect, test } from '@playwright/test'
-import { loadState, pilotRunEnabled, saveState } from './state.js'
-import { expectClean, openChat, openChats, openWorkspace, renameChat, startRecording, waitVisible } from './record.js'
+import { loadState, logOccurrence, pilotRunEnabled, saveState } from './state.js'
+import { expectClean, openChats, openWorkspace, renameChat, startRecording, waitVisible } from './record.js'
 import { closePilotRo, pilotRoQuery } from './ro.js'
 
 test.describe('tier 10 subagents', () => {
@@ -80,14 +80,9 @@ test.describe('tier 10 subagents', () => {
         const quiet = Date.now() - new Date(fresh[0]?.at ?? start).getTime() > 60000 && status[0]?.status === 'IDLE'
         if (nudges < 10 && quiet) {
           nudges++
-          // Ghost Steer can hide Send while IDLE: reload to server
-          // truth first, then send.
-          if ((await send.count()) === 0) {
-            await page.reload()
-            await openWorkspace(page, state.sectorName!)
-            await openChats(page)
-            await openChat(page, tierName, state.sectorName!)
-          }
+          // F6: Send is server truth while IDLE — no reload. A missing
+          // Send fails the click below loudly instead of hiding a ghost.
+          logOccurrence('tier-10', 'nudge', `parent IDLE 60s+ at ${count}/10 children, nudge ${nudges}/10`)
           await box.fill(`Continue: ${count} of 10 spawned. Spawn the next one NOW; do not wait for running children.`)
           // Forced: a success toast can overlay the composer for a
           // minute and intercept the click (r0c).

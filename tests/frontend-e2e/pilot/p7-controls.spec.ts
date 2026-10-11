@@ -76,9 +76,8 @@ async function awaitTurnStart(page: Page, threadKey?: string): Promise<void> {
 
 /** Pause one directory row by thread key, verified by its Resume flip.
  * Already-paused returns; finished throws for the caller to re-pick.
- * The flip needs a loop iteration (R0-10), so after clicking Pause
- * the mark wakes idle threads with a probe: mid-turn threads flip
- * at turn end, idle ones iterate on the probe and park. */
+ * Mid-turn threads flip at turn end; idle ones flip at once (F6a
+ * emits state on idle pause — no probe wake needed). */
 async function pauseChildByKey(page: Page, threadKey: string, sectorName: string, parentTitle: string): Promise<void> {
   const scan = await openDirectory(page)
   const scanRow = scan.locator('li', { has: page.getByTitle(threadKey) })
@@ -99,12 +98,8 @@ async function pauseChildByKey(page: Page, threadKey: string, sectorName: string
     .catch(() => undefined)
   await page.keyboard.press('Escape')
   await expect(directory).toBeHidden({ timeout: 15000 })
-  // Wake the loop when idle: reload FIRST — chat.busy sticks true
-  // after a turn ends (stale Steer) and would skip the probe while
-  // the idle child never iterates, so the pause never surfaces
-  // (R0-10) and the poll below burns 5 min (r0c 654e9e26, R0-12).
-  // After a reload Steer is server truth: genuinely mid-turn.
-  await page.reload()
+  // F6: Steer/send are server truth now (busy clears on turn end,
+  // idle pause emits state) — navigate on the live UI, no reload.
   await openWorkspace(page, sectorName)
   await openChats(page)
   await openChat(page, parentTitle, sectorName)
@@ -113,19 +108,15 @@ async function pauseChildByKey(page: Page, threadKey: string, sectorName: string
   const steer = page.getByRole('button', { name: 'Steer', exact: true })
   await expect(send.or(steer)).toBeVisible({ timeout: 60000 })
   if ((await steer.count()) > 0) {
-    // Genuinely mid-turn: wait for the turn to end, then probe —
-    // the probe turn parks at its end and the pause surfaces. Past
-    // 5 min re-pick (the pause surfaces on its own later and the
-    // stop-one scan resumes it via its Resume button).
+    // Genuinely mid-turn: the pause surfaces at turn end. Past 5 min
+    // re-pick (the pause surfaces on its own later and the stop-one
+    // scan resumes it via its Resume button).
     try {
       await expect(page.getByRole('button', { name: 'Send message' })).toBeVisible({ timeout: 300000 })
     } catch {
       throw new Error(`pilot p7: cannot pause ${threadKey} (turn exceeded 5 min, re-pick)`)
     }
   }
-  await page.getByLabel('Message this conversation').fill('Pilot pause wake: acknowledge and standby.')
-  await page.getByRole('button', { name: 'Send message' }).click()
-  await page.getByRole('button', { name: 'Back to parent conversation' }).click()
   // Poll only: control is set, the signal sent — re-clicking cannot
   // hurry the in-flight turn. 5 min covers loaded-box turns.
   const start = Date.now()
@@ -238,12 +229,10 @@ test.describe('P7 research controls', () => {
       const box = page.getByLabel('Message this conversation')
       const send = page.getByRole('button', { name: 'Send message' })
       const steer = page.getByRole('button', { name: 'Steer', exact: true })
-      // A provider failure auto-pauses the thread (R0-8) and the strip
-      // can miss it: resume inside the chat when paused, then steer.
-      // Bare Resume (the banner's): strip-first would hit another row.
-      if (await page.getByText('This conversation is paused.').isVisible().catch(() => false)) {
-        await page.getByRole('button', { name: 'Resume', exact: true }).click()
-      }
+      // No resume-first: F5 retries transient provider errors inside
+      // the activity, so a paused chat here means exhausted retries
+      // (with a visible reason) — the loop below fails loudly with
+      // paused state in the diagnostic instead of steering past it.
       let lastState = 'unknown'
       for (let attempt = 0; attempt < 3; attempt++) {
         await expect(send.or(steer)).toBeVisible({ timeout: 60000 })
@@ -308,10 +297,8 @@ test.describe('P7 research controls', () => {
     await rec.mark('steer-parent', async () => {
       // Steer shows only mid-reply (v2 conversation.spec.ts CV-11 sends
       // first): open the research parent, start a turn, then steer it.
-      // Fresh UI first: the SPA caches busy/paused per thread and can
-      // serve a ghost Steer + ghost banner on an idle unpaused chat
-      // (r0c slot 0 burned all attempts with zero backend effect, R0-12).
-      await page.reload()
+      // No reload-first: F6 cleared ghost Steer/banner state, so the
+      // live UI is trusted (a ghost now fails loudly below).
       await openWorkspace(page, state.sectorName!)
       await openChats(page)
       await openChat(page, 'pilot-research', state.sectorName!)
@@ -367,10 +354,9 @@ test.describe('P7 research controls', () => {
       for (const target of candidates) {
         if (slot >= 3) break
         try {
-          // Fresh UI per target (R0-12 ghosts) + key-driven open: row
-          // indexes shift as children finish/reorder between pick and
-          // open, but keys don't.
-          await page.reload()
+          // Key-driven open: row indexes shift as children finish or
+          // reorder between pick and open, but keys don't. No
+          // reload-first (F6: no ghosts to clear).
           await openWorkspace(page, state.sectorName!)
           await openChats(page)
           await openChat(page, 'pilot-spawn-b', state.sectorName!)
@@ -436,13 +422,11 @@ test.describe('P7 research controls', () => {
         if (attempt === 2) throw new Error(`pilot p7: send bodies wrong 3x: ${JSON.stringify(bodies)}`)
         await page.waitForTimeout(3000)
       }
-      // Reload: the queue view polls only while busy and sends don't
-      // refresh it (R0-11), so navigate out and back to force a load.
-      // Then either the button (held pause, still buffered) or the row
-      // (a flap-resume shifted it into a turn) proves the send — user
-      // rows materialize on inbox SHIFT, not on send.
-      await page.getByRole('button', { name: 'Back to parent conversation' }).click()
-      await openChildByKey(page, target, 'pilot-spawn-b')
+      // No navigate-out-and-back: F6d refreshes the queue view on
+      // send and polls while it holds items. Either the button (held
+      // pause, still buffered) or the row (a flap-resume shifted it
+      // into a turn) proves the send — user rows materialize on inbox
+      // SHIFT, not on send.
       const settledStart = Date.now()
       for (;;) {
         if ((await page.getByRole('button', { name: /Queued \(\d+\)/ }).count()) > 0) break
