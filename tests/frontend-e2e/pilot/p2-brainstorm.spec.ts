@@ -140,7 +140,7 @@ test.describe('P2 brainstorm chats', () => {
       // Indexing is async (r0b: report.pdf rowed but unit-less at
       // first read); poll until every doc has units or the ceiling.
       const indexStart = Date.now()
-      let rows: { filename: string; author_thread: string | null; units: string }[] = []
+      let rows: { filename: string; author_thread: string | null; units: string }[]
       for (;;) {
         rows = await pilotRoQuery<{ filename: string; author_thread: string | null; units: string }>(
           `SELECT d.filename, d.author_thread,

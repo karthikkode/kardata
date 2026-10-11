@@ -50,7 +50,7 @@ export function portsDisjointVerdict(args?: { staging?: number[]; prod?: number[
 export const PILOT_RO_ROLE: string
 export function pilotRoStatements(args: { role?: string; owner: string; password: string; database: string }): string[]
 export const PILOT_DEFAULTS: { dbName: string; namespace: string; backendPort: number; uiPort: number; tenant: string; uiOnly: string }
-export function pilotConfig(args?: { pgPort?: number; pgHost?: string; temporalAddress?: string }): Record<string, string | number>
+export function pilotConfig(args?: { pgPort?: number; pgHost?: string; temporalAddress?: string; dbName?: string; namespace?: string }): Record<string, string | number>
 export function pilotWorkerCount(args: string[]): number
 export const SUPERVISE_DEFAULTS: { maxBytes: number; keep: number }
 export interface SuperviseArgs {

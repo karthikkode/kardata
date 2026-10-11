@@ -423,14 +423,14 @@ test.describe('P7 research controls', () => {
         await box.fill(hello)
         await expect(box).toHaveValue(hello, { timeout: 15000 })
         await expect(send).toBeEnabled({ timeout: 15000 })
-        const [request] = await Promise.all([
+        const [observed] = await Promise.all([
           page.waitForRequest(
             (entry) => entry.url().includes('/v1/commands/send') && entry.method() === 'POST',
             { timeout: 30000 },
           ),
           send.click(),
         ])
-        const body = request.postDataJSON() as { text?: unknown; threadKey?: unknown } | null
+        const body = observed.postDataJSON() as { text?: unknown; threadKey?: unknown } | null
         bodies.push([body?.threadKey ?? null, body?.text ?? null])
         if (body?.text === hello && body?.threadKey === target) break
         if (attempt === 2) throw new Error(`pilot p7: send bodies wrong 3x: ${JSON.stringify(bodies)}`)
