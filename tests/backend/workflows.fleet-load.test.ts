@@ -241,10 +241,13 @@ describe.skipIf(!LIVE)('fleet load runs (N subagents, real outputs) [F:backend.a
       60_000,
       'parent to start',
     )
-    // Batched fan-out: serial signals are a Temporal round-trip each
+    // Ramped fan-out: serial signals are a Temporal round-trip each
     // (~0.5 s under load: 1000 children = 8+ min per loop), so the
-    // thousand leg burned its whole budget signalling. Delegations are
-    // independent; the parent queues them in arrival order.
+    // thousand leg burned its whole budget signalling — but delay-free
+    // batches corrupted the vitest worker's async-hook stack at the
+    // thousand tier (verify4/5). Chunks of 50 with 1 s gaps bound peak
+    // promise churn (~19 s per loop). Delegations are independent;
+    // the parent queues them in arrival order.
     for (let i = 0; i < options.children; i += 50) {
       await Promise.all(childIds.slice(i, i + 50).map(async (childId, j) => {
         const at = i + j
@@ -269,6 +272,7 @@ describe.skipIf(!LIVE)('fleet load runs (N subagents, real outputs) [F:backend.a
           ],
         })
       }))
+      if (i + 50 < options.children) await sleep(1000)
     }
     const launchedMs = Date.now() - started
     const launched = async (): Promise<number> =>
@@ -279,6 +283,7 @@ describe.skipIf(!LIVE)('fleet load runs (N subagents, real outputs) [F:backend.a
         const at = i + j
         await parent.signal('parentSteer', { childId: childId as string, text: `verify TEST company ${companyFor(options.leg, at)}` })
       }))
+      if (i + 50 < options.children) await sleep(1000)
     }
     await waitFor(async () => (await artifactCount(sectorId, sessionId)) >= options.children, options.timeoutMs, 'indexed discovery artifacts')
     const outputsMs = Date.now() - started
@@ -315,12 +320,17 @@ describe.skipIf(!LIVE)('fleet load runs (N subagents, real outputs) [F:backend.a
       }
       return true
     }, options.timeoutMs, 'steer turns to drain')
-    // Pipelined close-out: signal every child, then collect results in
-    // bounded batches. Serial collect is ~0.9 s/child (900 s at the
-    // thousand tier); completions are independent and parentNoteDone is
+    // Pipelined close-out: ramp childFinish in chunks of 50 like the
+    // fan-out (1000 at once is the same peak-churn shape that corrupted
+    // the worker in verify4/5), then collect results in bounded
+    // batches. Serial collect is ~0.9 s/child (900 s at the thousand
+    // tier); completions are independent and parentNoteDone is
     // order-free per child, so batching only removes the round-trip wait.
     const handles = childIds.map((childId) => client.workflow.getHandle(childId as string))
-    await Promise.all(handles.map((handle) => handle.signal('childFinish')))
+    for (let i = 0; i < handles.length; i += 50) {
+      await Promise.all(handles.slice(i, i + 50).map((handle) => handle.signal('childFinish')))
+      if (i + 50 < handles.length) await sleep(1000)
+    }
     for (let i = 0; i < handles.length; i += 20) {
       const batch = handles.slice(i, i + 20)
       const results = await Promise.all(batch.map((handle) => handle.result()))
