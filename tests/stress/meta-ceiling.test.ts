@@ -1,12 +1,15 @@
-// Phase 8 B7: Meta ceiling benchmark. A ladder of concurrent minimal
-// chat calls (4→128) against live Meta measures latency/tokens and
-// finds the max sustainable subagent count at a 5% error budget. The
-// winning rung × 0.75 headroom lands in var/pilot/meta-ceiling.json,
-// which the 1000-subagent tier reads to decide full run vs graceful
-// skip. Gated: only KARDATA_LIVE_META=1 spends vendor money (run
-// once after acceptance, prod idle, at an owner-picked time). The
-// decision logic is unit-tested ungated below; the live ladder runs
-// only under the gate.
+// Phase 8 B7 / F9: Meta ceiling benchmark. A ladder of concurrent
+// realistic chat calls (2→32, ~1k in / 200 out tokens, 40 calls or
+// 2× concurrency per rung, 60 s gaps) against live Meta measures
+// latency and finds the max sustainable concurrency at a 2% error
+// budget with p95 ≤ 2× the concurrency-2 baseline. A ~10k-input rung
+// pair at the highest passing concurrencies follows. The winning rung
+// × 0.75 headroom (25% reserved for owner prod use) lands in
+// var/pilot/meta-ceiling.json, which the 1000-subagent tier reads to
+// decide full run vs graceful skip. Gated: only KARDATA_LIVE_META=1
+// spends vendor money (run once, prod idle, at an owner-picked time).
+// The decision logic is unit-tested ungated below; the live ladder
+// runs only under the gate.
 //
 // NOTE: the plan names tests/stress/meta-ceiling.ts; the runner only
 // picks up *.test.ts (explicit non-matching paths are filtered out),
@@ -20,11 +23,15 @@ import type { ProviderRequest } from '../../agents/src/providers.js'
 import { parseEnvFile } from '../../deployment/scripts/stack-lib.mjs'
 
 const LIVE = process.env['KARDATA_LIVE_META'] === '1'
-const LADDER = [4, 8, 16, 32, 64, 128]
-const CALLS_PER_RUNG = 24
-const ERROR_BUDGET = 0.05
+const LADDER = [2, 4, 8, 16, 24, 32]
+const ERROR_BUDGET = 0.02
 const HEADROOM = 0.75
-const P95_BASELINE_MULTIPLE = 3
+const P95_BASELINE_MULTIPLE = 2
+const RUNG_GAP_MS = 60_000
+
+export function callsForRung(concurrency: number): number {
+  return Math.max(40, 2 * concurrency)
+}
 
 export interface CeilingRung {
   concurrency: number
@@ -41,6 +48,8 @@ export interface MetaCeiling {
   errorBudget: number
   headroom: number
   rungs: CeilingRung[]
+  /** ~10k-input rungs at the highest passing concurrencies (F9 pair). */
+  largeRungs?: CeilingRung[]
   maxSustainable: number
 }
 
@@ -63,18 +72,24 @@ export function ceilingPath(): string {
 
 describe('meta ceiling decision (ungated pin)', () => {
   const rung = (partial: Partial<CeilingRung>): CeilingRung => ({
-    concurrency: 4,
-    calls: 24,
+    concurrency: 2,
+    calls: 40,
     errors: 0,
     p50Ms: 1000,
     p95Ms: 2000,
-    meanTokens: 40,
+    meanTokens: 1200,
     ...partial,
   })
 
   it('takes the last in-budget rung times headroom', () => {
-    const rungs = [rung({ concurrency: 4 }), rung({ concurrency: 8 }), rung({ concurrency: 16, errors: 2 })]
-    expect(decideCeiling(rungs)).toBe(Math.floor(8 * HEADROOM))
+    const rungs = [rung({ concurrency: 2 }), rung({ concurrency: 4 }), rung({ concurrency: 8, errors: 4 })]
+    expect(decideCeiling(rungs)).toBe(Math.floor(4 * HEADROOM))
+  })
+
+  it('breaks above the 2% error budget', () => {
+    expect(decideCeiling([rung({ concurrency: 2 }), rung({ concurrency: 4, errors: 1 })])).toBe(Math.floor(2 * HEADROOM))
+    expect(callsForRung(2)).toBe(40)
+    expect(callsForRung(32)).toBe(64)
   })
 
   it('stops at latency explosion even with zero errors', () => {
@@ -111,42 +126,67 @@ describe.skipIf(!LIVE)('meta ceiling ladder (live Meta spend)', () => {
     const model = env['KARDATA_META_MODEL']
     if (!apiKey || !model) throw new Error('ceiling needs KARDATA_META_KEY + KARDATA_META_MODEL in agents/.env')
     const adapter = new MetaAdapter({ apiKey, model, mode: (env['KARDATA_META_MODE'] as MetaMode | undefined) ?? 'chat' })
-    const request: ProviderRequest = {
-      systemPrompt: 'Reply with exactly: ok',
-      messages: [{ role: 'user', text: 'ok?' }],
+    // ~70 tokens: ×15 ≈ 1k input, ×150 ≈ 10k input (F9 turn sizes).
+    const filler =
+      'The Sydney trades sector spans plumbing, electrical, carpentry, roofing, and HVAC contractors across ' +
+      'metropolitan and regional New South Wales, serving residential renovations, commercial fit-outs, and ' +
+      'infrastructure maintenance with licensed crews, fixed quotes, and compliance paperwork. '
+    const brief = (repeats: number): ProviderRequest => ({
+      systemPrompt: 'Summarize the sector brief below in under 150 words. Reply with the summary only.',
+      messages: [{ role: 'user', text: filler.repeat(repeats) }],
       tools: [],
       toolChoice: { mode: 'auto' },
-      maxOutputTokens: 16,
-    }
-    const rungs: CeilingRung[] = []
-    for (const concurrency of LADDER) {
+      maxOutputTokens: 200,
+    })
+    const runRung = async (request: ProviderRequest, concurrency: number): Promise<CeilingRung> => {
+      const total = callsForRung(concurrency)
       const latencies: number[] = []
       let errors = 0
       let tokens = 0
-      for (let wave = 0; wave < CALLS_PER_RUNG / concurrency; wave++) {
-        const calls = Array.from({ length: concurrency }, async () => {
-          const start = Date.now()
-          try {
-            const response = await adapter.chat(request)
-            latencies.push(Date.now() - start)
-            tokens += response.usage.inputTokens + response.usage.outputTokens
-          } catch {
-            errors += 1
-          }
-        })
-        await Promise.all(calls)
+      for (let done = 0; done < total; done += concurrency) {
+        const width = Math.min(concurrency, total - done)
+        await Promise.all(
+          Array.from({ length: width }, async () => {
+            const start = Date.now()
+            try {
+              const response = await adapter.chat(request)
+              latencies.push(Date.now() - start)
+              tokens += response.usage.inputTokens + response.usage.outputTokens
+            } catch {
+              errors += 1
+            }
+          }),
+        )
       }
       latencies.sort((a, b) => a - b)
-      const rung: CeilingRung = {
+      return {
         concurrency,
-        calls: CALLS_PER_RUNG,
+        calls: total,
         errors,
         p50Ms: latencies[Math.floor(latencies.length * 0.5)] ?? 0,
         p95Ms: latencies[Math.floor(latencies.length * 0.95)] ?? 0,
         meanTokens: latencies.length === 0 ? 0 : Math.round(tokens / latencies.length),
       }
+    }
+    const sleep = async (ms: number): Promise<void> => {
+      await new Promise((resolve) => setTimeout(resolve, ms))
+    }
+    const overBudget = (rung: CeilingRung): boolean => rung.calls === 0 || rung.errors / rung.calls > ERROR_BUDGET
+    const rungs: CeilingRung[] = []
+    for (const [index, concurrency] of LADDER.entries()) {
+      const rung = await runRung(brief(15), concurrency)
       rungs.push(rung)
-      if (errors / CALLS_PER_RUNG > ERROR_BUDGET) break
+      console.log(`[meta-ceiling] rung c=${concurrency} calls=${rung.calls} errors=${rung.errors} p50=${rung.p50Ms} p95=${rung.p95Ms} meanTokens=${rung.meanTokens}`)
+      if (overBudget(rung)) break
+      if (index < LADDER.length - 1) await sleep(RUNG_GAP_MS)
+    }
+    const passing = rungs.filter((rung) => !overBudget(rung)).map((rung) => rung.concurrency)
+    const largeRungs: CeilingRung[] = []
+    for (const concurrency of passing.slice(-3)) {
+      await sleep(RUNG_GAP_MS)
+      const rung = await runRung(brief(150), concurrency)
+      largeRungs.push(rung)
+      console.log(`[meta-ceiling] large c=${concurrency} calls=${rung.calls} errors=${rung.errors} p50=${rung.p50Ms} p95=${rung.p95Ms} meanTokens=${rung.meanTokens}`)
     }
     const ceiling: MetaCeiling = {
       measuredAt: new Date().toISOString(),
@@ -154,6 +194,7 @@ describe.skipIf(!LIVE)('meta ceiling ladder (live Meta spend)', () => {
       errorBudget: ERROR_BUDGET,
       headroom: HEADROOM,
       rungs,
+      largeRungs: largeRungs.length > 0 ? largeRungs : undefined,
       maxSustainable: decideCeiling(rungs),
     }
     const file = ceilingPath()
