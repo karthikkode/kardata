@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { Socket } from "node:net";
 import { pathToFileURL } from "node:url";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { sql } from "drizzle-orm";
@@ -84,11 +85,19 @@ export async function startServer(opts: {
   await new Promise<void>((resolve) => {
     server.listen(opts.port, opts.host, resolve);
   });
+  const sockets = new Set<Socket>();
+  server.on("connection", (socket) => {
+    sockets.add(socket);
+    socket.on("close", () => {
+      sockets.delete(socket);
+    });
+  });
   const address = server.address();
   const port = typeof address === "object" && address !== null ? address.port : opts.port;
   return {
     url: `http://${opts.host}:${port}`,
     close: async () => {
+      for (const socket of sockets) socket.destroy();
       await new Promise<void>((resolve, reject) => {
         server.close((err) => (err ? reject(err) : resolve()));
       });
@@ -139,6 +148,12 @@ async function main(): Promise<void> {
     db,
     operatorToken: requireEnv("KARDATA_OPERATOR_TOKEN"),
     onClose: closeDb,
+  });
+  process.on("SIGTERM", () => {
+    void (async () => {
+      await handle.close();
+      process.exit(0);
+    })().catch(() => process.exit(1));
   });
   console.log(`kardata-server listening on ${handle.url}`);
 }
