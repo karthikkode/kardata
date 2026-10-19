@@ -1,0 +1,264 @@
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import type { DbHandle } from "../../src/db/client.js";
+import { startServer, type ServerHandle } from "../../src/server.js";
+import {
+  badHeadersCsvPath,
+  ensureMigrated,
+  fixtureCsvPath,
+  fixtureImportDirs,
+  getTestDb,
+  resetTestDb,
+} from "../db.js";
+
+const TOKEN = "test-operator-token";
+
+const EXPECTED_TOOLS = [
+  "sector_create",
+  "sector_update",
+  "sector_delete",
+  "sector_list",
+  "sector_get",
+  "companies_import_csv",
+  "company_add",
+  "company_link",
+  "company_update",
+  "company_remove",
+  "company_restore",
+  "company_get",
+  "company_list",
+  "company_facets",
+  "import_list",
+];
+
+interface ToolResult {
+  content: { type: string; text?: string }[];
+  isError?: boolean;
+  structuredContent?: Record<string, unknown>;
+}
+
+let handle: DbHandle;
+let server: ServerHandle;
+let client: Client;
+let previousImportDirs: string | undefined;
+
+async function call(name: string, args: Record<string, unknown> = {}): Promise<ToolResult> {
+  const result = await client.callTool({ name, arguments: args });
+  return result as unknown as ToolResult;
+}
+
+function dataOf(result: ToolResult): Record<string, unknown> {
+  if (result.isError) throw new Error(`tool failed: ${JSON.stringify(result.structuredContent)}`);
+  return result.structuredContent ?? {};
+}
+
+function errorOf(result: ToolResult): { code: string; message: string } {
+  expect(result.isError).toBe(true);
+  return result.structuredContent as unknown as { code: string; message: string };
+}
+
+beforeAll(async () => {
+  handle = getTestDb();
+  await ensureMigrated(handle);
+  server = await startServer({
+    host: "127.0.0.1",
+    port: 0,
+    db: handle.db,
+    operatorToken: TOKEN,
+  });
+  client = new Client({ name: "stage-1-test", version: "1.0.0" });
+  await client.connect(
+    new StreamableHTTPClientTransport(new URL("/mcp", server.url), {
+      requestInit: { headers: { Authorization: `Bearer ${TOKEN}` } },
+    }),
+  );
+  previousImportDirs = process.env.KARDATA_IMPORT_DIRS;
+  process.env.KARDATA_IMPORT_DIRS = fixtureImportDirs().join(",");
+});
+
+beforeEach(async () => {
+  await resetTestDb(handle);
+});
+
+afterAll(async () => {
+  if (previousImportDirs === undefined) delete process.env.KARDATA_IMPORT_DIRS;
+  else process.env.KARDATA_IMPORT_DIRS = previousImportDirs;
+  await client.close();
+  await server.close();
+  await handle.close();
+});
+
+describe("mcp tools", () => {
+  it("lists exactly the stage-1 tools", async () => {
+    const { tools } = await client.listTools();
+    expect(tools.map((t) => t.name).sort()).toEqual([...EXPECTED_TOOLS].sort());
+    for (const tool of tools) {
+      expect(tool.description, `${tool.name} description`).toBeTruthy();
+    }
+    const byName = new Map(tools.map((t) => [t.name, t]));
+    expect(byName.get("sector_delete")?.annotations?.destructiveHint).toBe(true);
+    expect(byName.get("company_remove")?.annotations?.destructiveHint).toBe(true);
+  });
+
+  it("runs the sector tools end to end", async () => {
+    const created = dataOf(await call("sector_create", { name: "Skincare" }));
+    const sector = created.sector as { id: string; name: string };
+    expect(sector.name).toBe("Skincare");
+
+    const dupe = await call("sector_create", { name: "skincare" });
+    expect(errorOf(dupe).code).toBe("conflict");
+
+    const updated = dataOf(
+      await call("sector_update", { sectorId: sector.id, description: "d" }),
+    );
+    expect((updated.sector as { description: string }).description).toBe("d");
+
+    const missing = await call("sector_get", {
+      sectorId: "00000000-0000-0000-0000-000000000000",
+    });
+    expect(errorOf(missing).code).toBe("not_found");
+
+    const fetched = dataOf(await call("sector_get", { sectorId: sector.id }));
+    expect((fetched.sector as { name: string }).name).toBe("Skincare");
+
+    const listed = dataOf(await call("sector_list", {}));
+    expect((listed.sectors as unknown[]).length).toBe(1);
+
+    const wrongConfirm = await call("sector_delete", {
+      sectorId: sector.id,
+      confirmName: "nope",
+    });
+    expect(errorOf(wrongConfirm).code).toBe("invalid_input");
+
+    const deleted = dataOf(
+      await call("sector_delete", { sectorId: sector.id, confirmName: "Skincare" }),
+    );
+    expect((deleted.sector as { id: string }).id).toBe(sector.id);
+  });
+
+  it("imports csv files and reports per-file results", async () => {
+    const created = dataOf(await call("sector_create", { name: "Skincare" }));
+    const sectorId = (created.sector as { id: string }).id;
+
+    const result = dataOf(
+      await call("companies_import_csv", { sectorId, paths: [fixtureCsvPath()] }),
+    );
+    const imports = result.imports as {
+      ok: boolean;
+      import: { createdCount: number; skippedCount: number };
+    }[];
+    expect(imports).toHaveLength(1);
+    expect(imports[0]?.ok).toBe(true);
+    expect(imports[0]?.import.createdCount).toBe(28);
+
+    const bad = dataOf(
+      await call("companies_import_csv", { sectorId, paths: [badHeadersCsvPath()] }),
+    );
+    const badImports = bad.imports as { ok: boolean; error: { code: string } }[];
+    expect(badImports[0]?.ok).toBe(false);
+    expect(badImports[0]?.error.code).toBe("file_error");
+
+    const outside = await call("companies_import_csv", { sectorId, paths: ["/etc/hosts"] });
+    expect(errorOf(outside).code).toBe("invalid_input");
+
+    const listed = dataOf(await call("import_list", { sectorId }));
+    expect((listed.imports as unknown[]).length).toBe(1);
+  });
+
+  it("runs the company write tools end to end", async () => {
+    const created = dataOf(
+      await call("sector_create", { name: "Skincare", csvPaths: [fixtureCsvPath()] }),
+    );
+    const sectorId = (created.sector as { id: string }).id;
+
+    const added = dataOf(
+      await call("company_add", {
+        sectorId,
+        name: "Handmade",
+        website: "https://handmade.example",
+        employees: 9,
+      }),
+    );
+    const company = added.company as { id: string; domain: string };
+    expect(company.domain).toBe("handmade.example");
+    expect(added.possibleDuplicates).toEqual([]);
+
+    const secondSector = dataOf(await call("sector_create", { name: "Second" }));
+    const secondId = (secondSector.sector as { id: string }).id;
+    const linked = dataOf(await call("company_link", { sectorId: secondId, companyId: company.id }));
+    expect((linked.link as { revived: boolean }).revived).toBe(false);
+    const relink = await call("company_link", { sectorId: secondId, companyId: company.id });
+    expect(errorOf(relink).code).toBe("conflict");
+
+    const updated = dataOf(
+      await call("company_update", { companyId: company.id, patch: { name: "Renamed" } }),
+    );
+    expect((updated.company as { name: string }).name).toBe("Renamed");
+    const badPatch = await call("company_update", {
+      companyId: company.id,
+      patch: { nope: 1 },
+    });
+    expect(errorOf(badPatch).code).toBe("invalid_input");
+
+    await call("company_remove", { sectorId, companyId: company.id });
+    const removed = dataOf(await call("company_get", { companyId: company.id }));
+    const sectors = (removed.company as { sectors: { removed: boolean }[] }).sectors;
+    expect(sectors.find((s) => s.removed)).toBeTruthy();
+    await call("company_restore", { sectorId, companyId: company.id });
+
+    const missing = await call("company_get", {
+      companyId: "00000000-0000-0000-0000-000000000000",
+    });
+    expect(errorOf(missing).code).toBe("not_found");
+  });
+
+  it("runs the company read tools", async () => {
+    const created = dataOf(
+      await call("sector_create", { name: "Skincare", csvPaths: [fixtureCsvPath()] }),
+    );
+    const sectorId = (created.sector as { id: string }).id;
+
+    const page = dataOf(
+      await call("company_list", {
+        sectorId,
+        country: ["United States"],
+        sort: "employees",
+        order: "desc",
+        pageSize: 50,
+      }),
+    );
+    expect(typeof page.durationMs).toBe("number");
+    expect(page.total).toBeGreaterThan(0);
+    expect(((page.items as { country: string }[])[0] ?? {}).country).toBe("United States");
+
+    const badPage = await call("company_list", { sectorId, pageSize: 201 });
+    expect(errorOf(badPage).code).toBe("invalid_input");
+
+    const facets = dataOf(await call("company_facets", { sectorId }));
+    for (const key of ["countries", "industries", "employeeBands", "technologies"]) {
+      expect(Array.isArray(facets[key]), key).toBe(true);
+    }
+  });
+
+  it("rejects requests without a token", async () => {
+    const url = new URL("/mcp", server.url).toString();
+    const noAuth = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
+    });
+    expect(noAuth.status).toBe(401);
+    const wrongAuth = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer wrong",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
+    });
+    expect(wrongAuth.status).toBe(401);
+    const health = await fetch(new URL("/healthz", server.url).toString());
+    expect(health.status).toBe(200);
+  });
+});
