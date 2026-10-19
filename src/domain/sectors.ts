@@ -121,6 +121,17 @@ export async function updateSector(
     set.name = name;
   }
   if (patch.description !== undefined) set.description = patch.description;
+  if (Object.keys(set).length === 0) {
+    const counts = await countsOf(db, id);
+    return {
+      id: sector.id,
+      name: sector.name,
+      description: sector.description,
+      createdAt: sector.createdAt,
+      updatedAt: sector.updatedAt,
+      ...counts,
+    };
+  }
   try {
     await db.update(sectors).set(set).where(eq(sectors.id, id));
   } catch (err) {
