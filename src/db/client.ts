@@ -16,7 +16,8 @@ export interface DbHandle {
 }
 
 export function createDb(url: string): DbHandle {
-  const client = postgres(url, { max: 10 });
+  // Without onnotice the driver console.logs routine PG notices ("already exists, skipping").
+  const client = postgres(url, { max: 10, onnotice: () => {} });
   const db = drizzle(client, { schema });
   return {
     db,
