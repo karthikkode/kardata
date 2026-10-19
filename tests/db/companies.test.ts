@@ -62,10 +62,11 @@ async function seed(name = "Skincare"): Promise<string> {
 }
 
 async function companyIdByApollo(sectorId: string, apolloId: string): Promise<string> {
-  const listed = await listCompanies(handle.db, sectorId, { pageSize: 200 });
-  const found = listed.items.find((c) => c.apolloAccountId === apolloId);
-  if (!found) throw new Error(`missing company ${apolloId}`);
-  return found.id;
+  const rows = (await handle.db.execute(
+    sql`SELECT c.id AS id FROM companies AS c JOIN sector_companies AS m ON m.company_id = c.id WHERE m.sector_id = ${sectorId} AND c.apollo_account_id = ${apolloId}`,
+  )) as unknown as { id: string }[];
+  if (!rows[0]) throw new Error(`missing company ${apolloId}`);
+  return rows[0].id;
 }
 
 function likeParam(q: string): string {
@@ -373,6 +374,42 @@ describe("company_list against SQL ground truth", () => {
     const page = await listCompanies(handle.db, sectorId, { page: 3, pageSize: 10 });
     expect(page).toMatchObject({ total: 28, page: 3, pageSize: 10, totalPages: 3 });
     expect(page.items).toHaveLength(8);
+  });
+
+  it("returns slim rows under 30 KB per 50-page", async () => {
+    const sectorId = await seed();
+    const id = await companyIdByApollo(sectorId, "AP-1001");
+    await updateCompany(handle.db, id, { name: "Owner Name" });
+    const page = await listCompanies(handle.db, sectorId, { pageSize: 50 });
+    expect(page.items.length).toBeGreaterThan(0);
+    const keys = [
+      "annualRevenue",
+      "city",
+      "country",
+      "domain",
+      "employees",
+      "foundedYear",
+      "hasOverrides",
+      "id",
+      "industry",
+      "name",
+      "removed",
+      "sharedDomain",
+      "source",
+      "technologyCount",
+      "totalFunding",
+      "website",
+    ];
+    for (const item of page.items) {
+      expect(Object.keys(item).sort()).toEqual(keys);
+    }
+    const edited = page.items.find((c) => c.id === id);
+    const plain = page.items.find((c) => c.id !== id);
+    expect(edited?.name).toBe("Owner Name");
+    expect(edited?.hasOverrides).toBe(true);
+    expect(plain?.hasOverrides).toBe(false);
+    expect(edited?.technologyCount).toBe(2);
+    expect(JSON.stringify(page.items).length).toBeLessThan(30 * 1024);
   });
 
   it("filters match effective (overridden) values", async () => {

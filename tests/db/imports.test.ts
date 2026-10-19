@@ -2,6 +2,7 @@ import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { sql } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
 import {
   getCompany,
@@ -55,10 +56,11 @@ async function makeSector(name = "Skincare"): Promise<string> {
 }
 
 async function companyIdByApollo(sectorId: string, apolloId: string): Promise<string> {
-  const listed = await listCompanies(handle.db, sectorId, { pageSize: 200 });
-  const found = listed.items.find((c) => c.apolloAccountId === apolloId);
-  if (!found) throw new Error(`missing company ${apolloId}`);
-  return found.id;
+  const rows = (await handle.db.execute(
+    sql`SELECT c.id AS id FROM companies AS c JOIN sector_companies AS m ON m.company_id = c.id WHERE m.sector_id = ${sectorId} AND c.apollo_account_id = ${apolloId}`,
+  )) as unknown as { id: string }[];
+  if (!rows[0]) throw new Error(`missing company ${apolloId}`);
+  return rows[0].id;
 }
 
 describe("csv imports", () => {
@@ -154,7 +156,11 @@ describe("csv imports", () => {
       sharedDomain: true,
       pageSize: 200,
     });
-    expect(shared.items.map((c) => c.apolloAccountId).sort()).toEqual(["AP-1005", "AP-1006"]);
+    const want = new Set([
+      await companyIdByApollo(sectorId, "AP-1005"),
+      await companyIdByApollo(sectorId, "AP-1006"),
+    ]);
+    expect(new Set(shared.items.map((c) => c.id))).toEqual(want);
     const unshared = await listCompanies(handle.db, sectorId, {
       sharedDomain: false,
       pageSize: 200,

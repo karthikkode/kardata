@@ -203,6 +203,14 @@ async function main(): Promise<void> {
     console.log(`company_list durations over 20 combos: p50=${percentile(durations, 50).toFixed(1)}ms p95=${p95.toFixed(1)}ms max=${durations[durations.length - 1]?.toFixed(1)}ms`);
     check(p95 < 300, `company_list p95 = ${p95.toFixed(1)}ms (want < 300ms)`, failures);
 
+    const sample = (await call("company_list", { sectorId, pageSize: 50 })) as unknown as {
+      items: unknown[];
+    };
+    const pageBytes = Buffer.byteLength(JSON.stringify(sample.items), "utf8");
+    console.log(
+      `50-row page payload: ${(pageBytes / 1024).toFixed(1)} KB (${pageBytes} bytes, ${sample.items.length} rows)`,
+    );
+
     if (failures.length === 0) {
       await call("sector_delete", { sectorId, confirmName: SECTOR });
       console.log("ok: smoke sector cleaned up");

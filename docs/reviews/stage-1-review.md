@@ -55,3 +55,11 @@ Branch `v2`: bootstrap + 8 step commits. Full suite 7 files / 98 tests green; li
 - Real CSVs never copied into the repo (`SMOKE_CSV_PATHS` only); fixtures synthetic.
 - Adhoc empty dirs (`backend/`, `mcp/`) + stray AGENTS.md lines removed per plan layout.
 - p95 headroom ~44%; payload dominated by raw JSONB per row.
+
+## Stage 1.1 — slim list rows + SQL filtering (fix pass)
+
+- List item is the exact 16-field slim shape (`src/domain/companies.ts:144`); full fields stay in `company_get`. New test locks shape + size: 50-page from fixture < 30 KB (`tests/db/companies.test.ts:379`).
+- Filtering/sorting/paging/facets moved into SQL over one effective-values helper (`src/domain/effective.ts:23`, `COALESCE(overrides->>…)` + derived domain); `raw` never selected, sector never fully loaded. LIMIT/OFFSET + second COUNT; facets via GROUP BY + unnest, top 50.
+- The 30 list ground-truth cases + facets ground-truth tests pass with bodies unchanged. Only adaptations: the two `companyIdByApollo` test helpers resolve ids via SQL (slim rows drop apollo ids), and the imports shared-domain assertion compares id sets.
+- Smoke re-run (fresh dev DB): all Stage 6 checks pass; `company_list` p95 = 120.0ms over 20 combos @50 (p50 9.3ms, max 136.8ms; was 168.1ms); one 50-row page = 18.7 KB (was ~200 KB).
+- Note: p95 is set by the 4 keyword-search combos (unnest + ILIKE over large keyword arrays). A pg_trgm GIN index would cut that if it ever matters — not added (out of scope).

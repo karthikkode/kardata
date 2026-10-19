@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, count, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import { companies, sectorCompanies, sectors, type Company } from "../db/schema.js";
 import type { Db, DbLike } from "../db/client.js";
 import { normalizeDomain } from "../lib/apollo/parse.js";
+import { effectiveCompanies } from "./effective.js";
 import { DomainError } from "./errors.js";
 
 export type OverrideMap = Record<string, unknown>;
@@ -140,8 +141,23 @@ export interface CompanyView extends EffectiveCompany {
   sectors: CompanySectorMembership[];
 }
 
-export interface CompanyListItem extends EffectiveCompany {
+export interface CompanyListItem {
+  id: string;
+  name: string | null;
+  domain: string | null;
+  website: string | null;
+  country: string | null;
+  city: string | null;
+  employees: number | null;
+  industry: string | null;
+  foundedYear: number | null;
+  annualRevenue: string | null;
+  totalFunding: string | null;
+  technologyCount: number;
+  sharedDomain: boolean;
+  source: "apollo" | "manual";
   removed: boolean;
+  hasOverrides: boolean;
 }
 
 function pick<T>(row: Company, overrides: OverrideMap, key: keyof Company): T {
@@ -509,15 +525,15 @@ export interface CompanyListResult {
 
 const SORTS: CompanySort[] = ["name", "employees", "founded", "revenue"];
 
-function compareStrings(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
+function escapeLike(q: string): string {
+  return `%${q.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_")}%`;
 }
 
-function compareNullableNumber(a: number | null, b: number | null, dir: 1 | -1): number {
-  if (a === null && b === null) return 0;
-  if (a === null) return 1;
-  if (b === null) return -1;
-  return (a - b) * dir;
+function inList(values: string[]): SQL {
+  return sql`(${sql.join(
+    values.map((v) => sql`${v}`),
+    sql`, `,
+  )})`;
 }
 
 export async function listCompanies(
@@ -559,76 +575,112 @@ export async function listCompanies(
     if (!Array.isArray(value)) throw new DomainError("invalid_input", `${label} must be an array`);
   }
 
-  const dir: 1 | -1 = order === "asc" ? 1 : -1;
-  const memberships = await db
-    .select({ company: companies, removedAt: sectorCompanies.removedAt })
-    .from(sectorCompanies)
-    .innerJoin(companies, eq(sectorCompanies.companyId, companies.id))
-    .where(eq(sectorCompanies.sectorId, sectorId));
-
-  const query = search.trim().toLowerCase();
-  const bands = new Set(employeeBand);
-  const countries = new Set(country);
-  const industries = new Set(industry);
-  const techs = new Set(technologiesAny.map((t) => t.toLowerCase()));
-
-  const items: CompanyListItem[] = [];
-  for (const { company, removedAt } of memberships) {
-    const removed = removedAt !== null;
-    if (removed && !includeRemoved) continue;
-    const effective = toEffectiveCompany(company);
-    if (query !== "") {
-      const hay = [effective.name ?? "", effective.domain ?? ""].map((s) => s.toLowerCase());
-      const inNameOrDomain = hay.some((s) => s.includes(query));
-      const inKeywords = effective.keywords.some((k) => k.toLowerCase().includes(query));
-      if (!inNameOrDomain && !inKeywords) continue;
-    }
-    if (countries.size > 0 && (effective.country === null || !countries.has(effective.country))) {
-      continue;
-    }
-    if (industries.size > 0 && (effective.industry === null || !industries.has(effective.industry))) {
-      continue;
-    }
-    if (bands.size > 0) {
-      const band = bandOf(effective.employees);
-      if (band === null || !bands.has(band)) continue;
-    }
-    if (techs.size > 0) {
-      const have = effective.technologies.map((t) => t.toLowerCase());
-      if (!have.some((t) => techs.has(t))) continue;
-    }
-    if (hasFunding !== undefined && (effective.totalFunding !== null) !== hasFunding) continue;
-    if (sharedDomain !== undefined && effective.sharedDomain !== sharedDomain) continue;
-    items.push({ ...effective, removed });
+  const e = effectiveCompanies(db);
+  const conds: SQL[] = [eq(sectorCompanies.sectorId, sectorId)];
+  if (!includeRemoved) conds.push(isNull(sectorCompanies.removedAt));
+  const query = search.trim();
+  if (query !== "") {
+    const q = escapeLike(query);
+    conds.push(
+      sql`(${e.name} ILIKE ${q} OR ${e.domain} ILIKE ${q} OR EXISTS (SELECT 1 FROM unnest(${e.keywords}) AS k WHERE k ILIKE ${q}))`,
+    );
   }
+  if (country.length > 0) conds.push(sql`${e.country} IN ${inList(country)}`);
+  if (industry.length > 0) conds.push(sql`${e.industry} IN ${inList(industry)}`);
+  if (employeeBand.length > 0) {
+    const preds = employeeBand.map((band) =>
+      band === "1-10"
+        ? sql`(${e.employees} BETWEEN 1 AND 10)`
+        : band === "11-50"
+          ? sql`(${e.employees} BETWEEN 11 AND 50)`
+          : band === "51-200"
+            ? sql`(${e.employees} BETWEEN 51 AND 200)`
+            : band === "201-500"
+              ? sql`(${e.employees} BETWEEN 201 AND 500)`
+              : sql`(${e.employees} >= 501)`,
+    );
+    conds.push(sql`(${sql.join(preds, sql` OR `)})`);
+  }
+  if (technologiesAny.length > 0) {
+    const techs = technologiesAny.map((t) => t.toLowerCase());
+    conds.push(
+      sql`EXISTS (SELECT 1 FROM unnest(${e.technologies}) AS t WHERE lower(t) IN ${inList(techs)})`,
+    );
+  }
+  if (hasFunding !== undefined) {
+    conds.push(hasFunding ? sql`${e.totalFunding} IS NOT NULL` : sql`${e.totalFunding} IS NULL`);
+  }
+  if (sharedDomain !== undefined) conds.push(eq(e.sharedDomain, sharedDomain));
+  const where = and(...conds);
 
-  items.sort((a, b) => {
-    let cmp: number;
-    switch (sort) {
-      case "name":
-        cmp = compareStrings((a.name ?? "").toLowerCase(), (b.name ?? "").toLowerCase()) * dir;
-        break;
-      case "employees":
-        cmp = compareNullableNumber(a.employees, b.employees, dir);
-        break;
-      case "founded":
-        cmp = compareNullableNumber(a.foundedYear, b.foundedYear, dir);
-        break;
-      case "revenue":
-        cmp = compareNullableNumber(
-          a.annualRevenue === null ? null : Number(a.annualRevenue),
-          b.annualRevenue === null ? null : Number(b.annualRevenue),
-          dir,
-        );
-        break;
-    }
-    return cmp !== 0 ? cmp : compareStrings(a.id, b.id);
-  });
+  const direction = order === "asc" ? sql`ASC` : sql`DESC`;
+  const orderBy =
+    sort === "name"
+      ? sql`lower(COALESCE(${e.name}, '')) COLLATE "C" ${direction}, ${e.id} ASC`
+      : sort === "employees"
+        ? sql`${e.employees} ${direction} NULLS LAST, ${e.id} ASC`
+        : sort === "founded"
+          ? sql`${e.foundedYear} ${direction} NULLS LAST, ${e.id} ASC`
+          : sql`${e.annualRevenue} ${direction} NULLS LAST, ${e.id} ASC`;
 
-  const total = items.length;
+  const rows = await db
+    .select({
+      id: e.id,
+      name: e.name,
+      domain: e.domain,
+      website: e.website,
+      country: e.country,
+      city: e.city,
+      employees: e.employees,
+      industry: e.industry,
+      foundedYear: e.foundedYear,
+      annualRevenue: e.annualRevenue,
+      totalFunding: e.totalFunding,
+      technologyCount: sql<number>`cardinality(${e.technologies})`,
+      sharedDomain: e.sharedDomain,
+      source: e.source,
+      removedAt: sectorCompanies.removedAt,
+      hasOverrides: e.hasOverrides,
+    })
+    .from(e)
+    .innerJoin(sectorCompanies, eq(sectorCompanies.companyId, e.id))
+    .where(where)
+    .orderBy(orderBy)
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
+  const counted = await db
+    .select({ n: count().mapWith(Number) })
+    .from(e)
+    .innerJoin(sectorCompanies, eq(sectorCompanies.companyId, e.id))
+    .where(where);
+  const total = counted[0]?.n ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const start = (page - 1) * pageSize;
-  return { items: items.slice(start, start + pageSize), total, page, pageSize, totalPages };
+  return {
+    items: rows.map(
+      (r): CompanyListItem => ({
+        id: r.id,
+        name: r.name,
+        domain: r.domain,
+        website: r.website,
+        country: r.country,
+        city: r.city,
+        employees: r.employees,
+        industry: r.industry,
+        foundedYear: r.foundedYear,
+        annualRevenue: r.annualRevenue,
+        totalFunding: r.totalFunding,
+        technologyCount: r.technologyCount,
+        sharedDomain: r.sharedDomain,
+        source: r.source,
+        removed: r.removedAt !== null,
+        hasOverrides: r.hasOverrides,
+      }),
+    ),
+    total,
+    page,
+    pageSize,
+    totalPages,
+  };
 }
 
 export interface FacetEntry {
@@ -643,41 +695,68 @@ export interface Facets {
   technologies: FacetEntry[];
 }
 
-function topEntries(counts: Map<string, number>, limit: number): FacetEntry[] {
-  return [...counts.entries()]
-    .map(([value, count]) => ({ value, count }))
-    .sort((a, b) => b.count - a.count || compareStrings(a.value, b.value))
-    .slice(0, limit);
-}
-
 export async function facets(db: Db, sectorId: string): Promise<Facets> {
   await requireSector(db, sectorId);
-  const rows = await db
-    .select({ company: companies, removedAt: sectorCompanies.removedAt })
-    .from(sectorCompanies)
-    .innerJoin(companies, eq(sectorCompanies.companyId, companies.id))
-    .where(eq(sectorCompanies.sectorId, sectorId));
-  const countries = new Map<string, number>();
-  const industries = new Map<string, number>();
-  const technologies = new Map<string, number>();
-  const bands = new Map<EmployeeBand, number>(EMPLOYEE_BANDS.map((b) => [b, 0]));
-  for (const { company, removedAt } of rows) {
-    if (removedAt !== null) continue;
-    const effective = toEffectiveCompany(company);
-    if (effective.country !== null) countries.set(effective.country, (countries.get(effective.country) ?? 0) + 1);
-    if (effective.industry !== null) {
-      industries.set(effective.industry, (industries.get(effective.industry) ?? 0) + 1);
-    }
-    const band = bandOf(effective.employees);
-    if (band !== null) bands.set(band, (bands.get(band) ?? 0) + 1);
-    for (const tech of new Set(effective.technologies)) {
-      technologies.set(tech, (technologies.get(tech) ?? 0) + 1);
-    }
-  }
+  const e = effectiveCompanies(db);
+  const live = and(eq(sectorCompanies.sectorId, sectorId), isNull(sectorCompanies.removedAt));
+
+  const countryRows = await db
+    .select({
+      value: sql<string | null>`${e.country}`.as("value"),
+      count: sql<number>`COUNT(*)::int`.as("count"),
+    })
+    .from(e)
+    .innerJoin(sectorCompanies, eq(sectorCompanies.companyId, e.id))
+    .where(and(live, sql`${e.country} IS NOT NULL`))
+    .groupBy(e.country)
+    .orderBy(sql`count DESC, value`);
+  const industryRows = await db
+    .select({
+      value: sql<string | null>`${e.industry}`.as("value"),
+      count: sql<number>`COUNT(*)::int`.as("count"),
+    })
+    .from(e)
+    .innerJoin(sectorCompanies, eq(sectorCompanies.companyId, e.id))
+    .where(and(live, sql`${e.industry} IS NOT NULL`))
+    .groupBy(e.industry)
+    .orderBy(sql`count DESC, value`);
+  const [bandRow] = await db
+    .select({
+      b1: sql<number>`COUNT(*) FILTER (WHERE ${e.employees} BETWEEN 1 AND 10)::int`,
+      b2: sql<number>`COUNT(*) FILTER (WHERE ${e.employees} BETWEEN 11 AND 50)::int`,
+      b3: sql<number>`COUNT(*) FILTER (WHERE ${e.employees} BETWEEN 51 AND 200)::int`,
+      b4: sql<number>`COUNT(*) FILTER (WHERE ${e.employees} BETWEEN 201 AND 500)::int`,
+      b5: sql<number>`COUNT(*) FILTER (WHERE ${e.employees} >= 501)::int`,
+    })
+    .from(e)
+    .innerJoin(sectorCompanies, eq(sectorCompanies.companyId, e.id))
+    .where(live);
+  const techInner = db
+    .select({ t: sql<string>`unnest(${e.technologies})`.as("t") })
+    .from(e)
+    .innerJoin(sectorCompanies, eq(sectorCompanies.companyId, e.id))
+    .where(live)
+    .as("s");
+  const techRows = await db
+    .select({
+      value: sql<string>`${techInner.t}`.as("value"),
+      count: sql<number>`COUNT(*)::int`.as("count"),
+    })
+    .from(techInner)
+    .groupBy(techInner.t)
+    .orderBy(sql`count DESC, value`)
+    .limit(50);
+
+  const bands = bandRow ?? { b1: 0, b2: 0, b3: 0, b4: 0, b5: 0 };
+  const defined = (rows: { value: string | null; count: number }[]): FacetEntry[] =>
+    rows.flatMap((r) => (r.value === null ? [] : [{ value: r.value, count: r.count }]));
   return {
-    countries: topEntries(countries, Number.MAX_SAFE_INTEGER),
-    industries: topEntries(industries, Number.MAX_SAFE_INTEGER),
-    employeeBands: EMPLOYEE_BANDS.map((band) => ({ band, count: bands.get(band) ?? 0 })),
-    technologies: topEntries(technologies, 50),
+    countries: defined(countryRows),
+    industries: defined(industryRows),
+    employeeBands: EMPLOYEE_BANDS.map((band, i) => ({
+      band,
+      count: [bands.b1, bands.b2, bands.b3, bands.b4, bands.b5][i] ?? 0,
+    })),
+    technologies: defined(techRows),
   };
 }
