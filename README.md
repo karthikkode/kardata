@@ -12,7 +12,21 @@ docker compose up -d
 npm run db:migrate
 npm run dev            # health: GET /healthz
 ```
-Scripts: `dev` `build` `start` `lint` `typecheck` `test` `db:generate` `db:migrate` `smoke:real`
+Scripts: `dev` `build` `start` `lint` `typecheck` `test` `db:generate` `db:migrate` `smoke:real` `harness:setup`
+
+## Agent harness (app-owned Muse)
+
+Research agents run inside the `kardata-agent` image with an app-owned Muse
+login stored in the `kardata_muse` volume — never the owner's personal Muse.
+One-time, interactive:
+
+```sh
+npm run harness:setup   # build + install launcher + `muse login` (device code); writes KARDATA_MUSE_VERSION to .env
+```
+
+`kardata-server` refuses to boot when the volume's installed version differs
+from `KARDATA_MUSE_VERSION`. Re-run `harness:setup` to upgrade (it rewrites
+the pin after a successful login).
 
 ## Register the MCP server
 
