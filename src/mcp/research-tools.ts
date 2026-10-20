@@ -2,14 +2,14 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Db } from "../db/client.js";
 import { fetchUrl } from "../collect/fetch.js";
-import { addFacts } from "../domain/research/facts.js";
-import { upsertRecords } from "../domain/research/records.js";
+import { FACT_BATCH_MAX, addFacts } from "../domain/research/facts.js";
+import { RECORD_BATCH_MAX, upsertRecords } from "../domain/research/records.js";
 import { listRegistry, describeRegistryEntry, curateRegistryEntry } from "../domain/research/registry.js";
 import { saveDocument } from "../domain/research/documents.js";
 import { addFinding } from "../domain/research/findings.js";
 import { setAreaStatus } from "../domain/research/status.js";
 import { captureSource } from "../domain/research/sources.js";
-import { reviewsIngest } from "../domain/research/reviews.js";
+import { REVIEWS_BATCH_MAX, reviewsIngest } from "../domain/research/reviews.js";
 import { exportCompany } from "../domain/research/export.js";
 import {
   blobText,
@@ -28,6 +28,7 @@ import {
   searchAll,
 } from "../domain/research/reads.js";
 import { cancelRun, getOrCreateManualRun, startCollect } from "../runs/queue.js";
+import { DomainError } from "../domain/errors.js";
 import { companyId, runId, wrap } from "./tools.js";
 
 const areaName = z.string().describe("Research area");
@@ -382,6 +383,9 @@ export function registerResearchTools(server: McpServer, db: Db): void {
     },
     async ({ companyId, runId, facts }) =>
       wrap(async () => {
+        if (facts.length > FACT_BATCH_MAX) {
+          throw new DomainError("invalid_input", `at most ${FACT_BATCH_MAX} facts per call`);
+        }
         const run = runId ?? (await getOrCreateManualRun(db, companyId));
         const results = await addFacts(db, {
           companyId,
@@ -425,6 +429,9 @@ export function registerResearchTools(server: McpServer, db: Db): void {
     },
     async ({ companyId, runId, records }) =>
       wrap(async () => {
+        if (records.length > RECORD_BATCH_MAX) {
+          throw new DomainError("invalid_input", `at most ${RECORD_BATCH_MAX} records per call`);
+        }
         const run = runId ?? (await getOrCreateManualRun(db, companyId));
         const results = await upsertRecords(db, {
           companyId,
@@ -475,6 +482,9 @@ export function registerResearchTools(server: McpServer, db: Db): void {
     },
     async ({ companyId, runId, platform, sourceId, reviews }) =>
       wrap(async () => {
+        if (reviews.length > REVIEWS_BATCH_MAX) {
+          throw new DomainError("invalid_input", `at most ${REVIEWS_BATCH_MAX} reviews per call`);
+        }
         const run = runId ?? (await getOrCreateManualRun(db, companyId));
         const result = await reviewsIngest(db, {
           companyId,

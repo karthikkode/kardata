@@ -155,12 +155,41 @@ describe("shopify collector", () => {
     expect(serum?.sourceIds.length).toBeGreaterThan(0);
   });
 
+  it("stores a 1,200-product catalog across chunked writes", async () => {
+    const catalog = Array.from({ length: 1200 }, (_, i) => ({
+      id: 1000 + i,
+      title: `Product ${i}`,
+      handle: `product-${i}`,
+      product_type: "Skincare",
+      tags: "",
+      created_at: oldIso,
+      published_at: oldIso,
+      variants: [{ price: "10.00" }],
+    }));
+    site.routes.set("/products.json", (_req, res, url) => {
+      const page = Number(url.searchParams.get("page") ?? "1");
+      sendJson(res, { products: catalog.slice((page - 1) * 250, page * 250) });
+    });
+    const ctx = await collectorCtx(handle.db, site, companyId, runId);
+    const result = await shopifyCollector.run(ctx);
+    expect(result.outcomes).toEqual([{ area: "product", status: "done" }]);
+    expect(await recordsForRun(handle.db, runId)).toHaveLength(1200);
+    const factRows = await factsForRun(handle.db, runId);
+    expect(factRows.find((f) => f.key === "product.count")?.valueNum).toBe("1200");
+  });
+
   it("reports not_found when /products.json is missing and tech is silent", async () => {
     const ctx = await collectorCtx(handle.db, site, companyId, runId);
     ctx.effective.technologies = ["WordPress"];
     const result = await shopifyCollector.run(ctx);
     expect(result.outcomes).toEqual([
-      { area: "product", status: "not_found", reason: "not a Shopify store (no /products.json)" },
+      {
+        area: "product",
+        status: "not_found",
+        reason:
+          "not a Shopify store (tried /products.json, /collections/all/products.json; " +
+          `last ${site.baseUrl}/collections/all/products.json?limit=1 → HTTP 404 text/plain)`,
+      },
     ]);
     expect(ctx.shared.shopify?.isShopify).toBe(false);
   });
@@ -172,9 +201,52 @@ describe("shopify collector", () => {
       {
         area: "product",
         status: "not_found",
-        reason: "Apollo lists Shopify but /products.json does not answer JSON",
+        reason:
+          "Apollo lists Shopify but no products JSON (tried /products.json, /collections/all/products.json; " +
+          `last ${site.baseUrl}/collections/all/products.json?limit=1 → HTTP 404 text/plain)`,
       },
     ]);
+  });
+
+  it("falls back to /collections/all/products.json", async () => {
+    site.routes.set("/collections/all/products.json", (_req, res, url) => {
+      if (url.searchParams.get("page") === "2") sendJson(res, { products: [] });
+      else sendJson(res, productsFixture());
+    });
+    const ctx = await collectorCtx(handle.db, site, companyId, runId);
+    const result = await shopifyCollector.run(ctx);
+    expect(result.outcomes).toEqual([{ area: "product", status: "done" }]);
+    expect(ctx.shared.shopify?.productsUrl).toBe(`${site.baseUrl}/collections/all/products.json`);
+    expect(await recordsForRun(handle.db, runId)).toHaveLength(3);
+  });
+
+  it("falls back to the homepage locale prefix", async () => {
+    site.routes.set("/en-us/products.json", (_req, res, url) => {
+      if (url.searchParams.get("page") === "2") sendJson(res, { products: [] });
+      else sendJson(res, productsFixture());
+    });
+    const ctx = await collectorCtx(handle.db, site, companyId, runId);
+    ctx.shared.site = {
+      homepage: {
+        url: site.baseUrl,
+        finalUrl: site.baseUrl,
+        sourceId: "00000000-0000-0000-0000-000000000000",
+        title: "stub",
+        html: '<html><head><link rel="alternate" hreflang="en-us" href="https://stub.invalid/en-us/" /></head></html>',
+        text: "",
+        links: [],
+        scripts: [],
+        jsonLd: [],
+      },
+      pages: [],
+      productUrls: [],
+      sitemapUrls: [],
+      socialLinks: [],
+    };
+    const result = await shopifyCollector.run(ctx);
+    expect(result.outcomes).toEqual([{ area: "product", status: "done" }]);
+    expect(ctx.shared.shopify?.productsUrl).toBe(`${site.baseUrl}/en-us/products.json`);
+    expect(await recordsForRun(handle.db, runId)).toHaveLength(3);
   });
 
   it("reports blocked when the probe is blocked", async () => {

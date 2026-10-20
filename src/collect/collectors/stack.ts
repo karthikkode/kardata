@@ -1,4 +1,4 @@
-import { STACK_MAP } from "../stack-map.js";
+import { IGNORED_TECHNOLOGIES, STACK_MAP } from "../stack-map.js";
 import type { AddFactItem } from "../../domain/research/facts.js";
 import { findApolloImportSource } from "../../domain/research/sources.js";
 import type { Collector, CollectorCtx } from "./types.js";
@@ -6,13 +6,25 @@ import { writeExtract, writeFacts } from "./util.js";
 
 type HitOrigin = "apollo" | "page";
 
+// Marketplace-group tools that evidence selling on a marketplace (Amazon Pay
+// is only a payment button, so it stays a tool fact without this fact).
+const MARKETPLACE_SLUGS: Record<string, string> = {
+  Walmart: "walmart",
+  eBay: "ebay",
+  "Buy with Prime": "amazon",
+  "Helium 10": "amazon",
+};
+
 export const stackCollector: Collector = {
   name: "stack",
   areas: ["marketing", "business_model"],
   // No network: Apollo technologies plus the homepage scripts already fetched.
   run: async (ctx: CollectorCtx) => {
     const scripts = ctx.shared.site?.homepage?.scripts ?? [];
-    const techHay = ctx.effective.technologies.join("\n").toLowerCase();
+    const techHay = ctx.effective.technologies
+      .map((t) => t.toLowerCase().trim())
+      .filter((t) => !IGNORED_TECHNOLOGIES.has(t))
+      .join("\n");
     const scriptHay = scripts.join("\n").toLowerCase();
     const hits = new Map<string, string[]>();
     // Per-tool and per-channel provenance: which haystack each detection came
@@ -135,6 +147,19 @@ export const stackCollector: Collector = {
       const ids = idsFor(groupOrigins(group));
       if (ids.length === 0) continue;
       factItems.push({ key, value: true, sourceIds: ids, confidence: "medium" });
+    }
+    for (const tool of hits.get("marketplace") ?? []) {
+      const slug = MARKETPLACE_SLUGS[tool];
+      if (!slug) continue;
+      const ids = idsFor(toolOrigins.get(tool) ?? new Set());
+      if (ids.length === 0) continue;
+      factItems.push({
+        key: "business_model.marketplace",
+        value: true,
+        qualifiers: { marketplace: slug },
+        sourceIds: ids,
+        confidence: "medium",
+      });
     }
     await writeFacts(ctx, "stack", factItems);
     return {

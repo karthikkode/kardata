@@ -12,6 +12,7 @@ import {
 } from "../../db/schema.js";
 import { DomainError } from "../errors.js";
 import {
+  chunked,
   inferValueType,
   isValidDateString,
   nearDuplicates,
@@ -56,9 +57,9 @@ interface FactWriteContext {
 }
 
 export async function addFacts(db: DbLike, input: AddFactsInput): Promise<AddFactResult[]> {
-  if (input.facts.length > FACT_BATCH_MAX) {
-    throw new DomainError("invalid_input", `at most ${FACT_BATCH_MAX} facts per call`);
-  }
+  // No cap: the MCP layer enforces the per-call limit. Slices stay
+  // independent statements (no wrapping transaction), so one bad item
+  // cannot roll back its neighbors — per-item ok/error is the contract.
   const [company] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, input.companyId));
   if (!company) throw new DomainError("not_found", `company not found: ${input.companyId}`);
   if (input.runId) {
@@ -89,11 +90,13 @@ export async function addFacts(db: DbLike, input: AddFactsInput): Promise<AddFac
   }
 
   const results: AddFactResult[] = [];
-  for (const item of input.facts) {
-    try {
-      results.push(await insertFact(db, ctx, item));
-    } catch (err) {
-      results.push({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  for (const slice of chunked(input.facts, FACT_BATCH_MAX)) {
+    for (const item of slice) {
+      try {
+        results.push(await insertFact(db, ctx, item));
+      } catch (err) {
+        results.push({ ok: false, error: err instanceof Error ? err.message : String(err) });
+      }
     }
   }
   return results;

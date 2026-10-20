@@ -31,11 +31,59 @@ export const HOST_DELAY_MS = 2000;
 
 // Ops/test knob for the per-host delay. Production leaves it unset (2000 ms);
 // collector tests point every endpoint at one fake host and set it low.
-export function hostDelayMs(): number {
+const HOST_DELAY_OVERRIDES_MS: Record<string, number> = {
+  // GDELT DOC 2.0 throttles to ~1 request per 5 seconds per IP.
+  "api.gdeltproject.org": 6000,
+};
+
+function hostDelayOverrides(): Record<string, number> {
+  const out = { ...HOST_DELAY_OVERRIDES_MS };
+  const raw = process.env.KARDATA_HOST_DELAYS ?? "";
+  for (const part of raw.split(",")) {
+    const [host, ms] = part.split("=").map((s) => s.trim());
+    const n = Number(ms);
+    if (host && Number.isFinite(n) && n >= 0) out[host.toLowerCase()] = n;
+  }
+  return out;
+}
+
+export function hostDelayMs(host: string): number {
+  const overrides = hostDelayOverrides();
+  const key = host.toLowerCase();
+  // Slots are keyed by host:port; overrides by bare hostname.
+  const bare = !key.startsWith("[") && key.includes(":") ? (key.split(":")[0] ?? key) : key;
+  const override = overrides[key] ?? overrides[bare];
+  if (override !== undefined) return override;
   const raw = process.env.KARDATA_HOST_DELAY_MS;
   if (raw === undefined || raw === "") return HOST_DELAY_MS;
   const n = Number(raw);
   return Number.isFinite(n) && n >= 0 ? n : HOST_DELAY_MS;
+}
+
+export const RETRY_429_MAX = 2;
+export const RETRY_429_DEFAULT_WAIT_MS = 10_000;
+const RETRY_429_MAX_WAIT_MS = 60_000;
+
+// Test knob for the default 429 wait (production honors Retry-After or 10 s).
+function retry429WaitMs(): number {
+  const raw = process.env.KARDATA_429_WAIT_MS;
+  if (raw === undefined || raw === "") return RETRY_429_DEFAULT_WAIT_MS;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : RETRY_429_DEFAULT_WAIT_MS;
+}
+
+function retryAfterMs(header: string | null): number {
+  if (header !== null) {
+    const seconds = Number(header.trim());
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return Math.min(seconds * 1000, RETRY_429_MAX_WAIT_MS);
+    }
+    const at = Date.parse(header);
+    if (!Number.isNaN(at)) {
+      return Math.min(Math.max(0, at - Date.now()), RETRY_429_MAX_WAIT_MS);
+    }
+  }
+  return retry429WaitMs();
 }
 export const RUN_REQUEST_BUDGET = 80;
 const ROBOTS_TTL_MS = 60 * 60 * 1000;
@@ -196,7 +244,7 @@ async function withHostSlot<T>(host: string, fn: () => Promise<T>): Promise<T> {
   hostSlots.set(host, slot);
   await prev;
   try {
-    const delay = hostDelayMs();
+    const delay = hostDelayMs(host);
     const wait = Math.max(0, delay - (Date.now() - (lastFetchAt.get(host) ?? 0)));
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     stampHost(host);
@@ -252,6 +300,8 @@ export interface FetchOptions {
   maxBytes?: number;
   maxRedirects?: number;
   privateHostAllowlist?: string[];
+  // Full User-Agent override (e.g. the SEC's contact form). Default userAgent().
+  userAgent?: string;
   // Extra request headers (e.g. Authorization). Never persisted to sources/events.
   headers?: Record<string, string>;
 }
@@ -262,12 +312,14 @@ interface ResolvedFetchOptions {
   maxBytes: number;
   maxRedirects: number;
   privateHostAllowlist: string[];
+  userAgent: string;
   headers: Record<string, string>;
 }
 
 interface RawResponse {
   status: number;
   contentType: string | null;
+  retryAfter: string | null;
   body: Buffer;
   finalUrl: string;
 }
@@ -308,7 +360,7 @@ async function performRequest(startUrl: string, opts: ResolvedFetchOptions): Pro
       res = await fetch(current, {
         redirect: "manual",
         signal: AbortSignal.timeout(opts.timeoutMs),
-        headers: { "user-agent": userAgent(), accept: opts.accept, ...opts.headers },
+        headers: { "user-agent": opts.userAgent, accept: opts.accept, ...opts.headers },
       });
     } catch (err) {
       if (err instanceof Error && err.name === "TimeoutError") {
@@ -340,6 +392,7 @@ async function performRequest(startUrl: string, opts: ResolvedFetchOptions): Pro
     return {
       status: res.status,
       contentType: res.headers.get("content-type"),
+      retryAfter: res.headers.get("retry-after"),
       body,
       finalUrl: current,
     };
@@ -485,6 +538,7 @@ export interface FetchResult {
   source: Source;
   body?: Buffer;
   text?: string;
+  contentType?: string | null;
 }
 
 function resolveOptions(req: FetchRequest): ResolvedFetchOptions {
@@ -494,6 +548,7 @@ function resolveOptions(req: FetchRequest): ResolvedFetchOptions {
     maxBytes: req.maxBytes ?? FETCH_MAX_BYTES,
     maxRedirects: req.maxRedirects ?? FETCH_MAX_REDIRECTS,
     privateHostAllowlist: req.privateHostAllowlist ?? [],
+    userAgent: req.userAgent ?? userAgent(),
     headers: req.headers ?? {},
   };
 }
@@ -540,21 +595,29 @@ export async function fetchUrl(db: Db, req: FetchRequest): Promise<FetchResult> 
     }
     throw err;
   }
-  if (robots.rules && robots.rules.isDisallowed(target.href, userAgent()) === true) {
+  if (robots.rules && robots.rules.isDisallowed(target.href, opts.userAgent) === true) {
     const source = await writeSource(db, { ...base, status: "robots_disallowed" });
     return { source };
   }
 
-  if (!(await reserveRequestSlot(db, req.runId))) {
-    await writeSource(db, { ...base, status: "error", error: new BudgetExceededError().message });
-    throw new BudgetExceededError();
-  }
-
   let res: RawResponse;
-  try {
-    res = await withHostSlot(target.host, () => performRequest(target.href, opts));
-  } catch (err) {
-    return fail(err instanceof Error ? err.message : String(err));
+  let retries = 0;
+  for (;;) {
+    if (!(await reserveRequestSlot(db, req.runId))) {
+      await writeSource(db, { ...base, status: "error", error: new BudgetExceededError().message });
+      throw new BudgetExceededError();
+    }
+    try {
+      res = await withHostSlot(target.host, () => performRequest(target.href, opts));
+    } catch (err) {
+      return fail(err instanceof Error ? err.message : String(err));
+    }
+    // Polite 429 retry for throttled official APIs, honoring Retry-After.
+    // Bot walls answer 403 or challenge pages, never 429, so they still
+    // never retry. Only the final attempt writes a source row.
+    if (res.status !== 429 || retries >= RETRY_429_MAX) break;
+    retries += 1;
+    await new Promise((r) => setTimeout(r, retryAfterMs(res.retryAfter)));
   }
 
   const mapped = statusForHttp(res.status);
@@ -577,7 +640,7 @@ export async function fetchUrl(db: Db, req: FetchRequest): Promise<FetchResult> 
       httpStatus: res.status,
       blob: { body: res.body, contentType: res.contentType },
     });
-    return { source, body: res.body, text };
+    return { source, body: res.body, text, contentType: res.contentType };
   }
   const source = await writeSource(db, {
     ...base,
@@ -585,7 +648,7 @@ export async function fetchUrl(db: Db, req: FetchRequest): Promise<FetchResult> 
     status: mapped,
     httpStatus: res.status,
   });
-  return { source };
+  return { source, contentType: res.contentType };
 }
 
 export interface RobotsTxt {

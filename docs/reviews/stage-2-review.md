@@ -110,3 +110,107 @@ documents, +194 facts, +382 records, +5 runs, +236 events, +35 statuses.
 Projection for 2,559 (×512): ~3.1 GB; ~100k facts, ~200k records, ~46k
 sources; ~17 h at COLLECT_CONCURRENCY=3. Skew warning: one 500+ catalog
 dominates records; GDELT/SEC currently contribute ~nothing (blocked).
+
+## Stage 2.2 (2026-10-20)
+
+1. Chunked domain writes: `chunked()` (`validate.ts`); `addFacts` /
+`upsertRecords` loop slices of the old max, `reviewsIngest` delegates to the
+chunked upsert; the 200/500/500 limits moved to the MCP tools with identical
+messages. Proof: `tests/db/research-model.test.ts` (201 facts ok),
+`tests/mcp/research-tools.test.ts` (all three MCP limits reject),
+`tests/collect/shopify-jobs.test.ts` (1,200-product catalog stores 1,200).
+Deviation: slices are independent statements, NOT one transaction per chunk —
+Postgres aborts a transaction on the first error, which would silently drop
+the per-item ok/error contract. `SHOPIFY_MAX_PAGES` 4→8 (2,000-product cap).
+2. GDELT: per-host delay map (`api.gdeltproject.org` 6 s) plus
+`KARDATA_HOST_DELAYS` env, default still 2 s; 429s retry ≤2 honoring
+Retry-After else 10 s (`KARDATA_429_WAIT_MS` test knob; honored values capped
+at 60 s); 200-non-JSON → error outcome with the first 200 body chars as the
+reason. Proof: `tests/collect/fetch.test.ts` (delay resolution, Retry-After
+recovery, give-up-after-2), news non-JSON test in providers tests.
+3. SEC: `KARDATA_CONTACT_EMAIL` (in `.env.example`, empty); UA
+`Kardata <email>` via a new `FetchOptions.userAgent`; unset → sec_form_d
+skipped with `no KARDATA_CONTACT_EMAIL`. Proof: providers SEC tests (skip +
+captured UA on search and filing).
+4. Shopify: probe `/products.json`, then `/collections/all/products.json`,
+then `/{locale}/products.json` (locale from homepage hreflang, else
+canonical); pages the winner; not_found reason carries tried paths plus the
+last final URL, HTTP status and content-type (`FetchResult.contentType` new).
+Proof: shopify fallback/locale/reason tests (2 old reasons updated).
+5. Stack-map: census of 677 Apollo names ≥10; new groups attribution,
+review_apps, upsell, marketplace; `business_model.marketplace` facts
+(walmart/ebay/amazon); exact-line ignore list (Facebook variants, AdSense,
+Bing Webmaster Tools). Proof: stack coverage + ignored-only tests.
+Full suite: 207/207.
+
+Coverage (name → mapping; ✓ = already mapped, + = new):
+ads/pixel → tool + channel: Facebook Pixel → Meta/meta ✓, Google Ads →
+Google/google ✓, TikTok + TikTok Ads → TikTok pixel/tiktok +,
+Microsoft Advertising + Bing → Microsoft Ads/microsoft ads +,
+YouTube Advertising → YouTube ads/youtube +, DoubleClick ×3 → DoubleClick/google +,
+Pinterest (+ Conversion Tag) → Pinterest tag/pinterest ✓, TikTok Ads (same needle),
+Google Remarketing/Ad Manager/Publisher Tag/Marketing Platform + DV360 → google +,
+LinkedIn Ads/Insight Tag/Marketing Solutions (+ licdn scripts) → linkedin +,
+Twitter Ads (+ ads-twitter scripts) → twitter +, Amazon Advertising/AMS → amazon +,
+Reddit for business → reddit +, AdRoll → adroll +, Criteo → criteo +,
+Taboola → taboola +, Outbrain → outbrain +, The Trade Desk → the trade desk +,
+Xandr → xandr +, 24-7 Media → 24-7 media +, StackAdapt → stackadapt +,
+Simpli.fi → simpli.fi +, TripleLift → triplelift +, Media.net → media.net +,
+Content.ad → content.ad +, Open AdStream → open adstream +,
+Adobe Advertising Cloud → adobe +, Wider Planet → wider planet +,
+Quantcast (×2) → quantcast +, Tapad → tapad +,
+Meta Audience Network → meta +, PixelYourSite + AdNabu → tool only +.
+affiliate → Impact ✓, Refersion ✓, Grin/creator ✓, ShareASale +, Awin +,
+SkimLinks +, Linkshare +, AvantLink +, Everflow +, Amazon Associates +;
+referral → Curebit +, ReferralCandy +, Friendbuy +, AddShoppers +;
+creator → Foursixty +, Curalate +, Moast +, Tolstoy +.
+email/sms → email: Klaviyo ✓ (email+sms), Attentive/Postscript/SMSBump ✓ (sms),
+Mailchimp (+ Mandrill/Stores) ✓, Omnisend ✓, SendGrid (×3) +, Mailgun +,
+Amazon SES (+ Simple Email Service) +, HubSpot (×3) +, Constant Contact +,
+Brevo +, Dotdigital +, MailerLite +, Mailshake +, CampaignMonitor +, Listrak +,
+ActiveCampaign +, Flodesk +, Privy +, Wunderkind +, MailChannels +,
+ElasticEmail +, Mailjet +, smtp2go +, Postmark +.
+review_apps → tool: Yotpo ×4 +, Judge.me +, Shopify Product Reviews +,
+Trustpilot +, Stamped +, Loox +, Reviews.io +, Junip +, Bazaarvoice +,
+PowerReviews +, Google Customer Reviews +, Reviews.co.uk +, Podium +.
+subscriptions → fact: Recharge ✓, Seal ✓, Skio ✓, Bold Commerce +.
+loyalty → Smile.io ✓, LoyaltyLion ✓, Yotpo Loyalty ✓, Swell Rewards +.
+support → Gorgias ✓, Zendesk ✓, Tidio ✓, Intercom ✓, Help Scout +, Reamaze +,
+LiveChat +. bnpl → Afterpay ✓, Klarna (×2) ✓, Affirm ✓, Sezzle +.
+wholesale → Faire ✓, Stockist +, Storeify +. attribution → Triple Whale +,
+Northbeam +, Black Crow +. upsell → Rebuy +, BOGOS +, Upsellit +, OptiMonk +,
+Nosto +. marketplace → Amazon Pay (+ for Business) tool-only +,
+Walmart → walmart +, eBay → ebay +, Buy with Prime → amazon +,
+Helium 10 → amazon +.
+Ignored: Facebook ×6 + AdSense + Bing Webmaster Tools (exact-line filter);
+bare Google (ambiguous); YouTube/Vimeo/Instagram ×3/X/Twitter Sharing+Analytics
+(presence, not spend); TUNE (needle hits iTunes); Zip (unsafe needle);
+payment rails (Apple/Shop/Google Pay, PayPal, Venmo, Stripe, card networks);
+platforms (Shopify ×3, Woo, Magento, Wix ×2, Squarespace ×3, BigCommerce,
+Adobe Commerce, Centra); analytics/CRO (GA ×3, GTM, GSC, Hotjar, Clarity ×2,
+Lucky Orange, MouseFlow, Smartlook, CrazyEgg, Contentsquare, VWO, AB Tasty,
+Convert, Shoplift, Replo); CDP (Segment, Lytics); post-purchase (Loop,
+AfterShip, ParcelPanel); Octane, Typeform, Jotform, Shogun ×2, PageFly,
+GemPages, Beae, Signifyd, WhatsApp ×2, Weglot, Multilingual, HREF Lang.
+
+Smoke re-run #1 (batch `f8551102`, same 5 ids): 5/5 succeeded, NO error areas.
+C5 product now done (chunking fix verified live). C1/C2 product not_found with
+the new reason (tried both paths; last /collections/all/products.json → 404).
+news errored ×5: C1/C4 GDELT 200 with error body, C2/C3/C5 fetch failed; sec
+skipped ×5 — `KARDATA_CONTACT_EMAIL` was NOT set (absent from `.env` and env
+despite the brief), and `COMPANIES_HOUSE_API_KEY` is still empty, so CH
+skipped C4 again. The 200 bodies exposed a real query bug: GDELT answers
+`Queries containing OR'd terms must be surrounded by ()` — the
+`"name" OR domain` query was never parenthesized, so news could never
+succeed. Fixed (`news.ts` always parenthesizes + strips stray quotes; test
+asserts the exact query form) — this fix is required by the clean-gate and is
+included in 2.2.
+
+Gate verdict: NOT pushed. Re-run #1 was not clean (news errored, sec skipped
+for the missing email), and a verification re-run for the news fix was blocked
+by a sticky GDELT IP throttle (HTTP 429 on isolated single probes 15+ min
+apart; further probes risk extending it). To finish: set
+`KARDATA_CONTACT_EMAIL` (+ `COMPANIES_HOUSE_API_KEY`), wait for the GDELT
+cooldown, run `SMOKE_COMPANY_IDS=<same 5> npm run smoke:collect`; if clean
+(no ERROR areas, news + sec done or honest not_found), push `stage-2` and
+open the PR to `main`.

@@ -284,14 +284,14 @@ describe("facts", () => {
     expect(okFact(results[3]).id).toBeTruthy();
   });
 
-  it("rejects an over-size batch and gates everything in strict mode", async () => {
+  it("chunks an over-size batch and gates everything in strict mode", async () => {
     const companyId = await makeCompany();
     const runId = await makeRun(companyId);
     const sourceId = await makeSource(companyId, runId);
     const many = Array.from({ length: 201 }, () => ({ key: "product.count", value: 1, sourceIds: [sourceId] }));
-    await expect(addFacts(handle.db, { companyId, runId, createdBy: "owner", facts: many })).rejects.toThrow(
-      /at most 200/,
-    );
+    const chunked = await addFacts(handle.db, { companyId, runId, createdBy: "owner", facts: many });
+    expect(chunked).toHaveLength(201);
+    expect(chunked.every((r) => r.ok)).toBe(true);
     const results = await addFacts(handle.db, {
       companyId,
       runId,

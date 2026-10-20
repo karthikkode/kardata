@@ -34,8 +34,11 @@ export const newsCollector: Collector = {
         ],
       };
     }
-    const clauses = [`"${name}"`, domain].filter((c) => c !== "" && c !== '""');
-    const query = clauses.join(" OR ");
+    // GDELT rejects OR'd terms outside parens (HTTP 200 with an error body),
+    // so the query is always parenthesized; stray quotes would break it.
+    const clean = (s: string) => s.replace(/"/g, "").trim();
+    const clauses = [`"${clean(name)}"`, clean(domain)].filter((c) => c !== "" && c !== '""');
+    const query = `(${clauses.join(" OR ")})`;
     const url =
       `${ctx.endpoints.gdelt}/api/v2/doc/doc?` +
       `query=${encodeURIComponent(query)}&mode=artlist&format=json` +
@@ -64,7 +67,7 @@ export const newsCollector: Collector = {
       }));
     } catch {
       return {
-        outcomes: [{ area: "decisions", status: "error", reason: "GDELT returned invalid JSON" }],
+        outcomes: [{ area: "decisions", status: "error", reason: res.text.slice(0, 200) }],
       };
     }
     const needles = [name.toLowerCase(), domain.toLowerCase()].filter((n) => n !== "");

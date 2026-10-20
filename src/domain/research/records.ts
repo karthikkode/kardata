@@ -12,6 +12,7 @@ import {
 } from "../../db/schema.js";
 import { DomainError } from "../errors.js";
 import {
+  chunked,
   inferValueType,
   nearDuplicates,
   sanitizeTypeName,
@@ -54,9 +55,9 @@ export async function upsertRecords(
   db: DbLike,
   input: UpsertRecordsInput,
 ): Promise<UpsertRecordResult[]> {
-  if (input.records.length > RECORD_BATCH_MAX) {
-    throw new DomainError("invalid_input", `at most ${RECORD_BATCH_MAX} records per call`);
-  }
+  // No cap: the MCP layer enforces the per-call limit. Slices stay
+  // independent statements (no wrapping transaction), so one bad item
+  // cannot roll back its neighbors — per-item ok/error is the contract.
   const [company] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, input.companyId));
   if (!company) throw new DomainError("not_found", `company not found: ${input.companyId}`);
   if (input.runId) {
@@ -87,11 +88,13 @@ export async function upsertRecords(
   }
 
   const results: UpsertRecordResult[] = [];
-  for (const item of input.records) {
-    try {
-      results.push(await upsertOne(db, ctx, item));
-    } catch (err) {
-      results.push({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  for (const slice of chunked(input.records, RECORD_BATCH_MAX)) {
+    for (const item of slice) {
+      try {
+        results.push(await upsertOne(db, ctx, item));
+      } catch (err) {
+        results.push({ ok: false, error: err instanceof Error ? err.message : String(err) });
+      }
     }
   }
   return results;

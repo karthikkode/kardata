@@ -1,9 +1,11 @@
 import type { AddFactItem } from "../../domain/research/facts.js";
 import type { UpsertRecordItem } from "../../domain/research/records.js";
+import type { FetchResult } from "../fetch.js";
 import type { Collector, CollectorCtx, ShopifyProduct } from "./types.js";
 import {
   collectFetch,
   fetchFailure,
+  loadHtml,
   median,
   siteBase,
   writeExtract,
@@ -11,7 +13,9 @@ import {
   writeRecords,
 } from "./util.js";
 
-const SHOPIFY_MAX_PAGES = 4;
+// 250 products per page, at most 8 pages: 2,000-product catalogs fit while
+// one collector still spends at most a tenth of the run's request budget.
+const SHOPIFY_MAX_PAGES = 8;
 const SHOPIFY_PAGE_SIZE = 250;
 
 interface RawVariant {
@@ -44,6 +48,38 @@ function toProduct(raw: RawProduct): ShopifyProduct | null {
       ? raw.variants.map((v) => ({ price: v?.price ?? null }))
       : [],
   };
+}
+
+const LOCALE_SEGMENT = /^[a-z]{2}(-[a-z]{2})?$/;
+
+function prefixFromHref(href: string | undefined): string | null {
+  if (!href) return null;
+  try {
+    const seg = (
+      new URL(href, "https://locale.invalid").pathname
+        .split("/")
+        .filter((s) => s !== "")[0] ?? ""
+    ).toLowerCase();
+    return LOCALE_SEGMENT.test(seg) ? `/${seg}` : null;
+  } catch {
+    return null;
+  }
+}
+
+// Locale path prefix from the homepage's hreflang links (falling back to the
+// canonical link), for stores serving products.json under /{locale}/.
+export function homepageLocalePrefix(html: string | undefined): string | null {
+  if (!html) return null;
+  const $ = loadHtml(html);
+  let prefix: string | null = null;
+  $('link[rel="alternate"][hreflang]').each((_, el) => {
+    if (prefix) return false;
+    const lang = ($(el).attr("hreflang") ?? "").trim().toLowerCase();
+    if (lang === "" || lang === "x-default") return;
+    prefix = prefixFromHref($(el).attr("href")) ?? (LOCALE_SEGMENT.test(lang) ? `/${lang}` : null);
+  });
+  if (prefix) return prefix;
+  return prefixFromHref($('link[rel="canonical"]').first().attr("href"));
 }
 
 export function parseShopifyProducts(text: string): ShopifyProduct[] | null {
@@ -84,21 +120,40 @@ export const shopifyCollector: Collector = {
       t.toLowerCase().includes("shopify"),
     );
 
-    const probe = await collectFetch(ctx, "shopify", `${base}/products.json?limit=1`, {
-      accept: "application/json",
-    });
-    const probeProducts = probe.text ? parseShopifyProducts(probe.text) : null;
-    if (probeProducts === null) {
-      if (probe.source.status === "blocked" || probe.source.status === "robots_disallowed") {
-        return none(`/products.json ${fetchFailure(probe)}`, "blocked");
+    const candidates = ["/products.json", "/collections/all/products.json"];
+    const locale = homepageLocalePrefix(ctx.shared.site?.homepage?.html);
+    if (locale) candidates.push(`${locale}/products.json`);
+
+    let productsPath: string | null = null;
+    let probe: FetchResult | null = null;
+    const tried: string[] = [];
+    for (const path of candidates) {
+      const attempt = await collectFetch(ctx, "shopify", `${base}${path}?limit=1`, {
+        accept: "application/json",
+      });
+      tried.push(path);
+      probe = attempt;
+      if (attempt.source.status === "blocked" || attempt.source.status === "robots_disallowed") {
+        return none(`${path} ${fetchFailure(attempt)}`, "blocked");
       }
-      if (probe.source.status === "error") {
-        return none(`/products.json ${fetchFailure(probe)}`, "error");
+      if (attempt.source.status === "error") {
+        return none(`${path} ${fetchFailure(attempt)}`, "error");
       }
+      if (attempt.text && parseShopifyProducts(attempt.text) !== null) {
+        productsPath = path;
+        break;
+      }
+    }
+    if (productsPath === null || probe === null) {
+      const last = probe?.source;
+      const detail =
+        last !== undefined
+          ? `${last.finalUrl} → HTTP ${last.httpStatus ?? "?"} ${probe?.contentType ?? "unknown type"}`
+          : "no attempts";
       return none(
         techMentionsShopify
-          ? "Apollo lists Shopify but /products.json does not answer JSON"
-          : "not a Shopify store (no /products.json)",
+          ? `Apollo lists Shopify but no products JSON (tried ${tried.join(", ")}; last ${detail})`
+          : `not a Shopify store (tried ${tried.join(", ")}; last ${detail})`,
       );
     }
 
@@ -108,7 +163,7 @@ export const shopifyCollector: Collector = {
       const res = await collectFetch(
         ctx,
         "shopify",
-        `${base}/products.json?limit=${SHOPIFY_PAGE_SIZE}&page=${page}`,
+        `${base}${productsPath}?limit=${SHOPIFY_PAGE_SIZE}&page=${page}`,
         { accept: "application/json" },
       );
       if (res.source.status !== "ok" || !res.text) break;
@@ -154,7 +209,7 @@ export const shopifyCollector: Collector = {
       isShopify: true,
       products,
       collections,
-      productsUrl: `${base}/products.json`,
+      productsUrl: `${base}${productsPath}`,
     };
 
     const byType = new Map<string, number>();

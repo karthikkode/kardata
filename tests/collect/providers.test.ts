@@ -22,6 +22,7 @@ let handle: DbHandle;
 let site: FakeSite;
 let delayPrev: string | undefined;
 let chKeyPrev: string | undefined;
+let contactEmailPrev: string | undefined;
 
 beforeAll(async () => {
   handle = getTestDb();
@@ -29,6 +30,8 @@ beforeAll(async () => {
   delayPrev = shrinkHostDelay();
   chKeyPrev = process.env.COMPANIES_HOUSE_API_KEY;
   process.env.COMPANIES_HOUSE_API_KEY = "test-key";
+  contactEmailPrev = process.env.KARDATA_CONTACT_EMAIL;
+  process.env.KARDATA_CONTACT_EMAIL = "sec-test@example.com";
 });
 
 beforeEach(async () => {
@@ -47,6 +50,8 @@ afterAll(async () => {
   restoreHostDelay(delayPrev);
   if (chKeyPrev === undefined) delete process.env.COMPANIES_HOUSE_API_KEY;
   else process.env.COMPANIES_HOUSE_API_KEY = chKeyPrev;
+  if (contactEmailPrev === undefined) delete process.env.KARDATA_CONTACT_EMAIL;
+  else process.env.KARDATA_CONTACT_EMAIL = contactEmailPrev;
   await handle.close();
 });
 
@@ -54,7 +59,7 @@ describe("news collector", () => {
   it("keeps only matching articles and stores news_item records", async () => {
     site.routes.set("/api/v2/doc/doc", (_req, res, url) => {
       expect(url.searchParams.get("mode")).toBe("artlist");
-      expect(url.searchParams.get("query")).toContain("Fake Skin Co");
+      expect(url.searchParams.get("query")).toBe('("Fake Skin Co" OR fakeco.example)');
       sendJson(res, {
         articles: [
           {
@@ -105,6 +110,16 @@ describe("news collector", () => {
     expect(result.outcomes).toEqual([
       { area: "decisions", status: "not_found", reason: "no matching articles (0 returned, none mention the company)" },
     ]);
+  });
+
+  it("reports error with the body excerpt when a 200 is not JSON", async () => {
+    const body = `<html><body>${"rate limited, try later. ".repeat(20)}</body></html>`;
+    site.routes.set("/api/v2/doc/doc", (_req, res) => sendText(res, body, 200, "text/html"));
+    const companyId = await seedCompany(handle.db, { name: "Fake Skin Co", domain: "fakeco.example" });
+    const runId = await seedRun(handle.db, companyId);
+    const ctx = await collectorCtx(handle.db, site, companyId, runId);
+    const result = await newsCollector.run(ctx);
+    expect(result.outcomes).toEqual([{ area: "decisions", status: "error", reason: body.slice(0, 200) }]);
   });
 });
 
@@ -231,6 +246,45 @@ describe("sec collector", () => {
       { area: "decisions", status: "skipped", reason: "non-US company (United Kingdom)" },
     ]);
     expect(site.hits).toHaveLength(0);
+  });
+
+  it("skips US companies without a contact email", async () => {
+    const prev = process.env.KARDATA_CONTACT_EMAIL;
+    delete process.env.KARDATA_CONTACT_EMAIL;
+    try {
+      const companyId = await seedCompany(handle.db, { name: "Fake Skin Co", country: "United States" });
+      const runId = await seedRun(handle.db, companyId);
+      const ctx = await collectorCtx(handle.db, site, companyId, runId);
+      const result = await secCollector.run(ctx);
+      expect(result.outcomes).toEqual([
+        { area: "financials", status: "skipped", reason: "no KARDATA_CONTACT_EMAIL" },
+        { area: "decisions", status: "skipped", reason: "no KARDATA_CONTACT_EMAIL" },
+      ]);
+      expect(site.hits).toHaveLength(0);
+    } finally {
+      if (prev === undefined) delete process.env.KARDATA_CONTACT_EMAIL;
+      else process.env.KARDATA_CONTACT_EMAIL = prev;
+    }
+  });
+
+  it("sends the SEC contact User-Agent", async () => {
+    seedEdgar("OR");
+    const companyId = await seedCompany(handle.db, {
+      name: "Fake Skin Co",
+      country: "United States",
+      state: "Oregon",
+    });
+    const runId = await seedRun(handle.db, companyId);
+    const ctx = await collectorCtx(handle.db, site, companyId, runId);
+    const result = await secCollector.run(ctx);
+    expect(result.outcomes).toEqual([
+      { area: "financials", status: "done" },
+      { area: "decisions", status: "done" },
+    ]);
+    const search = site.hits.find((h) => h.path === "/LATEST/search-index");
+    const filing = site.hits.find((h) => h.path.startsWith("/Archives/edgar/data/"));
+    expect(search?.userAgent).toBe("Kardata <sec-test@example.com>");
+    expect(filing?.userAgent).toBe("Kardata <sec-test@example.com>");
   });
 });
 

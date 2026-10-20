@@ -97,9 +97,8 @@ function normalizeDate(raw: unknown): string | null {
 }
 
 export async function reviewsIngest(db: DbLike, input: ReviewsIngestInput): Promise<ReviewsIngestResult> {
-  if (input.reviews.length > REVIEWS_BATCH_MAX) {
-    throw new DomainError("invalid_input", `at most ${REVIEWS_BATCH_MAX} reviews per call`);
-  }
+  // No cap: the MCP layer enforces the per-call limit. The single
+  // upsertRecords call chunks internally; trim and recompute run once.
   const [company] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, input.companyId));
   if (!company) throw new DomainError("not_found", `company not found: ${input.companyId}`);
   if (input.platform.trim() === "") throw new DomainError("invalid_input", "platform is required");

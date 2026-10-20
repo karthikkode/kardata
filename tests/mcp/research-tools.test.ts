@@ -150,6 +150,35 @@ describe("manual runs", () => {
   });
 });
 
+describe("batch limits", () => {
+  it("rejects over-size batches at the MCP layer only", async () => {
+    const companyId = await makeCompany("Limit Co");
+    const fetched = dataOf(await call("source_fetch", { companyId, url: `${site.baseUrl}/` }));
+    const sourceId = fetched.sourceId as string;
+    const facts = await call("fact_add", {
+      companyId,
+      facts: Array.from({ length: 201 }, () => ({ key: "product.count", value: 1, sourceIds: [sourceId] })),
+    });
+    expect(errorOf(facts)).toMatchObject({ code: "invalid_input", message: "at most 200 facts per call" });
+    const records = await call("record_upsert", {
+      companyId,
+      records: Array.from({ length: 501 }, (_, i) => ({
+        type: "retailer",
+        data: { name: `Shop ${i}` },
+        sourceIds: [sourceId],
+      })),
+    });
+    expect(errorOf(records)).toMatchObject({ code: "invalid_input", message: "at most 500 records per call" });
+    const reviews = await call("reviews_ingest", {
+      companyId,
+      platform: "testplatform",
+      sourceId,
+      reviews: Array.from({ length: 501 }, (_, i) => ({ text: `review number ${i} here` })),
+    });
+    expect(errorOf(reviews)).toMatchObject({ code: "invalid_input", message: "at most 500 reviews per call" });
+  });
+});
+
 describe("registry tools", () => {
   it("lists, describes and curates", async () => {
     const full = dataOf(await call("registry_list", {}));

@@ -45,6 +45,14 @@ export function isRecordFieldType(t: string): boolean {
   return (RECORD_FIELD_TYPES as readonly string[]).includes(t);
 }
 
+// Successive slices of at most `size` (collectors may write thousands of
+// items in one call; the per-call limit lives at the MCP layer, not here).
+export function chunked<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
 export function isValidDateString(s: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
   const d = new Date(`${s}T00:00:00Z`);

@@ -184,7 +184,13 @@ describe("stack collector", () => {
     expect(channels).toEqual(["email", "sms"]);
     expect(factRows.every((f) => f.createdBy === "collector:stack")).toBe(true);
     const tools = factRows.filter((f) => f.key === "marketing.tool");
-    expect(tools.map((f) => f.valueText).sort()).toEqual(["Afterpay", "Gorgias", "Klaviyo", "ReCharge"]);
+    expect(tools.map((f) => f.valueText).sort()).toEqual([
+      "Afterpay",
+      "Gorgias",
+      "Judge.me",
+      "Klaviyo",
+      "ReCharge",
+    ]);
     expect(factRows.find((f) => f.key === "business_model.subscription")?.valueBool).toBe(true);
     expect(factRows.find((f) => f.key === "business_model.bnpl")?.valueBool).toBe(true);
     expect(factRows.find((f) => f.key === "business_model.wholesale")).toBeUndefined();
@@ -194,6 +200,7 @@ describe("stack collector", () => {
       factRows.filter((f) => f.key === key && match(f)).flatMap((f) => f.sourceIds);
     const klaviyo = sourcesOf("marketing.tool", (f) => f.valueText === "Klaviyo");
     expect(klaviyo).toEqual([homepageId]);
+    expect(sourcesOf("marketing.tool", (f) => f.valueText === "Judge.me")).toEqual([homepageId]);
     for (const tool of ["ReCharge", "Afterpay", "Gorgias"]) {
       expect(sourcesOf("marketing.tool", (f) => f.valueText === tool)).toEqual([apolloSourceId]);
     }
@@ -223,13 +230,127 @@ describe("stack collector", () => {
       .filter((f) => f.key === "marketing.tool")
       .map((f) => f.valueText)
       .sort();
-    expect(tools).toEqual(["Klaviyo", "ReCharge", "Yotpo Loyalty"]);
+    expect(tools).toEqual(["Klaviyo", "ReCharge", "Yotpo", "Yotpo Loyalty"]);
     const channels = factRows
       .filter((f) => f.key === "marketing.channel_active")
       .map((f) => (f.qualifiers as Record<string, string>)["channel"])
       .sort();
     expect(channels).toEqual(["email", "loyalty", "sms"]);
     expect(factRows.find((f) => f.key === "business_model.subscription")?.valueBool).toBe(true);
+  });
+
+  it("maps real Apollo names and ignores social plugins", async () => {
+    const companyId = await seedCompany(handle.db, {
+      technologies: [
+        "TikTok Ads",
+        "Bing",
+        "DoubleClick Floodlight",
+        "AdRoll",
+        "Criteo for Advertisers",
+        "Taboola",
+        "Outbrain",
+        "Reddit for business",
+        "Triple Whale",
+        "Northbeam",
+        "ShareASale",
+        "Awin",
+        "Rebuy",
+        "Amazon Pay",
+        "Walmart Shopify Integration",
+        "Recharge Payments",
+        "Seal Subscriptions",
+        "Skio",
+        "Junip",
+        "Stamped",
+        "Loox",
+        "Reviews.io",
+        "Sezzle",
+        "Faire",
+        "Facebook",
+        "Facebook Login",
+        "Google AdSense",
+        "Bing Webmaster Tools",
+      ],
+    });
+    const apolloSourceId = await seedApolloImportSource(handle.db, companyId);
+    const runId = await seedRun(handle.db, companyId);
+    const ctx = await collectorCtx(handle.db, site, companyId, runId);
+    const result = await stackCollector.run(ctx);
+    expect(result.outcomes).toEqual([
+      { area: "marketing", status: "done" },
+      { area: "business_model", status: "done" },
+    ]);
+    const factRows = await factsForRun(handle.db, runId);
+    expect(factRows.every((f) => f.sourceIds.length === 1 && f.sourceIds[0] === apolloSourceId)).toBe(true);
+    const tools = factRows
+      .filter((f) => f.key === "marketing.tool")
+      .map((f) => f.valueText)
+      .sort();
+    expect(tools).toEqual([
+      "AdRoll",
+      "Amazon Pay",
+      "Awin",
+      "Criteo",
+      "DoubleClick",
+      "Faire",
+      "Junip",
+      "Loox",
+      "Microsoft Ads",
+      "Northbeam",
+      "Outbrain",
+      "ReCharge",
+      "Rebuy",
+      "Reddit",
+      "Reviews.io",
+      "Seal Subscriptions",
+      "Sezzle",
+      "ShareASale",
+      "Skio",
+      "Stamped",
+      "Taboola",
+      "TikTok pixel",
+      "Triple Whale",
+      "Walmart",
+    ]);
+    const channels = factRows
+      .filter((f) => f.key === "marketing.channel_active")
+      .map((f) => (f.qualifiers as Record<string, string>)["channel"])
+      .sort();
+    expect(channels).toEqual([
+      "adroll",
+      "affiliate",
+      "criteo",
+      "google",
+      "microsoft ads",
+      "outbrain",
+      "reddit",
+      "taboola",
+      "tiktok",
+    ]);
+    const whale = factRows.find((f) => f.key === "marketing.tool" && f.valueText === "Triple Whale");
+    expect(whale?.qualifiers).toEqual({ category: "attribution" });
+    expect(factRows.find((f) => f.key === "business_model.subscription")?.valueBool).toBe(true);
+    expect(factRows.find((f) => f.key === "business_model.bnpl")?.valueBool).toBe(true);
+    expect(factRows.find((f) => f.key === "business_model.wholesale")?.valueBool).toBe(true);
+    const markets = factRows.filter((f) => f.key === "business_model.marketplace");
+    expect(markets).toHaveLength(1);
+    expect(markets[0]?.qualifiers).toEqual({ marketplace: "walmart" });
+    expect(markets[0]?.valueBool).toBe(true);
+  });
+
+  it("writes nothing for ignored-only technologies", async () => {
+    const companyId = await seedCompany(handle.db, {
+      technologies: ["Facebook", "Google AdSense", "Bing Webmaster Tools"],
+    });
+    await seedApolloImportSource(handle.db, companyId);
+    const runId = await seedRun(handle.db, companyId);
+    const ctx = await collectorCtx(handle.db, site, companyId, runId);
+    const result = await stackCollector.run(ctx);
+    expect(result.outcomes).toEqual([
+      { area: "marketing", status: "not_found", reason: "no marketing tools detected" },
+      { area: "business_model", status: "not_found", reason: "no business-model tools detected" },
+    ]);
+    expect(await factsForRun(handle.db, runId)).toHaveLength(0);
   });
 
   it("reports not_found per area when nothing matches", async () => {

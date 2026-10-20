@@ -6,8 +6,8 @@ import { collectFetch, fetchFailure, normalizeName, writeExtract, writeFacts, wr
 
 // SEC EDGAR full-text search JSON: GET https://efts.sec.gov/LATEST/search-index?q="name"&forms=D&dateRange=custom&startdt&enddt
 // (verified live; params per https://www.sec.gov/edgar/sec-api-documentation). Filing XML at
-// https://www.sec.gov/Archives/edgar/data/{cik}/{adsh}/{primary_doc}. SEC requires a declared contact
-// User-Agent (ours carries KARDATA_CONTACT_URL) and ≤10 req/s; the 2 s host delay keeps us far below.
+// https://www.sec.gov/Archives/edgar/data/{cik}/{adsh}/{primary_doc}. SEC requires an email-style
+// contact User-Agent ("Kardata <KARDATA_CONTACT_EMAIL>") and ≤10 req/s; the 2 s host delay keeps us far below.
 
 const SEC_MAX_CANDIDATES = 5;
 const SEC_SEARCH_YEARS = 10;
@@ -119,6 +119,17 @@ export const secCollector: Collector = {
         ],
       };
     }
+    const contactEmail = process.env.KARDATA_CONTACT_EMAIL?.trim() ?? "";
+    if (contactEmail === "") {
+      const reason = "no KARDATA_CONTACT_EMAIL";
+      return {
+        outcomes: [
+          { area: "financials", status: "skipped" as const, reason },
+          { area: "decisions", status: "skipped" as const, reason },
+        ],
+      };
+    }
+    const secUserAgent = `Kardata <${contactEmail}>`;
     const name = ctx.effective.name?.trim() ?? "";
     if (name === "") {
       const reason = "no company name to search";
@@ -136,7 +147,10 @@ export const secCollector: Collector = {
     const url =
       `${ctx.endpoints.secEfts}/LATEST/search-index?` +
       `q=${encodeURIComponent(`"${name}"`)}&forms=D&dateRange=custom&startdt=${startdt}&enddt=${enddt}`;
-    const res = await collectFetch(ctx, "sec_form_d", url, { accept: "application/json" });
+    const res = await collectFetch(ctx, "sec_form_d", url, {
+      accept: "application/json",
+      userAgent: secUserAgent,
+    });
     if (res.source.status !== "ok" || !res.text) {
       const status =
         res.source.status === "blocked" || res.source.status === "robots_disallowed"
@@ -173,6 +187,7 @@ export const secCollector: Collector = {
       const xmlUrl = `${ctx.endpoints.secData}/Archives/edgar/data/${cand.cik}/${cand.adsh}/${cand.filename}`;
       const xml = await collectFetch(ctx, "sec_form_d", xmlUrl, {
         accept: "application/xml,text/xml;q=0.9",
+        userAgent: secUserAgent,
       });
       if (xml.source.status !== "ok" || !xml.text) continue;
       const form = parseFormD(xml.text);

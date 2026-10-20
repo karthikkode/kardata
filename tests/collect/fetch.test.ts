@@ -13,6 +13,7 @@ import {
   BudgetExceededError,
   fetchUrl,
   getRobotsTxt,
+  hostDelayMs,
 } from "../../src/collect/fetch.js";
 import { DomainError } from "../../src/domain/errors.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
@@ -253,32 +254,40 @@ describe("fetcher", () => {
   });
 
   it("marks challenge pages and bot statuses as blocked", async () => {
-    site.routes.set("/challenge", (_req, res) =>
-      sendText(
-        res,
-        '<html><head><title>Just a moment...</title><script src="/cf-chl/foo.js"></script></head><body>verify</body></html>',
-      ),
-    );
-    site.routes.set("/denied", (_req, res) => sendText(res, "no", 403));
-    site.routes.set("/limited", (_req, res) => sendText(res, "slow", 429));
-    site.routes.set("/missing", (_req, res) => sendText(res, "gone", 404));
-    site.routes.set("/broken", (_req, res) => sendText(res, "oops", 500));
+    // The 429 case retries twice; shrink the default wait (timing is covered above).
+    const prev = process.env.KARDATA_429_WAIT_MS;
+    process.env.KARDATA_429_WAIT_MS = "5";
+    try {
+      site.routes.set("/challenge", (_req, res) =>
+        sendText(
+          res,
+          '<html><head><title>Just a moment...</title><script src="/cf-chl/foo.js"></script></head><body>verify</body></html>',
+        ),
+      );
+      site.routes.set("/denied", (_req, res) => sendText(res, "no", 403));
+      site.routes.set("/limited", (_req, res) => sendText(res, "slow", 429));
+      site.routes.set("/missing", (_req, res) => sendText(res, "gone", 404));
+      site.routes.set("/broken", (_req, res) => sendText(res, "oops", 500));
 
-    const challenge = await fetchUrl(handle.db, req(`${site.baseUrl}/challenge`));
-    expect(challenge.source.status).toBe("blocked");
-    expect(challenge.source.blobSha256).toBeNull();
-    expect(challenge.body).toBeUndefined();
+      const challenge = await fetchUrl(handle.db, req(`${site.baseUrl}/challenge`));
+      expect(challenge.source.status).toBe("blocked");
+      expect(challenge.source.blobSha256).toBeNull();
+      expect(challenge.body).toBeUndefined();
 
-    const denied = await fetchUrl(handle.db, req(`${site.baseUrl}/denied`));
-    expect(denied.source.status).toBe("blocked");
-    expect(denied.source.httpStatus).toBe(403);
-    const limited = await fetchUrl(handle.db, req(`${site.baseUrl}/limited`));
-    expect(limited.source.status).toBe("blocked");
-    const missing = await fetchUrl(handle.db, req(`${site.baseUrl}/missing`));
-    expect(missing.source.status).toBe("not_found");
-    const broken = await fetchUrl(handle.db, req(`${site.baseUrl}/broken`));
-    expect(broken.source.status).toBe("error");
-    expect(broken.source.httpStatus).toBe(500);
+      const denied = await fetchUrl(handle.db, req(`${site.baseUrl}/denied`));
+      expect(denied.source.status).toBe("blocked");
+      expect(denied.source.httpStatus).toBe(403);
+      const limited = await fetchUrl(handle.db, req(`${site.baseUrl}/limited`));
+      expect(limited.source.status).toBe("blocked");
+      const missing = await fetchUrl(handle.db, req(`${site.baseUrl}/missing`));
+      expect(missing.source.status).toBe("not_found");
+      const broken = await fetchUrl(handle.db, req(`${site.baseUrl}/broken`));
+      expect(broken.source.status).toBe("error");
+      expect(broken.source.httpStatus).toBe(500);
+    } finally {
+      if (prev === undefined) delete process.env.KARDATA_429_WAIT_MS;
+      else process.env.KARDATA_429_WAIT_MS = prev;
+    }
   });
 
   it("dedupes identical bodies by hash", async () => {
@@ -314,5 +323,66 @@ describe("fetcher", () => {
     const ftp = await fetchUrl(handle.db, req("ftp://example.com/x"));
     expect(ftp.source.status).toBe("error");
     expect(ftp.source.error).toContain("http(s)");
+  });
+
+  it("resolves per-host delays, defaulting to 2 s", async () => {
+    const prevDelay = process.env.KARDATA_HOST_DELAY_MS;
+    const prevHosts = process.env.KARDATA_HOST_DELAYS;
+    try {
+      delete process.env.KARDATA_HOST_DELAY_MS;
+      delete process.env.KARDATA_HOST_DELAYS;
+      expect(hostDelayMs("example.com")).toBe(2000);
+      expect(hostDelayMs("api.gdeltproject.org")).toBe(6000);
+      expect(hostDelayMs("API.GDELTPROJECT.ORG:443")).toBe(6000);
+      process.env.KARDATA_HOST_DELAY_MS = "5";
+      expect(hostDelayMs("example.com")).toBe(5);
+      expect(hostDelayMs("api.gdeltproject.org")).toBe(6000);
+      process.env.KARDATA_HOST_DELAYS = "example.com=100";
+      expect(hostDelayMs("example.com")).toBe(100);
+      expect(hostDelayMs("other.example")).toBe(5);
+    } finally {
+      if (prevDelay === undefined) delete process.env.KARDATA_HOST_DELAY_MS;
+      else process.env.KARDATA_HOST_DELAY_MS = prevDelay;
+      if (prevHosts === undefined) delete process.env.KARDATA_HOST_DELAYS;
+      else process.env.KARDATA_HOST_DELAYS = prevHosts;
+    }
+  });
+
+  it("retries a 429 once it clears, honoring Retry-After", async () => {
+    let n = 0;
+    site.routes.set("/flaky", (_req, res) => {
+      n += 1;
+      if (n === 1) {
+        res.setHeader("retry-after", "0");
+        sendText(res, "slow down", 429, "text/plain");
+      } else {
+        sendText(res, "<html><body>recovered</body></html>");
+      }
+    });
+    const result = await fetchUrl(handle.db, req(`${site.baseUrl}/flaky`));
+    expect(result.source.status).toBe("ok");
+    expect(result.source.httpStatus).toBe(200);
+    expect(result.text).toContain("recovered");
+    expect(n).toBe(2);
+    expect(await requestCount()).toBe(3); // robots.txt plus both attempts
+  });
+
+  it("gives up after 2 retries on a persistent 429", async () => {
+    const prev = process.env.KARDATA_429_WAIT_MS;
+    process.env.KARDATA_429_WAIT_MS = "5";
+    try {
+      let n = 0;
+      site.routes.set("/limited", (_req, res) => {
+        n += 1;
+        sendText(res, "slow", 429, "text/plain");
+      });
+      const result = await fetchUrl(handle.db, req(`${site.baseUrl}/limited`));
+      expect(result.source.status).toBe("blocked");
+      expect(result.source.httpStatus).toBe(429);
+      expect(n).toBe(3);
+    } finally {
+      if (prev === undefined) delete process.env.KARDATA_429_WAIT_MS;
+      else process.env.KARDATA_429_WAIT_MS = prev;
+    }
   });
 });
