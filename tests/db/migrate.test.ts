@@ -19,12 +19,24 @@ async function query<T>(q: ReturnType<typeof sql>): Promise<T[]> {
 }
 
 describe("migrations on kardata_test", () => {
-  it("creates exactly the stage-1 tables", async () => {
+  it("creates exactly the stage-1 and research tables", async () => {
     const rows = await query<{ tablename: string }>(
       sql`SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY 1`,
     );
     const names = rows.map((r) => r.tablename).filter((n) => !n.startsWith("__drizzle"));
-    expect(names.sort()).toEqual(["companies", "imports", "sector_companies", "sectors"]);
+    expect(names.sort()).toEqual([
+      "area_statuses",
+      "blobs",
+      "companies",
+      "documents",
+      "findings",
+      "imports",
+      "research_runs",
+      "run_events",
+      "sector_companies",
+      "sectors",
+      "sources",
+    ]);
   });
 
   it("creates the signature columns", async () => {
@@ -56,6 +68,33 @@ describe("migrations on kardata_test", () => {
       "imports.updated_count",
       "imports.skipped_count",
       "imports.skipped",
+      "research_runs.company_id",
+      "research_runs.kind",
+      "research_runs.status",
+      "research_runs.requested_areas",
+      "research_runs.batch_id",
+      "research_runs.request_count",
+      "run_events.run_id",
+      "run_events.type",
+      "run_events.payload",
+      "blobs.sha256",
+      "blobs.gzip",
+      "sources.url",
+      "sources.final_url",
+      "sources.collector",
+      "sources.status",
+      "sources.blob_sha256",
+      "documents.area",
+      "documents.kind",
+      "documents.content_md",
+      "documents.source_ids",
+      "documents.created_by",
+      "documents.tsv",
+      "findings.claim",
+      "findings.source_ids",
+      "findings.confidence",
+      "area_statuses.status",
+      "area_statuses.reason",
     ]) {
       expect(have.has(want), `missing column ${want}`).toBe(true);
     }
@@ -63,12 +102,42 @@ describe("migrations on kardata_test", () => {
 
   it("creates the enums and the case-insensitive sector name index", async () => {
     const types = await query<{ typname: string }>(
-      sql`SELECT typname FROM pg_type WHERE typname IN ('company_source', 'membership_added_via')`,
+      sql`SELECT typname FROM pg_type WHERE typname IN ('company_source', 'membership_added_via', 'area', 'run_kind', 'run_status', 'source_status', 'document_kind', 'confidence', 'finding_status', 'area_status')`,
     );
-    expect(types.map((t) => t.typname).sort()).toEqual(["company_source", "membership_added_via"]);
+    expect(types.map((t) => t.typname).sort()).toEqual([
+      "area",
+      "area_status",
+      "company_source",
+      "confidence",
+      "document_kind",
+      "finding_status",
+      "membership_added_via",
+      "run_kind",
+      "run_status",
+      "source_status",
+    ]);
     const idx = await query<{ indexname: string }>(
       sql`SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'sectors_name_lower_idx'`,
     );
     expect(idx).toHaveLength(1);
+  });
+
+  it("creates the one-active-run index and the research checks", async () => {
+    const idx = await query<{ indexname: string; indexdef: string }>(
+      sql`SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'research_runs_one_active_idx'`,
+    );
+    expect(idx).toHaveLength(1);
+    expect(idx[0]?.indexdef).toContain("WHERE");
+    const checks = await query<{ conname: string }>(
+      sql`SELECT conname FROM pg_constraint WHERE conname IN ('findings_source_ids_not_empty', 'area_statuses_reason_required')`,
+    );
+    expect(checks.map((c) => c.conname).sort()).toEqual([
+      "area_statuses_reason_required",
+      "findings_source_ids_not_empty",
+    ]);
+    const gin = await query<{ indexname: string }>(
+      sql`SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'documents_tsv_idx'`,
+    );
+    expect(gin).toHaveLength(1);
   });
 });

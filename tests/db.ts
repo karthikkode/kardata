@@ -8,9 +8,11 @@ export function getTestDb(): DbHandle {
   return createDb(requireEnv("TEST_DATABASE_URL"));
 }
 
-/** Wipe all stage-1 tables (test database only). */
+/** Wipe all stage-1 and research tables (test database only). */
 export async function resetTestDb(handle: DbHandle): Promise<void> {
-  await handle.db.execute(sql`TRUNCATE sectors, companies, sector_companies, imports CASCADE`);
+  await handle.db.execute(
+    sql`TRUNCATE sectors, companies, sector_companies, imports, research_runs, run_events, blobs, sources, documents, findings, area_statuses CASCADE`,
+  );
 }
 
 export function fixtureCsvPath(): string {
