@@ -5,6 +5,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { sql } from "drizzle-orm";
 import { createDb, type Db } from "./db/client.js";
 import { createAgentRunner } from "./runs/agent-runner.js";
+import { buildResearchPrompt } from "./runs/prompt.js";
 import { checkAppMuseVersion, probeInstalledMuseVersion } from "./harness/setup.js";
 import { loadDotenv, requireEnv } from "./lib/env.js";
 import { OPERATOR_AUTH, type AuthContext } from "./mcp/auth.js";
@@ -182,6 +183,7 @@ async function main(): Promise<void> {
   const serverPort = new URL(handle.url).port;
   const agentRunner = createAgentRunner(db, {
     mcpUrl: `http://host.docker.internal:${serverPort}/mcp`,
+    buildPrompt: buildResearchPrompt,
   });
   // Agent recovery first: it stops orphaned containers and revokes their
   // tokens before the collect runner fails leftover running rows.
