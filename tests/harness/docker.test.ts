@@ -11,7 +11,7 @@ import {
   dockerStopArgs,
   recoveryListArgs,
 } from "../../src/harness/docker.js";
-import { AGENT_IMAGE, MUSE_MOUNT, MUSE_VOLUME, checkAppMuseVersion } from "../../src/harness/setup.js";
+import { AGENTS_NETWORK, AGENT_IMAGE, MUSE_MOUNT, MUSE_VOLUME, checkAppMuseVersion } from "../../src/harness/setup.js";
 import type { HarnessStartOptions } from "../../src/harness/types.js";
 
 const RUN_ID = "9d1f8b3a-0000-4000-8000-aaaaaaaaaaaa";
@@ -55,8 +55,8 @@ describe("docker harness", () => {
       "/tmp",
       "--tmpfs",
       "/workspace",
-      "--add-host",
-      "host.docker.internal:host-gateway",
+      "--network",
+      AGENTS_NETWORK,
       "-v",
       `${MUSE_VOLUME}:${MUSE_MOUNT}`,
       "-e",

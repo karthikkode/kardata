@@ -1,7 +1,7 @@
 import { createWriteStream, readdirSync, rmSync, statSync } from "node:fs";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { recordEvent } from "../collect/db.js";
 import { executeCollectRun, type CollectRunResult } from "../collect/run.js";
 import type { Db } from "../db/client.js";
@@ -12,6 +12,7 @@ import {
   researchRuns,
   runEvents,
   type AgentUsage,
+  type ChildUsage,
   type Company,
   type ResearchRun,
 } from "../db/schema.js";
@@ -30,6 +31,7 @@ import type {
 import { hasFreshCollect } from "./agent.js";
 import { collectConcurrency } from "./runner.js";
 import { issueRunToken, revokeRunToken } from "./tokens.js";
+import { rollupUsage, type UsageRollup } from "./usage.js";
 
 /**
  * Agent-run runner (Stage 3b Step 2). Drives kind=agent runs through
@@ -41,7 +43,7 @@ import { issueRunToken, revokeRunToken } from "./tokens.js";
 
 export const DEFAULT_MAX_AGENTS = 4;
 export const DEFAULT_POLL_MS = 1000;
-export const STALL_MS = 120_000;
+export const DEFAULT_STALL_SECONDS = 300;
 export const LIVENESS_BUMP_MS = 5_000;
 export const RUN_EVENTS_KEEP_DAYS = 7;
 const SHUTDOWN_DRAIN_MS = 30_000;
@@ -52,6 +54,14 @@ export function agentConcurrency(): number {
   if (raw === undefined || raw === "") return DEFAULT_MAX_AGENTS;
   const n = Number(raw);
   return Number.isInteger(n) && n > 0 ? n : DEFAULT_MAX_AGENTS;
+}
+
+/** Silence (no stdout events and no MCP calls) before a run is stalled. */
+export function stallTimeoutMs(): number {
+  const raw = process.env.AGENT_STALL_SECONDS;
+  if (raw === undefined || raw === "") return DEFAULT_STALL_SECONDS * 1000;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n * 1000 : DEFAULT_STALL_SECONDS * 1000;
 }
 
 export interface PromptContext {
@@ -73,12 +83,14 @@ export interface AgentRunnerDeps {
   buildPrompt?: PromptBuilder;
   collect?: (runId: string) => Promise<CollectRunResult>;
   stopLabeledContainers?: () => Promise<string[]>;
-  /** Container-reachable MCP endpoint, e.g. http://host.docker.internal:8787/mcp. */
+  usageRollup?: (main: HarnessUsage | undefined, sessionId: string | undefined) => Promise<UsageRollup>;
+  /** Container-reachable MCP endpoint, e.g. http://172.31.250.1:8787/mcp. */
   mcpUrl: string;
   maxAgents?: number;
   collectLimit?: number;
   pollMs?: number;
   runsDir?: string;
+  stallMs?: number;
 }
 
 export interface AgentRunner {
@@ -108,6 +120,7 @@ interface RunOutcome {
   exitCode?: number;
   usage?: HarnessUsage;
   finalMessage?: string;
+  rollup?: { childrenIncluded: boolean; children: ChildUsage[]; note?: string };
 }
 
 const STEP_LIMIT_RE = /within \d+ step/i;
@@ -174,6 +187,32 @@ async function areasWithoutStatus(db: Db, runId: string): Promise<string[]> {
     .filter((a) => !have.has(a as never));
 }
 
+const FORENSIC_HARNESS_MAX = 10;
+const FORENSIC_MCP_MAX = 5;
+
+// Forensics for a stall or time-limit stop: the last normalized harness
+// events plus the last MCP calls, as a log note on the run.
+async function recordForensicNote(db: Db, runId: string, stopReason: string): Promise<void> {
+  const harnessRows = await db
+    .select({ id: runEvents.id, at: runEvents.at, payload: runEvents.payload })
+    .from(runEvents)
+    .where(and(eq(runEvents.runId, runId), eq(runEvents.type, "harness")))
+    .orderBy(desc(runEvents.id))
+    .limit(FORENSIC_HARNESS_MAX);
+  const mcpRows = await db
+    .select({ id: runEvents.id, at: runEvents.at, payload: runEvents.payload })
+    .from(runEvents)
+    .where(and(eq(runEvents.runId, runId), eq(runEvents.type, "mcp_call")))
+    .orderBy(desc(runEvents.id))
+    .limit(FORENSIC_MCP_MAX);
+  await recordEvent(db, runId, "log", {
+    forensic: true,
+    stopReason,
+    lastHarness: harnessRows.reverse(),
+    lastMcpCalls: mcpRows.reverse(),
+  });
+}
+
 function toAgentUsage(usage: HarnessUsage): AgentUsage {
   return {
     model: usage.model,
@@ -182,7 +221,19 @@ function toAgentUsage(usage: HarnessUsage): AgentUsage {
     cachedTokens: usage.cachedTokens,
     reasoningTokens: usage.reasoningTokens,
     calls: usage.calls,
+    childrenIncluded: false,
   };
+}
+
+function storedUsage(outcome: RunOutcome): AgentUsage | null {
+  if (!outcome.usage) return null;
+  const merged: AgentUsage = { ...toAgentUsage(outcome.usage) };
+  const meta = outcome.rollup;
+  if (!meta) return merged;
+  merged.childrenIncluded = meta.childrenIncluded;
+  if (meta.children.length > 0) merged.children = meta.children;
+  if (meta.note) merged.note = meta.note;
+  return merged;
 }
 
 export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
@@ -190,8 +241,11 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
   const buildPrompt = deps.buildPrompt ?? missingPromptBuilder();
   const collect = deps.collect ?? ((runId: string) => executeCollectRun(db, runId, { keepOpen: true }));
   const stopLabeled = deps.stopLabeledContainers ?? recoverLabeledContainers;
+  const usageRollupFn =
+    deps.usageRollup ?? ((main, sessionId) => rollupUsage(main, sessionId));
   const maxAgents = deps.maxAgents ?? agentConcurrency();
   const collectLimit = deps.collectLimit ?? collectConcurrency();
+  const stallMs = deps.stallMs ?? stallTimeoutMs();
   const pollMs = deps.pollMs ?? DEFAULT_POLL_MS;
   const runsDir = deps.runsDir ?? defaultRunsDir();
   const actives = new Map<string, ActiveEntry>();
@@ -236,7 +290,7 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
         agentSessionId: outcome.sessionId ?? null,
         agentContainerId: outcome.containerId ?? null,
         agentExitCode: outcome.exitCode ?? null,
-        agentUsage: outcome.usage ? toAgentUsage(outcome.usage) : null,
+        agentUsage: storedUsage(outcome),
         agentFinalMessage: outcome.finalMessage ?? null,
       })
       .where(eq(researchRuns.id, runId));
@@ -249,7 +303,7 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
         agentSessionId: outcome.sessionId ?? null,
         agentContainerId: outcome.containerId ?? null,
         agentExitCode: outcome.exitCode ?? null,
-        agentUsage: outcome.usage ? toAgentUsage(outcome.usage) : null,
+        agentUsage: storedUsage(outcome),
         agentFinalMessage: outcome.finalMessage ?? null,
       })
       .where(eq(researchRuns.id, runId));
@@ -362,7 +416,13 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
       await consume;
       await new Promise<void>((resolve) => sink.end(resolve));
       outcome.exitCode = result.exitCode;
-      outcome.usage = result.usage ?? usage;
+      const rollup = await usageRollupFn(result.usage ?? usage, outcome.sessionId);
+      outcome.usage = rollup.total;
+      outcome.rollup = {
+        childrenIncluded: rollup.childrenIncluded,
+        children: rollup.children,
+        note: rollup.note,
+      };
       outcome.finalMessage = result.finalMessage || undefined;
 
       const stopped = entry?.stopReason ?? null;
@@ -381,10 +441,12 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
         return;
       }
       if (stopped === "stall") {
+        await recordForensicNote(db, runId, "stall");
         await finalize(runId, "stalled", null, outcome);
         return;
       }
       if (stopped === "time") {
+        await recordForensicNote(db, runId, "time");
         await finalize(runId, "partial", "time limit", outcome);
         return;
       }
@@ -452,7 +514,7 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
         stopOnce(entry, "cancelled");
         continue;
       }
-      if (row.lastActivityAt.getTime() < now.getTime() - STALL_MS) {
+      if (row.lastActivityAt.getTime() < now.getTime() - stallMs) {
         stopOnce(entry, "stall");
         continue;
       }

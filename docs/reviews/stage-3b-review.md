@@ -30,3 +30,11 @@ Commits: 6237939, b84d5e2, 16914a3 (Step 0) · 7f0d92a (Step 1) · 87e370b, 1954
 - Stored usage is main-run only (`children_included: false`); true spend is higher by an unknown subagent multiple.
 - `HOST=0.0.0.0` needed in `.env` for agent runs (owner runtime setting); `KARDATA_MUSE_VERSION=1.4.11-R6667.1` pinned by setup.
 - Owner files untouched: `docs/plans/roadmap.md` (modified) + 2 untracked plans left as found.
+
+## Stage 3b.1 (fix round)
+1. Network: `kardata_agents` 172.31.250.0/24 (`setup.ts:16`, ensured by setup `scripts/harness-setup.ts:71`); server multi-listens on HOST comma list (`server.ts:29,109`), containers use `--network kardata_agents` + gateway MCP URL (`docker.ts:100`, `server.ts:229`). Proofs live: container→gateway /healthz `{"ok":true,"db":true}`; LAN 192.168.29.181 + Tailscale 100.104.71.64 refused; pg 5433 refused from container; `ss` shows only 127.0.0.1+gateway:8787. Version gate still fires (mismatch boots with agent runs disabled). `.env.example`/`README.md` updated. Tests: `tests/server.test.ts`, `setup.test.ts`, `docker.test.ts`.
+2. Usage: `harness/usage-reader.mjs` (ESM, baked into image) sums reported provider `goal_usage_attribution` per `subagent/*/session.jsonl`, exits 0 with notes; `rollupUsage` (`usage.ts:84`) runs it via `--network none` + `:ro` volume; runner stores total=main+children with `childrenIncluded` + per-child rows (`agent-runner.ts:419`, `schema.ts:321`). Verified against real C3 session (8 children). Tests: `tests/runs/usage.test.ts` (10), wiring test in `agent-runner.test.ts`.
+3. Stall: default 300 s, `AGENT_STALL_SECONDS` override (`agent-runner.ts:46,60`); stall/time stores last 10 harness + last 5 MCP events as a forensic log note (`agent-runner.ts:195,444`). Tests: default/env/caps/time-note in `agent-runner.test.ts`.
+4. Plans committed: `roadmap.md`, `stage-3a-muse-spike.md`, `stage-3b-orchestrator.md`.
+- Deviation: `.env.example` version-gate comment corrected (warn + agent runs disabled, not boot refusal — pre-existing 3b behavior, still fires). Live MCP test (`muse.live.test.ts`) updated to gateway URL but not re-run (needs `KARDATA_LIVE` + subscription spend; same path proven by container curl).
+- Suite: 286 passed + 1 skipped (live) in 124 s; lint + typecheck clean.

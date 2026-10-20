@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  AGENTS_GATEWAY,
+  AGENTS_NETWORK,
+  AGENTS_SUBNET,
   AGENT_IMAGE,
   AGENT_UID,
   MUSE_MOUNT,
   MUSE_VOLUME,
   applyDotenvVersion,
   dockerBuildArgs,
+  networkCreateArgs,
+  networkInspectArgs,
   parseMuseVersion,
+  readerRunArgs,
   setupRunArgs,
   versionRunArgs,
   volumeCreateArgs,
@@ -33,6 +39,30 @@ describe("harness setup", () => {
 
   it("volume create targets the app Muse volume", () => {
     expect(volumeCreateArgs()).toEqual(["volume", "create", MUSE_VOLUME]);
+  });
+
+  it("creates the agent network with a fixed subnet", () => {
+    expect(networkInspectArgs()).toEqual(["network", "inspect", AGENTS_NETWORK]);
+    expect(networkCreateArgs()).toEqual(["network", "create", "--subnet", AGENTS_SUBNET, AGENTS_NETWORK]);
+    expect(AGENTS_GATEWAY).toBe("172.31.250.1");
+  });
+
+  it("reads usage with no network and a read-only volume", () => {
+    expect(readerRunArgs("session-1")).toEqual([
+      "run",
+      "--rm",
+      "--network",
+      "none",
+      "--entrypoint",
+      "node",
+      "-v",
+      `${MUSE_VOLUME}:${MUSE_MOUNT}:ro`,
+      "-e",
+      `HOME=${MUSE_MOUNT}/home`,
+      AGENT_IMAGE,
+      "/usr/local/bin/usage-reader.mjs",
+      "session-1",
+    ]);
   });
 
   it("version probe mounts the volume read-only", () => {

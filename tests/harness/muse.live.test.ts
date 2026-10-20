@@ -11,6 +11,7 @@ import { documents } from "../../src/db/schema.js";
 import { importCsv } from "../../src/domain/imports.js";
 import { createSector } from "../../src/domain/sectors.js";
 import { RESEARCH_MUSE_ARGS, dockerMuseHarness } from "../../src/harness/docker.js";
+import { AGENTS_GATEWAY } from "../../src/harness/setup.js";
 import type { HarnessEvent } from "../../src/harness/types.js";
 import { startServer, type ServerHandle } from "../../src/server.js";
 import {
@@ -32,7 +33,9 @@ describe.skipIf(!process.env.KARDATA_LIVE)("muse harness @live", () => {
     handle = getTestDb();
     await ensureMigrated(handle);
     await resetTestDb(handle);
-    // 0.0.0.0: the container reaches the host through the bridge gateway.
+    // 0.0.0.0 keeps the hermetic test robust; production listens on
+    // 127.0.0.1 and the agent-network gateway only. The container reaches
+    // the host through the agent gateway.
     server = await startServer({ host: "0.0.0.0", port: 0, db: handle.db, operatorToken: TOKEN });
     const { sector } = await createSector(handle.db, { name: "Live Fixture" });
     const [result] = await importCsv(handle.db, sector.id, [fixtureCsvPath()], {
@@ -69,7 +72,7 @@ describe.skipIf(!process.env.KARDATA_LIVE)("muse harness @live", () => {
         mcpServers: [
           {
             name: "kardata",
-            url: `http://host.docker.internal:${port}/mcp`,
+            url: `http://${AGENTS_GATEWAY}:${port}/mcp`,
             headers: { Authorization: "${KARDATA_MCP_AUTH}" },
           },
         ],

@@ -28,10 +28,12 @@ npm run harness:setup   # build + install launcher + `muse login` (device code);
 agent runs when it differs from `KARDATA_MUSE_VERSION`. Re-run `harness:setup`
 to upgrade (it rewrites the pin after a successful login).
 
-Agent runs reach kardata MCP at `host.docker.internal:<PORT>` through the
-Docker bridge, so the server must listen on `0.0.0.0` (set `HOST=0.0.0.0` in
-`.env`) for agent runs. Postgres stays loopback-only (see
-`docker-compose.yml`), so containers cannot reach it.
+Agent containers live on a dedicated Docker network (`kardata_agents`,
+`172.31.250.0/24`, created by `harness:setup`) and reach kardata MCP at the
+network gateway (`http://172.31.250.1:<PORT>/mcp`). The server listens on
+`127.0.0.1` and the gateway only (`HOST=127.0.0.1,172.31.250.1` in `.env`),
+never `0.0.0.0`, so it is not reachable on LAN/Tailscale addresses. Postgres
+stays loopback-only (see `docker-compose.yml`), so containers cannot reach it.
 
 ## Register the MCP server
 

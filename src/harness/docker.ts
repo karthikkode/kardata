@@ -15,7 +15,7 @@ import {
   type HarnessStartOptions,
   type McpServerConfig,
 } from "./types.js";
-import { AGENT_IMAGE, MUSE_MOUNT, MUSE_VOLUME } from "./setup.js";
+import { AGENTS_NETWORK, AGENT_IMAGE, MUSE_MOUNT, MUSE_VOLUME } from "./setup.js";
 import { MuseHandle, mcpServerConfigJson } from "./muse.js";
 
 const DEFAULT_STALL_TIMEOUT_MS = 120_000;
@@ -97,8 +97,8 @@ export function dockerRunArgs(opts: HarnessStartOptions): string[] {
     "/tmp",
     "--tmpfs",
     "/workspace",
-    "--add-host",
-    "host.docker.internal:host-gateway",
+    "--network",
+    AGENTS_NETWORK,
     "-v",
     `${MUSE_VOLUME}:${MUSE_MOUNT}`,
     "-e",

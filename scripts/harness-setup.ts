@@ -8,8 +8,12 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  AGENTS_GATEWAY,
+  AGENTS_NETWORK,
   applyDotenvVersion,
   dockerBuildArgs,
+  networkCreateArgs,
+  networkInspectArgs,
   parseMuseVersion,
   setupRunArgs,
   volumeCreateArgs,
@@ -63,6 +67,14 @@ function main(): void {
 
   console.log("==> creating kardata_muse volume");
   if (!runDocker(volumeCreateArgs(), { inherit: true }).ok) process.exit(1);
+
+  console.log(`==> ensuring ${AGENTS_NETWORK} network`);
+  const inspect = runDocker(networkInspectArgs(), { inherit: false });
+  if (!inspect.ok) {
+    if (!runDocker(networkCreateArgs(), { inherit: true }).ok) process.exit(1);
+  } else {
+    console.log(`${AGENTS_NETWORK} already exists (gateway ${AGENTS_GATEWAY})`);
+  }
 
   console.log("==> installing app Muse and logging in (complete the device code in your browser)");
   if (!runDocker(setupRunArgs(), { inherit: true }).ok) process.exit(1);

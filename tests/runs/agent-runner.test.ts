@@ -4,7 +4,7 @@ import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { recordEvent } from "../../src/collect/db.js";
 import type { CollectRunResult } from "../../src/collect/run.js";
 import type { DbHandle } from "../../src/db/client.js";
@@ -23,6 +23,7 @@ import { researchStart } from "../../src/runs/agent.js";
 import {
   createAgentRunner,
   pruneRunDirs,
+  stallTimeoutMs,
   type AgentRunner,
   type PromptContext,
 } from "../../src/runs/agent-runner.js";
@@ -183,6 +184,11 @@ function makeFixture(opts: {
   maxAgents?: number;
   collectLimit?: number;
   buildPrompt?: null;
+  stallMs?: number;
+  usageRollup?: (
+    main: HarnessUsage | undefined,
+    sessionId: string | undefined,
+  ) => Promise<import("../../src/runs/usage.js").UsageRollup>;
 }): Fixture {
   const harness = new FakeHarness(opts.scriptFor ?? (() => ({ events: [COMPLETED] })));
   const collectCalls: string[] = [];
@@ -201,6 +207,9 @@ function makeFixture(opts: {
     collectLimit: opts.collectLimit,
     pollMs: 60_000,
     runsDir,
+    stallMs: opts.stallMs,
+    usageRollup:
+      opts.usageRollup ?? (async (main) => ({ total: main, childrenIncluded: false, children: [] })),
     collect: async (runId: string) => {
       collectCalls.push(runId);
       if (opts.collectImpl) return opts.collectImpl(runId);
@@ -402,7 +411,7 @@ describe("agent runner", () => {
     const h = await waitForHandle(fx.harness, runId);
     await handle.db
       .update(researchRuns)
-      .set({ lastActivityAt: new Date(Date.now() - 130_000) })
+      .set({ lastActivityAt: new Date(Date.now() - 310_000) })
       .where(eq(researchRuns.id, runId));
     await fx.runner.tick();
     expect(h.stopReason).toBe("stall");
@@ -410,6 +419,106 @@ describe("agent runner", () => {
     const row = await runRow(runId);
     expect(row.status).toBe("stalled");
     expect(row.agentExitCode).toBe(0);
+  });
+
+  it("stores a forensic note on stall (last 10 harness + last 5 MCP)", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ hang: true, exitCode: 0 }) });
+    const companyId = await makeCompany("A Co");
+    await freshCollect(companyId);
+    const started = await researchStart(handle.db, { companyIds: [companyId] });
+    const runId = (started.runs[0] as { runId: string }).runId;
+
+    await fx.runner.tick();
+    const h = await waitForHandle(fx.harness, runId);
+    for (let i = 0; i < 12; i += 1) await recordEvent(handle.db, runId, "harness", { seq: i });
+    for (let i = 0; i < 7; i += 1) await recordEvent(handle.db, runId, "mcp_call", { tool: `t${i}` });
+    await handle.db
+      .update(researchRuns)
+      .set({ lastActivityAt: new Date(Date.now() - 310_000) })
+      .where(eq(researchRuns.id, runId));
+    await fx.runner.tick();
+    expect(h.stopReason).toBe("stall");
+    await drain(runId);
+
+    const notes = await handle.db
+      .select()
+      .from(runEvents)
+      .where(and(eq(runEvents.runId, runId), eq(runEvents.type, "log")));
+    expect(notes).toHaveLength(1);
+    const payload = notes[0].payload as {
+      forensic: boolean;
+      stopReason: string;
+      lastHarness: { payload: { seq: number } }[];
+      lastMcpCalls: { payload: { tool: string } }[];
+    };
+    expect(payload.forensic).toBe(true);
+    expect(payload.stopReason).toBe("stall");
+    expect(payload.lastHarness.map((e) => e.payload.seq)).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(payload.lastMcpCalls.map((e) => e.payload.tool)).toEqual(["t2", "t3", "t4", "t5", "t6"]);
+  });
+
+  it("stores rolled-up usage with per-child rows", async () => {
+    const fx = makeFixture({
+      scriptFor: () => ({ events: [COMPLETED], usage: USAGE }),
+      usageRollup: async () => ({
+        total: { ...USAGE, inputTokens: 300, outputTokens: 60, calls: 5 },
+        childrenIncluded: true,
+        children: [
+          {
+            sessionId: "child-1",
+            model: "m",
+            inputTokens: 200,
+            outputTokens: 40,
+            cachedTokens: 0,
+            reasoningTokens: 0,
+            calls: 3,
+          },
+        ],
+      }),
+    });
+    const companyId = await makeCompany("A Co");
+    await freshCollect(companyId);
+    const started = await researchStart(handle.db, { companyIds: [companyId] });
+    const runId = (started.runs[0] as { runId: string }).runId;
+    await arrangeFinish(runId);
+
+    await fx.runner.tick();
+    await drain(runId);
+    expect((await runRow(runId)).agentUsage).toEqual({
+      model: "fake-model",
+      inputTokens: 300,
+      outputTokens: 60,
+      cachedTokens: 50,
+      reasoningTokens: 7,
+      calls: 5,
+      childrenIncluded: true,
+      children: [
+        {
+          sessionId: "child-1",
+          model: "m",
+          inputTokens: 200,
+          outputTokens: 40,
+          cachedTokens: 0,
+          reasoningTokens: 0,
+          calls: 3,
+        },
+      ],
+    });
+  });
+
+  it("defaults the stall timeout to 300s and honors AGENT_STALL_SECONDS", () => {
+    const saved = process.env.AGENT_STALL_SECONDS;
+    try {
+      delete process.env.AGENT_STALL_SECONDS;
+      expect(stallTimeoutMs()).toBe(300_000);
+      process.env.AGENT_STALL_SECONDS = "45";
+      expect(stallTimeoutMs()).toBe(45_000);
+      process.env.AGENT_STALL_SECONDS = "bogus";
+      expect(stallTimeoutMs()).toBe(300_000);
+    } finally {
+      if (saved === undefined) delete process.env.AGENT_STALL_SECONDS;
+      else process.env.AGENT_STALL_SECONDS = saved;
+    }
   });
 
   it("marks over-time runs partial", async () => {
@@ -428,6 +537,12 @@ describe("agent runner", () => {
     const row = await runRow(runId);
     expect(row.status).toBe("partial");
     expect(row.error).toBe("time limit");
+    const notes = await handle.db
+      .select()
+      .from(runEvents)
+      .where(and(eq(runEvents.runId, runId), eq(runEvents.type, "log")));
+    expect(notes).toHaveLength(1);
+    expect((notes[0].payload as { stopReason: string }).stopReason).toBe("time");
   });
 
   it("cancels researching runs", async () => {
@@ -619,6 +734,7 @@ describe("agent runner", () => {
       cachedTokens: 50,
       reasoningTokens: 7,
       calls: 2,
+      childrenIncluded: false,
     });
     const harnessRows = await handle.db
       .select({ payload: runEvents.payload })

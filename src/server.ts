@@ -6,7 +6,11 @@ import { sql } from "drizzle-orm";
 import { createDb, type Db } from "./db/client.js";
 import { createAgentRunner } from "./runs/agent-runner.js";
 import { buildResearchPrompt } from "./runs/prompt.js";
-import { checkAppMuseVersion, probeInstalledMuseVersion } from "./harness/setup.js";
+import {
+  AGENTS_GATEWAY,
+  checkAppMuseVersion,
+  probeInstalledMuseVersion,
+} from "./harness/setup.js";
 import { loadDotenv, requireEnv } from "./lib/env.js";
 import { OPERATOR_AUTH, type AuthContext } from "./mcp/auth.js";
 import { createMcpServer } from "./mcp/server.js";
@@ -15,7 +19,20 @@ import { createRunner } from "./runs/runner.js";
 
 export interface ServerHandle {
   url: string;
+  hosts: string[];
+  /** One URL per listener (ports differ when port 0 is used). */
+  urls: string[];
   close: () => Promise<void>;
+}
+
+/** HOST accepts a comma list (e.g. "127.0.0.1,172.31.250.1"). Never 0.0.0.0. */
+export function parseHosts(raw: string): string[] {
+  const hosts = raw
+    .split(",")
+    .map((h) => h.trim())
+    .filter((h) => h !== "");
+  if (hosts.length === 0) throw new Error("HOST must name at least one address");
+  return hosts;
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
@@ -68,7 +85,8 @@ export async function startServer(opts: {
   operatorToken: string;
   onClose?: () => Promise<void>;
 }): Promise<ServerHandle> {
-  const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+  const hosts = parseHosts(opts.host);
+  const onRequest = (req: IncomingMessage, res: ServerResponse) => {
     void (async () => {
       const path = new URL(req.url ?? "/", "http://localhost").pathname;
       if (req.method === "GET" && path === "/healthz") {
@@ -87,26 +105,46 @@ export async function startServer(opts: {
         res.end("internal error");
       }
     });
-  });
-  await new Promise<void>((resolve) => {
-    server.listen(opts.port, opts.host, resolve);
-  });
-  const sockets = new Set<Socket>();
-  server.on("connection", (socket) => {
-    sockets.add(socket);
-    socket.on("close", () => {
-      sockets.delete(socket);
-    });
-  });
-  const address = server.address();
-  const port = typeof address === "object" && address !== null ? address.port : opts.port;
-  return {
-    url: `http://${opts.host}:${port}`,
-    close: async () => {
-      for (const socket of sockets) socket.destroy();
-      await new Promise<void>((resolve, reject) => {
-        server.close((err) => (err ? reject(err) : resolve()));
+  };
+  // One listener per address: Node does not bind a list.
+  const servers = hosts.map((host) => {
+    const server = createServer(onRequest);
+    const sockets = new Set<Socket>();
+    server.on("connection", (socket) => {
+      sockets.add(socket);
+      socket.on("close", () => {
+        sockets.delete(socket);
       });
+    });
+    return { host, server, sockets };
+  });
+  for (const { host, server } of servers) {
+    await new Promise<void>((resolve, reject) => {
+      server.on("error", reject);
+      server.listen(opts.port, host, () => {
+        server.off("error", reject);
+        resolve();
+      });
+    });
+  }
+  const urls = servers.map(({ host, server }) => {
+    const address = server.address();
+    const port = typeof address === "object" && address !== null ? address.port : opts.port;
+    return `http://${host}:${port}`;
+  });
+  return {
+    url: urls[0] as string,
+    hosts,
+    urls,
+    close: async () => {
+      for (const { sockets } of servers) {
+        for (const socket of sockets) socket.destroy();
+      }
+      for (const { server } of servers) {
+        await new Promise<void>((resolve, reject) => {
+          server.close((err) => (err ? reject(err) : resolve()));
+        });
+      }
       await opts.onClose?.();
     },
   };
@@ -181,8 +219,14 @@ async function main(): Promise<void> {
     onClose: closeDb,
   });
   const serverPort = new URL(handle.url).port;
+  if (!handle.hosts.includes(AGENTS_GATEWAY)) {
+    console.warn(
+      `agent runs need the ${AGENTS_GATEWAY} listener (HOST=${host}); ` +
+        `containers reach MCP at http://${AGENTS_GATEWAY}:${serverPort}/mcp`,
+    );
+  }
   const agentRunner = createAgentRunner(db, {
-    mcpUrl: `http://host.docker.internal:${serverPort}/mcp`,
+    mcpUrl: `http://${AGENTS_GATEWAY}:${serverPort}/mcp`,
     buildPrompt: buildResearchPrompt,
   });
   // Agent recovery first: it stops orphaned containers and revokes their

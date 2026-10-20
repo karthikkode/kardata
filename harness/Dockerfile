@@ -26,6 +26,7 @@ RUN groupadd -g 10001 agent \
   && chown -R agent:agent /opt/muse /workspace /opt/browsers
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY usage-reader.mjs /usr/local/bin/usage-reader.mjs
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 USER agent

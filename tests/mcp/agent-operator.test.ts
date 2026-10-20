@@ -189,6 +189,7 @@ describe("agent operator tools", () => {
       cachedTokens: 500,
       reasoningTokens: 50,
       calls: 4,
+      childrenIncluded: false,
     };
     await handle.db
       .update(researchRuns)

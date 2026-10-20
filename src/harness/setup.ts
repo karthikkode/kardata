@@ -10,6 +10,12 @@ export const MUSE_VOLUME = "kardata_muse";
 export const MUSE_MOUNT = "/opt/muse";
 export const AGENT_UID = 10001;
 export const LAUNCHER_URL = "https://api.meta.ai/muse-launcher.sh";
+// Dedicated agent network (Stage 3b.1): fixed subnet so the gateway IP is
+// stable. The server listens on 127.0.0.1 and the gateway; containers reach
+// MCP at the gateway. Never 0.0.0.0.
+export const AGENTS_NETWORK = "kardata_agents";
+export const AGENTS_SUBNET = "172.31.250.0/24";
+export const AGENTS_GATEWAY = "172.31.250.1";
 
 export function dockerBuildArgs(harnessDir: string): string[] {
   return ["build", "-t", AGENT_IMAGE, harnessDir];
@@ -17,6 +23,33 @@ export function dockerBuildArgs(harnessDir: string): string[] {
 
 export function volumeCreateArgs(): string[] {
   return ["volume", "create", MUSE_VOLUME];
+}
+
+export function networkInspectArgs(): string[] {
+  return ["network", "inspect", AGENTS_NETWORK];
+}
+
+export function networkCreateArgs(): string[] {
+  return ["network", "create", "--subnet", AGENTS_SUBNET, AGENTS_NETWORK];
+}
+
+// Usage-reader: one shot, no network (volume read only).
+export function readerRunArgs(sessionId: string): string[] {
+  return [
+    "run",
+    "--rm",
+    "--network",
+    "none",
+    "--entrypoint",
+    "node",
+    "-v",
+    `${MUSE_VOLUME}:${MUSE_MOUNT}:ro`,
+    "-e",
+    `HOME=${MUSE_MOUNT}/home`,
+    AGENT_IMAGE,
+    "/usr/local/bin/usage-reader.mjs",
+    sessionId,
+  ];
 }
 
 // Interactive setup container (the owner runs it): root so it can install the

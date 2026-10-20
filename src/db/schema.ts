@@ -318,6 +318,16 @@ export interface AgentOptions {
   brief?: string;
 }
 
+export interface ChildUsage {
+  sessionId: string;
+  model?: string;
+  inputTokens: number;
+  outputTokens: number;
+  cachedTokens: number;
+  reasoningTokens: number;
+  calls: number;
+}
+
 export interface AgentUsage {
   model?: string;
   inputTokens: number;
@@ -325,6 +335,9 @@ export interface AgentUsage {
   cachedTokens: number;
   reasoningTokens: number;
   calls: number;
+  childrenIncluded: boolean;
+  children?: ChildUsage[];
+  note?: string;
 }
 
 export const researchRuns = pgTable(
