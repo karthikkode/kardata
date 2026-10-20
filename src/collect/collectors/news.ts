@@ -34,11 +34,10 @@ export const newsCollector: Collector = {
         ],
       };
     }
-    // GDELT rejects OR'd terms outside parens (HTTP 200 with an error body),
-    // so the query is always parenthesized; stray quotes would break it.
-    const clean = (s: string) => s.replace(/"/g, "").trim();
-    const clauses = [`"${clean(name)}"`, clean(domain)].filter((c) => c !== "" && c !== '""');
-    const query = `(${clauses.join(" OR ")})`;
+    // Query only the quoted name: GDELT rejects bare domain OR-terms as "too
+    // common" (HTTP 200 with an error body). The domain still filters matches
+    // locally in matchesCompany.
+    const query = `"${name.replace(/"/g, "").trim()}"`;
     const url =
       `${ctx.endpoints.gdelt}/api/v2/doc/doc?` +
       `query=${encodeURIComponent(query)}&mode=artlist&format=json` +
