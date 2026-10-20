@@ -68,7 +68,7 @@ Use it for JS-rendered pages: review widgets, careers pages, store locators.
 `heartbeat` and `run_finish`. Research agents get **no shell or file-write tools** where Muse can restrict
 that (check it in the spike). They store data only through kardata MCP.
 
-## Stage 4 — Research playbook
+## Stage 4 — Research playbook (`stage-4-research-playbook.md`)
 - The main agent's instructions and one subagent per area.
 - A checking step: no finding without a source; conflicts are marked.
 - A per-company summary document.

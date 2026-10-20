@@ -46,6 +46,9 @@ export interface AgentScore {
   findings: number;
 }
 
+/** Output created by the extractor (createdBy extractor:*). Same counters. */
+export type ExtractorScore = AgentScore;
+
 export interface RunScore {
   runId: string;
   companyId: string;
@@ -67,6 +70,7 @@ export interface RunScore {
   newProvisionalKeys: string[];
   newProvisionalTypes: string[];
   agent: AgentScore;
+  extractor: ExtractorScore;
   areas: Record<string, AreaScore>;
 }
 
@@ -78,6 +82,7 @@ export interface BatchTotals {
   documents: number;
   findings: number;
   agent: AgentScore;
+  extractor: ExtractorScore;
   mcpCalls: number;
   forbidden: number;
   minutes: number;
@@ -132,6 +137,10 @@ function emptyAgent(): AgentScore {
 
 function isAgentMade(createdBy: string): boolean {
   return createdBy.startsWith("agent:");
+}
+
+function isExtractorMade(createdBy: string): boolean {
+  return createdBy.startsWith("extractor:");
 }
 
 function bumpType(into: Record<string, number>, type: string): void {
@@ -227,6 +236,7 @@ export async function scorecard(
       newProvisionalKeys: [],
       newProvisionalTypes: [],
       agent: emptyAgent(),
+      extractor: emptyAgent(),
       areas,
     });
   }
@@ -267,6 +277,7 @@ export async function scorecard(
     const score = at(row.runId);
     score.facts += 1;
     if (isAgentMade(row.createdBy)) score.agent.facts += 1;
+    if (isExtractorMade(row.createdBy)) score.extractor.facts += 1;
     areaAt(row.runId, row.area).facts += 1;
     if (row.sourceIds.some((id) => primaryById.get(id))) {
       primaryCounts.set(row.runId, (primaryCounts.get(row.runId) ?? 0) + 1);
@@ -293,6 +304,7 @@ export async function scorecard(
       counted.add(runId);
       bumpType(at(runId).recordsByType, row.type);
       if (isAgentMade(row.createdBy)) bumpType(at(runId).agent.recordsByType, row.type);
+      if (isExtractorMade(row.createdBy)) bumpType(at(runId).extractor.recordsByType, row.type);
       bumpType(areaAt(runId, row.area).recordsByType, row.type);
     }
     if (row.type === "review" && row.firstSeenRunId && scores.has(row.firstSeenRunId)) {
@@ -300,6 +312,9 @@ export async function scorecard(
       areaAt(row.firstSeenRunId, row.area).reviewsIngested += 1;
       if (isAgentMade(row.createdBy)) {
         at(row.firstSeenRunId).agent.reviewsIngested += 1;
+      }
+      if (isExtractorMade(row.createdBy)) {
+        at(row.firstSeenRunId).extractor.reviewsIngested += 1;
       }
     }
   }
@@ -312,6 +327,7 @@ export async function scorecard(
     if (!row.runId) continue;
     at(row.runId).documents += 1;
     if (isAgentMade(row.createdBy)) at(row.runId).agent.documents += 1;
+    if (isExtractorMade(row.createdBy)) at(row.runId).extractor.documents += 1;
     areaAt(row.runId, row.area).documents += 1;
   }
 
@@ -330,6 +346,7 @@ export async function scorecard(
     if (!row.runId) continue;
     at(row.runId).findings += 1;
     if (isAgentMade(row.createdBy)) at(row.runId).agent.findings += 1;
+    if (isExtractorMade(row.createdBy)) at(row.runId).extractor.findings += 1;
     areaAt(row.runId, row.area).findings += 1;
     if (row.sourceIds.length + row.factIds.length + row.recordIds.length >= 2) {
       at(row.runId).findingsWellCited += 1;
@@ -409,6 +426,7 @@ function assemble(scores: Map<string, RunScore>): ScorecardResult {
     documents: 0,
     findings: 0,
     agent: emptyAgent(),
+    extractor: emptyAgent(),
     mcpCalls: 0,
     forbidden: 0,
     minutes: 0,
@@ -431,6 +449,13 @@ function assemble(scores: Map<string, RunScore>): ScorecardResult {
     totals.agent.reviewsIngested += run.agent.reviewsIngested;
     totals.agent.documents += run.agent.documents;
     totals.agent.findings += run.agent.findings;
+    totals.extractor.facts += run.extractor.facts;
+    for (const [type, n] of Object.entries(run.extractor.recordsByType)) {
+      totals.extractor.recordsByType[type] = (totals.extractor.recordsByType[type] ?? 0) + n;
+    }
+    totals.extractor.reviewsIngested += run.extractor.reviewsIngested;
+    totals.extractor.documents += run.extractor.documents;
+    totals.extractor.findings += run.extractor.findings;
     totals.mcpCalls += run.mcpCalls;
     totals.forbidden += run.forbidden;
     if (run.minutes !== null) totals.minutes = round2(totals.minutes + run.minutes);

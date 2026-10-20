@@ -67,6 +67,7 @@ const EXPECTED_TOOLS = [
   "shortlist_get",
   "shortlist_list",
   "batch_scorecard",
+  "extract_run",
 ];
 
 interface ToolResult {

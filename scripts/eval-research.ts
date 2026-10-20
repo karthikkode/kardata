@@ -33,6 +33,11 @@ function printRun(run: RunScore): void {
       `reviews ${run.agent.reviewsIngested} | docs ${run.agent.documents} | findings ${run.agent.findings}`,
   );
   console.log(
+    `   extractor: facts ${run.extractor.facts} | ` +
+      `records ${Object.entries(run.extractor.recordsByType).map(([t, n]) => `${t}:${n}`).join(", ") || "-"} | ` +
+      `reviews ${run.extractor.reviewsIngested} | docs ${run.extractor.documents} | findings ${run.extractor.findings}`,
+  );
+  console.log(
     `   tokens ${fmtTokens(run)} | minutes ${run.minutes ?? "-"} | mcp ${run.mcpCalls} | forbidden ${run.forbidden}`,
   );
   if (run.newProvisionalKeys.length > 0) console.log(`   +keys: ${run.newProvisionalKeys.join(", ")}`);

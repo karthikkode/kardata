@@ -31,6 +31,7 @@ import {
   searchAll,
 } from "../domain/research/reads.js";
 import { researchStart } from "../runs/agent.js";
+import { extractRun } from "../runs/extract.js";
 import { cancelRun, getOrCreateManualRun, startCollect, startCollectSector } from "../runs/queue.js";
 import {
   SCREEN_FIELDS,
@@ -958,6 +959,26 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const events = await listRunActivity(db, { runId, afterId: afterId ?? undefined, limit: limit ?? undefined });
         return { summary: `${events.length} events`, data: { events } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "extract_run",
+    {
+      description: "Re-extract structured facts, records and findings from an agent run's cited notes, one headless extractor call per area plus synthesis (operator only). Returns per-area counts and merged usage.",
+      inputSchema: {
+        runId,
+      },
+    },
+    async ({ runId }) =>
+      wrap(async () => {
+        const result = await extractRun(db, runId);
+        const done = result.areas.filter((a) => a.error === null).length;
+        const facts = result.areas.reduce((n, a) => n + a.writtenFacts, 0);
+        return {
+          summary: `extracted ${done}/${result.areas.length} areas from run ${runId} (${facts} facts)`,
+          data: result,
+        };
       }),
   );
 
