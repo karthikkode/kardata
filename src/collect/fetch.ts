@@ -28,6 +28,15 @@ export const FETCH_TIMEOUT_MS = 15000;
 export const FETCH_MAX_BYTES = 5 * 1024 * 1024;
 export const FETCH_MAX_REDIRECTS = 5;
 export const HOST_DELAY_MS = 2000;
+
+// Ops/test knob for the per-host delay. Production leaves it unset (2000 ms);
+// collector tests point every endpoint at one fake host and set it low.
+export function hostDelayMs(): number {
+  const raw = process.env.KARDATA_HOST_DELAY_MS;
+  if (raw === undefined || raw === "") return HOST_DELAY_MS;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : HOST_DELAY_MS;
+}
 export const RUN_REQUEST_BUDGET = 80;
 const ROBOTS_TTL_MS = 60 * 60 * 1000;
 const ROBOTS_CACHE_MAX = 2000;
@@ -180,7 +189,8 @@ async function withHostSlot<T>(host: string, fn: () => Promise<T>): Promise<T> {
   hostSlots.set(host, slot);
   await prev;
   try {
-    const wait = Math.max(0, HOST_DELAY_MS - (Date.now() - (lastFetchAt.get(host) ?? 0)));
+    const delay = hostDelayMs();
+    const wait = Math.max(0, delay - (Date.now() - (lastFetchAt.get(host) ?? 0)));
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     stampHost(host);
     return await fn();
@@ -235,6 +245,8 @@ export interface FetchOptions {
   maxBytes?: number;
   maxRedirects?: number;
   privateHostAllowlist?: string[];
+  // Extra request headers (e.g. Authorization). Never persisted to sources/events.
+  headers?: Record<string, string>;
 }
 
 interface ResolvedFetchOptions {
@@ -243,6 +255,7 @@ interface ResolvedFetchOptions {
   maxBytes: number;
   maxRedirects: number;
   privateHostAllowlist: string[];
+  headers: Record<string, string>;
 }
 
 interface RawResponse {
@@ -288,7 +301,7 @@ async function performRequest(startUrl: string, opts: ResolvedFetchOptions): Pro
       res = await fetch(current, {
         redirect: "manual",
         signal: AbortSignal.timeout(opts.timeoutMs),
-        headers: { "user-agent": userAgent(), accept: opts.accept },
+        headers: { "user-agent": userAgent(), accept: opts.accept, ...opts.headers },
       });
     } catch (err) {
       if (err instanceof Error && err.name === "TimeoutError") {
@@ -474,6 +487,7 @@ function resolveOptions(req: FetchRequest): ResolvedFetchOptions {
     maxBytes: req.maxBytes ?? FETCH_MAX_BYTES,
     maxRedirects: req.maxRedirects ?? FETCH_MAX_REDIRECTS,
     privateHostAllowlist: req.privateHostAllowlist ?? [],
+    headers: req.headers ?? {},
   };
 }
 

@@ -17,6 +17,8 @@ export interface FakeSite {
   baseUrl: string;
   hits: FakeHit[];
   routes: Map<string, RouteHandler>;
+  // Catches pathnames with no exact route (e.g. dynamic provider API paths).
+  fallback?: RouteHandler;
   close: () => Promise<void>;
 }
 
@@ -45,7 +47,7 @@ export async function startFakeSite(): Promise<FakeSite> {
       path: url.pathname,
       userAgent: req.headers["user-agent"],
     });
-    const handler = routes.get(url.pathname);
+    const handler = routes.get(url.pathname) ?? site.fallback;
     if (!handler) {
       res.writeHead(404, { "content-type": "text/plain" });
       res.end("no such route");
@@ -67,7 +69,7 @@ export async function startFakeSite(): Promise<FakeSite> {
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   const port = typeof address === "object" && address !== null ? address.port : 0;
-  return {
+  const site: FakeSite = {
     baseUrl: `http://127.0.0.1:${port}`,
     hits,
     routes,
@@ -78,4 +80,5 @@ export async function startFakeSite(): Promise<FakeSite> {
       });
     },
   };
+  return site;
 }
