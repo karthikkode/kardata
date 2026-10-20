@@ -1,5 +1,6 @@
-import { sql } from "drizzle-orm";
+import { desc, sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   bigserial,
   boolean,
   check,
@@ -11,12 +12,19 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  pgView,
   primaryKey,
   text,
   timestamp,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+
+const tsvector = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return "tsvector";
+  },
+});
 
 export const companySource = pgEnum("company_source", ["apollo", "manual"]);
 export const membershipAddedVia = pgEnum("membership_added_via", ["csv", "manual"]);
@@ -172,6 +180,129 @@ export const confidence = pgEnum("confidence", ["low", "medium", "high"]);
 export const findingStatus = pgEnum("finding_status", ["supported", "conflicting", "unverified"]);
 export const areaStatus = pgEnum("area_status", ["done", "not_found", "blocked", "error", "skipped"]);
 
+// ---- Stage 2b: research data model (registry, facts, records) ----
+
+export const valueType = pgEnum("value_type", [
+  "number",
+  "money",
+  "percent",
+  "date",
+  "bool",
+  "text",
+  "url",
+  "text_list",
+]);
+export type ValueType = (typeof valueType.enumValues)[number];
+
+export const registryStatus = pgEnum("registry_status", ["approved", "provisional"]);
+export type RegistryStatus = (typeof registryStatus.enumValues)[number];
+
+export const factKeys = pgTable("fact_keys", {
+  key: text("key").primaryKey(),
+  // Null area = general (company.* keys).
+  area: area("area"),
+  valueType: valueType("value_type").notNull(),
+  unit: text("unit"),
+  description: text("description").notNull(),
+  qualifierNames: text("qualifier_names").array().notNull().default([]),
+  status: registryStatus("status").notNull().default("provisional"),
+  createdBy: text("created_by").notNull(),
+});
+
+export const facts = pgTable(
+  "facts",
+  {
+    id: uuid("id").primaryKey(),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    runId: uuid("run_id").references(() => researchRuns.id, { onDelete: "set null" }),
+    key: text("key")
+      .notNull()
+      .references(() => factKeys.key, { onUpdate: "cascade" }),
+    area: area("area"),
+    valueNum: numeric("value_num"),
+    valueText: text("value_text"),
+    valueDate: date("value_date"),
+    valueBool: boolean("value_bool"),
+    valueJson: jsonb("value_json").$type<unknown>(),
+    currency: text("currency"),
+    qualifiers: jsonb("qualifiers").$type<Record<string, string>>().notNull().default({}),
+    asOf: date("as_of"),
+    sourceIds: uuid("source_ids").array().notNull(),
+    confidence: confidence("confidence").notNull(),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    supersedesId: uuid("supersedes_id").references((): AnyPgColumn => facts.id, {
+      onDelete: "set null",
+    }),
+    tsv: tsvector("tsv").generatedAlwaysAs(
+      sql`setweight(to_tsvector('english', "key"), 'A') || to_tsvector('english', coalesce("value_text", ''))`,
+    ),
+  },
+  (t) => [
+    check("facts_source_ids_not_empty", sql`cardinality(${t.sourceIds}) > 0`),
+    index("facts_company_key_idx").on(t.companyId, t.key),
+    index("facts_qualifiers_idx").using("gin", t.qualifiers),
+    index("facts_tsv_idx").using("gin", t.tsv),
+  ],
+);
+
+export const recordTypes = pgTable("record_types", {
+  name: text("name").primaryKey(),
+  area: area("area"),
+  description: text("description").notNull(),
+  fields: jsonb("fields").$type<RecordField[]>().notNull(),
+  naturalKey: text("natural_key").array().notNull(),
+  status: registryStatus("status").notNull().default("provisional"),
+  createdBy: text("created_by").notNull(),
+});
+
+export interface RecordField {
+  name: string;
+  type: string;
+  required: boolean;
+  description: string;
+}
+
+export const records = pgTable(
+  "records",
+  {
+    id: uuid("id").primaryKey(),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    type: text("type")
+      .notNull()
+      .references(() => recordTypes.name, { onUpdate: "cascade" }),
+    area: area("area"),
+    naturalKeyHash: text("natural_key_hash").notNull(),
+    data: jsonb("data").$type<Record<string, unknown>>().notNull(),
+    sourceIds: uuid("source_ids").array().notNull(),
+    firstSeenRunId: uuid("first_seen_run_id").references(() => researchRuns.id, {
+      onDelete: "set null",
+    }),
+    lastSeenRunId: uuid("last_seen_run_id").references(() => researchRuns.id, {
+      onDelete: "set null",
+    }),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+    tsv: tsvector("tsv").generatedAlwaysAs(
+      sql`jsonb_to_tsvector('english', "data", '["string"]')`,
+    ),
+  },
+  (t) => [
+    check("records_source_ids_not_empty", sql`cardinality(${t.sourceIds}) > 0`),
+    uniqueIndex("records_company_type_hash_idx").on(t.companyId, t.type, t.naturalKeyHash),
+    index("records_data_idx").using("gin", t.data),
+    index("records_tsv_idx").using("gin", t.tsv),
+  ],
+);
+
 export const researchRuns = pgTable(
   "research_runs",
   {
@@ -243,15 +374,16 @@ export const sources = pgTable(
     error: text("error"),
     fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
     blobSha256: text("blob_sha256").references(() => blobs.sha256),
+    tsv: tsvector("tsv").generatedAlwaysAs(
+      sql`to_tsvector('english', "url" || ' ' || coalesce("error", ''))`,
+    ),
   },
-  (t) => [index("sources_run_idx").on(t.runId), index("sources_company_idx").on(t.companyId)],
+  (t) => [
+    index("sources_run_idx").on(t.runId),
+    index("sources_company_idx").on(t.companyId),
+    index("sources_tsv_idx").using("gin", t.tsv),
+  ],
 );
-
-const tsvector = customType<{ data: string; driverData: string }>({
-  dataType() {
-    return "tsvector";
-  },
-});
 
 export const documents = pgTable(
   "documents",
@@ -291,6 +423,8 @@ export const findings = pgTable(
     claim: text("claim").notNull(),
     detail: text("detail"),
     sourceIds: uuid("source_ids").array().notNull(),
+    factIds: uuid("fact_ids").array().notNull().default([]),
+    recordIds: uuid("record_ids").array().notNull().default([]),
     confidence: confidence("confidence").notNull(),
     status: findingStatus("status").notNull(),
     createdBy: text("created_by").notNull(),
@@ -332,3 +466,35 @@ export type Source = typeof sources.$inferSelect;
 export type ResearchDocument = typeof documents.$inferSelect;
 export type Finding = typeof findings.$inferSelect;
 export type AreaStatusRow = typeof areaStatuses.$inferSelect;
+export type FactKey = typeof factKeys.$inferSelect;
+export type Fact = typeof facts.$inferSelect;
+export type RecordTypeRow = typeof recordTypes.$inferSelect;
+export type ResearchRecord = typeof records.$inferSelect;
+
+// Latest fact per (company, key, qualifiers).
+export const factsCurrent = pgView("facts_current").as((qb) =>
+  qb
+    .selectDistinctOn([facts.companyId, facts.key, facts.qualifiers], {
+      id: facts.id,
+      companyId: facts.companyId,
+      runId: facts.runId,
+      key: facts.key,
+      area: facts.area,
+      valueNum: facts.valueNum,
+      valueText: facts.valueText,
+      valueDate: facts.valueDate,
+      valueBool: facts.valueBool,
+      valueJson: facts.valueJson,
+      currency: facts.currency,
+      qualifiers: facts.qualifiers,
+      asOf: facts.asOf,
+      sourceIds: facts.sourceIds,
+      confidence: facts.confidence,
+      createdBy: facts.createdBy,
+      createdAt: facts.createdAt,
+      supersedesId: facts.supersedesId,
+    })
+    .from(facts)
+    .orderBy(facts.companyId, facts.key, facts.qualifiers, desc(facts.createdAt), desc(facts.id)),
+);
+export type CurrentFact = typeof factsCurrent.$inferSelect;

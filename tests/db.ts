@@ -11,8 +11,11 @@ export function getTestDb(): DbHandle {
 /** Wipe all stage-1 and research tables (test database only). */
 export async function resetTestDb(handle: DbHandle): Promise<void> {
   await handle.db.execute(
-    sql`TRUNCATE sectors, companies, sector_companies, imports, research_runs, run_events, blobs, sources, documents, findings, area_statuses CASCADE`,
+    sql`TRUNCATE sectors, companies, sector_companies, imports, research_runs, run_events, blobs, sources, documents, findings, area_statuses, facts, records CASCADE`,
   );
+  // Registry seeds survive; provisional test registrations do not.
+  await handle.db.execute(sql`DELETE FROM fact_keys WHERE status = 'provisional'`);
+  await handle.db.execute(sql`DELETE FROM record_types WHERE status = 'provisional'`);
 }
 
 export function fixtureCsvPath(): string {
