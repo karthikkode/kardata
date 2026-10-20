@@ -25,9 +25,11 @@ import {
   getSourceExcerpt,
   listDocuments,
   listRecords,
+  listRunActivity,
   listRunEvents,
   searchAll,
 } from "../domain/research/reads.js";
+import { researchStart } from "../runs/agent.js";
 import { cancelRun, getOrCreateManualRun, startCollect } from "../runs/queue.js";
 import { DomainError } from "../domain/errors.js";
 import {
@@ -763,6 +765,51 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
           limit: limit ?? undefined,
         });
         return { summary: `${hits.length} hits`, data: { hits } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "research_start",
+    {
+      description: "Start one research agent run per company (at most 100). Returns the batch id plus, per company, a run id or already_running.",
+      inputSchema: {
+        companyIds: z.array(z.string()).describe("Company UUIDs (1..100)"),
+        areas: z.array(z.string()).optional().describe("Limit the run to these areas"),
+        recollectIfOlderThanDays: z.number().optional().describe("Recollect when no fresh collect exists (default 14)"),
+        maxMinutes: z.number().optional().describe("Agent wall-time limit (default 40)"),
+        maxModelSteps: z.number().int().optional().describe("Model step cap (default 100)"),
+        brief: z.string().optional().describe("Extra owner instructions (at most 2 KB)"),
+      },
+    },
+    async ({ companyIds, areas, recollectIfOlderThanDays, maxMinutes, maxModelSteps, brief }) =>
+      wrap(async () => {
+        const batch = await researchStart(db, {
+          companyIds,
+          areas: areas ?? undefined,
+          recollectIfOlderThanDays: recollectIfOlderThanDays ?? undefined,
+          maxMinutes: maxMinutes ?? undefined,
+          maxModelSteps: maxModelSteps ?? undefined,
+          brief: brief ?? undefined,
+        });
+        const queued = batch.runs.filter((r) => r.status === "queued").length;
+        return { summary: `batch ${batch.batchId}: ${queued} queued, ${batch.runs.length - queued} already running`, data: batch };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "run_activity",
+    {
+      description: "Harness events plus the mcp_call audit trail for a run, oldest first. Returns the events.",
+      inputSchema: {
+        runId,
+        afterId: z.number().int().optional().describe("Only events with id above this"),
+        limit: z.number().int().optional().describe("1..200, default 200"),
+      },
+    },
+    async ({ runId, afterId, limit }) =>
+      wrap(async () => {
+        const events = await listRunActivity(db, { runId, afterId: afterId ?? undefined, limit: limit ?? undefined });
+        return { summary: `${events.length} events`, data: { events } };
       }),
   );
 

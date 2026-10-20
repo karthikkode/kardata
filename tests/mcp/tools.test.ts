@@ -59,6 +59,8 @@ const EXPECTED_TOOLS = [
   "facts_get",
   "records_list",
   "search",
+  "research_start",
+  "run_activity",
 ];
 
 interface ToolResult {
