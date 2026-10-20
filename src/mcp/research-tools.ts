@@ -31,6 +31,15 @@ import {
   searchAll,
 } from "../domain/research/reads.js";
 import { researchStart } from "../runs/agent.js";
+import {
+  bulkCancel,
+  bulkPause,
+  bulkResume,
+  bulkRetryFailed,
+  bulkSetConcurrency,
+  bulkStart,
+  bulkStatus,
+} from "../runs/bulk.js";
 import { extractRun } from "../runs/extract.js";
 import { cancelRun, getOrCreateManualRun, startCollect, startCollectSector } from "../runs/queue.js";
 import {
@@ -1014,6 +1023,121 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
           areaOutcomes: areaOutcomes ?? [],
         });
         return { summary: `run ${run} finished`, data: { runId: run } };
+      }),
+  );
+
+  const jobId = z.string().describe("Bulk job UUID");
+
+  registerTool(server, db, auth,
+    "bulk_start",
+    {
+      description: "Operator: start a bulk job that feeds companies to the queue at a fixed concurrency (research runs collect+research+extraction per company). Returns the job id.",
+      inputSchema: {
+        kind: z.enum(["research_sector", "research_shortlist", "collect_sector"]),
+        sectorId: z.string().optional().describe("Sector for *_sector kinds"),
+        shortlistId: z.string().optional().describe("Shortlist for research_shortlist"),
+        companyIds: z.array(z.string()).optional().describe("Explicit company list (exactly one source)"),
+        concurrency: z.number().int().optional().describe("Max parallel runs (research 1..4, collect 1..8)"),
+        maxRuns: z.number().int().optional().describe("Budget: pause after starting this many runs"),
+        maxInputTokens: z.number().int().optional().describe("Budget: pause after spending this many input tokens"),
+        skipIfRecentDays: z.number().int().optional().describe("Skip companies done within this window (0 disables)"),
+        promptVersion: z.string().optional().describe("Research prompt version (research kinds only)"),
+      },
+    },
+    async ({ kind, sectorId, shortlistId, companyIds, concurrency, maxRuns, maxInputTokens, skipIfRecentDays, promptVersion }) =>
+      wrap(async () => {
+        const result = await bulkStart(db, {
+          kind,
+          sectorId: sectorId ?? undefined,
+          shortlistId: shortlistId ?? undefined,
+          companyIds: companyIds ?? undefined,
+          concurrency: concurrency ?? undefined,
+          maxRuns: maxRuns ?? undefined,
+          maxInputTokens: maxInputTokens ?? undefined,
+          skipIfRecentDays: skipIfRecentDays ?? undefined,
+          promptVersion: promptVersion ?? undefined,
+        });
+        return { summary: `bulk job ${result.jobId} started (${result.items} companies)`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "bulk_status",
+    {
+      description: "Operator: bulk job progress, counts, ETA and per-company outcomes.",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        const view = await bulkStatus(db, id);
+        const done = view.counts.succeeded + view.counts.failed + view.counts.skipped + view.counts.cancelled;
+        const total = done + view.counts.queued + view.counts.running + view.counts.extracting;
+        return { summary: `job ${id}: ${view.job.status}, ${done}/${total} terminal`, data: view };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "bulk_set_concurrency",
+    {
+      description: "Operator: change a bulk job's concurrency at runtime.",
+      inputSchema: { jobId, concurrency: z.number().int().describe("New max parallel runs") },
+    },
+    async ({ jobId: id, concurrency }) =>
+      wrap(async () => {
+        const job = await bulkSetConcurrency(db, id, concurrency);
+        return { summary: `job ${id} concurrency -> ${job.concurrency}`, data: { jobId: id, concurrency: job.concurrency } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "bulk_pause",
+    {
+      description: "Operator: pause a bulk job (running companies finish; nothing new starts).",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        await bulkPause(db, id);
+        return { summary: `job ${id} paused`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "bulk_resume",
+    {
+      description: "Operator: resume a paused bulk job.",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        await bulkResume(db, id);
+        return { summary: `job ${id} resumed`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "bulk_cancel",
+    {
+      description: "Operator: cancel a bulk job and its active runs.",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        await bulkCancel(db, id);
+        return { summary: `job ${id} cancelled`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "bulk_retry_failed",
+    {
+      description: "Operator: re-queue a bulk job's failed companies and resume it.",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        const result = await bulkRetryFailed(db, id);
+        return { summary: `job ${id}: ${result.retried} companies re-queued`, data: { jobId: id, retried: result.retried } };
       }),
   );
 }

@@ -5,6 +5,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { sql } from "drizzle-orm";
 import { createDb, type Db } from "./db/client.js";
 import { createAgentRunner } from "./runs/agent-runner.js";
+import { createBulkRunner, realBulkDeps } from "./runs/bulk.js";
 import { buildResearchPrompt } from "./runs/prompt.js";
 import {
   AGENTS_GATEWAY,
@@ -233,8 +234,11 @@ async function main(): Promise<void> {
   // tokens before the collect runner fails leftover running rows.
   await agentRunner.start();
   await runner.start();
+  const bulkRunner = createBulkRunner(db, realBulkDeps(db));
+  await bulkRunner.start();
   process.on("SIGTERM", () => {
     void (async () => {
+      await bulkRunner.stop();
       await agentRunner.stop();
       await runner.stop();
       await handle.close();

@@ -68,6 +68,13 @@ const EXPECTED_TOOLS = [
   "shortlist_list",
   "batch_scorecard",
   "extract_run",
+  "bulk_start",
+  "bulk_status",
+  "bulk_set_concurrency",
+  "bulk_pause",
+  "bulk_resume",
+  "bulk_cancel",
+  "bulk_retry_failed",
 ];
 
 interface ToolResult {

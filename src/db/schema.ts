@@ -1,6 +1,7 @@
 import { desc, sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  bigint,
   bigserial,
   boolean,
   check,
@@ -596,3 +597,62 @@ export const factsCurrent = pgView("facts_current").as((qb) =>
     .orderBy(facts.companyId, facts.key, facts.qualifiers, desc(facts.createdAt), desc(facts.id)),
 );
 export type CurrentFact = typeof factsCurrent.$inferSelect;
+
+// ---- Stage 4.1 Step 5: bulk jobs (DB-backed queue feeding) ----
+
+export const bulkJobKind = pgEnum("bulk_job_kind", ["research_sector", "research_shortlist", "collect_sector"]);
+export const bulkJobStatus = pgEnum("bulk_job_status", ["running", "paused", "completed", "cancelled"]);
+export const bulkItemStatus = pgEnum("bulk_item_status", [
+  "queued",
+  "running",
+  "extracting",
+  "succeeded",
+  "failed",
+  "skipped",
+  "cancelled",
+]);
+
+export const bulkJobs = pgTable("bulk_jobs", {
+  id: uuid("id").primaryKey(),
+  kind: bulkJobKind("kind").notNull(),
+  status: bulkJobStatus("status").notNull().default("running"),
+  sectorId: uuid("sector_id").references(() => sectors.id, { onDelete: "set null" }),
+  shortlistId: uuid("shortlist_id").references(() => shortlists.id, { onDelete: "set null" }),
+  concurrency: integer("concurrency").notNull(),
+  maxRuns: integer("max_runs"),
+  maxInputTokens: bigint("max_input_tokens", { mode: "number" }),
+  skipIfRecentDays: integer("skip_if_recent_days").notNull().default(14),
+  promptVersion: text("prompt_version"),
+  errorStreak: integer("error_streak").notNull().default(0),
+  errorClass: text("error_class"),
+  pauseReason: text("pause_reason"),
+  startedRuns: integer("started_runs").notNull().default(0),
+  inputTokensSpent: bigint("input_tokens_spent", { mode: "number" }).notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+});
+export type BulkJob = typeof bulkJobs.$inferSelect;
+
+export const bulkJobItems = pgTable(
+  "bulk_job_items",
+  {
+    id: uuid("id").primaryKey(),
+    jobId: uuid("job_id")
+      .notNull()
+      .references(() => bulkJobs.id, { onDelete: "cascade" }),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    status: bulkItemStatus("status").notNull().default("queued"),
+    runId: uuid("run_id").references(() => researchRuns.id, { onDelete: "set null" }),
+    attempts: integer("attempts").notNull().default(0),
+    error: text("error"),
+    errorClass: text("error_class"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    durationMs: integer("duration_ms"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("bulk_job_items_job_company_idx").on(t.jobId, t.companyId)],
+);
+export type BulkJobItem = typeof bulkJobItems.$inferSelect;
