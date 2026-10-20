@@ -60,6 +60,7 @@ export interface RunScore {
   tokens: TokenScore | null;
   mcpCalls: number;
   forbidden: number;
+  piiRedactions: number;
   facts: number;
   primaryShare: number | null;
   recordsByType: Record<string, number>;
@@ -85,6 +86,7 @@ export interface BatchTotals {
   extractor: ExtractorScore;
   mcpCalls: number;
   forbidden: number;
+  piiRedactions: number;
   minutes: number;
   runsWithUsage: number;
   tokens: { input: number; output: number; cached: number; reasoning: number; calls: number };
@@ -226,6 +228,7 @@ export async function scorecard(
         : null,
       mcpCalls: 0,
       forbidden: 0,
+      piiRedactions: 0,
       facts: 0,
       primaryShare: null,
       recordsByType: {},
@@ -362,6 +365,15 @@ export async function scorecard(
     if ((row.payload as { status?: unknown }).status === "forbidden") at(row.runId).forbidden += 1;
   }
 
+  const piiRows = await db
+    .select({ runId: runEvents.runId, payload: runEvents.payload })
+    .from(runEvents)
+    .where(and(inArray(runEvents.runId, runIds), eq(runEvents.type, "log")));
+  for (const row of piiRows) {
+    const hits = (row.payload as { pii_redact?: { hits?: unknown } }).pii_redact?.hits;
+    if (typeof hits === "number" && Number.isFinite(hits) && hits > 0) at(row.runId).piiRedactions += hits;
+  }
+
   const statusRows = await db
     .select({ runId: areaStatuses.runId, area: areaStatuses.area, status: areaStatuses.status, reason: areaStatuses.reason })
     .from(areaStatuses)
@@ -429,6 +441,7 @@ function assemble(scores: Map<string, RunScore>): ScorecardResult {
     extractor: emptyAgent(),
     mcpCalls: 0,
     forbidden: 0,
+    piiRedactions: 0,
     minutes: 0,
     runsWithUsage: 0,
     tokens: { input: 0, output: 0, cached: 0, reasoning: 0, calls: 0 },
@@ -458,6 +471,7 @@ function assemble(scores: Map<string, RunScore>): ScorecardResult {
     totals.extractor.findings += run.extractor.findings;
     totals.mcpCalls += run.mcpCalls;
     totals.forbidden += run.forbidden;
+    totals.piiRedactions += run.piiRedactions;
     if (run.minutes !== null) totals.minutes = round2(totals.minutes + run.minutes);
     if (run.tokens) {
       totals.runsWithUsage += 1;

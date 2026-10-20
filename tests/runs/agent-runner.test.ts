@@ -8,7 +8,7 @@ import { and, eq } from "drizzle-orm";
 import { recordEvent } from "../../src/collect/db.js";
 import type { CollectRunResult } from "../../src/collect/run.js";
 import type { DbHandle } from "../../src/db/client.js";
-import { area, companies, researchRuns, runEvents } from "../../src/db/schema.js";
+import { area, companies, researchRuns, runEvents, sources } from "../../src/db/schema.js";
 import { setAreaStatus } from "../../src/domain/research/status.js";
 import { PLAYWRIGHT_SERVER_CONFIG, RESEARCH_MUSE_ARGS } from "../../src/harness/docker.js";
 import type {
@@ -21,6 +21,7 @@ import type {
 } from "../../src/harness/types.js";
 import { researchStart } from "../../src/runs/agent.js";
 import {
+  allowedOriginsForCompany,
   createAgentRunner,
   pruneRunDirs,
   stallTimeoutMs,
@@ -248,6 +249,54 @@ afterEach(async () => {
     runner = null;
   }
   rmSync(runsDir, { recursive: true, force: true });
+});
+
+describe("allowedOriginsForCompany", () => {
+  async function companyWith(opts: { domain?: string | null; website?: string | null }) {
+    const id = randomUUID();
+    await handle.db.insert(companies).values({ id, source: "manual", name: "Fence Co", ...opts });
+    const [row] = await handle.db.select().from(companies).where(eq(companies.id, id));
+    if (!row) throw new Error("no company row");
+    return row;
+  }
+
+  it("fences apex, www, shop and the website host", async () => {
+    const company = await companyWith({ domain: "shop.example", website: "https://store.example/shop" });
+    const origins = await allowedOriginsForCompany(handle.db, company);
+    expect(origins).toEqual([
+      "https://shop.example",
+      "http://shop.example",
+      "https://shop.shop.example",
+      "http://shop.shop.example",
+      "https://store.example",
+      "http://store.example",
+      "https://www.shop.example",
+      "http://www.shop.example",
+    ]);
+  });
+
+  it("adds the myshopify host from past shopify fetches", async () => {
+    const company = await companyWith({ domain: "brand.example" });
+    const runId = randomUUID();
+    await handle.db.insert(researchRuns).values({ id: runId, companyId: company.id, kind: "collect", status: "succeeded" });
+    await handle.db.insert(sources).values({
+      id: randomUUID(),
+      companyId: company.id,
+      runId,
+      url: "https://brand-1.myshopify.com/products.json",
+      finalUrl: "https://brand-1.myshopify.com/products.json",
+      collector: "shopify",
+      status: "ok",
+    });
+    const origins = await allowedOriginsForCompany(handle.db, company);
+    expect(origins).toContain("https://brand-1.myshopify.com");
+    expect(origins).toContain("https://brand.example");
+  });
+
+  it("returns no origins without a domain", async () => {
+    const company = await companyWith({ domain: null, website: null });
+    await expect(allowedOriginsForCompany(handle.db, company)).resolves.toEqual([]);
+  });
 });
 
 describe("agent runner", () => {

@@ -38,7 +38,7 @@ function printRun(run: RunScore): void {
       `reviews ${run.extractor.reviewsIngested} | docs ${run.extractor.documents} | findings ${run.extractor.findings}`,
   );
   console.log(
-    `   tokens ${fmtTokens(run)} | minutes ${run.minutes ?? "-"} | mcp ${run.mcpCalls} | forbidden ${run.forbidden}`,
+    `   tokens ${fmtTokens(run)} | minutes ${run.minutes ?? "-"} | mcp ${run.mcpCalls} | forbidden ${run.forbidden} | pii ${run.piiRedactions}`,
   );
   if (run.newProvisionalKeys.length > 0) console.log(`   +keys: ${run.newProvisionalKeys.join(", ")}`);
   if (run.newProvisionalTypes.length > 0) console.log(`   +types: ${run.newProvisionalTypes.join(", ")}`);

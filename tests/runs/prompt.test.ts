@@ -146,10 +146,10 @@ describe("buildResearchPrompt", () => {
 });
 
 describe("prompt versions", () => {
-  it("lists v0, v1 and v1.1 with v1.1 latest", () => {
-    expect(availablePromptVersions()).toEqual(["v0", "v1", "v1.1"]);
-    expect(latestPromptVersion()).toBe("v1.1");
-    expect(resolvePromptVersion()).toBe("v1.1");
+  it("lists v0, v1, v1.1 and v1.2 with v1.2 latest", () => {
+    expect(availablePromptVersions()).toEqual(["v0", "v1", "v1.1", "v1.2"]);
+    expect(latestPromptVersion()).toBe("v1.2");
+    expect(resolvePromptVersion()).toBe("v1.2");
     expect(resolvePromptVersion("v0")).toBe("v0");
   });
 
@@ -187,6 +187,22 @@ describe("prompt versions", () => {
     expect(prompt).toContain("Do NOT call these");
     expect(prompt).toContain("bank progress continuously");
     expect(prompt).toContain("MUST ingest up to 300");
+    expect(prompt).not.toContain("{{");
+  });
+
+  it("renders v1.2 as depth-plus-citations with no structuring", () => {
+    const prompt = buildResearchPrompt(ctx({ run: { promptVersion: "v1.2" } }));
+    for (const area of PROMPT_AREAS) {
+      expect(prompt, area).toContain(`### ${area}`);
+    }
+    expect(prompt).toContain("depth and citations, not structuring");
+    expect(prompt).toContain("[src:<uuid>]");
+    expect(prompt).toContain("At least 3 sources per area");
+    expect(prompt).toContain("No reviewer names or initials");
+    expect(prompt).toContain("never the Workflow tool");
+    expect(prompt).toContain("summary.md");
+    expect(prompt).toContain("fact_add, record_upsert, reviews_ingest, finding_add");
+    expect(prompt).not.toContain("MUST ingest up to 300");
     expect(prompt).not.toContain("{{");
   });
 });

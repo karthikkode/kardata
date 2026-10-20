@@ -9,6 +9,7 @@ import {
   containerNameForRun,
   dockerRunArgs,
   dockerStopArgs,
+  playwrightServerConfig,
   recoveryListArgs,
 } from "../../src/harness/docker.js";
 import { AGENTS_NETWORK, AGENT_IMAGE, MUSE_MOUNT, MUSE_VOLUME, checkAppMuseVersion } from "../../src/harness/setup.js";
@@ -126,6 +127,14 @@ describe("docker harness", () => {
     const model = RESEARCH_MUSE_ARGS.indexOf("--model");
     expect(RESEARCH_MUSE_ARGS[model + 1]).toBe("muse-spark-1.3");
     expect(PLAYWRIGHT_SERVER_CONFIG.args).toContain("--no-sandbox");
+  });
+
+  it("fences Playwright to semicolon-joined origins, or leaves it unfenced", () => {
+    const fenced = playwrightServerConfig(["https://shop.example", "http://shop.example"]);
+    const at = (fenced.args ?? []).indexOf("--allowed-origins");
+    expect((fenced.args ?? [])[at + 1]).toBe("https://shop.example;http://shop.example");
+    expect(fenced.args).toContain("--no-sandbox");
+    expect(playwrightServerConfig([]).args).toEqual(PLAYWRIGHT_SERVER_CONFIG.args);
   });
 
   it("gates agent runs on the version pin", () => {

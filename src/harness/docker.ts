@@ -51,6 +51,20 @@ export const PLAYWRIGHT_SERVER_CONFIG: McpServerConfig = {
   args: ["--headless", "--isolated", "--no-sandbox"],
 };
 
+/**
+ * Per-run Playwright config fenced to the company's origins
+ * (--allowed-origins is semicolon-separated; verified in @playwright/mcp
+ * 0.0.83, which warns it is not a security boundary and skips redirects).
+ * An empty list keeps the unfenced base config.
+ */
+export function playwrightServerConfig(origins: string[]): McpServerConfig {
+  if (origins.length === 0) return { ...PLAYWRIGHT_SERVER_CONFIG };
+  return {
+    ...PLAYWRIGHT_SERVER_CONFIG,
+    args: [...(PLAYWRIGHT_SERVER_CONFIG.args ?? []), "--allowed-origins", origins.join(";")],
+  };
+}
+
 /** docker --name value: sanitized, because it derives from the run id. */
 export function containerNameForRun(runId: string): string {
   const safe = runId.replace(/[^a-zA-Z0-9_.-]/g, "-").slice(0, 100);

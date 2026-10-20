@@ -1,7 +1,7 @@
 import { createWriteStream, readdirSync, rmSync, statSync } from "node:fs";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, like } from "drizzle-orm";
 import { recordEvent } from "../collect/db.js";
 import { executeCollectRun, type CollectRunResult } from "../collect/run.js";
 import type { Db } from "../db/client.js";
@@ -11,15 +11,16 @@ import {
   companies,
   researchRuns,
   runEvents,
+  sources,
   type AgentUsage,
   type ChildUsage,
   type Company,
   type ResearchRun,
 } from "../db/schema.js";
 import {
-  PLAYWRIGHT_SERVER_CONFIG,
   RESEARCH_MUSE_ARGS,
   dockerMuseHarness,
+  playwrightServerConfig,
   recoverLabeledContainers,
 } from "../harness/docker.js";
 import type {
@@ -29,6 +30,7 @@ import type {
   HarnessUsage,
 } from "../harness/types.js";
 import { hasFreshCollect } from "./agent.js";
+import { redactRunDocs } from "../domain/research/pii.js";
 import { collectConcurrency } from "./runner.js";
 import { issueRunToken, revokeRunToken } from "./tokens.js";
 import { rollupUsage, type UsageRollup } from "./usage.js";
@@ -54,6 +56,44 @@ export function agentConcurrency(): number {
   if (raw === undefined || raw === "") return DEFAULT_MAX_AGENTS;
   const n = Number(raw);
   return Number.isInteger(n) && n > 0 ? n : DEFAULT_MAX_AGENTS;
+}
+
+/**
+ * Browser-fence origins for a company: apex, www and shop subdomains, the
+ * website host when it differs, and the Shopify myshopify host when a past
+ * shopify fetch reveals one. Both schemes; the fence is about which hosts.
+ */
+export async function allowedOriginsForCompany(db: Db, company: Company): Promise<string[]> {
+  const apex = (company.domain ?? "").toLowerCase().replace(/^www\./, "");
+  if (apex === "") return [];
+  const hosts = new Set<string>([apex, `www.${apex}`, `shop.${apex}`]);
+  if (company.website) {
+    try {
+      const host = new URL(company.website).hostname.toLowerCase();
+      if (host !== "") hosts.add(host);
+    } catch {
+      // Ignore an unparseable website; the apex fence still holds.
+    }
+  }
+  const [shop] = await db
+    .select({ url: sources.url })
+    .from(sources)
+    .where(and(eq(sources.companyId, company.id), like(sources.url, "%myshopify.com%")))
+    .orderBy(desc(sources.fetchedAt))
+    .limit(1);
+  if (shop) {
+    try {
+      const host = new URL(shop.url).hostname.toLowerCase();
+      if (host.endsWith(".myshopify.com")) hosts.add(host);
+    } catch {
+      // Ignore an unparseable source URL.
+    }
+  }
+  const origins: string[] = [];
+  for (const host of [...hosts].sort()) {
+    origins.push(`https://${host}`, `http://${host}`);
+  }
+  return origins;
 }
 
 /** Silence (no stdout events and no MCP calls) before a run is stalled. */
@@ -294,6 +334,15 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
         agentFinalMessage: outcome.finalMessage ?? null,
       })
       .where(eq(researchRuns.id, runId));
+    // Post-research hygiene: redact reviewer attributions from agent docs.
+    // Never fails the run; a failure is recorded for forensics.
+    try {
+      await redactRunDocs(db, runId);
+    } catch (err) {
+      await recordEvent(db, runId, "log", {
+        pii_redact_error: err instanceof Error ? err.message : String(err),
+      }).catch(() => undefined);
+    }
   }
 
   async function storeOutcome(runId: string, outcome: RunOutcome): Promise<void> {
@@ -370,7 +419,7 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
             url: deps.mcpUrl,
             headers: { Authorization: "${KARDATA_MCP_AUTH}" },
           },
-          PLAYWRIGHT_SERVER_CONFIG,
+          playwrightServerConfig(await allowedOriginsForCompany(db, company)),
         ],
         env: { KARDATA_MCP_AUTH: `Bearer ${token}` },
         // No harness stall timer: the runner owns liveness (stdout events
