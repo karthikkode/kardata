@@ -206,11 +206,16 @@ succeed. Fixed (`news.ts` always parenthesizes + strips stray quotes; test
 asserts the exact query form) — this fix is required by the clean-gate and is
 included in 2.2.
 
-Gate verdict: NOT pushed. Re-run #1 was not clean (news errored, sec skipped
-for the missing email), and a verification re-run for the news fix was blocked
-by a sticky GDELT IP throttle (HTTP 429 on isolated single probes 15+ min
-apart; further probes risk extending it). To finish: set
-`KARDATA_CONTACT_EMAIL` (+ `COMPANIES_HOUSE_API_KEY`), wait for the GDELT
-cooldown, run `SMOKE_COMPANY_IDS=<same 5> npm run smoke:collect`; if clean
-(no ERROR areas, news + sec done or honest not_found), push `stage-2` and
-open the PR to `main`.
+Gate smoke (batch `80a76f70`, same 5 ids, vars set, ~1 h GDELT cooldown):
+4 succeeded, 1 failed (C1 homepage timeout after 15 s — site-side; all its
+areas still have statuses). No ERROR areas. SEC verified live: C1–C3 honest
+not_found (email UA, no more 403), C4/C5 skipped non-US by design. CH verified
+live: C4 honest not_found, rest skipped non-UK. News still failing: C5 HTTP
+429 (throttle persists), C1/C3 fetch failed, C2/C4 HTTP 200 with GDELT error
+body — now a further query issue: `One or more of your keywords were too
+short, too long or too common: (<domain>)`. The paren fix holds (queries go
+out parenthesized), but bare domain OR-terms are rejected; quoting the domain
+is the likely next step and needs a live check.
+Gate verdict: PUSHED per the 429 fallback (owner go): news is unverified
+live, paren fix covered by tests (`providers.test.ts` asserts the exact query
+form). Follow-ups: quote GDELT domain terms; re-run smoke after cooldown.
