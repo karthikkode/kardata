@@ -40,6 +40,7 @@ describe("migrations on kardata_test", () => {
       "run_tokens",
       "sector_companies",
       "sectors",
+      "shortlists",
       "sources",
     ]);
   });

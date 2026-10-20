@@ -30,7 +30,15 @@ import {
   searchAll,
 } from "../domain/research/reads.js";
 import { researchStart } from "../runs/agent.js";
-import { cancelRun, getOrCreateManualRun, startCollect } from "../runs/queue.js";
+import { cancelRun, getOrCreateManualRun, startCollect, startCollectSector } from "../runs/queue.js";
+import {
+  SCREEN_FIELDS,
+  SCREEN_OPS,
+  getShortlist,
+  listShortlists,
+  saveShortlist,
+  screenCompanies,
+} from "../domain/screening.js";
 import { DomainError } from "../domain/errors.js";
 import {
   type AuthContext,
@@ -45,6 +53,28 @@ import { companyId, runId, wrap } from "./tools.js";
 const areaName = z.string().describe("Research area");
 const tags = z.array(z.string()).optional().describe("Tags");
 const sourceIds = z.array(z.string()).describe("Source UUIDs (at least one)");
+
+const screenCriterion = z
+  .object({
+    field: z.string().optional().describe(`Apollo field (one of: ${SCREEN_FIELDS.join(", ")})`),
+    factKey: z.string().optional().describe("Current-fact key, e.g. business_model.subscription"),
+    qualifiers: z.record(z.string()).optional().describe("Qualifier subset (factKey only)"),
+    op: z.enum(SCREEN_OPS).describe("eq ne gt gte lt lte in exists not_exists (a range = gte + lte)"),
+    value: z.unknown().optional().describe("Omitted for exists/not_exists"),
+  })
+  .refine((c) => (c.field === undefined) !== (c.factKey === undefined), {
+    message: "exactly one of field or factKey is required",
+  });
+
+const screenSort = z
+  .object({
+    field: z.string().optional().describe("Apollo field to sort by (default: name)"),
+    factKey: z.string().optional().describe("Current-fact key to sort by (latest row)"),
+    order: z.enum(["asc", "desc"]).optional().describe("Default asc; nulls last, id tiebreaker"),
+  })
+  .refine((s) => !(s.field !== undefined && s.factKey !== undefined), {
+    message: "sort takes exactly one of field or factKey",
+  });
 
 function privateHostAllowlist(): string[] {
   const raw = process.env.KARDATA_PRIVATE_HOST_ALLOWLIST ?? "";
@@ -71,6 +101,105 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         const batch = await startCollect(db, companyIds, areas ?? undefined);
         const queued = batch.runs.filter((r) => r.status === "queued").length;
         return { summary: `batch ${batch.batchId}: ${queued} queued, ${batch.runs.length - queued} already running`, data: batch };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "collect_sector",
+    {
+      description: "Queue collect runs for every live company in a sector, in batches of 100. Skips fresh collects by default. Never run on a full sector without the owner's go.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        onlyStale: z.boolean().optional().describe("Skip fresh collects (default true)"),
+        staleDays: z.number().optional().describe("Freshness window in days (default 14)"),
+      },
+    },
+    async ({ sectorId, onlyStale, staleDays }) =>
+      wrap(async () => {
+        const result = await startCollectSector(db, {
+          sectorId,
+          onlyStale: onlyStale ?? undefined,
+          staleDays: staleDays ?? undefined,
+        });
+        return {
+          summary: `${result.queued} queued in ${result.batchIds.length} batches, ${result.alreadyRunning} already running, ${result.skippedFresh} fresh skipped`,
+          data: result,
+        };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_screen",
+    {
+      description: "Screen the live companies of a sector on Apollo fields plus current facts (ANDed criteria). Returns slim rows with matched values and ids[] ready for research_start.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        criteria: z.array(screenCriterion).max(20).optional().describe("ANDed criteria (default: all live companies)"),
+        sort: screenSort.optional(),
+        limit: z.number().int().min(1).max(500).optional().describe("Default 50"),
+      },
+    },
+    async ({ sectorId, criteria, sort, limit }) =>
+      wrap(async () => {
+        const result = await screenCompanies(db, sectorId, {
+          criteria: criteria ?? undefined,
+          sort: sort ?? undefined,
+          limit: limit ?? undefined,
+        });
+        return { summary: `${result.total} companies match`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "shortlist_save",
+    {
+      description: "Save (insert or replace by sector + name) a named company shortlist.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        name: z.string().describe("Shortlist name"),
+        companyIds: z.array(z.string()).max(5000).describe("Company UUIDs (sector members)"),
+        criteria: z.array(z.unknown()).optional().describe("The screening criteria, for reference"),
+      },
+    },
+    async ({ sectorId, name, companyIds, criteria }) =>
+      wrap(async () => {
+        const saved = await saveShortlist(db, {
+          sectorId,
+          name,
+          companyIds,
+          criteria: (criteria ?? null) as unknown[] | null,
+          createdBy: createdByFor(auth),
+        });
+        return { summary: `shortlist "${saved.name}": ${saved.companyIds.length} companies`, data: saved };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "shortlist_get",
+    {
+      description: "A saved shortlist with its company ids. Returns the shortlist.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        name: z.string().describe("Shortlist name"),
+      },
+    },
+    async ({ sectorId, name }) =>
+      wrap(async () => {
+        const found = await getShortlist(db, sectorId, name);
+        return { summary: `shortlist "${found.name}": ${found.companyIds.length} companies`, data: found };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "shortlist_list",
+    {
+      description: "Saved shortlists of a sector. Returns name, size and creation time each.",
+      inputSchema: { sectorId: z.string().describe("Sector UUID") },
+    },
+    async ({ sectorId }) =>
+      wrap(async () => {
+        const lists = await listShortlists(db, sectorId);
+        return { summary: `${lists.length} shortlists`, data: { shortlists: lists } };
       }),
   );
 

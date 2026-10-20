@@ -139,6 +139,26 @@ export type NewCompany = typeof companies.$inferInsert;
 export type SectorCompany = typeof sectorCompanies.$inferSelect;
 export type Import = typeof imports.$inferSelect;
 
+// ---- Stage 4 Step 0: saved screening shortlists (one name per sector) ----
+
+export const shortlists = pgTable(
+  "shortlists",
+  {
+    id: uuid("id").primaryKey(),
+    sectorId: uuid("sector_id")
+      .notNull()
+      .references(() => sectors.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    companyIds: uuid("company_ids").array().notNull(),
+    criteria: jsonb("criteria").$type<unknown[] | null>(),
+    createdBy: text("created_by").notNull().default("owner"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("shortlists_sector_name_idx").on(t.sectorId, t.name)],
+);
+
+export type Shortlist = typeof shortlists.$inferSelect;
+
 // ---- Stage 2: research store ----
 
 export const area = pgEnum("area", [

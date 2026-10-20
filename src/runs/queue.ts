@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNull, sql } from "drizzle-orm";
 import type { Db, DbLike } from "../db/client.js";
-import { area, companies, researchRuns, type ResearchRun } from "../db/schema.js";
+import { area, companies, researchRuns, sectorCompanies, sectors, type ResearchRun } from "../db/schema.js";
 import { DomainError, isUniqueViolation } from "../domain/errors.js";
 
 export const COLLECT_BATCH_MAX = 100;
@@ -72,6 +72,74 @@ export async function startCollect(
     }
   }
   return { batchId, runs };
+}
+
+export interface StartCollectSectorInput {
+  sectorId: string;
+  onlyStale?: boolean;
+  staleDays?: number;
+}
+
+export interface StartCollectSectorResult {
+  batchIds: string[];
+  queued: number;
+  alreadyRunning: number;
+  skippedFresh: number;
+}
+
+/**
+ * Queue collect runs for every live company in a sector, in batches of 100.
+ * With onlyStale (default), companies with a succeeded/partial collect newer
+ * than staleDays are skipped. Never run on a full sector without the owner's
+ * go (about 17 h for skincare); test on the fixture.
+ */
+export async function startCollectSector(
+  db: Db,
+  input: StartCollectSectorInput,
+): Promise<StartCollectSectorResult> {
+  const [sector] = await db.select({ id: sectors.id }).from(sectors).where(eq(sectors.id, input.sectorId));
+  if (!sector) throw new DomainError("not_found", `sector not found: ${input.sectorId}`);
+  const onlyStale = input.onlyStale ?? true;
+  const staleDays = input.staleDays ?? 14;
+  if (!Number.isFinite(staleDays) || staleDays < 0) {
+    throw new DomainError("invalid_input", "staleDays must be >= 0");
+  }
+  const members = await db
+    .select({ companyId: sectorCompanies.companyId })
+    .from(sectorCompanies)
+    .where(and(eq(sectorCompanies.sectorId, input.sectorId), isNull(sectorCompanies.removedAt)))
+    .orderBy(sectorCompanies.companyId);
+  let ids = members.map((m) => m.companyId);
+  let skippedFresh = 0;
+  if (onlyStale && ids.length > 0) {
+    const cutoff = new Date(Date.now() - staleDays * 24 * 60 * 60 * 1000);
+    const fresh = await db
+      .selectDistinct({ companyId: researchRuns.companyId })
+      .from(researchRuns)
+      .where(
+        and(
+          inArray(researchRuns.companyId, ids),
+          eq(researchRuns.kind, "collect"),
+          sql`${researchRuns.status} IN ('succeeded', 'partial')`,
+          gt(researchRuns.finishedAt, cutoff),
+        ),
+      );
+    const freshIds = new Set(fresh.map((f) => f.companyId));
+    ids = ids.filter((id) => !freshIds.has(id));
+    skippedFresh = members.length - ids.length;
+  }
+  const batchIds: string[] = [];
+  let queued = 0;
+  let alreadyRunning = 0;
+  for (let i = 0; i < ids.length; i += COLLECT_BATCH_MAX) {
+    const batch = await startCollect(db, ids.slice(i, i + COLLECT_BATCH_MAX));
+    batchIds.push(batch.batchId);
+    for (const run of batch.runs) {
+      if (run.status === "queued") queued += 1;
+      else alreadyRunning += 1;
+    }
+  }
+  return { batchIds, queued, alreadyRunning, skippedFresh };
 }
 
 // Operator writes (imports, owner tools) share one manual run per company per
