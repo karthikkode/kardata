@@ -98,7 +98,7 @@ describe("researchStart", () => {
     await researchStart(handle.db, { companyIds: [b], promptVersion: "v0" });
     const [runA] = await handle.db.select().from(researchRuns).where(eq(researchRuns.companyId, a));
     const [runB] = await handle.db.select().from(researchRuns).where(eq(researchRuns.companyId, b));
-    expect(runA?.promptVersion).toBe("v1");
+    expect(runA?.promptVersion).toBe("v1.1");
     expect(runB?.promptVersion).toBe("v0");
     await expect(researchStart(handle.db, { companyIds: [a], promptVersion: "v9" })).rejects.toThrow(
       /unknown prompt version/,

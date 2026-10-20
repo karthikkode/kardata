@@ -28,6 +28,11 @@ function printRun(run: RunScore): void {
       `reviews ${run.reviewsIngested} | docs ${run.documents} | findings ${run.findings} (${run.findingsWellCited} cited 2+)`,
   );
   console.log(
+    `   agent: facts ${run.agent.facts} | ` +
+      `records ${Object.entries(run.agent.recordsByType).map(([t, n]) => `${t}:${n}`).join(", ") || "-"} | ` +
+      `reviews ${run.agent.reviewsIngested} | docs ${run.agent.documents} | findings ${run.agent.findings}`,
+  );
+  console.log(
     `   tokens ${fmtTokens(run)} | minutes ${run.minutes ?? "-"} | mcp ${run.mcpCalls} | forbidden ${run.forbidden}`,
   );
   if (run.newProvisionalKeys.length > 0) console.log(`   +keys: ${run.newProvisionalKeys.join(", ")}`);

@@ -146,10 +146,10 @@ describe("buildResearchPrompt", () => {
 });
 
 describe("prompt versions", () => {
-  it("lists v0 and v1 with v1 latest", () => {
-    expect(availablePromptVersions()).toEqual(["v0", "v1"]);
-    expect(latestPromptVersion()).toBe("v1");
-    expect(resolvePromptVersion()).toBe("v1");
+  it("lists v0, v1 and v1.1 with v1.1 latest", () => {
+    expect(availablePromptVersions()).toEqual(["v0", "v1", "v1.1"]);
+    expect(latestPromptVersion()).toBe("v1.1");
+    expect(resolvePromptVersion()).toBe("v1.1");
     expect(resolvePromptVersion("v0")).toBe("v0");
   });
 
@@ -175,6 +175,18 @@ describe("prompt versions", () => {
     expect(prompt).toContain("Watch pricing.");
     expect(prompt).toContain("Example Co");
     expect(prompt).toContain("example.com");
+    expect(prompt).not.toContain("{{");
+  });
+
+  it("renders v1.1 with the stall fixes", () => {
+    const prompt = buildResearchPrompt(ctx({ run: { promptVersion: "v1.1" } }));
+    for (const area of PROMPT_AREAS) {
+      expect(prompt, area).toContain(`### ${area}`);
+    }
+    expect(prompt).toContain("never the Workflow tool");
+    expect(prompt).toContain("Do NOT call these");
+    expect(prompt).toContain("bank progress continuously");
+    expect(prompt).toContain("MUST ingest up to 300");
     expect(prompt).not.toContain("{{");
   });
 });

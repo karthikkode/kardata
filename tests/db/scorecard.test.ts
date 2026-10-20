@@ -160,6 +160,33 @@ describe("scorecard", () => {
       sourceIds: [own],
       createdBy: by,
     });
+    // Collect-phase output shares the run id but must not count as agent work.
+    await addFacts(handle.db, {
+      companyId,
+      runId,
+      createdBy: "collector:test",
+      facts: [{ key: "product.count", value: 1, sourceIds: [own] }],
+    });
+    await upsertRecords(handle.db, {
+      companyId,
+      runId,
+      createdBy: "collector:test",
+      records: [
+        {
+          type: "product",
+          data: { name: "Collector item", url: "https://example.com/collector-item" },
+          sourceIds: [own],
+        },
+      ],
+    });
+    await saveDocument(handle.db, {
+      companyId,
+      runId,
+      path: "meta/run-summary.md",
+      title: "Run summary",
+      contentMd: "collect done",
+      createdBy: "run",
+    });
     const factId = factResults[0] && factResults[0].ok ? factResults[0].id : null;
     await addFinding(handle.db, {
       companyId,
@@ -197,14 +224,21 @@ describe("scorecard", () => {
     expect(run.tokens).toMatchObject({ input: 1000, output: 100, calls: 3, childrenIncluded: true });
     expect(run.mcpCalls).toBe(2);
     expect(run.forbidden).toBe(1);
-    // 2 explicit facts plus the ingest's recomputed review facts (all own-cited).
+    // 2 explicit + 1 collector fact plus the ingest's recomputed review facts (all own-cited).
     const recomputed = ingested.recomputed.length;
     expect(recomputed).toBeGreaterThan(0);
-    expect(run.facts).toBe(2 + recomputed);
-    expect(run.primaryShare).toBe(Math.round(((1 + recomputed) / (2 + recomputed)) * 100) / 100);
-    expect(run.recordsByType).toEqual({ product: 1, test_drifted_type: 1, review: 2 });
+    expect(run.facts).toBe(3 + recomputed);
+    expect(run.primaryShare).toBe(Math.round(((2 + recomputed) / (3 + recomputed)) * 100) / 100);
+    expect(run.agent).toMatchObject({
+      facts: 2 + recomputed,
+      reviewsIngested: 2,
+      documents: 1,
+      findings: 2,
+    });
+    expect(run.agent.recordsByType).toEqual({ product: 1, test_drifted_type: 1, review: 2 });
+    expect(run.recordsByType).toEqual({ product: 2, test_drifted_type: 1, review: 2 });
     expect(run.reviewsIngested).toBe(2);
-    expect(run.documents).toBe(1);
+    expect(run.documents).toBe(2);
     expect(run.findings).toBe(2);
     expect(run.findingsWellCited).toBe(1);
     expect(run.newProvisionalKeys).toContain("test.drifted_name");
@@ -212,16 +246,16 @@ describe("scorecard", () => {
       expect(key === "test.drifted_name" || key.startsWith("reviews.")).toBe(true);
     }
     expect(run.newProvisionalTypes).toEqual(["test_drifted_type"]);
-    expect(run.areas["product"]).toMatchObject({ facts: 1, documents: 1, findings: 1, status: "done" });
+    expect(run.areas["product"]).toMatchObject({ facts: 2, documents: 1, findings: 1, status: "done" });
     expect(run.areas["reviews"]?.facts).toBe(recomputed);
-    expect(run.areas["product"]?.recordsByType).toEqual({ product: 1 });
+    expect(run.areas["product"]?.recordsByType).toEqual({ product: 2 });
     expect(run.areas["reviews"]?.reviewsIngested).toBe(2);
     expect(run.areas["marketing"]).toMatchObject({ findings: 1, status: "not_found" });
     expect(result.totals).toMatchObject({
       runs: 1,
-      facts: 2 + recomputed,
+      facts: 3 + recomputed,
       reviewsIngested: 2,
-      documents: 1,
+      documents: 2,
       findings: 2,
       mcpCalls: 2,
       forbidden: 1,

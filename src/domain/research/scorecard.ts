@@ -37,6 +37,15 @@ export interface TokenScore {
   childrenIncluded: boolean;
 }
 
+/** Output created by agents (createdBy agent:*), excluding the collect phase. */
+export interface AgentScore {
+  facts: number;
+  recordsByType: Record<string, number>;
+  reviewsIngested: number;
+  documents: number;
+  findings: number;
+}
+
 export interface RunScore {
   runId: string;
   companyId: string;
@@ -57,6 +66,7 @@ export interface RunScore {
   findingsWellCited: number;
   newProvisionalKeys: string[];
   newProvisionalTypes: string[];
+  agent: AgentScore;
   areas: Record<string, AreaScore>;
 }
 
@@ -67,6 +77,7 @@ export interface BatchTotals {
   reviewsIngested: number;
   documents: number;
   findings: number;
+  agent: AgentScore;
   mcpCalls: number;
   forbidden: number;
   minutes: number;
@@ -113,6 +124,14 @@ function emptyArea(): AreaScore {
     status: null,
     statusReason: null,
   };
+}
+
+function emptyAgent(): AgentScore {
+  return { facts: 0, recordsByType: {}, reviewsIngested: 0, documents: 0, findings: 0 };
+}
+
+function isAgentMade(createdBy: string): boolean {
+  return createdBy.startsWith("agent:");
 }
 
 function bumpType(into: Record<string, number>, type: string): void {
@@ -207,6 +226,7 @@ export async function scorecard(
       findingsWellCited: 0,
       newProvisionalKeys: [],
       newProvisionalTypes: [],
+      agent: emptyAgent(),
       areas,
     });
   }
@@ -222,7 +242,7 @@ export async function scorecard(
   };
 
   const factRows = await db
-    .select({ runId: facts.runId, area: facts.area, sourceIds: facts.sourceIds })
+    .select({ runId: facts.runId, area: facts.area, sourceIds: facts.sourceIds, createdBy: facts.createdBy })
     .from(facts)
     .where(inArray(facts.runId, runIds));
   const cited = [...new Set(factRows.flatMap((f) => f.sourceIds))];
@@ -246,6 +266,7 @@ export async function scorecard(
     if (!row.runId) continue;
     const score = at(row.runId);
     score.facts += 1;
+    if (isAgentMade(row.createdBy)) score.agent.facts += 1;
     areaAt(row.runId, row.area).facts += 1;
     if (row.sourceIds.some((id) => primaryById.get(id))) {
       primaryCounts.set(row.runId, (primaryCounts.get(row.runId) ?? 0) + 1);
@@ -261,6 +282,7 @@ export async function scorecard(
       lastSeenRunId: records.lastSeenRunId,
       type: records.type,
       area: records.area,
+      createdBy: records.createdBy,
     })
     .from(records)
     .where(or(inArray(records.firstSeenRunId, runIds), inArray(records.lastSeenRunId, runIds)));
@@ -270,21 +292,26 @@ export async function scorecard(
       if (!runId || !scores.has(runId) || counted.has(runId)) continue;
       counted.add(runId);
       bumpType(at(runId).recordsByType, row.type);
+      if (isAgentMade(row.createdBy)) bumpType(at(runId).agent.recordsByType, row.type);
       bumpType(areaAt(runId, row.area).recordsByType, row.type);
     }
     if (row.type === "review" && row.firstSeenRunId && scores.has(row.firstSeenRunId)) {
       at(row.firstSeenRunId).reviewsIngested += 1;
       areaAt(row.firstSeenRunId, row.area).reviewsIngested += 1;
+      if (isAgentMade(row.createdBy)) {
+        at(row.firstSeenRunId).agent.reviewsIngested += 1;
+      }
     }
   }
 
   const documentRows = await db
-    .select({ runId: documents.runId, area: documents.area })
+    .select({ runId: documents.runId, area: documents.area, createdBy: documents.createdBy })
     .from(documents)
     .where(inArray(documents.runId, runIds));
   for (const row of documentRows) {
     if (!row.runId) continue;
     at(row.runId).documents += 1;
+    if (isAgentMade(row.createdBy)) at(row.runId).agent.documents += 1;
     areaAt(row.runId, row.area).documents += 1;
   }
 
@@ -295,12 +322,14 @@ export async function scorecard(
       sourceIds: findings.sourceIds,
       factIds: findings.factIds,
       recordIds: findings.recordIds,
+      createdBy: findings.createdBy,
     })
     .from(findings)
     .where(inArray(findings.runId, runIds));
   for (const row of findingRows) {
     if (!row.runId) continue;
     at(row.runId).findings += 1;
+    if (isAgentMade(row.createdBy)) at(row.runId).agent.findings += 1;
     areaAt(row.runId, row.area).findings += 1;
     if (row.sourceIds.length + row.factIds.length + row.recordIds.length >= 2) {
       at(row.runId).findingsWellCited += 1;
@@ -379,6 +408,7 @@ function assemble(scores: Map<string, RunScore>): ScorecardResult {
     reviewsIngested: 0,
     documents: 0,
     findings: 0,
+    agent: emptyAgent(),
     mcpCalls: 0,
     forbidden: 0,
     minutes: 0,
@@ -394,6 +424,13 @@ function assemble(scores: Map<string, RunScore>): ScorecardResult {
     totals.reviewsIngested += run.reviewsIngested;
     totals.documents += run.documents;
     totals.findings += run.findings;
+    totals.agent.facts += run.agent.facts;
+    for (const [type, n] of Object.entries(run.agent.recordsByType)) {
+      totals.agent.recordsByType[type] = (totals.agent.recordsByType[type] ?? 0) + n;
+    }
+    totals.agent.reviewsIngested += run.agent.reviewsIngested;
+    totals.agent.documents += run.agent.documents;
+    totals.agent.findings += run.agent.findings;
     totals.mcpCalls += run.mcpCalls;
     totals.forbidden += run.forbidden;
     if (run.minutes !== null) totals.minutes = round2(totals.minutes + run.minutes);

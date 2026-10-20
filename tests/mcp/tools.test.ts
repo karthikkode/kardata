@@ -61,6 +61,12 @@ const EXPECTED_TOOLS = [
   "search",
   "research_start",
   "run_activity",
+  "collect_sector",
+  "company_screen",
+  "shortlist_save",
+  "shortlist_get",
+  "shortlist_list",
+  "batch_scorecard",
 ];
 
 interface ToolResult {
