@@ -59,7 +59,7 @@ describe("news collector", () => {
   it("keeps only matching articles and stores news_item records", async () => {
     site.routes.set("/api/v2/doc/doc", (_req, res, url) => {
       expect(url.searchParams.get("mode")).toBe("artlist");
-      expect(url.searchParams.get("query")).toBe('("Fake Skin Co" OR fakeco.example)');
+      expect(url.searchParams.get("query")).toBe('"Fake Skin Co"');
       sendJson(res, {
         articles: [
           {

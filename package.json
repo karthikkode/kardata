@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
+    "test:live": "KARDATA_LIVE=1 vitest run tests/harness",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "smoke:real": "tsx scripts/smoke-real.ts",
@@ -28,6 +29,7 @@
     "zod": "^3.25.0"
   },
   "devDependencies": {
+    "@playwright/mcp": "0.0.83",
     "@types/node": "^22.10.0",
     "drizzle-kit": "^0.31.0",
     "eslint": "^9.0.0",
