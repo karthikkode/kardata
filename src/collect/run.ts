@@ -6,7 +6,7 @@ import { DomainError } from "../domain/errors.js";
 import { saveDocument } from "../domain/research/documents.js";
 import { setAreaStatus } from "../domain/research/status.js";
 import { recordEvent } from "./db.js";
-import { BudgetExceededError } from "./fetch.js";
+import { BudgetExceededError, CancelledError } from "./fetch.js";
 import { COLLECTORS } from "./collectors/index.js";
 import {
   DEFAULT_ENDPOINTS,
@@ -23,7 +23,7 @@ const PRECEDENCE: AreaOutcomeStatus[] = ["done", "blocked", "error", "not_found"
 
 export interface CollectRunResult {
   runId: string;
-  status: "succeeded" | "partial" | "failed";
+  status: "succeeded" | "partial" | "failed" | "cancelled";
   outcomes: AreaOutcome[];
 }
 
@@ -61,7 +61,16 @@ export async function executeCollectRun(
 
   const collected: AreaOutcome[] = [];
   let fatal: string | null = null;
+  let cancelled = false;
   for (const collector of active) {
+    const [fresh] = await db
+      .select({ status: researchRuns.status })
+      .from(researchRuns)
+      .where(eq(researchRuns.id, runId));
+    if (fresh?.status === "cancelled" || cancelled) {
+      cancelled = true;
+      break;
+    }
     await recordEvent(db, runId, "collector_start", { collector: collector.name });
     try {
       const result = await collector.run(ctx);
@@ -72,6 +81,15 @@ export async function executeCollectRun(
         outcomes: result.outcomes.map((o) => `${o.area}:${o.status}`),
       });
     } catch (err) {
+      if (err instanceof CancelledError) {
+        cancelled = true;
+        await recordEvent(db, runId, "collector_end", {
+          collector: collector.name,
+          outcomes: [],
+          cancelled: true,
+        });
+        break;
+      }
       const message = err instanceof Error ? err.message : String(err);
       await recordEvent(db, runId, "error", { collector: collector.name, message });
       for (const area of collector.areas) {
@@ -115,11 +133,13 @@ export async function executeCollectRun(
 
   await writeSummary(db, ctx, outcomes);
 
-  const status = fatal
-    ? "failed"
-    : outcomes.some((o) => o.status === "blocked" || o.status === "error")
-      ? "partial"
-      : "succeeded";
+  const status = cancelled
+    ? "cancelled"
+    : fatal
+      ? "failed"
+      : outcomes.some((o) => o.status === "blocked" || o.status === "error")
+        ? "partial"
+        : "succeeded";
   await db
     .update(researchRuns)
     .set({ status, finishedAt: new Date(), error: fatal })
@@ -166,6 +186,7 @@ async function writeSummary(db: Db, ctx: CollectorCtx, outcomes: AreaOutcome[]):
     const detail = o.status === "done" ? ids.join(", ") || "no documents" : (o.reason ?? o.status);
     return `- ${o.area}: ${o.status} (${detail})`;
   });
+  if (lines.length === 0) lines.push("(no areas completed)");
   await saveDocument(db, {
     companyId: ctx.companyId,
     runId: ctx.runId,

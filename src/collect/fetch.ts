@@ -58,6 +58,13 @@ export class BudgetExceededError extends Error {
   }
 }
 
+export class CancelledError extends Error {
+  constructor() {
+    super("run cancelled");
+    this.name = "CancelledError";
+  }
+}
+
 class FetchFailedError extends Error {
   constructor(message: string) {
     super(message);
@@ -494,6 +501,8 @@ function resolveOptions(req: FetchRequest): ResolvedFetchOptions {
 export async function fetchUrl(db: Db, req: FetchRequest): Promise<FetchResult> {
   const run = await db.query.researchRuns.findFirst({ where: eq(researchRuns.id, req.runId) });
   if (!run) throw new DomainError("not_found", `run not found: ${req.runId}`);
+  // The run stops before its next fetch: no request, no source row.
+  if (run.status === "cancelled") throw new CancelledError();
   const opts = resolveOptions(req);
   const base = {
     runId: req.runId,
@@ -591,6 +600,7 @@ export interface RobotsTxt {
 export async function getRobotsTxt(db: Db, req: FetchRequest): Promise<RobotsTxt> {
   const run = await db.query.researchRuns.findFirst({ where: eq(researchRuns.id, req.runId) });
   if (!run) throw new DomainError("not_found", `run not found: ${req.runId}`);
+  if (run.status === "cancelled") throw new CancelledError();
   const opts = resolveOptions(req);
   let target: URL;
   try {
