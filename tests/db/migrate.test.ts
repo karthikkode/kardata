@@ -37,6 +37,7 @@ describe("migrations on kardata_test", () => {
       "records",
       "research_runs",
       "run_events",
+      "run_tokens",
       "sector_companies",
       "sectors",
       "sources",
