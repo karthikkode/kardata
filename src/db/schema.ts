@@ -153,7 +153,7 @@ export const area = pgEnum("area", [
 ]);
 export type Area = (typeof area.enumValues)[number];
 
-export const runKind = pgEnum("run_kind", ["collect", "agent"]);
+export const runKind = pgEnum("run_kind", ["collect", "agent", "manual"]);
 export const runStatus = pgEnum("run_status", [
   "queued",
   "running",
@@ -320,6 +320,7 @@ export const researchRuns = pgTable(
       .references(() => companies.id, { onDelete: "cascade" }),
     kind: runKind("kind").notNull(),
     status: runStatus("status").notNull().default("queued"),
+    createdBy: text("created_by").notNull().default("owner"),
     requestedAreas: area("requested_areas").array(),
     batchId: uuid("batch_id"),
     error: text("error"),

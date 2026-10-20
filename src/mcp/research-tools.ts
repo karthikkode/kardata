@@ -27,7 +27,7 @@ import {
   listRunEvents,
   searchAll,
 } from "../domain/research/reads.js";
-import { cancelRun, getOrCreateAgentRun, startCollect } from "../runs/queue.js";
+import { cancelRun, getOrCreateManualRun, startCollect } from "../runs/queue.js";
 import { companyId, runId, wrap } from "./tools.js";
 
 const areaName = z.string().describe("Research area");
@@ -207,6 +207,7 @@ export function registerResearchTools(server: McpServer, db: Db): void {
         const body = urls.length > 0 ? `${content}\n\nSources:\n${urls.map((u) => `- ${u}`).join("\n")}` : content;
         const saved = await saveDocument(db, {
           companyId,
+          runId: await getOrCreateManualRun(db, companyId),
           path: `${folder}/${slugifyTitle(title)}.md`,
           kind: "agent_note",
           title,
@@ -283,7 +284,7 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       inputSchema: {
         companyId,
         url: z.string().describe("http(s) URL to fetch"),
-        runId: runId.optional().describe("Defaults to the company's agent run"),
+        runId: runId.optional().describe("Defaults to today's manual run for the company"),
         maxChars: z.number().int().optional().describe("1..20000, default 5000"),
         offset: z.number().int().optional().describe("Character offset, default 0"),
       },
@@ -292,7 +293,7 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       wrap(async () => {
         const max = maxChars ?? 5000;
         if (max < 1 || max > 20000) throw new Error("maxChars must be 1..20000");
-        const run = givenRunId ?? (await getOrCreateAgentRun(db, companyId));
+        const run = givenRunId ?? (await getOrCreateManualRun(db, companyId));
         const fetched = await fetchUrl(db, {
           runId: run,
           companyId,
@@ -333,7 +334,7 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       description: "Store content seen some other way (via search | browser | muse_fetch) so it has an id and a snapshot. Returns the source id.",
       inputSchema: {
         companyId,
-        runId: runId.optional().describe("Defaults to the company's agent run"),
+        runId: runId.optional().describe("Defaults to today's manual run for the company"),
         url: z.string().describe("http(s) URL the content came from"),
         title: z.string().optional(),
         text: z.string().describe("The content itself"),
@@ -342,7 +343,7 @@ export function registerResearchTools(server: McpServer, db: Db): void {
     },
     async ({ companyId, runId: givenRunId, url, title, text, via }) =>
       wrap(async () => {
-        const run = givenRunId ?? (await getOrCreateAgentRun(db, companyId));
+        const run = givenRunId ?? (await getOrCreateManualRun(db, companyId));
         const sourceId = await captureSource(db, {
           companyId,
           runId: run,
@@ -381,9 +382,10 @@ export function registerResearchTools(server: McpServer, db: Db): void {
     },
     async ({ companyId, runId, facts }) =>
       wrap(async () => {
+        const run = runId ?? (await getOrCreateManualRun(db, companyId));
         const results = await addFacts(db, {
           companyId,
-          runId: runId ?? null,
+          runId: run,
           createdBy: "owner",
           facts: facts.map((f) => ({
             key: f.key,
@@ -423,9 +425,10 @@ export function registerResearchTools(server: McpServer, db: Db): void {
     },
     async ({ companyId, runId, records }) =>
       wrap(async () => {
+        const run = runId ?? (await getOrCreateManualRun(db, companyId));
         const results = await upsertRecords(db, {
           companyId,
-          runId: runId ?? null,
+          runId: run,
           createdBy: "owner",
           records: records.map((r) => ({
             type: r.type,
@@ -472,9 +475,10 @@ export function registerResearchTools(server: McpServer, db: Db): void {
     },
     async ({ companyId, runId, platform, sourceId, reviews }) =>
       wrap(async () => {
+        const run = runId ?? (await getOrCreateManualRun(db, companyId));
         const result = await reviewsIngest(db, {
           companyId,
-          runId: runId ?? null,
+          runId: run,
           platform,
           sourceId,
           reviews,
@@ -507,9 +511,10 @@ export function registerResearchTools(server: McpServer, db: Db): void {
     },
     async ({ companyId, runId, path, kind, title, content, sourceIds, factIds, recordIds, tags }) =>
       wrap(async () => {
+        const run = runId ?? (await getOrCreateManualRun(db, companyId));
         const saved = await saveDocument(db, {
           companyId,
-          runId: runId ?? null,
+          runId: run,
           path,
           kind: kind ?? undefined,
           title: title ?? undefined,
@@ -588,9 +593,10 @@ export function registerResearchTools(server: McpServer, db: Db): void {
     },
     async ({ companyId, runId, area, claim, detail, sourceIds, factIds, recordIds, confidence, status, tags }) =>
       wrap(async () => {
+        const run = runId ?? (await getOrCreateManualRun(db, companyId));
         const id = await addFinding(db, {
           companyId,
-          runId: runId ?? null,
+          runId: run,
           area,
           claim,
           detail: detail ?? null,

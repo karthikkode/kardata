@@ -11,6 +11,7 @@ import {
   factsForRun,
   recordsForRun,
   restoreHostDelay,
+  seedApolloImportSource,
   seedCompany,
   seedRun,
   shrinkHostDelay,
@@ -153,9 +154,12 @@ describe("stack collector", () => {
       website: site.baseUrl,
       technologies: ["Shopify", "ReCharge", "Afterpay", "Gorgias"],
     });
+    const apolloSourceId = await seedApolloImportSource(handle.db, companyId);
     const runId = await seedRun(handle.db, companyId);
     const ctx = await collectorCtx(handle.db, site, companyId, runId);
     await siteCollector.run(ctx);
+    const homepageId = ctx.shared.site?.homepage?.sourceId;
+    expect(homepageId).toBeDefined();
     const result = await stackCollector.run(ctx);
     expect(result.outcomes).toEqual([
       { area: "marketing", status: "done" },
@@ -184,6 +188,48 @@ describe("stack collector", () => {
     expect(factRows.find((f) => f.key === "business_model.subscription")?.valueBool).toBe(true);
     expect(factRows.find((f) => f.key === "business_model.bnpl")?.valueBool).toBe(true);
     expect(factRows.find((f) => f.key === "business_model.wholesale")).toBeUndefined();
+    // Provenance: Apollo-technology detections cite the import source,
+    // script detections cite the homepage.
+    const sourcesOf = (key: string, match: (f: (typeof factRows)[number]) => boolean) =>
+      factRows.filter((f) => f.key === key && match(f)).flatMap((f) => f.sourceIds);
+    const klaviyo = sourcesOf("marketing.tool", (f) => f.valueText === "Klaviyo");
+    expect(klaviyo).toEqual([homepageId]);
+    for (const tool of ["ReCharge", "Afterpay", "Gorgias"]) {
+      expect(sourcesOf("marketing.tool", (f) => f.valueText === tool)).toEqual([apolloSourceId]);
+    }
+    expect(factRows.find((f) => f.key === "business_model.subscription")?.sourceIds).toEqual([
+      apolloSourceId,
+    ]);
+  });
+
+  it("cites the import source for Apollo-technology facts when the homepage fetch failed", async () => {
+    const companyId = await seedCompany(handle.db, {
+      website: "https://dead.invalid",
+      technologies: ["Klaviyo", "ReCharge", "Yotpo Loyalty"],
+    });
+    const apolloSourceId = await seedApolloImportSource(handle.db, companyId);
+    const runId = await seedRun(handle.db, companyId);
+    const ctx = await collectorCtx(handle.db, site, companyId, runId);
+    // No site run: the homepage fetch failed, so every signal is Apollo-only.
+    const result = await stackCollector.run(ctx);
+    expect(result.outcomes).toEqual([
+      { area: "marketing", status: "done" },
+      { area: "business_model", status: "done" },
+    ]);
+    const factRows = await factsForRun(handle.db, runId);
+    expect(factRows.length).toBeGreaterThan(0);
+    expect(factRows.every((f) => f.sourceIds.length === 1 && f.sourceIds[0] === apolloSourceId)).toBe(true);
+    const tools = factRows
+      .filter((f) => f.key === "marketing.tool")
+      .map((f) => f.valueText)
+      .sort();
+    expect(tools).toEqual(["Klaviyo", "ReCharge", "Yotpo Loyalty"]);
+    const channels = factRows
+      .filter((f) => f.key === "marketing.channel_active")
+      .map((f) => (f.qualifiers as Record<string, string>)["channel"])
+      .sort();
+    expect(channels).toEqual(["email", "loyalty", "sms"]);
+    expect(factRows.find((f) => f.key === "business_model.subscription")?.valueBool).toBe(true);
   });
 
   it("reports not_found per area when nothing matches", async () => {

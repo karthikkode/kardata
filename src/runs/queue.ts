@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray, sql } from "drizzle-orm";
-import type { Db } from "../db/client.js";
+import { and, asc, eq, gte, inArray, sql } from "drizzle-orm";
+import type { Db, DbLike } from "../db/client.js";
 import { area, companies, researchRuns, type ResearchRun } from "../db/schema.js";
 import { DomainError, isUniqueViolation } from "../domain/errors.js";
 
@@ -74,42 +74,41 @@ export async function startCollect(
   return { batchId, runs };
 }
 
-// One agent run per company, reused across agent tool calls. It is queued (never
-// claimed: the runner only runs kind='collect'), which also reserves the
-// company under the one-active-run rule while the agent works.
-export async function getOrCreateAgentRun(db: Db, companyId: string): Promise<string> {
+// Operator writes (imports, owner tools) share one manual run per company per
+// UTC day. It is born succeeded, so it never holds the one-active-run slot and
+// the runner never touches it. (Stage 3 gives agents real runs of their own;
+// until then nothing creates kind='agent' runs.)
+export async function getOrCreateManualRun(db: DbLike, companyId: string): Promise<string> {
+  const dayStart = new Date();
+  dayStart.setUTCHours(0, 0, 0, 0);
   const [existing] = await db
     .select({ id: researchRuns.id })
     .from(researchRuns)
     .where(
       and(
         eq(researchRuns.companyId, companyId),
-        eq(researchRuns.kind, "agent"),
-        sql`${researchRuns.status} IN ('queued', 'running')`,
+        eq(researchRuns.kind, "manual"),
+        gte(researchRuns.createdAt, dayStart),
       ),
-    );
+    )
+    .orderBy(asc(researchRuns.createdAt))
+    .limit(1);
   if (existing) return existing.id;
-  try {
-    const [row] = await db
-      .insert(researchRuns)
-      .values({ id: randomUUID(), companyId, kind: "agent", status: "queued" })
-      .returning({ id: researchRuns.id });
-    if (!row) throw new Error("run insert returned no row");
-    return row.id;
-  } catch (err) {
-    if (!isUniqueViolation(err)) throw err;
-    const [active] = await db
-      .select({ id: researchRuns.id, kind: researchRuns.kind })
-      .from(researchRuns)
-      .where(
-        and(eq(researchRuns.companyId, companyId), sql`${researchRuns.status} IN ('queued', 'running')`),
-      );
-    if (!active) throw new Error("unique violation but no active run found");
-    if (active.kind !== "agent") {
-      throw new DomainError("conflict", `company has an active ${active.kind} run: ${active.id}`);
-    }
-    return active.id;
-  }
+  const now = new Date();
+  const [row] = await db
+    .insert(researchRuns)
+    .values({
+      id: randomUUID(),
+      companyId,
+      kind: "manual",
+      status: "succeeded",
+      createdBy: "owner",
+      startedAt: now,
+      finishedAt: now,
+    })
+    .returning({ id: researchRuns.id });
+  if (!row) throw new Error("run insert returned no row");
+  return row.id;
 }
 
 export async function cancelRun(db: Db, runId: string): Promise<ResearchRun> {

@@ -13,6 +13,8 @@ import {
 } from "../../src/db/schema.js";
 import type { CollectorCtx } from "../../src/collect/collectors/types.js";
 import { toEffectiveCompany } from "../../src/domain/companies.js";
+import { createApolloImportSource } from "../../src/domain/research/sources.js";
+import { getOrCreateManualRun } from "../../src/runs/queue.js";
 import type { FakeSite } from "./fake-site.js";
 
 export async function seedCompany(db: Db, opts: Partial<NewCompany> = {}): Promise<string> {
@@ -22,6 +24,21 @@ export async function seedCompany(db: Db, opts: Partial<NewCompany> = {}): Promi
     .returning({ id: companies.id });
   if (!row) throw new Error("no company row");
   return row.id;
+}
+
+export async function seedApolloImportSource(
+  db: Db,
+  companyId: string,
+  raw: Record<string, unknown> = {},
+): Promise<string> {
+  const runId = await getOrCreateManualRun(db, companyId);
+  return createApolloImportSource(db, {
+    companyId,
+    runId,
+    importId: randomUUID(),
+    apolloAccountId: `test-${companyId.slice(0, 8)}`,
+    raw,
+  });
 }
 
 export async function seedRun(db: Db, companyId: string): Promise<string> {

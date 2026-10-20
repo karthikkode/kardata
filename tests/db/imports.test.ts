@@ -1,9 +1,12 @@
 import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { gunzipSync } from "node:zlib";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
+import { blobs, researchRuns, sources } from "../../src/db/schema.js";
+import { findApolloImportSource } from "../../src/domain/research/sources.js";
 import {
   getCompany,
   listCompanies,
@@ -102,6 +105,42 @@ describe("csv imports", () => {
     expect(result.import.linkedCount).toBe(0);
     const listed = await listCompanies(handle.db, sectorId, { pageSize: 200 });
     expect(listed.total).toBe(28);
+  });
+
+  it("snapshots one apollo_import source per row, per import", async () => {
+    const sectorId = await makeSector();
+    const [first] = await importCsv(handle.db, sectorId, [fixtureCsvPath()], {
+      importDirs: DIRS,
+    });
+    if (!first || !first.ok) throw new Error("import failed");
+    const apolloId = "AP-1007";
+    const companyId = await companyIdByApollo(sectorId, apolloId);
+
+    let apollo = await handle.db.select().from(sources).where(eq(sources.collector, "apollo_import"));
+    expect(apollo).toHaveLength(28);
+    const one = apollo.find((s) => s.companyId === companyId);
+    expect(one?.url).toBe(`apollo:import/${first.import.id}/${apolloId}`);
+    expect(one?.finalUrl).toBe(one?.url);
+    expect(one?.status).toBe("ok");
+    if (!one?.blobSha256) throw new Error("missing apollo source blob");
+    const [blob] = await handle.db.select().from(blobs).where(eq(blobs.sha256, one.blobSha256));
+    if (!blob) throw new Error("missing blob row");
+    const stored = JSON.parse(gunzipSync(blob.gzip).toString("utf8")) as unknown;
+    const company = await getCompany(handle.db, companyId);
+    expect(stored).toEqual(company.raw);
+    const [run] = await handle.db.select().from(researchRuns).where(eq(researchRuns.id, one.runId));
+    expect(run?.kind).toBe("manual");
+    expect(run?.status).toBe("succeeded");
+
+    const [second] = await importCsv(handle.db, sectorId, [fixtureCsvPath()], {
+      importDirs: DIRS,
+    });
+    if (!second || !second.ok) throw new Error("import failed");
+    apollo = await handle.db.select().from(sources).where(eq(sources.collector, "apollo_import"));
+    expect(apollo).toHaveLength(56);
+    const latest = await findApolloImportSource(handle.db, companyId);
+    const latestRow = apollo.find((s) => s.id === latest?.id);
+    expect(latestRow?.url).toBe(`apollo:import/${second.import.id}/${apolloId}`);
   });
 
   it("importing into a second sector links instead of creating", async () => {

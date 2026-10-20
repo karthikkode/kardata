@@ -29,7 +29,7 @@ Branch `stage-2`. Full suite: 188/188 green. No push.
 - MCP: 28 tools (`src/mcp/research-tools.ts:47`), thin wrappers over the same
   domain/reads functions. Proof: `tests/mcp/research-tools.test.ts` (6),
   `tests/mcp/agent-style.test.ts` (tools-only shift), dossier/context <10KB.
-- Smoke: **not run — Blocked, see below.**
+- Smoke: ran 2026-10-20 on C1..C5 (see below): 4 succeeded, 1 partial.
 
 ## Deviations
 
@@ -50,7 +50,63 @@ Branch `stage-2`. Full suite: 188/188 green. No push.
 
 ## Unfinished
 
-- Blocked: live smoke needs `SMOKE_COMPANY_IDS` (owner to set). Ready:
-  `npm run smoke:collect` runs the batch and asserts all 7 areas per company.
 - Finding of note: findings cite sources/facts/records only — Apollo import
-  data (document-only, no source) cannot be cited by a finding.
+  data (document-only, no source) cannot be cited by a finding. Fixed in 2.1:
+  every import now snapshots an `apollo_import` source per row.
+
+## Stage 2.1 + live smoke (2026-10-20)
+
+Fixes, one commit: operator writes share one `manual` run per company per UTC
+day (born succeeded, `created_by=owner`); `getOrCreateAgentRun` deleted.
+Proof: `tests/mcp/research-tools.test.ts` (note_add + source_fetch, then
+collect_start is queued). Apollo provenance: `createApolloImportSource`,
+`findApolloImportSource`, `backfillApolloImportSources`
+(`src/domain/research/sources.ts`), import snapshots per row, backfill runs
+from `scripts/migrate.ts`; apollo_profile writes the 4 financial facts and
+stack cites the import source per detection. Proof:
+`tests/db/imports.test.ts`, `tests/db/apollo-provenance.test.ts`,
+`tests/collect/apollo-profile.test.ts`, stack tests. Full suite: 195/195.
+
+Dev repair (not a product change): the 2,559 dev companies had no sectors or
+imports (smoke-real artifact), so the backfill honestly skipped them. They
+were re-imported through the normal path into sector `skincare`: 2,559
+updated in place, 2,559 `apollo_import` sources. That also live-verified the
+new import-source code.
+
+Smoke: `SMOKE_COMPANY_IDS=C1..C5`, batch `cc415968`, ~2 min. 4 succeeded,
+1 partial. Every area of every company has a status. Legend: NF = not_found
+with the footnoted reason.
+
+- C1 (succeeded): reviews NF(a), marketing NF(b), financials done,
+  business_model done, hiring done, product NF(e), decisions done.
+- C2 (succeeded): reviews done, marketing done, financials done,
+  business_model NF(c), hiring done, product NF(e), decisions done.
+- C3 (succeeded): reviews done, marketing NF(b), financials done,
+  business_model done, hiring NF(d), product done, decisions done.
+- C4 (succeeded): reviews NF(a), marketing done, financials done,
+  business_model NF(c), hiring NF(d), product done, decisions done.
+- C5 (partial): reviews done, marketing done, financials done,
+  business_model done, hiring NF(d), product ERROR(f), decisions done.
+
+Reasons: (a) no ratings or review app detected; (b) no marketing tools
+detected; (c) no About/Wholesale/Subscribe/FAQ pages and no business-model
+tools; (d) no Careers pages and no supported job board linked; (e) Apollo
+lists Shopify but /products.json does not answer JSON; (f) BUG — shopify
+upserted a 500+ product catalog in one call (`at most 500 records per
+call`), needs batching.
+
+Collectors that never reached done: news (C1–C3 GDELT HTTP 429 — 3
+concurrent runs vs the ~1 req/5s throttle; C4 GDELT 200 invalid JSON; C5
+fetch failed); sec_form_d (C4/C5 skipped non-US by design; C1–C3 SEC 403 —
+the UA contact is a URL and SEC requires an email-style contact);
+companies_house (4 skipped non-UK by design; C4 is UK but skipped —
+`COMPANIES_HOUSE_API_KEY` is empty in `.env`); feeds (no RSS/Atom link on
+these homepages, by design). Apollo live proof: 28 facts cite
+`apollo_import` sources (14 apollo_profile: 5 founded, 5 employees, 2
+revenue, 2 funding; 14 stack).
+
+DB growth for 5 companies: 77 → 83 MB (+6 MB); +90 sources, +72 blobs, +32
+documents, +194 facts, +382 records, +5 runs, +236 events, +35 statuses.
+Projection for 2,559 (×512): ~3.1 GB; ~100k facts, ~200k records, ~46k
+sources; ~17 h at COLLECT_CONCURRENCY=3. Skew warning: one 500+ catalog
+dominates records; GDELT/SEC currently contribute ~nothing (blocked).

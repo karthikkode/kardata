@@ -1,13 +1,29 @@
 import { createHash, randomUUID } from "node:crypto";
 import { gzipSync } from "node:zlib";
-import { eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import type { DbLike } from "../../db/client.js";
-import { blobs, companies, researchRuns, sources } from "../../db/schema.js";
+import { blobs, companies, imports, researchRuns, sectorCompanies, sources } from "../../db/schema.js";
+import { getOrCreateManualRun } from "../../runs/queue.js";
 import { DomainError } from "../errors.js";
 import { isHttpUrl } from "./validate.js";
 
 export const CAPTURE_VIA = ["search", "browser", "muse_fetch"] as const;
 export type CaptureVia = (typeof CAPTURE_VIA)[number];
+
+export const APOLLO_IMPORT_COLLECTOR = "apollo_import";
+
+export function apolloImportUrl(importId: string, apolloAccountId: string): string {
+  return `apollo:import/${importId}/${apolloAccountId}`;
+}
+
+async function storeBlob(db: DbLike, contentType: string, body: Buffer): Promise<string> {
+  const sha = createHash("sha256").update(body).digest("hex");
+  await db
+    .insert(blobs)
+    .values({ sha256: sha, contentType, size: body.byteLength, gzip: gzipSync(body) })
+    .onConflictDoNothing();
+  return sha;
+}
 
 export interface CaptureSourceInput {
   companyId: string;
@@ -41,16 +57,7 @@ export async function captureSource(db: DbLike, input: CaptureSourceInput): Prom
   if (input.text.trim() === "") throw new DomainError("invalid_input", "capture needs text");
 
   const body = Buffer.from(input.text, "utf8");
-  const sha = createHash("sha256").update(body).digest("hex");
-  await db
-    .insert(blobs)
-    .values({
-      sha256: sha,
-      contentType: "text/plain; charset=utf-8",
-      size: body.byteLength,
-      gzip: gzipSync(body),
-    })
-    .onConflictDoNothing();
+  const sha = await storeBlob(db, "text/plain; charset=utf-8", body);
   const [row] = await db
     .insert(sources)
     .values({
@@ -69,4 +76,108 @@ export async function captureSource(db: DbLike, input: CaptureSourceInput): Prom
     .returning({ id: sources.id });
   if (!row) throw new Error("source insert returned no row");
   return row.id;
+}
+
+export interface ApolloImportSourceInput {
+  companyId: string;
+  runId: string;
+  importId: string;
+  apolloAccountId: string;
+  raw: unknown;
+}
+
+// One source per imported CSV row: the row's raw JSON, snapshotted so Apollo
+// facts can cite it. Every import writes new rows (the URL embeds the import
+// id); collectors cite the latest via findApolloImportSource.
+export async function createApolloImportSource(db: DbLike, input: ApolloImportSourceInput): Promise<string> {
+  const [company] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, input.companyId));
+  if (!company) throw new DomainError("not_found", `company not found: ${input.companyId}`);
+  const [run] = await db
+    .select({ id: researchRuns.id, companyId: researchRuns.companyId })
+    .from(researchRuns)
+    .where(eq(researchRuns.id, input.runId));
+  if (!run) throw new DomainError("not_found", `run not found: ${input.runId}`);
+  if (run.companyId !== input.companyId) {
+    throw new DomainError("invalid_input", `run ${input.runId} belongs to another company`);
+  }
+  const sha = await storeBlob(db, "application/json", Buffer.from(JSON.stringify(input.raw ?? {}), "utf8"));
+  const url = apolloImportUrl(input.importId, input.apolloAccountId);
+  const [row] = await db
+    .insert(sources)
+    .values({
+      id: randomUUID(),
+      companyId: input.companyId,
+      runId: input.runId,
+      url,
+      finalUrl: url,
+      collector: APOLLO_IMPORT_COLLECTOR,
+      status: "ok",
+      blobSha256: sha,
+    })
+    .returning({ id: sources.id });
+  if (!row) throw new Error("source insert returned no row");
+  return row.id;
+}
+
+// Latest apollo_import source for a company, if any.
+export async function findApolloImportSource(
+  db: DbLike,
+  companyId: string,
+): Promise<{ id: string } | null> {
+  const rows = await db.execute<{ id: string }>(sql`
+    SELECT id FROM sources
+    WHERE company_id = ${companyId} AND collector = ${APOLLO_IMPORT_COLLECTOR}
+    ORDER BY fetched_at DESC, id DESC LIMIT 1`);
+  const list = rows as unknown as { id: string }[];
+  return list[0] ?? null;
+}
+
+export interface BackfillResult {
+  created: number;
+  alreadyHad: number;
+  skippedNoImport: number;
+}
+
+// One-off: give pre-2.1 Apollo companies their import source (latest raw,
+// earliest import). Idempotent: re-runs only fill companies still missing one.
+export async function backfillApolloImportSources(db: DbLike): Promise<BackfillResult> {
+  const rows = (await db.execute(sql`
+    SELECT c.id AS id, c.apollo_account_id AS "apolloAccountId", c.raw AS raw,
+      EXISTS(SELECT 1 FROM sources s
+             WHERE s.company_id = c.id AND s.collector = ${APOLLO_IMPORT_COLLECTOR}) AS "hasSource"
+    FROM companies c
+    WHERE c.source = 'apollo' AND c.apollo_account_id IS NOT NULL`)) as unknown as {
+    id: string;
+    apolloAccountId: string;
+    raw: unknown;
+    hasSource: boolean;
+  }[];
+  const result: BackfillResult = { created: 0, alreadyHad: 0, skippedNoImport: 0 };
+  for (const company of rows) {
+    if (company.hasSource) {
+      result.alreadyHad += 1;
+      continue;
+    }
+    const [earliest] = await db
+      .select({ importId: sectorCompanies.firstImportId })
+      .from(sectorCompanies)
+      .innerJoin(imports, eq(imports.id, sectorCompanies.firstImportId))
+      .where(eq(sectorCompanies.companyId, company.id))
+      .orderBy(asc(imports.createdAt))
+      .limit(1);
+    if (!earliest?.importId) {
+      result.skippedNoImport += 1;
+      continue;
+    }
+    const runId = await getOrCreateManualRun(db, company.id);
+    await createApolloImportSource(db, {
+      companyId: company.id,
+      runId,
+      importId: earliest.importId,
+      apolloAccountId: company.apolloAccountId,
+      raw: company.raw,
+    });
+    result.created += 1;
+  }
+  return result;
 }

@@ -43,6 +43,13 @@
       "when": 1792458107767,
       "tag": "0005_whole_jocasta",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792460183778,
+      "tag": "0006_salty_scarecrow",
+      "breakpoints": true
     }
   ]
 }

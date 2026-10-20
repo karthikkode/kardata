@@ -6,8 +6,10 @@ import { companies, imports, sectorCompanies, sectors, type Import } from "../db
 import type { Db, DbLike } from "../db/client.js";
 import { ApolloFileError, parseApolloCsv, type ParsedCompany } from "../lib/apollo/parse.js";
 import { getImportDirs } from "../lib/env.js";
+import { getOrCreateManualRun } from "../runs/queue.js";
 import { recomputeSharedDomains } from "./companies.js";
 import { DomainError } from "./errors.js";
+import { createApolloImportSource } from "./research/sources.js";
 
 export const MAX_FILES = 10;
 export const MAX_FILE_BYTES = 25 * 1024 * 1024;
@@ -153,6 +155,18 @@ export async function importOneFile(
     const existing = await tx.query.companies.findFirst({
       where: eq(companies.apolloAccountId, row.apolloAccountId),
     });
+    // Every processed row snapshots its raw JSON as an apollo_import source
+    // (removed rows skip below before reaching it).
+    const snapshotSource = async (companyId: string): Promise<void> => {
+      const runId = await getOrCreateManualRun(tx, companyId);
+      await createApolloImportSource(tx, {
+        companyId,
+        runId,
+        importId,
+        apolloAccountId: row.apolloAccountId,
+        raw: row.raw,
+      });
+    };
     if (existing) {
       const membership = await tx.query.sectorCompanies.findFirst({
         where: and(
@@ -166,6 +180,7 @@ export async function importOneFile(
       }
       if (existing.domain) affectedDomains.add(existing.domain);
       await tx.update(companies).set(typedColumns(row)).where(eq(companies.id, existing.id));
+      await snapshotSource(existing.id);
       updated += 1;
       if (membership) {
         await tx
@@ -205,6 +220,7 @@ export async function importOneFile(
         firstImportId: importId,
         lastImportId: importId,
       });
+      await snapshotSource(createdRow.id);
       created += 1;
     }
     if (row.domain) affectedDomains.add(row.domain);

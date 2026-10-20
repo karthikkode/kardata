@@ -3,8 +3,10 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { rm, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
 import { recordEvent } from "../../src/collect/db.js";
+import { researchRuns } from "../../src/db/schema.js";
 import { startServer, type ServerHandle } from "../../src/server.js";
 import {
   ensureMigrated,
@@ -121,6 +123,30 @@ describe("run tools", () => {
     expect((cancelled.run as { status: string }).status).toBe("cancelled");
     const missing = await call("batch_status", { batchId: "00000000-0000-0000-0000-000000000000" });
     expect(errorOf(missing).code).toBe("not_found");
+  });
+});
+
+describe("manual runs", () => {
+  it("attaches operator writes to one succeeded run that never blocks collect_start", async () => {
+    const companyId = await makeCompany("Manual Co");
+    const note = dataOf(
+      await call("note_add", { companyId, area: "product", title: "Hi", content: "hello" }),
+    );
+    expect(note.outcome).toBe("created");
+    const fetched = dataOf(await call("source_fetch", { companyId, url: `${site.baseUrl}/` }));
+    expect(fetched.status).toBe("ok");
+
+    const started = dataOf(await call("collect_start", { companyIds: [companyId] }));
+    const runs = started.runs as { status: string }[];
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.status).toBe("queued");
+
+    const rows = await handle.db.select().from(researchRuns).where(eq(researchRuns.companyId, companyId));
+    const manual = rows.filter((r) => r.kind === "manual");
+    expect(manual).toHaveLength(1);
+    expect(manual[0]?.status).toBe("succeeded");
+    expect(manual[0]?.createdBy).toBe("owner");
+    expect(fetched.runId).toBe(manual[0]?.id);
   });
 });
 

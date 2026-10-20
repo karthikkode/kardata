@@ -1,7 +1,10 @@
 import { STACK_MAP } from "../stack-map.js";
 import type { AddFactItem } from "../../domain/research/facts.js";
+import { findApolloImportSource } from "../../domain/research/sources.js";
 import type { Collector, CollectorCtx } from "./types.js";
 import { writeExtract, writeFacts } from "./util.js";
+
+type HitOrigin = "apollo" | "page";
 
 export const stackCollector: Collector = {
   name: "stack",
@@ -12,13 +15,27 @@ export const stackCollector: Collector = {
     const techHay = ctx.effective.technologies.join("\n").toLowerCase();
     const scriptHay = scripts.join("\n").toLowerCase();
     const hits = new Map<string, string[]>();
-    const channels = new Set<string>();
+    // Per-tool and per-channel provenance: which haystack each detection came
+    // from, so Apollo-technology facts cite the import source and script
+    // detections cite the homepage.
+    const toolOrigins = new Map<string, Set<HitOrigin>>();
+    const channelOrigins = new Map<string, Set<HitOrigin>>();
     for (const signal of STACK_MAP) {
       const found = new Set<string>();
       for (const tool of signal.tools) {
-        if (techHay.includes(tool.match) || scriptHay.includes(tool.match)) {
-          found.add(tool.name);
-          for (const channel of tool.channels ?? []) channels.add(channel);
+        const inTech = techHay.includes(tool.match);
+        const inScript = scriptHay.includes(tool.match);
+        if (!inTech && !inScript) continue;
+        found.add(tool.name);
+        const origins = toolOrigins.get(tool.name) ?? new Set<HitOrigin>();
+        if (inTech) origins.add("apollo");
+        if (inScript) origins.add("page");
+        toolOrigins.set(tool.name, origins);
+        for (const channel of tool.channels ?? []) {
+          const channelSet = channelOrigins.get(channel) ?? new Set<HitOrigin>();
+          if (inTech) channelSet.add("apollo");
+          if (inScript) channelSet.add("page");
+          channelOrigins.set(channel, channelSet);
         }
       }
       if (found.size > 0) hits.set(signal.group, [...found]);
@@ -67,38 +84,59 @@ export const stackCollector: Collector = {
 
     // Presence-only facts: a detected tool evidences the channel, but a miss
     // proves nothing, so no false facts are ever written.
+    const homepageId = ctx.shared.site?.homepage?.sourceId ?? null;
+    const needsApollo = [...toolOrigins.values()].some((origins) => origins.has("apollo"));
+    const apolloSource = needsApollo ? await findApolloImportSource(ctx.db, ctx.companyId) : null;
+    const apolloId = apolloSource?.id ?? null;
+    const idsFor = (origins: Set<HitOrigin>): string[] => {
+      const ids: string[] = [];
+      if (origins.has("page") && homepageId) ids.push(homepageId);
+      if (origins.has("apollo") && apolloId) ids.push(apolloId);
+      return ids;
+    };
     const factItems: AddFactItem[] = [];
-    for (const channel of [...channels].sort()) {
+    for (const channel of [...channelOrigins.keys()].sort()) {
+      const ids = idsFor(channelOrigins.get(channel) ?? new Set());
+      if (ids.length === 0) continue;
       factItems.push({
         key: "marketing.channel_active",
         value: true,
         qualifiers: { channel },
-        sourceIds,
+        sourceIds: ids,
         confidence: "medium",
       });
     }
     for (const signal of STACK_MAP) {
       for (const tool of hits.get(signal.group) ?? []) {
+        const ids = idsFor(toolOrigins.get(tool) ?? new Set());
+        if (ids.length === 0) continue;
         factItems.push({
           key: "marketing.tool",
           value: tool,
           qualifiers: { category: signal.group },
-          sourceIds,
+          sourceIds: ids,
           confidence: "medium",
         });
       }
     }
-    if (hits.has("subscriptions")) {
-      factItems.push({ key: "business_model.subscription", value: true, sourceIds, confidence: "medium" });
+    const groupOrigins = (group: string): Set<HitOrigin> => {
+      const out = new Set<HitOrigin>();
+      for (const tool of hits.get(group) ?? []) {
+        for (const origin of toolOrigins.get(tool) ?? []) out.add(origin);
+      }
+      return out;
+    };
+    for (const [group, key] of [
+      ["subscriptions", "business_model.subscription"],
+      ["bnpl", "business_model.bnpl"],
+      ["wholesale", "business_model.wholesale"],
+    ] as const) {
+      if (!hits.has(group)) continue;
+      const ids = idsFor(groupOrigins(group));
+      if (ids.length === 0) continue;
+      factItems.push({ key, value: true, sourceIds: ids, confidence: "medium" });
     }
-    if (hits.has("bnpl")) {
-      factItems.push({ key: "business_model.bnpl", value: true, sourceIds, confidence: "medium" });
-    }
-    if (hits.has("wholesale")) {
-      factItems.push({ key: "business_model.wholesale", value: true, sourceIds, confidence: "medium" });
-    }
-    // Facts need provenance: without the homepage source, only the documents stand.
-    if (sourceIds.length > 0) await writeFacts(ctx, "stack", factItems);
+    await writeFacts(ctx, "stack", factItems);
     return {
       outcomes: [
         {
