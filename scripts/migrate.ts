@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { createDb } from "../src/db/client.js";
+import { backfillApolloImportSources } from "../src/domain/research/sources.js";
 import { loadDotenv, requireEnv } from "../src/lib/env.js";
 
 /** Create the database if missing (42P04 = duplicate_database). */
@@ -25,6 +26,10 @@ async function migrateOne(name: string, url: string, folder: string): Promise<vo
   try {
     await migrate(db, { migrationsFolder: folder });
     console.log(`migrated ${name}`);
+    const backfill = await backfillApolloImportSources(db);
+    console.log(
+      `backfilled ${name}: ${backfill.created} sources created, ${backfill.alreadyHad} already had one, ${backfill.skippedNoImport} skipped (no import)`,
+    );
   } finally {
     await close();
   }

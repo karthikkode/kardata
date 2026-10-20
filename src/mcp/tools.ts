@@ -20,15 +20,15 @@ import {
   updateSector,
 } from "../domain/index.js";
 
-function text(text: string): { type: "text"; text: string } {
+export function text(text: string): { type: "text"; text: string } {
   return { type: "text", text };
 }
 
-function ok(summary: string, data: object) {
+export function ok(summary: string, data: object) {
   return { content: [text(summary)], structuredContent: data as Record<string, unknown> };
 }
 
-function fail(code: string, message: string) {
+export function fail(code: string, message: string) {
   return {
     content: [text(`${code}: ${message}`)],
     isError: true,
@@ -36,7 +36,7 @@ function fail(code: string, message: string) {
   };
 }
 
-async function wrap(fn: () => Promise<{ summary: string; data: object }>) {
+export async function wrap(fn: () => Promise<{ summary: string; data: object }>) {
   try {
     const { summary, data } = await fn();
     return ok(summary, data);
@@ -46,8 +46,9 @@ async function wrap(fn: () => Promise<{ summary: string; data: object }>) {
   }
 }
 
-const sectorId = z.string().describe("Sector UUID");
-const companyId = z.string().describe("Company UUID");
+export const sectorId = z.string().describe("Sector UUID");
+export const companyId = z.string().describe("Company UUID");
+export const runId = z.string().describe("Run UUID");
 
 const employeeBand = z.enum(["1-10", "11-50", "51-200", "201-500", "501+"]);
 const companySort = z.enum(["name", "employees", "founded", "revenue"]);

@@ -26,7 +26,7 @@ and stores a snapshot:
 | Shopify | `/products.json`, `/collections.json` |
 | Job boards | Greenhouse, Lever, Ashby and Workable public JSON |
 | On-site reviews | Judge.me, Yotpo and Okendo widgets on the company's own site |
-| Meta Ad Library | the official API; needs the owner's token |
+| Own feeds, GDELT news, SEC Form D, Wayback | the company's RSS, free news, US fundraises, site history |
 | UK Companies House | the official API, UK companies only |
 | Tech-stack inference | from Apollo technologies (subscriptions, loyalty, email/SMS) |
 
@@ -42,6 +42,20 @@ and stores a snapshot:
 
 Also measure how well Muse's built-in search works on 10 companies. If the spike fails, STOP and report.
 
+**Browser use.** Muse Code 1.4.10 has `web_search` and `web_fetch` but **no built-in browser**. It does load
+MCP servers (stdio and streamable-http), so the browser is Microsoft's official **Playwright MCP**
+(`@playwright/mcp`, headless Chromium) attached per research agent. The spike proves:
+- Muse `exec` can load kardata MCP and Playwright MCP together, per run, from config;
+- the memory per browser instance, to set `MAX_CONCURRENT_AGENTS`.
+
+Browser rules:
+- a fresh isolated profile per run: **no logins, no saved cookies**;
+- no CAPTCHA solving and no bot-wall workarounds: a challenge → `area_status blocked`;
+- at most `BROWSER_PAGES_PER_RUN` (default 40) pages per run;
+- everything read in the browser is stored with `source_capture(via: browser)`.
+
+Use it for JS-rendered pages: review widgets, careers pages, store locators.
+
 **Orchestrator:**
 - `research_start(company_ids[])` creates a batch;
 - **one active main agent per company**, enforced by a partial unique index; the agent may spawn subagents;
@@ -50,8 +64,9 @@ Also measure how well Muse's built-in search works on 10 companies. If the spike
 - cancel, and a sweep of the run's working folder into `documents`;
 - the harness sits behind an adapter interface, so another harness can replace Muse later.
 
-**Agent toolset**, each scoped by a per-run token to one company: `source_record`, `document_save`,
-`finding_add`, `area_status`, `heartbeat`, `run_finish`.
+**Agent toolset:** the ingest tools from `research-data-model.md`, scoped by a per-run token to one company, plus
+`heartbeat` and `run_finish`. Research agents get **no shell or file-write tools** where Muse can restrict
+that (check it in the spike). They store data only through kardata MCP.
 
 ## Stage 4 — Research playbook
 - The main agent's instructions and one subagent per area.
@@ -59,5 +74,19 @@ Also measure how well Muse's built-in search works on 10 companies. If the spike
 - A per-company summary document.
 - Pilot on 5 companies, then a 25-company batch.
 
+## Stage 6 — Analysis, RAG and the sector product (planned later, with the owner learning RAG hands-on)
+- **Structured analysis in SQL** over facts and records: sector benchmarks, percentiles, segments.
+- **RAG over the unstructured data** (documents, reviews, sources):
+  - pgvector in the same Postgres (switch the image to `pgvector/pgvector:pg16`);
+  - chunking;
+  - embeddings (a local model on the Spark, or an API);
+  - hybrid retrieval: full-text + vector, fused, then reranked;
+  - answers that cite our stored sources;
+  - a retrieval/answer eval set.
+- **Sector product:** the private benchmark report, plus a per-company one-pager for outreach.
+
 ## Stage 5 — Frontend
 Next.js on top of the same service, porting v1's design system from `v1-final`.
+
+## Later (not planned yet; do not build)
+- Social content: YouTube and Instagram through official APIs. TikTok has no legitimate API.
