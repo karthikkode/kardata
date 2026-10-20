@@ -6,7 +6,9 @@ import { sql } from "drizzle-orm";
 import { createDb, type Db } from "./db/client.js";
 import { checkAppMuseVersion, probeInstalledMuseVersion } from "./harness/setup.js";
 import { loadDotenv, requireEnv } from "./lib/env.js";
+import { OPERATOR_AUTH, type AuthContext } from "./mcp/auth.js";
 import { createMcpServer } from "./mcp/server.js";
+import { authenticateRunToken } from "./runs/tokens.js";
 import { createRunner } from "./runs/runner.js";
 
 export interface ServerHandle {
@@ -119,7 +121,18 @@ async function handleMcp(
     res.end("method not allowed");
     return;
   }
-  if ((req.headers.authorization ?? "") !== `Bearer ${operatorToken}`) {
+  const authorization = req.headers.authorization ?? "";
+  let auth: AuthContext = OPERATOR_AUTH;
+  if (authorization === `Bearer ${operatorToken}`) {
+    auth = OPERATOR_AUTH;
+  } else if (authorization.startsWith("Bearer ")) {
+    const scope = await authenticateRunToken(db, authorization.slice("Bearer ".length));
+    if (!scope) {
+      sendJson(res, 401, { error: "unauthorized" });
+      return;
+    }
+    auth = { kind: "run", runId: scope.runId, companyId: scope.companyId };
+  } else {
     sendJson(res, 401, { error: "unauthorized" });
     return;
   }
@@ -134,7 +147,7 @@ async function handleMcp(
     throw err;
   }
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-  const mcp = createMcpServer(db);
+  const mcp = createMcpServer(db, auth);
   await mcp.connect(transport);
   await transport.handleRequest(req, res, body);
 }

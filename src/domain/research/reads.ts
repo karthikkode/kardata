@@ -506,13 +506,19 @@ export async function listDocuments(db: Db, input: { companyId: string; prefix?:
     .limit(limit);
 }
 
-export async function getDocument(db: Db, input: { documentId: string; offset?: number; maxChars?: number }) {
+export async function getDocument(
+  db: Db,
+  input: { documentId: string; offset?: number; maxChars?: number; companyScope?: string },
+) {
   const maxChars = input.maxChars ?? 20000;
   if (maxChars < 1 || maxChars > 20000) throw new DomainError("invalid_input", "maxChars must be 1..20000");
   const offset = input.offset ?? 0;
   if (offset < 0) throw new DomainError("invalid_input", "offset must be >= 0");
   const [doc] = await db.select().from(documents).where(eq(documents.id, input.documentId));
   if (!doc) throw new DomainError("not_found", `document not found: ${input.documentId}`);
+  if (input.companyScope !== undefined && doc.companyId !== input.companyScope) {
+    throw new DomainError("forbidden", "document belongs to another company");
+  }
   const sourceUrls =
     doc.sourceIds.length > 0
       ? (
@@ -545,9 +551,12 @@ export async function getDocument(db: Db, input: { documentId: string; offset?: 
   };
 }
 
-export async function getDocumentHistory(db: Db, documentId: string) {
+export async function getDocumentHistory(db: Db, documentId: string, companyScope?: string) {
   const [doc] = await db.select().from(documents).where(eq(documents.id, documentId));
   if (!doc) throw new DomainError("not_found", `document not found: ${documentId}`);
+  if (companyScope !== undefined && doc.companyId !== companyScope) {
+    throw new DomainError("forbidden", "document belongs to another company");
+  }
   if (!doc.path) return [];
   return db
     .select({
@@ -666,11 +675,14 @@ export async function blobText(db: Db, sha256: string): Promise<{ text: string; 
   };
 }
 
-export async function getSourceExcerpt(db: Db, input: { sourceId: string; maxChars?: number }) {
+export async function getSourceExcerpt(db: Db, input: { sourceId: string; maxChars?: number; companyScope?: string }) {
   const maxChars = input.maxChars ?? 5000;
   if (maxChars < 1 || maxChars > 5000) throw new DomainError("invalid_input", "maxChars must be 1..5000");
   const [source] = await db.select().from(sources).where(eq(sources.id, input.sourceId));
   if (!source) throw new DomainError("not_found", `source not found: ${input.sourceId}`);
+  if (input.companyScope !== undefined && source.companyId !== input.companyScope) {
+    throw new DomainError("forbidden", "source belongs to another company");
+  }
   let text: string | null = null;
   let truncated = false;
   if (source.blobSha256) {

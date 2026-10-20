@@ -1,12 +1,12 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Db } from "../db/client.js";
+import { type AuthContext, registerTool } from "./auth.js";
 import {
   addCompany,
   addCompanyToSector,
   createSector,
   deleteSector,
-  DomainError,
   facets,
   getCompany,
   getSector,
@@ -20,31 +20,9 @@ import {
   updateSector,
 } from "../domain/index.js";
 
-export function text(text: string): { type: "text"; text: string } {
-  return { type: "text", text };
-}
+import { fail, ok, text, wrap } from "./result.js";
 
-export function ok(summary: string, data: object) {
-  return { content: [text(summary)], structuredContent: data as Record<string, unknown> };
-}
-
-export function fail(code: string, message: string) {
-  return {
-    content: [text(`${code}: ${message}`)],
-    isError: true,
-    structuredContent: { code, message },
-  };
-}
-
-export async function wrap(fn: () => Promise<{ summary: string; data: object }>) {
-  try {
-    const { summary, data } = await fn();
-    return ok(summary, data);
-  } catch (err) {
-    if (err instanceof DomainError) return fail(err.code, err.message);
-    return fail("internal", err instanceof Error ? err.message : String(err));
-  }
-}
+export { fail, ok, text, wrap };
 
 export const sectorId = z.string().describe("Sector UUID");
 export const companyId = z.string().describe("Company UUID");
@@ -54,8 +32,8 @@ const employeeBand = z.enum(["1-10", "11-50", "51-200", "201-500", "501+"]);
 const companySort = z.enum(["name", "employees", "founded", "revenue"]);
 const sortOrder = z.enum(["asc", "desc"]);
 
-export function registerTools(server: McpServer, db: Db): void {
-  server.registerTool(
+export function registerTools(server: McpServer, db: Db, auth: AuthContext): void {
+  registerTool(server, db, auth, 
     "sector_create",
     {
       description: "Create a sector, optionally importing Apollo CSV files. Returns the sector with per-file import results.",
@@ -81,7 +59,7 @@ export function registerTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "sector_update",
     {
       description: "Rename a sector and/or change its description. Returns the updated sector.",
@@ -98,7 +76,7 @@ export function registerTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "sector_delete",
     {
       description: "Delete a sector with its memberships and imports (global companies stay). Returns the deleted sector id and name.",
@@ -115,7 +93,7 @@ export function registerTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "sector_list",
     {
       description: "List all sectors with live and removed company counts. Returns the sectors.",
@@ -128,7 +106,7 @@ export function registerTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "sector_get",
     {
       description: "Get one sector with counts and its last 20 imports. Returns the sector.",
@@ -144,7 +122,7 @@ export function registerTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "companies_import_csv",
     {
       description: "Import Apollo CSV files into a sector. Returns per-file counts.",
@@ -167,7 +145,7 @@ export function registerTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "company_add",
     {
       description: "Add a company by hand to a sector. Returns the company and possible domain duplicates.",
@@ -216,7 +194,7 @@ export function registerTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "company_link",
     {
       description: "Link an existing global company to another sector. Returns the link.",
@@ -232,7 +210,7 @@ export function registerTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "company_update",
     {
       description: "Edit a company via overrides (null clears one) and notes. Returns the company.",
@@ -250,7 +228,7 @@ export function registerTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "company_remove",
     {
       description: "Remove a company from a sector (tombstone; re-imports will not revive it). Returns the removal.",
@@ -264,7 +242,7 @@ export function registerTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "company_restore",
     {
       description: "Restore a removed company to its sector. Returns the restoration.",
@@ -277,7 +255,7 @@ export function registerTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "company_get",
     {
       description: "Get one company with effective fields, overrides, raw import, notes, and sectors. Returns the company.",
@@ -293,7 +271,7 @@ export function registerTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "company_list",
     {
       description: "Search, filter, sort, and page the companies of a sector. Returns the page plus server-side durationMs.",
@@ -325,7 +303,7 @@ export function registerTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "company_facets",
     {
       description: "Count a sector's live companies per country, industry, employee band, and top 50 technologies. Returns the facets.",
@@ -338,7 +316,7 @@ export function registerTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "import_list",
     {
       description: "List a sector's imports, newest first. Returns the imports.",

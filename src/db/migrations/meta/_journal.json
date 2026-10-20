@@ -50,6 +50,13 @@
       "when": 1792460183778,
       "tag": "0006_salty_scarecrow",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792502418881,
+      "tag": "0007_run_tokens",
+      "breakpoints": true
     }
   ]
 }

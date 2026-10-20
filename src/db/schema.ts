@@ -351,6 +351,22 @@ export const runEvents = pgTable(
   (t) => [index("run_events_run_idx").on(t.runId, t.id)],
 );
 
+// Per-run agent bearer tokens (Stage 3b Step 1): one per agent run, scoped
+// to the run's company, revoked when the run ends. Only the hash is stored.
+export const runTokens = pgTable("run_tokens", {
+  tokenHash: text("token_hash").primaryKey(),
+  runId: uuid("run_id")
+    .notNull()
+    .unique()
+    .references(() => researchRuns.id, { onDelete: "cascade" }),
+  companyId: uuid("company_id")
+    .notNull()
+    .references(() => companies.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   dataType() {
     return "bytea";
@@ -482,6 +498,7 @@ export const areaStatuses = pgTable(
 
 export type ResearchRun = typeof researchRuns.$inferSelect;
 export type RunEvent = typeof runEvents.$inferSelect;
+export type RunToken = typeof runTokens.$inferSelect;
 export type Blob = typeof blobs.$inferSelect;
 export type Source = typeof sources.$inferSelect;
 export type ResearchDocument = typeof documents.$inferSelect;

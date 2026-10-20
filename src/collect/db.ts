@@ -8,7 +8,9 @@ export type RunEventType =
   | "collector_end"
   | "area_status"
   | "error"
-  | "log";
+  | "log"
+  | "mcp_call"
+  | "agent_finish";
 
 /**
  * Append a run event and touch last_activity_at. Two plain queries, never in a
