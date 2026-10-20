@@ -15,7 +15,8 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
-    "smoke:real": "tsx scripts/smoke-real.ts"
+    "smoke:real": "tsx scripts/smoke-real.ts",
+    "smoke:collect": "tsx scripts/smoke-collect.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.18.0",
