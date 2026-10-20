@@ -42,8 +42,10 @@ describe("harness setup", () => {
   it("parses a bare version line and rejects suspicious output", () => {
     expect(parseMuseVersion("1.2.3\n")).toBe("1.2.3");
     expect(parseMuseVersion("\n  2.0.0-rc1  \n")).toBe("2.0.0-rc1");
+    expect(parseMuseVersion("Muse Code 1.4.11 (1.4.11-R6667.1)\n")).toBe("1.4.11-R6667.1");
     expect(parseMuseVersion("")).toBeNull();
     expect(parseMuseVersion("update available\n1.2.3\n")).toBeNull();
+    expect(parseMuseVersion("1.2.3\nextra\n")).toBeNull();
     expect(parseMuseVersion("1.2.3; rm -rf /\n")).toBeNull();
   });
 

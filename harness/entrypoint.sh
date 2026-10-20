@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# kardata-agent entrypoint. Modes: setup | version.
-# Research `run` mode lands with the Docker harness (Step 2).
+# kardata-agent entrypoint. Modes: setup | version | run.
+# run execs the app-owned Muse with the given args (research runs only).
 set -euo pipefail
 
 MUSE_DIR="${MUSE_DIR:-/opt/muse}"
@@ -31,7 +31,13 @@ case "$cmd" in
     [[ -x "$MUSE_BIN" ]] || die "app Muse is not installed (run npm run harness:setup)"
     exec "$MUSE_BIN" --version
     ;;
+  run)
+    [[ -x "$MUSE_BIN" ]] || die "app Muse is not installed (run npm run harness:setup)"
+    shift
+    [[ "$#" -gt 0 ]] || die "usage: entrypoint.sh run <muse args...>"
+    exec "$MUSE_BIN" "$@"
+    ;;
   *)
-    die "usage: entrypoint.sh {setup|version}"
+    die "usage: entrypoint.sh {setup|version|run}"
     ;;
 esac

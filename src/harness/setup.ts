@@ -3,6 +3,7 @@
  * `npm run harness:setup`; the thin runner lives in scripts/harness-setup.ts.
  * Research-run containers (DockerMuseHarness) reuse AGENT_IMAGE/MUSE_VOLUME.
  */
+import { spawnSync } from "node:child_process";
 
 export const AGENT_IMAGE = "kardata-agent";
 export const MUSE_VOLUME = "kardata_muse";
@@ -47,16 +48,50 @@ export function versionRunArgs(): string[] {
   return ["run", "--rm", "-v", `${MUSE_VOLUME}:${MUSE_MOUNT}:ro`, AGENT_IMAGE, "version"];
 }
 
-// First non-empty stdout line, charset-checked. Null when the output doesn't
-// look like a bare version (caller prints it for manual handling instead of
-// writing a suspicious value into .env).
+// Exactly one non-empty stdout line, charset-checked. `muse --version` prints
+// `Muse Code 1.4.11 (1.4.11-R6667.1)`; the parenthesized build is the precise
+// pin. Null when the output doesn't match (caller prints it for manual
+// handling instead of writing a suspicious value into .env).
 export function parseMuseVersion(output: string): string | null {
-  const line = output
+  const lines = output
     .split("\n")
     .map((s) => s.trim())
-    .find((s) => s !== "");
-  if (!line || !/^[0-9A-Za-z._+-]+$/.test(line)) return null;
+    .filter((s) => s !== "");
+  if (lines.length !== 1) return null;
+  const line = lines[0];
+  const branded = /^muse(?: code)? \S+ \(([0-9A-Za-z._+-]+)\)$/i.exec(line);
+  if (branded) return branded[1];
+  if (!/^[0-9A-Za-z._+-]+$/.test(line)) return null;
   return line;
+}
+
+export interface AppMuseVersion {
+  /** True only when the installed build equals the expected pin. */
+  ok: boolean;
+  installed: string | null;
+  expected: string | null;
+}
+
+/**
+ * Compare the app Muse build installed in the volume against the
+ * KARDATA_MUSE_VERSION pin. The runner injects stdout in tests; production
+ * passes the `docker run ... version` probe output.
+ */
+export function checkAppMuseVersion(expected: string | undefined, probeStdout: string): AppMuseVersion {
+  const want = expected?.trim() ? expected.trim() : null;
+  const installed = parseMuseVersion(probeStdout);
+  return { ok: installed !== null && installed === want, installed, expected: want };
+}
+
+/** Run the read-only version probe; "" when docker or the volume is missing. */
+export function probeInstalledMuseVersion(): string {
+  try {
+    const result = spawnSync("docker", versionRunArgs(), { encoding: "utf8", timeout: 60_000 });
+    if (result.error || result.status !== 0) return "";
+    return result.stdout ?? "";
+  } catch {
+    return "";
+  }
 }
 
 export function applyDotenvVersion(existing: string, version: string): string {

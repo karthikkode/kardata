@@ -24,9 +24,14 @@ One-time, interactive:
 npm run harness:setup   # build + install launcher + `muse login` (device code); writes KARDATA_MUSE_VERSION to .env
 ```
 
-`kardata-server` refuses to boot when the volume's installed version differs
-from `KARDATA_MUSE_VERSION`. Re-run `harness:setup` to upgrade (it rewrites
-the pin after a successful login).
+`kardata-server` checks the installed version at boot and refuses to start
+agent runs when it differs from `KARDATA_MUSE_VERSION`. Re-run `harness:setup`
+to upgrade (it rewrites the pin after a successful login).
+
+Agent runs reach kardata MCP at `host.docker.internal:<PORT>` through the
+Docker bridge, so the server must listen on `0.0.0.0` (set `HOST=0.0.0.0` in
+`.env`) for agent runs. Postgres stays loopback-only (see
+`docker-compose.yml`), so containers cannot reach it.
 
 ## Register the MCP server
 

@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { sql } from "drizzle-orm";
 import { createDb, type Db } from "./db/client.js";
+import { checkAppMuseVersion, probeInstalledMuseVersion } from "./harness/setup.js";
 import { loadDotenv, requireEnv } from "./lib/env.js";
 import { createMcpServer } from "./mcp/server.js";
 import { createRunner } from "./runs/runner.js";
@@ -142,6 +143,19 @@ async function main(): Promise<void> {
   loadDotenv();
   const host = process.env.HOST ?? "127.0.0.1";
   const port = Number(process.env.PORT ?? "8787");
+  const museVersion = checkAppMuseVersion(
+    process.env.KARDATA_MUSE_VERSION,
+    probeInstalledMuseVersion(),
+  );
+  if (museVersion.ok) {
+    console.log(`app Muse ${museVersion.installed} matches KARDATA_MUSE_VERSION`);
+  } else {
+    console.warn(
+      `agent runs disabled: app Muse is ${museVersion.installed ?? "unknown"} ` +
+        `(want ${museVersion.expected ?? "unset KARDATA_MUSE_VERSION"}); ` +
+        `run npm run harness:setup`,
+    );
+  }
   const { db, close: closeDb } = createDb(requireEnv("DATABASE_URL"));
   const runner = createRunner(db);
   await runner.start();

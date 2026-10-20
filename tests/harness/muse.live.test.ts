@@ -11,7 +11,7 @@ import type { DbHandle } from "../../src/db/client.js";
 import { documents } from "../../src/db/schema.js";
 import { importCsv } from "../../src/domain/imports.js";
 import { createSector } from "../../src/domain/sectors.js";
-import { museHarness } from "../../src/harness/muse.js";
+import { hostMuseHarness } from "../../src/harness/muse.js";
 import type { HarnessEvent } from "../../src/harness/types.js";
 import { startServer, type ServerHandle } from "../../src/server.js";
 import {
@@ -59,7 +59,7 @@ describe.skipIf(!process.env.KARDATA_LIVE)("muse harness @live", () => {
     async () => {
       const workspace = join(process.cwd(), "var", "runs", `live-${randomUUID()}`);
       mkdirSync(workspace, { recursive: true });
-      const run = museHarness.start({
+      const run = hostMuseHarness.start({
         runId: randomUUID(),
         workspaceDir: workspace,
         prompt:

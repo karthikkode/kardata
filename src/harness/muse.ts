@@ -1,6 +1,9 @@
 /**
- * Muse Code harness (Stage 3a spike). Launches `muse exec --json` per run
- * and normalizes its JSONL event stream. Proven in the spike (see review):
+ * Muse Code harness. `hostMuseHarness` is the DEV-ONLY host-binary path (the
+ * Stage 3a spike; kept for the @live test). Research runs use
+ * `dockerMuseHarness` (docker.ts): one container per run with the app-owned
+ * Muse. Both share `MuseHandle`, which normalizes the stdout JSONL stream.
+ * Proven in the spike (see review):
  * - per-run MCP via `-c mcpServers.<name>=<json>` (secrets as whole ${VAR});
  * - tool calls surface as task kinds + tool.result (arguments are NOT in the
  *   stream); subagent labels are NOT in the stream either (session log only);
@@ -40,18 +43,18 @@ interface JsonlEvent {
   };
 }
 
-class MuseHandle {
+export class MuseHandle {
   readonly events: AsyncIterable<HarnessEvent>;
-  private child: ChildProcess;
+  protected child: ChildProcess;
   private queue: HarnessEvent[] = [];
   private waiters: (() => void)[] = [];
   private ended = false;
-  private exitCode: number | null = null;
+  protected exitCode: number | null = null;
   private finalMessage = "";
   private usage: HarnessUsage | undefined;
   private lastEventAt = Date.now();
   private stallTimer: NodeJS.Timeout | null = null;
-  private stopped = false;
+  protected stopped = false;
 
   constructor(child: ChildProcess, stallTimeoutMs: number) {
     this.child = child;
@@ -201,7 +204,7 @@ class MuseHandle {
   }
 }
 
-function serverJson(server: {
+export function mcpServerConfigJson(server: {
   url?: string;
   headers?: Record<string, string>;
   command?: string;
@@ -213,14 +216,15 @@ function serverJson(server: {
   return JSON.stringify({ command: server.command, args: server.args ?? [] });
 }
 
-export const museHarness: AgentHarness = {
+/** Dev-only host path (the @live test). Never used for research runs. */
+export const hostMuseHarness: AgentHarness = {
   start(opts: HarnessStartOptions): MuseHandle {
     const args = [
       "exec",
       "--json",
       "--max-model-steps",
       String(opts.limits.maxModelSteps),
-      ...opts.mcpServers.flatMap((s) => ["-c", `mcpServers.${s.name}=${serverJson(s)}`]),
+      ...opts.mcpServers.flatMap((s) => ["-c", `mcpServers.${s.name}=${mcpServerConfigJson(s)}`]),
       ...(opts.extraArgs ?? []),
       opts.prompt,
     ];
