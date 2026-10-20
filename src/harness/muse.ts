@@ -34,6 +34,7 @@ interface JsonlEvent {
       input_tokens?: number;
       output_tokens?: number;
       cached_tokens?: number;
+      reasoning_tokens?: number;
     }[];
     calls?: number;
     event?: { kind?: string; task_kind?: string; chunk?: string; final_result?: boolean };
@@ -52,9 +53,16 @@ export class MuseHandle {
   private lastEventAt = Date.now();
   private stallTimer: NodeJS.Timeout | null = null;
   protected stopped = false;
+  private terminalAt: number | null = null;
 
-  constructor(child: ChildProcess, stallTimeoutMs: number) {
+  constructor(
+    child: ChildProcess,
+    stallTimeoutMs: number,
+    opts: { terminalGraceMs?: number; onRawLine?: (line: string) => void } = {},
+  ) {
     this.child = child;
+    const graceMs = opts.terminalGraceMs ?? 60_000;
+    const onRawLine = opts.onRawLine;
     let buf = "";
     child.stdout?.on("data", (chunk: Buffer) => {
       buf += chunk.toString("utf8");
@@ -62,7 +70,15 @@ export class MuseHandle {
       while ((nl = buf.indexOf("\n")) >= 0) {
         const line = buf.slice(0, nl).trim();
         buf = buf.slice(nl + 1);
-        if (line !== "") this.onLine(line);
+        if (line === "") continue;
+        if (onRawLine) {
+          try {
+            onRawLine(line);
+          } catch {
+            /* the tee must never break the run */
+          }
+        }
+        this.onLine(line);
       }
     });
     child.on("error", () => this.push({ type: "error", message: "spawn failed" }));
@@ -71,11 +87,13 @@ export class MuseHandle {
       this.finish();
     });
     this.stallTimer = setInterval(() => {
-      if (!this.ended && Date.now() - this.lastEventAt > stallTimeoutMs) {
-        this.push({ type: "error", message: `no events for ${stallTimeoutMs}ms (stall)` });
+      if (this.ended) return;
+      const windowMs = this.terminalAt !== null ? graceMs : stallTimeoutMs;
+      if (Date.now() - this.lastEventAt > windowMs) {
+        this.push({ type: "error", message: `no events for ${windowMs}ms (stall)` });
         void this.stop("stall");
       }
-    }, Math.min(10_000, Math.max(1000, Math.floor(stallTimeoutMs / 6))));
+    }, Math.min(10_000, Math.max(1000, Math.floor(Math.min(stallTimeoutMs, graceMs) / 6))));
     this.stallTimer.unref?.();
     this.events = {
       [Symbol.asyncIterator]: () => this.iterate(),
@@ -141,6 +159,7 @@ export class MuseHandle {
           inputTokens: model?.input_tokens ?? 0,
           outputTokens: model?.output_tokens ?? 0,
           cachedTokens: model?.cached_tokens ?? 0,
+          reasoningTokens: model?.reasoning_tokens ?? 0,
           calls: payload.calls ?? 0,
         };
         this.push({ type: "usage", ...this.usage });
@@ -148,6 +167,7 @@ export class MuseHandle {
       }
       case "run.terminal.completed":
         this.finalMessage = payload.text ?? "";
+        this.terminalAt ??= Date.now();
         this.push({
           type: "finished",
           terminal: "completed",
@@ -156,6 +176,7 @@ export class MuseHandle {
         break;
       case "run.terminal.failed":
         this.finalMessage = payload.text ?? "";
+        this.terminalAt ??= Date.now();
         if (payload.reason) this.push({ type: "error", message: payload.reason });
         this.push({
           type: "finished",
@@ -181,7 +202,11 @@ export class MuseHandle {
     if (this.stopped || this.exitCode !== null) return;
     this.stopped = true;
     this.child.kill("SIGTERM");
-    await new Promise((resolve) => setTimeout(resolve, SIGKILL_AFTER_MS));
+    // Unref'd: the escalation wait must never hold the process open.
+    await new Promise((resolve) => {
+      const timer = setTimeout(resolve, SIGKILL_AFTER_MS);
+      timer.unref?.();
+    });
     if (this.exitCode === null) {
       try {
         this.child.kill("SIGKILL");

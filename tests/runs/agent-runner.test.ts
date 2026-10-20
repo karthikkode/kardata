@@ -1,0 +1,685 @@
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
+import { recordEvent } from "../../src/collect/db.js";
+import type { CollectRunResult } from "../../src/collect/run.js";
+import type { DbHandle } from "../../src/db/client.js";
+import { area, companies, researchRuns, runEvents } from "../../src/db/schema.js";
+import { setAreaStatus } from "../../src/domain/research/status.js";
+import { PLAYWRIGHT_SERVER_CONFIG, RESEARCH_MUSE_ARGS } from "../../src/harness/docker.js";
+import type {
+  AgentHarness,
+  HarnessEvent,
+  HarnessHandle,
+  HarnessStartOptions,
+  HarnessUsage,
+  HarnessWaitResult,
+} from "../../src/harness/types.js";
+import { researchStart } from "../../src/runs/agent.js";
+import {
+  createAgentRunner,
+  pruneRunDirs,
+  type AgentRunner,
+  type PromptContext,
+} from "../../src/runs/agent-runner.js";
+import { cancelRun } from "../../src/runs/queue.js";
+import { authenticateRunToken, issueRunToken } from "../../src/runs/tokens.js";
+import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
+
+interface FakeScript {
+  events?: HarnessEvent[];
+  exitCode?: number;
+  finalMessage?: string;
+  usage?: HarnessUsage;
+  rawLines?: string[];
+  hang?: boolean;
+}
+
+class FakeHandle implements HarnessHandle {
+  readonly containerId: string;
+  stopReason: string | null = null;
+  readonly yielded: HarnessEvent[] = [];
+  readonly events: AsyncIterable<HarnessEvent>;
+  private released = false;
+  private releaseWaiters: (() => void)[] = [];
+
+  constructor(
+    readonly runId: string,
+    private script: FakeScript,
+    private onRawLine?: (line: string) => void,
+  ) {
+    this.containerId = `fake-container-${runId}`;
+    this.events = { [Symbol.asyncIterator]: () => this.iterate() };
+  }
+
+  release(): void {
+    this.released = true;
+    for (const waiter of this.releaseWaiters.splice(0)) waiter();
+  }
+
+  private async *iterate(): AsyncGenerator<HarnessEvent> {
+    for (const line of this.script.rawLines ?? []) this.onRawLine?.(line);
+    for (const event of this.script.events ?? []) {
+      if (this.stopReason) return;
+      this.yielded.push(event);
+      yield event;
+    }
+  }
+
+  async stop(reason: string): Promise<void> {
+    this.stopReason = reason;
+    this.release();
+  }
+
+  async wait(): Promise<HarnessWaitResult> {
+    if (this.script.hang && !this.released) {
+      await new Promise<void>((resolve) => this.releaseWaiters.push(resolve));
+    }
+    return {
+      exitCode: this.script.exitCode ?? 0,
+      finalMessage: this.script.finalMessage ?? "",
+      usage: this.script.usage,
+    };
+  }
+}
+
+class FakeHarness implements AgentHarness {
+  readonly starts: HarnessStartOptions[] = [];
+  readonly handles = new Map<string, FakeHandle>();
+
+  constructor(public scriptFor: (runId: string) => FakeScript) {}
+
+  start(opts: HarnessStartOptions): FakeHandle {
+    this.starts.push(opts);
+    const handle = new FakeHandle(opts.runId, this.scriptFor(opts.runId), opts.onRawLine);
+    this.handles.set(opts.runId, handle);
+    return handle;
+  }
+}
+
+const MCP_URL = "http://host.docker.internal:9999/mcp";
+
+let handle: DbHandle;
+let runsDir: string;
+let runner: AgentRunner | null = null;
+
+const COMPLETED: HarnessEvent = { type: "finished", terminal: "completed", text: "ok" };
+const USAGE: HarnessUsage = {
+  model: "fake-model",
+  inputTokens: 100,
+  outputTokens: 20,
+  cachedTokens: 50,
+  reasoningTokens: 7,
+  calls: 2,
+};
+
+async function makeCompany(name: string): Promise<string> {
+  const id = randomUUID();
+  await handle.db.insert(companies).values({ id, source: "manual", name });
+  return id;
+}
+
+async function freshCollect(companyId: string): Promise<void> {
+  await handle.db.insert(researchRuns).values({
+    id: randomUUID(),
+    companyId,
+    kind: "collect",
+    status: "succeeded",
+    createdBy: "owner",
+    startedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+    finishedAt: new Date(Date.now() - 60 * 60 * 1000),
+  });
+}
+
+async function arrangeFinish(runId: string, areas = 7): Promise<void> {
+  await recordEvent(handle.db, runId, "agent_finish", { summary: "s" });
+  const names = (area.enumValues as readonly string[]).filter((n) => n !== "other");
+  for (const name of names.slice(0, areas)) {
+    await setAreaStatus(handle.db, { runId, area: name, status: "done", reason: null });
+  }
+}
+
+async function runRow(runId: string) {
+  const [row] = await handle.db.select().from(researchRuns).where(eq(researchRuns.id, runId));
+  if (!row) throw new Error(`run missing: ${runId}`);
+  return row;
+}
+
+async function drain(runId: string): Promise<void> {
+  const deadline = Date.now() + 10_000;
+  for (;;) {
+    const row = await runRow(runId);
+    if (row.status !== "queued" && row.status !== "running") return;
+    if (Date.now() > deadline) throw new Error(`run ${runId} stuck in ${row.status}`);
+    await new Promise((r) => setTimeout(r, 25));
+  }
+}
+
+async function waitForHandle(harness: FakeHarness, runId: string): Promise<FakeHandle> {
+  const deadline = Date.now() + 10_000;
+  for (;;) {
+    const found = harness.handles.get(runId);
+    if (found) return found;
+    if (Date.now() > deadline) throw new Error(`no handle for ${runId}`);
+    await new Promise((r) => setTimeout(r, 25));
+  }
+}
+
+interface Fixture {
+  runner: AgentRunner;
+  harness: FakeHarness;
+  collectCalls: string[];
+  prompts: PromptContext[];
+  stopLabeledCalls: number;
+}
+
+function makeFixture(opts: {
+  scriptFor?: (runId: string) => FakeScript;
+  collectImpl?: (runId: string) => Promise<CollectRunResult>;
+  maxAgents?: number;
+  collectLimit?: number;
+  buildPrompt?: null;
+}): Fixture {
+  const harness = new FakeHarness(opts.scriptFor ?? (() => ({ events: [COMPLETED] })));
+  const collectCalls: string[] = [];
+  const prompts: PromptContext[] = [];
+  const fixture: Fixture = {
+    runner: null as unknown as AgentRunner,
+    harness,
+    collectCalls,
+    prompts,
+    stopLabeledCalls: 0,
+  };
+  fixture.runner = createAgentRunner(handle.db, {
+    harness,
+    mcpUrl: MCP_URL,
+    maxAgents: opts.maxAgents,
+    collectLimit: opts.collectLimit,
+    pollMs: 60_000,
+    runsDir,
+    collect: async (runId: string) => {
+      collectCalls.push(runId);
+      if (opts.collectImpl) return opts.collectImpl(runId);
+      return { runId, status: "succeeded", outcomes: [] };
+    },
+    stopLabeledContainers: async () => {
+      fixture.stopLabeledCalls += 1;
+      return ["container-1"];
+    },
+    ...(opts.buildPrompt === null
+      ? {}
+      : {
+          buildPrompt: (ctx: PromptContext) => {
+            prompts.push(ctx);
+            return `prompt for ${ctx.company.id} :: ${ctx.brief ?? ""}`;
+          },
+        }),
+  });
+  runner = fixture.runner;
+  return fixture;
+}
+
+beforeAll(async () => {
+  handle = getTestDb();
+  await ensureMigrated(handle);
+});
+
+beforeEach(async () => {
+  await resetTestDb(handle);
+  runsDir = mkdtempSync(join(tmpdir(), "agent-runner-test-"));
+});
+
+afterEach(async () => {
+  if (runner) {
+    await runner.stop();
+    runner = null;
+  }
+  rmSync(runsDir, { recursive: true, force: true });
+});
+
+describe("agent runner", () => {
+  it("collects stale companies before researching, in order", async () => {
+    const order: string[] = [];
+    const fx = makeFixture({
+      scriptFor: () => ({ events: [COMPLETED] }),
+      collectImpl: async (runId) => {
+        order.push("collect");
+        return { runId, status: "succeeded", outcomes: [] };
+      },
+    });
+    const companyId = await makeCompany("A Co");
+    const started = await researchStart(handle.db, { companyIds: [companyId] });
+    const runId = (started.runs[0] as { runId: string }).runId;
+    await arrangeFinish(runId);
+    const origScript = fx.harness.scriptFor;
+    fx.harness.scriptFor = (id: string) => {
+      order.push("research");
+      return origScript(id);
+    };
+
+    await fx.runner.tick();
+    await drain(runId);
+    expect(order).toEqual(["collect", "research"]);
+    expect((await runRow(runId)).status).toBe("succeeded");
+    const phases = await handle.db
+      .select({ payload: runEvents.payload })
+      .from(runEvents)
+      .where(eq(runEvents.runId, runId));
+    const names = phases
+      .map((r) => (r.payload as { phase?: string }).phase)
+      .filter((p) => p !== undefined);
+    expect(names).toEqual(["collecting", "researching"]);
+  });
+
+  it("skips collecting when a fresh collect exists", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ events: [COMPLETED] }) });
+    const companyId = await makeCompany("A Co");
+    await freshCollect(companyId);
+    const started = await researchStart(handle.db, { companyIds: [companyId] });
+    const runId = (started.runs[0] as { runId: string }).runId;
+    await arrangeFinish(runId);
+
+    await fx.runner.tick();
+    await drain(runId);
+    expect(fx.collectCalls).toEqual([]);
+    expect(fx.harness.starts).toHaveLength(1);
+    expect((await runRow(runId)).status).toBe("succeeded");
+  });
+
+  it("passes the Step 0 container config to the harness", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ events: [COMPLETED] }) });
+    const companyId = await makeCompany("A Co");
+    await freshCollect(companyId);
+    const started = await researchStart(handle.db, {
+      companyIds: [companyId],
+      maxMinutes: 10,
+      maxModelSteps: 25,
+      brief: "owner note",
+    });
+    const runId = (started.runs[0] as { runId: string }).runId;
+    await arrangeFinish(runId);
+
+    await fx.runner.tick();
+    await drain(runId);
+    expect(fx.harness.starts).toHaveLength(1);
+    const opts = fx.harness.starts[0] as HarnessStartOptions;
+    expect(Object.keys(opts.env)).toEqual(["KARDATA_MCP_AUTH"]);
+    expect(opts.env["KARDATA_MCP_AUTH"]).toMatch(/^Bearer krau_/);
+    expect(opts.mcpServers[0]).toEqual({
+      name: "kardata",
+      url: MCP_URL,
+      headers: { Authorization: "${KARDATA_MCP_AUTH}" },
+    });
+    expect(opts.mcpServers[1]).toEqual(PLAYWRIGHT_SERVER_CONFIG);
+    expect(opts.extraArgs).toEqual(RESEARCH_MUSE_ARGS);
+    expect(opts.limits.maxModelSteps).toBe(25);
+    expect(opts.prompt).toContain("owner note");
+    expect(fx.prompts[0]?.run.id).toBe(runId);
+    expect(fx.prompts[0]?.company.id).toBe(companyId);
+    // The token worked during the run and is revoked at the end.
+    expect(await authenticateRunToken(handle.db, (opts.env["KARDATA_MCP_AUTH"] as string).slice(7))).toBeNull();
+    expect((await runRow(runId)).agentContainerId).toBe(`fake-container-${runId}`);
+  });
+
+  it("caps researching concurrency", async () => {
+    const fx = makeFixture({
+      maxAgents: 2,
+      scriptFor: () => ({ hang: true, exitCode: 0 }),
+    });
+    const ids = [await makeCompany("A Co"), await makeCompany("B Co"), await makeCompany("C Co")];
+    for (const id of ids) await freshCollect(id);
+    const started = await researchStart(handle.db, { companyIds: ids });
+    const runIds = started.runs.map((r) => (r as { runId: string }).runId);
+    for (const runId of runIds) await arrangeFinish(runId);
+
+    await fx.runner.tick();
+    expect(fx.runner.researchingCount()).toBe(2);
+    expect(fx.runner.peakResearching()).toBe(2);
+    const states = await Promise.all(runIds.map((id) => runRow(id)));
+    const running = states.filter((r) => r.status === "running").map((r) => r.id);
+    const queued = states.filter((r) => r.status === "queued").map((r) => r.id);
+    expect(running).toHaveLength(2);
+    expect(queued).toHaveLength(1);
+
+    for (const id of running) (await waitForHandle(fx.harness, id)).release();
+    for (const id of running) await drain(id);
+    await fx.runner.tick();
+    expect(fx.runner.researchingCount()).toBe(1);
+    for (const id of queued) (await waitForHandle(fx.harness, id)).release();
+    for (const runId of runIds) await drain(runId);
+    expect(fx.runner.peakResearching()).toBe(2);
+  });
+
+  it("caps collecting with the collect limit", async () => {
+    let releaseCollect: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      releaseCollect = resolve;
+    });
+    const fx = makeFixture({
+      maxAgents: 5,
+      collectLimit: 1,
+      scriptFor: () => ({ events: [COMPLETED] }),
+      collectImpl: async (runId) => {
+        await gate;
+        return { runId, status: "succeeded", outcomes: [] };
+      },
+    });
+    const a = await makeCompany("A Co");
+    const b = await makeCompany("B Co");
+    const started = await researchStart(handle.db, { companyIds: [a, b] });
+    const runIds = started.runs.map((r) => (r as { runId: string }).runId);
+    for (const runId of runIds) await arrangeFinish(runId);
+
+    await fx.runner.tick();
+    expect(fx.runner.collectingCount()).toBe(1);
+    const states = await Promise.all(runIds.map((id) => runRow(id)));
+    const running = states.filter((r) => r.status === "running").map((r) => r.id);
+    const queued = states.filter((r) => r.status === "queued").map((r) => r.id);
+    expect(running).toHaveLength(1);
+    expect(queued).toHaveLength(1);
+
+    releaseCollect();
+    for (const id of running) await drain(id);
+    await fx.runner.tick();
+    for (const runId of runIds) await drain(runId);
+    expect(fx.collectCalls).toHaveLength(2);
+  });
+
+  it("stalls quiet runs (exit code does not save them)", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ hang: true, exitCode: 0 }) });
+    const companyId = await makeCompany("A Co");
+    await freshCollect(companyId);
+    const started = await researchStart(handle.db, { companyIds: [companyId] });
+    const runId = (started.runs[0] as { runId: string }).runId;
+
+    await fx.runner.tick();
+    const h = await waitForHandle(fx.harness, runId);
+    await handle.db
+      .update(researchRuns)
+      .set({ lastActivityAt: new Date(Date.now() - 130_000) })
+      .where(eq(researchRuns.id, runId));
+    await fx.runner.tick();
+    expect(h.stopReason).toBe("stall");
+    await drain(runId);
+    const row = await runRow(runId);
+    expect(row.status).toBe("stalled");
+    expect(row.agentExitCode).toBe(0);
+  });
+
+  it("marks over-time runs partial", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ hang: true, exitCode: 0 }) });
+    const companyId = await makeCompany("A Co");
+    await freshCollect(companyId);
+    const started = await researchStart(handle.db, { companyIds: [companyId], maxMinutes: 0.02 });
+    const runId = (started.runs[0] as { runId: string }).runId;
+
+    await fx.runner.tick();
+    const h = await waitForHandle(fx.harness, runId);
+    await new Promise((r) => setTimeout(r, 2000));
+    await fx.runner.tick();
+    expect(h.stopReason).toBe("time");
+    await drain(runId);
+    const row = await runRow(runId);
+    expect(row.status).toBe("partial");
+    expect(row.error).toBe("time limit");
+  });
+
+  it("cancels researching runs", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ hang: true, exitCode: 0 }) });
+    const companyId = await makeCompany("A Co");
+    await freshCollect(companyId);
+    const started = await researchStart(handle.db, { companyIds: [companyId] });
+    const runId = (started.runs[0] as { runId: string }).runId;
+
+    await fx.runner.tick();
+    const h = await waitForHandle(fx.harness, runId);
+    await cancelRun(handle.db, runId);
+    await fx.runner.tick();
+    expect(h.stopReason).toBe("cancelled");
+    await drain(runId);
+    expect((await runRow(runId)).status).toBe("cancelled");
+  });
+
+  it("cancels collecting runs before researching starts", async () => {
+    let releaseCollect: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      releaseCollect = resolve;
+    });
+    const fx = makeFixture({
+      scriptFor: () => ({ events: [COMPLETED] }),
+      collectImpl: async (runId) => {
+        await gate;
+        return { runId, status: "succeeded", outcomes: [] };
+      },
+    });
+    const companyId = await makeCompany("A Co");
+    const started = await researchStart(handle.db, { companyIds: [companyId] });
+    const runId = (started.runs[0] as { runId: string }).runId;
+
+    await fx.runner.tick();
+    await cancelRun(handle.db, runId);
+    releaseCollect();
+    await drain(runId);
+    expect((await runRow(runId)).status).toBe("cancelled");
+    expect(fx.harness.starts).toHaveLength(0);
+  });
+
+  it("marks a collector-cancelled collect as cancelled", async () => {
+    const fx = makeFixture({
+      scriptFor: () => ({ events: [COMPLETED] }),
+      collectImpl: async (runId) => ({ runId, status: "cancelled", outcomes: [] }),
+    });
+    const companyId = await makeCompany("A Co");
+    const started = await researchStart(handle.db, { companyIds: [companyId] });
+    const runId = (started.runs[0] as { runId: string }).runId;
+
+    await fx.runner.tick();
+    await drain(runId);
+    expect((await runRow(runId)).status).toBe("cancelled");
+    expect(fx.harness.starts).toHaveLength(0);
+  });
+
+  it("marks exit 0 without run_finish as partial", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ events: [COMPLETED] }) });
+    const companyId = await makeCompany("A Co");
+    await freshCollect(companyId);
+    const started = await researchStart(handle.db, { companyIds: [companyId] });
+    const runId = (started.runs[0] as { runId: string }).runId;
+
+    await fx.runner.tick();
+    await drain(runId);
+    const row = await runRow(runId);
+    expect(row.status).toBe("partial");
+    expect(row.error).toBe("no run_finish");
+  });
+
+  it("marks missing area statuses as partial", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ events: [COMPLETED] }) });
+    const companyId = await makeCompany("A Co");
+    await freshCollect(companyId);
+    const started = await researchStart(handle.db, { companyIds: [companyId] });
+    const runId = (started.runs[0] as { runId: string }).runId;
+    await arrangeFinish(runId, 3);
+
+    await fx.runner.tick();
+    await drain(runId);
+    const row = await runRow(runId);
+    expect(row.status).toBe("partial");
+    expect(row.error ?? "").toMatch(/^areas without status: /);
+  });
+
+  it("fails non-zero exits with the last error", async () => {
+    const byRun = new Map<string, FakeScript>();
+    const fx = makeFixture({
+      scriptFor: (runId) => byRun.get(runId) ?? { events: [], exitCode: 5 },
+    });
+    const a = await makeCompany("A Co");
+    const b = await makeCompany("B Co");
+    await freshCollect(a);
+    await freshCollect(b);
+    const started = await researchStart(handle.db, { companyIds: [a, b] });
+    const runIds = started.runs.map((r) => (r as { runId: string }).runId);
+    byRun.set(runIds[0] as string, {
+      events: [
+        { type: "error", message: "boom" },
+        { type: "finished", terminal: "failed", reason: "", text: "" },
+      ],
+      exitCode: 3,
+    });
+
+    await fx.runner.tick();
+    for (const runId of runIds) await drain(runId);
+    const rows = await Promise.all(runIds.map((id) => runRow(id)));
+    expect(rows.map((r) => r.status)).toEqual(["failed", "failed"]);
+    const errors = rows.map((r) => r.error).sort();
+    expect(errors).toContain("boom");
+    expect(errors).toContain("exit 5");
+  });
+
+  it("marks the step limit as partial", async () => {
+    const fx = makeFixture({
+      scriptFor: () => ({
+        events: [{ type: "finished", terminal: "failed", reason: "stopped within 10 step(s)", text: "" }],
+        exitCode: 1,
+      }),
+    });
+    const companyId = await makeCompany("A Co");
+    await freshCollect(companyId);
+    const started = await researchStart(handle.db, { companyIds: [companyId] });
+    const runId = (started.runs[0] as { runId: string }).runId;
+
+    await fx.runner.tick();
+    await drain(runId);
+    const row = await runRow(runId);
+    expect(row.status).toBe("partial");
+    expect(row.error).toBe("step limit");
+  });
+
+  it("recovers orphaned runs and containers", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ events: [COMPLETED] }) });
+    const a = await makeCompany("A Co");
+    const b = await makeCompany("B Co");
+    const started = await researchStart(handle.db, { companyIds: [a, b] });
+    const [idA, idB] = started.runs.map((r) => (r as { runId: string }).runId);
+    for (const [id, phase] of [
+      [idA, "researching"],
+      [idB, "collecting"],
+    ] as const) {
+      await handle.db
+        .update(researchRuns)
+        .set({ status: "running", agentPhase: phase, startedAt: new Date() })
+        .where(eq(researchRuns.id, id as string));
+    }
+    const { token } = await issueRunToken(handle.db, { runId: idA as string, companyId: a, ttlMinutes: 60 });
+
+    const recovered = await fx.runner.recover();
+    expect(recovered.failedRuns.sort()).toEqual([idA, idB].sort());
+    expect(recovered.stoppedContainers).toEqual(["container-1"]);
+    expect(fx.stopLabeledCalls).toBe(1);
+    expect((await runRow(idA as string)).status).toBe("failed");
+    expect((await runRow(idA as string)).error).toBe("server restarted");
+    expect(await authenticateRunToken(handle.db, token)).toBeNull();
+  });
+
+  it("stores usage, session, exit and final message, skipping message deltas", async () => {
+    const fx = makeFixture({
+      scriptFor: () => ({
+        events: [
+          { type: "started", sessionId: "session-1" },
+          { type: "message", text: "delta" },
+          { type: "usage", ...USAGE },
+          COMPLETED,
+        ],
+        finalMessage: "the end",
+      }),
+    });
+    const companyId = await makeCompany("A Co");
+    await freshCollect(companyId);
+    const started = await researchStart(handle.db, { companyIds: [companyId] });
+    const runId = (started.runs[0] as { runId: string }).runId;
+    await arrangeFinish(runId);
+
+    await fx.runner.tick();
+    await drain(runId);
+    const row = await runRow(runId);
+    expect(row.status).toBe("succeeded");
+    expect(row.agentSessionId).toBe("session-1");
+    expect(row.agentExitCode).toBe(0);
+    expect(row.agentFinalMessage).toBe("the end");
+    expect(row.agentUsage).toEqual({
+      model: "fake-model",
+      inputTokens: 100,
+      outputTokens: 20,
+      cachedTokens: 50,
+      reasoningTokens: 7,
+      calls: 2,
+    });
+    const harnessRows = await handle.db
+      .select({ payload: runEvents.payload })
+      .from(runEvents)
+      .where(eq(runEvents.runId, runId));
+    const kinds = harnessRows
+      .map((r) => (r.payload as { type?: string }).type)
+      .filter((t) => t !== undefined);
+    expect(kinds).toEqual(["started", "usage", "finished"]);
+  });
+
+  it("writes raw stdout to events.jsonl", async () => {
+    const fx = makeFixture({
+      scriptFor: () => ({ events: [COMPLETED], rawLines: ['{"a":1}', "not json", '{"b":2}'] }),
+    });
+    const companyId = await makeCompany("A Co");
+    await freshCollect(companyId);
+    const started = await researchStart(handle.db, { companyIds: [companyId] });
+    const runId = (started.runs[0] as { runId: string }).runId;
+    await arrangeFinish(runId);
+
+    await fx.runner.tick();
+    await drain(runId);
+    const content = readFileSync(join(runsDir, runId, "events.jsonl"), "utf8");
+    expect(content).toBe('{"a":1}\nnot json\n{"b":2}\n');
+  });
+
+  it("fails loudly without a prompt builder", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ events: [COMPLETED] }), buildPrompt: null });
+    const companyId = await makeCompany("A Co");
+    await freshCollect(companyId);
+    const started = await researchStart(handle.db, { companyIds: [companyId] });
+    const runId = (started.runs[0] as { runId: string }).runId;
+
+    await fx.runner.tick();
+    await drain(runId);
+    const row = await runRow(runId);
+    expect(row.status).toBe("failed");
+    expect(row.error ?? "").toMatch(/no prompt builder/);
+  });
+});
+
+describe("pruneRunDirs", () => {
+  it("deletes run dirs older than the keep window, sparing files", () => {
+    const dir = mkdtempSync(join(tmpdir(), "prune-test-"));
+    try {
+      const oldDir = join(dir, "old-run");
+      const newDir = join(dir, "new-run");
+      mkdirSync(oldDir);
+      mkdirSync(newDir);
+      const oldFile = join(dir, "keep.txt");
+      writeFileSync(oldFile, "spared");
+      const past = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+      utimesSync(oldDir, past, past);
+      utimesSync(oldFile, past, past);
+
+      const pruned = pruneRunDirs(dir, 7);
+      expect(pruned).toEqual(["old-run"]);
+      expect(existsSync(oldFile)).toBe(true);
+      expect(existsSync(newDir)).toBe(true);
+      expect(existsSync(oldDir)).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

@@ -160,10 +160,18 @@ export async function recoverLabeledContainers(): Promise<string[]> {
 }
 
 class DockerMuseHandle extends MuseHandle {
+  readonly containerId: string;
   private containerName: string;
 
-  constructor(child: ChildProcess, stallTimeoutMs: number, containerName: string) {
-    super(child, stallTimeoutMs);
+  constructor(
+    child: ChildProcess,
+    stallTimeoutMs: number,
+    containerName: string,
+    opts: { terminalGraceMs?: number; onRawLine?: (line: string) => void } = {},
+  ) {
+    super(child, stallTimeoutMs, opts);
+    // The name is deterministic and valid for every docker operation.
+    this.containerId = containerName;
     this.containerName = containerName;
   }
 
@@ -191,10 +199,9 @@ export const dockerMuseHarness: AgentHarness = {
     const containerName = containerNameForRun(opts.runId);
     const child = spawn("docker", dockerRunArgs(opts), { stdio: ["ignore", "pipe", "pipe"] });
     child.stderr?.on("data", () => {});
-    return new DockerMuseHandle(
-      child,
-      opts.limits.stallTimeoutMs ?? DEFAULT_STALL_TIMEOUT_MS,
-      containerName,
-    );
+    return new DockerMuseHandle(child, opts.limits.stallTimeoutMs ?? DEFAULT_STALL_TIMEOUT_MS, containerName, {
+      terminalGraceMs: opts.limits.terminalGraceMs,
+      onRawLine: opts.onRawLine,
+    });
   },
 };

@@ -17,6 +17,12 @@ export interface HarnessLimits {
   maxModelSteps: number;
   /** Kill the run after this long without any event (Q9 stall finding). */
   stallTimeoutMs?: number;
+  /**
+   * After the first terminal event, shrink the stall window to this: the run
+   * is done and lingering (completion arrives as a second run; the gap is
+   * ~20 s when healthy). Default 60 s.
+   */
+  terminalGraceMs?: number;
 }
 
 export interface HarnessStartOptions {
@@ -28,6 +34,8 @@ export interface HarnessStartOptions {
   limits: HarnessLimits;
   /** Extra CLI args (e.g. lockdown flags). */
   extraArgs?: string[];
+  /** Raw stdout lines, e.g. for the runner's events.jsonl. Never throws. */
+  onRawLine?: (line: string) => void;
 }
 
 export type HarnessEvent =
@@ -42,6 +50,7 @@ export type HarnessEvent =
       inputTokens: number;
       outputTokens: number;
       cachedTokens: number;
+      reasoningTokens: number;
       calls: number;
     }
   | { type: "error"; message: string }
@@ -52,6 +61,7 @@ export interface HarnessUsage {
   inputTokens: number;
   outputTokens: number;
   cachedTokens: number;
+  reasoningTokens: number;
   calls: number;
 }
 
@@ -65,6 +75,8 @@ export interface HarnessHandle {
   events: AsyncIterable<HarnessEvent>;
   stop(reason: string): Promise<void>;
   wait(): Promise<HarnessWaitResult>;
+  /** Container name/id when the harness runs in Docker. */
+  containerId?: string;
 }
 
 export interface AgentHarness {

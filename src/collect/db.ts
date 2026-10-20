@@ -10,7 +10,9 @@ export type RunEventType =
   | "error"
   | "log"
   | "mcp_call"
-  | "agent_finish";
+  | "agent_finish"
+  | "phase"
+  | "harness";
 
 /**
  * Append a run event and touch last_activity_at. Two plain queries, never in a

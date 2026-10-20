@@ -1,0 +1,545 @@
+import { createWriteStream, readdirSync, rmSync, statSync } from "node:fs";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { and, eq } from "drizzle-orm";
+import { recordEvent } from "../collect/db.js";
+import { executeCollectRun, type CollectRunResult } from "../collect/run.js";
+import type { Db } from "../db/client.js";
+import {
+  area,
+  areaStatuses,
+  companies,
+  researchRuns,
+  runEvents,
+  type AgentUsage,
+  type Company,
+  type ResearchRun,
+} from "../db/schema.js";
+import {
+  PLAYWRIGHT_SERVER_CONFIG,
+  RESEARCH_MUSE_ARGS,
+  dockerMuseHarness,
+  recoverLabeledContainers,
+} from "../harness/docker.js";
+import type {
+  AgentHarness,
+  HarnessEvent,
+  HarnessHandle,
+  HarnessUsage,
+} from "../harness/types.js";
+import { hasFreshCollect } from "./agent.js";
+import { collectConcurrency } from "./runner.js";
+import { issueRunToken, revokeRunToken } from "./tokens.js";
+
+/**
+ * Agent-run runner (Stage 3b Step 2). Drives kind=agent runs through
+ * collecting (optional, in-process) → researching (one container per run) →
+ * terminal. Cancellation is a DB flag the tick honors; stall and wall-time
+ * limits stop the handle with a recorded reason, and classification never
+ * trusts the exit code of a stopped run.
+ */
+
+export const DEFAULT_MAX_AGENTS = 4;
+export const DEFAULT_POLL_MS = 1000;
+export const STALL_MS = 120_000;
+export const LIVENESS_BUMP_MS = 5_000;
+export const RUN_EVENTS_KEEP_DAYS = 7;
+const SHUTDOWN_DRAIN_MS = 30_000;
+const QUEUE_SCAN_MAX = 20;
+
+export function agentConcurrency(): number {
+  const raw = process.env.MAX_CONCURRENT_AGENTS;
+  if (raw === undefined || raw === "") return DEFAULT_MAX_AGENTS;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : DEFAULT_MAX_AGENTS;
+}
+
+export interface PromptContext {
+  run: ResearchRun;
+  company: Company;
+  brief: string | undefined;
+}
+
+export type PromptBuilder = (ctx: PromptContext) => string | Promise<string>;
+
+function missingPromptBuilder(): PromptBuilder {
+  return () => {
+    throw new Error("agent runner has no prompt builder (wired in Step 3)");
+  };
+}
+
+export interface AgentRunnerDeps {
+  harness?: AgentHarness;
+  buildPrompt?: PromptBuilder;
+  collect?: (runId: string) => Promise<CollectRunResult>;
+  stopLabeledContainers?: () => Promise<string[]>;
+  /** Container-reachable MCP endpoint, e.g. http://host.docker.internal:8787/mcp. */
+  mcpUrl: string;
+  maxAgents?: number;
+  collectLimit?: number;
+  pollMs?: number;
+  runsDir?: string;
+}
+
+export interface AgentRunner {
+  start: () => Promise<void>;
+  stop: () => Promise<void>;
+  tick: () => Promise<void>;
+  recover: () => Promise<{ failedRuns: string[]; stoppedContainers: string[] }>;
+  researchingCount: () => number;
+  collectingCount: () => number;
+  peakResearching: () => number;
+}
+
+type StopReason = "cancelled" | "stall" | "time" | "shutdown";
+
+interface ActiveEntry {
+  runId: string;
+  phase: "collecting" | "researching";
+  handle: HarnessHandle | null;
+  researchingStartedAt: Date | null;
+  maxMinutes: number;
+  stopReason: StopReason | null;
+}
+
+interface RunOutcome {
+  sessionId?: string;
+  containerId?: string;
+  exitCode?: number;
+  usage?: HarnessUsage;
+  finalMessage?: string;
+}
+
+const STEP_LIMIT_RE = /within \d+ step/i;
+
+export function defaultRunsDir(): string {
+  return join(process.cwd(), "var", "runs");
+}
+
+/** Delete run dirs older than keepDays (files are spared). Exported for tests. */
+export function pruneRunDirs(runsDir: string, keepDays: number = RUN_EVENTS_KEEP_DAYS): string[] {
+  const cutoff = Date.now() - keepDays * 24 * 60 * 60 * 1000;
+  let names: string[];
+  try {
+    names = readdirSync(runsDir);
+  } catch {
+    return [];
+  }
+  const pruned: string[] = [];
+  for (const name of names) {
+    const path = join(runsDir, name);
+    try {
+      if (!statSync(path).isDirectory() || statSync(path).mtimeMs >= cutoff) continue;
+      rmSync(path, { recursive: true, force: true });
+      pruned.push(name);
+    } catch {
+      /* best effort */
+    }
+  }
+  return pruned;
+}
+
+async function loadRun(db: Db, runId: string): Promise<ResearchRun | null> {
+  const [run] = await db.select().from(researchRuns).where(eq(researchRuns.id, runId));
+  return run ?? null;
+}
+
+async function setPhase(db: Db, runId: string, phase: "collecting" | "researching"): Promise<void> {
+  await db.update(researchRuns).set({ agentPhase: phase }).where(eq(researchRuns.id, runId));
+  await recordEvent(db, runId, "phase", { phase });
+}
+
+async function bumpActivity(db: Db, runId: string): Promise<void> {
+  await db.update(researchRuns).set({ lastActivityAt: new Date() }).where(eq(researchRuns.id, runId));
+}
+
+async function hasAgentFinish(db: Db, runId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: runEvents.id })
+    .from(runEvents)
+    .where(and(eq(runEvents.runId, runId), eq(runEvents.type, "agent_finish")))
+    .limit(1);
+  return row !== undefined;
+}
+
+async function areasWithoutStatus(db: Db, runId: string): Promise<string[]> {
+  const rows = await db
+    .select({ area: areaStatuses.area })
+    .from(areaStatuses)
+    .where(eq(areaStatuses.runId, runId));
+  const have = new Set(rows.map((r) => r.area));
+  // The 7 research areas; "other" is a fallback bucket, never required.
+  return (area.enumValues as readonly string[])
+    .filter((a) => a !== "other")
+    .filter((a) => !have.has(a as never));
+}
+
+function toAgentUsage(usage: HarnessUsage): AgentUsage {
+  return {
+    model: usage.model,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    cachedTokens: usage.cachedTokens,
+    reasoningTokens: usage.reasoningTokens,
+    calls: usage.calls,
+  };
+}
+
+export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
+  const harness = deps.harness ?? dockerMuseHarness;
+  const buildPrompt = deps.buildPrompt ?? missingPromptBuilder();
+  const collect = deps.collect ?? ((runId: string) => executeCollectRun(db, runId, { keepOpen: true }));
+  const stopLabeled = deps.stopLabeledContainers ?? recoverLabeledContainers;
+  const maxAgents = deps.maxAgents ?? agentConcurrency();
+  const collectLimit = deps.collectLimit ?? collectConcurrency();
+  const pollMs = deps.pollMs ?? DEFAULT_POLL_MS;
+  const runsDir = deps.runsDir ?? defaultRunsDir();
+  const actives = new Map<string, ActiveEntry>();
+  let peak = 0;
+  let timer: NodeJS.Timeout | null = null;
+  let ticking = false;
+
+  function researching(): ActiveEntry[] {
+    return [...actives.values()].filter((e) => e.phase === "researching");
+  }
+
+  function collecting(): ActiveEntry[] {
+    return [...actives.values()].filter((e) => e.phase === "collecting");
+  }
+
+  function stopOnce(entry: ActiveEntry, reason: StopReason): void {
+    if (entry.stopReason) return;
+    entry.stopReason = reason;
+    if (entry.handle) {
+      void entry.handle.stop(reason).catch(() => {
+        /* the driver still finalizes from wait() */
+      });
+    }
+  }
+
+  function noteResearching(): void {
+    peak = Math.max(peak, researching().length);
+  }
+
+  async function finalize(
+    runId: string,
+    status: ResearchRun["status"],
+    error: string | null,
+    outcome: RunOutcome,
+  ): Promise<void> {
+    await db
+      .update(researchRuns)
+      .set({
+        status,
+        error,
+        finishedAt: new Date(),
+        agentSessionId: outcome.sessionId ?? null,
+        agentContainerId: outcome.containerId ?? null,
+        agentExitCode: outcome.exitCode ?? null,
+        agentUsage: outcome.usage ? toAgentUsage(outcome.usage) : null,
+        agentFinalMessage: outcome.finalMessage ?? null,
+      })
+      .where(eq(researchRuns.id, runId));
+  }
+
+  async function storeOutcome(runId: string, outcome: RunOutcome): Promise<void> {
+    await db
+      .update(researchRuns)
+      .set({
+        agentSessionId: outcome.sessionId ?? null,
+        agentContainerId: outcome.containerId ?? null,
+        agentExitCode: outcome.exitCode ?? null,
+        agentUsage: outcome.usage ? toAgentUsage(outcome.usage) : null,
+        agentFinalMessage: outcome.finalMessage ?? null,
+      })
+      .where(eq(researchRuns.id, runId));
+  }
+
+  async function drive(runId: string, needsCollect: boolean): Promise<void> {
+    const outcome: RunOutcome = {};
+    try {
+      const run = await loadRun(db, runId);
+      if (!run || run.status !== "running") return;
+      const options = run.agentOptions ?? {
+        recollectDays: 14,
+        maxMinutes: 40,
+        maxModelSteps: 100,
+      };
+
+      if (needsCollect) {
+        if ((await loadRun(db, runId))?.status === "cancelled") return;
+        await setPhase(db, runId, "collecting");
+        const result = await collect(runId);
+        await recordEvent(db, runId, "log", { collecting: result.status });
+        const after = await loadRun(db, runId);
+        if (result.status === "cancelled" || after?.status === "cancelled") {
+          if (after?.status === "cancelled") return;
+          await finalize(runId, "cancelled", null, outcome);
+          return;
+        }
+        if (!after || after.status !== "running") return;
+      }
+
+      if ((await loadRun(db, runId))?.status !== "running") return;
+      const entry = actives.get(runId);
+      if (entry?.stopReason === "shutdown") {
+        await finalize(runId, "failed", "server stopped", outcome);
+        return;
+      }
+      await setPhase(db, runId, "researching");
+      if (entry) {
+        entry.phase = "researching";
+        entry.researchingStartedAt = new Date();
+        entry.maxMinutes = options.maxMinutes;
+      }
+      noteResearching();
+      const [company] = await db.select().from(companies).where(eq(companies.id, run.companyId));
+      if (!company) throw new Error(`company not found: ${run.companyId}`);
+      const prompt = await buildPrompt({ run, company, brief: options.brief });
+      const { token } = await issueRunToken(db, {
+        runId,
+        companyId: run.companyId,
+        ttlMinutes: options.maxMinutes + 10,
+      });
+
+      const dir = join(runsDir, runId);
+      mkdirSync(dir, { recursive: true });
+      const sink = createWriteStream(join(dir, "events.jsonl"), { flags: "a" });
+      sink.on("error", () => {});
+      const handle = harness.start({
+        runId,
+        workspaceDir: "/workspace",
+        prompt,
+        mcpServers: [
+          {
+            name: "kardata",
+            url: deps.mcpUrl,
+            headers: { Authorization: "${KARDATA_MCP_AUTH}" },
+          },
+          PLAYWRIGHT_SERVER_CONFIG,
+        ],
+        env: { KARDATA_MCP_AUTH: `Bearer ${token}` },
+        limits: { maxModelSteps: options.maxModelSteps },
+        extraArgs: RESEARCH_MUSE_ARGS,
+        onRawLine: (line) => {
+          try {
+            sink.write(`${line}\n`);
+          } catch {
+            /* disk errors must not break the run */
+          }
+        },
+      });
+      if (entry) entry.handle = handle;
+      if (entry?.stopReason) {
+        // Stopped before the handle existed (cancel arrived during startup).
+        await handle.stop(entry.stopReason).catch(() => {});
+      }
+      outcome.containerId = handle.containerId;
+
+      let usage: HarnessUsage | undefined;
+      let lastTerminal: { terminal: string; reason?: string } | undefined;
+      let lastError: string | undefined;
+      let lastBump = 0;
+      const consume = (async () => {
+        for await (const event of handle.events) {
+          if (Date.now() - lastBump > LIVENESS_BUMP_MS) {
+            lastBump = Date.now();
+            await bumpActivity(db, runId);
+          }
+          const e = event as HarnessEvent;
+          if (e.type === "message") continue;
+          if (e.type === "started") outcome.sessionId = e.sessionId;
+          if (e.type === "usage") usage = e;
+          if (e.type === "finished") lastTerminal = e;
+          if (e.type === "error") lastError = e.message;
+          await recordEvent(db, runId, "harness", { ...(e as unknown as Record<string, unknown>) });
+        }
+      })();
+      const result = await handle.wait();
+      await consume;
+      await new Promise<void>((resolve) => sink.end(resolve));
+      outcome.exitCode = result.exitCode;
+      outcome.usage = result.usage ?? usage;
+      outcome.finalMessage = result.finalMessage || undefined;
+
+      const stopped = entry?.stopReason ?? null;
+      const current = await loadRun(db, runId);
+      if (stopped === "cancelled" || current?.status === "cancelled") {
+        if (current?.status === "cancelled") {
+          await storeOutcome(runId, outcome);
+          return;
+        }
+        await finalize(runId, "cancelled", null, outcome);
+        return;
+      }
+      if (current && current.status !== "running") {
+        // Reaped externally (e.g. the collect runner's stall backstop owns it).
+        await storeOutcome(runId, outcome);
+        return;
+      }
+      if (stopped === "stall") {
+        await finalize(runId, "stalled", null, outcome);
+        return;
+      }
+      if (stopped === "time") {
+        await finalize(runId, "partial", "time limit", outcome);
+        return;
+      }
+      if (stopped === "shutdown") {
+        await finalize(runId, "failed", "server stopped", outcome);
+        return;
+      }
+      const reason = lastTerminal?.reason ?? "";
+      if (lastTerminal?.terminal === "failed" && STEP_LIMIT_RE.test(reason)) {
+        await finalize(runId, "partial", "step limit", outcome);
+        return;
+      }
+      if (result.exitCode !== 0 || lastTerminal?.terminal === "failed") {
+        await finalize(runId, "failed", reason || lastError || `exit ${result.exitCode}`, outcome);
+        return;
+      }
+      if (!(await hasAgentFinish(db, runId))) {
+        await finalize(runId, "partial", "no run_finish", outcome);
+        return;
+      }
+      const missing = await areasWithoutStatus(db, runId);
+      if (missing.length > 0) {
+        await finalize(runId, "partial", `areas without status: ${missing.join(", ")}`, outcome);
+        return;
+      }
+      await finalize(runId, "succeeded", null, outcome);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`agent run ${runId} failed: ${message}`);
+      await finalize(runId, "failed", message, outcome).catch(() => {});
+    } finally {
+      actives.delete(runId);
+      await revokeRunToken(db, runId).catch(() => {});
+    }
+  }
+
+  function launch(runId: string, needsCollect: boolean): void {
+    actives.set(runId, {
+      runId,
+      phase: needsCollect ? "collecting" : "researching",
+      handle: null,
+      researchingStartedAt: null,
+      maxMinutes: 0,
+      stopReason: null,
+    });
+    noteResearching();
+    void drive(runId, needsCollect).catch(() => {
+      /* drive finalizes its own failures */
+    });
+  }
+
+  async function claim(runId: string): Promise<boolean> {
+    const [row] = await db
+      .update(researchRuns)
+      .set({ status: "running", startedAt: new Date() })
+      .where(and(eq(researchRuns.id, runId), eq(researchRuns.status, "queued")))
+      .returning({ id: researchRuns.id });
+    return row !== undefined;
+  }
+
+  async function checkActive(now: Date): Promise<void> {
+    for (const entry of researching()) {
+      const row = await loadRun(db, entry.runId);
+      if (!row || row.status !== "running") {
+        stopOnce(entry, "cancelled");
+        continue;
+      }
+      if (row.lastActivityAt.getTime() < now.getTime() - STALL_MS) {
+        stopOnce(entry, "stall");
+        continue;
+      }
+      const started = entry.researchingStartedAt?.getTime();
+      if (started !== undefined && started + entry.maxMinutes * 60_000 < now.getTime()) {
+        stopOnce(entry, "time");
+      }
+    }
+  }
+
+  async function tick(): Promise<void> {
+    if (ticking) return;
+    ticking = true;
+    try {
+      const now = new Date();
+      await checkActive(now);
+      noteResearching();
+      if (researching().length >= maxAgents && collecting().length >= collectLimit) return;
+      const queued = await db
+        .select()
+        .from(researchRuns)
+        .where(and(eq(researchRuns.kind, "agent"), eq(researchRuns.status, "queued")))
+        .orderBy(researchRuns.createdAt)
+        .limit(QUEUE_SCAN_MAX);
+      for (const q of queued) {
+        const recollectDays = q.agentOptions?.recollectDays ?? 14;
+        const needsCollect = !(await hasFreshCollect(db, q.companyId, recollectDays));
+        if (needsCollect && collecting().length >= collectLimit) continue;
+        if (!needsCollect && researching().length >= maxAgents) continue;
+        if (await claim(q.id)) launch(q.id, needsCollect);
+      }
+    } finally {
+      ticking = false;
+    }
+  }
+
+  async function recover(): Promise<{ failedRuns: string[]; stoppedContainers: string[] }> {
+    const orphans = await db
+      .select({ id: researchRuns.id })
+      .from(researchRuns)
+      .where(and(eq(researchRuns.kind, "agent"), eq(researchRuns.status, "running")));
+    if (orphans.length === 0) return { failedRuns: [], stoppedContainers: [] };
+    let stoppedContainers: string[] = [];
+    try {
+      stoppedContainers = await stopLabeled();
+    } catch (err) {
+      console.error(`agent recovery: container stop failed: ${err instanceof Error ? err.message : err}`);
+    }
+    const failedRuns: string[] = [];
+    for (const orphan of orphans) {
+      await revokeRunToken(db, orphan.id).catch(() => {});
+      await db
+        .update(researchRuns)
+        .set({ status: "failed", error: "server restarted", finishedAt: new Date() })
+        .where(eq(researchRuns.id, orphan.id));
+      failedRuns.push(orphan.id);
+    }
+    return { failedRuns, stoppedContainers };
+  }
+
+  return {
+    start: async () => {
+      await recover();
+      try {
+        pruneRunDirs(runsDir);
+      } catch (err) {
+        console.error(`run dir prune failed: ${err instanceof Error ? err.message : err}`);
+      }
+      if (timer) return;
+      timer = setInterval(() => {
+        void tick();
+      }, pollMs);
+      timer.unref();
+      await tick();
+    },
+    stop: async () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+      for (const entry of actives.values()) stopOnce(entry, "shutdown");
+      const deadline = Date.now() + SHUTDOWN_DRAIN_MS;
+      while (actives.size > 0 && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 10));
+      }
+    },
+    tick,
+    recover,
+    researchingCount: () => researching().length,
+    collectingCount: () => collecting().length,
+    peakResearching: () => peak,
+  };
+}

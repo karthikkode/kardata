@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { sql } from "drizzle-orm";
 import { createDb, type Db } from "./db/client.js";
+import { createAgentRunner } from "./runs/agent-runner.js";
 import { checkAppMuseVersion, probeInstalledMuseVersion } from "./harness/setup.js";
 import { loadDotenv, requireEnv } from "./lib/env.js";
 import { OPERATOR_AUTH, type AuthContext } from "./mcp/auth.js";
@@ -171,7 +172,6 @@ async function main(): Promise<void> {
   }
   const { db, close: closeDb } = createDb(requireEnv("DATABASE_URL"));
   const runner = createRunner(db);
-  await runner.start();
   const handle = await startServer({
     host,
     port,
@@ -179,8 +179,17 @@ async function main(): Promise<void> {
     operatorToken: requireEnv("KARDATA_OPERATOR_TOKEN"),
     onClose: closeDb,
   });
+  const serverPort = new URL(handle.url).port;
+  const agentRunner = createAgentRunner(db, {
+    mcpUrl: `http://host.docker.internal:${serverPort}/mcp`,
+  });
+  // Agent recovery first: it stops orphaned containers and revokes their
+  // tokens before the collect runner fails leftover running rows.
+  await agentRunner.start();
+  await runner.start();
   process.on("SIGTERM", () => {
     void (async () => {
+      await agentRunner.stop();
       await runner.stop();
       await handle.close();
       process.exit(0);

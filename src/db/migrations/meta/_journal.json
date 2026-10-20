@@ -57,6 +57,13 @@
       "when": 1792502418881,
       "tag": "0007_run_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792503029786,
+      "tag": "0008_agent_runs",
+      "breakpoints": true
     }
   ]
 }

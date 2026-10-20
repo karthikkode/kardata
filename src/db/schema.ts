@@ -311,6 +311,22 @@ export const records = pgTable(
   ],
 );
 
+export interface AgentOptions {
+  recollectDays: number;
+  maxMinutes: number;
+  maxModelSteps: number;
+  brief?: string;
+}
+
+export interface AgentUsage {
+  model?: string;
+  inputTokens: number;
+  outputTokens: number;
+  cachedTokens: number;
+  reasoningTokens: number;
+  calls: number;
+}
+
 export const researchRuns = pgTable(
   "research_runs",
   {
@@ -324,6 +340,15 @@ export const researchRuns = pgTable(
     requestedAreas: area("requested_areas").array(),
     batchId: uuid("batch_id"),
     error: text("error"),
+    // Agent runs only (Stage 3b Step 2): phase while running, the options
+    // research_start was called with, and the researching outcome.
+    agentPhase: text("agent_phase"),
+    agentOptions: jsonb("agent_options").$type<AgentOptions>(),
+    agentSessionId: text("agent_session_id"),
+    agentContainerId: text("agent_container_id"),
+    agentExitCode: integer("agent_exit_code"),
+    agentUsage: jsonb("agent_usage").$type<AgentUsage>(),
+    agentFinalMessage: text("agent_final_message"),
     requestCount: integer("request_count").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     startedAt: timestamp("started_at", { withTimezone: true }),
