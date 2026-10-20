@@ -7,13 +7,16 @@ FROM node:22-bookworm-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PLAYWRIGHT_BROWSERS_PATH=/opt/browsers \
+    NODE_PATH=/usr/local/lib/node_modules \
     LANG=C.UTF-8
 
 # curl + ca-certificates for the Muse launcher; chromium + OS libs for
-# Playwright MCP (browser build resolved from the pinned package's own core).
+# Playwright MCP (browser build resolved from the pinned package's own core);
+# cheerio (pinned to the repo's version) for the on-site reviews job parser.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends curl ca-certificates bash \
   && npm install -g @playwright/mcp@0.0.83 \
+  && npm install -g cheerio@1.2.0 \
   && CORE_CLI="$(find /usr/local/lib/node_modules/@playwright/mcp -path '*/playwright-core/cli.js' | head -n 1)" \
   && test -n "$CORE_CLI" \
   && node "$CORE_CLI" install --with-deps --no-progress chromium chrome \
@@ -27,6 +30,7 @@ RUN groupadd -g 10001 agent \
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY usage-reader.mjs /usr/local/bin/usage-reader.mjs
+COPY reviews.mjs /usr/local/bin/reviews.mjs
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 USER agent

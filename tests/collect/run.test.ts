@@ -245,8 +245,8 @@ describe("executeCollectRun", () => {
 
     const events = await handle.db.select().from(runEvents).where(eq(runEvents.runId, runId));
     const types = events.map((e) => e.type);
-    expect(types.filter((t) => t === "collector_start")).toHaveLength(11);
-    expect(types.filter((t) => t === "collector_end")).toHaveLength(11);
+    expect(types.filter((t) => t === "collector_start")).toHaveLength(12);
+    expect(types.filter((t) => t === "collector_end")).toHaveLength(12);
     expect(types.filter((t) => t === "area_status")).toHaveLength(7);
   });
 
