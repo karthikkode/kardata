@@ -28,6 +28,7 @@ function ctx(overrides: {
       createdBy: "owner",
       requestedAreas: null,
       batchId: null,
+      jobId: null,
       error: null,
       promptVersion: null,
       agentPhase: "researching",

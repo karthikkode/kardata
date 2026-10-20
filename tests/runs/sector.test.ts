@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
 import { researchRuns, sectorCompanies } from "../../src/db/schema.js";
 import { DomainError } from "../../src/domain/errors.js";
 import { createSector } from "../../src/domain/sectors.js";
 import { removeCompany } from "../../src/domain/companies.js";
-import { startCollectSector } from "../../src/runs/queue.js";
+import { createJobRunner, jobStatus, startCollectSectorJob } from "../../src/runs/bulk.js";
+import { startCollect } from "../../src/runs/queue.js";
+import { harnessSettingsSet } from "../../src/runs/settings.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 import { seedCompany } from "../collect/helpers.js";
 
@@ -48,26 +49,52 @@ async function finishCollect(companyId: string, daysAgo: number, status: "succee
   });
 }
 
-describe("collect_sector", () => {
-  it("queues every live company in batches of 100", async () => {
+/** Fake collect starter: real research_runs rows (run_id is an FK), no runner. */
+function fakeCollectStarter(started: string[]) {
+  return async (companyId: string) => {
+    const runId = randomUUID();
+    await handle.db.insert(researchRuns).values({ id: runId, companyId, kind: "collect", status: "running" });
+    started.push(companyId);
+    return { runId };
+  };
+}
+
+describe("collect_sector job", () => {
+  it("creates one queued item per live company and queues nothing eagerly", async () => {
     const { sectorId, ids } = await seedSectorWith(210);
-    const result = await startCollectSector(handle.db, { sectorId });
-    expect(result.batchIds).toHaveLength(3);
-    expect(new Set(result.batchIds).size).toBe(3);
-    expect(result.queued).toBe(210);
-    expect(result.alreadyRunning).toBe(0);
-    expect(result.skippedFresh).toBe(0);
-    const runs = await handle.db.select().from(researchRuns);
-    expect(runs).toHaveLength(210);
-    expect(new Set(runs.map((r) => r.companyId))).toEqual(new Set(ids));
+    const result = await startCollectSectorJob(handle.db, { sectorId });
+    expect(result.items).toBe(210);
+    const view = await jobStatus(handle.db, result.jobId);
+    expect(view.job.kind).toBe("collect");
+    expect(view.counts).toMatchObject({ queued: 210 });
+    expect(view.items).toHaveLength(200);
+    expect(view.itemsTruncated).toBe(true);
+    const idSet = new Set(ids);
+    for (const item of view.items) expect(idSet.has(item.companyId)).toBe(true);
+    expect(await handle.db.select().from(researchRuns)).toHaveLength(0);
   });
 
-  it("reports already-running on the second call", async () => {
-    const { sectorId } = await seedSectorWith(3);
-    await startCollectSector(handle.db, { sectorId });
-    const again = await startCollectSector(handle.db, { sectorId });
-    expect(again.queued).toBe(0);
-    expect(again.alreadyRunning).toBe(3);
+  it("leaves busy companies queued at feed time", async () => {
+    const { sectorId, ids } = await seedSectorWith(3);
+    await startCollect(handle.db, ids);
+    await harnessSettingsSet(handle.db, 3);
+    const started: string[] = [];
+    const runner = createJobRunner(handle.db, {
+      startResearch: async () => ({ busy: true }),
+      startCollect: async (companyId) => {
+        const result = await startCollect(handle.db, [companyId]);
+        const entry = result.runs[0];
+        if (!entry || entry.status === "already_running") return { busy: true };
+        started.push(companyId);
+        return { runId: entry.runId };
+      },
+      extract: async () => {},
+    });
+    const { jobId } = await startCollectSectorJob(handle.db, { sectorId, onlyStale: false });
+    await runner.tick();
+    expect(started).toHaveLength(0);
+    const view = await jobStatus(handle.db, jobId);
+    expect(view.counts).toMatchObject({ queued: 3 });
   });
 
   it("skips fresh collects by default", async () => {
@@ -82,38 +109,54 @@ describe("collect_sector", () => {
       status: "succeeded",
       finishedAt: new Date(),
     });
-    const result = await startCollectSector(handle.db, { sectorId });
-    expect(result.queued).toBe(2);
-    expect(result.skippedFresh).toBe(2);
-    const queued = await handle.db
-      .select({ companyId: researchRuns.companyId })
-      .from(researchRuns)
-      .where(eq(researchRuns.status, "queued"));
-    expect(queued.map((r) => r.companyId).sort()).toEqual([ids[1], ids[3]].sort());
+    await harnessSettingsSet(handle.db, 4);
+    const started: string[] = [];
+    const runner = createJobRunner(handle.db, {
+      startResearch: async () => ({ busy: true }),
+      startCollect: fakeCollectStarter(started),
+      extract: async () => {},
+    });
+    const { jobId } = await startCollectSectorJob(handle.db, { sectorId });
+    await runner.tick();
+    expect(started.sort()).toEqual([ids[1], ids[3]].sort());
+    const view = await jobStatus(handle.db, jobId);
+    expect(view.counts).toMatchObject({ skipped: 2, running: 2 });
   });
 
   it("honors onlyStale=false and a custom window", async () => {
     const { sectorId, ids } = await seedSectorWith(2);
     await finishCollect(ids[0] as string, 5, "succeeded");
-    const all = await startCollectSector(handle.db, { sectorId, onlyStale: false });
-    expect(all.queued).toBe(2);
-    expect(all.skippedFresh).toBe(0);
+    await harnessSettingsSet(handle.db, 2);
+    const started: string[] = [];
+    const runner = createJobRunner(handle.db, {
+      startResearch: async () => ({ busy: true }),
+      startCollect: fakeCollectStarter(started),
+      extract: async () => {},
+    });
+    const all = await startCollectSectorJob(handle.db, { sectorId, onlyStale: false });
+    await runner.tick();
+    expect(started).toHaveLength(2);
+    const allView = await jobStatus(handle.db, all.jobId);
+    expect(allView.counts.skipped).toBe(0);
     await handle.db.delete(researchRuns);
-    const narrow = await startCollectSector(handle.db, { sectorId, staleDays: 3 });
-    expect(narrow.queued).toBe(2);
-    expect(narrow.skippedFresh).toBe(0);
+    started.length = 0;
+    const narrow = await startCollectSectorJob(handle.db, { sectorId, staleDays: 3 });
+    await runner.tick();
+    expect(started).toHaveLength(2);
+    const narrowView = await jobStatus(handle.db, narrow.jobId);
+    expect(narrowView.counts.skipped).toBe(0);
   });
 
   it("excludes removed members", async () => {
     const { sectorId, ids } = await seedSectorWith(3);
     await removeCompany(handle.db, sectorId, ids[0] as string);
-    const result = await startCollectSector(handle.db, { sectorId });
-    expect(result.queued).toBe(2);
+    const result = await startCollectSectorJob(handle.db, { sectorId });
+    expect(result.items).toBe(2);
   });
 
   it("rejects unknown sectors and bad windows", async () => {
     const { sectorId } = await seedSectorWith(1);
-    await expect(startCollectSector(handle.db, { sectorId: randomUUID() })).rejects.toBeInstanceOf(DomainError);
-    await expect(startCollectSector(handle.db, { sectorId, staleDays: -1 })).rejects.toBeInstanceOf(DomainError);
+    await expect(startCollectSectorJob(handle.db, { sectorId: randomUUID() })).rejects.toBeInstanceOf(DomainError);
+    await expect(startCollectSectorJob(handle.db, { sectorId, staleDays: -1 })).rejects.toBeInstanceOf(DomainError);
   });
 });

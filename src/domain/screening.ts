@@ -537,6 +537,40 @@ export async function screenCompanies(
   return { items, ids: items.map((item) => item.id), total };
 }
 
+export interface JobScopeOptions {
+  criteria?: ScreenCriterion[];
+  sort?: ScreenSort;
+}
+
+/**
+ * Unbounded company-id resolution for bulk jobs: the same criteria and
+ * sort semantics as screenCompanies, but ids only and no 500 cap. Jobs
+ * default to employees desc; shortlist scope keeps the list order.
+ */
+export async function screenJobCompanyIds(
+  db: Db,
+  sectorId: string,
+  options: JobScopeOptions = {},
+): Promise<string[]> {
+  const [sector] = await db.select({ id: sectors.id }).from(sectors).where(eq(sectors.id, sectorId));
+  if (!sector) throw new DomainError("not_found", `sector not found: ${sectorId}`);
+  const criteria = options.criteria ?? [];
+  if (criteria.length > SCREEN_CRITERIA_MAX) {
+    throw new DomainError("invalid_input", `at most ${SCREEN_CRITERIA_MAX} criteria`);
+  }
+  const e = effectiveCompanies(db);
+  const conds: SQL[] = [eq(sectorCompanies.sectorId, sectorId), isNull(sectorCompanies.removedAt)];
+  criteria.forEach((criterion, index) => conds.push(criterionPredicate(e, criterion, index)));
+  const orderBy = await sortOrderBy(db, e, options.sort ?? { field: "employees", order: "desc" });
+  const rows = await db
+    .select({ id: e.id })
+    .from(e)
+    .innerJoin(sectorCompanies, eq(sectorCompanies.companyId, e.id))
+    .where(and(...conds))
+    .orderBy(orderBy);
+  return rows.map((r) => r.id);
+}
+
 export interface ShortlistSaveInput {
   sectorId: string;
   name: string;

@@ -7,6 +7,7 @@ import {
   check,
   customType,
   date,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -373,6 +374,7 @@ export const researchRuns = pgTable(
     createdBy: text("created_by").notNull().default("owner"),
     requestedAreas: area("requested_areas").array(),
     batchId: uuid("batch_id"),
+    jobId: uuid("job_id").references(() => bulkJobs.id, { onDelete: "set null" }),
     error: text("error"),
     // Agent runs only (Stage 3b Step 2): phase while running, the options
     // research_start was called with, and the researching outcome.
@@ -600,7 +602,8 @@ export type CurrentFact = typeof factsCurrent.$inferSelect;
 
 // ---- Stage 4.1 Step 5: bulk jobs (DB-backed queue feeding) ----
 
-export const bulkJobKind = pgEnum("bulk_job_kind", ["research_sector", "research_shortlist", "collect_sector"]);
+export const bulkJobKind = pgEnum("bulk_job_kind", ["research", "collect"]);
+export const bulkJobScope = pgEnum("bulk_job_scope", ["sector", "shortlist"]);
 export const bulkJobStatus = pgEnum("bulk_job_status", ["running", "paused", "completed", "cancelled"]);
 export const bulkItemStatus = pgEnum("bulk_item_status", [
   "queued",
@@ -615,12 +618,13 @@ export const bulkItemStatus = pgEnum("bulk_item_status", [
 export const bulkJobs = pgTable("bulk_jobs", {
   id: uuid("id").primaryKey(),
   kind: bulkJobKind("kind").notNull(),
+  scope: bulkJobScope("scope").notNull(),
   status: bulkJobStatus("status").notNull().default("running"),
   sectorId: uuid("sector_id").references(() => sectors.id, { onDelete: "set null" }),
   shortlistId: uuid("shortlist_id").references(() => shortlists.id, { onDelete: "set null" }),
-  concurrency: integer("concurrency").notNull(),
-  maxRuns: integer("max_runs"),
+  maxCompanies: integer("max_companies"),
   maxInputTokens: bigint("max_input_tokens", { mode: "number" }),
+  maxHours: doublePrecision("max_hours"),
   skipIfRecentDays: integer("skip_if_recent_days").notNull().default(14),
   promptVersion: text("prompt_version"),
   errorStreak: integer("error_streak").notNull().default(0),
@@ -644,6 +648,7 @@ export const bulkJobItems = pgTable(
       .notNull()
       .references(() => companies.id, { onDelete: "cascade" }),
     status: bulkItemStatus("status").notNull().default("queued"),
+    position: integer("position").notNull().default(0),
     runId: uuid("run_id").references(() => researchRuns.id, { onDelete: "set null" }),
     attempts: integer("attempts").notNull().default(0),
     error: text("error"),
@@ -656,3 +661,12 @@ export const bulkJobItems = pgTable(
   (t) => [uniqueIndex("bulk_job_items_job_company_idx").on(t.jobId, t.companyId)],
 );
 export type BulkJobItem = typeof bulkJobItems.$inferSelect;
+
+// ---- Stage 4.1 Step 5: harness settings (runtime-adjustable, DB-backed) ----
+
+export const harnessSettings = pgTable("harness_settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type HarnessSetting = typeof harnessSettings.$inferSelect;

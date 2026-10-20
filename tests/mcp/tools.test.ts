@@ -68,13 +68,16 @@ const EXPECTED_TOOLS = [
   "shortlist_list",
   "batch_scorecard",
   "extract_run",
-  "bulk_start",
-  "bulk_status",
-  "bulk_set_concurrency",
-  "bulk_pause",
-  "bulk_resume",
-  "bulk_cancel",
-  "bulk_retry_failed",
+  "research_sector",
+  "research_shortlist",
+  "job_status",
+  "job_list",
+  "job_pause",
+  "job_resume",
+  "job_cancel",
+  "job_retry_failed",
+  "harness_settings_get",
+  "harness_settings_set",
 ];
 
 interface ToolResult {

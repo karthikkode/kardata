@@ -30,6 +30,7 @@ import type {
   HarnessUsage,
 } from "../harness/types.js";
 import { hasFreshCollect } from "./agent.js";
+import { effectiveMaxAgents } from "./settings.js";
 import { redactRunDocs } from "../domain/research/pii.js";
 import { collectConcurrency } from "./runner.js";
 import { issueRunToken, revokeRunToken } from "./tokens.js";
@@ -43,20 +44,12 @@ import { rollupUsage, type UsageRollup } from "./usage.js";
  * trusts the exit code of a stopped run.
  */
 
-export const DEFAULT_MAX_AGENTS = 4;
 export const DEFAULT_POLL_MS = 1000;
 export const DEFAULT_STALL_SECONDS = 300;
 export const LIVENESS_BUMP_MS = 5_000;
 export const RUN_EVENTS_KEEP_DAYS = 7;
 const SHUTDOWN_DRAIN_MS = 30_000;
 const QUEUE_SCAN_MAX = 20;
-
-export function agentConcurrency(): number {
-  const raw = process.env.MAX_CONCURRENT_AGENTS;
-  if (raw === undefined || raw === "") return DEFAULT_MAX_AGENTS;
-  const n = Number(raw);
-  return Number.isInteger(n) && n > 0 ? n : DEFAULT_MAX_AGENTS;
-}
 
 /**
  * Browser-fence origins for a company: apex, www and shop subdomains, the
@@ -283,7 +276,6 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
   const stopLabeled = deps.stopLabeledContainers ?? recoverLabeledContainers;
   const usageRollupFn =
     deps.usageRollup ?? ((main, sessionId) => rollupUsage(main, sessionId));
-  const maxAgents = deps.maxAgents ?? agentConcurrency();
   const collectLimit = deps.collectLimit ?? collectConcurrency();
   const stallMs = deps.stallMs ?? stallTimeoutMs();
   const pollMs = deps.pollMs ?? DEFAULT_POLL_MS;
@@ -582,6 +574,7 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
       try {
         await checkActive(now);
         noteResearching();
+        const maxAgents = await effectiveMaxAgents(db, deps.maxAgents);
         if (researching().length >= maxAgents && collecting().length >= collectLimit) return;
         const queued = await db
           .select()
