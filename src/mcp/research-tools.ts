@@ -12,6 +12,7 @@ import { setAreaStatus } from "../domain/research/status.js";
 import { captureSource } from "../domain/research/sources.js";
 import { REVIEWS_BATCH_MAX, reviewsIngest } from "../domain/research/reviews.js";
 import { exportCompany } from "../domain/research/export.js";
+import { scorecard } from "../domain/research/scorecard.js";
 import {
   blobText,
   documentSearch,
@@ -213,6 +214,22 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const status = await getBatchStatus(db, batchId);
         return { summary: `batch ${batchId}: ${status.runs.length} runs`, data: status };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "batch_scorecard",
+    {
+      description: "Counts per run and per area for a batch: facts, records by type, reviews, documents, findings, primary-source share, new registry names, statuses, tokens, minutes, MCP calls, forbidden. Returns the scorecard.",
+      inputSchema: { batchId: z.string().describe("Batch UUID") },
+    },
+    async ({ batchId }) =>
+      wrap(async () => {
+        const result = await scorecard(db, { batchId });
+        return {
+          summary: `batch ${batchId}: ${result.totals.runs} runs, ${result.totals.facts} facts, ${result.totals.findings} findings`,
+          data: result,
+        };
       }),
   );
 
