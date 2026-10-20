@@ -7,15 +7,28 @@ import {
   recordTypes,
   researchRuns,
   sources,
+  type RecordField,
   type RecordTypeRow,
 } from "../../db/schema.js";
 import { DomainError } from "../errors.js";
-import { validateTypedValue } from "./validate.js";
+import {
+  inferValueType,
+  nearDuplicates,
+  sanitizeTypeName,
+  validateTypedValue,
+} from "./validate.js";
+
+export const RECORD_BATCH_MAX = 500;
 
 export interface UpsertRecordItem {
   type: string;
   data: Record<string, unknown>;
   sourceIds: string[];
+  naturalKey?: string[];
+  tags?: string[];
+  // Internal: exact natural-key values, when they differ from the stored data
+  // (reviews_ingest hashes normalized text but stores the original).
+  keyValues?: Record<string, unknown>;
 }
 
 export interface UpsertRecordsInput {
@@ -23,19 +36,27 @@ export interface UpsertRecordsInput {
   runId?: string | null;
   createdBy: string;
   records: UpsertRecordItem[];
+  strict?: boolean;
 }
 
 export type UpsertRecordResult =
-  | { ok: true; id: string; created: boolean }
+  | { ok: true; id: string; outcome: "created" | "updated" | "unchanged"; warnings: string[] }
   | { ok: false; error: string };
 
-// At most 50 review excerpts per company per platform (spec cap).
-const REVIEW_EXCERPT_CAP = 50;
+interface RecordWriteContext {
+  input: UpsertRecordsInput;
+  byType: Map<string, RecordTypeRow>;
+  allTypes: string[];
+  bySource: Map<string, { id: string; companyId: string }>;
+}
 
 export async function upsertRecords(
   db: DbLike,
   input: UpsertRecordsInput,
 ): Promise<UpsertRecordResult[]> {
+  if (input.records.length > RECORD_BATCH_MAX) {
+    throw new DomainError("invalid_input", `at most ${RECORD_BATCH_MAX} records per call`);
+  }
   const [company] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, input.companyId));
   if (!company) throw new DomainError("not_found", `company not found: ${input.companyId}`);
   if (input.runId) {
@@ -49,23 +70,26 @@ export async function upsertRecords(
     }
   }
   const types = await db.select().from(recordTypes);
-  const byType = new Map(types.map((t) => [t.name, t]));
-  const validTypes = types.map((t) => t.name).sort().join(", ");
+  const ctx: RecordWriteContext = {
+    input,
+    byType: new Map(types.map((t) => [t.name, t])),
+    allTypes: types.map((t) => t.name),
+    bySource: new Map(),
+  };
 
   const cited = [...new Set(input.records.flatMap((r) => r.sourceIds ?? []))];
-  const found =
-    cited.length > 0
-      ? await db
-          .select({ id: sources.id, companyId: sources.companyId })
-          .from(sources)
-          .where(inArray(sources.id, cited))
-      : [];
-  const bySource = new Map(found.map((s) => [s.id, s]));
+  if (cited.length > 0) {
+    const found = await db
+      .select({ id: sources.id, companyId: sources.companyId })
+      .from(sources)
+      .where(inArray(sources.id, cited));
+    ctx.bySource = new Map(found.map((s) => [s.id, s]));
+  }
 
   const results: UpsertRecordResult[] = [];
   for (const item of input.records) {
     try {
-      results.push(await upsertOne(db, input, item, byType, validTypes, bySource));
+      results.push(await upsertOne(db, ctx, item));
     } catch (err) {
       results.push({ ok: false, error: err instanceof Error ? err.message : String(err) });
     }
@@ -75,78 +99,96 @@ export async function upsertRecords(
 
 async function upsertOne(
   db: DbLike,
-  input: UpsertRecordsInput,
+  ctx: RecordWriteContext,
   item: UpsertRecordItem,
-  byType: Map<string, RecordTypeRow>,
-  validTypes: string,
-  bySource: Map<string, { id: string; companyId: string }>,
-): Promise<{ ok: true; id: string; created: boolean }> {
-  const def = byType.get(item.type);
-  if (!def) {
-    throw new DomainError("invalid_input", `unknown record type "${item.type}". Valid types: ${validTypes}`);
+): Promise<{ ok: true; id: string; outcome: "created" | "updated" | "unchanged"; warnings: string[] }> {
+  const warnings: string[] = [];
+  const strict = ctx.input.strict === true;
+
+  const typeName = sanitizeTypeName(item.type);
+  if (!typeName) throw new DomainError("invalid_input", `unusable record type "${item.type}"`);
+  if (typeName !== item.type) {
+    if (strict) throw new DomainError("invalid_input", `record type "${item.type}" is not snake_case`);
+    warnings.push(`type "${item.type}" sanitized to "${typeName}"`);
   }
   if (typeof item.data !== "object" || item.data === null || Array.isArray(item.data)) {
-    throw new DomainError("invalid_input", `record "${item.type}": data must be an object`);
+    throw new DomainError("invalid_input", `record "${typeName}": data must be an object`);
   }
-  const fields = new Map(def.fields.map((f) => [f.name, f]));
-  const validFields = def.fields.map((f) => f.name).join(", ");
-  for (const name of Object.keys(item.data)) {
-    if (name !== "text_hash" && !fields.has(name)) {
-      throw new DomainError(
-        "invalid_input",
-        `record "${item.type}": unknown field "${name}". Valid fields: ${validFields}`,
-      );
+  if (Object.keys(item.data).length === 0) {
+    throw new DomainError("invalid_input", `record "${typeName}": data is empty`);
+  }
+
+  let def = ctx.byType.get(typeName);
+  if (!def) {
+    if (strict) {
+      const valid = ctx.allTypes.sort().join(", ");
+      throw new DomainError("invalid_input", `unknown record type "${typeName}". Valid types: ${valid}`);
     }
+    def = await autoCreateType(db, ctx, typeName, item, warnings);
   }
-  if ("text_hash" in item.data) {
-    throw new DomainError("invalid_input", `record "${item.type}": text_hash is server-computed; omit it`);
-  }
+
+  // Known fields are type-checked; unknown ones are kept (and added to the type).
+  const fields = new Map(def.fields.map((f) => [f.name, f]));
+  const added: RecordField[] = [];
   const data: Record<string, unknown> = {};
-  for (const field of def.fields) {
-    const value = item.data[field.name];
-    if (value === undefined || value === null) {
-      if (field.required) {
-        throw new DomainError("invalid_input", `record "${item.type}": missing required field "${field.name}"`);
+  for (const [name, value] of Object.entries(item.data)) {
+    const field = fields.get(name);
+    if (!field) {
+      if (strict) {
+        const valid = def.fields.map((f) => f.name).join(", ");
+        throw new DomainError("invalid_input", `record "${typeName}": unknown field "${name}". Valid fields: ${valid}`);
       }
+      added.push({ name, type: inferValueType(value), description: "Auto-created field" });
+      data[name] = value;
       continue;
     }
-    // Type-check only; the value itself is stored.
-    validateTypedValue(field.type, value, `record "${item.type}" field "${field.name}"`);
-    data[field.name] = value;
-  }
-  // Server-computed natural-key component for review excerpts.
-  if (def.naturalKey.includes("text_hash")) {
-    const text = data["text"];
-    if (typeof text !== "string" || text === "") {
-      throw new DomainError("invalid_input", `record "${item.type}": text is required for text_hash`);
+    if (value === undefined || value === null) continue;
+    try {
+      validateTypedValue(field.type, value, `record "${typeName}" field "${name}"`);
+      data[name] = value;
+    } catch {
+      if (strict) {
+        validateTypedValue(field.type, value, `record "${typeName}" field "${name}"`);
+      }
+      warnings.push(`field "${name}" kept as given (expected ${field.type})`);
+      data[name] = value;
     }
-    data["text_hash"] = createHash("sha256").update(text).digest("hex");
   }
+  if (added.length > 0) {
+    const merged = [...def.fields, ...added];
+    await db.update(recordTypes).set({ fields: merged }).where(eq(recordTypes.name, def.name));
+    def = { ...def, fields: merged };
+    ctx.byType.set(def.name, def);
+    warnings.push(`added field(s) ${added.map((f) => f.name).join(", ")} to "${typeName}"`);
+  }
+
+  const naturalKey = resolveNaturalKey(def, item);
+  const keySource = item.keyValues ?? data;
   const keyParts: Record<string, unknown> = {};
-  for (const name of [...def.naturalKey].sort()) {
-    const value = data[name];
+  for (const name of [...naturalKey].sort()) {
+    const value = keySource[name] ?? data[name];
     if (value === undefined || value === null || value === "") {
-      throw new DomainError(
-        "invalid_input",
-        `record "${item.type}": natural key field "${name}" is missing`,
-      );
+      throw new DomainError("invalid_input", `record "${typeName}": natural key field "${name}" is missing`);
     }
     keyParts[name] = value;
   }
   const naturalKeyHash = createHash("sha256").update(JSON.stringify(keyParts)).digest("hex");
 
   if (!Array.isArray(item.sourceIds) || item.sourceIds.length === 0) {
-    throw new DomainError("invalid_input", `record "${item.type}" needs at least one source_id`);
+    throw new DomainError("invalid_input", `record "${typeName}" needs at least one source_id`);
   }
   for (const id of item.sourceIds) {
-    const source = bySource.get(id);
-    if (!source) throw new DomainError("invalid_input", `record "${item.type}": unknown source ${id}`);
-    if (source.companyId !== input.companyId) {
-      throw new DomainError(
-        "invalid_input",
-        `record "${item.type}": source ${id} belongs to another company`,
-      );
+    const source = ctx.bySource.get(id);
+    if (!source) throw new DomainError("invalid_input", `record "${typeName}": unknown source ${id}`);
+    if (source.companyId !== ctx.input.companyId) {
+      throw new DomainError("invalid_input", `record "${typeName}": source ${id} belongs to another company`);
     }
+  }
+
+  let tags: string[] = [];
+  if (item.tags !== undefined) {
+    if (Array.isArray(item.tags) && item.tags.every((t) => typeof t === "string")) tags = item.tags;
+    else warnings.push("tags must be an array of strings; stored without tags");
   }
 
   const [existing] = await db
@@ -154,63 +196,126 @@ async function upsertOne(
     .from(records)
     .where(
       and(
-        eq(records.companyId, input.companyId),
+        eq(records.companyId, ctx.input.companyId),
         eq(records.type, def.name),
         eq(records.naturalKeyHash, naturalKeyHash),
       ),
     );
-  if (existing) {
-    const merged = { ...existing.data, ...data };
-    const union = [...new Set([...existing.sourceIds, ...item.sourceIds])];
-    const [updated] = await db
-      .update(records)
-      .set({
-        data: merged,
-        sourceIds: union,
-        lastSeenRunId: input.runId ?? existing.lastSeenRunId,
-        updatedAt: new Date(),
+  await bumpUseCount(db, def.name);
+
+  if (!existing) {
+    const [row] = await db
+      .insert(records)
+      .values({
+        id: randomUUID(),
+        companyId: ctx.input.companyId,
+        type: def.name,
+        area: def.area,
+        naturalKeyHash,
+        data,
+        sourceIds: [...new Set(item.sourceIds)],
+        tags,
+        firstSeenRunId: ctx.input.runId ?? null,
+        lastSeenRunId: ctx.input.runId ?? null,
+        createdBy: ctx.input.createdBy,
       })
-      .where(eq(records.id, existing.id))
       .returning({ id: records.id });
-    if (!updated) throw new Error("record update returned no row");
-    return { ok: true, id: updated.id, created: false };
+    if (!row) throw new Error("record insert returned no row");
+    return { ok: true, id: row.id, outcome: "created", warnings };
   }
 
-  if (def.name === "review_excerpt") {
-    const platform = data["platform"];
-    const [{ count }] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(records)
-      .where(
-        and(
-          eq(records.companyId, input.companyId),
-          eq(records.type, "review_excerpt"),
-          sql`${records.data}->>'platform' = ${platform}`,
-        ),
-      );
-    if ((count ?? 0) >= REVIEW_EXCERPT_CAP) {
-      throw new DomainError(
-        "invalid_input",
-        `at most ${REVIEW_EXCERPT_CAP} review excerpts per company per platform`,
-      );
-    }
+  const merged = { ...existing.data, ...data };
+  const union = [...new Set([...existing.sourceIds, ...item.sourceIds])];
+  const tagsUnion = [...new Set([...existing.tags, ...tags])];
+  if (
+    JSON.stringify(merged) === JSON.stringify(existing.data) &&
+    union.length === existing.sourceIds.length &&
+    tagsUnion.length === existing.tags.length
+  ) {
+    return { ok: true, id: existing.id, outcome: "unchanged", warnings };
   }
-
-  const [row] = await db
-    .insert(records)
-    .values({
-      id: randomUUID(),
-      companyId: input.companyId,
-      type: def.name,
-      area: def.area,
-      naturalKeyHash,
-      data,
-      sourceIds: [...new Set(item.sourceIds)],
-      firstSeenRunId: input.runId ?? null,
-      lastSeenRunId: input.runId ?? null,
-      createdBy: input.createdBy,
+  const [updated] = await db
+    .update(records)
+    .set({
+      data: merged,
+      sourceIds: union,
+      tags: tagsUnion,
+      lastSeenRunId: ctx.input.runId ?? existing.lastSeenRunId,
+      updatedAt: new Date(),
     })
+    .where(eq(records.id, existing.id))
     .returning({ id: records.id });
-  if (!row) throw new Error("record insert returned no row");
-  return { ok: true, id: row.id, created: true };
+  if (!updated) throw new Error("record update returned no row");
+  return { ok: true, id: updated.id, outcome: "updated", warnings };
+}
+
+async function autoCreateType(
+  db: DbLike,
+  ctx: RecordWriteContext,
+  typeName: string,
+  item: UpsertRecordItem,
+  warnings: string[],
+): Promise<RecordTypeRow> {
+  const fields: RecordField[] = Object.entries(item.data).map(([name, value]) => ({
+    name,
+    type: inferValueType(value),
+    description: "Auto-created field",
+  }));
+  const naturalKey = resolveNaturalKey(
+    { naturalKey: item.naturalKey ?? [] } as RecordTypeRow,
+    item,
+    true,
+  );
+  const [created] = await db
+    .insert(recordTypes)
+    .values({
+      name: typeName,
+      area: null,
+      description: `Auto-created for "${typeName}"`,
+      fields,
+      naturalKey,
+      status: "provisional",
+      createdBy: ctx.input.createdBy,
+    })
+    .returning();
+  if (!created) throw new Error("record type insert returned no row");
+  ctx.byType.set(typeName, created);
+  ctx.allTypes.push(typeName);
+  warnings.push(`created provisional record type "${typeName}"`);
+  const matches = nearDuplicates(typeName, ctx.allTypes);
+  if (matches.length > 0) {
+    warnings.push(
+      `"${typeName}" nearly duplicates existing: ${matches.join(", ")} — reuse it if you meant the same thing`,
+    );
+  }
+  return created;
+}
+
+// A per-item natural_key overrides the type's. The default is `url` when the
+// data has one, else a hash of all fields.
+function resolveNaturalKey(
+  def: Pick<RecordTypeRow, "naturalKey">,
+  item: UpsertRecordItem,
+  creating = false,
+): string[] {
+  if (item.naturalKey && item.naturalKey.length > 0) {
+    const usable = item.naturalKey.filter((n) => {
+      const v = (item.keyValues ?? item.data)[n] ?? item.data[n];
+      return v !== undefined && v !== null && v !== "";
+    });
+    if (usable.length === 0) {
+      throw new DomainError("invalid_input", `record "${item.type}": no usable natural key field`);
+    }
+    return usable;
+  }
+  if (!creating && def.naturalKey.length > 0) return def.naturalKey;
+  if ("url" in item.data && item.data["url"] !== "" && item.data["url"] !== undefined) return ["url"];
+  return Object.keys(item.data).sort();
+}
+
+async function bumpUseCount(db: DbLike, name: string): Promise<void> {
+  await db
+    .update(recordTypes)
+    .set({ useCount: sql`${recordTypes.useCount} + 1` })
+    .where(eq(recordTypes.name, name));
 }

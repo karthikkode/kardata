@@ -9,6 +9,7 @@ export const FACT_VALUE_TYPES = [
   "text",
   "url",
   "text_list",
+  "json",
 ] as const;
 
 export type FactValueType = (typeof FACT_VALUE_TYPES)[number];
@@ -50,13 +51,39 @@ export function isValidDateString(s: string): boolean {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
 
-function isHttpUrl(s: string): boolean {
+export function isHttpUrl(s: string): boolean {
   try {
     const u = new URL(s);
     return u.protocol === "http:" || u.protocol === "https:";
   } catch {
     return false;
   }
+}
+
+// Infer a value type from a first-seen value (for auto-created keys/fields).
+export function inferValueType(value: unknown): FactValueType {
+  if (typeof value === "number" && Number.isFinite(value)) return "number";
+  if (typeof value === "boolean") return "bool";
+  if (typeof value === "string") {
+    if (isValidDateString(value)) return "date";
+    if (isHttpUrl(value)) return "url";
+    return "text";
+  }
+  if (Array.isArray(value) && value.length > 0 && value.every((v) => typeof v === "string")) {
+    return "text_list";
+  }
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    const record = value as Record<string, unknown>;
+    if (
+      typeof record["amount"] === "number" &&
+      Number.isFinite(record["amount"]) &&
+      typeof record["currency"] === "string"
+    ) {
+      return "money";
+    }
+    return "json";
+  }
+  return "json";
 }
 
 // Validate one value against its declared type, returning the typed columns.
@@ -120,6 +147,12 @@ export function validateTypedValue(type: string, value: unknown, label: string):
       }
       return { ...EMPTY_VALUE, valueJson: value };
     }
+    case "json": {
+      if (value === undefined) {
+        throw new DomainError("invalid_input", `${label}: expected a JSON value, got undefined`);
+      }
+      return { ...EMPTY_VALUE, valueJson: value ?? null };
+    }
     default:
       throw new DomainError(
         "invalid_input",
@@ -158,3 +191,41 @@ export function levenshtein(a: string, b: string): number {
 export const FACT_KEY_PATTERN = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$/;
 export const RECORD_TYPE_PATTERN = /^[a-z][a-z0-9_]*$/;
 export const SNAKE_PATTERN = /^[a-z][a-z0-9_]*$/;
+
+// Guide, don't gate: sanitize a caller-supplied name into registry shape
+// instead of rejecting it. Returns null when nothing usable remains.
+export function sanitizeFactKey(raw: string): string | null {
+  const cleaned = raw
+    .toLowerCase()
+    .replace(/[^a-z0-9_.]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/\.+/g, ".")
+    .replace(/^[_.]+|[_.]+$/g, "");
+  if (cleaned === "" || !FACT_KEY_PATTERN.test(cleaned)) return null;
+  return cleaned;
+}
+
+export function sanitizeTypeName(raw: string): string | null {
+  const cleaned = raw
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  if (cleaned === "" || !RECORD_TYPE_PATTERN.test(cleaned)) return null;
+  return cleaned;
+}
+
+export function sanitizeQualifierName(raw: string): string | null {
+  return sanitizeTypeName(raw);
+}
+
+// Existing names this one nearly duplicates (same normalized name, or edit
+// distance ≤ 2), for "did you mean" warnings.
+export function nearDuplicates(name: string, existing: string[]): string[] {
+  const norm = normalizeRegistryName(name);
+  return existing.filter((e) => {
+    if (e === name) return false;
+    const other = normalizeRegistryName(e);
+    return other === norm || levenshtein(norm, other) <= 2;
+  });
+}

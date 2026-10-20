@@ -149,6 +149,7 @@ export const area = pgEnum("area", [
   "hiring",
   "product",
   "decisions",
+  "other",
 ]);
 export type Area = (typeof area.enumValues)[number];
 
@@ -191,6 +192,7 @@ export const valueType = pgEnum("value_type", [
   "text",
   "url",
   "text_list",
+  "json",
 ]);
 export type ValueType = (typeof valueType.enumValues)[number];
 
@@ -207,6 +209,8 @@ export const factKeys = pgTable("fact_keys", {
   qualifierNames: text("qualifier_names").array().notNull().default([]),
   status: registryStatus("status").notNull().default("provisional"),
   createdBy: text("created_by").notNull(),
+  firstUsedAt: timestamp("first_used_at", { withTimezone: true }),
+  useCount: integer("use_count").notNull().default(0),
 });
 
 export const facts = pgTable(
@@ -227,10 +231,13 @@ export const facts = pgTable(
     valueBool: boolean("value_bool"),
     valueJson: jsonb("value_json").$type<unknown>(),
     currency: text("currency"),
+    unit: text("unit"),
     qualifiers: jsonb("qualifiers").$type<Record<string, string>>().notNull().default({}),
     asOf: date("as_of"),
     sourceIds: uuid("source_ids").array().notNull(),
     confidence: confidence("confidence").notNull(),
+    note: text("note"),
+    tags: text("tags").array().notNull().default([]),
     createdBy: text("created_by").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     supersedesId: uuid("supersedes_id").references((): AnyPgColumn => facts.id, {
@@ -256,12 +263,12 @@ export const recordTypes = pgTable("record_types", {
   naturalKey: text("natural_key").array().notNull(),
   status: registryStatus("status").notNull().default("provisional"),
   createdBy: text("created_by").notNull(),
+  useCount: integer("use_count").notNull().default(0),
 });
 
 export interface RecordField {
   name: string;
   type: string;
-  required: boolean;
   description: string;
 }
 
@@ -279,6 +286,7 @@ export const records = pgTable(
     naturalKeyHash: text("natural_key_hash").notNull(),
     data: jsonb("data").$type<Record<string, unknown>>().notNull(),
     sourceIds: uuid("source_ids").array().notNull(),
+    tags: text("tags").array().notNull().default([]),
     firstSeenRunId: uuid("first_seen_run_id").references(() => researchRuns.id, {
       onDelete: "set null",
     }),
@@ -372,6 +380,8 @@ export const sources = pgTable(
     status: sourceStatus("status").notNull(),
     httpStatus: integer("http_status"),
     error: text("error"),
+    title: text("title"),
+    via: text("via"),
     fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
     blobSha256: text("blob_sha256").references(() => blobs.sha256),
     tsv: tsvector("tsv").generatedAlwaysAs(
@@ -396,8 +406,14 @@ export const documents = pgTable(
     area: area("area"),
     kind: documentKind("kind").notNull(),
     title: text("title").notNull(),
+    path: text("path"),
+    version: integer("version").notNull().default(1),
+    isCurrent: boolean("is_current").notNull().default(true),
     contentMd: text("content_md").notNull(),
     sourceIds: uuid("source_ids").array().notNull().default([]),
+    factIds: uuid("fact_ids").array().notNull().default([]),
+    recordIds: uuid("record_ids").array().notNull().default([]),
+    tags: text("tags").array().notNull().default([]),
     createdBy: text("created_by").notNull(),
     contentSha256: text("content_sha256").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -408,6 +424,9 @@ export const documents = pgTable(
   (t) => [
     index("documents_company_idx").on(t.companyId),
     index("documents_tsv_idx").using("gin", t.tsv),
+    uniqueIndex("documents_company_path_current_idx")
+      .on(t.companyId, t.path)
+      .where(sql`${t.isCurrent} = true`),
   ],
 );
 
@@ -425,6 +444,7 @@ export const findings = pgTable(
     sourceIds: uuid("source_ids").array().notNull(),
     factIds: uuid("fact_ids").array().notNull().default([]),
     recordIds: uuid("record_ids").array().notNull().default([]),
+    tags: text("tags").array().notNull().default([]),
     confidence: confidence("confidence").notNull(),
     status: findingStatus("status").notNull(),
     createdBy: text("created_by").notNull(),

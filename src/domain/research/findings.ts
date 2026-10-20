@@ -25,6 +25,7 @@ export interface AddFindingInput {
   recordIds?: string[];
   confidence: string;
   status: string;
+  tags?: string[];
   createdBy: string;
 }
 
@@ -85,6 +86,9 @@ export async function addFinding(db: DbLike, input: AddFindingInput): Promise<st
   await checkOwned(db, sources, "source", [...new Set(input.sourceIds)], input.companyId);
   await checkOwned(db, facts, "fact", [...new Set(input.factIds ?? [])], input.companyId);
   await checkOwned(db, records, "record", [...new Set(input.recordIds ?? [])], input.companyId);
+  if (input.tags !== undefined && (!Array.isArray(input.tags) || !input.tags.every((t) => typeof t === "string"))) {
+    throw new DomainError("invalid_input", "tags must be an array of strings");
+  }
 
   const [row] = await db
     .insert(findings)
@@ -100,6 +104,7 @@ export async function addFinding(db: DbLike, input: AddFindingInput): Promise<st
       recordIds: [...new Set(input.recordIds ?? [])],
       confidence: input.confidence as typeof findings.$inferInsert.confidence,
       status: input.status as typeof findings.$inferInsert.status,
+      tags: input.tags ?? [],
       createdBy: input.createdBy,
     })
     .returning({ id: findings.id });
