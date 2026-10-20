@@ -34,6 +34,7 @@ const EXPECTED_TOOLS = [
   "batch_status",
   "run_get",
   "run_events",
+  "run_finish",
   "run_cancel",
   "company_dossier",
   "document_get",
@@ -58,6 +59,8 @@ const EXPECTED_TOOLS = [
   "facts_get",
   "records_list",
   "search",
+  "research_start",
+  "run_activity",
 ];
 
 interface ToolResult {

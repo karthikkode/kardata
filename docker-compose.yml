@@ -2,7 +2,9 @@ services:
   db:
     image: postgres:16
     ports:
-      - "5433:5432"
+      # Loopback-only: agent containers reach the host through the bridge
+      # gateway, where nothing must listen on Postgres (Stage 3b Step 0 AC2).
+      - "127.0.0.1:5433:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

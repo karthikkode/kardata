@@ -506,13 +506,19 @@ export async function listDocuments(db: Db, input: { companyId: string; prefix?:
     .limit(limit);
 }
 
-export async function getDocument(db: Db, input: { documentId: string; offset?: number; maxChars?: number }) {
+export async function getDocument(
+  db: Db,
+  input: { documentId: string; offset?: number; maxChars?: number; companyScope?: string },
+) {
   const maxChars = input.maxChars ?? 20000;
   if (maxChars < 1 || maxChars > 20000) throw new DomainError("invalid_input", "maxChars must be 1..20000");
   const offset = input.offset ?? 0;
   if (offset < 0) throw new DomainError("invalid_input", "offset must be >= 0");
   const [doc] = await db.select().from(documents).where(eq(documents.id, input.documentId));
   if (!doc) throw new DomainError("not_found", `document not found: ${input.documentId}`);
+  if (input.companyScope !== undefined && doc.companyId !== input.companyScope) {
+    throw new DomainError("forbidden", "document belongs to another company");
+  }
   const sourceUrls =
     doc.sourceIds.length > 0
       ? (
@@ -545,9 +551,12 @@ export async function getDocument(db: Db, input: { documentId: string; offset?: 
   };
 }
 
-export async function getDocumentHistory(db: Db, documentId: string) {
+export async function getDocumentHistory(db: Db, documentId: string, companyScope?: string) {
   const [doc] = await db.select().from(documents).where(eq(documents.id, documentId));
   if (!doc) throw new DomainError("not_found", `document not found: ${documentId}`);
+  if (companyScope !== undefined && doc.companyId !== companyScope) {
+    throw new DomainError("forbidden", "document belongs to another company");
+  }
   if (!doc.path) return [];
   return db
     .select({
@@ -561,6 +570,60 @@ export async function getDocumentHistory(db: Db, documentId: string) {
     .from(documents)
     .where(and(eq(documents.companyId, doc.companyId), eq(documents.path, doc.path)))
     .orderBy(desc(documents.version));
+}
+
+export interface WrittenItems {
+  facts: number;
+  records: number;
+  documents: number;
+  findings: number;
+}
+
+const EMPTY_ITEMS: WrittenItems = { facts: 0, records: 0, documents: 0, findings: 0 };
+
+// Items written by each run. Facts, documents and findings carry run_id;
+// records are attributed by the agent created_by prefix (agent:<runId>/...).
+export async function itemsForRuns(db: Db, runIds: string[]): Promise<Map<string, WrittenItems>> {
+  const result = new Map<string, WrittenItems>(runIds.map((id) => [id, { ...EMPTY_ITEMS }]));
+  if (runIds.length === 0) return result;
+  const bump = (runId: string | null, key: keyof WrittenItems, count: number): void => {
+    if (!runId) return;
+    const entry = result.get(runId);
+    if (entry) entry[key] += count;
+  };
+  const factRows = await db
+    .select({ runId: facts.runId, count: sql<number>`count(*)::int` })
+    .from(facts)
+    .where(inArray(facts.runId, runIds))
+    .groupBy(facts.runId);
+  for (const row of factRows) bump(row.runId, "facts", row.count);
+  const docRows = await db
+    .select({ runId: documents.runId, count: sql<number>`count(*)::int` })
+    .from(documents)
+    .where(inArray(documents.runId, runIds))
+    .groupBy(documents.runId);
+  for (const row of docRows) bump(row.runId, "documents", row.count);
+  const findingRows = await db
+    .select({ runId: findings.runId, count: sql<number>`count(*)::int` })
+    .from(findings)
+    .where(inArray(findings.runId, runIds))
+    .groupBy(findings.runId);
+  for (const row of findingRows) bump(row.runId, "findings", row.count);
+  const idList = sql.join(
+    runIds.map((id) => sql`${id}`),
+    sql`, `,
+  );
+  const recordRows = await db.execute<{ run_id: string; count: number }>(sql`
+    SELECT split_part(split_part(${records.createdBy}, '/', 1), ':', 2) AS run_id,
+      COUNT(*)::int AS count
+    FROM ${records}
+    WHERE ${records.createdBy} LIKE 'agent:%'
+      AND split_part(split_part(${records.createdBy}, '/', 1), ':', 2) IN (${idList})
+    GROUP BY 1`);
+  for (const row of recordRows as unknown as { run_id: string; count: number }[]) {
+    bump(row.run_id, "records", Number(row.count));
+  }
+  return result;
 }
 
 export async function getRunDetail(db: Db, runId: string) {
@@ -581,7 +644,13 @@ export async function getRunDetail(db: Db, runId: string) {
     .from(documents)
     .where(eq(documents.runId, runId))
     .orderBy(documents.createdAt);
-  return { run, statuses, documentIds: docs.map((d) => d.id) };
+  const items = await itemsForRuns(db, [runId]);
+  return {
+    run,
+    statuses,
+    documentIds: docs.map((d) => d.id),
+    items: items.get(runId) ?? { ...EMPTY_ITEMS },
+  };
 }
 
 export async function listRunEvents(
@@ -609,6 +678,11 @@ export async function getBatchStatus(db: Db, batchId: string) {
       companyId: researchRuns.companyId,
       companyName: companies.name,
       status: researchRuns.status,
+      phase: researchRuns.agentPhase,
+      usage: researchRuns.agentUsage,
+      startedAt: researchRuns.startedAt,
+      finishedAt: researchRuns.finishedAt,
+      createdAt: researchRuns.createdAt,
     })
     .from(researchRuns)
     .innerJoin(companies, eq(researchRuns.companyId, companies.id))
@@ -616,12 +690,54 @@ export async function getBatchStatus(db: Db, batchId: string) {
     .orderBy(companies.name);
   if (rows.length === 0) throw new DomainError("not_found", `batch not found: ${batchId}`);
   const counts: Record<string, number> = {};
-  for (const row of rows) counts[row.status] = (counts[row.status] ?? 0) + 1;
+  const phases: Record<string, number> = {};
+  for (const row of rows) {
+    counts[row.status] = (counts[row.status] ?? 0) + 1;
+    if (row.phase) phases[row.phase] = (phases[row.phase] ?? 0) + 1;
+  }
+  const now = Date.now();
+  const items = await itemsForRuns(
+    db,
+    rows.map((r) => r.runId),
+  );
   return {
     batchId,
     counts,
-    runs: rows.map((r) => ({ runId: r.runId, companyId: r.companyId, companyName: r.companyName, status: r.status })),
+    phases,
+    runs: rows.map((r) => {
+      const start = (r.startedAt ?? r.createdAt).getTime();
+      const end = (r.finishedAt ?? new Date(now)).getTime();
+      return {
+        runId: r.runId,
+        companyId: r.companyId,
+        companyName: r.companyName,
+        status: r.status,
+        phase: r.phase,
+        minutes: Math.round(((end - start) / 60000) * 100) / 100,
+        tokens: r.usage ?? null,
+        items: items.get(r.runId) ?? { ...EMPTY_ITEMS },
+      };
+    }),
   };
+}
+
+// Agent activity: harness events plus the mcp_call audit trail, oldest first.
+export async function listRunActivity(
+  db: Db,
+  input: { runId: string; afterId?: number; limit?: number },
+) {
+  const [run] = await db.select({ id: researchRuns.id }).from(researchRuns).where(eq(researchRuns.id, input.runId));
+  if (!run) throw new DomainError("not_found", `run not found: ${input.runId}`);
+  const limit = input.limit ?? 200;
+  if (limit < 1 || limit > 200) throw new DomainError("invalid_input", "limit must be 1..200");
+  const conditions = [eq(runEvents.runId, input.runId), sql`${runEvents.type} IN ('harness', 'mcp_call')`];
+  if (input.afterId !== undefined) conditions.push(gt(runEvents.id, input.afterId));
+  return db
+    .select({ id: runEvents.id, at: runEvents.at, type: runEvents.type, payload: runEvents.payload })
+    .from(runEvents)
+    .where(and(...conditions))
+    .orderBy(runEvents.id)
+    .limit(limit);
 }
 
 export async function documentSearch(
@@ -666,11 +782,14 @@ export async function blobText(db: Db, sha256: string): Promise<{ text: string; 
   };
 }
 
-export async function getSourceExcerpt(db: Db, input: { sourceId: string; maxChars?: number }) {
+export async function getSourceExcerpt(db: Db, input: { sourceId: string; maxChars?: number; companyScope?: string }) {
   const maxChars = input.maxChars ?? 5000;
   if (maxChars < 1 || maxChars > 5000) throw new DomainError("invalid_input", "maxChars must be 1..5000");
   const [source] = await db.select().from(sources).where(eq(sources.id, input.sourceId));
   if (!source) throw new DomainError("not_found", `source not found: ${input.sourceId}`);
+  if (input.companyScope !== undefined && source.companyId !== input.companyScope) {
+    throw new DomainError("forbidden", "source belongs to another company");
+  }
   let text: string | null = null;
   let truncated = false;
   if (source.blobSha256) {

@@ -32,7 +32,7 @@ and stores a snapshot:
 
 **MCP:** read tools (`company_dossier`, `document_get`, `document_search`), plus `collect_run(company_id)`.
 
-## Stage 3 — Muse spike, then the orchestrator
+## Stage 3 — Muse spike (3a: `stage-3a-muse-spike.md`), then the orchestrator (3b: `stage-3b-orchestrator.md`)
 
 **Spike first.** With Muse Spark 1.3 in contributor mode, prove that Muse can:
 - run headless from a prompt plus an MCP config;

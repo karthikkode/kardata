@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Db } from "../db/client.js";
+import { recordEvent } from "../collect/db.js";
 import { fetchUrl } from "../collect/fetch.js";
 import { FACT_BATCH_MAX, addFacts } from "../domain/research/facts.js";
 import { RECORD_BATCH_MAX, upsertRecords } from "../domain/research/records.js";
@@ -24,11 +25,21 @@ import {
   getSourceExcerpt,
   listDocuments,
   listRecords,
+  listRunActivity,
   listRunEvents,
   searchAll,
 } from "../domain/research/reads.js";
+import { researchStart } from "../runs/agent.js";
 import { cancelRun, getOrCreateManualRun, startCollect } from "../runs/queue.js";
 import { DomainError } from "../domain/errors.js";
+import {
+  type AuthContext,
+  agentLabelSchema,
+  createdByFor,
+  registerTool,
+  resolveRunId,
+  scopedCompany,
+} from "./auth.js";
 import { companyId, runId, wrap } from "./tools.js";
 
 const areaName = z.string().describe("Research area");
@@ -45,8 +56,8 @@ function slugifyTitle(title: string): string {
   return slug !== "" ? slug : "note";
 }
 
-export function registerResearchTools(server: McpServer, db: Db): void {
-  server.registerTool(
+export function registerResearchTools(server: McpServer, db: Db, auth: AuthContext): void {
+  registerTool(server, db, auth, 
     "collect_start",
     {
       description: "Queue a collect run per company (at most 100). Returns the batch id plus, per company, a run id or already_running.",
@@ -63,7 +74,7 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "batch_status",
     {
       description: "Batch counts per status plus one line per run. Returns the batch status.",
@@ -76,7 +87,7 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "run_get",
     {
       description: "A run with its area statuses and document ids. Returns the run detail.",
@@ -89,7 +100,7 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "run_events",
     {
       description: "Event rows for a run, oldest first. Returns the events.",
@@ -106,7 +117,7 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "run_cancel",
     {
       description: "Cancel a queued or running run. The run stops before its next fetch. Returns the run.",
@@ -119,7 +130,7 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "company_dossier",
     {
       description: "Latest status per area across runs, document titles/ids/sizes per area, finding counts, last run. Returns the dossier.",
@@ -132,7 +143,7 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "document_get",
     {
       description: "One content slice plus metadata plus source urls. Returns the document slice.",
@@ -144,12 +155,17 @@ export function registerResearchTools(server: McpServer, db: Db): void {
     },
     async ({ documentId, offset, maxChars }) =>
       wrap(async () => {
-        const doc = await getDocument(db, { documentId, offset: offset ?? undefined, maxChars: maxChars ?? undefined });
+        const doc = await getDocument(db, {
+          documentId,
+          offset: offset ?? undefined,
+          maxChars: maxChars ?? undefined,
+          companyScope: auth.kind === "run" ? auth.companyId : undefined,
+        });
         return { summary: `"${doc.title}" v${doc.version}${doc.truncated ? " (truncated)" : ""}`, data: doc };
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "document_search",
     {
       description: "Full-text search over current documents. Returns ids, titles, 200-char headlines and ranks.",
@@ -172,7 +188,7 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "source_get",
     {
       description: "Source metadata plus an extracted-text excerpt. Returns the source.",
@@ -183,12 +199,16 @@ export function registerResearchTools(server: McpServer, db: Db): void {
     },
     async ({ sourceId, maxChars }) =>
       wrap(async () => {
-        const source = await getSourceExcerpt(db, { sourceId, maxChars: maxChars ?? undefined });
+        const source = await getSourceExcerpt(db, {
+          sourceId,
+          maxChars: maxChars ?? undefined,
+          companyScope: auth.kind === "run" ? auth.companyId : undefined,
+        });
         return { summary: `${source.url} (${source.status})`, data: source };
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "note_add",
     {
       description: "Save an owner note as an agent_note document. Returns the new document id and path.",
@@ -219,7 +239,7 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "registry_list",
     {
       description: "Suggestion lists: keys with types/descriptions/qualifiers/use counts, then types with fields. Call first; use straight away. Returns the registry.",
@@ -235,7 +255,7 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "registry_describe",
     {
       description: "Add a description (and, for types, field details) to an auto-created entry. Returns the entry kind.",
@@ -254,7 +274,7 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "registry_curate",
     {
       description: "Operator tidying: approve a provisional name, rename it, or merge it into another. Returns the result.",
@@ -278,7 +298,7 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "source_fetch",
     {
       description: "Fetch a page through the fetcher (robots, delays, budgets enforced) and return the source id plus extracted text, paged. Agents read plain pages this way.",
@@ -294,10 +314,11 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       wrap(async () => {
         const max = maxChars ?? 5000;
         if (max < 1 || max > 20000) throw new Error("maxChars must be 1..20000");
-        const run = givenRunId ?? (await getOrCreateManualRun(db, companyId));
+        const scoped = scopedCompany(auth, companyId);
+        const run = await resolveRunId(db, auth, scoped, givenRunId ?? undefined);
         const fetched = await fetchUrl(db, {
           runId: run,
-          companyId,
+          companyId: scoped,
           collector: "agent",
           url,
           privateHostAllowlist: privateHostAllowlist(),
@@ -329,7 +350,7 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "source_capture",
     {
       description: "Store content seen some other way (via search | browser | muse_fetch) so it has an id and a snapshot. Returns the source id.",
@@ -344,9 +365,10 @@ export function registerResearchTools(server: McpServer, db: Db): void {
     },
     async ({ companyId, runId: givenRunId, url, title, text, via }) =>
       wrap(async () => {
-        const run = givenRunId ?? (await getOrCreateManualRun(db, companyId));
+        const scoped = scopedCompany(auth, companyId);
+        const run = await resolveRunId(db, auth, scoped, givenRunId ?? undefined);
         const sourceId = await captureSource(db, {
-          companyId,
+          companyId: scoped,
           runId: run,
           url,
           title: title ?? undefined,
@@ -358,13 +380,14 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "fact_add",
     {
       description: "Write facts (at most 200). Unknown keys and qualifiers are auto-created as provisional, with warnings. Returns per-item ok/error.",
       inputSchema: {
         companyId,
         runId: runId.optional(),
+        agentLabel: agentLabelSchema,
         facts: z
           .array(
             z.object({
@@ -381,16 +404,17 @@ export function registerResearchTools(server: McpServer, db: Db): void {
           .describe("Facts (at most 200)"),
       },
     },
-    async ({ companyId, runId, facts }) =>
+    async ({ companyId, runId, facts, agentLabel }) =>
       wrap(async () => {
         if (facts.length > FACT_BATCH_MAX) {
           throw new DomainError("invalid_input", `at most ${FACT_BATCH_MAX} facts per call`);
         }
-        const run = runId ?? (await getOrCreateManualRun(db, companyId));
+        const scoped = scopedCompany(auth, companyId);
+        const run = await resolveRunId(db, auth, scoped, runId ?? undefined);
         const results = await addFacts(db, {
-          companyId,
+          companyId: scoped,
           runId: run,
-          createdBy: "owner",
+          createdBy: createdByFor(auth, agentLabel ?? undefined),
           facts: facts.map((f) => ({
             key: f.key,
             value: f.value,
@@ -407,13 +431,14 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "record_upsert",
     {
       description: "Upsert records (at most 500) on natural keys. Unknown types and fields are auto-created, with warnings. Returns per-item created/updated/unchanged/rejected.",
       inputSchema: {
         companyId,
         runId: runId.optional(),
+        agentLabel: agentLabelSchema,
         records: z
           .array(
             z.object({
@@ -427,16 +452,17 @@ export function registerResearchTools(server: McpServer, db: Db): void {
           .describe("Records (at most 500)"),
       },
     },
-    async ({ companyId, runId, records }) =>
+    async ({ companyId, runId, records, agentLabel }) =>
       wrap(async () => {
         if (records.length > RECORD_BATCH_MAX) {
           throw new DomainError("invalid_input", `at most ${RECORD_BATCH_MAX} records per call`);
         }
-        const run = runId ?? (await getOrCreateManualRun(db, companyId));
+        const scoped = scopedCompany(auth, companyId);
+        const run = await resolveRunId(db, auth, scoped, runId ?? undefined);
         const results = await upsertRecords(db, {
-          companyId,
+          companyId: scoped,
           runId: run,
-          createdBy: "owner",
+          createdBy: createdByFor(auth, agentLabel ?? undefined),
           records: records.map((r) => ({
             type: r.type,
             data: r.data as Record<string, unknown>,
@@ -450,13 +476,14 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "reviews_ingest",
     {
       description: "Bulk reviews (at most 500): dedupe, identity stripped, 5,000/platform kept, rating facts recomputed. Returns per-item results plus recomputed keys.",
       inputSchema: {
         companyId,
         runId: runId.optional(),
+        agentLabel: agentLabelSchema,
         platform: z.string().describe("Review platform"),
         sourceId: z.string().describe("Source the reviews came from"),
         reviews: z
@@ -480,19 +507,20 @@ export function registerResearchTools(server: McpServer, db: Db): void {
           .describe("Reviews (at most 500)"),
       },
     },
-    async ({ companyId, runId, platform, sourceId, reviews }) =>
+    async ({ companyId, runId, platform, sourceId, reviews, agentLabel }) =>
       wrap(async () => {
         if (reviews.length > REVIEWS_BATCH_MAX) {
           throw new DomainError("invalid_input", `at most ${REVIEWS_BATCH_MAX} reviews per call`);
         }
-        const run = runId ?? (await getOrCreateManualRun(db, companyId));
+        const scoped = scopedCompany(auth, companyId);
+        const run = await resolveRunId(db, auth, scoped, runId ?? undefined);
         const result = await reviewsIngest(db, {
-          companyId,
+          companyId: scoped,
           runId: run,
           platform,
           sourceId,
           reviews,
-          createdBy: "owner",
+          createdBy: createdByFor(auth, agentLabel ?? undefined),
         });
         const okCount = result.results.filter((r) => r.ok).length;
         return {
@@ -502,13 +530,14 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "document_save",
     {
       description: "Save a versioned markdown document at any lowercase path (area = first folder, else other). Saving identical content is a no-op. Returns id, version and outcome.",
       inputSchema: {
         companyId,
         runId: runId.optional(),
+        agentLabel: agentLabelSchema,
         path: z.string().describe("Lowercase [a-z0-9-_/.], ending in .md"),
         kind: z.string().optional().describe("extract, report, agent_note or summary"),
         title: z.string().optional(),
@@ -519,11 +548,12 @@ export function registerResearchTools(server: McpServer, db: Db): void {
         tags,
       },
     },
-    async ({ companyId, runId, path, kind, title, content, sourceIds, factIds, recordIds, tags }) =>
+    async ({ companyId, runId, path, kind, title, content, sourceIds, factIds, recordIds, tags, agentLabel }) =>
       wrap(async () => {
-        const run = runId ?? (await getOrCreateManualRun(db, companyId));
+        const scoped = scopedCompany(auth, companyId);
+        const run = await resolveRunId(db, auth, scoped, runId ?? undefined);
         const saved = await saveDocument(db, {
-          companyId,
+          companyId: scoped,
           runId: run,
           path,
           kind: kind ?? undefined,
@@ -533,13 +563,13 @@ export function registerResearchTools(server: McpServer, db: Db): void {
           factIds: factIds ?? undefined,
           recordIds: recordIds ?? undefined,
           tags: tags ?? undefined,
-          createdBy: "owner",
+          createdBy: createdByFor(auth, agentLabel ?? undefined),
         });
         return { summary: `saved ${path} v${saved.version} (${saved.outcome})`, data: saved };
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "document_list",
     {
       description: "Current documents: the document tree. Returns path, title, kind, area, version, size.",
@@ -551,12 +581,13 @@ export function registerResearchTools(server: McpServer, db: Db): void {
     },
     async ({ companyId, prefix, limit }) =>
       wrap(async () => {
-        const docs = await listDocuments(db, { companyId, prefix: prefix ?? undefined, limit: limit ?? undefined });
+        const scoped = scopedCompany(auth, companyId);
+        const docs = await listDocuments(db, { companyId: scoped, prefix: prefix ?? undefined, limit: limit ?? undefined });
         return { summary: `${docs.length} documents`, data: { documents: docs } };
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "document_history",
     {
       description: "Every version of a document, newest first. Returns the versions.",
@@ -564,12 +595,16 @@ export function registerResearchTools(server: McpServer, db: Db): void {
     },
     async ({ documentId }) =>
       wrap(async () => {
-        const versions = await getDocumentHistory(db, documentId);
+        const versions = await getDocumentHistory(
+          db,
+          documentId,
+          auth.kind === "run" ? auth.companyId : undefined,
+        );
         return { summary: `${versions.length} versions`, data: { versions } };
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "company_export",
     {
       description: "Operator: write current documents, facts and records to real files under var/exports/<slug>/. Returns the directory and counts. Keeps running: files sometimes help.",
@@ -583,13 +618,14 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "finding_add",
     {
       description: "Add one finding: claim plus supporting sources, optional fact/record links. Needs at least one source. Returns the finding id.",
       inputSchema: {
         companyId,
         runId: runId.optional(),
+        agentLabel: agentLabelSchema,
         area: areaName,
         claim: z.string(),
         detail: z.string().nullable().optional(),
@@ -601,11 +637,12 @@ export function registerResearchTools(server: McpServer, db: Db): void {
         tags,
       },
     },
-    async ({ companyId, runId, area, claim, detail, sourceIds, factIds, recordIds, confidence, status, tags }) =>
+    async ({ companyId, runId, area, claim, detail, sourceIds, factIds, recordIds, confidence, status, tags, agentLabel }) =>
       wrap(async () => {
-        const run = runId ?? (await getOrCreateManualRun(db, companyId));
+        const scoped = scopedCompany(auth, companyId);
+        const run = await resolveRunId(db, auth, scoped, runId ?? undefined);
         const id = await addFinding(db, {
-          companyId,
+          companyId: scoped,
           runId: run,
           area,
           claim,
@@ -616,31 +653,36 @@ export function registerResearchTools(server: McpServer, db: Db): void {
           confidence,
           status,
           tags: tags ?? undefined,
-          createdBy: "owner",
+          createdBy: createdByFor(auth, agentLabel ?? undefined),
         });
         return { summary: `added finding ${id}`, data: { id } };
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "area_status_set",
     {
       description: "Record an area status. Non-done statuses need a reason. Returns the status.",
       inputSchema: {
-        runId,
+        runId: runId.optional().describe("Defaults to the caller's run"),
         area: areaName,
         status: z.string().describe("done, not_found, blocked, error or skipped"),
         reason: z.string().nullable().optional(),
       },
     },
-    async ({ runId, area, status, reason }) =>
+    async ({ runId: givenRunId, area, status, reason }) =>
       wrap(async () => {
-        await setAreaStatus(db, { runId, area, status, reason: reason ?? null });
-        return { summary: `${area}: ${status}`, data: { runId, area, status } };
+        const run =
+          auth.kind === "run"
+            ? await resolveRunId(db, auth, auth.companyId, givenRunId ?? undefined)
+            : givenRunId;
+        if (!run) throw new DomainError("invalid_input", "runId is required");
+        await setAreaStatus(db, { runId: run, area, status, reason: reason ?? null });
+        return { summary: `${area}: ${status}`, data: { runId: run, area, status } };
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "company_context",
     {
       description: "Everything known about a company: current facts, record counts per type, the document tree, findings, area statuses. Returns the context.",
@@ -648,12 +690,12 @@ export function registerResearchTools(server: McpServer, db: Db): void {
     },
     async ({ companyId }) =>
       wrap(async () => {
-        const context = await getCompanyContext(db, companyId);
+        const context = await getCompanyContext(db, scopedCompany(auth, companyId));
         return { summary: `context for "${context.company.name}"`, data: context };
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "facts_get",
     {
       description: "Current facts (or full history) for a company, optionally filtered to keys. Returns the facts.",
@@ -667,7 +709,7 @@ export function registerResearchTools(server: McpServer, db: Db): void {
     async ({ companyId, keys, history, limit }) =>
       wrap(async () => {
         const facts = await getFacts(db, {
-          companyId,
+          companyId: scopedCompany(auth, companyId),
           keys: keys ?? undefined,
           history: history ?? undefined,
           limit: limit ?? undefined,
@@ -676,7 +718,7 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "records_list",
     {
       description: "Records of one type, optionally full-text filtered. Returns the records.",
@@ -690,7 +732,7 @@ export function registerResearchTools(server: McpServer, db: Db): void {
     async ({ companyId, type, query, limit }) =>
       wrap(async () => {
         const records = await listRecords(db, {
-          companyId,
+          companyId: scopedCompany(auth, companyId),
           type,
           query: query ?? undefined,
           limit: limit ?? undefined,
@@ -699,7 +741,7 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       }),
   );
 
-  server.registerTool(
+  registerTool(server, db, auth, 
     "search",
     {
       description: "Full-text search across documents, records, facts and sources, ranked. Returns the hits.",
@@ -716,13 +758,93 @@ export function registerResearchTools(server: McpServer, db: Db): void {
       wrap(async () => {
         const hits = await searchAll(db, {
           query,
-          companyId: companyId ?? undefined,
+          companyId: scopedCompany(auth, companyId ?? undefined) ?? undefined,
           kinds: kinds ?? undefined,
           area: area ?? undefined,
           tags: tags ?? undefined,
           limit: limit ?? undefined,
         });
         return { summary: `${hits.length} hits`, data: { hits } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "research_start",
+    {
+      description: "Start one research agent run per company (at most 100). Returns the batch id plus, per company, a run id or already_running.",
+      inputSchema: {
+        companyIds: z.array(z.string()).describe("Company UUIDs (1..100)"),
+        areas: z.array(z.string()).optional().describe("Limit the run to these areas"),
+        recollectIfOlderThanDays: z.number().optional().describe("Recollect when no fresh collect exists (default 14)"),
+        maxMinutes: z.number().optional().describe("Agent wall-time limit (default 40)"),
+        maxModelSteps: z.number().int().optional().describe("Model step cap (default 100)"),
+        brief: z.string().optional().describe("Extra owner instructions (at most 2 KB)"),
+      },
+    },
+    async ({ companyIds, areas, recollectIfOlderThanDays, maxMinutes, maxModelSteps, brief }) =>
+      wrap(async () => {
+        const batch = await researchStart(db, {
+          companyIds,
+          areas: areas ?? undefined,
+          recollectIfOlderThanDays: recollectIfOlderThanDays ?? undefined,
+          maxMinutes: maxMinutes ?? undefined,
+          maxModelSteps: maxModelSteps ?? undefined,
+          brief: brief ?? undefined,
+        });
+        const queued = batch.runs.filter((r) => r.status === "queued").length;
+        return { summary: `batch ${batch.batchId}: ${queued} queued, ${batch.runs.length - queued} already running`, data: batch };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "run_activity",
+    {
+      description: "Harness events plus the mcp_call audit trail for a run, oldest first. Returns the events.",
+      inputSchema: {
+        runId,
+        afterId: z.number().int().optional().describe("Only events with id above this"),
+        limit: z.number().int().optional().describe("1..200, default 200"),
+      },
+    },
+    async ({ runId, afterId, limit }) =>
+      wrap(async () => {
+        const events = await listRunActivity(db, { runId, afterId: afterId ?? undefined, limit: limit ?? undefined });
+        return { summary: `${events.length} events`, data: { events } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "run_finish",
+    {
+      description: "Agent's explicit end: record the final summary and mark the agent phase complete. Returns the run id.",
+      inputSchema: {
+        runId: runId.optional().describe("Defaults to the caller's run"),
+        summary: z.string().max(8000).describe("Final summary"),
+        areaOutcomes: z
+          .array(
+            z.object({
+              area: z.string(),
+              status: z.string(),
+              reason: z.string().nullable().optional(),
+            }),
+          )
+          .max(100)
+          .optional()
+          .describe("Per-area outcomes"),
+      },
+    },
+    async ({ runId: givenRunId, summary, areaOutcomes }) =>
+      wrap(async () => {
+        const run =
+          auth.kind === "run"
+            ? await resolveRunId(db, auth, auth.companyId, givenRunId ?? undefined)
+            : givenRunId;
+        if (!run) throw new DomainError("invalid_input", "runId is required");
+        await recordEvent(db, run, "agent_finish", {
+          summary,
+          areaOutcomes: areaOutcomes ?? [],
+        });
+        return { summary: `run ${run} finished`, data: { runId: run } };
       }),
   );
 }

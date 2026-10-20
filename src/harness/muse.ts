@@ -1,22 +1,22 @@
 /**
- * Muse Code harness (Stage 3a spike). Launches `muse exec --json` per run
- * and normalizes its JSONL event stream. Proven in the spike (see review):
+ * Shared JSONL normalizer for Muse runs. Research runs use
+ * `dockerMuseHarness` (docker.ts): one container per run with the app-owned
+ * Muse. There is no host-binary path (the Stage 3a spike script keeps one
+ * for manual dev runs only).
+ * Proven in the spike (see review):
  * - per-run MCP via `-c mcpServers.<name>=<json>` (secrets as whole ${VAR});
  * - tool calls surface as task kinds + tool.result (arguments are NOT in the
  *   stream); subagent labels are NOT in the stream either (session log only);
  * - SIGTERM alone reaps the whole tree (playwright MCP + Chromium die too);
  * - hitting --max-model-steps ends run.terminal.failed + exit 1.
  */
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess } from "node:child_process";
 import {
-  type AgentHarness,
   type HarnessEvent,
-  type HarnessStartOptions,
   type HarnessUsage,
   type HarnessWaitResult,
 } from "./types.js";
 
-const DEFAULT_STALL_TIMEOUT_MS = 120_000;
 const SIGKILL_AFTER_MS = 10_000;
 
 interface JsonlEvent {
@@ -34,27 +34,35 @@ interface JsonlEvent {
       input_tokens?: number;
       output_tokens?: number;
       cached_tokens?: number;
+      reasoning_tokens?: number;
     }[];
     calls?: number;
     event?: { kind?: string; task_kind?: string; chunk?: string; final_result?: boolean };
   };
 }
 
-class MuseHandle {
+export class MuseHandle {
   readonly events: AsyncIterable<HarnessEvent>;
-  private child: ChildProcess;
+  protected child: ChildProcess;
   private queue: HarnessEvent[] = [];
   private waiters: (() => void)[] = [];
   private ended = false;
-  private exitCode: number | null = null;
+  protected exitCode: number | null = null;
   private finalMessage = "";
   private usage: HarnessUsage | undefined;
   private lastEventAt = Date.now();
   private stallTimer: NodeJS.Timeout | null = null;
-  private stopped = false;
+  protected stopped = false;
+  private terminalAt: number | null = null;
 
-  constructor(child: ChildProcess, stallTimeoutMs: number) {
+  constructor(
+    child: ChildProcess,
+    stallTimeoutMs: number,
+    opts: { terminalGraceMs?: number; onRawLine?: (line: string) => void } = {},
+  ) {
     this.child = child;
+    const graceMs = opts.terminalGraceMs ?? 60_000;
+    const onRawLine = opts.onRawLine;
     let buf = "";
     child.stdout?.on("data", (chunk: Buffer) => {
       buf += chunk.toString("utf8");
@@ -62,7 +70,15 @@ class MuseHandle {
       while ((nl = buf.indexOf("\n")) >= 0) {
         const line = buf.slice(0, nl).trim();
         buf = buf.slice(nl + 1);
-        if (line !== "") this.onLine(line);
+        if (line === "") continue;
+        if (onRawLine) {
+          try {
+            onRawLine(line);
+          } catch {
+            /* the tee must never break the run */
+          }
+        }
+        this.onLine(line);
       }
     });
     child.on("error", () => this.push({ type: "error", message: "spawn failed" }));
@@ -70,13 +86,17 @@ class MuseHandle {
       this.exitCode = code ?? 0;
       this.finish();
     });
-    this.stallTimer = setInterval(() => {
-      if (!this.ended && Date.now() - this.lastEventAt > stallTimeoutMs) {
-        this.push({ type: "error", message: `no events for ${stallTimeoutMs}ms (stall)` });
-        void this.stop("stall");
-      }
-    }, Math.min(10_000, Math.max(1000, Math.floor(stallTimeoutMs / 6))));
-    this.stallTimer.unref?.();
+    if (stallTimeoutMs > 0) {
+      this.stallTimer = setInterval(() => {
+        if (this.ended) return;
+        const windowMs = this.terminalAt !== null ? graceMs : stallTimeoutMs;
+        if (Date.now() - this.lastEventAt > windowMs) {
+          this.push({ type: "error", message: `no events for ${windowMs}ms (stall)` });
+          void this.stop("stall");
+        }
+      }, Math.min(10_000, Math.max(1000, Math.floor(Math.min(stallTimeoutMs, graceMs) / 6))));
+      this.stallTimer.unref?.();
+    }
     this.events = {
       [Symbol.asyncIterator]: () => this.iterate(),
     };
@@ -141,6 +161,7 @@ class MuseHandle {
           inputTokens: model?.input_tokens ?? 0,
           outputTokens: model?.output_tokens ?? 0,
           cachedTokens: model?.cached_tokens ?? 0,
+          reasoningTokens: model?.reasoning_tokens ?? 0,
           calls: payload.calls ?? 0,
         };
         this.push({ type: "usage", ...this.usage });
@@ -148,6 +169,7 @@ class MuseHandle {
       }
       case "run.terminal.completed":
         this.finalMessage = payload.text ?? "";
+        this.terminalAt ??= Date.now();
         this.push({
           type: "finished",
           terminal: "completed",
@@ -156,6 +178,7 @@ class MuseHandle {
         break;
       case "run.terminal.failed":
         this.finalMessage = payload.text ?? "";
+        this.terminalAt ??= Date.now();
         if (payload.reason) this.push({ type: "error", message: payload.reason });
         this.push({
           type: "finished",
@@ -181,7 +204,11 @@ class MuseHandle {
     if (this.stopped || this.exitCode !== null) return;
     this.stopped = true;
     this.child.kill("SIGTERM");
-    await new Promise((resolve) => setTimeout(resolve, SIGKILL_AFTER_MS));
+    // Unref'd: the escalation wait must never hold the process open.
+    await new Promise((resolve) => {
+      const timer = setTimeout(resolve, SIGKILL_AFTER_MS);
+      timer.unref?.();
+    });
     if (this.exitCode === null) {
       try {
         this.child.kill("SIGKILL");
@@ -201,7 +228,7 @@ class MuseHandle {
   }
 }
 
-function serverJson(server: {
+export function mcpServerConfigJson(server: {
   url?: string;
   headers?: Record<string, string>;
   command?: string;
@@ -213,24 +240,4 @@ function serverJson(server: {
   return JSON.stringify({ command: server.command, args: server.args ?? [] });
 }
 
-export const museHarness: AgentHarness = {
-  start(opts: HarnessStartOptions): MuseHandle {
-    const args = [
-      "exec",
-      "--json",
-      "--max-model-steps",
-      String(opts.limits.maxModelSteps),
-      ...opts.mcpServers.flatMap((s) => ["-c", `mcpServers.${s.name}=${serverJson(s)}`]),
-      ...(opts.extraArgs ?? []),
-      opts.prompt,
-    ];
-    const child = spawn("muse", args, {
-      cwd: opts.workspaceDir,
-      env: { ...process.env, ...opts.env },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    // Drain stderr so a chatty child never blocks on a full pipe.
-    child.stderr?.on("data", () => {});
-    return new MuseHandle(child, opts.limits.stallTimeoutMs ?? DEFAULT_STALL_TIMEOUT_MS);
-  },
-};
+

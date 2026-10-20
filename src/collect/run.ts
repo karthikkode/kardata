@@ -30,7 +30,7 @@ export interface CollectRunResult {
 export async function executeCollectRun(
   db: Db,
   runId: string,
-  opts: CollectorOptions = {},
+  opts: CollectorOptions & { keepOpen?: boolean } = {},
 ): Promise<CollectRunResult> {
   const [run] = await db.select().from(researchRuns).where(eq(researchRuns.id, runId));
   if (!run) throw new DomainError("not_found", `run not found: ${runId}`);
@@ -140,10 +140,13 @@ export async function executeCollectRun(
       : outcomes.some((o) => o.status === "blocked" || o.status === "error")
         ? "partial"
         : "succeeded";
-  await db
-    .update(researchRuns)
-    .set({ status, finishedAt: new Date(), error: fatal })
-    .where(eq(researchRuns.id, runId));
+  // Agent runs collect as their first phase and stay open for researching.
+  if (!opts.keepOpen) {
+    await db
+      .update(researchRuns)
+      .set({ status, finishedAt: new Date(), error: fatal })
+      .where(eq(researchRuns.id, runId));
+  }
   return { runId, status, outcomes };
 }
 

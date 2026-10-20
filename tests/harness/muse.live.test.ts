@@ -1,17 +1,17 @@
 /**
- * @live — real Muse run against a hermetic test-DB server. Skipped unless
- * KARDATA_LIVE=1 (see `npm run test:live`); never runs in CI/default suite.
+ * @live — real containerized Muse run (the app-owned login) against a
+ * hermetic test-DB server. Skipped unless KARDATA_LIVE=1 (see
+ * `npm run test:live`); never runs in CI/default suite.
  */
 import { randomUUID } from "node:crypto";
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
 import { documents } from "../../src/db/schema.js";
 import { importCsv } from "../../src/domain/imports.js";
 import { createSector } from "../../src/domain/sectors.js";
-import { museHarness } from "../../src/harness/muse.js";
+import { RESEARCH_MUSE_ARGS, dockerMuseHarness } from "../../src/harness/docker.js";
+import { AGENTS_GATEWAY } from "../../src/harness/setup.js";
 import type { HarnessEvent } from "../../src/harness/types.js";
 import { startServer, type ServerHandle } from "../../src/server.js";
 import {
@@ -33,7 +33,10 @@ describe.skipIf(!process.env.KARDATA_LIVE)("muse harness @live", () => {
     handle = getTestDb();
     await ensureMigrated(handle);
     await resetTestDb(handle);
-    server = await startServer({ host: "127.0.0.1", port: 0, db: handle.db, operatorToken: TOKEN });
+    // 0.0.0.0 keeps the hermetic test robust; production listens on
+    // 127.0.0.1 and the agent-network gateway only. The container reaches
+    // the host through the agent gateway.
+    server = await startServer({ host: "0.0.0.0", port: 0, db: handle.db, operatorToken: TOKEN });
     const { sector } = await createSector(handle.db, { name: "Live Fixture" });
     const [result] = await importCsv(handle.db, sector.id, [fixtureCsvPath()], {
       importDirs: fixtureImportDirs(),
@@ -57,11 +60,11 @@ describe.skipIf(!process.env.KARDATA_LIVE)("muse harness @live", () => {
   it(
     "researches a fixture company and writes a note through kardata MCP",
     async () => {
-      const workspace = join(process.cwd(), "var", "runs", `live-${randomUUID()}`);
-      mkdirSync(workspace, { recursive: true });
-      const run = museHarness.start({
+      const port = new URL(server.url).port;
+      const run = dockerMuseHarness.start({
         runId: randomUUID(),
-        workspaceDir: workspace,
+        // The container's workspace is tmpfs; the host path is unused.
+        workspaceDir: "/workspace",
         prompt:
           `Call the kardata MCP tool company_context with companyId ${companyId}. ` +
           `Then call the kardata MCP tool note_add with that companyId, area "product", ` +
@@ -69,12 +72,13 @@ describe.skipIf(!process.env.KARDATA_LIVE)("muse harness @live", () => {
         mcpServers: [
           {
             name: "kardata",
-            url: `${server.url}/mcp`,
+            url: `http://${AGENTS_GATEWAY}:${port}/mcp`,
             headers: { Authorization: "${KARDATA_MCP_AUTH}" },
           },
         ],
         env: { KARDATA_MCP_AUTH: `Bearer ${TOKEN}` },
         limits: { maxModelSteps: 5 },
+        extraArgs: RESEARCH_MUSE_ARGS,
       });
       const events: HarnessEvent[] = [];
       const draining = (async () => {
