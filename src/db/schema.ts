@@ -375,6 +375,8 @@ export const researchRuns = pgTable(
     error: text("error"),
     // Agent runs only (Stage 3b Step 2): phase while running, the options
     // research_start was called with, and the researching outcome.
+    // promptVersion is null for pre-v1 runs (rendered as v0).
+    promptVersion: text("prompt_version"),
     agentPhase: text("agent_phase"),
     agentOptions: jsonb("agent_options").$type<AgentOptions>(),
     agentSessionId: text("agent_session_id"),

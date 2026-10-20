@@ -908,9 +908,10 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         maxMinutes: z.number().optional().describe("Agent wall-time limit (default 40)"),
         maxModelSteps: z.number().int().optional().describe("Model step cap (default 100)"),
         brief: z.string().optional().describe("Extra owner instructions (at most 2 KB)"),
+        promptVersion: z.string().optional().describe("Prompt version (default: latest)"),
       },
     },
-    async ({ companyIds, areas, recollectIfOlderThanDays, maxMinutes, maxModelSteps, brief }) =>
+    async ({ companyIds, areas, recollectIfOlderThanDays, maxMinutes, maxModelSteps, brief, promptVersion }) =>
       wrap(async () => {
         const batch = await researchStart(db, {
           companyIds,
@@ -919,6 +920,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
           maxMinutes: maxMinutes ?? undefined,
           maxModelSteps: maxModelSteps ?? undefined,
           brief: brief ?? undefined,
+          promptVersion: promptVersion ?? undefined,
         });
         const queued = batch.runs.filter((r) => r.status === "queued").length;
         return { summary: `batch ${batch.batchId}: ${queued} queued, ${batch.runs.length - queued} already running`, data: batch };

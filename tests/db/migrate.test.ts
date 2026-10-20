@@ -79,6 +79,7 @@ describe("migrations on kardata_test", () => {
       "research_runs.status",
       "research_runs.requested_areas",
       "research_runs.batch_id",
+      "research_runs.prompt_version",
       "research_runs.request_count",
       "run_events.run_id",
       "run_events.type",

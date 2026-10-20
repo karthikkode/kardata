@@ -678,6 +678,7 @@ export async function getBatchStatus(db: Db, batchId: string) {
       companyName: companies.name,
       status: researchRuns.status,
       phase: researchRuns.agentPhase,
+      promptVersion: researchRuns.promptVersion,
       usage: researchRuns.agentUsage,
       startedAt: researchRuns.startedAt,
       finishedAt: researchRuns.finishedAt,
