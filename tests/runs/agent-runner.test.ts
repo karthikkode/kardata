@@ -317,6 +317,8 @@ describe("agent runner", () => {
     expect(opts.mcpServers[1]).toEqual(PLAYWRIGHT_SERVER_CONFIG);
     expect(opts.extraArgs).toEqual(RESEARCH_MUSE_ARGS);
     expect(opts.limits.maxModelSteps).toBe(25);
+    // The runner owns liveness; the harness timer stays off.
+    expect(opts.limits.stallTimeoutMs).toBe(0);
     expect(opts.prompt).toContain("owner note");
     expect(fx.prompts[0]?.run.id).toBe(runId);
     expect(fx.prompts[0]?.company.id).toBe(companyId);

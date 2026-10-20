@@ -108,6 +108,7 @@ describe("buildResearchPrompt", () => {
     for (const needle of [
       "company_context",
       "registry_list",
+      "no others exist for you",
       "Never write files or scripts",
       "fact_add",
       "record_upsert",

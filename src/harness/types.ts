@@ -15,7 +15,11 @@ export interface McpServerConfig {
 
 export interface HarnessLimits {
   maxModelSteps: number;
-  /** Kill the run after this long without any event (Q9 stall finding). */
+  /**
+   * Kill the run after this long without any event (Q9 stall finding).
+   * 0 disables the timer: the agent runner passes 0 because it owns liveness
+   * (stdout events plus MCP calls, which the harness cannot see).
+   */
   stallTimeoutMs?: number;
   /**
    * After the first terminal event, shrink the stall window to this: the run

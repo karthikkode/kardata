@@ -319,7 +319,10 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
           PLAYWRIGHT_SERVER_CONFIG,
         ],
         env: { KARDATA_MCP_AUTH: `Bearer ${token}` },
-        limits: { maxModelSteps: options.maxModelSteps },
+        // No harness stall timer: the runner owns liveness (stdout events
+        // plus MCP calls). A harness timer would kill stdout-quiet runs
+        // whose subagents are still calling MCP tools.
+        limits: { maxModelSteps: options.maxModelSteps, stallTimeoutMs: 0 },
         extraArgs: RESEARCH_MUSE_ARGS,
         onRawLine: (line) => {
           try {
@@ -465,21 +468,27 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
     ticking = true;
     try {
       const now = new Date();
-      await checkActive(now);
-      noteResearching();
-      if (researching().length >= maxAgents && collecting().length >= collectLimit) return;
-      const queued = await db
-        .select()
-        .from(researchRuns)
-        .where(and(eq(researchRuns.kind, "agent"), eq(researchRuns.status, "queued")))
-        .orderBy(researchRuns.createdAt)
-        .limit(QUEUE_SCAN_MAX);
-      for (const q of queued) {
-        const recollectDays = q.agentOptions?.recollectDays ?? 14;
-        const needsCollect = !(await hasFreshCollect(db, q.companyId, recollectDays));
-        if (needsCollect && collecting().length >= collectLimit) continue;
-        if (!needsCollect && researching().length >= maxAgents) continue;
-        if (await claim(q.id)) launch(q.id, needsCollect);
+      try {
+        await checkActive(now);
+        noteResearching();
+        if (researching().length >= maxAgents && collecting().length >= collectLimit) return;
+        const queued = await db
+          .select()
+          .from(researchRuns)
+          .where(and(eq(researchRuns.kind, "agent"), eq(researchRuns.status, "queued")))
+          .orderBy(researchRuns.createdAt)
+          .limit(QUEUE_SCAN_MAX);
+        for (const q of queued) {
+          const recollectDays = q.agentOptions?.recollectDays ?? 14;
+          const needsCollect = !(await hasFreshCollect(db, q.companyId, recollectDays));
+          if (needsCollect && collecting().length >= collectLimit) continue;
+          if (!needsCollect && researching().length >= maxAgents) continue;
+          if (await claim(q.id)) launch(q.id, needsCollect);
+        }
+      } catch (err) {
+        // A failed tick must not kill the loop (or the process); the next
+        // tick retries.
+        console.error(`agent tick failed: ${err instanceof Error ? err.message : err}`);
       }
     } finally {
       ticking = false;

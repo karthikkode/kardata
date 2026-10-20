@@ -29,6 +29,22 @@ describe("MuseHandle terminal grace", () => {
     expect(typeof result.exitCode).toBe("number");
   }, 15_000);
 
+  it("stays off when the stall timeout is 0", async () => {
+    const child = stub(
+      'console.log(JSON.stringify({payload_type:"run.terminal.completed",payload:{text:"done"}}));' +
+        "setTimeout(() => {}, 1500);",
+    );
+    const handle = new MuseHandle(child, 0);
+    const events: HarnessEvent[] = [];
+    const draining = (async () => {
+      for await (const event of handle.events) events.push(event);
+    })();
+    const result = await handle.wait();
+    await draining;
+    expect(result.exitCode).toBe(0);
+    expect(events.some((e) => e.type === "error")).toBe(false);
+  }, 15_000);
+
   it("does not fire before the stall timeout without a terminal", async () => {
     const child = stub(
       'console.log(JSON.stringify({payload_type:"run.usage",payload:{calls:1,models:[{model:"m",input_tokens:1,output_tokens:2,cached_tokens:0,reasoning_tokens:3}]}}));',

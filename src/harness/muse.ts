@@ -86,15 +86,17 @@ export class MuseHandle {
       this.exitCode = code ?? 0;
       this.finish();
     });
-    this.stallTimer = setInterval(() => {
-      if (this.ended) return;
-      const windowMs = this.terminalAt !== null ? graceMs : stallTimeoutMs;
-      if (Date.now() - this.lastEventAt > windowMs) {
-        this.push({ type: "error", message: `no events for ${windowMs}ms (stall)` });
-        void this.stop("stall");
-      }
-    }, Math.min(10_000, Math.max(1000, Math.floor(Math.min(stallTimeoutMs, graceMs) / 6))));
-    this.stallTimer.unref?.();
+    if (stallTimeoutMs > 0) {
+      this.stallTimer = setInterval(() => {
+        if (this.ended) return;
+        const windowMs = this.terminalAt !== null ? graceMs : stallTimeoutMs;
+        if (Date.now() - this.lastEventAt > windowMs) {
+          this.push({ type: "error", message: `no events for ${windowMs}ms (stall)` });
+          void this.stop("stall");
+        }
+      }, Math.min(10_000, Math.max(1000, Math.floor(Math.min(stallTimeoutMs, graceMs) / 6))));
+      this.stallTimer.unref?.();
+    }
     this.events = {
       [Symbol.asyncIterator]: () => this.iterate(),
     };
