@@ -3,6 +3,8 @@ import {
   CONTAINER_CPUS,
   CONTAINER_MEMORY,
   CONTAINER_PIDS_LIMIT,
+  PLAYWRIGHT_SERVER_CONFIG,
+  RESEARCH_MUSE_ARGS,
   RUN_LABEL,
   containerNameForRun,
   dockerRunArgs,
@@ -114,6 +116,16 @@ describe("docker harness", () => {
 
   it("lists labeled containers for boot recovery", () => {
     expect(recoveryListArgs()).toEqual(["ps", "-q", "--filter", `label=${RUN_LABEL}`]);
+  });
+
+  it("keeps the adopted research config locked down and writable", () => {
+    expect(RESEARCH_MUSE_ARGS).toContain("--disable-shell");
+    expect(RESEARCH_MUSE_ARGS).toContain("--disable-write");
+    const contributor = RESEARCH_MUSE_ARGS.indexOf("--contributor-mode");
+    expect(RESEARCH_MUSE_ARGS[contributor + 1]).toBe("on");
+    const model = RESEARCH_MUSE_ARGS.indexOf("--model");
+    expect(RESEARCH_MUSE_ARGS[model + 1]).toBe("muse-spark-1.3");
+    expect(PLAYWRIGHT_SERVER_CONFIG.args).toContain("--no-sandbox");
   });
 
   it("gates agent runs on the version pin", () => {

@@ -1,8 +1,8 @@
 /**
- * Muse Code harness. `hostMuseHarness` is the DEV-ONLY host-binary path (the
- * Stage 3a spike; kept for the @live test). Research runs use
+ * Shared JSONL normalizer for Muse runs. Research runs use
  * `dockerMuseHarness` (docker.ts): one container per run with the app-owned
- * Muse. Both share `MuseHandle`, which normalizes the stdout JSONL stream.
+ * Muse. There is no host-binary path (the Stage 3a spike script keeps one
+ * for manual dev runs only).
  * Proven in the spike (see review):
  * - per-run MCP via `-c mcpServers.<name>=<json>` (secrets as whole ${VAR});
  * - tool calls surface as task kinds + tool.result (arguments are NOT in the
@@ -10,16 +10,13 @@
  * - SIGTERM alone reaps the whole tree (playwright MCP + Chromium die too);
  * - hitting --max-model-steps ends run.terminal.failed + exit 1.
  */
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess } from "node:child_process";
 import {
-  type AgentHarness,
   type HarnessEvent,
-  type HarnessStartOptions,
   type HarnessUsage,
   type HarnessWaitResult,
 } from "./types.js";
 
-const DEFAULT_STALL_TIMEOUT_MS = 120_000;
 const SIGKILL_AFTER_MS = 10_000;
 
 interface JsonlEvent {
@@ -216,25 +213,4 @@ export function mcpServerConfigJson(server: {
   return JSON.stringify({ command: server.command, args: server.args ?? [] });
 }
 
-/** Dev-only host path (the @live test). Never used for research runs. */
-export const hostMuseHarness: AgentHarness = {
-  start(opts: HarnessStartOptions): MuseHandle {
-    const args = [
-      "exec",
-      "--json",
-      "--max-model-steps",
-      String(opts.limits.maxModelSteps),
-      ...opts.mcpServers.flatMap((s) => ["-c", `mcpServers.${s.name}=${mcpServerConfigJson(s)}`]),
-      ...(opts.extraArgs ?? []),
-      opts.prompt,
-    ];
-    const child = spawn("muse", args, {
-      cwd: opts.workspaceDir,
-      env: { ...process.env, ...opts.env },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    // Drain stderr so a chatty child never blocks on a full pipe.
-    child.stderr?.on("data", () => {});
-    return new MuseHandle(child, opts.limits.stallTimeoutMs ?? DEFAULT_STALL_TIMEOUT_MS);
-  },
-};
+

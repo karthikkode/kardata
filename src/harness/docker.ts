@@ -13,6 +13,7 @@ import { execFile, spawn, type ChildProcess } from "node:child_process";
 import {
   type AgentHarness,
   type HarnessStartOptions,
+  type McpServerConfig,
 } from "./types.js";
 import { AGENT_IMAGE, MUSE_MOUNT, MUSE_VOLUME } from "./setup.js";
 import { MuseHandle, mcpServerConfigJson } from "./muse.js";
@@ -24,6 +25,31 @@ export const RUN_LABEL = "kardata.run";
 export const CONTAINER_MEMORY = "2g";
 export const CONTAINER_CPUS = "2";
 export const CONTAINER_PIDS_LIMIT = "512";
+
+/**
+ * Adopted Step 0 run config: lockdown (no shell/write), contributor mode on
+ * (off = read-only session, proven by probe), pinned model, and the cost
+ * flags (no-ops in the sterile container, insurance against future drift).
+ * Presets and Playwright subsets were measured and NOT adopted (see review).
+ */
+export const RESEARCH_MUSE_ARGS = [
+  "--disable-shell",
+  "--disable-write",
+  "--contributor-mode",
+  "on",
+  "--model",
+  "muse-spark-1.3",
+  "--disable-reminders",
+  "--no-foreign-personal-context",
+];
+
+/** Playwright MCP as proven in the container (--no-sandbox: Chrome's user
+ * namespace is unavailable in Docker; the container sandbox remains). */
+export const PLAYWRIGHT_SERVER_CONFIG: McpServerConfig = {
+  name: "playwright",
+  command: "playwright-mcp",
+  args: ["--headless", "--isolated", "--no-sandbox"],
+};
 
 /** docker --name value: sanitized, because it derives from the run id. */
 export function containerNameForRun(runId: string): string {

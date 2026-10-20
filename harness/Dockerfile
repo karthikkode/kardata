@@ -16,7 +16,7 @@ RUN apt-get update \
   && npm install -g @playwright/mcp@0.0.83 \
   && CORE_CLI="$(find /usr/local/lib/node_modules/@playwright/mcp -path '*/playwright-core/cli.js' | head -n 1)" \
   && test -n "$CORE_CLI" \
-  && node "$CORE_CLI" install --with-deps --no-progress chromium \
+  && node "$CORE_CLI" install --with-deps --no-progress chromium chrome \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
