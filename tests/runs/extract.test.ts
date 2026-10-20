@@ -11,6 +11,7 @@ import {
   gatherAreaNotes,
   runExtraction,
   validateExtractionJson,
+  writeExtraction,
 } from "../../src/runs/extract.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 
@@ -380,6 +381,31 @@ describe("runExtraction with a fake harness", () => {
     const outcome = await runExtraction(handle.db, run, { call: failing });
     expect(outcome.areas.find((a) => a.area === "marketing")?.error).toContain("container exploded");
     expect(outcome.areas.find((a) => a.area === "product")?.error).toBeNull();
+  });
+});
+
+describe("writeExtraction", () => {
+  it("captures domain rejection reasons", async () => {
+    const companyId = await makeCompany();
+    const run = await makeAgentRun(companyId);
+    const sourceId = await makeSource(companyId, run.id, "https://example.com/");
+    const counts = await writeExtraction(handle.db, companyId, run.id, "business_model", {
+      facts: [
+        {
+          key: "business_model.subscription",
+          value: "not-a-bool",
+          sourceIds: [sourceId],
+          confidence: "high",
+        },
+      ],
+      records: [],
+      findings: [],
+      droppedOutOfList: 0,
+      droppedInvalid: 0,
+    });
+    expect(counts).toMatchObject({ writtenFacts: 0, rejected: 1 });
+    expect(counts.rejections).toHaveLength(1);
+    expect(counts.rejections[0]).toContain("business_model.subscription");
   });
 });
 

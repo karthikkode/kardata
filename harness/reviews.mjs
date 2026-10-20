@@ -95,6 +95,8 @@ function ratingFromStars($item, vendor) {
   if (vendor === "yotpo") {
     const n = countFilled($item, ".yotpo-review-stars .yotpo-icon-star", ".yotpo-review-stars .yotpo-icon-empty-star");
     if (n !== null) return n;
+    const sr = countFilled($item, ".yotpo-star-rating .yotpo-sr-star-full", null);
+    if (sr !== null) return sr;
     const score = $item.attr("data-score");
     return score !== undefined && Number.isFinite(Number(score)) ? Number(score) : null;
   }
@@ -134,10 +136,11 @@ const FIELD_SELECTORS = {
     verified: [".jdgm-rev__buyer-badge", ".jdgm-rev__verified"],
   },
   yotpo: {
-    text: [".content-review"],
-    title: [".content-title"],
-    date: [".yotpo-review-date"],
-    verified: [".yotpo-reviewer-verified-buyer", ".yotpo-verified-buyer"],
+    text: [".yotpo-review-content", ".content-review"],
+    title: [".yotpo-review-title", ".content-title"],
+    // v3 nests "Published date" + .yotpo-date-format inside .yotpo-review-date.
+    date: [".yotpo-date-format", ".yotpo-review-date"],
+    verified: [".yotpo-reviewer-verified-buyer", ".yotpo-verified-buyer", ".yotpo-reviewer-verified-buyer-text"],
   },
   stamped: {
     text: [".stamped-review-content-body"],

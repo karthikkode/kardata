@@ -58,7 +58,7 @@ describe("parseWidgetReviews", () => {
 
   it("parses Yotpo reviews, skipping empty stars", () => {
     const reviews = parseWidgetReviews(fixture("yotpo.html"), "yotpo");
-    expect(reviews).toHaveLength(2);
+    expect(reviews).toHaveLength(3);
     expect(reviews[0]).toMatchObject({
       title: "Pores look smaller",
       rating: 5,
@@ -66,6 +66,12 @@ describe("parseWidgetReviews", () => {
       verified_buyer: true,
     });
     expect(reviews[1]).toMatchObject({ rating: 3, date: "04/18/2026" });
+    expect(reviews[2]).toMatchObject({
+      title: "New layout title",
+      rating: 5,
+      date: "12/01/25",
+      verified_buyer: true,
+    });
   });
 
   it("never emits reviewer identity", () => {

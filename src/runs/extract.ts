@@ -423,8 +423,16 @@ export interface ExtractionWriteCounts {
   writtenRecords: number;
   writtenFindings: number;
   rejected: number;
+  /** First few domain rejection reasons, for forensics. Capped. */
+  rejections: string[];
   droppedOutOfList: number;
   droppedInvalid: number;
+}
+
+const REJECTION_CAP = 10;
+
+function capReason(list: string[], reason: string): void {
+  if (list.length < REJECTION_CAP) list.push(reason.slice(0, 200));
 }
 
 /**
@@ -445,6 +453,7 @@ export async function writeExtraction(
     writtenRecords: 0,
     writtenFindings: 0,
     rejected: 0,
+    rejections: [],
     droppedOutOfList: validated.droppedOutOfList,
     droppedInvalid: validated.droppedInvalid,
   };
@@ -463,9 +472,14 @@ export async function writeExtraction(
         note: f.note,
       })),
     });
-    for (const r of results) {
-      if (r.ok) counts.writtenFacts += 1;
-      else counts.rejected += 1;
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      if (r?.ok) {
+        counts.writtenFacts += 1;
+      } else {
+        counts.rejected += 1;
+        capReason(counts.rejections, `fact ${validated.facts[i]?.key ?? "?"}: ${r?.ok === false ? r.error : "unknown"}`);
+      }
     }
   }
   const recordIds: (string | null)[] = [];
@@ -481,13 +495,18 @@ export async function writeExtraction(
         naturalKey: r.naturalKey,
       })),
     });
-    for (const r of results) {
-      if (r.ok) {
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      if (r?.ok) {
         counts.writtenRecords += 1;
         recordIds.push(r.id);
       } else {
         counts.rejected += 1;
         recordIds.push(null);
+        capReason(
+          counts.rejections,
+          `record ${validated.records[i]?.type ?? "?"}: ${r?.ok === false ? r.error : "unknown"}`,
+        );
       }
     }
   }
@@ -511,8 +530,9 @@ export async function writeExtraction(
         createdBy,
       });
       counts.writtenFindings += 1;
-    } catch {
+    } catch (err) {
       counts.rejected += 1;
+      capReason(counts.rejections, `finding: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
   return counts;
@@ -600,6 +620,7 @@ async function extractOneArea(
     writtenRecords: 0,
     writtenFindings: 0,
     rejected: 0,
+    rejections: [],
     droppedOutOfList: 0,
     droppedInvalid: 0,
   };
@@ -633,6 +654,7 @@ async function extractOneArea(
       writtenRecords: outcome.writtenRecords,
       writtenFindings: outcome.writtenFindings,
       rejected: outcome.rejected,
+      rejections: outcome.rejections,
       droppedOutOfList: outcome.droppedOutOfList,
       droppedInvalid: outcome.droppedInvalid,
       error: outcome.error,
