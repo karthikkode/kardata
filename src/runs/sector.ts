@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import {
@@ -36,6 +37,20 @@ import { effectiveSectorPreflight } from "./settings.js";
 
 const TERMINAL_ITEM = ["succeeded", "failed", "skipped", "cancelled"] as const;
 
+/** Classifier launches hold below this much available RAM (MB). */
+export const SECTOR_MEM_MIN_AVAILABLE_MB = 12 * 1024;
+
+/** MemAvailable in MB from /proc/meminfo, or null when unreadable (non-Linux). */
+export function systemMemAvailableMB(): number | null {
+  try {
+    const match = /MemAvailable:\s+(\d+)\s+kB/.exec(readFileSync("/proc/meminfo", "utf8"));
+    if (!match?.[1]) return null;
+    return Math.floor(Number(match[1]) / 1024);
+  } catch {
+    return null;
+  }
+}
+
 function checkMaxCompanies(maxCompanies: number | undefined): number | null {
   if (maxCompanies === undefined) return null;
   if (!Number.isInteger(maxCompanies) || maxCompanies < 1) {
@@ -49,6 +64,8 @@ export interface SectorPreflightStartInput {
   /** Skip companies already classified for this sector (default true). */
   onlyPending?: boolean;
   maxCompanies?: number;
+  /** Classify exactly these companies (must be sector members; default: all members). */
+  companyIds?: string[];
   budget?: JobBudget;
 }
 
@@ -67,7 +84,14 @@ export async function startSectorPreflight(
     const [sector] = await db.select({ id: sectors.id }).from(sectors).where(eq(sectors.id, input.sectorId));
     if (!sector) throw new DomainError("not_found", `sector not found: ${input.sectorId}`);
   }
+  const memberSet = new Set(members.map((m) => m.companyId));
   let companyIds = members.map((m) => m.companyId);
+  if (input.companyIds !== undefined) {
+    const outside = input.companyIds.filter((id) => !memberSet.has(id));
+    if (outside.length > 0) throw new DomainError("invalid_input", `${outside.length} companies are not in this sector`);
+    const wanted = new Set(input.companyIds);
+    companyIds = companyIds.filter((id) => wanted.has(id));
+  }
   if (onlyPending) {
     const done = await db
       .select({ companyId: sectorPreflight.companyId })
@@ -296,6 +320,8 @@ export interface SectorRunnerDeps {
   pollMs?: number;
   pool?: number;
   classify?: (input: { sectorId: string; companyId: string; runId: string }) => Promise<unknown>;
+  /** Available RAM in MB (default: reads /proc/meminfo; null = unknown, proceed). */
+  memAvailableMB?: () => number | null;
 }
 
 export interface SectorRunner {
@@ -510,6 +536,17 @@ export function createSectorRunner(db: Db, deps: SectorRunnerDeps): SectorRunner
       if (actives.size >= pool) break;
       const [fresh] = await db.select().from(sectorPreflightJobs).where(eq(sectorPreflightJobs.id, job.id));
       if (!fresh || fresh.status !== "running" || !fresh.sectorId) break;
+      const availableMB = (deps.memAvailableMB ?? systemMemAvailableMB)();
+      if (availableMB !== null && availableMB < SECTOR_MEM_MIN_AVAILABLE_MB) {
+        console.error(
+          `sector job ${job.id} mem hold: ${availableMB} MB available (< ${SECTOR_MEM_MIN_AVAILABLE_MB}); waiting`,
+        );
+        await db
+          .update(sectorPreflightJobs)
+          .set({ memHolds: sql`${sectorPreflightJobs.memHolds} + 1` })
+          .where(eq(sectorPreflightJobs.id, job.id));
+        break;
+      }
       await launch(fresh, item.id, item.companyId);
     }
   }

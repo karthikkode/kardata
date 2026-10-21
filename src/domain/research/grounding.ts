@@ -17,13 +17,14 @@ import { blobText } from "./reads.js";
  * (no quote).
  */
 
-export type GroundVerdict = "verified" | "doc_only" | "quote_mismatch" | "unverified";
+export type GroundVerdict = "verified" | "doc_only" | "quote_mismatch" | "unverified" | "verified_value";
 
 export interface GroundCounts {
   verified: number;
   docOnly: number;
   mismatch: number;
   unverified: number;
+  verifiedValue: number;
 }
 
 export const SHORT_STRING_MAX = 60;
@@ -463,7 +464,14 @@ export async function verifyQuote(
  * drops rows.
  */
 export async function verifyRunExtraction(db: Db, runId: string): Promise<GroundCounts & { total: number }> {
-  const counts: GroundCounts & { total: number } = { verified: 0, docOnly: 0, mismatch: 0, unverified: 0, total: 0 };
+  const counts: GroundCounts & { total: number } = {
+    verified: 0,
+    docOnly: 0,
+    mismatch: 0,
+    unverified: 0,
+    verifiedValue: 0,
+    total: 0,
+  };
   const [factRows, recordRows, findingRows, docRows] = await Promise.all([
     db
       .select()
@@ -496,11 +504,25 @@ export async function verifyRunExtraction(db: Db, runId: string): Promise<Ground
     if (verdict === "verified") counts.verified += 1;
     else if (verdict === "doc_only") counts.docOnly += 1;
     else if (verdict === "quote_mismatch") counts.mismatch += 1;
+    else if (verdict === "verified_value") counts.verifiedValue += 1;
     else counts.unverified += 1;
   };
 
+  // Stage 5.1: a doc_only item whose value is found (normalized) in its
+  // cited sources' text is grounded after all — label it verified_value.
+  // Findings have no checkable value, so they never upgrade.
+  const maybeUpgrade = async (
+    verdict: GroundVerdict,
+    checkables: Checkable[],
+    sourceIds: string[],
+  ): Promise<GroundVerdict> => {
+    if (verdict !== "doc_only" || checkables.length === 0) return verdict;
+    const texts = (await citedSources(db, sourceIds, cache)).map((s) => s.text).join("\n");
+    return checkables.every((c) => checkableInText(c, texts)) ? "verified_value" : "doc_only";
+  };
+
   for (const fact of factRows) {
-    const verdict = await verifyQuote(
+    const quoted = await verifyQuote(
       db,
       {
         quote: fact.quote,
@@ -510,11 +532,12 @@ export async function verifyRunExtraction(db: Db, runId: string): Promise<Ground
       docTexts,
       cache,
     );
+    const verdict = await maybeUpgrade(quoted, factCheckables(fact), fact.sourceIds);
     await db.update(facts).set({ verification: verdict }).where(eq(facts.id, fact.id));
     tally(verdict);
   }
   for (const record of recordRows) {
-    const verdict = await verifyQuote(
+    const quoted = await verifyQuote(
       db,
       {
         quote: record.quote,
@@ -525,6 +548,7 @@ export async function verifyRunExtraction(db: Db, runId: string): Promise<Ground
       docTexts,
       cache,
     );
+    const verdict = await maybeUpgrade(quoted, recordHardCheckables(record.data), record.sourceIds);
     await db.update(records).set({ verification: verdict }).where(eq(records.id, record.id));
     tally(verdict);
   }

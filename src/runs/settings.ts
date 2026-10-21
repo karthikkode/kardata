@@ -243,7 +243,7 @@ export async function tripPipelinePause(db: Db, target: number, completed: numbe
 
 export const DEFAULT_SECTOR_PREFLIGHT_CONCURRENCY = 8;
 export const SECTOR_PREFLIGHT_CONCURRENCY_MIN = 1;
-export const SECTOR_PREFLIGHT_CONCURRENCY_MAX = 32;
+export const SECTOR_PREFLIGHT_CONCURRENCY_MAX = 64;
 
 const SECTOR_PREFLIGHT_CONCURRENCY_KEY = "sector_preflight_concurrency";
 

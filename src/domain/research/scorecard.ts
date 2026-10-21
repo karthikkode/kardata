@@ -56,6 +56,7 @@ export interface VerificationShares {
   docOnly: number;
   mismatch: number;
   unverified: number;
+  verifiedValue: number;
 }
 
 export interface RunScore {
@@ -155,13 +156,14 @@ function emptyAgent(): AgentScore {
 }
 
 function emptyVerification(): VerificationShares {
-  return { verified: 0, docOnly: 0, mismatch: 0, unverified: 0 };
+  return { verified: 0, docOnly: 0, mismatch: 0, unverified: 0, verifiedValue: 0 };
 }
 
 function bumpShares(shares: VerificationShares, verification: string): void {
   if (verification === "verified") shares.verified += 1;
   else if (verification === "doc_only") shares.docOnly += 1;
   else if (verification === "quote_mismatch") shares.mismatch += 1;
+  else if (verification === "verified_value") shares.verifiedValue += 1;
   else shares.unverified += 1;
 }
 
@@ -181,6 +183,7 @@ function mergeKindShares(into: Record<string, VerificationShares>, from: Record<
     target.docOnly += shares.docOnly;
     target.mismatch += shares.mismatch;
     target.unverified += shares.unverified;
+    target.verifiedValue += shares.verifiedValue;
   }
 }
 

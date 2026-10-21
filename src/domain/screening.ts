@@ -45,7 +45,7 @@ export interface ScreenOptions {
   criteria?: ScreenCriterion[];
   sort?: ScreenSort;
   limit?: number;
-  /** Strict: fact criteria match only verified facts (default matches verified + doc_only). */
+  /** Strict: fact criteria match only verified facts (default matches verified + doc_only + verified_value). */
   verifiedOnly?: boolean;
   /** Show unverified and mismatched facts too (default false). Overrides verifiedOnly. */
   includeUnverified?: boolean;
@@ -247,7 +247,7 @@ function factPredicate(
 ): SQL {
   const conds: SQL[] = [sql`fc.company_id = ${companyId}`, sql`fc.key = ${factKey}`];
   if (verification === "verified") conds.push(sql`fc.verification = 'verified'`);
-  else if (verification === "grounded") conds.push(sql`fc.verification IN ('verified', 'doc_only')`);
+  else if (verification === "grounded") conds.push(sql`fc.verification IN ('verified', 'doc_only', 'verified_value')`);
   if (Object.keys(qualifiers).length > 0) {
     conds.push(sql`fc.qualifiers @> ${JSON.stringify(qualifiers)}::jsonb`);
   }
@@ -500,7 +500,7 @@ export async function screenCompanies(
             ? []
             : verification === "verified"
               ? [eq(factsCurrent.verification, "verified" as const)]
-              : [inArray(factsCurrent.verification, ["verified", "doc_only"])]),
+              : [inArray(factsCurrent.verification, ["verified", "doc_only", "verified_value"])]),
         ),
       )
       .orderBy(desc(factsCurrent.createdAt), desc(factsCurrent.id));

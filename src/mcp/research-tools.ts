@@ -190,7 +190,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         criteria: z.array(screenCriterion).max(20).optional().describe("ANDed criteria (default: all live companies)"),
         sort: screenSort.optional(),
         limit: z.number().int().min(1).max(500).optional().describe("Default 50"),
-        verifiedOnly: z.boolean().optional().describe("Strict: fact criteria match only verified facts (default matches verified + doc_only)"),
+        verifiedOnly: z.boolean().optional().describe("Strict: fact criteria match only verified facts (default matches verified + doc_only + verified_value)"),
         includeUnverified: z.boolean().optional().describe("Show unverified and mismatched facts too (default false)"),
       },
     },
@@ -1444,15 +1444,17 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         sectorId: z.string().describe("Sector UUID"),
         onlyPending: z.boolean().optional().describe("Skip already-classified companies (default true)"),
         maxCompanies: z.number().int().optional().describe("Cap the job at this many companies"),
+        companyIds: z.array(z.string()).optional().describe("Classify exactly these companies (default: all members)"),
         budget: jobBudget,
       },
     },
-    async ({ sectorId, onlyPending, maxCompanies, budget }) =>
+    async ({ sectorId, onlyPending, maxCompanies, companyIds, budget }) =>
       wrap(async () => {
         const result = await startSectorPreflight(db, {
           sectorId,
           onlyPending: onlyPending ?? undefined,
           maxCompanies: maxCompanies ?? undefined,
+          companyIds: companyIds ?? undefined,
           budget: budget ?? undefined,
         });
         return { summary: `sector job ${result.jobId}: ${result.companies} companies`, data: result };
@@ -1623,7 +1625,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth,
     "sector_preflight_concurrency_set",
     {
-      description: "Operator: change the sector-preflight pool size at runtime (1..32, stored in the DB, immediate).",
+      description: "Operator: change the sector-preflight pool size at runtime (1..64, stored in the DB, immediate).",
       inputSchema: { sectorPreflightConcurrency: z.number().int().describe("Max parallel classifications") },
     },
     async ({ sectorPreflightConcurrency: value }) =>

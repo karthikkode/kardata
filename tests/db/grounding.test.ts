@@ -293,6 +293,81 @@ describe("verifyRunExtraction", () => {
     expect(counts).toMatchObject({ verified: 1, unverified: 1, total: 2 });
   });
 
+  it("upgrades doc_only to verified_value when the value is in the cited source", async () => {
+    const { companyId, runId } = await setup();
+    const src = await captured(companyId, runId, "The Pro plan costs $29 per month, billed annually.");
+    await saveDocument(handle.db, {
+      companyId,
+      runId,
+      path: "business_model/notes.md",
+      contentMd: `Plan pricing: costs $29 monthly, enterprise costs $999 yearly [src:${src}].`,
+      sourceIds: [src],
+      createdBy: "agent:test",
+    });
+    const results = await addFacts(handle.db, {
+      companyId,
+      runId,
+      createdBy: "extractor:business_model",
+      facts: [
+        // Quote lives only in the agent doc, but 29 is in the source text.
+        { key: "test.price", value: 29, sourceIds: [src], confidence: "medium", quote: "costs $29 monthly", quoteSourceId: src },
+        // Same shape, but 999 is nowhere in the source: stays doc_only.
+        { key: "test.ghost", value: 999, sourceIds: [src], confidence: "medium", quote: "costs $999 yearly", quoteSourceId: src },
+      ],
+    });
+    expect(results.every((r) => r.ok)).toBe(true);
+    const counts = await verifyRunExtraction(handle.db, runId);
+    expect(counts).toMatchObject({ verifiedValue: 1, docOnly: 1, total: 2 });
+    const rows = await handle.db.select().from(facts).where(eq(facts.runId, runId));
+    const byKey = new Map(rows.map((r) => [r.key, r.verification]));
+    expect(byKey.get("test.price")).toBe("verified_value");
+    expect(byKey.get("test.ghost")).toBe("doc_only");
+  });
+
+  it("upgrades records on hard claims in the source, never findings", async () => {
+    const { companyId, runId } = await setup();
+    const src = await captured(companyId, runId, "The Pro plan costs $29 per month. Contact Ada Wells.");
+    await saveDocument(handle.db, {
+      companyId,
+      runId,
+      path: "business_model/notes.md",
+      contentMd: `Pro plan: $29 per month [src:${src}].`,
+      sourceIds: [src],
+      createdBy: "agent:test",
+    });
+    const results = await upsertRecords(handle.db, {
+      companyId,
+      runId,
+      createdBy: "extractor:business_model",
+      records: [
+        {
+          type: "test_plan",
+          data: { name: "Pro plan", price: { amount: 29, currency: "USD" } },
+          sourceIds: [src],
+          quote: "Pro plan: $29 per month",
+          quoteSourceId: src,
+        },
+      ],
+    });
+    expect(results.every((r) => r.ok)).toBe(true);
+    await addFinding(handle.db, {
+      companyId,
+      runId,
+      area: "reviews",
+      claim: "Pricing noted.",
+      sourceIds: [src],
+      confidence: "medium",
+      status: "supported",
+      createdBy: "extractor:synthesis",
+      quote: "Pro plan: $29 per month",
+      quoteSourceId: src,
+    });
+    const counts = await verifyRunExtraction(handle.db, runId);
+    expect(counts).toMatchObject({ verifiedValue: 1, docOnly: 1, total: 2 });
+    const [record] = await handle.db.select().from(records).where(eq(records.lastSeenRunId, runId));
+    expect(record?.verification).toBe("verified_value");
+  });
+
   it("ignores non-extractor rows", async () => {
     const { companyId, runId } = await setup();
     const src = await captured(companyId, runId, "Acme Corp employs 42 people.");

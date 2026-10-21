@@ -242,7 +242,7 @@ export async function createSectorRun(db: Db, companyId: string): Promise<string
 export interface ClassifyCompanyOutcome {
   runId: string;
   classification: Classification;
-  verification: "verified" | "doc_only" | "unverified" | "quote_mismatch";
+  verification: "verified" | "doc_only" | "unverified" | "quote_mismatch" | "verified_value";
   apolloOnly: boolean;
 }
 

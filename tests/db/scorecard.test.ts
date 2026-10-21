@@ -305,14 +305,14 @@ describe("scorecard", () => {
     await handle.db.update(records).set({ verification: "doc_only" }).where(eq(records.id, recordId));
 
     const result = await scorecard(db(), { batchId });
-    expect(result.runs[0]?.verification).toEqual({ verified: 1, docOnly: 1, mismatch: 1, unverified: 1 });
-    expect(result.totals.verification).toEqual({ verified: 1, docOnly: 1, mismatch: 1, unverified: 1 });
+    expect(result.runs[0]?.verification).toEqual({ verified: 1, verifiedValue: 0, docOnly: 1, mismatch: 1, unverified: 1 });
+    expect(result.totals.verification).toEqual({ verified: 1, verifiedValue: 0, docOnly: 1, mismatch: 1, unverified: 1 });
     expect(result.runs[0]?.verificationByKind).toEqual({
-      number: { verified: 1, docOnly: 0, mismatch: 0, unverified: 0 },
-      short_text: { verified: 0, docOnly: 0, mismatch: 1, unverified: 1 },
+      number: { verified: 1, verifiedValue: 0, docOnly: 0, mismatch: 0, unverified: 0 },
+      short_text: { verified: 0, verifiedValue: 0, docOnly: 0, mismatch: 1, unverified: 1 },
     });
     expect(result.runs[0]?.verificationByRecordType).toEqual({
-      product: { verified: 0, docOnly: 1, mismatch: 0, unverified: 0 },
+      product: { verified: 0, verifiedValue: 0, docOnly: 1, mismatch: 0, unverified: 0 },
     });
     expect(result.totals.verificationByKind).toEqual(result.runs[0]?.verificationByKind);
     expect(result.totals.verificationByRecordType).toEqual(result.runs[0]?.verificationByRecordType);

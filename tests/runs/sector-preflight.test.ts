@@ -136,6 +136,22 @@ describe("startSectorPreflight", () => {
     await expect(startSectorPreflight(handle.db, { sectorId: randomUUID() })).rejects.toThrow(/sector not found/);
     expect(b).toBeTruthy();
   });
+
+  it("starts a subset by companyIds and rejects outsiders", async () => {
+    const sectorId = await makeSector("Skincare");
+    const a = await addCompany(sectorId, "A Co");
+    await addCompany(sectorId, "B Co");
+    const subset = await startSectorPreflight(handle.db, { sectorId, companyIds: [a] });
+    expect(subset.companies).toBe(1);
+    const items = await handle.db
+      .select()
+      .from(sectorPreflightItems)
+      .where(eq(sectorPreflightItems.jobId, subset.jobId));
+    expect(items.map((i) => i.companyId)).toEqual([a]);
+    await expect(startSectorPreflight(handle.db, { sectorId, companyIds: [randomUUID()] })).rejects.toThrow(
+      /not in this sector/,
+    );
+  });
 });
 
 describe("sector runner", () => {
@@ -225,6 +241,29 @@ describe("sector runner", () => {
     const [stale] = await handle.db.select().from(researchRuns).where(eq(researchRuns.id, item!.runId!));
     expect(stale?.status).toBe("failed");
     release();
+    await settle();
+  });
+
+  it("holds launches when memory is low and counts the hold", async () => {
+    const sectorId = await makeSector("Skincare");
+    await addCompany(sectorId, "A Co");
+    const { jobId } = await startSectorPreflight(handle.db, { sectorId });
+    const held = createSectorRunner(handle.db, {
+      pool: 2,
+      classify: succeedCall(),
+      memAvailableMB: () => 1024,
+    });
+    await held.tick();
+    expect(await itemStatuses(jobId)).toEqual(["queued"]);
+    const [job] = await handle.db.select().from(sectorPreflightJobs).where(eq(sectorPreflightJobs.id, jobId));
+    expect(job?.memHolds).toBe(1);
+    const freed = createSectorRunner(handle.db, {
+      pool: 2,
+      classify: succeedCall(),
+      memAvailableMB: () => 20 * 1024,
+    });
+    await freed.tick();
+    expect(await itemStatuses(jobId)).toEqual(["running"]);
     await settle();
   });
 
@@ -331,8 +370,9 @@ describe("startPipeline", () => {
 describe("sector preflight pool settings", () => {
   it("defaults to 8 and validates the range", async () => {
     await expect(sectorPreflightSettingsGet(handle.db)).resolves.toMatchObject({ sectorPreflightConcurrency: 8 });
-    await expect(sectorPreflightSettingsSet(handle.db, 0)).rejects.toThrow(/1\.\.32/);
-    await expect(sectorPreflightSettingsSet(handle.db, 33)).rejects.toThrow(/1\.\.32/);
+    await expect(sectorPreflightSettingsSet(handle.db, 0)).rejects.toThrow(/1\.\.64/);
+    await expect(sectorPreflightSettingsSet(handle.db, 65)).rejects.toThrow(/1\.\.64/);
+    await expect(sectorPreflightSettingsSet(handle.db, 64)).resolves.toMatchObject({ sectorPreflightConcurrency: 64, source: "db" });
     await expect(sectorPreflightSettingsSet(handle.db, 4)).resolves.toMatchObject({ sectorPreflightConcurrency: 4, source: "db" });
   });
 });

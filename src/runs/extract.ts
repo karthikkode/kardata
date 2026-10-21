@@ -740,6 +740,7 @@ export async function runExtraction(
     docOnly: 0,
     mismatch: 0,
     unverified: 0,
+    verifiedValue: 0,
     total: 0,
     error: null,
   };

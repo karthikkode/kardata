@@ -329,7 +329,7 @@ export interface CompanyContextOptions {
   includeUnverified?: boolean;
 }
 
-const GROUNDED = ["verified", "doc_only"] as const;
+const GROUNDED = ["verified", "doc_only", "verified_value"] as const;
 
 export async function getCompanyContext(
   db: Db,

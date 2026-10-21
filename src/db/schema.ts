@@ -224,7 +224,13 @@ export const documentKind = pgEnum("document_kind", [
   "artifact",
 ]);
 export const confidence = pgEnum("confidence", ["low", "medium", "high"]);
-export const verificationStatus = pgEnum("verification_status", ["verified", "doc_only", "unverified", "quote_mismatch"]);
+export const verificationStatus = pgEnum("verification_status", [
+  "verified",
+  "doc_only",
+  "unverified",
+  "quote_mismatch",
+  "verified_value",
+]);
 export const findingStatus = pgEnum("finding_status", ["supported", "conflicting", "unverified"]);
 export const areaStatus = pgEnum("area_status", ["done", "not_found", "blocked", "error", "skipped"]);
 
@@ -909,6 +915,7 @@ export const sectorPreflightJobs = pgTable("sector_preflight_jobs", {
   pauseReason: text("pause_reason"),
   startedRuns: integer("started_runs").notNull().default(0),
   inputTokensSpent: bigint("input_tokens_spent", { mode: "number" }).notNull().default(0),
+  memHolds: integer("mem_holds").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   finishedAt: timestamp("finished_at", { withTimezone: true }),
 });
