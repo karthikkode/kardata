@@ -148,7 +148,11 @@ describe("migrations on kardata_test", () => {
     );
     expect(idx).toHaveLength(1);
     expect(idx[0]?.indexdef).toContain("WHERE");
-    expect(idx[0]?.indexdef).toContain("sector_preflight");
+    // Scoped to the creation-time kinds only (later-added enum values are
+    // unusable in the same transaction on a fresh database).
+    expect(idx[0]?.indexdef).toContain("agent");
+    expect(idx[0]?.indexdef).toContain("collect");
+    expect(idx[0]?.indexdef).not.toContain("sector_preflight");
     const checks = await query<{ conname: string }>(
       sql`SELECT conname FROM pg_constraint WHERE conname IN ('findings_source_ids_not_empty', 'area_statuses_reason_required')`,
     );

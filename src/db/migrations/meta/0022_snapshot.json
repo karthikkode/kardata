@@ -2903,7 +2903,7 @@
             }
           ],
           "isUnique": true,
-          "where": "\"research_runs\".\"status\" IN ('queued', 'running') AND \"research_runs\".\"kind\" <> 'sector_preflight'",
+          "where": "\"research_runs\".\"status\" IN ('queued', 'running') AND \"research_runs\".\"kind\" IN ('agent', 'collect')",
           "concurrently": false,
           "method": "btree",
           "with": {}

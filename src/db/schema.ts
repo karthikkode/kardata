@@ -438,11 +438,14 @@ export const researchRuns = pgTable(
     lastActivityAt: timestamp("last_activity_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    // Sector classification runs coexist with company-job runs: they write
-    // only their own run row plus sector_preflight, never research state.
+    // One active agent/collect run per company. sector_preflight runs are
+    // independent (own run row plus sector_preflight only) and manual runs
+    // never sit queued/running, so neither is constrained. Lists the
+    // creation-time enum values only: values added later are unusable in the
+    // same transaction on a fresh migrating database.
     uniqueIndex("research_runs_one_active_idx")
       .on(t.companyId)
-      .where(sql`${t.status} IN ('queued', 'running') AND ${t.kind} <> 'sector_preflight'`),
+      .where(sql`${t.status} IN ('queued', 'running') AND ${t.kind} IN ('agent', 'collect')`),
     index("research_runs_company_job_idx").on(t.companyJobId, t.id),
   ],
 );
