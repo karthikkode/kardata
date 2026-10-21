@@ -54,6 +54,7 @@ describe("migrations on kardata_test", () => {
       "sectors",
       "shortlists",
       "sources",
+      "web_searches",
     ]);
   });
 

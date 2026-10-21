@@ -55,6 +55,79 @@ function num(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+function readAt(record) {
+  if (typeof record.recorded_at === "string") return record.recorded_at;
+  if (typeof record.recorded_at === "number" && Number.isFinite(record.recorded_at)) {
+    return new Date(Math.floor(record.recorded_at / 1000)).toISOString();
+  }
+  return null;
+}
+
+const FETCH_SNIPPET_CHARS = 2000;
+
+function buildSearches(webCalls, webResults, area) {
+  const searches = [];
+  for (const [callId, call] of webCalls) {
+    const text = webResults.get(callId);
+    if (call.name === "web_search") {
+      let query = null;
+      try {
+        query = JSON.parse(call.args || "{}").query;
+      } catch {
+        /* fall through to null */
+      }
+      let results = [];
+      if (typeof text === "string") {
+        try {
+          const parsed = JSON.parse(text);
+          if (Array.isArray(parsed.results)) {
+            results = parsed.results.map((res, i) => ({
+              url: typeof res.url === "string" ? res.url : "",
+              title: typeof res.title === "string" ? res.title : null,
+              snippet: typeof res.snippet === "string" ? res.snippet : null,
+              rank: i,
+            }));
+          }
+          if (typeof query !== "string" && typeof parsed.query === "string") query = parsed.query;
+        } catch {
+          /* unparseable result: no rows */
+        }
+      }
+      searches.push({
+        call_id: callId,
+        tool: "web_search",
+        query_or_url: typeof query === "string" ? query : "",
+        results,
+        result_count: results.length,
+        at: call.at,
+        area,
+      });
+    } else {
+      let url = "";
+      try {
+        const parsed = JSON.parse(call.args || "{}").url;
+        if (typeof parsed === "string") url = parsed;
+      } catch {
+        /* fall through to empty */
+      }
+      const results =
+        typeof text === "string" && text
+          ? [{ url, title: null, snippet: text.slice(0, FETCH_SNIPPET_CHARS), rank: 0 }]
+          : [];
+      searches.push({
+        call_id: callId,
+        tool: "web_fetch",
+        query_or_url: url,
+        results,
+        result_count: results.length,
+        at: call.at,
+        area,
+      });
+    }
+  }
+  return searches;
+}
+
 function innerEvent(record) {
   const p = record.payload || {};
   if (p.event && p.event.event) return p.event.event;
@@ -67,6 +140,9 @@ function parseFile(logPath, sessionId, childSessionId) {
   const responses = [];
   const messages = new Map();
   const toolCalls = new Map();
+  const webCalls = new Map();
+  const webResults = new Map();
+  const areaVotes = new Map();
   let model = null;
   let provider = null;
   for (const line of text.split("\n")) {
@@ -123,9 +199,42 @@ function parseFile(logPath, sessionId, childSessionId) {
       for (const c of inner.tool_calls) {
         if (c && typeof c.name === "string") {
           list.push({ name: c.name, call_id: typeof c.call_id === "string" ? c.call_id : null });
+          if (c.name === "web_search" || c.name === "web_fetch") {
+            webCalls.set(c.call_id, {
+              name: c.name,
+              args: typeof c.args === "string" ? c.args : null,
+              at: readAt(r),
+            });
+          } else if (c.name === "mcp__kardata__area_status_set" && typeof c.args === "string") {
+            try {
+              const area = JSON.parse(c.args).area;
+              if (typeof area === "string" && area) {
+                areaVotes.set(area, (areaVotes.get(area) || 0) + 1);
+              }
+            } catch {
+              /* unparseable args vote nothing */
+            }
+          } else if (c.name === "mcp__kardata__document_save" && typeof c.args === "string") {
+            try {
+              const path = String(JSON.parse(c.args).path || "");
+              // Area is the first folder, else "other" (mirrors document_save).
+              const area = path.includes("/") ? path.split("/")[0] : "other";
+              if (area) areaVotes.set(area, (areaVotes.get(area) || 0) + 1);
+            } catch {
+              /* unparseable args vote nothing */
+            }
+          }
         }
       }
       toolCalls.set(inner.response_id, list);
+    } else if (kind === "tool_result_batch_committed") {
+      const results = inner.results;
+      if (!Array.isArray(results)) continue;
+      for (const res of results) {
+        if (res && typeof res.tool_call_id === "string" && typeof res.text === "string") {
+          webResults.set(res.tool_call_id, res.text);
+        }
+      }
     }
   }
   usages.sort((a, b) => a.seq - b.seq);
@@ -150,7 +259,19 @@ function parseFile(logPath, sessionId, childSessionId) {
       tool_calls: responseId ? toolCalls.get(responseId) || [] : [],
     };
   });
-  return { calls, model };
+  let area = null;
+  let best = 0;
+  for (const [name, votes] of areaVotes) {
+    if (votes > best) {
+      area = name;
+      best = votes;
+    }
+  }
+  const searches = buildSearches(webCalls, webResults, area).map((s) => ({
+    ...s,
+    child_session_id: childSessionId,
+  }));
+  return { calls, model, searches };
 }
 
 function main() {
@@ -167,6 +288,7 @@ function main() {
     return;
   }
   const calls = [];
+  const searches = [];
   let model = null;
   const files = [path.join(dir, "session.jsonl"), ...collectLogs(dir, [])];
   for (const file of files) {
@@ -175,11 +297,12 @@ function main() {
       const parsed = parseFile(file, sessionId, childId);
       if (!model && parsed.model) model = parsed.model;
       for (const c of parsed.calls) calls.push(c);
+      for (const s of parsed.searches || []) searches.push(s);
     } catch {
       // Files that fail to parse contribute nothing.
     }
   }
-  console.log(JSON.stringify({ calls, model }));
+  console.log(JSON.stringify({ calls, model, searches }));
 }
 
 main();

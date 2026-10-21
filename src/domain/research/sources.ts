@@ -104,6 +104,7 @@ export async function captureSource(db: DbLike, input: CaptureSourceInput): Prom
       httpStatus: null,
       title: input.title?.trim() ? input.title.trim().slice(0, 500) : null,
       via: input.via,
+      evidenceGrade: input.via === "search" || input.via === "muse_fetch" ? "secondary" : "primary",
       thin,
       blobSha256: sha,
     })

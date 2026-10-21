@@ -231,6 +231,10 @@ export const verificationStatus = pgEnum("verification_status", [
   "quote_mismatch",
   "verified_value",
 ]);
+// How the source text was obtained: primary = our fetcher, the browser on
+// the company's own site, or official APIs; secondary = muse_fetch or
+// search snippets.
+export const evidenceGrade = pgEnum("evidence_grade", ["primary", "secondary"]);
 export const findingStatus = pgEnum("finding_status", ["supported", "conflicting", "unverified"]);
 export const areaStatus = pgEnum("area_status", ["done", "not_found", "blocked", "error", "skipped"]);
 
@@ -506,6 +510,10 @@ export const sources = pgTable(
     title: text("title"),
     via: text("via"),
     thin: boolean("thin").notNull().default(false),
+    evidenceGrade: evidenceGrade("evidence_grade").notNull().default("primary"),
+    webSearchId: uuid("web_search_id").references((): AnyPgColumn => webSearches.id, {
+      onDelete: "set null",
+    }),
     details: jsonb("details").$type<Record<string, unknown> | null>(),
     fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
     blobSha256: text("blob_sha256").references(() => blobs.sha256),
@@ -519,6 +527,40 @@ export const sources = pgTable(
     index("sources_tsv_idx").using("gin", t.tsv),
   ],
 );
+
+// Every Muse web_search / web_fetch call an agent made, ingested post-run
+// from the app Muse session log (main session + subagents).
+export interface WebSearchResult {
+  url: string;
+  title: string | null;
+  snippet: string | null;
+  rank: number;
+}
+
+export const webSearches = pgTable(
+  "web_searches",
+  {
+    id: uuid("id").primaryKey(),
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => researchRuns.id, { onDelete: "cascade" }),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    // Child session id for subagent calls, null for the main session.
+    subagent: text("subagent"),
+    // Area derived from the caller's area_status_set / document_save calls.
+    area: text("area"),
+    tool: text("tool").notNull(),
+    queryOrUrl: text("query_or_url").notNull(),
+    results: jsonb("results").$type<WebSearchResult[]>().notNull(),
+    resultCount: integer("result_count").notNull(),
+    at: timestamp("at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("web_searches_run_idx").on(t.runId), index("web_searches_company_idx").on(t.companyId)],
+);
+export type WebSearch = typeof webSearches.$inferSelect;
 
 export const documents = pgTable(
   "documents",
