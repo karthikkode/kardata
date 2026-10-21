@@ -19,6 +19,7 @@ import {
 import { checkPreflightGate, getPreflightSummary } from "../domain/company-jobs/preflight.js";
 import { logJobEvent } from "../domain/company-jobs/events.js";
 import { DomainError, isUniqueViolation } from "../domain/errors.js";
+import { resolvePlanAdapters } from "../collect/adapters.js";
 import { researchStart } from "./agent.js";
 import {
   JOB_SAME_ERROR_PAUSE,
@@ -554,6 +555,31 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
     }
     const paused = await budgetPause(current);
     if (paused) return;
+    if (target === "collect") {
+      // The plan gates collect: unknown adapters pause immediately for
+      // onboarding (never improvised), and the plan is logged for replay.
+      const gate = await checkPreflightGate(db, job.id);
+      if (!gate.ok) {
+        await companyJobPause(db, job.id, `collect blocked: ${gate.reason}`);
+        return;
+      }
+      const wanted = gate.report.adaptersRequired.map((a) => a.adapterId);
+      const { unknown } = resolvePlanAdapters(wanted);
+      if (unknown.length > 0) {
+        await companyJobPause(
+          db,
+          job.id,
+          `adapter_missing: no adapter for ${unknown.join(", ")} (onboard it, then resume)`,
+        );
+        await logJobEvent(db, job.id, "collect_blocked", "collect", { unknown });
+        return;
+      }
+      await logJobEvent(db, job.id, "collect_plan", "collect", {
+        adapters: wanted,
+        missing: gate.report.adaptersMissing.map((m) => m.suggestedId),
+        directives: gate.report.collectDirectives,
+      });
+    }
     const outcome = await beginStage(current, target);
     if ("busy" in outcome) return;
     await db.update(companyJobs).set({ currentStage: target }).where(eq(companyJobs.id, job.id));

@@ -31,6 +31,7 @@ import {
   searchAll,
 } from "../domain/research/reads.js";
 import { preflightReportSchema, savePreflightReportForRun } from "../domain/company-jobs/preflight.js";
+import { ADAPTERS } from "../collect/adapters.js";
 import { researchStart } from "../runs/agent.js";
 import {
   jobCancel,
@@ -1278,6 +1279,19 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const view = await companyJobStatus(db, id);
         return { summary: `job ${id}: ${view.job.status}, ${view.derived}`, data: view };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "adapter_list",
+    {
+      description: "Operator: the onboarded source adapters (id, version, areas). Collect runs only these; anything else pauses for onboarding.",
+      inputSchema: {},
+    },
+    async () =>
+      wrap(async () => {
+        const adapters = ADAPTERS.map((a) => ({ id: a.id, version: a.version, areas: a.areas, blurb: a.blurb }));
+        return { summary: `${adapters.length} adapters`, data: { adapters } };
       }),
   );
 

@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { toEffectiveCompany } from "../domain/companies.js";
 import { DomainError } from "../domain/errors.js";
-import { COLLECTORS } from "../collect/collectors/index.js";
+import { ADAPTERS } from "../collect/adapters.js";
 import type { PromptContext } from "./agent-runner.js";
 
 /** Versioned research prompts: v0 is one file; v1+ is main.md plus area briefs. */
@@ -164,29 +164,9 @@ export function buildResearchPrompt(ctx: PromptContext): string {
   return renderVersioned(version, ctx);
 }
 
-/** One-line blurbs for the known collect adapters (ids come from the registry). */
-const ADAPTER_BLURBS: Record<string, string> = {
-  site: "company website crawl",
-  shopify: "storefront products + theme",
-  jobs: "job-board postings",
-  reviews: "third-party review platforms",
-  reviews_onsite: "on-site review widget",
-  stack: "Apollo technology mapping",
-  feeds: "RSS/Atom feeds",
-  news: "GDELT news search",
-  sec_form_d: "SEC Form D filings",
-  wayback: "Internet Archive snapshots",
-  companies_house: "UK company registry",
-  apollo_profile: "Apollo firmographics",
-};
-
 /** Known collect adapters, one line each, for the preflight planner. */
 export function preflightAdapterList(): string[] {
-  return COLLECTORS.map((c) => {
-    const blurb = ADAPTER_BLURBS[c.name];
-    if (!blurb) throw new Error(`preflight prompt is missing a blurb for adapter "${c.name}"`);
-    return `${c.name} (${blurb})`;
-  });
+  return ADAPTERS.map((a) => `${a.id} (${a.blurb})`);
 }
 
 export function buildPreflightPrompt(ctx: PromptContext): string {

@@ -223,7 +223,7 @@ function makeFixture(opts: {
     collect: async (runId: string) => {
       collectCalls.push(runId);
       if (opts.collectImpl) return opts.collectImpl(runId);
-      return { runId, status: "succeeded", outcomes: [] };
+      return { runId, status: "succeeded", outcomes: [], adapters: [], skippedAdapters: [], unknownAdapters: [] };
     },
     stopLabeledContainers: async () => {
       fixture.stopLabeledCalls += 1;
@@ -315,7 +315,7 @@ describe("agent runner", () => {
       scriptFor: () => ({ events: [COMPLETED] }),
       collectImpl: async (runId) => {
         order.push("collect");
-        return { runId, status: "succeeded", outcomes: [] };
+        return { runId, status: "succeeded", outcomes: [], adapters: [], skippedAdapters: [], unknownAdapters: [] };
       },
     });
     const companyId = await makeCompany("A Co");
@@ -434,7 +434,7 @@ describe("agent runner", () => {
       scriptFor: () => ({ events: [COMPLETED] }),
       collectImpl: async (runId) => {
         await gate;
-        return { runId, status: "succeeded", outcomes: [] };
+        return { runId, status: "succeeded", outcomes: [], adapters: [], skippedAdapters: [], unknownAdapters: [] };
       },
     });
     const a = await makeCompany("A Co");
@@ -628,7 +628,7 @@ describe("agent runner", () => {
       scriptFor: () => ({ events: [COMPLETED] }),
       collectImpl: async (runId) => {
         await gate;
-        return { runId, status: "succeeded", outcomes: [] };
+        return { runId, status: "succeeded", outcomes: [], adapters: [], skippedAdapters: [], unknownAdapters: [] };
       },
     });
     const companyId = await makeCompany("A Co");
@@ -646,7 +646,7 @@ describe("agent runner", () => {
   it("marks a collector-cancelled collect as cancelled", async () => {
     const fx = makeFixture({
       scriptFor: () => ({ events: [COMPLETED] }),
-      collectImpl: async (runId) => ({ runId, status: "cancelled", outcomes: [] }),
+      collectImpl: async (runId) => ({ runId, status: "cancelled", outcomes: [], adapters: [], skippedAdapters: [], unknownAdapters: [] }),
     });
     const companyId = await makeCompany("A Co");
     const started = await researchStart(handle.db, { companyIds: [companyId] });

@@ -436,6 +436,42 @@ describe("preflight gate", () => {
   });
 });
 
+describe("adapter gating", () => {
+  it("pauses on unknown adapters and proceeds once the plan is fixed", async () => {
+    const companyId = await makeCompany("Acme");
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    await savePreflightReport(handle.db, {
+      jobId,
+      companyId,
+      report: {
+        version: 1,
+        reviewLocations: [],
+        adaptersRequired: [{ adapterId: "nope", reason: "test" }],
+        adaptersMissing: [],
+        collectDirectives: { areas: [], notes: "" },
+        confidence: 0.9,
+        notes: "",
+      },
+    });
+    const world = fakeWorld();
+    const runner = createCompanyRunner(handle.db, world.deps());
+    await runner.tick();
+    const preflight = await latestSubjob(jobId, "preflight");
+    if (!preflight) throw new Error("no subjob");
+    await flipRun(preflight.id, "succeeded");
+    await runner.tick();
+    const paused = await jobRow(jobId);
+    expect(paused.status).toBe("paused");
+    expect(paused.pauseReason ?? "").toContain("adapter_missing");
+    expect(await latestSubjob(jobId, "collect")).toBeNull();
+
+    await fileReport(jobId, companyId);
+    await companyJobResume(handle.db, jobId);
+    await runner.tick();
+    expect(await latestSubjob(jobId, "collect")).not.toBeNull();
+  });
+});
+
 describe("cancel and retry", () => {
   it("cancels the active subjob by default, and never resurrects", async () => {
     const companyId = await makeCompany("Acme");

@@ -79,6 +79,7 @@ const EXPECTED_TOOLS = [
   "harness_settings_get",
   "harness_settings_set",
   "preflight_report_save",
+  "adapter_list",
   "company_job_start",
   "company_job_status",
   "company_jobs_list",
@@ -326,6 +327,12 @@ describe("mcp tools", () => {
     await call("company_job_resume", { jobId });
     const resumed = dataOf(await call("company_job_status", { jobId }));
     expect((resumed.job as { status: string }).status).toBe("running");
+
+    const adapters = dataOf(await call("adapter_list", {}));
+    const entries = (adapters.adapters as { id: string; version: string }[]) ?? [];
+    expect(entries.length).toBeGreaterThanOrEqual(12);
+    expect(entries.map((a) => a.id)).toContain("reviews_onsite");
+    expect(entries.every((a) => /^\d+\.\d+\.\d+$/.test(a.version))).toBe(true);
 
     const conc = dataOf(await call("company_concurrency_get", {}));
     expect(conc.companyConcurrency).toBe(4);
