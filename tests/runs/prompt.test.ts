@@ -29,6 +29,8 @@ function ctx(overrides: {
       requestedAreas: null,
       batchId: null,
       jobId: null,
+      companyJobId: null,
+      stage: null,
       error: null,
       promptVersion: null,
       agentPhase: "researching",

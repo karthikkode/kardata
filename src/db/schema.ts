@@ -185,6 +185,20 @@ export const runStatus = pgEnum("run_status", [
   "cancelled",
   "stalled",
 ]);
+export const companyJobStatus = pgEnum("company_job_status", [
+  "queued",
+  "running",
+  "paused",
+  "completed",
+  "failed",
+  "cancelled",
+]);
+export const companyJobStage = pgEnum("company_job_stage", [
+  "preflight",
+  "collect",
+  "research",
+  "extraction",
+]);
 export const sourceStatus = pgEnum("source_status", [
   "ok",
   "not_found",
@@ -382,6 +396,9 @@ export const researchRuns = pgTable(
     requestedAreas: area("requested_areas").array(),
     batchId: uuid("batch_id"),
     jobId: uuid("job_id").references(() => bulkJobs.id, { onDelete: "set null" }),
+    // Stage 5: subjob of a company job. Null = legacy / operator run.
+    companyJobId: uuid("company_job_id").references(() => companyJobs.id, { onDelete: "set null" }),
+    stage: companyJobStage("stage"),
     error: text("error"),
     // Agent runs only (Stage 3b Step 2): phase while running, the options
     // research_start was called with, and the researching outcome.
@@ -404,6 +421,7 @@ export const researchRuns = pgTable(
     uniqueIndex("research_runs_one_active_idx")
       .on(t.companyId)
       .where(sql`${t.status} IN ('queued', 'running')`),
+    index("research_runs_company_job_idx").on(t.companyJobId, t.id),
   ],
 );
 
@@ -685,3 +703,130 @@ export const harnessSettings = pgTable("harness_settings", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 export type HarnessSetting = typeof harnessSettings.$inferSelect;
+
+// ---- Stage 5: company jobs (one job per company, subjobs per stage) ----
+
+export const companyJobs = pgTable(
+  "company_jobs",
+  {
+    id: uuid("id").primaryKey(),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    status: companyJobStatus("status").notNull().default("queued"),
+    currentStage: companyJobStage("current_stage"),
+    errorClass: text("error_class"),
+    pauseReason: text("pause_reason"),
+    maxInputTokens: bigint("max_input_tokens", { mode: "number" }),
+    maxHours: doublePrecision("max_hours"),
+    inputTokensSpent: bigint("input_tokens_spent", { mode: "number" }).notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (t) => [
+    // AC-1: at most one active company job per company.
+    uniqueIndex("company_jobs_one_active_idx")
+      .on(t.companyId)
+      .where(sql`${t.status} IN ('queued', 'running', 'paused')`),
+  ],
+);
+export type CompanyJob = typeof companyJobs.$inferSelect;
+
+export const preflightReports = pgTable(
+  "preflight_reports",
+  {
+    id: uuid("id").primaryKey(),
+    jobId: uuid("job_id")
+      .notNull()
+      .references(() => companyJobs.id, { onDelete: "cascade" }),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    reportVersion: integer("report_version").notNull().default(1),
+    report: jsonb("report").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("preflight_reports_job_version_idx").on(t.jobId, t.reportVersion)],
+);
+export type PreflightReport = typeof preflightReports.$inferSelect;
+
+// ---- Stage 5: run logging (providers, job events, HTTP fetches) ----
+
+export const providerCalls = pgTable(
+  "provider_calls",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    companyJobId: uuid("company_job_id").references(() => companyJobs.id, { onDelete: "set null" }),
+    runId: uuid("run_id").references(() => researchRuns.id, { onDelete: "cascade" }),
+    stage: companyJobStage("stage").notNull(),
+    // Natural key from the CLI's goal_usage_attribution records; null for
+    // dispatch-time prompt rows filled in when attribution arrives.
+    usageId: text("usage_id"),
+    sessionId: text("session_id"),
+    childSessionId: text("child_session_id"),
+    seq: integer("seq").notNull().default(0),
+    responseId: text("response_id"),
+    model: text("model"),
+    provider: text("provider"),
+    promptSha256: text("prompt_sha256").references(() => blobs.sha256),
+    responseSha256: text("response_sha256").references(() => blobs.sha256),
+    inputTokens: integer("input_tokens").notNull().default(0),
+    outputTokens: integer("output_tokens").notNull().default(0),
+    cachedTokens: integer("cached_tokens").notNull().default(0),
+    reasoningTokens: integer("reasoning_tokens").notNull().default(0),
+    costUsd: doublePrecision("cost_usd"),
+    durationMs: integer("duration_ms"),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("provider_calls_usage_idx").on(t.usageId).where(sql`${t.usageId} IS NOT NULL`),
+    index("provider_calls_job_idx").on(t.companyJobId, t.id),
+    index("provider_calls_run_idx").on(t.runId, t.id),
+  ],
+);
+export type ProviderCall = typeof providerCalls.$inferSelect;
+
+export const jobEvents = pgTable(
+  "job_events",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    jobId: uuid("job_id")
+      .notNull()
+      .references(() => companyJobs.id, { onDelete: "cascade" }),
+    stage: companyJobStage("stage"),
+    type: text("type").notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("job_events_job_idx").on(t.jobId, t.id)],
+);
+export type JobEvent = typeof jobEvents.$inferSelect;
+
+export const httpFetches = pgTable(
+  "http_fetches",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    companyJobId: uuid("company_job_id").references(() => companyJobs.id, { onDelete: "set null" }),
+    runId: uuid("run_id").references(() => researchRuns.id, { onDelete: "set null" }),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    collector: text("collector").notNull(),
+    url: text("url").notNull(),
+    host: text("host").notNull(),
+    method: text("method").notNull().default("GET"),
+    statusCode: integer("status_code"),
+    bytes: integer("bytes"),
+    durationMs: integer("duration_ms"),
+    cached: boolean("cached").notNull().default(false),
+    area: text("area"),
+    sourceId: uuid("source_id").references(() => sources.id, { onDelete: "set null" }),
+    error: text("error"),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("http_fetches_job_idx").on(t.companyJobId, t.id),
+    index("http_fetches_run_idx").on(t.runId, t.id),
+  ],
+);
+export type HttpFetch = typeof httpFetches.$inferSelect;
