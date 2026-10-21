@@ -2,6 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "../../db/client.js";
 import {
+  companies,
   sectorCompanies,
   sectorEligibilityOverrides,
   sectorPreflight,
@@ -97,6 +98,108 @@ export interface DerivedTriple {
   reason: string | null;
 }
 
+// Owner scope decision: in-sector = D2C, selling its own products through
+// its own store, and the products are skincare-related. Hair, makeup,
+// fragrance and supplements count only when skin-related; everything else
+// (including low-confidence rows without skin evidence) is out.
+const SCOPE_CORE_CATEGORIES = ["skincare", "body_bath", "mens_grooming"];
+const SCOPE_ADJACENT_CATEGORIES = ["haircare", "cosmetics_makeup", "fragrance", "supplements_wellness"];
+
+const SKIN_KEYWORDS = [
+  "skin",
+  "derma",
+  "dermat",
+  "collagen",
+  "elastin",
+  "retinol",
+  "retinoid",
+  "tretinoin",
+  "hyaluron",
+  "niacinamide",
+  "peptid",
+  "ceramid",
+  "moisturiz",
+  "moisturis",
+  "serum",
+  "acne",
+  "eczema",
+  "psoriasis",
+  "rosacea",
+  "sunscreen",
+  "sun screen",
+  "suncare",
+  "sun care",
+  "spf",
+  "exfoliat",
+  "cleanser",
+  "facial",
+  "face wash",
+  "facewash",
+  "toner",
+  "lotion",
+  "night cream",
+  "day cream",
+  "eye cream",
+  "vitamin c",
+  "glycolic",
+  "salicylic",
+  "azelaic",
+  "kojic",
+  "anti-ag",
+  "antiag",
+  "wrinkle",
+  "dark spot",
+  "hyperpigment",
+  "melasma",
+  "skin barrier",
+];
+
+export interface ScopeInput {
+  businessType: string;
+  primaryCategory: string;
+  sellsOwnProducts: boolean;
+  hasOnlineStore: boolean;
+  reason: string;
+  quote: string | null;
+  companyName: string;
+  apolloKeywords: string[];
+}
+
+/** First skin keyword hit over the classification evidence plus company facts, if any. */
+export function skinKeywordHit(input: Pick<ScopeInput, "reason" | "quote" | "companyName" | "apolloKeywords">): string | null {
+  const haystack = [input.reason, input.quote ?? "", input.companyName, input.apolloKeywords.join(" ")]
+    .join("\n")
+    .toLowerCase();
+  for (const keyword of SKIN_KEYWORDS) {
+    if (haystack.includes(keyword)) return keyword;
+  }
+  return null;
+}
+
+/**
+ * Binary sector-scope verdict over one classification. Confidence is
+ * deliberately ignored: skin evidence decides, so a blocked-site brand with
+ * Apollo skin keywords stays in while an unverifiable one drops out.
+ */
+export function evaluateSectorScope(input: ScopeInput): { eligible: boolean; reason: string } {
+  if (input.businessType !== "dtc_brand") {
+    return { eligible: false, reason: `sector scope: not D2C (${input.businessType})` };
+  }
+  if (!input.sellsOwnProducts) return { eligible: false, reason: "sector scope: no own products" };
+  if (!input.hasOnlineStore) return { eligible: false, reason: "sector scope: no online store" };
+  if (SCOPE_CORE_CATEGORIES.includes(input.primaryCategory)) {
+    return { eligible: true, reason: `sector scope: D2C ${input.primaryCategory}` };
+  }
+  if (SCOPE_ADJACENT_CATEGORIES.includes(input.primaryCategory)) {
+    const hit = skinKeywordHit(input);
+    if (hit) {
+      return { eligible: true, reason: `sector scope: D2C ${input.primaryCategory}, skin-related (${hit})` };
+    }
+    return { eligible: false, reason: `sector scope: ${input.primaryCategory} out of scope, not skin-related` };
+  }
+  return { eligible: false, reason: `sector scope: ${input.primaryCategory} out of scope` };
+}
+
 export function deriveForCompany(input: {
   classification: ClassifiedFields | null;
   override: { decision: "include" | "exclude"; note: string } | null;
@@ -190,6 +293,80 @@ export async function rederiveSector(db: Db, sectorId: string): Promise<Eligibil
     await deriveCompany(db, sectorId, member.companyId);
   }
   return eligibilityCounts(db, sectorId);
+}
+
+export interface ScopeApplyResult {
+  eligible: number;
+  ineligible: number;
+  skippedOverride: number;
+  skippedPending: number;
+}
+
+/**
+ * Resolve every classified, non-overridden membership to the binary sector
+ * scope (owner decision). Overrides always win; pending rows stay pending.
+ */
+export async function applySectorScope(db: Db, sectorId: string): Promise<ScopeApplyResult> {
+  await loadSector(db, sectorId);
+  const rows = await db
+    .select({
+      companyId: sectorCompanies.companyId,
+      businessType: sectorPreflight.businessType,
+      primaryCategory: sectorPreflight.primaryCategory,
+      sellsOwnProducts: sectorPreflight.sellsOwnProducts,
+      hasOnlineStore: sectorPreflight.hasOnlineStore,
+      reason: sectorPreflight.reason,
+      quote: sectorPreflight.quote,
+      name: companies.name,
+      keywords: companies.keywords,
+      override: sectorEligibilityOverrides.decision,
+    })
+    .from(sectorCompanies)
+    .innerJoin(companies, eq(companies.id, sectorCompanies.companyId))
+    .leftJoin(
+      sectorPreflight,
+      and(eq(sectorPreflight.sectorId, sectorCompanies.sectorId), eq(sectorPreflight.companyId, sectorCompanies.companyId)),
+    )
+    .leftJoin(
+      sectorEligibilityOverrides,
+      and(
+        eq(sectorEligibilityOverrides.sectorId, sectorCompanies.sectorId),
+        eq(sectorEligibilityOverrides.companyId, sectorCompanies.companyId),
+      ),
+    )
+    .where(eq(sectorCompanies.sectorId, sectorId));
+  const result: ScopeApplyResult = { eligible: 0, ineligible: 0, skippedOverride: 0, skippedPending: 0 };
+  for (const row of rows) {
+    if (row.override) {
+      result.skippedOverride += 1;
+      continue;
+    }
+    if (!row.businessType || !row.primaryCategory || !row.reason) {
+      result.skippedPending += 1;
+      continue;
+    }
+    const verdict = evaluateSectorScope({
+      businessType: row.businessType,
+      primaryCategory: row.primaryCategory,
+      sellsOwnProducts: row.sellsOwnProducts ?? false,
+      hasOnlineStore: row.hasOnlineStore ?? false,
+      reason: row.reason,
+      quote: row.quote,
+      companyName: row.name ?? "",
+      apolloKeywords: row.keywords ?? [],
+    });
+    await db
+      .update(sectorCompanies)
+      .set({
+        eligibility: verdict.eligible ? "eligible" : "ineligible",
+        eligibilitySource: "rule",
+        eligibilityReason: verdict.reason,
+      })
+      .where(and(eq(sectorCompanies.sectorId, sectorId), eq(sectorCompanies.companyId, row.companyId)));
+    if (verdict.eligible) result.eligible += 1;
+    else result.ineligible += 1;
+  }
+  return result;
 }
 
 /** Validate, store, and re-derive; returns before→after counts. */

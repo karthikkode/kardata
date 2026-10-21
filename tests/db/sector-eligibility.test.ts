@@ -5,6 +5,7 @@ import type { DbHandle } from "../../src/db/client.js";
 import { companies, sectorCompanies, sectorPreflight, sectors } from "../../src/db/schema.js";
 import {
   DEFAULT_SKINCARE_RUBRIC,
+  applySectorScope,
   deriveCompany,
   eligibilityCounts,
   getRubric,
@@ -93,6 +94,29 @@ describe("sector eligibility", () => {
     await expect(deriveCompany(handle.db, sectorId, b)).resolves.toMatchObject({ eligibility: "ineligible" });
     await expect(deriveCompany(handle.db, sectorId, c)).resolves.toMatchObject({ eligibility: "review" });
     await expect(eligibilityCounts(handle.db, sectorId)).resolves.toEqual({ pending: 0, eligible: 1, review: 1, ineligible: 1 });
+  });
+
+  it("applies the binary sector scope, skipping overrides and pending rows", async () => {
+    const sectorId = await makeSector("Skincare");
+    const core = await addCompany(sectorId, "Skin Co");
+    const adjacent = await addCompany(sectorId, "Glam Co");
+    const rejected = await addCompany(sectorId, "Lens Co");
+    const overridden = await addCompany(sectorId, "Kept Co");
+    const pending = await addCompany(sectorId, "New Co");
+    await classify(sectorId, core);
+    await classify(sectorId, adjacent, { primaryCategory: "cosmetics_makeup", reason: "makeup with SPF skincare" });
+    await classify(sectorId, rejected, { primaryCategory: "other", reason: "sells contact lenses" });
+    await classify(sectorId, overridden, { primaryCategory: "other", reason: "sells contact lenses" });
+    await setOverride(handle.db, sectorId, overridden, "include", "owner call");
+    const result = await applySectorScope(handle.db, sectorId);
+    expect(result).toEqual({ eligible: 2, ineligible: 1, skippedOverride: 1, skippedPending: 1 });
+    expect((await membership(sectorId, core))?.eligibility).toBe("eligible");
+    expect((await membership(sectorId, adjacent))?.eligibility).toBe("eligible");
+    expect((await membership(sectorId, adjacent))?.eligibilityReason).toContain("skin-related");
+    expect((await membership(sectorId, rejected))?.eligibility).toBe("ineligible");
+    expect((await membership(sectorId, overridden))?.eligibility).toBe("eligible");
+    expect((await membership(sectorId, overridden))?.eligibilitySource).toBe("override");
+    expect((await membership(sectorId, pending))?.eligibility).toBe("pending");
   });
 
   it("overrides win and clear restores the rule", async () => {
