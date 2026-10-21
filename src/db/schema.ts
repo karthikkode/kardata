@@ -434,9 +434,11 @@ export const researchRuns = pgTable(
     lastActivityAt: timestamp("last_activity_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    // Sector classification runs coexist with company-job runs: they write
+    // only their own run row plus sector_preflight, never research state.
     uniqueIndex("research_runs_one_active_idx")
       .on(t.companyId)
-      .where(sql`${t.status} IN ('queued', 'running')`),
+      .where(sql`${t.status} IN ('queued', 'running') AND ${t.kind} <> 'sector_preflight'`),
     index("research_runs_company_job_idx").on(t.companyJobId, t.id),
   ],
 );

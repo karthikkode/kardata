@@ -322,6 +322,8 @@ export interface SectorRunnerDeps {
   classify?: (input: { sectorId: string; companyId: string; runId: string }) => Promise<unknown>;
   /** Available RAM in MB (default: reads /proc/meminfo; null = unknown, proceed). */
   memAvailableMB?: () => number | null;
+  /** Create the classify run row (default: createSectorRun). */
+  createRun?: (db: Db, companyId: string) => Promise<string>;
 }
 
 export interface SectorRunner {
@@ -440,7 +442,7 @@ export function createSectorRunner(db: Db, deps: SectorRunnerDeps): SectorRunner
   async function launch(job: SectorPreflightJob, itemId: string, companyId: string): Promise<void> {
     if (!job.sectorId) return;
     const sectorId = job.sectorId;
-    const runId = await createSectorRun(db, companyId);
+    const runId = await (deps.createRun ?? createSectorRun)(db, companyId);
     await db
       .update(sectorPreflightItems)
       .set({ status: "running", runId, startedAt: new Date(), attempts: sql`${sectorPreflightItems.attempts} + 1` })
@@ -484,7 +486,17 @@ export function createSectorRunner(db: Db, deps: SectorRunnerDeps): SectorRunner
       const [fresh] = await db.select().from(sectorPreflightItems).where(eq(sectorPreflightItems.id, item.id));
       if (!fresh || fresh.status !== "running") continue;
       if (!fresh.runId) {
-        if (feed && job.sectorId) await launch(job, fresh.id, fresh.companyId);
+        // A launch failure marks the item failed instead of stalling the tick:
+        // one poison item must never starve the rest of the job.
+        if (feed && job.sectorId) {
+          try {
+            await launch(job, fresh.id, fresh.companyId);
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.error(`sector job ${job.id} launch failed for item ${fresh.id}: ${message}`);
+            job = await failItem(job, fresh.id, "failed", `launch: ${message}`);
+          }
+        }
         continue;
       }
       const run = await loadRun(fresh.runId);
@@ -547,7 +559,14 @@ export function createSectorRunner(db: Db, deps: SectorRunnerDeps): SectorRunner
           .where(eq(sectorPreflightJobs.id, job.id));
         break;
       }
-      await launch(fresh, item.id, item.companyId);
+      try {
+        await launch(fresh, item.id, item.companyId);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`sector job ${job.id} launch failed for item ${item.id}: ${message}`);
+        job = await failItem(fresh, item.id, "failed", `launch: ${message}`);
+        if (job.status !== "running") break;
+      }
     }
   }
 

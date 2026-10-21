@@ -244,6 +244,57 @@ describe("sector runner", () => {
     await settle();
   });
 
+  it("classify runs coexist with an active company run for the same company", async () => {
+    const sectorId = await makeSector("Skincare");
+    const companyId = await addCompany(sectorId, "Busy Co");
+    await handle.db.insert(researchRuns).values({ id: randomUUID(), companyId, kind: "agent", status: "running" });
+    const { jobId } = await startSectorPreflight(handle.db, { sectorId });
+    const runner = createSectorRunner(handle.db, { pool: 1, classify: succeedCall() });
+    await runner.tick();
+    expect(await itemStatuses(jobId)).toEqual(["running"]);
+    await settle();
+    await runner.tick();
+    expect(await itemStatuses(jobId)).toEqual(["succeeded"]);
+    // But two agent runs still conflict (unique violation 23505).
+    const conflict = await handle.db
+      .insert(researchRuns)
+      .values({ id: randomUUID(), companyId, kind: "agent", status: "queued" })
+      .then(
+        () => null,
+        (e: unknown) => e as { cause?: { code?: string } },
+      );
+    expect(conflict?.cause?.code).toBe("23505");
+  });
+
+  it("marks launch failures failed and keeps feeding the rest", async () => {
+    const sectorId = await makeSector("Skincare");
+    const bad = await addCompany(sectorId, "Bad Co");
+    await addCompany(sectorId, "Good Co");
+    const { jobId } = await startSectorPreflight(handle.db, { sectorId });
+    const { createSectorRun } = await import("../../src/runs/sector-classify.js");
+    const runner = createSectorRunner(handle.db, {
+      pool: 2,
+      classify: succeedCall(),
+      createRun: async (db, companyId) => {
+        if (companyId === bad) throw new Error("boom");
+        return createSectorRun(db, companyId);
+      },
+    });
+    await runner.tick();
+    expect(await itemStatuses(jobId)).toEqual(["failed", "running"]);
+    const items = await handle.db
+      .select()
+      .from(sectorPreflightItems)
+      .where(eq(sectorPreflightItems.jobId, jobId));
+    const failed = items.find((i) => i.companyId === bad);
+    expect(failed?.error).toMatch(/launch: boom/);
+    const [job] = await handle.db.select().from(sectorPreflightJobs).where(eq(sectorPreflightJobs.id, jobId));
+    expect(job?.errorStreak).toBe(1);
+    await settle();
+    await runner.tick();
+    expect(await itemStatuses(jobId)).toEqual(["failed", "succeeded"]);
+  });
+
   it("holds launches when memory is low and counts the hold", async () => {
     const sectorId = await makeSector("Skincare");
     await addCompany(sectorId, "A Co");
