@@ -27,6 +27,8 @@ export interface AddFindingInput {
   status: string;
   tags?: string[];
   createdBy: string;
+  quote?: string | null;
+  quoteSourceId?: string | null;
 }
 
 async function checkOwned(
@@ -104,6 +106,8 @@ export async function addFinding(db: DbLike, input: AddFindingInput): Promise<st
       recordIds: [...new Set(input.recordIds ?? [])],
       confidence: input.confidence as typeof findings.$inferInsert.confidence,
       status: input.status as typeof findings.$inferInsert.status,
+      quote: input.quote ?? null,
+      quoteSourceId: input.quoteSourceId ?? null,
       tags: input.tags ?? [],
       createdBy: input.createdBy,
     })

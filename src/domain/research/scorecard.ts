@@ -53,6 +53,7 @@ export type ExtractorScore = AgentScore;
 export interface VerificationShares {
   verified: number;
   docOnly: number;
+  mismatch: number;
   unverified: number;
 }
 
@@ -147,12 +148,13 @@ function emptyAgent(): AgentScore {
 }
 
 function emptyVerification(): VerificationShares {
-  return { verified: 0, docOnly: 0, unverified: 0 };
+  return { verified: 0, docOnly: 0, mismatch: 0, unverified: 0 };
 }
 
 function bumpVerification(score: RunScore, verification: string): void {
   if (verification === "verified") score.verification.verified += 1;
   else if (verification === "doc_only") score.verification.docOnly += 1;
+  else if (verification === "quote_mismatch") score.verification.mismatch += 1;
   else score.verification.unverified += 1;
 }
 
@@ -491,6 +493,7 @@ function assemble(scores: Map<string, RunScore>): ScorecardResult {
     totals.findings += run.findings;
     totals.verification.verified += run.verification.verified;
     totals.verification.docOnly += run.verification.docOnly;
+    totals.verification.mismatch += run.verification.mismatch;
     totals.verification.unverified += run.verification.unverified;
     totals.agent.facts += run.agent.facts;
     for (const [type, n] of Object.entries(run.agent.recordsByType)) {

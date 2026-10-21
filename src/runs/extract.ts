@@ -37,7 +37,7 @@ type AreaName = (typeof areaEnum.enumValues)[number];
 
 function extractDir(): string {
   const here = dirname(fileURLToPath(import.meta.url));
-  return join(here, "..", "..", "prompts", "extract-v1");
+  return join(here, "..", "..", "prompts", "extract-v2");
 }
 
 export function extractSchema(): string {
@@ -227,6 +227,14 @@ export async function buildSynthesisPrompt(db: Db, runId: string): Promise<strin
 
 const qualifierPair = z.object({ name: z.string(), value: z.string() });
 
+// extract-v2: every item carries the verbatim quote supporting it plus the
+// id of the source the quote comes from (both required keys; empty when
+// the item has no grounding span, which verifies as unverified).
+const quoteShape = {
+  quote: z.string(),
+  quote_source_id: z.string(),
+};
+
 const extractionJson = z.object({
   facts: z
     .array(
@@ -241,6 +249,7 @@ const extractionJson = z.object({
         source_ids: z.array(z.string()),
         confidence: z.string(),
         note: z.string().nullable().optional(),
+        ...quoteShape,
       }),
     )
     .default([]),
@@ -251,6 +260,7 @@ const extractionJson = z.object({
         data: z.string(),
         source_ids: z.array(z.string()),
         natural_key: z.array(z.string()).nullable().optional(),
+        ...quoteShape,
       }),
     )
     .default([]),
@@ -263,6 +273,7 @@ const extractionJson = z.object({
         record_refs: z.array(z.number()).nullable().optional(),
         confidence: z.string(),
         status: z.string(),
+        ...quoteShape,
       }),
     )
     .default([]),
@@ -276,6 +287,8 @@ export interface ValidFact {
   sourceIds: string[];
   confidence: string;
   note?: string;
+  quote?: string;
+  quoteSourceId?: string;
 }
 
 export interface ValidRecord {
@@ -283,6 +296,8 @@ export interface ValidRecord {
   data: Record<string, unknown>;
   sourceIds: string[];
   naturalKey?: string[];
+  quote?: string;
+  quoteSourceId?: string;
 }
 
 export interface ValidFinding {
@@ -292,6 +307,8 @@ export interface ValidFinding {
   recordRefs: number[];
   confidence: string;
   status: string;
+  quote?: string;
+  quoteSourceId?: string;
 }
 
 export interface ValidatedExtraction {
@@ -319,12 +336,21 @@ export function validateExtractionJson(area: string, allowedIds: string[], json:
     return out;
   }
   const citedOutside = (ids: string[]): boolean => ids.some((id) => !allowed.has(id));
+  // A quote anchored to an id outside the provided list is an invented id.
+  const quoteOutside = (quoteSourceId: string): boolean =>
+    quoteSourceId.trim() !== "" && !allowed.has(quoteSourceId);
+  const cleanQuote = (quote: string, quoteSourceId: string): { quote?: string; quoteSourceId?: string } => {
+    const outQuote: { quote?: string; quoteSourceId?: string } = {};
+    if (quote.trim() !== "") outQuote.quote = quote;
+    if (quoteSourceId.trim() !== "") outQuote.quoteSourceId = quoteSourceId;
+    return outQuote;
+  };
   for (const fact of parsed.data.facts) {
     if (typeof fact.key !== "string" || fact.key.trim() === "" || fact.source_ids.length === 0) {
       out.droppedInvalid += 1;
       continue;
     }
-    if (citedOutside(fact.source_ids)) {
+    if (citedOutside(fact.source_ids) || quoteOutside(fact.quote_source_id)) {
       out.droppedOutOfList += 1;
       continue;
     }
@@ -353,6 +379,7 @@ export function validateExtractionJson(area: string, allowedIds: string[], json:
       value,
       sourceIds: fact.source_ids,
       confidence: fact.confidence,
+      ...cleanQuote(fact.quote, fact.quote_source_id),
     };
     if (fact.qualifiers) {
       item.qualifiers = {};
@@ -367,7 +394,7 @@ export function validateExtractionJson(area: string, allowedIds: string[], json:
       out.droppedInvalid += 1;
       continue;
     }
-    if (citedOutside(record.source_ids)) {
+    if (citedOutside(record.source_ids) || quoteOutside(record.quote_source_id)) {
       out.droppedOutOfList += 1;
       continue;
     }
@@ -387,6 +414,7 @@ export function validateExtractionJson(area: string, allowedIds: string[], json:
       type: record.type.trim(),
       data: obj,
       sourceIds: record.source_ids,
+      ...cleanQuote(record.quote, record.quote_source_id),
     };
     // natural_key names data fields; values slipped in by the model are not
     // keys of the object, so they fall back to the server default.
@@ -401,7 +429,7 @@ export function validateExtractionJson(area: string, allowedIds: string[], json:
       out.droppedInvalid += 1;
       continue;
     }
-    if (citedOutside(finding.source_ids)) {
+    if (citedOutside(finding.source_ids) || quoteOutside(finding.quote_source_id)) {
       out.droppedOutOfList += 1;
       continue;
     }
@@ -412,6 +440,7 @@ export function validateExtractionJson(area: string, allowedIds: string[], json:
       recordRefs: finding.record_refs ?? [],
       confidence: finding.confidence,
       status: finding.status,
+      ...cleanQuote(finding.quote, finding.quote_source_id),
     });
   }
   return out;
@@ -471,6 +500,8 @@ export async function writeExtraction(
         sourceIds: f.sourceIds,
         confidence: f.confidence,
         note: f.note,
+        quote: f.quote,
+        quoteSourceId: f.quoteSourceId,
       })),
     });
     for (let i = 0; i < results.length; i++) {
@@ -494,6 +525,8 @@ export async function writeExtraction(
         data: r.data,
         sourceIds: r.sourceIds,
         naturalKey: r.naturalKey,
+        quote: r.quote,
+        quoteSourceId: r.quoteSourceId,
       })),
     });
     for (let i = 0; i < results.length; i++) {
@@ -529,6 +562,8 @@ export async function writeExtraction(
         confidence: finding.confidence,
         status: finding.status,
         createdBy,
+        quote: finding.quote ?? null,
+        quoteSourceId: finding.quoteSourceId ?? null,
       });
       counts.writtenFindings += 1;
     } catch (err) {
@@ -683,6 +718,7 @@ export async function runExtraction(
   let verification: GroundCounts & { total: number; error: string | null } = {
     verified: 0,
     docOnly: 0,
+    mismatch: 0,
     unverified: 0,
     total: 0,
     error: null,

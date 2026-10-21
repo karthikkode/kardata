@@ -30,6 +30,8 @@ export interface UpsertRecordItem {
   // Internal: exact natural-key values, when they differ from the stored data
   // (reviews_ingest hashes normalized text but stores the original).
   keyValues?: Record<string, unknown>;
+  quote?: string | null;
+  quoteSourceId?: string | null;
 }
 
 export interface UpsertRecordsInput {
@@ -217,6 +219,8 @@ async function upsertOne(
         naturalKeyHash,
         data,
         sourceIds: [...new Set(item.sourceIds)],
+        quote: item.quote ?? null,
+        quoteSourceId: item.quoteSourceId ?? null,
         tags,
         firstSeenRunId: ctx.input.runId ?? null,
         lastSeenRunId: ctx.input.runId ?? null,
@@ -230,10 +234,14 @@ async function upsertOne(
   const merged = { ...existing.data, ...data };
   const union = [...new Set([...existing.sourceIds, ...item.sourceIds])];
   const tagsUnion = [...new Set([...existing.tags, ...tags])];
+  const quote = item.quote ?? null;
+  const quoteSourceId = item.quoteSourceId ?? null;
   if (
     JSON.stringify(merged) === JSON.stringify(existing.data) &&
     union.length === existing.sourceIds.length &&
-    tagsUnion.length === existing.tags.length
+    tagsUnion.length === existing.tags.length &&
+    (quote === null || quote === existing.quote) &&
+    (quoteSourceId === null || quoteSourceId === existing.quoteSourceId)
   ) {
     return { ok: true, id: existing.id, outcome: "unchanged", warnings };
   }
@@ -242,6 +250,8 @@ async function upsertOne(
     .set({
       data: merged,
       sourceIds: union,
+      quote: quote ?? existing.quote,
+      quoteSourceId: quoteSourceId ?? existing.quoteSourceId,
       tags: tagsUnion,
       lastSeenRunId: ctx.input.runId ?? existing.lastSeenRunId,
       updatedAt: new Date(),

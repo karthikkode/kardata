@@ -280,6 +280,7 @@ describe("scorecard", () => {
       facts: [
         { key: "product.count", value: 42, sourceIds: [own] },
         { key: "product.color", value: "red", sourceIds: [own] },
+        { key: "product.size", value: "big", sourceIds: [own] },
       ],
     });
     expect(factResults.every((r) => r.ok)).toBe(true);
@@ -297,13 +298,15 @@ describe("scorecard", () => {
       facts: [{ key: "product.count", value: 1, sourceIds: [own] }],
     });
     const factId = factResults[0]?.ok ? factResults[0].id : "";
+    const mismatchId = factResults[2]?.ok ? factResults[2].id : "";
     const recordId = recordResults[0]?.ok ? recordResults[0].id : "";
     await handle.db.update(facts).set({ verification: "verified" }).where(eq(facts.id, factId));
+    await handle.db.update(facts).set({ verification: "quote_mismatch" }).where(eq(facts.id, mismatchId));
     await handle.db.update(records).set({ verification: "doc_only" }).where(eq(records.id, recordId));
 
     const result = await scorecard(db(), { batchId });
-    expect(result.runs[0]?.verification).toEqual({ verified: 1, docOnly: 1, unverified: 1 });
-    expect(result.totals.verification).toEqual({ verified: 1, docOnly: 1, unverified: 1 });
+    expect(result.runs[0]?.verification).toEqual({ verified: 1, docOnly: 1, mismatch: 1, unverified: 1 });
+    expect(result.totals.verification).toEqual({ verified: 1, docOnly: 1, mismatch: 1, unverified: 1 });
   });
 
   it("resolves run ids, totals several runs, and rejects unknowns", async () => {

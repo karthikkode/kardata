@@ -13,9 +13,9 @@ function fmtShare(share: number | null): string {
 }
 
 function fmtGrounding(v: RunScore["verification"]): string {
-  const total = v.verified + v.docOnly + v.unverified;
+  const total = v.verified + v.docOnly + v.mismatch + v.unverified;
   if (total === 0) return "-";
-  return `${Math.round((v.verified / total) * 100)}% verified (${v.verified}/${v.docOnly}/${v.unverified})`;
+  return `${Math.round((v.verified / total) * 100)}% verified (${v.verified}/${v.docOnly}/${v.mismatch}/${v.unverified})`;
 }
 
 function fmtTokens(run: RunScore): string {

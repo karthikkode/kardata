@@ -200,7 +200,7 @@ export const documentKind = pgEnum("document_kind", [
   "artifact",
 ]);
 export const confidence = pgEnum("confidence", ["low", "medium", "high"]);
-export const verificationStatus = pgEnum("verification_status", ["verified", "doc_only", "unverified"]);
+export const verificationStatus = pgEnum("verification_status", ["verified", "doc_only", "unverified", "quote_mismatch"]);
 export const findingStatus = pgEnum("finding_status", ["supported", "conflicting", "unverified"]);
 export const areaStatus = pgEnum("area_status", ["done", "not_found", "blocked", "error", "skipped"]);
 
@@ -260,6 +260,8 @@ export const facts = pgTable(
     sourceIds: uuid("source_ids").array().notNull(),
     confidence: confidence("confidence").notNull(),
     verification: verificationStatus("verification").notNull().default("unverified"),
+    quote: text("quote"),
+    quoteSourceId: uuid("quote_source_id"),
     note: text("note"),
     tags: text("tags").array().notNull().default([]),
     createdBy: text("created_by").notNull(),
@@ -311,6 +313,8 @@ export const records = pgTable(
     data: jsonb("data").$type<Record<string, unknown>>().notNull(),
     sourceIds: uuid("source_ids").array().notNull(),
     verification: verificationStatus("verification").notNull().default("unverified"),
+    quote: text("quote"),
+    quoteSourceId: uuid("quote_source_id"),
     tags: text("tags").array().notNull().default([]),
     firstSeenRunId: uuid("first_seen_run_id").references(() => researchRuns.id, {
       onDelete: "set null",
@@ -529,6 +533,9 @@ export const findings = pgTable(
     sourceIds: uuid("source_ids").array().notNull(),
     factIds: uuid("fact_ids").array().notNull().default([]),
     recordIds: uuid("record_ids").array().notNull().default([]),
+    verification: verificationStatus("verification").notNull().default("unverified"),
+    quote: text("quote"),
+    quoteSourceId: uuid("quote_source_id"),
     tags: text("tags").array().notNull().default([]),
     confidence: confidence("confidence").notNull(),
     status: findingStatus("status").notNull(),
@@ -597,6 +604,8 @@ export const factsCurrent = pgView("facts_current").as((qb) =>
       sourceIds: facts.sourceIds,
       confidence: facts.confidence,
       verification: facts.verification,
+      quote: facts.quote,
+      quoteSourceId: facts.quoteSourceId,
       createdBy: facts.createdBy,
       createdAt: facts.createdAt,
       supersedesId: facts.supersedesId,
