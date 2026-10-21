@@ -19,6 +19,7 @@ import { recordEvent } from "../collect/db.js";
 import { DomainError } from "../domain/errors.js";
 import { addFacts } from "../domain/research/facts.js";
 import { addFinding } from "../domain/research/findings.js";
+import { verifyRunExtraction, type GroundCounts } from "../domain/research/grounding.js";
 import { blobText } from "../domain/research/reads.js";
 import { upsertRecords } from "../domain/research/records.js";
 import { MuseHandle } from "../harness/muse.js";
@@ -604,6 +605,7 @@ export interface AreaExtractionOutcome extends ExtractionWriteCounts {
 export interface RunExtractionOutcome {
   areas: AreaExtractionOutcome[];
   usage: HarnessUsage | undefined;
+  verification: GroundCounts & { total: number; error: string | null };
 }
 
 async function extractOneArea(
@@ -677,7 +679,22 @@ export async function runExtraction(
     areas.push(outcome);
     usage = addUsage(usage, outcome.usage);
   }
-  return { areas, usage };
+  // Grounding labels rows; it must never fail the extraction itself.
+  let verification: GroundCounts & { total: number; error: string | null } = {
+    verified: 0,
+    docOnly: 0,
+    unverified: 0,
+    total: 0,
+    error: null,
+  };
+  try {
+    const counts = await verifyRunExtraction(db, run.id);
+    verification = { ...counts, error: null };
+  } catch (err) {
+    verification.error = err instanceof Error ? err.message : String(err);
+  }
+  await recordEvent(db, run.id, "log", { grounding: { ...verification } });
+  return { areas, usage, verification };
 }
 
 /**

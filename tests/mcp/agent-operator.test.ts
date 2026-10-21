@@ -208,6 +208,7 @@ describe("agent operator tools", () => {
         url: "https://example.com/x",
         text: "x",
         via: "browser",
+        passages: ["x"],
       }),
     );
     await call(operator, "fact_add", {
@@ -253,6 +254,7 @@ describe("agent operator tools", () => {
         url: "https://example.com/x",
         text: "x",
         via: "browser",
+        passages: ["x"],
       }),
     );
     await call(operator, "fact_add", {

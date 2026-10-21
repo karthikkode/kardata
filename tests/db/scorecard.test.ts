@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
-import { companies, researchRuns, sources } from "../../src/db/schema.js";
+import { companies, facts, records, researchRuns, sources } from "../../src/db/schema.js";
 import { recordEvent } from "../../src/collect/db.js";
 import { addFacts } from "../../src/domain/research/facts.js";
 import { upsertRecords } from "../../src/domain/research/records.js";
@@ -264,6 +265,45 @@ describe("scorecard", () => {
     });
     expect(result.totals.tokens).toMatchObject({ input: 1000, output: 100, calls: 3 });
     expect(result.totals.childrenIncluded).toBe(true);
+  });
+
+  it("reports grounding verification shares over agent and extractor rows", async () => {
+    const companyId = await makeCompany();
+    const batchId = randomUUID();
+    const runId = await makeAgentRun(companyId, batchId);
+    const by = `agent:${runId}/product`;
+    const own = await makeSource(companyId, runId, "https://example.com/catalog");
+    const factResults = await addFacts(handle.db, {
+      companyId,
+      runId,
+      createdBy: by,
+      facts: [
+        { key: "product.count", value: 42, sourceIds: [own] },
+        { key: "product.color", value: "red", sourceIds: [own] },
+      ],
+    });
+    expect(factResults.every((r) => r.ok)).toBe(true);
+    const recordResults = await upsertRecords(handle.db, {
+      companyId,
+      runId,
+      createdBy: `extractor:${runId}/product`,
+      records: [{ type: "product", data: { name: "Cream", url: "https://example.com/cream" }, sourceIds: [own] }],
+    });
+    expect(recordResults.every((r) => r.ok)).toBe(true);
+    await addFacts(handle.db, {
+      companyId,
+      runId,
+      createdBy: "collector:test",
+      facts: [{ key: "product.count", value: 1, sourceIds: [own] }],
+    });
+    const factId = factResults[0]?.ok ? factResults[0].id : "";
+    const recordId = recordResults[0]?.ok ? recordResults[0].id : "";
+    await handle.db.update(facts).set({ verification: "verified" }).where(eq(facts.id, factId));
+    await handle.db.update(records).set({ verification: "doc_only" }).where(eq(records.id, recordId));
+
+    const result = await scorecard(db(), { batchId });
+    expect(result.runs[0]?.verification).toEqual({ verified: 1, docOnly: 1, unverified: 1 });
+    expect(result.totals.verification).toEqual({ verified: 1, docOnly: 1, unverified: 1 });
   });
 
   it("resolves run ids, totals several runs, and rejects unknowns", async () => {

@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { DbHandle } from "../../src/db/client.js";
-import { sources } from "../../src/db/schema.js";
+import { eq } from "drizzle-orm";
+import { runEvents, sources } from "../../src/db/schema.js";
 import { addFacts } from "../../src/domain/research/facts.js";
 import { upsertRecords } from "../../src/domain/research/records.js";
 import { runReviewsOnsite } from "../../src/collect/collectors/reviews-onsite.js";
@@ -138,6 +139,35 @@ describe("reviews_onsite collector", () => {
     const rows = (await recordsForRun(handle.db, runId)).filter((r) => r.type === "review");
     expect(rows).toHaveLength(1);
     expect(rows[0]?.createdBy).toBe("collector:reviews_onsite");
+  });
+
+  it("stores displayed totals per page and reports them per company", async () => {
+    const { ctx, runId } = await seedShopifyCtx("Judge.me", [{ handle: "glow", tags: [] }]);
+    const pageUrl = `${site.baseUrl}/products/glow`;
+    const runner: ReviewsJobRunner = async (input) => ({
+      pages: input.pages.map((p) => ({
+        url: p.url,
+        product: p.product,
+        vendor: "judgeme",
+        status: "done",
+        reviewCount: 1,
+        displayedTotal: 74,
+      })),
+      reviews: [{ text: "Synthetic glow review.", rating: 5, rating_scale: 5, date: "2026-10-01", url: pageUrl }],
+    });
+
+    const result = await runReviewsOnsite(ctx, runner);
+    expect(result.outcomes).toEqual([
+      { area: "reviews", status: "done", reason: "1 of 74 displayed reviews from 1 pages (Judge.me)" },
+    ]);
+    const [page] = await handle.db.select().from(sources).where(eq(sources.url, pageUrl));
+    expect(page?.details).toEqual({ displayedTotal: 74, ingestedOnPage: 1 });
+    const events = await handle.db.select().from(runEvents).where(eq(runEvents.runId, runId));
+    const logged = events.find((e) => "reviews_onsite" in (e.payload as Record<string, unknown>));
+    expect((logged?.payload as { reviews_onsite: { ingested: number; displayed: number } }).reviews_onsite).toMatchObject({
+      ingested: 1,
+      displayed: 74,
+    });
   });
 
   it("prefers hero products, caps at 10 pages, skips off-domain urls", async () => {

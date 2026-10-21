@@ -200,6 +200,7 @@ export const documentKind = pgEnum("document_kind", [
   "artifact",
 ]);
 export const confidence = pgEnum("confidence", ["low", "medium", "high"]);
+export const verificationStatus = pgEnum("verification_status", ["verified", "doc_only", "unverified"]);
 export const findingStatus = pgEnum("finding_status", ["supported", "conflicting", "unverified"]);
 export const areaStatus = pgEnum("area_status", ["done", "not_found", "blocked", "error", "skipped"]);
 
@@ -258,6 +259,7 @@ export const facts = pgTable(
     asOf: date("as_of"),
     sourceIds: uuid("source_ids").array().notNull(),
     confidence: confidence("confidence").notNull(),
+    verification: verificationStatus("verification").notNull().default("unverified"),
     note: text("note"),
     tags: text("tags").array().notNull().default([]),
     createdBy: text("created_by").notNull(),
@@ -308,6 +310,7 @@ export const records = pgTable(
     naturalKeyHash: text("natural_key_hash").notNull(),
     data: jsonb("data").$type<Record<string, unknown>>().notNull(),
     sourceIds: uuid("source_ids").array().notNull(),
+    verification: verificationStatus("verification").notNull().default("unverified"),
     tags: text("tags").array().notNull().default([]),
     firstSeenRunId: uuid("first_seen_run_id").references(() => researchRuns.id, {
       onDelete: "set null",
@@ -462,6 +465,8 @@ export const sources = pgTable(
     error: text("error"),
     title: text("title"),
     via: text("via"),
+    thin: boolean("thin").notNull().default(false),
+    details: jsonb("details").$type<Record<string, unknown> | null>(),
     fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
     blobSha256: text("blob_sha256").references(() => blobs.sha256),
     tsv: tsvector("tsv").generatedAlwaysAs(
@@ -591,6 +596,7 @@ export const factsCurrent = pgView("facts_current").as((qb) =>
       asOf: facts.asOf,
       sourceIds: facts.sourceIds,
       confidence: facts.confidence,
+      verification: facts.verification,
       createdBy: facts.createdBy,
       createdAt: facts.createdAt,
       supersedesId: facts.supersedesId,

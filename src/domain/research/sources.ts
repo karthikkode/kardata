@@ -32,12 +32,26 @@ export interface CaptureSourceInput {
   title?: string;
   text: string;
   via: string;
+  /** Verbatim relied-upon passages; required for browser | muse_fetch. */
+  passages?: string[];
   createdBy: string;
+}
+
+export interface CaptureSourceResult {
+  sourceId: string;
+  thin: boolean;
+  warnings: string[];
+}
+
+export const THIN_CAPTURE_CHARS = 200;
+
+function collapseWhitespace(s: string): string {
+  return s.replace(/\s+/g, " ").trim();
 }
 
 // Store content the agent already saw some other way (a search snippet, a
 // rendered page's text, a prompt-fetch), so it has an id and a snapshot.
-export async function captureSource(db: DbLike, input: CaptureSourceInput): Promise<string> {
+export async function captureSource(db: DbLike, input: CaptureSourceInput): Promise<CaptureSourceResult> {
   const [company] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, input.companyId));
   if (!company) throw new DomainError("not_found", `company not found: ${input.companyId}`);
   const [run] = await db
@@ -55,6 +69,25 @@ export async function captureSource(db: DbLike, input: CaptureSourceInput): Prom
     throw new DomainError("invalid_input", `via must be ${CAPTURE_VIA.join(", ")}`);
   }
   if (input.text.trim() === "") throw new DomainError("invalid_input", "capture needs text");
+  const needsPassages = input.via === "browser" || input.via === "muse_fetch";
+  const passages = (input.passages ?? []).map((p) => p.trim()).filter((p) => p !== "");
+  if (needsPassages && passages.length === 0) {
+    throw new DomainError("invalid_input", `via ${input.via} needs passages: the verbatim excerpt(s) relied on`);
+  }
+  const snapshot = collapseWhitespace(input.text);
+  for (const passage of passages) {
+    if (!snapshot.includes(collapseWhitespace(passage))) {
+      throw new DomainError("invalid_input", "every passage must appear verbatim in text");
+    }
+  }
+
+  const warnings: string[] = [];
+  const thin = input.text.trim().length < THIN_CAPTURE_CHARS;
+  if (thin) {
+    warnings.push(
+      `thin capture (${input.text.trim().length} chars < ${THIN_CAPTURE_CHARS}): quote fuller verbatim passages`,
+    );
+  }
 
   const body = Buffer.from(input.text, "utf8");
   const sha = await storeBlob(db, "text/plain; charset=utf-8", body);
@@ -71,11 +104,12 @@ export async function captureSource(db: DbLike, input: CaptureSourceInput): Prom
       httpStatus: null,
       title: input.title?.trim() ? input.title.trim().slice(0, 500) : null,
       via: input.via,
+      thin,
       blobSha256: sha,
     })
     .returning({ id: sources.id });
   if (!row) throw new Error("source insert returned no row");
-  return row.id;
+  return { sourceId: row.id, thin, warnings };
 }
 
 export interface ApolloImportSourceInput {

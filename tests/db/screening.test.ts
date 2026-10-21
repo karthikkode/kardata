@@ -66,12 +66,13 @@ async function expectScreen(
   sectorId: string,
   criteria: ScreenCriterion[],
   where: SQL,
-  opts: { sort?: ScreenSort; limit?: number } = {},
+  opts: { sort?: ScreenSort; limit?: number; verifiedOnly?: boolean } = {},
 ): Promise<void> {
   const result = await screenCompanies(handle.db, sectorId, {
     criteria,
     sort: opts.sort,
     limit: opts.limit,
+    verifiedOnly: opts.verifiedOnly,
   });
   expect([...result.ids].sort()).toEqual(await groundIds(sectorId, where));
   expect(result.total).toEqual((await groundIds(sectorId, where)).length);
@@ -246,6 +247,32 @@ describe("company_screen facts", () => {
     });
     expect([...unqualified.ids].sort()).toEqual([ids[0], ids[1]].sort());
     expect(unqualified.items.find((i) => i.id === ids[0])?.matched["0"]).toEqual([true]);
+  });
+
+  it("verifiedOnly restricts fact criteria to verified rows", async () => {
+    const sectorId = await seed();
+    const ids = await liveIds(sectorId);
+    await addFactOk(ids[0] as string, "product.count", 50);
+    await addFactOk(ids[1] as string, "product.count", 60);
+    await handle.db.execute(
+      sql`UPDATE facts SET verification = 'verified' WHERE company_id = ${ids[0]} AND key = 'product.count'`,
+    );
+    await expectScreen(
+      sectorId,
+      [{ factKey: "product.count", op: "gte", value: 20 }],
+      sql`EXISTS (SELECT 1 FROM facts_current fc WHERE fc.company_id = c.id AND fc.key = 'product.count' AND fc.verification = 'verified' AND fc.value_num >= 20)`,
+      { verifiedOnly: true },
+    );
+    const result = await screenCompanies(handle.db, sectorId, {
+      criteria: [{ factKey: "product.count", op: "gte", value: 20 }],
+      verifiedOnly: true,
+    });
+    expect(result.ids).toEqual([ids[0]]);
+    expect(result.items[0]?.matched["0"]).toEqual([50]);
+    const unfiltered = await screenCompanies(handle.db, sectorId, {
+      criteria: [{ factKey: "product.count", op: "gte", value: 20 }],
+    });
+    expect([...unfiltered.ids].sort()).toEqual([ids[0], ids[1]].sort());
   });
 
   it("in, exists and not_exists on facts", async () => {

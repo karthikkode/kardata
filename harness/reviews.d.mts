@@ -15,8 +15,12 @@ export function detectVendor(html: string): { vendor: string | null; signals: st
 export function parseWidgetReviews(html: string, vendor: string): ParsedReview[];
 export function parseAccessibleReviewCards(html: string): ParsedReview[];
 export function parseJsonLdReviews(html: string): ParsedReview[];
+export function parseJsonLdAggregateCount(html: string): number | null;
+export function parseDisplayedTotal(html: string, vendor: string | null): number | null;
+export function findNextPageNumber(html: string, selectors: string[]): { current: number; next: number } | null;
 export function collectPageReviews(html: string): {
   vendor: string | null;
   signals: string[];
   reviews: ParsedReview[];
+  displayedTotal: number | null;
 };

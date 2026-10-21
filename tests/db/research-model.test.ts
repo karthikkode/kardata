@@ -684,7 +684,7 @@ describe("findings, statuses and captures", () => {
   it("captures off-path content as a source with a blob", async () => {
     const companyId = await makeCompany();
     const runId = await makeRun(companyId);
-    const id = await captureSource(handle.db, {
+    const captured = await captureSource(handle.db, {
       companyId,
       runId,
       url: "https://example.invalid/article",
@@ -693,10 +693,13 @@ describe("findings, statuses and captures", () => {
       via: "search",
       createdBy: "owner",
     });
-    const [source] = await handle.db.select().from(sources).where(eq(sources.id, id));
+    expect(captured.thin).toBe(true);
+    expect(captured.warnings).toHaveLength(1);
+    const [source] = await handle.db.select().from(sources).where(eq(sources.id, captured.sourceId));
     expect(source?.collector).toBe("capture");
     expect(source?.via).toBe("search");
     expect(source?.title).toBe("A hit");
+    expect(source?.thin).toBe(true);
     const [blob] = await handle.db.select().from(blobs).where(eq(blobs.sha256, source?.blobSha256 ?? ""));
     expect(blob?.size).toBe("snippet text".length);
     await expect(
@@ -709,6 +712,44 @@ describe("findings, statuses and captures", () => {
         createdBy: "owner",
       }),
     ).rejects.toThrow(/via must be/);
+  });
+
+  it("requires verbatim passages for browser and muse_fetch", async () => {
+    const companyId = await makeCompany();
+    const runId = await makeRun(companyId);
+    const text = "Acme Corp employs 1,234 people across three factories. " + "x".repeat(200);
+    await expect(
+      captureSource(handle.db, {
+        companyId,
+        runId,
+        url: "https://example.invalid/article",
+        text,
+        via: "browser",
+        createdBy: "owner",
+      }),
+    ).rejects.toThrow(/needs passages/);
+    await expect(
+      captureSource(handle.db, {
+        companyId,
+        runId,
+        url: "https://example.invalid/article",
+        text,
+        via: "muse_fetch",
+        passages: ["Acme Corp employs 9,999 people"],
+        createdBy: "owner",
+      }),
+    ).rejects.toThrow(/verbatim in text/);
+    const ok = await captureSource(handle.db, {
+      companyId,
+      runId,
+      url: "https://example.invalid/article",
+      text,
+      via: "browser",
+      passages: ["Acme Corp employs 1,234 people"],
+      createdBy: "owner",
+    });
+    expect(ok.thin).toBe(false);
+    expect(ok.warnings).toHaveLength(0);
   });
 });
 

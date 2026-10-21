@@ -226,6 +226,7 @@ describe("ingest and document tools", () => {
         url: "https://example.invalid/seen",
         text: "seen elsewhere",
         via: "browser",
+        passages: ["seen elsewhere"],
       }),
     );
     expect(captured.runId).toBe(runId);

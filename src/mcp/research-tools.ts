@@ -158,14 +158,16 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         criteria: z.array(screenCriterion).max(20).optional().describe("ANDed criteria (default: all live companies)"),
         sort: screenSort.optional(),
         limit: z.number().int().min(1).max(500).optional().describe("Default 50"),
+        verifiedOnly: z.boolean().optional().describe("Fact criteria match only grounding-verified facts"),
       },
     },
-    async ({ sectorId, criteria, sort, limit }) =>
+    async ({ sectorId, criteria, sort, limit, verifiedOnly }) =>
       wrap(async () => {
         const result = await screenCompanies(db, sectorId, {
           criteria: criteria ?? undefined,
           sort: sort ?? undefined,
           limit: limit ?? undefined,
+          verifiedOnly: verifiedOnly ?? undefined,
         });
         return { summary: `${result.total} companies match`, data: result };
       }),
@@ -240,7 +242,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth,
     "batch_scorecard",
     {
-      description: "Counts per run and per area for a batch: facts, records by type, reviews, documents, findings, primary-source share, new registry names, statuses, tokens, minutes, MCP calls, forbidden. Returns the scorecard.",
+      description: "Counts per run and per area for a batch: facts, records by type, reviews, documents, findings, primary-source share, grounding verification shares, new registry names, statuses, tokens, minutes, MCP calls, forbidden. Returns the scorecard.",
       inputSchema: { batchId: z.string().describe("Batch UUID") },
     },
     async ({ batchId }) =>
@@ -519,30 +521,35 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth, 
     "source_capture",
     {
-      description: "Store content seen some other way (via search | browser | muse_fetch) so it has an id and a snapshot. Returns the source id.",
+      description: "Store content seen some other way (via search | browser | muse_fetch) so it has an id and a snapshot. Quote verbatim excerpts, never summaries; browser and muse_fetch must pass the relied-upon passages. Returns the source id.",
       inputSchema: {
         companyId,
         runId: runId.optional().describe("Defaults to today's manual run for the company"),
         url: z.string().describe("http(s) URL the content came from"),
         title: z.string().optional(),
-        text: z.string().describe("The content itself"),
+        text: z.string().describe("The content itself (verbatim excerpts)"),
         via: z.enum(["search", "browser", "muse_fetch"]),
+        passages: z.array(z.string()).optional().describe("Verbatim relied-upon passages (required for browser | muse_fetch)"),
       },
     },
-    async ({ companyId, runId: givenRunId, url, title, text, via }) =>
+    async ({ companyId, runId: givenRunId, url, title, text, via, passages }) =>
       wrap(async () => {
         const scoped = scopedCompany(auth, companyId);
         const run = await resolveRunId(db, auth, scoped, givenRunId ?? undefined);
-        const sourceId = await captureSource(db, {
+        const captured = await captureSource(db, {
           companyId: scoped,
           runId: run,
           url,
           title: title ?? undefined,
           text,
           via,
+          passages: passages ?? undefined,
           createdBy: "owner",
         });
-        return { summary: `captured ${url} via ${via}`, data: { sourceId, runId: run } };
+        return {
+          summary: `captured ${url} via ${via}${captured.thin ? " (thin)" : ""}`,
+          data: { sourceId: captured.sourceId, runId: run, thin: captured.thin, warnings: captured.warnings },
+        };
       }),
   );
 

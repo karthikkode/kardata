@@ -46,6 +46,7 @@ const jobPage = z.object({
   status: z.string(),
   reason: z.string().optional(),
   reviewCount: z.number(),
+  displayedTotal: z.number().nullable().optional(),
 });
 
 export const reviewsJobOutput = z.object({

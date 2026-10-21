@@ -1,5 +1,5 @@
 import { and, eq, or } from "drizzle-orm";
-import { facts, records } from "../../db/schema.js";
+import { facts, records, sources } from "../../db/schema.js";
 import { reviewsIngest, type IngestReview } from "../../domain/research/reviews.js";
 import { recordEvent } from "../db.js";
 import {
@@ -151,10 +151,15 @@ export async function runReviewsOnsite(
   }
   let ingested = 0;
   const vendors = new Set<string>();
+  const pageTotals: { url: string; displayed: number | null; ingested: number }[] = [];
   for (const page of pages) {
-    const items = toIngestReviews(output, page.url).slice(0, REVIEWS_JOB_MAX_REVIEWS - ingested);
-    if (items.length === 0) continue;
     const reported = output.pages.find((p) => p.url === page.url);
+    const displayed = reported?.displayedTotal ?? null;
+    const items = toIngestReviews(output, page.url).slice(0, REVIEWS_JOB_MAX_REVIEWS - ingested);
+    if (items.length === 0) {
+      pageTotals.push({ url: page.url, displayed, ingested: 0 });
+      continue;
+    }
     if (reported?.vendor) vendors.add(reported.vendor);
     const result = await reviewsIngest(ctx.db, {
       companyId: ctx.companyId,
@@ -164,8 +169,16 @@ export async function runReviewsOnsite(
       reviews: items,
       createdBy: "collector:reviews_onsite",
     });
-    ingested += result.results.filter((r) => r.ok).length;
+    const pageIngested = result.results.filter((r) => r.ok).length;
+    ingested += pageIngested;
+    pageTotals.push({ url: page.url, displayed, ingested: pageIngested });
+    await ctx.db
+      .update(sources)
+      .set({ details: { displayedTotal: displayed, ingestedOnPage: pageIngested } })
+      .where(eq(sources.id, page.sourceId));
   }
+  const knownTotals = pageTotals.filter((p) => p.displayed !== null);
+  const displayed = knownTotals.length === 0 ? null : knownTotals.reduce((a, p) => a + (p.displayed ?? 0), 0);
   await recordEvent(ctx.db, ctx.runId, "log", {
     reviews_onsite: {
       pages: output.pages.map((p) => ({
@@ -174,8 +187,10 @@ export async function runReviewsOnsite(
         status: p.status,
         reason: p.reason ?? null,
         reviewCount: p.reviewCount,
+        displayedTotal: p.displayedTotal ?? null,
       })),
       ingested,
+      displayed,
     },
   });
   if (ingested === 0) {
@@ -195,7 +210,10 @@ export async function runReviewsOnsite(
       {
         area: "reviews",
         status: "done",
-        reason: `${ingested} reviews from ${pages.length} pages (${supported.platform})`,
+        reason:
+          displayed === null
+            ? `${ingested} reviews from ${pages.length} pages (${supported.platform})`
+            : `${ingested} of ${displayed} displayed reviews from ${pages.length} pages (${supported.platform})`,
       },
     ],
   };

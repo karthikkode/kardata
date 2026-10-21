@@ -12,6 +12,12 @@ function fmtShare(share: number | null): string {
   return share === null ? "-" : `${Math.round(share * 100)}%`;
 }
 
+function fmtGrounding(v: RunScore["verification"]): string {
+  const total = v.verified + v.docOnly + v.unverified;
+  if (total === 0) return "-";
+  return `${Math.round((v.verified / total) * 100)}% verified (${v.verified}/${v.docOnly}/${v.unverified})`;
+}
+
 function fmtTokens(run: RunScore): string {
   if (!run.tokens) return "-";
   const t = run.tokens;
@@ -40,6 +46,7 @@ function printRun(run: RunScore): void {
   console.log(
     `   tokens ${fmtTokens(run)} | minutes ${run.minutes ?? "-"} | mcp ${run.mcpCalls} | forbidden ${run.forbidden} | pii ${run.piiRedactions}`,
   );
+  console.log(`   grounding ${fmtGrounding(run.verification)}`);
   if (run.newProvisionalKeys.length > 0) console.log(`   +keys: ${run.newProvisionalKeys.join(", ")}`);
   if (run.newProvisionalTypes.length > 0) console.log(`   +types: ${run.newProvisionalTypes.join(", ")}`);
   const header = "   area          facts  records  reviews  docs  findings  status";
@@ -86,7 +93,8 @@ async function main(): Promise<void> {
     console.log(
       `\nTotals (${t.runs} runs): facts ${t.facts} | reviews ${t.reviewsIngested} | docs ${t.documents} | ` +
         `findings ${t.findings} | mcp ${t.mcpCalls} | forbidden ${t.forbidden} | minutes ${t.minutes} | ` +
-        `tokens ${t.tokens.input} in/${t.tokens.output} out (${t.runsWithUsage} runs with usage)`,
+        `tokens ${t.tokens.input} in/${t.tokens.output} out (${t.runsWithUsage} runs with usage) | ` +
+        `grounding ${fmtGrounding(t.verification)}`,
     );
   } catch (err) {
     fail(err);

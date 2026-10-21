@@ -147,10 +147,10 @@ describe("buildResearchPrompt", () => {
 });
 
 describe("prompt versions", () => {
-  it("lists v0, v1, v1.1 and v1.2 with v1.2 latest", () => {
-    expect(availablePromptVersions()).toEqual(["v0", "v1", "v1.1", "v1.2"]);
-    expect(latestPromptVersion()).toBe("v1.2");
-    expect(resolvePromptVersion()).toBe("v1.2");
+  it("lists v0, v1, v1.1, v1.2 and v1.3 with v1.3 latest", () => {
+    expect(availablePromptVersions()).toEqual(["v0", "v1", "v1.1", "v1.2", "v1.3"]);
+    expect(latestPromptVersion()).toBe("v1.3");
+    expect(resolvePromptVersion()).toBe("v1.3");
     expect(resolvePromptVersion("v0")).toBe("v0");
   });
 
@@ -204,6 +204,18 @@ describe("prompt versions", () => {
     expect(prompt).toContain("summary.md");
     expect(prompt).toContain("fact_add, record_upsert, reviews_ingest, finding_add");
     expect(prompt).not.toContain("MUST ingest up to 300");
+    expect(prompt).not.toContain("{{");
+  });
+
+  it("renders v1.3 with verbatim-capture and no-test-data rules", () => {
+    const prompt = buildResearchPrompt(ctx({ run: { promptVersion: "v1.3" } }));
+    for (const area of PROMPT_AREAS) {
+      expect(prompt, area).toContain(`### ${area}`);
+    }
+    expect(prompt).toContain("Capture verbatim excerpts, never summaries");
+    expect(prompt).toContain("relied-upon passages");
+    expect(prompt).toContain("Never write test or probe data to kardata");
+    expect(prompt).toContain("depth and citations, not structuring");
     expect(prompt).not.toContain("{{");
   });
 });

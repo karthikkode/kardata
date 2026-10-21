@@ -31,7 +31,7 @@ const VENDOR_SIGNALS = [
 
 // "Load more" / pagination controls per vendor, tried in order.
 export const MORE_SELECTORS = {
-  judgeme: [".jdgm-paginate__next-page", ".jdgm-paginate__last-page", ".jdgm-paginate__page:not(.jdgm-current)"],
+  judgeme: [".jdgm-paginate__next-page", ".jdgm-paginate__last-page", ".jdgm-paginate__page:not(.jdgm-current):not(.jdgm-curt)"],
   yotpo: [".yotpo-reviews-pagination .yotpo-next", ".yotpo-pager .goTo", "input[value='Load More Reviews']", ".yotpo-default-button"],
   stamped: ["#stamped-button-more", ".stamped-pagination a"],
   okendo: [".oke-pagination-button--next", "[data-oke-pagination-next]"],
@@ -39,6 +39,14 @@ export const MORE_SELECTORS = {
   junip: ["[data-junip-load-more]", ".junip-pagination-next"],
   reviewsio: [".reviewsio-load-more", ".reviewsio-pagination-next"],
 };
+
+// Numbered pagination widgets: click the page after the current one.
+const PAGE_NUMBER_SELECTORS = {
+  judgeme: [".jdgm-paginate a", ".jdgm-paginate__page"],
+  yotpo: [".yotpo-reviews-pagination-item", ".yotpo-pagination-number"],
+  stamped: [".stamped-pagination a"],
+};
+const CURRENT_PAGE_CLASSES = ["jdgm-curt", "jdgm-current", "selected", "active", "current"];
 
 const REVIEW_ITEMS = {
   judgeme: ".jdgm-rev",
@@ -48,6 +56,17 @@ const REVIEW_ITEMS = {
   loox: ".loox-review",
   junip: ".junip-product-review",
   reviewsio: ".reviewsio-product-review",
+};
+
+// Widget header/count nodes that carry the displayed review total.
+const TOTAL_SELECTORS = {
+  judgeme: [".jdgm-prev-badge__text", ".jdgm-rev-widg__title", ".jdgm-widget__title"],
+  yotpo: [".yotpo-reviews-count", ".yotpo-reviews-header", ".yotpo-summary"],
+  stamped: [".stamped-summary-text", ".stamped-header-title", ".stamped-summary"],
+  okendo: ["[data-oke-review-count]", ".oke-review-count"],
+  loox: [".loox-rating-label", ".loox-header"],
+  junip: ["[data-junip-count]", ".junip-count"],
+  reviewsio: [".reviewsio-count", ".reviewsio-header"],
 };
 
 function clean(text) {
@@ -311,12 +330,103 @@ export function parseAccessibleReviewCards(html) {
 }
 
 /** Detect the widget, parse it, and merge JSON-LD reviews, deduped by text. */
+function totalFromText(text) {
+  const t = clean(text);
+  for (const re of [/based on ([\d,]+)\s+reviews?/i, /\b([\d,]+)\s+(customer\s+)?reviews?\b/i]) {
+    const m = re.exec(t);
+    if (m) {
+      const n = Number(m[1].replace(/,/g, ""));
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+  }
+  return null;
+}
+
+/** JSON-LD AggregateRating reviewCount, if any block carries one. */
+export function parseJsonLdAggregateCount(html) {
+  const $ = load(html);
+  let found = null;
+  const visit = (node) => {
+    if (found !== null || Array.isArray(node)) {
+      if (Array.isArray(node)) for (const n of node) visit(n);
+      return;
+    }
+    if (typeof node !== "object" || node === null) return;
+    const types = Array.isArray(node["@type"]) ? node["@type"] : [node["@type"]];
+    if (types.includes("AggregateRating")) {
+      const n = Number(node["reviewCount"]);
+      if (Number.isFinite(n) && n > 0) found = n;
+    }
+    for (const value of Object.values(node)) {
+      if (typeof value === "object" && value !== null) visit(value);
+    }
+  };
+  $("script[type='application/ld+json']").each((_, el) => {
+    try {
+      visit(JSON.parse($(el).text()));
+    } catch {
+      // Malformed JSON-LD is common; skip the block.
+    }
+  });
+  return found;
+}
+
+/**
+ * The review total the widget displays: header/count nodes first, then a
+ * page-wide "based on N reviews", else the JSON-LD aggregate count.
+ */
+export function parseDisplayedTotal(html, vendor) {
+  const $ = load(html);
+  for (const sel of TOTAL_SELECTORS[vendor] ?? []) {
+    let found = null;
+    $(sel).each((_, el) => {
+      if (found === null) found = totalFromText($(el).text());
+    });
+    if (found !== null) return found;
+  }
+  const generic = /based on ([\d,]+)\s+reviews?/i.exec($.text());
+  if (generic) {
+    const n = Number(generic[1].replace(/,/g, ""));
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return parseJsonLdAggregateCount(html);
+}
+
+/**
+ * Current and next page numbers from numbered-pagination markup
+ * ({ current, next } | null when no higher page exists). Pure/cheerio twin
+ * of the in-browser clickNextPageNumber below; keep the rules in sync.
+ */
+export function findNextPageNumber(html, selectors) {
+  const $ = load(html);
+  const nums = [];
+  const seen = new Set();
+  for (const sel of selectors) {
+    $(sel).each((_, el) => {
+      if (seen.has(el)) return;
+      seen.add(el);
+      const n = Number($(el).text().trim());
+      if (!Number.isInteger(n) || n <= 0) return;
+      const cls = String($(el).attr("class") ?? "").split(/\s+/);
+      // Yotpo renders aria-current="false" on non-current pages; only a
+      // value other than "false" marks the current page.
+      const aria = $(el).attr("aria-current");
+      const current = CURRENT_PAGE_CLASSES.some((c) => cls.includes(c)) || (aria !== undefined && aria !== "false");
+      nums.push({ n, current });
+    });
+  }
+  if (nums.length === 0) return null;
+  const cur = nums.find((x) => x.current)?.n ?? nums[0].n;
+  const next = nums.filter((x) => x.n === cur + 1)[0] ?? nums.filter((x) => x.n > cur).sort((a, b) => a.n - b.n)[0];
+  return next ? { current: cur, next: next.n } : null;
+}
+
 export function collectPageReviews(html) {
   const { vendor, signals } = detectVendor(html);
   let widget = vendor ? parseWidgetReviews(html, vendor) : [];
   if (vendor && widget.length === 0) widget = parseAccessibleReviewCards(html);
   const jsonLd = parseJsonLdReviews(html);
-  return { vendor, signals, reviews: dedupe([...widget, ...jsonLd]) };
+  return { vendor, signals, reviews: dedupe([...widget, ...jsonLd]), displayedTotal: parseDisplayedTotal(html, vendor) };
 }
 
 function resolvePlaywright() {
@@ -352,7 +462,46 @@ async function scrollToBottom(page) {
   })()`);
 }
 
+/** Click the numbered page after the current one; "clicked" | "none". */
+async function clickNextPageNumber(tab, vendor) {
+  return tab
+    .evaluate(
+      ({ sels, currentClasses }) => {
+        const links = [];
+        for (const sel of sels) {
+          document.querySelectorAll(sel).forEach((a) => links.push(a));
+        }
+        const seen = new Set();
+        const nums = [];
+        for (const a of links) {
+          if (seen.has(a)) continue;
+          seen.add(a);
+          const n = Number((a.textContent ?? "").trim());
+          if (!Number.isInteger(n) || n <= 0) continue;
+          const cls = typeof a.className === "string" ? a.className : "";
+          // Yotpo renders aria-current="false" on non-current pages; only a
+          // value other than "false" marks the current page.
+          const aria = a.getAttribute("aria-current");
+          const current =
+            currentClasses.some((c) => cls.split(/\s+/).includes(c)) || (aria !== null && aria !== "false");
+          nums.push({ n, current, el: a });
+        }
+        if (nums.length === 0) return "none";
+        const cur = nums.find((x) => x.current)?.n ?? nums[0].n;
+        const next =
+          nums.filter((x) => x.n === cur + 1)[0] ?? nums.filter((x) => x.n > cur).sort((a, b) => a.n - b.n)[0];
+        if (!next) return "none";
+        next.el.click();
+        return "clicked";
+      },
+      { sels: PAGE_NUMBER_SELECTORS[vendor] ?? [], currentClasses: CURRENT_PAGE_CLASSES },
+    )
+    .catch(() => "none");
+}
+
 async function clickMore(page, vendor) {
+  const paged = await clickNextPageNumber(page, vendor);
+  if (paged === "clicked") return true;
   for (const sel of MORE_SELECTORS[vendor] ?? []) {
     const handle = await page.$(sel).catch(() => null);
     if (!handle) continue;
@@ -390,25 +539,36 @@ async function scrapePage(browser, page, vendorHint) {
     let { vendor } = collectPageReviews(html);
     vendor = vendor ?? vendorHint;
     let reviews = [];
+    let displayedTotal = null;
+    let stillRounds = 0;
     for (let round = 0; round < 14; round++) {
       await scrollToBottom(tab);
       await tab.waitForTimeout(700);
       html = await tab.content();
       const parsed = collectPageReviews(html);
       if (parsed.vendor) vendor = parsed.vendor;
-      reviews = parsed.reviews;
+      // Numbered pagination swaps the visible reviews instead of appending,
+      // so accumulate across rounds (deduped) rather than keeping the last.
+      const grown = dedupe([...reviews, ...parsed.reviews]);
+      if (grown.length === reviews.length) stillRounds += 1;
+      else stillRounds = 0;
+      reviews = grown;
+      if (parsed.displayedTotal !== null) displayedTotal = parsed.displayedTotal;
       if (reviews.length === 0 && !vendor) break;
+      if (stillRounds >= 2) break;
       if (!(await clickMore(tab, vendor ?? ""))) {
         // One more scroll pass in case reviews lazy-load without a button.
         await scrollToBottom(tab);
         await tab.waitForTimeout(700);
         html = await tab.content();
-        reviews = collectPageReviews(html).reviews;
+        const last = collectPageReviews(html);
+        reviews = dedupe([...reviews, ...last.reviews]);
+        if (last.displayedTotal !== null) displayedTotal = last.displayedTotal;
         break;
       }
       await tab.waitForTimeout(900);
     }
-    return { vendor, reviews };
+    return { vendor, reviews, displayedTotal };
   } finally {
     await client.close().catch(() => undefined);
   }
@@ -416,7 +576,7 @@ async function scrapePage(browser, page, vendorHint) {
 
 /**
  * Job input (stdin): { pages: [{ url, product }], maxReviews }.
- * Output (stdout): { pages: [{ url, product, vendor, status, reason?, reviewCount }], reviews: [...] }.
+ * Output (stdout): { pages: [{ url, product, vendor, status, reason?, reviewCount, displayedTotal }], reviews: [...] }.
  */
 async function main() {
   const input = JSON.parse(await new Promise((resolve, reject) => {
@@ -446,16 +606,16 @@ async function main() {
         continue;
       }
       try {
-        const { vendor, reviews } = await scrapePage(browser, { url, product }, null);
+        const { vendor, reviews, displayedTotal } = await scrapePage(browser, { url, product }, null);
         const room = maxReviews - out.reviews.length;
         const kept = reviews.slice(0, room).map((r) => ({ ...r, product, url }));
         out.reviews.push(...kept);
         if (!vendor && kept.length === 0) {
-          out.pages.push({ url, product, vendor: null, status: "not_found", reason: "no supported widget or JSON-LD reviews", reviewCount: 0 });
+          out.pages.push({ url, product, vendor: null, status: "not_found", reason: "no supported widget or JSON-LD reviews", reviewCount: 0, displayedTotal: displayedTotal ?? null });
         } else if (kept.length === 0) {
-          out.pages.push({ url, product, vendor, status: "not_found", reason: "widget found but no reviews parsed", reviewCount: 0 });
+          out.pages.push({ url, product, vendor, status: "not_found", reason: "widget found but no reviews parsed", reviewCount: 0, displayedTotal: displayedTotal ?? null });
         } else {
-          out.pages.push({ url, product, vendor, status: "done", reviewCount: kept.length });
+          out.pages.push({ url, product, vendor, status: "done", reviewCount: kept.length, displayedTotal: displayedTotal ?? null });
         }
       } catch (err) {
         out.pages.push({

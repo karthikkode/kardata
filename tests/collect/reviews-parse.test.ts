@@ -4,7 +4,10 @@ import { describe, expect, it } from "vitest";
 import {
   collectPageReviews,
   detectVendor,
+  findNextPageNumber,
   parseAccessibleReviewCards,
+  parseDisplayedTotal,
+  parseJsonLdAggregateCount,
   parseJsonLdReviews,
   parseWidgetReviews,
 } from "../../harness/reviews.mjs";
@@ -129,5 +132,49 @@ describe("collectPageReviews", () => {
     const { vendor, reviews } = collectPageReviews(html);
     expect(vendor).toBe("judgeme");
     expect(reviews).toHaveLength(5);
+  });
+});
+
+describe("parseDisplayedTotal", () => {
+  it("reads Judge.me badge and Yotpo header totals", () => {
+    expect(parseDisplayedTotal(fixture("judgeme.html"), "judgeme")).toBe(74);
+    expect(parseDisplayedTotal(fixture("yotpo.html"), "yotpo")).toBe(1234);
+  });
+
+  it("falls back to the JSON-LD aggregate count", () => {
+    expect(parseJsonLdAggregateCount(fixture("jsonld.html"))).toBe(128);
+    expect(parseDisplayedTotal(fixture("jsonld.html"), null)).toBe(128);
+  });
+
+  it("returns null when no total is shown", () => {
+    expect(parseDisplayedTotal(fixture("stamped.html"), "stamped")).toBeNull();
+    expect(collectPageReviews(fixture("judgeme.html")).displayedTotal).toBe(74);
+  });
+});
+
+describe("findNextPageNumber", () => {
+  it("advances past jdgm-curt and yotpo selected pages", () => {
+    expect(findNextPageNumber(fixture("judgeme.html"), [".jdgm-paginate a"])).toEqual({ current: 1, next: 2 });
+    expect(findNextPageNumber(fixture("yotpo.html"), [".yotpo-reviews-pagination-item"])).toEqual({
+      current: 1,
+      next: 2,
+    });
+  });
+
+  it("ignores aria-current=false when the current page has moved on", () => {
+    // Yotpo marks non-current pages with aria-current="false"; a presence
+    // check would pin current to 1 and re-click page 2 forever.
+    const page2 = `<nav class="yotpo-reviews-pagination-container">
+      <a class="yotpo-reviews-pagination-item yotpo-pagination-number" aria-current="false">1</a>
+      <a class="selected yotpo-reviews-pagination-item yotpo-pagination-number" aria-current="true">2</a>
+      <a class="yotpo-reviews-pagination-item yotpo-pagination-number" aria-current="false">3</a>
+    </nav>`;
+    expect(findNextPageNumber(page2, [".yotpo-reviews-pagination-item"])).toEqual({ current: 2, next: 3 });
+  });
+
+  it("returns null on the last page or without pagination", () => {
+    const last = `<div class="jdgm-paginate"><a class="jdgm-paginate__page">1</a><a class="jdgm-paginate__page jdgm-curt">2</a></div>`;
+    expect(findNextPageNumber(last, [".jdgm-paginate a"])).toBeNull();
+    expect(findNextPageNumber(fixture("stamped.html"), [".stamped-pagination a"])).toBeNull();
   });
 });

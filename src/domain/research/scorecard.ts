@@ -49,6 +49,13 @@ export interface AgentScore {
 /** Output created by the extractor (createdBy extractor:*). Same counters. */
 export type ExtractorScore = AgentScore;
 
+/** Grounding verdicts over agent + extractor facts and records. */
+export interface VerificationShares {
+  verified: number;
+  docOnly: number;
+  unverified: number;
+}
+
 export interface RunScore {
   runId: string;
   companyId: string;
@@ -70,6 +77,7 @@ export interface RunScore {
   findingsWellCited: number;
   newProvisionalKeys: string[];
   newProvisionalTypes: string[];
+  verification: VerificationShares;
   agent: AgentScore;
   extractor: ExtractorScore;
   areas: Record<string, AreaScore>;
@@ -82,6 +90,7 @@ export interface BatchTotals {
   reviewsIngested: number;
   documents: number;
   findings: number;
+  verification: VerificationShares;
   agent: AgentScore;
   extractor: ExtractorScore;
   mcpCalls: number;
@@ -135,6 +144,16 @@ function emptyArea(): AreaScore {
 
 function emptyAgent(): AgentScore {
   return { facts: 0, recordsByType: {}, reviewsIngested: 0, documents: 0, findings: 0 };
+}
+
+function emptyVerification(): VerificationShares {
+  return { verified: 0, docOnly: 0, unverified: 0 };
+}
+
+function bumpVerification(score: RunScore, verification: string): void {
+  if (verification === "verified") score.verification.verified += 1;
+  else if (verification === "doc_only") score.verification.docOnly += 1;
+  else score.verification.unverified += 1;
 }
 
 function isAgentMade(createdBy: string): boolean {
@@ -238,6 +257,7 @@ export async function scorecard(
       findingsWellCited: 0,
       newProvisionalKeys: [],
       newProvisionalTypes: [],
+      verification: emptyVerification(),
       agent: emptyAgent(),
       extractor: emptyAgent(),
       areas,
@@ -255,7 +275,13 @@ export async function scorecard(
   };
 
   const factRows = await db
-    .select({ runId: facts.runId, area: facts.area, sourceIds: facts.sourceIds, createdBy: facts.createdBy })
+    .select({
+      runId: facts.runId,
+      area: facts.area,
+      sourceIds: facts.sourceIds,
+      createdBy: facts.createdBy,
+      verification: facts.verification,
+    })
     .from(facts)
     .where(inArray(facts.runId, runIds));
   const cited = [...new Set(factRows.flatMap((f) => f.sourceIds))];
@@ -281,6 +307,9 @@ export async function scorecard(
     score.facts += 1;
     if (isAgentMade(row.createdBy)) score.agent.facts += 1;
     if (isExtractorMade(row.createdBy)) score.extractor.facts += 1;
+    if (isAgentMade(row.createdBy) || isExtractorMade(row.createdBy)) {
+      bumpVerification(score, row.verification);
+    }
     areaAt(row.runId, row.area).facts += 1;
     if (row.sourceIds.some((id) => primaryById.get(id))) {
       primaryCounts.set(row.runId, (primaryCounts.get(row.runId) ?? 0) + 1);
@@ -297,6 +326,7 @@ export async function scorecard(
       type: records.type,
       area: records.area,
       createdBy: records.createdBy,
+      verification: records.verification,
     })
     .from(records)
     .where(or(inArray(records.firstSeenRunId, runIds), inArray(records.lastSeenRunId, runIds)));
@@ -308,6 +338,9 @@ export async function scorecard(
       bumpType(at(runId).recordsByType, row.type);
       if (isAgentMade(row.createdBy)) bumpType(at(runId).agent.recordsByType, row.type);
       if (isExtractorMade(row.createdBy)) bumpType(at(runId).extractor.recordsByType, row.type);
+      if (isAgentMade(row.createdBy) || isExtractorMade(row.createdBy)) {
+        bumpVerification(at(runId), row.verification);
+      }
       bumpType(areaAt(runId, row.area).recordsByType, row.type);
     }
     if (row.type === "review" && row.firstSeenRunId && scores.has(row.firstSeenRunId)) {
@@ -437,6 +470,7 @@ function assemble(scores: Map<string, RunScore>): ScorecardResult {
     reviewsIngested: 0,
     documents: 0,
     findings: 0,
+    verification: emptyVerification(),
     agent: emptyAgent(),
     extractor: emptyAgent(),
     mcpCalls: 0,
@@ -455,6 +489,9 @@ function assemble(scores: Map<string, RunScore>): ScorecardResult {
     totals.reviewsIngested += run.reviewsIngested;
     totals.documents += run.documents;
     totals.findings += run.findings;
+    totals.verification.verified += run.verification.verified;
+    totals.verification.docOnly += run.verification.docOnly;
+    totals.verification.unverified += run.verification.unverified;
     totals.agent.facts += run.agent.facts;
     for (const [type, n] of Object.entries(run.agent.recordsByType)) {
       totals.agent.recordsByType[type] = (totals.agent.recordsByType[type] ?? 0) + n;
