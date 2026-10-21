@@ -3,6 +3,7 @@ import { z } from "zod";
 import { recordEvent } from "../collect/db.js";
 import type { Db } from "../db/client.js";
 import { DomainError } from "../domain/errors.js";
+import { storeBlob } from "../domain/research/sources.js";
 import { getOrCreateManualRun } from "../runs/queue.js";
 import { fail } from "./result.js";
 
@@ -40,6 +41,35 @@ export const AGENT_TOOLSET = new Set([
 ]);
 
 const AUDIT_ARGS_MAX = 2048;
+const AUDIT_RESULT_INLINE_MAX = 2048;
+const AUDIT_BLOB_MAX = 262144;
+
+export interface AuditOverflow {
+  inline: string;
+  sha: string | null;
+  truncated: boolean;
+}
+
+/**
+ * Inline small texts, blob-store medium ones, and record size + a truncated
+ * flag for huge ones (replay fidelity without unbounded jsonb).
+ */
+export async function auditInlineOrBlob(db: Db, text: string, inlineMax: number): Promise<AuditOverflow> {
+  if (text.length <= inlineMax) return { inline: text, sha: null, truncated: false };
+  if (text.length <= AUDIT_BLOB_MAX) {
+    const sha = await storeBlob(db, "application/json", Buffer.from(text, "utf8"));
+    return { inline: text.slice(0, inlineMax), sha, truncated: false };
+  }
+  return { inline: text.slice(0, inlineMax), sha: null, truncated: true };
+}
+
+function safeJson(value: unknown): string {
+  try {
+    return JSON.stringify(value ?? null);
+  } catch {
+    return "(unserializable)";
+  }
+}
 
 /** Structural copy of the SDK ToolAnnotations (not re-exported by mcp.js). */
 export interface ToolHints {
@@ -63,21 +93,24 @@ async function auditCall(
   runId: string,
   tool: string,
   args: unknown,
-  status: string,
+  result: unknown,
   startedAt: number,
 ): Promise<void> {
-  let argsJson = "";
   try {
-    argsJson = JSON.stringify(args ?? {});
-  } catch {
-    argsJson = "{}";
-  }
-  try {
+    const argsRef = await auditInlineOrBlob(db, safeJson(args ?? {}), AUDIT_ARGS_MAX);
+    const resultJson = safeJson(result);
+    const resultRef = await auditInlineOrBlob(db, resultJson, AUDIT_RESULT_INLINE_MAX);
     await recordEvent(db, runId, "mcp_call", {
       tool,
-      args: argsJson.slice(0, AUDIT_ARGS_MAX),
-      status,
+      args: argsRef.inline,
+      argsSha: argsRef.sha,
+      argsTruncated: argsRef.truncated,
+      status: resultStatus(result),
       durationMs: Math.round(performance.now() - startedAt),
+      result: resultRef.inline,
+      resultSha: resultRef.sha,
+      resultSize: Buffer.byteLength(resultJson, "utf8"),
+      resultTruncated: resultRef.truncated,
     });
   } catch (err) {
     // The audit must never mask the tool result (same DB, so this is rare).
@@ -106,12 +139,12 @@ export function registerTool<Args extends z.ZodRawShape | undefined>(
     const startedAt = performance.now();
     if (auth.kind === "run" && !AGENT_TOOLSET.has(name)) {
       const result = fail("forbidden", `run tokens cannot call ${name}`);
-      await auditCall(db, auth.runId, name, args, "forbidden", startedAt);
+      await auditCall(db, auth.runId, name, args, result, startedAt);
       return result;
     }
     const result = await (handler as (a: unknown, e: unknown) => Promise<unknown>)(args, extra);
     if (auth.kind === "run") {
-      await auditCall(db, auth.runId, name, args, resultStatus(result), startedAt);
+      await auditCall(db, auth.runId, name, args, result, startedAt);
     }
     return result;
   }) as ToolCallback<Args>;

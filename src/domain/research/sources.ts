@@ -16,7 +16,7 @@ export function apolloImportUrl(importId: string, apolloAccountId: string): stri
   return `apollo:import/${importId}/${apolloAccountId}`;
 }
 
-async function storeBlob(db: DbLike, contentType: string, body: Buffer): Promise<string> {
+export async function storeBlob(db: DbLike, contentType: string, body: Buffer): Promise<string> {
   const sha = createHash("sha256").update(body).digest("hex");
   await db
     .insert(blobs)

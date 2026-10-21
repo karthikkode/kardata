@@ -34,7 +34,8 @@ import { effectiveMaxAgents } from "./settings.js";
 import { redactRunDocs } from "../domain/research/pii.js";
 import { collectConcurrency } from "./runner.js";
 import { issueRunToken, revokeRunToken } from "./tokens.js";
-import { rollupUsage, type UsageRollup } from "./usage.js";
+import { ingestRunSession, rollupUsage, type SessionIngestSummary, type UsageRollup } from "./usage.js";
+import { attachDispatchSession, logDispatchPrompt } from "../domain/logging/provider-calls.js";
 
 /**
  * Agent-run runner (Stage 3b Step 2). Drives kind=agent runs through
@@ -117,6 +118,7 @@ export interface AgentRunnerDeps {
   collect?: (runId: string) => Promise<CollectRunResult>;
   stopLabeledContainers?: () => Promise<string[]>;
   usageRollup?: (main: HarnessUsage | undefined, sessionId: string | undefined) => Promise<UsageRollup>;
+  sessionIngest?: (run: ResearchRun, sessionId: string | undefined) => Promise<SessionIngestSummary>;
   /** Container-reachable MCP endpoint, e.g. http://172.31.250.1:8787/mcp. */
   mcpUrl: string;
   maxAgents?: number;
@@ -276,6 +278,8 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
   const stopLabeled = deps.stopLabeledContainers ?? recoverLabeledContainers;
   const usageRollupFn =
     deps.usageRollup ?? ((main, sessionId) => rollupUsage(main, sessionId));
+  const sessionIngestFn =
+    deps.sessionIngest ?? ((run, sessionId) => ingestRunSession(db, run, sessionId));
   const collectLimit = deps.collectLimit ?? collectConcurrency();
   const stallMs = deps.stallMs ?? stallTimeoutMs();
   const pollMs = deps.pollMs ?? DEFAULT_POLL_MS;
@@ -391,6 +395,13 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
       const [company] = await db.select().from(companies).where(eq(companies.id, run.companyId));
       if (!company) throw new Error(`company not found: ${run.companyId}`);
       const prompt = await buildPrompt({ run, company, brief: options.brief });
+      // Dispatch capture: the exact turn-1 prompt. Never blocks the launch.
+      let dispatchId: number | null = null;
+      try {
+        dispatchId = await logDispatchPrompt(db, run, prompt);
+      } catch (err) {
+        console.error(`dispatch prompt log failed for ${runId}: ${err instanceof Error ? err.message : err}`);
+      }
       const { token } = await issueRunToken(db, {
         runId,
         companyId: run.companyId,
@@ -446,7 +457,12 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
           }
           const e = event as HarnessEvent;
           if (e.type === "message") continue;
-          if (e.type === "started") outcome.sessionId = e.sessionId;
+          if (e.type === "started") {
+            outcome.sessionId = e.sessionId;
+            if (dispatchId !== null) {
+              await attachDispatchSession(db, dispatchId, e.sessionId).catch(() => undefined);
+            }
+          }
           if (e.type === "usage") usage = e;
           if (e.type === "finished") lastTerminal = e;
           if (e.type === "error") lastError = e.message;
@@ -465,6 +481,15 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
         note: rollup.note,
       };
       outcome.finalMessage = result.finalMessage || undefined;
+      // Per-call ingest from the session log. Gaps are notes, never failures.
+      try {
+        const ingested = await sessionIngestFn(run, outcome.sessionId);
+        if (ingested.note) {
+          await recordEvent(db, runId, "log", { session_ingest: ingested.note }).catch(() => undefined);
+        }
+      } catch (err) {
+        console.error(`session ingest failed for ${runId}: ${err instanceof Error ? err.message : err}`);
+      }
 
       const stopped = entry?.stopReason ?? null;
       const current = await loadRun(db, runId);

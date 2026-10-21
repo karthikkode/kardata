@@ -30,6 +30,7 @@ RUN groupadd -g 10001 agent \
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY usage-reader.mjs /usr/local/bin/usage-reader.mjs
+COPY session-reader.mjs /usr/local/bin/session-reader.mjs
 COPY reviews.mjs /usr/local/bin/reviews.mjs
 RUN chmod +x /usr/local/bin/entrypoint.sh
 

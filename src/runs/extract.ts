@@ -17,6 +17,7 @@ import {
 } from "../db/schema.js";
 import { recordEvent } from "../collect/db.js";
 import { DomainError } from "../domain/errors.js";
+import { logExtractorCall } from "../domain/logging/provider-calls.js";
 import { addFacts } from "../domain/research/facts.js";
 import { addFinding } from "../domain/research/findings.js";
 import { verifyRunExtraction, type GroundCounts } from "../domain/research/grounding.js";
@@ -579,6 +580,8 @@ export async function writeExtraction(
 export interface ExtractorCallResult {
   json: unknown;
   usage: HarnessUsage | undefined;
+  /** Raw response text when the caller kept it (for the call log). */
+  raw?: string;
 }
 
 /** One tool-less schema call; injectable for tests. */
@@ -612,7 +615,7 @@ export const dockerExtractorCall: ExtractorCall = async ({ runId, area, prompt }
     } catch {
       throw new Error("extraction returned invalid JSON");
     }
-    return { json, usage: result.usage };
+    return { json, usage: result.usage, raw: result.finalMessage };
   } finally {
     await input.cleanup();
   }
@@ -648,6 +651,7 @@ async function extractOneArea(
   run: ResearchRun,
   area: string,
   call: ExtractorCall,
+  seq: number,
 ): Promise<AreaExtractionOutcome> {
   const outcome: AreaExtractionOutcome = {
     area,
@@ -671,8 +675,22 @@ async function extractOneArea(
       vocab === null
         ? assembleSynthesisPrompt(gathered)
         : assembleAreaPrompt(area, vocab, gathered);
+    const callStarted = Date.now();
     const result = await call({ runId: run.id, area, prompt });
     outcome.usage = result.usage;
+    // Provider-call log; logging must never fail the extraction.
+    try {
+      await logExtractorCall(db, run, {
+        seq,
+        prompt,
+        raw: result.raw,
+        json: result.json,
+        usage: result.usage,
+        durationMs: Date.now() - callStarted,
+      });
+    } catch (err) {
+      console.error(`extractor call log failed for ${run.id}/${area}: ${err instanceof Error ? err.message : err}`);
+    }
     const validated = validateExtractionJson(area, gathered.sourceIds, result.json);
     const counts = await writeExtraction(db, run.companyId, run.id, area, validated);
     Object.assign(outcome, counts);
@@ -709,8 +727,10 @@ export async function runExtraction(
   const call = opts.call ?? dockerExtractorCall;
   const areas: AreaExtractionOutcome[] = [];
   let usage: HarnessUsage | undefined;
-  for (const area of [...EXTRACT_AREAS, SYNTHESIS_AREA]) {
-    const outcome = await extractOneArea(db, run, area, call);
+  const allAreas = [...EXTRACT_AREAS, SYNTHESIS_AREA];
+  for (let seq = 0; seq < allAreas.length; seq += 1) {
+    const area = allAreas[seq] as string;
+    const outcome = await extractOneArea(db, run, area, call, seq);
     areas.push(outcome);
     usage = addUsage(usage, outcome.usage);
   }

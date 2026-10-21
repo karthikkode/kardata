@@ -1,10 +1,11 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { randomUUID } from "node:crypto";
+import { gunzipSync } from "node:zlib";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
-import { documents, facts, researchRuns, runEvents, runTokens } from "../../src/db/schema.js";
+import { blobs, documents, facts, researchRuns, runEvents, runTokens } from "../../src/db/schema.js";
 import { startServer, type ServerHandle } from "../../src/server.js";
 import { hashRunToken, issueRunToken, revokeRunToken } from "../../src/runs/tokens.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
@@ -180,6 +181,31 @@ describe("run tokens", () => {
     expect((first.args as string).length).toBeLessThanOrEqual(2048);
     expect(typeof first.durationMs).toBe("number");
     expect((rows[1]?.payload as unknown as Record<string, unknown>).status).toBe("forbidden");
+  });
+
+  it("audits result size and a result blob ref per call", async () => {
+    const a = await makeCompany("A Co");
+    const runId = await makeAgentRun(a);
+    const { client } = await agentClientFor(runId, a);
+
+    await call(client, "company_context", { companyId: a });
+    const rows = await handle.db
+      .select({ payload: runEvents.payload })
+      .from(runEvents)
+      .where(and(eq(runEvents.runId, runId), eq(runEvents.type, "mcp_call")));
+    expect(rows).toHaveLength(1);
+    const payload = rows[0]?.payload as unknown as Record<string, unknown>;
+    expect(payload.status).toBe("ok");
+    expect(typeof payload.resultSize).toBe("number");
+    expect((payload.resultSize as number)).toBeGreaterThan(0);
+    expect(payload.resultTruncated).toBe(false);
+    if (payload.resultSha === null) {
+      expect(payload.result as string).toContain("company");
+    } else {
+      const [blob] = await handle.db.select().from(blobs).where(eq(blobs.sha256, payload.resultSha as string));
+      if (!blob) throw new Error("audit blob missing");
+      expect(gunzipSync(blob.gzip).toString("utf8")).toContain("company");
+    }
   });
 
   it("forces run_id and company from the token, never arguments", async () => {

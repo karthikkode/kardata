@@ -7,6 +7,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { blobs, researchRuns, sources, type Source } from "../db/schema.js";
 import type { Db } from "../db/client.js";
 import { DomainError } from "../domain/errors.js";
+import { logHttpFetch } from "../domain/logging/http.js";
 import { recordEvent } from "./db.js";
 
 // The only module allowed to call fetch (enforced by eslint no-restricted-globals).
@@ -554,6 +555,40 @@ function resolveOptions(req: FetchRequest): ResolvedFetchOptions {
 }
 
 export async function fetchUrl(db: Db, req: FetchRequest): Promise<FetchResult> {
+  const startedAt = Date.now();
+  const done = async (outcome: {
+    statusCode: number | null;
+    bytes: number | null;
+    sourceId?: string | null;
+    error?: string | null;
+  }): Promise<void> => {
+    try {
+      await logHttpFetch(db, req, { ...outcome, durationMs: Date.now() - startedAt });
+    } catch (err) {
+      // The fetch log must never mask the fetch itself.
+      console.error(`fetch log failed for ${req.url}: ${err instanceof Error ? err.message : err}`);
+    }
+  };
+  try {
+    const result = await fetchUrlInner(db, req);
+    await done({
+      statusCode: result.source.httpStatus ?? null,
+      bytes: result.body?.byteLength ?? null,
+      sourceId: result.source.id,
+      error: result.source.error ?? null,
+    });
+    return result;
+  } catch (err) {
+    // No HTTP attempt happened before a cancellation; budget and network
+    // failures are logged with the error.
+    if (!(err instanceof CancelledError)) {
+      await done({ statusCode: null, bytes: null, error: err instanceof Error ? err.message : String(err) });
+    }
+    throw err;
+  }
+}
+
+async function fetchUrlInner(db: Db, req: FetchRequest): Promise<FetchResult> {
   const run = await db.query.researchRuns.findFirst({ where: eq(researchRuns.id, req.runId) });
   if (!run) throw new DomainError("not_found", `run not found: ${req.runId}`);
   // The run stops before its next fetch: no request, no source row.

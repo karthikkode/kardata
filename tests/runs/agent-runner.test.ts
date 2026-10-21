@@ -8,7 +8,7 @@ import { and, eq } from "drizzle-orm";
 import { recordEvent } from "../../src/collect/db.js";
 import type { CollectRunResult } from "../../src/collect/run.js";
 import type { DbHandle } from "../../src/db/client.js";
-import { area, companies, companyJobs, researchRuns, runEvents, sources } from "../../src/db/schema.js";
+import { area, blobs, companies, companyJobs, providerCalls, researchRuns, runEvents, sources } from "../../src/db/schema.js";
 import { setAreaStatus } from "../../src/domain/research/status.js";
 import { PLAYWRIGHT_SERVER_CONFIG, RESEARCH_MUSE_ARGS } from "../../src/harness/docker.js";
 import type {
@@ -187,6 +187,10 @@ function makeFixture(opts: {
   collectLimit?: number;
   buildPrompt?: null;
   stallMs?: number;
+  sessionIngest?: (
+    runId: string,
+    sessionId: string | undefined,
+  ) => Promise<import("../../src/runs/usage.js").SessionIngestSummary>;
   usageRollup?: (
     main: HarnessUsage | undefined,
     sessionId: string | undefined,
@@ -212,6 +216,10 @@ function makeFixture(opts: {
     stallMs: opts.stallMs,
     usageRollup:
       opts.usageRollup ?? (async (main) => ({ total: main, childrenIncluded: false, children: [] })),
+    sessionIngest:
+      opts.sessionIngest !== undefined
+        ? async (run, sessionId) => opts.sessionIngest?.(run.id, sessionId) ?? { calls: 0 }
+        : async () => ({ calls: 0 }),
     collect: async (runId: string) => {
       collectCalls.push(runId);
       if (opts.collectImpl) return opts.collectImpl(runId);
@@ -816,6 +824,35 @@ describe("agent runner", () => {
       .map((r) => (r.payload as { type?: string }).type)
       .filter((t) => t !== undefined);
     expect(kinds).toEqual(["started", "usage", "finished"]);
+  });
+
+  it("logs the dispatch prompt and ingests the session after the run", async () => {
+    const ingested: { runId: string; sessionId: string | undefined }[] = [];
+    const fx = makeFixture({
+      scriptFor: () => ({
+        events: [{ type: "started", sessionId: "session-9" }, COMPLETED],
+      }),
+      sessionIngest: async (runId, sessionId) => {
+        ingested.push({ runId, sessionId });
+        return { calls: 3 };
+      },
+    });
+    const companyId = await makeCompany("A Co");
+    await freshCollect(companyId);
+    const started = await researchStart(handle.db, { companyIds: [companyId] });
+    const runId = (started.runs[0] as { runId: string }).runId;
+    await arrangeFinish(runId);
+
+    await fx.runner.tick();
+    await drain(runId);
+    expect(ingested).toEqual([{ runId, sessionId: "session-9" }]);
+    const [dispatch] = await handle.db.select().from(providerCalls).where(eq(providerCalls.runId, runId));
+    expect(dispatch?.sessionId).toBe("session-9");
+    expect(dispatch?.promptSha256).not.toBeNull();
+    expect(dispatch?.stage).toBe("research");
+    const [blob] = await handle.db.select().from(blobs).where(eq(blobs.sha256, dispatch?.promptSha256 ?? ""));
+    expect(blob).toBeTruthy();
+    expect(fx.prompts).toHaveLength(1);
   });
 
   it("writes raw stdout to events.jsonl", async () => {

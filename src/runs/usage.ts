@@ -1,7 +1,9 @@
 import { execFile } from "node:child_process";
-import type { ChildUsage } from "../db/schema.js";
-import { readerRunArgs } from "../harness/setup.js";
+import type { ChildUsage, ResearchRun } from "../db/schema.js";
+import type { Db } from "../db/client.js";
+import { sessionReaderRunArgs, readerRunArgs } from "../harness/setup.js";
 import type { HarnessUsage } from "../harness/types.js";
+import { ingestSessionCalls, type SessionCall } from "../domain/logging/provider-calls.js";
 
 /**
  * Subagent usage rollup (Stage 3b.1): the exec stream's run.usage covers the
@@ -110,4 +112,87 @@ export async function rollupUsage(
   const rollup: UsageRollup = { total: totalUsage(main, clean), childrenIncluded: true, children: clean };
   if (typeof note === "string") rollup.note = note;
   return rollup;
+}
+
+export interface SessionIngestSummary {
+  calls: number;
+  note?: string;
+}
+
+function sanitizeCall(value: unknown): SessionCall | null {
+  if (typeof value !== "object" || value === null) return null;
+  const v = value as Record<string, unknown>;
+  if (typeof v.session_id !== "string" || v.session_id === "") return null;
+  const str = (x: unknown): string | null => (typeof x === "string" ? x : null);
+  const messages = Array.isArray(v.messages)
+    ? v.messages.flatMap((m) =>
+        typeof m === "object" && m !== null && typeof (m as { text?: unknown }).text === "string"
+          ? [{ phase: str((m as { phase?: unknown }).phase), text: (m as { text: string }).text }]
+          : [],
+      )
+    : [];
+  const toolCalls = Array.isArray(v.tool_calls)
+    ? v.tool_calls.flatMap((c) =>
+        typeof c === "object" && c !== null && typeof (c as { name?: unknown }).name === "string"
+          ? [{ name: (c as { name: string }).name, call_id: str((c as { call_id?: unknown }).call_id) }]
+          : [],
+      )
+    : [];
+  return {
+    usage_id: str(v.usage_id),
+    session_id: v.session_id,
+    child_session_id: str(v.child_session_id),
+    seq: num(v.seq),
+    response_id: str(v.response_id),
+    model: str(v.model),
+    provider: str(v.provider),
+    input_tokens: num(v.input_tokens),
+    output_tokens: num(v.output_tokens),
+    cached_tokens: num(v.cached_tokens),
+    reasoning_tokens: num(v.reasoning_tokens),
+    at: str(v.at),
+    messages,
+    tool_calls: toolCalls,
+  };
+}
+
+/**
+ * Post-run per-call ingest (Stage 5 Phase 3): read the session log through
+ * the session-reader and store one provider_calls row per provider call.
+ * Never throws: gaps are notes, like the usage rollup.
+ */
+export async function ingestRunSession(
+  db: Db,
+  run: ResearchRun,
+  sessionId: string | undefined,
+  runReader: ReaderCall = defaultReaderCall,
+): Promise<SessionIngestSummary> {
+  if (!sessionId) return { calls: 0, note: "no session id (harness never emitted started)" };
+  let out: { ok: boolean; stdout: string };
+  try {
+    out = await runReader(sessionReaderRunArgs(sessionId));
+  } catch (err) {
+    return { calls: 0, note: `session reader failed: ${err instanceof Error ? err.message : err}` };
+  }
+  if (!out.ok) return { calls: 0, note: "session reader container failed (docker unavailable?)" };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(out.stdout);
+  } catch {
+    return { calls: 0, note: "session reader returned invalid JSON" };
+  }
+  if (typeof parsed !== "object" || parsed === null || !Array.isArray((parsed as { calls?: unknown }).calls)) {
+    return { calls: 0, note: "session reader returned an unexpected shape" };
+  }
+  const { calls, note } = parsed as { calls: unknown[]; note?: unknown };
+  const clean = calls.map(sanitizeCall).filter((c): c is SessionCall => c !== null);
+  try {
+    const { inserted } = await ingestSessionCalls(db, run, clean);
+    const summary: SessionIngestSummary = { calls: inserted };
+    if (typeof note === "string") summary.note = note;
+    else if (clean.length === 0) summary.note = "no provider calls found";
+    return summary;
+  } catch (err) {
+    return { calls: 0, note: `session ingest failed: ${err instanceof Error ? err.message : err}` };
+  }
 }

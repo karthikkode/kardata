@@ -52,6 +52,25 @@ export function readerRunArgs(sessionId: string): string[] {
   ];
 }
 
+// Session-reader: per-provider-call records, same one-shot shape.
+export function sessionReaderRunArgs(sessionId: string): string[] {
+  return [
+    "run",
+    "--rm",
+    "--network",
+    "none",
+    "--entrypoint",
+    "node",
+    "-v",
+    `${MUSE_VOLUME}:${MUSE_MOUNT}:ro`,
+    "-e",
+    `HOME=${MUSE_MOUNT}/home`,
+    AGENT_IMAGE,
+    "/usr/local/bin/session-reader.mjs",
+    sessionId,
+  ];
+}
+
 // Interactive setup container (the owner runs it): root so it can install the
 // launcher and chown the volume to the agent user; the named volume only —
 // never anything under the owner's home.
