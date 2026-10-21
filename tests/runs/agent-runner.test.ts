@@ -922,6 +922,21 @@ describe("agent runner", () => {
     expect((await runRow(runId)).status).toBe("partial");
   });
 
+  it("claims company preflight subjobs without legacy collect either", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ events: [COMPLETED] }) });
+    const companyId = await makeCompany("P Co");
+    // No freshCollect: without the company guard the row would run the full
+    // legacy collect in-process before recon.
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const started = await researchStart(handle.db, { companyIds: [companyId], companyJobId: jobId, stage: "preflight" });
+    const runId = (started.runs[0] as { runId: string }).runId;
+
+    await fx.runner.tick();
+    await drain(runId);
+    expect(fx.harness.handles.has(runId)).toBe(true);
+    expect(fx.collectCalls).toEqual([]);
+  });
+
   it("drives preflight subjobs to succeeded on run_finish without area statuses", async () => {
     const fx = makeFixture({ scriptFor: () => ({ events: [COMPLETED] }) });
     const companyId = await makeCompany("A Co");

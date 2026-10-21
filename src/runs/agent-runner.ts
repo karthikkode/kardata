@@ -625,10 +625,12 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
           .limit(QUEUE_SCAN_MAX);
         for (const q of queued) {
           const recollectDays = q.agentOptions?.recollectDays ?? 14;
-          // The pipeline's collect subjob owns deterministic collection; a
-          // research row always goes straight to researching.
-          const companyResearch = q.companyJobId !== null && q.stage === "research";
-          const needsCollect = companyResearch ? false : !(await hasFreshCollect(db, q.companyId, recollectDays));
+          // Company subjobs never run legacy in-process collect: the
+          // pipeline's collect subjob owns deterministic collection (a
+          // preflight row would otherwise run the full legacy collect
+          // before recon).
+          const needsCollect =
+            q.companyJobId !== null ? false : !(await hasFreshCollect(db, q.companyId, recollectDays));
           if (needsCollect && collecting().length >= collectLimit) continue;
           if (!needsCollect && researching().length >= maxAgents) continue;
           if (await claim(q.id)) launch(q.id, needsCollect);
