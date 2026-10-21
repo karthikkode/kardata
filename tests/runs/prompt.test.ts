@@ -6,8 +6,11 @@ import type { PromptContext } from "../../src/runs/agent-runner.js";
 import {
   assertPromptVersion,
   availablePromptVersions,
+  buildPreflightPrompt,
   buildResearchPrompt,
+  buildStagePrompt,
   latestPromptVersion,
+  preflightAdapterList,
   PROMPT_AREAS,
   resolvePromptVersion,
 } from "../../src/runs/prompt.js";
@@ -219,5 +222,32 @@ describe("prompt versions", () => {
     expect(prompt).toContain("Never write test or probe data to kardata");
     expect(prompt).toContain("depth and citations, not structuring");
     expect(prompt).not.toContain("{{");
+  });
+});
+
+describe("preflight prompt", () => {
+  it("renders recon instructions with the company facts and every adapter id", () => {
+    const prompt = buildPreflightPrompt(ctx({}));
+    expect(prompt).toContain("Preflight recon for Example Co");
+    expect(prompt).toContain("example.com");
+    expect(prompt).toContain("preflight_report_save");
+    expect(prompt).toContain("Recon ONLY");
+    for (const line of preflightAdapterList()) {
+      expect(prompt).toContain(line.split(" ")[0] as string);
+    }
+    expect(prompt).not.toContain("{{");
+  });
+
+  it("lists exactly the registered collectors", () => {
+    const ids = preflightAdapterList().map((line) => line.split(" ")[0]);
+    expect(ids).toContain("reviews_onsite");
+    expect(ids).toContain("sec_form_d");
+    expect(ids.length).toBeGreaterThanOrEqual(12);
+  });
+
+  it("routes preflight runs to recon and everything else to research", () => {
+    expect(buildStagePrompt(ctx({ run: { stage: "preflight", promptVersion: "v1.3" } }))).toContain("Preflight recon");
+    expect(buildStagePrompt(ctx({ run: { stage: "research", promptVersion: "v1.3" } }))).toContain("### reviews");
+    expect(buildStagePrompt(ctx({ run: { stage: null, promptVersion: "v1.3" } }))).toContain("### reviews");
   });
 });

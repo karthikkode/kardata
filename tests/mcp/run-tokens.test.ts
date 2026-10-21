@@ -7,6 +7,7 @@ import { and, eq } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
 import { blobs, documents, facts, researchRuns, runEvents, runTokens } from "../../src/db/schema.js";
 import { startServer, type ServerHandle } from "../../src/server.js";
+import { startCompanyJob } from "../../src/runs/company.js";
 import { hashRunToken, issueRunToken, revokeRunToken } from "../../src/runs/tokens.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 
@@ -181,6 +182,38 @@ describe("run tokens", () => {
     expect((first.args as string).length).toBeLessThanOrEqual(2048);
     expect(typeof first.durationMs).toBe("number");
     expect((rows[1]?.payload as unknown as Record<string, unknown>).status).toBe("forbidden");
+  });
+
+  it("restricts preflight runs to reads plus the report save", async () => {
+    const a = await makeCompany("A Co");
+    const runId = await makeAgentRun(a);
+    const { jobId } = await startCompanyJob(handle.db, { companyId: a });
+    await handle.db
+      .update(researchRuns)
+      .set({ stage: "preflight", companyJobId: jobId })
+      .where(eq(researchRuns.id, runId));
+    const { client } = await agentClientFor(runId, a);
+
+    expect(errorOf(await call(client, "fact_add", { companyId: a, facts: [] })).code).toBe("forbidden");
+    const reads = await call(client, "company_context", { companyId: a });
+    expect(reads.isError).not.toBe(true);
+    const saved = dataOf(
+      await call(client, "preflight_report_save", {
+        report: {
+          version: 1,
+          reviewLocations: [],
+          adaptersRequired: [{ adapterId: "site", reason: "homepage" }],
+          adaptersMissing: [],
+          collectDirectives: { areas: [], notes: "" },
+          confidence: 0.5,
+          notes: "",
+        },
+      }),
+    );
+    expect((saved as { jobId: string }).jobId).toBe(jobId);
+    // Malformed reports are rejected by the tool's own input schema.
+    const bad = await call(client, "preflight_report_save", { report: { version: 1 } });
+    expect(bad.isError).toBe(true);
   });
 
   it("audits result size and a result blob ref per call", async () => {

@@ -1,7 +1,7 @@
 import { createWriteStream, readdirSync, rmSync, statSync } from "node:fs";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { and, desc, eq, isNull, like, sql } from "drizzle-orm";
+import { and, desc, eq, like, sql } from "drizzle-orm";
 import { recordEvent } from "../collect/db.js";
 import { executeCollectRun, type CollectRunResult } from "../collect/run.js";
 import type { Db } from "../db/client.js";
@@ -533,6 +533,12 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
         await finalize(runId, "partial", "no run_finish", outcome);
         return;
       }
+      // Preflight runs file a report instead of area statuses; the company
+      // worker gates on the report itself.
+      if (run.stage === "preflight") {
+        await finalize(runId, "succeeded", null, outcome);
+        return;
+      }
       const missing = await areasWithoutStatus(db, runId);
       if (missing.length > 0) {
         await finalize(runId, "partial", `areas without status: ${missing.join(", ")}`, outcome);
@@ -601,8 +607,9 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
         noteResearching();
         const maxAgents = await effectiveMaxAgents(db, deps.maxAgents);
         if (researching().length >= maxAgents && collecting().length >= collectLimit) return;
-        // Stage 5: company-job subjobs are owned by the company worker until
-        // the runner learns stage-aware prompts (Phase 6 widens this guard).
+        // Stage 5: company-job subjobs are owned by the company worker; the
+        // runner drives preflight ones (recon prompt) and leaves research to
+        // Phase 6's stage-aware wiring.
         const queued = await db
           .select()
           .from(researchRuns)
@@ -610,7 +617,7 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
             and(
               eq(researchRuns.kind, "agent"),
               eq(researchRuns.status, "queued"),
-              isNull(researchRuns.companyJobId),
+              sql`${researchRuns.companyJobId} IS NULL OR ${researchRuns.stage} = 'preflight'`,
             ),
           )
           .orderBy(researchRuns.createdAt)

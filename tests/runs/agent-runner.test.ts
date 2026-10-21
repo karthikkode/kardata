@@ -885,7 +885,7 @@ describe("agent runner", () => {
     expect(row.error ?? "").toMatch(/no prompt builder/);
   });
 
-  it("leaves company-job subjobs for the company worker", async () => {
+  it("leaves company research subjobs for Phase 6 wiring", async () => {
     const fx = makeFixture({ scriptFor: () => ({ events: [COMPLETED] }) });
     const companyId = await makeCompany("A Co");
     const { jobId } = await startCompanyJob(handle.db, { companyId });
@@ -898,6 +898,21 @@ describe("agent runner", () => {
     await new Promise((r) => setTimeout(r, 100));
     expect((await runRow(runId)).status).toBe("queued");
     expect(fx.harness.handles.has(runId)).toBe(false);
+  });
+
+  it("drives preflight subjobs to succeeded on run_finish without area statuses", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ events: [COMPLETED] }) });
+    const companyId = await makeCompany("A Co");
+    await freshCollect(companyId);
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const started = await researchStart(handle.db, { companyIds: [companyId], companyJobId: jobId, stage: "preflight" });
+    const runId = (started.runs[0] as { runId: string }).runId;
+    await recordEvent(handle.db, runId, "agent_finish", { summary: "recon done" });
+
+    await fx.runner.tick();
+    await drain(runId);
+    expect(fx.harness.handles.has(runId)).toBe(true);
+    expect((await runRow(runId)).status).toBe("succeeded");
   });
 });
 

@@ -30,6 +30,7 @@ import {
   listRunEvents,
   searchAll,
 } from "../domain/research/reads.js";
+import { preflightReportSchema, savePreflightReportForRun } from "../domain/company-jobs/preflight.js";
 import { researchStart } from "../runs/agent.js";
 import {
   jobCancel,
@@ -1061,6 +1062,30 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
           areaOutcomes: areaOutcomes ?? [],
         });
         return { summary: `run ${run} finished`, data: { runId: run } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "preflight_report_save",
+    {
+      description: "Agent: file the collect plan for a company-job preflight run (PreflightReportV1 JSON). Re-validated on every save; the latest version gates the collect stage.",
+      inputSchema: {
+        runId: runId.optional().describe("Defaults to the caller's run"),
+        report: preflightReportSchema.describe("PreflightReportV1 as a JSON object"),
+      },
+    },
+    async ({ runId: givenRunId, report }) =>
+      wrap(async () => {
+        const id =
+          auth.kind === "run"
+            ? await resolveRunId(db, auth, auth.companyId, givenRunId ?? undefined)
+            : givenRunId;
+        if (!id) throw new DomainError("invalid_input", "runId is required");
+        const saved = await savePreflightReportForRun(db, id, report);
+        return {
+          summary: `preflight report v${saved.reportVersion} saved for job ${saved.jobId}`,
+          data: { jobId: saved.jobId, reportVersion: saved.reportVersion },
+        };
       }),
   );
 

@@ -78,6 +78,7 @@ const EXPECTED_TOOLS = [
   "job_retry_failed",
   "harness_settings_get",
   "harness_settings_set",
+  "preflight_report_save",
   "company_job_start",
   "company_job_status",
   "company_jobs_list",

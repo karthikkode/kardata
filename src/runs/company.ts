@@ -16,6 +16,7 @@ import {
   type CompanyDerived,
   type CompanyStage,
 } from "../domain/company-jobs/status.js";
+import { checkPreflightGate, getPreflightSummary } from "../domain/company-jobs/preflight.js";
 import { logJobEvent } from "../domain/company-jobs/events.js";
 import { DomainError, isUniqueViolation } from "../domain/errors.js";
 import { researchStart } from "./agent.js";
@@ -93,6 +94,7 @@ export interface CompanyStatusView {
   active: { stage: CompanyStage; runId: string; status: ResearchRun["status"]; startedAt: Date | null } | null;
   tokensSpent: number;
   etaSec: number | null;
+  preflightReport: { version: number; confidence: number } | null;
 }
 
 function stageDurationMs(run: ResearchRun): number | null {
@@ -123,6 +125,7 @@ export async function companyJobStatus(db: Db, jobId: string): Promise<CompanySt
     durationMs: s.run ? stageDurationMs(s.run) : null,
   }));
   const activeState = desc.stages.find((s) => s.run && !isTerminalSubjob(s.run.status));
+  const preflightReport = await getPreflightSummary(db, jobId);
   const durations = stages.map((s) => s.durationMs).filter((d): d is number => d !== null && d > 0);
   const remaining = stages.filter((s) => s.status === null || !isTerminalSubjob(s.status)).length;
   const etaSec =
@@ -146,6 +149,7 @@ export async function companyJobStatus(db: Db, jobId: string): Promise<CompanySt
           },
     tokensSpent: desc.job.inputTokensSpent,
     etaSec,
+    preflightReport,
   };
 }
 
@@ -224,11 +228,15 @@ export async function beginStageReal(db: Db, job: CompanyJob, stage: CompanyStag
     if (!entry || entry.status === "already_running") return { busy: true };
     return { runId: entry.runId };
   }
+  // Preflight is recon, not research: a short leash.
+  const agentOpts =
+    stage === "preflight" ? { maxMinutes: 15, maxModelSteps: 30 } : { maxMinutes: 40, maxModelSteps: 100 };
   const result = await researchStart(db, {
     companyIds: [job.companyId],
     promptVersion: latestPromptVersion(),
     companyJobId: job.id,
     stage,
+    ...agentOpts,
   });
   const entry = result.runs[0];
   if (!entry || entry.status === "already_running") return { busy: true };
@@ -494,9 +502,22 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
         return;
       }
     }
-    // No active subjob. A failed stage on a running job is always unaccounted
-    // (accounting leaves failed/paused, and leaving those states always
-    // creates a live subjob first) — account it now.
+    // No active subjob. Gate first: a completed preflight without a valid
+    // filed report failed (the retry path, never a skip).
+    const preflight = desc.stages.find((s) => s.stage === "preflight");
+    if (preflight?.run && isStageComplete(preflight.run)) {
+      const gate = await checkPreflightGate(db, job.id);
+      if (!gate.ok) {
+        await db
+          .update(researchRuns)
+          .set({ status: "failed", error: `preflight gate: ${gate.reason}`, finishedAt: new Date(clock()) })
+          .where(eq(researchRuns.id, preflight.run.id));
+        desc = await describeCompanyJob(db, job.id);
+      }
+    }
+    // A failed stage on a running job is always unaccounted (accounting
+    // leaves failed/paused, and leaving those states always creates a live
+    // subjob first) — account it now.
     const failed = desc.stages.find((s) => s.run && isTerminalSubjob(s.run.status) && !isStageComplete(s.run));
     if (failed?.run) {
       if (current.status === "running") {

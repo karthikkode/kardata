@@ -24,6 +24,11 @@ import {
   type BeginStageOutcome,
   type CompanyRunnerDeps,
 } from "../../src/runs/company.js";
+import {
+  checkPreflightGate,
+  getPreflightReport,
+  savePreflightReport,
+} from "../../src/domain/company-jobs/preflight.js";
 import { companySettingsGet, companySettingsSet } from "../../src/runs/settings.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 
@@ -64,6 +69,22 @@ async function latestSubjob(jobId: string, stage: CompanyStage): Promise<Researc
     .where(and(eq(researchRuns.companyJobId, jobId), eq(researchRuns.stage, stage)))
     .orderBy(asc(researchRuns.createdAt));
   return rows[rows.length - 1] ?? null;
+}
+
+async function fileReport(jobId: string, companyId: string): Promise<void> {
+  await savePreflightReport(handle.db, {
+    jobId,
+    companyId,
+    report: {
+      version: 1,
+      reviewLocations: [],
+      adaptersRequired: [{ adapterId: "site", reason: "homepage" }],
+      adaptersMissing: [],
+      collectDirectives: { areas: [], notes: "" },
+      confidence: 0.9,
+      notes: "",
+    },
+  });
 }
 
 async function flipRun(
@@ -146,6 +167,7 @@ describe("describeCompanyJob (AC-2)", () => {
     const { jobId } = await startCompanyJob(handle.db, { companyId });
     const world = fakeWorld();
     const runner = createCompanyRunner(handle.db, world.deps());
+    await fileReport(jobId, companyId);
     await runner.tick();
     let desc = await describeCompanyJob(handle.db, jobId);
     expect(desc.derived).toBe("incomplete");
@@ -202,6 +224,7 @@ describe("stage machine", () => {
     const { jobId } = await startCompanyJob(handle.db, { companyId });
     const world = fakeWorld();
     const runner = createCompanyRunner(handle.db, world.deps());
+    await fileReport(jobId, companyId);
     await runner.tick();
     for (const stage of ["preflight", "collect", "research"] as const) {
       const sub = await latestSubjob(jobId, stage);
@@ -257,6 +280,7 @@ describe("stage machine", () => {
     const { jobId } = await startCompanyJob(handle.db, { companyId });
     const world = fakeWorld();
     const runner = createCompanyRunner(handle.db, world.deps());
+    await fileReport(jobId, companyId);
     await runner.tick();
     await companyJobPause(handle.db, jobId);
     const sub = await latestSubjob(jobId, "preflight");
@@ -301,6 +325,7 @@ describe("stage machine", () => {
     const world = fakeWorld();
     const runner = createCompanyRunner(handle.db, world.deps());
     await runner.tick();
+    await fileReport(jobId, companyId);
     const sub = await latestSubjob(jobId, "preflight");
     if (!sub) throw new Error("no subjob");
     await handle.db
@@ -319,6 +344,95 @@ describe("stage machine", () => {
     await flipRun(sub.id, "succeeded");
     await runner.tick();
     expect((await jobRow(jobId)).inputTokensSpent).toBe(150);
+  });
+});
+
+describe("preflight reports", () => {
+  const valid = {
+    version: 1,
+    reviewLocations: [{ platform: "trustpilot", url: "https://example.com/t", evidence: "seen" }],
+    adaptersRequired: [{ adapterId: "site", reason: "homepage" }],
+    adaptersMissing: [],
+    collectDirectives: { areas: ["reviews"], notes: "" },
+    confidence: 0.7,
+    notes: "",
+  };
+
+  it("versions reports and gates on the latest valid one", async () => {
+    const companyId = await makeCompany("Acme");
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    expect(await checkPreflightGate(handle.db, jobId)).toEqual({ ok: false, reason: "no preflight report saved" });
+    const v1 = await savePreflightReport(handle.db, { jobId, companyId, report: valid });
+    expect(v1.reportVersion).toBe(1);
+    const v2 = await savePreflightReport(handle.db, { jobId, companyId, report: { ...valid, confidence: 0.8 } });
+    expect(v2.reportVersion).toBe(2);
+    expect((await getPreflightReport(handle.db, jobId))?.reportVersion).toBe(2);
+    const gate = await checkPreflightGate(handle.db, jobId);
+    expect(gate.ok).toBe(true);
+  });
+
+  it("accepts a stringified report", async () => {
+    const companyId = await makeCompany("Acme");
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const saved = await savePreflightReport(handle.db, { jobId, companyId, report: JSON.stringify(valid) });
+    expect(saved.reportVersion).toBe(1);
+    expect((await checkPreflightGate(handle.db, jobId)).ok).toBe(true);
+    await expect(
+      savePreflightReport(handle.db, { jobId, companyId, report: "not json" }),
+    ).rejects.toThrow("not an object or JSON string");
+  });
+
+  it("rejects malformed reports", async () => {
+    const companyId = await makeCompany("Acme");
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    await expect(savePreflightReport(handle.db, { jobId, companyId, report: { version: 1 } })).rejects.toMatchObject({
+      code: "invalid_input",
+    });
+    await expect(
+      savePreflightReport(handle.db, {
+        jobId,
+        companyId,
+        report: { ...valid, collectDirectives: { areas: ["nope"], notes: "" } },
+      }),
+    ).rejects.toThrow("unknown area");
+    await expect(
+      savePreflightReport(handle.db, { jobId, companyId, report: { ...valid, confidence: 2 } }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+  });
+});
+
+describe("preflight gate", () => {
+  it("fails a reportless preflight and advances once the report is filed", async () => {
+    const companyId = await makeCompany("Acme");
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const world = fakeWorld();
+    const runner = createCompanyRunner(handle.db, world.deps());
+    await runner.tick();
+    const first = await latestSubjob(jobId, "preflight");
+    if (!first) throw new Error("no subjob");
+    await flipRun(first.id, "succeeded");
+    await runner.tick();
+    const failed = await latestSubjob(jobId, "preflight");
+    expect(failed?.status).toBe("failed");
+    expect(failed?.error ?? "").toContain("preflight gate");
+    expect((await jobRow(jobId)).status).toBe("failed");
+
+    await fileReport(jobId, companyId);
+    await companyJobRetry(handle.db, jobId);
+    const second = await latestSubjob(jobId, "preflight");
+    if (!second) throw new Error("no retry subjob");
+    await flipRun(second.id, "succeeded");
+    await runner.tick();
+    expect((await jobRow(jobId)).currentStage).toBe("collect");
+    expect(await latestSubjob(jobId, "collect")).not.toBeNull();
+  });
+
+  it("reports the filed version and confidence in status", async () => {
+    const companyId = await makeCompany("Acme");
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    expect((await companyJobStatus(handle.db, jobId)).preflightReport).toBeNull();
+    await fileReport(jobId, companyId);
+    expect((await companyJobStatus(handle.db, jobId)).preflightReport).toEqual({ version: 1, confidence: 0.9 });
   });
 });
 
@@ -357,6 +471,7 @@ describe("cancel and retry", () => {
     const { jobId } = await startCompanyJob(handle.db, { companyId });
     const world = fakeWorld();
     const runner = createCompanyRunner(handle.db, world.deps());
+    await fileReport(jobId, companyId);
     await runner.tick();
     for (const stage of ["preflight", "collect", "research"] as const) {
       const sub = await latestSubjob(jobId, stage);
@@ -429,6 +544,7 @@ describe("beginStageReal", () => {
     expect(preRow?.companyJobId).toBe(jobId);
     expect(preRow?.stage).toBe("preflight");
     expect(preRow?.kind).toBe("agent");
+    expect(preRow?.agentOptions).toMatchObject({ maxMinutes: 15, maxModelSteps: 30 });
     await flipRun(preflight.runId, "succeeded");
     const collect = await beginStageReal(handle.db, job, "collect");
     if (!("runId" in collect)) throw new Error("collect busy");

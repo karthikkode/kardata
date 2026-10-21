@@ -1,7 +1,9 @@
 import type { McpServer, RegisteredTool, ToolCallback } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { recordEvent } from "../collect/db.js";
 import type { Db } from "../db/client.js";
+import { researchRuns } from "../db/schema.js";
 import { DomainError } from "../domain/errors.js";
 import { storeBlob } from "../domain/research/sources.js";
 import { getOrCreateManualRun } from "../runs/queue.js";
@@ -37,6 +39,24 @@ export const AGENT_TOOLSET = new Set([
   "document_save",
   "finding_add",
   "area_status_set",
+  "run_finish",
+  "preflight_report_save",
+]);
+
+/** Preflight runs are recon-only: reads plus the report save plus finish. */
+export const PREFLIGHT_TOOLSET = new Set([
+  "registry_list",
+  "registry_describe",
+  "company_context",
+  "facts_get",
+  "records_list",
+  "search",
+  "document_list",
+  "document_get",
+  "document_history",
+  "source_fetch",
+  "source_get",
+  "preflight_report_save",
   "run_finish",
 ]);
 
@@ -141,6 +161,17 @@ export function registerTool<Args extends z.ZodRawShape | undefined>(
       const result = fail("forbidden", `run tokens cannot call ${name}`);
       await auditCall(db, auth.runId, name, args, result, startedAt);
       return result;
+    }
+    if (auth.kind === "run" && !PREFLIGHT_TOOLSET.has(name)) {
+      const [run] = await db
+        .select({ stage: researchRuns.stage })
+        .from(researchRuns)
+        .where(eq(researchRuns.id, auth.runId));
+      if (run?.stage === "preflight") {
+        const result = fail("forbidden", "preflight runs can only read and save the preflight report");
+        await auditCall(db, auth.runId, name, args, result, startedAt);
+        return result;
+      }
     }
     const result = await (handler as (a: unknown, e: unknown) => Promise<unknown>)(args, extra);
     if (auth.kind === "run") {
