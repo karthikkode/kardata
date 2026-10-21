@@ -1,0 +1,109 @@
+/**
+ * One-shot sector-preflight classifier containers (Stage 5.1 Step 1):
+ * tool-less headless Muse calls with --output-schema. Mirrors the extractor
+ * lockdown: no MCP servers, no auth token, no secrets in env; the prompt and
+ * schema enter through a read-only bind mount of a server-written input dir
+ * (deleted after the call); read-only root FS with tmpfs /tmp and /workspace;
+ * label kardata.run=<runId> for stop and boot recovery.
+ */
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { AGENTS_NETWORK, AGENT_IMAGE, MUSE_MOUNT, MUSE_VOLUME } from "./setup.js";
+import { CONTAINER_CPUS, CONTAINER_MEMORY, CONTAINER_PIDS_LIMIT, RUN_LABEL } from "./docker.js";
+
+export const CLASSIFY_INPUT_MOUNT = "/input";
+export const CLASSIFY_PROMPT_FILE = "prompt.md";
+export const CLASSIFY_SCHEMA_FILE = "schema.json";
+
+/** Tool-less lockdown plus the pinned model; no MCP servers are configured. */
+export const CLASSIFY_MUSE_ARGS = [
+  "--disable-web-tools",
+  "--disable-shell",
+  "--disable-write",
+  "--model",
+  "muse-spark-1.3",
+  "--disable-reminders",
+  "--no-foreign-personal-context",
+  "--max-model-steps",
+  "3",
+];
+
+export function classifyContainerName(runId: string): string {
+  const safe = runId.replace(/[^a-zA-Z0-9_.-]/g, "-").slice(0, 100);
+  if (safe.replace(/-/g, "") === "") throw new Error("runId has no usable characters for a container name");
+  return `kardata-classify-${safe}`;
+}
+
+export interface ClassifyRunOptions {
+  runId: string;
+  inputDir: string;
+}
+
+/** Exact `docker run` argv for one classifier call. Refuses a missing input dir. */
+export function classifyRunArgs(opts: ClassifyRunOptions): string[] {
+  if (!opts.inputDir) throw new Error("classifier runs require an input dir");
+  return [
+    "run",
+    "--rm",
+    "--name",
+    classifyContainerName(opts.runId),
+    "--label",
+    `${RUN_LABEL}=${opts.runId}`,
+    "--memory",
+    CONTAINER_MEMORY,
+    "--cpus",
+    CONTAINER_CPUS,
+    "--pids-limit",
+    CONTAINER_PIDS_LIMIT,
+    "--read-only",
+    "--tmpfs",
+    "/tmp",
+    "--tmpfs",
+    "/workspace",
+    "--network",
+    AGENTS_NETWORK,
+    "-v",
+    `${MUSE_VOLUME}:${MUSE_MOUNT}`,
+    "--mount",
+    `type=bind,src=${opts.inputDir},dst=${CLASSIFY_INPUT_MOUNT},ro`,
+    "-e",
+    `HOME=${MUSE_MOUNT}/home`,
+    "-e",
+    "MUSE_NO_AUTO_UPDATE=1",
+    "-e",
+    "LANG=C.UTF-8",
+    AGENT_IMAGE,
+    "run",
+    "exec",
+    "--json",
+    ...CLASSIFY_MUSE_ARGS,
+    "--output-schema",
+    `${CLASSIFY_INPUT_MOUNT}/${CLASSIFY_SCHEMA_FILE}`,
+    "--prompt-file",
+    `${CLASSIFY_INPUT_MOUNT}/${CLASSIFY_PROMPT_FILE}`,
+  ];
+}
+
+export interface ClassifyInput {
+  dir: string;
+  cleanup: () => Promise<void>;
+}
+
+/**
+ * Write prompt.md + schema.json to a fresh tmpdir; the caller must cleanup.
+ * The container runs as a non-root user, so the dir and files are made
+ * world-readable (they hold fetched pages, never secrets).
+ */
+export async function prepareClassifyInput(prompt: string, schema: string): Promise<ClassifyInput> {
+  const dir = await mkdtemp(join(tmpdir(), "kardata-classify-"));
+  await writeFile(join(dir, CLASSIFY_PROMPT_FILE), prompt, "utf8");
+  await writeFile(join(dir, CLASSIFY_SCHEMA_FILE), schema, "utf8");
+  await chmod(join(dir, CLASSIFY_PROMPT_FILE), 0o644);
+  await chmod(join(dir, CLASSIFY_SCHEMA_FILE), 0o644);
+  await chmod(dir, 0o755);
+  return {
+    dir,
+    cleanup: () => rm(dir, { recursive: true, force: true }).then(() => undefined),
+  };
+}

@@ -180,8 +180,12 @@ export interface ExtractorCallLog {
   durationMs: number;
 }
 
-/** One extractor CLI call, logged inline while extraction runs. */
-export async function logExtractorCall(db: Db, run: ResearchRun, log: ExtractorCallLog): Promise<void> {
+async function insertToollessCall(
+  db: Db,
+  run: ResearchRun,
+  stage: "extraction" | "sector_preflight",
+  log: ExtractorCallLog,
+): Promise<void> {
   const promptSha = await storeBlob(db, "text/plain", Buffer.from(log.prompt, "utf8"));
   const responseText = log.raw ?? JSON.stringify(log.json);
   const responseSha = responseText
@@ -190,7 +194,7 @@ export async function logExtractorCall(db: Db, run: ResearchRun, log: ExtractorC
   await db.insert(providerCalls).values({
     companyJobId: run.companyJobId,
     runId: run.id,
-    stage: "extraction",
+    stage,
     seq: log.seq,
     model: log.usage?.model ?? null,
     promptSha256: promptSha,
@@ -201,4 +205,14 @@ export async function logExtractorCall(db: Db, run: ResearchRun, log: ExtractorC
     reasoningTokens: log.usage?.reasoningTokens ?? 0,
     durationMs: log.durationMs,
   });
+}
+
+/** One extractor CLI call, logged inline while extraction runs. */
+export async function logExtractorCall(db: Db, run: ResearchRun, log: ExtractorCallLog): Promise<void> {
+  await insertToollessCall(db, run, "extraction", log);
+}
+
+/** One sector-preflight classifier call, logged the same way. */
+export async function logClassifierCall(db: Db, run: ResearchRun, log: ExtractorCallLog): Promise<void> {
+  await insertToollessCall(db, run, "sector_preflight", log);
 }

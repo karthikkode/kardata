@@ -47,6 +47,7 @@ describe("migrations on kardata_test", () => {
       "run_events",
       "run_tokens",
       "sector_companies",
+      "sector_preflight",
       "sectors",
       "shortlists",
       "sources",

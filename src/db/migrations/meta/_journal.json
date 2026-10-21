@@ -120,6 +120,13 @@
       "when": 1792568607798,
       "tag": "0016_company-error-streak",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792578144426,
+      "tag": "0017_sector-preflight",
+      "breakpoints": true
     }
   ]
 }

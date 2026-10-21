@@ -175,7 +175,7 @@ export const area = pgEnum("area", [
 ]);
 export type Area = (typeof area.enumValues)[number];
 
-export const runKind = pgEnum("run_kind", ["collect", "agent", "manual"]);
+export const runKind = pgEnum("run_kind", ["collect", "agent", "manual", "sector_preflight"]);
 export const runStatus = pgEnum("run_status", [
   "queued",
   "running",
@@ -198,6 +198,9 @@ export const companyJobStage = pgEnum("company_job_stage", [
   "collect",
   "research",
   "extraction",
+  // Pipeline-stage vocabulary shared by runs and provider_calls; sector
+  // preflight is not a company stage but is logged like one.
+  "sector_preflight",
 ]);
 export const sourceStatus = pgEnum("source_status", [
   "ok",
@@ -831,3 +834,36 @@ export const httpFetches = pgTable(
   ],
 );
 export type HttpFetch = typeof httpFetches.$inferSelect;
+
+// ---- Stage 5.1: sector preflight (eligibility pass) ----
+
+export const sectorPreflight = pgTable(
+  "sector_preflight",
+  {
+    id: uuid("id").primaryKey(),
+    sectorId: uuid("sector_id")
+      .notNull()
+      .references(() => sectors.id, { onDelete: "cascade" }),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    runId: uuid("run_id").references(() => researchRuns.id, { onDelete: "set null" }),
+    businessType: text("business_type").notNull(),
+    primaryCategory: text("primary_category").notNull(),
+    sellsOwnProducts: boolean("sells_own_products").notNull(),
+    hasOnlineStore: boolean("has_online_store").notNull(),
+    shipsTo: text("ships_to").array().notNull().default([]),
+    confidence: confidence("confidence").notNull(),
+    reason: text("reason").notNull(),
+    quote: text("quote"),
+    quoteSourceId: uuid("quote_source_id"),
+    verification: verificationStatus("verification").notNull().default("unverified"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [uniqueIndex("sector_preflight_sector_company_idx").on(t.sectorId, t.companyId)],
+);
+export type SectorPreflight = typeof sectorPreflight.$inferSelect;
