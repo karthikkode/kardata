@@ -8,9 +8,13 @@ import { blobText } from "./reads.js";
  * finding carries a verbatim `quote` (<= 300 chars, copied from the provided
  * text) plus the `quote_source_id` it comes from. The server checks the
  * quote — normalized for whitespace, quotes/dashes and case — against that
- * source's stored text, else against the agent-document passages carrying
- * that source (its id or URL). Verdicts are stored, never dropped:
- * verified | doc_only | quote_mismatch | unverified (no quote).
+ * source's stored text, else against the run's current agent documents. No
+ * citation link is required for doc_only: v1.2 agents cite sparsely (Wolf:
+ * 22 of 298 doc lines carry any marker), so gating on the link would fail
+ * genuine agent prose; the verbatim match plus value consistency is the
+ * grounding, and quote_source_id stays as provenance metadata. Verdicts are
+ * stored, never dropped: verified | doc_only | quote_mismatch | unverified
+ * (no quote).
  */
 
 export type GroundVerdict = "verified" | "doc_only" | "quote_mismatch" | "unverified";
@@ -281,8 +285,32 @@ function scalarCheckables(value: unknown): Checkable[] {
   return [];
 }
 
+/** Value kind of one fact row, for per-kind verification shares. */
+export type FactValueKind = "number" | "money" | "date" | "short_text" | "bool" | "long_text" | "json";
+
+export function factValueKind(
+  fact: Partial<Pick<Fact, "valueNum" | "valueText" | "valueDate" | "valueBool" | "valueJson">>,
+): FactValueKind {
+  if (fact.valueNum !== null && fact.valueNum !== undefined) {
+    const n = Number(fact.valueNum);
+    if (Number.isFinite(n)) return "number";
+  }
+  if (fact.valueDate !== null && fact.valueDate !== undefined) {
+    const iso = typeof fact.valueDate === "string" ? fact.valueDate.slice(0, 10) : null;
+    if (iso && ISO_DATE.test(iso)) return "date";
+  }
+  if (fact.valueText !== null && fact.valueText !== undefined) {
+    return fact.valueText.trim().length <= SHORT_STRING_MAX ? "short_text" : "long_text";
+  }
+  if (fact.valueBool !== null && fact.valueBool !== undefined) return "bool";
+  if (fact.valueJson !== null && fact.valueJson !== undefined) {
+    return moneyCheckables(fact.valueJson).length > 0 ? "money" : "json";
+  }
+  return "json";
+}
+
 /** Checkable values of one fact row: number, date, short text, money. */
-export function factCheckables(fact: Pick<Fact, "valueNum" | "valueText" | "valueDate" | "valueBool" | "valueJson">): Checkable[] {
+export function factCheckables(fact: Partial<Pick<Fact, "valueNum" | "valueText" | "valueDate" | "valueBool" | "valueJson">>): Checkable[] {
   if (fact.valueNum !== null && fact.valueNum !== undefined) {
     const n = Number(fact.valueNum);
     if (Number.isFinite(n)) return [{ kind: "number", num: n }];
@@ -318,20 +346,44 @@ export function recordCheckables(data: Record<string, unknown>): Checkable[] {
   return out;
 }
 
-interface CitedSource {
-  text: string;
-  urls: string[];
+const URL_VALUE = /^https?:\/\//i;
+
+/** Number/date/money checkables of one record data object (URL fields skipped). */
+export function recordHardCheckables(data: Record<string, unknown>): Checkable[] {
+  const out: Checkable[] = [];
+  for (const value of Object.values(data)) {
+    if (typeof value === "string" && URL_VALUE.test(value.trim())) continue;
+    const money = moneyCheckables(value);
+    if (money.length > 0) {
+      out.push(...money);
+      continue;
+    }
+    for (const c of scalarCheckables(value)) {
+      if (c.kind !== "string") out.push(c);
+    }
+  }
+  return out;
 }
 
-function urlVariants(url: string): string[] {
-  const trimmed = url.trim().replace(/\/+$/, "");
-  if (trimmed === "") return [];
-  const out = [trimmed];
-  const noscheme = trimmed.replace(/^https?:\/\//i, "");
-  if (noscheme !== trimmed) out.push(noscheme);
-  const nowww = noscheme.replace(/^www\./i, "");
-  if (nowww !== noscheme) out.push(nowww);
-  return [...new Set(out)];
+/**
+ * Record hard claims hold in the given grounding text. String labels are
+ * the extractor's synthesis (theme names, tier words) and are never
+ * verifiable lexically, so only numbers, dates and money count.
+ */
+export function recordHardConsistent(data: Record<string, unknown>, text: string): boolean {
+  return recordHardCheckables(data).every((c) => checkableInText(c, text));
+}
+
+/** Fact consistency with a matched quote: every checkable must hold (atomic claims). */
+export function factConsistent(
+  fact: Partial<Pick<Fact, "valueNum" | "valueText" | "valueDate" | "valueBool" | "valueJson">>,
+  quote: string,
+): boolean {
+  return factCheckables(fact).every((c) => checkableInText(c, quote));
+}
+
+interface CitedSource {
+  text: string;
 }
 
 async function citedSources(
@@ -354,48 +406,55 @@ async function citedSources(
           text = "";
         }
       }
-      cache.set(id, {
-        text,
-        urls: row ? [...urlVariants(row.url), ...urlVariants(row.finalUrl)] : [],
-      });
+      cache.set(id, { text });
     }
-    out.push(cache.get(id) ?? { text: "", urls: [] });
+    out.push(cache.get(id) ?? { text: "" });
   }
   return out;
 }
 
 export interface QuoteItem {
-  checkables: Checkable[];
   quote: string | null;
   quoteSourceId: string | null;
+  /**
+   * Consistency of the item's value. Facts check every checkable against
+   * the quote itself (atomic claims); records check hard claims against a
+   * grounding text; findings always pass.
+   */
+  isConsistent: (text: string) => boolean;
+  /** Records check hard claims against the full grounding material. */
+  consistencyText?: "quote" | "material";
 }
 
 /**
  * One item's verdict: no quote means unverified; a quote found in the quote
- * source's text means verified when the value is consistent with the quote;
- * a quote found only in a marked agent-document passage means doc_only;
- * anything else is a quote_mismatch. Items without checkables (booleans,
- * long text) need only the quote match.
+ * source's text means verified when the value is consistent; a quote found
+ * only in the run's agent documents means doc_only. Anything else is a
+ * quote_mismatch. Records additionally downgrade to doc_only when their
+ * hard claims hold only in the documents rather than the quote's source.
  */
 export async function verifyQuote(
   db: Db,
   item: QuoteItem,
-  docLines: string[],
+  docTexts: string[],
   cache: Map<string, CitedSource>,
 ): Promise<GroundVerdict> {
   const quote = (item.quote ?? "").trim();
   if (quote === "" || !item.quoteSourceId) return "unverified";
   const [cited] = await citedSources(db, [item.quoteSourceId], cache);
-  const consistent = item.checkables.every((c) => checkableInText(c, quote));
-  if (cited && quoteInText(quote, cited.text)) {
-    return consistent ? "verified" : "quote_mismatch";
+  const sourceText = cited?.text ?? "";
+  const material = docTexts.length > 0 ? `${sourceText}\n${docTexts.join("\n")}` : sourceText;
+  const text = item.consistencyText === "material" ? material : quote;
+  const inSource = quoteInText(quote, sourceText);
+  const inDoc = !inSource && docTexts.some((t) => quoteInText(quote, t));
+  if (!inSource && !inDoc) return "quote_mismatch";
+  if (!item.isConsistent(text)) return "quote_mismatch";
+  if (item.consistencyText === "material") {
+    // Records: fully source-grounded only when the hard claims hold there.
+    if (inSource && item.isConsistent(sourceText)) return "verified";
+    return "doc_only";
   }
-  const markers = item.quoteSourceId && cited ? [item.quoteSourceId, ...cited.urls] : [];
-  const lines = markers.length === 0 ? [] : docLines.filter((l) => markers.some((m) => l.includes(m)));
-  if (lines.some((l) => quoteInText(quote, l))) {
-    return consistent ? "doc_only" : "quote_mismatch";
-  }
-  return "quote_mismatch";
+  return inSource ? "verified" : "doc_only";
 }
 
 /**
@@ -419,11 +478,17 @@ export async function verifyRunExtraction(db: Db, runId: string): Promise<Ground
       .from(findings)
       .where(and(eq(findings.runId, runId), like(findings.createdBy, "extractor:%"))),
     db
-      .select({ contentMd: documents.contentMd })
+      .select({ contentMd: documents.contentMd, sourceIds: documents.sourceIds })
       .from(documents)
-      .where(and(eq(documents.runId, runId), eq(documents.isCurrent, true))),
+      .where(
+        and(
+          eq(documents.runId, runId),
+          eq(documents.isCurrent, true),
+          like(documents.createdBy, "agent:%"),
+        ),
+      ),
   ]);
-  const docLines = docRows.flatMap((d) => d.contentMd.split("\n"));
+  const docTexts = docRows.map((d) => d.contentMd);
   const cache = new Map<string, CitedSource>();
 
   const tally = (verdict: GroundVerdict): void => {
@@ -437,8 +502,12 @@ export async function verifyRunExtraction(db: Db, runId: string): Promise<Ground
   for (const fact of factRows) {
     const verdict = await verifyQuote(
       db,
-      { checkables: factCheckables(fact), quote: fact.quote, quoteSourceId: fact.quoteSourceId },
-      docLines,
+      {
+        quote: fact.quote,
+        quoteSourceId: fact.quoteSourceId,
+        isConsistent: (q) => factConsistent(fact, q),
+      },
+      docTexts,
       cache,
     );
     await db.update(facts).set({ verification: verdict }).where(eq(facts.id, fact.id));
@@ -447,8 +516,13 @@ export async function verifyRunExtraction(db: Db, runId: string): Promise<Ground
   for (const record of recordRows) {
     const verdict = await verifyQuote(
       db,
-      { checkables: recordCheckables(record.data), quote: record.quote, quoteSourceId: record.quoteSourceId },
-      docLines,
+      {
+        quote: record.quote,
+        quoteSourceId: record.quoteSourceId,
+        isConsistent: (t) => recordHardConsistent(record.data, t),
+        consistencyText: "material",
+      },
+      docTexts,
       cache,
     );
     await db.update(records).set({ verification: verdict }).where(eq(records.id, record.id));
@@ -457,8 +531,8 @@ export async function verifyRunExtraction(db: Db, runId: string): Promise<Ground
   for (const finding of findingRows) {
     const verdict = await verifyQuote(
       db,
-      { checkables: [], quote: finding.quote, quoteSourceId: finding.quoteSourceId },
-      docLines,
+      { quote: finding.quote, quoteSourceId: finding.quoteSourceId, isConsistent: () => true },
+      docTexts,
       cache,
     );
     await db.update(findings).set({ verification: verdict }).where(eq(findings.id, finding.id));

@@ -158,16 +158,18 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         criteria: z.array(screenCriterion).max(20).optional().describe("ANDed criteria (default: all live companies)"),
         sort: screenSort.optional(),
         limit: z.number().int().min(1).max(500).optional().describe("Default 50"),
-        verifiedOnly: z.boolean().optional().describe("Fact criteria match only grounding-verified facts"),
+        verifiedOnly: z.boolean().optional().describe("Strict: fact criteria match only verified facts (default matches verified + doc_only)"),
+        includeUnverified: z.boolean().optional().describe("Show unverified and mismatched facts too (default false)"),
       },
     },
-    async ({ sectorId, criteria, sort, limit, verifiedOnly }) =>
+    async ({ sectorId, criteria, sort, limit, verifiedOnly, includeUnverified }) =>
       wrap(async () => {
         const result = await screenCompanies(db, sectorId, {
           criteria: criteria ?? undefined,
           sort: sort ?? undefined,
           limit: limit ?? undefined,
           verifiedOnly: verifiedOnly ?? undefined,
+          includeUnverified: includeUnverified ?? undefined,
         });
         return { summary: `${result.total} companies match`, data: result };
       }),
@@ -858,12 +860,17 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth, 
     "company_context",
     {
-      description: "Everything known about a company: current facts, record counts per type, the document tree, findings, area statuses. Returns the context.",
-      inputSchema: { companyId },
+      description: "Everything known about a company: current grounded facts, record counts per type, the document tree, findings, area statuses. Returns the context.",
+      inputSchema: {
+        companyId,
+        includeUnverified: z.boolean().optional().describe("Show unverified and mismatched facts, records and findings too (default false)"),
+      },
     },
-    async ({ companyId }) =>
+    async ({ companyId, includeUnverified }) =>
       wrap(async () => {
-        const context = await getCompanyContext(db, scopedCompany(auth, companyId));
+        const context = await getCompanyContext(db, scopedCompany(auth, companyId), {
+          includeUnverified: includeUnverified ?? undefined,
+        });
         return { summary: `context for "${context.company.name}"`, data: context };
       }),
   );

@@ -16,6 +16,7 @@ import {
 } from "../../db/schema.js";
 import { normalizeDomain } from "../../lib/apollo/parse.js";
 import { DomainError } from "../errors.js";
+import { factValueKind } from "./grounding.js";
 
 export interface AreaScore {
   facts: number;
@@ -79,6 +80,10 @@ export interface RunScore {
   newProvisionalKeys: string[];
   newProvisionalTypes: string[];
   verification: VerificationShares;
+  /** Grounding shares per fact value kind (number, money, date, short_text, bool, long_text, json). */
+  verificationByKind: Record<string, VerificationShares>;
+  /** Grounding shares per record type. */
+  verificationByRecordType: Record<string, VerificationShares>;
   agent: AgentScore;
   extractor: ExtractorScore;
   areas: Record<string, AreaScore>;
@@ -92,6 +97,8 @@ export interface BatchTotals {
   documents: number;
   findings: number;
   verification: VerificationShares;
+  verificationByKind: Record<string, VerificationShares>;
+  verificationByRecordType: Record<string, VerificationShares>;
   agent: AgentScore;
   extractor: ExtractorScore;
   mcpCalls: number;
@@ -151,11 +158,30 @@ function emptyVerification(): VerificationShares {
   return { verified: 0, docOnly: 0, mismatch: 0, unverified: 0 };
 }
 
+function bumpShares(shares: VerificationShares, verification: string): void {
+  if (verification === "verified") shares.verified += 1;
+  else if (verification === "doc_only") shares.docOnly += 1;
+  else if (verification === "quote_mismatch") shares.mismatch += 1;
+  else shares.unverified += 1;
+}
+
 function bumpVerification(score: RunScore, verification: string): void {
-  if (verification === "verified") score.verification.verified += 1;
-  else if (verification === "doc_only") score.verification.docOnly += 1;
-  else if (verification === "quote_mismatch") score.verification.mismatch += 1;
-  else score.verification.unverified += 1;
+  bumpShares(score.verification, verification);
+}
+
+function bumpKindShare(bucket: Record<string, VerificationShares>, key: string, verification: string): void {
+  const shares = bucket[key] ?? (bucket[key] = emptyVerification());
+  bumpShares(shares, verification);
+}
+
+function mergeKindShares(into: Record<string, VerificationShares>, from: Record<string, VerificationShares>): void {
+  for (const [key, shares] of Object.entries(from)) {
+    const target = into[key] ?? (into[key] = emptyVerification());
+    target.verified += shares.verified;
+    target.docOnly += shares.docOnly;
+    target.mismatch += shares.mismatch;
+    target.unverified += shares.unverified;
+  }
 }
 
 function isAgentMade(createdBy: string): boolean {
@@ -260,6 +286,8 @@ export async function scorecard(
       newProvisionalKeys: [],
       newProvisionalTypes: [],
       verification: emptyVerification(),
+      verificationByKind: {},
+      verificationByRecordType: {},
       agent: emptyAgent(),
       extractor: emptyAgent(),
       areas,
@@ -283,6 +311,11 @@ export async function scorecard(
       sourceIds: facts.sourceIds,
       createdBy: facts.createdBy,
       verification: facts.verification,
+      valueNum: facts.valueNum,
+      valueText: facts.valueText,
+      valueDate: facts.valueDate,
+      valueBool: facts.valueBool,
+      valueJson: facts.valueJson,
     })
     .from(facts)
     .where(inArray(facts.runId, runIds));
@@ -311,6 +344,7 @@ export async function scorecard(
     if (isExtractorMade(row.createdBy)) score.extractor.facts += 1;
     if (isAgentMade(row.createdBy) || isExtractorMade(row.createdBy)) {
       bumpVerification(score, row.verification);
+      bumpKindShare(score.verificationByKind, factValueKind(row), row.verification);
     }
     areaAt(row.runId, row.area).facts += 1;
     if (row.sourceIds.some((id) => primaryById.get(id))) {
@@ -342,6 +376,7 @@ export async function scorecard(
       if (isExtractorMade(row.createdBy)) bumpType(at(runId).extractor.recordsByType, row.type);
       if (isAgentMade(row.createdBy) || isExtractorMade(row.createdBy)) {
         bumpVerification(at(runId), row.verification);
+        bumpKindShare(at(runId).verificationByRecordType, row.type, row.verification);
       }
       bumpType(areaAt(runId, row.area).recordsByType, row.type);
     }
@@ -473,6 +508,8 @@ function assemble(scores: Map<string, RunScore>): ScorecardResult {
     documents: 0,
     findings: 0,
     verification: emptyVerification(),
+    verificationByKind: {},
+    verificationByRecordType: {},
     agent: emptyAgent(),
     extractor: emptyAgent(),
     mcpCalls: 0,
@@ -495,6 +532,8 @@ function assemble(scores: Map<string, RunScore>): ScorecardResult {
     totals.verification.docOnly += run.verification.docOnly;
     totals.verification.mismatch += run.verification.mismatch;
     totals.verification.unverified += run.verification.unverified;
+    mergeKindShares(totals.verificationByKind, run.verificationByKind);
+    mergeKindShares(totals.verificationByRecordType, run.verificationByRecordType);
     totals.agent.facts += run.agent.facts;
     for (const [type, n] of Object.entries(run.agent.recordsByType)) {
       totals.agent.recordsByType[type] = (totals.agent.recordsByType[type] ?? 0) + n;

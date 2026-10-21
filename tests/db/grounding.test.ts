@@ -11,6 +11,8 @@ import { captureSource } from "../../src/domain/research/sources.js";
 import {
   dateVariants,
   factCheckables,
+  factValueKind,
+  recordHardConsistent,
   normalizeText,
   normalizeQuote,
   numberInText,
@@ -91,6 +93,27 @@ describe("grounding matchers", () => {
       { kind: "number", num: 29 },
       { kind: "string", text: "USD" },
     ]);
+  });
+
+  it("checks record hard claims; string labels are free and urls skipped", () => {
+    const text = "The Pro plan costs $29 per month. Contact Ada Wells.";
+    expect(recordHardConsistent({ name: "Pro plan", price: { amount: 29, currency: "USD" } }, text)).toBe(true);
+    // Labels never count (synthesis), urls are plumbing: no hard claims at all.
+    expect(recordHardConsistent({ name: "Ghost plan", url: "https://example.invalid/ghost" }, text)).toBe(true);
+    // A wrong number fails.
+    expect(recordHardConsistent({ name: "Pro plan", price: { amount: 999, currency: "USD" } }, text)).toBe(false);
+    // So does an unverifiable currency.
+    expect(recordHardConsistent({ name: "Pro plan", price: { amount: 29, currency: "JPY" } }, text)).toBe(false);
+  });
+
+  it("classifies fact value kinds", () => {
+    expect(factValueKind({ valueNum: "42" })).toBe("number");
+    expect(factValueKind({ valueDate: "2024-05-01" })).toBe("date");
+    expect(factValueKind({ valueText: "red" })).toBe("short_text");
+    expect(factValueKind({ valueText: "x".repeat(61) })).toBe("long_text");
+    expect(factValueKind({ valueBool: true })).toBe("bool");
+    expect(factValueKind({ valueJson: { amount: 29, currency: "USD" } })).toBe("money");
+    expect(factValueKind({ valueJson: ["a"] })).toBe("json");
   });
 
   it("matches quotes across case, quotes and dashes", () => {
@@ -185,7 +208,7 @@ describe("verifyRunExtraction", () => {
     expect(byKey.get("test.note")).toBe("unverified");
   });
 
-  it("finds doc lines by cited URL when agents cite inline links", async () => {
+  it("matches quotes in agent documents without any citation link", async () => {
     const { companyId, runId } = await setup();
     const url = "http://example.invalid/pricing";
     const src = await captured(companyId, runId, "Pricing page.", url);
@@ -193,8 +216,9 @@ describe("verifyRunExtraction", () => {
       companyId,
       runId,
       path: "business_model/notes.md",
-      contentMd: `The plan costs $29 (source: ${url}).`,
-      sourceIds: [src],
+      // No citation anywhere: verbatim agent prose is enough for doc_only.
+      contentMd: `The plan costs $29, billed monthly.`,
+      sourceIds: [],
       createdBy: "agent:test",
     });
     const results = await addFacts(handle.db, {
