@@ -250,7 +250,7 @@ describe("executeCollectRun", () => {
     expect(types.filter((t) => t === "area_status")).toHaveLength(7);
   });
 
-  it("fails the run when the homepage is blocked; blocked beats not_found", async () => {
+  it("goes partial, not failed, when the homepage is blocked; blocked beats not_found", async () => {
     site.routes.set("/", (_req, res) => sendText(res, "forbidden", 403, "text/plain"));
     const { runId } = await seedUsCompany();
     const result = await executeCollectRun(handle.db, runId, {
@@ -268,12 +268,14 @@ describe("executeCollectRun", () => {
       },
       privateHostAllowlist: ["127.0.0.1"],
     });
-    expect(result.status).toBe("failed");
+    // A bot wall no longer fails the run: site areas go blocked and the
+    // other collectors (Apollo facts etc.) still land.
+    expect(result.status).toBe("partial");
     const byArea = new Map(result.outcomes.map((o) => [o.area, o.status]));
     expect(byArea.get("hiring")).toBe("blocked");
     expect(byArea.get("decisions")).toBe("blocked");
     const [run] = await handle.db.select().from(researchRuns).where(eq(researchRuns.id, runId));
-    expect(run?.error).toContain("homepage fetch failed");
+    expect(run?.error).toBeNull();
   });
 
   it("runs only the requested areas", async () => {
