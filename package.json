@@ -19,6 +19,7 @@
     "smoke:real": "tsx scripts/smoke-real.ts",
     "smoke:collect": "tsx scripts/smoke-collect.ts",
     "harness:setup": "tsx scripts/harness-setup.ts",
+    "migrate:bulk": "tsx scripts/migrate-bulk.ts",
     "eval:research": "tsx scripts/eval-research.ts"
   },
   "dependencies": {

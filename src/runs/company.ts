@@ -49,6 +49,8 @@ const AGENT_STAGES: readonly CompanyStage[] = ["preflight", "research"];
 export interface StartCompanyJobInput {
   companyId: string;
   budget?: JobBudget;
+  /** Create the job queued (the worker promotes it at company concurrency) instead of running. */
+  queued?: boolean;
 }
 
 export async function startCompanyJob(db: Db, input: StartCompanyJobInput): Promise<{ jobId: string }> {
@@ -63,7 +65,7 @@ export async function startCompanyJob(db: Db, input: StartCompanyJobInput): Prom
     await db.insert(companyJobs).values({
       id: jobId,
       companyId: input.companyId,
-      status: "running",
+      status: input.queued ? "queued" : "running",
       maxInputTokens: maxTokens,
       maxHours,
     });
