@@ -35,10 +35,14 @@ async function waitForHealth(url: string, timeoutMs: number): Promise<void> {
 describe("service shutdown", () => {
   it("exits 0 within 5s on SIGTERM", async () => {
     // Spawn the built server (what the systemd unit runs) as a direct child
-    // so SIGTERM reaches node itself.
+    // so SIGTERM reaches node itself. Point it at the TEST database: with
+    // the dev DB it would run crash recovery against live runs and tick
+    // real runners alongside the dev server.
+    const testDb = process.env.TEST_DATABASE_URL;
+    if (!testDb) throw new Error("TEST_DATABASE_URL is not set");
     child = spawn(process.execPath, [join(process.cwd(), "dist/server.js")], {
       cwd: process.cwd(),
-      env: { ...process.env, PORT, HOST: "127.0.0.1" },
+      env: { ...process.env, PORT, HOST: "127.0.0.1", DATABASE_URL: testDb },
       stdio: ["ignore", "pipe", "pipe"],
     });
     const spawned = child;

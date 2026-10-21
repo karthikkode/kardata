@@ -202,7 +202,7 @@ describe("agent shift", () => {
     const docSearch = dataOf(await call("search", { query: "twelve-product", companyId }));
     expect((docSearch.hits as { kind: string }[]).map((h) => h.kind)).toContain("document");
 
-    const context = dataOf(await call("company_context", { companyId }));
+    const context = dataOf(await call("company_context", { companyId, includeUnverified: true }));
     expect((context.facts as unknown[]).length).toBeGreaterThan(0);
     expect(JSON.stringify(context).length).toBeLessThan(10 * 1024);
   });

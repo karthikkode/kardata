@@ -349,9 +349,11 @@ export async function jobPause(db: Db, jobId: string, reason = "paused by operat
 export async function jobResume(db: Db, jobId: string): Promise<BulkJob> {
   const job = await loadJob(db, jobId);
   if (job.status !== "paused") throw new DomainError("invalid_input", `job is ${job.status}, not paused`);
+  // An operator resume means "looked, carry on": reset the error tripwire so
+  // the next same-class failure does not re-pause immediately.
   const [updated] = await db
     .update(bulkJobs)
-    .set({ status: "running", pauseReason: null })
+    .set({ status: "running", pauseReason: null, errorStreak: 0, errorClass: null })
     .where(eq(bulkJobs.id, jobId))
     .returning();
   if (!updated) throw new DomainError("not_found", `job not found: ${jobId}`);
