@@ -46,12 +46,18 @@ export function createRunner(db: Db, opts: RunnerOpts = {}): Runner {
   let timer: NodeJS.Timeout | null = null;
   let ticking = false;
 
-  // Crash recovery: runs caught mid-flight by a restart fail loudly.
+  // Crash recovery: runs caught mid-flight by a restart fail loudly, except
+  // worker-driven extraction subjobs, which the company worker reruns.
   async function recover(): Promise<void> {
     await db
       .update(researchRuns)
       .set({ status: "failed", error: "server restarted", finishedAt: new Date() })
-      .where(eq(researchRuns.status, "running"));
+      .where(
+        and(
+          eq(researchRuns.status, "running"),
+          sql`${researchRuns.stage} IS NULL OR ${researchRuns.stage} != 'extraction'`,
+        ),
+      );
   }
 
   async function reapStalled(now: Date = clock.now()): Promise<number> {

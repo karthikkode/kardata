@@ -715,6 +715,7 @@ export const companyJobs = pgTable(
       .references(() => companies.id, { onDelete: "cascade" }),
     status: companyJobStatus("status").notNull().default("queued"),
     currentStage: companyJobStage("current_stage"),
+    errorStreak: integer("error_streak").notNull().default(0),
     errorClass: text("error_class"),
     pauseReason: text("pause_reason"),
     maxInputTokens: bigint("max_input_tokens", { mode: "number" }),

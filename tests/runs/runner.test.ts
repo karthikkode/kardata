@@ -6,6 +6,7 @@ import { researchRuns } from "../../src/db/schema.js";
 import { executeCollectRun } from "../../src/collect/run.js";
 import { cancelRun, startCollect } from "../../src/runs/queue.js";
 import { createRunner } from "../../src/runs/runner.js";
+import { startCompanyJob } from "../../src/runs/company.js";
 import { DomainError } from "../../src/domain/errors.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 import {
@@ -187,6 +188,49 @@ describe("runner", () => {
     release();
     await runner.stop();
     expect(runner.activeCount()).toBe(0);
+  });
+
+  it("claims company collect subjobs like any collect run", async () => {
+    const companyId = await seedCompany(handle.db, { name: "A Co" });
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const batch = await startCollect(handle.db, [companyId], undefined, { companyJobId: jobId, stage: "collect" });
+    const runId = batch.runs[0]?.runId ?? "";
+    const started: string[] = [];
+    const runner = createRunner(handle.db, {
+      execute: async (id: string) => {
+        started.push(id);
+      },
+    });
+    try {
+      await runner.tick();
+      expect(started).toEqual([runId]);
+    } finally {
+      await runner.stop();
+    }
+  });
+
+  it("recover spares running extraction subjobs for the company worker", async () => {
+    const companyId = await seedCompany(handle.db, { name: "A Co" });
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const [row] = await handle.db
+      .insert(researchRuns)
+      .values({
+        id: randomUUID(),
+        companyId,
+        kind: "agent",
+        status: "running",
+        companyJobId: jobId,
+        stage: "extraction",
+      })
+      .returning({ id: researchRuns.id });
+    if (!row) throw new Error("no subjob row");
+    const runner = createRunner(handle.db, { execute: async () => {} });
+    try {
+      await runner.recover();
+      expect(await runStatus(row.id)).toBe("running");
+    } finally {
+      await runner.stop();
+    }
   });
 
   it("a cancelled queued run never starts", async () => {

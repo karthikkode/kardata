@@ -61,7 +61,10 @@ export interface CollectSectorJobInput {
   budget?: JobBudget;
 }
 
-function checkBudget(budget: JobBudget | undefined): { maxTokens: number | null; maxHours: number | null } {
+export function checkBudget(budget: JobBudget | undefined): {
+  maxTokens: number | null;
+  maxHours: number | null;
+} {
   const maxTokens = budget?.maxTokens ?? null;
   const maxHours = budget?.maxHours ?? null;
   if (maxTokens !== null && (!Number.isInteger(maxTokens) || maxTokens < 1)) {
@@ -483,7 +486,7 @@ export function classifyRunError(run: ResearchRun): { errorClass: string; error:
   return { errorClass: "failed", error: text };
 }
 
-function usageInputTokens(run: ResearchRun): number {
+export function usageInputTokens(run: ResearchRun): number {
   const usage = run.agentUsage;
   if (!usage) return 0;
   return (usage.inputTokens ?? 0) + (usage.cachedTokens ?? 0);

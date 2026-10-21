@@ -74,3 +74,77 @@ export async function effectiveMaxAgents(db: Db, override?: number): Promise<num
     return agentConcurrency();
   }
 }
+
+// ---- Company jobs: how many companies run concurrently (Stage 5). ----
+
+export const DEFAULT_COMPANY_CONCURRENCY = 4;
+export const COMPANY_CONCURRENCY_MIN = 1;
+export const COMPANY_CONCURRENCY_MAX = 100;
+
+const COMPANY_CONCURRENCY_KEY = "company_concurrency";
+
+export function companyConcurrency(): number {
+  const raw = process.env.COMPANY_CONCURRENCY;
+  if (raw === undefined || raw === "") return DEFAULT_COMPANY_CONCURRENCY;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : DEFAULT_COMPANY_CONCURRENCY;
+}
+
+export interface CompanySettingsView {
+  companyConcurrency: number;
+  /** Where the effective value came from. */
+  source: "db" | "env" | "default";
+  /** The stored DB value, if any. */
+  dbValue: number | null;
+}
+
+function validCompanyStored(value: unknown): number | null {
+  return typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= COMPANY_CONCURRENCY_MIN &&
+    value <= COMPANY_CONCURRENCY_MAX
+    ? value
+    : null;
+}
+
+export async function companySettingsGet(db: Db): Promise<CompanySettingsView> {
+  const [row] = await db.select().from(harnessSettings).where(eq(harnessSettings.key, COMPANY_CONCURRENCY_KEY));
+  const dbValue = row ? validCompanyStored(row.value) : null;
+  if (dbValue !== null) return { companyConcurrency: dbValue, source: "db", dbValue };
+  const raw = process.env.COMPANY_CONCURRENCY;
+  if (raw !== undefined && raw !== "") {
+    return { companyConcurrency: companyConcurrency(), source: "env", dbValue: null };
+  }
+  return { companyConcurrency: DEFAULT_COMPANY_CONCURRENCY, source: "default", dbValue: null };
+}
+
+export async function companySettingsSet(db: Db, value: number): Promise<CompanySettingsView> {
+  if (
+    !Number.isInteger(value) ||
+    value < COMPANY_CONCURRENCY_MIN ||
+    value > COMPANY_CONCURRENCY_MAX
+  ) {
+    throw new DomainError(
+      "invalid_input",
+      `companyConcurrency must be ${COMPANY_CONCURRENCY_MIN}..${COMPANY_CONCURRENCY_MAX}`,
+    );
+  }
+  await db
+    .insert(harnessSettings)
+    .values({ key: COMPANY_CONCURRENCY_KEY, value, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: harnessSettings.key,
+      set: { value, updatedAt: new Date() },
+    });
+  return { companyConcurrency: value, source: "db", dbValue: value };
+}
+
+/** Effective company concurrency for this tick. Never throws on a bad row. */
+export async function effectiveCompanyConcurrency(db: Db, override?: number): Promise<number> {
+  if (override !== undefined) return override;
+  try {
+    return (await companySettingsGet(db)).companyConcurrency;
+  } catch {
+    return companyConcurrency();
+  }
+}

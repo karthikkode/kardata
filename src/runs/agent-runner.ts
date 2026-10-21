@@ -1,7 +1,7 @@
 import { createWriteStream, readdirSync, rmSync, statSync } from "node:fs";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { and, desc, eq, like } from "drizzle-orm";
+import { and, desc, eq, isNull, like, sql } from "drizzle-orm";
 import { recordEvent } from "../collect/db.js";
 import { executeCollectRun, type CollectRunResult } from "../collect/run.js";
 import type { Db } from "../db/client.js";
@@ -576,10 +576,18 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
         noteResearching();
         const maxAgents = await effectiveMaxAgents(db, deps.maxAgents);
         if (researching().length >= maxAgents && collecting().length >= collectLimit) return;
+        // Stage 5: company-job subjobs are owned by the company worker until
+        // the runner learns stage-aware prompts (Phase 6 widens this guard).
         const queued = await db
           .select()
           .from(researchRuns)
-          .where(and(eq(researchRuns.kind, "agent"), eq(researchRuns.status, "queued")))
+          .where(
+            and(
+              eq(researchRuns.kind, "agent"),
+              eq(researchRuns.status, "queued"),
+              isNull(researchRuns.companyJobId),
+            ),
+          )
           .orderBy(researchRuns.createdAt)
           .limit(QUEUE_SCAN_MAX);
         for (const q of queued) {
@@ -600,10 +608,18 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
   }
 
   async function recover(): Promise<{ failedRuns: string[]; stoppedContainers: string[] }> {
+    // Worker-driven extraction subjobs have no container; the company worker
+    // reruns them (bulk parity for interrupted extractions).
     const orphans = await db
       .select({ id: researchRuns.id })
       .from(researchRuns)
-      .where(and(eq(researchRuns.kind, "agent"), eq(researchRuns.status, "running")));
+      .where(
+        and(
+          eq(researchRuns.kind, "agent"),
+          eq(researchRuns.status, "running"),
+          sql`${researchRuns.stage} IS NULL OR ${researchRuns.stage} != 'extraction'`,
+        ),
+      );
     if (orphans.length === 0) return { failedRuns: [], stoppedContainers: [] };
     let stoppedContainers: string[] = [];
     try {

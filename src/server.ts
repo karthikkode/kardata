@@ -6,6 +6,7 @@ import { sql } from "drizzle-orm";
 import { createDb, type Db } from "./db/client.js";
 import { createAgentRunner } from "./runs/agent-runner.js";
 import { createJobRunner, realJobDeps } from "./runs/bulk.js";
+import { createCompanyRunner, realCompanyDeps } from "./runs/company.js";
 import { buildResearchPrompt } from "./runs/prompt.js";
 import {
   AGENTS_GATEWAY,
@@ -236,8 +237,11 @@ async function main(): Promise<void> {
   await runner.start();
   const jobRunner = createJobRunner(db, realJobDeps(db));
   await jobRunner.start();
+  const companyRunner = createCompanyRunner(db, realCompanyDeps(db));
+  await companyRunner.start();
   process.on("SIGTERM", () => {
     void (async () => {
+      await companyRunner.stop();
       await jobRunner.stop();
       await agentRunner.stop();
       await runner.stop();

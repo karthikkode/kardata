@@ -78,6 +78,15 @@ const EXPECTED_TOOLS = [
   "job_retry_failed",
   "harness_settings_get",
   "harness_settings_set",
+  "company_job_start",
+  "company_job_status",
+  "company_jobs_list",
+  "company_job_pause",
+  "company_job_resume",
+  "company_job_cancel",
+  "company_job_retry",
+  "company_concurrency_get",
+  "company_concurrency_set",
 ];
 
 interface ToolResult {
@@ -287,6 +296,48 @@ describe("mcp tools", () => {
     for (const key of ["countries", "industries", "employeeBands", "technologies"]) {
       expect(Array.isArray(facets[key]), key).toBe(true);
     }
+  });
+
+  it("runs the company job tools end to end", async () => {
+    const created = dataOf(await call("sector_create", { name: "Skincare" }));
+    const sectorId = (created.sector as { id: string }).id;
+    const added = dataOf(
+      await call("company_add", { sectorId, name: "Acme", website: "https://acme.example" }),
+    );
+    const companyId = (added.company as { id: string }).id;
+
+    const started = dataOf(await call("company_job_start", { companyId }));
+    const jobId = (started as { jobId: string }).jobId;
+    expect(typeof jobId).toBe("string");
+    const dupe = await call("company_job_start", { companyId });
+    expect(errorOf(dupe).code).toBe("conflict");
+
+    const status = dataOf(await call("company_job_status", { jobId }));
+    expect((status.job as { status: string }).status).toBe("running");
+    expect(status.derived).toBe("incomplete");
+
+    const listed = dataOf(await call("company_jobs_list", {}));
+    expect(((listed.jobs as unknown[]) ?? []).length).toBe(1);
+
+    await call("company_job_pause", { jobId });
+    const paused = dataOf(await call("company_job_status", { jobId }));
+    expect((paused.job as { status: string }).status).toBe("paused");
+    await call("company_job_resume", { jobId });
+    const resumed = dataOf(await call("company_job_status", { jobId }));
+    expect((resumed.job as { status: string }).status).toBe("running");
+
+    const conc = dataOf(await call("company_concurrency_get", {}));
+    expect(conc.companyConcurrency).toBe(4);
+    const updated = dataOf(await call("company_concurrency_set", { companyConcurrency: 12 }));
+    expect(updated.companyConcurrency).toBe(12);
+    const badConc = await call("company_concurrency_set", { companyConcurrency: 101 });
+    expect(errorOf(badConc).code).toBe("invalid_input");
+
+    await call("company_job_cancel", { jobId });
+    const cancelled = dataOf(await call("company_job_status", { jobId }));
+    expect((cancelled.job as { status: string }).status).toBe("cancelled");
+    const noRetry = await call("company_job_retry", { jobId });
+    expect(errorOf(noRetry).code).toBe("invalid_input");
   });
 
   it("rejects requests without a token", async () => {

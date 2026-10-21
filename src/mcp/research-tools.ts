@@ -42,9 +42,23 @@ import {
   startResearchSectorJob,
   startResearchShortlistJob,
 } from "../runs/bulk.js";
+import {
+  companyJobCancel,
+  companyJobList,
+  companyJobPause,
+  companyJobResume,
+  companyJobRetry,
+  companyJobStatus,
+  startCompanyJob,
+} from "../runs/company.js";
 import { extractRun } from "../runs/extract.js";
 import { cancelRun, getOrCreateManualRun, startCollect } from "../runs/queue.js";
-import { harnessSettingsGet, harnessSettingsSet } from "../runs/settings.js";
+import {
+  companySettingsGet,
+  companySettingsSet,
+  harnessSettingsGet,
+  harnessSettingsSet,
+} from "../runs/settings.js";
 import {
   SCREEN_FIELDS,
   SCREEN_OPS,
@@ -1213,6 +1227,123 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const settings = await harnessSettingsSet(db, maxConcurrentAgents);
         return { summary: `maxConcurrentAgents -> ${settings.maxConcurrentAgents}`, data: settings };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_job_start",
+    {
+      description: "Operator: run the full pipeline (preflight, collect, research, extraction) for one company. One active job per company.",
+      inputSchema: { companyId, budget: jobBudget },
+    },
+    async ({ companyId: id, budget }) =>
+      wrap(async () => {
+        const result = await startCompanyJob(db, { companyId: id, budget: budget ?? undefined });
+        return { summary: `company job ${result.jobId} started`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_job_status",
+    {
+      description: "Operator: company job stage states, derived completion, active subjob, tokens and ETA.",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        const view = await companyJobStatus(db, id);
+        return { summary: `job ${id}: ${view.job.status}, ${view.derived}`, data: view };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_jobs_list",
+    {
+      description: "Operator: recent company jobs with derived completion.",
+      inputSchema: { limit: z.number().int().optional().describe("Default 20, max 100") },
+    },
+    async ({ limit }) =>
+      wrap(async () => {
+        const jobs = await companyJobList(db, limit ?? undefined);
+        return { summary: `${jobs.length} company jobs`, data: { jobs } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_job_pause",
+    {
+      description: "Operator: pause a company job (the active stage finishes; nothing new starts).",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        await companyJobPause(db, id);
+        return { summary: `job ${id} paused`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_job_resume",
+    {
+      description: "Operator: resume a paused company job (retries the failed stage if there is one).",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        await companyJobResume(db, id);
+        return { summary: `job ${id} resumed`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_job_cancel",
+    {
+      description: "Operator: cancel a company job. The active subjob is cancelled unless stopRunning is false.",
+      inputSchema: { jobId, stopRunning: z.boolean().optional().describe("Cancel the active subjob too (default true)") },
+    },
+    async ({ jobId: id, stopRunning }) =>
+      wrap(async () => {
+        await companyJobCancel(db, id, { stopRunning: stopRunning ?? undefined });
+        return { summary: `job ${id} cancelled`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_job_retry",
+    {
+      description: "Operator: retry the failed stage of a failed (or paused-with-failure) company job.",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        const result = await companyJobRetry(db, id);
+        return { summary: `job ${id} retrying ${result.stage}`, data: { jobId: id, stage: result.stage } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_concurrency_get",
+    {
+      description: "Operator: effective company concurrency and where the value comes from.",
+      inputSchema: {},
+    },
+    async () =>
+      wrap(async () => {
+        const settings = await companySettingsGet(db);
+        return { summary: `companyConcurrency=${settings.companyConcurrency} (${settings.source})`, data: settings };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_concurrency_set",
+    {
+      description: "Operator: change company concurrency at runtime (1..100, stored in the DB, immediate).",
+      inputSchema: { companyConcurrency: z.number().int().describe("Max parallel company jobs") },
+    },
+    async ({ companyConcurrency: value }) =>
+      wrap(async () => {
+        const settings = await companySettingsSet(db, value);
+        return { summary: `companyConcurrency -> ${settings.companyConcurrency}`, data: settings };
       }),
   );
 }

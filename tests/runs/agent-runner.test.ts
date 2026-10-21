@@ -8,7 +8,7 @@ import { and, eq } from "drizzle-orm";
 import { recordEvent } from "../../src/collect/db.js";
 import type { CollectRunResult } from "../../src/collect/run.js";
 import type { DbHandle } from "../../src/db/client.js";
-import { area, companies, researchRuns, runEvents, sources } from "../../src/db/schema.js";
+import { area, companies, companyJobs, researchRuns, runEvents, sources } from "../../src/db/schema.js";
 import { setAreaStatus } from "../../src/domain/research/status.js";
 import { PLAYWRIGHT_SERVER_CONFIG, RESEARCH_MUSE_ARGS } from "../../src/harness/docker.js";
 import type {
@@ -29,6 +29,7 @@ import {
   type PromptContext,
 } from "../../src/runs/agent-runner.js";
 import { cancelRun } from "../../src/runs/queue.js";
+import { startCompanyJob } from "../../src/runs/company.js";
 import { authenticateRunToken, issueRunToken } from "../../src/runs/tokens.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 
@@ -751,6 +752,28 @@ describe("agent runner", () => {
     expect(await authenticateRunToken(handle.db, token)).toBeNull();
   });
 
+  it("recover spares running extraction subjobs for the company worker", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ events: [COMPLETED] }) });
+    const companyId = await makeCompany("A Co");
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const [row] = await handle.db
+      .insert(researchRuns)
+      .values({
+        id: randomUUID(),
+        companyId,
+        kind: "agent",
+        status: "running",
+        startedAt: new Date(),
+        companyJobId: jobId,
+        stage: "extraction",
+      })
+      .returning({ id: researchRuns.id });
+    if (!row) throw new Error("no subjob row");
+    const recovered = await fx.runner.recover();
+    expect(recovered.failedRuns).toEqual([]);
+    expect((await runRow(row.id)).status).toBe("running");
+  });
+
   it("stores usage, session, exit and final message, skipping message deltas", async () => {
     const fx = makeFixture({
       scriptFor: () => ({
@@ -823,6 +846,21 @@ describe("agent runner", () => {
     const row = await runRow(runId);
     expect(row.status).toBe("failed");
     expect(row.error ?? "").toMatch(/no prompt builder/);
+  });
+
+  it("leaves company-job subjobs for the company worker", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ events: [COMPLETED] }) });
+    const companyId = await makeCompany("A Co");
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const [job] = await handle.db.select().from(companyJobs).where(eq(companyJobs.id, jobId));
+    if (!job) throw new Error("no job row");
+    const started = await researchStart(handle.db, { companyIds: [companyId], companyJobId: job.id, stage: "research" });
+    const runId = (started.runs[0] as { runId: string }).runId;
+
+    await fx.runner.tick();
+    await new Promise((r) => setTimeout(r, 100));
+    expect((await runRow(runId)).status).toBe("queued");
+    expect(fx.harness.handles.has(runId)).toBe(false);
   });
 });
 

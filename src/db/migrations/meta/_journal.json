@@ -113,6 +113,13 @@
       "when": 1792568005949,
       "tag": "0015_company-jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792568607798,
+      "tag": "0016_company-error-streak",
+      "breakpoints": true
     }
   ]
 }
