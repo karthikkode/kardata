@@ -195,6 +195,7 @@ describe("run tokens", () => {
         url: "https://example.com/x",
         text: "hello",
         via: "browser",
+        passages: ["hello"],
       }),
     );
     const sourceId = captured.sourceId as string;
@@ -238,6 +239,7 @@ describe("run tokens", () => {
         url: "https://example.com/x",
         text: "hello",
         via: "browser",
+        passages: ["hello"],
       }),
     );
     const sourceId = captured.sourceId as string;
@@ -286,6 +288,7 @@ describe("run tokens", () => {
         url: "https://example.com/b",
         text: "b text",
         via: "browser",
+        passages: ["b text"],
       }),
     );
     expect(errorOf(await call(client, "source_get", { sourceId: captured.sourceId as string })).code).toBe(
@@ -350,6 +353,7 @@ describe("run tokens", () => {
         url: "https://example.com/o",
         text: "o text",
         via: "browser",
+        passages: ["o text"],
       }),
     );
     await call(operator, "fact_add", {

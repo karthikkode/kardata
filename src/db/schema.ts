@@ -1,11 +1,13 @@
 import { desc, sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  bigint,
   bigserial,
   boolean,
   check,
   customType,
   date,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -139,6 +141,26 @@ export type NewCompany = typeof companies.$inferInsert;
 export type SectorCompany = typeof sectorCompanies.$inferSelect;
 export type Import = typeof imports.$inferSelect;
 
+// ---- Stage 4 Step 0: saved screening shortlists (one name per sector) ----
+
+export const shortlists = pgTable(
+  "shortlists",
+  {
+    id: uuid("id").primaryKey(),
+    sectorId: uuid("sector_id")
+      .notNull()
+      .references(() => sectors.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    companyIds: uuid("company_ids").array().notNull(),
+    criteria: jsonb("criteria").$type<unknown[] | null>(),
+    createdBy: text("created_by").notNull().default("owner"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("shortlists_sector_name_idx").on(t.sectorId, t.name)],
+);
+
+export type Shortlist = typeof shortlists.$inferSelect;
+
 // ---- Stage 2: research store ----
 
 export const area = pgEnum("area", [
@@ -178,6 +200,7 @@ export const documentKind = pgEnum("document_kind", [
   "artifact",
 ]);
 export const confidence = pgEnum("confidence", ["low", "medium", "high"]);
+export const verificationStatus = pgEnum("verification_status", ["verified", "doc_only", "unverified"]);
 export const findingStatus = pgEnum("finding_status", ["supported", "conflicting", "unverified"]);
 export const areaStatus = pgEnum("area_status", ["done", "not_found", "blocked", "error", "skipped"]);
 
@@ -236,6 +259,7 @@ export const facts = pgTable(
     asOf: date("as_of"),
     sourceIds: uuid("source_ids").array().notNull(),
     confidence: confidence("confidence").notNull(),
+    verification: verificationStatus("verification").notNull().default("unverified"),
     note: text("note"),
     tags: text("tags").array().notNull().default([]),
     createdBy: text("created_by").notNull(),
@@ -286,6 +310,7 @@ export const records = pgTable(
     naturalKeyHash: text("natural_key_hash").notNull(),
     data: jsonb("data").$type<Record<string, unknown>>().notNull(),
     sourceIds: uuid("source_ids").array().notNull(),
+    verification: verificationStatus("verification").notNull().default("unverified"),
     tags: text("tags").array().notNull().default([]),
     firstSeenRunId: uuid("first_seen_run_id").references(() => researchRuns.id, {
       onDelete: "set null",
@@ -352,9 +377,12 @@ export const researchRuns = pgTable(
     createdBy: text("created_by").notNull().default("owner"),
     requestedAreas: area("requested_areas").array(),
     batchId: uuid("batch_id"),
+    jobId: uuid("job_id").references(() => bulkJobs.id, { onDelete: "set null" }),
     error: text("error"),
     // Agent runs only (Stage 3b Step 2): phase while running, the options
     // research_start was called with, and the researching outcome.
+    // promptVersion is null for pre-v1 runs (rendered as v0).
+    promptVersion: text("prompt_version"),
     agentPhase: text("agent_phase"),
     agentOptions: jsonb("agent_options").$type<AgentOptions>(),
     agentSessionId: text("agent_session_id"),
@@ -437,6 +465,8 @@ export const sources = pgTable(
     error: text("error"),
     title: text("title"),
     via: text("via"),
+    thin: boolean("thin").notNull().default(false),
+    details: jsonb("details").$type<Record<string, unknown> | null>(),
     fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
     blobSha256: text("blob_sha256").references(() => blobs.sha256),
     tsv: tsvector("tsv").generatedAlwaysAs(
@@ -566,6 +596,7 @@ export const factsCurrent = pgView("facts_current").as((qb) =>
       asOf: facts.asOf,
       sourceIds: facts.sourceIds,
       confidence: facts.confidence,
+      verification: facts.verification,
       createdBy: facts.createdBy,
       createdAt: facts.createdAt,
       supersedesId: facts.supersedesId,
@@ -574,3 +605,74 @@ export const factsCurrent = pgView("facts_current").as((qb) =>
     .orderBy(facts.companyId, facts.key, facts.qualifiers, desc(facts.createdAt), desc(facts.id)),
 );
 export type CurrentFact = typeof factsCurrent.$inferSelect;
+
+// ---- Stage 4.1 Step 5: bulk jobs (DB-backed queue feeding) ----
+
+export const bulkJobKind = pgEnum("bulk_job_kind", ["research", "collect"]);
+export const bulkJobScope = pgEnum("bulk_job_scope", ["sector", "shortlist"]);
+export const bulkJobStatus = pgEnum("bulk_job_status", ["running", "paused", "completed", "cancelled"]);
+export const bulkItemStatus = pgEnum("bulk_item_status", [
+  "queued",
+  "running",
+  "extracting",
+  "succeeded",
+  "failed",
+  "skipped",
+  "cancelled",
+]);
+
+export const bulkJobs = pgTable("bulk_jobs", {
+  id: uuid("id").primaryKey(),
+  kind: bulkJobKind("kind").notNull(),
+  scope: bulkJobScope("scope").notNull(),
+  status: bulkJobStatus("status").notNull().default("running"),
+  sectorId: uuid("sector_id").references(() => sectors.id, { onDelete: "set null" }),
+  shortlistId: uuid("shortlist_id").references(() => shortlists.id, { onDelete: "set null" }),
+  maxCompanies: integer("max_companies"),
+  maxInputTokens: bigint("max_input_tokens", { mode: "number" }),
+  maxHours: doublePrecision("max_hours"),
+  skipIfRecentDays: integer("skip_if_recent_days").notNull().default(14),
+  promptVersion: text("prompt_version"),
+  errorStreak: integer("error_streak").notNull().default(0),
+  errorClass: text("error_class"),
+  pauseReason: text("pause_reason"),
+  startedRuns: integer("started_runs").notNull().default(0),
+  inputTokensSpent: bigint("input_tokens_spent", { mode: "number" }).notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+});
+export type BulkJob = typeof bulkJobs.$inferSelect;
+
+export const bulkJobItems = pgTable(
+  "bulk_job_items",
+  {
+    id: uuid("id").primaryKey(),
+    jobId: uuid("job_id")
+      .notNull()
+      .references(() => bulkJobs.id, { onDelete: "cascade" }),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    status: bulkItemStatus("status").notNull().default("queued"),
+    position: integer("position").notNull().default(0),
+    runId: uuid("run_id").references(() => researchRuns.id, { onDelete: "set null" }),
+    attempts: integer("attempts").notNull().default(0),
+    error: text("error"),
+    errorClass: text("error_class"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    durationMs: integer("duration_ms"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("bulk_job_items_job_company_idx").on(t.jobId, t.companyId)],
+);
+export type BulkJobItem = typeof bulkJobItems.$inferSelect;
+
+// ---- Stage 4.1 Step 5: harness settings (runtime-adjustable, DB-backed) ----
+
+export const harnessSettings = pgTable("harness_settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type HarnessSetting = typeof harnessSettings.$inferSelect;

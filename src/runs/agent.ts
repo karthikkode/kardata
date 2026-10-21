@@ -3,6 +3,7 @@ import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import { area, companies, researchRuns, type AgentOptions, type ResearchRun } from "../db/schema.js";
 import { DomainError, isUniqueViolation } from "../domain/errors.js";
+import { resolvePromptVersion } from "./prompt.js";
 
 /**
  * Agent research batches (Stage 3b Step 2). researchStart creates one
@@ -23,6 +24,7 @@ export interface ResearchStartInput {
   maxMinutes?: number;
   maxModelSteps?: number;
   brief?: string;
+  promptVersion?: string;
 }
 
 export type ResearchStartEntry =
@@ -79,6 +81,7 @@ export async function researchStart(db: Db, input: ResearchStartInput): Promise<
   const unique = [...new Set(input.companyIds)];
   const requestedAreas = validatedAreas(input.areas);
   const options = validatedOptions(input);
+  const promptVersion = resolvePromptVersion(input.promptVersion);
   const found = await db
     .select({ id: companies.id })
     .from(companies)
@@ -102,6 +105,7 @@ export async function researchStart(db: Db, input: ResearchStartInput): Promise<
           requestedAreas,
           batchId,
           agentOptions: options,
+          promptVersion,
         })
         .returning({ id: researchRuns.id });
       if (!row) throw new Error("run insert returned no row");

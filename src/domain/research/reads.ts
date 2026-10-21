@@ -46,16 +46,15 @@ export interface RenderedFact {
   createdAt: Date;
 }
 
-function renderValue(
-  type: string,
-  row: {
-    valueNum: string | null;
-    valueText: string | null;
-    valueDate: string | null;
-    valueBool: boolean | null;
-    valueJson: unknown;
-  },
-): unknown {
+export interface RenderValueRow {
+  valueNum: string | null;
+  valueText: string | null;
+  valueDate: string | null;
+  valueBool: boolean | null;
+  valueJson: unknown;
+}
+
+export function renderValue(type: string, row: RenderValueRow): unknown {
   switch (type) {
     case "number":
     case "percent":
@@ -679,6 +678,7 @@ export async function getBatchStatus(db: Db, batchId: string) {
       companyName: companies.name,
       status: researchRuns.status,
       phase: researchRuns.agentPhase,
+      promptVersion: researchRuns.promptVersion,
       usage: researchRuns.agentUsage,
       startedAt: researchRuns.startedAt,
       finishedAt: researchRuns.finishedAt,

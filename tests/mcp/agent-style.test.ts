@@ -188,6 +188,7 @@ describe("agent shift", () => {
         title: "Glowlab profile",
         text: "Glowlab profile seen in the browser.",
         via: "browser",
+        passages: ["Glowlab profile seen in the browser."],
       }),
     );
     expect(typeof captured.sourceId).toBe("string");

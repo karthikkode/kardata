@@ -12,6 +12,7 @@ import { setAreaStatus } from "../domain/research/status.js";
 import { captureSource } from "../domain/research/sources.js";
 import { REVIEWS_BATCH_MAX, reviewsIngest } from "../domain/research/reviews.js";
 import { exportCompany } from "../domain/research/export.js";
+import { scorecard } from "../domain/research/scorecard.js";
 import {
   blobText,
   documentSearch,
@@ -30,7 +31,28 @@ import {
   searchAll,
 } from "../domain/research/reads.js";
 import { researchStart } from "../runs/agent.js";
+import {
+  jobCancel,
+  jobList,
+  jobPause,
+  jobResume,
+  jobRetryFailed,
+  jobStatus,
+  startCollectSectorJob,
+  startResearchSectorJob,
+  startResearchShortlistJob,
+} from "../runs/bulk.js";
+import { extractRun } from "../runs/extract.js";
 import { cancelRun, getOrCreateManualRun, startCollect } from "../runs/queue.js";
+import { harnessSettingsGet, harnessSettingsSet } from "../runs/settings.js";
+import {
+  SCREEN_FIELDS,
+  SCREEN_OPS,
+  getShortlist,
+  listShortlists,
+  saveShortlist,
+  screenCompanies,
+} from "../domain/screening.js";
 import { DomainError } from "../domain/errors.js";
 import {
   type AuthContext,
@@ -45,6 +67,28 @@ import { companyId, runId, wrap } from "./tools.js";
 const areaName = z.string().describe("Research area");
 const tags = z.array(z.string()).optional().describe("Tags");
 const sourceIds = z.array(z.string()).describe("Source UUIDs (at least one)");
+
+const screenCriterion = z
+  .object({
+    field: z.string().optional().describe(`Apollo field (one of: ${SCREEN_FIELDS.join(", ")})`),
+    factKey: z.string().optional().describe("Current-fact key, e.g. business_model.subscription"),
+    qualifiers: z.record(z.string()).optional().describe("Qualifier subset (factKey only)"),
+    op: z.enum(SCREEN_OPS).describe("eq ne gt gte lt lte in exists not_exists (a range = gte + lte)"),
+    value: z.unknown().optional().describe("Omitted for exists/not_exists"),
+  })
+  .refine((c) => (c.field === undefined) !== (c.factKey === undefined), {
+    message: "exactly one of field or factKey is required",
+  });
+
+const screenSort = z
+  .object({
+    field: z.string().optional().describe("Apollo field to sort by (default: name)"),
+    factKey: z.string().optional().describe("Current-fact key to sort by (latest row)"),
+    order: z.enum(["asc", "desc"]).optional().describe("Default asc; nulls last, id tiebreaker"),
+  })
+  .refine((s) => !(s.field !== undefined && s.factKey !== undefined), {
+    message: "sort takes exactly one of field or factKey",
+  });
 
 function privateHostAllowlist(): string[] {
   const raw = process.env.KARDATA_PRIVATE_HOST_ALLOWLIST ?? "";
@@ -74,6 +118,114 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       }),
   );
 
+  registerTool(server, db, auth,
+    "collect_sector",
+    {
+      description: "Operator: collect every live company in a sector as a DB-backed job (employees desc, skips fresh collects by default). Feeds the queue as slots free up. Never run on a full sector without the owner's go.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        onlyStale: z.boolean().optional().describe("Skip fresh collects (default true)"),
+        staleDays: z.number().optional().describe("Freshness window in days (default 14)"),
+        maxCompanies: z.number().int().optional().describe("Cap the job at this many companies"),
+        budget: z.object({
+          maxTokens: z.number().int().optional(),
+          maxHours: z.number().optional(),
+        }).optional().describe("Pause the job when a budget is reached"),
+      },
+    },
+    async ({ sectorId, onlyStale, staleDays, maxCompanies, budget }) =>
+      wrap(async () => {
+        const result = await startCollectSectorJob(db, {
+          sectorId,
+          onlyStale: onlyStale ?? undefined,
+          staleDays: staleDays ?? undefined,
+          maxCompanies: maxCompanies ?? undefined,
+          budget: budget ?? undefined,
+        });
+        return {
+          summary: `collect job ${result.jobId} started (${result.items} companies${result.capped ? ", capped" : ""})`,
+          data: result,
+        };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_screen",
+    {
+      description: "Screen the live companies of a sector on Apollo fields plus current facts (ANDed criteria). Returns slim rows with matched values and ids[] ready for research_start.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        criteria: z.array(screenCriterion).max(20).optional().describe("ANDed criteria (default: all live companies)"),
+        sort: screenSort.optional(),
+        limit: z.number().int().min(1).max(500).optional().describe("Default 50"),
+        verifiedOnly: z.boolean().optional().describe("Fact criteria match only grounding-verified facts"),
+      },
+    },
+    async ({ sectorId, criteria, sort, limit, verifiedOnly }) =>
+      wrap(async () => {
+        const result = await screenCompanies(db, sectorId, {
+          criteria: criteria ?? undefined,
+          sort: sort ?? undefined,
+          limit: limit ?? undefined,
+          verifiedOnly: verifiedOnly ?? undefined,
+        });
+        return { summary: `${result.total} companies match`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "shortlist_save",
+    {
+      description: "Save (insert or replace by sector + name) a named company shortlist.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        name: z.string().describe("Shortlist name"),
+        companyIds: z.array(z.string()).max(5000).describe("Company UUIDs (sector members)"),
+        criteria: z.array(z.unknown()).optional().describe("The screening criteria, for reference"),
+      },
+    },
+    async ({ sectorId, name, companyIds, criteria }) =>
+      wrap(async () => {
+        const saved = await saveShortlist(db, {
+          sectorId,
+          name,
+          companyIds,
+          criteria: (criteria ?? null) as unknown[] | null,
+          createdBy: createdByFor(auth),
+        });
+        return { summary: `shortlist "${saved.name}": ${saved.companyIds.length} companies`, data: saved };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "shortlist_get",
+    {
+      description: "A saved shortlist with its company ids. Returns the shortlist.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        name: z.string().describe("Shortlist name"),
+      },
+    },
+    async ({ sectorId, name }) =>
+      wrap(async () => {
+        const found = await getShortlist(db, sectorId, name);
+        return { summary: `shortlist "${found.name}": ${found.companyIds.length} companies`, data: found };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "shortlist_list",
+    {
+      description: "Saved shortlists of a sector. Returns name, size and creation time each.",
+      inputSchema: { sectorId: z.string().describe("Sector UUID") },
+    },
+    async ({ sectorId }) =>
+      wrap(async () => {
+        const lists = await listShortlists(db, sectorId);
+        return { summary: `${lists.length} shortlists`, data: { shortlists: lists } };
+      }),
+  );
+
   registerTool(server, db, auth, 
     "batch_status",
     {
@@ -84,6 +236,22 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const status = await getBatchStatus(db, batchId);
         return { summary: `batch ${batchId}: ${status.runs.length} runs`, data: status };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "batch_scorecard",
+    {
+      description: "Counts per run and per area for a batch: facts, records by type, reviews, documents, findings, primary-source share, grounding verification shares, new registry names, statuses, tokens, minutes, MCP calls, forbidden. Returns the scorecard.",
+      inputSchema: { batchId: z.string().describe("Batch UUID") },
+    },
+    async ({ batchId }) =>
+      wrap(async () => {
+        const result = await scorecard(db, { batchId });
+        return {
+          summary: `batch ${batchId}: ${result.totals.runs} runs, ${result.totals.facts} facts, ${result.totals.findings} findings`,
+          data: result,
+        };
       }),
   );
 
@@ -353,30 +521,35 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth, 
     "source_capture",
     {
-      description: "Store content seen some other way (via search | browser | muse_fetch) so it has an id and a snapshot. Returns the source id.",
+      description: "Store content seen some other way (via search | browser | muse_fetch) so it has an id and a snapshot. Quote verbatim excerpts, never summaries; browser and muse_fetch must pass the relied-upon passages. Returns the source id.",
       inputSchema: {
         companyId,
         runId: runId.optional().describe("Defaults to today's manual run for the company"),
         url: z.string().describe("http(s) URL the content came from"),
         title: z.string().optional(),
-        text: z.string().describe("The content itself"),
+        text: z.string().describe("The content itself (verbatim excerpts)"),
         via: z.enum(["search", "browser", "muse_fetch"]),
+        passages: z.array(z.string()).optional().describe("Verbatim relied-upon passages (required for browser | muse_fetch)"),
       },
     },
-    async ({ companyId, runId: givenRunId, url, title, text, via }) =>
+    async ({ companyId, runId: givenRunId, url, title, text, via, passages }) =>
       wrap(async () => {
         const scoped = scopedCompany(auth, companyId);
         const run = await resolveRunId(db, auth, scoped, givenRunId ?? undefined);
-        const sourceId = await captureSource(db, {
+        const captured = await captureSource(db, {
           companyId: scoped,
           runId: run,
           url,
           title: title ?? undefined,
           text,
           via,
+          passages: passages ?? undefined,
           createdBy: "owner",
         });
-        return { summary: `captured ${url} via ${via}`, data: { sourceId, runId: run } };
+        return {
+          summary: `captured ${url} via ${via}${captured.thin ? " (thin)" : ""}`,
+          data: { sourceId: captured.sourceId, runId: run, thin: captured.thin, warnings: captured.warnings },
+        };
       }),
   );
 
@@ -779,9 +952,10 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         maxMinutes: z.number().optional().describe("Agent wall-time limit (default 40)"),
         maxModelSteps: z.number().int().optional().describe("Model step cap (default 100)"),
         brief: z.string().optional().describe("Extra owner instructions (at most 2 KB)"),
+        promptVersion: z.string().optional().describe("Prompt version (default: latest)"),
       },
     },
-    async ({ companyIds, areas, recollectIfOlderThanDays, maxMinutes, maxModelSteps, brief }) =>
+    async ({ companyIds, areas, recollectIfOlderThanDays, maxMinutes, maxModelSteps, brief, promptVersion }) =>
       wrap(async () => {
         const batch = await researchStart(db, {
           companyIds,
@@ -790,6 +964,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
           maxMinutes: maxMinutes ?? undefined,
           maxModelSteps: maxModelSteps ?? undefined,
           brief: brief ?? undefined,
+          promptVersion: promptVersion ?? undefined,
         });
         const queued = batch.runs.filter((r) => r.status === "queued").length;
         return { summary: `batch ${batch.batchId}: ${queued} queued, ${batch.runs.length - queued} already running`, data: batch };
@@ -810,6 +985,26 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const events = await listRunActivity(db, { runId, afterId: afterId ?? undefined, limit: limit ?? undefined });
         return { summary: `${events.length} events`, data: { events } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "extract_run",
+    {
+      description: "Re-extract structured facts, records and findings from an agent run's cited notes, one headless extractor call per area plus synthesis (operator only). Returns per-area counts and merged usage.",
+      inputSchema: {
+        runId,
+      },
+    },
+    async ({ runId }) =>
+      wrap(async () => {
+        const result = await extractRun(db, runId);
+        const done = result.areas.filter((a) => a.error === null).length;
+        const facts = result.areas.reduce((n, a) => n + a.writtenFacts, 0);
+        return {
+          summary: `extracted ${done}/${result.areas.length} areas from run ${runId} (${facts} facts)`,
+          data: result,
+        };
       }),
   );
 
@@ -845,6 +1040,172 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
           areaOutcomes: areaOutcomes ?? [],
         });
         return { summary: `run ${run} finished`, data: { runId: run } };
+      }),
+  );
+
+  const jobId = z.string().describe("Job UUID");
+  const jobBudget = z.object({
+    maxTokens: z.number().int().optional(),
+    maxHours: z.number().optional(),
+  }).optional().describe("Pause the job when a budget is reached");
+
+  registerTool(server, db, auth,
+    "research_sector",
+    {
+      description: "Operator: research every company in a sector (optionally screened) as a DB-backed job. Feeds the queue as slots free up; each company gets collect + agent research + extraction.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        criteria: z.array(screenCriterion).max(20).optional().describe("ANDed screen criteria (default: all live companies)"),
+        sort: screenSort.optional().describe("Order (default: employees desc)"),
+        maxCompanies: z.number().int().optional().describe("Cap the job at this many companies"),
+        skipIfRecentDays: z.number().int().optional().describe("Skip companies researched within this window (default 30, 0 disables)"),
+        promptVersion: z.string().optional().describe("Research prompt version"),
+        budget: jobBudget,
+      },
+    },
+    async ({ sectorId, criteria, sort, maxCompanies, skipIfRecentDays, promptVersion, budget }) =>
+      wrap(async () => {
+        const result = await startResearchSectorJob(db, {
+          sectorId,
+          criteria: criteria ?? undefined,
+          sort: sort ?? undefined,
+          maxCompanies: maxCompanies ?? undefined,
+          skipIfRecentDays: skipIfRecentDays ?? undefined,
+          promptVersion: promptVersion ?? undefined,
+          budget: budget ?? undefined,
+        });
+        return { summary: `research job ${result.jobId} started (${result.items} companies${result.capped ? ", capped" : ""})`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "research_shortlist",
+    {
+      description: "Operator: research every company in a shortlist (in list order) as a DB-backed job. Feeds the queue as slots free up.",
+      inputSchema: {
+        shortlistId: z.string().describe("Shortlist UUID"),
+        maxCompanies: z.number().int().optional().describe("Cap the job at this many companies"),
+        skipIfRecentDays: z.number().int().optional().describe("Skip companies researched within this window (default 30, 0 disables)"),
+        promptVersion: z.string().optional().describe("Research prompt version"),
+        budget: jobBudget,
+      },
+    },
+    async ({ shortlistId, maxCompanies, skipIfRecentDays, promptVersion, budget }) =>
+      wrap(async () => {
+        const result = await startResearchShortlistJob(db, {
+          shortlistId,
+          maxCompanies: maxCompanies ?? undefined,
+          skipIfRecentDays: skipIfRecentDays ?? undefined,
+          promptVersion: promptVersion ?? undefined,
+          budget: budget ?? undefined,
+        });
+        return { summary: `research job ${result.jobId} started (${result.items} companies${result.capped ? ", capped" : ""})`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "job_status",
+    {
+      description: "Operator: job progress, counts, active runs, tokens, average minutes per company, ETA and per-company outcomes.",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        const view = await jobStatus(db, id);
+        const done = view.counts.succeeded + view.counts.failed + view.counts.skipped + view.counts.cancelled;
+        const total = done + view.counts.queued + view.counts.running + view.counts.extracting;
+        return { summary: `job ${id}: ${view.job.status}, ${done}/${total} terminal`, data: view };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "job_list",
+    {
+      description: "Operator: recent jobs with per-status counts.",
+      inputSchema: { limit: z.number().int().optional().describe("Default 20, max 100") },
+    },
+    async ({ limit }) =>
+      wrap(async () => {
+        const jobs = await jobList(db, limit ?? undefined);
+        return { summary: `${jobs.length} jobs`, data: { jobs } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "job_pause",
+    {
+      description: "Operator: pause a job (running companies finish; nothing new starts).",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        await jobPause(db, id);
+        return { summary: `job ${id} paused`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "job_resume",
+    {
+      description: "Operator: resume a paused job.",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        await jobResume(db, id);
+        return { summary: `job ${id} resumed`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "job_cancel",
+    {
+      description: "Operator: cancel a job. Running agents are stopped unless stopRunning is false (then they finish).",
+      inputSchema: { jobId, stopRunning: z.boolean().optional().describe("Stop running agents too (default true)") },
+    },
+    async ({ jobId: id, stopRunning }) =>
+      wrap(async () => {
+        await jobCancel(db, id, { stopRunning: stopRunning ?? undefined });
+        return { summary: `job ${id} cancelled`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "job_retry_failed",
+    {
+      description: "Operator: re-queue a job's failed companies and resume it.",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        const result = await jobRetryFailed(db, id);
+        return { summary: `job ${id}: ${result.retried} companies re-queued`, data: { jobId: id, retried: result.retried } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "harness_settings_get",
+    {
+      description: "Operator: effective harness settings (agent concurrency) and where each value comes from.",
+      inputSchema: {},
+    },
+    async () =>
+      wrap(async () => {
+        const settings = await harnessSettingsGet(db);
+        return { summary: `maxConcurrentAgents=${settings.maxConcurrentAgents} (${settings.source})`, data: settings };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "harness_settings_set",
+    {
+      description: "Operator: change agent concurrency at runtime (1..8, stored in the DB, immediate).",
+      inputSchema: { maxConcurrentAgents: z.number().int().describe("Max parallel agent runs") },
+    },
+    async ({ maxConcurrentAgents }) =>
+      wrap(async () => {
+        const settings = await harnessSettingsSet(db, maxConcurrentAgents);
+        return { summary: `maxConcurrentAgents -> ${settings.maxConcurrentAgents}`, data: settings };
       }),
   );
 }

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# kardata-agent entrypoint. Modes: setup | version | run.
+# kardata-agent entrypoint. Modes: setup | version | run | reviews.
 # run execs the app-owned Muse with the given args (research runs only).
+# reviews runs the on-site reviews scraper (no LLM): job JSON on stdin,
+# result JSON on stdout.
 set -euo pipefail
 
 MUSE_DIR="${MUSE_DIR:-/opt/muse}"
@@ -37,7 +39,10 @@ case "$cmd" in
     [[ "$#" -gt 0 ]] || die "usage: entrypoint.sh run <muse args...>"
     exec "$MUSE_BIN" "$@"
     ;;
+  reviews)
+    exec node /usr/local/bin/reviews.mjs
+    ;;
   *)
-    die "usage: entrypoint.sh {setup|version|run}"
+    die "usage: entrypoint.sh {setup|version|run|reviews}"
     ;;
 esac

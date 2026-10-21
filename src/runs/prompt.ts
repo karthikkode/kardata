@@ -1,12 +1,80 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { toEffectiveCompany } from "../domain/companies.js";
+import { DomainError } from "../domain/errors.js";
 import type { PromptContext } from "./agent-runner.js";
 
-/** Minimal v0 research prompt (Stage 3b Step 3; Stage 4 replaces it). */
+/** Versioned research prompts: v0 is one file; v1+ is main.md plus area briefs. */
 
 const TECH_LIST_MAX = 30;
+const VERSION_PATTERN = /^v\d+(\.\d+)*$/;
+
+// Plan order; every versioned prompt must carry all seven.
+export const PROMPT_AREAS = [
+  "reviews",
+  "product",
+  "marketing",
+  "business_model",
+  "hiring",
+  "financials",
+  "decisions",
+] as const;
+
+export function promptsDir(): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  return join(here, "..", "..", "prompts");
+}
+
+function compareVersions(a: string, b: string): number {
+  const pa = a.slice(1).split(".").map(Number);
+  const pb = b.slice(1).split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+export function availablePromptVersions(): string[] {
+  const dir = promptsDir();
+  const entries = readdirSync(dir);
+  const versions: string[] = [];
+  for (const entry of entries) {
+    const file = entry.match(/^research-(v\d+(?:\.\d+)*)\.md$/);
+    if (file?.[1]) {
+      versions.push(file[1]);
+      continue;
+    }
+    const folder = entry.match(/^(research-v\d+(?:\.\d+)*)$/);
+    if (folder?.[1] && statSync(join(dir, entry)).isDirectory()) {
+      versions.push(folder[1].replace(/^research-/, ""));
+    }
+  }
+  return versions.sort(compareVersions);
+}
+
+export function latestPromptVersion(): string {
+  const versions = availablePromptVersions();
+  const latest = versions[versions.length - 1];
+  if (!latest) throw new Error("no research prompts found");
+  return latest;
+}
+
+export function assertPromptVersion(version: string): string {
+  if (!VERSION_PATTERN.test(version)) {
+    throw new DomainError("invalid_input", `bad prompt version "${version}" (want v1, v1.1, ...)`);
+  }
+  const available = availablePromptVersions();
+  if (!available.includes(version)) {
+    throw new DomainError("invalid_input", `unknown prompt version "${version}" (have: ${available.join(", ")})`);
+  }
+  return version;
+}
+
+export function resolvePromptVersion(requested?: string): string {
+  return requested === undefined ? latestPromptVersion() : assertPromptVersion(requested);
+}
 
 function display(value: string | number | null): string {
   if (value === null || value === undefined) return "unknown";
@@ -33,17 +101,19 @@ function apolloSummary(ctx: PromptContext): string {
   return parts.length > 0 ? parts.join("; ") : "no Apollo data";
 }
 
-export function templatePath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  return join(here, "..", "..", "prompts", "research-v0.md");
+function substitute(template: string, values: Record<string, string>): string {
+  let rendered = template;
+  for (const [key, value] of Object.entries(values)) {
+    rendered = rendered.split(`{{${key}}}`).join(value);
+  }
+  return rendered;
 }
 
-export function buildResearchPrompt(ctx: PromptContext): string {
+function templateValues(ctx: PromptContext): Record<string, string> {
   const effective = toEffectiveCompany(ctx.company);
-  const template = readFileSync(templatePath(), "utf8");
   const briefSection =
     ctx.brief && ctx.brief.trim() !== "" ? `## Owner brief\n\n${ctx.brief.trim()}\n\n` : "";
-  const values: Record<string, string> = {
+  return {
     runId: ctx.run.id,
     companyId: ctx.company.id,
     name: display(effective.name),
@@ -55,9 +125,40 @@ export function buildResearchPrompt(ctx: PromptContext): string {
     apolloSummary: apolloSummary(ctx),
     briefSection,
   };
-  let rendered = template;
-  for (const [key, value] of Object.entries(values)) {
-    rendered = rendered.split(`{{${key}}}`).join(value);
+}
+
+function renderSingleFile(version: string, ctx: PromptContext): string {
+  const template = readFileSync(join(promptsDir(), `research-${version}.md`), "utf8");
+  return substitute(template, templateValues(ctx));
+}
+
+function renderVersioned(version: string, ctx: PromptContext): string {
+  const base = join(promptsDir(), `research-${version}`);
+  const main = readFileSync(join(base, "main.md"), "utf8");
+  if (!main.includes("{{areaBriefs}}")) {
+    throw new Error(`prompt ${version}/main.md has no {{areaBriefs}} placeholder`);
   }
-  return rendered;
+  const briefs = PROMPT_AREAS.map((areaName) => {
+    const path = join(base, "areas", `${areaName}.md`);
+    if (!existsSync(path)) throw new Error(`prompt ${version} is missing areas/${areaName}.md`);
+    return `### ${areaName}\n\n${readFileSync(path, "utf8").trim()}`;
+  });
+  const assembled = main.replace("{{areaBriefs}}", briefs.join("\n\n"));
+  return substitute(assembled, templateValues(ctx));
+}
+
+export function templatePath(): string {
+  return join(promptsDir(), "research-v0.md");
+}
+
+/**
+ * Render the run's stored prompt version (pre-versioning runs render v0).
+ * research_start resolves the default at creation, so this never picks latest
+ * for a stored run.
+ */
+export function buildResearchPrompt(ctx: PromptContext): string {
+  const version = ctx.run.promptVersion ?? "v0";
+  assertPromptVersion(version);
+  if (existsSync(join(promptsDir(), `research-${version}.md`))) return renderSingleFile(version, ctx);
+  return renderVersioned(version, ctx);
 }

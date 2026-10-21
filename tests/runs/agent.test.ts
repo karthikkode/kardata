@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
 import { companies, researchRuns } from "../../src/db/schema.js";
 import { hasFreshCollect, researchStart } from "../../src/runs/agent.js";
+import { latestPromptVersion } from "../../src/runs/prompt.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 
 let handle: DbHandle;
@@ -89,6 +90,20 @@ describe("researchStart", () => {
       maxModelSteps: 25,
       brief: "owner note",
     });
+  });
+
+  it("stores the prompt version, defaulting to latest", async () => {
+    const a = await makeCompany("A Co");
+    const b = await makeCompany("B Co");
+    await researchStart(handle.db, { companyIds: [a] });
+    await researchStart(handle.db, { companyIds: [b], promptVersion: "v0" });
+    const [runA] = await handle.db.select().from(researchRuns).where(eq(researchRuns.companyId, a));
+    const [runB] = await handle.db.select().from(researchRuns).where(eq(researchRuns.companyId, b));
+    expect(runA?.promptVersion).toBe(latestPromptVersion());
+    expect(runB?.promptVersion).toBe("v0");
+    await expect(researchStart(handle.db, { companyIds: [a], promptVersion: "v9" })).rejects.toThrow(
+      /unknown prompt version/,
+    );
   });
 
   it("reports already_running for companies with an active run", async () => {

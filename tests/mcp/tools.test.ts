@@ -61,6 +61,23 @@ const EXPECTED_TOOLS = [
   "search",
   "research_start",
   "run_activity",
+  "collect_sector",
+  "company_screen",
+  "shortlist_save",
+  "shortlist_get",
+  "shortlist_list",
+  "batch_scorecard",
+  "extract_run",
+  "research_sector",
+  "research_shortlist",
+  "job_status",
+  "job_list",
+  "job_pause",
+  "job_resume",
+  "job_cancel",
+  "job_retry_failed",
+  "harness_settings_get",
+  "harness_settings_set",
 ];
 
 interface ToolResult {

@@ -27,11 +27,14 @@ describe("migrations on kardata_test", () => {
     expect(names.sort()).toEqual([
       "area_statuses",
       "blobs",
+      "bulk_job_items",
+      "bulk_jobs",
       "companies",
       "documents",
       "fact_keys",
       "facts",
       "findings",
+      "harness_settings",
       "imports",
       "record_types",
       "records",
@@ -40,6 +43,7 @@ describe("migrations on kardata_test", () => {
       "run_tokens",
       "sector_companies",
       "sectors",
+      "shortlists",
       "sources",
     ]);
   });
@@ -78,6 +82,7 @@ describe("migrations on kardata_test", () => {
       "research_runs.status",
       "research_runs.requested_areas",
       "research_runs.batch_id",
+      "research_runs.prompt_version",
       "research_runs.request_count",
       "run_events.run_id",
       "run_events.type",

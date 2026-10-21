@@ -1,8 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import type { Company, ResearchRun } from "../../src/db/schema.js";
+import { DomainError } from "../../src/domain/errors.js";
 import type { PromptContext } from "../../src/runs/agent-runner.js";
-import { buildResearchPrompt } from "../../src/runs/prompt.js";
+import {
+  assertPromptVersion,
+  availablePromptVersions,
+  buildResearchPrompt,
+  latestPromptVersion,
+  PROMPT_AREAS,
+  resolvePromptVersion,
+} from "../../src/runs/prompt.js";
 
 function ctx(overrides: {
   company?: Partial<Company>;
@@ -20,7 +28,9 @@ function ctx(overrides: {
       createdBy: "owner",
       requestedAreas: null,
       batchId: null,
+      jobId: null,
       error: null,
+      promptVersion: null,
       agentPhase: "researching",
       agentOptions: null,
       agentSessionId: null,
@@ -103,6 +113,14 @@ describe("buildResearchPrompt", () => {
     expect(prompt).toContain("(+10 more)");
   });
 
+  it("renders v0 for pre-versioning runs (null version)", () => {
+    const context = ctx({});
+    const prompt = buildResearchPrompt(context);
+    expect(prompt).toContain("## Start");
+    context.run.promptVersion = "v0";
+    expect(buildResearchPrompt(context)).toBe(prompt);
+  });
+
   it("covers every required v0 directive", () => {
     const prompt = buildResearchPrompt(ctx({}));
     for (const needle of [
@@ -125,5 +143,79 @@ describe("buildResearchPrompt", () => {
     ]) {
       expect(prompt, needle).toContain(needle);
     }
+  });
+});
+
+describe("prompt versions", () => {
+  it("lists v0, v1, v1.1, v1.2 and v1.3 with v1.3 latest", () => {
+    expect(availablePromptVersions()).toEqual(["v0", "v1", "v1.1", "v1.2", "v1.3"]);
+    expect(latestPromptVersion()).toBe("v1.3");
+    expect(resolvePromptVersion()).toBe("v1.3");
+    expect(resolvePromptVersion("v0")).toBe("v0");
+  });
+
+  it("rejects bad or unknown versions", () => {
+    for (const bad of ["bogus", "1", "v", "v1;rm"]) {
+      expect(() => assertPromptVersion(bad)).toThrowError(DomainError);
+    }
+    expect(() => assertPromptVersion("v9")).toThrowError(/unknown prompt version/);
+    expect(() => buildResearchPrompt(ctx({ run: { promptVersion: "v9" } }))).toThrowError(DomainError);
+  });
+
+  it("renders v1 with all seven briefs and substituted values", () => {
+    const context = ctx({ run: { promptVersion: "v1" }, brief: "Watch pricing." });
+    const prompt = buildResearchPrompt(context);
+    expect(prompt).toContain("## Flow");
+    expect(prompt).toContain("### 1. Orient");
+    for (const area of PROMPT_AREAS) {
+      expect(prompt, area).toContain(`### ${area}`);
+    }
+    expect(prompt).toContain("5–15 findings");
+    expect(prompt).toContain("summary.md");
+    expect(prompt).toContain("only one subagent at a time uses the browser");
+    expect(prompt).toContain("Watch pricing.");
+    expect(prompt).toContain("Example Co");
+    expect(prompt).toContain("example.com");
+    expect(prompt).not.toContain("{{");
+  });
+
+  it("renders v1.1 with the stall fixes", () => {
+    const prompt = buildResearchPrompt(ctx({ run: { promptVersion: "v1.1" } }));
+    for (const area of PROMPT_AREAS) {
+      expect(prompt, area).toContain(`### ${area}`);
+    }
+    expect(prompt).toContain("never the Workflow tool");
+    expect(prompt).toContain("Do NOT call these");
+    expect(prompt).toContain("bank progress continuously");
+    expect(prompt).toContain("MUST ingest up to 300");
+    expect(prompt).not.toContain("{{");
+  });
+
+  it("renders v1.2 as depth-plus-citations with no structuring", () => {
+    const prompt = buildResearchPrompt(ctx({ run: { promptVersion: "v1.2" } }));
+    for (const area of PROMPT_AREAS) {
+      expect(prompt, area).toContain(`### ${area}`);
+    }
+    expect(prompt).toContain("depth and citations, not structuring");
+    expect(prompt).toContain("[src:<uuid>]");
+    expect(prompt).toContain("At least 3 sources per area");
+    expect(prompt).toContain("No reviewer names or initials");
+    expect(prompt).toContain("never the Workflow tool");
+    expect(prompt).toContain("summary.md");
+    expect(prompt).toContain("fact_add, record_upsert, reviews_ingest, finding_add");
+    expect(prompt).not.toContain("MUST ingest up to 300");
+    expect(prompt).not.toContain("{{");
+  });
+
+  it("renders v1.3 with verbatim-capture and no-test-data rules", () => {
+    const prompt = buildResearchPrompt(ctx({ run: { promptVersion: "v1.3" } }));
+    for (const area of PROMPT_AREAS) {
+      expect(prompt, area).toContain(`### ${area}`);
+    }
+    expect(prompt).toContain("Capture verbatim excerpts, never summaries");
+    expect(prompt).toContain("relied-upon passages");
+    expect(prompt).toContain("Never write test or probe data to kardata");
+    expect(prompt).toContain("depth and citations, not structuring");
+    expect(prompt).not.toContain("{{");
   });
 });
