@@ -315,6 +315,24 @@ export async function companyJobResume(db: Db, jobId: string): Promise<CompanyJo
   return updated;
 }
 
+/**
+ * Cancel every queued company job with a reason (Stage 5.1 Step 0: the
+ * sector pass supersedes the migrated batch). Queued jobs never hold active
+ * subjobs, so no runs need stopping. Returns the cancelled count.
+ */
+export async function supersedeQueuedJobs(db: Db, reason: string): Promise<{ cancelled: number }> {
+  const queued = await db.select({ id: companyJobs.id }).from(companyJobs).where(eq(companyJobs.status, "queued"));
+  const finishedAt = new Date();
+  for (const job of queued) {
+    await db
+      .update(companyJobs)
+      .set({ status: "cancelled", finishedAt })
+      .where(and(eq(companyJobs.id, job.id), eq(companyJobs.status, "queued")));
+    await logJobEvent(db, job.id, "job_cancelled", null, { reason: reason.slice(0, 500) });
+  }
+  return { cancelled: queued.length };
+}
+
 export async function companyJobRetry(db: Db, jobId: string): Promise<{ job: CompanyJob; stage: CompanyStage }> {
   const job = await loadCompanyJob(db, jobId);
   if (job.status === "completed" || job.status === "cancelled" || job.status === "queued") {

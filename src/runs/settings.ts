@@ -238,3 +238,75 @@ export async function tripPipelinePause(db: Db, target: number, completed: numbe
     })
     .onConflictDoNothing();
 }
+
+// ---- Sector preflight pool: simultaneous classifier runs (Stage 5.1). ----
+
+export const DEFAULT_SECTOR_PREFLIGHT_CONCURRENCY = 8;
+export const SECTOR_PREFLIGHT_CONCURRENCY_MIN = 1;
+export const SECTOR_PREFLIGHT_CONCURRENCY_MAX = 32;
+
+const SECTOR_PREFLIGHT_CONCURRENCY_KEY = "sector_preflight_concurrency";
+
+export function sectorPreflightConcurrency(): number {
+  const raw = process.env.SECTOR_PREFLIGHT_CONCURRENCY;
+  if (raw === undefined || raw === "") return DEFAULT_SECTOR_PREFLIGHT_CONCURRENCY;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : DEFAULT_SECTOR_PREFLIGHT_CONCURRENCY;
+}
+
+export interface SectorPreflightSettingsView {
+  sectorPreflightConcurrency: number;
+  source: "db" | "env" | "default";
+  dbValue: number | null;
+}
+
+function validSectorPreflightStored(value: unknown): number | null {
+  return typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= SECTOR_PREFLIGHT_CONCURRENCY_MIN &&
+    value <= SECTOR_PREFLIGHT_CONCURRENCY_MAX
+    ? value
+    : null;
+}
+
+export async function sectorPreflightSettingsGet(db: Db): Promise<SectorPreflightSettingsView> {
+  const [row] = await db.select().from(harnessSettings).where(eq(harnessSettings.key, SECTOR_PREFLIGHT_CONCURRENCY_KEY));
+  const dbValue = row ? validSectorPreflightStored(row.value) : null;
+  if (dbValue !== null) return { sectorPreflightConcurrency: dbValue, source: "db", dbValue };
+  const raw = process.env.SECTOR_PREFLIGHT_CONCURRENCY;
+  if (raw !== undefined && raw !== "") {
+    return { sectorPreflightConcurrency: sectorPreflightConcurrency(), source: "env", dbValue: null };
+  }
+  return { sectorPreflightConcurrency: DEFAULT_SECTOR_PREFLIGHT_CONCURRENCY, source: "default", dbValue: null };
+}
+
+export async function sectorPreflightSettingsSet(db: Db, value: number): Promise<SectorPreflightSettingsView> {
+  if (
+    !Number.isInteger(value) ||
+    value < SECTOR_PREFLIGHT_CONCURRENCY_MIN ||
+    value > SECTOR_PREFLIGHT_CONCURRENCY_MAX
+  ) {
+    throw new DomainError(
+      "invalid_input",
+      `sectorPreflightConcurrency must be ${SECTOR_PREFLIGHT_CONCURRENCY_MIN}..${SECTOR_PREFLIGHT_CONCURRENCY_MAX}`,
+    );
+  }
+  await db
+    .insert(harnessSettings)
+    .values({ key: SECTOR_PREFLIGHT_CONCURRENCY_KEY, value, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: harnessSettings.key,
+      set: { value, updatedAt: new Date() },
+    });
+  return { sectorPreflightConcurrency: value, source: "db", dbValue: value };
+}
+
+/** Effective sector-preflight pool size for this tick. Never throws on a bad row. */
+export async function effectiveSectorPreflight(db: Db, override?: number): Promise<number> {
+  if (override !== undefined) return override;
+  try {
+    return (await sectorPreflightSettingsGet(db)).sectorPreflightConcurrency;
+  } catch {
+    return sectorPreflightConcurrency();
+  }
+}

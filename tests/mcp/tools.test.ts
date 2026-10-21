@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { DbHandle } from "../../src/db/client.js";
+import { companies, sectorCompanies, sectors } from "../../src/db/schema.js";
 import { startServer, type ServerHandle } from "../../src/server.js";
 import {
   badHeadersCsvPath,
@@ -91,6 +93,20 @@ const EXPECTED_TOOLS = [
   "company_concurrency_set",
   "pipeline_status",
   "pipeline_checkpoint_set",
+  "sector_preflight_start",
+  "sector_preflight_status",
+  "sector_preflight_list",
+  "sector_preflight_pause",
+  "sector_preflight_resume",
+  "sector_preflight_cancel",
+  "sector_preflight_retry_failed",
+  "sector_preflight_summary",
+  "sector_rules_get",
+  "sector_rules_set",
+  "company_eligibility_override",
+  "pipeline_start",
+  "sector_preflight_concurrency_get",
+  "sector_preflight_concurrency_set",
 ];
 
 interface ToolResult {
@@ -353,7 +369,81 @@ describe("mcp tools", () => {
     expect(errorOf(badCheckpoint).code).toBe("invalid_input");
     const cleared = dataOf(await call("pipeline_checkpoint_set", { afterCompleted: null }));
     expect(cleared.target).toBeNull();
+  });
 
+  it("sector preflight tools: job controls, rules, overrides, pipeline start", async () => {
+    const [sector] = await handle.db.insert(sectors).values({ id: randomUUID(), name: "Skincare" }).returning();
+    if (!sector) throw new Error("no sector row");
+    const [company] = await handle.db
+      .insert(companies)
+      .values({ id: randomUUID(), source: "manual", name: "A Co" })
+      .returning();
+    if (!company) throw new Error("no company row");
+    await handle.db.insert(sectorCompanies).values({ sectorId: sector.id, companyId: company.id, addedVia: "manual" });
+
+    const started = dataOf(await call("sector_preflight_start", { sectorId: sector.id }));
+    expect(started.companies).toBe(1);
+    const jobId = (started as { jobId: string }).jobId;
+    const status = dataOf(await call("sector_preflight_status", { jobId }));
+    expect((status.job as { status: string }).status).toBe("running");
+    expect(status.quota).toBeNull();
+    const listed = dataOf(await call("sector_preflight_list", {}));
+    expect(((listed as { jobs: unknown[] }).jobs)).toHaveLength(1);
+    await call("sector_preflight_pause", { jobId });
+    const paused = dataOf(await call("sector_preflight_status", { jobId }));
+    expect((paused.job as { status: string }).status).toBe("paused");
+    await call("sector_preflight_resume", { jobId });
+    await call("sector_preflight_cancel", { jobId });
+    const cancelled = dataOf(await call("sector_preflight_status", { jobId }));
+    expect((cancelled.job as { status: string }).status).toBe("cancelled");
+    const retried = dataOf(await call("sector_preflight_retry_failed", { jobId }));
+    expect(retried.retried).toBe(0);
+
+    const summary = dataOf(await call("sector_preflight_summary", { sectorId: sector.id }));
+    expect((summary as { buckets: unknown[] }).buckets).toHaveLength(0);
+
+    const rules = dataOf(await call("sector_rules_get", { sectorId: sector.id }));
+    expect(rules.isDefault).toBe(true);
+    const badRules = await call("sector_rules_set", { sectorId: sector.id, rules: { nope: true } });
+    expect(errorOf(badRules).code).toBe("invalid_input");
+
+    const override = dataOf(
+      await call("company_eligibility_override", {
+        sectorId: sector.id,
+        companyId: company.id,
+        decision: "include",
+        note: "owner call",
+      }),
+    );
+    expect(override.eligibility).toBe("eligible");
+    const clearedOverride = dataOf(
+      await call("company_eligibility_override", {
+        sectorId: sector.id,
+        companyId: company.id,
+        decision: "clear",
+      }),
+    );
+    expect(clearedOverride.eligibility).toBe("pending");
+
+    const launched = dataOf(await call("pipeline_start", { sectorId: sector.id }));
+    expect(launched.created).toBe(0);
+
+    const pool = dataOf(await call("sector_preflight_concurrency_get", {}));
+    expect(pool.sectorPreflightConcurrency).toBe(8);
+    const poolSet = dataOf(await call("sector_preflight_concurrency_set", { sectorPreflightConcurrency: 4 }));
+    expect(poolSet.sectorPreflightConcurrency).toBe(4);
+    const poolBad = await call("sector_preflight_concurrency_set", { sectorPreflightConcurrency: 99 });
+    expect(errorOf(poolBad).code).toBe("invalid_input");
+  });
+
+  it("company job cancel rejects retry", async () => {
+    const [company] = await handle.db
+      .insert(companies)
+      .values({ id: randomUUID(), source: "manual", name: "Cancel Co" })
+      .returning();
+    if (!company) throw new Error("no company row");
+    const started = dataOf(await call("company_job_start", { companyId: company.id }));
+    const jobId = (started as { jobId: string }).jobId;
     await call("company_job_cancel", { jobId });
     const cancelled = dataOf(await call("company_job_status", { jobId }));
     expect((cancelled.job as { status: string }).status).toBe("cancelled");

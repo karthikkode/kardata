@@ -895,3 +895,46 @@ export const sectorEligibilityOverrides = pgTable(
   (t) => [primaryKey({ columns: [t.sectorId, t.companyId] })],
 );
 export type SectorEligibilityOverride = typeof sectorEligibilityOverrides.$inferSelect;
+
+export const sectorPreflightJobs = pgTable("sector_preflight_jobs", {
+  id: uuid("id").primaryKey(),
+  sectorId: uuid("sector_id").references(() => sectors.id, { onDelete: "set null" }),
+  status: bulkJobStatus("status").notNull().default("running"),
+  onlyPending: boolean("only_pending").notNull().default(true),
+  maxCompanies: integer("max_companies"),
+  maxInputTokens: bigint("max_input_tokens", { mode: "number" }),
+  maxHours: doublePrecision("max_hours"),
+  errorStreak: integer("error_streak").notNull().default(0),
+  errorClass: text("error_class"),
+  pauseReason: text("pause_reason"),
+  startedRuns: integer("started_runs").notNull().default(0),
+  inputTokensSpent: bigint("input_tokens_spent", { mode: "number" }).notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+});
+export type SectorPreflightJob = typeof sectorPreflightJobs.$inferSelect;
+
+export const sectorPreflightItems = pgTable(
+  "sector_preflight_items",
+  {
+    id: uuid("id").primaryKey(),
+    jobId: uuid("job_id")
+      .notNull()
+      .references(() => sectorPreflightJobs.id, { onDelete: "cascade" }),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    status: bulkItemStatus("status").notNull().default("queued"),
+    position: integer("position").notNull().default(0),
+    runId: uuid("run_id").references(() => researchRuns.id, { onDelete: "set null" }),
+    attempts: integer("attempts").notNull().default(0),
+    error: text("error"),
+    errorClass: text("error_class"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    durationMs: integer("duration_ms"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("sector_preflight_items_job_company_idx").on(t.jobId, t.companyId)],
+);
+export type SectorPreflightItem = typeof sectorPreflightItems.$inferSelect;

@@ -49,6 +49,8 @@ describe("migrations on kardata_test", () => {
       "sector_companies",
       "sector_eligibility_overrides",
       "sector_preflight",
+      "sector_preflight_items",
+      "sector_preflight_jobs",
       "sectors",
       "shortlists",
       "sources",

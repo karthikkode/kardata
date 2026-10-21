@@ -218,6 +218,25 @@ export interface ClassifyCompanyInput {
   call?: ClassifierCall;
   /** Test hook for fake-site URLs (production leaves it empty). */
   fetchOptions?: { privateHostAllowlist?: string[] };
+  /**
+   * Worker-owned run row (created running by the feeder so the item links
+   * before the async drive starts). Created here when absent.
+   */
+  runId?: string;
+}
+
+/** Insert a running sector-preflight run row for the feeder to link. */
+export async function createSectorRun(db: Db, companyId: string): Promise<string> {
+  const runId = randomUUID();
+  await db.insert(researchRuns).values({
+    id: runId,
+    companyId,
+    kind: "sector_preflight",
+    status: "running",
+    startedAt: new Date(),
+    stage: "sector_preflight",
+  });
+  return runId;
 }
 
 export interface ClassifyCompanyOutcome {
@@ -232,19 +251,9 @@ export async function classifyCompany(db: Db, input: ClassifyCompanyInput): Prom
   const call = input.call ?? dockerClassifierCall;
   const [company] = await db.select().from(companies).where(eq(companies.id, input.companyId));
   if (!company) throw new DomainError("not_found", `company not found: ${input.companyId}`);
-  const runId = randomUUID();
-  const [run] = await db
-    .insert(researchRuns)
-    .values({
-      id: runId,
-      companyId: company.id,
-      kind: "sector_preflight",
-      status: "running",
-      startedAt: new Date(),
-      stage: "sector_preflight",
-    })
-    .returning();
-  if (!run) throw new Error("sector run insert returned no row");
+  const runId = input.runId ?? (await createSectorRun(db, company.id));
+  const [run] = await db.select().from(researchRuns).where(eq(researchRuns.id, runId));
+  if (!run) throw new Error("sector run row is gone");
   const fail = async (error: string): Promise<never> => {
     await db
       .update(researchRuns)

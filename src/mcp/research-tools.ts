@@ -62,7 +62,21 @@ import {
   companySettingsSet,
   harnessSettingsGet,
   harnessSettingsSet,
+  sectorPreflightSettingsGet,
+  sectorPreflightSettingsSet,
 } from "../runs/settings.js";
+import {
+  startPipeline,
+  startSectorPreflight,
+  sectorPreflightCancel,
+  sectorPreflightList,
+  sectorPreflightPause,
+  sectorPreflightResume,
+  sectorPreflightRetryFailed,
+  sectorPreflightStatus,
+  sectorPreflightSummary,
+} from "../runs/sector.js";
+import { getRubric, setOverride, setRubric } from "../domain/sector-preflight/eligibility.js";
 import {
   SCREEN_FIELDS,
   SCREEN_OPS,
@@ -1419,6 +1433,203 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
           summary: checkpoint.target === null ? "checkpoint cleared" : `checkpoint -> ${checkpoint.target}`,
           data: checkpoint,
         };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_preflight_start",
+    {
+      description: "Operator: classify every company in a sector (eligibility pass) as a DB-backed job.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        onlyPending: z.boolean().optional().describe("Skip already-classified companies (default true)"),
+        maxCompanies: z.number().int().optional().describe("Cap the job at this many companies"),
+        budget: jobBudget,
+      },
+    },
+    async ({ sectorId, onlyPending, maxCompanies, budget }) =>
+      wrap(async () => {
+        const result = await startSectorPreflight(db, {
+          sectorId,
+          onlyPending: onlyPending ?? undefined,
+          maxCompanies: maxCompanies ?? undefined,
+          budget: budget ?? undefined,
+        });
+        return { summary: `sector job ${result.jobId}: ${result.companies} companies`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_preflight_status",
+    {
+      description: "Operator: sector job counts, active runs, tokens, ETA.",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        const status = await sectorPreflightStatus(db, id);
+        return { summary: `sector job ${id}: ${status.job.status}`, data: status };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_preflight_list",
+    {
+      description: "Operator: recent sector jobs.",
+      inputSchema: { limit: z.number().int().optional().describe("Default 20") },
+    },
+    async ({ limit }) =>
+      wrap(async () => {
+        const jobs = await sectorPreflightList(db, limit ?? undefined);
+        return { summary: `${jobs.length} sector jobs`, data: { jobs } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_preflight_pause",
+    {
+      description: "Operator: pause a sector job (in-flight classifications finish; nothing new starts).",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        await sectorPreflightPause(db, id);
+        return { summary: `sector job ${id} paused`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_preflight_resume",
+    {
+      description: "Operator: resume a paused sector job.",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        await sectorPreflightResume(db, id);
+        return { summary: `sector job ${id} resumed`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_preflight_cancel",
+    {
+      description: "Operator: cancel a sector job (running classifications are stopped).",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        await sectorPreflightCancel(db, id);
+        return { summary: `sector job ${id} cancelled`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_preflight_retry_failed",
+    {
+      description: "Operator: re-queue a sector job's failed companies and resume it.",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        const result = await sectorPreflightRetryFailed(db, id);
+        return { summary: `sector job ${id}: ${result.retried} companies re-queued`, data: { jobId: id, retried: result.retried } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_preflight_summary",
+    {
+      description: "Operator: classification counts by business_type x category x eligibility, with examples.",
+      inputSchema: { sectorId: z.string().describe("Sector UUID") },
+    },
+    async ({ sectorId }) =>
+      wrap(async () => {
+        const summary = await sectorPreflightSummary(db, sectorId);
+        return { summary: `${summary.buckets.length} buckets`, data: summary };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_rules_get",
+    {
+      description: "Operator: view a sector's eligibility rubric (or the default).",
+      inputSchema: { sectorId: z.string().describe("Sector UUID") },
+    },
+    async ({ sectorId }) =>
+      wrap(async () => {
+        const result = await getRubric(db, sectorId);
+        return { summary: result.isDefault ? "default skincare rubric" : "sector rubric", data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_rules_set",
+    {
+      description: "Operator: replace a sector's eligibility rubric; re-derives every membership instantly.",
+      inputSchema: { sectorId: z.string().describe("Sector UUID"), rules: z.unknown().describe("Full rubric JSON (see sector_rules_get)") },
+    },
+    async ({ sectorId, rules }) =>
+      wrap(async () => {
+        const result = await setRubric(db, sectorId, rules);
+        return { summary: "rubric updated", data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_eligibility_override",
+    {
+      description: "Operator: force-include or force-exclude a company (or clear the override).",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        companyId: z.string().describe("Company UUID"),
+        decision: z.enum(["include", "exclude", "clear"]).describe("Override decision"),
+        note: z.string().optional().describe("Why (stored with the override)"),
+      },
+    },
+    async ({ sectorId, companyId, decision, note }) =>
+      wrap(async () => {
+        const result = await setOverride(db, sectorId, companyId, decision, note ?? undefined);
+        return { summary: `override ${decision} -> ${result.eligibility}`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "pipeline_start",
+    {
+      description: "Operator: launch company jobs for a sector's eligible companies only (review/pending never included).",
+      inputSchema: { sectorId: z.string().describe("Sector UUID") },
+    },
+    async ({ sectorId }) =>
+      wrap(async () => {
+        const result = await startPipeline(db, sectorId);
+        return { summary: `${result.created} jobs created (${result.skipped} already had one)`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_preflight_concurrency_get",
+    {
+      description: "Operator: read the sector-preflight pool size.",
+      inputSchema: {},
+    },
+    async () =>
+      wrap(async () => {
+        const settings = await sectorPreflightSettingsGet(db);
+        return { summary: `sectorPreflightConcurrency = ${settings.sectorPreflightConcurrency} (${settings.source})`, data: settings };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_preflight_concurrency_set",
+    {
+      description: "Operator: change the sector-preflight pool size at runtime (1..32, stored in the DB, immediate).",
+      inputSchema: { sectorPreflightConcurrency: z.number().int().describe("Max parallel classifications") },
+    },
+    async ({ sectorPreflightConcurrency: value }) =>
+      wrap(async () => {
+        const settings = await sectorPreflightSettingsSet(db, value);
+        return { summary: `sectorPreflightConcurrency -> ${settings.sectorPreflightConcurrency}`, data: settings };
       }),
   );
 }

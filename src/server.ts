@@ -18,6 +18,7 @@ import { OPERATOR_AUTH, type AuthContext } from "./mcp/auth.js";
 import { createMcpServer } from "./mcp/server.js";
 import { authenticateRunToken } from "./runs/tokens.js";
 import { createRunner } from "./runs/runner.js";
+import { createSectorRunner } from "./runs/sector.js";
 
 export interface ServerHandle {
   url: string;
@@ -239,8 +240,11 @@ async function main(): Promise<void> {
   await jobRunner.start();
   const companyRunner = createCompanyRunner(db, realCompanyDeps(db));
   await companyRunner.start();
+  const sectorRunner = createSectorRunner(db, {});
+  await sectorRunner.start();
   process.on("SIGTERM", () => {
     void (async () => {
+      await sectorRunner.stop();
       await companyRunner.stop();
       await jobRunner.stop();
       await agentRunner.stop();

@@ -21,6 +21,7 @@ import {
   companyJobStatus,
   createCompanyRunner,
   startCompanyJob,
+  supersedeQueuedJobs,
   type BeginStageOutcome,
   type CompanyRunnerDeps,
 } from "../../src/runs/company.js";
@@ -594,5 +595,26 @@ describe("beginStageReal", () => {
     const [extRow] = await handle.db.select().from(researchRuns).where(eq(researchRuns.id, extraction.runId));
     expect(extRow?.status).toBe("running");
     expect(extRow?.stage).toBe("extraction");
+  });
+});
+
+describe("supersedeQueuedJobs", () => {
+  it("cancels queued jobs with a reason and leaves running ones alone", async () => {
+    const a = await makeCompany("A Co");
+    const b = await makeCompany("B Co");
+    const c = await makeCompany("C Co");
+    const qa = await startCompanyJob(handle.db, { companyId: a, queued: true });
+    const qb = await startCompanyJob(handle.db, { companyId: b, queued: true });
+    const { jobId: runningId } = await startCompanyJob(handle.db, { companyId: c });
+    const result = await supersedeQueuedJobs(handle.db, "superseded by sector preflight");
+    expect(result).toEqual({ cancelled: 2 });
+    for (const { jobId } of [qa, qb]) {
+      const job = await jobRow(jobId);
+      expect(job.status).toBe("cancelled");
+      const events = await handle.db.select().from(jobEvents).where(eq(jobEvents.jobId, jobId));
+      const cancelled = events.find((e) => e.type === "job_cancelled");
+      expect((cancelled?.payload as { reason?: string } | null)?.reason).toBe("superseded by sector preflight");
+    }
+    expect((await jobRow(runningId)).status).toBe("running");
   });
 });
