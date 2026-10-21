@@ -209,6 +209,35 @@ describe("runner", () => {
     }
   });
 
+  it("recover touches only running non-extraction rows", async () => {
+    const a = await seedCompany(handle.db, { name: "A Co" });
+    const b = await seedCompany(handle.db, { name: "B Co" });
+    const c = await seedCompany(handle.db, { name: "C Co" });
+    const d = await seedCompany(handle.db, { name: "D Co" });
+    // Terminal + queued rows with pipeline stages must survive a restart.
+    const done = await seedRun(handle.db, a);
+    await handle.db.update(researchRuns).set({ status: "succeeded", stage: "collect" }).where(eq(researchRuns.id, done));
+    const queued = await seedRun(handle.db, b);
+    await handle.db.update(researchRuns).set({ status: "queued", stage: "research" }).where(eq(researchRuns.id, queued));
+    const running = await seedRun(handle.db, c);
+    await handle.db.update(researchRuns).set({ status: "running", stage: "collect" }).where(eq(researchRuns.id, running));
+    const extracting = await seedRun(handle.db, d);
+    await handle.db
+      .update(researchRuns)
+      .set({ status: "running", kind: "agent", stage: "extraction" })
+      .where(eq(researchRuns.id, extracting));
+    const runner = createRunner(handle.db, { execute: async () => {} });
+    try {
+      await runner.recover();
+      expect(await runStatus(done)).toBe("succeeded");
+      expect(await runStatus(queued)).toBe("queued");
+      expect(await runStatus(running)).toBe("failed");
+      expect(await runStatus(extracting)).toBe("running");
+    } finally {
+      await runner.stop();
+    }
+  });
+
   it("recover spares running extraction subjobs for the company worker", async () => {
     const companyId = await seedCompany(handle.db, { name: "A Co" });
     const { jobId } = await startCompanyJob(handle.db, { companyId });

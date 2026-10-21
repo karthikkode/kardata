@@ -1,4 +1,4 @@
-import { and, eq, lt, sql } from "drizzle-orm";
+import { and, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import { researchRuns } from "../db/schema.js";
 import { executeCollectRun } from "../collect/run.js";
@@ -55,7 +55,7 @@ export function createRunner(db: Db, opts: RunnerOpts = {}): Runner {
       .where(
         and(
           eq(researchRuns.status, "running"),
-          sql`${researchRuns.stage} IS NULL OR ${researchRuns.stage} != 'extraction'`,
+          or(isNull(researchRuns.stage), ne(researchRuns.stage, "extraction")),
         ),
       );
   }

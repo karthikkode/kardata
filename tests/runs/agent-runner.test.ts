@@ -782,6 +782,25 @@ describe("agent runner", () => {
     expect((await runRow(row.id)).status).toBe("running");
   });
 
+  it("recover fails only running agent rows, whatever their stage", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ events: [COMPLETED] }) });
+    const mk = async (name: string, status: "queued" | "running" | "succeeded", stage: "preflight" | "research" | null) => {
+      const companyId = await makeCompany(name);
+      const started = await researchStart(handle.db, { companyIds: [companyId] });
+      const runId = (started.runs[0] as { runId: string }).runId;
+      await handle.db.update(researchRuns).set({ status, stage }).where(eq(researchRuns.id, runId));
+      return runId;
+    };
+    const queuedPreflight = await mk("A Co", "queued", "preflight");
+    const doneResearch = await mk("B Co", "succeeded", "research");
+    const runningResearch = await mk("C Co", "running", "research");
+    const runningLegacy = await mk("D Co", "running", null);
+    const recovered = await fx.runner.recover();
+    expect(recovered.failedRuns.sort()).toEqual([runningResearch, runningLegacy].sort());
+    expect((await runRow(queuedPreflight)).status).toBe("queued");
+    expect((await runRow(doneResearch)).status).toBe("succeeded");
+  });
+
   it("stores usage, session, exit and final message, skipping message deltas", async () => {
     const fx = makeFixture({
       scriptFor: () => ({

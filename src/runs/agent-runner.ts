@@ -1,7 +1,7 @@
 import { createWriteStream, readdirSync, rmSync, statSync } from "node:fs";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { and, desc, eq, like, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, like, ne, or } from "drizzle-orm";
 import { recordEvent } from "../collect/db.js";
 import { executeCollectRun, type CollectRunResult } from "../collect/run.js";
 import type { Db } from "../db/client.js";
@@ -617,7 +617,7 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
             and(
               eq(researchRuns.kind, "agent"),
               eq(researchRuns.status, "queued"),
-              sql`${researchRuns.companyJobId} IS NULL OR ${researchRuns.stage} = 'preflight'`,
+              or(isNull(researchRuns.companyJobId), eq(researchRuns.stage, "preflight")),
             ),
           )
           .orderBy(researchRuns.createdAt)
@@ -649,7 +649,7 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
         and(
           eq(researchRuns.kind, "agent"),
           eq(researchRuns.status, "running"),
-          sql`${researchRuns.stage} IS NULL OR ${researchRuns.stage} != 'extraction'`,
+          or(isNull(researchRuns.stage), ne(researchRuns.stage, "extraction")),
         ),
       );
     if (orphans.length === 0) return { failedRuns: [], stoppedContainers: [] };
