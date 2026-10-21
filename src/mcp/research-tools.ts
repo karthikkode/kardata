@@ -51,11 +51,13 @@ import {
   companyJobResume,
   companyJobRetry,
   companyJobStatus,
+  pipelineStatus,
   startCompanyJob,
 } from "../runs/company.js";
 import { extractRun } from "../runs/extract.js";
 import { cancelRun, getOrCreateManualRun, startCollect } from "../runs/queue.js";
 import {
+  checkpointSet,
   companySettingsGet,
   companySettingsSet,
   harnessSettingsGet,
@@ -1383,6 +1385,40 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const settings = await companySettingsSet(db, value);
         return { summary: `companyConcurrency -> ${settings.companyConcurrency}`, data: settings };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "pipeline_status",
+    {
+      description: "Operator: batch overview — job counts, checkpoint target, pause state, quota snapshot.",
+      inputSchema: {},
+    },
+    async () =>
+      wrap(async () => {
+        const status = await pipelineStatus(db);
+        const pause = status.paused.paused ? "paused" : "flowing";
+        return {
+          summary: `${status.completed} completed, ${pause} (checkpoint ${status.checkpointTarget ?? "off"})`,
+          data: status,
+        };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "pipeline_checkpoint_set",
+    {
+      description:
+        "Operator: pause promotion after N completions (in-flight jobs finish). Null clears. Setting a target resumes.",
+      inputSchema: { afterCompleted: z.number().int().nullable().describe("Completion count that pauses the batch, or null") },
+    },
+    async ({ afterCompleted: target }) =>
+      wrap(async () => {
+        const checkpoint = await checkpointSet(db, target);
+        return {
+          summary: checkpoint.target === null ? "checkpoint cleared" : `checkpoint -> ${checkpoint.target}`,
+          data: checkpoint,
+        };
       }),
   );
 }

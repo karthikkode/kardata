@@ -148,3 +148,93 @@ export async function effectiveCompanyConcurrency(db: Db, override?: number): Pr
     return companyConcurrency();
   }
 }
+
+// ---- Quality checkpoint: pause promotion after N completions (Stage 5+). ----
+
+// DB-only by design (no env fallback): a checkpoint is an explicit operator
+// act, and the pause record is written by the worker itself.
+
+export const PAUSE_AFTER_COMPLETED_MIN = 1;
+export const PAUSE_AFTER_COMPLETED_MAX = 1_000_000;
+
+const PAUSE_AFTER_COMPLETED_KEY = "pause_after_completed";
+const PIPELINE_PAUSED_KEY = "pipeline_paused";
+
+function validCheckpointTarget(value: unknown): number | null {
+  return typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= PAUSE_AFTER_COMPLETED_MIN &&
+    value <= PAUSE_AFTER_COMPLETED_MAX
+    ? value
+    : null;
+}
+
+export interface CheckpointView {
+  /** Complete-job count that trips the pause, or null when disabled. */
+  target: number | null;
+}
+
+export async function checkpointGet(db: Db): Promise<CheckpointView> {
+  const [row] = await db.select().from(harnessSettings).where(eq(harnessSettings.key, PAUSE_AFTER_COMPLETED_KEY));
+  return { target: row ? validCheckpointTarget(row.value) : null };
+}
+
+export interface PipelinePausedView {
+  paused: boolean;
+  /** When the worker tripped the pause, if it did. */
+  at: string | null;
+  /** Completed-job count at the trip, if tripped. */
+  completed: number | null;
+  /** The target that tripped it, if tripped. */
+  target: number | null;
+}
+
+const NOT_PAUSED: PipelinePausedView = { paused: false, at: null, completed: null, target: null };
+
+export async function pipelinePausedGet(db: Db): Promise<PipelinePausedView> {
+  const [row] = await db.select().from(harnessSettings).where(eq(harnessSettings.key, PIPELINE_PAUSED_KEY));
+  const value = row?.value as { at?: unknown; completed?: unknown; target?: unknown } | undefined;
+  if (!value || typeof value !== "object") return NOT_PAUSED;
+  if (typeof value.at !== "string" || typeof value.completed !== "number" || typeof value.target !== "number") {
+    return NOT_PAUSED;
+  }
+  return { paused: true, at: value.at, completed: value.completed, target: value.target };
+}
+
+/**
+ * Set (or clear, with null) the checkpoint. Setting a target resumes the
+ * pipeline: a new checkpoint means "carry on until N".
+ */
+export async function checkpointSet(db: Db, target: number | null): Promise<CheckpointView> {
+  if (target !== null && validCheckpointTarget(target) === null) {
+    throw new DomainError(
+      "invalid_input",
+      `afterCompleted must be ${PAUSE_AFTER_COMPLETED_MIN}..${PAUSE_AFTER_COMPLETED_MAX} or null`,
+    );
+  }
+  if (target === null) {
+    await db.delete(harnessSettings).where(eq(harnessSettings.key, PAUSE_AFTER_COMPLETED_KEY));
+  } else {
+    await db
+      .insert(harnessSettings)
+      .values({ key: PAUSE_AFTER_COMPLETED_KEY, value: target, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: harnessSettings.key,
+        set: { value: target, updatedAt: new Date() },
+      });
+  }
+  await db.delete(harnessSettings).where(eq(harnessSettings.key, PIPELINE_PAUSED_KEY));
+  return { target };
+}
+
+/** Worker-only: record the checkpoint trip (idempotent). */
+export async function tripPipelinePause(db: Db, target: number, completed: number): Promise<void> {
+  await db
+    .insert(harnessSettings)
+    .values({
+      key: PIPELINE_PAUSED_KEY,
+      value: { at: new Date().toISOString(), completed, target },
+      updatedAt: new Date(),
+    })
+    .onConflictDoNothing();
+}

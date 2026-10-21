@@ -89,6 +89,8 @@ const EXPECTED_TOOLS = [
   "company_job_retry",
   "company_concurrency_get",
   "company_concurrency_set",
+  "pipeline_status",
+  "pipeline_checkpoint_set",
 ];
 
 interface ToolResult {
@@ -340,6 +342,17 @@ describe("mcp tools", () => {
     expect(updated.companyConcurrency).toBe(12);
     const badConc = await call("company_concurrency_set", { companyConcurrency: 101 });
     expect(errorOf(badConc).code).toBe("invalid_input");
+
+    const pipe = dataOf(await call("pipeline_status", {}));
+    expect(pipe.checkpointTarget).toBeNull();
+    expect((pipe.paused as { paused: boolean }).paused).toBe(false);
+    expect(pipe.quota).toBeNull();
+    const checkpoint = dataOf(await call("pipeline_checkpoint_set", { afterCompleted: 25 }));
+    expect(checkpoint.target).toBe(25);
+    const badCheckpoint = await call("pipeline_checkpoint_set", { afterCompleted: 0 });
+    expect(errorOf(badCheckpoint).code).toBe("invalid_input");
+    const cleared = dataOf(await call("pipeline_checkpoint_set", { afterCompleted: null }));
+    expect(cleared.target).toBeNull();
 
     await call("company_job_cancel", { jobId });
     const cancelled = dataOf(await call("company_job_status", { jobId }));

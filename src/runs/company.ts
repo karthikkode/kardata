@@ -32,7 +32,14 @@ import { extractRun } from "./extract.js";
 import { latestPromptVersion } from "./prompt.js";
 import { cancelRun, startCollect } from "./queue.js";
 import { collectConcurrency } from "./runner.js";
-import { effectiveCompanyConcurrency, effectiveMaxAgents } from "./settings.js";
+import {
+  checkpointGet,
+  effectiveCompanyConcurrency,
+  effectiveMaxAgents,
+  pipelinePausedGet,
+  tripPipelinePause,
+  type PipelinePausedView,
+} from "./settings.js";
 
 /**
  * Company jobs (Stage 5): one job per company runs the whole pipeline
@@ -153,6 +160,36 @@ export async function companyJobStatus(db: Db, jobId: string): Promise<CompanySt
     tokensSpent: desc.job.inputTokensSpent,
     etaSec,
     preflightReport,
+  };
+}
+
+export interface PipelineStatusView {
+  counts: Record<string, number>;
+  completed: number;
+  checkpointTarget: number | null;
+  paused: PipelinePausedView;
+  /**
+   * Subscription quota snapshot. Always null: app Muse 1.4.11 exposes no
+   * subscription surface (no CLI command, session record, local state, or
+   * binary strings for it) — see the checkpoint report.
+   */
+  quota: null;
+}
+
+export async function pipelineStatus(db: Db): Promise<PipelineStatusView> {
+  const rows = await db
+    .select({ status: companyJobs.status, n: sql<number>`count(*)` })
+    .from(companyJobs)
+    .groupBy(companyJobs.status);
+  const counts: Record<string, number> = {};
+  for (const row of rows) counts[row.status] = Number(row.n);
+  const [checkpoint, paused] = await Promise.all([checkpointGet(db), pipelinePausedGet(db)]);
+  return {
+    counts,
+    completed: counts.completed ?? 0,
+    checkpointTarget: checkpoint.target,
+    paused,
+    quota: null,
   };
 }
 
@@ -588,11 +625,11 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
     await logJobEvent(db, job.id, "stage_started", target, { runId: outcome.runId });
   }
 
-  async function runningCount(): Promise<number> {
+  async function countByStatus(status: CompanyJob["status"]): Promise<number> {
     const [row] = await db
       .select({ n: sql<number>`count(*)` })
       .from(companyJobs)
-      .where(eq(companyJobs.status, "running"));
+      .where(eq(companyJobs.status, status));
     return Number(row?.n ?? 0);
   }
 
@@ -612,8 +649,20 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
           console.error(`company job ${job.id} tick failed: ${err instanceof Error ? err.message : err}`);
         }
       }
+      // Quality checkpoint: at N completions the batch pauses — promotion
+      // stops, but running jobs keep their feed and finish normally.
+      let paused = (await pipelinePausedGet(db)).paused;
+      if (!paused) {
+        const target = (await checkpointGet(db)).target;
+        const completed = target === null ? 0 : await countByStatus("completed");
+        if (target !== null && completed >= target) {
+          await tripPipelinePause(db, target, completed);
+          paused = true;
+        }
+      }
+      if (paused) return;
       const max = await effectiveCompanyConcurrency(db, deps.companyMax);
-      while ((await runningCount()) < max) {
+      while ((await countByStatus("running")) < max) {
         const [next] = await db
           .select()
           .from(companyJobs)
