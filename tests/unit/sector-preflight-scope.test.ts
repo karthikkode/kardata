@@ -7,6 +7,7 @@ function input(patch: Partial<ScopeInput> = {}): ScopeInput {
     primaryCategory: "skincare",
     sellsOwnProducts: true,
     hasOnlineStore: true,
+    confidence: "high",
     reason: "Shopify storefront sells its own skincare line.",
     quote: null,
     companyName: "Skin Co",
@@ -51,14 +52,7 @@ describe("evaluateSectorScope", () => {
     expect(evaluateSectorScope(skinMakeup).reason).toContain("skin-related");
   });
 
-  it("finds skin evidence in Apollo keywords and the company name", () => {
-    const byKeywords = input({
-      primaryCategory: "supplements_wellness",
-      reason: "Sells its own vitamins direct.",
-      companyName: "Vita Co",
-      apolloKeywords: ["collagen peptides", "e-commerce"],
-    });
-    expect(evaluateSectorScope(byKeywords).eligible).toBe(true);
+  it("finds skin evidence in the company name", () => {
     const byName = input({
       primaryCategory: "haircare",
       reason: "Sells its own hair products direct.",
@@ -66,6 +60,21 @@ describe("evaluateSectorScope", () => {
       apolloKeywords: [],
     });
     expect(evaluateSectorScope(byName).eligible).toBe(true);
+  });
+
+  it("counts Apollo keywords only when the site was unreadable", () => {
+    const base = {
+      primaryCategory: "supplements_wellness",
+      reason: "Sells its own vitamins direct.",
+      companyName: "Vita Co",
+      apolloKeywords: ["collagen peptides", "e-commerce"],
+    };
+    // Readable site without skin evidence: Apollo soup does not save it.
+    expect(evaluateSectorScope(input({ ...base, confidence: "high" })).eligible).toBe(false);
+    // Blocked site: Apollo is the only evidence and it counts.
+    const low = evaluateSectorScope(input({ ...base, confidence: "low" }));
+    expect(low.eligible).toBe(true);
+    expect(low.reason).toContain("apollo-attested");
   });
 
   it("rejects off-sector categories even with skin words nearby", () => {

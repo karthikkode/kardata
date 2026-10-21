@@ -159,27 +159,36 @@ export interface ScopeInput {
   primaryCategory: string;
   sellsOwnProducts: boolean;
   hasOnlineStore: boolean;
+  confidence: string;
   reason: string;
   quote: string | null;
   companyName: string;
   apolloKeywords: string[];
 }
 
-/** First skin keyword hit over the classification evidence plus company facts, if any. */
-export function skinKeywordHit(input: Pick<ScopeInput, "reason" | "quote" | "companyName" | "apolloKeywords">): string | null {
-  const haystack = [input.reason, input.quote ?? "", input.companyName, input.apolloKeywords.join(" ")]
-    .join("\n")
-    .toLowerCase();
+function firstHit(haystack: string): string | null {
+  const lower = haystack.toLowerCase();
   for (const keyword of SKIN_KEYWORDS) {
-    if (haystack.includes(keyword)) return keyword;
+    if (lower.includes(keyword)) return keyword;
   }
   return null;
 }
 
+/** First skin keyword hit in classifier-read evidence (reason, quote, name). */
+export function siteKeywordHit(input: Pick<ScopeInput, "reason" | "quote" | "companyName">): string | null {
+  return firstHit([input.reason, input.quote ?? "", input.companyName].join("\n"));
+}
+
+/** First skin keyword hit in Apollo keywords (noisy 40-keyword soup). */
+export function apolloKeywordHit(input: Pick<ScopeInput, "apolloKeywords">): string | null {
+  return firstHit(input.apolloKeywords.join(" "));
+}
+
 /**
- * Binary sector-scope verdict over one classification. Confidence is
- * deliberately ignored: skin evidence decides, so a blocked-site brand with
- * Apollo skin keywords stays in while an unverifiable one drops out.
+ * Binary sector-scope verdict over one classification. Evidence hierarchy:
+ * site-read evidence always counts; Apollo keywords count only when the
+ * site was unreadable (low confidence), exactly the blocked-site case they
+ * exist for. A readable site selling skincare would show it.
  */
 export function evaluateSectorScope(input: ScopeInput): { eligible: boolean; reason: string } {
   if (input.businessType !== "dtc_brand") {
@@ -191,9 +200,18 @@ export function evaluateSectorScope(input: ScopeInput): { eligible: boolean; rea
     return { eligible: true, reason: `sector scope: D2C ${input.primaryCategory}` };
   }
   if (SCOPE_ADJACENT_CATEGORIES.includes(input.primaryCategory)) {
-    const hit = skinKeywordHit(input);
-    if (hit) {
-      return { eligible: true, reason: `sector scope: D2C ${input.primaryCategory}, skin-related (${hit})` };
+    const siteHit = siteKeywordHit(input);
+    if (siteHit) {
+      return { eligible: true, reason: `sector scope: D2C ${input.primaryCategory}, skin-related (${siteHit})` };
+    }
+    if (input.confidence === "low") {
+      const apolloHit = apolloKeywordHit(input);
+      if (apolloHit) {
+        return {
+          eligible: true,
+          reason: `sector scope: D2C ${input.primaryCategory}, skin-related (${apolloHit}, apollo-attested)`,
+        };
+      }
     }
     return { eligible: false, reason: `sector scope: ${input.primaryCategory} out of scope, not skin-related` };
   }
@@ -315,6 +333,7 @@ export async function applySectorScope(db: Db, sectorId: string): Promise<ScopeA
       primaryCategory: sectorPreflight.primaryCategory,
       sellsOwnProducts: sectorPreflight.sellsOwnProducts,
       hasOnlineStore: sectorPreflight.hasOnlineStore,
+      confidence: sectorPreflight.confidence,
       reason: sectorPreflight.reason,
       quote: sectorPreflight.quote,
       name: companies.name,
@@ -350,6 +369,7 @@ export async function applySectorScope(db: Db, sectorId: string): Promise<ScopeA
       primaryCategory: row.primaryCategory,
       sellsOwnProducts: row.sellsOwnProducts ?? false,
       hasOnlineStore: row.hasOnlineStore ?? false,
+      confidence: row.confidence ?? "",
       reason: row.reason,
       quote: row.quote,
       companyName: row.name ?? "",
