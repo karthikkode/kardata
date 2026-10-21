@@ -30,6 +30,9 @@ const tsvector = customType<{ data: string; driverData: string }>({
 
 export const companySource = pgEnum("company_source", ["apollo", "manual"]);
 export const membershipAddedVia = pgEnum("membership_added_via", ["csv", "manual"]);
+export const sectorEligibility = pgEnum("sector_eligibility", ["pending", "eligible", "review", "ineligible"]);
+export const eligibilitySource = pgEnum("eligibility_source", ["rule", "override"]);
+export const eligibilityDecision = pgEnum("eligibility_decision", ["include", "exclude"]);
 
 export const sectors = pgTable(
   "sectors",
@@ -37,6 +40,7 @@ export const sectors = pgTable(
     id: uuid("id").primaryKey(),
     name: text("name").notNull(),
     description: text("description").notNull().default(""),
+    eligibilityRules: jsonb("eligibility_rules").$type<Record<string, unknown> | null>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -113,6 +117,9 @@ export const sectorCompanies = pgTable(
     firstImportId: uuid("first_import_id"),
     lastImportId: uuid("last_import_id"),
     removedAt: timestamp("removed_at", { withTimezone: true }),
+    eligibility: sectorEligibility("eligibility").notNull().default("pending"),
+    eligibilitySource: eligibilitySource("eligibility_source"),
+    eligibilityReason: text("eligibility_reason"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.sectorId, t.companyId] })],
@@ -867,3 +874,24 @@ export const sectorPreflight = pgTable(
   (t) => [uniqueIndex("sector_preflight_sector_company_idx").on(t.sectorId, t.companyId)],
 );
 export type SectorPreflight = typeof sectorPreflight.$inferSelect;
+
+export const sectorEligibilityOverrides = pgTable(
+  "sector_eligibility_overrides",
+  {
+    sectorId: uuid("sector_id")
+      .notNull()
+      .references(() => sectors.id, { onDelete: "cascade" }),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    decision: eligibilityDecision("decision").notNull(),
+    note: text("note").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [primaryKey({ columns: [t.sectorId, t.companyId] })],
+);
+export type SectorEligibilityOverride = typeof sectorEligibilityOverrides.$inferSelect;

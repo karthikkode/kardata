@@ -127,6 +127,13 @@
       "when": 1792578144426,
       "tag": "0017_sector-preflight",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792578475980,
+      "tag": "0018_sector-eligibility",
+      "breakpoints": true
     }
   ]
 }
