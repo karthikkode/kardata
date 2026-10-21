@@ -7,7 +7,7 @@ import { createDb, type Db } from "./db/client.js";
 import { createAgentRunner } from "./runs/agent-runner.js";
 import { createJobRunner, realJobDeps } from "./runs/bulk.js";
 import { createCompanyRunner, realCompanyDeps } from "./runs/company.js";
-import { buildStagePrompt } from "./runs/prompt.js";
+import { buildStagePromptForRun } from "./runs/prompt.js";
 import {
   AGENTS_GATEWAY,
   checkAppMuseVersion,
@@ -229,7 +229,7 @@ async function main(): Promise<void> {
   }
   const agentRunner = createAgentRunner(db, {
     mcpUrl: `http://${AGENTS_GATEWAY}:${serverPort}/mcp`,
-    buildPrompt: buildStagePrompt,
+    buildPrompt: (ctx) => buildStagePromptForRun(db, ctx),
   });
   // Agent recovery first: it stops orphaned containers and revokes their
   // tokens before the collect runner fails leftover running rows.

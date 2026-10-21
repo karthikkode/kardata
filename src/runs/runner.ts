@@ -46,14 +46,19 @@ export function createRunner(db: Db, opts: RunnerOpts = {}): Runner {
   let timer: NodeJS.Timeout | null = null;
   let ticking = false;
 
-  // Crash recovery: runs caught mid-flight by a restart fail loudly, except
-  // worker-driven extraction subjobs, which the company worker reruns.
+  // Crash recovery: collect runs caught mid-flight by a restart fail loudly,
+  // except worker-driven extraction subjobs, which the company worker reruns.
+  // Agent rows are never touched here: the agent runner owns their liveness,
+  // and at startup it claims rows before this recover runs (cross-killing
+  // them failed "server restarted", which the agent tick then finalized as
+  // cancelled — killing live containers).
   async function recover(): Promise<void> {
     await db
       .update(researchRuns)
       .set({ status: "failed", error: "server restarted", finishedAt: new Date() })
       .where(
         and(
+          eq(researchRuns.kind, "collect"),
           eq(researchRuns.status, "running"),
           or(isNull(researchRuns.stage), ne(researchRuns.stage, "extraction")),
         ),
@@ -65,7 +70,13 @@ export function createRunner(db: Db, opts: RunnerOpts = {}): Runner {
     const rows = await db
       .update(researchRuns)
       .set({ status: "stalled", finishedAt: new Date() })
-      .where(and(eq(researchRuns.status, "running"), lt(researchRuns.lastActivityAt, cutoff)))
+      .where(
+        and(
+          eq(researchRuns.kind, "collect"),
+          eq(researchRuns.status, "running"),
+          lt(researchRuns.lastActivityAt, cutoff),
+        ),
+      )
       .returning({ id: researchRuns.id });
     return rows.length;
   }

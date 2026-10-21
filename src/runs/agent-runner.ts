@@ -1,7 +1,7 @@
 import { createWriteStream, readdirSync, rmSync, statSync } from "node:fs";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { and, desc, eq, isNull, like, ne, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, like, ne, or } from "drizzle-orm";
 import { recordEvent } from "../collect/db.js";
 import { executeCollectRun, type CollectRunResult } from "../collect/run.js";
 import type { Db } from "../db/client.js";
@@ -608,8 +608,9 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
         const maxAgents = await effectiveMaxAgents(db, deps.maxAgents);
         if (researching().length >= maxAgents && collecting().length >= collectLimit) return;
         // Stage 5: company-job subjobs are owned by the company worker; the
-        // runner drives preflight ones (recon prompt) and leaves research to
-        // Phase 6's stage-aware wiring.
+        // runner drives preflight (recon prompt) and research (research
+        // prompt plus the preflight/collect brief) rows. Extraction rows
+        // stay worker-driven.
         const queued = await db
           .select()
           .from(researchRuns)
@@ -617,14 +618,17 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
             and(
               eq(researchRuns.kind, "agent"),
               eq(researchRuns.status, "queued"),
-              or(isNull(researchRuns.companyJobId), eq(researchRuns.stage, "preflight")),
+              or(isNull(researchRuns.companyJobId), inArray(researchRuns.stage, ["preflight", "research"])),
             ),
           )
           .orderBy(researchRuns.createdAt)
           .limit(QUEUE_SCAN_MAX);
         for (const q of queued) {
           const recollectDays = q.agentOptions?.recollectDays ?? 14;
-          const needsCollect = !(await hasFreshCollect(db, q.companyId, recollectDays));
+          // The pipeline's collect subjob owns deterministic collection; a
+          // research row always goes straight to researching.
+          const companyResearch = q.companyJobId !== null && q.stage === "research";
+          const needsCollect = companyResearch ? false : !(await hasFreshCollect(db, q.companyId, recollectDays));
           if (needsCollect && collecting().length >= collectLimit) continue;
           if (!needsCollect && researching().length >= maxAgents) continue;
           if (await claim(q.id)) launch(q.id, needsCollect);

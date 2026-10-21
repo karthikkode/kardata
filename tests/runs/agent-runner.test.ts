@@ -904,19 +904,22 @@ describe("agent runner", () => {
     expect(row.error ?? "").toMatch(/no prompt builder/);
   });
 
-  it("leaves company research subjobs for Phase 6 wiring", async () => {
+  it("claims company research subjobs straight to researching (no legacy collect)", async () => {
     const fx = makeFixture({ scriptFor: () => ({ events: [COMPLETED] }) });
     const companyId = await makeCompany("A Co");
+    // Deliberately no freshCollect: the pipeline's collect subjob owns
+    // deterministic collection, so a research row must never run legacy
+    // in-process collect even when no fresh collect exists.
     const { jobId } = await startCompanyJob(handle.db, { companyId });
-    const [job] = await handle.db.select().from(companyJobs).where(eq(companyJobs.id, jobId));
-    if (!job) throw new Error("no job row");
-    const started = await researchStart(handle.db, { companyIds: [companyId], companyJobId: job.id, stage: "research" });
+    const started = await researchStart(handle.db, { companyIds: [companyId], companyJobId: jobId, stage: "research" });
     const runId = (started.runs[0] as { runId: string }).runId;
 
     await fx.runner.tick();
-    await new Promise((r) => setTimeout(r, 100));
-    expect((await runRow(runId)).status).toBe("queued");
-    expect(fx.harness.handles.has(runId)).toBe(false);
+    await drain(runId);
+    expect(fx.harness.handles.has(runId)).toBe(true);
+    expect(fx.collectCalls).toEqual([]);
+    // COMPLETED with no run_finish: partial, not queued.
+    expect((await runRow(runId)).status).toBe("partial");
   });
 
   it("drives preflight subjobs to succeeded on run_finish without area statuses", async () => {

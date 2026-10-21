@@ -262,6 +262,38 @@ describe("runner", () => {
     }
   });
 
+  it("recover and reapStalled never touch agent rows (startup cross-kill)", async () => {
+    const a = await seedCompany(handle.db, { name: "A Co" });
+    const b = await seedCompany(handle.db, { name: "B Co" });
+    // A research subjob claimed by the agent runner: the collect runner's
+    // startup recover runs after the agent tick, so it must spare agent rows
+    // (it used to fail them "server restarted", which the agent tick then
+    // finalized as cancelled, killing live containers).
+    const agent = await seedRun(handle.db, a);
+    await handle.db
+      .update(researchRuns)
+      .set({
+        kind: "agent",
+        status: "running",
+        stage: "research",
+        lastActivityAt: new Date("2026-10-20T11:49:00Z"),
+      })
+      .where(eq(researchRuns.id, agent));
+    const collect = await seedRun(handle.db, b);
+    const now = new Date("2026-10-20T12:00:00Z");
+    const runner = createRunner(handle.db, { execute: async () => {}, clock: { now: () => now } });
+    try {
+      await runner.recover();
+      expect(await runStatus(agent)).toBe("running");
+      expect(await runStatus(collect)).toBe("failed");
+      // Stale by 11 minutes, but agent liveness belongs to the agent runner.
+      expect(await runner.reapStalled()).toBe(0);
+      expect(await runStatus(agent)).toBe("running");
+    } finally {
+      await runner.stop();
+    }
+  });
+
   it("a cancelled queued run never starts", async () => {
     const a = await seedCompany(handle.db, { name: "A Co" });
     const batch = await startCollect(handle.db, [a]);
