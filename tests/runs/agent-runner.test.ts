@@ -8,7 +8,7 @@ import { and, eq } from "drizzle-orm";
 import { recordEvent } from "../../src/collect/db.js";
 import type { CollectRunResult } from "../../src/collect/run.js";
 import type { DbHandle } from "../../src/db/client.js";
-import { area, blobs, companies, companyJobs, providerCalls, researchRuns, runEvents, sources } from "../../src/db/schema.js";
+import { area, blobs, companies, providerCalls, researchRuns, runEvents, sources } from "../../src/db/schema.js";
 import { setAreaStatus } from "../../src/domain/research/status.js";
 import { PLAYWRIGHT_SERVER_CONFIG, RESEARCH_MUSE_ARGS } from "../../src/harness/docker.js";
 import type {
