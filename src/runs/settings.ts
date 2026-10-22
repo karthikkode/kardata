@@ -12,7 +12,7 @@ import { DomainError } from "../domain/errors.js";
 
 export const DEFAULT_MAX_AGENTS = 4;
 export const MAX_AGENTS_MIN = 1;
-export const MAX_AGENTS_MAX = 32;
+export const MAX_AGENTS_MAX = 64;
 
 const MAX_AGENTS_KEY = "max_concurrent_agents";
 

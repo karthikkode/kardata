@@ -485,8 +485,8 @@ describe("harness settings", () => {
     await harnessSettingsSet(handle.db, 6);
     const stored = await harnessSettingsGet(handle.db);
     expect(stored).toMatchObject({ maxConcurrentAgents: 6, source: "db", dbValue: 6 });
-    await expect(harnessSettingsSet(handle.db, 0)).rejects.toThrow("1..32");
-    await expect(harnessSettingsSet(handle.db, 33)).rejects.toThrow("1..32");
+    await expect(harnessSettingsSet(handle.db, 0)).rejects.toThrow("1..64");
+    await expect(harnessSettingsSet(handle.db, 65)).rejects.toThrow("1..64");
   });
 
   it("effectiveMaxAgents prefers an explicit override", async () => {
