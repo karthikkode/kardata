@@ -5,8 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/projects/kardata
-EnvironmentFile=%h/projects/kardata/.env
+WorkingDirectory=%h/kardata-live
+EnvironmentFile=%h/kardata-live/.env
 # Point PATH at a Node 22 install so `npm start` uses it; adjust if yours differs.
 Environment=PATH=%h/.nvm/versions/node/v22.23.3/bin:/usr/bin:/bin
 ExecStart=%h/.nvm/versions/node/v22.23.3/bin/npm start
