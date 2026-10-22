@@ -8,11 +8,27 @@ export function getTestDb(): DbHandle {
   return createDb(requireEnv("TEST_DATABASE_URL"));
 }
 
+function isDeadlock(err: unknown): boolean {
+  const top = (err as { code?: unknown })?.code;
+  const cause = (err as { cause?: { code?: unknown } })?.cause?.code;
+  return top === "40P01" || cause === "40P01";
+}
+
 /** Wipe all stage-1 and research tables (test database only). */
 export async function resetTestDb(handle: DbHandle): Promise<void> {
-  await handle.db.execute(
-    sql`TRUNCATE sectors, companies, sector_companies, imports, research_runs, run_events, blobs, sources, documents, findings, area_statuses, facts, records, shortlists, bulk_jobs, bulk_job_items, harness_settings, company_jobs, preflight_reports, provider_calls, job_events, http_fetches, web_searches CASCADE`,
-  );
+  // TRUNCATE needs AccessExclusiveLock; a previous test's still-flying query
+  // on another pool connection can deadlock it (40P01). Retry, then throw.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      await handle.db.execute(
+        sql`TRUNCATE sectors, companies, sector_companies, imports, research_runs, run_events, blobs, sources, documents, findings, area_statuses, facts, records, shortlists, bulk_jobs, bulk_job_items, harness_settings, company_jobs, preflight_reports, provider_calls, job_events, http_fetches, web_searches CASCADE`,
+      );
+      break;
+    } catch (err) {
+      if (!isDeadlock(err) || attempt === 4) throw err;
+      await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
+    }
+  }
   // Registry seeds survive; provisional test registrations do not.
   await handle.db.execute(sql`DELETE FROM fact_keys WHERE status = 'provisional'`);
   await handle.db.execute(sql`DELETE FROM record_types WHERE status = 'provisional'`);
