@@ -31,6 +31,7 @@ import {
   searchAll,
 } from "../domain/research/reads.js";
 import { preflightReportSchema, savePreflightReportForRun } from "../domain/company-jobs/preflight.js";
+import { companyJobLive } from "../domain/company-jobs/live.js";
 import { ADAPTERS } from "../collect/adapters.js";
 import { researchStart } from "../runs/agent.js";
 import {
@@ -1316,6 +1317,22 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const adapters = ADAPTERS.map((a) => ({ id: a.id, version: a.version, areas: a.areas, blurb: a.blurb }));
         return { summary: `${adapters.length} adapters`, data: { adapters } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_job_live",
+    {
+      description: "Operator: live view of a job — the active run's stage, areas, recent tool calls, tokens, stall countdown. Null active when idle.",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        const live = await companyJobLive(db, id);
+        return {
+          summary: live.active ? `job ${id}: ${live.active.stage} live (${live.active.recentCalls.length} recent calls)` : `job ${id} idle`,
+          data: live,
+        };
       }),
   );
 

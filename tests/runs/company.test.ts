@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { and, asc, eq } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
 import {
+  areaStatuses,
   companies,
   companyJobs,
   jobEvents,
@@ -10,6 +11,8 @@ import {
   type CompanyJob,
   type ResearchRun,
 } from "../../src/db/schema.js";
+import { recordEvent } from "../../src/collect/db.js";
+import { companyJobLive } from "../../src/domain/company-jobs/live.js";
 import { describeCompanyJob, type CompanyStage } from "../../src/domain/company-jobs/status.js";
 import {
   beginStageReal,
@@ -351,6 +354,51 @@ describe("stage machine", () => {
     await flipRun(retry.id, "succeeded");
     await runner.tick();
     expect((await jobRow(jobId)).currentStage).toBe("collect");
+  });
+
+  it("reports the live run: areas, recent calls, tokens, stall countdown", async () => {
+    const companyId = await makeCompany("Acme");
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const runner = createCompanyRunner(handle.db, fakeWorld().deps());
+    await runner.tick();
+    const sub = await latestSubjob(jobId, "preflight");
+    if (!sub) throw new Error("no subjob");
+    await handle.db
+      .update(researchRuns)
+      .set({
+        status: "running",
+        agentPhase: "researching",
+        startedAt: new Date(Date.now() - 60_000),
+        lastActivityAt: new Date(),
+        agentUsage: {
+          inputTokens: 1000,
+          outputTokens: 0,
+          cachedTokens: 200,
+          reasoningTokens: 0,
+          calls: 3,
+          childrenIncluded: true,
+          children: [
+            { sessionId: "c1", inputTokens: 1, outputTokens: 0, cachedTokens: 0, reasoningTokens: 0, calls: 1 },
+            { sessionId: "c2", inputTokens: 1, outputTokens: 0, cachedTokens: 0, reasoningTokens: 0, calls: 1 },
+          ],
+        },
+      })
+      .where(eq(researchRuns.id, sub.id));
+    await handle.db.insert(areaStatuses).values({ runId: sub.id, area: "reviews", companyId, status: "done" });
+    await recordEvent(handle.db, sub.id, "mcp_call", { tool: "company_context", status: "ok" });
+    await recordEvent(handle.db, sub.id, "mcp_call", { tool: "source_fetch", status: "ok" });
+    const live = await companyJobLive(handle.db, jobId);
+    expect(live.job.status).toBe("running");
+    expect(live.active?.stage).toBe("preflight");
+    expect(live.active?.phase).toBe("researching");
+    expect(live.active?.areas).toEqual([{ area: "reviews", status: "done", updatedAt: expect.any(Date) }]);
+    expect(live.active?.recentCalls.map((c) => c.tool)).toEqual(["source_fetch", "company_context"]);
+    expect(live.active?.runInputTokens).toBe(1200);
+    expect(live.active?.childAgents).toBe(2);
+    expect(live.active?.stallInSeconds).toBeGreaterThan(200);
+    await flipRun(sub.id, "succeeded");
+    const idle = await companyJobLive(handle.db, jobId);
+    expect(idle.active).toBeNull();
   });
 
   it("pauses all running jobs with one reason", async () => {

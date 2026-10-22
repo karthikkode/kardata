@@ -92,6 +92,7 @@ const EXPECTED_TOOLS = [
   "adapter_list",
   "company_job_start",
   "company_job_status",
+  "company_job_live",
   "company_jobs_list",
   "company_job_pause",
   "company_jobs_pause_all",
@@ -360,6 +361,9 @@ describe("mcp tools", () => {
     const all = dataOf(await call("company_jobs_pause_all", { reason: "all check" }));
     expect((all.paused as string[])).toEqual([jobId]);
     await call("company_job_resume", { jobId });
+    const live = dataOf(await call("company_job_live", { jobId }));
+    expect((live.job as { status: string }).status).toBe("running");
+    expect(live.active).toBeNull();
 
     const adapters = dataOf(await call("adapter_list", {}));
     const entries = (adapters.adapters as { id: string; version: string }[]) ?? [];
