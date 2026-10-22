@@ -17,6 +17,7 @@ import {
   companyJobList,
   companyJobPause,
   companyJobResume,
+  companyJobsPauseAll,
   companyJobRetry,
   companyJobStatus,
   createCompanyRunner,
@@ -324,24 +325,46 @@ describe("stage machine", () => {
     expect((await latestSubjob(jobId, "preflight"))?.id).toBe(second.id);
   });
 
-  it("pauses mid-stage without starting new work, and resumes cleanly", async () => {
+  it("pause stops the live run; resume restarts the stage with saved work", async () => {
     const companyId = await makeCompany("Acme");
     const { jobId } = await startCompanyJob(handle.db, { companyId });
     const world = fakeWorld();
     const runner = createCompanyRunner(handle.db, world.deps());
     await fileReport(jobId, companyId);
     await runner.tick();
-    await companyJobPause(handle.db, jobId);
-    const sub = await latestSubjob(jobId, "preflight");
-    if (!sub) throw new Error("no subjob");
-    await flipRun(sub.id, "succeeded");
+    const live = await latestSubjob(jobId, "preflight");
+    if (!live) throw new Error("no subjob");
+    await companyJobPause(handle.db, jobId, "operator check");
+    const stopped = await latestSubjob(jobId, "preflight");
+    expect(stopped?.id).toBe(live.id);
+    expect(stopped?.status).toBe("cancelled");
+    expect(stopped?.error).toContain("operator check");
+    expect((await jobRow(jobId)).pauseReason).toBe("operator check");
+    // Nothing new starts while paused.
     await runner.tick();
-    // Advanced to collect but did not begin it while paused.
-    expect((await jobRow(jobId)).currentStage).toBe("collect");
     expect(await latestSubjob(jobId, "collect")).toBeNull();
     await companyJobResume(handle.db, jobId);
+    const retry = await latestSubjob(jobId, "preflight");
+    expect(retry?.id).not.toBe(live.id);
+    expect(retry?.status).toBe("queued");
+    if (!retry) throw new Error("no retried subjob");
+    await flipRun(retry.id, "succeeded");
     await runner.tick();
-    expect(await latestSubjob(jobId, "collect")).not.toBeNull();
+    expect((await jobRow(jobId)).currentStage).toBe("collect");
+  });
+
+  it("pauses all running jobs with one reason", async () => {
+    const a = await makeCompany("A Co");
+    const b = await makeCompany("B Co");
+    const first = await startCompanyJob(handle.db, { companyId: a });
+    const second = await startCompanyJob(handle.db, { companyId: b });
+    const runner = createCompanyRunner(handle.db, fakeWorld().deps());
+    await runner.tick();
+    const result = await companyJobsPauseAll(handle.db, "quota check");
+    expect(new Set(result.paused)).toEqual(new Set([first.jobId, second.jobId]));
+    expect((await jobRow(first.jobId)).status).toBe("paused");
+    expect((await jobRow(second.jobId)).pauseReason).toBe("quota check");
+    expect(await companyJobsPauseAll(handle.db, "again")).toEqual({ paused: [] });
   });
 
   it("respects engine capacity gates", async () => {

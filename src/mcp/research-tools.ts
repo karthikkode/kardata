@@ -48,6 +48,7 @@ import {
   companyJobCancel,
   companyJobList,
   companyJobPause,
+  companyJobsPauseAll,
   companyJobResume,
   companyJobRetry,
   companyJobStatus,
@@ -1337,13 +1338,26 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth,
     "company_job_pause",
     {
-      description: "Operator: pause a company job (the active stage finishes; nothing new starts).",
-      inputSchema: { jobId },
+      description: "Operator: pause a company job (stops the live run; resume restarts the stage with saved work).",
+      inputSchema: { jobId, reason: z.string().optional().describe("Why (stored with the pause)") },
     },
-    async ({ jobId: id }) =>
+    async ({ jobId: id, reason }) =>
       wrap(async () => {
-        await companyJobPause(db, id);
+        await companyJobPause(db, id, reason ?? undefined);
         return { summary: `job ${id} paused`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_jobs_pause_all",
+    {
+      description: "Operator: pause every running company job (stops their live runs). Resume each job when ready.",
+      inputSchema: { reason: z.string().describe("Why (stored with each pause)") },
+    },
+    async ({ reason }) =>
+      wrap(async () => {
+        const result = await companyJobsPauseAll(db, reason);
+        return { summary: `${result.paused.length} jobs paused`, data: result };
       }),
   );
 

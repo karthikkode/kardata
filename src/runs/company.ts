@@ -241,8 +241,38 @@ export async function companyJobPause(
     .where(eq(companyJobs.id, jobId))
     .returning();
   if (!updated) throw new DomainError("not_found", `company job not found: ${jobId}`);
+  // Stop the burn: cancel the live subjob run (the engines stop it on
+  // their next tick). Saved work stays in the DB; resume restarts the
+  // stage with that work visible to the agent.
+  const desc = await describeCompanyJob(db, jobId);
+  const active = desc.stages.find((s) => s.run && !isTerminalSubjob(s.run.status));
+  if (active?.run) {
+    await cancelRun(db, active.run.id).catch(() => undefined);
+    await db
+      .update(researchRuns)
+      .set({ error: `paused by operator: ${reason}`.slice(0, 500) })
+      .where(eq(researchRuns.id, active.run.id));
+  }
   await logJobEvent(db, jobId, "job_paused", null, { reason });
   return updated;
+}
+
+/** Pause every running company job (quota trips, operator pause-all). Skips jobs that raced to terminal. */
+export async function companyJobsPauseAll(db: Db, reason: string): Promise<{ paused: string[] }> {
+  const running = await db
+    .select({ id: companyJobs.id })
+    .from(companyJobs)
+    .where(eq(companyJobs.status, "running"));
+  const paused: string[] = [];
+  for (const job of running) {
+    try {
+      await companyJobPause(db, job.id, reason);
+      paused.push(job.id);
+    } catch {
+      // Raced to terminal between list and pause; leave it alone.
+    }
+  }
+  return { paused };
 }
 
 export type BeginStageOutcome = { runId: string } | { busy: true };
