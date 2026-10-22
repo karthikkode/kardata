@@ -3,8 +3,6 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 
-const PORT = "8788";
-
 let child: ChildProcess | undefined;
 
 beforeAll(() => {
@@ -18,6 +16,16 @@ afterAll(() => {
   child?.kill("SIGKILL");
   child = undefined;
 });
+
+async function waitForPort(readStdout: () => string, timeoutMs: number): Promise<string> {
+  const started = Date.now();
+  for (;;) {
+    const match = /listening on http:\/\/127\.0\.0\.1:(\d+)/.exec(readStdout());
+    if (match?.[1]) return match[1];
+    if (Date.now() - started > timeoutMs) throw new Error("timed out waiting for the listening port");
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
 
 async function waitForHealth(url: string, timeoutMs: number): Promise<void> {
   const started = Date.now();
@@ -50,16 +58,21 @@ describe("service shutdown", () => {
     await dbHandle.close();
     child = spawn(process.execPath, [join(process.cwd(), "dist/server.js")], {
       cwd: process.cwd(),
-      env: { ...process.env, PORT, HOST: "127.0.0.1", DATABASE_URL: testDb },
+      // Ephemeral port: never a fixed one (a dev server may hold 8788).
+      env: { ...process.env, PORT: "0", HOST: "127.0.0.1", DATABASE_URL: testDb },
       stdio: ["ignore", "pipe", "pipe"],
     });
     const spawned = child;
     let stderr = "";
+    let stdout = "";
     spawned.stderr?.on("data", (chunk) => {
       stderr += chunk.toString();
     });
-    spawned.stdout?.resume();
-    await waitForHealth(`http://127.0.0.1:${PORT}/healthz`, 30000);
+    spawned.stdout?.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+    const port = await waitForPort(() => stdout, 30000);
+    await waitForHealth(`http://127.0.0.1:${port}/healthz`, 30000);
     expect(spawned.exitCode, `server died during boot: ${stderr}`).toBeNull();
     const started = Date.now();
     const exitCode = await new Promise<number | null>((resolve) => {
