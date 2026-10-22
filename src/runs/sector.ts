@@ -341,8 +341,12 @@ export async function startPipeline(
     .select({ companyId: sectorCompanies.companyId })
     .from(sectorCompanies)
     .where(and(eq(sectorCompanies.sectorId, sectorId), eq(sectorCompanies.eligibility, "eligible")));
-  const existing = await db.selectDistinct({ companyId: companyJobs.companyId }).from(companyJobs);
-  const haveJob = new Set(existing.map((r) => r.companyId));
+  // Terminal-failure history (failed/cancelled) gets a fresh job; anything
+  // else (active, completed) is skipped.
+  const existing = await db.select({ companyId: companyJobs.companyId, status: companyJobs.status }).from(companyJobs);
+  const haveJob = new Set(
+    existing.filter((r) => r.status !== "failed" && r.status !== "cancelled").map((r) => r.companyId),
+  );
   let created = 0;
   let skipped = 0;
   for (const member of members) {

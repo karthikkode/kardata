@@ -53,6 +53,7 @@ import {
   companyJobStatus,
   pipelineStatus,
   startCompanyJob,
+  supersedeQueuedJobs,
 } from "../runs/company.js";
 import { extractRun } from "../runs/extract.js";
 import { cancelRun, getOrCreateManualRun, startCollect } from "../runs/queue.js";
@@ -76,7 +77,13 @@ import {
   sectorPreflightStatus,
   sectorPreflightSummary,
 } from "../runs/sector.js";
-import { getRubric, setOverride, setRubric } from "../domain/sector-preflight/eligibility.js";
+import {
+  applySectorScope,
+  eligibilityCounts,
+  getRubric,
+  setOverride,
+  setRubric,
+} from "../domain/sector-preflight/eligibility.js";
 import {
   SCREEN_FIELDS,
   SCREEN_OPS,
@@ -1377,6 +1384,19 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   );
 
   registerTool(server, db, auth,
+    "company_jobs_supersede",
+    {
+      description: "Operator: cancel every queued company job with a reason (e.g. a new pass supersedes the batch).",
+      inputSchema: { reason: z.string().describe("Why the queued jobs are cancelled") },
+    },
+    async ({ reason }) =>
+      wrap(async () => {
+        const result = await supersedeQueuedJobs(db, reason);
+        return { summary: `${result.cancelled} queued jobs cancelled`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
     "company_concurrency_get",
     {
       description: "Operator: effective company concurrency and where the value comes from.",
@@ -1593,6 +1613,24 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const result = await setOverride(db, sectorId, companyId, decision, note ?? undefined);
         return { summary: `override ${decision} -> ${result.eligibility}`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_scope_apply",
+    {
+      description:
+        "Operator: resolve every classified, non-overridden membership to the binary sector scope (eligible/ineligible).",
+      inputSchema: { sectorId: z.string().describe("Sector UUID") },
+    },
+    async ({ sectorId }) =>
+      wrap(async () => {
+        const result = await applySectorScope(db, sectorId);
+        const counts = await eligibilityCounts(db, sectorId);
+        return {
+          summary: `${result.eligible} eligible, ${result.ineligible} ineligible (${result.skippedOverride} overrides, ${result.skippedPending} pending kept)`,
+          data: { ...result, counts },
+        };
       }),
   );
 

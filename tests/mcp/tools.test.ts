@@ -1,9 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { DbHandle } from "../../src/db/client.js";
-import { companies, sectorCompanies, sectors } from "../../src/db/schema.js";
+import {
+  companies,
+  companyJobs,
+  jobEvents,
+  sectorCompanies,
+  sectorPreflight,
+  sectors,
+} from "../../src/db/schema.js";
 import { startServer, type ServerHandle } from "../../src/server.js";
 import {
   badHeadersCsvPath,
@@ -89,6 +97,7 @@ const EXPECTED_TOOLS = [
   "company_job_resume",
   "company_job_cancel",
   "company_job_retry",
+  "company_jobs_supersede",
   "company_concurrency_get",
   "company_concurrency_set",
   "pipeline_status",
@@ -104,6 +113,7 @@ const EXPECTED_TOOLS = [
   "sector_rules_get",
   "sector_rules_set",
   "company_eligibility_override",
+  "sector_scope_apply",
   "pipeline_start",
   "sector_preflight_concurrency_get",
   "sector_preflight_concurrency_set",
@@ -425,8 +435,22 @@ describe("mcp tools", () => {
     );
     expect(clearedOverride.eligibility).toBe("pending");
 
+    await handle.db.insert(sectorPreflight).values({
+      id: randomUUID(),
+      sectorId: sector.id,
+      companyId: company.id,
+      businessType: "dtc_brand",
+      primaryCategory: "skincare",
+      sellsOwnProducts: true,
+      hasOnlineStore: true,
+      confidence: "high",
+      reason: "site shows own-brand skincare with cart",
+    });
+    const scoped = dataOf(await call("sector_scope_apply", { sectorId: sector.id }));
+    expect(scoped.eligible).toBe(1);
+
     const launched = dataOf(await call("pipeline_start", { sectorId: sector.id }));
-    expect(launched.created).toBe(0);
+    expect(launched.created).toBe(1);
 
     const pool = dataOf(await call("sector_preflight_concurrency_get", {}));
     expect(pool.sectorPreflightConcurrency).toBe(8);
@@ -449,6 +473,34 @@ describe("mcp tools", () => {
     expect((cancelled.job as { status: string }).status).toBe("cancelled");
     const noRetry = await call("company_job_retry", { jobId });
     expect(errorOf(noRetry).code).toBe("invalid_input");
+  });
+
+  it("company_jobs_supersede cancels queued jobs only", async () => {
+    const [queued] = await handle.db
+      .insert(companies)
+      .values({ id: randomUUID(), source: "manual", name: "Queued Co" })
+      .returning();
+    const [active] = await handle.db
+      .insert(companies)
+      .values({ id: randomUUID(), source: "manual", name: "Active Co" })
+      .returning();
+    if (!queued || !active) throw new Error("no company rows");
+    const [queuedJob] = await handle.db
+      .insert(companyJobs)
+      .values({ id: randomUUID(), companyId: queued.id })
+      .returning();
+    if (!queuedJob) throw new Error("no job row");
+    const started = dataOf(await call("company_job_start", { companyId: active.id }));
+    const result = dataOf(await call("company_jobs_supersede", { reason: "new pass" }));
+    expect(result.cancelled).toBe(1);
+    const after = dataOf(await call("company_job_status", { jobId: queuedJob.id }));
+    expect((after.job as { status: string }).status).toBe("cancelled");
+    const events = await handle.db.select().from(jobEvents).where(eq(jobEvents.jobId, queuedJob.id));
+    expect(events.some((e) => e.type === "job_cancelled" && (e.payload as { reason?: string }).reason === "new pass")).toBe(true);
+    const activeAfter = dataOf(
+      await call("company_job_status", { jobId: (started as { jobId: string }).jobId }),
+    );
+    expect((activeAfter.job as { status: string }).status).not.toBe("cancelled");
   });
 
   it("rejects requests without a token", async () => {

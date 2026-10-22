@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
 import {
   companies,
+  companyJobs,
   researchRuns,
   sectorCompanies,
   sectorPreflight,
@@ -396,6 +397,8 @@ describe("startPipeline", () => {
     const a = await addCompany(sectorId, "A Co");
     const b = await addCompany(sectorId, "B Co");
     const c = await addCompany(sectorId, "C Co");
+    const d = await addCompany(sectorId, "D Co");
+    const e = await addCompany(sectorId, "E Co");
     const runner = createSectorRunner(handle.db, {
       pool: 3,
       classify: async ({ sectorId: s, companyId, runId }) => {
@@ -409,11 +412,15 @@ describe("startPipeline", () => {
     await runner.tick();
     await settle();
     await runner.tick();
-    expect(await itemStatuses(jobId)).toEqual(["succeeded", "succeeded", "succeeded"]);
+    expect(await itemStatuses(jobId)).toEqual(["succeeded", "succeeded", "succeeded", "succeeded", "succeeded"]);
     const { startCompanyJob } = await import("../../src/runs/company.js");
     await startCompanyJob(handle.db, { companyId: a, queued: true });
+    await handle.db.insert(companyJobs).values([
+      { id: randomUUID(), companyId: d, status: "failed", errorClass: "stall" },
+      { id: randomUUID(), companyId: e, status: "cancelled" },
+    ]);
     const result = await startPipeline(handle.db, sectorId);
-    expect(result).toEqual({ created: 1, skipped: 1, eligible: 2 });
+    expect(result).toEqual({ created: 3, skipped: 1, eligible: 4 });
     expect(b).toBeTruthy();
   });
 });
