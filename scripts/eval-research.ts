@@ -1,7 +1,7 @@
 import { createDb } from "../src/db/client.js";
 import { DomainError } from "../src/domain/errors.js";
 import { scorecard, type RunScore } from "../src/domain/research/scorecard.js";
-import { loadDotenv, requireEnv } from "../src/lib/env.js";
+import { loadAppEnv, requireEnv } from "../src/lib/env.js";
 
 function usage(): never {
   console.error("usage: npm run eval:research -- [--json] <batchId | runId...>");
@@ -62,7 +62,7 @@ function printRun(run: RunScore): void {
 }
 
 async function main(): Promise<void> {
-  loadDotenv();
+  loadAppEnv();
   const args = process.argv.slice(2);
   const json = args.includes("--json");
   const ids = args.filter((a) => a !== "--json");

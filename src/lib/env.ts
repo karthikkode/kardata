@@ -21,6 +21,14 @@ export function loadDotenv(file?: string): void {
   }
 }
 
+/**
+ * Load the app env file: KARDATA_ENV_FILE when set (dev instance), else
+ * the default .env (prod). Real environment variables always win.
+ */
+export function loadAppEnv(): void {
+  loadDotenv(process.env.KARDATA_ENV_FILE);
+}
+
 export function requireEnv(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`missing required env var: ${name}`);

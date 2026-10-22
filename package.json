@@ -7,7 +7,9 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "KARDATA_ENV_FILE=.env.dev tsx watch src/server.ts",
+    "dev:migrate": "KARDATA_ENV_FILE=.env.dev tsx scripts/migrate.ts",
+    "mcp": "tsx scripts/mcp-call.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
     "lint": "eslint .",

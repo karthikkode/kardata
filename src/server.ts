@@ -13,7 +13,7 @@ import {
   checkAppMuseVersion,
   probeInstalledMuseVersion,
 } from "./harness/setup.js";
-import { loadDotenv, requireEnv } from "./lib/env.js";
+import { loadAppEnv, requireEnv } from "./lib/env.js";
 import { OPERATOR_AUTH, type AuthContext } from "./mcp/auth.js";
 import { createMcpServer } from "./mcp/server.js";
 import { authenticateRunToken } from "./runs/tokens.js";
@@ -196,7 +196,7 @@ async function handleMcp(
 }
 
 async function main(): Promise<void> {
-  loadDotenv();
+  loadAppEnv();
   const host = process.env.HOST ?? "127.0.0.1";
   const port = Number(process.env.PORT ?? "8787");
   const museVersion = checkAppMuseVersion(

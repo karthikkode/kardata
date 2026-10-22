@@ -10,7 +10,7 @@
  */
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { loadDotenv } from "../src/lib/env.js";
+import { loadAppEnv } from "../src/lib/env.js";
 
 async function main(): Promise<void> {
   const [, , tool, argsJson, urlArg, tokenArg] = process.argv;
@@ -18,7 +18,7 @@ async function main(): Promise<void> {
     console.error("usage: npx tsx scripts/mcp-call.ts <tool> '<json-args>' [url] [token]");
     process.exit(2);
   }
-  loadDotenv();
+  loadAppEnv();
   const url = urlArg ?? process.env.KARDATA_MCP_URL ?? "http://127.0.0.1:8787/mcp";
   const token = tokenArg ?? process.env.KARDATA_OPERATOR_TOKEN;
   if (!token) {

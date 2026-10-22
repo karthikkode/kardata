@@ -1,6 +1,6 @@
-import { loadDotenv } from "../src/lib/env.js";
+import { loadAppEnv } from "../src/lib/env.js";
 
-loadDotenv();
+loadAppEnv();
 
 import { createDb } from "../src/db/client.js";
 import { migrateBulkJob, planBulkMigration } from "../src/runs/migrate.js";
