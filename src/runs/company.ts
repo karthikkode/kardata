@@ -607,10 +607,18 @@ export function realCompanyDeps(db: Db): Pick<CompanyRunnerDeps, "beginStage" | 
 }
 
 async function countActiveRuns(db: Db, kind: "agent" | "collect"): Promise<number> {
+  // Worker-driven extraction rows hold no container, so they never consume
+  // agent slots (engine parity: the agent runner excludes them too). Without
+  // this, extractions squat slots and real agents starve below the cap.
   const [row] = await db
     .select({ n: sql<number>`count(*)` })
     .from(researchRuns)
-    .where(and(eq(researchRuns.kind, kind), sql`${researchRuns.status} IN ('queued', 'running')`));
+    .where(
+      and(
+        eq(researchRuns.kind, kind),
+        sql`${researchRuns.status} IN ('queued', 'running') AND ${researchRuns.stage} IS DISTINCT FROM 'extraction'`,
+      ),
+    );
   return Number(row?.n ?? 0);
 }
 

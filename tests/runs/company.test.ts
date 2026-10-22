@@ -42,7 +42,7 @@ import {
   getPreflightReport,
   savePreflightReport,
 } from "../../src/domain/company-jobs/preflight.js";
-import { companySettingsGet, companySettingsSet } from "../../src/runs/settings.js";
+import { companySettingsGet, companySettingsSet, harnessSettingsSet } from "../../src/runs/settings.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 
 let handle: DbHandle;
@@ -237,6 +237,49 @@ describe("company feeder (AC-3)", () => {
     await companyJobCancel(handle.db, scheduled[0]?.id ?? "");
     await runner.tick();
     expect(await handle.db.select().from(companyJobs).where(eq(companyJobs.status, "created"))).toHaveLength(0);
+  });
+
+  it("does not count extraction rows against agent slots", async () => {
+    const companyId = await makeCompany("Acme");
+    await startCompanyJob(handle.db, { companyId });
+    // Fill the agent cap with worker-driven extraction rows only (they
+    // hold no container). Uses the real agent load count, not the stub.
+    await harnessSettingsSet(handle.db, 2);
+    for (const name of ["X Co", "Y Co"]) {
+      const other = await makeCompany(name);
+      await handle.db.insert(researchRuns).values({
+        id: randomUUID(),
+        companyId: other,
+        kind: "agent",
+        status: "running",
+        startedAt: new Date(),
+        stage: "extraction",
+      });
+    }
+    const world = fakeWorld();
+    const runner = createCompanyRunner(handle.db, world.deps({ agentLoad: undefined }));
+    await runner.tick();
+    // Preflight (an agent stage) still begins: extractions hold no slots.
+    expect(world.begins.filter((b) => b.stage === "preflight")).toHaveLength(1);
+  });
+
+  it("holds agent stages when real agent runs fill the cap", async () => {
+    const companyId = await makeCompany("Acme");
+    await startCompanyJob(handle.db, { companyId });
+    await harnessSettingsSet(handle.db, 1);
+    const other = await makeCompany("Busy Co");
+    await handle.db.insert(researchRuns).values({
+      id: randomUUID(),
+      companyId: other,
+      kind: "agent",
+      status: "running",
+      startedAt: new Date(),
+      stage: "research",
+    });
+    const world = fakeWorld();
+    const runner = createCompanyRunner(handle.db, world.deps({ agentLoad: undefined }));
+    await runner.tick();
+    expect(world.begins).toHaveLength(0);
   });
 });
 
