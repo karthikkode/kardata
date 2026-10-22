@@ -8,7 +8,7 @@ import { and, eq } from "drizzle-orm";
 import { recordEvent } from "../../src/collect/db.js";
 import type { CollectRunResult } from "../../src/collect/run.js";
 import type { DbHandle } from "../../src/db/client.js";
-import { area, companies, researchRuns, runEvents, sources } from "../../src/db/schema.js";
+import { area, blobs, companies, providerCalls, researchRuns, runEvents, sources } from "../../src/db/schema.js";
 import { setAreaStatus } from "../../src/domain/research/status.js";
 import { PLAYWRIGHT_SERVER_CONFIG, RESEARCH_MUSE_ARGS } from "../../src/harness/docker.js";
 import type {
@@ -29,6 +29,7 @@ import {
   type PromptContext,
 } from "../../src/runs/agent-runner.js";
 import { cancelRun } from "../../src/runs/queue.js";
+import { startCompanyJob } from "../../src/runs/company.js";
 import { authenticateRunToken, issueRunToken } from "../../src/runs/tokens.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 
@@ -186,6 +187,10 @@ function makeFixture(opts: {
   collectLimit?: number;
   buildPrompt?: null;
   stallMs?: number;
+  sessionIngest?: (
+    runId: string,
+    sessionId: string | undefined,
+  ) => Promise<import("../../src/runs/usage.js").SessionIngestSummary>;
   usageRollup?: (
     main: HarnessUsage | undefined,
     sessionId: string | undefined,
@@ -211,10 +216,14 @@ function makeFixture(opts: {
     stallMs: opts.stallMs,
     usageRollup:
       opts.usageRollup ?? (async (main) => ({ total: main, childrenIncluded: false, children: [] })),
+    sessionIngest:
+      opts.sessionIngest !== undefined
+        ? async (run, sessionId) => opts.sessionIngest?.(run.id, sessionId) ?? { calls: 0 }
+        : async () => ({ calls: 0 }),
     collect: async (runId: string) => {
       collectCalls.push(runId);
       if (opts.collectImpl) return opts.collectImpl(runId);
-      return { runId, status: "succeeded", outcomes: [] };
+      return { runId, status: "succeeded", outcomes: [], adapters: [], skippedAdapters: [], unknownAdapters: [] };
     },
     stopLabeledContainers: async () => {
       fixture.stopLabeledCalls += 1;
@@ -306,7 +315,7 @@ describe("agent runner", () => {
       scriptFor: () => ({ events: [COMPLETED] }),
       collectImpl: async (runId) => {
         order.push("collect");
-        return { runId, status: "succeeded", outcomes: [] };
+        return { runId, status: "succeeded", outcomes: [], adapters: [], skippedAdapters: [], unknownAdapters: [] };
       },
     });
     const companyId = await makeCompany("A Co");
@@ -425,7 +434,7 @@ describe("agent runner", () => {
       scriptFor: () => ({ events: [COMPLETED] }),
       collectImpl: async (runId) => {
         await gate;
-        return { runId, status: "succeeded", outcomes: [] };
+        return { runId, status: "succeeded", outcomes: [], adapters: [], skippedAdapters: [], unknownAdapters: [] };
       },
     });
     const a = await makeCompany("A Co");
@@ -619,7 +628,7 @@ describe("agent runner", () => {
       scriptFor: () => ({ events: [COMPLETED] }),
       collectImpl: async (runId) => {
         await gate;
-        return { runId, status: "succeeded", outcomes: [] };
+        return { runId, status: "succeeded", outcomes: [], adapters: [], skippedAdapters: [], unknownAdapters: [] };
       },
     });
     const companyId = await makeCompany("A Co");
@@ -637,7 +646,7 @@ describe("agent runner", () => {
   it("marks a collector-cancelled collect as cancelled", async () => {
     const fx = makeFixture({
       scriptFor: () => ({ events: [COMPLETED] }),
-      collectImpl: async (runId) => ({ runId, status: "cancelled", outcomes: [] }),
+      collectImpl: async (runId) => ({ runId, status: "cancelled", outcomes: [], adapters: [], skippedAdapters: [], unknownAdapters: [] }),
     });
     const companyId = await makeCompany("A Co");
     const started = await researchStart(handle.db, { companyIds: [companyId] });
@@ -751,6 +760,47 @@ describe("agent runner", () => {
     expect(await authenticateRunToken(handle.db, token)).toBeNull();
   });
 
+  it("recover spares running extraction subjobs for the company worker", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ events: [COMPLETED] }) });
+    const companyId = await makeCompany("A Co");
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const [row] = await handle.db
+      .insert(researchRuns)
+      .values({
+        id: randomUUID(),
+        companyId,
+        kind: "agent",
+        status: "running",
+        startedAt: new Date(),
+        companyJobId: jobId,
+        stage: "extraction",
+      })
+      .returning({ id: researchRuns.id });
+    if (!row) throw new Error("no subjob row");
+    const recovered = await fx.runner.recover();
+    expect(recovered.failedRuns).toEqual([]);
+    expect((await runRow(row.id)).status).toBe("running");
+  });
+
+  it("recover fails only running agent rows, whatever their stage", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ events: [COMPLETED] }) });
+    const mk = async (name: string, status: "queued" | "running" | "succeeded", stage: "preflight" | "research" | null) => {
+      const companyId = await makeCompany(name);
+      const started = await researchStart(handle.db, { companyIds: [companyId] });
+      const runId = (started.runs[0] as { runId: string }).runId;
+      await handle.db.update(researchRuns).set({ status, stage }).where(eq(researchRuns.id, runId));
+      return runId;
+    };
+    const queuedPreflight = await mk("A Co", "queued", "preflight");
+    const doneResearch = await mk("B Co", "succeeded", "research");
+    const runningResearch = await mk("C Co", "running", "research");
+    const runningLegacy = await mk("D Co", "running", null);
+    const recovered = await fx.runner.recover();
+    expect(recovered.failedRuns.sort()).toEqual([runningResearch, runningLegacy].sort());
+    expect((await runRow(queuedPreflight)).status).toBe("queued");
+    expect((await runRow(doneResearch)).status).toBe("succeeded");
+  });
+
   it("stores usage, session, exit and final message, skipping message deltas", async () => {
     const fx = makeFixture({
       scriptFor: () => ({
@@ -795,6 +845,35 @@ describe("agent runner", () => {
     expect(kinds).toEqual(["started", "usage", "finished"]);
   });
 
+  it("logs the dispatch prompt and ingests the session after the run", async () => {
+    const ingested: { runId: string; sessionId: string | undefined }[] = [];
+    const fx = makeFixture({
+      scriptFor: () => ({
+        events: [{ type: "started", sessionId: "session-9" }, COMPLETED],
+      }),
+      sessionIngest: async (runId, sessionId) => {
+        ingested.push({ runId, sessionId });
+        return { calls: 3 };
+      },
+    });
+    const companyId = await makeCompany("A Co");
+    await freshCollect(companyId);
+    const started = await researchStart(handle.db, { companyIds: [companyId] });
+    const runId = (started.runs[0] as { runId: string }).runId;
+    await arrangeFinish(runId);
+
+    await fx.runner.tick();
+    await drain(runId);
+    expect(ingested).toEqual([{ runId, sessionId: "session-9" }]);
+    const [dispatch] = await handle.db.select().from(providerCalls).where(eq(providerCalls.runId, runId));
+    expect(dispatch?.sessionId).toBe("session-9");
+    expect(dispatch?.promptSha256).not.toBeNull();
+    expect(dispatch?.stage).toBe("research");
+    const [blob] = await handle.db.select().from(blobs).where(eq(blobs.sha256, dispatch?.promptSha256 ?? ""));
+    expect(blob).toBeTruthy();
+    expect(fx.prompts).toHaveLength(1);
+  });
+
   it("writes raw stdout to events.jsonl", async () => {
     const fx = makeFixture({
       scriptFor: () => ({ events: [COMPLETED], rawLines: ['{"a":1}', "not json", '{"b":2}'] }),
@@ -823,6 +902,54 @@ describe("agent runner", () => {
     const row = await runRow(runId);
     expect(row.status).toBe("failed");
     expect(row.error ?? "").toMatch(/no prompt builder/);
+  });
+
+  it("claims company research subjobs straight to researching (no legacy collect)", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ events: [COMPLETED] }) });
+    const companyId = await makeCompany("A Co");
+    // Deliberately no freshCollect: the pipeline's collect subjob owns
+    // deterministic collection, so a research row must never run legacy
+    // in-process collect even when no fresh collect exists.
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const started = await researchStart(handle.db, { companyIds: [companyId], companyJobId: jobId, stage: "research" });
+    const runId = (started.runs[0] as { runId: string }).runId;
+
+    await fx.runner.tick();
+    await drain(runId);
+    expect(fx.harness.handles.has(runId)).toBe(true);
+    expect(fx.collectCalls).toEqual([]);
+    // COMPLETED with no run_finish: partial, not queued.
+    expect((await runRow(runId)).status).toBe("partial");
+  });
+
+  it("claims company preflight subjobs without legacy collect either", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ events: [COMPLETED] }) });
+    const companyId = await makeCompany("P Co");
+    // No freshCollect: without the company guard the row would run the full
+    // legacy collect in-process before recon.
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const started = await researchStart(handle.db, { companyIds: [companyId], companyJobId: jobId, stage: "preflight" });
+    const runId = (started.runs[0] as { runId: string }).runId;
+
+    await fx.runner.tick();
+    await drain(runId);
+    expect(fx.harness.handles.has(runId)).toBe(true);
+    expect(fx.collectCalls).toEqual([]);
+  });
+
+  it("drives preflight subjobs to succeeded on run_finish without area statuses", async () => {
+    const fx = makeFixture({ scriptFor: () => ({ events: [COMPLETED] }) });
+    const companyId = await makeCompany("A Co");
+    await freshCollect(companyId);
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const started = await researchStart(handle.db, { companyIds: [companyId], companyJobId: jobId, stage: "preflight" });
+    const runId = (started.runs[0] as { runId: string }).runId;
+    await recordEvent(handle.db, runId, "agent_finish", { summary: "recon done" });
+
+    await fx.runner.tick();
+    await drain(runId);
+    expect(fx.harness.handles.has(runId)).toBe(true);
+    expect((await runRow(runId)).status).toBe("succeeded");
   });
 });
 

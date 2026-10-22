@@ -1,0 +1,6 @@
+[Unit]
+Description=nightly kardata DB backup (pg_dump custom format)
+
+[Service]
+Type=oneshot
+ExecStart=%h/projects/kardata/scripts/backup-db.sh

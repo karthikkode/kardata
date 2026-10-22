@@ -13,9 +13,11 @@ import {
   researchRuns,
   runEvents,
   sources,
+  webSearches,
 } from "../../db/schema.js";
 import { normalizeDomain } from "../../lib/apollo/parse.js";
 import { DomainError } from "../errors.js";
+import { factValueKind } from "./grounding.js";
 
 export interface AreaScore {
   facts: number;
@@ -53,7 +55,18 @@ export type ExtractorScore = AgentScore;
 export interface VerificationShares {
   verified: number;
   docOnly: number;
+  mismatch: number;
   unverified: number;
+  verifiedValue: number;
+}
+
+/** Web search/fetch activity ingested from the agent session log. */
+export interface SearchScore {
+  total: number;
+  byArea: Record<string, number>;
+  /** Share of searches with at least one captured hit (null when total is 0). */
+  withCapturePct: number | null;
+  museFetchFallbacks: number;
 }
 
 export interface RunScore {
@@ -78,6 +91,13 @@ export interface RunScore {
   newProvisionalKeys: string[];
   newProvisionalTypes: string[];
   verification: VerificationShares;
+  /** Grounding shares per fact value kind (number, money, date, short_text, bool, long_text, json). */
+  verificationByKind: Record<string, VerificationShares>;
+  /** Grounding shares per record type. */
+  verificationByRecordType: Record<string, VerificationShares>;
+  /** Grounding shares per evidence grade (primary | secondary). */
+  verificationByGrade: Record<string, VerificationShares>;
+  searches: SearchScore;
   agent: AgentScore;
   extractor: ExtractorScore;
   areas: Record<string, AreaScore>;
@@ -91,6 +111,10 @@ export interface BatchTotals {
   documents: number;
   findings: number;
   verification: VerificationShares;
+  verificationByKind: Record<string, VerificationShares>;
+  verificationByRecordType: Record<string, VerificationShares>;
+  verificationByGrade: Record<string, VerificationShares>;
+  searches: SearchScore;
   agent: AgentScore;
   extractor: ExtractorScore;
   mcpCalls: number;
@@ -146,14 +170,56 @@ function emptyAgent(): AgentScore {
   return { facts: 0, recordsByType: {}, reviewsIngested: 0, documents: 0, findings: 0 };
 }
 
+function emptySearches(): SearchScore {
+  return { total: 0, byArea: {}, withCapturePct: null, museFetchFallbacks: 0 };
+}
+
+/**
+ * An item's evidence grade: its quote source's grade when it has one,
+ * else its first cited source's grade. Sources always have a grade.
+ */
+function itemGrade(
+  grades: Map<string, string>,
+  quoteSourceId: string | null,
+  sourceIds: string[],
+): string {
+  if (quoteSourceId && grades.has(quoteSourceId)) return grades.get(quoteSourceId) as string;
+  for (const id of sourceIds) {
+    if (grades.has(id)) return grades.get(id) as string;
+  }
+  return "primary";
+}
+
 function emptyVerification(): VerificationShares {
-  return { verified: 0, docOnly: 0, unverified: 0 };
+  return { verified: 0, docOnly: 0, mismatch: 0, unverified: 0, verifiedValue: 0 };
+}
+
+function bumpShares(shares: VerificationShares, verification: string): void {
+  if (verification === "verified") shares.verified += 1;
+  else if (verification === "doc_only") shares.docOnly += 1;
+  else if (verification === "quote_mismatch") shares.mismatch += 1;
+  else if (verification === "verified_value") shares.verifiedValue += 1;
+  else shares.unverified += 1;
 }
 
 function bumpVerification(score: RunScore, verification: string): void {
-  if (verification === "verified") score.verification.verified += 1;
-  else if (verification === "doc_only") score.verification.docOnly += 1;
-  else score.verification.unverified += 1;
+  bumpShares(score.verification, verification);
+}
+
+function bumpKindShare(bucket: Record<string, VerificationShares>, key: string, verification: string): void {
+  const shares = bucket[key] ?? (bucket[key] = emptyVerification());
+  bumpShares(shares, verification);
+}
+
+function mergeKindShares(into: Record<string, VerificationShares>, from: Record<string, VerificationShares>): void {
+  for (const [key, shares] of Object.entries(from)) {
+    const target = into[key] ?? (into[key] = emptyVerification());
+    target.verified += shares.verified;
+    target.docOnly += shares.docOnly;
+    target.mismatch += shares.mismatch;
+    target.unverified += shares.unverified;
+    target.verifiedValue += shares.verifiedValue;
+  }
 }
 
 function isAgentMade(createdBy: string): boolean {
@@ -258,6 +324,10 @@ export async function scorecard(
       newProvisionalKeys: [],
       newProvisionalTypes: [],
       verification: emptyVerification(),
+      verificationByKind: {},
+      verificationByRecordType: {},
+      verificationByGrade: {},
+      searches: emptySearches(),
       agent: emptyAgent(),
       extractor: emptyAgent(),
       areas,
@@ -279,16 +349,23 @@ export async function scorecard(
       runId: facts.runId,
       area: facts.area,
       sourceIds: facts.sourceIds,
+      quoteSourceId: facts.quoteSourceId,
       createdBy: facts.createdBy,
       verification: facts.verification,
+      valueNum: facts.valueNum,
+      valueText: facts.valueText,
+      valueDate: facts.valueDate,
+      valueBool: facts.valueBool,
+      valueJson: facts.valueJson,
     })
     .from(facts)
     .where(inArray(facts.runId, runIds));
   const cited = [...new Set(factRows.flatMap((f) => f.sourceIds))];
   const primaryById = new Map<string, boolean>();
+  const gradeById = new Map<string, string>();
   if (cited.length > 0) {
     const sourceRows = await db
-      .select({ id: sources.id, companyId: sources.companyId, finalUrl: sources.finalUrl })
+      .select({ id: sources.id, companyId: sources.companyId, finalUrl: sources.finalUrl, evidenceGrade: sources.evidenceGrade })
       .from(sources)
       .where(inArray(sources.id, cited));
     const domainByCompany = new Map<string, string | null>();
@@ -298,6 +375,7 @@ export async function scorecard(
         row.id,
         isPrimarySource(row.finalUrl, domainByCompany.get(row.companyId) ?? null),
       );
+      gradeById.set(row.id, row.evidenceGrade);
     }
   }
   const primaryCounts = new Map<string, number>();
@@ -309,6 +387,8 @@ export async function scorecard(
     if (isExtractorMade(row.createdBy)) score.extractor.facts += 1;
     if (isAgentMade(row.createdBy) || isExtractorMade(row.createdBy)) {
       bumpVerification(score, row.verification);
+      bumpKindShare(score.verificationByKind, factValueKind(row), row.verification);
+      bumpKindShare(score.verificationByGrade, itemGrade(gradeById, row.quoteSourceId, row.sourceIds), row.verification);
     }
     areaAt(row.runId, row.area).facts += 1;
     if (row.sourceIds.some((id) => primaryById.get(id))) {
@@ -325,11 +405,21 @@ export async function scorecard(
       lastSeenRunId: records.lastSeenRunId,
       type: records.type,
       area: records.area,
+      sourceIds: records.sourceIds,
+      quoteSourceId: records.quoteSourceId,
       createdBy: records.createdBy,
       verification: records.verification,
     })
     .from(records)
     .where(or(inArray(records.firstSeenRunId, runIds), inArray(records.lastSeenRunId, runIds)));
+  const recordCited = [...new Set(recordRows.flatMap((r) => r.sourceIds))].filter((id) => !gradeById.has(id));
+  if (recordCited.length > 0) {
+    const extraRows = await db
+      .select({ id: sources.id, evidenceGrade: sources.evidenceGrade })
+      .from(sources)
+      .where(inArray(sources.id, recordCited));
+    for (const row of extraRows) gradeById.set(row.id, row.evidenceGrade);
+  }
   for (const row of recordRows) {
     const counted = new Set<string>();
     for (const runId of [row.firstSeenRunId, row.lastSeenRunId]) {
@@ -340,6 +430,8 @@ export async function scorecard(
       if (isExtractorMade(row.createdBy)) bumpType(at(runId).extractor.recordsByType, row.type);
       if (isAgentMade(row.createdBy) || isExtractorMade(row.createdBy)) {
         bumpVerification(at(runId), row.verification);
+        bumpKindShare(at(runId).verificationByRecordType, row.type, row.verification);
+        bumpKindShare(at(runId).verificationByGrade, itemGrade(gradeById, row.quoteSourceId, row.sourceIds), row.verification);
       }
       bumpType(areaAt(runId, row.area).recordsByType, row.type);
     }
@@ -440,6 +532,42 @@ export async function scorecard(
     score.newProvisionalTypes.sort();
   }
 
+  const searchRows = await db
+    .select({ id: webSearches.id, runId: webSearches.runId, area: webSearches.area })
+    .from(webSearches)
+    .where(inArray(webSearches.runId, runIds));
+  const searchRun = new Map<string, string>();
+  for (const row of searchRows) {
+    searchRun.set(row.id, row.runId);
+    const score = at(row.runId);
+    score.searches.total += 1;
+    const bucket = row.area ?? "unattributed";
+    score.searches.byArea[bucket] = (score.searches.byArea[bucket] ?? 0) + 1;
+  }
+  if (searchRows.length > 0) {
+    const linkedRows = await db
+      .select({ webSearchId: sources.webSearchId })
+      .from(sources)
+      .where(inArray(sources.webSearchId, [...searchRun.keys()]));
+    const hitByRun = new Map<string, Set<string>>();
+    for (const row of linkedRows) {
+      if (!row.webSearchId) continue;
+      const runId = searchRun.get(row.webSearchId);
+      if (!runId) continue;
+      if (!hitByRun.has(runId)) hitByRun.set(runId, new Set());
+      hitByRun.get(runId)?.add(row.webSearchId);
+    }
+    for (const score of scores.values()) {
+      if (score.searches.total === 0) continue;
+      score.searches.withCapturePct = round2((hitByRun.get(score.runId)?.size ?? 0) / score.searches.total);
+    }
+  }
+  const fallbackRows = await db
+    .select({ runId: sources.runId })
+    .from(sources)
+    .where(and(inArray(sources.runId, runIds), eq(sources.via, "muse_fetch")));
+  for (const row of fallbackRows) at(row.runId).searches.museFetchFallbacks += 1;
+
   return assemble(scores);
 }
 
@@ -471,6 +599,10 @@ function assemble(scores: Map<string, RunScore>): ScorecardResult {
     documents: 0,
     findings: 0,
     verification: emptyVerification(),
+    verificationByKind: {},
+    verificationByRecordType: {},
+    verificationByGrade: {},
+    searches: emptySearches(),
     agent: emptyAgent(),
     extractor: emptyAgent(),
     mcpCalls: 0,
@@ -491,7 +623,17 @@ function assemble(scores: Map<string, RunScore>): ScorecardResult {
     totals.findings += run.findings;
     totals.verification.verified += run.verification.verified;
     totals.verification.docOnly += run.verification.docOnly;
+    totals.verification.mismatch += run.verification.mismatch;
     totals.verification.unverified += run.verification.unverified;
+    totals.verification.verifiedValue += run.verification.verifiedValue;
+    mergeKindShares(totals.verificationByKind, run.verificationByKind);
+    mergeKindShares(totals.verificationByRecordType, run.verificationByRecordType);
+    mergeKindShares(totals.verificationByGrade, run.verificationByGrade);
+    totals.searches.total += run.searches.total;
+    totals.searches.museFetchFallbacks += run.searches.museFetchFallbacks;
+    for (const [areaName, n] of Object.entries(run.searches.byArea)) {
+      totals.searches.byArea[areaName] = (totals.searches.byArea[areaName] ?? 0) + n;
+    }
     totals.agent.facts += run.agent.facts;
     for (const [type, n] of Object.entries(run.agent.recordsByType)) {
       totals.agent.recordsByType[type] = (totals.agent.recordsByType[type] ?? 0) + n;
@@ -519,6 +661,13 @@ function assemble(scores: Map<string, RunScore>): ScorecardResult {
       totals.tokens.calls += run.tokens.calls;
       if (!run.tokens.childrenIncluded) totals.childrenIncluded = false;
     }
+  }
+  if (totals.searches.total > 0) {
+    const hits = runs.reduce(
+      (sum, run) => sum + Math.round((run.searches.withCapturePct ?? 0) * run.searches.total),
+      0,
+    );
+    totals.searches.withCapturePct = round2(hits / totals.searches.total);
   }
   return { runs, totals };
 }

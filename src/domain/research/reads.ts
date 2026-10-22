@@ -324,12 +324,24 @@ export interface CompanyContext {
   areaStatuses: { area: string; status: string; reason: string | null; runId: string }[];
 }
 
-export async function getCompanyContext(db: Db, companyId: string): Promise<CompanyContext> {
+export interface CompanyContextOptions {
+  /** Show unverified and mismatched facts, records and findings too (default false). */
+  includeUnverified?: boolean;
+}
+
+const GROUNDED = ["verified", "doc_only", "verified_value"] as const;
+
+export async function getCompanyContext(
+  db: Db,
+  companyId: string,
+  options: CompanyContextOptions = {},
+): Promise<CompanyContext> {
   const [company] = await db
     .select({ id: companies.id, name: companies.name })
     .from(companies)
     .where(eq(companies.id, companyId));
   if (!company) throw new DomainError("not_found", `company not found: ${companyId}`);
+  const groundedOnly = !options.includeUnverified;
 
   const factRows = await db
     .select({
@@ -347,14 +359,22 @@ export async function getCompanyContext(db: Db, companyId: string): Promise<Comp
     })
     .from(factsCurrent)
     .innerJoin(factKeys, eq(factsCurrent.key, factKeys.key))
-    .where(eq(factsCurrent.companyId, companyId))
+    .where(
+      groundedOnly
+        ? and(eq(factsCurrent.companyId, companyId), inArray(factsCurrent.verification, [...GROUNDED]))
+        : eq(factsCurrent.companyId, companyId),
+    )
     .orderBy(factsCurrent.key)
     .limit(200);
 
   const countRows = await db
     .select({ type: records.type, count: sql<number>`count(*)::int` })
     .from(records)
-    .where(eq(records.companyId, companyId))
+    .where(
+      groundedOnly
+        ? and(eq(records.companyId, companyId), inArray(records.verification, [...GROUNDED]))
+        : eq(records.companyId, companyId),
+    )
     .groupBy(records.type);
 
   const docRows = await db
@@ -381,7 +401,11 @@ export async function getCompanyContext(db: Db, companyId: string): Promise<Comp
       confidence: findings.confidence,
     })
     .from(findings)
-    .where(eq(findings.companyId, companyId))
+    .where(
+      groundedOnly
+        ? and(eq(findings.companyId, companyId), inArray(findings.verification, [...GROUNDED]))
+        : eq(findings.companyId, companyId),
+    )
     .orderBy(desc(findings.createdAt))
     .limit(50);
 

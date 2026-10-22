@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
 import {
   blobs,
+  httpFetches,
   researchRuns,
   runEvents,
   sources,
@@ -78,6 +79,13 @@ describe("fetcher", () => {
     expect(result.source.finalUrl).toBe(`${site.baseUrl}/`);
     expect(result.text).toContain("Hello");
     expect(result.body?.byteLength).toBeGreaterThan(0);
+    const logged = await handle.db.select().from(httpFetches).where(eq(httpFetches.runId, runId));
+    expect(logged).toHaveLength(1);
+    expect(logged[0]?.statusCode).toBe(200);
+    expect(logged[0]?.host).toBe("127.0.0.1");
+    expect(logged[0]?.collector).toBe("test");
+    expect(logged[0]?.sourceId).toBe(result.source.id);
+    expect(logged[0]?.bytes).toBe(result.body?.byteLength ?? null);
 
     const blobRows = await handle.db.select().from(blobs);
     expect(blobRows.length).toBe(2); // robots.txt + page

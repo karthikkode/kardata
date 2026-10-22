@@ -99,6 +99,69 @@
       "when": 1792550269491,
       "tag": "0013_peaceful_mojo",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792557210993,
+      "tag": "0014_famous_omega_flight",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1792568005949,
+      "tag": "0015_company-jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792568607798,
+      "tag": "0016_company-error-streak",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792578144426,
+      "tag": "0017_sector-preflight",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792578475980,
+      "tag": "0018_sector-eligibility",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792578627725,
+      "tag": "0019_sector-jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792579614160,
+      "tag": "0020_verified-value-mem-holds",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792580490510,
+      "tag": "0021_sector-run-coexist",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792585869232,
+      "tag": "0022_search-logging-grade",
+      "breakpoints": true
     }
   ]
 }

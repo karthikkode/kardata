@@ -30,6 +30,8 @@ import {
   listRunEvents,
   searchAll,
 } from "../domain/research/reads.js";
+import { preflightReportSchema, savePreflightReportForRun } from "../domain/company-jobs/preflight.js";
+import { ADAPTERS } from "../collect/adapters.js";
 import { researchStart } from "../runs/agent.js";
 import {
   jobCancel,
@@ -42,9 +44,46 @@ import {
   startResearchSectorJob,
   startResearchShortlistJob,
 } from "../runs/bulk.js";
+import {
+  companyJobCancel,
+  companyJobList,
+  companyJobPause,
+  companyJobResume,
+  companyJobRetry,
+  companyJobStatus,
+  pipelineStatus,
+  startCompanyJob,
+  supersedeQueuedJobs,
+} from "../runs/company.js";
 import { extractRun } from "../runs/extract.js";
 import { cancelRun, getOrCreateManualRun, startCollect } from "../runs/queue.js";
-import { harnessSettingsGet, harnessSettingsSet } from "../runs/settings.js";
+import {
+  checkpointSet,
+  companySettingsGet,
+  companySettingsSet,
+  harnessSettingsGet,
+  harnessSettingsSet,
+  sectorPreflightSettingsGet,
+  sectorPreflightSettingsSet,
+} from "../runs/settings.js";
+import {
+  startPipeline,
+  startSectorPreflight,
+  sectorPreflightCancel,
+  sectorPreflightList,
+  sectorPreflightPause,
+  sectorPreflightResume,
+  sectorPreflightRetryFailed,
+  sectorPreflightStatus,
+  sectorPreflightSummary,
+} from "../runs/sector.js";
+import {
+  applySectorScope,
+  eligibilityCounts,
+  getRubric,
+  setOverride,
+  setRubric,
+} from "../domain/sector-preflight/eligibility.js";
 import {
   SCREEN_FIELDS,
   SCREEN_OPS,
@@ -158,16 +197,18 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         criteria: z.array(screenCriterion).max(20).optional().describe("ANDed criteria (default: all live companies)"),
         sort: screenSort.optional(),
         limit: z.number().int().min(1).max(500).optional().describe("Default 50"),
-        verifiedOnly: z.boolean().optional().describe("Fact criteria match only grounding-verified facts"),
+        verifiedOnly: z.boolean().optional().describe("Strict: fact criteria match only verified facts (default matches verified + doc_only + verified_value)"),
+        includeUnverified: z.boolean().optional().describe("Show unverified and mismatched facts too (default false)"),
       },
     },
-    async ({ sectorId, criteria, sort, limit, verifiedOnly }) =>
+    async ({ sectorId, criteria, sort, limit, verifiedOnly, includeUnverified }) =>
       wrap(async () => {
         const result = await screenCompanies(db, sectorId, {
           criteria: criteria ?? undefined,
           sort: sort ?? undefined,
           limit: limit ?? undefined,
           verifiedOnly: verifiedOnly ?? undefined,
+          includeUnverified: includeUnverified ?? undefined,
         });
         return { summary: `${result.total} companies match`, data: result };
       }),
@@ -858,12 +899,17 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth, 
     "company_context",
     {
-      description: "Everything known about a company: current facts, record counts per type, the document tree, findings, area statuses. Returns the context.",
-      inputSchema: { companyId },
+      description: "Everything known about a company: current grounded facts, record counts per type, the document tree, findings, area statuses. Returns the context.",
+      inputSchema: {
+        companyId,
+        includeUnverified: z.boolean().optional().describe("Show unverified and mismatched facts, records and findings too (default false)"),
+      },
     },
-    async ({ companyId }) =>
+    async ({ companyId, includeUnverified }) =>
       wrap(async () => {
-        const context = await getCompanyContext(db, scopedCompany(auth, companyId));
+        const context = await getCompanyContext(db, scopedCompany(auth, companyId), {
+          includeUnverified: includeUnverified ?? undefined,
+        });
         return { summary: `context for "${context.company.name}"`, data: context };
       }),
   );
@@ -1043,6 +1089,30 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       }),
   );
 
+  registerTool(server, db, auth,
+    "preflight_report_save",
+    {
+      description: "Agent: file the collect plan for a company-job preflight run (PreflightReportV1 JSON). Re-validated on every save; the latest version gates the collect stage.",
+      inputSchema: {
+        runId: runId.optional().describe("Defaults to the caller's run"),
+        report: preflightReportSchema.describe("PreflightReportV1 as a JSON object"),
+      },
+    },
+    async ({ runId: givenRunId, report }) =>
+      wrap(async () => {
+        const id =
+          auth.kind === "run"
+            ? await resolveRunId(db, auth, auth.companyId, givenRunId ?? undefined)
+            : givenRunId;
+        if (!id) throw new DomainError("invalid_input", "runId is required");
+        const saved = await savePreflightReportForRun(db, id, report);
+        return {
+          summary: `preflight report v${saved.reportVersion} saved for job ${saved.jobId}`,
+          data: { jobId: saved.jobId, reportVersion: saved.reportVersion },
+        };
+      }),
+  );
+
   const jobId = z.string().describe("Job UUID");
   const jobBudget = z.object({
     maxTokens: z.number().int().optional(),
@@ -1206,6 +1276,403 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const settings = await harnessSettingsSet(db, maxConcurrentAgents);
         return { summary: `maxConcurrentAgents -> ${settings.maxConcurrentAgents}`, data: settings };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_job_start",
+    {
+      description: "Operator: run the full pipeline (preflight, collect, research, extraction) for one company. One active job per company.",
+      inputSchema: { companyId, budget: jobBudget },
+    },
+    async ({ companyId: id, budget }) =>
+      wrap(async () => {
+        const result = await startCompanyJob(db, { companyId: id, budget: budget ?? undefined });
+        return { summary: `company job ${result.jobId} started`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_job_status",
+    {
+      description: "Operator: company job stage states, derived completion, active subjob, tokens and ETA.",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        const view = await companyJobStatus(db, id);
+        return { summary: `job ${id}: ${view.job.status}, ${view.derived}`, data: view };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "adapter_list",
+    {
+      description: "Operator: the onboarded source adapters (id, version, areas). Collect runs only these; anything else pauses for onboarding.",
+      inputSchema: {},
+    },
+    async () =>
+      wrap(async () => {
+        const adapters = ADAPTERS.map((a) => ({ id: a.id, version: a.version, areas: a.areas, blurb: a.blurb }));
+        return { summary: `${adapters.length} adapters`, data: { adapters } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_jobs_list",
+    {
+      description: "Operator: recent company jobs with derived completion.",
+      inputSchema: {
+        limit: z.number().int().optional().describe("Default 20, max 100"),
+        status: z.enum(["queued", "running", "paused", "completed", "failed", "cancelled"]).optional().describe("Only jobs in this status"),
+      },
+    },
+    async ({ limit, status }) =>
+      wrap(async () => {
+        const jobs = await companyJobList(db, limit ?? undefined, status ?? undefined);
+        return { summary: `${jobs.length} company jobs`, data: { jobs } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_job_pause",
+    {
+      description: "Operator: pause a company job (the active stage finishes; nothing new starts).",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        await companyJobPause(db, id);
+        return { summary: `job ${id} paused`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_job_resume",
+    {
+      description: "Operator: resume a paused company job (retries the failed stage if there is one).",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        await companyJobResume(db, id);
+        return { summary: `job ${id} resumed`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_job_cancel",
+    {
+      description: "Operator: cancel a company job. The active subjob is cancelled unless stopRunning is false.",
+      inputSchema: { jobId, stopRunning: z.boolean().optional().describe("Cancel the active subjob too (default true)") },
+    },
+    async ({ jobId: id, stopRunning }) =>
+      wrap(async () => {
+        await companyJobCancel(db, id, { stopRunning: stopRunning ?? undefined });
+        return { summary: `job ${id} cancelled`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_job_retry",
+    {
+      description: "Operator: retry the failed stage of a failed (or paused-with-failure) company job.",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        const result = await companyJobRetry(db, id);
+        return { summary: `job ${id} retrying ${result.stage}`, data: { jobId: id, stage: result.stage } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_jobs_supersede",
+    {
+      description: "Operator: cancel every queued company job with a reason (e.g. a new pass supersedes the batch).",
+      inputSchema: { reason: z.string().describe("Why the queued jobs are cancelled") },
+    },
+    async ({ reason }) =>
+      wrap(async () => {
+        const result = await supersedeQueuedJobs(db, reason);
+        return { summary: `${result.cancelled} queued jobs cancelled`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_concurrency_get",
+    {
+      description: "Operator: effective company concurrency and where the value comes from.",
+      inputSchema: {},
+    },
+    async () =>
+      wrap(async () => {
+        const settings = await companySettingsGet(db);
+        return { summary: `companyConcurrency=${settings.companyConcurrency} (${settings.source})`, data: settings };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_concurrency_set",
+    {
+      description: "Operator: change company concurrency at runtime (1..100, stored in the DB, immediate).",
+      inputSchema: { companyConcurrency: z.number().int().describe("Max parallel company jobs") },
+    },
+    async ({ companyConcurrency: value }) =>
+      wrap(async () => {
+        const settings = await companySettingsSet(db, value);
+        return { summary: `companyConcurrency -> ${settings.companyConcurrency}`, data: settings };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "pipeline_status",
+    {
+      description: "Operator: batch overview — job counts, checkpoint target, pause state, quota snapshot.",
+      inputSchema: {},
+    },
+    async () =>
+      wrap(async () => {
+        const status = await pipelineStatus(db);
+        const pause = status.paused.paused ? "paused" : "flowing";
+        return {
+          summary: `${status.completed} completed, ${pause} (checkpoint ${status.checkpointTarget ?? "off"})`,
+          data: status,
+        };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "pipeline_checkpoint_set",
+    {
+      description:
+        "Operator: pause promotion after N completions (in-flight jobs finish). Null clears. Setting a target resumes.",
+      inputSchema: { afterCompleted: z.number().int().nullable().describe("Completion count that pauses the batch, or null") },
+    },
+    async ({ afterCompleted: target }) =>
+      wrap(async () => {
+        const checkpoint = await checkpointSet(db, target);
+        return {
+          summary: checkpoint.target === null ? "checkpoint cleared" : `checkpoint -> ${checkpoint.target}`,
+          data: checkpoint,
+        };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_preflight_start",
+    {
+      description: "Operator: classify every company in a sector (eligibility pass) as a DB-backed job.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        onlyPending: z.boolean().optional().describe("Skip already-classified companies (default true)"),
+        maxCompanies: z.number().int().optional().describe("Cap the job at this many companies"),
+        companyIds: z.array(z.string()).optional().describe("Classify exactly these companies (default: all members)"),
+        budget: jobBudget,
+      },
+    },
+    async ({ sectorId, onlyPending, maxCompanies, companyIds, budget }) =>
+      wrap(async () => {
+        const result = await startSectorPreflight(db, {
+          sectorId,
+          onlyPending: onlyPending ?? undefined,
+          maxCompanies: maxCompanies ?? undefined,
+          companyIds: companyIds ?? undefined,
+          budget: budget ?? undefined,
+        });
+        return { summary: `sector job ${result.jobId}: ${result.companies} companies`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_preflight_status",
+    {
+      description: "Operator: sector job counts, active runs, tokens, ETA.",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        const status = await sectorPreflightStatus(db, id);
+        return { summary: `sector job ${id}: ${status.job.status}`, data: status };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_preflight_list",
+    {
+      description: "Operator: recent sector jobs.",
+      inputSchema: { limit: z.number().int().optional().describe("Default 20") },
+    },
+    async ({ limit }) =>
+      wrap(async () => {
+        const jobs = await sectorPreflightList(db, limit ?? undefined);
+        return { summary: `${jobs.length} sector jobs`, data: { jobs } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_preflight_pause",
+    {
+      description: "Operator: pause a sector job (in-flight classifications finish; nothing new starts).",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        await sectorPreflightPause(db, id);
+        return { summary: `sector job ${id} paused`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_preflight_resume",
+    {
+      description: "Operator: resume a paused sector job.",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        await sectorPreflightResume(db, id);
+        return { summary: `sector job ${id} resumed`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_preflight_cancel",
+    {
+      description: "Operator: cancel a sector job (running classifications are stopped).",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        await sectorPreflightCancel(db, id);
+        return { summary: `sector job ${id} cancelled`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_preflight_retry_failed",
+    {
+      description: "Operator: re-queue a sector job's failed companies and resume it.",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        const result = await sectorPreflightRetryFailed(db, id);
+        return { summary: `sector job ${id}: ${result.retried} companies re-queued`, data: { jobId: id, retried: result.retried } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_preflight_summary",
+    {
+      description: "Operator: classification counts by business_type x category x eligibility, with examples.",
+      inputSchema: { sectorId: z.string().describe("Sector UUID") },
+    },
+    async ({ sectorId }) =>
+      wrap(async () => {
+        const summary = await sectorPreflightSummary(db, sectorId);
+        return { summary: `${summary.buckets.length} buckets`, data: summary };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_rules_get",
+    {
+      description: "Operator: view a sector's eligibility rubric (or the default).",
+      inputSchema: { sectorId: z.string().describe("Sector UUID") },
+    },
+    async ({ sectorId }) =>
+      wrap(async () => {
+        const result = await getRubric(db, sectorId);
+        return { summary: result.isDefault ? "default skincare rubric" : "sector rubric", data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_rules_set",
+    {
+      description: "Operator: replace a sector's eligibility rubric; re-derives every membership instantly.",
+      inputSchema: { sectorId: z.string().describe("Sector UUID"), rules: z.unknown().describe("Full rubric JSON (see sector_rules_get)") },
+    },
+    async ({ sectorId, rules }) =>
+      wrap(async () => {
+        const result = await setRubric(db, sectorId, rules);
+        return { summary: "rubric updated", data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_eligibility_override",
+    {
+      description: "Operator: force-include or force-exclude a company (or clear the override).",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        companyId: z.string().describe("Company UUID"),
+        decision: z.enum(["include", "exclude", "clear"]).describe("Override decision"),
+        note: z.string().optional().describe("Why (stored with the override)"),
+      },
+    },
+    async ({ sectorId, companyId, decision, note }) =>
+      wrap(async () => {
+        const result = await setOverride(db, sectorId, companyId, decision, note ?? undefined);
+        return { summary: `override ${decision} -> ${result.eligibility}`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_scope_apply",
+    {
+      description:
+        "Operator: resolve every classified, non-overridden membership to the binary sector scope (eligible/ineligible).",
+      inputSchema: { sectorId: z.string().describe("Sector UUID") },
+    },
+    async ({ sectorId }) =>
+      wrap(async () => {
+        const result = await applySectorScope(db, sectorId);
+        const counts = await eligibilityCounts(db, sectorId);
+        return {
+          summary: `${result.eligible} eligible, ${result.ineligible} ineligible (${result.skippedOverride} overrides, ${result.skippedPending} pending kept)`,
+          data: { ...result, counts },
+        };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "pipeline_start",
+    {
+      description: "Operator: launch company jobs for a sector's eligible companies only (review/pending never included).",
+      inputSchema: { sectorId: z.string().describe("Sector UUID") },
+    },
+    async ({ sectorId }) =>
+      wrap(async () => {
+        const result = await startPipeline(db, sectorId);
+        return { summary: `${result.created} jobs created (${result.skipped} already had one)`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_preflight_concurrency_get",
+    {
+      description: "Operator: read the sector-preflight pool size.",
+      inputSchema: {},
+    },
+    async () =>
+      wrap(async () => {
+        const settings = await sectorPreflightSettingsGet(db);
+        return { summary: `sectorPreflightConcurrency = ${settings.sectorPreflightConcurrency} (${settings.source})`, data: settings };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_preflight_concurrency_set",
+    {
+      description: "Operator: change the sector-preflight pool size at runtime (1..64, stored in the DB, immediate).",
+      inputSchema: { sectorPreflightConcurrency: z.number().int().describe("Max parallel classifications") },
+    },
+    async ({ sectorPreflightConcurrency: value }) =>
+      wrap(async () => {
+        const settings = await sectorPreflightSettingsSet(db, value);
+        return { summary: `sectorPreflightConcurrency -> ${settings.sectorPreflightConcurrency}`, data: settings };
       }),
   );
 }

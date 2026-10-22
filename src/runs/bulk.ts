@@ -61,7 +61,10 @@ export interface CollectSectorJobInput {
   budget?: JobBudget;
 }
 
-function checkBudget(budget: JobBudget | undefined): { maxTokens: number | null; maxHours: number | null } {
+export function checkBudget(budget: JobBudget | undefined): {
+  maxTokens: number | null;
+  maxHours: number | null;
+} {
   const maxTokens = budget?.maxTokens ?? null;
   const maxHours = budget?.maxHours ?? null;
   if (maxTokens !== null && (!Number.isInteger(maxTokens) || maxTokens < 1)) {
@@ -349,9 +352,11 @@ export async function jobPause(db: Db, jobId: string, reason = "paused by operat
 export async function jobResume(db: Db, jobId: string): Promise<BulkJob> {
   const job = await loadJob(db, jobId);
   if (job.status !== "paused") throw new DomainError("invalid_input", `job is ${job.status}, not paused`);
+  // An operator resume means "looked, carry on": reset the error tripwire so
+  // the next same-class failure does not re-pause immediately.
   const [updated] = await db
     .update(bulkJobs)
-    .set({ status: "running", pauseReason: null })
+    .set({ status: "running", pauseReason: null, errorStreak: 0, errorClass: null })
     .where(eq(bulkJobs.id, jobId))
     .returning();
   if (!updated) throw new DomainError("not_found", `job not found: ${jobId}`);
@@ -481,7 +486,7 @@ export function classifyRunError(run: ResearchRun): { errorClass: string; error:
   return { errorClass: "failed", error: text };
 }
 
-function usageInputTokens(run: ResearchRun): number {
+export function usageInputTokens(run: ResearchRun): number {
   const usage = run.agentUsage;
   if (!usage) return 0;
   return (usage.inputTokens ?? 0) + (usage.cachedTokens ?? 0);

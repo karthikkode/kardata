@@ -13,6 +13,23 @@ npm run db:migrate
 npm run dev            # health: GET /healthz
 ```
 Scripts: `dev` `build` `start` `lint` `typecheck` `test` `db:generate` `db:migrate` `smoke:real` `harness:setup`
+`mcp` calls one tool on a running server (`npm run mcp -- <tool> '<json>'`).
+
+## Run vs dev
+
+The pipeline runs ONLY from built code under the systemd unit, on the main
+DB (`kardata`), port 8787. Development and tests never touch it:
+
+- prod: `npm run build`, then the `kardata-server` service runs
+  `node dist/server.js` with `.env`. Deploying = build, then restart the
+  service deliberately when no research is mid-flight.
+- dev: `npm run dev` (tsx watch) with `.env.dev` (create it from
+  `.env.example`: `kardata_dev` DB, port 8788, own operator token).
+  `npm run dev:migrate` migrates `kardata_dev` (+ `kardata_test`).
+- tests use `kardata_test` in both files.
+
+All pipeline operations go through MCP tools (`npm run mcp -- …`, prod URL
+and token from `.env`); nothing runs ad-hoc against the database.
 
 ## Agent harness (app-owned Muse)
 

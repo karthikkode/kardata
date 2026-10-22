@@ -45,8 +45,19 @@ export interface ScreenOptions {
   criteria?: ScreenCriterion[];
   sort?: ScreenSort;
   limit?: number;
-  /** Fact criteria match only grounding-verified facts. Apollo field criteria are unaffected. */
+  /** Strict: fact criteria match only verified facts (default matches verified + doc_only + verified_value). */
   verifiedOnly?: boolean;
+  /** Show unverified and mismatched facts too (default false). Overrides verifiedOnly. */
+  includeUnverified?: boolean;
+}
+
+/** Which fact verdicts a factKey criterion (and its matched values) may see. */
+type FactVerificationFilter = "grounded" | "verified" | "all";
+
+function verificationFilterFor(options: Pick<ScreenOptions, "verifiedOnly" | "includeUnverified">): FactVerificationFilter {
+  if (options.includeUnverified) return "all";
+  if (options.verifiedOnly) return "verified";
+  return "grounded";
 }
 
 export interface ScreenItem extends CompanyListItem {
@@ -232,10 +243,11 @@ function factPredicate(
   op: ScreenOp,
   value: unknown,
   scalar: FactScalar | null,
-  verifiedOnly: boolean,
+  verification: FactVerificationFilter,
 ): SQL {
   const conds: SQL[] = [sql`fc.company_id = ${companyId}`, sql`fc.key = ${factKey}`];
-  if (verifiedOnly) conds.push(sql`fc.verification = 'verified'`);
+  if (verification === "verified") conds.push(sql`fc.verification = 'verified'`);
+  else if (verification === "grounded") conds.push(sql`fc.verification IN ('verified', 'doc_only', 'verified_value')`);
   if (Object.keys(qualifiers).length > 0) {
     conds.push(sql`fc.qualifiers @> ${JSON.stringify(qualifiers)}::jsonb`);
   }
@@ -265,7 +277,7 @@ function criterionPredicate(
   e: ReturnType<typeof effectiveCompanies>,
   criterion: ScreenCriterion,
   index: number,
-  verifiedOnly: boolean,
+  verification: FactVerificationFilter,
 ): SQL {
   const label = `criterion ${index}`;
   if (!isOp(criterion.op)) throw new DomainError("invalid_input", `${label}: unknown op ${String(criterion.op)}`);
@@ -294,7 +306,7 @@ function criterionPredicate(
     `${label} fact "${factKey}"`,
   );
   const scalar = checkFactValue(factKey, criterion.op, criterion.value);
-  return factPredicate(e.id as unknown as SQL, factKey, qualifiers, criterion.op, criterion.value, scalar, verifiedOnly);
+  return factPredicate(e.id as unknown as SQL, factKey, qualifiers, criterion.op, criterion.value, scalar, verification);
 }
 
 function factSortColumn(valueType: string, factKey: string): SQL {
@@ -422,9 +434,9 @@ export async function screenCompanies(
   }
 
   const e = effectiveCompanies(db);
-  const verifiedOnly = options.verifiedOnly ?? false;
+  const verification = verificationFilterFor(options);
   const conds: SQL[] = [eq(sectorCompanies.sectorId, sectorId), isNull(sectorCompanies.removedAt)];
-  criteria.forEach((criterion, index) => conds.push(criterionPredicate(e, criterion, index, verifiedOnly)));
+  criteria.forEach((criterion, index) => conds.push(criterionPredicate(e, criterion, index, verification)));
   const where = and(...conds);
   const orderBy = await sortOrderBy(db, e, options.sort);
 
@@ -484,7 +496,11 @@ export async function screenCompanies(
         and(
           inArray(factsCurrent.companyId, ids),
           inArray(factsCurrent.key, keys),
-          ...(verifiedOnly ? [eq(factsCurrent.verification, "verified" as const)] : []),
+          ...(verification === "all"
+            ? []
+            : verification === "verified"
+              ? [eq(factsCurrent.verification, "verified" as const)]
+              : [inArray(factsCurrent.verification, ["verified", "doc_only", "verified_value"])]),
         ),
       )
       .orderBy(desc(factsCurrent.createdAt), desc(factsCurrent.id));
@@ -572,7 +588,7 @@ export async function screenJobCompanyIds(
   }
   const e = effectiveCompanies(db);
   const conds: SQL[] = [eq(sectorCompanies.sectorId, sectorId), isNull(sectorCompanies.removedAt)];
-  criteria.forEach((criterion, index) => conds.push(criterionPredicate(e, criterion, index, false)));
+  criteria.forEach((criterion, index) => conds.push(criterionPredicate(e, criterion, index, "all")));
   const orderBy = await sortOrderBy(db, e, options.sort ?? { field: "employees", order: "desc" });
   const rows = await db
     .select({ id: e.id })

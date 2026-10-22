@@ -3,7 +3,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { rm, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
 import { recordEvent } from "../../src/collect/db.js";
 import { researchRuns } from "../../src/db/schema.js";
@@ -423,11 +423,53 @@ describe("context and dossier sizes", () => {
       status: "supported",
     });
 
-    const context = dataOf(await call("company_context", { companyId }));
+    const context = dataOf(await call("company_context", { companyId, includeUnverified: true }));
     const dossier = dataOf(await call("company_dossier", { companyId }));
     expect(JSON.stringify(context).length).toBeLessThan(10 * 1024);
     expect(JSON.stringify(dossier).length).toBeLessThan(10 * 1024);
     expect((context.facts as unknown[])).toHaveLength(2);
     expect(((dossier.findingCounts as { total: number }).total)).toBe(1);
+  });
+
+  it("company_context defaults to grounded rows unless includeUnverified", async () => {
+    const companyId = await makeCompany("Grounded Co");
+    const fetched = dataOf(await call("source_fetch", { companyId, url: `${site.baseUrl}/` }));
+    const sourceId = fetched.sourceId as string;
+    await call("fact_add", {
+      companyId,
+      facts: [
+        { key: "product.count", value: 12, sourceIds: [sourceId] },
+        { key: "hiring.open_roles", value: 4, sourceIds: [sourceId] },
+      ],
+    });
+    await call("record_upsert", {
+      companyId,
+      records: [{ type: "retailer", data: { name: "Boots" }, sourceIds: [sourceId] }],
+    });
+    await call("finding_add", {
+      companyId,
+      area: "product",
+      claim: "Small catalog",
+      sourceIds: [sourceId],
+      confidence: "medium",
+      status: "supported",
+    });
+
+    const bare = dataOf(await call("company_context", { companyId }));
+    expect((bare.facts as unknown[])).toHaveLength(0);
+    expect((bare.recordCounts as unknown[])).toHaveLength(0);
+    expect((bare.findings as unknown[])).toHaveLength(0);
+
+    await handle.db.execute(sql`UPDATE facts SET verification = 'verified' WHERE company_id = ${companyId}`);
+    await handle.db.execute(sql`UPDATE findings SET verification = 'doc_only' WHERE company_id = ${companyId}`);
+    const grounded = dataOf(await call("company_context", { companyId }));
+    expect((grounded.facts as unknown[])).toHaveLength(2);
+    expect((grounded.recordCounts as unknown[])).toHaveLength(0);
+    expect((grounded.findings as unknown[])).toHaveLength(1);
+
+    const all = dataOf(await call("company_context", { companyId, includeUnverified: true }));
+    expect((all.facts as unknown[])).toHaveLength(2);
+    expect((all.recordCounts as unknown[])).toHaveLength(1);
+    expect((all.findings as unknown[])).toHaveLength(1);
   });
 });

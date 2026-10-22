@@ -1,8 +1,11 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { Db } from "../db/client.js";
 import { toEffectiveCompany } from "../domain/companies.js";
+import { composeResearchBrief } from "../domain/company-jobs/brief.js";
 import { DomainError } from "../domain/errors.js";
+import { ADAPTERS } from "../collect/adapters.js";
 import type { PromptContext } from "./agent-runner.js";
 
 /** Versioned research prompts: v0 is one file; v1+ is main.md plus area briefs. */
@@ -161,4 +164,45 @@ export function buildResearchPrompt(ctx: PromptContext): string {
   assertPromptVersion(version);
   if (existsSync(join(promptsDir(), `research-${version}.md`))) return renderSingleFile(version, ctx);
   return renderVersioned(version, ctx);
+}
+
+/** Known collect adapters, one line each, for the preflight planner. */
+export function preflightAdapterList(): string[] {
+  return ADAPTERS.map((a) => `${a.id} (${a.blurb})`);
+}
+
+export function buildPreflightPrompt(ctx: PromptContext): string {
+  const template = readFileSync(join(promptsDir(), "preflight-v1.md"), "utf8");
+  return substitute(template, {
+    ...templateValues(ctx),
+    adapterList: preflightAdapterList()
+      .map((line) => `- ${line}`)
+      .join("\n"),
+  });
+}
+
+/** Stage-aware entry: preflight runs get the recon prompt, everything else researches. */
+export function buildStagePrompt(ctx: PromptContext): string {
+  if (ctx.run.stage === "preflight") return buildPreflightPrompt(ctx);
+  return buildResearchPrompt(ctx);
+}
+
+/**
+ * Dispatch entry: research subjobs get the pipeline context block
+ * (preflight + collect) appended. The brief must never block a launch:
+ * on any failure the base prompt goes out alone.
+ */
+export async function buildStagePromptForRun(db: Db, ctx: PromptContext): Promise<string> {
+  const base = buildStagePrompt(ctx);
+  if (ctx.run.stage !== "research" || !ctx.run.companyJobId) return base;
+  let brief: string | null = null;
+  try {
+    brief = await composeResearchBrief(db, ctx.run.companyJobId);
+  } catch (err) {
+    console.error(
+      `research brief failed for job ${ctx.run.companyJobId}: ${err instanceof Error ? err.message : err}`,
+    );
+  }
+  if (!brief) return base;
+  return `${base}\n\n${brief}\n`;
 }

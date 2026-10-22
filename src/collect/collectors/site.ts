@@ -1,6 +1,6 @@
 import { load } from "cheerio";
 import { getRobotsTxt, type FetchResult } from "../fetch.js";
-import type { AreaOutcome, Collector, CollectorCtx, FetchedPage, PageLink } from "./types.js";
+import type { AreaOutcome, Collector, CollectorCtx, CollectorResult, FetchedPage, PageLink } from "./types.js";
 import {
   collectFetch,
   fetchFailure,
@@ -186,13 +186,18 @@ export const siteCollector: Collector = {
             ? "error"
             : "not_found";
       const reason = `homepage ${message}`;
+      const outcomes = [
+        { area: "business_model", status, reason },
+        { area: "decisions", status, reason },
+        { area: "hiring", status, reason },
+      ] as CollectorResult["outcomes"];
+      // A bot wall is not fatal: the site exists, so Apollo facts still land
+      // and the research agent gets its chance with the browser fallback.
+      // Dead, erroring and robots-forbidden homepages still stop the run.
+      if (homeRes.source.status === "blocked") return { outcomes };
       return {
         fatal: `homepage fetch failed: ${homeRes.source.url} ${message}`,
-        outcomes: [
-          { area: "business_model", status, reason },
-          { area: "decisions", status, reason },
-          { area: "hiring", status, reason },
-        ],
+        outcomes,
       };
     }
     const homepage = toFetchedPage(

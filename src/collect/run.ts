@@ -1,13 +1,14 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "../db/client.js";
-import { companies, documents, researchRuns, type Area } from "../db/schema.js";
+import { companies, documents, researchRuns, type Area, type ResearchRun } from "../db/schema.js";
 import { toEffectiveCompany } from "../domain/companies.js";
+import { getPreflightReport } from "../domain/company-jobs/preflight.js";
 import { DomainError } from "../domain/errors.js";
 import { saveDocument } from "../domain/research/documents.js";
 import { setAreaStatus } from "../domain/research/status.js";
+import { ADAPTERS, resolvePlanAdapters, skippedOutcomes, type SourceAdapter } from "./adapters.js";
 import { recordEvent } from "./db.js";
 import { BudgetExceededError, CancelledError } from "./fetch.js";
-import { COLLECTORS } from "./collectors/index.js";
 import {
   DEFAULT_ENDPOINTS,
   type AreaOutcome,
@@ -25,12 +26,52 @@ export interface CollectRunResult {
   runId: string;
   status: "succeeded" | "partial" | "failed" | "cancelled";
   outcomes: AreaOutcome[];
+  /** Adapter ids attempted, in run order. */
+  adapters: string[];
+  /** Adapters skipped by detect(), with reasons. */
+  skippedAdapters: { id: string; reason: string }[];
+  /** Plan ids no adapter covers (company jobs pause on these before starting; recorded here defensively). */
+  unknownAdapters: string[];
+}
+
+export interface RunAdapters {
+  adapters: SourceAdapter[];
+  unknown: string[];
+  /** True when a preflight plan selected the adapters. */
+  planned: boolean;
+}
+
+/**
+ * Which adapters a run executes. Company collect subjobs run exactly their
+ * preflight plan; everything else runs all adapters (area filter applies).
+ */
+export async function resolveRunAdapters(db: Db, run: ResearchRun): Promise<RunAdapters> {
+  if (!run.companyJobId || run.stage !== "collect") {
+    return { adapters: [...ADAPTERS], unknown: [], planned: false };
+  }
+  const report = await getPreflightReport(db, run.companyJobId);
+  const raw = (report?.report as { adaptersRequired?: unknown } | null)?.adaptersRequired;
+  const ids = Array.isArray(raw)
+    ? raw
+        .map((entry) =>
+          typeof entry === "object" && entry !== null && typeof (entry as { adapterId?: unknown }).adapterId === "string"
+            ? ((entry as { adapterId: string }).adapterId)
+            : "",
+        )
+        .filter((id) => id !== "")
+    : null;
+  if (ids === null) {
+    await recordEvent(db, run.id, "log", { adapter_plan_missing: true });
+    return { adapters: [...ADAPTERS], unknown: [], planned: false };
+  }
+  const { adapters, unknown } = resolvePlanAdapters(ids);
+  return { adapters, unknown, planned: true };
 }
 
 export async function executeCollectRun(
   db: Db,
   runId: string,
-  opts: CollectorOptions & { keepOpen?: boolean } = {},
+  opts: CollectorOptions & { keepOpen?: boolean; adapters?: SourceAdapter[] } = {},
 ): Promise<CollectRunResult> {
   const [run] = await db.select().from(researchRuns).where(eq(researchRuns.id, runId));
   if (!run) throw new DomainError("not_found", `run not found: ${runId}`);
@@ -50,9 +91,10 @@ export async function executeCollectRun(
   };
 
   const requested = run.requestedAreas;
-  const wanted = (collector: (typeof COLLECTORS)[number]): boolean =>
-    !requested || requested.length === 0 || collector.areas.some((a) => requested.includes(a));
-  const active = COLLECTORS.filter(wanted);
+  const resolved = opts.adapters ? { adapters: opts.adapters, unknown: [], planned: false } : await resolveRunAdapters(db, run);
+  const wanted = (adapter: SourceAdapter): boolean =>
+    !requested || requested.length === 0 || adapter.areas.some((a) => requested.includes(a));
+  const active = resolved.adapters.filter(wanted);
 
   await db
     .update(researchRuns)
@@ -60,9 +102,10 @@ export async function executeCollectRun(
     .where(eq(researchRuns.id, runId));
 
   const collected: AreaOutcome[] = [];
+  const skippedAdapters: { id: string; reason: string }[] = [];
   let fatal: string | null = null;
   let cancelled = false;
-  for (const collector of active) {
+  for (const adapter of active) {
     const [fresh] = await db
       .select({ status: researchRuns.status })
       .from(researchRuns)
@@ -71,33 +114,52 @@ export async function executeCollectRun(
       cancelled = true;
       break;
     }
-    await recordEvent(db, runId, "collector_start", { collector: collector.name });
+    await recordEvent(db, runId, "collector_start", { collector: adapter.id, version: adapter.version });
+    if (adapter.detect) {
+      const detected = await adapter.detect(ctx);
+      if (!detected.applies) {
+        const reason = detected.reason ?? "not applicable";
+        collected.push(...skippedOutcomes(adapter, reason));
+        skippedAdapters.push({ id: adapter.id, reason });
+        await recordEvent(db, runId, "collector_end", {
+          collector: adapter.id,
+          version: adapter.version,
+          outcomes: adapter.areas.map((a) => `${a}:not_found`),
+          skipped: true,
+          reason,
+        });
+        continue;
+      }
+    }
     try {
-      const result = await collector.run(ctx);
+      const result = await adapter.collect(ctx);
       collected.push(...result.outcomes);
       if (result.fatal && !fatal) fatal = result.fatal;
       await recordEvent(db, runId, "collector_end", {
-        collector: collector.name,
+        collector: adapter.id,
+        version: adapter.version,
         outcomes: result.outcomes.map((o) => `${o.area}:${o.status}`),
       });
     } catch (err) {
       if (err instanceof CancelledError) {
         cancelled = true;
         await recordEvent(db, runId, "collector_end", {
-          collector: collector.name,
+          collector: adapter.id,
+          version: adapter.version,
           outcomes: [],
           cancelled: true,
         });
         break;
       }
       const message = err instanceof Error ? err.message : String(err);
-      await recordEvent(db, runId, "error", { collector: collector.name, message });
-      for (const area of collector.areas) {
+      await recordEvent(db, runId, "error", { collector: adapter.id, message });
+      for (const area of adapter.areas) {
         collected.push({ area, status: "error", reason: message });
       }
       await recordEvent(db, runId, "collector_end", {
-        collector: collector.name,
-        outcomes: collector.areas.map((a) => `${a}:error`),
+        collector: adapter.id,
+        version: adapter.version,
+        outcomes: adapter.areas.map((a) => `${a}:error`),
       });
       if (err instanceof BudgetExceededError) {
         const covered = new Set(collected.map((o) => o.area));
@@ -147,7 +209,14 @@ export async function executeCollectRun(
       .set({ status, finishedAt: new Date(), error: fatal })
       .where(eq(researchRuns.id, runId));
   }
-  return { runId, status, outcomes };
+  return {
+    runId,
+    status,
+    outcomes,
+    adapters: active.map((a) => a.id),
+    skippedAdapters,
+    unknownAdapters: resolved.unknown,
+  };
 }
 
 function mergeOutcomes(collected: AreaOutcome[]): AreaOutcome[] {

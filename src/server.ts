@@ -6,17 +6,19 @@ import { sql } from "drizzle-orm";
 import { createDb, type Db } from "./db/client.js";
 import { createAgentRunner } from "./runs/agent-runner.js";
 import { createJobRunner, realJobDeps } from "./runs/bulk.js";
-import { buildResearchPrompt } from "./runs/prompt.js";
+import { createCompanyRunner, realCompanyDeps } from "./runs/company.js";
+import { buildStagePromptForRun } from "./runs/prompt.js";
 import {
   AGENTS_GATEWAY,
   checkAppMuseVersion,
   probeInstalledMuseVersion,
 } from "./harness/setup.js";
-import { loadDotenv, requireEnv } from "./lib/env.js";
+import { loadAppEnv, requireEnv } from "./lib/env.js";
 import { OPERATOR_AUTH, type AuthContext } from "./mcp/auth.js";
 import { createMcpServer } from "./mcp/server.js";
 import { authenticateRunToken } from "./runs/tokens.js";
 import { createRunner } from "./runs/runner.js";
+import { createSectorRunner } from "./runs/sector.js";
 
 export interface ServerHandle {
   url: string;
@@ -194,7 +196,7 @@ async function handleMcp(
 }
 
 async function main(): Promise<void> {
-  loadDotenv();
+  loadAppEnv();
   const host = process.env.HOST ?? "127.0.0.1";
   const port = Number(process.env.PORT ?? "8787");
   const museVersion = checkAppMuseVersion(
@@ -228,7 +230,7 @@ async function main(): Promise<void> {
   }
   const agentRunner = createAgentRunner(db, {
     mcpUrl: `http://${AGENTS_GATEWAY}:${serverPort}/mcp`,
-    buildPrompt: buildResearchPrompt,
+    buildPrompt: (ctx) => buildStagePromptForRun(db, ctx),
   });
   // Agent recovery first: it stops orphaned containers and revokes their
   // tokens before the collect runner fails leftover running rows.
@@ -236,8 +238,14 @@ async function main(): Promise<void> {
   await runner.start();
   const jobRunner = createJobRunner(db, realJobDeps(db));
   await jobRunner.start();
+  const companyRunner = createCompanyRunner(db, realCompanyDeps(db));
+  await companyRunner.start();
+  const sectorRunner = createSectorRunner(db, {});
+  await sectorRunner.start();
   process.on("SIGTERM", () => {
     void (async () => {
+      await sectorRunner.stop();
+      await companyRunner.stop();
       await jobRunner.stop();
       await agentRunner.stop();
       await runner.stop();

@@ -46,6 +46,8 @@ function factJson(overrides: Record<string, unknown> = {}): Record<string, unkno
     source_ids: [SID_A],
     confidence: "high",
     note: null,
+    quote: "quoted spend span",
+    quote_source_id: SID_A,
     ...overrides,
   };
 }
@@ -58,6 +60,8 @@ function findingJson(overrides: Record<string, unknown> = {}): Record<string, un
     record_refs: null,
     confidence: "medium",
     status: "supported",
+    quote: "quoted finding span",
+    quote_source_id: SID_A,
     ...overrides,
   };
 }
@@ -88,6 +92,8 @@ describe("validateExtractionJson", () => {
             type: "ad_creative",
             data: JSON.stringify({ headline: "Glow", url: "https://x.example/a" }),
             source_ids: [SID_B],
+            quote: "",
+            quote_source_id: "",
           },
         ],
         findings: [findingJson({ detail: "spend rising", record_refs: [0] })],
@@ -119,12 +125,16 @@ describe("validateExtractionJson", () => {
             data: JSON.stringify({ name: "Club", url: "https://x.example/c" }),
             source_ids: [SID_A],
             natural_key: ["name", "club-slug"],
+            quote: "",
+            quote_source_id: "",
           },
           {
             type: "program",
             data: JSON.stringify({ name: "Other" }),
             source_ids: [SID_A],
             natural_key: ["other-slug"],
+            quote: "",
+            quote_source_id: "",
           },
         ],
       }),
@@ -145,6 +155,8 @@ describe("validateExtractionJson", () => {
             type: "ad_creative",
             data: JSON.stringify({ a: 1 }),
             source_ids: [randomUUID()],
+            quote: "",
+            quote_source_id: "",
           },
         ],
         findings: [findingJson({ source_ids: [randomUUID()] })],
@@ -155,6 +167,26 @@ describe("validateExtractionJson", () => {
     expect(validated.findings).toHaveLength(0);
     expect(validated.droppedOutOfList).toBe(3);
     expect(validated.droppedInvalid).toBe(0);
+  });
+
+  it("passes quotes through and drops invented quote ids", () => {
+    const validated = validateExtractionJson(
+      "marketing",
+      ALLOWED,
+      extractionJson({
+        facts: [
+          factJson({ quote: "spend was $1,200", quote_source_id: SID_A }),
+          factJson({ key: "marketing.other", quote: "x", quote_source_id: randomUUID() }),
+          factJson({ key: "marketing.bare", quote: "", quote_source_id: "" }),
+        ],
+      }),
+    );
+    expect(validated.droppedOutOfList).toBe(1);
+    expect(validated.droppedInvalid).toBe(0);
+    expect(validated.facts).toHaveLength(2);
+    expect(validated.facts[0]).toMatchObject({ quote: "spend was $1,200", quoteSourceId: SID_A });
+    expect(validated.facts[1]).not.toHaveProperty("quote");
+    expect(validated.facts[1]).not.toHaveProperty("quoteSourceId");
   });
 
   it("drops malformed items and malformed envelopes", () => {
@@ -168,8 +200,8 @@ describe("validateExtractionJson", () => {
           factJson({ key: "no.sources", source_ids: [] }),
         ],
         records: [
-          { type: "ad_creative", data: "[1,2]", source_ids: [SID_A] },
-          { type: "", data: JSON.stringify({ a: 1 }), source_ids: [SID_A] },
+          { type: "ad_creative", data: "[1,2]", source_ids: [SID_A], quote: "", quote_source_id: "" },
+          { type: "", data: JSON.stringify({ a: 1 }), source_ids: [SID_A], quote: "", quote_source_id: "" },
         ],
         findings: [findingJson({ claim: "" })],
       }),
@@ -293,6 +325,8 @@ function marketingOutput(sourceId: string): Record<string, unknown> {
         source_ids: [sourceId],
         confidence: "high",
         note: null,
+        quote: "TikTok ads live",
+        quote_source_id: sourceId,
       },
     ],
     records: [
@@ -300,6 +334,8 @@ function marketingOutput(sourceId: string): Record<string, unknown> {
         type: "test_ad",
         data: JSON.stringify({ headline: "Glow" }),
         source_ids: [sourceId],
+        quote: "Hero SKU is Glow Cream",
+        quote_source_id: sourceId,
       },
     ],
     findings: [
@@ -310,6 +346,8 @@ function marketingOutput(sourceId: string): Record<string, unknown> {
         record_refs: [0, 7],
         confidence: "medium",
         status: "supported",
+        quote: "Paid mix is TikTok-first",
+        quote_source_id: sourceId,
       },
     ],
   };
@@ -354,10 +392,17 @@ describe("runExtraction with a fake harness", () => {
     expect(call.calls).toHaveLength(8);
 
     const factRows = await handle.db
-      .select({ key: facts.key, createdBy: facts.createdBy })
+      .select({ key: facts.key, createdBy: facts.createdBy, quote: facts.quote, quoteSourceId: facts.quoteSourceId })
       .from(facts)
       .where(eq(facts.runId, run.id));
-    expect(factRows).toEqual([{ key: "marketing.channel_active", createdBy: "extractor:marketing" }]);
+    expect(factRows).toEqual([
+      {
+        key: "marketing.channel_active",
+        createdBy: "extractor:marketing",
+        quote: "TikTok ads live",
+        quoteSourceId: sourceId,
+      },
+    ]);
 
     const card = await scorecard(handle.db, { runIds: [run.id] });
     const scored = card.runs[0];

@@ -1,0 +1,753 @@
+import { randomUUID } from "node:crypto";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import type { Db } from "../db/client.js";
+import {
+  companies,
+  companyJobs,
+  jobEvents,
+  researchRuns,
+  type CompanyJob,
+  type ResearchRun,
+} from "../db/schema.js";
+import {
+  describeCompanyJob,
+  isStageComplete,
+  isTerminalSubjob,
+  type CompanyDerived,
+  type CompanyStage,
+} from "../domain/company-jobs/status.js";
+import { checkPreflightGate, getPreflightSummary } from "../domain/company-jobs/preflight.js";
+import { logJobEvent } from "../domain/company-jobs/events.js";
+import { DomainError, isUniqueViolation } from "../domain/errors.js";
+import { resolvePlanAdapters } from "../collect/adapters.js";
+import { researchStart } from "./agent.js";
+import {
+  JOB_SAME_ERROR_PAUSE,
+  checkBudget,
+  classifyRunError,
+  usageInputTokens,
+  type JobBudget,
+} from "./bulk.js";
+import { extractRun } from "./extract.js";
+import { latestPromptVersion } from "./prompt.js";
+import { cancelRun, startCollect } from "./queue.js";
+import { collectConcurrency } from "./runner.js";
+import {
+  checkpointGet,
+  effectiveCompanyConcurrency,
+  effectiveMaxAgents,
+  pipelinePausedGet,
+  tripPipelinePause,
+  type PipelinePausedView,
+} from "./settings.js";
+
+/**
+ * Company jobs (Stage 5): one job per company runs the whole pipeline
+ * (preflight → collect → research → extraction) as subjobs. The worker below
+ * is the stage machine plus the company-slot feeder; the existing engines
+ * (collect runner, agent runner) execute collect/research subjobs, and the
+ * worker drives extraction inline. Mirrors bulk.ts patterns.
+ */
+
+const COMPANY_POLL_MS = 15_000;
+const COMPANY_LIST_DEFAULT_LIMIT = 20;
+const AGENT_STAGES: readonly CompanyStage[] = ["preflight", "research"];
+/** First consecutive failure in these classes requeues the stage instead of parking the job. */
+const TRANSIENT_AUTO_RETRY = new Set(["stall", "usage_limit"]);
+
+export interface StartCompanyJobInput {
+  companyId: string;
+  budget?: JobBudget;
+  /** Create the job queued (the worker promotes it at company concurrency) instead of running. */
+  queued?: boolean;
+}
+
+export async function startCompanyJob(db: Db, input: StartCompanyJobInput): Promise<{ jobId: string }> {
+  const [company] = await db
+    .select({ id: companies.id })
+    .from(companies)
+    .where(eq(companies.id, input.companyId));
+  if (!company) throw new DomainError("not_found", `company not found: ${input.companyId}`);
+  const { maxTokens, maxHours } = checkBudget(input.budget);
+  const jobId = randomUUID();
+  try {
+    await db.insert(companyJobs).values({
+      id: jobId,
+      companyId: input.companyId,
+      status: input.queued ? "queued" : "running",
+      maxInputTokens: maxTokens,
+      maxHours,
+    });
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err;
+    throw new DomainError("conflict", "company already has an active job");
+  }
+  await logJobEvent(db, jobId, "job_started");
+  return { jobId };
+}
+
+export interface CompanyStageView {
+  stage: CompanyStage;
+  status: ResearchRun["status"] | null;
+  runId: string | null;
+  attempts: number;
+  error: string | null;
+  startedAt: Date | null;
+  finishedAt: Date | null;
+  durationMs: number | null;
+}
+
+export interface CompanyStatusView {
+  job: CompanyJob;
+  companyName: string;
+  derived: CompanyDerived;
+  nextStage: CompanyStage | null;
+  stages: CompanyStageView[];
+  active: { stage: CompanyStage; runId: string; status: ResearchRun["status"]; startedAt: Date | null } | null;
+  tokensSpent: number;
+  etaSec: number | null;
+  preflightReport: { version: number; confidence: number } | null;
+}
+
+function stageDurationMs(run: ResearchRun): number | null {
+  if (!run.startedAt || !run.finishedAt) return null;
+  return Math.max(0, run.finishedAt.getTime() - run.startedAt.getTime());
+}
+
+export async function companyJobStatus(db: Db, jobId: string): Promise<CompanyStatusView> {
+  const desc = await describeCompanyJob(db, jobId);
+  const [company] = await db
+    .select({ name: companies.name })
+    .from(companies)
+    .where(eq(companies.id, desc.job.companyId));
+  const rows = await db.select().from(researchRuns).where(eq(researchRuns.companyJobId, jobId));
+  const attempts = new Map<CompanyStage, number>();
+  for (const row of rows) {
+    if (row.stage === null) continue;
+    attempts.set(row.stage as CompanyStage, (attempts.get(row.stage as CompanyStage) ?? 0) + 1);
+  }
+  const stages: CompanyStageView[] = desc.stages.map((s) => ({
+    stage: s.stage,
+    status: s.run?.status ?? null,
+    runId: s.run?.id ?? null,
+    attempts: attempts.get(s.stage) ?? 0,
+    error: s.run?.error ?? null,
+    startedAt: s.run?.startedAt ?? null,
+    finishedAt: s.run?.finishedAt ?? null,
+    durationMs: s.run ? stageDurationMs(s.run) : null,
+  }));
+  const activeState = desc.stages.find((s) => s.run && !isTerminalSubjob(s.run.status));
+  const preflightReport = await getPreflightSummary(db, jobId);
+  const durations = stages.map((s) => s.durationMs).filter((d): d is number => d !== null && d > 0);
+  const remaining = stages.filter((s) => s.status === null || !isTerminalSubjob(s.status)).length;
+  const etaSec =
+    desc.derived !== "incomplete" || durations.length === 0 || remaining === 0
+      ? 0
+      : Math.ceil(((durations.reduce((a, b) => a + b, 0) / durations.length) * remaining) / 1000);
+  return {
+    job: desc.job,
+    companyName: company?.name ?? desc.job.companyId,
+    derived: desc.derived,
+    nextStage: desc.nextStage,
+    stages,
+    active:
+      activeState?.run === undefined || activeState.run === null
+        ? null
+        : {
+            stage: activeState.stage,
+            runId: activeState.run.id,
+            status: activeState.run.status,
+            startedAt: activeState.run.startedAt,
+          },
+    tokensSpent: desc.job.inputTokensSpent,
+    etaSec,
+    preflightReport,
+  };
+}
+
+export interface PipelineStatusView {
+  counts: Record<string, number>;
+  completed: number;
+  checkpointTarget: number | null;
+  paused: PipelinePausedView;
+  /**
+   * Subscription quota snapshot. Always null: app Muse 1.4.11 exposes no
+   * subscription surface (no CLI command, session record, local state, or
+   * binary strings for it) — see the checkpoint report.
+   */
+  quota: null;
+}
+
+export async function pipelineStatus(db: Db): Promise<PipelineStatusView> {
+  const rows = await db
+    .select({ status: companyJobs.status, n: sql<number>`count(*)` })
+    .from(companyJobs)
+    .groupBy(companyJobs.status);
+  const counts: Record<string, number> = {};
+  for (const row of rows) counts[row.status] = Number(row.n);
+  const [checkpoint, paused] = await Promise.all([checkpointGet(db), pipelinePausedGet(db)]);
+  return {
+    counts,
+    completed: counts.completed ?? 0,
+    checkpointTarget: checkpoint.target,
+    paused,
+    quota: null,
+  };
+}
+
+export interface CompanyListEntry {
+  job: CompanyJob;
+  derived: CompanyDerived;
+}
+
+export async function companyJobList(
+  db: Db,
+  limit = COMPANY_LIST_DEFAULT_LIMIT,
+  status?: CompanyJob["status"],
+): Promise<CompanyListEntry[]> {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    throw new DomainError("invalid_input", "limit must be 1..100");
+  }
+  const jobs = await db
+    .select()
+    .from(companyJobs)
+    .where(status === undefined ? undefined : eq(companyJobs.status, status))
+    .orderBy(desc(companyJobs.createdAt))
+    .limit(limit);
+  const entries: CompanyListEntry[] = [];
+  for (const job of jobs) {
+    const desc = await describeCompanyJob(db, job.id);
+    entries.push({ job, derived: desc.derived });
+  }
+  return entries;
+}
+
+async function loadCompanyJob(db: Db, jobId: string): Promise<CompanyJob> {
+  const [job] = await db.select().from(companyJobs).where(eq(companyJobs.id, jobId));
+  if (!job) throw new DomainError("not_found", `company job not found: ${jobId}`);
+  return job;
+}
+
+export async function companyJobPause(
+  db: Db,
+  jobId: string,
+  reason = "paused by operator",
+): Promise<CompanyJob> {
+  const job = await loadCompanyJob(db, jobId);
+  if (job.status !== "running") throw new DomainError("invalid_input", `job is ${job.status}, not running`);
+  const [updated] = await db
+    .update(companyJobs)
+    .set({ status: "paused", pauseReason: reason })
+    .where(eq(companyJobs.id, jobId))
+    .returning();
+  if (!updated) throw new DomainError("not_found", `company job not found: ${jobId}`);
+  await logJobEvent(db, jobId, "job_paused", null, { reason });
+  return updated;
+}
+
+export type BeginStageOutcome = { runId: string } | { busy: true };
+
+/**
+ * Create the subjob row for a stage. preflight/collect/research rows are
+ * executed by the existing engines; extraction rows are worker-driven.
+ */
+export async function beginStageReal(db: Db, job: CompanyJob, stage: CompanyStage): Promise<BeginStageOutcome> {
+  if (stage === "extraction") {
+    try {
+      const [row] = await db
+        .insert(researchRuns)
+        .values({
+          id: randomUUID(),
+          companyId: job.companyId,
+          kind: "agent",
+          status: "running",
+          startedAt: new Date(),
+          companyJobId: job.id,
+          stage,
+        })
+        .returning({ id: researchRuns.id });
+      if (!row) throw new Error("extraction subjob insert returned no row");
+      return { runId: row.id };
+    } catch (err) {
+      if (!isUniqueViolation(err)) throw err;
+      return { busy: true };
+    }
+  }
+  if (stage === "collect") {
+    const result = await startCollect(db, [job.companyId], undefined, { companyJobId: job.id, stage });
+    const entry = result.runs[0];
+    if (!entry || entry.status === "already_running") return { busy: true };
+    return { runId: entry.runId };
+  }
+  // Preflight is recon, not research: a short leash.
+  const agentOpts =
+    stage === "preflight" ? { maxMinutes: 15, maxModelSteps: 30 } : { maxMinutes: 40, maxModelSteps: 100 };
+  const result = await researchStart(db, {
+    companyIds: [job.companyId],
+    promptVersion: latestPromptVersion(),
+    companyJobId: job.id,
+    stage,
+    ...agentOpts,
+  });
+  const entry = result.runs[0];
+  if (!entry || entry.status === "already_running") return { busy: true };
+  return { runId: entry.runId };
+}
+
+/** Fresh subjob for the earliest incomplete stage (retry semantics). */
+async function retryStage(db: Db, job: CompanyJob): Promise<CompanyStage> {
+  const desc = await describeCompanyJob(db, job.id);
+  const target = desc.nextStage;
+  if (!target) throw new DomainError("invalid_input", "job is complete, nothing to retry");
+  const latest = desc.stages.find((s) => s.stage === target)?.run ?? null;
+  if (latest && !isTerminalSubjob(latest.status)) {
+    throw new DomainError("invalid_input", `stage ${target} is still ${latest.status}`);
+  }
+  const outcome = await beginStageReal(db, job, target);
+  if ("busy" in outcome) throw new DomainError("conflict", "company slot is busy, retry later");
+  await db.update(companyJobs).set({ currentStage: target }).where(eq(companyJobs.id, job.id));
+  await logJobEvent(db, job.id, "stage_started", target, { runId: outcome.runId, retry: true });
+  return target;
+}
+
+export async function companyJobResume(db: Db, jobId: string): Promise<CompanyJob> {
+  const job = await loadCompanyJob(db, jobId);
+  if (job.status !== "paused") throw new DomainError("invalid_input", `job is ${job.status}, not paused`);
+  // Resume means "looked, carry on": a failed stage is retried as part of it.
+  const desc = await describeCompanyJob(db, jobId);
+  if (desc.derived === "failed") await retryStage(db, job);
+  const [updated] = await db
+    .update(companyJobs)
+    .set({ status: "running", pauseReason: null, errorStreak: 0, errorClass: null })
+    .where(eq(companyJobs.id, jobId))
+    .returning();
+  if (!updated) throw new DomainError("not_found", `company job not found: ${jobId}`);
+  await logJobEvent(db, jobId, "job_resumed");
+  return updated;
+}
+
+/**
+ * Cancel every queued company job with a reason (Stage 5.1 Step 0: the
+ * sector pass supersedes the migrated batch). Queued jobs never hold active
+ * subjobs, so no runs need stopping. Returns the cancelled count.
+ */
+export async function supersedeQueuedJobs(db: Db, reason: string): Promise<{ cancelled: number }> {
+  const queued = await db.select({ id: companyJobs.id }).from(companyJobs).where(eq(companyJobs.status, "queued"));
+  const finishedAt = new Date();
+  for (const job of queued) {
+    await db
+      .update(companyJobs)
+      .set({ status: "cancelled", finishedAt })
+      .where(and(eq(companyJobs.id, job.id), eq(companyJobs.status, "queued")));
+    await logJobEvent(db, job.id, "job_cancelled", null, { reason: reason.slice(0, 500) });
+  }
+  return { cancelled: queued.length };
+}
+
+export async function companyJobRetry(db: Db, jobId: string): Promise<{ job: CompanyJob; stage: CompanyStage }> {
+  const job = await loadCompanyJob(db, jobId);
+  if (job.status === "completed" || job.status === "cancelled" || job.status === "queued") {
+    throw new DomainError("invalid_input", `job is ${job.status}`);
+  }
+  if (job.status === "running") throw new DomainError("invalid_input", "job is running, nothing to retry");
+  const desc = await describeCompanyJob(db, jobId);
+  if (desc.derived !== "failed") {
+    throw new DomainError("invalid_input", "no failed stage; resume the job instead");
+  }
+  const stage = await retryStage(db, job);
+  // The streak survives a retry: three strikes on one company trip the pause.
+  // Only a resume ("looked, carry on") resets the tripwire.
+  const [updated] = await db
+    .update(companyJobs)
+    .set({ status: "running", pauseReason: null, finishedAt: null })
+    .where(eq(companyJobs.id, jobId))
+    .returning();
+  if (!updated) throw new DomainError("not_found", `company job not found: ${jobId}`);
+  await logJobEvent(db, jobId, "job_retried", stage);
+  return { job: updated, stage };
+}
+
+export interface CompanyCancelInput {
+  /** Cancel the active subjob too (default true); false lets it finish. */
+  stopRunning?: boolean;
+}
+
+export async function companyJobCancel(
+  db: Db,
+  jobId: string,
+  input: CompanyCancelInput = {},
+  cancelRunFn: (runId: string) => Promise<unknown> = (runId) => cancelRun(db, runId),
+): Promise<CompanyJob> {
+  const job = await loadCompanyJob(db, jobId);
+  if (job.status === "completed" || job.status === "cancelled") {
+    throw new DomainError("invalid_input", `job is ${job.status}`);
+  }
+  if (input.stopRunning ?? true) {
+    const desc = await describeCompanyJob(db, jobId);
+    const active = desc.stages.find((s) => s.run && !isTerminalSubjob(s.run.status));
+    if (active?.run) await cancelRunFn(active.run.id).catch(() => undefined);
+  }
+  const [updated] = await db
+    .update(companyJobs)
+    .set({ status: "cancelled", finishedAt: new Date() })
+    .where(eq(companyJobs.id, jobId))
+    .returning();
+  if (!updated) throw new DomainError("not_found", `company job not found: ${jobId}`);
+  await logJobEvent(db, jobId, "job_cancelled");
+  return updated;
+}
+
+// ---- Worker ----
+
+export interface EngineLoad {
+  active: number;
+  max: number;
+}
+
+export interface CompanyRunnerDeps {
+  pollMs?: number;
+  clock?: () => number;
+  /** Test override for company slots (else the live setting). */
+  companyMax?: number;
+  beginStage?: (job: CompanyJob, stage: CompanyStage) => Promise<BeginStageOutcome>;
+  runExtraction?: (job: CompanyJob, researchRunId: string) => Promise<void>;
+  agentLoad?: () => Promise<EngineLoad>;
+  collectLoad?: () => Promise<EngineLoad>;
+}
+
+export interface CompanyRunner {
+  start: () => Promise<void>;
+  stop: () => Promise<void>;
+  tick: () => Promise<void>;
+}
+
+export function realCompanyDeps(db: Db): Pick<CompanyRunnerDeps, "beginStage" | "runExtraction"> {
+  return {
+    beginStage: (job, stage) => beginStageReal(db, job, stage),
+    runExtraction: (_job, researchRunId) => extractRun(db, researchRunId).then(() => undefined),
+  };
+}
+
+async function countActiveRuns(db: Db, kind: "agent" | "collect"): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)` })
+    .from(researchRuns)
+    .where(and(eq(researchRuns.kind, kind), sql`${researchRuns.status} IN ('queued', 'running')`));
+  return Number(row?.n ?? 0);
+}
+
+export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRunner {
+  const pollMs = deps.pollMs ?? COMPANY_POLL_MS;
+  const clock = deps.clock ?? Date.now;
+  const beginStage = deps.beginStage ?? ((job, stage) => beginStageReal(db, job, stage));
+  const runExtraction = deps.runExtraction ?? ((_job, researchRunId) => extractRun(db, researchRunId).then(() => undefined));
+  const agentLoad =
+    deps.agentLoad ??
+    (async () => ({ active: await countActiveRuns(db, "agent"), max: await effectiveMaxAgents(db) }));
+  const collectLoad =
+    deps.collectLoad ?? (async () => ({ active: await countActiveRuns(db, "collect"), max: collectConcurrency() }));
+  let timer: ReturnType<typeof setInterval> | null = null;
+  let ticking = false;
+
+  /** Reconcile spent tokens to the sum of latest-subjob usage (extraction merges into the research row). */
+  async function spendReconcile(job: CompanyJob): Promise<void> {
+    const desc = await describeCompanyJob(db, job.id);
+    const total = desc.stages.reduce((sum, s) => sum + (s.run ? usageInputTokens(s.run) : 0), 0);
+    const spend = Math.max(0, total - job.inputTokensSpent);
+    if (spend <= 0) return;
+    await db
+      .update(companyJobs)
+      .set({ inputTokensSpent: sql`${companyJobs.inputTokensSpent} + ${spend}` })
+      .where(eq(companyJobs.id, job.id));
+  }
+
+  async function failStage(
+    job: CompanyJob,
+    stage: CompanyStage,
+    errorClass: string,
+    error: string,
+  ): Promise<CompanyJob> {
+    await spendReconcile(job);
+    const streak = job.errorClass === errorClass ? job.errorStreak + 1 : 1;
+    const patch: Partial<CompanyJob> = { errorStreak: streak, errorClass };
+    // First consecutive transient failure requeues instead of parking:
+    // API-side flakiness (stalls, 429s) succeeds on retry. Anything else,
+    // or a second consecutive transient, parks for a human. server_stopped
+    // deliberately never auto-retries (a crash loop must not respawn work).
+    const autoRetry =
+      job.status === "running" && TRANSIENT_AUTO_RETRY.has(errorClass) && streak < 2;
+    if (job.status === "running") {
+      if (streak >= JOB_SAME_ERROR_PAUSE) {
+        patch.status = "paused";
+        patch.pauseReason = `${streak} consecutive ${errorClass} failures: ${error.slice(0, 300)}`;
+      } else if (!autoRetry) {
+        patch.status = "failed";
+      }
+    }
+    const [updated] = await db.update(companyJobs).set(patch).where(eq(companyJobs.id, job.id)).returning();
+    if (!updated) throw new DomainError("not_found", `company job not found: ${job.id}`);
+    await logJobEvent(db, job.id, "stage_failed", stage, { errorClass, error: error.slice(0, 300) });
+    if (autoRetry && updated.status === "running") {
+      try {
+        await retryStage(db, updated);
+      } catch {
+        const [parked] = await db
+          .update(companyJobs)
+          .set({ status: "failed" })
+          .where(eq(companyJobs.id, job.id))
+          .returning();
+        if (!parked) throw new DomainError("not_found", `company job not found: ${job.id}`);
+        return parked;
+      }
+    }
+    return updated;
+  }
+
+  async function completeJob(job: CompanyJob): Promise<void> {
+    await spendReconcile(job);
+    await db
+      .update(companyJobs)
+      .set({ status: "completed", finishedAt: new Date(clock()) })
+      .where(eq(companyJobs.id, job.id));
+    await logJobEvent(db, job.id, "job_completed");
+  }
+
+  async function budgetPause(job: CompanyJob): Promise<CompanyJob | null> {
+    const [fresh] = await db
+      .select({ inputTokensSpent: companyJobs.inputTokensSpent })
+      .from(companyJobs)
+      .where(eq(companyJobs.id, job.id));
+    if (job.maxInputTokens !== null && (fresh?.inputTokensSpent ?? 0) >= job.maxInputTokens) {
+      return companyJobPause(db, job.id, `budget: maxTokens ${job.maxInputTokens} reached`);
+    }
+    if (job.maxHours !== null && clock() - job.createdAt.getTime() >= job.maxHours * 3600_000) {
+      return companyJobPause(db, job.id, `budget: maxHours ${job.maxHours} reached`);
+    }
+    return null;
+  }
+
+  /** Drive one running extraction subjob (fresh or restart-recovered). Returns the reloaded job. */
+  async function driveExtraction(job: CompanyJob, subjob: ResearchRun): Promise<CompanyJob> {
+    const desc = await describeCompanyJob(db, job.id);
+    const research = desc.stages.find((s) => s.stage === "research")?.run ?? null;
+    if (!research || !isStageComplete(research)) {
+      const [marked] = await db
+        .update(researchRuns)
+        .set({ status: "failed", error: "no completed research run", finishedAt: new Date(clock()) })
+        .where(and(eq(researchRuns.id, subjob.id), eq(researchRuns.status, "running")))
+        .returning({ id: researchRuns.id });
+      if (!marked) return loadCompanyJob(db, job.id);
+      return failStage(await loadCompanyJob(db, job.id), "extraction", "failed", "no completed research run");
+    }
+    try {
+      await runExtraction(job, research.id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const [marked] = await db
+        .update(researchRuns)
+        .set({ status: "failed", error: message.slice(0, 500), finishedAt: new Date(clock()) })
+        .where(and(eq(researchRuns.id, subjob.id), eq(researchRuns.status, "running")))
+        .returning({ id: researchRuns.id });
+      if (!marked) return loadCompanyJob(db, job.id);
+      return failStage(await loadCompanyJob(db, job.id), "extraction", "extraction", message);
+    }
+    const [marked] = await db
+      .update(researchRuns)
+      .set({ status: "succeeded", finishedAt: new Date(clock()) })
+      .where(and(eq(researchRuns.id, subjob.id), eq(researchRuns.status, "running")))
+      .returning({ id: researchRuns.id });
+    if (!marked) return loadCompanyJob(db, job.id);
+    await spendReconcile(await loadCompanyJob(db, job.id));
+    await logJobEvent(db, job.id, "stage_done", "extraction", { runId: subjob.id });
+    const after = await describeCompanyJob(db, job.id);
+    if (after.derived === "complete" && (job.status === "running" || job.status === "paused")) {
+      await completeJob(await loadCompanyJob(db, job.id));
+    }
+    return loadCompanyJob(db, job.id);
+  }
+
+  async function tickJob(job: CompanyJob, feed: boolean): Promise<void> {
+    const current = job;
+    let desc = await describeCompanyJob(db, job.id);
+    if (desc.derived === "complete" && (current.status === "running" || current.status === "paused")) {
+      await completeJob(current);
+      return;
+    }
+    const active = desc.stages.find((s) => s.run && !isTerminalSubjob(s.run.status));
+    if (active?.run) {
+      const [fresh] = await db.select().from(researchRuns).where(eq(researchRuns.id, active.run.id));
+      if (fresh && !isTerminalSubjob(fresh.status)) {
+        // Engines own it — except running extraction, which the worker drives.
+        if (active.stage === "extraction" && fresh.status === "running") {
+          await driveExtraction(current, fresh);
+        }
+        return;
+      }
+      // Turned terminal since the describe; fall through with fresh state.
+      desc = await describeCompanyJob(db, job.id);
+      if (desc.derived === "complete" && (current.status === "running" || current.status === "paused")) {
+        await completeJob(await loadCompanyJob(db, job.id));
+        return;
+      }
+    }
+    // No active subjob. Gate first: a completed preflight without a valid
+    // filed report failed (the retry path, never a skip).
+    const preflight = desc.stages.find((s) => s.stage === "preflight");
+    if (preflight?.run && isStageComplete(preflight.run)) {
+      const gate = await checkPreflightGate(db, job.id);
+      if (!gate.ok) {
+        await db
+          .update(researchRuns)
+          .set({ status: "failed", error: `preflight gate: ${gate.reason}`, finishedAt: new Date(clock()) })
+          .where(eq(researchRuns.id, preflight.run.id));
+        desc = await describeCompanyJob(db, job.id);
+      }
+    }
+    // A failed stage on a running job is always unaccounted (accounting
+    // leaves failed/paused, and leaving those states always creates a live
+    // subjob first) — account it now.
+    const failed = desc.stages.find((s) => s.run && isTerminalSubjob(s.run.status) && !isStageComplete(s.run));
+    if (failed?.run) {
+      if (current.status === "running") {
+        const { errorClass, error } = classifyRunError(failed.run);
+        await failStage(await loadCompanyJob(db, job.id), failed.stage, errorClass, error);
+      }
+      return;
+    }
+    // Advance the pointer past newly completed stages.
+    const target = desc.nextStage;
+    if (!target) return;
+    if (current.currentStage !== target) {
+      await db.update(companyJobs).set({ currentStage: target }).where(eq(companyJobs.id, job.id));
+      const logged = await db
+        .select({ stage: jobEvents.stage })
+        .from(jobEvents)
+        .where(and(eq(jobEvents.jobId, job.id), eq(jobEvents.type, "stage_done")));
+      const loggedStages = new Set(logged.map((r) => r.stage));
+      const doneIndex = desc.stages.findIndex((s) => s.stage === target);
+      for (const done of desc.stages.slice(0, doneIndex)) {
+        if (done.run && isStageComplete(done.run) && !loggedStages.has(done.stage)) {
+          await logJobEvent(db, job.id, "stage_done", done.stage, { runId: done.run.id });
+        }
+      }
+    }
+    await spendReconcile(await loadCompanyJob(db, job.id));
+    if (!feed) return;
+    if (AGENT_STAGES.includes(target)) {
+      const load = await agentLoad();
+      if (load.active >= load.max) return;
+    } else if (target === "collect") {
+      const load = await collectLoad();
+      if (load.active >= load.max) return;
+    }
+    const paused = await budgetPause(current);
+    if (paused) return;
+    if (target === "collect") {
+      // The plan gates collect: unknown adapters pause immediately for
+      // onboarding (never improvised), and the plan is logged for replay.
+      const gate = await checkPreflightGate(db, job.id);
+      if (!gate.ok) {
+        await companyJobPause(db, job.id, `collect blocked: ${gate.reason}`);
+        return;
+      }
+      const wanted = gate.report.adaptersRequired.map((a) => a.adapterId);
+      const { unknown } = resolvePlanAdapters(wanted);
+      if (unknown.length > 0) {
+        await companyJobPause(
+          db,
+          job.id,
+          `adapter_missing: no adapter for ${unknown.join(", ")} (onboard it, then resume)`,
+        );
+        await logJobEvent(db, job.id, "collect_blocked", "collect", { unknown });
+        return;
+      }
+      await logJobEvent(db, job.id, "collect_plan", "collect", {
+        adapters: wanted,
+        missing: gate.report.adaptersMissing.map((m) => m.suggestedId),
+        directives: gate.report.collectDirectives,
+      });
+    }
+    const outcome = await beginStage(current, target);
+    if ("busy" in outcome) return;
+    await db.update(companyJobs).set({ currentStage: target }).where(eq(companyJobs.id, job.id));
+    await logJobEvent(db, job.id, "stage_started", target, { runId: outcome.runId });
+  }
+
+  async function countByStatus(status: CompanyJob["status"]): Promise<number> {
+    const [row] = await db
+      .select({ n: sql<number>`count(*)` })
+      .from(companyJobs)
+      .where(eq(companyJobs.status, status));
+    return Number(row?.n ?? 0);
+  }
+
+  async function tick(): Promise<void> {
+    if (ticking) return;
+    ticking = true;
+    try {
+      const jobs = await db
+        .select()
+        .from(companyJobs)
+        .where(inArray(companyJobs.status, ["running", "paused", "cancelled"]))
+        .orderBy(asc(companyJobs.createdAt));
+      for (const job of jobs) {
+        try {
+          await tickJob(job, job.status === "running");
+        } catch (err) {
+          console.error(`company job ${job.id} tick failed: ${err instanceof Error ? err.message : err}`);
+        }
+      }
+      // Quality checkpoint: at N completions the batch pauses — promotion
+      // stops, but running jobs keep their feed and finish normally.
+      let paused = (await pipelinePausedGet(db)).paused;
+      if (!paused) {
+        const target = (await checkpointGet(db)).target;
+        const completed = target === null ? 0 : await countByStatus("completed");
+        if (target !== null && completed >= target) {
+          await tripPipelinePause(db, target, completed);
+          paused = true;
+        }
+      }
+      if (paused) return;
+      const max = await effectiveCompanyConcurrency(db, deps.companyMax);
+      while ((await countByStatus("running")) < max) {
+        const [next] = await db
+          .select()
+          .from(companyJobs)
+          .where(eq(companyJobs.status, "queued"))
+          .orderBy(asc(companyJobs.createdAt))
+          .limit(1);
+        if (!next) break;
+        const [claimed] = await db
+          .update(companyJobs)
+          .set({ status: "running" })
+          .where(and(eq(companyJobs.id, next.id), eq(companyJobs.status, "queued")))
+          .returning();
+        if (!claimed) break;
+        await logJobEvent(db, claimed.id, "job_claimed");
+        try {
+          await tickJob(claimed, true);
+        } catch (err) {
+          console.error(`company job ${claimed.id} tick failed: ${err instanceof Error ? err.message : err}`);
+        }
+      }
+    } finally {
+      ticking = false;
+    }
+  }
+
+  return {
+    tick,
+    start: async () => {
+      if (timer) return;
+      timer = setInterval(() => {
+        void tick();
+      }, pollMs);
+      await tick();
+    },
+    stop: async () => {
+      if (timer) clearInterval(timer);
+      timer = null;
+    },
+  };
+}

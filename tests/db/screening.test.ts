@@ -66,13 +66,14 @@ async function expectScreen(
   sectorId: string,
   criteria: ScreenCriterion[],
   where: SQL,
-  opts: { sort?: ScreenSort; limit?: number; verifiedOnly?: boolean } = {},
+  opts: { sort?: ScreenSort; limit?: number; verifiedOnly?: boolean; includeUnverified?: boolean } = {},
 ): Promise<void> {
   const result = await screenCompanies(handle.db, sectorId, {
     criteria,
     sort: opts.sort,
     limit: opts.limit,
     verifiedOnly: opts.verifiedOnly,
+    includeUnverified: opts.includeUnverified,
   });
   expect([...result.ids].sort()).toEqual(await groundIds(sectorId, where));
   expect(result.total).toEqual((await groundIds(sectorId, where)).length);
@@ -205,11 +206,13 @@ describe("company_screen facts", () => {
       sectorId,
       [{ factKey: "business_model.subscription", op: "eq", value: true }],
       sql`EXISTS (SELECT 1 FROM facts_current fc WHERE fc.company_id = c.id AND fc.key = 'business_model.subscription' AND fc.value_bool = true)`,
+      { includeUnverified: true },
     );
     await expectScreen(
       sectorId,
       [{ factKey: "business_model.subscription", op: "ne", value: true }],
       sql`EXISTS (SELECT 1 FROM facts_current fc WHERE fc.company_id = c.id AND fc.key = 'business_model.subscription' AND fc.value_bool <> true)`,
+      { includeUnverified: true },
     );
   });
 
@@ -223,9 +226,11 @@ describe("company_screen facts", () => {
       sectorId,
       [{ factKey: "product.count", op: "gte", value: 20 }],
       sql`EXISTS (SELECT 1 FROM facts_current fc WHERE fc.company_id = c.id AND fc.key = 'product.count' AND fc.value_num >= 20)`,
+      { includeUnverified: true },
     );
     const result = await screenCompanies(handle.db, sectorId, {
       criteria: [{ factKey: "product.count", op: "gte", value: 20 }],
+      includeUnverified: true,
     });
     expect(result.ids).toEqual([ids[0]]);
     expect(result.items[0]?.matched["0"]).toEqual([50]);
@@ -241,38 +246,48 @@ describe("company_screen facts", () => {
       sectorId,
       [{ factKey: "marketing.channel_active", qualifiers: { channel: "meta" }, op: "eq", value: true }],
       sql`EXISTS (SELECT 1 FROM facts_current fc WHERE fc.company_id = c.id AND fc.key = 'marketing.channel_active' AND fc.qualifiers @> '{"channel":"meta"}'::jsonb AND fc.value_bool = true)`,
+      { includeUnverified: true },
     );
     const unqualified = await screenCompanies(handle.db, sectorId, {
       criteria: [{ factKey: "marketing.channel_active", op: "eq", value: true }],
+      includeUnverified: true,
     });
     expect([...unqualified.ids].sort()).toEqual([ids[0], ids[1]].sort());
     expect(unqualified.items.find((i) => i.id === ids[0])?.matched["0"]).toEqual([true]);
   });
 
-  it("verifiedOnly restricts fact criteria to verified rows", async () => {
+  it("defaults to grounded rows; verifiedOnly narrows; includeUnverified shows all", async () => {
     const sectorId = await seed();
     const ids = await liveIds(sectorId);
     await addFactOk(ids[0] as string, "product.count", 50);
     await addFactOk(ids[1] as string, "product.count", 60);
+    await addFactOk(ids[2] as string, "product.count", 70);
     await handle.db.execute(
       sql`UPDATE facts SET verification = 'verified' WHERE company_id = ${ids[0]} AND key = 'product.count'`,
     );
+    await handle.db.execute(
+      sql`UPDATE facts SET verification = 'doc_only' WHERE company_id = ${ids[1]} AND key = 'product.count'`,
+    );
+    const criterion = { factKey: "product.count", op: "gte", value: 20 } as const;
     await expectScreen(
       sectorId,
-      [{ factKey: "product.count", op: "gte", value: 20 }],
+      [criterion],
+      sql`EXISTS (SELECT 1 FROM facts_current fc WHERE fc.company_id = c.id AND fc.key = 'product.count' AND fc.verification IN ('verified', 'doc_only') AND fc.value_num >= 20)`,
+    );
+    await expectScreen(
+      sectorId,
+      [criterion],
       sql`EXISTS (SELECT 1 FROM facts_current fc WHERE fc.company_id = c.id AND fc.key = 'product.count' AND fc.verification = 'verified' AND fc.value_num >= 20)`,
       { verifiedOnly: true },
     );
-    const result = await screenCompanies(handle.db, sectorId, {
-      criteria: [{ factKey: "product.count", op: "gte", value: 20 }],
-      verifiedOnly: true,
-    });
-    expect(result.ids).toEqual([ids[0]]);
-    expect(result.items[0]?.matched["0"]).toEqual([50]);
-    const unfiltered = await screenCompanies(handle.db, sectorId, {
-      criteria: [{ factKey: "product.count", op: "gte", value: 20 }],
-    });
-    expect([...unfiltered.ids].sort()).toEqual([ids[0], ids[1]].sort());
+    const strict = await screenCompanies(handle.db, sectorId, { criteria: [criterion], verifiedOnly: true });
+    expect(strict.ids).toEqual([ids[0]]);
+    expect(strict.items[0]?.matched["0"]).toEqual([50]);
+    const grounded = await screenCompanies(handle.db, sectorId, { criteria: [criterion] });
+    expect([...grounded.ids].sort()).toEqual([ids[0], ids[1]].sort());
+    expect(grounded.items.find((i) => i.id === ids[1])?.matched["0"]).toEqual([60]);
+    const all = await screenCompanies(handle.db, sectorId, { criteria: [criterion], includeUnverified: true });
+    expect([...all.ids].sort()).toEqual([ids[0], ids[1], ids[2]].sort());
   });
 
   it("in, exists and not_exists on facts", async () => {
@@ -284,14 +299,17 @@ describe("company_screen facts", () => {
       sectorId,
       [{ factKey: "reviews.count", op: "in", value: [12, 40] }],
       sql`EXISTS (SELECT 1 FROM facts_current fc WHERE fc.company_id = c.id AND fc.key = 'reviews.count' AND fc.value_num IN (12, 40))`,
+      { includeUnverified: true },
     );
     await expectScreen(
       sectorId,
       [{ factKey: "reviews.count", op: "exists" }],
       sql`EXISTS (SELECT 1 FROM facts_current fc WHERE fc.company_id = c.id AND fc.key = 'reviews.count')`,
+      { includeUnverified: true },
     );
     const missing = await screenCompanies(handle.db, sectorId, {
       criteria: [{ factKey: "reviews.count", op: "not_exists" }],
+      includeUnverified: true,
     });
     expect(missing.total).toBe(ids.length - 2);
     expect(missing.items[0]?.matched["0"]).toEqual([]);
@@ -305,6 +323,7 @@ describe("company_screen facts", () => {
       sectorId,
       [{ factKey: "test.label", op: "eq", value: "premium" }],
       sql`EXISTS (SELECT 1 FROM facts_current fc WHERE fc.company_id = c.id AND fc.key = 'test.label' AND COALESCE(fc.value_text, fc.value_date::text) = 'premium')`,
+      { includeUnverified: true },
     );
   });
 
@@ -327,6 +346,7 @@ describe("company_screen facts", () => {
         { factKey: "product.count", op: "gte", value: 20 },
       ],
       sql`c.country = 'Canada' AND EXISTS (SELECT 1 FROM facts_current fc WHERE fc.company_id = c.id AND fc.key = 'product.count' AND fc.value_num >= 20)`,
+      { includeUnverified: true },
     );
   });
 });

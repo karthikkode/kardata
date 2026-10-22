@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
 import {
   areaStatuses,
@@ -750,6 +750,31 @@ describe("findings, statuses and captures", () => {
     });
     expect(ok.thin).toBe(false);
     expect(ok.warnings).toHaveLength(0);
+  });
+
+  it("grades captures: search and muse_fetch are secondary, browser is primary", async () => {
+    const companyId = await makeCompany();
+    const runId = await makeRun(companyId);
+    const text = "Acme Corp employs 1,234 people. " + "x".repeat(200);
+    const viaSearch = await captureSource(handle.db, {
+      companyId, runId, url: "https://example.invalid/s", text, via: "search", createdBy: "owner",
+    });
+    const viaFetch = await captureSource(handle.db, {
+      companyId, runId, url: "https://example.invalid/f", text, via: "muse_fetch",
+      passages: ["Acme Corp employs 1,234 people"], createdBy: "owner",
+    });
+    const viaBrowser = await captureSource(handle.db, {
+      companyId, runId, url: "https://example.invalid/b", text, via: "browser",
+      passages: ["Acme Corp employs 1,234 people"], createdBy: "owner",
+    });
+    const rows = await handle.db
+      .select({ id: sources.id, grade: sources.evidenceGrade })
+      .from(sources)
+      .where(inArray(sources.id, [viaSearch.sourceId, viaFetch.sourceId, viaBrowser.sourceId]));
+    const byId = new Map(rows.map((r) => [r.id, r.grade]));
+    expect(byId.get(viaSearch.sourceId)).toBe("secondary");
+    expect(byId.get(viaFetch.sourceId)).toBe("secondary");
+    expect(byId.get(viaBrowser.sourceId)).toBe("primary");
   });
 });
 

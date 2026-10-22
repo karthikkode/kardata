@@ -1,7 +1,11 @@
 import { execFile } from "node:child_process";
-import type { ChildUsage } from "../db/schema.js";
-import { readerRunArgs } from "../harness/setup.js";
+import type { ChildUsage, ResearchRun } from "../db/schema.js";
+import type { Db } from "../db/client.js";
+import { sessionReaderRunArgs, readerRunArgs } from "../harness/setup.js";
 import type { HarnessUsage } from "../harness/types.js";
+import { ingestSessionCalls, type SessionCall } from "../domain/logging/provider-calls.js";
+import { ingestWebSearches, type SessionSearch } from "../domain/logging/web-searches.js";
+import type { WebSearchResult } from "../db/schema.js";
 
 /**
  * Subagent usage rollup (Stage 3b.1): the exec stream's run.usage covers the
@@ -45,7 +49,7 @@ export type ReaderCall = (args: string[]) => Promise<{ ok: boolean; stdout: stri
 
 function defaultReaderCall(args: string[]): Promise<{ ok: boolean; stdout: string }> {
   return new Promise((resolve) => {
-    execFile("docker", args, { timeout: 60_000, maxBuffer: 1024 * 1024 }, (err, stdout) => {
+    execFile("docker", args, { timeout: 60_000, maxBuffer: 8 * 1024 * 1024 }, (err, stdout) => {
       if (err) resolve({ ok: false, stdout: "" });
       else resolve({ ok: true, stdout });
     });
@@ -110,4 +114,135 @@ export async function rollupUsage(
   const rollup: UsageRollup = { total: totalUsage(main, clean), childrenIncluded: true, children: clean };
   if (typeof note === "string") rollup.note = note;
   return rollup;
+}
+
+export interface SessionIngestSummary {
+  calls: number;
+  searches?: number;
+  linked?: number;
+  note?: string;
+}
+
+function sanitizeResult(value: unknown): WebSearchResult | null {
+  if (typeof value !== "object" || value === null) return null;
+  const v = value as Record<string, unknown>;
+  if (typeof v.url !== "string") return null;
+  return {
+    url: v.url,
+    title: typeof v.title === "string" ? v.title : null,
+    snippet: typeof v.snippet === "string" ? v.snippet : null,
+    rank: num(v.rank),
+  };
+}
+
+function sanitizeSearch(value: unknown): SessionSearch | null {
+  if (typeof value !== "object" || value === null) return null;
+  const v = value as Record<string, unknown>;
+  if (v.tool !== "web_search" && v.tool !== "web_fetch") return null;
+  if (typeof v.query_or_url !== "string") return null;
+  const str = (x: unknown): string | null => (typeof x === "string" ? x : null);
+  const results = Array.isArray(v.results)
+    ? v.results.flatMap((r) => {
+        const clean = sanitizeResult(r);
+        return clean ? [clean] : [];
+      })
+    : [];
+  return {
+    call_id: str(v.call_id),
+    tool: v.tool,
+    query_or_url: v.query_or_url,
+    results,
+    result_count: num(v.result_count),
+    at: str(v.at),
+    area: str(v.area),
+    child_session_id: str(v.child_session_id),
+  };
+}
+
+function sanitizeCall(value: unknown): SessionCall | null {
+  if (typeof value !== "object" || value === null) return null;
+  const v = value as Record<string, unknown>;
+  if (typeof v.session_id !== "string" || v.session_id === "") return null;
+  const str = (x: unknown): string | null => (typeof x === "string" ? x : null);
+  const messages = Array.isArray(v.messages)
+    ? v.messages.flatMap((m) =>
+        typeof m === "object" && m !== null && typeof (m as { text?: unknown }).text === "string"
+          ? [{ phase: str((m as { phase?: unknown }).phase), text: (m as { text: string }).text }]
+          : [],
+      )
+    : [];
+  const toolCalls = Array.isArray(v.tool_calls)
+    ? v.tool_calls.flatMap((c) =>
+        typeof c === "object" && c !== null && typeof (c as { name?: unknown }).name === "string"
+          ? [{ name: (c as { name: string }).name, call_id: str((c as { call_id?: unknown }).call_id) }]
+          : [],
+      )
+    : [];
+  return {
+    usage_id: str(v.usage_id),
+    session_id: v.session_id,
+    child_session_id: str(v.child_session_id),
+    seq: num(v.seq),
+    response_id: str(v.response_id),
+    model: str(v.model),
+    provider: str(v.provider),
+    input_tokens: num(v.input_tokens),
+    output_tokens: num(v.output_tokens),
+    cached_tokens: num(v.cached_tokens),
+    reasoning_tokens: num(v.reasoning_tokens),
+    at: str(v.at),
+    messages,
+    tool_calls: toolCalls,
+  };
+}
+
+/**
+ * Post-run per-call ingest (Stage 5 Phase 3): read the session log through
+ * the session-reader and store one provider_calls row per provider call.
+ * Never throws: gaps are notes, like the usage rollup.
+ */
+export async function ingestRunSession(
+  db: Db,
+  run: ResearchRun,
+  sessionId: string | undefined,
+  runReader: ReaderCall = defaultReaderCall,
+): Promise<SessionIngestSummary> {
+  if (!sessionId) return { calls: 0, note: "no session id (harness never emitted started)" };
+  let out: { ok: boolean; stdout: string };
+  try {
+    out = await runReader(sessionReaderRunArgs(sessionId));
+  } catch (err) {
+    return { calls: 0, note: `session reader failed: ${err instanceof Error ? err.message : err}` };
+  }
+  if (!out.ok) return { calls: 0, note: "session reader container failed (docker unavailable?)" };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(out.stdout);
+  } catch {
+    return { calls: 0, note: "session reader returned invalid JSON" };
+  }
+  if (typeof parsed !== "object" || parsed === null || !Array.isArray((parsed as { calls?: unknown }).calls)) {
+    return { calls: 0, note: "session reader returned an unexpected shape" };
+  }
+  const { calls, note, searches } = parsed as { calls: unknown[]; note?: unknown; searches?: unknown };
+  const clean = calls.map(sanitizeCall).filter((c): c is SessionCall => c !== null);
+  const cleanSearches = Array.isArray(searches)
+    ? searches.map(sanitizeSearch).filter((s): s is SessionSearch => s !== null)
+    : [];
+  try {
+    const { inserted } = await ingestSessionCalls(db, run, clean);
+    const summary: SessionIngestSummary = { calls: inserted };
+    try {
+      const web = await ingestWebSearches(db, run, cleanSearches);
+      summary.searches = web.inserted;
+      summary.linked = web.linked;
+    } catch (err) {
+      summary.note = `search ingest failed: ${err instanceof Error ? err.message : err}`;
+    }
+    if (typeof note === "string") summary.note = note;
+    else if (clean.length === 0 && !summary.note) summary.note = "no provider calls found";
+    return summary;
+  } catch (err) {
+    return { calls: 0, note: `session ingest failed: ${err instanceof Error ? err.message : err}` };
+  }
 }

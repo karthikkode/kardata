@@ -1,0 +1,1 @@
+ALTER TABLE "company_jobs" ADD COLUMN "error_streak" integer DEFAULT 0 NOT NULL;

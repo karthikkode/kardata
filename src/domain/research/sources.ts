@@ -16,7 +16,7 @@ export function apolloImportUrl(importId: string, apolloAccountId: string): stri
   return `apollo:import/${importId}/${apolloAccountId}`;
 }
 
-async function storeBlob(db: DbLike, contentType: string, body: Buffer): Promise<string> {
+export async function storeBlob(db: DbLike, contentType: string, body: Buffer): Promise<string> {
   const sha = createHash("sha256").update(body).digest("hex");
   await db
     .insert(blobs)
@@ -104,6 +104,7 @@ export async function captureSource(db: DbLike, input: CaptureSourceInput): Prom
       httpStatus: null,
       title: input.title?.trim() ? input.title.trim().slice(0, 500) : null,
       via: input.via,
+      evidenceGrade: input.via === "search" || input.via === "muse_fetch" ? "secondary" : "primary",
       thin,
       blobSha256: sha,
     })

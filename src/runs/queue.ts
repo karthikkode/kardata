@@ -15,10 +15,16 @@ export interface StartCollectResult {
   runs: StartCollectEntry[];
 }
 
+export interface StartCollectLink {
+  companyJobId: string;
+  stage: NonNullable<ResearchRun["stage"]>;
+}
+
 export async function startCollect(
   db: Db,
   companyIds: string[],
   areas?: string[],
+  link?: StartCollectLink,
 ): Promise<StartCollectResult> {
   if (companyIds.length === 0) throw new DomainError("invalid_input", "at least one company id is required");
   if (companyIds.length > COLLECT_BATCH_MAX) {
@@ -55,6 +61,8 @@ export async function startCollect(
           status: "queued",
           requestedAreas: (areas ?? null) as ResearchRun["requestedAreas"],
           batchId,
+          companyJobId: link?.companyJobId ?? null,
+          stage: link?.stage ?? null,
         })
         .returning({ id: researchRuns.id });
       if (!row) throw new Error("run insert returned no row");

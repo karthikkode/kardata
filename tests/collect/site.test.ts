@@ -232,16 +232,33 @@ describe("site collector", () => {
     expect(site.hits).toHaveLength(0);
   });
 
-  it("fails fatal when the homepage is blocked", async () => {
+  it("returns blocked without a fatal when the homepage is bot-walled", async () => {
     site.routes.set("/", (_req, res) => sendText(res, "forbidden", 403, "text/plain"));
     const ctx = await collectorCtx(handle.db, site, companyId, runId);
     const result = await siteCollector.run(ctx);
-    expect(result.fatal).toContain("homepage fetch failed");
+    // A bot wall is not fatal: Apollo facts still land and the research
+    // agent gets its chance with the browser fallback.
+    expect(result.fatal).toBeUndefined();
     expect(result.outcomes).toEqual([
       { area: "business_model", status: "blocked", reason: "homepage blocked HTTP 403" },
       { area: "decisions", status: "blocked", reason: "homepage blocked HTTP 403" },
       { area: "hiring", status: "blocked", reason: "homepage blocked HTTP 403" },
     ]);
     expect(await docsForRun(handle.db, runId)).toHaveLength(0);
+  });
+
+  it("fails fatal when the homepage is robots-disallowed", async () => {
+    site.routes.set("/robots.txt", (_req, res) =>
+      sendText(res, "User-agent: *\nDisallow: /\n", 200, "text/plain"),
+    );
+    site.routes.set("/", (_req, res) => sendText(res, homepage()));
+    const ctx = await collectorCtx(handle.db, site, companyId, runId);
+    const result = await siteCollector.run(ctx);
+    expect(result.fatal).toContain("homepage fetch failed");
+    expect(result.outcomes).toEqual([
+      { area: "business_model", status: "blocked", reason: expect.stringContaining("homepage") },
+      { area: "decisions", status: "blocked", reason: expect.stringContaining("homepage") },
+      { area: "hiring", status: "blocked", reason: expect.stringContaining("homepage") },
+    ]);
   });
 });

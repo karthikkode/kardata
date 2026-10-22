@@ -1,0 +1,2 @@
+DROP INDEX "research_runs_one_active_idx";--> statement-breakpoint
+CREATE UNIQUE INDEX "research_runs_one_active_idx" ON "research_runs" USING btree ("company_id") WHERE "research_runs"."status" IN ('queued', 'running') AND "research_runs"."kind" IN ('agent', 'collect');

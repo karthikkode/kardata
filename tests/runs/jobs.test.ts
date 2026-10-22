@@ -402,8 +402,11 @@ describe("job worker", () => {
     expect(view.job.pauseReason).toContain("usage_limit");
     expect(view.job.pauseReason).toContain("rate limited");
     expect(view.counts).toMatchObject({ failed: 3, queued: 1 });
-    // A different error class resets the streak instead.
+    // A resume clears the tripwire: the next failure starts a fresh streak.
     await jobResume(handle.db, jobId);
+    const cleared = await jobStatus(handle.db, jobId);
+    expect(cleared.job.errorStreak).toBe(0);
+    expect(cleared.job.errorClass).toBeNull();
     await runner.tick();
     await finishRunning(q, jobId, "stalled");
     await runner.tick();

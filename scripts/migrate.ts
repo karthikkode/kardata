@@ -4,7 +4,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { createDb } from "../src/db/client.js";
 import { backfillApolloImportSources } from "../src/domain/research/sources.js";
-import { loadDotenv, requireEnv } from "../src/lib/env.js";
+import { loadAppEnv, requireEnv } from "../src/lib/env.js";
 
 /** Create the database if missing (42P04 = duplicate_database). */
 async function ensureDatabase(url: string): Promise<void> {
@@ -36,7 +36,7 @@ async function migrateOne(name: string, url: string, folder: string): Promise<vo
 }
 
 async function main(): Promise<void> {
-  loadDotenv();
+  loadAppEnv();
   const folder = join(process.cwd(), "src/db/migrations");
   const hasMigrations =
     existsSync(join(folder, "meta/_journal.json")) ||

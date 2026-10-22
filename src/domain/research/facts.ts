@@ -33,6 +33,8 @@ export interface AddFactItem {
   confidence?: string;
   note?: string | null;
   tags?: string[];
+  quote?: string | null;
+  quoteSourceId?: string | null;
 }
 
 export interface AddFactsInput {
@@ -215,6 +217,8 @@ async function insertFact(
       asOf,
       sourceIds: [...new Set(item.sourceIds)],
       confidence,
+      quote: item.quote ?? null,
+      quoteSourceId: item.quoteSourceId ?? null,
       note: item.note ?? null,
       tags,
       createdBy: ctx.input.createdBy,

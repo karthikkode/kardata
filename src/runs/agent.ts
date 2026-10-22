@@ -25,6 +25,9 @@ export interface ResearchStartInput {
   maxModelSteps?: number;
   brief?: string;
   promptVersion?: string;
+  /** Stage 5: tag the run as a company-job subjob at creation (avoids a claim race). */
+  companyJobId?: string;
+  stage?: NonNullable<ResearchRun["stage"]>;
 }
 
 export type ResearchStartEntry =
@@ -106,6 +109,8 @@ export async function researchStart(db: Db, input: ResearchStartInput): Promise<
           batchId,
           agentOptions: options,
           promptVersion,
+          companyJobId: input.companyJobId ?? null,
+          stage: input.stage ?? null,
         })
         .returning({ id: researchRuns.id });
       if (!row) throw new Error("run insert returned no row");

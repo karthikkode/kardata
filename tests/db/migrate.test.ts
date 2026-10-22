@@ -19,7 +19,7 @@ async function query<T>(q: ReturnType<typeof sql>): Promise<T[]> {
 }
 
 describe("migrations on kardata_test", () => {
-  it("creates exactly the stage-1 and research tables", async () => {
+  it("creates exactly the stage-1, research and company-pipeline tables", async () => {
     const rows = await query<{ tablename: string }>(
       sql`SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY 1`,
     );
@@ -30,21 +30,31 @@ describe("migrations on kardata_test", () => {
       "bulk_job_items",
       "bulk_jobs",
       "companies",
+      "company_jobs",
       "documents",
       "fact_keys",
       "facts",
       "findings",
       "harness_settings",
+      "http_fetches",
       "imports",
+      "job_events",
+      "preflight_reports",
+      "provider_calls",
       "record_types",
       "records",
       "research_runs",
       "run_events",
       "run_tokens",
       "sector_companies",
+      "sector_eligibility_overrides",
+      "sector_preflight",
+      "sector_preflight_items",
+      "sector_preflight_jobs",
       "sectors",
       "shortlists",
       "sources",
+      "web_searches",
     ]);
   });
 
@@ -138,6 +148,11 @@ describe("migrations on kardata_test", () => {
     );
     expect(idx).toHaveLength(1);
     expect(idx[0]?.indexdef).toContain("WHERE");
+    // Scoped to the creation-time kinds only (later-added enum values are
+    // unusable in the same transaction on a fresh database).
+    expect(idx[0]?.indexdef).toContain("agent");
+    expect(idx[0]?.indexdef).toContain("collect");
+    expect(idx[0]?.indexdef).not.toContain("sector_preflight");
     const checks = await query<{ conname: string }>(
       sql`SELECT conname FROM pg_constraint WHERE conname IN ('findings_source_ids_not_empty', 'area_statuses_reason_required')`,
     );

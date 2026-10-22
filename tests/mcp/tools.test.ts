@@ -1,7 +1,17 @@
+import { randomUUID } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { DbHandle } from "../../src/db/client.js";
+import {
+  companies,
+  companyJobs,
+  jobEvents,
+  sectorCompanies,
+  sectorPreflight,
+  sectors,
+} from "../../src/db/schema.js";
 import { startServer, type ServerHandle } from "../../src/server.js";
 import {
   badHeadersCsvPath,
@@ -78,6 +88,35 @@ const EXPECTED_TOOLS = [
   "job_retry_failed",
   "harness_settings_get",
   "harness_settings_set",
+  "preflight_report_save",
+  "adapter_list",
+  "company_job_start",
+  "company_job_status",
+  "company_jobs_list",
+  "company_job_pause",
+  "company_job_resume",
+  "company_job_cancel",
+  "company_job_retry",
+  "company_jobs_supersede",
+  "company_concurrency_get",
+  "company_concurrency_set",
+  "pipeline_status",
+  "pipeline_checkpoint_set",
+  "sector_preflight_start",
+  "sector_preflight_status",
+  "sector_preflight_list",
+  "sector_preflight_pause",
+  "sector_preflight_resume",
+  "sector_preflight_cancel",
+  "sector_preflight_retry_failed",
+  "sector_preflight_summary",
+  "sector_rules_get",
+  "sector_rules_set",
+  "company_eligibility_override",
+  "sector_scope_apply",
+  "pipeline_start",
+  "sector_preflight_concurrency_get",
+  "sector_preflight_concurrency_set",
 ];
 
 interface ToolResult {
@@ -287,6 +326,181 @@ describe("mcp tools", () => {
     for (const key of ["countries", "industries", "employeeBands", "technologies"]) {
       expect(Array.isArray(facets[key]), key).toBe(true);
     }
+  });
+
+  it("runs the company job tools end to end", async () => {
+    const created = dataOf(await call("sector_create", { name: "Skincare" }));
+    const sectorId = (created.sector as { id: string }).id;
+    const added = dataOf(
+      await call("company_add", { sectorId, name: "Acme", website: "https://acme.example" }),
+    );
+    const companyId = (added.company as { id: string }).id;
+
+    const started = dataOf(await call("company_job_start", { companyId }));
+    const jobId = (started as { jobId: string }).jobId;
+    expect(typeof jobId).toBe("string");
+    const dupe = await call("company_job_start", { companyId });
+    expect(errorOf(dupe).code).toBe("conflict");
+
+    const status = dataOf(await call("company_job_status", { jobId }));
+    expect((status.job as { status: string }).status).toBe("running");
+    expect(status.derived).toBe("incomplete");
+
+    const listed = dataOf(await call("company_jobs_list", {}));
+    expect(((listed.jobs as unknown[]) ?? []).length).toBe(1);
+
+    await call("company_job_pause", { jobId });
+    const paused = dataOf(await call("company_job_status", { jobId }));
+    expect((paused.job as { status: string }).status).toBe("paused");
+    await call("company_job_resume", { jobId });
+    const resumed = dataOf(await call("company_job_status", { jobId }));
+    expect((resumed.job as { status: string }).status).toBe("running");
+
+    const adapters = dataOf(await call("adapter_list", {}));
+    const entries = (adapters.adapters as { id: string; version: string }[]) ?? [];
+    expect(entries.length).toBeGreaterThanOrEqual(12);
+    expect(entries.map((a) => a.id)).toContain("reviews_onsite");
+    expect(entries.every((a) => /^\d+\.\d+\.\d+$/.test(a.version))).toBe(true);
+
+    const conc = dataOf(await call("company_concurrency_get", {}));
+    expect(conc.companyConcurrency).toBe(4);
+    const updated = dataOf(await call("company_concurrency_set", { companyConcurrency: 12 }));
+    expect(updated.companyConcurrency).toBe(12);
+    const badConc = await call("company_concurrency_set", { companyConcurrency: 101 });
+    expect(errorOf(badConc).code).toBe("invalid_input");
+
+    const pipe = dataOf(await call("pipeline_status", {}));
+    expect(pipe.checkpointTarget).toBeNull();
+    expect((pipe.paused as { paused: boolean }).paused).toBe(false);
+    expect(pipe.quota).toBeNull();
+    const checkpoint = dataOf(await call("pipeline_checkpoint_set", { afterCompleted: 25 }));
+    expect(checkpoint.target).toBe(25);
+    const badCheckpoint = await call("pipeline_checkpoint_set", { afterCompleted: 0 });
+    expect(errorOf(badCheckpoint).code).toBe("invalid_input");
+    const cleared = dataOf(await call("pipeline_checkpoint_set", { afterCompleted: null }));
+    expect(cleared.target).toBeNull();
+  });
+
+  it("sector preflight tools: job controls, rules, overrides, pipeline start", async () => {
+    const [sector] = await handle.db.insert(sectors).values({ id: randomUUID(), name: "Skincare" }).returning();
+    if (!sector) throw new Error("no sector row");
+    const [company] = await handle.db
+      .insert(companies)
+      .values({ id: randomUUID(), source: "manual", name: "A Co" })
+      .returning();
+    if (!company) throw new Error("no company row");
+    await handle.db.insert(sectorCompanies).values({ sectorId: sector.id, companyId: company.id, addedVia: "manual" });
+
+    const started = dataOf(await call("sector_preflight_start", { sectorId: sector.id }));
+    expect(started.companies).toBe(1);
+    const jobId = (started as { jobId: string }).jobId;
+    const status = dataOf(await call("sector_preflight_status", { jobId }));
+    expect((status.job as { status: string }).status).toBe("running");
+    expect(status.quota).toBeNull();
+    const listed = dataOf(await call("sector_preflight_list", {}));
+    expect(((listed as { jobs: unknown[] }).jobs)).toHaveLength(1);
+    await call("sector_preflight_pause", { jobId });
+    const paused = dataOf(await call("sector_preflight_status", { jobId }));
+    expect((paused.job as { status: string }).status).toBe("paused");
+    await call("sector_preflight_resume", { jobId });
+    await call("sector_preflight_cancel", { jobId });
+    const cancelled = dataOf(await call("sector_preflight_status", { jobId }));
+    expect((cancelled.job as { status: string }).status).toBe("cancelled");
+    const retried = dataOf(await call("sector_preflight_retry_failed", { jobId }));
+    expect(retried.retried).toBe(0);
+
+    const summary = dataOf(await call("sector_preflight_summary", { sectorId: sector.id }));
+    expect((summary as { buckets: unknown[] }).buckets).toHaveLength(0);
+
+    const rules = dataOf(await call("sector_rules_get", { sectorId: sector.id }));
+    expect(rules.isDefault).toBe(true);
+    const badRules = await call("sector_rules_set", { sectorId: sector.id, rules: { nope: true } });
+    expect(errorOf(badRules).code).toBe("invalid_input");
+
+    const override = dataOf(
+      await call("company_eligibility_override", {
+        sectorId: sector.id,
+        companyId: company.id,
+        decision: "include",
+        note: "owner call",
+      }),
+    );
+    expect(override.eligibility).toBe("eligible");
+    const clearedOverride = dataOf(
+      await call("company_eligibility_override", {
+        sectorId: sector.id,
+        companyId: company.id,
+        decision: "clear",
+      }),
+    );
+    expect(clearedOverride.eligibility).toBe("pending");
+
+    await handle.db.insert(sectorPreflight).values({
+      id: randomUUID(),
+      sectorId: sector.id,
+      companyId: company.id,
+      businessType: "dtc_brand",
+      primaryCategory: "skincare",
+      sellsOwnProducts: true,
+      hasOnlineStore: true,
+      confidence: "high",
+      reason: "site shows own-brand skincare with cart",
+    });
+    const scoped = dataOf(await call("sector_scope_apply", { sectorId: sector.id }));
+    expect(scoped.eligible).toBe(1);
+
+    const launched = dataOf(await call("pipeline_start", { sectorId: sector.id }));
+    expect(launched.created).toBe(1);
+
+    const pool = dataOf(await call("sector_preflight_concurrency_get", {}));
+    expect(pool.sectorPreflightConcurrency).toBe(8);
+    const poolSet = dataOf(await call("sector_preflight_concurrency_set", { sectorPreflightConcurrency: 4 }));
+    expect(poolSet.sectorPreflightConcurrency).toBe(4);
+    const poolBad = await call("sector_preflight_concurrency_set", { sectorPreflightConcurrency: 99 });
+    expect(errorOf(poolBad).code).toBe("invalid_input");
+  });
+
+  it("company job cancel rejects retry", async () => {
+    const [company] = await handle.db
+      .insert(companies)
+      .values({ id: randomUUID(), source: "manual", name: "Cancel Co" })
+      .returning();
+    if (!company) throw new Error("no company row");
+    const started = dataOf(await call("company_job_start", { companyId: company.id }));
+    const jobId = (started as { jobId: string }).jobId;
+    await call("company_job_cancel", { jobId });
+    const cancelled = dataOf(await call("company_job_status", { jobId }));
+    expect((cancelled.job as { status: string }).status).toBe("cancelled");
+    const noRetry = await call("company_job_retry", { jobId });
+    expect(errorOf(noRetry).code).toBe("invalid_input");
+  });
+
+  it("company_jobs_supersede cancels queued jobs only", async () => {
+    const [queued] = await handle.db
+      .insert(companies)
+      .values({ id: randomUUID(), source: "manual", name: "Queued Co" })
+      .returning();
+    const [active] = await handle.db
+      .insert(companies)
+      .values({ id: randomUUID(), source: "manual", name: "Active Co" })
+      .returning();
+    if (!queued || !active) throw new Error("no company rows");
+    const [queuedJob] = await handle.db
+      .insert(companyJobs)
+      .values({ id: randomUUID(), companyId: queued.id })
+      .returning();
+    if (!queuedJob) throw new Error("no job row");
+    const started = dataOf(await call("company_job_start", { companyId: active.id }));
+    const result = dataOf(await call("company_jobs_supersede", { reason: "new pass" }));
+    expect(result.cancelled).toBe(1);
+    const after = dataOf(await call("company_job_status", { jobId: queuedJob.id }));
+    expect((after.job as { status: string }).status).toBe("cancelled");
+    const events = await handle.db.select().from(jobEvents).where(eq(jobEvents.jobId, queuedJob.id));
+    expect(events.some((e) => e.type === "job_cancelled" && (e.payload as { reason?: string }).reason === "new pass")).toBe(true);
+    const activeAfter = dataOf(
+      await call("company_job_status", { jobId: (started as { jobId: string }).jobId }),
+    );
+    expect((activeAfter.job as { status: string }).status).not.toBe("cancelled");
   });
 
   it("rejects requests without a token", async () => {

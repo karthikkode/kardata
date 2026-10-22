@@ -11,7 +11,7 @@ import { randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { loadDotenv } from "../src/lib/env.js";
+import { loadAppEnv } from "../src/lib/env.js";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(name);
@@ -45,7 +45,7 @@ async function treeRssKb(rootPid: number): Promise<number> {
 }
 
 async function main(): Promise<void> {
-  loadDotenv();
+  loadAppEnv();
   const token = process.env.KARDATA_OPERATOR_TOKEN?.trim();
   const needsToken = !process.argv.includes("--no-mcp");
   if (needsToken && !token) {

@@ -6,6 +6,7 @@ import { researchRuns } from "../../src/db/schema.js";
 import { executeCollectRun } from "../../src/collect/run.js";
 import { cancelRun, startCollect } from "../../src/runs/queue.js";
 import { createRunner } from "../../src/runs/runner.js";
+import { startCompanyJob } from "../../src/runs/company.js";
 import { DomainError } from "../../src/domain/errors.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 import {
@@ -187,6 +188,110 @@ describe("runner", () => {
     release();
     await runner.stop();
     expect(runner.activeCount()).toBe(0);
+  });
+
+  it("claims company collect subjobs like any collect run", async () => {
+    const companyId = await seedCompany(handle.db, { name: "A Co" });
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const batch = await startCollect(handle.db, [companyId], undefined, { companyJobId: jobId, stage: "collect" });
+    const runId = batch.runs[0]?.runId ?? "";
+    const started: string[] = [];
+    const runner = createRunner(handle.db, {
+      execute: async (id: string) => {
+        started.push(id);
+      },
+    });
+    try {
+      await runner.tick();
+      expect(started).toEqual([runId]);
+    } finally {
+      await runner.stop();
+    }
+  });
+
+  it("recover touches only running non-extraction rows", async () => {
+    const a = await seedCompany(handle.db, { name: "A Co" });
+    const b = await seedCompany(handle.db, { name: "B Co" });
+    const c = await seedCompany(handle.db, { name: "C Co" });
+    const d = await seedCompany(handle.db, { name: "D Co" });
+    // Terminal + queued rows with pipeline stages must survive a restart.
+    const done = await seedRun(handle.db, a);
+    await handle.db.update(researchRuns).set({ status: "succeeded", stage: "collect" }).where(eq(researchRuns.id, done));
+    const queued = await seedRun(handle.db, b);
+    await handle.db.update(researchRuns).set({ status: "queued", stage: "research" }).where(eq(researchRuns.id, queued));
+    const running = await seedRun(handle.db, c);
+    await handle.db.update(researchRuns).set({ status: "running", stage: "collect" }).where(eq(researchRuns.id, running));
+    const extracting = await seedRun(handle.db, d);
+    await handle.db
+      .update(researchRuns)
+      .set({ status: "running", kind: "agent", stage: "extraction" })
+      .where(eq(researchRuns.id, extracting));
+    const runner = createRunner(handle.db, { execute: async () => {} });
+    try {
+      await runner.recover();
+      expect(await runStatus(done)).toBe("succeeded");
+      expect(await runStatus(queued)).toBe("queued");
+      expect(await runStatus(running)).toBe("failed");
+      expect(await runStatus(extracting)).toBe("running");
+    } finally {
+      await runner.stop();
+    }
+  });
+
+  it("recover spares running extraction subjobs for the company worker", async () => {
+    const companyId = await seedCompany(handle.db, { name: "A Co" });
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const [row] = await handle.db
+      .insert(researchRuns)
+      .values({
+        id: randomUUID(),
+        companyId,
+        kind: "agent",
+        status: "running",
+        companyJobId: jobId,
+        stage: "extraction",
+      })
+      .returning({ id: researchRuns.id });
+    if (!row) throw new Error("no subjob row");
+    const runner = createRunner(handle.db, { execute: async () => {} });
+    try {
+      await runner.recover();
+      expect(await runStatus(row.id)).toBe("running");
+    } finally {
+      await runner.stop();
+    }
+  });
+
+  it("recover and reapStalled never touch agent rows (startup cross-kill)", async () => {
+    const a = await seedCompany(handle.db, { name: "A Co" });
+    const b = await seedCompany(handle.db, { name: "B Co" });
+    // A research subjob claimed by the agent runner: the collect runner's
+    // startup recover runs after the agent tick, so it must spare agent rows
+    // (it used to fail them "server restarted", which the agent tick then
+    // finalized as cancelled, killing live containers).
+    const agent = await seedRun(handle.db, a);
+    await handle.db
+      .update(researchRuns)
+      .set({
+        kind: "agent",
+        status: "running",
+        stage: "research",
+        lastActivityAt: new Date("2026-10-20T11:49:00Z"),
+      })
+      .where(eq(researchRuns.id, agent));
+    const collect = await seedRun(handle.db, b);
+    const now = new Date("2026-10-20T12:00:00Z");
+    const runner = createRunner(handle.db, { execute: async () => {}, clock: { now: () => now } });
+    try {
+      await runner.recover();
+      expect(await runStatus(agent)).toBe("running");
+      expect(await runStatus(collect)).toBe("failed");
+      // Stale by 11 minutes, but agent liveness belongs to the agent runner.
+      expect(await runner.reapStalled()).toBe(0);
+      expect(await runStatus(agent)).toBe("running");
+    } finally {
+      await runner.stop();
+    }
   });
 
   it("a cancelled queued run never starts", async () => {

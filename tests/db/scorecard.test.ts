@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
-import { companies, facts, records, researchRuns, sources } from "../../src/db/schema.js";
+import { companies, facts, records, researchRuns, sources, webSearches } from "../../src/db/schema.js";
 import { recordEvent } from "../../src/collect/db.js";
 import { addFacts } from "../../src/domain/research/facts.js";
 import { upsertRecords } from "../../src/domain/research/records.js";
@@ -280,6 +280,7 @@ describe("scorecard", () => {
       facts: [
         { key: "product.count", value: 42, sourceIds: [own] },
         { key: "product.color", value: "red", sourceIds: [own] },
+        { key: "product.size", value: "big", sourceIds: [own] },
       ],
     });
     expect(factResults.every((r) => r.ok)).toBe(true);
@@ -297,13 +298,79 @@ describe("scorecard", () => {
       facts: [{ key: "product.count", value: 1, sourceIds: [own] }],
     });
     const factId = factResults[0]?.ok ? factResults[0].id : "";
+    const mismatchId = factResults[2]?.ok ? factResults[2].id : "";
     const recordId = recordResults[0]?.ok ? recordResults[0].id : "";
     await handle.db.update(facts).set({ verification: "verified" }).where(eq(facts.id, factId));
+    await handle.db.update(facts).set({ verification: "quote_mismatch" }).where(eq(facts.id, mismatchId));
     await handle.db.update(records).set({ verification: "doc_only" }).where(eq(records.id, recordId));
 
     const result = await scorecard(db(), { batchId });
-    expect(result.runs[0]?.verification).toEqual({ verified: 1, docOnly: 1, unverified: 1 });
-    expect(result.totals.verification).toEqual({ verified: 1, docOnly: 1, unverified: 1 });
+    expect(result.runs[0]?.verification).toEqual({ verified: 1, verifiedValue: 0, docOnly: 1, mismatch: 1, unverified: 1 });
+    expect(result.totals.verification).toEqual({ verified: 1, verifiedValue: 0, docOnly: 1, mismatch: 1, unverified: 1 });
+    expect(result.runs[0]?.verificationByKind).toEqual({
+      number: { verified: 1, verifiedValue: 0, docOnly: 0, mismatch: 0, unverified: 0 },
+      short_text: { verified: 0, verifiedValue: 0, docOnly: 0, mismatch: 1, unverified: 1 },
+    });
+    expect(result.runs[0]?.verificationByRecordType).toEqual({
+      product: { verified: 0, verifiedValue: 0, docOnly: 1, mismatch: 0, unverified: 0 },
+    });
+    expect(result.totals.verificationByKind).toEqual(result.runs[0]?.verificationByKind);
+    expect(result.totals.verificationByRecordType).toEqual(result.runs[0]?.verificationByRecordType);
+  });
+
+  it("reports verification by evidence grade and web search stats", async () => {
+    const companyId = await makeCompany();
+    const batchId = randomUUID();
+    const runId = await makeAgentRun(companyId, batchId);
+    const by = `agent:${runId}/product`;
+    const primary = await makeSource(companyId, runId, "https://example.com/catalog");
+    const secondary = await makeSource(companyId, runId, "https://example.invalid/hit");
+    await handle.db.update(sources).set({ via: "search", evidenceGrade: "secondary" }).where(eq(sources.id, secondary));
+    const factResults = await addFacts(handle.db, {
+      companyId,
+      runId,
+      createdBy: by,
+      facts: [
+        { key: "product.count", value: 42, sourceIds: [primary] },
+        { key: "product.color", value: "red", sourceIds: [secondary] },
+      ],
+    });
+    expect(factResults.every((r) => r.ok)).toBe(true);
+    const first = factResults[0]?.ok ? factResults[0].id : "";
+    const second = factResults[1]?.ok ? factResults[1].id : "";
+    await handle.db.update(facts).set({ verification: "verified_value" }).where(eq(facts.id, first));
+    await handle.db.update(facts).set({ verification: "verified" }).where(eq(facts.id, second));
+    const [searchLinked] = await handle.db
+      .insert(webSearches)
+      .values({
+        id: randomUUID(), runId, companyId, area: "product", tool: "web_search",
+        queryOrUrl: "Acme cream", results: [{ url: "https://example.invalid/hit", title: "H", snippet: "s", rank: 0 }], resultCount: 1,
+      })
+      .returning({ id: webSearches.id });
+    await handle.db
+      .insert(webSearches)
+      .values({
+        id: randomUUID(), runId, companyId, area: null, tool: "web_fetch",
+        queryOrUrl: "https://example.invalid/other", results: [], resultCount: 0,
+      });
+    await handle.db.update(sources).set({ webSearchId: searchLinked?.id ?? null }).where(eq(sources.id, secondary));
+    await handle.db.update(sources).set({ via: "muse_fetch" }).where(eq(sources.id, secondary));
+
+    const result = await scorecard(db(), { batchId });
+    expect(result.runs[0]?.verificationByGrade).toEqual({
+      primary: { verified: 0, verifiedValue: 1, docOnly: 0, mismatch: 0, unverified: 0 },
+      secondary: { verified: 1, verifiedValue: 0, docOnly: 0, mismatch: 0, unverified: 0 },
+    });
+    expect(result.totals.verificationByGrade).toEqual(result.runs[0]?.verificationByGrade);
+    // Batch totals carry verified_value (not dropped).
+    expect(result.totals.verification.verifiedValue).toBe(1);
+    expect(result.runs[0]?.searches).toEqual({
+      total: 2,
+      byArea: { product: 1, unattributed: 1 },
+      withCapturePct: 0.5,
+      museFetchFallbacks: 1,
+    });
+    expect(result.totals.searches).toEqual(result.runs[0]?.searches);
   });
 
   it("resolves run ids, totals several runs, and rejects unknowns", async () => {

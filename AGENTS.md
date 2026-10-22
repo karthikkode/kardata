@@ -17,6 +17,10 @@ The owner reviews every stage. Plans live in `docs/plans/`, and the current stag
 5. Stuck more than 45 minutes on one item: write it under "Blocked" with the exact error, then move on.
 
 ## Never
+- Operate the pipeline ad hoc. Every job (imports, passes, launches, retries, pauses, resumes,
+  checkpoints, status checks) goes through a standard MCP tool; one-off scripts against prod data
+  are banned. If no tool fits the op, add the tool (with tests) first. Tests, migrations, backups
+  and harness setup stay as committed scripts.
 - Commit real company data. Apollo CSVs are private. `*.csv` is gitignored. The only exception is
   `tests/fixtures/`, which holds synthetic data only.
 - Commit secrets. `.env*` is gitignored except `.env.example`.

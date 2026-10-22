@@ -4,9 +4,9 @@
  */
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { loadDotenv, requireEnv } from "../src/lib/env.js";
+import { loadAppEnv, requireEnv } from "../src/lib/env.js";
 
-loadDotenv();
+loadAppEnv();
 
 const HOST = process.env.HOST ?? "127.0.0.1";
 const PORT = Number(process.env.PORT ?? "8787");
