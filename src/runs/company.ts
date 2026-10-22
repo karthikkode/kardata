@@ -18,6 +18,16 @@ import {
 } from "../domain/company-jobs/status.js";
 import { checkPreflightGate, getPreflightSummary } from "../domain/company-jobs/preflight.js";
 import { logJobEvent } from "../domain/company-jobs/events.js";
+import {
+  QUOTA_EARLY_TRIP_RATIO,
+  parseQuotaExhaustion,
+  quotaBreakerClear,
+  quotaBreakerGet,
+  quotaBreakerSet,
+  quotaCalibrationGet,
+  quotaCalibrationSet,
+  windowBurn,
+} from "../domain/quota/breaker.js";
 import { DomainError, isUniqueViolation } from "../domain/errors.js";
 import { resolvePlanAdapters } from "../collect/adapters.js";
 import { researchStart } from "./agent.js";
@@ -241,8 +251,148 @@ export async function companyJobPause(
     .where(eq(companyJobs.id, jobId))
     .returning();
   if (!updated) throw new DomainError("not_found", `company job not found: ${jobId}`);
+  // Stop the burn: cancel the live subjob run (the engines stop it on
+  // their next tick). Saved work stays in the DB; resume restarts the
+  // stage with that work visible to the agent.
+  const desc = await describeCompanyJob(db, jobId);
+  const active = desc.stages.find((s) => s.run && !isTerminalSubjob(s.run.status));
+  if (active?.run) {
+    await cancelRun(db, active.run.id).catch(() => undefined);
+    await db
+      .update(researchRuns)
+      .set({ error: `paused by operator: ${reason}`.slice(0, 500) })
+      .where(eq(researchRuns.id, active.run.id));
+  }
   await logJobEvent(db, jobId, "job_paused", null, { reason });
   return updated;
+}
+
+/** Pause every running company job (quota trips, operator pause-all). Skips jobs that raced to terminal. */
+export async function companyJobsPauseAll(db: Db, reason: string): Promise<{ paused: string[] }> {
+  const running = await db
+    .select({ id: companyJobs.id })
+    .from(companyJobs)
+    .where(eq(companyJobs.status, "running"));
+  const paused: string[] = [];
+  for (const job of running) {
+    try {
+      await companyJobPause(db, job.id, reason);
+      paused.push(job.id);
+    } catch {
+      // Raced to terminal between list and pause; leave it alone.
+    }
+  }
+  return { paused };
+}
+
+export interface QuotaTripInput {
+  /** Already-parked job to record (the quotaPark path records itself). */
+  jobId?: string;
+  resumeAt: Date | null;
+  estimated: boolean;
+  error: string;
+}
+
+/**
+ * Trip the quota breaker: pause every running job (stops their burn) and
+ * record them for auto-resume. Idempotent: re-trips union ids into the
+ * open trip, and an exact reset time always wins over an estimated one.
+ */
+export async function tripQuotaBreaker(
+  db: Db,
+  input: QuotaTripInput,
+): Promise<{ paused: string[]; resumeAt: string | null }> {
+  const resumeIso = input.resumeAt ? input.resumeAt.toISOString() : null;
+  const reason = resumeIso
+    ? `quota exhausted, resumes ${resumeIso}`
+    : "quota exhausted, resume on owner go (no reset time in error)";
+  const { paused } = await companyJobsPauseAll(db, reason);
+  const ids = [...new Set([...paused, ...(input.jobId ? [input.jobId] : [])])];
+  const existing = await quotaBreakerGet(db);
+  const allIds = [...new Set([...(existing.tripped ? existing.jobIds : []), ...ids])];
+  const now = new Date();
+  let resumeAt = existing.tripped ? existing.resumeAt : null;
+  let estimated = existing.tripped ? existing.estimated : true;
+  if (resumeIso && !input.estimated) {
+    resumeAt = resumeIso;
+    estimated = false;
+  } else if (!resumeAt && resumeIso) {
+    resumeAt = resumeIso;
+    estimated = true;
+  }
+  await quotaBreakerSet(db, {
+    trippedAt: existing.tripped ? existing.trippedAt : now.toISOString(),
+    resumeAt,
+    estimated,
+    jobIds: allIds,
+    error: input.error.slice(0, 500),
+  });
+  const cal = await quotaCalibrationGet(db);
+  if (input.estimated) {
+    // Estimated trip: don't touch the allowance sample, just mark this
+    // window early-tripped so it happens at most once per window.
+    if (cal && !cal.earlyTrips.includes(cal.windowStart)) {
+      await quotaCalibrationSet(db, { ...cal, earlyTrips: [...cal.earlyTrips, cal.windowStart] });
+    }
+  } else {
+    // Exact trip: this window's burn-since-start is the allowance sample.
+    // The first trip has no start yet, so it meters all-time burn (rough).
+    const start = cal ? new Date(cal.windowStart) : null;
+    const validStart = start && !Number.isNaN(start.getTime()) ? start : null;
+    const burn = await windowBurn(db, validStart);
+    const resumeDate = resumeAt ? new Date(resumeAt) : null;
+    await quotaCalibrationSet(db, {
+      windowStart:
+        resumeDate && !Number.isNaN(resumeDate.getTime())
+          ? resumeDate.toISOString()
+          : (cal?.windowStart ?? now.toISOString()),
+      allowanceEstimate: burn,
+      windowMs:
+        resumeDate && validStart && !Number.isNaN(resumeDate.getTime())
+          ? Math.max(0, resumeDate.getTime() - validStart.getTime())
+          : (cal?.windowMs ?? null),
+      earlyTrips: cal?.earlyTrips ?? [],
+    });
+  }
+  return { paused: allIds, resumeAt };
+}
+
+/** Auto-resume breaker-paused jobs once the reset time passes. */
+export async function maybeQuotaResume(db: Db, now: Date = new Date()): Promise<{ resumed: string[] }> {
+  const trip = await quotaBreakerGet(db);
+  if (!trip.tripped || !trip.resumeAt) return { resumed: [] };
+  if (new Date(trip.resumeAt).getTime() > now.getTime()) return { resumed: [] };
+  const resumed: string[] = [];
+  for (const id of trip.jobIds) {
+    try {
+      await companyJobResume(db, id);
+      resumed.push(id);
+    } catch {
+      // Already resumed by the owner, or otherwise unresumable; skip.
+    }
+  }
+  await quotaBreakerClear(db);
+  return { resumed };
+}
+
+/** Early trip at 95% of the learned allowance, at most once per window. */
+export async function maybeQuotaEarlyTrip(db: Db): Promise<{ tripped: boolean }> {
+  const trip = await quotaBreakerGet(db);
+  if (trip.tripped) return { tripped: false };
+  const cal = await quotaCalibrationGet(db);
+  if (!cal || cal.allowanceEstimate <= 0 || !cal.windowMs) return { tripped: false };
+  if (cal.earlyTrips.includes(cal.windowStart)) return { tripped: false };
+  const start = new Date(cal.windowStart);
+  if (Number.isNaN(start.getTime())) return { tripped: false };
+  const burn = await windowBurn(db, start);
+  if (burn < QUOTA_EARLY_TRIP_RATIO * cal.allowanceEstimate) return { tripped: false };
+  const resumeAt = new Date(start.getTime() + cal.windowMs);
+  await tripQuotaBreaker(db, {
+    resumeAt,
+    estimated: true,
+    error: `95% of learned window burn (${burn} >= ${Math.round(QUOTA_EARLY_TRIP_RATIO * cal.allowanceEstimate)})`,
+  });
+  return { tripped: true };
 }
 
 export type BeginStageOutcome = { runId: string } | { busy: true };
@@ -468,6 +618,12 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
     error: string,
   ): Promise<CompanyJob> {
     await spendReconcile(job);
+    // Quota exhaustion is not a job failure: park the job paused and trip
+    // the breaker (never auto-retry — a requeue would instantly die again).
+    const quota = parseQuotaExhaustion(error);
+    if (job.status === "running" && errorClass === "usage_limit" && quota.exhausted) {
+      return quotaPark(job, error, quota.resumeAt);
+    }
     const streak = job.errorClass === errorClass ? job.errorStreak + 1 : 1;
     const patch: Partial<CompanyJob> = { errorStreak: streak, errorClass };
     // First consecutive transient failure requeues instead of parking:
@@ -500,6 +656,22 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
         return parked;
       }
     }
+    return updated;
+  }
+
+  /** Park a quota-hit job paused (not failed) and trip the breaker for the rest. */
+  async function quotaPark(job: CompanyJob, error: string, resumeAt: Date | null): Promise<CompanyJob> {
+    const reason = resumeAt
+      ? `quota exhausted, resumes ${resumeAt.toISOString()}`
+      : "quota exhausted, resume on owner go (no reset time in error)";
+    const [updated] = await db
+      .update(companyJobs)
+      .set({ status: "paused", pauseReason: reason })
+      .where(eq(companyJobs.id, job.id))
+      .returning();
+    if (!updated) throw new DomainError("not_found", `company job not found: ${job.id}`);
+    await logJobEvent(db, job.id, "job_paused", null, { reason });
+    await tripQuotaBreaker(db, { jobId: job.id, resumeAt, estimated: false, error });
     return updated;
   }
 
@@ -685,6 +857,12 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
     if (ticking) return;
     ticking = true;
     try {
+      await maybeQuotaResume(db);
+      let quota = await quotaBreakerGet(db);
+      if (!quota.tripped) {
+        await maybeQuotaEarlyTrip(db);
+        quota = await quotaBreakerGet(db);
+      }
       const jobs = await db
         .select()
         .from(companyJobs)
@@ -709,6 +887,10 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
         }
       }
       if (paused) return;
+      // Re-read: a trip mid-tick (quota 429 while accounting) must block
+      // claims in the same tick, or jobs launch into a dry window.
+      quota = await quotaBreakerGet(db);
+      if (quota.tripped) return;
       const max = await effectiveCompanyConcurrency(db, deps.companyMax);
       while ((await countByStatus("running")) < max) {
         const [next] = await db

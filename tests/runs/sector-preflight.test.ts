@@ -423,6 +423,33 @@ describe("startPipeline", () => {
     expect(result).toEqual({ created: 3, skipped: 1, eligible: 4 });
     expect(b).toBeTruthy();
   });
+
+  it("launches only the given categories when filtered", async () => {
+    const sectorId = await makeSector("Skincare");
+    const a = await addCompany(sectorId, "A Co");
+    const b = await addCompany(sectorId, "B Co");
+    for (const [id, category] of [[a, "skincare"], [b, "haircare"]] as const) {
+      await handle.db.insert(sectorPreflight).values({
+        id: randomUUID(),
+        sectorId,
+        companyId: id,
+        businessType: "dtc_brand",
+        primaryCategory: category,
+        sellsOwnProducts: true,
+        hasOnlineStore: true,
+        confidence: "high",
+        reason: "seeded",
+      });
+    }
+    await handle.db
+      .update(sectorCompanies)
+      .set({ eligibility: "eligible" })
+      .where(eq(sectorCompanies.sectorId, sectorId));
+    const filtered = await startPipeline(handle.db, sectorId, { categories: ["skincare"] });
+    expect(filtered).toEqual({ created: 1, skipped: 0, eligible: 1 });
+    const all = await startPipeline(handle.db, sectorId);
+    expect(all).toEqual({ created: 1, skipped: 1, eligible: 2 });
+  });
 });
 
 describe("sector preflight pool settings", () => {

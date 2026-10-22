@@ -92,8 +92,10 @@ const EXPECTED_TOOLS = [
   "adapter_list",
   "company_job_start",
   "company_job_status",
+  "company_job_live",
   "company_jobs_list",
   "company_job_pause",
+  "company_jobs_pause_all",
   "company_job_resume",
   "company_job_cancel",
   "company_job_retry",
@@ -102,6 +104,8 @@ const EXPECTED_TOOLS = [
   "company_concurrency_set",
   "pipeline_status",
   "pipeline_checkpoint_set",
+  "quota_breaker_status",
+  "quota_breaker_clear",
   "sector_preflight_start",
   "sector_preflight_status",
   "sector_preflight_list",
@@ -349,12 +353,23 @@ describe("mcp tools", () => {
     const listed = dataOf(await call("company_jobs_list", {}));
     expect(((listed.jobs as unknown[]) ?? []).length).toBe(1);
 
-    await call("company_job_pause", { jobId });
+    await call("company_job_pause", { jobId, reason: "operator check" });
     const paused = dataOf(await call("company_job_status", { jobId }));
     expect((paused.job as { status: string }).status).toBe("paused");
+    expect((paused.job as { pauseReason: string }).pauseReason).toBe("operator check");
     await call("company_job_resume", { jobId });
     const resumed = dataOf(await call("company_job_status", { jobId }));
     expect((resumed.job as { status: string }).status).toBe("running");
+    const all = dataOf(await call("company_jobs_pause_all", { reason: "all check" }));
+    expect((all.paused as string[])).toEqual([jobId]);
+    await call("company_job_resume", { jobId });
+    const live = dataOf(await call("company_job_live", { jobId }));
+    expect((live.job as { status: string }).status).toBe("running");
+    expect(live.active).toBeNull();
+    const quota = dataOf(await call("quota_breaker_status", {}));
+    expect((quota.trip as { tripped: boolean }).tripped).toBe(false);
+    const quotaCleared = dataOf(await call("quota_breaker_clear", {}));
+    expect(quotaCleared.tripped).toBe(false);
 
     const adapters = dataOf(await call("adapter_list", {}));
     const entries = (adapters.adapters as { id: string; version: string }[]) ?? [];
@@ -449,6 +464,8 @@ describe("mcp tools", () => {
     const scoped = dataOf(await call("sector_scope_apply", { sectorId: sector.id }));
     expect(scoped.eligible).toBe(1);
 
+    const filtered = dataOf(await call("pipeline_start", { sectorId: sector.id, categories: ["haircare"] }));
+    expect(filtered.created).toBe(0);
     const launched = dataOf(await call("pipeline_start", { sectorId: sector.id }));
     expect(launched.created).toBe(1);
 

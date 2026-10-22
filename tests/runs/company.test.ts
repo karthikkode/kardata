@@ -3,20 +3,31 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { and, asc, eq } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
 import {
+  areaStatuses,
   companies,
   companyJobs,
   jobEvents,
+  providerCalls,
   researchRuns,
   type CompanyJob,
   type ResearchRun,
 } from "../../src/db/schema.js";
+import { recordEvent } from "../../src/collect/db.js";
+import { companyJobLive } from "../../src/domain/company-jobs/live.js";
 import { describeCompanyJob, type CompanyStage } from "../../src/domain/company-jobs/status.js";
+import {
+  parseQuotaExhaustion,
+  quotaBreakerClear,
+  quotaBreakerGet,
+  quotaCalibrationSet,
+} from "../../src/domain/quota/breaker.js";
 import {
   beginStageReal,
   companyJobCancel,
   companyJobList,
   companyJobPause,
   companyJobResume,
+  companyJobsPauseAll,
   companyJobRetry,
   companyJobStatus,
   createCompanyRunner,
@@ -324,24 +335,91 @@ describe("stage machine", () => {
     expect((await latestSubjob(jobId, "preflight"))?.id).toBe(second.id);
   });
 
-  it("pauses mid-stage without starting new work, and resumes cleanly", async () => {
+  it("pause stops the live run; resume restarts the stage with saved work", async () => {
     const companyId = await makeCompany("Acme");
     const { jobId } = await startCompanyJob(handle.db, { companyId });
     const world = fakeWorld();
     const runner = createCompanyRunner(handle.db, world.deps());
     await fileReport(jobId, companyId);
     await runner.tick();
-    await companyJobPause(handle.db, jobId);
-    const sub = await latestSubjob(jobId, "preflight");
-    if (!sub) throw new Error("no subjob");
-    await flipRun(sub.id, "succeeded");
+    const live = await latestSubjob(jobId, "preflight");
+    if (!live) throw new Error("no subjob");
+    await companyJobPause(handle.db, jobId, "operator check");
+    const stopped = await latestSubjob(jobId, "preflight");
+    expect(stopped?.id).toBe(live.id);
+    expect(stopped?.status).toBe("cancelled");
+    expect(stopped?.error).toContain("operator check");
+    expect((await jobRow(jobId)).pauseReason).toBe("operator check");
+    // Nothing new starts while paused.
     await runner.tick();
-    // Advanced to collect but did not begin it while paused.
-    expect((await jobRow(jobId)).currentStage).toBe("collect");
     expect(await latestSubjob(jobId, "collect")).toBeNull();
     await companyJobResume(handle.db, jobId);
+    const retry = await latestSubjob(jobId, "preflight");
+    expect(retry?.id).not.toBe(live.id);
+    expect(retry?.status).toBe("queued");
+    if (!retry) throw new Error("no retried subjob");
+    await flipRun(retry.id, "succeeded");
     await runner.tick();
-    expect(await latestSubjob(jobId, "collect")).not.toBeNull();
+    expect((await jobRow(jobId)).currentStage).toBe("collect");
+  });
+
+  it("reports the live run: areas, recent calls, tokens, stall countdown", async () => {
+    const companyId = await makeCompany("Acme");
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const runner = createCompanyRunner(handle.db, fakeWorld().deps());
+    await runner.tick();
+    const sub = await latestSubjob(jobId, "preflight");
+    if (!sub) throw new Error("no subjob");
+    await handle.db
+      .update(researchRuns)
+      .set({
+        status: "running",
+        agentPhase: "researching",
+        startedAt: new Date(Date.now() - 60_000),
+        lastActivityAt: new Date(),
+        agentUsage: {
+          inputTokens: 1000,
+          outputTokens: 0,
+          cachedTokens: 200,
+          reasoningTokens: 0,
+          calls: 3,
+          childrenIncluded: true,
+          children: [
+            { sessionId: "c1", inputTokens: 1, outputTokens: 0, cachedTokens: 0, reasoningTokens: 0, calls: 1 },
+            { sessionId: "c2", inputTokens: 1, outputTokens: 0, cachedTokens: 0, reasoningTokens: 0, calls: 1 },
+          ],
+        },
+      })
+      .where(eq(researchRuns.id, sub.id));
+    await handle.db.insert(areaStatuses).values({ runId: sub.id, area: "reviews", companyId, status: "done" });
+    await recordEvent(handle.db, sub.id, "mcp_call", { tool: "company_context", status: "ok" });
+    await recordEvent(handle.db, sub.id, "mcp_call", { tool: "source_fetch", status: "ok" });
+    const live = await companyJobLive(handle.db, jobId);
+    expect(live.job.status).toBe("running");
+    expect(live.active?.stage).toBe("preflight");
+    expect(live.active?.phase).toBe("researching");
+    expect(live.active?.areas).toEqual([{ area: "reviews", status: "done", updatedAt: expect.any(Date) }]);
+    expect(live.active?.recentCalls.map((c) => c.tool)).toEqual(["source_fetch", "company_context"]);
+    expect(live.active?.runInputTokens).toBe(1200);
+    expect(live.active?.childAgents).toBe(2);
+    expect(live.active?.stallInSeconds).toBeGreaterThan(200);
+    await flipRun(sub.id, "succeeded");
+    const idle = await companyJobLive(handle.db, jobId);
+    expect(idle.active).toBeNull();
+  });
+
+  it("pauses all running jobs with one reason", async () => {
+    const a = await makeCompany("A Co");
+    const b = await makeCompany("B Co");
+    const first = await startCompanyJob(handle.db, { companyId: a });
+    const second = await startCompanyJob(handle.db, { companyId: b });
+    const runner = createCompanyRunner(handle.db, fakeWorld().deps());
+    await runner.tick();
+    const result = await companyJobsPauseAll(handle.db, "quota check");
+    expect(new Set(result.paused)).toEqual(new Set([first.jobId, second.jobId]));
+    expect((await jobRow(first.jobId)).status).toBe("paused");
+    expect((await jobRow(second.jobId)).pauseReason).toBe("quota check");
+    expect(await companyJobsPauseAll(handle.db, "again")).toEqual({ paused: [] });
   });
 
   it("respects engine capacity gates", async () => {
@@ -666,5 +744,137 @@ describe("supersedeQueuedJobs", () => {
       expect((cancelled?.payload as { reason?: string } | null)?.reason).toBe("superseded by sector preflight");
     }
     expect((await jobRow(runningId)).status).toBe("running");
+  });
+});
+
+describe("quota breaker", () => {
+  const quotaErr = (reset: string) =>
+    `API error 429: Subscription quota exhausted. Your usage window resets at ${reset}. (rate_limit_error)`;
+
+  it("parses exhaustion and reset time, and ignores plain rate limits", () => {
+    const reset = "2026-10-21T18:27:17Z";
+    expect(parseQuotaExhaustion(quotaErr(reset))).toEqual({ exhausted: true, resumeAt: new Date(reset) });
+    expect(parseQuotaExhaustion("Subscription quota exhausted.")).toEqual({ exhausted: true, resumeAt: null });
+    expect(parseQuotaExhaustion("429 rate limit exceeded").exhausted).toBe(false);
+    expect(parseQuotaExhaustion("boom").exhausted).toBe(false);
+  });
+
+  it("parks quota-hit jobs paused and trips the breaker with the reset time", async () => {
+    const a = await makeCompany("A Co");
+    const b = await makeCompany("B Co");
+    const first = await startCompanyJob(handle.db, { companyId: a });
+    const second = await startCompanyJob(handle.db, { companyId: b });
+    const runner = createCompanyRunner(handle.db, fakeWorld().deps());
+    await runner.tick();
+    const reset = new Date(Date.now() + 3600_000).toISOString();
+    const sub = await latestSubjob(first.jobId, "preflight");
+    if (!sub) throw new Error("no subjob");
+    await flipRun(sub.id, "failed", quotaErr(reset));
+    await runner.tick();
+    expect((await jobRow(first.jobId)).status).toBe("paused");
+    expect((await jobRow(first.jobId)).pauseReason).toContain("quota exhausted");
+    expect((await jobRow(second.jobId)).status).toBe("paused");
+    expect((await jobRow(second.jobId)).pauseReason).toContain(reset);
+    const trip = await quotaBreakerGet(handle.db);
+    expect(trip.tripped).toBe(true);
+    if (!trip.tripped) throw new Error("no trip");
+    expect(trip.resumeAt).toBe(reset);
+    expect(trip.estimated).toBe(false);
+    expect(new Set(trip.jobIds)).toEqual(new Set([first.jobId, second.jobId]));
+  });
+
+  it("blocks new claims while tripped and auto-resumes after reset", async () => {
+    const a = await makeCompany("A Co");
+    const b = await makeCompany("B Co");
+    const first = await startCompanyJob(handle.db, { companyId: a });
+    const runner = createCompanyRunner(handle.db, fakeWorld().deps());
+    await runner.tick();
+    const queued = await startCompanyJob(handle.db, { companyId: b, queued: true });
+    const sub = await latestSubjob(first.jobId, "preflight");
+    if (!sub) throw new Error("no subjob");
+    // Trip with a future reset: the queued job must not be claimed.
+    await flipRun(sub.id, "failed", quotaErr(new Date(Date.now() + 3600_000).toISOString()));
+    await runner.tick();
+    expect((await jobRow(first.jobId)).status).toBe("paused");
+    expect((await jobRow(queued.jobId)).status).toBe("queued");
+    // Emulate time passing: clear and re-trip with a past reset.
+    await quotaBreakerClear(handle.db);
+    await companyJobResume(handle.db, first.jobId);
+    const retry = await latestSubjob(first.jobId, "preflight");
+    if (!retry) throw new Error("no retried subjob");
+    await flipRun(retry.id, "failed", quotaErr(new Date(Date.now() - 1000).toISOString()));
+    await runner.tick();
+    expect((await jobRow(first.jobId)).status).toBe("paused");
+    await runner.tick();
+    expect((await jobRow(first.jobId)).status).toBe("running");
+    expect((await quotaBreakerGet(handle.db)).tripped).toBe(false);
+    const resumed = await latestSubjob(first.jobId, "preflight");
+    expect(resumed?.id).not.toBe(retry.id);
+  });
+
+  it("holds for the owner when the reset time is missing", async () => {
+    const a = await makeCompany("A Co");
+    const { jobId } = await startCompanyJob(handle.db, { companyId: a });
+    const runner = createCompanyRunner(handle.db, fakeWorld().deps());
+    await runner.tick();
+    const sub = await latestSubjob(jobId, "preflight");
+    if (!sub) throw new Error("no subjob");
+    await flipRun(sub.id, "failed", "Subscription quota exhausted.");
+    await runner.tick();
+    expect((await jobRow(jobId)).status).toBe("paused");
+    expect((await jobRow(jobId)).pauseReason).toContain("owner go");
+    const trip = await quotaBreakerGet(handle.db);
+    expect(trip.tripped).toBe(true);
+    if (!trip.tripped) throw new Error("no trip");
+    expect(trip.resumeAt).toBeNull();
+    await runner.tick();
+    expect((await jobRow(jobId)).status).toBe("paused");
+    await quotaBreakerClear(handle.db);
+    expect((await quotaBreakerGet(handle.db)).tripped).toBe(false);
+  });
+
+  it("trips early at 95% of the learned allowance, once per window", async () => {
+    const a = await makeCompany("A Co");
+    const { jobId } = await startCompanyJob(handle.db, { companyId: a });
+    const runner = createCompanyRunner(handle.db, fakeWorld().deps());
+    await runner.tick();
+    const windowStart = new Date(Date.now() - 3600_000).toISOString();
+    await quotaCalibrationSet(handle.db, {
+      windowStart,
+      allowanceEstimate: 1000,
+      windowMs: 3600_000,
+      earlyTrips: [],
+    });
+    await handle.db.insert(providerCalls).values([
+      { stage: "research", inputTokens: 900, cachedTokens: 0, at: new Date() },
+      { stage: "research", inputTokens: 60, cachedTokens: 0, at: new Date() },
+    ]);
+    await runner.tick();
+    expect((await jobRow(jobId)).status).toBe("paused");
+    const trip = await quotaBreakerGet(handle.db);
+    expect(trip.tripped).toBe(true);
+    if (!trip.tripped) throw new Error("no trip");
+    expect(trip.estimated).toBe(true);
+    // Estimated resume lands ~now: next tick auto-resumes, and must not
+    // immediately re-trip (one early trip per window).
+    await runner.tick();
+    expect((await jobRow(jobId)).status).toBe("running");
+    expect((await quotaBreakerGet(handle.db)).tripped).toBe(false);
+    await runner.tick();
+    expect((await jobRow(jobId)).status).toBe("running");
+    expect((await quotaBreakerGet(handle.db)).tripped).toBe(false);
+  });
+
+  it("plain rate-limit 429s auto-retry without tripping", async () => {
+    const a = await makeCompany("A Co");
+    const { jobId } = await startCompanyJob(handle.db, { companyId: a });
+    const runner = createCompanyRunner(handle.db, fakeWorld().deps());
+    await runner.tick();
+    const sub = await latestSubjob(jobId, "preflight");
+    if (!sub) throw new Error("no subjob");
+    await flipRun(sub.id, "failed", "429 rate limit exceeded, retry later");
+    await runner.tick();
+    expect((await jobRow(jobId)).status).toBe("running");
+    expect((await quotaBreakerGet(handle.db)).tripped).toBe(false);
   });
 });

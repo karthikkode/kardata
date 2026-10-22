@@ -31,6 +31,8 @@ import {
   searchAll,
 } from "../domain/research/reads.js";
 import { preflightReportSchema, savePreflightReportForRun } from "../domain/company-jobs/preflight.js";
+import { companyJobLive } from "../domain/company-jobs/live.js";
+import { quotaBreakerClear, quotaBreakerGet, quotaCalibrationGet, windowBurn } from "../domain/quota/breaker.js";
 import { ADAPTERS } from "../collect/adapters.js";
 import { researchStart } from "../runs/agent.js";
 import {
@@ -48,6 +50,7 @@ import {
   companyJobCancel,
   companyJobList,
   companyJobPause,
+  companyJobsPauseAll,
   companyJobResume,
   companyJobRetry,
   companyJobStatus,
@@ -1319,6 +1322,22 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   );
 
   registerTool(server, db, auth,
+    "company_job_live",
+    {
+      description: "Operator: live view of a job — the active run's stage, areas, recent tool calls, tokens, stall countdown. Null active when idle.",
+      inputSchema: { jobId },
+    },
+    async ({ jobId: id }) =>
+      wrap(async () => {
+        const live = await companyJobLive(db, id);
+        return {
+          summary: live.active ? `job ${id}: ${live.active.stage} live (${live.active.recentCalls.length} recent calls)` : `job ${id} idle`,
+          data: live,
+        };
+      }),
+  );
+
+  registerTool(server, db, auth,
     "company_jobs_list",
     {
       description: "Operator: recent company jobs with derived completion.",
@@ -1337,13 +1356,26 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth,
     "company_job_pause",
     {
-      description: "Operator: pause a company job (the active stage finishes; nothing new starts).",
-      inputSchema: { jobId },
+      description: "Operator: pause a company job (stops the live run; resume restarts the stage with saved work).",
+      inputSchema: { jobId, reason: z.string().optional().describe("Why (stored with the pause)") },
     },
-    async ({ jobId: id }) =>
+    async ({ jobId: id, reason }) =>
       wrap(async () => {
-        await companyJobPause(db, id);
+        await companyJobPause(db, id, reason ?? undefined);
         return { summary: `job ${id} paused`, data: { jobId: id } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_jobs_pause_all",
+    {
+      description: "Operator: pause every running company job (stops their live runs). Resume each job when ready.",
+      inputSchema: { reason: z.string().describe("Why (stored with each pause)") },
+    },
+    async ({ reason }) =>
+      wrap(async () => {
+        const result = await companyJobsPauseAll(db, reason);
+        return { summary: `${result.paused.length} jobs paused`, data: result };
       }),
   );
 
@@ -1456,6 +1488,44 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
           summary: checkpoint.target === null ? "checkpoint cleared" : `checkpoint -> ${checkpoint.target}`,
           data: checkpoint,
         };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "quota_breaker_status",
+    {
+      description: "Operator: quota breaker state — trip, reset time, window burn vs learned allowance.",
+      inputSchema: {},
+    },
+    async () =>
+      wrap(async () => {
+        const trip = await quotaBreakerGet(db);
+        const cal = await quotaCalibrationGet(db);
+        const start = cal ? new Date(cal.windowStart) : null;
+        const burn = await windowBurn(db, start && !Number.isNaN(start.getTime()) ? start : null);
+        const pct =
+          cal && cal.allowanceEstimate > 0 ? Math.round((burn / cal.allowanceEstimate) * 100) : null;
+        return {
+          summary: trip.tripped
+            ? `breaker tripped, resumes ${trip.resumeAt ?? "on owner go"}`
+            : pct === null
+              ? `no trip, burn ${burn} (uncalibrated)`
+              : `no trip, burn ${burn} (${pct}% of learned window)`,
+          data: { trip, calibration: cal, burn, pct },
+        };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "quota_breaker_clear",
+    {
+      description: "Operator: clear a quota trip hold (jobs stay paused; resume each when ready).",
+      inputSchema: {},
+    },
+    async () =>
+      wrap(async () => {
+        await quotaBreakerClear(db);
+        return { summary: "breaker cleared", data: { tripped: false } };
       }),
   );
 
@@ -1641,11 +1711,14 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     "pipeline_start",
     {
       description: "Operator: launch company jobs for a sector's eligible companies only (review/pending never included).",
-      inputSchema: { sectorId: z.string().describe("Sector UUID") },
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        categories: z.array(z.string()).optional().describe("Only these primary categories (e.g. skincare, body_bath, mens_grooming)"),
+      },
     },
-    async ({ sectorId }) =>
+    async ({ sectorId, categories }) =>
       wrap(async () => {
-        const result = await startPipeline(db, sectorId);
+        const result = await startPipeline(db, sectorId, { categories: categories ?? undefined });
         return { summary: `${result.created} jobs created (${result.skipped} already had one)`, data: result };
       }),
   );

@@ -336,11 +336,26 @@ export interface SectorRunner {
 export async function startPipeline(
   db: Db,
   sectorId: string,
+  options: { categories?: string[] } = {},
 ): Promise<{ created: number; skipped: number; eligible: number }> {
-  const members = await db
-    .select({ companyId: sectorCompanies.companyId })
-    .from(sectorCompanies)
-    .where(and(eq(sectorCompanies.sectorId, sectorId), eq(sectorCompanies.eligibility, "eligible")));
+  const eligibleScope = and(eq(sectorCompanies.sectorId, sectorId), eq(sectorCompanies.eligibility, "eligible"));
+  const members =
+    options.categories && options.categories.length > 0
+      ? await db
+          .select({ companyId: sectorCompanies.companyId })
+          .from(sectorCompanies)
+          .innerJoin(
+            sectorPreflight,
+            and(
+              eq(sectorPreflight.sectorId, sectorCompanies.sectorId),
+              eq(sectorPreflight.companyId, sectorCompanies.companyId),
+            ),
+          )
+          .where(and(eligibleScope, inArray(sectorPreflight.primaryCategory, options.categories)))
+      : await db
+          .select({ companyId: sectorCompanies.companyId })
+          .from(sectorCompanies)
+          .where(eligibleScope);
   // Terminal-failure history (failed/cancelled) gets a fresh job; anything
   // else (active, completed) is skipped.
   const existing = await db.select({ companyId: companyJobs.companyId, status: companyJobs.status }).from(companyJobs);
