@@ -1711,11 +1711,14 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     "pipeline_start",
     {
       description: "Operator: launch company jobs for a sector's eligible companies only (review/pending never included).",
-      inputSchema: { sectorId: z.string().describe("Sector UUID") },
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+        categories: z.array(z.string()).optional().describe("Only these primary categories (e.g. skincare, body_bath, mens_grooming)"),
+      },
     },
-    async ({ sectorId }) =>
+    async ({ sectorId, categories }) =>
       wrap(async () => {
-        const result = await startPipeline(db, sectorId);
+        const result = await startPipeline(db, sectorId, { categories: categories ?? undefined });
         return { summary: `${result.created} jobs created (${result.skipped} already had one)`, data: result };
       }),
   );

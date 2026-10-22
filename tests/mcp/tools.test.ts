@@ -464,6 +464,8 @@ describe("mcp tools", () => {
     const scoped = dataOf(await call("sector_scope_apply", { sectorId: sector.id }));
     expect(scoped.eligible).toBe(1);
 
+    const filtered = dataOf(await call("pipeline_start", { sectorId: sector.id, categories: ["haircare"] }));
+    expect(filtered.created).toBe(0);
     const launched = dataOf(await call("pipeline_start", { sectorId: sector.id }));
     expect(launched.created).toBe(1);
 
