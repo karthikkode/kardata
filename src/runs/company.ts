@@ -52,6 +52,8 @@ import {
 const COMPANY_POLL_MS = 15_000;
 const COMPANY_LIST_DEFAULT_LIMIT = 20;
 const AGENT_STAGES: readonly CompanyStage[] = ["preflight", "research"];
+/** First consecutive failure in these classes requeues the stage instead of parking the job. */
+const TRANSIENT_AUTO_RETRY = new Set(["stall", "usage_limit"]);
 
 export interface StartCompanyJobInput {
   companyId: string;
@@ -198,11 +200,20 @@ export interface CompanyListEntry {
   derived: CompanyDerived;
 }
 
-export async function companyJobList(db: Db, limit = COMPANY_LIST_DEFAULT_LIMIT): Promise<CompanyListEntry[]> {
+export async function companyJobList(
+  db: Db,
+  limit = COMPANY_LIST_DEFAULT_LIMIT,
+  status?: CompanyJob["status"],
+): Promise<CompanyListEntry[]> {
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
     throw new DomainError("invalid_input", "limit must be 1..100");
   }
-  const jobs = await db.select().from(companyJobs).orderBy(desc(companyJobs.createdAt)).limit(limit);
+  const jobs = await db
+    .select()
+    .from(companyJobs)
+    .where(status === undefined ? undefined : eq(companyJobs.status, status))
+    .orderBy(desc(companyJobs.createdAt))
+    .limit(limit);
   const entries: CompanyListEntry[] = [];
   for (const job of jobs) {
     const desc = await describeCompanyJob(db, job.id);
@@ -459,17 +470,36 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
     await spendReconcile(job);
     const streak = job.errorClass === errorClass ? job.errorStreak + 1 : 1;
     const patch: Partial<CompanyJob> = { errorStreak: streak, errorClass };
+    // First consecutive transient failure requeues instead of parking:
+    // API-side flakiness (stalls, 429s) succeeds on retry. Anything else,
+    // or a second consecutive transient, parks for a human. server_stopped
+    // deliberately never auto-retries (a crash loop must not respawn work).
+    const autoRetry =
+      job.status === "running" && TRANSIENT_AUTO_RETRY.has(errorClass) && streak < 2;
     if (job.status === "running") {
       if (streak >= JOB_SAME_ERROR_PAUSE) {
         patch.status = "paused";
         patch.pauseReason = `${streak} consecutive ${errorClass} failures: ${error.slice(0, 300)}`;
-      } else {
+      } else if (!autoRetry) {
         patch.status = "failed";
       }
     }
     const [updated] = await db.update(companyJobs).set(patch).where(eq(companyJobs.id, job.id)).returning();
     if (!updated) throw new DomainError("not_found", `company job not found: ${job.id}`);
     await logJobEvent(db, job.id, "stage_failed", stage, { errorClass, error: error.slice(0, 300) });
+    if (autoRetry && updated.status === "running") {
+      try {
+        await retryStage(db, updated);
+      } catch {
+        const [parked] = await db
+          .update(companyJobs)
+          .set({ status: "failed" })
+          .where(eq(companyJobs.id, job.id))
+          .returning();
+        if (!parked) throw new DomainError("not_found", `company job not found: ${job.id}`);
+        return parked;
+      }
+    }
     return updated;
   }
 

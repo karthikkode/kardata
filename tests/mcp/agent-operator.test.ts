@@ -269,6 +269,21 @@ describe("agent operator tools", () => {
     expect(detail.items).toEqual({ facts: 1, records: 0, documents: 0, findings: 0 });
   });
 
+  it("bumps run liveness on agent tool calls", async () => {
+    const a = await makeCompany("A Co");
+    const batch = dataOf(await call(operator, "research_start", { companyIds: [a] }));
+    const runId = (batch.runs as { runId: string }[])[0]?.runId as string;
+    const old = new Date(Date.now() - 3600_000);
+    await handle.db.update(researchRuns).set({ lastActivityAt: old }).where(eq(researchRuns.id, runId));
+    const agent = await agentClient(a, runId);
+    dataOf(await call(agent, "company_context", { companyId: a }));
+    const [row] = await handle.db
+      .select({ lastActivityAt: researchRuns.lastActivityAt })
+      .from(researchRuns)
+      .where(eq(researchRuns.id, runId));
+    expect(row?.lastActivityAt.getTime()).toBeGreaterThan(old.getTime());
+  });
+
   it("merges harness and audit events in run_activity", async () => {
     const a = await makeCompany("A Co");
     const batch = dataOf(await call(operator, "research_start", { companyIds: [a] }));

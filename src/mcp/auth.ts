@@ -132,6 +132,12 @@ async function auditCall(
       resultSize: Buffer.byteLength(resultJson, "utf8"),
       resultTruncated: resultRef.truncated,
     });
+    // Liveness: a stdout-quiet main run whose (sub)agents still call tools
+    // is working, not stalled.
+    await db
+      .update(researchRuns)
+      .set({ lastActivityAt: new Date() })
+      .where(eq(researchRuns.id, runId));
   } catch (err) {
     // The audit must never mask the tool result (same DB, so this is rare).
     console.error(`audit failed for ${tool}: ${err instanceof Error ? err.message : String(err)}`);

@@ -276,6 +276,54 @@ describe("stage machine", () => {
     expect(fresh?.status).toBe("queued");
   });
 
+  it("auto-retries the first stall, then parks on the second", async () => {
+    const companyId = await makeCompany("Acme");
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const world = fakeWorld();
+    const runner = createCompanyRunner(handle.db, world.deps());
+    await runner.tick();
+    const first = await latestSubjob(jobId, "preflight");
+    if (!first) throw new Error("no preflight subjob");
+    await flipRun(first.id, "stalled");
+    await runner.tick();
+    const retried = await jobRow(jobId);
+    expect(retried.status).toBe("running");
+    expect(retried.errorStreak).toBe(1);
+    expect(retried.errorClass).toBe("stall");
+    const second = await latestSubjob(jobId, "preflight");
+    expect(second?.id).not.toBe(first.id);
+    expect(second?.status).toBe("queued");
+    if (!second) throw new Error("no retried subjob");
+    await flipRun(second.id, "stalled");
+    await runner.tick();
+    const parked = await jobRow(jobId);
+    expect(parked.status).toBe("failed");
+    expect(parked.errorStreak).toBe(2);
+  });
+
+  it("auto-retries usage_limit once but never server_stopped", async () => {
+    const companyId = await makeCompany("Acme");
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const world = fakeWorld();
+    const runner = createCompanyRunner(handle.db, world.deps());
+    await runner.tick();
+    const first = await latestSubjob(jobId, "preflight");
+    if (!first) throw new Error("no preflight subjob");
+    await flipRun(first.id, "failed", "429 rate limit exceeded, retry later");
+    await runner.tick();
+    expect((await jobRow(jobId)).status).toBe("running");
+    expect((await jobRow(jobId)).errorClass).toBe("usage_limit");
+    const second = await latestSubjob(jobId, "preflight");
+    if (!second) throw new Error("no retried subjob");
+    await flipRun(second.id, "failed", "server stopped mid-run");
+    await runner.tick();
+    const parked = await jobRow(jobId);
+    expect(parked.status).toBe("failed");
+    expect(parked.errorClass).toBe("server_stopped");
+    // No third subjob: the crash loop must not respawn work.
+    expect((await latestSubjob(jobId, "preflight"))?.id).toBe(second.id);
+  });
+
   it("pauses mid-stage without starting new work, and resumes cleanly", async () => {
     const companyId = await makeCompany("Acme");
     const { jobId } = await startCompanyJob(handle.db, { companyId });
@@ -556,6 +604,8 @@ describe("status, list and settings", () => {
     const listed = await companyJobList(handle.db);
     expect(listed).toHaveLength(1);
     expect(listed[0]?.derived).toBe("incomplete");
+    expect(await companyJobList(handle.db, 20, "running")).toHaveLength(1);
+    expect(await companyJobList(handle.db, 20, "failed")).toHaveLength(0);
     await expect(companyJobList(handle.db, 0)).rejects.toMatchObject({ code: "invalid_input" });
   });
 

@@ -1322,11 +1322,14 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     "company_jobs_list",
     {
       description: "Operator: recent company jobs with derived completion.",
-      inputSchema: { limit: z.number().int().optional().describe("Default 20, max 100") },
+      inputSchema: {
+        limit: z.number().int().optional().describe("Default 20, max 100"),
+        status: z.enum(["queued", "running", "paused", "completed", "failed", "cancelled"]).optional().describe("Only jobs in this status"),
+      },
     },
-    async ({ limit }) =>
+    async ({ limit, status }) =>
       wrap(async () => {
-        const jobs = await companyJobList(db, limit ?? undefined);
+        const jobs = await companyJobList(db, limit ?? undefined, status ?? undefined);
         return { summary: `${jobs.length} company jobs`, data: { jobs } };
       }),
   );
