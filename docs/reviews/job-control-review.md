@@ -40,11 +40,23 @@ agent immediately; quota trips auto-pause and auto-resume.
 ## 4. Compose — done
 - `restart: unless-stopped` on the db service (`docker-compose.yml:4`).
 
+## Addendum (pre-PR)
+- `shutdown.test.ts` boots on port 0 now (reads the port from the log);
+  immune to dev servers on 8788. Passes with the squatter present.
+- `pipeline_start` takes `categories` (`sector.ts:336`): layer 1 launches
+  with `[skincare, body_bath, mens_grooming]`; layer 2 untouched. Tested
+  at domain + tool level.
+- `scripts/deploy-live.sh`: pull/ci/build/migrate/restart in
+  `~/kardata-live`; refuses while jobs run unless `--force` (pause-all,
+  resume after). Guard runs post-build so the race window is seconds; a
+  job claimed inside it parks failed and shows in reports. Unit template
+  + README point at the live checkout. No migration (settings keys).
+
 ## Suite / deploy
-- Full suite: 556 passed + 1 skipped; 1 failed = `shutdown.test.ts`, only
-  because :8788 is held by another session's `tsx` process (pid 3296456,
-  not mine — left running). Same shutdown sequence passes manually on a
-  free port (SIGTERM → exit in 102ms).
+- Full suite: 558 passed + 1 skipped, 0 failed.
+- Owner flow: merge → pull main → copy unit → daemon-reload →
+  run `scripts/deploy-live.sh` (pulls live, builds, migrates, restarts).
+  No push yet — STOP for go.
 - No migration (breaker lives in `harness_settings` keys). Deploy after
   merge: pull, `npm run build`, `npm run db:migrate`, restart the service
   (nothing mid-flight: pipeline is paused). No push yet — STOP for go.
