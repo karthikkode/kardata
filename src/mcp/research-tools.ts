@@ -32,6 +32,7 @@ import {
 } from "../domain/research/reads.js";
 import { preflightReportSchema, savePreflightReportForRun } from "../domain/company-jobs/preflight.js";
 import { companyJobLive } from "../domain/company-jobs/live.js";
+import { quotaBreakerClear, quotaBreakerGet, quotaCalibrationGet, windowBurn } from "../domain/quota/breaker.js";
 import { ADAPTERS } from "../collect/adapters.js";
 import { researchStart } from "../runs/agent.js";
 import {
@@ -1487,6 +1488,44 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
           summary: checkpoint.target === null ? "checkpoint cleared" : `checkpoint -> ${checkpoint.target}`,
           data: checkpoint,
         };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "quota_breaker_status",
+    {
+      description: "Operator: quota breaker state — trip, reset time, window burn vs learned allowance.",
+      inputSchema: {},
+    },
+    async () =>
+      wrap(async () => {
+        const trip = await quotaBreakerGet(db);
+        const cal = await quotaCalibrationGet(db);
+        const start = cal ? new Date(cal.windowStart) : null;
+        const burn = await windowBurn(db, start && !Number.isNaN(start.getTime()) ? start : null);
+        const pct =
+          cal && cal.allowanceEstimate > 0 ? Math.round((burn / cal.allowanceEstimate) * 100) : null;
+        return {
+          summary: trip.tripped
+            ? `breaker tripped, resumes ${trip.resumeAt ?? "on owner go"}`
+            : pct === null
+              ? `no trip, burn ${burn} (uncalibrated)`
+              : `no trip, burn ${burn} (${pct}% of learned window)`,
+          data: { trip, calibration: cal, burn, pct },
+        };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "quota_breaker_clear",
+    {
+      description: "Operator: clear a quota trip hold (jobs stay paused; resume each when ready).",
+      inputSchema: {},
+    },
+    async () =>
+      wrap(async () => {
+        await quotaBreakerClear(db);
+        return { summary: "breaker cleared", data: { tripped: false } };
       }),
   );
 
