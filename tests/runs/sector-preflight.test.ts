@@ -414,10 +414,10 @@ describe("startPipeline", () => {
     await runner.tick();
     expect(await itemStatuses(jobId)).toEqual(["succeeded", "succeeded", "succeeded", "succeeded", "succeeded"]);
     const { startCompanyJob } = await import("../../src/runs/company.js");
-    await startCompanyJob(handle.db, { companyId: a, queued: true });
+    await startCompanyJob(handle.db, { companyId: a, defer: true });
     await handle.db.insert(companyJobs).values([
       { id: randomUUID(), companyId: d, status: "failed", errorClass: "stall" },
-      { id: randomUUID(), companyId: e, status: "cancelled" },
+      { id: randomUUID(), companyId: e, status: "terminated" },
     ]);
     const result = await startPipeline(handle.db, sectorId);
     expect(result).toEqual({ created: 3, skipped: 1, eligible: 4 });

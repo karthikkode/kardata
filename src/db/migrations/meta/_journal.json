@@ -162,6 +162,13 @@
       "when": 1792585869232,
       "tag": "0022_search-logging-grade",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792653213082,
+      "tag": "0023_job-lifecycle-states",
+      "breakpoints": true
     }
   ]
 }

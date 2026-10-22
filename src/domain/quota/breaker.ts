@@ -95,8 +95,11 @@ export async function quotaCalibrationSet(db: Db, calibration: QuotaCalibration)
 
 /** Our own metered burn (input + cached) since `since`, or all-time when null. */
 export async function windowBurn(db: Db, since: Date | null): Promise<number> {
+  // bigint: live burn passed int4 max (2.1B) in the first wave week.
   const [row] = await db
-    .select({ total: sql<number>`coalesce(sum(${providerCalls.inputTokens} + ${providerCalls.cachedTokens}), 0)::int` })
+    .select({
+      total: sql<number | string>`coalesce(sum(${providerCalls.inputTokens} + ${providerCalls.cachedTokens}), 0)::bigint`,
+    })
     .from(providerCalls)
     .where(since ? gte(providerCalls.at, since) : undefined);
   return Number(row?.total ?? 0);

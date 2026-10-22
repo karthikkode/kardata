@@ -22,8 +22,9 @@ DB (`kardata`), port 8787. Development and tests never touch it:
 
 - prod: the `kardata-server` service runs `node dist/server.js` from the
   dedicated live checkout `~/kardata-live` (a clone, always on main, with
-  its own `.env`). Deploy with `scripts/deploy-live.sh` (refuses while
-  jobs run unless `--force`, which pauses them first and resumes after).
+  its own `.env`). Deploy with `scripts/deploy-live.sh` (drain deploy by
+  default: freezes promotion, waits for live jobs to finish, then
+  restarts; `--force` pauses them first and resumes after instead).
   Never develop in the live checkout.
 - dev: `npm run dev` (tsx watch) with `.env.dev` (create it from
   `.env.example`: `kardata_dev` DB, port 8788, own operator token).

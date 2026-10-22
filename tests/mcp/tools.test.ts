@@ -347,7 +347,7 @@ describe("mcp tools", () => {
     expect(errorOf(dupe).code).toBe("conflict");
 
     const status = dataOf(await call("company_job_status", { jobId }));
-    expect((status.job as { status: string }).status).toBe("running");
+    expect((status.job as { status: string }).status).toBe("scheduled");
     expect(status.derived).toBe("incomplete");
 
     const listed = dataOf(await call("company_jobs_list", {}));
@@ -359,12 +359,12 @@ describe("mcp tools", () => {
     expect((paused.job as { pauseReason: string }).pauseReason).toBe("operator check");
     await call("company_job_resume", { jobId });
     const resumed = dataOf(await call("company_job_status", { jobId }));
-    expect((resumed.job as { status: string }).status).toBe("running");
+    expect((resumed.job as { status: string }).status).toBe("scheduled");
     const all = dataOf(await call("company_jobs_pause_all", { reason: "all check" }));
     expect((all.paused as string[])).toEqual([jobId]);
     await call("company_job_resume", { jobId });
     const live = dataOf(await call("company_job_live", { jobId }));
-    expect((live.job as { status: string }).status).toBe("running");
+    expect((live.job as { status: string }).status).toBe("scheduled");
     expect(live.active).toBeNull();
     const quota = dataOf(await call("quota_breaker_status", {}));
     expect((quota.trip as { tripped: boolean }).tripped).toBe(false);
@@ -487,12 +487,12 @@ describe("mcp tools", () => {
     const jobId = (started as { jobId: string }).jobId;
     await call("company_job_cancel", { jobId });
     const cancelled = dataOf(await call("company_job_status", { jobId }));
-    expect((cancelled.job as { status: string }).status).toBe("cancelled");
+    expect((cancelled.job as { status: string }).status).toBe("terminated");
     const noRetry = await call("company_job_retry", { jobId });
     expect(errorOf(noRetry).code).toBe("invalid_input");
   });
 
-  it("company_jobs_supersede cancels queued jobs only", async () => {
+  it("company_jobs_supersede terminates created jobs only", async () => {
     const [queued] = await handle.db
       .insert(companies)
       .values({ id: randomUUID(), source: "manual", name: "Queued Co" })
@@ -509,15 +509,15 @@ describe("mcp tools", () => {
     if (!queuedJob) throw new Error("no job row");
     const started = dataOf(await call("company_job_start", { companyId: active.id }));
     const result = dataOf(await call("company_jobs_supersede", { reason: "new pass" }));
-    expect(result.cancelled).toBe(1);
+    expect(result.terminated).toBe(1);
     const after = dataOf(await call("company_job_status", { jobId: queuedJob.id }));
-    expect((after.job as { status: string }).status).toBe("cancelled");
+    expect((after.job as { status: string }).status).toBe("terminated");
     const events = await handle.db.select().from(jobEvents).where(eq(jobEvents.jobId, queuedJob.id));
     expect(events.some((e) => e.type === "job_cancelled" && (e.payload as { reason?: string }).reason === "new pass")).toBe(true);
     const activeAfter = dataOf(
       await call("company_job_status", { jobId: (started as { jobId: string }).jobId }),
     );
-    expect((activeAfter.job as { status: string }).status).not.toBe("cancelled");
+    expect((activeAfter.job as { status: string }).status).not.toBe("terminated");
   });
 
   it("rejects requests without a token", async () => {
