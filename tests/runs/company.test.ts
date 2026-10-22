@@ -20,6 +20,7 @@ import {
   quotaBreakerClear,
   quotaBreakerGet,
   quotaCalibrationSet,
+  windowBurn,
 } from "../../src/domain/quota/breaker.js";
 import {
   beginStageReal,
@@ -863,6 +864,15 @@ describe("quota breaker", () => {
     await runner.tick();
     expect((await jobRow(jobId)).status).toBe("running");
     expect((await quotaBreakerGet(handle.db)).tripped).toBe(false);
+  });
+
+  it("meters burn past int4 max (live burn passed 2.1B)", async () => {
+    await handle.db.insert(providerCalls).values([
+      { stage: "research", inputTokens: 1500000000, cachedTokens: 0, at: new Date() },
+      { stage: "research", inputTokens: 1500000000, cachedTokens: 100, at: new Date() },
+    ]);
+    expect(await windowBurn(handle.db, null)).toBe(3000000100);
+    expect(await windowBurn(handle.db, new Date(Date.now() + 3600_000))).toBe(0);
   });
 
   it("plain rate-limit 429s auto-retry without tripping", async () => {

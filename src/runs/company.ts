@@ -337,16 +337,22 @@ export async function tripQuotaBreaker(
   } else {
     // Exact trip: this window's burn-since-start is the allowance sample.
     // The first trip has no start yet, so it meters all-time burn (rough).
+    // Metering must never break the trip: on failure keep the old sample.
     const start = cal ? new Date(cal.windowStart) : null;
     const validStart = start && !Number.isNaN(start.getTime()) ? start : null;
-    const burn = await windowBurn(db, validStart);
+    let burn: number | null = null;
+    try {
+      burn = await windowBurn(db, validStart);
+    } catch (err) {
+      console.error(`quota calibration meter failed: ${err instanceof Error ? err.message : err}`);
+    }
     const resumeDate = resumeAt ? new Date(resumeAt) : null;
     await quotaCalibrationSet(db, {
       windowStart:
         resumeDate && !Number.isNaN(resumeDate.getTime())
           ? resumeDate.toISOString()
           : (cal?.windowStart ?? now.toISOString()),
-      allowanceEstimate: burn,
+      allowanceEstimate: burn ?? cal?.allowanceEstimate ?? 0,
       windowMs:
         resumeDate && validStart && !Number.isNaN(resumeDate.getTime())
           ? Math.max(0, resumeDate.getTime() - validStart.getTime())
@@ -857,11 +863,19 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
     if (ticking) return;
     ticking = true;
     try {
-      await maybeQuotaResume(db);
-      let quota = await quotaBreakerGet(db);
-      if (!quota.tripped) {
-        await maybeQuotaEarlyTrip(db);
+      // The quota monitor must never break the feeder: on failure log and
+      // carry on untripped for this tick (the hard 429 path still parks).
+      let quota: { tripped: boolean };
+      try {
+        await maybeQuotaResume(db);
         quota = await quotaBreakerGet(db);
+        if (!quota.tripped) {
+          await maybeQuotaEarlyTrip(db);
+          quota = await quotaBreakerGet(db);
+        }
+      } catch (err) {
+        console.error(`quota monitor failed: ${err instanceof Error ? err.message : err}`);
+        quota = { tripped: false };
       }
       const jobs = await db
         .select()
@@ -888,8 +902,14 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
       }
       if (paused) return;
       // Re-read: a trip mid-tick (quota 429 while accounting) must block
-      // claims in the same tick, or jobs launch into a dry window.
-      quota = await quotaBreakerGet(db);
+      // claims in the same tick, or jobs launch into a dry window. On a
+      // read failure skip claiming this tick (fail closed, 15s cost).
+      try {
+        quota = await quotaBreakerGet(db);
+      } catch (err) {
+        console.error(`quota re-read failed: ${err instanceof Error ? err.message : err}`);
+        return;
+      }
       if (quota.tripped) return;
       const max = await effectiveCompanyConcurrency(db, deps.companyMax);
       while ((await countByStatus("running")) < max) {
