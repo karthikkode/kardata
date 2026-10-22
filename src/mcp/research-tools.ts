@@ -56,7 +56,7 @@ import {
   companyJobStatus,
   pipelineStatus,
   startCompanyJob,
-  supersedeQueuedJobs,
+  supersedePendingJobs,
 } from "../runs/company.js";
 import { extractRun } from "../runs/extract.js";
 import { cancelRun, getOrCreateManualRun, startCollect } from "../runs/queue.js";
@@ -1343,7 +1343,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       description: "Operator: recent company jobs with derived completion.",
       inputSchema: {
         limit: z.number().int().optional().describe("Default 20, max 100"),
-        status: z.enum(["queued", "running", "paused", "completed", "failed", "cancelled"]).optional().describe("Only jobs in this status"),
+        status: z.enum(["created", "scheduled", "running", "paused", "completed", "failed", "terminated"]).optional().describe("Only jobs in this status"),
       },
     },
     async ({ limit, status }) =>
@@ -1369,7 +1369,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth,
     "company_jobs_pause_all",
     {
-      description: "Operator: pause every running company job (stops their live runs). Resume each job when ready.",
+      description: "Operator: pause every scheduled/running company job (stops their live runs). Resume each job when ready.",
       inputSchema: { reason: z.string().describe("Why (stored with each pause)") },
     },
     async ({ reason }) =>
@@ -1421,13 +1421,13 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth,
     "company_jobs_supersede",
     {
-      description: "Operator: cancel every queued company job with a reason (e.g. a new pass supersedes the batch).",
-      inputSchema: { reason: z.string().describe("Why the queued jobs are cancelled") },
+      description: "Operator: terminate every created company job with a reason (e.g. a new pass supersedes the batch).",
+      inputSchema: { reason: z.string().describe("Why the created jobs are terminated") },
     },
     async ({ reason }) =>
       wrap(async () => {
-        const result = await supersedeQueuedJobs(db, reason);
-        return { summary: `${result.cancelled} queued jobs cancelled`, data: result };
+        const result = await supersedePendingJobs(db, reason);
+        return { summary: `${result.terminated} created jobs terminated`, data: result };
       }),
   );
 

@@ -7,7 +7,7 @@ import { startCompanyJob } from "./company.js";
 
 /**
  * Bulk → company migration (Stage 5 Phase 7): move every company of a bulk
- * job into the company pipeline. Each migrated company gets a queued company
+ * job into the company pipeline. Each migrated company gets a created company
  * job and runs the full pipeline honestly (preflight → collect → research →
  * extraction); the bulk-collected data stays as company-scoped history
  * (dossier, facts, fresh-collect checks all see it). No stage is ever
@@ -92,7 +92,7 @@ export async function migrateBulkJob(db: Db, bulkJobId: string): Promise<BulkMig
   for (const { companyId } of items) {
     if (haveJob.has(companyId)) continue;
     try {
-      await startCompanyJob(db, { companyId, queued: true });
+      await startCompanyJob(db, { companyId, defer: true });
       createdCompanyIds.push(companyId);
       haveJob.add(companyId);
     } catch (err) {

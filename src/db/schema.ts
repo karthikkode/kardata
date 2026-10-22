@@ -192,14 +192,18 @@ export const runStatus = pgEnum("run_status", [
   "cancelled",
   "stalled",
 ]);
-export const companyJobStatus = pgEnum("company_job_status", [
-  "queued",
+// Lifecycle states, stored as text: the migrator runs all files in one
+// transaction, in which enum values can be added but not used (0023).
+export const COMPANY_JOB_STATUSES = [
+  "created",
+  "scheduled",
   "running",
   "paused",
   "completed",
   "failed",
-  "cancelled",
-]);
+  "terminated",
+] as const;
+export type CompanyJobStatus = (typeof COMPANY_JOB_STATUSES)[number];
 export const companyJobStage = pgEnum("company_job_stage", [
   "preflight",
   "collect",
@@ -776,7 +780,7 @@ export const companyJobs = pgTable(
     companyId: uuid("company_id")
       .notNull()
       .references(() => companies.id, { onDelete: "cascade" }),
-    status: companyJobStatus("status").notNull().default("queued"),
+    status: text("status", { enum: COMPANY_JOB_STATUSES }).notNull().default("created"),
     currentStage: companyJobStage("current_stage"),
     errorStreak: integer("error_streak").notNull().default(0),
     errorClass: text("error_class"),
@@ -791,7 +795,11 @@ export const companyJobs = pgTable(
     // AC-1: at most one active company job per company.
     uniqueIndex("company_jobs_one_active_idx")
       .on(t.companyId)
-      .where(sql`${t.status} IN ('queued', 'running', 'paused')`),
+      .where(sql`${t.status} IN ('created', 'scheduled', 'running', 'paused')`),
+    check(
+      "company_jobs_status_check",
+      sql`status IN ('created', 'scheduled', 'running', 'paused', 'completed', 'failed', 'terminated')`,
+    ),
   ],
 );
 export type CompanyJob = typeof companyJobs.$inferSelect;

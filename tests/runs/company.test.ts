@@ -33,7 +33,7 @@ import {
   companyJobStatus,
   createCompanyRunner,
   startCompanyJob,
-  supersedeQueuedJobs,
+  supersedePendingJobs,
   type BeginStageOutcome,
   type CompanyRunnerDeps,
 } from "../../src/runs/company.js";
@@ -163,14 +163,23 @@ function fakeWorld(): FakeWorld {
 }
 
 describe("startCompanyJob", () => {
-  it("starts a running job and rejects dupes and ghosts", async () => {
+  it("starts a scheduled job and rejects dupes and ghosts", async () => {
     const companyId = await makeCompany("Acme");
     const { jobId } = await startCompanyJob(handle.db, { companyId });
-    expect((await jobRow(jobId)).status).toBe("running");
+    expect((await jobRow(jobId)).status).toBe("scheduled");
     await expect(startCompanyJob(handle.db, { companyId })).rejects.toMatchObject({ code: "conflict" });
     await expect(startCompanyJob(handle.db, { companyId: randomUUID() })).rejects.toMatchObject({
       code: "not_found",
     });
+  });
+
+  it("stays created when no slot is free", async () => {
+    const a = await makeCompany("A Co");
+    const b = await makeCompany("B Co");
+    await startCompanyJob(handle.db, { companyId: a });
+    await companySettingsSet(handle.db, 1);
+    const { jobId } = await startCompanyJob(handle.db, { companyId: b });
+    expect((await jobRow(jobId)).status).toBe("created");
   });
 });
 
@@ -214,20 +223,20 @@ describe("company feeder (AC-3)", () => {
   it("never holds more company slots than the cap", async () => {
     for (const name of ["A", "B", "C"]) {
       const companyId = await makeCompany(name);
-      await handle.db.insert(companyJobs).values({ id: randomUUID(), companyId, status: "queued" });
+      await handle.db.insert(companyJobs).values({ id: randomUUID(), companyId, status: "created" });
     }
     const world = fakeWorld();
     const runner = createCompanyRunner(handle.db, world.deps({ companyMax: 2 }));
     await runner.tick();
-    const running = await handle.db.select().from(companyJobs).where(eq(companyJobs.status, "running"));
-    const queued = await handle.db.select().from(companyJobs).where(eq(companyJobs.status, "queued"));
-    expect(running).toHaveLength(2);
-    expect(queued).toHaveLength(1);
+    const scheduled = await handle.db.select().from(companyJobs).where(eq(companyJobs.status, "scheduled"));
+    const created = await handle.db.select().from(companyJobs).where(eq(companyJobs.status, "created"));
+    expect(scheduled).toHaveLength(2);
+    expect(created).toHaveLength(1);
     expect(world.begins.filter((b) => b.stage === "preflight")).toHaveLength(2);
-    // Freeing a slot claims the next queued job.
-    await companyJobCancel(handle.db, running[0]?.id ?? "");
+    // Freeing a slot claims the next created job.
+    await companyJobCancel(handle.db, scheduled[0]?.id ?? "");
     await runner.tick();
-    expect(await handle.db.select().from(companyJobs).where(eq(companyJobs.status, "queued"))).toHaveLength(0);
+    expect(await handle.db.select().from(companyJobs).where(eq(companyJobs.status, "created"))).toHaveLength(0);
   });
 });
 
@@ -281,7 +290,7 @@ describe("stage machine", () => {
     expect(paused.status).toBe("paused");
     expect(paused.pauseReason).toContain("3 consecutive");
     const resumed = await companyJobResume(handle.db, jobId);
-    expect(resumed.status).toBe("running");
+    expect(resumed.status).toBe("scheduled");
     expect(resumed.errorStreak).toBe(0);
     // Resume retried the stage: a fresh live subjob exists.
     const fresh = await latestSubjob(jobId, "preflight");
@@ -299,7 +308,7 @@ describe("stage machine", () => {
     await flipRun(first.id, "stalled");
     await runner.tick();
     const retried = await jobRow(jobId);
-    expect(retried.status).toBe("running");
+    expect(retried.status).toBe("scheduled");
     expect(retried.errorStreak).toBe(1);
     expect(retried.errorClass).toBe("stall");
     const second = await latestSubjob(jobId, "preflight");
@@ -323,7 +332,7 @@ describe("stage machine", () => {
     if (!first) throw new Error("no preflight subjob");
     await flipRun(first.id, "failed", "429 rate limit exceeded, retry later");
     await runner.tick();
-    expect((await jobRow(jobId)).status).toBe("running");
+    expect((await jobRow(jobId)).status).toBe("scheduled");
     expect((await jobRow(jobId)).errorClass).toBe("usage_limit");
     const second = await latestSubjob(jobId, "preflight");
     if (!second) throw new Error("no retried subjob");
@@ -396,7 +405,7 @@ describe("stage machine", () => {
     await recordEvent(handle.db, sub.id, "mcp_call", { tool: "company_context", status: "ok" });
     await recordEvent(handle.db, sub.id, "mcp_call", { tool: "source_fetch", status: "ok" });
     const live = await companyJobLive(handle.db, jobId);
-    expect(live.job.status).toBe("running");
+    expect(live.job.status).toBe("scheduled");
     expect(live.active?.stage).toBe("preflight");
     expect(live.active?.phase).toBe("researching");
     expect(live.active?.areas).toEqual([{ area: "reviews", status: "done", updatedAt: expect.any(Date) }]);
@@ -613,7 +622,7 @@ describe("cancel and retry", () => {
     const [cancelled] = await handle.db.select().from(researchRuns).where(eq(researchRuns.id, sub.id));
     expect(cancelled?.status).toBe("cancelled");
     await runner.tick();
-    expect((await jobRow(jobId)).status).toBe("cancelled");
+    expect((await jobRow(jobId)).status).toBe("terminated");
     expect(world.begins).toHaveLength(1);
   });
 
@@ -650,7 +659,7 @@ describe("cancel and retry", () => {
     expect(world.extractions).toHaveLength(0);
     const [row] = await handle.db.select().from(researchRuns).where(eq(researchRuns.id, extraction.id));
     expect(row?.status).toBe("cancelled");
-    expect((await jobRow(jobId)).status).toBe("cancelled");
+    expect((await jobRow(jobId)).status).toBe("terminated");
   });
 
   it("rejects nonsense retries", async () => {
@@ -683,7 +692,7 @@ describe("status, list and settings", () => {
     const listed = await companyJobList(handle.db);
     expect(listed).toHaveLength(1);
     expect(listed[0]?.derived).toBe("incomplete");
-    expect(await companyJobList(handle.db, 20, "running")).toHaveLength(1);
+    expect(await companyJobList(handle.db, 20, "scheduled")).toHaveLength(1);
     expect(await companyJobList(handle.db, 20, "failed")).toHaveLength(0);
     await expect(companyJobList(handle.db, 0)).rejects.toMatchObject({ code: "invalid_input" });
   });
@@ -727,24 +736,24 @@ describe("beginStageReal", () => {
   });
 });
 
-describe("supersedeQueuedJobs", () => {
-  it("cancels queued jobs with a reason and leaves running ones alone", async () => {
+describe("supersedePendingJobs", () => {
+  it("terminates created jobs with a reason and leaves scheduled ones alone", async () => {
     const a = await makeCompany("A Co");
     const b = await makeCompany("B Co");
     const c = await makeCompany("C Co");
-    const qa = await startCompanyJob(handle.db, { companyId: a, queued: true });
-    const qb = await startCompanyJob(handle.db, { companyId: b, queued: true });
-    const { jobId: runningId } = await startCompanyJob(handle.db, { companyId: c });
-    const result = await supersedeQueuedJobs(handle.db, "superseded by sector preflight");
-    expect(result).toEqual({ cancelled: 2 });
+    const qa = await startCompanyJob(handle.db, { companyId: a, defer: true });
+    const qb = await startCompanyJob(handle.db, { companyId: b, defer: true });
+    const { jobId: scheduledId } = await startCompanyJob(handle.db, { companyId: c });
+    const result = await supersedePendingJobs(handle.db, "superseded by sector preflight");
+    expect(result).toEqual({ terminated: 2 });
     for (const { jobId } of [qa, qb]) {
       const job = await jobRow(jobId);
-      expect(job.status).toBe("cancelled");
+      expect(job.status).toBe("terminated");
       const events = await handle.db.select().from(jobEvents).where(eq(jobEvents.jobId, jobId));
       const cancelled = events.find((e) => e.type === "job_cancelled");
       expect((cancelled?.payload as { reason?: string } | null)?.reason).toBe("superseded by sector preflight");
     }
-    expect((await jobRow(runningId)).status).toBe("running");
+    expect((await jobRow(scheduledId)).status).toBe("scheduled");
   });
 });
 
@@ -790,14 +799,14 @@ describe("quota breaker", () => {
     const first = await startCompanyJob(handle.db, { companyId: a });
     const runner = createCompanyRunner(handle.db, fakeWorld().deps());
     await runner.tick();
-    const queued = await startCompanyJob(handle.db, { companyId: b, queued: true });
+    const waiting = await startCompanyJob(handle.db, { companyId: b, defer: true });
     const sub = await latestSubjob(first.jobId, "preflight");
     if (!sub) throw new Error("no subjob");
-    // Trip with a future reset: the queued job must not be claimed.
+    // Trip with a future reset: the created job must not be claimed.
     await flipRun(sub.id, "failed", quotaErr(new Date(Date.now() + 3600_000).toISOString()));
     await runner.tick();
     expect((await jobRow(first.jobId)).status).toBe("paused");
-    expect((await jobRow(queued.jobId)).status).toBe("queued");
+    expect((await jobRow(waiting.jobId)).status).toBe("created");
     // Emulate time passing: clear and re-trip with a past reset.
     await quotaBreakerClear(handle.db);
     await companyJobResume(handle.db, first.jobId);
@@ -807,7 +816,7 @@ describe("quota breaker", () => {
     await runner.tick();
     expect((await jobRow(first.jobId)).status).toBe("paused");
     await runner.tick();
-    expect((await jobRow(first.jobId)).status).toBe("running");
+    expect((await jobRow(first.jobId)).status).toBe("scheduled");
     expect((await quotaBreakerGet(handle.db)).tripped).toBe(false);
     const resumed = await latestSubjob(first.jobId, "preflight");
     expect(resumed?.id).not.toBe(retry.id);
@@ -859,10 +868,10 @@ describe("quota breaker", () => {
     // Estimated resume lands ~now: next tick auto-resumes, and must not
     // immediately re-trip (one early trip per window).
     await runner.tick();
-    expect((await jobRow(jobId)).status).toBe("running");
+    expect((await jobRow(jobId)).status).toBe("scheduled");
     expect((await quotaBreakerGet(handle.db)).tripped).toBe(false);
     await runner.tick();
-    expect((await jobRow(jobId)).status).toBe("running");
+    expect((await jobRow(jobId)).status).toBe("scheduled");
     expect((await quotaBreakerGet(handle.db)).tripped).toBe(false);
   });
 
@@ -884,7 +893,7 @@ describe("quota breaker", () => {
     if (!sub) throw new Error("no subjob");
     await flipRun(sub.id, "failed", "429 rate limit exceeded, retry later");
     await runner.tick();
-    expect((await jobRow(jobId)).status).toBe("running");
+    expect((await jobRow(jobId)).status).toBe("scheduled");
     expect((await quotaBreakerGet(handle.db)).tripped).toBe(false);
   });
 });

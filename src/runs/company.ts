@@ -68,8 +68,8 @@ const TRANSIENT_AUTO_RETRY = new Set(["stall", "usage_limit"]);
 export interface StartCompanyJobInput {
   companyId: string;
   budget?: JobBudget;
-  /** Create the job queued (the worker promotes it at company concurrency) instead of running. */
-  queued?: boolean;
+  /** Stay created (the feeder promotes it at company concurrency) instead of scheduling now. */
+  defer?: boolean;
 }
 
 export async function startCompanyJob(db: Db, input: StartCompanyJobInput): Promise<{ jobId: string }> {
@@ -84,7 +84,7 @@ export async function startCompanyJob(db: Db, input: StartCompanyJobInput): Prom
     await db.insert(companyJobs).values({
       id: jobId,
       companyId: input.companyId,
-      status: input.queued ? "queued" : "running",
+      status: "created",
       maxInputTokens: maxTokens,
       maxHours,
     });
@@ -93,6 +93,19 @@ export async function startCompanyJob(db: Db, input: StartCompanyJobInput): Prom
     throw new DomainError("conflict", "company already has an active job");
   }
   await logJobEvent(db, jobId, "job_started");
+  if (input.defer) return { jobId };
+  // Operator start: schedule immediately when a slot is free, else wait as
+  // created for the feeder. Never jumps the concurrency cap.
+  const max = await effectiveCompanyConcurrency(db);
+  const feeding = await countJobsIn(db, ["scheduled", "running"]);
+  if (feeding < max) {
+    const [claimed] = await db
+      .update(companyJobs)
+      .set({ status: "scheduled" })
+      .where(and(eq(companyJobs.id, jobId), eq(companyJobs.status, "created")))
+      .returning();
+    if (claimed) await logJobEvent(db, jobId, "job_claimed");
+  }
   return { jobId };
 }
 
@@ -232,6 +245,14 @@ export async function companyJobList(
   return entries;
 }
 
+async function countJobsIn(db: Db, statuses: CompanyJob["status"][]): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)` })
+    .from(companyJobs)
+    .where(inArray(companyJobs.status, statuses));
+  return Number(row?.n ?? 0);
+}
+
 async function loadCompanyJob(db: Db, jobId: string): Promise<CompanyJob> {
   const [job] = await db.select().from(companyJobs).where(eq(companyJobs.id, jobId));
   if (!job) throw new DomainError("not_found", `company job not found: ${jobId}`);
@@ -244,7 +265,9 @@ export async function companyJobPause(
   reason = "paused by operator",
 ): Promise<CompanyJob> {
   const job = await loadCompanyJob(db, jobId);
-  if (job.status !== "running") throw new DomainError("invalid_input", `job is ${job.status}, not running`);
+  if (job.status !== "running" && job.status !== "scheduled") {
+    throw new DomainError("invalid_input", `job is ${job.status}, not running or scheduled`);
+  }
   const [updated] = await db
     .update(companyJobs)
     .set({ status: "paused", pauseReason: reason })
@@ -267,12 +290,12 @@ export async function companyJobPause(
   return updated;
 }
 
-/** Pause every running company job (quota trips, operator pause-all). Skips jobs that raced to terminal. */
+/** Pause every feeding company job (quota trips, operator pause-all). Skips jobs that raced to terminal. */
 export async function companyJobsPauseAll(db: Db, reason: string): Promise<{ paused: string[] }> {
   const running = await db
     .select({ id: companyJobs.id })
     .from(companyJobs)
-    .where(eq(companyJobs.status, "running"));
+    .where(inArray(companyJobs.status, ["scheduled", "running"]));
   const paused: string[] = [];
   for (const job of running) {
     try {
@@ -470,11 +493,12 @@ export async function companyJobResume(db: Db, jobId: string): Promise<CompanyJo
   const job = await loadCompanyJob(db, jobId);
   if (job.status !== "paused") throw new DomainError("invalid_input", `job is ${job.status}, not paused`);
   // Resume means "looked, carry on": a failed stage is retried as part of it.
+  // Lands on scheduled (waits for a slot) — never jumps the cap.
   const desc = await describeCompanyJob(db, jobId);
   if (desc.derived === "failed") await retryStage(db, job);
   const [updated] = await db
     .update(companyJobs)
-    .set({ status: "running", pauseReason: null, errorStreak: 0, errorClass: null })
+    .set({ status: "scheduled", pauseReason: null, errorStreak: 0, errorClass: null })
     .where(eq(companyJobs.id, jobId))
     .returning();
   if (!updated) throw new DomainError("not_found", `company job not found: ${jobId}`);
@@ -483,29 +507,27 @@ export async function companyJobResume(db: Db, jobId: string): Promise<CompanyJo
 }
 
 /**
- * Cancel every queued company job with a reason (Stage 5.1 Step 0: the
- * sector pass supersedes the migrated batch). Queued jobs never hold active
- * subjobs, so no runs need stopping. Returns the cancelled count.
+ * Terminate every created (never admitted) company job with a reason. Created
+ * jobs never hold active subjobs, so no runs need stopping.
  */
-export async function supersedeQueuedJobs(db: Db, reason: string): Promise<{ cancelled: number }> {
-  const queued = await db.select({ id: companyJobs.id }).from(companyJobs).where(eq(companyJobs.status, "queued"));
+export async function supersedePendingJobs(db: Db, reason: string): Promise<{ terminated: number }> {
+  const pending = await db.select({ id: companyJobs.id }).from(companyJobs).where(eq(companyJobs.status, "created"));
   const finishedAt = new Date();
-  for (const job of queued) {
+  for (const job of pending) {
     await db
       .update(companyJobs)
-      .set({ status: "cancelled", finishedAt })
-      .where(and(eq(companyJobs.id, job.id), eq(companyJobs.status, "queued")));
+      .set({ status: "terminated", finishedAt })
+      .where(and(eq(companyJobs.id, job.id), eq(companyJobs.status, "created")));
     await logJobEvent(db, job.id, "job_cancelled", null, { reason: reason.slice(0, 500) });
   }
-  return { cancelled: queued.length };
+  return { terminated: pending.length };
 }
 
 export async function companyJobRetry(db: Db, jobId: string): Promise<{ job: CompanyJob; stage: CompanyStage }> {
   const job = await loadCompanyJob(db, jobId);
-  if (job.status === "completed" || job.status === "cancelled" || job.status === "queued") {
-    throw new DomainError("invalid_input", `job is ${job.status}`);
+  if (job.status !== "failed" && job.status !== "paused") {
+    throw new DomainError("invalid_input", `job is ${job.status}, nothing to retry`);
   }
-  if (job.status === "running") throw new DomainError("invalid_input", "job is running, nothing to retry");
   const desc = await describeCompanyJob(db, jobId);
   if (desc.derived !== "failed") {
     throw new DomainError("invalid_input", "no failed stage; resume the job instead");
@@ -515,7 +537,7 @@ export async function companyJobRetry(db: Db, jobId: string): Promise<{ job: Com
   // Only a resume ("looked, carry on") resets the tripwire.
   const [updated] = await db
     .update(companyJobs)
-    .set({ status: "running", pauseReason: null, finishedAt: null })
+    .set({ status: "scheduled", pauseReason: null, finishedAt: null })
     .where(eq(companyJobs.id, jobId))
     .returning();
   if (!updated) throw new DomainError("not_found", `company job not found: ${jobId}`);
@@ -535,7 +557,7 @@ export async function companyJobCancel(
   cancelRunFn: (runId: string) => Promise<unknown> = (runId) => cancelRun(db, runId),
 ): Promise<CompanyJob> {
   const job = await loadCompanyJob(db, jobId);
-  if (job.status === "completed" || job.status === "cancelled") {
+  if (job.status === "completed" || job.status === "terminated") {
     throw new DomainError("invalid_input", `job is ${job.status}`);
   }
   if (input.stopRunning ?? true) {
@@ -545,7 +567,7 @@ export async function companyJobCancel(
   }
   const [updated] = await db
     .update(companyJobs)
-    .set({ status: "cancelled", finishedAt: new Date() })
+    .set({ status: "terminated", finishedAt: new Date() })
     .where(eq(companyJobs.id, jobId))
     .returning();
   if (!updated) throw new DomainError("not_found", `company job not found: ${jobId}`);
@@ -627,7 +649,11 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
     // Quota exhaustion is not a job failure: park the job paused and trip
     // the breaker (never auto-retry — a requeue would instantly die again).
     const quota = parseQuotaExhaustion(error);
-    if (job.status === "running" && errorClass === "usage_limit" && quota.exhausted) {
+    if (
+      (job.status === "running" || job.status === "scheduled") &&
+      errorClass === "usage_limit" &&
+      quota.exhausted
+    ) {
       return quotaPark(job, error, quota.resumeAt);
     }
     const streak = job.errorClass === errorClass ? job.errorStreak + 1 : 1;
@@ -636,9 +662,9 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
     // API-side flakiness (stalls, 429s) succeeds on retry. Anything else,
     // or a second consecutive transient, parks for a human. server_stopped
     // deliberately never auto-retries (a crash loop must not respawn work).
-    const autoRetry =
-      job.status === "running" && TRANSIENT_AUTO_RETRY.has(errorClass) && streak < 2;
-    if (job.status === "running") {
+    const feeding = job.status === "running" || job.status === "scheduled";
+    const autoRetry = feeding && TRANSIENT_AUTO_RETRY.has(errorClass) && streak < 2;
+    if (feeding) {
       if (streak >= JOB_SAME_ERROR_PAUSE) {
         patch.status = "paused";
         patch.pauseReason = `${streak} consecutive ${errorClass} failures: ${error.slice(0, 300)}`;
@@ -649,9 +675,10 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
     const [updated] = await db.update(companyJobs).set(patch).where(eq(companyJobs.id, job.id)).returning();
     if (!updated) throw new DomainError("not_found", `company job not found: ${job.id}`);
     await logJobEvent(db, job.id, "stage_failed", stage, { errorClass, error: error.slice(0, 300) });
-    if (autoRetry && updated.status === "running") {
+    if (autoRetry && (updated.status === "running" || updated.status === "scheduled")) {
       try {
         await retryStage(db, updated);
+        await db.update(companyJobs).set({ status: "scheduled" }).where(eq(companyJobs.id, job.id));
       } catch {
         const [parked] = await db
           .update(companyJobs)
@@ -738,7 +765,10 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
     await spendReconcile(await loadCompanyJob(db, job.id));
     await logJobEvent(db, job.id, "stage_done", "extraction", { runId: subjob.id });
     const after = await describeCompanyJob(db, job.id);
-    if (after.derived === "complete" && (job.status === "running" || job.status === "paused")) {
+    if (
+      after.derived === "complete" &&
+      (job.status === "running" || job.status === "scheduled" || job.status === "paused")
+    ) {
       await completeJob(await loadCompanyJob(db, job.id));
     }
     return loadCompanyJob(db, job.id);
@@ -747,9 +777,26 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
   async function tickJob(job: CompanyJob, feed: boolean): Promise<void> {
     const current = job;
     let desc = await describeCompanyJob(db, job.id);
-    if (desc.derived === "complete" && (current.status === "running" || current.status === "paused")) {
+    if (
+      desc.derived === "complete" &&
+      (current.status === "running" || current.status === "scheduled" || current.status === "paused")
+    ) {
       await completeJob(current);
       return;
+    }
+    // Running means an engine claimed it: sync the label both ways. A
+    // scheduled job whose row turned running flips to running; a running
+    // job with no live row at all drops back to scheduled (waiting again).
+    const claimedRow = desc.stages.some(
+      (s) => s.run && !isTerminalSubjob(s.run.status) && s.run.status === "running",
+    );
+    const liveRow = desc.stages.some((s) => s.run && !isTerminalSubjob(s.run.status));
+    if (current.status === "scheduled" && claimedRow) {
+      await db.update(companyJobs).set({ status: "running" }).where(eq(companyJobs.id, job.id));
+      current.status = "running";
+    } else if (current.status === "running" && !liveRow) {
+      await db.update(companyJobs).set({ status: "scheduled" }).where(eq(companyJobs.id, job.id));
+      current.status = "scheduled";
     }
     const active = desc.stages.find((s) => s.run && !isTerminalSubjob(s.run.status));
     if (active?.run) {
@@ -763,7 +810,10 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
       }
       // Turned terminal since the describe; fall through with fresh state.
       desc = await describeCompanyJob(db, job.id);
-      if (desc.derived === "complete" && (current.status === "running" || current.status === "paused")) {
+      if (
+        desc.derived === "complete" &&
+        (current.status === "running" || current.status === "scheduled" || current.status === "paused")
+      ) {
         await completeJob(await loadCompanyJob(db, job.id));
         return;
       }
@@ -781,12 +831,12 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
         desc = await describeCompanyJob(db, job.id);
       }
     }
-    // A failed stage on a running job is always unaccounted (accounting
+    // A failed stage on a feeding job is always unaccounted (accounting
     // leaves failed/paused, and leaving those states always creates a live
     // subjob first) — account it now.
     const failed = desc.stages.find((s) => s.run && isTerminalSubjob(s.run.status) && !isStageComplete(s.run));
     if (failed?.run) {
-      if (current.status === "running") {
+      if (current.status === "running" || current.status === "scheduled") {
         const { errorClass, error } = classifyRunError(failed.run);
         await failStage(await loadCompanyJob(db, job.id), failed.stage, errorClass, error);
       }
@@ -880,11 +930,11 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
       const jobs = await db
         .select()
         .from(companyJobs)
-        .where(inArray(companyJobs.status, ["running", "paused", "cancelled"]))
+        .where(inArray(companyJobs.status, ["scheduled", "running", "paused", "terminated"]))
         .orderBy(asc(companyJobs.createdAt));
       for (const job of jobs) {
         try {
-          await tickJob(job, job.status === "running");
+          await tickJob(job, job.status === "scheduled" || job.status === "running");
         } catch (err) {
           console.error(`company job ${job.id} tick failed: ${err instanceof Error ? err.message : err}`);
         }
@@ -912,18 +962,18 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
       }
       if (quota.tripped) return;
       const max = await effectiveCompanyConcurrency(db, deps.companyMax);
-      while ((await countByStatus("running")) < max) {
+      while ((await countJobsIn(db, ["scheduled", "running"])) < max) {
         const [next] = await db
           .select()
           .from(companyJobs)
-          .where(eq(companyJobs.status, "queued"))
+          .where(eq(companyJobs.status, "created"))
           .orderBy(asc(companyJobs.createdAt))
           .limit(1);
         if (!next) break;
         const [claimed] = await db
           .update(companyJobs)
-          .set({ status: "running" })
-          .where(and(eq(companyJobs.id, next.id), eq(companyJobs.status, "queued")))
+          .set({ status: "scheduled" })
+          .where(and(eq(companyJobs.id, next.id), eq(companyJobs.status, "created")))
           .returning();
         if (!claimed) break;
         await logJobEvent(db, claimed.id, "job_claimed");

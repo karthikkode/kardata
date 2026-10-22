@@ -86,7 +86,7 @@ describe("migrateBulkJob", () => {
     expect(await companyJobCount()).toBe(0);
   });
 
-  it("creates queued jobs, skips jobbed companies, retires the bulk job", async () => {
+  it("creates deferred jobs, skips jobbed companies, retires the bulk job", async () => {
     const a = await makeCompany("A Co");
     const b = await makeCompany("B Co");
     const c = await makeCompany("C Co");
@@ -105,7 +105,7 @@ describe("migrateBulkJob", () => {
     expect(result.bulkCancelled).toBe(true);
     const jobs = await handle.db.select().from(companyJobs);
     expect(jobs).toHaveLength(3);
-    expect(jobs.filter((j) => j.status === "queued")).toHaveLength(2);
+    expect(jobs.filter((j) => j.status === "created")).toHaveLength(2);
     // The bulk job is retired, but its progress rows keep their run links.
     const [job] = await handle.db.select().from(bulkJobs).where(eq(bulkJobs.id, jobId));
     expect(job?.status).toBe("cancelled");

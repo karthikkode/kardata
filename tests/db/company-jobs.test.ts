@@ -42,7 +42,7 @@ describe("company_jobs one-active rule (AC-1)", () => {
     const companyId = await makeCompany("Acme");
     await handle.db.insert(companyJobs).values({ id: randomUUID(), companyId, status: "running" });
     await expect(
-      handle.db.insert(companyJobs).values({ id: randomUUID(), companyId, status: "queued" }),
+      handle.db.insert(companyJobs).values({ id: randomUUID(), companyId, status: "scheduled" }),
     ).rejects.toThrow();
   });
 
@@ -54,7 +54,7 @@ describe("company_jobs one-active rule (AC-1)", () => {
       .returning({ id: companyJobs.id });
     if (!first) throw new Error("no job row");
     await handle.db.update(companyJobs).set({ status: "completed" }).where(eq(companyJobs.id, first.id));
-    await handle.db.insert(companyJobs).values({ id: randomUUID(), companyId, status: "queued" });
+    await handle.db.insert(companyJobs).values({ id: randomUUID(), companyId, status: "scheduled" });
     const rows = await handle.db.select().from(companyJobs).where(eq(companyJobs.companyId, companyId));
     expect(rows).toHaveLength(2);
   });

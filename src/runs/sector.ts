@@ -356,11 +356,11 @@ export async function startPipeline(
           .select({ companyId: sectorCompanies.companyId })
           .from(sectorCompanies)
           .where(eligibleScope);
-  // Terminal-failure history (failed/cancelled) gets a fresh job; anything
-  // else (active, completed) is skipped.
+  // Terminal history (failed/terminated) gets a fresh job; anything
+  // else (created, scheduled, running, paused, completed) is skipped.
   const existing = await db.select({ companyId: companyJobs.companyId, status: companyJobs.status }).from(companyJobs);
   const haveJob = new Set(
-    existing.filter((r) => r.status !== "failed" && r.status !== "cancelled").map((r) => r.companyId),
+    existing.filter((r) => r.status !== "failed" && r.status !== "terminated").map((r) => r.companyId),
   );
   let created = 0;
   let skipped = 0;
@@ -370,7 +370,7 @@ export async function startPipeline(
       continue;
     }
     try {
-      await startCompanyJob(db, { companyId: member.companyId, queued: true });
+      await startCompanyJob(db, { companyId: member.companyId, defer: true });
       created += 1;
       haveJob.add(member.companyId);
     } catch (err) {

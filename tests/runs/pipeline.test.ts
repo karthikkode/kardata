@@ -73,8 +73,8 @@ describe("checkpoint trigger", () => {
     const b = await makeCompany("B Co");
     const c = await makeCompany("C Co");
     await completeJob(a);
-    const { jobId: queuedId } = await startCompanyJob(handle.db, { companyId: b, queued: true });
-    const { jobId: runningId } = await startCompanyJob(handle.db, { companyId: c });
+    const { jobId: createdId } = await startCompanyJob(handle.db, { companyId: b, defer: true });
+    const { jobId: scheduledId } = await startCompanyJob(handle.db, { companyId: c });
     await checkpointSet(handle.db, 1);
 
     const fed: string[] = [];
@@ -87,19 +87,19 @@ describe("checkpoint trigger", () => {
     });
     await runner.tick();
 
-    // Tripped: the queued job stays queued.
+    // Tripped: the created job stays created.
     await expect(pipelinePausedGet(handle.db)).resolves.toMatchObject({ paused: true, completed: 1 });
-    const [queued] = await handle.db.select().from(companyJobs).where(eq(companyJobs.id, queuedId));
-    expect(queued?.status).toBe("queued");
-    // But the running job was still fed its next stage.
-    expect(fed).toContain(runningId);
+    const [created] = await handle.db.select().from(companyJobs).where(eq(companyJobs.id, createdId));
+    expect(created?.status).toBe("created");
+    // But the scheduled job was still fed its next stage.
+    expect(fed).toContain(scheduledId);
   });
 
   it("does not trip below the target", async () => {
     const a = await makeCompany("A Co");
     const b = await makeCompany("B Co");
     await completeJob(a);
-    const { jobId: queuedId } = await startCompanyJob(handle.db, { companyId: b, queued: true });
+    const { jobId: createdId } = await startCompanyJob(handle.db, { companyId: b, defer: true });
     await checkpointSet(handle.db, 2);
 
     const runner = createCompanyRunner(handle.db, {
@@ -109,8 +109,8 @@ describe("checkpoint trigger", () => {
     await runner.tick();
 
     await expect(pipelinePausedGet(handle.db)).resolves.toMatchObject({ paused: false });
-    const [queued] = await handle.db.select().from(companyJobs).where(eq(companyJobs.id, queuedId));
-    expect(queued?.status).toBe("running");
+    const [created] = await handle.db.select().from(companyJobs).where(eq(companyJobs.id, createdId));
+    expect(created?.status).toBe("scheduled");
   });
 });
 
@@ -119,11 +119,11 @@ describe("pipelineStatus", () => {
     const a = await makeCompany("A Co");
     const b = await makeCompany("B Co");
     await completeJob(a);
-    await startCompanyJob(handle.db, { companyId: b, queued: true });
+    await startCompanyJob(handle.db, { companyId: b, defer: true });
     await checkpointSet(handle.db, 25);
 
     const status = await pipelineStatus(handle.db);
-    expect(status.counts).toEqual({ completed: 1, queued: 1 });
+    expect(status.counts).toEqual({ completed: 1, created: 1 });
     expect(status.completed).toBe(1);
     expect(status.checkpointTarget).toBe(25);
     expect(status.paused.paused).toBe(false);
