@@ -1272,7 +1272,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth,
     "harness_settings_set",
     {
-      description: "Operator: change agent concurrency at runtime (1..16, stored in the DB, immediate).",
+      description: "Operator: change agent concurrency at runtime (1..32, stored in the DB, immediate).",
       inputSchema: { maxConcurrentAgents: z.number().int().describe("Max parallel agent runs") },
     },
     async ({ maxConcurrentAgents }) =>
