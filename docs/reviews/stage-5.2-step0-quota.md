@@ -2,22 +2,29 @@
 
 Question: does the app's Muse expose live 5h/weekly usage % + resets?
 
-## Answer: no live % anywhere. Only the 429 text, which we have never seen.
+## Answer: YES — via the key-mint endpoint (found in docs, verified live).
 
-Checked 2026-10-23 (app Muse 1.4.11, read-only probes):
+`POST https://api.meta.ai/muse-code/key` with the device-code `dca:`
+access token (inline in the app auth.json) returns `subs_tier_name`,
+`is_subs_active`, and `subs_usage`: 5h `{used_percent,
+window_duration_mins, resets_at}` + weekly `{used_percent, resets_at}`.
+Discard the minted inference key and payment metadata; never store them.
+Caveat (third-party doc): `subs_usage` can be null while the 5h window
+is idle. The MSP wire schema also has `SubscriptionUsage*` /
+`usage/read`, but the endpoint is simpler.
 
-1. CLI: `muse --help` lists 17 commands (resume, exec, export, trace,
-   model-profile, auth, login, ...). No usage/quota/limits command.
-2. Session logs (`goal_usage_attribution` records): spend only —
-   input/output/cached/reasoning tokens per call. No quota, limit,
-   reset, or percent field in any record type.
-3. Local state: `~/.config/muse/` holds only auth.json. No usage files.
-4. Binary strings (`muse-bin-1.4.11`): no usage/quota endpoint hints.
-5. HTTP layer: provider is remote; no headers are logged locally.
-6. 429 text: only a synthetic fixture exists
-   (`"Subscription quota exhausted. Your usage window resets at <date>"`).
-   No real sample ever captured (breaker never tripped). Unknown whether
-   it names the 5h vs weekly window. First real 429 must be kept verbatim.
+Dead ends checked first (app Muse 1.4.11): no CLI usage command
+(`/usage` is TUI-only and renders nothing headless); session logs and
+local state carry spend only; binary strings show no endpoint; no
+headers logged locally. The 429 text remains unseen (breaker never
+tripped) — first real 429 must still be kept verbatim.
+
+## First live reading (Fri 23 Oct 19:12 IST)
+
+Plan: Muse Code Max Usage, active. 5h: 0% (fresh window, reset Sat
+00:07 IST). Weekly: 87%, resets Mon 26 Oct 05:30 IST. The owner's
+separately seen "96%" does not match the app reading — most likely the
+personal account; confirm if it was the app screen.
 
 ## Cached tokens: unknown
 
@@ -43,9 +50,11 @@ Learned allowance + window + 95% early trip (`breaker.ts`):
 
 ## Short plan (needs owner go)
 
-1. Capture full 429 bodies verbatim (error text is truncated today).
-2. Track 5h and weekly windows separately from the first trip's data.
-3. pools_status shows learned % with a "low confidence until N trips"
-   flag rather than pretending precision.
-4. Revisit after the first real trip; only it calibrates units, cached
-   handling, and both windows.
+1. Quota monitor polls the mint endpoint (every few minutes, usage
+   fields only) and feeds pools_status + the 85/95% pool targets.
+   No more learned-allowance guessing for the live %.
+2. Capture full 429 bodies verbatim (error text is truncated today) —
+   still the only way to learn units and cached handling.
+3. At 95% on either window: halt AI starts per the standing rule,
+   running tasks finish, deterministic pool widens, auto-resume at
+   the reported reset.
