@@ -30,9 +30,8 @@ import type {
   HarnessUsage,
 } from "../harness/types.js";
 import { hasFreshCollect } from "./agent.js";
-import { effectiveMaxAgents } from "./settings.js";
+import { effectiveCollectLimit, effectiveMaxAgents } from "./settings.js";
 import { redactRunDocs } from "../domain/research/pii.js";
-import { collectConcurrency } from "./runner.js";
 import { issueRunToken, revokeRunToken } from "./tokens.js";
 import { ingestRunSession, rollupUsage, type SessionIngestSummary, type UsageRollup } from "./usage.js";
 import { attachDispatchSession, logDispatchPrompt } from "../domain/logging/provider-calls.js";
@@ -280,7 +279,6 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
     deps.usageRollup ?? ((main, sessionId) => rollupUsage(main, sessionId));
   const sessionIngestFn =
     deps.sessionIngest ?? ((run, sessionId) => ingestRunSession(db, run, sessionId));
-  const collectLimit = deps.collectLimit ?? collectConcurrency();
   const stallMs = deps.stallMs ?? stallTimeoutMs();
   const pollMs = deps.pollMs ?? DEFAULT_POLL_MS;
   const runsDir = deps.runsDir ?? defaultRunsDir();
@@ -606,6 +604,7 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
         await checkActive(now);
         noteResearching();
         const maxAgents = await effectiveMaxAgents(db, deps.maxAgents);
+        const collectLimit = await effectiveCollectLimit(db, deps.collectLimit);
         if (researching().length >= maxAgents && collecting().length >= collectLimit) return;
         // Stage 5: company-job subjobs are owned by the company worker; the
         // runner drives preflight (recon prompt) and research (research

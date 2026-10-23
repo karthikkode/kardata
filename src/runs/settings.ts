@@ -2,7 +2,12 @@ import { eq } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import { harnessSettings } from "../db/schema.js";
 import { DomainError } from "../domain/errors.js";
-import { estimateInflightBurn, quotaCalibrationGet, windowBurn } from "../domain/quota/breaker.js";
+import {
+  estimateInflightBurn,
+  quotaBreakerGet,
+  quotaCalibrationGet,
+  windowBurn,
+} from "../domain/quota/breaker.js";
 
 /**
  * Harness settings (Stage 4.1 Step 5): runtime-adjustable knobs stored in
@@ -107,6 +112,78 @@ export async function effectiveMaxAgents(db: Db, override?: number): Promise<num
     console.error(`quota pacer failed: ${err instanceof Error ? err.message : err}`);
     return base;
   }
+}
+
+/**
+ * Collect concurrency: runtime-adjustable like agents (per-site
+ * politeness lives in the fetcher, so distinct companies parallelize
+ * freely). Effective value: explicit override, else the DB row, else
+ * COLLECT_CONCURRENCY, else the default. While the quota breaker is
+ * tripped the deterministic backlog drains wide open.
+ */
+
+export const DEFAULT_COLLECT_CONCURRENCY = 3;
+export const COLLECT_MIN = 1;
+export const COLLECT_MAX = 64;
+
+const COLLECT_KEY = "collect_concurrency";
+
+export interface CollectSettingsView {
+  collectConcurrency: number;
+  /** Where the effective value came from. */
+  source: "db" | "env" | "default";
+  /** The stored DB value, if any. */
+  dbValue: number | null;
+}
+
+function validCollectStored(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= COLLECT_MIN && value <= COLLECT_MAX
+    ? value
+    : null;
+}
+
+export async function collectSettingsGet(db: Db): Promise<CollectSettingsView> {
+  const [row] = await db.select().from(harnessSettings).where(eq(harnessSettings.key, COLLECT_KEY));
+  const dbValue = row ? validCollectStored(row.value) : null;
+  if (dbValue !== null) return { collectConcurrency: dbValue, source: "db", dbValue };
+  const raw = process.env.COLLECT_CONCURRENCY;
+  if (raw !== undefined && raw !== "") {
+    const n = Number(raw);
+    const env = Number.isInteger(n) && n > 0 ? n : DEFAULT_COLLECT_CONCURRENCY;
+    return { collectConcurrency: env, source: "env", dbValue: null };
+  }
+  return { collectConcurrency: DEFAULT_COLLECT_CONCURRENCY, source: "default", dbValue: null };
+}
+
+export async function collectSettingsSet(db: Db, collectConcurrency: number): Promise<CollectSettingsView> {
+  if (!Number.isInteger(collectConcurrency) || collectConcurrency < COLLECT_MIN || collectConcurrency > COLLECT_MAX) {
+    throw new DomainError("invalid_input", `collectConcurrency must be ${COLLECT_MIN}..${COLLECT_MAX}`);
+  }
+  await db
+    .insert(harnessSettings)
+    .values({ key: COLLECT_KEY, value: collectConcurrency, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: harnessSettings.key,
+      set: { value: collectConcurrency, updatedAt: new Date() },
+    });
+  return { collectConcurrency, source: "db", dbValue: collectConcurrency };
+}
+
+/** Effective collect width for this tick (wide open while tripped). Never throws on a bad row. */
+export async function effectiveCollectLimit(db: Db, override?: number): Promise<number> {
+  if (override !== undefined) return override;
+  let base: number;
+  try {
+    base = (await collectSettingsGet(db)).collectConcurrency;
+  } catch {
+    return DEFAULT_COLLECT_CONCURRENCY;
+  }
+  try {
+    if ((await quotaBreakerGet(db)).tripped) return COLLECT_MAX;
+  } catch {
+    // The monitor must never break the feeder.
+  }
+  return base;
 }
 
 // ---- Company jobs: how many companies run concurrently (Stage 5). ----

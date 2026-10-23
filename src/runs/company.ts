@@ -43,9 +43,9 @@ import {
 import { extractRun } from "./extract.js";
 import { latestPromptVersion } from "./prompt.js";
 import { cancelRun, startCollect } from "./queue.js";
-import { collectConcurrency } from "./runner.js";
 import {
   checkpointGet,
+  effectiveCollectLimit,
   effectiveCompanyConcurrency,
   effectiveMaxAgents,
   pipelinePausedGet,
@@ -680,7 +680,7 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
     deps.agentLoad ??
     (async () => ({ active: await countActiveRuns(db, "agent"), max: await effectiveMaxAgents(db) }));
   const collectLoad =
-    deps.collectLoad ?? (async () => ({ active: await countActiveRuns(db, "collect"), max: collectConcurrency() }));
+    deps.collectLoad ?? (async () => ({ active: await countActiveRuns(db, "collect"), max: await effectiveCollectLimit(db) }));
   let timer: ReturnType<typeof setInterval> | null = null;
   let ticking = false;
 

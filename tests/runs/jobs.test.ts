@@ -12,7 +12,12 @@ import {
   sectors,
   shortlists,
 } from "../../src/db/schema.js";
-import { estimateInflightBurn, quotaCalibrationSet } from "../../src/domain/quota/breaker.js";
+import {
+  estimateInflightBurn,
+  quotaBreakerClear,
+  quotaBreakerSet,
+  quotaCalibrationSet,
+} from "../../src/domain/quota/breaker.js";
 import {
   createJobRunner,
   jobCancel,
@@ -27,6 +32,9 @@ import {
   type JobRunnerDeps,
 } from "../../src/runs/bulk.js";
 import {
+  collectSettingsGet,
+  collectSettingsSet,
+  effectiveCollectLimit,
   effectiveMaxAgents,
   harnessSettingsGet,
   harnessSettingsSet,
@@ -500,6 +508,34 @@ describe("harness settings", () => {
     await harnessSettingsSet(handle.db, 6);
     expect(await effectiveMaxAgents(handle.db, 2)).toBe(2);
     expect(await effectiveMaxAgents(handle.db)).toBe(6);
+  });
+});
+
+describe("collect settings", () => {
+  it("reads default, sets and validates", async () => {
+    const initial = await collectSettingsGet(handle.db);
+    expect(["env", "default"]).toContain(initial.source);
+    await collectSettingsSet(handle.db, 24);
+    const stored = await collectSettingsGet(handle.db);
+    expect(stored).toMatchObject({ collectConcurrency: 24, source: "db", dbValue: 24 });
+    await expect(collectSettingsSet(handle.db, 0)).rejects.toThrow("1..64");
+    await expect(collectSettingsSet(handle.db, 65)).rejects.toThrow("1..64");
+  });
+
+  it("effectiveCollectLimit prefers override, widens while tripped", async () => {
+    await collectSettingsSet(handle.db, 10);
+    expect(await effectiveCollectLimit(handle.db, 5)).toBe(5);
+    expect(await effectiveCollectLimit(handle.db)).toBe(10);
+    await quotaBreakerSet(handle.db, {
+      trippedAt: new Date().toISOString(),
+      resumeAt: new Date(Date.now() + 3600_000).toISOString(),
+      estimated: false,
+      jobIds: [],
+      error: "test trip",
+    });
+    expect(await effectiveCollectLimit(handle.db)).toBe(64);
+    await quotaBreakerClear(handle.db);
+    expect(await effectiveCollectLimit(handle.db)).toBe(10);
   });
 });
 

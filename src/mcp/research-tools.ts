@@ -68,6 +68,8 @@ import { extractRun } from "../runs/extract.js";
 import { cancelRun, getOrCreateManualRun, startCollect } from "../runs/queue.js";
 import {
   checkpointSet,
+  collectSettingsGet,
+  collectSettingsSet,
   companySettingsGet,
   companySettingsSet,
   effectiveMaxAgents,
@@ -1461,6 +1463,32 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const settings = await companySettingsSet(db, value);
         return { summary: `companyConcurrency -> ${settings.companyConcurrency}`, data: settings };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "collect_concurrency_get",
+    {
+      description: "Operator: effective collect concurrency and where the value comes from.",
+      inputSchema: {},
+    },
+    async () =>
+      wrap(async () => {
+        const settings = await collectSettingsGet(db);
+        return { summary: `collectConcurrency=${settings.collectConcurrency} (${settings.source})`, data: settings };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "collect_concurrency_set",
+    {
+      description: "Operator: change collect concurrency at runtime (1..64, stored in the DB, immediate).",
+      inputSchema: { collectConcurrency: z.number().int().describe("Max parallel deterministic collects") },
+    },
+    async ({ collectConcurrency: value }) =>
+      wrap(async () => {
+        const settings = await collectSettingsSet(db, value);
+        return { summary: `collectConcurrency -> ${settings.collectConcurrency}`, data: settings };
       }),
   );
 
