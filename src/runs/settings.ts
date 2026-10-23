@@ -1,7 +1,14 @@
+import { readFileSync } from "node:fs";
 import { eq } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import { harnessSettings } from "../db/schema.js";
 import { DomainError } from "../domain/errors.js";
+import {
+  estimateInflightBurn,
+  quotaBreakerGet,
+  quotaCalibrationGet,
+  windowBurn,
+} from "../domain/quota/breaker.js";
 
 /**
  * Harness settings (Stage 4.1 Step 5): runtime-adjustable knobs stored in
@@ -13,6 +20,17 @@ import { DomainError } from "../domain/errors.js";
 export const DEFAULT_MAX_AGENTS = 4;
 export const MAX_AGENTS_MIN = 1;
 export const MAX_AGENTS_MAX = 64;
+
+/** MemAvailable in MB from /proc/meminfo, or null when unreadable (non-Linux). */
+export function systemMemAvailableMB(): number | null {
+  try {
+    const match = /MemAvailable:\s+(\d+)\s+kB/.exec(readFileSync("/proc/meminfo", "utf8"));
+    if (!match?.[1]) return null;
+    return Math.floor(Number(match[1]) / 1024);
+  } catch {
+    return null;
+  }
+}
 
 const MAX_AGENTS_KEY = "max_concurrent_agents";
 
@@ -65,14 +83,119 @@ export async function harnessSettingsSet(db: Db, maxConcurrentAgents: number): P
   return { maxConcurrentAgents, source: "db", dbValue: maxConcurrentAgents };
 }
 
-/** Effective agent concurrency for this tick. Never throws on a bad row. */
+/** Pacer floor: the wave always keeps a trickle of agents (the 95% early trip takes over near empty). */
+export const QUOTA_PACER_FLOOR = 4;
+
+/**
+ * Fit agent launches to the window budget (metered burn plus estimated
+ * in-flight burn): full speed while burn tracks time left, throttling as
+ * burn outruns it. Uncalibrated (or an expired window) runs flat-out at
+ * base; the first real 429 teaches the window. Never raises above the
+ * operator's base. Feeder begins and engine launches both consume this,
+ * so neither can bypass the other.
+ */
+export async function paceAgents(db: Db, base: number, now: Date = new Date()): Promise<number> {
+  const cal = await quotaCalibrationGet(db);
+  if (!cal || cal.allowanceEstimate <= 0 || !cal.windowMs || cal.windowMs <= 0) return base;
+  const start = new Date(cal.windowStart).getTime();
+  if (Number.isNaN(start)) return base;
+  const fracLeft = (start + cal.windowMs - now.getTime()) / cal.windowMs;
+  if (fracLeft <= 0) return base;
+  const burn = await windowBurn(db, new Date(cal.windowStart));
+  const inflight = await estimateInflightBurn(db, now);
+  const remaining = cal.allowanceEstimate - burn - inflight;
+  if (remaining <= 0) return Math.min(base, QUOTA_PACER_FLOOR);
+  const ratio = remaining / cal.allowanceEstimate / fracLeft;
+  return Math.min(base, Math.max(QUOTA_PACER_FLOOR, Math.ceil(base * ratio)));
+}
+
+/** Effective agent concurrency for this tick (paced to quota). Never throws on a bad row. */
 export async function effectiveMaxAgents(db: Db, override?: number): Promise<number> {
   if (override !== undefined) return override;
+  let base: number;
   try {
-    return (await harnessSettingsGet(db)).maxConcurrentAgents;
+    base = (await harnessSettingsGet(db)).maxConcurrentAgents;
   } catch {
     return agentConcurrency();
   }
+  try {
+    return await paceAgents(db, base);
+  } catch (err) {
+    console.error(`quota pacer failed: ${err instanceof Error ? err.message : err}`);
+    return base;
+  }
+}
+
+/**
+ * Collect concurrency: runtime-adjustable like agents (per-site
+ * politeness lives in the fetcher, so distinct companies parallelize
+ * freely). Effective value: explicit override, else the DB row, else
+ * COLLECT_CONCURRENCY, else the default. While the quota breaker is
+ * tripped the deterministic backlog drains wide open.
+ */
+
+export const DEFAULT_COLLECT_CONCURRENCY = 3;
+export const COLLECT_MIN = 1;
+export const COLLECT_MAX = 64;
+
+const COLLECT_KEY = "collect_concurrency";
+
+export interface CollectSettingsView {
+  collectConcurrency: number;
+  /** Where the effective value came from. */
+  source: "db" | "env" | "default";
+  /** The stored DB value, if any. */
+  dbValue: number | null;
+}
+
+function validCollectStored(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= COLLECT_MIN && value <= COLLECT_MAX
+    ? value
+    : null;
+}
+
+export async function collectSettingsGet(db: Db): Promise<CollectSettingsView> {
+  const [row] = await db.select().from(harnessSettings).where(eq(harnessSettings.key, COLLECT_KEY));
+  const dbValue = row ? validCollectStored(row.value) : null;
+  if (dbValue !== null) return { collectConcurrency: dbValue, source: "db", dbValue };
+  const raw = process.env.COLLECT_CONCURRENCY;
+  if (raw !== undefined && raw !== "") {
+    const n = Number(raw);
+    const env = Number.isInteger(n) && n > 0 ? n : DEFAULT_COLLECT_CONCURRENCY;
+    return { collectConcurrency: env, source: "env", dbValue: null };
+  }
+  return { collectConcurrency: DEFAULT_COLLECT_CONCURRENCY, source: "default", dbValue: null };
+}
+
+export async function collectSettingsSet(db: Db, collectConcurrency: number): Promise<CollectSettingsView> {
+  if (!Number.isInteger(collectConcurrency) || collectConcurrency < COLLECT_MIN || collectConcurrency > COLLECT_MAX) {
+    throw new DomainError("invalid_input", `collectConcurrency must be ${COLLECT_MIN}..${COLLECT_MAX}`);
+  }
+  await db
+    .insert(harnessSettings)
+    .values({ key: COLLECT_KEY, value: collectConcurrency, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: harnessSettings.key,
+      set: { value: collectConcurrency, updatedAt: new Date() },
+    });
+  return { collectConcurrency, source: "db", dbValue: collectConcurrency };
+}
+
+/** Effective collect width for this tick (wide open while tripped). Never throws on a bad row. */
+export async function effectiveCollectLimit(db: Db, override?: number): Promise<number> {
+  if (override !== undefined) return override;
+  let base: number;
+  try {
+    base = (await collectSettingsGet(db)).collectConcurrency;
+  } catch {
+    return DEFAULT_COLLECT_CONCURRENCY;
+  }
+  try {
+    if ((await quotaBreakerGet(db)).tripped) return COLLECT_MAX;
+  } catch {
+    // The monitor must never break the feeder.
+  }
+  return base;
 }
 
 // ---- Company jobs: how many companies run concurrently (Stage 5). ----

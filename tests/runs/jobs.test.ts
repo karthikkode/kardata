@@ -6,11 +6,18 @@ import {
   bulkJobItems,
   bulkJobs,
   companies,
+  providerCalls,
   researchRuns,
   sectorCompanies,
   sectors,
   shortlists,
 } from "../../src/db/schema.js";
+import {
+  estimateInflightBurn,
+  quotaBreakerClear,
+  quotaBreakerSet,
+  quotaCalibrationSet,
+} from "../../src/domain/quota/breaker.js";
 import {
   createJobRunner,
   jobCancel,
@@ -24,7 +31,15 @@ import {
   startResearchShortlistJob,
   type JobRunnerDeps,
 } from "../../src/runs/bulk.js";
-import { effectiveMaxAgents, harnessSettingsGet, harnessSettingsSet } from "../../src/runs/settings.js";
+import {
+  collectSettingsGet,
+  collectSettingsSet,
+  effectiveCollectLimit,
+  effectiveMaxAgents,
+  harnessSettingsGet,
+  harnessSettingsSet,
+  paceAgents,
+} from "../../src/runs/settings.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 
 let handle: DbHandle;
@@ -493,5 +508,152 @@ describe("harness settings", () => {
     await harnessSettingsSet(handle.db, 6);
     expect(await effectiveMaxAgents(handle.db, 2)).toBe(2);
     expect(await effectiveMaxAgents(handle.db)).toBe(6);
+  });
+});
+
+describe("collect settings", () => {
+  it("reads default, sets and validates", async () => {
+    const initial = await collectSettingsGet(handle.db);
+    expect(["env", "default"]).toContain(initial.source);
+    await collectSettingsSet(handle.db, 24);
+    const stored = await collectSettingsGet(handle.db);
+    expect(stored).toMatchObject({ collectConcurrency: 24, source: "db", dbValue: 24 });
+    await expect(collectSettingsSet(handle.db, 0)).rejects.toThrow("1..64");
+    await expect(collectSettingsSet(handle.db, 65)).rejects.toThrow("1..64");
+  });
+
+  it("effectiveCollectLimit prefers override, widens while tripped", async () => {
+    await collectSettingsSet(handle.db, 10);
+    expect(await effectiveCollectLimit(handle.db, 5)).toBe(5);
+    expect(await effectiveCollectLimit(handle.db)).toBe(10);
+    await quotaBreakerSet(handle.db, {
+      trippedAt: new Date().toISOString(),
+      resumeAt: new Date(Date.now() + 3600_000).toISOString(),
+      estimated: false,
+      jobIds: [],
+      error: "test trip",
+    });
+    expect(await effectiveCollectLimit(handle.db)).toBe(64);
+    await quotaBreakerClear(handle.db);
+    expect(await effectiveCollectLimit(handle.db)).toBe(10);
+  });
+});
+
+describe("quota pacer", () => {
+  async function seedWindow(opts: { allowance: number; burn: number; startAgoMs: number; windowMs: number }) {
+    await quotaCalibrationSet(handle.db, {
+      windowStart: new Date(Date.now() - opts.startAgoMs).toISOString(),
+      allowanceEstimate: opts.allowance,
+      windowMs: opts.windowMs,
+      earlyTrips: [],
+    });
+    if (opts.burn > 0) {
+      await handle.db.insert(providerCalls).values({
+        stage: "research",
+        inputTokens: opts.burn,
+        cachedTokens: 0,
+        at: new Date(),
+      });
+    }
+  }
+
+  it("runs flat-out uncalibrated", async () => {
+    expect(await paceAgents(handle.db, 64)).toBe(64);
+  });
+
+  it("runs flat-out when burn tracks time", async () => {
+    await seedWindow({ allowance: 10000, burn: 5000, startAgoMs: 3600_000, windowMs: 7200_000 });
+    expect(await paceAgents(handle.db, 64)).toBe(64);
+  });
+
+  it("throttles when burn outruns time", async () => {
+    await seedWindow({ allowance: 1000, burn: 900, startAgoMs: 5 * 3600_000, windowMs: 10 * 3600_000 });
+    // 10% budget left, 50% time left: 64 * 0.1/0.5 = 12.8 -> 13.
+    expect(await paceAgents(handle.db, 64)).toBe(13);
+  });
+
+  it("holds the floor on an empty budget and flat-out past window end", async () => {
+    await seedWindow({ allowance: 1000, burn: 1500, startAgoMs: 3600_000, windowMs: 7200_000 });
+    expect(await paceAgents(handle.db, 64)).toBe(4);
+    await seedWindow({ allowance: 1000, burn: 0, startAgoMs: 6 * 3600_000, windowMs: 5 * 3600_000 });
+    expect(await paceAgents(handle.db, 64)).toBe(64);
+  });
+
+  it("an explicit override bypasses pacing", async () => {
+    await harnessSettingsSet(handle.db, 64);
+    await seedWindow({ allowance: 100, burn: 99, startAgoMs: 3600_000, windowMs: 7200_000 });
+    expect(await effectiveMaxAgents(handle.db, 8)).toBe(8);
+    expect(await effectiveMaxAgents(handle.db)).toBeLessThan(64);
+  });
+
+  it("paces on metered plus in-flight burn", async () => {
+    await harnessSettingsSet(handle.db, 64);
+    await seedWindow({ allowance: 1000000, burn: 800000, startAgoMs: 3600_000, windowMs: 7200_000 });
+    const companyId = await makeCompany("Paced Co");
+    await handle.db.insert(researchRuns).values({
+      id: randomUUID(),
+      companyId,
+      kind: "agent",
+      status: "running",
+      stage: "research",
+      startedAt: new Date(Date.now() - 120_000),
+    });
+    // Metered-only would allow 26; the ~100k fallback in-flight drops it to 13.
+    expect(await effectiveMaxAgents(handle.db)).toBe(13);
+  });
+});
+
+describe("in-flight estimate", () => {
+  async function seedRun(opts: {
+    stage: "preflight" | "research" | "extraction" | null;
+    status: "running" | "queued" | "succeeded";
+    startAgoMs?: number;
+    durMs?: number;
+  }) {
+    const now = Date.now();
+    const companyId = await makeCompany(`Est ${randomUUID().slice(0, 8)}`);
+    await handle.db.insert(researchRuns).values({
+      id: randomUUID(),
+      companyId,
+      kind: "agent",
+      status: opts.status,
+      stage: opts.stage,
+      startedAt: opts.startAgoMs === undefined ? null : new Date(now - opts.startAgoMs),
+      finishedAt:
+        opts.startAgoMs === undefined || opts.durMs === undefined
+          ? null
+          : new Date(now - opts.startAgoMs + opts.durMs),
+    });
+  }
+
+  async function seedBurn(tokens: number) {
+    await handle.db.insert(providerCalls).values({
+      stage: "research",
+      inputTokens: tokens,
+      cachedTokens: 0,
+      at: new Date(),
+    });
+  }
+
+  it("learns the rate from finished runs", async () => {
+    await seedRun({ stage: "research", status: "succeeded", startAgoMs: 600_000, durMs: 600_000 });
+    await seedBurn(600000);
+    await seedRun({ stage: "research", status: "running", startAgoMs: 300_000 });
+    const estimate = await estimateInflightBurn(handle.db);
+    expect(estimate).toBeGreaterThan(290000);
+    expect(estimate).toBeLessThan(310000);
+  });
+
+  it("falls back with no history and ignores queued rows", async () => {
+    await seedRun({ stage: "research", status: "running", startAgoMs: 120_000 });
+    await seedRun({ stage: "preflight", status: "queued" });
+    const estimate = await estimateInflightBurn(handle.db);
+    expect(estimate).toBeGreaterThan(95000);
+    expect(estimate).toBeLessThan(105000);
+  });
+
+  it("excludes extraction rows (logged inline)", async () => {
+    await seedRun({ stage: "extraction", status: "running", startAgoMs: 3600_000 });
+    expect(await estimateInflightBurn(handle.db)).toBe(0);
   });
 });

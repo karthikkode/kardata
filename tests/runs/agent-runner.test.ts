@@ -187,6 +187,7 @@ function makeFixture(opts: {
   collectLimit?: number;
   buildPrompt?: null;
   stallMs?: number;
+  memAvailableMB?: () => number | null;
   sessionIngest?: (
     runId: string,
     sessionId: string | undefined,
@@ -214,6 +215,7 @@ function makeFixture(opts: {
     pollMs: 60_000,
     runsDir,
     stallMs: opts.stallMs,
+    memAvailableMB: opts.memAvailableMB,
     usageRollup:
       opts.usageRollup ?? (async (main) => ({ total: main, childrenIncluded: false, children: [] })),
     sessionIngest:
@@ -950,6 +952,23 @@ describe("agent runner", () => {
     await drain(runId);
     expect(fx.harness.handles.has(runId)).toBe(true);
     expect((await runRow(runId)).status).toBe("succeeded");
+  });
+
+  it("holds launches below the memory floor, proceeds when unreadable", async () => {
+    const held = makeFixture({ memAvailableMB: () => 0 });
+    const companyId = await makeCompany("Low Mem Co");
+    await freshCollect(companyId);
+    const started = await researchStart(handle.db, { companyIds: [companyId] });
+    const runId = (started.runs[0] as { runId: string }).runId;
+
+    await held.runner.tick();
+    expect(held.harness.starts).toHaveLength(0);
+    expect((await runRow(runId)).status).toBe("queued");
+
+    const blind = makeFixture({ memAvailableMB: () => null });
+    await blind.runner.tick();
+    await drain(runId);
+    expect(blind.harness.starts.length).toBeGreaterThan(0);
   });
 });
 

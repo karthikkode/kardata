@@ -102,6 +102,8 @@ const EXPECTED_TOOLS = [
   "company_jobs_supersede",
   "company_concurrency_get",
   "company_concurrency_set",
+  "collect_concurrency_get",
+  "collect_concurrency_set",
   "pipeline_status",
   "pipeline_checkpoint_set",
   "quota_breaker_status",
@@ -368,6 +370,7 @@ describe("mcp tools", () => {
     expect(live.active).toBeNull();
     const quota = dataOf(await call("quota_breaker_status", {}));
     expect((quota.trip as { tripped: boolean }).tripped).toBe(false);
+    expect(quota.agentsAllowed).toBe(quota.agentsMax);
     const quotaCleared = dataOf(await call("quota_breaker_clear", {}));
     expect(quotaCleared.tripped).toBe(false);
 
@@ -383,6 +386,13 @@ describe("mcp tools", () => {
     expect(updated.companyConcurrency).toBe(12);
     const badConc = await call("company_concurrency_set", { companyConcurrency: 101 });
     expect(errorOf(badConc).code).toBe("invalid_input");
+
+    const coll = dataOf(await call("collect_concurrency_get", {}));
+    expect(coll.collectConcurrency).toBe(3);
+    const collUpdated = dataOf(await call("collect_concurrency_set", { collectConcurrency: 24 }));
+    expect(collUpdated.collectConcurrency).toBe(24);
+    const badColl = await call("collect_concurrency_set", { collectConcurrency: 65 });
+    expect(errorOf(badColl).code).toBe("invalid_input");
 
     const pipe = dataOf(await call("pipeline_status", {}));
     expect(pipe.checkpointTarget).toBeNull();

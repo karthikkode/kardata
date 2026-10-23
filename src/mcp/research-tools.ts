@@ -32,7 +32,13 @@ import {
 } from "../domain/research/reads.js";
 import { preflightReportSchema, savePreflightReportForRun } from "../domain/company-jobs/preflight.js";
 import { companyJobLive } from "../domain/company-jobs/live.js";
-import { quotaBreakerClear, quotaBreakerGet, quotaCalibrationGet, windowBurn } from "../domain/quota/breaker.js";
+import {
+  estimateInflightBurn,
+  quotaBreakerClear,
+  quotaBreakerGet,
+  quotaCalibrationGet,
+  windowBurn,
+} from "../domain/quota/breaker.js";
 import { ADAPTERS } from "../collect/adapters.js";
 import { researchStart } from "../runs/agent.js";
 import {
@@ -62,8 +68,11 @@ import { extractRun } from "../runs/extract.js";
 import { cancelRun, getOrCreateManualRun, startCollect } from "../runs/queue.js";
 import {
   checkpointSet,
+  collectSettingsGet,
+  collectSettingsSet,
   companySettingsGet,
   companySettingsSet,
+  effectiveMaxAgents,
   harnessSettingsGet,
   harnessSettingsSet,
   sectorPreflightSettingsGet,
@@ -1458,6 +1467,32 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   );
 
   registerTool(server, db, auth,
+    "collect_concurrency_get",
+    {
+      description: "Operator: effective collect concurrency and where the value comes from.",
+      inputSchema: {},
+    },
+    async () =>
+      wrap(async () => {
+        const settings = await collectSettingsGet(db);
+        return { summary: `collectConcurrency=${settings.collectConcurrency} (${settings.source})`, data: settings };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "collect_concurrency_set",
+    {
+      description: "Operator: change collect concurrency at runtime (1..64, stored in the DB, immediate).",
+      inputSchema: { collectConcurrency: z.number().int().describe("Max parallel deterministic collects") },
+    },
+    async ({ collectConcurrency: value }) =>
+      wrap(async () => {
+        const settings = await collectSettingsSet(db, value);
+        return { summary: `collectConcurrency -> ${settings.collectConcurrency}`, data: settings };
+      }),
+  );
+
+  registerTool(server, db, auth,
     "pipeline_status",
     {
       description: "Operator: batch overview — job counts, checkpoint target, pause state, quota snapshot.",
@@ -1503,15 +1538,19 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         const cal = await quotaCalibrationGet(db);
         const start = cal ? new Date(cal.windowStart) : null;
         const burn = await windowBurn(db, start && !Number.isNaN(start.getTime()) ? start : null);
+        const inflight = await estimateInflightBurn(db);
+        const total = burn + inflight;
         const pct =
-          cal && cal.allowanceEstimate > 0 ? Math.round((burn / cal.allowanceEstimate) * 100) : null;
+          cal && cal.allowanceEstimate > 0 ? Math.round((total / cal.allowanceEstimate) * 100) : null;
+        const agentsMax = (await harnessSettingsGet(db)).maxConcurrentAgents;
+        const agentsAllowed = await effectiveMaxAgents(db);
         return {
           summary: trip.tripped
             ? `breaker tripped, resumes ${trip.resumeAt ?? "on owner go"}`
             : pct === null
               ? `no trip, burn ${burn} (uncalibrated)`
-              : `no trip, burn ${burn} (${pct}% of learned window)`,
-          data: { trip, calibration: cal, burn, pct },
+              : `no trip, burn ${total} (${pct}% of learned window)`,
+          data: { trip, calibration: cal, burn, inflight, pct, agentsAllowed, agentsMax },
         };
       }),
   );

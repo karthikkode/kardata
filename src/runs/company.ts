@@ -14,6 +14,7 @@ import {
   isStageComplete,
   isTerminalSubjob,
   type CompanyDerived,
+  type CompanyJobDescription,
   type CompanyStage,
 } from "../domain/company-jobs/status.js";
 import { checkPreflightGate, getPreflightSummary } from "../domain/company-jobs/preflight.js";
@@ -21,6 +22,7 @@ import { logJobEvent } from "../domain/company-jobs/events.js";
 import {
   QUOTA_EARLY_TRIP_RATIO,
   parseQuotaExhaustion,
+  estimateInflightBurn,
   quotaBreakerClear,
   quotaBreakerGet,
   quotaBreakerSet,
@@ -41,9 +43,9 @@ import {
 import { extractRun } from "./extract.js";
 import { latestPromptVersion } from "./prompt.js";
 import { cancelRun, startCollect } from "./queue.js";
-import { collectConcurrency } from "./runner.js";
 import {
   checkpointGet,
+  effectiveCollectLimit,
   effectiveCompanyConcurrency,
   effectiveMaxAgents,
   pipelinePausedGet,
@@ -62,6 +64,20 @@ import {
 const COMPANY_POLL_MS = 15_000;
 const COMPANY_LIST_DEFAULT_LIMIT = 20;
 const AGENT_STAGES: readonly CompanyStage[] = ["preflight", "research"];
+/**
+ * Feed lane by next needed stage (ordering only). Credits are perishable,
+ * so credit-burning stages feed first; collect fills leftover capacity.
+ * Complete-ready jobs go first of all (completing frees company slots
+ * for this tick's claims). FIFO within a lane doubles as the starvation
+ * guard: the longest-waiting collect always advances in turn. The row's
+ * currentStage lags by one stage, so lanes key on the describe — which
+ * the tick reuses to avoid a second describe per job. Claim order stays
+ * FIFO: every claim enters at preflight (lane 0).
+ */
+function feedLane(desc: CompanyJobDescription): number {
+  if (desc.derived === "complete") return -1;
+  return desc.nextStage === "collect" ? 1 : 0;
+}
 /** First consecutive failure in these classes requeues the stage instead of parking the job. */
 const TRANSIENT_AUTO_RETRY = new Set(["stall", "usage_limit"]);
 
@@ -308,6 +324,37 @@ export async function companyJobsPauseAll(db: Db, reason: string): Promise<{ pau
   return { paused };
 }
 
+/**
+ * Pause only credit-burning jobs (deterministic mode): jobs with a live
+ * collect run, jobs whose next stage is collect, and complete-ready jobs
+ * keep flowing — pausing them would trash free deterministic progress.
+ * Everything else (live or upcoming agent/extraction work) pauses.
+ */
+export async function pauseCreditJobs(db: Db, reason: string): Promise<{ paused: string[]; flowing: string[] }> {
+  const running = await db
+    .select({ id: companyJobs.id })
+    .from(companyJobs)
+    .where(inArray(companyJobs.status, ["scheduled", "running"]));
+  const paused: string[] = [];
+  const flowing: string[] = [];
+  for (const job of running) {
+    try {
+      const desc = await describeCompanyJob(db, job.id);
+      const live = desc.stages.find((s) => s.run && !isTerminalSubjob(s.run.status));
+      const free = desc.derived === "complete" || (live?.run ? live.run.kind === "collect" : desc.nextStage === "collect");
+      if (free) {
+        flowing.push(job.id);
+        continue;
+      }
+      await companyJobPause(db, job.id, reason);
+      paused.push(job.id);
+    } catch {
+      // Raced to terminal between list and pause; leave it alone.
+    }
+  }
+  return { paused, flowing };
+}
+
 export interface QuotaTripInput {
   /** Already-parked job to record (the quotaPark path records itself). */
   jobId?: string;
@@ -317,9 +364,10 @@ export interface QuotaTripInput {
 }
 
 /**
- * Trip the quota breaker: pause every running job (stops their burn) and
- * record them for auto-resume. Idempotent: re-trips union ids into the
- * open trip, and an exact reset time always wins over an estimated one.
+ * Trip the quota breaker: pause credit-burning jobs (stops their burn),
+ * leave deterministic (collect) jobs flowing, and record the paused ones
+ * for auto-resume. Idempotent: re-trips union ids into the open trip,
+ * and an exact reset time always wins over an estimated one.
  */
 export async function tripQuotaBreaker(
   db: Db,
@@ -329,7 +377,7 @@ export async function tripQuotaBreaker(
   const reason = resumeIso
     ? `quota exhausted, resumes ${resumeIso}`
     : "quota exhausted, resume on owner go (no reset time in error)";
-  const { paused } = await companyJobsPauseAll(db, reason);
+  const { paused } = await pauseCreditJobs(db, reason);
   const ids = [...new Set([...paused, ...(input.jobId ? [input.jobId] : [])])];
   const existing = await quotaBreakerGet(db);
   const allIds = [...new Set([...(existing.tripped ? existing.jobIds : []), ...ids])];
@@ -414,12 +462,13 @@ export async function maybeQuotaEarlyTrip(db: Db): Promise<{ tripped: boolean }>
   const start = new Date(cal.windowStart);
   if (Number.isNaN(start.getTime())) return { tripped: false };
   const burn = await windowBurn(db, start);
-  if (burn < QUOTA_EARLY_TRIP_RATIO * cal.allowanceEstimate) return { tripped: false };
+  const total = burn + (await estimateInflightBurn(db));
+  if (total < QUOTA_EARLY_TRIP_RATIO * cal.allowanceEstimate) return { tripped: false };
   const resumeAt = new Date(start.getTime() + cal.windowMs);
   await tripQuotaBreaker(db, {
     resumeAt,
     estimated: true,
-    error: `95% of learned window burn (${burn} >= ${Math.round(QUOTA_EARLY_TRIP_RATIO * cal.allowanceEstimate)})`,
+    error: `95% of learned window burn (${total} >= ${Math.round(QUOTA_EARLY_TRIP_RATIO * cal.allowanceEstimate)})`,
   });
   return { tripped: true };
 }
@@ -631,7 +680,7 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
     deps.agentLoad ??
     (async () => ({ active: await countActiveRuns(db, "agent"), max: await effectiveMaxAgents(db) }));
   const collectLoad =
-    deps.collectLoad ?? (async () => ({ active: await countActiveRuns(db, "collect"), max: collectConcurrency() }));
+    deps.collectLoad ?? (async () => ({ active: await countActiveRuns(db, "collect"), max: await effectiveCollectLimit(db) }));
   let timer: ReturnType<typeof setInterval> | null = null;
   let ticking = false;
 
@@ -782,9 +831,14 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
     return loadCompanyJob(db, job.id);
   }
 
-  async function tickJob(job: CompanyJob, feed: boolean): Promise<void> {
+  async function tickJob(
+    job: CompanyJob,
+    feed: boolean,
+    descArg?: CompanyJobDescription,
+    holdAgents?: boolean,
+  ): Promise<void> {
     const current = job;
-    let desc = await describeCompanyJob(db, job.id);
+    let desc = descArg ?? (await describeCompanyJob(db, job.id));
     if (
       desc.derived === "complete" &&
       (current.status === "running" || current.status === "scheduled" || current.status === "paused")
@@ -869,6 +923,9 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
     }
     await spendReconcile(await loadCompanyJob(db, job.id));
     if (!feed) return;
+    // Deterministic mode: while the quota breaker is tripped, fed jobs may
+    // only begin collect (free); agent and extraction begins wait for reset.
+    if (holdAgents && target !== "collect") return;
     if (AGENT_STAGES.includes(target)) {
       const load = await agentLoad();
       if (load.active >= load.max) return;
@@ -940,9 +997,20 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
         .from(companyJobs)
         .where(inArray(companyJobs.status, ["scheduled", "running", "paused", "terminated"]))
         .orderBy(asc(companyJobs.createdAt));
+      // Agent lane first (stable sort keeps FIFO within a lane). One
+      // describe per job, reused by tickJob — no added query cost.
+      const lanes: { job: CompanyJob; desc: CompanyJobDescription }[] = [];
       for (const job of jobs) {
         try {
-          await tickJob(job, job.status === "scheduled" || job.status === "running");
+          lanes.push({ job, desc: await describeCompanyJob(db, job.id) });
+        } catch (err) {
+          console.error(`company job ${job.id} describe failed: ${err instanceof Error ? err.message : err}`);
+        }
+      }
+      lanes.sort((a, b) => feedLane(a.desc) - feedLane(b.desc));
+      for (const { job, desc } of lanes) {
+        try {
+          await tickJob(job, job.status === "scheduled" || job.status === "running", desc, quota.tripped);
         } catch (err) {
           console.error(`company job ${job.id} tick failed: ${err instanceof Error ? err.message : err}`);
         }
@@ -986,7 +1054,7 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
         if (!claimed) break;
         await logJobEvent(db, claimed.id, "job_claimed");
         try {
-          await tickJob(claimed, true);
+          await tickJob(claimed, true, undefined, quota.tripped);
         } catch (err) {
           console.error(`company job ${claimed.id} tick failed: ${err instanceof Error ? err.message : err}`);
         }
