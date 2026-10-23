@@ -1,5 +1,5 @@
 import { and, eq, or } from "drizzle-orm";
-import { facts, records, sources } from "../../db/schema.js";
+import { facts, factsCurrent, records, sources } from "../../db/schema.js";
 import { reviewsIngest, type IngestReview } from "../../domain/research/reviews.js";
 import { recordEvent } from "../db.js";
 import {
@@ -94,13 +94,31 @@ export async function runReviewsOnsite(
   runner: ReviewsJobRunner = dockerReviewsJob,
 ): Promise<CollectorResult> {
   if (!ctx.shared.shopify?.isShopify) {
-    return { outcomes: [{ area: "reviews", status: "skipped", reason: "not a Shopify store" }] };
+    // Standalone runs (onsite without shopify in the same run): persisted
+    // products prove the store. Nothing persisted means not a Shopify store.
+    const [existing] = await ctx.db
+      .select({ id: records.id })
+      .from(records)
+      .where(and(eq(records.companyId, ctx.companyId), eq(records.type, "product")))
+      .limit(1);
+    if (!existing) {
+      return { outcomes: [{ area: "reviews", status: "skipped", reason: "not a Shopify store" }] };
+    }
   }
-  const appFacts = await ctx.db
+  const sameRunApps = await ctx.db
     .select({ valueText: facts.valueText })
     .from(facts)
     .where(and(eq(facts.companyId, ctx.companyId), eq(facts.runId, ctx.runId), eq(facts.key, "reviews.app")));
-  const apps = [...new Set(appFacts.map((f) => (f.valueText ?? "").trim()).filter((v) => v !== ""))];
+  let apps = [...new Set(sameRunApps.map((f) => (f.valueText ?? "").trim()).filter((v) => v !== ""))];
+  if (apps.length === 0) {
+    // Standalone runs: use the company's latest review-app fact, whatever
+    // run wrote it.
+    const prior = await ctx.db
+      .select({ valueText: factsCurrent.valueText })
+      .from(factsCurrent)
+      .where(and(eq(factsCurrent.companyId, ctx.companyId), eq(factsCurrent.key, "reviews.app")));
+    apps = [...new Set(prior.map((f) => (f.valueText ?? "").trim()).filter((v) => v !== ""))];
+  }
   if (apps.length === 0) {
     return { outcomes: [{ area: "reviews", status: "skipped", reason: "no review app detected" }] };
   }
@@ -110,7 +128,7 @@ export async function runReviewsOnsite(
       outcomes: [{ area: "reviews", status: "not_found", reason: `unsupported review app: ${apps.join(", ")}` }],
     };
   }
-  const productRows = await ctx.db
+  let productRows = await ctx.db
     .select({ data: records.data })
     .from(records)
     .where(
@@ -120,6 +138,14 @@ export async function runReviewsOnsite(
         or(eq(records.firstSeenRunId, ctx.runId), eq(records.lastSeenRunId, ctx.runId)),
       ),
     );
+  if (productRows.length === 0) {
+    // Standalone runs: reuse the company's persisted catalog, whatever run
+    // collected it.
+    productRows = await ctx.db
+      .select({ data: records.data })
+      .from(records)
+      .where(and(eq(records.companyId, ctx.companyId), eq(records.type, "product")));
+  }
   const candidates = productRows.flatMap((r) => {
     const data = (r.data ?? {}) as Record<string, unknown>;
     const url = typeof data["url"] === "string" ? data["url"] : "";

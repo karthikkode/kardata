@@ -50,6 +50,10 @@ export async function seedRun(db: Db, companyId: string): Promise<string> {
   return row.id;
 }
 
+export async function finishRun(db: Db, runId: string): Promise<void> {
+  await db.update(researchRuns).set({ status: "succeeded" }).where(eq(researchRuns.id, runId));
+}
+
 export const ALLOW = ["127.0.0.1"];
 
 // Collector tests point every endpoint at one fake host, so shrink the
