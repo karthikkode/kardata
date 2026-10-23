@@ -749,6 +749,112 @@ describe("cancel and retry", () => {
     await companyJobPause(handle.db, jobId);
     await expect(companyJobRetry(handle.db, jobId)).rejects.toThrow("resume the job instead");
   });
+
+  it("retry requeues a failed-marked job whose stages all passed", async () => {
+    const companyId = await makeCompany("Stale Co");
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const world = fakeWorld();
+    const runner = createCompanyRunner(handle.db, world.deps());
+    await fileReport(jobId, companyId);
+    await runner.tick();
+    for (const stage of ["preflight", "collect", "research"] as const) {
+      const sub = await latestSubjob(jobId, stage);
+      if (!sub) throw new Error(`no ${stage} subjob`);
+      await flipRun(sub.id, "succeeded");
+      await runner.tick();
+    }
+    // Stale marker: the row says failed/usage_limit though research passed.
+    await handle.db
+      .update(companyJobs)
+      .set({ status: "failed", errorClass: "usage_limit", errorStreak: 1, finishedAt: new Date() })
+      .where(eq(companyJobs.id, jobId));
+    expect((await describeCompanyJob(handle.db, jobId)).derived).toBe("incomplete");
+    const { stage } = await companyJobRetry(handle.db, jobId);
+    expect(stage).toBe("extraction");
+    const requeued = await jobRow(jobId);
+    expect(requeued.status).toBe("scheduled");
+    expect(requeued.errorStreak).toBe(0);
+    await runner.tick();
+    expect(world.begins.some((b) => b.jobId === jobId && b.stage === "extraction")).toBe(true);
+  });
+
+  it("auto-retry that throws after beginning leaves the job scheduled", async () => {
+    const companyId = await makeCompany("Racy Co");
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const world = fakeWorld();
+    const began: CompanyStage[] = [];
+    let preflightBegins = 0;
+    const beginStage = async (job: CompanyJob, stage: CompanyStage): Promise<BeginStageOutcome> => {
+      const [row] = await handle.db
+        .insert(researchRuns)
+        .values({
+          id: randomUUID(),
+          companyId: job.companyId,
+          kind: stage === "collect" ? "collect" : "agent",
+          status: "queued",
+          companyJobId: job.id,
+          stage,
+        })
+        .returning({ id: researchRuns.id });
+      if (!row) throw new Error("no subjob row");
+      began.push(stage);
+      // The auto-retry's begin lands, then the ack is lost.
+      if (stage === "preflight") {
+        preflightBegins += 1;
+        if (preflightBegins === 2) throw new Error("begin succeeded but the ack was lost");
+      }
+      return { runId: row.id };
+    };
+    const runner = createCompanyRunner(handle.db, world.deps({ beginStage }));
+    await runner.tick();
+    const first = await latestSubjob(jobId, "preflight");
+    if (!first) throw new Error("no preflight subjob");
+    await flipRun(first.id, "failed", "429 rate limit exceeded, retry later");
+    await runner.tick();
+    // The orphaned attempt is live, so the job must stay feedable, not stuck failed.
+    expect((await jobRow(jobId)).status).toBe("scheduled");
+    const orphan = await latestSubjob(jobId, "preflight");
+    if (!orphan) throw new Error("no orphaned subjob");
+    expect(orphan.id).not.toBe(first.id);
+    await flipRun(orphan.id, "succeeded");
+    await fileReport(jobId, companyId);
+    await runner.tick();
+    expect(began).toContain("collect");
+  });
+
+  it("auto-retry that throws before beginning still parks the job failed", async () => {
+    const companyId = await makeCompany("Dead Co");
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const world = fakeWorld();
+    let calls = 0;
+    const beginStage = async (job: CompanyJob, stage: CompanyStage): Promise<BeginStageOutcome> => {
+      calls += 1;
+      if (calls === 1) {
+        const [row] = await handle.db
+          .insert(researchRuns)
+          .values({
+            id: randomUUID(),
+            companyId: job.companyId,
+            kind: "agent",
+            status: "queued",
+            companyJobId: job.id,
+            stage,
+          })
+          .returning({ id: researchRuns.id });
+        if (!row) throw new Error("no subjob row");
+        return { runId: row.id };
+      }
+      throw new Error("launcher is down");
+    };
+    const runner = createCompanyRunner(handle.db, world.deps({ beginStage }));
+    await runner.tick();
+    const first = await latestSubjob(jobId, "preflight");
+    if (!first) throw new Error("no preflight subjob");
+    await flipRun(first.id, "failed", "429 rate limit exceeded, retry later");
+    await runner.tick();
+    // Nothing live: the job parks failed for a human, as before.
+    expect((await jobRow(jobId)).status).toBe("failed");
+  });
 });
 
 describe("status, list and settings", () => {
@@ -775,6 +881,19 @@ describe("status, list and settings", () => {
     expect(await companyJobList(handle.db, 20, "scheduled")).toHaveLength(1);
     expect(await companyJobList(handle.db, 20, "failed")).toHaveLength(0);
     await expect(companyJobList(handle.db, 0)).rejects.toMatchObject({ code: "invalid_input" });
+  });
+
+  it("includes recent events oldest-first in status", async () => {
+    const companyId = await makeCompany("Acme");
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const world = fakeWorld();
+    const runner = createCompanyRunner(handle.db, world.deps());
+    await runner.tick();
+    const view = await companyJobStatus(handle.db, jobId);
+    expect(view.recentEvents.length).toBeGreaterThan(0);
+    expect(view.recentEvents[0]?.type).toBe("job_started");
+    const types = view.recentEvents.map((e) => e.type);
+    expect(types).toContain("stage_started");
   });
 
   it("stores company concurrency in the DB", async () => {

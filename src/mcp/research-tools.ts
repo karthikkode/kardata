@@ -1307,7 +1307,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth,
     "company_job_status",
     {
-      description: "Operator: company job stage states, derived completion, active subjob, tokens and ETA.",
+      description: "Operator: company job stage states, derived completion, active subjob, tokens, ETA and recent events.",
       inputSchema: { jobId },
     },
     async ({ jobId: id }) =>
