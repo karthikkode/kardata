@@ -1,0 +1,1 @@
+ALTER TABLE "research_runs" ADD COLUMN "requested_adapters" text[];

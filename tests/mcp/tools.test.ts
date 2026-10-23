@@ -43,6 +43,7 @@ const EXPECTED_TOOLS = [
   "import_list",
   "collect_start",
   "reviews_onsite_backfill",
+  "reviews_onsite_backfill_status",
   "batch_status",
   "run_get",
   "run_events",

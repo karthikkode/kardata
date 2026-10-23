@@ -84,6 +84,16 @@ describe("startCollect", () => {
     await expect(startCollect(handle.db, Array.from({ length: 101 }, () => a))).rejects.toThrow(/at most 100/);
     await expect(startCollect(handle.db, [randomUUID()])).rejects.toThrow(/unknown companies/);
     await expect(startCollect(handle.db, [a], ["nope"])).rejects.toThrow(/unknown area/);
+    await expect(startCollect(handle.db, [a], undefined, undefined, ["nope"])).rejects.toThrow(/unknown adapter/);
+  });
+
+  it("stores the requested adapters on the run", async () => {
+    const a = await seedCompany(handle.db, { name: "A Co" });
+    const batch = await startCollect(handle.db, [a], ["reviews"], undefined, ["reviews_onsite"]);
+    expect(batch.runs[0]?.status).toBe("queued");
+    const [row] = await handle.db.select().from(researchRuns);
+    expect(row?.requestedAdapters).toEqual(["reviews_onsite"]);
+    expect(row?.requestedAreas).toEqual(["reviews"]);
   });
 });
 

@@ -30,6 +30,7 @@ function ctx(overrides: {
       status: "running",
       createdBy: "owner",
       requestedAreas: null,
+      requestedAdapters: null,
       batchId: null,
       jobId: null,
       companyJobId: null,

@@ -91,9 +91,11 @@ export async function executeCollectRun(
   };
 
   const requested = run.requestedAreas;
+  const onlyAdapters = run.requestedAdapters;
   const resolved = opts.adapters ? { adapters: opts.adapters, unknown: [], planned: false } : await resolveRunAdapters(db, run);
   const wanted = (adapter: SourceAdapter): boolean =>
-    !requested || requested.length === 0 || adapter.areas.some((a) => requested.includes(a));
+    (!requested || requested.length === 0 || adapter.areas.some((a) => requested.includes(a))) &&
+    (!onlyAdapters || onlyAdapters.length === 0 || onlyAdapters.includes(adapter.id));
   const active = resolved.adapters.filter(wanted);
 
   await db
