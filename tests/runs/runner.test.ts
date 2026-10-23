@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
 import { researchRuns } from "../../src/db/schema.js";
 import { executeCollectRun } from "../../src/collect/run.js";
 import { cancelRun, startCollect } from "../../src/runs/queue.js";
 import { createRunner } from "../../src/runs/runner.js";
+import { collectSettingsSet } from "../../src/runs/settings.js";
 import { startCompanyJob } from "../../src/runs/company.js";
 import { DomainError } from "../../src/domain/errors.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
@@ -188,6 +189,44 @@ describe("runner", () => {
     release();
     await runner.stop();
     expect(runner.activeCount()).toBe(0);
+  });
+
+  it("follows the DB collect knob without a restart", async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 8; i++) ids.push(await seedCompany(handle.db, { name: `Knob ${i} Co` }));
+    await startCollect(handle.db, ids);
+    const makeGate = () => {
+      let release!: () => void;
+      const promise = new Promise<void>((r) => {
+        release = r;
+      });
+      return { promise, release };
+    };
+    let gate = makeGate();
+    const started: string[] = [];
+    // No fixed width: the boot default is 3, so 5 active proves the knob drives.
+    const runner = createRunner(handle.db, {
+      execute: async (runId: string) => {
+        started.push(runId);
+        await gate.promise;
+      },
+    });
+    try {
+      await collectSettingsSet(handle.db, 5);
+      await runner.tick();
+      expect(runner.activeCount()).toBe(5);
+      expect(runner.maxActive()).toBe(5);
+      gate.release();
+      await vi.waitFor(() => expect(runner.activeCount()).toBe(0));
+      gate = makeGate();
+      await collectSettingsSet(handle.db, 2);
+      await runner.tick();
+      expect(runner.activeCount()).toBe(2);
+      expect(started).toHaveLength(7);
+      gate.release();
+    } finally {
+      await runner.stop();
+    }
   });
 
   it("claims company collect subjobs like any collect run", async () => {
