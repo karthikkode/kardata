@@ -34,6 +34,7 @@ import {
   createCompanyRunner,
   startCompanyJob,
   supersedePendingJobs,
+  tripQuotaBreaker,
   type BeginStageOutcome,
   type CompanyRunnerDeps,
 } from "../../src/runs/company.js";
@@ -973,5 +974,93 @@ describe("quota breaker", () => {
     await runner.tick();
     expect((await jobRow(jobId)).status).toBe("scheduled");
     expect((await quotaBreakerGet(handle.db)).tripped).toBe(false);
+  });
+
+  it("trip pauses credit jobs but lets collect and complete-ready flow", async () => {
+    const a = await makeCompany("A Co");
+    const b = await makeCompany("B Co");
+    const c = await makeCompany("C Co");
+    const d = await makeCompany("D Co");
+    const agent = await startCompanyJob(handle.db, { companyId: a });
+    const collector = await startCompanyJob(handle.db, { companyId: b });
+    const fresh = await startCompanyJob(handle.db, { companyId: c });
+    const done = await startCompanyJob(handle.db, { companyId: d });
+    const world = fakeWorld();
+    const runner = createCompanyRunner(handle.db, world.deps());
+    await runner.tick();
+    // B reaches a live collect; D runs every stage to succeeded (no tick
+    // after the last flip, so the row is complete-ready, not completed).
+    const drive = async (jobId: string, companyId: string, stages: readonly CompanyStage[]) => {
+      for (const stage of stages) {
+        const sub = await latestSubjob(jobId, stage);
+        if (!sub) throw new Error(`no ${stage} subjob`);
+        await flipRun(sub.id, "succeeded");
+        if (stage === "preflight") await fileReport(jobId, companyId);
+        await runner.tick();
+      }
+    };
+    await drive(collector.jobId, b, ["preflight"]);
+    await drive(done.jobId, d, ["preflight", "collect", "research"]);
+    const dext = await latestSubjob(done.jobId, "extraction");
+    if (!dext) throw new Error("no extraction subjob");
+    await flipRun(dext.id, "succeeded");
+    const reset = new Date(Date.now() + 3600_000).toISOString();
+    const result = await tripQuotaBreaker(handle.db, { resumeAt: new Date(reset), estimated: false, error: "test trip" });
+    expect((await jobRow(agent.jobId)).status).toBe("paused");
+    expect((await jobRow(fresh.jobId)).status).toBe("paused");
+    expect((await jobRow(collector.jobId)).status).not.toBe("paused");
+    expect((await jobRow(done.jobId)).status).not.toBe("paused");
+    expect(new Set(result.paused)).toEqual(new Set([agent.jobId, fresh.jobId]));
+    const trip = await quotaBreakerGet(handle.db);
+    expect(trip.tripped).toBe(true);
+    if (!trip.tripped) throw new Error("no trip");
+    expect(new Set(trip.jobIds)).toEqual(new Set([agent.jobId, fresh.jobId]));
+    // The complete-ready job still completes on the next tick.
+    await runner.tick();
+    expect((await jobRow(done.jobId)).status).toBe("completed");
+  });
+
+  it("tick holds agent begins while tripped but feeds collect", async () => {
+    const b = await makeCompany("B Co");
+    const e = await makeCompany("E Co");
+    const g = await makeCompany("G Co");
+    const collector = await startCompanyJob(handle.db, { companyId: b });
+    const advancer = await startCompanyJob(handle.db, { companyId: e });
+    const waiter = await startCompanyJob(handle.db, { companyId: g });
+    const world = fakeWorld();
+    const open = createCompanyRunner(handle.db, world.deps());
+    await open.tick();
+    for (const [jobId, companyId] of [
+      [collector.jobId, b],
+      [advancer.jobId, e],
+    ] as const) {
+      const sub = await latestSubjob(jobId, "preflight");
+      if (!sub) throw new Error("no preflight subjob");
+      await flipRun(sub.id, "succeeded");
+      await fileReport(jobId, companyId);
+    }
+    await open.tick();
+    const gpre = await latestSubjob(waiter.jobId, "preflight");
+    if (!gpre) throw new Error("no G preflight subjob");
+    await flipRun(gpre.id, "succeeded");
+    await fileReport(waiter.jobId, g);
+    const reset = new Date(Date.now() + 3600_000).toISOString();
+    await tripQuotaBreaker(handle.db, { resumeAt: new Date(reset), estimated: false, error: "test trip" });
+    // E's collect finishes mid-trip: research must wait, G's collect feeds.
+    const ecol = await latestSubjob(advancer.jobId, "collect");
+    if (!ecol) throw new Error("no E collect subjob");
+    await flipRun(ecol.id, "succeeded");
+    const fresh = await startCompanyJob(handle.db, { companyId: await makeCompany("F Co") });
+    const before = world.begins.length;
+    await open.tick();
+    const fed = world.begins.slice(before);
+    expect(fed.some((x) => x.jobId === advancer.jobId && x.stage === "research")).toBe(false);
+    expect(fed.some((x) => x.jobId === fresh.jobId && x.stage === "preflight")).toBe(false);
+    expect(fed.some((x) => x.jobId === waiter.jobId && x.stage === "collect")).toBe(true);
+    // Clearing the trip lifts the hold.
+    await quotaBreakerClear(handle.db);
+    const before2 = world.begins.length;
+    await open.tick();
+    expect(world.begins.slice(before2).some((x) => x.jobId === advancer.jobId && x.stage === "research")).toBe(true);
   });
 });
