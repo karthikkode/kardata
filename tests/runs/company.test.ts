@@ -344,7 +344,17 @@ describe("stage machine", () => {
     const companyId = await makeCompany("Acme");
     const { jobId } = await startCompanyJob(handle.db, { companyId });
     const world = fakeWorld();
-    const runner = createCompanyRunner(handle.db, world.deps());
+    // Gate the pool drive so the extraction-begun mid-state is observable.
+    const gate = makeGate();
+    const runner = createCompanyRunner(
+      handle.db,
+      world.deps({
+        runExtraction: async (job, researchRunId) => {
+          world.extractions.push({ jobId: job.id, researchRunId });
+          await gate.promise;
+        },
+      }),
+    );
     await fileReport(jobId, companyId);
     await runner.tick();
     for (const stage of ["preflight", "collect", "research"] as const) {
@@ -353,14 +363,15 @@ describe("stage machine", () => {
       await flipRun(sub.id, "succeeded");
       await runner.tick();
     }
-    // Extraction was begun as a running row; the next tick drives it.
+    // Extraction was begun as a running row; the pool drives it.
     const extraction = await latestSubjob(jobId, "extraction");
     if (!extraction) throw new Error("no extraction subjob");
     expect(extraction.status).toBe("running");
-    await runner.tick();
-    expect(world.extractions).toHaveLength(1);
+    await vi.waitFor(() => expect(world.extractions).toHaveLength(1));
+    gate.release();
     const research = await latestSubjob(jobId, "research");
     expect(world.extractions[0]?.researchRunId).toBe(research?.id);
+    await vi.waitFor(async () => expect((await jobRow(jobId)).status).toBe("completed"));
     const job = await jobRow(jobId);
     expect(job.status).toBe("completed");
     expect(job.finishedAt).not.toBeNull();
