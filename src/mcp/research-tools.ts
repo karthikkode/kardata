@@ -32,7 +32,13 @@ import {
 } from "../domain/research/reads.js";
 import { preflightReportSchema, savePreflightReportForRun } from "../domain/company-jobs/preflight.js";
 import { companyJobLive } from "../domain/company-jobs/live.js";
-import { quotaBreakerClear, quotaBreakerGet, quotaCalibrationGet, windowBurn } from "../domain/quota/breaker.js";
+import {
+  estimateInflightBurn,
+  quotaBreakerClear,
+  quotaBreakerGet,
+  quotaCalibrationGet,
+  windowBurn,
+} from "../domain/quota/breaker.js";
 import { ADAPTERS } from "../collect/adapters.js";
 import { researchStart } from "../runs/agent.js";
 import {
@@ -1504,8 +1510,10 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         const cal = await quotaCalibrationGet(db);
         const start = cal ? new Date(cal.windowStart) : null;
         const burn = await windowBurn(db, start && !Number.isNaN(start.getTime()) ? start : null);
+        const inflight = await estimateInflightBurn(db);
+        const total = burn + inflight;
         const pct =
-          cal && cal.allowanceEstimate > 0 ? Math.round((burn / cal.allowanceEstimate) * 100) : null;
+          cal && cal.allowanceEstimate > 0 ? Math.round((total / cal.allowanceEstimate) * 100) : null;
         const agentsMax = (await harnessSettingsGet(db)).maxConcurrentAgents;
         const agentsAllowed = await effectiveMaxAgents(db);
         return {
@@ -1513,8 +1521,8 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
             ? `breaker tripped, resumes ${trip.resumeAt ?? "on owner go"}`
             : pct === null
               ? `no trip, burn ${burn} (uncalibrated)`
-              : `no trip, burn ${burn} (${pct}% of learned window)`,
-          data: { trip, calibration: cal, burn, pct, agentsAllowed, agentsMax },
+              : `no trip, burn ${total} (${pct}% of learned window)`,
+          data: { trip, calibration: cal, burn, inflight, pct, agentsAllowed, agentsMax },
         };
       }),
   );

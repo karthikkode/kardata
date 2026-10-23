@@ -32,6 +32,7 @@ import {
   companyJobRetry,
   companyJobStatus,
   createCompanyRunner,
+  maybeQuotaEarlyTrip,
   startCompanyJob,
   supersedePendingJobs,
   tripQuotaBreaker,
@@ -1018,6 +1019,44 @@ describe("quota breaker", () => {
     // The complete-ready job still completes on the next tick.
     await runner.tick();
     expect((await jobRow(done.jobId)).status).toBe("completed");
+  });
+
+  it("early trip counts in-flight burn, not just metered burn", async () => {
+    await quotaCalibrationSet(handle.db, {
+      windowStart: new Date(Date.now() - 1800_000).toISOString(),
+      allowanceEstimate: 1000,
+      windowMs: 3600_000,
+      earlyTrips: [],
+    });
+    await handle.db.insert(providerCalls).values({
+      stage: "research",
+      inputTokens: 800,
+      cachedTokens: 0,
+      at: new Date(),
+    });
+    const doneCo = await makeCompany("Done Co");
+    const liveCo = await makeCompany("Live Co");
+    await handle.db.insert(researchRuns).values({
+      id: randomUUID(),
+      companyId: doneCo,
+      kind: "agent",
+      status: "succeeded",
+      stage: "research",
+      startedAt: new Date(Date.now() - 600_000),
+      finishedAt: new Date(),
+    });
+    // Metered 800 alone is below 95%: no trip.
+    expect(await maybeQuotaEarlyTrip(handle.db)).toEqual({ tripped: false });
+    // A 5-minute live run at the learned 80/min adds ~400: trips.
+    await handle.db.insert(researchRuns).values({
+      id: randomUUID(),
+      companyId: liveCo,
+      kind: "agent",
+      status: "running",
+      stage: "research",
+      startedAt: new Date(Date.now() - 300_000),
+    });
+    expect(await maybeQuotaEarlyTrip(handle.db)).toEqual({ tripped: true });
   });
 
   it("tick holds agent begins while tripped but feeds collect", async () => {

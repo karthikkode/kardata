@@ -12,7 +12,7 @@ import {
   sectors,
   shortlists,
 } from "../../src/db/schema.js";
-import { quotaCalibrationSet } from "../../src/domain/quota/breaker.js";
+import { estimateInflightBurn, quotaCalibrationSet } from "../../src/domain/quota/breaker.js";
 import {
   createJobRunner,
   jobCancel,
@@ -548,5 +548,76 @@ describe("quota pacer", () => {
     await seedWindow({ allowance: 100, burn: 99, startAgoMs: 3600_000, windowMs: 7200_000 });
     expect(await effectiveMaxAgents(handle.db, 8)).toBe(8);
     expect(await effectiveMaxAgents(handle.db)).toBeLessThan(64);
+  });
+
+  it("paces on metered plus in-flight burn", async () => {
+    await harnessSettingsSet(handle.db, 64);
+    await seedWindow({ allowance: 1000000, burn: 800000, startAgoMs: 3600_000, windowMs: 7200_000 });
+    const companyId = await makeCompany("Paced Co");
+    await handle.db.insert(researchRuns).values({
+      id: randomUUID(),
+      companyId,
+      kind: "agent",
+      status: "running",
+      stage: "research",
+      startedAt: new Date(Date.now() - 120_000),
+    });
+    // Metered-only would allow 26; the ~100k fallback in-flight drops it to 13.
+    expect(await effectiveMaxAgents(handle.db)).toBe(13);
+  });
+});
+
+describe("in-flight estimate", () => {
+  async function seedRun(opts: {
+    stage: "preflight" | "research" | "extraction" | null;
+    status: "running" | "queued" | "succeeded";
+    startAgoMs?: number;
+    durMs?: number;
+  }) {
+    const now = Date.now();
+    const companyId = await makeCompany(`Est ${randomUUID().slice(0, 8)}`);
+    await handle.db.insert(researchRuns).values({
+      id: randomUUID(),
+      companyId,
+      kind: "agent",
+      status: opts.status,
+      stage: opts.stage,
+      startedAt: opts.startAgoMs === undefined ? null : new Date(now - opts.startAgoMs),
+      finishedAt:
+        opts.startAgoMs === undefined || opts.durMs === undefined
+          ? null
+          : new Date(now - opts.startAgoMs + opts.durMs),
+    });
+  }
+
+  async function seedBurn(tokens: number) {
+    await handle.db.insert(providerCalls).values({
+      stage: "research",
+      inputTokens: tokens,
+      cachedTokens: 0,
+      at: new Date(),
+    });
+  }
+
+  it("learns the rate from finished runs", async () => {
+    await seedRun({ stage: "research", status: "succeeded", startAgoMs: 600_000, durMs: 600_000 });
+    await seedBurn(600000);
+    await seedRun({ stage: "research", status: "running", startAgoMs: 300_000 });
+    const estimate = await estimateInflightBurn(handle.db);
+    expect(estimate).toBeGreaterThan(290000);
+    expect(estimate).toBeLessThan(310000);
+  });
+
+  it("falls back with no history and ignores queued rows", async () => {
+    await seedRun({ stage: "research", status: "running", startAgoMs: 120_000 });
+    await seedRun({ stage: "preflight", status: "queued" });
+    const estimate = await estimateInflightBurn(handle.db);
+    expect(estimate).toBeGreaterThan(95000);
+    expect(estimate).toBeLessThan(105000);
+  });
+
+  it("excludes extraction rows (logged inline)", async () => {
+    await seedRun({ stage: "extraction", status: "running", startAgoMs: 3600_000 });
+    expect(await estimateInflightBurn(handle.db)).toBe(0);
   });
 });

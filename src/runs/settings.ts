@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import { harnessSettings } from "../db/schema.js";
 import { DomainError } from "../domain/errors.js";
-import { quotaCalibrationGet, windowBurn } from "../domain/quota/breaker.js";
+import { estimateInflightBurn, quotaCalibrationGet, windowBurn } from "../domain/quota/breaker.js";
 
 /**
  * Harness settings (Stage 4.1 Step 5): runtime-adjustable knobs stored in
@@ -70,11 +70,12 @@ export async function harnessSettingsSet(db: Db, maxConcurrentAgents: number): P
 export const QUOTA_PACER_FLOOR = 4;
 
 /**
- * Fit agent launches to the metered window budget: full speed while burn
- * tracks time left, throttling as burn outruns it. Uncalibrated (or an
- * expired window) runs flat-out at base; the first real 429 teaches the
- * window. Never raises above the operator's base. Feeder begins and
- * engine launches both consume this, so neither can bypass the other.
+ * Fit agent launches to the window budget (metered burn plus estimated
+ * in-flight burn): full speed while burn tracks time left, throttling as
+ * burn outruns it. Uncalibrated (or an expired window) runs flat-out at
+ * base; the first real 429 teaches the window. Never raises above the
+ * operator's base. Feeder begins and engine launches both consume this,
+ * so neither can bypass the other.
  */
 export async function paceAgents(db: Db, base: number, now: Date = new Date()): Promise<number> {
   const cal = await quotaCalibrationGet(db);
@@ -84,7 +85,8 @@ export async function paceAgents(db: Db, base: number, now: Date = new Date()): 
   const fracLeft = (start + cal.windowMs - now.getTime()) / cal.windowMs;
   if (fracLeft <= 0) return base;
   const burn = await windowBurn(db, new Date(cal.windowStart));
-  const remaining = cal.allowanceEstimate - burn;
+  const inflight = await estimateInflightBurn(db, now);
+  const remaining = cal.allowanceEstimate - burn - inflight;
   if (remaining <= 0) return Math.min(base, QUOTA_PACER_FLOOR);
   const ratio = remaining / cal.allowanceEstimate / fracLeft;
   return Math.min(base, Math.max(QUOTA_PACER_FLOOR, Math.ceil(base * ratio)));

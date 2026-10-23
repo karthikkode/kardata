@@ -1,6 +1,6 @@
-import { eq, gte, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
-import { harnessSettings, providerCalls } from "../../db/schema.js";
+import { harnessSettings, providerCalls, researchRuns } from "../../db/schema.js";
 
 /**
  * Quota circuit breaker state. There is no provider quota-% API: the only
@@ -91,6 +91,59 @@ export async function quotaCalibrationGet(db: Db): Promise<QuotaCalibration | nu
 
 export async function quotaCalibrationSet(db: Db, calibration: QuotaCalibration): Promise<void> {
   await writeKey(db, QUOTA_CALIBRATION_KEY, { ...calibration, earlyTrips: calibration.earlyTrips.slice(-5) });
+}
+
+/** Fallback burn rate (tokens/min) before any finished agent run teaches the real one. */
+export const INFLIGHT_FALLBACK_PER_MIN = 50_000;
+
+/**
+ * Estimate unlogged burn of live preflight/research agent runs (their
+ * usage lands only when the run finishes). The rate is learned from
+ * finished runs of the last 7 days; extraction is excluded (it logs
+ * inline per area) and queued rows count zero (not started). Keeps the
+ * pacer and the early trip honest while dozens of runs are mid-flight.
+ */
+export async function estimateInflightBurn(db: Db, now: Date = new Date()): Promise<number> {
+  const live = await db
+    .select({ startedAt: researchRuns.startedAt })
+    .from(researchRuns)
+    .where(
+      and(
+        eq(researchRuns.kind, "agent"),
+        inArray(researchRuns.status, ["queued", "running"]),
+        or(isNull(researchRuns.stage), inArray(researchRuns.stage, ["preflight", "research"])),
+      ),
+    );
+  let liveMs = 0;
+  for (const row of live) {
+    if (row.startedAt) liveMs += Math.max(0, now.getTime() - row.startedAt.getTime());
+  }
+  if (liveMs <= 0) return 0;
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 3600_000);
+  const [msRow] = await db
+    .select({
+      ms: sql<number | string>`coalesce(sum(extract(epoch from (${researchRuns.finishedAt} - ${researchRuns.startedAt})) * 1000), 0)`,
+    })
+    .from(researchRuns)
+    .where(
+      and(
+        eq(researchRuns.kind, "agent"),
+        or(isNull(researchRuns.stage), inArray(researchRuns.stage, ["preflight", "research"])),
+        isNotNull(researchRuns.startedAt),
+        isNotNull(researchRuns.finishedAt),
+        gte(researchRuns.finishedAt, weekAgo),
+      ),
+    );
+  const [burnRow] = await db
+    .select({
+      total: sql<number | string>`coalesce(sum(${providerCalls.inputTokens} + ${providerCalls.cachedTokens}), 0)::bigint`,
+    })
+    .from(providerCalls)
+    .where(and(inArray(providerCalls.stage, ["preflight", "research"]), gte(providerCalls.at, weekAgo)));
+  const ms = Number(msRow?.ms ?? 0);
+  const burn = Number(burnRow?.total ?? 0);
+  const perMs = ms > 0 && burn > 0 ? burn / ms : INFLIGHT_FALLBACK_PER_MIN / 60000;
+  return Math.floor(liveMs * perMs);
 }
 
 /** Our own metered burn (input + cached) since `since`, or all-time when null. */

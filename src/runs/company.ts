@@ -22,6 +22,7 @@ import { logJobEvent } from "../domain/company-jobs/events.js";
 import {
   QUOTA_EARLY_TRIP_RATIO,
   parseQuotaExhaustion,
+  estimateInflightBurn,
   quotaBreakerClear,
   quotaBreakerGet,
   quotaBreakerSet,
@@ -461,12 +462,13 @@ export async function maybeQuotaEarlyTrip(db: Db): Promise<{ tripped: boolean }>
   const start = new Date(cal.windowStart);
   if (Number.isNaN(start.getTime())) return { tripped: false };
   const burn = await windowBurn(db, start);
-  if (burn < QUOTA_EARLY_TRIP_RATIO * cal.allowanceEstimate) return { tripped: false };
+  const total = burn + (await estimateInflightBurn(db));
+  if (total < QUOTA_EARLY_TRIP_RATIO * cal.allowanceEstimate) return { tripped: false };
   const resumeAt = new Date(start.getTime() + cal.windowMs);
   await tripQuotaBreaker(db, {
     resumeAt,
     estimated: true,
-    error: `95% of learned window burn (${burn} >= ${Math.round(QUOTA_EARLY_TRIP_RATIO * cal.allowanceEstimate)})`,
+    error: `95% of learned window burn (${total} >= ${Math.round(QUOTA_EARLY_TRIP_RATIO * cal.allowanceEstimate)})`,
   });
   return { tripped: true };
 }
