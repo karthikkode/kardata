@@ -34,7 +34,10 @@ async function makeCompany(name: string): Promise<string> {
   return row.id;
 }
 
-async function makeRun(companyId: string, opts: { jobId?: string; stage?: ResearchRun["stage"] } = {}): Promise<ResearchRun> {
+async function makeRun(
+  companyId: string,
+  opts: { jobId?: string; stage?: ResearchRun["stage"]; requestedAdapters?: string[] } = {},
+): Promise<ResearchRun> {
   const [row] = await handle.db
     .insert(researchRuns)
     .values({
@@ -44,6 +47,7 @@ async function makeRun(companyId: string, opts: { jobId?: string; stage?: Resear
       status: "queued",
       companyJobId: opts.jobId ?? null,
       stage: opts.stage ?? null,
+      requestedAdapters: opts.requestedAdapters ?? null,
     })
     .returning();
   if (!row) throw new Error("no run row");
@@ -162,5 +166,24 @@ describe("executeCollectRun with adapters", () => {
     expect(result.status).toBe("succeeded");
     const [row] = await handle.db.select().from(researchRuns).where(eq(researchRuns.id, run.id));
     expect(row?.status).toBe("succeeded");
+  });
+
+  it("runs only the requested adapters", async () => {
+    const companyId = await makeCompany("Acme");
+    const run = await makeRun(companyId, { requestedAdapters: ["ran"] });
+    const collected: string[] = [];
+    const synthetic = (id: string) => ({
+      id,
+      version: "9.9.9",
+      areas: ["other" as const],
+      blurb: `synthetic ${id}`,
+      collect: async () => {
+        collected.push(id);
+        return { outcomes: [{ area: "other" as const, status: "done" as const }] };
+      },
+    });
+    const result = await executeCollectRun(handle.db, run.id, { adapters: [synthetic("other"), synthetic("ran")] });
+    expect(collected).toEqual(["ran"]);
+    expect(result.adapters).toEqual(["ran"]);
   });
 });

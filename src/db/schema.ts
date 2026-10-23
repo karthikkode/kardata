@@ -418,6 +418,7 @@ export const researchRuns = pgTable(
     status: runStatus("status").notNull().default("queued"),
     createdBy: text("created_by").notNull().default("owner"),
     requestedAreas: area("requested_areas").array(),
+    requestedAdapters: text("requested_adapters").array(),
     batchId: uuid("batch_id"),
     jobId: uuid("job_id").references(() => bulkJobs.id, { onDelete: "set null" }),
     // Stage 5: subjob of a company job. Null = legacy / operator run.

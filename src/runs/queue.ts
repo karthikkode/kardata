@@ -25,6 +25,7 @@ export async function startCollect(
   companyIds: string[],
   areas?: string[],
   link?: StartCollectLink,
+  adapters?: string[],
 ): Promise<StartCollectResult> {
   if (companyIds.length === 0) throw new DomainError("invalid_input", "at least one company id is required");
   if (companyIds.length > COLLECT_BATCH_MAX) {
@@ -36,6 +37,16 @@ export async function startCollect(
     for (const a of areas) {
       if (!names.includes(a)) {
         throw new DomainError("invalid_input", `unknown area "${a}". Valid areas: ${names.join(", ")}`);
+      }
+    }
+  }
+  if (adapters !== undefined) {
+    // Deferred: a static import cycles (adapters -> collectors -> domain -> queue).
+    const { ADAPTERS } = await import("../collect/adapters.js");
+    const ids = ADAPTERS.map((a) => a.id);
+    for (const a of adapters) {
+      if (!ids.includes(a)) {
+        throw new DomainError("invalid_input", `unknown adapter "${a}". Valid adapters: ${ids.join(", ")}`);
       }
     }
   }
@@ -60,6 +71,7 @@ export async function startCollect(
           kind: "collect",
           status: "queued",
           requestedAreas: (areas ?? null) as ResearchRun["requestedAreas"],
+          requestedAdapters: adapters ?? null,
           batchId,
           companyJobId: link?.companyJobId ?? null,
           stage: link?.stage ?? null,

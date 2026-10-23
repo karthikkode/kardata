@@ -169,6 +169,13 @@
       "when": 1792653213082,
       "tag": "0023_job-lifecycle-states",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792775249947,
+      "tag": "0024_requested-adapters",
+      "breakpoints": true
     }
   ]
 }

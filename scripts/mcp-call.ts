@@ -39,7 +39,8 @@ async function main(): Promise<void> {
     requestInit: { headers: { Authorization: `Bearer ${token}` } },
   }));
   try {
-    const result = await client.callTool({ name: tool, arguments: args });
+    const timeoutMs = process.env.MCP_TIMEOUT_MS ? Number(process.env.MCP_TIMEOUT_MS) : undefined;
+    const result = await client.callTool({ name: tool, arguments: args }, undefined, timeoutMs ? { timeout: timeoutMs } : undefined);
     console.log(JSON.stringify(result, null, 2));
   } finally {
     await client.close();
