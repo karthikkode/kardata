@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import {
@@ -26,7 +25,7 @@ import {
 import { startCompanyJob } from "./company.js";
 import { cancelRun } from "./queue.js";
 import { classifyCompany, createSectorRun } from "./sector-classify.js";
-import { effectiveSectorPreflight } from "./settings.js";
+import { effectiveSectorPreflight, systemMemAvailableMB } from "./settings.js";
 
 /**
  * Sector-preflight jobs (Stage 5.1 Step 3): one classification per company,
@@ -39,17 +38,6 @@ const TERMINAL_ITEM = ["succeeded", "failed", "skipped", "cancelled"] as const;
 
 /** Classifier launches hold below this much available RAM (MB). */
 export const SECTOR_MEM_MIN_AVAILABLE_MB = 12 * 1024;
-
-/** MemAvailable in MB from /proc/meminfo, or null when unreadable (non-Linux). */
-export function systemMemAvailableMB(): number | null {
-  try {
-    const match = /MemAvailable:\s+(\d+)\s+kB/.exec(readFileSync("/proc/meminfo", "utf8"));
-    if (!match?.[1]) return null;
-    return Math.floor(Number(match[1]) / 1024);
-  } catch {
-    return null;
-  }
-}
 
 function checkMaxCompanies(maxCompanies: number | undefined): number | null {
   if (maxCompanies === undefined) return null;

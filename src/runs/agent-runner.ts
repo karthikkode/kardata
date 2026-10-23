@@ -30,7 +30,7 @@ import type {
   HarnessUsage,
 } from "../harness/types.js";
 import { hasFreshCollect } from "./agent.js";
-import { effectiveCollectLimit, effectiveMaxAgents } from "./settings.js";
+import { effectiveCollectLimit, effectiveMaxAgents, systemMemAvailableMB } from "./settings.js";
 import { redactRunDocs } from "../domain/research/pii.js";
 import { issueRunToken, revokeRunToken } from "./tokens.js";
 import { ingestRunSession, rollupUsage, type SessionIngestSummary, type UsageRollup } from "./usage.js";
@@ -50,6 +50,8 @@ export const LIVENESS_BUMP_MS = 5_000;
 export const RUN_EVENTS_KEEP_DAYS = 7;
 const SHUTDOWN_DRAIN_MS = 30_000;
 const QUEUE_SCAN_MAX = 20;
+/** Agent launches hold below this much available RAM (MB) — same floor as the sector guard. */
+export const AGENT_MEM_MIN_AVAILABLE_MB = 12 * 1024;
 
 /**
  * Browser-fence origins for a company: apex, www and shop subdomains, the
@@ -125,6 +127,7 @@ export interface AgentRunnerDeps {
   pollMs?: number;
   runsDir?: string;
   stallMs?: number;
+  memAvailableMB?: () => number | null;
 }
 
 export interface AgentRunner {
@@ -606,6 +609,13 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
         const maxAgents = await effectiveMaxAgents(db, deps.maxAgents);
         const collectLimit = await effectiveCollectLimit(db, deps.collectLimit);
         if (researching().length >= maxAgents && collecting().length >= collectLimit) return;
+        const availableMB = (deps.memAvailableMB ?? systemMemAvailableMB)();
+        if (availableMB !== null && availableMB < AGENT_MEM_MIN_AVAILABLE_MB) {
+          console.error(
+            `agent engine mem hold: ${availableMB} MB available (< ${AGENT_MEM_MIN_AVAILABLE_MB}); waiting`,
+          );
+          return;
+        }
         // Stage 5: company-job subjobs are owned by the company worker; the
         // runner drives preflight (recon prompt) and research (research
         // prompt plus the preflight/collect brief) rows. Extraction rows

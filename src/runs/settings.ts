@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { eq } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import { harnessSettings } from "../db/schema.js";
@@ -19,6 +20,17 @@ import {
 export const DEFAULT_MAX_AGENTS = 4;
 export const MAX_AGENTS_MIN = 1;
 export const MAX_AGENTS_MAX = 64;
+
+/** MemAvailable in MB from /proc/meminfo, or null when unreadable (non-Linux). */
+export function systemMemAvailableMB(): number | null {
+  try {
+    const match = /MemAvailable:\s+(\d+)\s+kB/.exec(readFileSync("/proc/meminfo", "utf8"));
+    if (!match?.[1]) return null;
+    return Math.floor(Number(match[1]) / 1024);
+  } catch {
+    return null;
+  }
+}
 
 const MAX_AGENTS_KEY = "max_concurrent_agents";
 
