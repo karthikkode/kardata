@@ -805,7 +805,17 @@ describe("cancel and retry", () => {
     const companyId = await makeCompany("Stale Co");
     const { jobId } = await startCompanyJob(handle.db, { companyId });
     const world = fakeWorld();
-    const runner = createCompanyRunner(handle.db, world.deps());
+    // Gate the pool drive so the extraction-begun mid-state is observable.
+    const gate = makeGate();
+    const runner = createCompanyRunner(
+      handle.db,
+      world.deps({
+        runExtraction: async (job, researchRunId) => {
+          world.extractions.push({ jobId: job.id, researchRunId });
+          await gate.promise;
+        },
+      }),
+    );
     await fileReport(jobId, companyId);
     await runner.tick();
     for (const stage of ["preflight", "collect", "research"] as const) {
@@ -827,6 +837,7 @@ describe("cancel and retry", () => {
     expect(requeued.errorStreak).toBe(0);
     await runner.tick();
     expect(world.begins.some((b) => b.jobId === jobId && b.stage === "extraction")).toBe(true);
+    gate.release();
   });
 
   it("auto-retry that throws after beginning leaves the job scheduled", async () => {
