@@ -368,6 +368,7 @@ describe("mcp tools", () => {
     expect(live.active).toBeNull();
     const quota = dataOf(await call("quota_breaker_status", {}));
     expect((quota.trip as { tripped: boolean }).tripped).toBe(false);
+    expect(quota.agentsAllowed).toBe(quota.agentsMax);
     const quotaCleared = dataOf(await call("quota_breaker_clear", {}));
     expect(quotaCleared.tripped).toBe(false);
 

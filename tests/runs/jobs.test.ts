@@ -6,11 +6,13 @@ import {
   bulkJobItems,
   bulkJobs,
   companies,
+  providerCalls,
   researchRuns,
   sectorCompanies,
   sectors,
   shortlists,
 } from "../../src/db/schema.js";
+import { quotaCalibrationSet } from "../../src/domain/quota/breaker.js";
 import {
   createJobRunner,
   jobCancel,
@@ -24,7 +26,12 @@ import {
   startResearchShortlistJob,
   type JobRunnerDeps,
 } from "../../src/runs/bulk.js";
-import { effectiveMaxAgents, harnessSettingsGet, harnessSettingsSet } from "../../src/runs/settings.js";
+import {
+  effectiveMaxAgents,
+  harnessSettingsGet,
+  harnessSettingsSet,
+  paceAgents,
+} from "../../src/runs/settings.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 
 let handle: DbHandle;
@@ -493,5 +500,53 @@ describe("harness settings", () => {
     await harnessSettingsSet(handle.db, 6);
     expect(await effectiveMaxAgents(handle.db, 2)).toBe(2);
     expect(await effectiveMaxAgents(handle.db)).toBe(6);
+  });
+});
+
+describe("quota pacer", () => {
+  async function seedWindow(opts: { allowance: number; burn: number; startAgoMs: number; windowMs: number }) {
+    await quotaCalibrationSet(handle.db, {
+      windowStart: new Date(Date.now() - opts.startAgoMs).toISOString(),
+      allowanceEstimate: opts.allowance,
+      windowMs: opts.windowMs,
+      earlyTrips: [],
+    });
+    if (opts.burn > 0) {
+      await handle.db.insert(providerCalls).values({
+        stage: "research",
+        inputTokens: opts.burn,
+        cachedTokens: 0,
+        at: new Date(),
+      });
+    }
+  }
+
+  it("runs flat-out uncalibrated", async () => {
+    expect(await paceAgents(handle.db, 64)).toBe(64);
+  });
+
+  it("runs flat-out when burn tracks time", async () => {
+    await seedWindow({ allowance: 10000, burn: 5000, startAgoMs: 3600_000, windowMs: 7200_000 });
+    expect(await paceAgents(handle.db, 64)).toBe(64);
+  });
+
+  it("throttles when burn outruns time", async () => {
+    await seedWindow({ allowance: 1000, burn: 900, startAgoMs: 5 * 3600_000, windowMs: 10 * 3600_000 });
+    // 10% budget left, 50% time left: 64 * 0.1/0.5 = 12.8 -> 13.
+    expect(await paceAgents(handle.db, 64)).toBe(13);
+  });
+
+  it("holds the floor on an empty budget and flat-out past window end", async () => {
+    await seedWindow({ allowance: 1000, burn: 1500, startAgoMs: 3600_000, windowMs: 7200_000 });
+    expect(await paceAgents(handle.db, 64)).toBe(4);
+    await seedWindow({ allowance: 1000, burn: 0, startAgoMs: 6 * 3600_000, windowMs: 5 * 3600_000 });
+    expect(await paceAgents(handle.db, 64)).toBe(64);
+  });
+
+  it("an explicit override bypasses pacing", async () => {
+    await harnessSettingsSet(handle.db, 64);
+    await seedWindow({ allowance: 100, burn: 99, startAgoMs: 3600_000, windowMs: 7200_000 });
+    expect(await effectiveMaxAgents(handle.db, 8)).toBe(8);
+    expect(await effectiveMaxAgents(handle.db)).toBeLessThan(64);
   });
 });

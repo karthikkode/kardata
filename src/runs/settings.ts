@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import { harnessSettings } from "../db/schema.js";
 import { DomainError } from "../domain/errors.js";
+import { quotaCalibrationGet, windowBurn } from "../domain/quota/breaker.js";
 
 /**
  * Harness settings (Stage 4.1 Step 5): runtime-adjustable knobs stored in
@@ -65,13 +66,44 @@ export async function harnessSettingsSet(db: Db, maxConcurrentAgents: number): P
   return { maxConcurrentAgents, source: "db", dbValue: maxConcurrentAgents };
 }
 
-/** Effective agent concurrency for this tick. Never throws on a bad row. */
+/** Pacer floor: the wave always keeps a trickle of agents (the 95% early trip takes over near empty). */
+export const QUOTA_PACER_FLOOR = 4;
+
+/**
+ * Fit agent launches to the metered window budget: full speed while burn
+ * tracks time left, throttling as burn outruns it. Uncalibrated (or an
+ * expired window) runs flat-out at base; the first real 429 teaches the
+ * window. Never raises above the operator's base. Feeder begins and
+ * engine launches both consume this, so neither can bypass the other.
+ */
+export async function paceAgents(db: Db, base: number, now: Date = new Date()): Promise<number> {
+  const cal = await quotaCalibrationGet(db);
+  if (!cal || cal.allowanceEstimate <= 0 || !cal.windowMs || cal.windowMs <= 0) return base;
+  const start = new Date(cal.windowStart).getTime();
+  if (Number.isNaN(start)) return base;
+  const fracLeft = (start + cal.windowMs - now.getTime()) / cal.windowMs;
+  if (fracLeft <= 0) return base;
+  const burn = await windowBurn(db, new Date(cal.windowStart));
+  const remaining = cal.allowanceEstimate - burn;
+  if (remaining <= 0) return Math.min(base, QUOTA_PACER_FLOOR);
+  const ratio = remaining / cal.allowanceEstimate / fracLeft;
+  return Math.min(base, Math.max(QUOTA_PACER_FLOOR, Math.ceil(base * ratio)));
+}
+
+/** Effective agent concurrency for this tick (paced to quota). Never throws on a bad row. */
 export async function effectiveMaxAgents(db: Db, override?: number): Promise<number> {
   if (override !== undefined) return override;
+  let base: number;
   try {
-    return (await harnessSettingsGet(db)).maxConcurrentAgents;
+    base = (await harnessSettingsGet(db)).maxConcurrentAgents;
   } catch {
     return agentConcurrency();
+  }
+  try {
+    return await paceAgents(db, base);
+  } catch (err) {
+    console.error(`quota pacer failed: ${err instanceof Error ? err.message : err}`);
+    return base;
   }
 }
 

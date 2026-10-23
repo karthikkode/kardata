@@ -64,6 +64,7 @@ import {
   checkpointSet,
   companySettingsGet,
   companySettingsSet,
+  effectiveMaxAgents,
   harnessSettingsGet,
   harnessSettingsSet,
   sectorPreflightSettingsGet,
@@ -1505,13 +1506,15 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         const burn = await windowBurn(db, start && !Number.isNaN(start.getTime()) ? start : null);
         const pct =
           cal && cal.allowanceEstimate > 0 ? Math.round((burn / cal.allowanceEstimate) * 100) : null;
+        const agentsMax = (await harnessSettingsGet(db)).maxConcurrentAgents;
+        const agentsAllowed = await effectiveMaxAgents(db);
         return {
           summary: trip.tripped
             ? `breaker tripped, resumes ${trip.resumeAt ?? "on owner go"}`
             : pct === null
               ? `no trip, burn ${burn} (uncalibrated)`
               : `no trip, burn ${burn} (${pct}% of learned window)`,
-          data: { trip, calibration: cal, burn, pct },
+          data: { trip, calibration: cal, burn, pct, agentsAllowed, agentsMax },
         };
       }),
   );
