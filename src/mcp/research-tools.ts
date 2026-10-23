@@ -40,6 +40,7 @@ import {
   windowBurn,
 } from "../domain/quota/breaker.js";
 import { ADAPTERS } from "../collect/adapters.js";
+import { quotaSnapshotGet } from "../runs/quota-monitor.js";
 import { researchStart } from "../runs/agent.js";
 import {
   jobCancel,
@@ -1557,7 +1558,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth,
     "quota_breaker_status",
     {
-      description: "Operator: quota breaker state — trip, reset time, window burn vs learned allowance.",
+      description: "Operator: quota breaker state — trip, reset time, live 5h/weekly % from the monitor, burn vs learned allowance.",
       inputSchema: {},
     },
     async () =>
@@ -1572,13 +1573,18 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
           cal && cal.allowanceEstimate > 0 ? Math.round((total / cal.allowanceEstimate) * 100) : null;
         const agentsMax = (await harnessSettingsGet(db)).maxConcurrentAgents;
         const agentsAllowed = await effectiveMaxAgents(db);
+        const live = await quotaSnapshotGet(db);
+        const liveText =
+          live === null
+            ? null
+            : `live 5h ${live.fivePct ?? "?"}% / weekly ${live.weeklyPct ?? "?"}% (checked ${live.checkedAt})`;
         return {
           summary: trip.tripped
             ? `breaker tripped, resumes ${trip.resumeAt ?? "on owner go"}`
-            : pct === null
+            : liveText ?? (pct === null
               ? `no trip, burn ${burn} (uncalibrated)`
-              : `no trip, burn ${total} (${pct}% of learned window)`,
-          data: { trip, calibration: cal, burn, inflight, pct, agentsAllowed, agentsMax },
+              : `no trip, burn ${total} (${pct}% of learned window)`),
+          data: { trip, calibration: cal, burn, inflight, pct, agentsAllowed, agentsMax, live },
         };
       }),
   );

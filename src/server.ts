@@ -18,6 +18,7 @@ import { OPERATOR_AUTH, type AuthContext } from "./mcp/auth.js";
 import { createMcpServer } from "./mcp/server.js";
 import { authenticateRunToken } from "./runs/tokens.js";
 import { createRunner } from "./runs/runner.js";
+import { createQuotaMonitor } from "./runs/quota-monitor.js";
 import { createSectorRunner } from "./runs/sector.js";
 
 export interface ServerHandle {
@@ -242,8 +243,11 @@ async function main(): Promise<void> {
   await companyRunner.start();
   const sectorRunner = createSectorRunner(db, {});
   await sectorRunner.start();
+  const quotaMonitor = createQuotaMonitor(db, {});
+  quotaMonitor.start();
   process.on("SIGTERM", () => {
     void (async () => {
+      quotaMonitor.stop();
       await sectorRunner.stop();
       await companyRunner.stop();
       await jobRunner.stop();

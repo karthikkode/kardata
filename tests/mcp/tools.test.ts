@@ -7,6 +7,7 @@ import type { DbHandle } from "../../src/db/client.js";
 import {
   companies,
   companyJobs,
+  harnessSettings,
   jobEvents,
   sectorCompanies,
   sectorPreflight,
@@ -373,6 +374,13 @@ describe("mcp tools", () => {
     const quota = dataOf(await call("quota_breaker_status", {}));
     expect((quota.trip as { tripped: boolean }).tripped).toBe(false);
     expect(quota.agentsAllowed).toBe(quota.agentsMax);
+    expect(quota.live).toBeNull();
+    await handle.db.insert(harnessSettings).values({
+      key: "quota_snapshot",
+      value: { fivePct: 5, fiveResetAt: null, weeklyPct: 89, weeklyResetAt: null, checkedAt: "2026-10-23T19:00:00.000Z" },
+    });
+    const quotaLive = dataOf(await call("quota_breaker_status", {}));
+    expect((quotaLive.live as { weeklyPct: number }).weeklyPct).toBe(89);
     const quotaCleared = dataOf(await call("quota_breaker_clear", {}));
     expect(quotaCleared.tripped).toBe(false);
 
