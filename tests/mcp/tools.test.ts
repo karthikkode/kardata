@@ -104,6 +104,8 @@ const EXPECTED_TOOLS = [
   "company_concurrency_set",
   "collect_concurrency_get",
   "collect_concurrency_set",
+  "extraction_concurrency_get",
+  "extraction_concurrency_set",
   "pipeline_status",
   "pipeline_checkpoint_set",
   "quota_breaker_status",
@@ -393,6 +395,13 @@ describe("mcp tools", () => {
     expect(collUpdated.collectConcurrency).toBe(24);
     const badColl = await call("collect_concurrency_set", { collectConcurrency: 65 });
     expect(errorOf(badColl).code).toBe("invalid_input");
+
+    const extr = dataOf(await call("extraction_concurrency_get", {}));
+    expect(extr.extractionConcurrency).toBe(16);
+    const extrUpdated = dataOf(await call("extraction_concurrency_set", { extractionConcurrency: 8 }));
+    expect(extrUpdated.extractionConcurrency).toBe(8);
+    const badExtr = await call("extraction_concurrency_set", { extractionConcurrency: 65 });
+    expect(errorOf(badExtr).code).toBe("invalid_input");
 
     const pipe = dataOf(await call("pipeline_status", {}));
     expect(pipe.checkpointTarget).toBeNull();

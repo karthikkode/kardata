@@ -198,6 +198,69 @@ export async function effectiveCollectLimit(db: Db, override?: number): Promise<
   return base;
 }
 
+// ---- Extraction pool: worker-driven extractions outside the tick. ----
+
+export const DEFAULT_EXTRACTION_CONCURRENCY = 16;
+export const EXTRACTION_MIN = 1;
+export const EXTRACTION_MAX = 64;
+
+const EXTRACTION_KEY = "extraction_concurrency";
+
+export interface ExtractionSettingsView {
+  extractionConcurrency: number;
+  /** Where the effective value came from. */
+  source: "db" | "env" | "default";
+  /** The stored DB value, if any. */
+  dbValue: number | null;
+}
+
+function validExtractionStored(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= EXTRACTION_MIN && value <= EXTRACTION_MAX
+    ? value
+    : null;
+}
+
+export async function extractionSettingsGet(db: Db): Promise<ExtractionSettingsView> {
+  const [row] = await db.select().from(harnessSettings).where(eq(harnessSettings.key, EXTRACTION_KEY));
+  const dbValue = row ? validExtractionStored(row.value) : null;
+  if (dbValue !== null) return { extractionConcurrency: dbValue, source: "db", dbValue };
+  const raw = process.env.EXTRACTION_CONCURRENCY;
+  if (raw !== undefined && raw !== "") {
+    const n = Number(raw);
+    const env = Number.isInteger(n) && n > 0 ? n : DEFAULT_EXTRACTION_CONCURRENCY;
+    return { extractionConcurrency: env, source: "env", dbValue: null };
+  }
+  return { extractionConcurrency: DEFAULT_EXTRACTION_CONCURRENCY, source: "default", dbValue: null };
+}
+
+export async function extractionSettingsSet(db: Db, extractionConcurrency: number): Promise<ExtractionSettingsView> {
+  if (
+    !Number.isInteger(extractionConcurrency) ||
+    extractionConcurrency < EXTRACTION_MIN ||
+    extractionConcurrency > EXTRACTION_MAX
+  ) {
+    throw new DomainError("invalid_input", `extractionConcurrency must be ${EXTRACTION_MIN}..${EXTRACTION_MAX}`);
+  }
+  await db
+    .insert(harnessSettings)
+    .values({ key: EXTRACTION_KEY, value: extractionConcurrency, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: harnessSettings.key,
+      set: { value: extractionConcurrency, updatedAt: new Date() },
+    });
+  return { extractionConcurrency, source: "db", dbValue: extractionConcurrency };
+}
+
+/** Effective extraction width for this offer. Never throws on a bad row. */
+export async function effectiveExtractionLimit(db: Db, override?: number): Promise<number> {
+  if (override !== undefined) return override;
+  try {
+    return (await extractionSettingsGet(db)).extractionConcurrency;
+  } catch {
+    return DEFAULT_EXTRACTION_CONCURRENCY;
+  }
+}
+
 // ---- Company jobs: how many companies run concurrently (Stage 5). ----
 
 export const DEFAULT_COMPANY_CONCURRENCY = 4;

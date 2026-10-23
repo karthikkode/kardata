@@ -73,6 +73,8 @@ import {
   companySettingsGet,
   companySettingsSet,
   effectiveMaxAgents,
+  extractionSettingsGet,
+  extractionSettingsSet,
   harnessSettingsGet,
   harnessSettingsSet,
   sectorPreflightSettingsGet,
@@ -1489,6 +1491,32 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const settings = await collectSettingsSet(db, value);
         return { summary: `collectConcurrency -> ${settings.collectConcurrency}`, data: settings };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "extraction_concurrency_get",
+    {
+      description: "Operator: effective extraction pool width and where the value comes from.",
+      inputSchema: {},
+    },
+    async () =>
+      wrap(async () => {
+        const settings = await extractionSettingsGet(db);
+        return { summary: `extractionConcurrency=${settings.extractionConcurrency} (${settings.source})`, data: settings };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "extraction_concurrency_set",
+    {
+      description: "Operator: change extraction pool width at runtime (1..64, stored in the DB, immediate).",
+      inputSchema: { extractionConcurrency: z.number().int().describe("Max parallel extractions") },
+    },
+    async ({ extractionConcurrency: value }) =>
+      wrap(async () => {
+        const settings = await extractionSettingsSet(db, value);
+        return { summary: `extractionConcurrency -> ${settings.extractionConcurrency}`, data: settings };
       }),
   );
 

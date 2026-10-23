@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { and, asc, eq } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
 import {
@@ -164,6 +164,14 @@ function fakeWorld(): FakeWorld {
   };
 }
 
+function makeGate() {
+  let release!: () => void;
+  const promise = new Promise<void>((r) => {
+    release = r;
+  });
+  return { promise, release };
+}
+
 describe("startCompanyJob", () => {
   it("starts a scheduled job and rejects dupes and ghosts", async () => {
     const companyId = await makeCompany("Acme");
@@ -190,7 +198,17 @@ describe("describeCompanyJob (AC-2)", () => {
     const companyId = await makeCompany("Acme");
     const { jobId } = await startCompanyJob(handle.db, { companyId });
     const world = fakeWorld();
-    const runner = createCompanyRunner(handle.db, world.deps());
+    // Gate the pool drive so the extraction-begun mid-state is observable.
+    const gate = makeGate();
+    const runner = createCompanyRunner(
+      handle.db,
+      world.deps({
+        runExtraction: async (job, researchRunId) => {
+          world.extractions.push({ jobId: job.id, researchRunId });
+          await gate.promise;
+        },
+      }),
+    );
     await fileReport(jobId, companyId);
     await runner.tick();
     let desc = await describeCompanyJob(handle.db, jobId);
@@ -218,6 +236,7 @@ describe("describeCompanyJob (AC-2)", () => {
     desc = await describeCompanyJob(handle.db, jobId);
     expect(desc.derived).toBe("incomplete");
     expect(desc.nextStage).toBe("extraction");
+    gate.release();
   });
 });
 
@@ -720,26 +739,47 @@ describe("cancel and retry", () => {
   });
 
   it("does not drive a cancelled extraction", async () => {
-    const companyId = await makeCompany("Acme");
-    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    // Pool width 1: job A holds the only slot with a gated drive, so job
+    // B's extraction row is begun but never offered a drive before cancel.
+    const aId = await makeCompany("Holder Co");
+    const bId = await makeCompany("Cancelled Co");
+    const a = await startCompanyJob(handle.db, { companyId: aId });
+    const b = await startCompanyJob(handle.db, { companyId: bId });
     const world = fakeWorld();
-    const runner = createCompanyRunner(handle.db, world.deps());
-    await fileReport(jobId, companyId);
+    const gate = makeGate();
+    const driven: string[] = [];
+    const runner = createCompanyRunner(
+      handle.db,
+      world.deps({
+        extractionMax: 1,
+        runExtraction: async (job) => {
+          driven.push(job.id);
+          await gate.promise;
+        },
+      }),
+    );
+    await fileReport(a.jobId, aId);
+    await fileReport(b.jobId, bId);
     await runner.tick();
     for (const stage of ["preflight", "collect", "research"] as const) {
-      const sub = await latestSubjob(jobId, stage);
-      if (!sub) throw new Error(`no ${stage} subjob`);
-      await flipRun(sub.id, "succeeded");
+      for (const j of [a, b]) {
+        const sub = await latestSubjob(j.jobId, stage);
+        if (!sub) throw new Error(`no ${stage} subjob`);
+        await flipRun(sub.id, "succeeded");
+      }
       await runner.tick();
     }
-    const extraction = await latestSubjob(jobId, "extraction");
+    await vi.waitFor(() => expect(driven).toEqual([a.jobId]));
+    const extraction = await latestSubjob(b.jobId, "extraction");
     if (!extraction) throw new Error("no extraction subjob");
-    await companyJobCancel(handle.db, jobId);
-    await runner.tick();
-    expect(world.extractions).toHaveLength(0);
+    expect(extraction.status).toBe("running");
+    await companyJobCancel(handle.db, b.jobId);
     const [row] = await handle.db.select().from(researchRuns).where(eq(researchRuns.id, extraction.id));
     expect(row?.status).toBe("cancelled");
-    expect((await jobRow(jobId)).status).toBe("terminated");
+    gate.release();
+    await runner.tick();
+    expect(driven).toEqual([a.jobId]);
+    expect((await jobRow(b.jobId)).status).toBe("terminated");
   });
 
   it("rejects nonsense retries", async () => {
@@ -1101,5 +1141,87 @@ describe("quota breaker", () => {
     const before2 = world.begins.length;
     await open.tick();
     expect(world.begins.slice(before2).some((x) => x.jobId === advancer.jobId && x.stage === "research")).toBe(true);
+  });
+});
+
+describe("extraction pool", () => {
+  it("a slow extraction does not block other lanes in the same tick", async () => {
+    const a = await makeCompany("Slow Co");
+    const b = await makeCompany("Fast Co");
+    const slow = await startCompanyJob(handle.db, { companyId: a });
+    const fast = await startCompanyJob(handle.db, { companyId: b });
+    const world = fakeWorld();
+    const gate = makeGate();
+    const runner = createCompanyRunner(
+      handle.db,
+      world.deps({
+        runExtraction: async (job, researchRunId) => {
+          world.extractions.push({ jobId: job.id, researchRunId });
+          await gate.promise; // never released: an inline drive would hang this tick forever
+        },
+      }),
+    );
+    await fileReport(slow.jobId, a);
+    await runner.tick();
+    for (const stage of ["preflight", "collect", "research"] as const) {
+      const sub = await latestSubjob(slow.jobId, stage);
+      if (!sub) throw new Error(`no ${stage} subjob`);
+      await flipRun(sub.id, "succeeded");
+      await runner.tick();
+    }
+    await vi.waitFor(() => expect(world.extractions).toHaveLength(1));
+    expect(world.begins.some((x) => x.jobId === fast.jobId && x.stage === "preflight")).toBe(true);
+    gate.release();
+  });
+
+  it("caps concurrent extractions and drains the rest on later ticks", async () => {
+    const pairs: { companyId: string; jobId: string }[] = [];
+    for (const name of ["E1 Co", "E2 Co", "E3 Co"]) {
+      const companyId = await makeCompany(name);
+      const { jobId } = await startCompanyJob(handle.db, { companyId });
+      pairs.push({ companyId, jobId });
+    }
+    const world = fakeWorld();
+    const gate = makeGate();
+    const driven: string[] = [];
+    let active = 0;
+    let peak = 0;
+    const runner = createCompanyRunner(
+      handle.db,
+      world.deps({
+        extractionMax: 2,
+        runExtraction: async (job) => {
+          driven.push(job.id);
+          active += 1;
+          peak = Math.max(peak, active);
+          try {
+            await gate.promise;
+          } finally {
+            active -= 1;
+          }
+        },
+      }),
+    );
+    for (const p of pairs) await fileReport(p.jobId, p.companyId);
+    await runner.tick();
+    for (const stage of ["preflight", "collect", "research"] as const) {
+      for (const p of pairs) {
+        const sub = await latestSubjob(p.jobId, stage);
+        if (!sub) throw new Error(`no ${stage} subjob`);
+        await flipRun(sub.id, "succeeded");
+      }
+      await runner.tick();
+    }
+    // All three rows begun in one tick; the pool drives two, the third waits.
+    await vi.waitFor(() => expect(driven).toHaveLength(2));
+    expect(peak).toBe(2);
+    gate.release();
+    await vi.waitFor(() => expect(active).toBe(0));
+    await runner.tick();
+    await vi.waitFor(() => expect(driven).toHaveLength(3));
+    expect(peak).toBe(2);
+    for (const p of pairs) {
+      await vi.waitFor(async () => expect((await jobRow(p.jobId)).status).toBe("completed"));
+    }
   });
 });

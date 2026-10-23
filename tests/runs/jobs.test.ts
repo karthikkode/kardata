@@ -35,7 +35,10 @@ import {
   collectSettingsGet,
   collectSettingsSet,
   effectiveCollectLimit,
+  effectiveExtractionLimit,
   effectiveMaxAgents,
+  extractionSettingsGet,
+  extractionSettingsSet,
   harnessSettingsGet,
   harnessSettingsSet,
   paceAgents,
@@ -536,6 +539,25 @@ describe("collect settings", () => {
     expect(await effectiveCollectLimit(handle.db)).toBe(64);
     await quotaBreakerClear(handle.db);
     expect(await effectiveCollectLimit(handle.db)).toBe(10);
+  });
+});
+
+describe("extraction settings", () => {
+  it("reads default 16, sets and validates", async () => {
+    const initial = await extractionSettingsGet(handle.db);
+    expect(["env", "default"]).toContain(initial.source);
+    if (initial.source === "default") expect(initial.extractionConcurrency).toBe(16);
+    await extractionSettingsSet(handle.db, 8);
+    const stored = await extractionSettingsGet(handle.db);
+    expect(stored).toMatchObject({ extractionConcurrency: 8, source: "db", dbValue: 8 });
+    await expect(extractionSettingsSet(handle.db, 0)).rejects.toThrow("1..64");
+    await expect(extractionSettingsSet(handle.db, 65)).rejects.toThrow("1..64");
+  });
+
+  it("effectiveExtractionLimit prefers override, else the DB row", async () => {
+    await extractionSettingsSet(handle.db, 10);
+    expect(await effectiveExtractionLimit(handle.db, 5)).toBe(5);
+    expect(await effectiveExtractionLimit(handle.db)).toBe(10);
   });
 });
 

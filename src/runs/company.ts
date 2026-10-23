@@ -47,6 +47,7 @@ import {
   checkpointGet,
   effectiveCollectLimit,
   effectiveCompanyConcurrency,
+  effectiveExtractionLimit,
   effectiveMaxAgents,
   pipelinePausedGet,
   tripPipelinePause,
@@ -636,6 +637,8 @@ export interface CompanyRunnerDeps {
   clock?: () => number;
   /** Test override for company slots (else the live setting). */
   companyMax?: number;
+  /** Test override for extraction pool width (else the live setting). */
+  extractionMax?: number;
   beginStage?: (job: CompanyJob, stage: CompanyStage) => Promise<BeginStageOutcome>;
   runExtraction?: (job: CompanyJob, researchRunId: string) => Promise<void>;
   agentLoad?: () => Promise<EngineLoad>;
@@ -683,6 +686,8 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
     deps.collectLoad ?? (async () => ({ active: await countActiveRuns(db, "collect"), max: await effectiveCollectLimit(db) }));
   let timer: ReturnType<typeof setInterval> | null = null;
   let ticking = false;
+  /** Extraction run ids with a drive in flight (pool lives outside the tick). */
+  const extracting = new Set<string>();
 
   /** Reconcile spent tokens to the sum of latest-subjob usage (extraction merges into the research row). */
   async function spendReconcile(job: CompanyJob): Promise<void> {
@@ -792,6 +797,10 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
   async function driveExtraction(job: CompanyJob, subjob: ResearchRun): Promise<CompanyJob> {
     const desc = await describeCompanyJob(db, job.id);
     const research = desc.stages.find((s) => s.stage === "research")?.run ?? null;
+    // The pool offers ahead of the drive: re-check the row is still live —
+    // a cancel or pause may have landed after the offer.
+    const [live] = await db.select().from(researchRuns).where(eq(researchRuns.id, subjob.id));
+    if (!live || live.status !== "running") return loadCompanyJob(db, job.id);
     if (!research || !isStageComplete(research)) {
       const [marked] = await db
         .update(researchRuns)
@@ -822,13 +831,34 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
     await spendReconcile(await loadCompanyJob(db, job.id));
     await logJobEvent(db, job.id, "stage_done", "extraction", { runId: subjob.id });
     const after = await describeCompanyJob(db, job.id);
+    // Fresh status: the pool drives minutes after the offer, and the job
+    // may have been paused or terminated meanwhile — never complete those.
     if (
       after.derived === "complete" &&
-      (job.status === "running" || job.status === "scheduled" || job.status === "paused")
+      (after.job.status === "running" || after.job.status === "scheduled" || after.job.status === "paused")
     ) {
       await completeJob(await loadCompanyJob(db, job.id));
     }
     return loadCompanyJob(db, job.id);
+  }
+
+  /**
+   * Offer a running extraction row to the pool. Returns once the offer is
+   * accepted or declined — the drive itself never blocks the tick.
+   */
+  async function offerExtraction(job: CompanyJob, run: ResearchRun): Promise<void> {
+    if (extracting.has(run.id)) return;
+    if (run.status !== "running") return;
+    const limit = await effectiveExtractionLimit(db, deps.extractionMax);
+    if (extracting.size >= limit) return;
+    extracting.add(run.id);
+    void driveExtraction(job, run)
+      .catch((err: unknown) => {
+        console.error(`company job ${job.id} extraction drive failed: ${err instanceof Error ? err.message : err}`);
+      })
+      .finally(() => {
+        extracting.delete(run.id);
+      });
   }
 
   async function tickJob(
@@ -864,9 +894,9 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
     if (active?.run) {
       const [fresh] = await db.select().from(researchRuns).where(eq(researchRuns.id, active.run.id));
       if (fresh && !isTerminalSubjob(fresh.status)) {
-        // Engines own it — except running extraction, which the worker drives.
+        // Engines own it — except running extraction, which the pool drives.
         if (active.stage === "extraction" && fresh.status === "running") {
-          await driveExtraction(current, fresh);
+          await offerExtraction(current, fresh);
         }
         return;
       }
@@ -964,6 +994,11 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
     if ("busy" in outcome) return;
     await db.update(companyJobs).set({ currentStage: target }).where(eq(companyJobs.id, job.id));
     await logJobEvent(db, job.id, "stage_started", target, { runId: outcome.runId });
+    // A fresh extraction starts driving now instead of waiting a full tick.
+    if (target === "extraction") {
+      const [row] = await db.select().from(researchRuns).where(eq(researchRuns.id, outcome.runId));
+      if (row) await offerExtraction(current, row);
+    }
   }
 
   async function countByStatus(status: CompanyJob["status"]): Promise<number> {
