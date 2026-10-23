@@ -10,6 +10,7 @@ import type { ReviewsJobOutput, ReviewsJobRunner } from "../../src/harness/revie
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 import {
   collectorCtx,
+  finishRun,
   recordsForRun,
   restoreHostDelay,
   seedCompany,
@@ -234,6 +235,49 @@ describe("reviews_onsite collector", () => {
     expect(result.outcomes).toEqual([
       { area: "reviews", status: "not_found", reason: "unsupported review app: Trustpilot" },
     ]);
+  });
+
+  it("uses the review app and products from another run", async () => {
+    // Prior run wrote the app fact and catalog; this run has neither.
+    const companyId = await seedCompany(handle.db, { domain: host() });
+    const priorRunId = await seedRun(handle.db, companyId);
+    const pageUrl = `${site.baseUrl}/products/glow`;
+    site.routes.set("/products/glow", (_req, res) =>
+      sendText(res, "<html><head><title>glow</title></head><body>product</body></html>"),
+    );
+    const [source] = await handle.db
+      .insert(sources)
+      .values({
+        id: randomUUID(),
+        companyId,
+        runId: priorRunId,
+        url: `${site.baseUrl}/`,
+        finalUrl: `${site.baseUrl}/`,
+        collector: "test",
+        status: "ok",
+        httpStatus: 200,
+      })
+      .returning({ id: sources.id });
+    if (!source) throw new Error("no source row");
+    await addFacts(handle.db, {
+      companyId,
+      runId: priorRunId,
+      createdBy: "collector:reviews",
+      facts: [{ key: "reviews.app", value: "Loox", sourceIds: [source.id] }],
+    });
+    await upsertRecords(handle.db, {
+      companyId,
+      runId: priorRunId,
+      createdBy: "collector:shopify",
+      records: [{ type: "product", data: { name: "glow", url: pageUrl }, sourceIds: [source.id] }],
+    });
+    await finishRun(handle.db, priorRunId);
+    const runId = await seedRun(handle.db, companyId);
+    const ctx = await collectorCtx(handle.db, site, companyId, runId);
+    const result = await runReviewsOnsite(ctx, cannedRunner(["Synthetic cross-run review."]));
+    expect(result.outcomes).toEqual([{ area: "reviews", status: "done", reason: "1 reviews from 1 pages (Loox)" }]);
+    const rows = (await recordsForRun(handle.db, runId)).filter((r) => r.type === "review");
+    expect(rows).toHaveLength(1);
   });
 
   it("treats robots-disallowed pages as blocked", async () => {

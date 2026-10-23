@@ -42,6 +42,7 @@ const EXPECTED_TOOLS = [
   "company_facets",
   "import_list",
   "collect_start",
+  "reviews_onsite_backfill",
   "batch_status",
   "run_get",
   "run_events",

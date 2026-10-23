@@ -77,12 +77,17 @@ describe("adapter registry", () => {
     }
   });
 
-  it("resolves plans in order, deduped, reporting unknown ids", () => {
+  it("resolves plans in fixed order, deduped, reporting unknown ids", () => {
     const { adapters, unknown } = resolvePlanAdapters(["stack", "site", "stack", "nope"]);
-    expect(adapters.map((a) => a.id)).toEqual(["stack", "site"]);
+    expect(adapters.map((a) => a.id)).toEqual(["site", "stack"]);
     expect(unknown).toEqual(["nope"]);
     expect(getAdapter("site")?.areas).toContain("business_model");
     expect(getAdapter("nope")).toBeNull();
+  });
+
+  it("runs reviews before reviews_onsite whatever the plan order", () => {
+    const { adapters } = resolvePlanAdapters(["reviews_onsite", "reviews", "shopify"]);
+    expect(adapters.map((a) => a.id)).toEqual(["shopify", "reviews", "reviews_onsite"]);
   });
 });
 
@@ -94,8 +99,18 @@ describe("resolveRunAdapters", () => {
     const run = await makeRun(companyId, { jobId, stage: "collect" });
     const resolved = await resolveRunAdapters(handle.db, run);
     expect(resolved.planned).toBe(true);
-    expect(resolved.adapters.map((a) => a.id)).toEqual(["stack", "site"]);
+    expect(resolved.adapters.map((a) => a.id)).toEqual(["site", "stack"]);
     expect(resolved.unknown).toEqual(["nope"]);
+  });
+
+  it("orders a reversed plan by the fixed adapter order", async () => {
+    const companyId = await makeCompany("Acme");
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    await fileReport(jobId, companyId, ["reviews_onsite", "reviews"]);
+    const run = await makeRun(companyId, { jobId, stage: "collect" });
+    const resolved = await resolveRunAdapters(handle.db, run);
+    expect(resolved.planned).toBe(true);
+    expect(resolved.adapters.map((a) => a.id)).toEqual(["reviews", "reviews_onsite"]);
   });
 
   it("runs everything for legacy runs and unplanned jobs", async () => {

@@ -67,7 +67,15 @@ export function getAdapter(id: string): SourceAdapter | null {
   return ADAPTERS.find((a) => a.id === id) ?? null;
 }
 
-/** Resolve a preflight plan to adapters, in plan order. Unknown ids are reported, never improvised. */
+const ADAPTER_ORDER = new Map(ADAPTERS.map((a, index) => [a.id, index]));
+
+/**
+ * Resolve a preflight plan to adapters in fixed ADAPTERS order. The plan
+ * only picks which adapters run, never the order: collectors depend on
+ * each other's output (reviews before reviews_onsite, shopify first), so
+ * plan order must not decide execution order. Unknown ids are reported,
+ * never improvised.
+ */
 export function resolvePlanAdapters(ids: string[]): { adapters: SourceAdapter[]; unknown: string[] } {
   const adapters: SourceAdapter[] = [];
   const unknown: string[] = [];
@@ -79,6 +87,7 @@ export function resolvePlanAdapters(ids: string[]): { adapters: SourceAdapter[];
     if (adapter) adapters.push(adapter);
     else unknown.push(id);
   }
+  adapters.sort((a, b) => (ADAPTER_ORDER.get(a.id) ?? 0) - (ADAPTER_ORDER.get(b.id) ?? 0));
   return { adapters, unknown };
 }
 

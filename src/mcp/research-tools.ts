@@ -67,6 +67,7 @@ import {
 } from "../runs/company.js";
 import { extractRun } from "../runs/extract.js";
 import { cancelRun, getOrCreateManualRun, startCollect } from "../runs/queue.js";
+import { backfillReviewsOnsite } from "../collect/backfill.js";
 import {
   checkpointSet,
   collectSettingsGet,
@@ -169,6 +170,26 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         const batch = await startCollect(db, companyIds, areas ?? undefined);
         const queued = batch.runs.filter((r) => r.status === "queued").length;
         return { summary: `batch ${batch.batchId}: ${queued} queued, ${batch.runs.length - queued} already running`, data: batch };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "reviews_onsite_backfill",
+    {
+      description: "Operator: backfill on-site reviews for completed Shopify companies skipped by the old plan ordering (deterministic, onsite adapter only, cursor pages).",
+      inputSchema: {
+        limit: z.number().int().optional().describe("Companies per batch (1..100, default 25)"),
+        cursor: z.string().nullable().optional().describe("nextCursor from the previous batch"),
+      },
+    },
+    async ({ limit, cursor }) =>
+      wrap(async () => {
+        const result = await backfillReviewsOnsite(db, { limit: limit ?? undefined, cursor: cursor ?? null });
+        const done = result.results.filter((r) => r.status === "done").length;
+        return {
+          summary: `onsite backfill: ${done}/${result.attempted} collected, ${result.ingestedReviews} reviews, cursor ${result.nextCursor ?? "done"}`,
+          data: result,
+        };
       }),
   );
 
