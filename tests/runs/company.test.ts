@@ -283,6 +283,41 @@ describe("company feeder (AC-3)", () => {
   });
 });
 
+describe("feed lanes", () => {
+  it("feeds agent stages before collect, regardless of age", async () => {
+    const oldId = await makeCompany("Old Co");
+    const { jobId: oldJob } = await startCompanyJob(handle.db, { companyId: oldId });
+    const world = fakeWorld();
+    const runner = createCompanyRunner(handle.db, world.deps());
+    await runner.tick();
+    const pre = await latestSubjob(oldJob, "preflight");
+    if (!pre) throw new Error("no preflight subjob");
+    await flipRun(pre.id, "succeeded");
+    await fileReport(oldJob, oldId);
+    const youngId = await makeCompany("Young Co");
+    const { jobId: youngJob } = await startCompanyJob(handle.db, { companyId: youngId });
+    await runner.tick();
+    // Tick 2 begins: the younger agent-lane job jumps the older collect job.
+    const second = world.begins.slice(1).map((b) => `${b.stage}:${b.jobId === youngJob ? "young" : "old"}`);
+    expect(second).toEqual(["preflight:young", "collect:old"]);
+  });
+
+  it("stays FIFO within a lane", async () => {
+    const aId = await makeCompany("A Co");
+    const { jobId: aJob } = await startCompanyJob(handle.db, { companyId: aId });
+    const bId = await makeCompany("B Co");
+    const { jobId: bJob } = await startCompanyJob(handle.db, { companyId: bId });
+    await handle.db
+      .update(companyJobs)
+      .set({ createdAt: new Date(Date.now() + 1000) })
+      .where(eq(companyJobs.id, bJob));
+    const world = fakeWorld();
+    const runner = createCompanyRunner(handle.db, world.deps());
+    await runner.tick();
+    expect(world.begins.map((b) => b.jobId)).toEqual([aJob, bJob]);
+  });
+});
+
 describe("stage machine", () => {
   it("advances through all four stages and completes", async () => {
     const companyId = await makeCompany("Acme");

@@ -14,6 +14,7 @@ import {
   isStageComplete,
   isTerminalSubjob,
   type CompanyDerived,
+  type CompanyJobDescription,
   type CompanyStage,
 } from "../domain/company-jobs/status.js";
 import { checkPreflightGate, getPreflightSummary } from "../domain/company-jobs/preflight.js";
@@ -62,6 +63,20 @@ import {
 const COMPANY_POLL_MS = 15_000;
 const COMPANY_LIST_DEFAULT_LIMIT = 20;
 const AGENT_STAGES: readonly CompanyStage[] = ["preflight", "research"];
+/**
+ * Feed lane by next needed stage (ordering only). Credits are perishable,
+ * so credit-burning stages feed first; collect fills leftover capacity.
+ * Complete-ready jobs go first of all (completing frees company slots
+ * for this tick's claims). FIFO within a lane doubles as the starvation
+ * guard: the longest-waiting collect always advances in turn. The row's
+ * currentStage lags by one stage, so lanes key on the describe — which
+ * the tick reuses to avoid a second describe per job. Claim order stays
+ * FIFO: every claim enters at preflight (lane 0).
+ */
+function feedLane(desc: CompanyJobDescription): number {
+  if (desc.derived === "complete") return -1;
+  return desc.nextStage === "collect" ? 1 : 0;
+}
 /** First consecutive failure in these classes requeues the stage instead of parking the job. */
 const TRANSIENT_AUTO_RETRY = new Set(["stall", "usage_limit"]);
 
@@ -782,9 +797,9 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
     return loadCompanyJob(db, job.id);
   }
 
-  async function tickJob(job: CompanyJob, feed: boolean): Promise<void> {
+  async function tickJob(job: CompanyJob, feed: boolean, descArg?: CompanyJobDescription): Promise<void> {
     const current = job;
-    let desc = await describeCompanyJob(db, job.id);
+    let desc = descArg ?? (await describeCompanyJob(db, job.id));
     if (
       desc.derived === "complete" &&
       (current.status === "running" || current.status === "scheduled" || current.status === "paused")
@@ -940,9 +955,20 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
         .from(companyJobs)
         .where(inArray(companyJobs.status, ["scheduled", "running", "paused", "terminated"]))
         .orderBy(asc(companyJobs.createdAt));
+      // Agent lane first (stable sort keeps FIFO within a lane). One
+      // describe per job, reused by tickJob — no added query cost.
+      const lanes: { job: CompanyJob; desc: CompanyJobDescription }[] = [];
       for (const job of jobs) {
         try {
-          await tickJob(job, job.status === "scheduled" || job.status === "running");
+          lanes.push({ job, desc: await describeCompanyJob(db, job.id) });
+        } catch (err) {
+          console.error(`company job ${job.id} describe failed: ${err instanceof Error ? err.message : err}`);
+        }
+      }
+      lanes.sort((a, b) => feedLane(a.desc) - feedLane(b.desc));
+      for (const { job, desc } of lanes) {
+        try {
+          await tickJob(job, job.status === "scheduled" || job.status === "running", desc);
         } catch (err) {
           console.error(`company job ${job.id} tick failed: ${err instanceof Error ? err.message : err}`);
         }
