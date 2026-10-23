@@ -146,6 +146,8 @@ export interface CompanyStatusView {
   tokensSpent: number;
   etaSec: number | null;
   preflightReport: { version: number; confidence: number } | null;
+  /** Last 20 job events, oldest first (what happened, in order). */
+  recentEvents: { at: Date | null; type: string; stage: CompanyStage | null; payload: Record<string, unknown> }[];
 }
 
 function stageDurationMs(run: ResearchRun): number | null {
@@ -183,6 +185,12 @@ export async function companyJobStatus(db: Db, jobId: string): Promise<CompanySt
     desc.derived !== "incomplete" || durations.length === 0 || remaining === 0
       ? 0
       : Math.ceil(((durations.reduce((a, b) => a + b, 0) / durations.length) * remaining) / 1000);
+  const events = await db
+    .select()
+    .from(jobEvents)
+    .where(eq(jobEvents.jobId, jobId))
+    .orderBy(sql`${jobEvents.id} DESC`)
+    .limit(20);
   return {
     job: desc.job,
     companyName: company?.name ?? desc.job.companyId,
@@ -201,6 +209,12 @@ export async function companyJobStatus(db: Db, jobId: string): Promise<CompanySt
     tokensSpent: desc.job.inputTokensSpent,
     etaSec,
     preflightReport,
+    recentEvents: events.reverse().map((e) => ({
+      at: e.at,
+      type: e.type,
+      stage: (e.stage as CompanyStage | null) ?? null,
+      payload: e.payload,
+    })),
   };
 }
 
@@ -523,7 +537,12 @@ export async function beginStageReal(db: Db, job: CompanyJob, stage: CompanyStag
 }
 
 /** Fresh subjob for the earliest incomplete stage (retry semantics). */
-async function retryStage(db: Db, job: CompanyJob): Promise<CompanyStage> {
+async function retryStage(
+  db: Db,
+  job: CompanyJob,
+  begin: (job: CompanyJob, stage: CompanyStage) => Promise<BeginStageOutcome> = (job, stage) =>
+    beginStageReal(db, job, stage),
+): Promise<CompanyStage> {
   const desc = await describeCompanyJob(db, job.id);
   const target = desc.nextStage;
   if (!target) throw new DomainError("invalid_input", "job is complete, nothing to retry");
@@ -531,7 +550,7 @@ async function retryStage(db: Db, job: CompanyJob): Promise<CompanyStage> {
   if (latest && !isTerminalSubjob(latest.status)) {
     throw new DomainError("invalid_input", `stage ${target} is still ${latest.status}`);
   }
-  const outcome = await beginStageReal(db, job, target);
+  const outcome = await begin(job, target);
   if ("busy" in outcome) throw new DomainError("conflict", "company slot is busy, retry later");
   await db.update(companyJobs).set({ currentStage: target }).where(eq(companyJobs.id, job.id));
   await logJobEvent(db, job.id, "stage_started", target, { runId: outcome.runId, retry: true });
@@ -578,20 +597,46 @@ export async function companyJobRetry(db: Db, jobId: string): Promise<{ job: Com
     throw new DomainError("invalid_input", `job is ${job.status}, nothing to retry`);
   }
   const desc = await describeCompanyJob(db, jobId);
-  if (desc.derived !== "failed") {
+  if (desc.derived === "failed") {
+    const stage = await retryStage(db, job);
+    // The streak survives a retry: three strikes on one company trip the pause.
+    // Only a resume ("looked, carry on") resets the tripwire.
+    const [updated] = await db
+      .update(companyJobs)
+      .set({ status: "scheduled", pauseReason: null, finishedAt: null })
+      .where(eq(companyJobs.id, jobId))
+      .returning();
+    if (!updated) throw new DomainError("not_found", `company job not found: ${jobId}`);
+    await logJobEvent(db, jobId, "job_retried", stage);
+    return { job: updated, stage };
+  }
+  if (job.status === "paused") {
     throw new DomainError("invalid_input", "no failed stage; resume the job instead");
   }
-  const stage = await retryStage(db, job);
-  // The streak survives a retry: three strikes on one company trip the pause.
-  // Only a resume ("looked, carry on") resets the tripwire.
+  if (desc.derived === "incomplete" && desc.nextStage) {
+    // Stale failure marker: every attempted stage passed (a later attempt
+    // succeeded after the row was marked failed), so there is no stage to
+    // redo — requeue and let the worker advance it. The last outcome was a
+    // success, so the streak no longer counts as consecutive.
+    const [updated] = await db
+      .update(companyJobs)
+      .set({ status: "scheduled", pauseReason: null, finishedAt: null, errorStreak: 0, errorClass: null })
+      .where(eq(companyJobs.id, jobId))
+      .returning();
+    if (!updated) throw new DomainError("not_found", `company job not found: ${jobId}`);
+    await logJobEvent(db, jobId, "job_retried", desc.nextStage);
+    return { job: updated, stage: desc.nextStage };
+  }
+  // Fully worked but never marked done (every stage passed while the row
+  // says failed): requeue and the next tick completes it.
   const [updated] = await db
     .update(companyJobs)
-    .set({ status: "scheduled", pauseReason: null, finishedAt: null })
+    .set({ status: "scheduled", pauseReason: null, finishedAt: null, errorStreak: 0, errorClass: null })
     .where(eq(companyJobs.id, jobId))
     .returning();
   if (!updated) throw new DomainError("not_found", `company job not found: ${jobId}`);
-  await logJobEvent(db, jobId, "job_retried", stage);
-  return { job: updated, stage };
+  await logJobEvent(db, jobId, "job_retried", "extraction");
+  return { job: updated, stage: "extraction" };
 }
 
 export interface CompanyCancelInput {
@@ -734,16 +779,22 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
     await logJobEvent(db, job.id, "stage_failed", stage, { errorClass, error: error.slice(0, 300) });
     if (autoRetry && (updated.status === "running" || updated.status === "scheduled")) {
       try {
-        await retryStage(db, updated);
+        await retryStage(db, updated, beginStage);
         await db.update(companyJobs).set({ status: "scheduled" }).where(eq(companyJobs.id, job.id));
-      } catch {
-        const [parked] = await db
+      } catch (err) {
+        console.error(`company job ${job.id} auto-retry failed: ${err instanceof Error ? err.message : err}`);
+        // The retry may have begun a live run before throwing: only park
+        // the job when nothing is live, or a succeeding run would strand a
+        // failed row that no worker tick ever revisits.
+        const fresh = await describeCompanyJob(db, job.id);
+        const live = fresh.stages.some((s) => s.run && !isTerminalSubjob(s.run.status));
+        const [requeued] = await db
           .update(companyJobs)
-          .set({ status: "failed" })
+          .set({ status: live ? "scheduled" : "failed" })
           .where(eq(companyJobs.id, job.id))
           .returning();
-        if (!parked) throw new DomainError("not_found", `company job not found: ${job.id}`);
-        return parked;
+        if (!requeued) throw new DomainError("not_found", `company job not found: ${job.id}`);
+        return requeued;
       }
     }
     return updated;
