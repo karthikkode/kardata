@@ -125,6 +125,21 @@ describe("parseWidgetReviews", () => {
     expect(reviews[3]?.text).toContain("layers quietly");
   });
 
+  it("parses legacy Okendo cards with attribute dates", () => {
+    const reviews = parseWidgetReviews(fixture("okendo-legacy.html"), "okendo");
+    expect(reviews).toHaveLength(2);
+    expect(reviews[0]).toMatchObject({
+      title: "Handbag essential",
+      rating: 5,
+      date: "2026-05-11T10:00:00.000Z",
+      verified_buyer: true,
+    });
+    expect(reviews[0]?.text).toContain("survived a week of test travel");
+    expect(reviews[1]).toMatchObject({ rating: 2, date: "2026-04-02T10:00:00.000Z" });
+    expect(reviews[1]).not.toHaveProperty("title");
+    expect(reviews[1]).not.toHaveProperty("verified_buyer");
+  });
+
   it("parses Loox grid cards from iframe HTML", () => {
     const reviews = parseWidgetReviews(fixture("loox-frame.html"), "loox");
     expect(reviews).toHaveLength(2);
@@ -142,6 +157,7 @@ describe("parseWidgetReviews", () => {
       ...parseWidgetReviews(fixture("stamped.html"), "stamped"),
       ...parseWidgetReviews(fixture("yotpo.html"), "yotpo"),
       ...parseWidgetReviews(fixture("okendo-plus.html"), "okendo"),
+      ...parseWidgetReviews(fixture("okendo-legacy.html"), "okendo"),
       ...parseWidgetReviews(fixture("loox-frame.html"), "loox"),
     ]);
     for (const name of ["Synthetic Reviewer One", "S. R. Two", "Fake Person A", "F. B.", "Made Up User", "U. Ser"]) {
