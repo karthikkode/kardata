@@ -23,7 +23,7 @@ const VENDOR_SIGNALS = [
   { vendor: "judgeme", scripts: ["judge.me", "judgeme", "jdgm"], dom: ["#judgeme_product_reviews", ".jdgm-widget", ".jdgm-rev"] },
   { vendor: "yotpo", scripts: ["yotpo"], dom: ["#yotpo-reviews", ".yotpo-reviews", ".yotpo-review"] },
   { vendor: "stamped", scripts: ["stamped.io"], dom: ["#stamped-main-widget", ".stamped-review"] },
-  { vendor: "okendo", scripts: ["okendo"], dom: ["[data-oke-widget]", "[data-oke-container]", ".okeReviews", ".oke-reviewCard"] },
+  { vendor: "okendo", scripts: ["okendo"], dom: ["[data-oke-widget]", "[data-oke-container]", ".okeReviews", ".oke-reviewCard", ".oke-w-review"] },
   { vendor: "loox", scripts: ["loox"], dom: ["#looxReviews", ".loox-review", ".grid-item-wrap"] },
   { vendor: "junip", scripts: ["junip"], dom: ["[data-junip]", ".junip-product-review"] },
   { vendor: "reviewsio", scripts: ["reviews.io", "ratingsandreviews"], dom: [".reviewsio", "#reviewsio-product-widget"] },
@@ -52,9 +52,9 @@ const REVIEW_ITEMS = {
   judgeme: ".jdgm-rev",
   yotpo: ".yotpo-review",
   stamped: ".stamped-review",
-  // Okendo ships a family of card layouts (.oke-reviewCard, .oke-reviewCardFeaturedMedia, ...);
+  // Okendo ships a family of card layouts (.oke-reviewCard, .oke-reviewCardFeaturedMedia, .oke-w-review ...);
   // inner structural nodes match too but collapse via text dedupe.
-  okendo: '.oke-reviewItem, [class*="oke-reviewCard"]',
+  okendo: '.oke-reviewItem, [class*="oke-reviewCard"], .oke-w-review',
   loox: ".loox-review, .grid-item-wrap",
   junip: ".junip-product-review",
   reviewsio: ".reviewsio-product-review",

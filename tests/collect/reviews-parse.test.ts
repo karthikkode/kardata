@@ -95,7 +95,7 @@ describe("parseWidgetReviews", () => {
 
   it("parses Okendo Reviews Widget Plus cards", () => {
     const reviews = parseWidgetReviews(fixture("okendo-plus.html"), "okendo");
-    expect(reviews).toHaveLength(3);
+    expect(reviews).toHaveLength(4);
     expect(reviews[0]).toMatchObject({
       title: "Visible firmness",
       rating: 5,
@@ -115,6 +115,14 @@ describe("parseWidgetReviews", () => {
       verified_buyer: true,
     });
     expect(reviews[2]?.text).toContain("synthetic exfoliating beads");
+    // Side layout shares the same inner fields.
+    expect(reviews[3]).toMatchObject({
+      title: "Morning staple",
+      rating: 5,
+      date: "Yesterday",
+      verified_buyer: true,
+    });
+    expect(reviews[3]?.text).toContain("layers quietly");
   });
 
   it("parses Loox grid cards from iframe HTML", () => {
