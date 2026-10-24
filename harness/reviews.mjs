@@ -23,7 +23,7 @@ const VENDOR_SIGNALS = [
   { vendor: "judgeme", scripts: ["judge.me", "judgeme", "jdgm"], dom: ["#judgeme_product_reviews", ".jdgm-widget", ".jdgm-rev"] },
   { vendor: "yotpo", scripts: ["yotpo"], dom: ["#yotpo-reviews", ".yotpo-reviews", ".yotpo-review"] },
   { vendor: "stamped", scripts: ["stamped.io"], dom: ["#stamped-main-widget", ".stamped-review"] },
-  { vendor: "okendo", scripts: ["okendo"], dom: ["[data-oke-widget]", "[data-oke-container]", ".okeReviews", ".oke-reviewCard", ".oke-w-review"] },
+  { vendor: "okendo", scripts: ["okendo"], dom: ["[data-oke-widget]", "[data-oke-container]", ".okeReviews", ".oke-reviewCard", ".oke-w-review", ".okeReviews-review"] },
   { vendor: "loox", scripts: ["loox"], dom: ["#looxReviews", ".loox-review", ".grid-item-wrap"] },
   { vendor: "junip", scripts: ["junip"], dom: ["[data-junip]", ".junip-product-review"] },
   { vendor: "reviewsio", scripts: ["reviews.io", "ratingsandreviews"], dom: [".reviewsio", "#reviewsio-product-widget"] },
@@ -52,9 +52,9 @@ const REVIEW_ITEMS = {
   judgeme: ".jdgm-rev",
   yotpo: ".yotpo-review",
   stamped: ".stamped-review",
-  // Okendo ships a family of card layouts (.oke-reviewCard, .oke-reviewCardFeaturedMedia, .oke-w-review ...);
-  // inner structural nodes match too but collapse via text dedupe.
-  okendo: '.oke-reviewItem, [class*="oke-reviewCard"], .oke-w-review',
+  // Okendo ships a family of card layouts (.oke-reviewCard, .oke-reviewCardFeaturedMedia, .oke-w-review,
+  // legacy .okeReviews-review ...); inner structural nodes match too but collapse via text dedupe.
+  okendo: '.oke-reviewItem, [class*="oke-reviewCard"], .oke-w-review, .okeReviews-review',
   loox: ".loox-review, .grid-item-wrap",
   junip: ".junip-product-review",
   reviewsio: ".reviewsio-product-review",
@@ -69,6 +69,14 @@ const TOTAL_SELECTORS = {
   loox: [".loox-rating-label", ".loox-header"],
   junip: ["[data-junip-count]", ".junip-count"],
   reviewsio: [".reviewsio-count", ".reviewsio-header"],
+};
+
+/**
+ * Date fallbacks read from attributes (selector + attribute name) when no
+ * date text exists. Legacy Okendo keeps ISO dates only in data attributes.
+ */
+const DATE_ATTRS = {
+  okendo: [{ sel: "[data-oke-reviews-date]", attr: "data-oke-reviews-date" }],
 };
 
 function clean(text) {
@@ -106,7 +114,7 @@ export function detectVendor(html) {
   return { vendor: null, signals: [], dom: false };
 }
 
-function ratingFromStars($item, vendor) {
+function ratingFromStars($, $item, vendor) {
   if (vendor === "judgeme") {
     const score = $item.find(".jdgm-rev__rating").first().attr("data-score");
     if (score !== undefined && Number.isFinite(Number(score))) return Number(score);
@@ -131,10 +139,13 @@ function ratingFromStars($item, vendor) {
     const attr =
       $item.attr("data-oke-star-rating") ?? $item.find("[data-oke-star-rating]").first().attr("data-oke-star-rating");
     if (attr !== undefined && Number.isFinite(Number(attr))) return Number(attr);
-    // Reviews Widget Plus exposes "Rated X out of 5 stars" accessibly per card.
-    const a11y = clean($item.find(".oke-a11yText").first().text());
-    const rated = /rated (\d+) out of (\d+)/i.exec(a11y);
-    if (rated) return Number(rated[1]);
+    // Widget Plus and legacy widgets expose "Rated X out of 5 stars" accessibly per card;
+    // scan every label since reviewer nodes ("Reviewed by …") come first.
+    const labels = $item.find(".oke-a11yText, .okeReviews-a11yText");
+    for (let i = 0; i < labels.length; i++) {
+      const rated = /rated (\d+) out of (\d+)/i.exec(clean($(labels[i]).text()));
+      if (rated) return Number(rated[1]);
+    }
     return countFilled($item, ".oke-stars .oke-star--full", null);
   }
   if (vendor === "loox") {
@@ -178,8 +189,8 @@ const FIELD_SELECTORS = {
     verified: [".verified"],
   },
   okendo: {
-    text: [".oke-reviewItem-content", ".oke-reviewContent-body", "[itemprop='reviewBody']"],
-    title: [".oke-reviewItem-title", ".oke-reviewContent-title"],
+    text: [".oke-reviewItem-content", ".oke-reviewContent-body", "[itemprop='reviewBody']", ".okeReviews-review-main-content"],
+    title: [".oke-reviewItem-title", ".oke-reviewContent-title", ".okeReviews-review-main-heading"],
     date: ["[itemprop='datePublished']", ".oke-reviewItem-date", ".oke-reviewContent-date"],
     verified: [".oke-verifiedTick", "[data-oke-verified]", ".oke-w-reviewer-verified"],
   },
@@ -217,9 +228,18 @@ export function parseWidgetReviews(html, vendor) {
     const review = { text, rating_scale: 5 };
     const title = firstText($item, fields.title);
     if (title !== "") review.title = title;
-    const rating = ratingFromStars($item, vendor);
+    const rating = ratingFromStars($, $item, vendor);
     if (rating !== null && rating >= 0 && rating <= 5) review.rating = rating;
-    const date = firstText($item, fields.date);
+    let date = firstText($item, fields.date);
+    if (date === "") {
+      for (const { sel, attr } of DATE_ATTRS[vendor] ?? []) {
+        const value = clean($item.find(sel).first().attr(attr) ?? "");
+        if (value !== "") {
+          date = value;
+          break;
+        }
+      }
+    }
     if (date !== "") review.date = date;
     const verified =
       fields.verified.some((sel) => $item.find(sel).length > 0) || /verified/i.test(clean($item.text()).slice(0, 400));
