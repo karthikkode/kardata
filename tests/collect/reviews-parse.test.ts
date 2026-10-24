@@ -44,6 +44,15 @@ describe("detectVendor", () => {
     expect(found.vendor).toBe("yotpo");
     expect(found.dom).toBe(false);
   });
+
+  it("ignores theme grids that reuse the Loox grid class", () => {
+    // Après-style testimonial section: .grid-item-wrap with no Loox root.
+    const found = detectVendor(
+      `<html><head></head><body><div class="ugc-reviews"><div class="grid-item-wrap"><p>Love it!</p></div></div></body></html>`,
+    );
+    expect(found.vendor).toBeNull();
+    expect(found.dom).toBe(false);
+  });
 });
 
 describe("parseWidgetReviews", () => {

@@ -24,7 +24,8 @@ const VENDOR_SIGNALS = [
   { vendor: "yotpo", scripts: ["yotpo"], dom: ["#yotpo-reviews", ".yotpo-reviews", ".yotpo-review", ".yotpo-review-card"] },
   { vendor: "stamped", scripts: ["stamped.io"], dom: ["#stamped-main-widget", ".stamped-review"] },
   { vendor: "okendo", scripts: ["okendo"], dom: ["[data-oke-widget]", "[data-oke-container]", ".okeReviews", ".oke-reviewCard", '[class*="oke-w-review"]', ".okeReviews-review"] },
-  { vendor: "loox", scripts: ["loox"], dom: ["#looxReviews", ".loox-review", ".grid-item-wrap"] },
+  // .grid-item-wrap is scoped: bare it matches any theme grid (Après testimonials) and fakes a widget hit.
+  { vendor: "loox", scripts: ["loox"], dom: ["#looxReviews", ".loox-review", "#looxReviews .grid-item-wrap"] },
   { vendor: "junip", scripts: ["junip"], dom: ["[data-junip]", ".junip-product-review"] },
   { vendor: "reviewsio", scripts: ["reviews.io", "ratingsandreviews"], dom: [".reviewsio", "#reviewsio-product-widget"] },
 ];
