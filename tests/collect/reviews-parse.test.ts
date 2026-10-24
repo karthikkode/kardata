@@ -95,7 +95,7 @@ describe("parseWidgetReviews", () => {
 
   it("parses Okendo Reviews Widget Plus cards", () => {
     const reviews = parseWidgetReviews(fixture("okendo-plus.html"), "okendo");
-    expect(reviews).toHaveLength(2);
+    expect(reviews).toHaveLength(3);
     expect(reviews[0]).toMatchObject({
       title: "Visible firmness",
       rating: 5,
@@ -107,6 +107,14 @@ describe("parseWidgetReviews", () => {
     expect(reviews[1]).toMatchObject({ rating: 3, date: "2 months ago" });
     expect(reviews[1]).not.toHaveProperty("title");
     expect(reviews[1]).not.toHaveProperty("verified_buyer");
+    // Featured-media layout: same fields, nested structural nodes deduped.
+    expect(reviews[2]).toMatchObject({
+      title: "Staple scrub",
+      rating: 4,
+      date: "1 week ago",
+      verified_buyer: true,
+    });
+    expect(reviews[2]?.text).toContain("synthetic exfoliating beads");
   });
 
   it("parses Loox grid cards from iframe HTML", () => {
