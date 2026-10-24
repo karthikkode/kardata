@@ -11,6 +11,8 @@ import {
   parseJsonLdAggregateCount,
   parseJsonLdReviews,
   parseWidgetReviews,
+  shouldSkipFrame,
+  withTimeout,
 } from "../../harness/reviews.mjs";
 
 function fixture(name: string): string {
@@ -185,6 +187,26 @@ describe("parseWidgetReviews", () => {
     for (const name of ["Synthetic Reviewer One", "S. R. Two", "Fake Person A", "F. B.", "Made Up User", "U. Ser"]) {
       expect(dumped).not.toContain(name);
     }
+  });
+});
+
+describe("shouldSkipFrame", () => {
+  it("skips tracker/ad/pixel frames but keeps review frames", () => {
+    expect(shouldSkipFrame("https://shop.com/web-pixels@abc/app/pixel")).toBe(true);
+    expect(shouldSkipFrame("https://10473457.fls.doubleclick.net/activityi;src=10473")).toBe(true);
+    expect(shouldSkipFrame("https://s.amazon-adsystem.com/iu3?d=generic")).toBe(true);
+    expect(shouldSkipFrame("https://shop.com/services/login_with_shop/buyer/callback")).toBe(true);
+    expect(shouldSkipFrame("https://shop.com/products/cream")).toBe(false);
+    expect(shouldSkipFrame("https://cdn.loox.io/widget/123")).toBe(false);
+    expect(shouldSkipFrame("https://staticw2.yotpo.com/widget")).toBe(false);
+    expect(shouldSkipFrame("about:blank")).toBe(false);
+  });
+});
+
+describe("withTimeout", () => {
+  it("resolves fast promises and rejects hung ones", async () => {
+    await expect(withTimeout(Promise.resolve("ok"), 100)).resolves.toBe("ok");
+    await expect(withTimeout(new Promise(() => {}), 10)).rejects.toThrow("timed out");
   });
 });
 
