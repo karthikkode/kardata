@@ -21,7 +21,7 @@ export const SUPPORTED_VENDORS = ["judgeme", "yotpo", "stamped", "okendo", "loox
 // Script-src and DOM markers per vendor, in detection priority order.
 const VENDOR_SIGNALS = [
   { vendor: "judgeme", scripts: ["judge.me", "judgeme", "jdgm"], dom: ["#judgeme_product_reviews", ".jdgm-widget", ".jdgm-rev"] },
-  { vendor: "yotpo", scripts: ["yotpo"], dom: ["#yotpo-reviews", ".yotpo-reviews", ".yotpo-review"] },
+  { vendor: "yotpo", scripts: ["yotpo"], dom: ["#yotpo-reviews", ".yotpo-reviews", ".yotpo-review", ".yotpo-review-card"] },
   { vendor: "stamped", scripts: ["stamped.io"], dom: ["#stamped-main-widget", ".stamped-review"] },
   { vendor: "okendo", scripts: ["okendo"], dom: ["[data-oke-widget]", "[data-oke-container]", ".okeReviews", ".oke-reviewCard", '[class*="oke-w-review"]', ".okeReviews-review"] },
   { vendor: "loox", scripts: ["loox"], dom: ["#looxReviews", ".loox-review", ".grid-item-wrap"] },
@@ -50,7 +50,9 @@ const CURRENT_PAGE_CLASSES = ["jdgm-curt", "jdgm-current", "selected", "active",
 
 const REVIEW_ITEMS = {
   judgeme: ".jdgm-rev",
-  yotpo: ".yotpo-review",
+  // Yotpo's current widget renders cards as .yotpo-review-card (Epicuren);
+  // the legacy .yotpo-review layout still ships on older themes.
+  yotpo: ".yotpo-review, .yotpo-review-card",
   stamped: ".stamped-review",
   // Okendo ships a family of card layouts (.oke-reviewCard, .oke-reviewCardFeaturedMedia, .oke-w-review*,
   // legacy .okeReviews-review ...); inner structural nodes match too but collapse via text dedupe.
@@ -240,6 +242,9 @@ export function parseWidgetReviews(html, vendor) {
         }
       }
     }
+    // New-widget Yotpo cards prefix the date node ("Published date 01/02/26")
+    // when no nested .yotpo-date-format child exists; strip the label.
+    if (vendor === "yotpo") date = date.replace(/^published date\s*/i, "");
     if (date !== "") review.date = date;
     const verified =
       fields.verified.some((sel) => $item.find(sel).length > 0) || /verified/i.test(clean($item.text()).slice(0, 400));

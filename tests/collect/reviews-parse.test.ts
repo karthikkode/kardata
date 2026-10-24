@@ -93,6 +93,20 @@ describe("parseWidgetReviews", () => {
     });
   });
 
+  it("parses Yotpo review-card layout with clean dates", () => {
+    const reviews = parseWidgetReviews(fixture("yotpo-card.html"), "yotpo");
+    expect(reviews).toHaveLength(2);
+    expect(reviews[0]).toMatchObject({
+      title: "Gentle and effective",
+      date: "01/02/26",
+      verified_buyer: true,
+    });
+    expect(reviews[0]?.text).toContain("holy grail");
+    // No nested date child: the "Published date" label is stripped.
+    expect(reviews[1]).toMatchObject({ date: "02/14/26" });
+    expect(reviews[1]).not.toHaveProperty("verified_buyer");
+  });
+
   it("parses Okendo Reviews Widget Plus cards", () => {
     const reviews = parseWidgetReviews(fixture("okendo-plus.html"), "okendo");
     expect(reviews).toHaveLength(5);
