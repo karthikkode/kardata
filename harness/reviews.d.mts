@@ -25,6 +25,8 @@ export function collectPageReviews(html: string): {
   reviews: ParsedReview[];
   displayedTotal: number | null;
 };
+export function shouldSkipFrame(url: string): boolean;
+export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T>;
 export function collectFramesReviews(htmlList: string[]): {
   vendor: string | null;
   signals: string[];

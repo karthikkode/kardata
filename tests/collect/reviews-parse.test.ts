@@ -11,6 +11,8 @@ import {
   parseJsonLdAggregateCount,
   parseJsonLdReviews,
   parseWidgetReviews,
+  shouldSkipFrame,
+  withTimeout,
 } from "../../harness/reviews.mjs";
 
 function fixture(name: string): string {
@@ -40,6 +42,15 @@ describe("detectVendor", () => {
       `<html><head><script src="https://cdn-widgetsrepository.yotpo.com/loyalty.js"></script></head><body><p>no reviews here</p></body></html>`,
     );
     expect(found.vendor).toBe("yotpo");
+    expect(found.dom).toBe(false);
+  });
+
+  it("ignores theme grids that reuse the Loox grid class", () => {
+    // Après-style testimonial section: .grid-item-wrap with no Loox root.
+    const found = detectVendor(
+      `<html><head></head><body><div class="ugc-reviews"><div class="grid-item-wrap"><p>Love it!</p></div></div></body></html>`,
+    );
+    expect(found.vendor).toBeNull();
     expect(found.dom).toBe(false);
   });
 });
@@ -91,6 +102,20 @@ describe("parseWidgetReviews", () => {
       date: "12/01/25",
       verified_buyer: true,
     });
+  });
+
+  it("parses Yotpo review-card layout with clean dates", () => {
+    const reviews = parseWidgetReviews(fixture("yotpo-card.html"), "yotpo");
+    expect(reviews).toHaveLength(2);
+    expect(reviews[0]).toMatchObject({
+      title: "Gentle and effective",
+      date: "01/02/26",
+      verified_buyer: true,
+    });
+    expect(reviews[0]?.text).toContain("holy grail");
+    // No nested date child: the "Published date" label is stripped.
+    expect(reviews[1]).toMatchObject({ date: "02/14/26" });
+    expect(reviews[1]).not.toHaveProperty("verified_buyer");
   });
 
   it("parses Okendo Reviews Widget Plus cards", () => {
@@ -171,6 +196,26 @@ describe("parseWidgetReviews", () => {
     for (const name of ["Synthetic Reviewer One", "S. R. Two", "Fake Person A", "F. B.", "Made Up User", "U. Ser"]) {
       expect(dumped).not.toContain(name);
     }
+  });
+});
+
+describe("shouldSkipFrame", () => {
+  it("skips tracker/ad/pixel frames but keeps review frames", () => {
+    expect(shouldSkipFrame("https://shop.com/web-pixels@abc/app/pixel")).toBe(true);
+    expect(shouldSkipFrame("https://10473457.fls.doubleclick.net/activityi;src=10473")).toBe(true);
+    expect(shouldSkipFrame("https://s.amazon-adsystem.com/iu3?d=generic")).toBe(true);
+    expect(shouldSkipFrame("https://shop.com/services/login_with_shop/buyer/callback")).toBe(true);
+    expect(shouldSkipFrame("https://shop.com/products/cream")).toBe(false);
+    expect(shouldSkipFrame("https://cdn.loox.io/widget/123")).toBe(false);
+    expect(shouldSkipFrame("https://staticw2.yotpo.com/widget")).toBe(false);
+    expect(shouldSkipFrame("about:blank")).toBe(false);
+  });
+});
+
+describe("withTimeout", () => {
+  it("resolves fast promises and rejects hung ones", async () => {
+    await expect(withTimeout(Promise.resolve("ok"), 100)).resolves.toBe("ok");
+    await expect(withTimeout(new Promise(() => {}), 10)).rejects.toThrow("timed out");
   });
 });
 

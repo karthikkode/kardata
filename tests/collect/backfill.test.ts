@@ -50,7 +50,10 @@ async function seedFailedJob(companyId: string): Promise<void> {
   await handle.db.insert(companyJobs).values({ id: randomUUID(), companyId, status: "failed" });
 }
 
-async function seedData(companyId: string, opts: { app?: string; products?: boolean; onsite?: boolean }): Promise<void> {
+async function seedData(
+  companyId: string,
+  opts: { app?: string; products?: boolean; productsNoUrl?: boolean; onsite?: boolean },
+): Promise<void> {
   const runId = await seedRun(handle.db, companyId);
   const sourceId = await seedSource(companyId, runId);
   if (opts.app) {
@@ -67,6 +70,14 @@ async function seedData(companyId: string, opts: { app?: string; products?: bool
       runId,
       createdBy: "collector:shopify",
       records: [{ type: "product", data: { name: "glow", url: "https://example.test/p/glow" }, sourceIds: [sourceId] }],
+    });
+  }
+  if (opts.productsNoUrl) {
+    await upsertRecords(handle.db, {
+      companyId,
+      runId,
+      createdBy: "extractor",
+      records: [{ type: "product", data: { name: "glow" }, sourceIds: [sourceId] }],
     });
   }
   if (opts.onsite) {
@@ -113,6 +124,9 @@ describe("reviews_onsite backfill enqueue", () => {
     const h = await seedCompany(handle.db, { name: "Alias Co" });
     await seedCompletedJob(h);
     await seedData(h, { app: "stamped.io", products: true });
+    const i = await seedCompany(handle.db, { name: "UrlLess Co" });
+    await seedCompletedJob(i);
+    await seedData(i, { app: "Loox", productsNoUrl: true });
 
     const result = await enqueueReviewsOnsiteBackfill(handle.db, {});
     expect(result.batchId).not.toBeNull();

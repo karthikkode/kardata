@@ -21,10 +21,11 @@ export const SUPPORTED_VENDORS = ["judgeme", "yotpo", "stamped", "okendo", "loox
 // Script-src and DOM markers per vendor, in detection priority order.
 const VENDOR_SIGNALS = [
   { vendor: "judgeme", scripts: ["judge.me", "judgeme", "jdgm"], dom: ["#judgeme_product_reviews", ".jdgm-widget", ".jdgm-rev"] },
-  { vendor: "yotpo", scripts: ["yotpo"], dom: ["#yotpo-reviews", ".yotpo-reviews", ".yotpo-review"] },
+  { vendor: "yotpo", scripts: ["yotpo"], dom: ["#yotpo-reviews", ".yotpo-reviews", ".yotpo-review", ".yotpo-review-card"] },
   { vendor: "stamped", scripts: ["stamped.io"], dom: ["#stamped-main-widget", ".stamped-review"] },
   { vendor: "okendo", scripts: ["okendo"], dom: ["[data-oke-widget]", "[data-oke-container]", ".okeReviews", ".oke-reviewCard", '[class*="oke-w-review"]', ".okeReviews-review"] },
-  { vendor: "loox", scripts: ["loox"], dom: ["#looxReviews", ".loox-review", ".grid-item-wrap"] },
+  // .grid-item-wrap is scoped: bare it matches any theme grid (Après testimonials) and fakes a widget hit.
+  { vendor: "loox", scripts: ["loox"], dom: ["#looxReviews", ".loox-review", "#looxReviews .grid-item-wrap"] },
   { vendor: "junip", scripts: ["junip"], dom: ["[data-junip]", ".junip-product-review"] },
   { vendor: "reviewsio", scripts: ["reviews.io", "ratingsandreviews"], dom: [".reviewsio", "#reviewsio-product-widget"] },
 ];
@@ -48,9 +49,58 @@ const PAGE_NUMBER_SELECTORS = {
 };
 const CURRENT_PAGE_CLASSES = ["jdgm-curt", "jdgm-current", "selected", "active", "current"];
 
+// Pagination/time budgets (live-tuned): Yotpo swallows the first clicks, so
+// stillness after a click never ends pagination before STILL_ROUNDS_MAX; the
+// page and job budgets guarantee clean partial JSON instead of a SIGKILL.
+const MAX_ROUNDS = 30;
+const STILL_ROUNDS_MAX = 5;
+const SETTLE_MS_AFTER_CLICK = 1500;
+const PAGE_BUDGET_MS = 240_000;
+const JOB_BUDGET_MS = 480_000;
+
+// Tracker/ad/pixel iframes never contain review widgets; touching them each
+// round costs seconds on ad-heavy pages (Epicuren: 10+ ad frames). A denylist
+// on purpose: unknown frames are still entered, so no vendor can break.
+const SKIP_FRAME_PATTERNS = [
+  /web-pixels/i,
+  /doubleclick/i,
+  /amazon-adsystem/i,
+  /googletagmanager/i,
+  /google-analytics/i,
+  /facebook\.com\/tr/i,
+  /hotjar/i,
+  /login_with_shop/i,
+];
+
+/** True when an iframe URL is a tracker/ad/pixel frame to skip during scroll/click. Parsing still reads every frame. */
+export function shouldSkipFrame(url) {
+  const u = String(url ?? "");
+  return SKIP_FRAME_PATTERNS.some((re) => re.test(u));
+}
+
+/** Race a promise against ms; rejects with Error("timed out") so callers can skip a sick frame and continue. */
+export function withTimeout(promise, ms) {
+  let timer = null;
+  return new Promise((resolve, reject) => {
+    timer = setTimeout(() => reject(new Error("timed out")), ms);
+    Promise.resolve(promise).then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
 const REVIEW_ITEMS = {
   judgeme: ".jdgm-rev",
-  yotpo: ".yotpo-review",
+  // Yotpo's current widget renders cards as .yotpo-review-card (Epicuren);
+  // the legacy .yotpo-review layout still ships on older themes.
+  yotpo: ".yotpo-review, .yotpo-review-card",
   stamped: ".stamped-review",
   // Okendo ships a family of card layouts (.oke-reviewCard, .oke-reviewCardFeaturedMedia, .oke-w-review*,
   // legacy .okeReviews-review ...); inner structural nodes match too but collapse via text dedupe.
@@ -240,6 +290,9 @@ export function parseWidgetReviews(html, vendor) {
         }
       }
     }
+    // New-widget Yotpo cards prefix the date node ("Published date 01/02/26")
+    // when no nested .yotpo-date-format child exists; strip the label.
+    if (vendor === "yotpo") date = date.replace(/^published date\s*/i, "");
     if (date !== "") review.date = date;
     const verified =
       fields.verified.some((sel) => $item.find(sel).length > 0) || /verified/i.test(clean($item.text()).slice(0, 400));
@@ -512,11 +565,13 @@ const SCROLL_SNIPPET = `(async () => {
 })()`;
 
 async function scrollToBottom(tab) {
-  await tab.evaluate(SCROLL_SNIPPET);
-  // Review lists in iframes (Loox) lazy-load on their own scroll.
+  await withTimeout(tab.evaluate(SCROLL_SNIPPET), 20000).catch(() => undefined);
+  // Review lists in iframes (Loox) lazy-load on their own scroll; tracker
+  // frames are skipped (never contain widgets) and sick frames time out.
   for (const frame of tab.frames()) {
     if (frame === tab.mainFrame()) continue;
-    await frame.evaluate(SCROLL_SNIPPET).catch(() => undefined);
+    if (shouldSkipFrame(frame.url())) continue;
+    await withTimeout(frame.evaluate(SCROLL_SNIPPET), 20000).catch(() => undefined);
   }
 }
 
@@ -585,9 +640,11 @@ async function clickMoreInScope(scope, vendor) {
 
 async function clickMore(tab, vendor) {
   if (await clickMoreInScope(tab, vendor)) return true;
-  // Pagination inside review iframes (Loox "Show more reviews").
+  // Pagination inside review iframes (Loox "Show more reviews"); tracker
+  // frames never hold one.
   for (const frame of tab.frames()) {
     if (frame === tab.mainFrame()) continue;
+    if (shouldSkipFrame(frame.url())) continue;
     try {
       if (await clickMoreInScope(frame, vendor)) return true;
     } catch {
@@ -597,14 +654,14 @@ async function clickMore(tab, vendor) {
   return false;
 }
 
-/** Serialized HTML of the main frame plus every iframe (detached frames skipped). */
+/** Serialized HTML of the main frame plus every iframe (detached/sick frames skipped). */
 async function frameHtmlList(tab) {
   const out = [];
   for (const frame of tab.frames()) {
     try {
-      out.push(await frame.content());
+      out.push(await withTimeout(frame.content(), 15000));
     } catch {
-      // Detached mid-scrape; the remaining frames still parse.
+      // Detached or hung mid-scrape; the remaining frames still parse.
     }
   }
   return out;
@@ -626,7 +683,13 @@ async function scrapePage(browser, page, vendorHint) {
     let reviews = [];
     let displayedTotal = null;
     let stillRounds = 0;
-    for (let round = 0; round < 14; round++) {
+    let budgetHit = false;
+    const pageStarted = Date.now();
+    for (let round = 0; round < MAX_ROUNDS; round++) {
+      if (Date.now() - pageStarted > PAGE_BUDGET_MS) {
+        budgetHit = true;
+        break;
+      }
       await scrollToBottom(tab);
       await tab.waitForTimeout(700);
       const parsed = collectFramesReviews(await frameHtmlList(tab));
@@ -640,7 +703,6 @@ async function scrapePage(browser, page, vendorHint) {
       reviews = grown;
       if (parsed.displayedTotal !== null) displayedTotal = parsed.displayedTotal;
       if (reviews.length === 0 && !vendor) break;
-      if (stillRounds >= 2) break;
       if (!(await clickMore(tab, vendor ?? ""))) {
         // One more scroll pass in case reviews lazy-load without a button.
         await scrollToBottom(tab);
@@ -651,9 +713,12 @@ async function scrapePage(browser, page, vendorHint) {
         if (last.domHit) widgetSeen = true;
         break;
       }
-      await tab.waitForTimeout(900);
+      // A click may still be loading (slow widgets swallow early clicks), so
+      // only the missing control — or sustained stillness — ends pagination.
+      if (stillRounds >= STILL_ROUNDS_MAX) break;
+      await tab.waitForTimeout(SETTLE_MS_AFTER_CLICK);
     }
-    return { vendor, reviews, displayedTotal, widgetSeen };
+    return { vendor, reviews, displayedTotal, widgetSeen, budgetHit };
   } finally {
     await client.close().catch(() => undefined);
   }
@@ -681,9 +746,13 @@ async function main() {
     args: ["--no-sandbox", "--disable-dev-shm-usage"],
   });
   const out = { pages: [], reviews: [] };
+  const jobStarted = Date.now();
   try {
     for (const page of pages.slice(0, 10)) {
       if (out.reviews.length >= maxReviews) break;
+      // Stop starting new pages while there is still headroom before the
+      // container timeout: clean partial JSON beats a SIGKILL with nothing.
+      if (Date.now() - jobStarted > JOB_BUDGET_MS) break;
       const url = String(page?.url ?? "");
       const product = String(page?.product ?? "");
       if (!/^https?:\/\//.test(url)) {
@@ -691,14 +760,17 @@ async function main() {
         continue;
       }
       try {
-        const { vendor, reviews, displayedTotal, widgetSeen } = await scrapePage(browser, { url, product }, null);
+        const { vendor, reviews, displayedTotal, widgetSeen, budgetHit } = await scrapePage(browser, { url, product }, null);
         const room = maxReviews - out.reviews.length;
         const kept = reviews.slice(0, room).map((r) => ({ ...r, product, url }));
         out.reviews.push(...kept);
+        const partial = budgetHit ? " (page time budget hit; partial)" : "";
         if (kept.length === 0 && !widgetSeen) {
-          out.pages.push({ url, product, vendor: null, status: "not_found", reason: "no supported widget or JSON-LD reviews", reviewCount: 0, displayedTotal: displayedTotal ?? null });
+          out.pages.push({ url, product, vendor: null, status: "not_found", reason: `no supported widget or JSON-LD reviews${partial}`, reviewCount: 0, displayedTotal: displayedTotal ?? null });
         } else if (kept.length === 0) {
-          out.pages.push({ url, product, vendor, status: "not_found", reason: "widget found but no reviews parsed", reviewCount: 0, displayedTotal: displayedTotal ?? null });
+          out.pages.push({ url, product, vendor, status: "not_found", reason: `widget found but no reviews parsed${partial}`, reviewCount: 0, displayedTotal: displayedTotal ?? null });
+        } else if (budgetHit) {
+          out.pages.push({ url, product, vendor, status: "done", reason: "page time budget hit; partial results", reviewCount: kept.length, displayedTotal: displayedTotal ?? null });
         } else {
           out.pages.push({ url, product, vendor, status: "done", reviewCount: kept.length, displayedTotal: displayedTotal ?? null });
         }

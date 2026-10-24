@@ -106,7 +106,7 @@ async function seedShopifyCtx(app: string | null, products: { handle: string; ta
   return { ctx, runId };
 }
 
-function cannedRunner(texts: string[]): ReviewsJobRunner & { seen: string[][] } {
+function cannedRunner(texts: string[], opts: { dateless?: boolean } = {}): ReviewsJobRunner & { seen: string[][] } {
   const seen: string[][] = [];
   const run: ReviewsJobRunner = async (input) => {
     seen.push(input.pages.map((p) => p.url));
@@ -119,7 +119,13 @@ function cannedRunner(texts: string[]): ReviewsJobRunner & { seen: string[][] } 
         status: "done",
         reviewCount: i === 0 ? texts.length : 0,
       })),
-      reviews: texts.map((text) => ({ text, rating: 5, rating_scale: 5, date: "2026-10-01", url: first })),
+      reviews: texts.map((text) => ({
+        text,
+        rating: 5,
+        rating_scale: 5,
+        ...(opts.dateless ? {} : { date: "2026-10-01" }),
+        url: first,
+      })),
     };
     return out;
   };
@@ -235,6 +241,15 @@ describe("reviews_onsite collector", () => {
     expect(result.outcomes).toEqual([
       { area: "reviews", status: "not_found", reason: "unsupported review app: Trustpilot" },
     ]);
+  });
+
+  it("reports parsed-but-unstorable reviews honestly", async () => {
+    const { ctx } = await seedShopifyCtx("Judge.me", [{ handle: "glow", tags: [] }]);
+    const result = await runReviewsOnsite(ctx, cannedRunner(["Dateless review one.", "Dateless review two."], { dateless: true }));
+    expect(result.outcomes).toHaveLength(1);
+    expect(result.outcomes[0]).toMatchObject({ area: "reviews", status: "not_found" });
+    expect(result.outcomes[0]?.reason).toMatch(/2 parsed, 0 stored/);
+    expect(result.outcomes[0]?.reason).toMatch(/date/);
   });
 
   it("accepts the stamped.io alias and comma-joined app values", async () => {
