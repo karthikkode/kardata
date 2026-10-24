@@ -237,6 +237,16 @@ describe("reviews_onsite collector", () => {
     ]);
   });
 
+  it("accepts the stamped.io alias and comma-joined app values", async () => {
+    const stamped = await seedShopifyCtx("stamped.io", [{ handle: "glow", tags: [] }]);
+    const first = await runReviewsOnsite(stamped.ctx, cannedRunner(["Synthetic review."]));
+    expect(first.outcomes[0]).toMatchObject({ status: "done" });
+
+    const joined = await seedShopifyCtx("Yotpo,Reviews.io", [{ handle: "glow", tags: [] }]);
+    const second = await runReviewsOnsite(joined.ctx, cannedRunner(["Synthetic review."]));
+    expect(second.outcomes[0]).toMatchObject({ status: "done" });
+  });
+
   it("uses the review app and products from another run", async () => {
     // Prior run wrote the app fact and catalog; this run has neither.
     const companyId = await seedCompany(handle.db, { domain: host() });
