@@ -52,7 +52,9 @@ const REVIEW_ITEMS = {
   judgeme: ".jdgm-rev",
   yotpo: ".yotpo-review",
   stamped: ".stamped-review",
-  okendo: ".oke-reviewItem, .oke-reviewCard",
+  // Okendo ships a family of card layouts (.oke-reviewCard, .oke-reviewCardFeaturedMedia, ...);
+  // inner structural nodes match too but collapse via text dedupe.
+  okendo: '.oke-reviewItem, [class*="oke-reviewCard"]',
   loox: ".loox-review, .grid-item-wrap",
   junip: ".junip-product-review",
   reviewsio: ".reviewsio-product-review",
@@ -224,7 +226,8 @@ export function parseWidgetReviews(html, vendor) {
     if (verified) review.verified_buyer = true;
     out.push(review);
   });
-  return out;
+  // Card families match nested structural nodes too; collapse by review text.
+  return dedupe(out);
 }
 
 /** schema.org Review blocks (JSON-LD), the fallback source. Authors are ignored. */
