@@ -179,6 +179,8 @@ export async function runReviewsOnsite(
     };
   }
   let ingested = 0;
+  let parsed = 0;
+  let firstStoreError: string | null = null;
   const vendors = new Set<string>();
   const pageTotals: { url: string; displayed: number | null; ingested: number }[] = [];
   for (const page of pages) {
@@ -189,6 +191,7 @@ export async function runReviewsOnsite(
       pageTotals.push({ url: page.url, displayed, ingested: 0 });
       continue;
     }
+    parsed += items.length;
     if (reported?.vendor) vendors.add(reported.vendor);
     const result = await reviewsIngest(ctx.db, {
       companyId: ctx.companyId,
@@ -199,6 +202,10 @@ export async function runReviewsOnsite(
       createdBy: "collector:reviews_onsite",
     });
     const pageIngested = result.results.filter((r) => r.ok).length;
+    if (firstStoreError === null) {
+      const failed = result.results.find((r) => !r.ok);
+      if (failed && !failed.ok) firstStoreError = failed.error;
+    }
     ingested += pageIngested;
     pageTotals.push({ url: page.url, displayed, ingested: pageIngested });
     await ctx.db
@@ -220,9 +227,18 @@ export async function runReviewsOnsite(
       })),
       ingested,
       displayed,
+      parsed,
     },
   });
   if (ingested === 0) {
+    if (parsed > 0) {
+      // Parsed but un-storable (e.g. dateless reviews fail the natural key):
+      // say so instead of claiming nothing was parsed.
+      const why = firstStoreError ?? "unknown ingest error";
+      return {
+        outcomes: [{ area: "reviews", status: "not_found", reason: `${parsed} parsed, 0 stored: ${why}`.slice(0, 300) }],
+      };
+    }
     const detected = output.pages.map((p) => p.vendor).find((v) => v !== null && v !== undefined);
     return {
       outcomes: [
