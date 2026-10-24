@@ -110,19 +110,23 @@ describe("reviews_onsite backfill enqueue", () => {
     const g = await seedCompany(handle.db, { name: "Joined Co" });
     await seedCompletedJob(g);
     await seedData(g, { app: "Yotpo,Reviews.io", products: true });
+    const h = await seedCompany(handle.db, { name: "Alias Co" });
+    await seedCompletedJob(h);
+    await seedData(h, { app: "stamped.io", products: true });
 
     const result = await enqueueReviewsOnsiteBackfill(handle.db, {});
     expect(result.batchId).not.toBeNull();
-    expect(result.scanned).toBe(4);
-    expect(result.queued.map((q) => q.companyId).sort()).toEqual([a, g].sort());
+    expect(result.scanned).toBe(5);
+    expect(result.queued.map((q) => q.companyId).sort()).toEqual([a, g, h].sort());
     expect(result.queued.find((q) => q.companyId === a)).toMatchObject({ app: "Loox" });
     expect(result.queued.find((q) => q.companyId === g)).toMatchObject({ app: "Yotpo" });
+    expect(result.queued.find((q) => q.companyId === h)).toMatchObject({ app: "stamped.io" });
     expect(result.alreadyRunning).toEqual([]);
     expect(result.nextCursor).toBeNull();
     expect(result.unsupportedApps).toContainEqual({ app: "reviews.io", companies: 2 });
 
     const rows = await handle.db.select().from(researchRuns).where(eq(researchRuns.batchId, result.batchId!));
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(3);
     for (const row of rows) {
       expect(row.status).toBe("queued");
       expect(row.kind).toBe("collect");

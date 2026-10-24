@@ -23,8 +23,8 @@ const VENDOR_SIGNALS = [
   { vendor: "judgeme", scripts: ["judge.me", "judgeme", "jdgm"], dom: ["#judgeme_product_reviews", ".jdgm-widget", ".jdgm-rev"] },
   { vendor: "yotpo", scripts: ["yotpo"], dom: ["#yotpo-reviews", ".yotpo-reviews", ".yotpo-review"] },
   { vendor: "stamped", scripts: ["stamped.io"], dom: ["#stamped-main-widget", ".stamped-review"] },
-  { vendor: "okendo", scripts: ["okendo"], dom: ["[data-oke-widget]", ".okeReviews"] },
-  { vendor: "loox", scripts: ["loox"], dom: ["#looxReviews", ".loox-review"] },
+  { vendor: "okendo", scripts: ["okendo"], dom: ["[data-oke-widget]", "[data-oke-container]", ".okeReviews", ".oke-reviewCard"] },
+  { vendor: "loox", scripts: ["loox"], dom: ["#looxReviews", ".loox-review", ".grid-item-wrap"] },
   { vendor: "junip", scripts: ["junip"], dom: ["[data-junip]", ".junip-product-review"] },
   { vendor: "reviewsio", scripts: ["reviews.io", "ratingsandreviews"], dom: [".reviewsio", "#reviewsio-product-widget"] },
 ];
@@ -35,7 +35,7 @@ export const MORE_SELECTORS = {
   yotpo: [".yotpo-reviews-pagination .yotpo-next", ".yotpo-pager .goTo", "input[value='Load More Reviews']", ".yotpo-default-button"],
   stamped: ["#stamped-button-more", ".stamped-pagination a"],
   okendo: [".oke-pagination-button--next", "[data-oke-pagination-next]"],
-  loox: [".loox-pagination-button", "#looxReviews .loox-more"],
+  loox: [".loox-pagination-button", "#looxReviews .loox-more", ".loox-rating", "#looxReviews"],
   junip: ["[data-junip-load-more]", ".junip-pagination-next"],
   reviewsio: [".reviewsio-load-more", ".reviewsio-pagination-next"],
 };
@@ -52,8 +52,8 @@ const REVIEW_ITEMS = {
   judgeme: ".jdgm-rev",
   yotpo: ".yotpo-review",
   stamped: ".stamped-review",
-  okendo: ".oke-reviewItem",
-  loox: ".loox-review",
+  okendo: ".oke-reviewItem, .oke-reviewCard",
+  loox: ".loox-review, .grid-item-wrap",
   junip: ".junip-product-review",
   reviewsio: ".reviewsio-product-review",
 };
@@ -87,7 +87,7 @@ function countFilled($item, filledSel, emptySel) {
   return nodes.length > 0 ? nodes.length : null;
 }
 
-/** Vendor key (or null) plus the signals that fired. */
+/** Vendor key (or null) plus the signals that fired. dom is true when a widget node (not just scripts) matched. */
 export function detectVendor(html) {
   const $ = load(html);
   const srcs = $("script[src]")
@@ -98,10 +98,10 @@ export function detectVendor(html) {
     const scriptHit = scripts.filter((s) => srcs.includes(s));
     const domHit = dom.filter((d) => $(d).length > 0);
     if (scriptHit.length > 0 || domHit.length > 0) {
-      return { vendor, signals: [...scriptHit, ...domHit] };
+      return { vendor, signals: [...scriptHit, ...domHit], dom: domHit.length > 0 };
     }
   }
-  return { vendor: null, signals: [] };
+  return { vendor: null, signals: [], dom: false };
 }
 
 function ratingFromStars($item, vendor) {
@@ -129,11 +129,19 @@ function ratingFromStars($item, vendor) {
     const attr =
       $item.attr("data-oke-star-rating") ?? $item.find("[data-oke-star-rating]").first().attr("data-oke-star-rating");
     if (attr !== undefined && Number.isFinite(Number(attr))) return Number(attr);
+    // Reviews Widget Plus exposes "Rated X out of 5 stars" accessibly per card.
+    const a11y = clean($item.find(".oke-a11yText").first().text());
+    const rated = /rated (\d+) out of (\d+)/i.exec(a11y);
+    if (rated) return Number(rated[1]);
     return countFilled($item, ".oke-stars .oke-star--full", null);
   }
   if (vendor === "loox") {
     const attr = $item.attr("data-loox-rating") ?? $item.find("[data-rating]").first().attr("data-rating");
     if (attr !== undefined && Number.isFinite(Number(attr))) return Number(attr);
+    // Current grid cards expose "Rating icons: 5 / 5 star review" accessibly.
+    const labelled = $item.find('[aria-label*="star review"]').first().attr("aria-label") ?? "";
+    const m = /(\d+)\s*\/\s*(\d+)\s*star/i.exec(labelled);
+    if (m) return Number(m[1]);
     return countFilled($item, ".loox-star:not(.loox-star--empty)", null);
   }
   if (vendor === "junip") {
@@ -168,16 +176,17 @@ const FIELD_SELECTORS = {
     verified: [".verified"],
   },
   okendo: {
-    text: [".oke-reviewItem-content", "[itemprop='reviewBody']"],
-    title: [".oke-reviewItem-title"],
-    date: ["[itemprop='datePublished']", ".oke-reviewItem-date"],
-    verified: [".oke-verifiedTick", "[data-oke-verified]"],
+    text: [".oke-reviewItem-content", ".oke-reviewContent-body", "[itemprop='reviewBody']"],
+    title: [".oke-reviewItem-title", ".oke-reviewContent-title"],
+    date: ["[itemprop='datePublished']", ".oke-reviewItem-date", ".oke-reviewContent-date"],
+    verified: [".oke-verifiedTick", "[data-oke-verified]", ".oke-w-reviewer-verified"],
   },
   loox: {
-    text: [".loox-review-text", "[data-loox-review-text]", ".loox-review-content"],
+    text: [".loox-review-text", "[data-loox-review-text]", ".loox-review-content", ".pre-wrap.main-text"],
+    // NOTE: .block.title holds the reviewer NAME on grid cards, never map it.
     title: [".loox-review-title"],
-    date: [".loox-review-date", "[data-loox-review-date]"],
-    verified: [".loox-verified-buyer", "[data-loox-verified]"],
+    date: [".loox-review-date", "[data-loox-review-date]", ".block.time"],
+    verified: [".loox-verified-buyer", "[data-loox-verified]", ".verified-badge-and-text"],
   },
   junip: {
     text: ["[data-junip-body]", ".junip-review-body"],
@@ -422,11 +431,30 @@ export function findNextPageNumber(html, selectors) {
 }
 
 export function collectPageReviews(html) {
-  const { vendor, signals } = detectVendor(html);
+  const { vendor, signals, dom } = detectVendor(html);
   let widget = vendor ? parseWidgetReviews(html, vendor) : [];
   if (vendor && widget.length === 0) widget = parseAccessibleReviewCards(html);
   const jsonLd = parseJsonLdReviews(html);
-  return { vendor, signals, reviews: dedupe([...widget, ...jsonLd]), displayedTotal: parseDisplayedTotal(html, vendor) };
+  return { vendor, signals, domHit: dom, reviews: dedupe([...widget, ...jsonLd]), displayedTotal: parseDisplayedTotal(html, vendor) };
+}
+
+/** Merge collectPageReviews over a main frame plus its iframes (Loox renders the list cross-origin). */
+export function collectFramesReviews(htmlList) {
+  let vendor = null;
+  const signals = [];
+  let reviews = [];
+  let displayedTotal = null;
+  let domHit = false;
+  for (const html of htmlList) {
+    if (!html) continue;
+    const parsed = collectPageReviews(html);
+    if (parsed.vendor && !vendor) vendor = parsed.vendor;
+    signals.push(...parsed.signals);
+    reviews = dedupe([...reviews, ...parsed.reviews]);
+    if (parsed.displayedTotal !== null && displayedTotal === null) displayedTotal = parsed.displayedTotal;
+    if (parsed.domHit) domHit = true;
+  }
+  return { vendor, signals, domHit, reviews, displayedTotal };
 }
 
 function resolvePlaywright() {
@@ -450,16 +478,23 @@ function resolvePlaywright() {
   throw new Error("playwright-core not found (image needs @playwright/mcp installed)");
 }
 
-async function scrollToBottom(page) {
-  await page.evaluate(`(async () => {
-    const distance = () => document.body.scrollHeight;
-    let last = 0;
-    for (let i = 0; i < 20 && distance() !== last; i++) {
-      last = distance();
-      window.scrollTo(0, last);
-      await new Promise((r) => setTimeout(r, 250));
-    }
-  })()`);
+const SCROLL_SNIPPET = `(async () => {
+  const distance = () => document.body.scrollHeight;
+  let last = 0;
+  for (let i = 0; i < 20 && distance() !== last; i++) {
+    last = distance();
+    window.scrollTo(0, last);
+    await new Promise((r) => setTimeout(r, 250));
+  }
+})()`;
+
+async function scrollToBottom(tab) {
+  await tab.evaluate(SCROLL_SNIPPET);
+  // Review lists in iframes (Loox) lazy-load on their own scroll.
+  for (const frame of tab.frames()) {
+    if (frame === tab.mainFrame()) continue;
+    await frame.evaluate(SCROLL_SNIPPET).catch(() => undefined);
+  }
 }
 
 /** Click the numbered page after the current one; "clicked" | "none". */
@@ -499,11 +534,11 @@ async function clickNextPageNumber(tab, vendor) {
     .catch(() => "none");
 }
 
-async function clickMore(page, vendor) {
-  const paged = await clickNextPageNumber(page, vendor);
+async function clickMoreInScope(scope, vendor) {
+  const paged = await clickNextPageNumber(scope, vendor);
   if (paged === "clicked") return true;
   for (const sel of MORE_SELECTORS[vendor] ?? []) {
-    const handle = await page.$(sel).catch(() => null);
+    const handle = await scope.$(sel).catch(() => null);
     if (!handle) continue;
     const visible = await handle.isVisible().catch(() => false);
     if (!visible) continue;
@@ -515,7 +550,7 @@ async function clickMore(page, vendor) {
   }
   // Generic fallback: a visible "load more" style control (custom themes).
   for (const role of ["button", "link"]) {
-    const control = page.getByRole(role, { name: /load more|show more|more reviews/i }).first();
+    const control = scope.getByRole(role, { name: /load more|show more|more reviews/i }).first();
     const visible = await control.isVisible().catch(() => false);
     if (!visible) continue;
     await control.scrollIntoViewIfNeeded().catch(() => undefined);
@@ -523,6 +558,33 @@ async function clickMore(page, vendor) {
     return true;
   }
   return false;
+}
+
+async function clickMore(tab, vendor) {
+  if (await clickMoreInScope(tab, vendor)) return true;
+  // Pagination inside review iframes (Loox "Show more reviews").
+  for (const frame of tab.frames()) {
+    if (frame === tab.mainFrame()) continue;
+    try {
+      if (await clickMoreInScope(frame, vendor)) return true;
+    } catch {
+      // Detached mid-click; other frames still count.
+    }
+  }
+  return false;
+}
+
+/** Serialized HTML of the main frame plus every iframe (detached frames skipped). */
+async function frameHtmlList(tab) {
+  const out = [];
+  for (const frame of tab.frames()) {
+    try {
+      out.push(await frame.content());
+    } catch {
+      // Detached mid-scrape; the remaining frames still parse.
+    }
+  }
+  return out;
 }
 
 async function scrapePage(browser, page, vendorHint) {
@@ -535,18 +597,18 @@ async function scrapePage(browser, page, vendorHint) {
   try {
     await tab.goto(page.url, { waitUntil: "domcontentloaded", timeout: 45000 });
     await tab.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => undefined);
-    let html = await tab.content();
-    let { vendor } = collectPageReviews(html);
-    vendor = vendor ?? vendorHint;
+    const first = collectFramesReviews(await frameHtmlList(tab));
+    let vendor = first.vendor ?? vendorHint;
+    let widgetSeen = first.domHit;
     let reviews = [];
     let displayedTotal = null;
     let stillRounds = 0;
     for (let round = 0; round < 14; round++) {
       await scrollToBottom(tab);
       await tab.waitForTimeout(700);
-      html = await tab.content();
-      const parsed = collectPageReviews(html);
+      const parsed = collectFramesReviews(await frameHtmlList(tab));
       if (parsed.vendor) vendor = parsed.vendor;
+      if (parsed.domHit) widgetSeen = true;
       // Numbered pagination swaps the visible reviews instead of appending,
       // so accumulate across rounds (deduped) rather than keeping the last.
       const grown = dedupe([...reviews, ...parsed.reviews]);
@@ -560,15 +622,15 @@ async function scrapePage(browser, page, vendorHint) {
         // One more scroll pass in case reviews lazy-load without a button.
         await scrollToBottom(tab);
         await tab.waitForTimeout(700);
-        html = await tab.content();
-        const last = collectPageReviews(html);
+        const last = collectFramesReviews(await frameHtmlList(tab));
         reviews = dedupe([...reviews, ...last.reviews]);
         if (last.displayedTotal !== null) displayedTotal = last.displayedTotal;
+        if (last.domHit) widgetSeen = true;
         break;
       }
       await tab.waitForTimeout(900);
     }
-    return { vendor, reviews, displayedTotal };
+    return { vendor, reviews, displayedTotal, widgetSeen };
   } finally {
     await client.close().catch(() => undefined);
   }
@@ -606,11 +668,11 @@ async function main() {
         continue;
       }
       try {
-        const { vendor, reviews, displayedTotal } = await scrapePage(browser, { url, product }, null);
+        const { vendor, reviews, displayedTotal, widgetSeen } = await scrapePage(browser, { url, product }, null);
         const room = maxReviews - out.reviews.length;
         const kept = reviews.slice(0, room).map((r) => ({ ...r, product, url }));
         out.reviews.push(...kept);
-        if (!vendor && kept.length === 0) {
+        if (kept.length === 0 && !widgetSeen) {
           out.pages.push({ url, product, vendor: null, status: "not_found", reason: "no supported widget or JSON-LD reviews", reviewCount: 0, displayedTotal: displayedTotal ?? null });
         } else if (kept.length === 0) {
           out.pages.push({ url, product, vendor, status: "not_found", reason: "widget found but no reviews parsed", reviewCount: 0, displayedTotal: displayedTotal ?? null });

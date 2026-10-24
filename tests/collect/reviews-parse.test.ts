@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  collectFramesReviews,
   collectPageReviews,
   detectVendor,
   findNextPageNumber,
@@ -25,6 +26,21 @@ describe("detectVendor", () => {
 
   it("finds no widget on the JSON-LD-only page", () => {
     expect(detectVendor(fixture("jsonld.html")).vendor).toBeNull();
+  });
+
+  it("detects Okendo Reviews Widget Plus nodes", () => {
+    const found = detectVendor(fixture("okendo-plus.html"));
+    expect(found.vendor).toBe("okendo");
+    expect(found.dom).toBe(true);
+  });
+
+  it("marks script-only matches as no widget DOM", () => {
+    // Loyalty integrations ship vendor scripts without a reviews widget.
+    const found = detectVendor(
+      `<html><head><script src="https://cdn-widgetsrepository.yotpo.com/loyalty.js"></script></head><body><p>no reviews here</p></body></html>`,
+    );
+    expect(found.vendor).toBe("yotpo");
+    expect(found.dom).toBe(false);
   });
 });
 
@@ -77,11 +93,40 @@ describe("parseWidgetReviews", () => {
     });
   });
 
+  it("parses Okendo Reviews Widget Plus cards", () => {
+    const reviews = parseWidgetReviews(fixture("okendo-plus.html"), "okendo");
+    expect(reviews).toHaveLength(2);
+    expect(reviews[0]).toMatchObject({
+      title: "Visible firmness",
+      rating: 5,
+      rating_scale: 5,
+      date: "2026-08-02",
+      verified_buyer: true,
+    });
+    expect(reviews[0]?.text).toContain("test fine lines");
+    expect(reviews[1]).toMatchObject({ rating: 3, date: "2 months ago" });
+    expect(reviews[1]).not.toHaveProperty("title");
+    expect(reviews[1]).not.toHaveProperty("verified_buyer");
+  });
+
+  it("parses Loox grid cards from iframe HTML", () => {
+    const reviews = parseWidgetReviews(fixture("loox-frame.html"), "loox");
+    expect(reviews).toHaveLength(2);
+    // Grid cards carry no title; .block.title is the reviewer name (identity).
+    expect(reviews[0]).toMatchObject({ rating: 5, date: "2026-07-19", verified_buyer: true });
+    expect(reviews[0]).not.toHaveProperty("title");
+    expect(reviews[0]?.text).toContain("without any tight feeling");
+    expect(reviews[1]).toMatchObject({ rating: 4, date: "2026-06-30" });
+    expect(reviews[1]).not.toHaveProperty("verified_buyer");
+  });
+
   it("never emits reviewer identity", () => {
     const dumped = JSON.stringify([
       ...parseWidgetReviews(fixture("judgeme.html"), "judgeme"),
       ...parseWidgetReviews(fixture("stamped.html"), "stamped"),
       ...parseWidgetReviews(fixture("yotpo.html"), "yotpo"),
+      ...parseWidgetReviews(fixture("okendo-plus.html"), "okendo"),
+      ...parseWidgetReviews(fixture("loox-frame.html"), "loox"),
     ]);
     for (const name of ["Synthetic Reviewer One", "S. R. Two", "Fake Person A", "F. B.", "Made Up User", "U. Ser"]) {
       expect(dumped).not.toContain(name);
@@ -132,6 +177,26 @@ describe("collectPageReviews", () => {
     const { vendor, reviews } = collectPageReviews(html);
     expect(vendor).toBe("judgeme");
     expect(reviews).toHaveLength(5);
+  });
+});
+
+describe("collectFramesReviews", () => {
+  it("finds reviews hidden in an iframe the main frame lacks", () => {
+    const main = `<html><head><script src="https://loox.io/widget/x/loox.js"></script></head><body><div class="loox-rating">4.8</div></body></html>`;
+    const merged = collectFramesReviews([main, fixture("loox-frame.html")]);
+    expect(merged.vendor).toBe("loox");
+    expect(merged.domHit).toBe(true);
+    expect(merged.reviews).toHaveLength(2);
+    expect(merged.reviews[0]).toMatchObject({ rating: 5, date: "2026-07-19" });
+  });
+
+  it("reports no widget DOM for script-only frames", () => {
+    const merged = collectFramesReviews([
+      `<html><head><script src="https://cdn-widgetsrepository.yotpo.com/loyalty.js"></script></head><body></body></html>`,
+    ]);
+    expect(merged.vendor).toBe("yotpo");
+    expect(merged.domHit).toBe(false);
+    expect(merged.reviews).toHaveLength(0);
   });
 });
 

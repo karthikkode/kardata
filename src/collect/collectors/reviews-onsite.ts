@@ -19,6 +19,7 @@ const SUPPORTED_APPS: Record<string, { vendor: string; platform: string }> = {
   judgeme: { vendor: "judgeme", platform: "Judge.me" },
   yotpo: { vendor: "yotpo", platform: "Yotpo" },
   stamped: { vendor: "stamped", platform: "Stamped" },
+  "stamped.io": { vendor: "stamped", platform: "Stamped" },
   okendo: { vendor: "okendo", platform: "Okendo" },
   loox: { vendor: "loox", platform: "Loox" },
   junip: { vendor: "junip", platform: "Junip" },
@@ -122,7 +123,9 @@ export async function runReviewsOnsite(
   if (apps.length === 0) {
     return { outcomes: [{ area: "reviews", status: "skipped", reason: "no review app detected" }] };
   }
-  const supported = apps.map((a) => SUPPORTED_APPS[a.toLowerCase()]).find((s) => s !== undefined);
+  // reviews.app values are comma-joined ("Yotpo,Loox"); split before matching.
+  const names = [...new Set(apps.flatMap((a) => a.split(",").map((p) => p.trim()).filter((p) => p !== "")))];
+  const supported = names.map((a) => SUPPORTED_APPS[a.toLowerCase()]).find((s) => s !== undefined);
   if (!supported) {
     return {
       outcomes: [{ area: "reviews", status: "not_found", reason: `unsupported review app: ${apps.join(", ")}` }],

@@ -22,7 +22,7 @@ import { startCollect } from "../runs/queue.js";
 export const BACKFILL_ADAPTER = "reviews_onsite";
 
 /** reviews.app values (lowercased) the backfill collects. */
-export const BACKFILL_SUPPORTED_APPS = new Set(["judge.me", "judgeme", "yotpo", "okendo", "stamped", "loox"]);
+export const BACKFILL_SUPPORTED_APPS = new Set(["judge.me", "judgeme", "yotpo", "okendo", "stamped", "stamped.io", "loox"]);
 
 export const BACKFILL_DEFAULT_LIMIT = 25;
 export const BACKFILL_MAX_LIMIT = 100;

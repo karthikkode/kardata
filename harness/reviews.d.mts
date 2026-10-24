@@ -11,7 +11,7 @@ export interface ParsedReview {
   verified_buyer?: boolean;
 }
 
-export function detectVendor(html: string): { vendor: string | null; signals: string[] };
+export function detectVendor(html: string): { vendor: string | null; signals: string[]; dom: boolean };
 export function parseWidgetReviews(html: string, vendor: string): ParsedReview[];
 export function parseAccessibleReviewCards(html: string): ParsedReview[];
 export function parseJsonLdReviews(html: string): ParsedReview[];
@@ -21,6 +21,14 @@ export function findNextPageNumber(html: string, selectors: string[]): { current
 export function collectPageReviews(html: string): {
   vendor: string | null;
   signals: string[];
+  domHit: boolean;
+  reviews: ParsedReview[];
+  displayedTotal: number | null;
+};
+export function collectFramesReviews(htmlList: string[]): {
+  vendor: string | null;
+  signals: string[];
+  domHit: boolean;
   reviews: ParsedReview[];
   displayedTotal: number | null;
 };
