@@ -86,7 +86,15 @@ function hasProducts(db: Db, companyIdCol: typeof companies.id) {
     db
       .select({ one: sql`1` })
       .from(records)
-      .where(and(eq(records.companyId, companyIdCol), eq(records.type, "product"))),
+      .where(
+        and(
+          eq(records.companyId, companyIdCol),
+          eq(records.type, "product"),
+          // Extraction-written products carry no page URL; only Shopify
+          // rows (with url) give the onsite collector pages to visit.
+          sql`coalesce(${records.data}->>'url', '') <> ''`,
+        ),
+      ),
   );
 }
 
