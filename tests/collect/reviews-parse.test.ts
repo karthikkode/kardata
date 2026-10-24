@@ -95,7 +95,7 @@ describe("parseWidgetReviews", () => {
 
   it("parses Okendo Reviews Widget Plus cards", () => {
     const reviews = parseWidgetReviews(fixture("okendo-plus.html"), "okendo");
-    expect(reviews).toHaveLength(4);
+    expect(reviews).toHaveLength(5);
     expect(reviews[0]).toMatchObject({
       title: "Visible firmness",
       rating: 5,
@@ -123,6 +123,14 @@ describe("parseWidgetReviews", () => {
       verified_buyer: true,
     });
     expect(reviews[3]?.text).toContain("layers quietly");
+    // Minimal layout: own date node, shared inner fields.
+    expect(reviews[4]).toMatchObject({
+      title: "Gentle giant",
+      rating: 5,
+      date: "3 days ago",
+      verified_buyer: true,
+    });
+    expect(reviews[4]?.text).toContain("survived months of test bedside use");
   });
 
   it("parses legacy Okendo cards with attribute dates", () => {
