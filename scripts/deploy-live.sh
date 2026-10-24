@@ -99,6 +99,9 @@ update_and_restart() {
   git pull --ff-only origin main
   npm ci --no-audit --no-fund
   npm run build
+  # Workers run the baked-in scraper from this image; a deploy without a
+  # rebuild silently leaves stale parser code live.
+  docker build -t kardata-agent harness/
   npm run db:migrate
   # Final guard: a job begun since the drain check would orphan on restart.
   local running
