@@ -39,7 +39,7 @@ That gives about **0.19% per contact**, roughly 1 client per 530 contacts. Chanc
 
 - **D2C research wave 1 is about 753 companies × 2 buyers, so about 1,500 contacts.**
 - **Batch shape:** 100 contacts a week, sent as two groups of 50, with 1 + 3 touches.
-- **Tier C batch (small brands, D-25):** 30–50 companies, run alongside the main list, not instead of it. Track them
+- **Tier C batch (low-revenue brands, D-25):** 30–50 companies, run alongside the main list, not instead of it. Track them
   as their own group in the review after every 100 contacts.
 
 ## Call maths (owner plan)

@@ -26,7 +26,7 @@ Status: locked (sector order is open, see decisions.md) · Last updated: 2026-10
 
 - **1+ paying client within 100 days.** Day 1 = 2026-10-13, day 100 = 2027-01-20.
   - The entry is a paid audit (see `offer.md`), leading to a monthly retainer.
-- **A paid Tier C job (small brands, `offer.md`) also counts.** It covers expenses and gives us the
+- **A paid Tier C job ($500k–2M revenue, `offer.md`) also counts.** It covers expenses and gives us the
   first case study.
 - **A paid audit counts as real progress on its own.** From outside data, most problems look audit-sized rather than
   retainer-sized. The retainer case usually shows up only once we see their own data.
@@ -38,7 +38,7 @@ Status: locked (sector order is open, see decisions.md) · Last updated: 2026-10
 - **Current sector: D2C skincare,** in English-speaking markets (US, UK, CA, AU).
   - **Who qualifies:** a D2C brand (so public data exists) with enough revenue to pay, about $500k a year or more.
     The store platform doesn't matter.
-  - **Tiers** group companies by size and set the offer (A large, B medium, C small). **Layers** set priority inside
+  - **Tiers** group companies by annual revenue and set the offer (A $10M+, B $2–10M, C $500k–2M). **Layers** set priority inside
     a tier by signal score (Layer 1 = highest). Full rules are in `icp.md`.
   - We have deep research on 753 companies (research wave 1) and 151 more in wave 2.
 - **Sector rule:** research one sector deeply, prove the method, then move to the next. Research stays **one sector

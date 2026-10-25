@@ -14,7 +14,7 @@ The owner reviews every stage. Plans live in `docs/plans/`, and the current stag
 
 **Analysis, briefs, screens or outreach work on company data must follow `docs/business/`.**
 - Use the ICP in `icp.md` and its terms:
-  - a **tier** is company size and sets the offer (A large, B medium, C small);
+  - a **tier** groups companies by annual revenue and sets the offer (A high, B mid, C low);
   - a **layer** is priority inside a tier by signal score (Layer 1 = highest score);
   - a **research wave** is research order. Older plans call it "Layer 1/2"; that use is retired.
 - Use the problem bar and 8 dimensions in `problem-bar.md`, and the citation rules in `evidence-rules.md`.

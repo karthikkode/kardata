@@ -8,13 +8,13 @@ that is decided at the audit readout, never in an email.
 
 ## Offer by tier (D-30)
 
-The tier is the company's size (`icp.md` section 4). It sets which offer we pitch.
+The tier is the company's annual revenue (`icp.md` section 4). It sets which offer we pitch.
 
 | Tier | Size | Pitch | The diagnostic fee |
 |---|---|---|---|
-| **A** | Large (51+ staff) | Diagnostic, then we build the fix: $3–6k (what the $3–6k covers is open, D-32) | Credited against the build if they hire us to build the fix |
-| **B** | Medium (11–50 staff) | **$1,500 diagnostic** (the audit in section 1), then the retainer | Credited against the retainer if they retain us |
-| **C** | Small (5–10 staff) | **$1,000** diagnostic plus one build, then $1,000/mo active work or $500/mo support (section 1b) | Already includes the build |
+| **A** | $10M+ revenue | Diagnostic, then we build the fix: $3–6k (what the $3–6k covers is open, D-32) | Credited against the build if they hire us to build the fix |
+| **B** | $2M–10M revenue | **$1,500 diagnostic** (the audit in section 1), then the retainer | Credited against the retainer if they retain us |
+| **C** | $500k–2M revenue | **$1,000** diagnostic plus one build, then $1,000/mo active work or $500/mo support (section 1b) | Already includes the build |
 
 - **"Credited" means the fee comes off their next bill.** We don't hand the money back. The only money-back case is
   the guarantee.
@@ -77,7 +77,7 @@ They keep the report and the working sheet whatever happens next.
 Say it honestly: "I'm building my case studies, so I'm doing two of these free." This happens twice only, then the
 offer is retired.
 
-## 1b. The Tier C package (small brands only, D-26, D-30)
+## 1b. The Tier C package ($500k–2M revenue only, D-26, D-30)
 
 For brands at about **$500k–2M revenue**. They can't pay for the full audit plus a retainer. But while we have no
 clients, a small paid job brings in cash and gives us our first case study and testimonial.

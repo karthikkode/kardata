@@ -8,16 +8,17 @@ The structure is the same for every sector:
 1. filters;
 2. exclusions;
 3. a stack check;
-4. the tier: company size, which sets the offer and price;
+4. the tier: annual revenue, which sets the offer and price;
 5. the layer: the signal score, which sets who we contact first inside a tier;
 6. the buyer.
 
 ## Terms (D-29)
 
-- **Tier** = company size. It decides which offer and price we pitch. It exists for our convenience, to group the list.
-  - **Tier A:** large. **Tier B:** medium. **Tier C:** small.
+- **Tier** = how much the company earns (annual revenue), not how many staff it has. It decides which offer and
+  price we pitch. It exists for our convenience, to group the list.
+  - **Tier A:** high revenue. **Tier B:** mid revenue. **Tier C:** low revenue.
 - **Layer** = priority inside a tier, set by the signal score. **Layer 1 has the highest score**, and the layer number
-  goes up as the score goes down. "Tier B, Layer 1" means a medium company with the strongest signals.
+  goes up as the score goes down. "Tier B, Layer 1" means a mid-revenue company with the strongest signals.
 - **Watchlist:** score 0–1. Not in any layer and never contacted.
 - **Research wave:** which group of companies gets researched first (wave 1: skincare, body and bath, men's
   grooming; wave 2: the next 151). Older plans and reviews call this "Layer 1/Layer 2". That old use is retired.
@@ -70,16 +71,24 @@ their own data decisions, and the parent has data teams.
   - **This is not an exclusion.** Complement what they chose and never challenge it. Open on a gap the tool doesn't
     cover, for example Amazon or retail.
 
-## 4. Tier: company size → offer (D-29, D-30)
+## 4. Tier: annual revenue → offer (D-29, D-30, D-33)
 
-Apollo has no revenue figures, so staff count stands in for revenue. The lines are working lines until the first 100
-contacts (D-31 is open).
+| Tier | Annual revenue (working lines, D-31) | Offer (`offer.md`) |
+|---|---|---|
+| **A** | $10M or more | Diagnostic, credited if they hire us to build the fix; builds at $3–6k |
+| **B** | $2M–10M | $1,500 diagnostic, credited if they retain us |
+| **C** | $500k–2M | $1,000 diagnostic plus one build; then $1,000/mo active work or $500/mo support |
 
-| Tier | Size | Staff (working line) | Revenue (rough) | Offer (`offer.md`) |
-|---|---|---|---|---|
-| **A** | Large | 51+ | about $10M+ | Diagnostic, credited if they hire us to build the fix; builds at $3–6k |
-| **B** | Medium | 11–50 | about $2–10M | $1,500 diagnostic, credited if they retain us |
-| **C** | Small | 5–10 | about $500k–2M | $1,000 diagnostic plus one build; then $1,000/mo active work or $500/mo support |
+**Where the revenue number comes from, best first:**
+1. A revenue figure with a named public source (an interview, a press article, a filing).
+2. Apollo's "Annual Revenue" estimate, which we store for each company (`financials.revenue_estimate`).
+3. If both are missing, the staff count stands in for it, about $150–200k per person. Mark the tier as "estimated
+   from staff".
+
+Revenue figures from outside are estimates. **The buyer's own answer on a call always wins,** and the tier is
+updated to match.
+
+Never write a tier into an email or call opener. It's for our grouping only.
 
 - **Tier C is a small, separate batch** of 30–50 companies, run alongside A and B, not instead of them.
 - **Never show the Tier C offer to a Tier A or B company.** It includes a build for less than a Tier B diagnostic.
@@ -124,7 +133,7 @@ Each signal adds 1 point, up to 6. Every point needs the evidence standard in `e
 | Watchlist (score 0–1, or no second system) | 349 |
 | Excluded | 62 |
 | Research incomplete (zero facts; rerun after the quota reset) | 82 |
-| Tier C size (5–10 staff) | 10 |
+| Small enough for Tier C (5–10 staff, before the revenue check) | 10 |
 | Split by tier (A / B) | not counted yet |
 | On Shopify (for information only, not a filter since D-23) | 752 of 753 |
 
@@ -134,7 +143,7 @@ in A/B sell their own products.
 
 **The Apollo pull is narrower than the ICP now.** It required Shopify and capped staff at 100, so brands on other
 platforms or above 100 staff were never imported. The next pull uses only: D2C, US/UK/CA/AU, and 11+ staff. A
-separate pull of 5–10 staff brands feeds the Tier C batch, since we have only 10.
+separate pull of smaller brands (about $500k–2M revenue, or 5–10 staff where revenue is missing) feeds the Tier C batch, since we have only 10.
 
 Contacts: 753 companies × 2 buyers ≈ 1,500 contacts. That is enough for the funnel in `funnel.md` without a second
 sector.

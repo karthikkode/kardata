@@ -32,8 +32,9 @@ Newest at the bottom. Each entry: an ID, the date, the decision, and why. A late
 | D-28 | 2026-10-26 | Owned by a listed or multi-brand company: excluded unless a source shows the brand's own founder, CEO or GM decides. Owned by PE or a small holding: kept. Tightens D-24 | Country arms of big groups don't decide on data, and the parent has data teams |
 | D-07 | 2026-10-26 | Tier B diagnostic (the audit): $1,500 fixed, about 3 days | Owner. Lower barrier; outside data mostly shows audit-sized problems |
 | D-27 | 2026-10-26 | Tier C package: $1,000 for the diagnostic plus one build | Owner |
-| D-29 | 2026-10-26 | Terms: a **tier** is company size and sets the offer (A large, B medium, C small); a **layer** is priority inside a tier by signal score (Layer 1 = highest, layer = 7 − score); a **research wave** is research order. Retires "Tier A/B" for score and "Layer 1/2" for research order | Owner. Tiers are for our convenience in grouping the list; layers order the work inside them |
+| D-29 | 2026-10-26 | Terms: a **tier** groups companies by annual revenue and sets the offer (A high, B mid, C low; D-33); a **layer** is priority inside a tier by signal score (Layer 1 = highest, layer = 7 − score); a **research wave** is research order. Retires "Tier A/B" for score and "Layer 1/2" for research order | Owner. Tiers are for our convenience in grouping the list; layers order the work inside them |
 | D-30 | 2026-10-26 | Offer by tier. A: diagnostic credited against a $3–6k build. B: $1,500 diagnostic credited against the retainer. C: $1,000 diagnostic plus build, then $1,000/mo active work or $500/mo support. "Credited" means off the next bill, not refunded | Owner |
+| D-33 | 2026-10-26 | The tier is set by annual revenue, not staff count. Source order: named public figure, then Apollo's estimate, then staff as a fallback (marked "estimated"). The buyer's own answer wins | Owner. What they earn decides what they can pay |
 
 ## Open
 
@@ -43,5 +44,5 @@ Newest at the bottom. Each entry: an ID, the date, the decision, and why. A late
 | D-18 | Brands already using an attribution tool (138) | Pitch as a complement / move to the back | Complement, opening on Amazon/retail gaps |
 | D-19 | Retainer range for D2C | $3k/$5k (old) or $3–6k (2026-10-19) | $3k Core / $5k Full; watch D2C margin objections |
 | D-20 | Signal score weights in `icp.md` | Equal weights now; tune after the first 100 contacts | Equal now |
-| D-31 | Staff lines for the tiers | A 51+ / B 11–50 / C 5–10 (working lines) | Keep until the first 100 contacts, then check against what buyers say about revenue |
+| D-31 | Revenue lines for the tiers | A $10M+ / B $2–10M / C $500k–2M (working lines) | Keep until the first 100 contacts, then check against what buyers say on calls |
 | D-32 | Tier A: what the $3–6k covers, and the diagnostic price | One-time build / monthly retainer; diagnostic $1,500 or $2,500 | Diagnostic $2,500 credited against a one-time build of $3–6k; retainer offered after the build |
