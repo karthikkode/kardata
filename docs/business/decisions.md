@@ -23,6 +23,8 @@ Newest at the bottom. Each entry: an ID, the date, the decision, and why. A late
 | D-14 | 2026-10-23 | Positioning describes the situation ("too many disconnected systems"), not a label like "Shopify brands"; don't lead with "AI automation" | Not limiting; AI only where it pays |
 | D-15 | 2026-10-24 | Pre-call rule: sort signals into solution-in-motion vs unaddressed; open on unaddressed | Never challenge a chosen solution |
 | D-16 | 2026-10-25 | Business docs live in `docs/business/` (this folder), owner-maintained | One standard home |
+| D-21 | 2026-10-25 | Score 1 = watchlist, not Tier B; Tier A calls first, Tier B emails first; unconfirmed D2C companies are confirmed before contact | One signal is never enough (problem-bar) |
+| D-22 | 2026-10-25 | Use both cold calls and cold email; every email is specific to the company; never mail the whole list | Calls teach fastest; email covers buyers without phone numbers |
 
 ## Open
 

@@ -1,6 +1,6 @@
 # ICP — who we sell to
 
-Status: draft (scoring weights open until the first 100 contacts) · Last updated: 2026-10-25 · Source:
+Status: draft (scoring weights open until the first 100 contacts) · Last updated: 2026-10-25 (tiers revised) · Source:
 kardata_old/campaign/icp-filters.md + sector-plan.md (structure), owner 2026-10-19 (D2C target), Kardata DB
 (counts)
 
@@ -58,22 +58,27 @@ Each signal adds 1 point, up to 6. Every point needs the evidence standard in `e
 | 5 | **A recent change:** funding in the last 18 months, a new retailer, a new channel, a rebrand | `funding_event`, `company_event` |
 | 6 | **Tool sprawl:** 2+ tools doing the same job, or 4+ ad networks running | `marketing.tool` facts |
 
-- **Tier A (score 3+):** research for the brief, then call or email first.
-- **Tier B (1–2):** pitch after Tier A, using the strongest signal.
-- **Tier C (0):** watchlist only. Never contacted.
+- **Tier A (score 3+):** call first; email if the call doesn't land.
+- **Tier B (score 2):** email first; call only the ones who open or reply, or where the evidence is unusually sharp.
+- **Watchlist (score 0–1):** never contacted. One signal alone is never enough to pitch.
 
 **A verdict needs 2+ independent signals, and at least one must not be hiring** (see `problem-bar.md`).
 
-## Snapshot (DB, 2026-10-25, Layer 1 finished)
+## Snapshot (DB, 2026-10-25 evening, Layer 1 finished, agent tier run)
 
 | Filter | Companies |
 |---|---|
-| Finished, base filters pass | 753 |
-| On Shopify | 705 |
-| + sells across channels (signal 1) | 564 |
-| … of these, already use Triple Whale (solution in motion) | 138 |
-| + hiring for manual work (signal 2) | 86 |
-| Shopify group with funding in 2025–26 (signal 5) | 39 |
+| Finished, Apollo base filters pass | 753 |
+| On Shopify | 752 |
+| Confirmed as D2C brands in our own data | 631 (107 unknown, 19 fail) |
+| Sells across channels (signal 1) | 604 |
+| Excluded (79 big-group owned, 19 not D2C, 9 too small) | 102 |
+| **Tier A after exclusions** | **173** |
+| **Tier B (score 2) after exclusions** | **244** |
+| **Can be contacted** | **417 = ~317 confirmed D2C + ~100 still to confirm** |
+| Already using Triple Whale (solution in motion) | ~133 |
+
+The ~100 unconfirmed companies must pass the D2C check before anyone contacts them.
 
 Contacts: 753 companies × 2 buyers ≈ 1,500 contacts. That is enough for the funnel in `funnel.md` without a second
 sector.
