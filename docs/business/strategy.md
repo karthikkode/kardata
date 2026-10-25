@@ -1,7 +1,7 @@
 # Strategy
 
-Status: locked (sector order is open, see decisions.md) · Last updated: 2026-10-25 · Source: owner sessions
-2026-10-07 → 10-24, kardata_old/campaign/campaign-plan.md
+Status: locked (sector order is open, see decisions.md) · Last updated: 2026-10-26 · Source: owner sessions
+2026-10-07 → 10-26, kardata_old/campaign/campaign-plan.md
 
 ## Who we are
 
@@ -34,6 +34,8 @@ Status: locked (sector order is open, see decisions.md) · Last updated: 2026-10
 
 - **The practice covers many sectors.** Each sector is a starting point, not the identity.
 - **Current sector: D2C skincare,** in English-speaking markets (US, UK, CA, AU).
+  - **Who qualifies:** a D2C brand (so public data exists) with enough revenue to pay, about $2M a year or more.
+    The store platform doesn't matter. Full rules are in `icp.md`.
   - We have deep research on 753 companies (Layer 1) and 151 more in Layer 2.
 - **Sector rule:** research one sector deeply, prove the method, then move to the next. Research stays **one sector
   ahead of sending, never more.**
@@ -49,7 +51,7 @@ Status: locked (sector order is open, see decisions.md) · Last updated: 2026-10
    - Everything stays private. Nothing about a named company is ever published.
 2. **One narrow opening per conversation.** Lead with one specific, easy-to-understand problem, never the full list
    of services. Current openings:
-   - **One true weekly number across channels:** Shopify + Amazon + retailers + ads.
+   - **One true weekly number across channels:** own store + Amazon + retailers + ads.
    - **Retailer and wholesale paperwork into clean data:** purchase orders, PDFs, spreadsheets, photos.
 3. **Outreach:**
    - **Cold calls** are for discovery: fast feedback, real concerns, and the owner's strength at questioning.

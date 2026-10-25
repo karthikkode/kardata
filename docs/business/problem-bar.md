@@ -1,6 +1,6 @@
 # Problem bar — when a problem is worth pitching
 
-Status: locked (D2C signals are a draft) · Last updated: 2026-10-25 · Source: kardata_old/campaign/problem-bar.md
+Status: locked (D2C signals are a draft) · Last updated: 2026-10-26 · Source: kardata_old/campaign/problem-bar.md
 v3 + problems-brief.md contract v3
 
 ## The five tests (all must pass)
@@ -62,7 +62,7 @@ Use the value formula in `offer.md`. Always say which part of the estimate is pr
 2. **Signals that rule a company out apply on every dimension:**
    - customers praising the support team;
    - help pages that work well;
-   - an existing data team;
+   - an existing data team (a tech team without data roles does not count, see `icp.md`);
    - failing the ICP.
 
    **A new dimension never brings an excluded company back.**

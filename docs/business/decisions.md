@@ -1,6 +1,6 @@
 # Business decisions
 
-Status: living log · Last updated: 2026-10-25
+Status: living log · Last updated: 2026-10-26
 
 Newest at the bottom. Each entry: an ID, the date, the decision, and why. A later decision that overrides one says so.
 
@@ -14,7 +14,7 @@ Newest at the bottom. Each entry: an ID, the date, the decision, and why. A late
 | D-04 | 2026-10-13 | One value formula: hours × cost + revenue at risk. Guarantee at 10× the audit fee per year. Retainer only at 3× the fee | Prospecting, guarantee and retainer measure the same thing; honesty makes the yes believable |
 | D-05 | 2026-10-13 | No deliverability, no sending. 3 warmed domains; kardata.co never sends cold | An earlier 0/100 campaign points to inbox placement |
 | D-06 | 2026-10-16 | Check every company on 8 dimensions. Hiring signals never stand alone | A single lens found only labour problems and biased the stakes |
-| D-08 | 2026-10-19 | Pivot the first sector from B2B SaaS to **D2C skincare** (US/UK/CA/AU, Shopify, 11–100 staff); multi-sector practice | Owner decision; Kardata v2 built for it. Overrides the SaaS target in kardata_old |
+| D-08 | 2026-10-19 | Pivot the first sector from B2B SaaS to **D2C skincare** (US/UK/CA/AU, Shopify, 11–100 staff); multi-sector practice. Shopify and the 100-staff cap were overridden by D-23 and D-24 | Owner decision; Kardata v2 built for it. Overrides the SaaS target in kardata_old |
 | D-09 | 2026-10-19 | Outside-in sector research stays private; nothing about a named company is published | Legal risk and making enemies |
 | D-10 | 2026-10-20 | Meta Ad Library skipped; social content (YouTube/Instagram) deferred | No US data; later stage |
 | D-11 | 2026-10-21 | Every eligible company gets full deep research; Layer 1 / Layer 2 by scope rule | Owner; the full sector is the benchmark |

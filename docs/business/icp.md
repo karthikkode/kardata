@@ -1,11 +1,11 @@
 # ICP — who we sell to
 
-Status: draft (scoring weights open until the first 100 contacts) · Last updated: 2026-10-25 (tiers revised) · Source:
-kardata_old/campaign/icp-filters.md + sector-plan.md (structure), owner 2026-10-19 (D2C target), Kardata DB
+Status: draft (scoring weights open until the first 100 contacts) · Last updated: 2026-10-26 (two filters only: D-23, D-24) · Source:
+kardata_old/campaign/icp-filters.md + sector-plan.md (structure), owner 2026-10-19 (D2C target), owner 2026-10-26 (filters), Kardata DB
 (counts)
 
 The structure is the same for every sector:
-1. base filters;
+1. filters;
 2. exclusions;
 3. a stack check;
 4. a signal score, which sets the tier;
@@ -30,7 +30,7 @@ Two more rules, which are market choices and not ways to judge a company:
 problem we fix, disconnected systems, is the same on every platform. Shopify only makes the audit faster, because its
 exports and APIs are standard.
 
-## 2. Exclusions (skip, and never bring back)
+## 2. Exclusions (skip, and never bring back unless the rule itself changes)
 
 - **Has a data team:** 2+ data job titles, or any "Head/VP of Data". A hard no: our work would end up as a task for
   their data team.
@@ -72,6 +72,8 @@ Each signal adds 1 point, up to 6. Every point needs the evidence standard in `e
 - **Tier A (score 3+):** call first; email if the call doesn't land.
 - **Tier B (score 2):** email first; call only the ones who open or reply, or where the evidence is unusually sharp.
 - **Watchlist (score 0–1):** never contacted. One signal alone is never enough to pitch.
+- **Tech team flag:** a company with engineers but no data roles keeps its tier, but goes to the back of the queue
+  within it.
 
 **A verdict needs 2+ independent signals, and at least one must not be hiring** (see `problem-bar.md`).
 
@@ -79,8 +81,8 @@ Each signal adds 1 point, up to 6. Every point needs the evidence standard in `e
 
 | Filter | Companies |
 |---|---|
-| Finished, Apollo base filters pass | 753 |
-| On Shopify | 752 |
+| Finished Layer 1 (Apollo pull: D2C skincare, US/UK/CA/AU, Shopify, 11–100 staff) | 753 |
+| On Shopify (for information only, not a filter since D-23) | 752 |
 | Confirmed as D2C brands in our own data | 631 (107 unknown, 19 fail) |
 | Sells across channels (signal 1) | 604 |
 | Excluded (79 big-group owned, 19 not D2C, 9 too small; the 79 must be re-checked under D-24) | 102 |
@@ -91,11 +93,18 @@ Each signal adds 1 point, up to 6. Every point needs the evidence standard in `e
 
 The ~100 unconfirmed companies must pass the D2C check before anyone contacts them.
 
+**These counts use the old rules.** The ICP check on 2026-10-26 re-checks every company under D-24, so the 79
+group-owned companies may come back, and the tier counts will change.
+
+**The Apollo pull is narrower than the ICP now.** It required Shopify and capped staff at 100, so brands on other
+platforms or above 100 staff were never imported. The next pull uses only: D2C, US/UK/CA/AU, and 11+ staff.
+
 Contacts: 753 companies × 2 buyers ≈ 1,500 contacts. That is enough for the funnel in `funnel.md` without a second
 sector.
 
 ## 5. Buyer (who we contact)
 
+- **For a brand owned by a group,** the buyer is the brand's own founder, CEO or GM, never someone at the parent.
 - **Order of priority:**
   1. Founder/CEO (under ~60 staff).
   2. COO / Head of Operations.

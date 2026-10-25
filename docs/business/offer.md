@@ -1,6 +1,6 @@
 # Offer
 
-Status: locked structure, **price open** (see decisions.md D-07) · Last updated: 2026-10-25 · Source:
+Status: locked structure, **price open** (see decisions.md D-07) · Last updated: 2026-10-26 · Source:
 kardata_old/campaign/offer-onepager.md v3 (2026-10-13), owner session 2026-10-23
 
 The prices are fixed and there is no haggling. The only thing decided case by case is which tier fits, and that is
@@ -27,9 +27,9 @@ ties to a cause we can fix.
 
 | Audit type | The question it answers | Typical data |
 |---|---|---|
-| One true number across channels | What did we actually sell and earn last week, across every channel? | Shopify, Amazon Seller Central, retailer reports, ad accounts |
-| Customers and retention | Who buys again, who stops, and why? | Shopify orders, Klaviyo, subscription app, reviews |
-| Ops and inventory | Where do hours and stock go: stock-outs, retailer purchase orders, manual reports? | Shopify/3PL inventory, PO emails/PDFs, spreadsheets, helpdesk |
+| One true number across channels | What did we actually sell and earn last week, across every channel? | Store (Shopify, WooCommerce, etc.), Amazon Seller Central, retailer reports, ad accounts |
+| Customers and retention | Who buys again, who stops, and why? | Store orders, Klaviyo, subscription app, reviews |
+| Ops and inventory | Where do hours and stock go: stock-outs, retailer purchase orders, manual reports? | Store/3PL inventory, PO emails/PDFs, spreadsheets, helpdesk |
 
 If the founder names a problem outside all three, take it only if one export can answer it within the audit window.
 Otherwise say so plainly and offer to scope it separately.

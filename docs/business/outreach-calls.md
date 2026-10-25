@@ -1,6 +1,6 @@
 # Cold calls
 
-Status: locked (practice in progress) · Last updated: 2026-10-25 · Source: owner coaching sessions 2026-10-23/24
+Status: locked (practice in progress) · Last updated: 2026-10-26 · Source: owner coaching sessions 2026-10-23/24
 
 **Why we call:** fast feedback, hearing the real concerns, and the owner's strength at asking questions. **The call
 sells the meeting, not the service.**
@@ -33,7 +33,7 @@ sells the meeting, not the service.**
 
 - **Ask how things work,** the last time it happened, and who does what.
 - **Hand-off question:** "When [specific event], how does it get from [A] to [B]?"
-  - Example: "When a retailer sends a PO, how does it get into Shopify?"
+  - Example: "When a retailer sends a PO, how does it get into your store system?"
 - **Clue words to listen for:** "usually", "roughly", "we just", "someone handles it", "it's fine".
 - **Never quote a complaint or bad review back to them.** Ask about the process behind it.
 - **No** generic praise, no assumptions about volume, no leading tail that gives away the problem.

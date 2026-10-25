@@ -1,6 +1,6 @@
 # Cold email
 
-Status: locked (D2C examples are a draft) · Last updated: 2026-10-25 · Source: kardata_old/campaign/email-framework.md
+Status: locked (D2C examples are a draft) · Last updated: 2026-10-26 · Source: kardata_old/campaign/email-framework.md
 v2, pitch-skeleton.md v4, followups.md v5
 
 Each email is a short story told as a chain of questions. The founder is the main character, with their company, their
@@ -84,7 +84,7 @@ planted question is answered inside the email.
 |---|---|
 | attribution / MTA | knowing which ads actually sold |
 | single source of truth / data layer | one number you can trust every Monday |
-| omnichannel reconciliation | Shopify, Amazon and retail numbers matching |
+| omnichannel reconciliation | Store, Amazon and retail numbers matching |
 | LTV / cohort analysis | who buys again, and when |
 | churn | customers who stopped buying |
 | sell-through / OOS | how fast it sells in store / running out |
