@@ -71,13 +71,13 @@ their own data decisions, and the parent has data teams.
   - **This is not an exclusion.** Complement what they chose and never challenge it. Open on a gap the tool doesn't
     cover, for example Amazon or retail.
 
-## 4. Tier: annual revenue → offer (D-29, D-30, D-33)
+## 4. Tier: annual revenue → offer (D-29, D-33, D-34)
 
 | Tier | Annual revenue (working lines, D-31) | Offer (`offer.md`) |
 |---|---|---|
-| **A** | $10M or more | Diagnostic, credited if they hire us to build the fix; builds at $3–6k |
-| **B** | $2M–10M | $1,500 diagnostic, credited if they retain us |
-| **C** | $500k–2M | $1,000 diagnostic plus one build; then $1,000/mo active work or $500/mo support |
+| **A** | $10M or more | $2,500 diagnostic, credited against a $3–6k build |
+| **B** | $2M–10M | $1,500 diagnostic, credited against a $2k / $3k / $5k retainer |
+| **C** | $500k–2M | $1,250 diagnostic plus one build; then $750/mo active work or $400/mo support |
 
 **Where the revenue number comes from, best first:**
 1. A revenue figure with a named public source (an interview, a press article, a filing).

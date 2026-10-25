@@ -52,7 +52,8 @@ Use the value formula in `offer.md`. Always say which part of the estimate is pr
 | Recoverable value per month | Shape | What to do |
 |---|---|---|
 | **$9k or more** | Retainer-sized (3× Core) | Pitch normally |
-| **$4–9k** | Audit-sized | Still send; inside data often shows more. Mark it `audit-shaped` in the tracker |
+| **$6–9k** | Light-retainer-sized (3× Light) | Pitch normally; the retainer step is Light |
+| **$4–6k** | Audit-sized | Still send; inside data often shows more. Mark it `audit-shaped` in the tracker |
 | **Under $4k** | Lowest priority | Send last, and never research new companies of this size |
 
 These bands are for Tiers A and B. **Tier C is judged differently:** one small build must fix a weekly problem the

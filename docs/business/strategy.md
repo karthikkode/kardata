@@ -43,9 +43,9 @@ Status: locked (sector order is open, see decisions.md) · Last updated: 2026-10
   - We have deep research on 753 companies (research wave 1) and 151 more in wave 2.
 - **Sector rule:** research one sector deeply, prove the method, then move to the next. Research stays **one sector
   ahead of sending, never more.**
-- **Known risk for D2C:** margins are thinner than in software. $3–6k/mo is a big share of profit for a brand at
-  $5M revenue. The audit-first entry and the "3× the fee" rule for retainers (see `offer.md`) exist for this.
-  Watch price objections.
+- **Known risk for D2C:** margins are thinner than in software. A $3k retainer is about 18% of a $2M brand's profit
+  at a 10% margin. The audit-first entry, the $2k Light retainer and the "3× the fee" rule (see `offer.md`) exist for
+  this. Watch price objections.
 
 ## How we win clients
 
@@ -74,6 +74,6 @@ Status: locked (sector order is open, see decisions.md) · Last updated: 2026-10
   research starts while sending is blocked on something else.
 - **Proof from a cold start:**
   - sector case studies built on public data;
-  - the first 2 audits free, in exchange for a testimonial (see `offer.md`);
+  - the first 2 audits free, for Tier B Layer 1 companies, in exchange for a testimonial (see `offer.md`);
   - the guarantee from day one;
   - before the first send, a basic online presence: a sharp LinkedIn profile and one case study live on kardata.co.

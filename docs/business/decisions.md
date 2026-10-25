@@ -8,7 +8,7 @@ Newest at the bottom. Each entry: an ID, the date, the decision, and why. A late
 
 | ID | Date | Decision | Why |
 |---|---|---|---|
-| D-01 | 2026-10-07 | Sell data audits leading to a monthly retainer; never sell automation without the retainer. Exceptions: the Tier C build (D-26) and the Tier A one-time build (D-30, scope open in D-32) are reports or fixes, not automation | The live reporting proves the automation worked |
+| D-01 | 2026-10-07 | Sell data audits leading to a monthly retainer; never sell automation without the retainer. Exceptions: the Tier C build (D-26) and the Tier A one-time build (D-30, D-34) are reports or fixes, not automation | The live reporting proves the automation worked |
 | D-02 | 2026-10-11 | Plan funnel maths on the low end (5% reply); about 1,000+ contacts for ~85% odds of 1 client | Outside benchmarks, conservative |
 | D-03 | 2026-10-12 | Opportunity, never fear, everywhere in the funnel | Fear earns attention; only trust earns the yes |
 | D-04 | 2026-10-13 | One value formula: hours × cost + revenue at risk. Guarantee at 10× the audit fee per year (Tiers A and B; Tier C has no guarantee, D-26). Retainer only at 3× the fee | Prospecting, guarantee and retainer measure the same thing; honesty makes the yes believable |
@@ -31,10 +31,12 @@ Newest at the bottom. Each entry: an ID, the date, the decision, and why. A late
 | D-26 | 2026-10-26 | Starter package for small brands (now the Tier C package): a short diagnostic plus one small build, fixed price, at most 5 working days, no guarantee, at most 2 at a time. "No retainer pitch" was replaced by the monthly options in D-30. An exception to D-01 for a report or sheet, not automation | Owner. Cash and proof first; fixed scope stops it eating outreach time |
 | D-28 | 2026-10-26 | Owned by a listed or multi-brand company: excluded unless a source shows the brand's own founder, CEO or GM decides. Owned by PE or a small holding: kept. Tightens D-24 | Country arms of big groups don't decide on data, and the parent has data teams |
 | D-07 | 2026-10-26 | Tier B diagnostic (the audit): $1,500 fixed, about 3 days | Owner. Lower barrier; outside data mostly shows audit-sized problems |
-| D-27 | 2026-10-26 | Tier C package: $1,000 for the diagnostic plus one build | Owner |
+| D-27 | 2026-10-26 | Tier C package: $1,000 for the diagnostic plus one build. Price changed to $1,250 by D-34 | Owner |
 | D-29 | 2026-10-26 | Terms: a **tier** groups companies by annual revenue and sets the offer (A high, B mid, C low; D-33); a **layer** is priority inside a tier by signal score (Layer 1 = highest, layer = 7 − score); a **research wave** is research order. Retires "Tier A/B" for score and "Layer 1/2" for research order | Owner. Tiers are for our convenience in grouping the list; layers order the work inside them |
-| D-30 | 2026-10-26 | Offer by tier. A: diagnostic credited against a $3–6k build. B: $1,500 diagnostic credited against the retainer. C: $1,000 diagnostic plus build, then $1,000/mo active work or $500/mo support. "Credited" means off the next bill, not refunded | Owner |
+| D-30 | 2026-10-26 | Offer by tier. A: diagnostic credited against a $3–6k build. B: $1,500 diagnostic credited against the retainer. C: $1,000 diagnostic plus build, then $1,000/mo active work or $500/mo support (Tier C prices changed by D-34). "Credited" means off the next bill, not refunded | Owner |
 | D-33 | 2026-10-26 | The tier is set by annual revenue, not staff count. Source order: named public figure, then Apollo's estimate, then staff as a fallback (marked "estimated"). The buyer's own answer wins | Owner. What they earn decides what they can pay |
+| D-34 | 2026-10-26 | Final prices. **A:** $2,500 diagnostic (5 days), 10× guarantee ($25k), credited against a one-time $3–6k build paid 50/50, then a retainer. **B:** $1,500 diagnostic, 10× guarantee ($15k), credited against a retainer: Light $2k (8 h), Core $3k (12 h), Full $5k (20 h). **C:** $1,250 diagnostic plus one build (5 days max), no guarantee, then $750/mo active work (5 h) or $400/mo support. Guarantee claimed in writing within 7 days of the readout. Unused hours don't carry over. Diagnostics and retainers paid upfront; invoices in USD. Settles D-19 and D-32 | Owner, after two passes of offer research (`var/analysis/offer-research-2026-10-26.md`): we're the cheap option against hires ($9–13k/mo) and fractional people ($6–15k/mo); 10× holds easily for A, needs 2+ patterns for B, often misses for C; $3k is about 18% of a $2M brand's profit; Tier C stays below the Tier B price |
+| D-35 | 2026-10-26 | The 2 free (or $500) case-study audits go to Tier B, Layer 1 companies only; Tier C is always paid | Proof on the retainer path; Tier C is already cheap |
 
 ## Open
 
@@ -42,7 +44,5 @@ Newest at the bottom. Each entry: an ID, the date, the decision, and why. A late
 |---|---|---|---|
 | D-17 | Lead opening for the first batch | Channel truth (564 cos fit) / retailer paperwork / retention | Channel truth: broadest fit |
 | D-18 | Brands already using an attribution tool (138) | Pitch as a complement / move to the back | Complement, opening on Amazon/retail gaps |
-| D-19 | Retainer range for D2C | $3k/$5k (old) or $3–6k (2026-10-19) | $3k Core / $5k Full; watch D2C margin objections |
 | D-20 | Signal score weights in `icp.md` | Equal weights now; tune after the first 100 contacts | Equal now |
 | D-31 | Revenue lines for the tiers | A $10M+ / B $2–10M / C $500k–2M (working lines) | Keep until the first 100 contacts, then check against what buyers say on calls |
-| D-32 | Tier A: what the $3–6k covers, and the diagnostic price | One-time build / monthly retainer; diagnostic $1,500 or $2,500 | Diagnostic $2,500 credited against a one-time build of $3–6k; retainer offered after the build |
