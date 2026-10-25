@@ -244,7 +244,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth,
     "company_screen",
     {
-      description: "Screen the live companies of a sector on Apollo fields plus current facts (ANDed criteria). Returns slim rows with matched values and ids[] ready for research_start.",
+      description: "Screen the live companies of a sector on Apollo fields plus current facts (ANDed criteria). Returns slim rows with matched values and ids[] ready for research_start. For full walks past 500 rows, page with cursor (null starts an id-ordered walk).",
       inputSchema: {
         sectorId: z.string().describe("Sector UUID"),
         criteria: z.array(screenCriterion).max(20).optional().describe("ANDed criteria (default: all live companies)"),
@@ -252,9 +252,10 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
         limit: z.number().int().min(1).max(500).optional().describe("Default 50"),
         verifiedOnly: z.boolean().optional().describe("Strict: fact criteria match only verified facts (default matches verified + doc_only + verified_value)"),
         includeUnverified: z.boolean().optional().describe("Show unverified and mismatched facts too (default false)"),
+        cursor: z.string().uuid().nullable().optional().describe("Keyset cursor: null starts an id-ordered walk, an id continues after it. Cannot combine with sort."),
       },
     },
-    async ({ sectorId, criteria, sort, limit, verifiedOnly, includeUnverified }) =>
+    async ({ sectorId, criteria, sort, limit, verifiedOnly, includeUnverified, cursor }) =>
       wrap(async () => {
         const result = await screenCompanies(db, sectorId, {
           criteria: criteria ?? undefined,
@@ -262,6 +263,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
           limit: limit ?? undefined,
           verifiedOnly: verifiedOnly ?? undefined,
           includeUnverified: includeUnverified ?? undefined,
+          cursor: cursor === undefined ? undefined : cursor,
         });
         return { summary: `${result.total} companies match`, data: result };
       }),

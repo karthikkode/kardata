@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, count, desc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import {
   factKeys,
@@ -45,6 +45,12 @@ export interface ScreenOptions {
   criteria?: ScreenCriterion[];
   sort?: ScreenSort;
   limit?: number;
+  /**
+   * Keyset cursor: null starts an id-ordered walk from the beginning, a
+   * company id continues after it. Cannot be combined with sort. Omitted
+   * means the legacy single page (default/sort order, no continuation).
+   */
+  cursor?: string | null;
   /** Strict: fact criteria match only verified facts (default matches verified + doc_only + verified_value). */
   verifiedOnly?: boolean;
   /** Show unverified and mismatched facts too (default false). Overrides verifiedOnly. */
@@ -69,6 +75,8 @@ export interface ScreenResult {
   items: ScreenItem[];
   ids: string[];
   total: number;
+  /** Pass back as cursor for the next page; null when done. */
+  nextCursor: string | null;
 }
 
 type FieldKind = "text" | "int" | "numeric" | "bool";
@@ -432,13 +440,19 @@ export async function screenCompanies(
   if (!Number.isInteger(limit) || limit < 1 || limit > SCREEN_LIMIT_MAX) {
     throw new DomainError("invalid_input", `limit must be between 1 and ${SCREEN_LIMIT_MAX}`);
   }
+  const cursorActive = options.cursor !== undefined;
+  if (cursorActive && options.sort !== undefined) {
+    throw new DomainError("invalid_input", "cursor cannot be combined with sort; cursor pages in id order");
+  }
 
   const e = effectiveCompanies(db);
   const verification = verificationFilterFor(options);
   const conds: SQL[] = [eq(sectorCompanies.sectorId, sectorId), isNull(sectorCompanies.removedAt)];
   criteria.forEach((criterion, index) => conds.push(criterionPredicate(e, criterion, index, verification)));
-  const where = and(...conds);
-  const orderBy = await sortOrderBy(db, e, options.sort);
+  const baseWhere = and(...conds);
+  // Total stays stable across pages: it never sees the cursor condition.
+  const where = options.cursor ? and(baseWhere, gt(e.id, options.cursor)) : baseWhere;
+  const orderBy = cursorActive ? sql`${e.id} ASC` : await sortOrderBy(db, e, options.sort);
 
   const rows = await db
     .select({
@@ -468,7 +482,7 @@ export async function screenCompanies(
     .select({ n: count().mapWith(Number) })
     .from(e)
     .innerJoin(sectorCompanies, eq(sectorCompanies.companyId, e.id))
-    .where(where);
+    .where(baseWhere);
   const total = counted[0]?.n ?? 0;
 
   const factUses = criteria
@@ -562,7 +576,9 @@ export async function screenCompanies(
       matched,
     };
   });
-  return { items, ids: items.map((item) => item.id), total };
+  const ids = items.map((item) => item.id);
+  const nextCursor = !cursorActive || items.length < limit ? null : (ids[ids.length - 1] ?? null);
+  return { items, ids, total, nextCursor };
 }
 
 export interface JobScopeOptions {

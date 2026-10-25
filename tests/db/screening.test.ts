@@ -388,6 +388,39 @@ describe("company_screen sort and limit", () => {
     expect(result.total).toBe(ids.length);
   });
 
+  it("pages the full set with cursor and null at the end", async () => {
+    const sectorId = await seed();
+    const expected = await liveIds(sectorId);
+    expect(expected.length).toBeGreaterThan(5);
+    const seen: string[] = [];
+    let cursor: string | null | undefined = null;
+    let total = -1;
+    for (let pages = 0; pages < 20; pages++) {
+      const result = await screenCompanies(handle.db, sectorId, { criteria: [], limit: 3, cursor });
+      total = result.total;
+      seen.push(...result.ids);
+      if (result.nextCursor === null) break;
+      cursor = result.nextCursor;
+      expect(pages).toBeLessThan(19);
+    }
+    expect(total).toBe(expected.length);
+    expect(seen).toEqual(expected);
+  });
+
+  it("rejects cursor combined with sort", async () => {
+    const sectorId = await seed();
+    await expect(
+      screenCompanies(handle.db, sectorId, { criteria: [], limit: 5, cursor: null, sort: { field: "name" } }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+  });
+
+  it("legacy pages without cursor never continue", async () => {
+    const sectorId = await seed();
+    const result = await screenCompanies(handle.db, sectorId, { criteria: [], limit: 3 });
+    expect(result.items).toHaveLength(3);
+    expect(result.nextCursor).toBeNull();
+  });
+
   it("defaults to all live companies, name order", async () => {
     const sectorId = await seed();
     const ids = await liveIds(sectorId);
