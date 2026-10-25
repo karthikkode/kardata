@@ -97,6 +97,7 @@ const EXPECTED_TOOLS = [
   "company_job_status",
   "company_job_live",
   "company_jobs_list",
+  "jobs_for_company",
   "company_job_pause",
   "company_jobs_pause_all",
   "company_job_resume",
@@ -359,6 +360,17 @@ describe("mcp tools", () => {
 
     const listed = dataOf(await call("company_jobs_list", {}));
     expect(((listed.jobs as unknown[]) ?? []).length).toBe(1);
+
+    const byId = dataOf(await call("jobs_for_company", { companyId }));
+    expect((byId.company as { domain: string }).domain).toBe("acme.example");
+    expect(((byId.jobs as { id: string }[]) ?? []).map((j) => j.id)).toEqual([jobId]);
+    expect(byId.runs).toEqual([]);
+    const byDomain = dataOf(await call("jobs_for_company", { domain: "https://www.acme.example/" }));
+    expect((byDomain.company as { id: string }).id).toBe(companyId);
+    const missing = await call("jobs_for_company", { companyId: "00000000-0000-0000-0000-000000000000" });
+    expect(errorOf(missing).code).toBe("not_found");
+    const both = await call("jobs_for_company", { companyId, domain: "acme.example" });
+    expect(errorOf(both).code).toBe("invalid_input");
 
     await call("company_job_pause", { jobId, reason: "operator check" });
     const paused = dataOf(await call("company_job_status", { jobId }));

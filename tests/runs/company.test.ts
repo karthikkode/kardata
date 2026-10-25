@@ -32,6 +32,7 @@ import {
   companyJobRetry,
   companyJobStatus,
   createCompanyRunner,
+  jobsForCompany,
   maybeQuotaEarlyTrip,
   startCompanyJob,
   supersedePendingJobs,
@@ -1364,5 +1365,64 @@ describe("extraction pool", () => {
     for (const p of pairs) {
       await vi.waitFor(async () => expect((await jobRow(p.jobId)).status).toBe("completed"));
     }
+  });
+});
+
+
+describe("jobsForCompany", () => {
+  async function seed(): Promise<{ companyId: string; jobA: string; jobB: string }> {
+    const [co] = await handle.db
+      .insert(companies)
+      .values({ id: randomUUID(), source: "manual", name: "Jobs Co", domain: "jobs.example" })
+      .returning({ id: companies.id });
+    if (!co) throw new Error("no company row");
+    const jobA = randomUUID();
+    const jobB = randomUUID();
+    await handle.db.insert(companyJobs).values({ id: jobA, companyId: co.id, status: "terminated" });
+    await handle.db.insert(companyJobs).values({ id: jobB, companyId: co.id, status: "completed" });
+    await handle.db.insert(researchRuns).values({
+      id: randomUUID(), companyId: co.id, companyJobId: jobA, kind: "collect", stage: "collect",
+      status: "failed", error: "boom",
+    });
+    await handle.db.insert(researchRuns).values({
+      id: randomUUID(), companyId: co.id, companyJobId: null, kind: "collect", status: "succeeded",
+    });
+    return { companyId: co.id, jobA, jobB };
+  }
+
+  it("returns every job and run for the company, oldest first", async () => {
+    const { companyId, jobA, jobB } = await seed();
+    const view = await jobsForCompany(handle.db, { companyId });
+    expect(view.company).toMatchObject({ id: companyId, name: "Jobs Co", domain: "jobs.example" });
+    expect(view.jobs.map((j) => j.id)).toEqual([jobA, jobB]);
+    expect(view.jobs.map((j) => j.status)).toEqual(["terminated", "completed"]);
+    expect(view.runs).toHaveLength(2);
+    expect(view.runs[0]).toMatchObject({ companyJobId: jobA, kind: "collect", stage: "collect", status: "failed", error: "boom" });
+    expect(view.runs[1]).toMatchObject({ companyJobId: null, status: "succeeded" });
+    expect(view.runs[0]?.createdAt).toBeInstanceOf(Date);
+  });
+
+  it("resolves a full URL to the stored domain", async () => {
+    const { companyId } = await seed();
+    const view = await jobsForCompany(handle.db, { domain: "https://www.jobs.example/shop?q=1" });
+    expect(view.company.id).toBe(companyId);
+  });
+
+  it("rejects unknown ids, unknown domains, and ambiguous queries", async () => {
+    await seed();
+    await expect(jobsForCompany(handle.db, { companyId: randomUUID() })).rejects.toMatchObject({ code: "not_found" });
+    await expect(jobsForCompany(handle.db, { domain: "missing.example" })).rejects.toMatchObject({ code: "not_found" });
+    await expect(jobsForCompany(handle.db, {})).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(jobsForCompany(handle.db, { companyId: randomUUID(), domain: "jobs.example" })).rejects.toMatchObject({
+      code: "invalid_input",
+    });
+  });
+
+  it("rejects a domain shared by two companies", async () => {
+    const { companyId } = await seed();
+    await handle.db.insert(companies).values({ id: randomUUID(), source: "manual", name: "Jobs Clone", domain: "jobs.example" });
+    await expect(jobsForCompany(handle.db, { domain: "jobs.example" })).rejects.toMatchObject({ code: "invalid_input" });
+    const view = await jobsForCompany(handle.db, { companyId });
+    expect(view.company.name).toBe("Jobs Co");
   });
 });
