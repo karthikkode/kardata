@@ -26,6 +26,7 @@ Newest at the bottom. Each entry: an ID, the date, the decision, and why. A late
 | D-21 | 2026-10-25 | Score 1 = watchlist, not Tier B; Tier A calls first, Tier B emails first; unconfirmed D2C companies are confirmed before contact | One signal is never enough (problem-bar) |
 | D-22 | 2026-10-25 | Use both cold calls and cold email; every email is specific to the company; never mail the whole list | Calls teach fastest; email covers buyers without phone numbers |
 | D-23 | 2026-10-26 | The store platform is not a filter. Any platform qualifies; Shopify only makes the audit faster. Future Apollo pulls drop the Shopify filter. Overrides the Shopify base filter (D-08) | Owner. Disconnected systems are the problem, not the platform |
+| D-24 | 2026-10-26 | Only two filters: D2C brand, and enough revenue to pay. A data team is a hard exclusion; a tech team only lowers the priority. A big-group owner excludes only when the brand can't decide for itself. HQ countries stay as a market choice | Owner. D2C means public data exists; revenue means they can pay and we can show value; a data team turns our work into their task |
 
 ## Open
 
@@ -35,4 +36,5 @@ Newest at the bottom. Each entry: an ID, the date, the decision, and why. A late
 | D-17 | Lead opening for the first batch | Channel truth (564 cos fit) / retailer paperwork / retention | Channel truth: broadest fit |
 | D-18 | Brands already using an attribution tool (138) | Pitch as a complement / move to the back | Complement, opening on Amazon/retail gaps |
 | D-19 | Retainer range for D2C | $3k/$5k (old) or $3–6k (2026-10-19) | $3k Core / $5k Full; watch D2C margin objections |
+| D-25 | Revenue floor | $1M / **$2M** / none | $2M: the audit plus a year of the $3k retainer is about $38k, which is about 2% of a $2M brand's revenue but about 4% of a $1M brand's. Revisit after the first 100 contacts |
 | D-20 | Signal score weights in `icp.md` | Equal weights now; tune after the first 100 contacts | Equal now |

@@ -13,15 +13,18 @@ The structure is the same for every sector:
 
 Only the signals change from sector to sector. The D2C version is below.
 
-## 1. Base filters (all must pass)
+## 1. Filters (all must pass, D-24)
 
-- **Business:** a D2C brand selling its own products from its own online store.
-  - Layer 1 (skincare, body and bath, men's grooming) first, then Layer 2.
+There are only two real filters:
+1. **A D2C brand** selling its own products from its own online store. We need public data on a company before we
+   reach out, and D2C brands put that data out in the open.
+2. **Enough revenue to pay** for the audit and the retainer, and enough for us to show value. The working floor is
+   about **$2M a year** (D-25 is open), with no upper limit. Apollo has no revenue figures, so 11+ staff stands in
+   for it.
+
+Two more rules, which are market choices and not ways to judge a company:
 - **HQ:** United States, United Kingdom, Canada or Australia.
-- **Size:** 11–100 staff, which is roughly $2–20M revenue.
-
-These three are already applied in the Apollo export. **All 753 finished Layer 1 companies pass** (DB,
-2026-10-25). So in D2C, the tier depends on the signals.
+- **Layer 1** (skincare, body and bath, men's grooming) first, then Layer 2.
 
 **The store platform is not a filter** (D-23). Shopify, WooCommerce, BigCommerce or a custom store all qualify. The
 problem we fix, disconnected systems, is the same on every platform. Shopify only makes the audit faster, because its
@@ -29,11 +32,16 @@ exports and APIs are standard.
 
 ## 2. Exclusions (skip, and never bring back)
 
-- **Has a data team:** 2+ data job titles, or any "Head/VP of Data". They build it themselves.
-- **Owned by a large group** (enterprise parent), or acquired.
+- **Has a data team:** 2+ data job titles, or any "Head/VP of Data". A hard no: our work would end up as a task for
+  their data team.
 - **Not a real D2C brand:** clinics, salons, spas, distributors, agencies, dead or parked sites.
-- **Too small to pay:** under ~10 staff with no sign of revenue.
+- **Too small to pay:** below the revenue floor.
 - **Only one signal:** a lone signal is never enough to pitch.
+
+**These are not exclusions:**
+- **Has a tech team** (engineers, but no data roles): contact them later in the queue.
+- **Owned by a large group:** fine if the brand makes its own decisions, meaning it has its own founder, CEO or GM
+  who can say yes. Exclude it only when decisions are made at the parent company.
 
 ## 3. Stack check (from the stack collector)
 
@@ -75,7 +83,7 @@ Each signal adds 1 point, up to 6. Every point needs the evidence standard in `e
 | On Shopify | 752 |
 | Confirmed as D2C brands in our own data | 631 (107 unknown, 19 fail) |
 | Sells across channels (signal 1) | 604 |
-| Excluded (79 big-group owned, 19 not D2C, 9 too small) | 102 |
+| Excluded (79 big-group owned, 19 not D2C, 9 too small; the 79 must be re-checked under D-24) | 102 |
 | **Tier A after exclusions** | **173** |
 | **Tier B (score 2) after exclusions** | **244** |
 | **Can be contacted** | **417 = ~317 confirmed D2C + ~100 still to confirm** |
