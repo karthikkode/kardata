@@ -4,6 +4,19 @@ Kardata v2: a backend service (`kardata-server`) driven only through MCP. It imp
 into sectors, then runs deep research per company with agents. No frontend until the roadmap says so.
 The owner reviews every stage. Plans live in `docs/plans/`, and the current stage's plan is the spec.
 
+## Docs map
+| Folder | What it holds | Who edits it |
+|---|---|---|
+| `docs/plans/` | Stage plans (the spec) and `roadmap.md` | Owner / Claude |
+| `docs/reviews/` | Your stage reviews | You, at the end of a stage |
+| `docs/sources/` | How-tos for the code (for example, onboarding a source adapter) | You, when the plan says so |
+| `docs/business/` | **Business context:** strategy, offer, ICP, problem bar, evidence rules, outreach, funnel, decisions. Start at `docs/business/README.md` | **Owner / Claude only.** You read it, never edit it |
+
+**Analysis, briefs, screens or outreach work on company data must follow `docs/business/`.** Use the ICP and tiers in
+`icp.md`, the problem bar and 8 dimensions in `problem-bar.md`, and the citation rules in `evidence-rules.md`. If a
+business answer you need isn't there, ask the owner. Don't invent one. Open business questions are listed in
+`docs/business/decisions.md`.
+
 ## How you work
 1. Read the current stage plan in `docs/plans/` before writing code. Do the steps in order.
 2. Use one commit per plan step, with explicit paths (`git add <paths>`, never `git add -A`).
@@ -29,6 +42,8 @@ The owner reviews every stage. Plans live in `docs/plans/`, and the current stag
 - Add frameworks, services or dependencies the plan doesn't name. If one seems needed, propose it in the
   review instead.
 - Write long docs, catalogues, hash manifests or "evidence metadata". Code and tests are the deliverable.
+  (`docs/business/` is the owner's and is exempt; you never write there.)
+- Put real prospect names, people, emails or phone numbers in any doc. They stay in the database.
 - Re-run a test suite on code that hasn't changed.
 
 ## Stack (fixed)
