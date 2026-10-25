@@ -106,7 +106,10 @@ async function seedShopifyCtx(app: string | null, products: { handle: string; ta
   return { ctx, runId };
 }
 
-function cannedRunner(texts: string[], opts: { dateless?: boolean } = {}): ReviewsJobRunner & { seen: string[][] } {
+function cannedRunner(
+  texts: string[],
+  opts: { dateless?: boolean; emptyText?: boolean } = {},
+): ReviewsJobRunner & { seen: string[][] } {
   const seen: string[][] = [];
   const run: ReviewsJobRunner = async (input) => {
     seen.push(input.pages.map((p) => p.url));
@@ -120,7 +123,7 @@ function cannedRunner(texts: string[], opts: { dateless?: boolean } = {}): Revie
         reviewCount: i === 0 ? texts.length : 0,
       })),
       reviews: texts.map((text) => ({
-        text,
+        text: opts.emptyText ? "" : text,
         rating: 5,
         rating_scale: 5,
         ...(opts.dateless ? {} : { date: "2026-10-01" }),
@@ -243,13 +246,21 @@ describe("reviews_onsite collector", () => {
     ]);
   });
 
-  it("reports parsed-but-unstorable reviews honestly", async () => {
+  it("stores dateless reviews and says so in the reason", async () => {
     const { ctx } = await seedShopifyCtx("Judge.me", [{ handle: "glow", tags: [] }]);
     const result = await runReviewsOnsite(ctx, cannedRunner(["Dateless review one.", "Dateless review two."], { dateless: true }));
     expect(result.outcomes).toHaveLength(1);
+    expect(result.outcomes[0]).toMatchObject({ area: "reviews", status: "done" });
+    expect(result.outcomes[0]?.reason).toMatch(/2 reviews \(2 dateless\)/);
+  });
+
+  it("reports parsed-but-unstorable reviews honestly", async () => {
+    const { ctx } = await seedShopifyCtx("Judge.me", [{ handle: "glow", tags: [] }]);
+    const result = await runReviewsOnsite(ctx, cannedRunner(["Empty one.", "Empty two."], { emptyText: true }));
+    expect(result.outcomes).toHaveLength(1);
     expect(result.outcomes[0]).toMatchObject({ area: "reviews", status: "not_found" });
     expect(result.outcomes[0]?.reason).toMatch(/2 parsed, 0 stored/);
-    expect(result.outcomes[0]?.reason).toMatch(/date/);
+    expect(result.outcomes[0]?.reason).toMatch(/text/);
   });
 
   it("accepts the stamped.io alias and comma-joined app values", async () => {

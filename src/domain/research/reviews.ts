@@ -192,10 +192,19 @@ function toRecordItem(platform: string, sourceId: string, review: IngestReview) 
   }
   const normalized = normalizeText(typeof data["text"] === "string" ? (data["text"] as string) : "");
   const dateKey = normalizeDate(data["date"]) ?? (typeof data["date"] === "string" ? data["date"] : "");
+  // Merchants that hide dates: store anyway, flagged — the flag plus the
+  // dateless_count fact keep these visible for attention. Dedupe falls back
+  // to platform + normalized text (same rerun stability). Edge: if a merchant
+  // starts showing dates later, the dated rows arrive as new siblings of the
+  // flagged ones; no silent merge is attempted.
+  const dateMissing = typeof data["date"] !== "string" || (data["date"] as string).trim() === "";
+  if (dateMissing) data["date_missing"] = true;
   return {
     type: "review",
     data,
     sourceIds: [sourceId],
+    // Empty text keeps the registered key so it still rejects (nothing usable).
+    ...(normalized === "" ? {} : { naturalKey: ["platform", "text", "date"] }),
     keyValues: { platform, text: normalized, date: dateKey },
     dropped,
   };
@@ -239,6 +248,8 @@ async function recomputeReviewFacts(
   };
 
   await write("reviews.ingested_count", rows.length);
+  const dateless = rows.filter((r) => (r.data as Record<string, unknown>)["date_missing"] === true).length;
+  await write("reviews.dateless_count", dateless);
 
   const normalized: number[] = [];
   for (const row of rows) {

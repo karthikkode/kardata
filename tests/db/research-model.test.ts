@@ -840,6 +840,55 @@ describe("reviews_ingest", () => {
     expect(again).toHaveLength(2);
   });
 
+  it("stores dateless reviews flagged, counts them, and dedupes reruns", async () => {
+    const companyId = await makeCompany();
+    const runId = await makeRun(companyId);
+    const sourceId = await makeSource(companyId, runId);
+    const input = {
+      companyId,
+      runId,
+      platform: "yotpo",
+      sourceId,
+      createdBy: "owner",
+      reviews: [
+        { text: "Love this cream", rating: 5 },
+        { text: "Pump stopped working", rating: 2 },
+        { text: "Great serum", rating: 5, date: "2026-09-01" },
+        { text: "   " },
+      ],
+    };
+    const first = await reviewsIngest(handle.db, input);
+    expect(first.results.map((r) => (r.ok ? r.outcome : "rejected"))).toEqual([
+      "created",
+      "created",
+      "created",
+      "rejected",
+    ]);
+    expect(first.recomputed).toContain("reviews.dateless_count");
+
+    const rows = await handle.db.select().from(records).where(eq(records.companyId, companyId));
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      const data = row.data as Record<string, unknown>;
+      if (data["date"]) expect(data["date_missing"]).toBeUndefined();
+      else expect(data["date_missing"]).toBe(true);
+    }
+    const current = await handle.db.select().from(factsCurrent).where(eq(factsCurrent.companyId, companyId));
+    const byKey = new Map(current.map((r) => [r.key, r]));
+    expect(byKey.get("reviews.dateless_count")?.valueNum).toBe("2");
+    expect(byKey.get("reviews.ingested_count")?.valueNum).toBe("3");
+
+    const second = await reviewsIngest(handle.db, input);
+    expect(second.results.map((r) => (r.ok ? r.outcome : "rejected"))).toEqual([
+      "unchanged",
+      "unchanged",
+      "unchanged",
+      "rejected",
+    ]);
+    const again = await handle.db.select().from(records).where(eq(records.companyId, companyId));
+    expect(again).toHaveLength(3);
+  });
+
   it("keeps the most recent 5,000 per platform", async () => {
     const companyId = await makeCompany();
     const runId = await makeRun(companyId);
