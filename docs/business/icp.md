@@ -89,10 +89,11 @@ Each signal adds 1 point, up to 6. Every point needs the evidence standard in `e
 |---|---|
 | Rows checked (753 finished, plus 61 failed, stopped or orphaned runs) | 814 |
 | **Tier A** | **149** |
-| **Tier B** | **256** |
-| **Can be contacted (A + B)** | **405** |
-| Watchlist (score 0–1, or no second system) | 348 |
-| Excluded | 61 |
+| **Tier B** | **254** (1 not contactable until its research is rerun) |
+| **Can be contacted now** | **402** |
+| Watchlist (score 0–1, or no second system) | 349 |
+| Excluded | 62 |
+| Research incomplete (zero facts; rerun after the quota reset) | 82 |
 | Fit the starter band (5–10 staff) | 10 |
 | On Shopify (for information only, not a filter since D-23) | 752 of 753 |
 
