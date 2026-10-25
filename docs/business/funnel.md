@@ -1,6 +1,6 @@
 # Funnel, benchmarks and reviews
 
-Status: locked · Last updated: 2026-10-25 · Source: kardata_old/campaign/campaign-size.md, benchmarks.md (verified
+Status: locked · Last updated: 2026-10-26 · Source: kardata_old/campaign/campaign-size.md, benchmarks.md (verified
 2026-10-07/11), gate-review.md, owner session 2026-10-24
 
 ## Benchmarks (outside data, checked 2026-10)
@@ -39,6 +39,8 @@ That gives about **0.19% per contact**, roughly 1 client per 530 contacts. Chanc
 
 - **D2C Layer 1 is about 753 companies × 2 buyers, so about 1,500 contacts.**
 - **Batch shape:** 100 contacts a week, sent as two groups of 50, with 1 + 3 touches.
+- **Starter batch (small brands, D-25):** 30–50 companies, run alongside the main list, not instead of it. Track them
+  as their own group in the review after every 100 contacts.
 
 ## Call maths (owner plan)
 

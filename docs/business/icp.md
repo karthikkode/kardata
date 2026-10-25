@@ -1,6 +1,6 @@
 # ICP — who we sell to
 
-Status: draft (scoring weights open until the first 100 contacts) · Last updated: 2026-10-26 (two filters only: D-23, D-24) · Source:
+Status: draft (scoring weights open until the first 100 contacts) · Last updated: 2026-10-26 · Source:
 kardata_old/campaign/icp-filters.md + sector-plan.md (structure), owner 2026-10-19 (D2C target), owner 2026-10-26 (filters), Kardata DB
 (counts)
 
@@ -18,9 +18,12 @@ Only the signals change from sector to sector. The D2C version is below.
 There are only two real filters:
 1. **A D2C brand** selling its own products from its own online store. We need public data on a company before we
    reach out, and D2C brands put that data out in the open.
-2. **Enough revenue to pay** for the audit and the retainer, and enough for us to show value. The working floor is
-   about **$2M a year** (D-25 is open), with no upper limit. Apollo has no revenue figures, so 11+ staff stands in
-   for it.
+2. **Enough revenue to pay,** and enough for us to show value (D-25). There is no upper limit.
+   - **About $2M a year or more:** the main list. They get the full offer, the audit leading to a retainer. Apollo
+     has no revenue figures, so 11+ staff stands in for it.
+   - **About $500k–2M:** a separate, small batch of 30–50 companies. They get the starter package (`offer.md`
+     section 1b). About 5–10 staff stands in for it.
+   - **Under about $500k:** not contacted.
 
 Two more rules, which are market choices and not ways to judge a company:
 - **HQ:** United States, United Kingdom, Canada or Australia.
@@ -35,7 +38,7 @@ exports and APIs are standard.
 - **Has a data team:** 2+ data job titles, or any "Head/VP of Data". A hard no: our work would end up as a task for
   their data team.
 - **Not a real D2C brand:** clinics, salons, spas, distributors, agencies, dead or parked sites.
-- **Too small to pay:** below the revenue floor.
+- **Too small to pay:** under about $500k revenue.
 - **Only one signal:** a lone signal is never enough to pitch.
 
 **These are not exclusions:**
@@ -97,7 +100,8 @@ The ~100 unconfirmed companies must pass the D2C check before anyone contacts th
 group-owned companies may come back, and the tier counts will change.
 
 **The Apollo pull is narrower than the ICP now.** It required Shopify and capped staff at 100, so brands on other
-platforms or above 100 staff were never imported. The next pull uses only: D2C, US/UK/CA/AU, and 11+ staff.
+platforms or above 100 staff were never imported. The next pull uses only: D2C, US/UK/CA/AU, and 11+ staff. A separate pull of 5–10 staff
+brands feeds the starter batch.
 
 Contacts: 753 companies × 2 buyers ≈ 1,500 contacts. That is enough for the funnel in `funnel.md` without a second
 sector.

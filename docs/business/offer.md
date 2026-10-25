@@ -1,7 +1,7 @@
 # Offer
 
-Status: locked structure, **price open** (see decisions.md D-07) · Last updated: 2026-10-26 · Source:
-kardata_old/campaign/offer-onepager.md v3 (2026-10-13), owner session 2026-10-23
+Status: locked structure, **prices open** (see decisions.md D-07, D-27) · Last updated: 2026-10-26 · Source:
+kardata_old/campaign/offer-onepager.md v3 (2026-10-13), owner sessions 2026-10-23 and 2026-10-26 (starter package)
 
 The prices are fixed and there is no haggling. The only thing decided case by case is which tier fits, and that is
 decided at the audit readout, never in an email.
@@ -63,6 +63,22 @@ They keep the report and the working sheet whatever happens next.
 Say it honestly: "I'm building my case studies, so I'm doing two of these free." This happens twice only, then the
 offer is retired.
 
+## 1b. The starter package (small brands only, D-26)
+
+For brands at about **$500k–2M revenue**. They can't pay for the full audit plus a retainer. But while we have no
+clients, a small paid job brings in cash and gives us our first case study and testimonial.
+
+- **What they get:**
+  1. **A short diagnostic** of their store and channel data: the same "what repeats" and "what it costs" sections as
+     the audit report, but shorter.
+  2. **One small build,** for example a weekly sheet with one true sales number across their store and Amazon.
+- **Price:** fixed, about $750–1,000 (see open decision D-27). Paid upfront.
+- **Scope is fixed:** at most **5 working days** in total. Anything bigger is quoted separately.
+- **No 10× guarantee,** because small brands have smaller problems. No retainer pitch. If the build proves itself,
+  a retainer can be offered later.
+- **Limit:** take at most 2 starter clients at the same time, so outreach to the main list doesn't stop.
+- The build is a report or sheet on their own data, not an automation, so it doesn't break the rule in section 3.
+
 ## 2. The retainer (monthly)
 
 | | Core | Full |
@@ -92,6 +108,7 @@ offer is retired.
   retainer increase.
 - **Never offered in outreach.**
 - **Never sold without the retainer.** The live reporting is what proves the automation worked.
+- The starter package's one build (section 1b) is not an automation project.
 
 ## Confirmation questions (on the call, before offering the audit)
 
