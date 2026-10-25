@@ -613,7 +613,9 @@ async function clickNextPageNumber(tab, vendor) {
 }
 
 async function clickMoreInScope(scope, vendor) {
-  const paged = await clickNextPageNumber(scope, vendor);
+  // Every wait here is bounded: an unbounded one hangs past the job budget
+  // and the container SIGKILLs with everything lost (Besque et al).
+  const paged = await withTimeout(clickNextPageNumber(scope, vendor), 15000).catch(() => "none");
   if (paged === "clicked") return true;
   for (const sel of MORE_SELECTORS[vendor] ?? []) {
     const handle = await scope.$(sel).catch(() => null);
@@ -622,7 +624,7 @@ async function clickMoreInScope(scope, vendor) {
     if (!visible) continue;
     const box = await handle.boundingBox().catch(() => null);
     if (!box) continue;
-    await handle.scrollIntoViewIfNeeded().catch(() => undefined);
+    await handle.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => undefined);
     await handle.click({ timeout: 5000 }).catch(() => undefined);
     return true;
   }
@@ -631,7 +633,7 @@ async function clickMoreInScope(scope, vendor) {
     const control = scope.getByRole(role, { name: /load more|show more|more reviews/i }).first();
     const visible = await control.isVisible().catch(() => false);
     if (!visible) continue;
-    await control.scrollIntoViewIfNeeded().catch(() => undefined);
+    await control.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => undefined);
     await control.click({ timeout: 5000 }).catch(() => undefined);
     return true;
   }
