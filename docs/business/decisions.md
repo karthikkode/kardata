@@ -25,6 +25,7 @@ Newest at the bottom. Each entry: an ID, the date, the decision, and why. A late
 | D-16 | 2026-10-25 | Business docs live in `docs/business/` (this folder), owner-maintained | One standard home |
 | D-21 | 2026-10-25 | Score 1 = watchlist, not Tier B; Tier A calls first, Tier B emails first; unconfirmed D2C companies are confirmed before contact | One signal is never enough (problem-bar) |
 | D-22 | 2026-10-25 | Use both cold calls and cold email; every email is specific to the company; never mail the whole list | Calls teach fastest; email covers buyers without phone numbers |
+| D-23 | 2026-10-26 | The store platform is not a filter. Any platform qualifies; Shopify only makes the audit faster. Future Apollo pulls drop the Shopify filter. Overrides the Shopify base filter (D-08) | Owner. Disconnected systems are the problem, not the platform |
 
 ## Open
 

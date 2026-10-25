@@ -19,10 +19,13 @@ Only the signals change from sector to sector. The D2C version is below.
   - Layer 1 (skincare, body and bath, men's grooming) first, then Layer 2.
 - **HQ:** United States, United Kingdom, Canada or Australia.
 - **Size:** 11–100 staff, which is roughly $2–20M revenue.
-- **Store:** Shopify. This means exports and APIs are standard, so an audit can run remotely.
 
-These four are already applied in the Apollo export. **All 753 finished Layer 1 companies pass,** and 705 are on
-Shopify (DB, 2026-10-25). So in D2C, the tier depends on the signals.
+These three are already applied in the Apollo export. **All 753 finished Layer 1 companies pass** (DB,
+2026-10-25). So in D2C, the tier depends on the signals.
+
+**The store platform is not a filter** (D-23). Shopify, WooCommerce, BigCommerce or a custom store all qualify. The
+problem we fix, disconnected systems, is the same on every platform. Shopify only makes the audit faster, because its
+exports and APIs are standard.
 
 ## 2. Exclusions (skip, and never bring back)
 
@@ -34,7 +37,7 @@ Shopify (DB, 2026-10-25). So in D2C, the tier depends on the signals.
 
 ## 3. Stack check (from the stack collector)
 
-- **Must have:** Shopify, plus at least one more system holding sales or customer data:
+- **Must have:** an online store on any platform, plus at least one more system holding sales or customer data:
   - **email or SMS:** Klaviyo, Attentive, Postscript;
   - **subscription:** Recharge;
   - **reviews:** Yotpo, Judge.me, Okendo;
