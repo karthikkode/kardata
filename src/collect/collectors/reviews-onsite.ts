@@ -180,6 +180,7 @@ export async function runReviewsOnsite(
   }
   let ingested = 0;
   let parsed = 0;
+  let dateless = 0;
   let firstStoreError: string | null = null;
   const vendors = new Set<string>();
   const pageTotals: { url: string; displayed: number | null; ingested: number }[] = [];
@@ -202,6 +203,9 @@ export async function runReviewsOnsite(
       createdBy: "collector:reviews_onsite",
     });
     const pageIngested = result.results.filter((r) => r.ok).length;
+    result.results.forEach((r, i) => {
+      if (r.ok && !items[i]?.date) dateless += 1;
+    });
     if (firstStoreError === null) {
       const failed = result.results.find((r) => !r.ok);
       if (failed && !failed.ok) firstStoreError = failed.error;
@@ -228,12 +232,13 @@ export async function runReviewsOnsite(
       ingested,
       displayed,
       parsed,
+      dateless,
     },
   });
   if (ingested === 0) {
     if (parsed > 0) {
-      // Parsed but un-storable (e.g. dateless reviews fail the natural key):
-      // say so instead of claiming nothing was parsed.
+      // Parsed but un-storable (dateless reviews now store flagged; anything
+      // still failing lands here): say so instead of claiming nothing parsed.
       const why = firstStoreError ?? "unknown ingest error";
       return {
         outcomes: [{ area: "reviews", status: "not_found", reason: `${parsed} parsed, 0 stored: ${why}`.slice(0, 300) }],
@@ -250,6 +255,7 @@ export async function runReviewsOnsite(
       ],
     };
   }
+  const datelessBit = dateless > 0 ? ` (${dateless} dateless)` : "";
   return {
     outcomes: [
       {
@@ -257,8 +263,8 @@ export async function runReviewsOnsite(
         status: "done",
         reason:
           displayed === null
-            ? `${ingested} reviews from ${pages.length} pages (${supported.platform})`
-            : `${ingested} of ${displayed} displayed reviews from ${pages.length} pages (${supported.platform})`,
+            ? `${ingested} reviews${datelessBit} from ${pages.length} pages (${supported.platform})`
+            : `${ingested} of ${displayed} displayed reviews${datelessBit} from ${pages.length} pages (${supported.platform})`,
       },
     ],
   };

@@ -746,7 +746,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
   registerTool(server, db, auth, 
     "reviews_ingest",
     {
-      description: "Bulk reviews (at most 500): dedupe, identity stripped, 5,000/platform kept, rating facts recomputed. Returns per-item results plus recomputed keys.",
+      description: "Bulk reviews (at most 500): dedupe, identity stripped, 5,000/platform kept, rating facts recomputed. Dateless reviews are stored flagged (date_missing) and counted (reviews.dateless_count). Returns per-item results plus recomputed keys.",
       inputSchema: {
         companyId,
         runId: runId.optional(),
