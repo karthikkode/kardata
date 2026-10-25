@@ -10,7 +10,7 @@ that is decided at the audit readout, never in an email.
 
 The tier is the company's annual revenue (`icp.md` section 4). It sets which offer we pitch.
 
-| Tier | Size | Pitch | The diagnostic fee |
+| Tier | Revenue | Pitch | The diagnostic fee |
 |---|---|---|---|
 | **A** | $10M+ revenue | Diagnostic, then we build the fix: $3–6k (what the $3–6k covers is open, D-32) | Credited against the build if they hire us to build the fix |
 | **B** | $2M–10M revenue | **$1,500 diagnostic** (the audit in section 1), then the retainer | Credited against the retainer if they retain us |
@@ -65,9 +65,10 @@ They keep the report and the working sheet whatever happens next.
 
 **Terms:**
 - Paid upfront.
-- **The full fee is credited** against the first two retainer months if they continue.
-- **Guarantee (said on the call, never in email):** if the report doesn't find at least **10× the audit fee per
-  year** in recoverable value, the full fee comes back. At $1,500 that's $15,000 a year.
+- **The full fee is credited** (taken off the next bill): for Tier B against the first two retainer months, for Tier A
+  against the build.
+- **Guarantee (Tiers A and B, said on the call, never in email):** if the report doesn't find at least **10× the
+  audit fee per year** in recoverable value, the full fee comes back. At $1,500 that's $15,000 a year.
 
 **The first 2 audits** are free, or $500 (the owner decides on the day), in exchange for:
 - a testimonial;
@@ -95,11 +96,11 @@ clients, a small paid job brings in cash and gives us our first case study and t
 - **Limit:** at most 2 Tier C clients in progress at the same time, so outreach to Tiers A and B doesn't stop.
 - The build is a report or sheet on their own data, not an automation, so it doesn't break the rule in section 3.
 
-## 2. The retainer (monthly)
+## 2. The retainer (monthly, Tier B; Tier A once D-32 is settled)
 
 | | Core | Full |
 |---|---|---|
-| Price | $3k/mo | $5k/mo (range $3–6k, see D-07) |
+| Price | $3k/mo | $5k/mo (range $3–6k, open in D-19) |
 | Scope | 1 audit type | Up to 3 audit types |
 | Data sources | Up to 2 | Up to 4 |
 | Reporting | A weekly report you can open every Monday | Live dashboards plus the weekly report |
@@ -124,7 +125,7 @@ clients, a small paid job brings in cash and gives us our first case study and t
   retainer increase.
 - **Never offered in outreach.**
 - **Never sold without the retainer.** The live reporting is what proves the automation worked.
-- The Tier C build (section 1b) is not an automation project.
+- The Tier C build (section 1b) and the Tier A one-time build (D-30, scope open in D-32) are not automation projects.
 
 ## Confirmation questions (on the call, before offering the audit)
 
@@ -139,5 +140,6 @@ heading to:
 **If they push back on the observation:** "Fair enough, that was just the outside view. What does it look like from
 the inside?" Then ask about the problem *they* name.
 
-**If they confirm the pain,** offer the audit on the call: the fixed price, the timeline, the report is theirs, the fee
+**If they confirm the pain,** offer the diagnostic for their tier on the call (see "Offer by tier"). For Tiers A and
+B: the fixed price, the timeline, the report is theirs, the fee
 is credited if they continue, and the fee comes back if it can't find 10× its value per year.

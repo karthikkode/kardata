@@ -82,7 +82,7 @@ their own data decisions, and the parent has data teams.
 **Where the revenue number comes from, best first:**
 1. A revenue figure with a named public source (an interview, a press article, a filing).
 2. Apollo's "Annual Revenue" estimate, which we store for each company (`financials.revenue_estimate`).
-3. If both are missing, the staff count stands in for it, about $150–200k per person. Mark the tier as "estimated
+3. If both are missing, the staff count stands in for it, at about $175k per person (range $150–200k). Mark the tier as "estimated
    from staff".
 
 Revenue figures from outside are estimates. **The buyer's own answer on a call always wins,** and the tier is
@@ -134,12 +134,12 @@ Each signal adds 1 point, up to 6. Every point needs the evidence standard in `e
 | Excluded | 62 |
 | Research incomplete (zero facts; rerun after the quota reset) | 82 |
 | Small enough for Tier C (5–10 staff, before the revenue check) | 10 |
-| Split by tier (A / B) | not counted yet |
+| Split by tier (A / B / C) and layer | not counted yet (the agent's sheet run counts it) |
 | On Shopify (for information only, not a filter since D-23) | 752 of 753 |
 
 **What the check changed:** strict evidence moved many companies down, and the new group rule brought many back. 24
 companies had no second system holding data and went to the watchlist. All the spa- and salon-named companies left
-in A/B sell their own products.
+among the contactable ones sell their own products.
 
 **The Apollo pull is narrower than the ICP now.** It required Shopify and capped staff at 100, so brands on other
 platforms or above 100 staff were never imported. The next pull uses only: D2C, US/UK/CA/AU, and 11+ staff. A

@@ -1,6 +1,10 @@
 # Deliverability — must pass before any email is sent
 
-Status: locked · **not started** · Last updated: 2026-10-25 · Source: kardata_old/campaign/stage0-checklist.md
+Status: locked · **partly done** · Last updated: 2026-10-26 · Source: kardata_old/campaign/stage0-checklist.md, owner
+2026-10-25
+
+**Owner, 2026-10-25:** a sending domain, an inbox and a landing page are set up, and the checks pass. The steps not
+yet confirmed are marked `?`.
 
 **Why this comes first:** an earlier campaign got 0 replies from 100 emails, which is the result you get when emails
 don't reach the inbox. No list size and no copy fixes that.
@@ -9,12 +13,12 @@ don't reach the inbox. No list size and no copy fixes that.
 
 | Step | Done |
 |---|---|
-| Buy 3 lookalike sending domains (e.g. getkardata, kardatahq, trykardata) | [ ] |
-| Set up a Google Workspace inbox on each one: real name, photo, plain signature | [ ] |
-| SPF, DKIM and DMARC on all 3 (DMARC starts at `p=none`), checked with a header check | [ ] |
-| Point the sending domains at kardata.co, so anyone who searches lands on real content | [ ] |
-| Warm up for 14+ days with a gradual, human-like volume | [ ] |
-| Inbox test: send the real T1 to 5–10 seed addresses (Gmail, Outlook, Yahoo, one strict Workspace). All must land in the inbox | [ ] |
+| Buy 3 lookalike sending domains (e.g. getkardata, kardatahq, trykardata) | ? (at least 1 done) |
+| Set up a Google Workspace inbox on each one: real name, photo, plain signature | ? (at least 1 done) |
+| SPF, DKIM and DMARC on all 3 (DMARC starts at `p=none`), checked with a header check | [x] passing on the domain set up |
+| Point the sending domains at kardata.co, so anyone who searches lands on real content | ? (landing page exists) |
+| Warm up for 14+ days with a gradual, human-like volume | ? |
+| Inbox test: send the real T1 to 5–10 seed addresses (Gmail, Outlook, Yahoo, one strict Workspace). All must land in the inbox | ? |
 
 **kardata.co never sends cold email.** It hosts the website and case studies only.
 

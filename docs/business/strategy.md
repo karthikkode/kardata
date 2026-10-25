@@ -25,7 +25,7 @@ Status: locked (sector order is open, see decisions.md) · Last updated: 2026-10
 ## The goal
 
 - **1+ paying client within 100 days.** Day 1 = 2026-10-13, day 100 = 2027-01-20.
-  - The entry is a paid audit (see `offer.md`), leading to a monthly retainer.
+  - The entry is a paid diagnostic, priced by tier (see `offer.md`). It leads to a build or a monthly retainer.
 - **A paid Tier C job ($500k–2M revenue, `offer.md`) also counts.** It covers expenses and gives us the
   first case study.
 - **A paid audit counts as real progress on its own.** From outside data, most problems look audit-sized rather than

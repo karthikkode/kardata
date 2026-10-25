@@ -103,7 +103,7 @@ planted question is answered inside the email.
 |---|---|---|---|---|
 | T1 | 0 | No | The story: observation → stakes → upside → audit → ask | ~200–260 words |
 | F1 | 4 | No | **A genuinely new** observation + one question about how they handle it today (no call ask) | 55–75 |
-| F2 | 9 | **Yes, once** | The audit offer with price and credit, plus a fit-check call ask | 65–85 |
+| F2 | 9 | **Yes, once** | The offer for their tier (`offer.md`), with price and credit, plus a fit-check call ask | 65–85 |
 | F3 | 16 | No | A clean close: "I will stop here." Leave the door open and ask who else owns it. Reply-only | 40–60 |
 
 - **If there's no second fact that passes the evidence rules,** skip F1. Never send a reminder bump instead.

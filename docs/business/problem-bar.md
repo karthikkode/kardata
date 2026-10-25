@@ -55,6 +55,9 @@ Use the value formula in `offer.md`. Always say which part of the estimate is pr
 | **$4–9k** | Audit-sized | Still send; inside data often shows more. Mark it `audit-shaped` in the tracker |
 | **Under $4k** | Lowest priority | Send last, and never research new companies of this size |
 
+These bands are for Tiers A and B. **Tier C is judged differently:** one small build must fix a weekly problem the
+founder feels. A Tier C company is never dropped only for falling under $4k.
+
 ## Rules against bias
 
 1. **Hiring signals can support a verdict but never be its only evidence.** Every verdict needs 2+ independent
