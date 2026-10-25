@@ -1,15 +1,28 @@
 # ICP — who we sell to
 
 Status: draft (scoring weights open until the first 100 contacts) · Last updated: 2026-10-26 · Source:
-kardata_old/campaign/icp-filters.md + sector-plan.md (structure), owner 2026-10-19 (D2C target), owner 2026-10-26 (filters), Kardata DB
+kardata_old/campaign/icp-filters.md + sector-plan.md (structure), owner 2026-10-19 (D2C target), owner 2026-10-26 (filters, tiers and layers), Kardata DB
 (counts)
 
 The structure is the same for every sector:
 1. filters;
 2. exclusions;
 3. a stack check;
-4. a signal score, which sets the tier;
-5. the buyer.
+4. the tier: company size, which sets the offer and price;
+5. the layer: the signal score, which sets who we contact first inside a tier;
+6. the buyer.
+
+## Terms (D-29)
+
+- **Tier** = company size. It decides which offer and price we pitch. It exists for our convenience, to group the list.
+  - **Tier A:** large. **Tier B:** medium. **Tier C:** small.
+- **Layer** = priority inside a tier, set by the signal score. **Layer 1 has the highest score**, and the layer number
+  goes up as the score goes down. "Tier B, Layer 1" means a medium company with the strongest signals.
+- **Watchlist:** score 0–1. Not in any layer and never contacted.
+- **Research wave:** which group of companies gets researched first (wave 1: skincare, body and bath, men's
+  grooming; wave 2: the next 151). Older plans and reviews call this "Layer 1/Layer 2". That old use is retired.
+- **Older docs and the 2026-10-26 ICP check** used "Tier A/B" for the signal score. That old use is retired too. Read
+  old "Tier A" as score 3+ and old "Tier B" as score 2.
 
 Only the signals change from sector to sector. The D2C version is below.
 
@@ -18,16 +31,11 @@ Only the signals change from sector to sector. The D2C version is below.
 There are only two real filters:
 1. **A D2C brand** selling its own products from its own online store. We need public data on a company before we
    reach out, and D2C brands put that data out in the open.
-2. **Enough revenue to pay,** and enough for us to show value (D-25). There is no upper limit.
-   - **About $2M a year or more:** the main list. They get the full offer, the audit leading to a retainer. Apollo
-     has no revenue figures, so 11+ staff stands in for it.
-   - **About $500k–2M:** a separate, small batch of 30–50 companies. They get the starter package (`offer.md`
-     section 1b). About 5–10 staff stands in for it.
-   - **Under about $500k:** not contacted.
+2. **Enough revenue to pay,** and enough for us to show value (D-25). There is no upper limit. Under about $500k
+   is not contacted. Above that, revenue sets the tier (section 4).
 
-Two more rules, which are market choices and not ways to judge a company:
-- **HQ:** United States, United Kingdom, Canada or Australia.
-- **Layer 1** (skincare, body and bath, men's grooming) first, then Layer 2.
+**HQ:** United States, United Kingdom, Canada or Australia. This is a market choice, not a way to judge a company.
+Research runs in waves: wave 1 first, then wave 2.
 
 **The store platform is not a filter** (D-23). Shopify, WooCommerce, BigCommerce or a custom store all qualify. The
 problem we fix, disconnected systems, is the same on every platform. Shopify only makes the audit faster, because its
@@ -42,7 +50,7 @@ exports and APIs are standard.
 - **Only one signal:** a lone signal is never enough to pitch.
 
 **These are not exclusions:**
-- **Has a tech team** (engineers, but no data roles): contact them later in the queue.
+- **Has a tech team** (engineers, but no data roles): contact them last within their layer.
 - **Owned by a PE fund or a small holding company:** kept.
 
 **Owned by a listed or multi-brand company** (for example Unilever, L'Oréal, Amorepacific, Shiseido): excluded,
@@ -62,7 +70,21 @@ their own data decisions, and the parent has data teams.
   - **This is not an exclusion.** Complement what they chose and never challenge it. Open on a gap the tool doesn't
     cover, for example Amazon or retail.
 
-## 4. Signal score → tier (0–6)
+## 4. Tier: company size → offer (D-29, D-30)
+
+Apollo has no revenue figures, so staff count stands in for revenue. The lines are working lines until the first 100
+contacts (D-31 is open).
+
+| Tier | Size | Staff (working line) | Revenue (rough) | Offer (`offer.md`) |
+|---|---|---|---|---|
+| **A** | Large | 51+ | about $10M+ | Diagnostic, credited if they hire us to build the fix; builds at $3–6k |
+| **B** | Medium | 11–50 | about $2–10M | $1,500 diagnostic, credited if they retain us |
+| **C** | Small | 5–10 | about $500k–2M | $1,000 diagnostic plus one build; then $1,000/mo active work or $500/mo support |
+
+- **Tier C is a small, separate batch** of 30–50 companies, run alongside A and B, not instead of them.
+- **Never show the Tier C offer to a Tier A or B company.** It includes a build for less than a Tier B diagnostic.
+
+## 5. Layer: signal score → priority inside a tier (0–6)
 
 Each signal adds 1 point, up to 6. Every point needs the evidence standard in `evidence-rules.md`.
 
@@ -75,26 +97,35 @@ Each signal adds 1 point, up to 6. Every point needs the evidence standard in `e
 | 5 | **A recent change:** funding in the last 18 months, a new retailer, a new channel, a rebrand | `funding_event`, `company_event` |
 | 6 | **Tool sprawl:** 2+ tools doing the same job, or 4+ ad networks running | `marketing.tool` facts |
 
-- **Tier A (score 3+):** call first; email if the call doesn't land.
-- **Tier B (score 2):** email first; call only the ones who open or reply, or where the evidence is unusually sharp.
-- **Watchlist (score 0–1):** never contacted. One signal alone is never enough to pitch.
-- **Tech team flag:** a company with engineers but no data roles keeps its tier, but goes to the back of the queue
-  within it.
+**Layer = 7 − score**, so each score has its own layer:
+
+| Layer | Score | First contact |
+|---|---|---|
+| 1 | 6 | Call first; email if the call doesn't land |
+| 2 | 5 | Call first |
+| 3 | 4 | Call first |
+| 4 | 3 | Call first |
+| 5 | 2 | Email first; call only those who open or reply, or where the evidence is unusually sharp |
+| Watchlist | 0–1 | Never contacted. One signal alone is never enough to pitch |
+
+- **Work order:** inside each tier, Layer 1 first, then Layer 2, and so on.
+- **Tech team flag:** a company with engineers but no data roles keeps its layer, but goes last within it.
 
 **A verdict needs 2+ independent signals, and at least one must not be hiring** (see `problem-bar.md`).
 
-## Snapshot (DB, 2026-10-26, Layer 1, after the ICP check under D-24 and D-28)
+## Snapshot (DB, 2026-10-26, research wave 1, after the ICP check under D-24 and D-28)
 
 | Group | Companies |
 |---|---|
 | Rows checked (753 finished, plus 61 failed, stopped or orphaned runs) | 814 |
-| **Tier A** | **149** |
-| **Tier B** | **254** (1 not contactable until its research is rerun) |
+| **Score 3+ (Layers 1–4)** | **149** |
+| **Score 2 (Layer 5)** | **254** (1 not contactable until its research is rerun) |
 | **Can be contacted now** | **402** |
 | Watchlist (score 0–1, or no second system) | 349 |
 | Excluded | 62 |
 | Research incomplete (zero facts; rerun after the quota reset) | 82 |
-| Fit the starter band (5–10 staff) | 10 |
+| Tier C size (5–10 staff) | 10 |
+| Split by tier (A / B) | not counted yet |
 | On Shopify (for information only, not a filter since D-23) | 752 of 753 |
 
 **What the check changed:** strict evidence moved many companies down, and the new group rule brought many back. 24
@@ -103,12 +134,12 @@ in A/B sell their own products.
 
 **The Apollo pull is narrower than the ICP now.** It required Shopify and capped staff at 100, so brands on other
 platforms or above 100 staff were never imported. The next pull uses only: D2C, US/UK/CA/AU, and 11+ staff. A
-separate pull of 5–10 staff brands feeds the starter batch, since we have only 10.
+separate pull of 5–10 staff brands feeds the Tier C batch, since we have only 10.
 
 Contacts: 753 companies × 2 buyers ≈ 1,500 contacts. That is enough for the funnel in `funnel.md` without a second
 sector.
 
-## 5. Buyer (who we contact)
+## 6. Buyer (who we contact)
 
 - **For a brand owned by a group,** the buyer is the brand's own founder, CEO or GM, never someone at the parent.
 - **Order of priority:**

@@ -1,10 +1,24 @@
 # Offer
 
-Status: locked structure, **prices open** (see decisions.md D-07, D-27) · Last updated: 2026-10-26 · Source:
-kardata_old/campaign/offer-onepager.md v3 (2026-10-13), owner sessions 2026-10-23 and 2026-10-26 (starter package)
+Status: locked structure, **Tier A price open** (see decisions.md D-32) · Last updated: 2026-10-26 · Source:
+kardata_old/campaign/offer-onepager.md v3 (2026-10-13), owner sessions 2026-10-23 and 2026-10-26 (offer by tier)
 
-The prices are fixed and there is no haggling. The only thing decided case by case is which tier fits, and that is
-decided at the audit readout, never in an email.
+The prices are fixed and there is no haggling. The only thing decided case by case is which retainer level fits, and
+that is decided at the audit readout, never in an email.
+
+## Offer by tier (D-30)
+
+The tier is the company's size (`icp.md` section 4). It sets which offer we pitch.
+
+| Tier | Size | Pitch | The diagnostic fee |
+|---|---|---|---|
+| **A** | Large (51+ staff) | Diagnostic, then we build the fix: $3–6k (what the $3–6k covers is open, D-32) | Credited against the build if they hire us to build the fix |
+| **B** | Medium (11–50 staff) | **$1,500 diagnostic** (the audit in section 1), then the retainer | Credited against the retainer if they retain us |
+| **C** | Small (5–10 staff) | **$1,000** diagnostic plus one build, then $1,000/mo active work or $500/mo support (section 1b) | Already includes the build |
+
+- **"Credited" means the fee comes off their next bill.** We don't hand the money back. The only money-back case is
+  the guarantee.
+- **Never show the Tier C offer to a Tier A or B company.**
 
 ## The one value formula (used everywhere)
 
@@ -21,7 +35,7 @@ ties to a cause we can fix.
 ## 1. The audit (entry product)
 
 - **One business question,** chosen with the buyer on the call, answered from their own data.
-- **Price:** see open decision D-07. Option A is $1,500 fixed for 3 days. Option B is $2–3k for about 2 weeks.
+- **Price (Tier B):** $1,500 fixed, about 3 days of work (D-07). The Tier A diagnostic price is open (D-32).
 
 **Audit types for D2C (pick one on the call):**
 
@@ -63,20 +77,22 @@ They keep the report and the working sheet whatever happens next.
 Say it honestly: "I'm building my case studies, so I'm doing two of these free." This happens twice only, then the
 offer is retired.
 
-## 1b. The starter package (small brands only, D-26)
+## 1b. The Tier C package (small brands only, D-26, D-30)
 
 For brands at about **$500k–2M revenue**. They can't pay for the full audit plus a retainer. But while we have no
 clients, a small paid job brings in cash and gives us our first case study and testimonial.
 
-- **What they get:**
-  1. **A short diagnostic** of their store and channel data: the same "what repeats" and "what it costs" sections as
-     the audit report, but shorter.
-  2. **One small build,** for example a weekly sheet with one true sales number across their store and Amazon.
-- **Price:** fixed, about $750–1,000 (see open decision D-27). Paid upfront.
-- **Scope is fixed:** at most **5 working days** in total. Anything bigger is quoted separately.
-- **No 10× guarantee,** because small brands have smaller problems. No retainer pitch. If the build proves itself,
-  a retainer can be offered later.
-- **Limit:** take at most 2 starter clients at the same time, so outreach to the main list doesn't stop.
+| Part | Price | Limit |
+|---|---|---|
+| **Diagnostic plus one build** | **$1,000** fixed, paid upfront | At most **5 working days** in total |
+| **Active work** (optional, monthly) | **$1,000/mo** | A fixed number of hours, about 10 a month (working limit) |
+| **Support only** (optional, monthly) | **$500/mo** | Fixes to what we built. No new work |
+
+- **The diagnostic** is the same "what repeats" and "what it costs" as the audit report, but shorter.
+- **The build** is one small thing, for example a weekly sheet with one true sales number across their store and
+  Amazon. Anything bigger is quoted separately.
+- **No 10× guarantee,** because small brands have smaller problems.
+- **Limit:** at most 2 Tier C clients in progress at the same time, so outreach to Tiers A and B doesn't stop.
 - The build is a report or sheet on their own data, not an automation, so it doesn't break the rule in section 3.
 
 ## 2. The retainer (monthly)
@@ -108,7 +124,7 @@ clients, a small paid job brings in cash and gives us our first case study and t
   retainer increase.
 - **Never offered in outreach.**
 - **Never sold without the retainer.** The live reporting is what proves the automation worked.
-- The starter package's one build (section 1b) is not an automation project.
+- The Tier C build (section 1b) is not an automation project.
 
 ## Confirmation questions (on the call, before offering the audit)
 

@@ -13,7 +13,7 @@ and never change them.
 |---|---|
 | [strategy.md](strategy.md) | Who we are, the goal and timeline, which sectors, how the business works |
 | [offer.md](offer.md) | What we sell: the audit, the retainer, prices, the guarantee, the value formula |
-| [icp.md](icp.md) | Who we sell to: filters, exclusions, signal scoring, tiers, buyers |
+| [icp.md](icp.md) | Who we sell to: filters, exclusions, tiers (size → offer), layers (score → priority), buyers |
 | [problem-bar.md](problem-bar.md) | When a problem is worth pitching: the 5 tests, the 8 dimensions, the value estimate |
 | [evidence-rules.md](evidence-rules.md) | What counts as evidence in an email, on a call or in content, and what never does |
 | [outreach-email.md](outreach-email.md) | Cold email: the reading order, voice, bans, fixed lines, follow-ups |

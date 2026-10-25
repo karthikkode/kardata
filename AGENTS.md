@@ -12,10 +12,14 @@ The owner reviews every stage. Plans live in `docs/plans/`, and the current stag
 | `docs/sources/` | How-tos for the code (for example, onboarding a source adapter) | You, when the plan says so |
 | `docs/business/` | **Business context:** strategy, offer, ICP, problem bar, evidence rules, outreach, funnel, decisions. Start at `docs/business/README.md` | **Owner / Claude only.** You read it, never edit it |
 
-**Analysis, briefs, screens or outreach work on company data must follow `docs/business/`.** Use the ICP and tiers in
-`icp.md`, the problem bar and 8 dimensions in `problem-bar.md`, and the citation rules in `evidence-rules.md`. If a
-business answer you need isn't there, ask the owner. Don't invent one. Open business questions are listed in
-`docs/business/decisions.md`.
+**Analysis, briefs, screens or outreach work on company data must follow `docs/business/`.**
+- Use the ICP in `icp.md` and its terms:
+  - a **tier** is company size and sets the offer (A large, B medium, C small);
+  - a **layer** is priority inside a tier by signal score (Layer 1 = highest score);
+  - a **research wave** is research order. Older plans call it "Layer 1/2"; that use is retired.
+- Use the problem bar and 8 dimensions in `problem-bar.md`, and the citation rules in `evidence-rules.md`.
+- If a business answer you need isn't there, ask the owner. Don't invent one. Open business questions are listed in
+  `docs/business/decisions.md`.
 
 ## How you work
 1. Read the current stage plan in `docs/plans/` before writing code. Do the steps in order.
