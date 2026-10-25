@@ -43,8 +43,11 @@ exports and APIs are standard.
 
 **These are not exclusions:**
 - **Has a tech team** (engineers, but no data roles): contact them later in the queue.
-- **Owned by a large group:** fine if the brand makes its own decisions, meaning it has its own founder, CEO or GM
-  who can say yes. Exclude it only when decisions are made at the parent company.
+- **Owned by a PE fund or a small holding company:** kept.
+
+**Owned by a listed or multi-brand company** (for example Unilever, L'Oréal, Amorepacific, Shiseido): excluded,
+unless a source shows the brand has its own founder, CEO or GM who makes decisions (D-28). Its country arms don't make
+their own data decisions, and the parent has data teams.
 
 ## 3. Stack check (from the stack collector)
 
@@ -80,28 +83,26 @@ Each signal adds 1 point, up to 6. Every point needs the evidence standard in `e
 
 **A verdict needs 2+ independent signals, and at least one must not be hiring** (see `problem-bar.md`).
 
-## Snapshot (DB, 2026-10-25 evening, Layer 1 finished, agent tier run)
+## Snapshot (DB, 2026-10-26, Layer 1, after the ICP check under D-24 and D-28)
 
-| Filter | Companies |
+| Group | Companies |
 |---|---|
-| Finished Layer 1 (Apollo pull: D2C skincare, US/UK/CA/AU, Shopify, 11–100 staff) | 753 |
-| On Shopify (for information only, not a filter since D-23) | 752 |
-| Confirmed as D2C brands in our own data | 631 (107 unknown, 19 fail) |
-| Sells across channels (signal 1) | 604 |
-| Excluded (79 big-group owned, 19 not D2C, 9 too small; the 79 must be re-checked under D-24) | 102 |
-| **Tier A after exclusions** | **173** |
-| **Tier B (score 2) after exclusions** | **244** |
-| **Can be contacted** | **417 = ~317 confirmed D2C + ~100 still to confirm** |
-| Already using Triple Whale (solution in motion) | ~133 |
+| Rows checked (753 finished, plus 61 failed, stopped or orphaned runs) | 814 |
+| **Tier A** | **149** |
+| **Tier B** | **256** |
+| **Can be contacted (A + B)** | **405** |
+| Watchlist (score 0–1, or no second system) | 348 |
+| Excluded | 61 |
+| Fit the starter band (5–10 staff) | 10 |
+| On Shopify (for information only, not a filter since D-23) | 752 of 753 |
 
-The ~100 unconfirmed companies must pass the D2C check before anyone contacts them.
-
-**These counts use the old rules.** The ICP check on 2026-10-26 re-checks every company under D-24, so the 79
-group-owned companies may come back, and the tier counts will change.
+**What the check changed:** strict evidence moved many companies down, and the new group rule brought many back. 24
+companies had no second system holding data and went to the watchlist. All the spa- and salon-named companies left
+in A/B sell their own products.
 
 **The Apollo pull is narrower than the ICP now.** It required Shopify and capped staff at 100, so brands on other
-platforms or above 100 staff were never imported. The next pull uses only: D2C, US/UK/CA/AU, and 11+ staff. A separate pull of 5–10 staff
-brands feeds the starter batch.
+platforms or above 100 staff were never imported. The next pull uses only: D2C, US/UK/CA/AU, and 11+ staff. A
+separate pull of 5–10 staff brands feeds the starter batch, since we have only 10.
 
 Contacts: 753 companies × 2 buyers ≈ 1,500 contacts. That is enough for the funnel in `funnel.md` without a second
 sector.

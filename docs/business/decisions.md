@@ -29,6 +29,7 @@ Newest at the bottom. Each entry: an ID, the date, the decision, and why. A late
 | D-24 | 2026-10-26 | Only two filters: D2C brand, and enough revenue to pay. A data team is a hard exclusion; a tech team only lowers the priority. A big-group owner excludes only when the brand can't decide for itself. HQ countries stay as a market choice | Owner. D2C means public data exists; revenue means they can pay and we can show value; a data team turns our work into their task |
 | D-25 | 2026-10-26 | Two revenue bands: about $2M+ gets the full offer; about $500k–2M is a separate batch of 30–50 that gets the starter package; under ~$500k is not contacted | Owner. With no clients yet, one small paid job covers expenses and gives the first case study |
 | D-26 | 2026-10-26 | Starter package for small brands: a short diagnostic plus one small build, fixed price, at most 5 working days, no guarantee, no retainer pitch, at most 2 at a time. An exception to D-01 for a report or sheet, not automation | Owner. Cash and proof first; fixed scope stops it eating outreach time |
+| D-28 | 2026-10-26 | Owned by a listed or multi-brand company: excluded unless a source shows the brand's own founder, CEO or GM decides. Owned by PE or a small holding: kept. Tightens D-24 | Country arms of big groups don't decide on data, and the parent has data teams |
 
 ## Open
 
