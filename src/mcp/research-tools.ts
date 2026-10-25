@@ -61,6 +61,7 @@ import {
   companyJobResume,
   companyJobRetry,
   companyJobStatus,
+  jobsForCompany,
   pipelineStatus,
   startCompanyJob,
   supersedePendingJobs,
@@ -1402,6 +1403,25 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const jobs = await companyJobList(db, limit ?? undefined, status ?? undefined);
         return { summary: `${jobs.length} company jobs`, data: { jobs } };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "jobs_for_company",
+    {
+      description: "Operator: all company jobs and research runs for one company (stage, status, dates).",
+      inputSchema: {
+        companyId: z.string().optional().describe("Company id"),
+        domain: z.string().optional().describe("Company domain (bare or full URL); exactly one of companyId or domain"),
+      },
+    },
+    async ({ companyId, domain }) =>
+      wrap(async () => {
+        const view = await jobsForCompany(db, { companyId: companyId ?? undefined, domain: domain ?? undefined });
+        return {
+          summary: `${view.jobs.length} jobs, ${view.runs.length} runs for "${view.company.name}"`,
+          data: view,
+        };
       }),
   );
 

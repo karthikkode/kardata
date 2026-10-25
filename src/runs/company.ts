@@ -31,6 +31,7 @@ import {
   windowBurn,
 } from "../domain/quota/breaker.js";
 import { DomainError, isUniqueViolation } from "../domain/errors.js";
+import { normalizeDomain } from "../lib/apollo/parse.js";
 import { resolvePlanAdapters } from "../collect/adapters.js";
 import { researchStart } from "./agent.js";
 import {
@@ -274,6 +275,77 @@ export async function companyJobList(
     entries.push({ job, derived: desc.derived });
   }
   return entries;
+}
+
+export interface CompanyJobsView {
+  company: { id: string; name: string | null; domain: string | null };
+  jobs: CompanyJob[];
+  runs: Pick<
+    ResearchRun,
+    "id" | "companyJobId" | "kind" | "stage" | "status" | "error" | "createdAt" | "startedAt" | "finishedAt"
+  >[];
+}
+
+/**
+ * Full job history for one company: every company job plus every research run
+ * (including legacy/operator runs outside any job), oldest first.
+ * Exactly one of companyId or domain is required; domain input may be a bare
+ * domain or a full URL and is normalized the same way as stored domains.
+ */
+export async function jobsForCompany(
+  db: Db,
+  query: { companyId?: string; domain?: string },
+): Promise<CompanyJobsView> {
+  const hasId = query.companyId !== undefined && query.companyId !== "";
+  const hasDomain = query.domain !== undefined && query.domain !== "";
+  if (hasId === hasDomain) {
+    throw new DomainError("invalid_input", "pass exactly one of companyId or domain");
+  }
+  let companyId: string;
+  let name: string | null;
+  let domain: string | null;
+  if (hasId) {
+    const [row] = await db
+      .select({ id: companies.id, name: companies.name, domain: companies.domain })
+      .from(companies)
+      .where(eq(companies.id, query.companyId as string));
+    if (!row) throw new DomainError("not_found", `company not found: ${query.companyId}`);
+    ({ id: companyId, name, domain } = row);
+  } else {
+    const normalized = normalizeDomain(query.domain);
+    if (!normalized) throw new DomainError("invalid_input", "domain is empty after normalization");
+    const rows = await db
+      .select({ id: companies.id, name: companies.name, domain: companies.domain })
+      .from(companies)
+      .where(eq(companies.domain, normalized))
+      .orderBy(asc(companies.createdAt));
+    if (rows.length === 0) throw new DomainError("not_found", `no company with domain: ${normalized}`);
+    if (rows.length > 1 || !rows[0]) {
+      throw new DomainError("invalid_input", `domain matches ${rows.length} companies, pass companyId`);
+    }
+    ({ id: companyId, name, domain } = rows[0]);
+  }
+  const jobs = await db
+    .select()
+    .from(companyJobs)
+    .where(eq(companyJobs.companyId, companyId))
+    .orderBy(asc(companyJobs.createdAt));
+  const runs = await db
+    .select({
+      id: researchRuns.id,
+      companyJobId: researchRuns.companyJobId,
+      kind: researchRuns.kind,
+      stage: researchRuns.stage,
+      status: researchRuns.status,
+      error: researchRuns.error,
+      createdAt: researchRuns.createdAt,
+      startedAt: researchRuns.startedAt,
+      finishedAt: researchRuns.finishedAt,
+    })
+    .from(researchRuns)
+    .where(eq(researchRuns.companyId, companyId))
+    .orderBy(asc(researchRuns.createdAt));
+  return { company: { id: companyId, name, domain }, jobs, runs };
 }
 
 async function countJobsIn(db: Db, statuses: CompanyJob["status"][]): Promise<number> {
