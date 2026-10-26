@@ -44,6 +44,7 @@ const seo = buildSeo({ ...rest, path: Astro.url.pathname });
     <meta name="twitter:image" content={seo.image} />
 
     <Analytics />
+    <slot name="head" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>

@@ -1,6 +1,5 @@
 ---
-// Every booking path goes through /book. `from` is our own page path (never personal data),
-// so the booking can be counted by the page it came from.
+// Every booking path goes through /book, which counts the booking by the referring page.
 interface Props {
   label?: string;
   size?: "md" | "lg";
@@ -8,8 +7,7 @@ interface Props {
   class?: string;
 }
 const { label = "Book a call", size = "md", variant = "primary", class: extra = "" } = Astro.props;
-const from = Astro.url.pathname;
-const href = from.startsWith("/book") ? "/book/" : `/book/?from=${encodeURIComponent(from)}`;
+const href = "/book/";
 ---
 <a
   href={href}

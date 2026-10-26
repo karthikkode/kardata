@@ -2,22 +2,73 @@
 import Base from "../../layouts/Base.astro";
 import { BOOKING, SITE } from "../../config";
 import "../../styles/page.css";
+
+const calVars = {
+  "cal-brand": "#4f9cf9",
+  "cal-brand-emphasis": "#79b8ff",
+  "cal-brand-text": "#06121f",
+  "cal-bg": "#10141b",
+  "cal-bg-emphasis": "#1f2733",
+  "cal-bg-subtle": "#141924",
+  "cal-bg-muted": "#141924",
+  "cal-border": "#2d3a4a",
+  "cal-border-subtle": "#1f2733",
+  "cal-border-emphasis": "#2d3a4a",
+  "cal-text": "#f2f5f9",
+  "cal-text-emphasis": "#f2f5f9",
+  "cal-text-subtle": "#9aa7b8",
+  "cal-text-muted": "#7e8aa0",
+};
 ---
 <Base title="Book a call" description={`Book a ${BOOKING.minutes}-minute call about your brand's data.`}>
+  <link rel="preconnect" href="https://app.cal.com" slot="head" />
   <section class="wrap page">
     <span class="eyebrow">Book a call</span>
     <h1>Book a {BOOKING.minutes}-minute call</h1>
-    <p class="lead">Times show in your own time zone.</p>
 
-    <div id="cal-inline" class="frame"></div>
+    <div class="booking">
+      <aside class="details">
+        <ul class="facts">
+          <li>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+            {BOOKING.minutes} minutes
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"></rect><path d="m16 10 5-3v10l-5-3"></path></svg>
+            Google Meet
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"></path></svg>
+            Times in your own time zone
+          </li>
+        </ul>
+        <p>
+          We find the one business question worth answering from your own data. Whatever happens next, you leave
+          with a clearer picture of where time and money leak.
+        </p>
+        <p class="faint small">
+          The confirmation email shows the time in your own time zone. Questions first?
+          <a href={`mailto:${SITE.email}`}>{SITE.email}</a>
+        </p>
+      </aside>
+
+      <div class="calendar">
+        <div class="loading" id="cal-loading" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <span>Loading available times…</span>
+          <a class="slow" id="cal-slow" href={BOOKING.url} rel="noopener" target="_blank" hidden>Taking long? Open the calendar directly</a>
+        </div>
+        <div id="cal-inline"></div>
+      </div>
+    </div>
+
     <p class="fallback faint">
-      Calendar not showing? <a href={BOOKING.url} rel="noopener" target="_blank">Open it in a new tab</a>, or write
-      to <a href={`mailto:${SITE.email}`}>{SITE.email}</a>.
+      Calendar not showing? <a href={BOOKING.url} rel="noopener" target="_blank">Open it in a new tab</a>.
     </p>
   </section>
 </Base>
 
-<script is:inline define:vars={{ calLink: BOOKING.calLink }}>
+<script is:inline define:vars={{ calLink: BOOKING.calLink, calVars, dev: import.meta.env.DEV }}>
   // Cal.com's own inline embed loader (https://cal.com/docs, "Embed").
   (function (C, A, L) {
     var p = function (a, ar) { a.q.push(ar); };
@@ -55,29 +106,142 @@ import "../../styles/page.css";
   Cal.ns.book("ui", {
     theme: "dark",
     layout: "month_view",
-    cssVarsPerTheme: { dark: { "cal-brand": "#4f9cf9" } },
+    hideEventTypeDetails: true,
+    cssVarsPerTheme: { dark: calVars, light: calVars },
   });
 
-  // Count a booking by the page it came from. `from` is one of our own paths; anything else is dropped,
-  // so no personal data reaches analytics.
-  var raw = new URLSearchParams(location.search).get("from") || "";
-  var from = /^\/[a-z0-9\-\/]*$/.test(raw) ? raw : "direct";
+  var loading = document.getElementById("cal-loading");
+  var ready = function () {
+    if (loading.hidden) return;
+    loading.hidden = true;
+    document.getElementById("cal-inline").classList.add("ready");
+  };
+  // Cal.com says "linkReady" before the free times arrive; show the calendar once they have.
+  Cal.ns.book("on", { action: "slotsFetched", callback: ready });
+  Cal.ns.book("on", {
+    action: "linkFailed",
+    callback: function () { document.getElementById("cal-slow").hidden = false; },
+  });
+  // If Cal.com never says it's ready, show the slow-path link after 8s and the frame itself after 15s.
+  setTimeout(function () { if (!loading.hidden) document.getElementById("cal-slow").hidden = false; }, 8000);
+  setTimeout(ready, 15000);
+  if (dev) {
+    window.__calLoads = 0;
+    Cal.ns.book("on", { action: "*", callback: function (e) {
+      if (e.detail.type === "__iframeReady") window.__calLoads++;
+      console.debug("cal:", e.detail.type);
+    } });
+  }
+
+  // Count a booking by the page the visitor came from: a same-site referrer's path, else "direct".
+  // Only our own paths are kept, so no personal data reaches analytics.
+  var from = "direct";
+  try {
+    var ref = new URL(document.referrer);
+    if (ref.origin === location.origin && ref.pathname !== location.pathname) from = ref.pathname;
+  } catch (e) {}
   Cal.ns.book("on", {
     action: "bookingSuccessful",
-    callback: function () {
-      if (window.kdTrack) window.kdTrack("Booking", { from: from });
-    },
+    callback: function () { if (window.kdTrack) window.kdTrack("Booking", { from: from }); },
   });
 </script>
 
 <style>
-  .frame {
-    margin-top: 2.5rem;
-    min-height: 640px;
-    border: 1px solid var(--border-strong);
+  h1 {
+    margin-bottom: 2.5rem;
+  }
+  .booking {
+    display: grid;
+    border: 1px solid var(--border);
     border-radius: var(--radius-xl);
-    overflow: hidden;
     background: var(--surface);
+    overflow: hidden;
+  }
+  @media (min-width: 900px) {
+    .booking {
+      grid-template-columns: 18rem 1fr;
+    }
+  }
+  .details {
+    padding: 1.75rem;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, var(--card), var(--surface));
+  }
+  @media (min-width: 900px) {
+    .details {
+      border-bottom: 0;
+      border-right: 1px solid var(--border);
+    }
+  }
+  .facts {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.5rem;
+    display: grid;
+    gap: 0.75rem;
+  }
+  .facts li {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0;
+    color: var(--fg);
+    font-size: 0.95rem;
+  }
+  .facts svg {
+    width: 1.1rem;
+    height: 1.1rem;
+    color: var(--accent-bright);
+    flex: none;
+  }
+  .details p {
+    font-size: 0.95rem;
+    line-height: 1.7;
+  }
+  .small {
+    font-size: 0.85rem !important;
+  }
+  .calendar {
+    position: relative;
+    min-height: 34rem;
+  }
+  #cal-inline {
+    width: 100%;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  #cal-inline.ready {
+    opacity: 1;
+  }
+  .loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.9rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  .loading[hidden] {
+    display: none;
+  }
+  .spinner {
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 999px;
+    border: 2px solid var(--border-strong);
+    border-top-color: var(--accent);
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .slow {
+    font-size: 0.9rem;
   }
   .fallback {
     margin-top: 1rem;
