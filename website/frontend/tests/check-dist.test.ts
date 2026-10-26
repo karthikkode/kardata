@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { checkLinks, targetOf } from "../scripts/lib/links.mjs";
-import { scanText } from "../scripts/lib/scan.mjs";
+import { scanHtml, scanText } from "../scripts/lib/scan.mjs";
 import { htmlText } from "../scripts/lib/html-text.mjs";
 
 describe("scanText", () => {
@@ -50,5 +50,16 @@ describe("links", () => {
       "index.html: missing anchor /about/#team",
       "index.html: missing anchor #top",
     ]);
+  });
+});
+
+describe("scanHtml", () => {
+  it("flags text glued to a link on either side", () => {
+    expect(scanHtml('Questions first?<a href="mailto:x">x</a>', "p")).toHaveLength(1);
+    expect(scanHtml('<a href="/">home</a>and more', "p")).toHaveLength(1);
+  });
+
+  it("passes spaced links and punctuation after a link", () => {
+    expect(scanHtml('Write to <a href="mailto:x">x</a>. Or <strong>call</strong>, now.', "p")).toEqual([]);
   });
 });

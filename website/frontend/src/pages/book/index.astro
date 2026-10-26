@@ -8,9 +8,10 @@ const calVars = {
   "cal-brand-emphasis": "#79b8ff",
   "cal-brand-text": "#06121f",
   "cal-bg": "#10141b",
+  "cal-bg-default": "#10141b",
   "cal-bg-emphasis": "#1f2733",
   "cal-bg-subtle": "#141924",
-  "cal-bg-muted": "#141924",
+  "cal-bg-muted": "#10141b",
   "cal-border": "#2d3a4a",
   "cal-border-subtle": "#1f2733",
   "cal-border-emphasis": "#2d3a4a",
@@ -42,14 +43,14 @@ const calVars = {
             Times in your own time zone
           </li>
         </ul>
-        <p>
+        <p class="about-call">
           We find the one business question worth answering from your own data. Whatever happens next, you leave
           with a clearer picture of where time and money leak.
         </p>
-        <p class="faint small">
-          The confirmation email shows the time in your own time zone. Questions first?
+        <div class="ask">
+          <span class="label">Questions first?</span>
           <a href={`mailto:${SITE.email}`}>{SITE.email}</a>
-        </p>
+        </div>
       </aside>
 
       <div class="calendar">
@@ -159,7 +160,7 @@ const calVars = {
   }
   @media (min-width: 900px) {
     .booking {
-      grid-template-columns: 18rem 1fr;
+      grid-template-columns: 20rem 1fr;
     }
   }
   .details {
@@ -194,16 +195,29 @@ const calVars = {
     color: var(--accent-bright);
     flex: none;
   }
-  .details p {
+  .about-call {
+    margin: 0;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
     font-size: 0.95rem;
     line-height: 1.7;
   }
-  .small {
-    font-size: 0.85rem !important;
+  .ask {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.9rem;
+  }
+  .ask .label {
+    color: var(--faint);
   }
   .calendar {
     position: relative;
     min-height: 34rem;
+    padding: 1.25rem;
   }
   #cal-inline {
     width: 100%;

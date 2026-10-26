@@ -4,7 +4,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { checkLinks } from "./lib/links.mjs";
 import { htmlText } from "./lib/html-text.mjs";
-import { scanText } from "./lib/scan.mjs";
+import { scanHtml, scanText } from "./lib/scan.mjs";
 
 const root = new URL("..", import.meta.url).pathname;
 const dist = join(root, "dist");
@@ -25,7 +25,9 @@ const rss = readFileSync(join(dist, "rss.xml"), "utf8");
 
 const problems = [];
 problems.push(...checkLinks(files, (f) => existsSync(join(dist, f))));
-for (const [file, html] of Object.entries(files)) problems.push(...scanText(htmlText(html), file));
+for (const [file, html] of Object.entries(files)) {
+  problems.push(...scanText(htmlText(html), file), ...scanHtml(html, file));
+}
 problems.push(...scanText(rss, "rss.xml"));
 
 for (const name of readdirSync(postsDir)) {

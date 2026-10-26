@@ -21,3 +21,13 @@ export function scanText(text, where) {
   }
   return problems;
 }
+
+/** Text glued to a link or inline tag, e.g. "first?<a" (Astro drops a line break before a tag). */
+export function scanHtml(html, where) {
+  const problems = [];
+  const glued = /([A-Za-z0-9?.,:;!])(<(?:a|strong|em|code|time)\b[^>]*>)|(<\/(?:a|strong|em|code|time)>)([A-Za-z0-9(])/g;
+  for (const m of html.matchAll(glued)) {
+    problems.push(`${where}: missing space around a link or tag: "${m[0].slice(0, 60)}"`);
+  }
+  return problems;
+}

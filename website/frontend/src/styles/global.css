@@ -37,6 +37,7 @@
 
 html {
   scroll-behavior: smooth;
+  scrollbar-gutter: stable;
   -webkit-text-size-adjust: 100%;
 }
 
@@ -97,6 +98,14 @@ p {
 }
 
 .narrow {
+  max-width: var(--measure);
+}
+
+/* A narrow page keeps the site's left edge; only its line length is limited. */
+.wrap.narrow {
+  max-width: var(--wrap);
+}
+.wrap.narrow > * {
   max-width: var(--measure);
 }
 
