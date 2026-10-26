@@ -12,6 +12,7 @@ import {
 } from "../../src/db/schema.js";
 import {
   companyRevenueTruth,
+  recordRevenueConfirmation,
   recordVerdicts,
   sectorRevenueReclassify,
   sectorSheetRows,
@@ -181,5 +182,53 @@ describe("tiering against stored facts and verdicts", () => {
     expect(after.revenueSource).toBe("vendor");
     expect(after.revenueKind).toBe("vendor_estimate");
     expect(after.tier).toBe("A");
+  });
+
+  it("a flagged public figure waits for confirmation before setting the tier", async () => {
+    const sectorId = await seedSector();
+    const companyId = await seedCompany("Flagged Co");
+    await handle.db
+      .insert(sectorCompanies)
+      .values({ sectorId, companyId, addedVia: "manual" });
+    await seedFact(
+      companyId,
+      "financials.revenue_estimate",
+      { json: { amount: 50000000 }, currency: "USD" },
+      { source: "WWD" },
+    );
+    await seedFact(companyId, "financials.employees", { num: 20 }, { source: "apollo" });
+    await recordVerdicts(handle.db, [
+      {
+        companyId,
+        sectorId,
+        score: 4,
+        signals: { S1: true },
+        status: "contactable",
+        source: "test-check",
+      },
+    ]);
+
+    const waiting = await companyRevenueTruth(handle.db, companyId);
+    expect(waiting.revenueSource).toBe("staff_estimate");
+    expect(waiting.tier).toBe("B");
+    expect(waiting.flaggedFigure?.amount).toBe(50000000);
+
+    await recordRevenueConfirmation(handle.db, {
+      companyId,
+      decision: "confirm",
+      reason: "founder stated the brand's own figure in the interview",
+    });
+    const confirmed = await companyRevenueTruth(handle.db, companyId);
+    expect(confirmed.revenueSource).toBe("public");
+    expect(confirmed.tier).toBe("A");
+
+    await recordRevenueConfirmation(handle.db, {
+      companyId,
+      decision: "reject",
+      reason: "parent-company figure",
+    });
+    const rejected = await companyRevenueTruth(handle.db, companyId);
+    expect(rejected.revenueSource).toBe("staff_estimate");
+    expect(rejected.flaggedFigure?.reason).toBe("parent-company figure");
   });
 });
