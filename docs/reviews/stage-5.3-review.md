@@ -47,8 +47,7 @@ the owner's unrelated edits (docs/business, website/); none were touched.
 
 ## Refresh run (2026-10-26, after the build)
 
-- Migrations 0025-0027 applied to the prod database after a fresh backup
-  (`~/kardata-backups/kardata_2026-10-27_0205.dump`).
+- Migrations 0025-0027 applied to prod after a fresh backup (kardata-backups).
 - The 2026-10-26 ICP verdicts were loaded through `company_verdict_record`
   (the only write path): 813 of 814 recorded. One sheet row has no domain
   and could not be matched to a company; it is a US watchlist row.
