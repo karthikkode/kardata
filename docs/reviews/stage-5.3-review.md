@@ -75,10 +75,7 @@ to B 42, to A 8, to C 2, to no tier 3, C to no tier 1). New contactable
 counts (406, was 378): A/L2 1, A/L3 11, A/L4 38, A/L5 54 (Tier A 104);
 B/L2 1, B/L3 13, B/L4 76, B/L5 179 (Tier B 269); C/L3 1, C/L4 8, C/L5 24
 (Tier C 33). Statuses: contactable 406, watchlist 232, excluded 93,
-research incomplete 82. Revenue used, by source: public 209, Apollo 158,
-estimated from staff 446. Note public is larger than the sheet's 51: stored
-facts carry named sources the sheet did not use.
-The case company now reads Tier B, Layer 5: Apollo $607k rejected (below
-$75k per staff), staff estimate used. It moves to 17 staff when the accounts
-pull lands; the tier does not change. The exported sheet is
-`var/analysis/companies-2026-10-26.csv` (406 contactable rows).
+research incomplete 82. Revenue by source: public 209, Apollo 158,
+estimated from staff 446 (public beats the sheet's 51: stored facts carry
+named sources the sheet did not use). The case company now reads Tier B
+Layer 5, Apollo rejected. The sheet is `companies-2026-10-26.csv` (406 rows).
