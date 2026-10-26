@@ -1,0 +1,33 @@
+---
+import Base from "../../layouts/Base.astro";
+import PostCard from "../../components/PostCard.astro";
+import { getPosts } from "../../lib/collection";
+
+const posts = await getPosts();
+---
+<Base title="Blog" description="One sourced piece a week on the decisions a D2C brand makes, and the numbers behind them.">
+  <section class="wrap page">
+    <span class="eyebrow">Blog</span>
+    <h1 class="section-title">One piece a week</h1>
+    <p class="lead">The everyday decisions a brand makes, what's at stake, and the numbers behind them.</p>
+    <div class="list narrow">
+      {posts.length === 0 && <p class="faint">The first piece is on its way.</p>}
+      {posts.map((p) => (
+        <PostCard id={p.id} title={p.data.title} summary={p.data.summary} date={p.data.date} draft={p.data.draft} />
+      ))}
+    </div>
+  </section>
+</Base>
+
+<style>
+  .page {
+    padding-top: 4.5rem;
+    padding-bottom: 5rem;
+  }
+  h1.section-title {
+    font-size: clamp(2rem, 5vw, 2.75rem);
+  }
+  .list {
+    margin-top: 3rem;
+  }
+</style>

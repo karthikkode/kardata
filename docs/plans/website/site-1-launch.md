@@ -13,6 +13,7 @@ Out of scope: the brainstorming agent (D-51), case studies, the newsletter. `web
 | Package | Why |
 |---|---|
 | `astro` 7.3.8 | Static site generator. Markdown pages are built in, posts are checked against a zod schema at build, and it ships zero JavaScript by default. Needs Node 22.12+ (local is 22.23.3) |
+| `@astrojs/markdown-remark` | Astro 7's default Markdown engine takes no plugins; this official package runs the number-kind plugin and the footnote sources |
 | `@astrojs/rss` | `/rss.xml` from the posts |
 | `@astrojs/sitemap` | `sitemap-index.xml` for search engines |
 | `@fontsource-variable/inter`, `@fontsource/jetbrains-mono` | v1's fonts, served from our own domain. Loading them from Google Fonts would send visitors' IPs to Google |
