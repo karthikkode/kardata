@@ -10,6 +10,13 @@ are done.
 This replaces items 1–2 of `ai-saturation.md` (handoffs, collect-ahead). Parallel extraction becomes part
 of it. If the small parallel-extraction PR is nearly finished, ship it first; this stage replaces it later.
 
+**Concurrency and quota values:** `.env` values (`.env.example`) are boot defaults only. The live
+values are MCP settings stored in the `harness_settings` table and returned by the `*_get` tools
+(a stored DB value wins over the env value: `src/runs/settings.ts:58-67` for agents and
+`src/runs/settings.ts:296-305` for company concurrency). Quota thresholds are 90% (freeze intake)
+and 95% (halt AI) in the live quota monitor (`src/runs/quota-monitor.ts:18-19`). Never read the
+live concurrency or quota state from a file; ask MCP.
+
 ## Step 0 — Real quota numbers (report before building anything else)
 
 - Find out whether the app's Muse exposes **actual usage % for the 5-hour and the weekly limit, with reset
