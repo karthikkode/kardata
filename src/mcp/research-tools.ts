@@ -34,7 +34,9 @@ import { preflightReportSchema, savePreflightReportForRun } from "../domain/comp
 import {
   companyRevenueTruth,
   recordVerdicts,
+  sectorSheetRows,
   sectorTierSummary,
+  sheetCsv,
 } from "../domain/tiering.js";
 import { companyJobLive } from "../domain/company-jobs/live.js";
 import {
@@ -1494,6 +1496,29 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const result = await recordVerdicts(db, verdicts);
         return { summary: `${result.recorded} verdict(s) recorded`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_sheet_export",
+    {
+      description:
+        "Operator: write var/analysis/companies-<date>.csv with only the contactable companies (D-55 tiers), one block per tier, sorted by layer then score.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+      },
+    },
+    async ({ sectorId }) =>
+      wrap(async () => {
+        const { mkdir, writeFile } = await import("node:fs/promises");
+        const { join } = await import("node:path");
+        const rows = await sectorSheetRows(db, sectorId);
+        const date = new Date().toISOString().slice(0, 10);
+        const dir = join(process.cwd(), "var", "analysis");
+        await mkdir(dir, { recursive: true });
+        const path = join(dir, `companies-${date}.csv`);
+        await writeFile(path, sheetCsv(rows), "utf8");
+        return { summary: `${rows.length} contactable companies written to ${path}`, data: { path, rows: rows.length } };
       }),
   );
 

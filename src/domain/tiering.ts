@@ -281,6 +281,93 @@ export async function companyRevenueTruth(db: Db, companyId: string): Promise<Re
   return { companyId, ...truth };
 }
 
+export interface SheetRow {
+  tier: string;
+  layer: number;
+  score: number;
+  company: string;
+  domain: string;
+  country: string;
+  revenueUsed: number;
+  revenueSource: string;
+  flags: string;
+}
+
+function csvCell(value: string | number): string {
+  const s = String(value);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** Contactable rows for the outreach sheet: one block per tier, layer then score. */
+export async function sectorSheetRows(db: Db, sectorId: string): Promise<SheetRow[]> {
+  const members = await db
+    .select({
+      companyId: sectorCompanies.companyId,
+      name: companies.name,
+      domain: companies.domain,
+      country: companies.country,
+    })
+    .from(sectorCompanies)
+    .innerJoin(companies, eq(sectorCompanies.companyId, companies.id))
+    .where(eq(sectorCompanies.sectorId, sectorId));
+  const rows: SheetRow[] = [];
+  for (const m of members) {
+    const truth = await companyRevenueTruth(db, m.companyId);
+    if (truth.status !== "contactable" || !truth.tier || truth.layer === null) continue;
+    rows.push({
+      tier: truth.tier,
+      layer: truth.layer,
+      score: truth.score ?? 0,
+      company: m.name,
+      domain: m.domain ?? "",
+      country: m.country ?? "",
+      revenueUsed: truth.revenueUsed ?? 0,
+      revenueSource:
+        truth.revenueSource === "public"
+          ? `public (${truth.publicSourceName ?? "named source"})`
+          : truth.revenueSource === "staff_estimate"
+            ? "estimated from staff"
+            : (truth.revenueSource ?? ""),
+      flags: truth.flags.join("; "),
+    });
+  }
+  const tierOrder: Record<string, number> = { A: 0, B: 1, C: 2 };
+  rows.sort(
+    (a, b) =>
+      (tierOrder[a.tier] ?? 9) - (tierOrder[b.tier] ?? 9) ||
+      a.layer - b.layer ||
+      b.score - a.score ||
+      a.company.localeCompare(b.company),
+  );
+  return rows;
+}
+
+export function sheetCsv(rows: SheetRow[]): string {
+  const header = "Tier,Layer,Score,Company,Domain,Country,Revenue used,Revenue source,Flags";
+  const lines: string[] = [];
+  let currentTier = "";
+  for (const r of rows) {
+    if (r.tier !== currentTier) {
+      currentTier = r.tier;
+      lines.push(`Tier ${r.tier}`, header);
+    }
+    lines.push(
+      [
+        r.tier,
+        r.layer,
+        r.score,
+        csvCell(r.company),
+        csvCell(r.domain),
+        csvCell(r.country),
+        r.revenueUsed,
+        csvCell(r.revenueSource),
+        csvCell(r.flags),
+      ].join(","),
+    );
+  }
+  return lines.join("\n") + "\n";
+}
+
 export interface SectorTierSummary {
   sectorId: string;
   companiesWithVerdicts: number;

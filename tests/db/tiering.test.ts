@@ -5,7 +5,9 @@ import { companies, facts, sectors, sectorCompanies } from "../../src/db/schema.
 import {
   companyRevenueTruth,
   recordVerdicts,
+  sectorSheetRows,
   sectorTierSummary,
+  sheetCsv,
 } from "../../src/domain/tiering.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 
@@ -105,5 +107,12 @@ describe("tiering against stored facts and verdicts", () => {
     expect(summary.companiesWithVerdicts).toBe(1);
     expect(summary.byTierLayer).toEqual({ "B/L5": 1 });
     expect(summary.byRevenueSource).toEqual({ staff_estimate: 1 });
+
+    const rows = await sectorSheetRows(handle.db, sectorId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ tier: "B", layer: 5, score: 2, revenueSource: "estimated from staff" });
+    const csv = sheetCsv(rows);
+    expect(csv).toContain("Tier B");
+    expect(csv).toContain("Tier,Layer,Score,Company,Domain,Country,Revenue used,Revenue source,Flags");
   });
 });
