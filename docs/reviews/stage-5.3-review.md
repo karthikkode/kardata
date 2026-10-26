@@ -2,10 +2,8 @@ Status: done · Date: 2026-10-26
 
 # Stage 5.3 review — Revenue truth (D-55)
 
-Branch `stage-5.3`, one commit per step, no push. Commits: 145ab5c, f9a1731,
-a7f3bcf, 663dda8, 7c13587, 687b551, 2cb9626, plus this finish commit.
-Worktree also holds the owner's unrelated edits (docs/business, website/);
-none were touched.
+Branch `stage-5.3`, one commit per step, no push. The worktree also holds
+the owner's unrelated edits (docs/business, website/); none were touched.
 
 ## Root causes 1-7
 
@@ -54,8 +52,7 @@ none were touched.
 - The 2026-10-26 ICP verdicts were loaded through `company_verdict_record`
   (the only write path): 813 of 814 recorded. One sheet row has no domain
   and could not be matched to a company; it is a US watchlist row.
-- The tools ran through an MCP-only instance of this branch (no runners
-  started; a second full server on the prod DB would double-run jobs).
+- Tools ran through an MCP-only instance of this branch (no runners).
   No AI reruns were run.
 - Companies House re-collection is the one piece left for deploy: 124 UK
   companies in the checked set still take staff from Apollo, not from filed
