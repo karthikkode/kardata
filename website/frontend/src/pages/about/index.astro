@@ -1,5 +1,6 @@
 ---
-// The owner's own words from the v1 site ("Who I am"), with the 2026 photo.
+// About, aimed at D2C owners (owner, 2026-10-27: no data-engineering background). Each line comes from
+// strategy.md, offer.md or website.md.
 import { CALL_LABEL } from "../../config";
 import { Image } from "astro:assets";
 import Base from "../../layouts/Base.astro";
@@ -9,17 +10,32 @@ import portrait from "../../assets/karthik-portrait.jpg";
 import "../../styles/page.css";
 
 const pillars = [
-  { title: "Scale", text: "Pipelines that move billions of rows a night, and keep running the morning after." },
-  { title: "Migration", text: "Legacy systems moved to modern stacks while the old one keeps serving customers." },
-  { title: "Reliability", text: "Systems built to fail loudly, not silently. The quiet break is the expensive one." },
-  { title: "AI on my own hardware", text: "Models running locally. Your data never has to leave the building." },
+  {
+    title: "Your own data, read-only",
+    text: "I work from read-only exports. Nothing changes in your systems.",
+  },
+  {
+    title: "One question at a time",
+    text: "Every engagement starts with one business question, answered at a fixed price. You keep the report, whatever happens next.",
+  },
+  {
+    title: "In your money and your time",
+    text: "Every finding comes with what it costs you per month and how that number was worked out, so you can check the maths.",
+  },
+  {
+    title: "Next to your team, not instead of it",
+    text: "I work on the gaps between systems that nobody owns, alongside your agencies and the people you've hired.",
+  },
 ];
 ---
-<Base title="About" description="Insurance, AI, and large-scale data. That's the background Kardata is built on.">
+<Base title="About" description="I help D2C brands see where time and money leak between their systems.">
   <article class="wrap page">
     <span class="eyebrow">Who I am</span>
-    <h1 class="title">I solve data problems. That's the work I've been doing for years.</h1>
-    <p class="lead">Insurance, AI, and large-scale data. That's the background Kardata is built on.</p>
+    <h1 class="title">I help D2C brands see where time and money leak between their systems.</h1>
+    <p class="lead">
+      Your store, Amazon, your retailers, your warehouse and your accounts each hold part of the picture. My work is
+      the gap between them that nobody owns.
+    </p>
 
     <Image src={portrait} alt="Sai Karthik" widths={[600, 1200]} sizes="(min-width: 72rem) 72rem, 100vw" class="portrait" loading="eager" />
 
@@ -27,10 +43,11 @@ const pillars = [
       <p class="motto">AI only where it pays for itself.</p>
     </FounderCard>
 
+    <h2 class="how">How I work</h2>
     <div class="grid grid-2 pillars">
       {pillars.map((p) => (
         <div class="card">
-          <h2>{p.title}</h2>
+          <h3>{p.title}</h3>
           <p>{p.text}</p>
         </div>
       ))}
@@ -57,7 +74,10 @@ const pillars = [
   .pillars {
     margin-top: 1rem;
   }
-  .pillars h2 {
+  .how {
+    margin: 3.5rem 0 1.25rem;
+  }
+  .pillars h3 {
     font-size: 1.05rem;
     margin: 0;
   }
