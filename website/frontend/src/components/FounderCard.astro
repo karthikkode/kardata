@@ -1,0 +1,103 @@
+---
+// The v1 founder card (the owner's own text from the v1 site), with the 2026 photo.
+import { Image } from "astro:assets";
+import { SITE } from "../config";
+import avatar from "../assets/karthik-avatar.jpg";
+---
+<div class="founder">
+  <div class="avatar">
+    <Image src={avatar} alt="Sai Karthik" width={240} height={240} />
+  </div>
+  <div class="body">
+    <p class="who">
+      <span class="name">Sai Karthik</span>
+      <span class="role">Founder &amp; operator</span>
+      <a class="li" href={SITE.linkedin} rel="me noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5ZM3 9h4v12H3V9Zm6 0h3.8v1.7h.05c.53-1 1.83-2.06 3.77-2.06 4.03 0 4.78 2.66 4.78 6.1V21h-4v-5.6c0-1.34-.02-3.06-1.86-3.06-1.87 0-2.15 1.46-2.15 2.96V21H9V9Z"></path></svg>
+        LinkedIn
+      </a>
+    </p>
+    <p class="text">
+      My day job is data. For the last few years I’ve worked in insurance, using AI to automate the manual workflows
+      that slow teams down and to turn large amounts of data into insights the whole business can act on. I work on
+      data at scale, in the terabytes, which means solving problems that are rarely off the shelf. Kardata is that
+      experience, aimed at your business.
+    </p>
+    <slot />
+  </div>
+</div>
+
+<style>
+  .founder {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 1.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: linear-gradient(180deg, var(--card), var(--surface));
+  }
+  @media (min-width: 640px) {
+    .founder {
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 1.75rem;
+      padding: 2rem 2.25rem;
+    }
+  }
+  .avatar {
+    flex: none;
+    width: 7.5rem;
+    height: 7.5rem;
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid var(--border-strong);
+    box-shadow: 0 0 0 6px rgba(79, 156, 249, 0.06), 0 12px 40px -8px rgba(79, 156, 249, 0.35);
+  }
+  .avatar :global(img) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .who {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem 0.9rem;
+    margin: 0.25rem 0 0.9rem;
+  }
+  .name {
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: var(--fg);
+  }
+  .role {
+    color: var(--muted);
+    font-size: 0.9375rem;
+  }
+  .li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.2rem 0.7rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 0.8rem;
+    text-decoration: none;
+  }
+  .li:hover {
+    color: var(--fg);
+    background: var(--card);
+  }
+  .li svg {
+    width: 0.8rem;
+    height: 0.8rem;
+  }
+  .text {
+    margin: 0;
+    max-width: 44rem;
+    color: var(--muted);
+    line-height: 1.75;
+  }
+</style>

@@ -1,57 +1,72 @@
 ---
-// The About text is the owner's to write (D-44). This page holds the photo, the link and a marked placeholder.
+// The owner's own words from the v1 site ("Who I am"), with the 2026 photo.
 import { Image } from "astro:assets";
 import Base from "../../layouts/Base.astro";
 import BookButton from "../../components/BookButton.astro";
-import { SITE } from "../../config";
-import photo from "../../assets/karthik.jpg";
+import FounderCard from "../../components/FounderCard.astro";
+import portrait from "../../assets/karthik-portrait.jpg";
 import "../../styles/page.css";
+
+const pillars = [
+  { title: "Scale", text: "Pipelines that move billions of rows a night, and keep running the morning after." },
+  { title: "Migration", text: "Legacy systems moved to modern stacks while the old one keeps serving customers." },
+  { title: "Reliability", text: "Systems built to fail loudly, not silently. The quiet break is the expensive one." },
+  { title: "AI on my own hardware", text: "Models running locally. Your data never has to leave the building." },
+];
 ---
-<Base title="About" description="Who is behind kardata.">
+<Base title="About" description="Insurance, AI, and large-scale data. That's the background Kardata is built on.">
   <article class="wrap page">
-    <span class="eyebrow">About</span>
-    <div class="about">
-      <Image src={photo} alt="Karthik, the founder of kardata" width={320} height={320} class="photo" loading="eager" />
-      <div class="narrow">
-        <h1>Karthik</h1>
-        <p><a href={SITE.linkedin} rel="me noopener">LinkedIn</a></p>
-        <div class="placeholder">
-          <p><strong>Placeholder, written by the owner (D-44):</strong></p>
-          <ul>
-            <li>Background.</li>
-            <li>The insurtech work, as proof.</li>
-          </ul>
-          <p>Photo: v1's photo for now. Owner to confirm or replace.</p>
+    <span class="eyebrow">Who I am</span>
+    <h1 class="title">I solve data problems. That's the work I've been doing for years.</h1>
+    <p class="lead">Insurance, AI, and large-scale data. That's the background Kardata is built on.</p>
+
+    <Image src={portrait} alt="Sai Karthik" widths={[600, 1200]} sizes="(min-width: 72rem) 72rem, 100vw" class="portrait" loading="eager" />
+
+    <FounderCard>
+      <p class="motto">AI only where it pays for itself.</p>
+    </FounderCard>
+
+    <div class="grid grid-2 pillars">
+      {pillars.map((p) => (
+        <div class="card">
+          <h2>{p.title}</h2>
+          <p>{p.text}</p>
         </div>
-        <div class="cta-row"><BookButton label="Book a 20-minute call" size="lg" /></div>
-      </div>
+      ))}
     </div>
+
+    <div class="cta-row"><BookButton label="Book a 20-minute call" size="lg" /></div>
   </article>
 </Base>
 
 <style>
-  .about {
-    display: grid;
-    gap: 2.5rem;
-    margin-top: 1.5rem;
+  .title {
+    max-width: 44rem;
   }
-  @media (min-width: 820px) {
-    .about {
-      grid-template-columns: 20rem 1fr;
-      align-items: start;
-    }
-  }
-  .about :global(.photo) {
+  .page :global(.portrait) {
     width: 100%;
-    max-width: 20rem;
+    height: auto;
+    max-height: 32rem;
+    object-fit: cover;
+    object-position: 50% 30%;
     border-radius: var(--radius-xl);
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border);
+    margin: 2.5rem 0 1.5rem;
   }
-  .about h1 {
-    margin-top: 0;
+  .pillars {
+    margin-top: 1rem;
   }
-  .placeholder p,
-  .placeholder li {
-    color: var(--warn);
+  .pillars h2 {
+    font-size: 1.05rem;
+    margin: 0;
+  }
+  .pillars p {
+    margin: 0.6rem 0 0;
+  }
+  .motto {
+    margin: 1.1rem 0 0;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--accent-bright);
   }
 </style>

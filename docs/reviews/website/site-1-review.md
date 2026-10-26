@@ -39,20 +39,24 @@ Full run at the end: `npm run check`: astro check 0 errors, 8 pages, check-dist 
   notice, `/book`'s "Times show in your own time zone", the `/audit` framing sentences (from offer.md in "I" voice), and the
   privacy draft.
 
+## Owner feedback, 2026-10-27 (applied)
+
+- New photo (`~/Downloads/my_pics/karthik.png`): a face crop for the round avatar, the full portrait on `/about`.
+- Headline "five systems" → "multiple systems". `tests/home-copy.test.ts` holds this as an owner change
+  until website.md says the same.
+- v1's founder card is back (`src/components/FounderCard.astro`) with v1's own text. `/about` uses v1's "Who I am" text
+  and its four pillars.
+- No placeholders left except the empty blog. The audit page has no data-handling placeholder now. Privacy says Calendly,
+  no analytics, and "kept as long as needed, deleted on request" (my wording; please check).
+
 ## Open (owner)
 
-1. **Booking tool:** `/book` uses v1's Calendly `new-meeting` event, which is 30 minutes and has no intake questions.
-   Choose Cal.com or Calendly (plan, "Booking tool") and send a 20-minute event URL; it's one line in `src/config.ts`.
-   The embed and booking event are unverified, because the preview pane blocks third-party frames.
-2. **Analytics tool:** `track()` is a stub until you choose (Plausible or Umami Cloud recommended).
-3. **About text and photo** (placeholder). **Who's behind it** paragraph on home (placeholder).
-4. **Data handling on `/audit`** (storage, access, deletion) and the **privacy retention period**: not in
-   docs/business, so they're left as placeholders.
-5. **Copy flags (not rewritten):** home "fix the ones worth fixing" against D-53/D-58; content.md "No call to action"
+1. **Calendly event:** `/book` embeds `calendly.com/karthik-kardata/new-meeting`, which v1 called 30 minutes. Set it to
+   20 minutes and add website.md's questions (website, where you sell, optional note) in Calendly.
+2. **Analytics:** none on the site. Choosing one (Plausible or Umami Cloud) also means updating `/privacy`.
+3. **Copy flags (not rewritten):** home "fix the ones worth fixing" against D-53/D-58; content.md "No call to action"
    against website.md's post button; strategy.md "one case study live" against website.md "later".
-6. **Deploy A or B**, and whether any v1 `/p/...` prospect links still matter (they 404 after the switch).
-7. `website/README.md` here is your uncommitted copy from the stage-5.3 checkout plus my "Deploying" section. The
-   AGENTS.md "Website" section and `docs/business/website.md` are still uncommitted in that checkout.
+4. **Deploy A or B**, and whether any v1 `/p/...` links still matter. website.md needs the "multiple systems" edit.
 
 ## Blocked
 

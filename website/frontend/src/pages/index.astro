@@ -1,14 +1,13 @@
 ---
-// Home copy is docs/business/website.md ("Home, top to bottom"), word for word. Don't edit it here;
+// Home copy is docs/business/website.md ("Home, top to bottom"), word for word, except the owner's
+// 2026-10-27 change ("five systems" -> "multiple systems", see tests/home-copy.test.ts). Don't edit it here;
 // change website.md first. The 5 audit deliverables are offer.md's, as website.md says.
-import { Image } from "astro:assets";
 import Base from "../layouts/Base.astro";
 import BookButton from "../components/BookButton.astro";
 import SectionHeading from "../components/SectionHeading.astro";
 import PostCard from "../components/PostCard.astro";
 import { getPosts } from "../lib/collection";
-import { SITE } from "../config";
-import photo from "../assets/karthik.jpg";
+import FounderCard from "../components/FounderCard.astro";
 
 const latest = (await getPosts()).slice(0, 3);
 
@@ -60,7 +59,7 @@ const faq = [
   <section class="hero">
     <div class="glow" aria-hidden="true"></div>
     <div class="wrap hero-inner">
-      <h1>Your brand runs on five systems. <span class="grad">The time and money leak between them.</span></h1>
+      <h1>Your brand runs on multiple systems. <span class="grad">The time and money leak between them.</span></h1>
       <p class="lead">
         Your store, Amazon, your retailers, your warehouse and your accounts each hold part of the picture. I audit
         your own data, show you what the gaps are costing, and fix the ones worth fixing.
@@ -121,14 +120,9 @@ const faq = [
   <section class="section" aria-labelledby="behind">
     <div class="wrap">
       <SectionHeading eyebrow="04" title="Who's behind it" id="behind" />
-      <div class="card founder">
-        <Image src={photo} alt="Karthik, the founder of kardata" width={160} height={160} class="photo" />
-        <div>
-          <p class="name">Karthik <a href={SITE.linkedin} rel="me noopener">LinkedIn</a></p>
-          <p class="placeholder">Placeholder: one short paragraph, written by the owner (website.md, section 5).</p>
-          <p class="motto">AI only where it pays for itself.</p>
-        </div>
-      </div>
+      <FounderCard>
+        <p class="motto">AI only where it pays for itself.</p>
+      </FounderCard>
     </div>
   </section>
 
@@ -293,39 +287,8 @@ const faq = [
     letter-spacing: -0.01em;
   }
 
-  .founder {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-    padding: 1.75rem;
-  }
-  @media (min-width: 640px) {
-    .founder {
-      flex-direction: row;
-      align-items: flex-start;
-    }
-  }
-  .founder :global(.photo) {
-    width: 8rem;
-    height: 8rem;
-    border-radius: var(--radius-xl);
-    object-fit: cover;
-    flex: none;
-    border: 1px solid var(--border-strong);
-  }
-  .name {
-    margin: 0 0 1rem;
-    font-weight: 600;
-    display: flex;
-    gap: 0.75rem;
-    align-items: baseline;
-  }
-  .name a {
-    font-weight: 400;
-    font-size: 0.875rem;
-  }
   .motto {
-    margin: 1rem 0 0;
+    margin: 1.1rem 0 0;
     font-family: var(--font-mono);
     font-size: 0.85rem;
     color: var(--accent-bright);
