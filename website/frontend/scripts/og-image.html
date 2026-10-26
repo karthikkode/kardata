@@ -1,0 +1,37 @@
+<!doctype html>
+<!-- Source of public/og-default.png (1200x627). Rebuild with: npm run og -->
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  @font-face {
+    font-family: "Inter";
+    src: url("../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2");
+    font-weight: 100 900;
+  }
+  html, body { margin: 0; width: 1200px; height: 627px; overflow: hidden; }
+  body {
+    background: #0a0c10;
+    background-image:
+      radial-gradient(ellipse 70% 60% at 50% -10%, rgba(79,156,249,0.22), transparent 65%),
+      radial-gradient(ellipse 40% 40% at 90% 15%, rgba(79,156,249,0.08), transparent 70%);
+    color: #f2f5f9;
+    font-family: "Inter", sans-serif;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: 72px 84px; box-sizing: border-box;
+  }
+  .brand { display: flex; align-items: center; gap: 18px; font-size: 34px; font-weight: 600; letter-spacing: -0.01em; }
+  h1 { margin: 0; font-size: 68px; line-height: 1.06; letter-spacing: -0.03em; font-weight: 600; max-width: 1000px; }
+  .grad { color: #79b8ff; }
+  .url { font-size: 26px; color: #9aa7b8; letter-spacing: 0.02em; }
+</style>
+</head>
+<body>
+  <div class="brand">
+    <svg width="56" height="56" viewBox="0 0 32 32" fill="none"><defs><linearGradient id="k" x1="4" y1="3" x2="28" y2="29" gradientUnits="userSpaceOnUse"><stop stop-color="#79b8ff"/><stop offset="1" stop-color="#2f6fd8"/></linearGradient></defs><rect x="1" y="1" width="30" height="30" rx="8" fill="url(#k)"/><path d="M11 8.5v15" stroke="#06121f" stroke-width="3.2" stroke-linecap="round"/><path d="M20.8 8.5 13.4 16l7.4 7.5" stroke="#06121f" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    kardata
+  </div>
+  <h1>Your brand runs on five systems. <span class="grad">The time and money leak between them.</span></h1>
+  <div class="url">kardata.co</div>
+</body>
+</html>
