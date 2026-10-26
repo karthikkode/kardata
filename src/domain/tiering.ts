@@ -318,7 +318,7 @@ export async function sectorSheetRows(db: Db, sectorId: string): Promise<SheetRo
       tier: truth.tier,
       layer: truth.layer,
       score: truth.score ?? 0,
-      company: m.name,
+      company: m.name ?? "",
       domain: m.domain ?? "",
       country: m.country ?? "",
       revenueUsed: truth.revenueUsed ?? 0,

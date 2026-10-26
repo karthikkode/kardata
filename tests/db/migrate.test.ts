@@ -31,6 +31,7 @@ describe("migrations on kardata_test", () => {
       "bulk_jobs",
       "companies",
       "company_jobs",
+      "company_verdicts",
       "documents",
       "fact_keys",
       "facts",

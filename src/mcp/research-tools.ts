@@ -1482,7 +1482,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
               companyId: z.string(),
               sectorId: z.string(),
               score: z.number().int().min(0).max(6),
-              signals: z.record(z.boolean()).default({}),
+              signals: z.record(z.string(), z.boolean()).default({}),
               status: z.enum(["contactable", "watchlist", "excluded", "research_incomplete"]),
               exclusionReason: z.string().nullable().optional(),
               source: z.string().min(1),
