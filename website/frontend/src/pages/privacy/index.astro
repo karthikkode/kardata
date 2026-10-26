@@ -1,0 +1,36 @@
+---
+// Draft built from the tools the site actually uses. The owner approves it before go-live.
+import Base from "../../layouts/Base.astro";
+import { SITE } from "../../config";
+import "../../styles/page.css";
+---
+<Base title="Privacy" description="What this site collects, and what happens to it.">
+  <article class="wrap page narrow">
+    <span class="eyebrow">Privacy</span>
+    <h1>Privacy policy</h1>
+    <p class="placeholder">Draft for the owner to approve. Items in brackets depend on choices not made yet.</p>
+
+    <h2>Who I am</h2>
+    <p>kardata.co is run by Karthik. Questions about your data go to <a href={`mailto:${SITE.email}`}>{SITE.email}</a>.</p>
+
+    <h2>Reading this site</h2>
+    <p>This site's own pages set no cookies and have no ad pixels. [Analytics tool, once chosen: it counts page visits without cookies and without storing anything that identifies you.]</p>
+
+    <h2>Booking a call</h2>
+    <p>
+      The booking calendar on the booking page is run by [Calendly or Cal.com], under their privacy policy, and it
+      may set its own cookies. When you book, you give your
+      name, email, company website, where you sell, and an optional note. I use these only to prepare for the call
+      and to reply to you.
+    </p>
+
+    <h2>Email</h2>
+    <p>If you write to me, I keep the conversation to reply and to follow up on what we discussed.</p>
+
+    <h2>How long I keep it</h2>
+    <p>[Retention period, set by the owner.]</p>
+
+    <h2>Your rights</h2>
+    <p>You can ask for a copy of what I hold about you, or for it to be deleted, by writing to {SITE.email}.</p>
+  </article>
+</Base>

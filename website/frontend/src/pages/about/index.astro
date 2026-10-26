@@ -1,0 +1,57 @@
+---
+// The About text is the owner's to write (D-44). This page holds the photo, the link and a marked placeholder.
+import { Image } from "astro:assets";
+import Base from "../../layouts/Base.astro";
+import BookButton from "../../components/BookButton.astro";
+import { SITE } from "../../config";
+import photo from "../../assets/karthik.jpg";
+import "../../styles/page.css";
+---
+<Base title="About" description="Who is behind kardata.">
+  <article class="wrap page">
+    <span class="eyebrow">About</span>
+    <div class="about">
+      <Image src={photo} alt="Karthik, the founder of kardata" width={320} height={320} class="photo" loading="eager" />
+      <div class="narrow">
+        <h1>Karthik</h1>
+        <p><a href={SITE.linkedin} rel="me noopener">LinkedIn</a></p>
+        <div class="placeholder">
+          <p><strong>Placeholder, written by the owner (D-44):</strong></p>
+          <ul>
+            <li>Background.</li>
+            <li>The insurtech work, as proof.</li>
+          </ul>
+          <p>Photo: v1's photo for now. Owner to confirm or replace.</p>
+        </div>
+        <div class="cta-row"><BookButton label="Book a 20-minute call" size="lg" /></div>
+      </div>
+    </div>
+  </article>
+</Base>
+
+<style>
+  .about {
+    display: grid;
+    gap: 2.5rem;
+    margin-top: 1.5rem;
+  }
+  @media (min-width: 820px) {
+    .about {
+      grid-template-columns: 20rem 1fr;
+      align-items: start;
+    }
+  }
+  .about :global(.photo) {
+    width: 100%;
+    max-width: 20rem;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--border-strong);
+  }
+  .about h1 {
+    margin-top: 0;
+  }
+  .placeholder p,
+  .placeholder li {
+    color: var(--warn);
+  }
+</style>

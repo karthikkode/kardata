@@ -1,0 +1,118 @@
+---
+// Copy from docs/business/offer.md (the audit section), in "I" voice. Draft until the owner signs it off.
+// Never add prices, guarantee figures, retainers or builds here (D-58).
+import Base from "../../layouts/Base.astro";
+import BookButton from "../../components/BookButton.astro";
+import "../../styles/page.css";
+
+const types = [
+  {
+    name: "One true number across channels",
+    question: "What did we actually sell and earn last week, across every channel?",
+    data: "Store (Shopify, WooCommerce, etc.), Amazon Seller Central, retailer reports, ad accounts",
+  },
+  {
+    name: "Customers and retention",
+    question: "Who buys again, who stops, and why?",
+    data: "Store orders, Klaviyo, subscription app, reviews",
+  },
+  {
+    name: "Ops and inventory",
+    question: "Where do hours and stock go: stock-outs, retailer purchase orders, manual reports?",
+    data: "Store/3PL inventory, PO emails/PDFs, spreadsheets, helpdesk",
+  },
+];
+---
+<Base title="The audit" description="One business question, answered from your own data, at a fixed price. You keep the report.">
+  <article class="wrap page narrow">
+    <span class="eyebrow">The audit</span>
+    <h1>One business question, answered from your own data</h1>
+    <p class="lead">
+      Whatever the problem, it starts the same way: one business question, answered from your own data, at a fixed
+      price. You keep the report, whatever happens next.
+    </p>
+
+    <h2>What it answers</h2>
+    <p>We pick one question together on the call. Most fall into one of three types:</p>
+    <div class="types">
+      {types.map((t) => (
+        <div class="card">
+          <h3>{t.name}</h3>
+          <p class="q">{t.question}</p>
+          <p class="data"><span class="eyebrow">Typical data</span> {t.data}</p>
+        </div>
+      ))}
+    </div>
+    <p>
+      If your problem sits outside all three, I take it on only if one export can answer it within the audit window.
+      Otherwise I say so plainly and offer to scope it separately.
+    </p>
+
+    <h2>What you get</h2>
+    <ol>
+      <li><strong>What repeats:</strong> the 3–5 patterns going unnoticed, with counts.</li>
+      <li><strong>What it costs:</strong> recoverable value per month, with the method shown.</li>
+      <li><strong>What to fix first:</strong> the two fixes I'd do first, each with its expected effect and effort.</li>
+      <li><strong>What's ready for AI:</strong> which patterns could be automated now, and which need cleanup first.</li>
+      <li><strong>Readout call:</strong> 45 minutes.</li>
+    </ol>
+    <p>You keep the report and the working sheet whatever happens next.</p>
+    <p>
+      <strong>What it costs</strong> is worked out the same way every time: hours spent on repeatable work, times
+      their hourly cost, plus revenue at risk that the data ties to a cause that can be fixed. The method and the
+      inputs are in the report, so you can check the maths.
+    </p>
+
+    <h2>How it runs</h2>
+    <ol>
+      <li><strong>A 20-minute call.</strong> We find the one question worth answering.</li>
+      <li><strong>A 30-minute kickoff,</strong> once you've decided to go ahead.</li>
+      <li><strong>Read-only exports</strong> from the systems that hold the answer.</li>
+      <li><strong>The report and a 45-minute readout call.</strong></li>
+    </ol>
+    <p><strong>Price:</strong> a fixed price, quoted on the call once we know the question. Paid upfront.</p>
+
+    <h2>What I need from you</h2>
+    <ul>
+      <li>A 30-minute kickoff.</li>
+      <li>Read-only exports or API access.</li>
+      <li>One named contact.</li>
+    </ul>
+    <p>Nothing else is asked of your team.</p>
+
+    <h2>How your data is kept safe</h2>
+    <ul>
+      <li>Read-only exports, nothing changed in your systems.</li>
+      <li>I don't build dashboards, change your tools, or do anything that needs write access during the audit.</li>
+    </ul>
+    <p class="placeholder">
+      Placeholder for the owner: how exports are stored, who can see them, and when they are deleted after the
+      audit. Not in docs/business yet, so not written here.
+    </p>
+
+    <div class="cta-row"><BookButton label="Book a 20-minute call" size="lg" /></div>
+  </article>
+</Base>
+
+<style>
+  .types {
+    display: grid;
+    gap: 0.75rem;
+    margin: 1.5rem 0;
+  }
+  .types h3 {
+    font-size: 1.05rem;
+  }
+  .types .q {
+    color: var(--fg);
+    margin: 0.6rem 0 0;
+  }
+  .types .data {
+    margin: 0.75rem 0 0;
+    font-size: 0.9rem;
+  }
+  .types .eyebrow {
+    font-size: 0.65rem;
+    margin-right: 0.4rem;
+  }
+</style>

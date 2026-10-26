@@ -117,7 +117,8 @@ const isCurrent = (href: string) => path === href || (href !== "/" && path.start
     flex-direction: column;
     gap: 0.25rem;
     padding: 1rem var(--gutter) 1.25rem;
-    background: rgba(10, 12, 16, 0.97);
+    background: var(--bg);
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
     border-bottom: 1px solid var(--border);
   }
   .sheet a:not(.btn) {

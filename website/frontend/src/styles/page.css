@@ -1,0 +1,61 @@
+.page {
+  padding-top: 4.5rem;
+  padding-bottom: 5rem;
+}
+.page h1 {
+  font-size: clamp(2rem, 5vw, 2.75rem);
+  margin-top: 1rem;
+}
+.page .lead {
+  margin-top: 1rem;
+}
+.page h2 {
+  font-size: 1.5rem;
+  margin: 3.5rem 0 1rem;
+}
+.page p,
+.page li {
+  color: var(--muted);
+}
+.page strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+.page ul,
+.page ol {
+  padding-left: 1.25rem;
+}
+.page li {
+  margin: 0.5rem 0;
+}
+.page li::marker {
+  color: var(--faint);
+}
+.page .cta-row {
+  margin-top: 3rem;
+}
+.page table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+.page .table-wrap {
+  overflow-x: auto;
+}
+.page th,
+.page td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+}
+.page th {
+  color: var(--fg);
+  font-weight: 600;
+  background: var(--surface);
+}
+.page td:first-child {
+  color: var(--fg);
+  font-weight: 500;
+}

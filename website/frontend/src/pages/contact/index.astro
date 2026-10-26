@@ -1,0 +1,14 @@
+---
+import Base from "../../layouts/Base.astro";
+import BookButton from "../../components/BookButton.astro";
+import { SITE } from "../../config";
+import "../../styles/page.css";
+---
+<Base title="Contact" description="How to reach kardata.">
+  <section class="wrap page narrow">
+    <span class="eyebrow">Contact</span>
+    <h1>Contact</h1>
+    <p class="lead">Email <a href={`mailto:${SITE.email}`}>{SITE.email}</a>, or find me on <a href={SITE.linkedin} rel="me noopener">LinkedIn</a>.</p>
+    <div class="cta-row"><BookButton label="Book a 20-minute call" size="lg" /></div>
+  </section>
+</Base>

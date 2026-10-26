@@ -1,0 +1,63 @@
+---
+import Base from "../../layouts/Base.astro";
+import { BOOKING, SITE } from "../../config";
+import "../../styles/page.css";
+
+const embed =
+  BOOKING.provider === "calendly"
+    ? `${BOOKING.url}?embed_domain=kardata.co&embed_type=Inline&hide_gdpr_banner=1`
+    : `${BOOKING.url}?embed=true`;
+---
+<Base title="Book a call" description={`Book a ${BOOKING.minutes}-minute call about your brand's data.`}>
+  <section class="wrap page">
+    <span class="eyebrow">Book a call</span>
+    <h1>Book a {BOOKING.minutes}-minute call</h1>
+    <p class="lead">Times show in your own time zone.</p>
+
+    <div class="frame">
+      <iframe src={embed} title="Booking calendar" loading="lazy"></iframe>
+    </div>
+    <p class="fallback faint">
+      Calendar not showing? <a href={BOOKING.url} rel="noopener" target="_blank">Open it in a new tab</a>, or write
+      to <a href={`mailto:${SITE.email}`}>{SITE.email}</a>.
+    </p>
+  </section>
+</Base>
+
+<script is:inline define:vars={{ provider: BOOKING.provider }}>
+  (function () {
+    // `from` is one of our own page paths. Anything else is dropped, so no personal data reaches analytics.
+    var raw = new URLSearchParams(location.search).get("from") || "";
+    var from = /^\/[a-z0-9\-\/]*$/.test(raw) ? raw : "direct";
+    window.addEventListener("message", function (e) {
+      var booked =
+        (provider === "calendly" &&
+          e.origin === "https://calendly.com" &&
+          e.data && e.data.event === "calendly.event_scheduled") ||
+        (provider === "calcom" &&
+          /(^|\.)cal\.com$/.test(new URL(e.origin).hostname) &&
+          e.data && e.data.type === "bookingSuccessful");
+      if (booked && window.kdTrack) window.kdTrack("Booking", { from: from });
+    });
+  })();
+</script>
+
+<style>
+  .frame {
+    margin-top: 2.5rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    background: var(--surface);
+  }
+  iframe {
+    display: block;
+    width: 100%;
+    height: 720px;
+    border: 0;
+  }
+  .fallback {
+    margin-top: 1rem;
+    font-size: 0.9rem;
+  }
+</style>

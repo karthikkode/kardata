@@ -1,6 +1,374 @@
 ---
+// Home copy is docs/business/website.md ("Home, top to bottom"), word for word. Don't edit it here;
+// change website.md first. The 5 audit deliverables are offer.md's, as website.md says.
+import { Image } from "astro:assets";
 import Base from "../layouts/Base.astro";
+import BookButton from "../components/BookButton.astro";
+import SectionHeading from "../components/SectionHeading.astro";
+import PostCard from "../components/PostCard.astro";
+import { getPosts } from "../lib/collection";
+import { SITE } from "../config";
+import photo from "../assets/karthik.jpg";
+
+const latest = (await getPosts()).slice(0, 3);
+
+const familiar = [
+  {
+    title: "Numbers that don't add up.",
+    text: "Your site says one thing, Amazon another, and retailer reports arrive in a different format every time.",
+  },
+  {
+    title: "Work that shouldn't be manual.",
+    text: "Purchase orders typed in by hand, stock checked in spreadsheets, a monthly report someone builds over two days.",
+  },
+  {
+    title: "Decisions you can't check.",
+    text: "You added a retailer or launched a product, and you still don't know whether it paid off.",
+  },
+];
+
+const deliverables = [
+  { title: "What repeats", text: "the 3–5 patterns going unnoticed, with counts." },
+  { title: "What it costs", text: "recoverable value per month, with the method shown." },
+  { title: "What to fix first", text: "the two fixes I'd do first, each with its expected effect and effort." },
+  { title: "What's ready for AI", text: "which patterns could be automated now, and which need cleanup first." },
+  { title: "Readout call", text: "45 minutes." },
+];
+
+const steps = ["A 20-minute call", "Read-only exports", "The readout"];
+
+const faq = [
+  {
+    q: "We already have Klaviyo or a dashboard.",
+    a: "Those show one part well. A decision needs the whole business.",
+  },
+  {
+    q: "What access do you need, and is our data safe?",
+    a: "Read-only exports, nothing changed in your systems.",
+  },
+  {
+    q: "How much does it cost?",
+    a: "A fixed price, quoted on the call once we know the question.",
+  },
+  {
+    q: "What if you find nothing worth fixing?",
+    a: "You still keep the report.",
+  },
+];
 ---
 <Base>
-  <section class="section"><div class="wrap"><span class="eyebrow">Scaffold</span></div></section>
+  <section class="hero">
+    <div class="glow" aria-hidden="true"></div>
+    <div class="wrap hero-inner">
+      <h1>Your brand runs on five systems. <span class="grad">The time and money leak between them.</span></h1>
+      <p class="lead">
+        Your store, Amazon, your retailers, your warehouse and your accounts each hold part of the picture. I audit
+        your own data, show you what the gaps are costing, and fix the ones worth fixing.
+      </p>
+      <div class="hero-cta">
+        <BookButton label="Book a 20-minute call" size="lg" />
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="familiar">
+    <div class="wrap">
+      <SectionHeading eyebrow="01" title="Sound familiar?" id="familiar" />
+      <div class="grid grid-3">
+        {familiar.map((f) => (
+          <div class="card">
+            <h3>{f.title}</h3>
+            <p class="muted">{f.text}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="audit">
+    <div class="wrap">
+      <SectionHeading eyebrow="02" title="The audit" id="audit" />
+      <p class="lead">
+        Whatever the problem, it starts the same way: one business question, answered from your own data, at a fixed
+        price. You keep the report, whatever happens next.
+      </p>
+      <ol class="deliverables">
+        {deliverables.map((d, i) => (
+          <li class="card">
+            <span class="num">{String(i + 1).padStart(2, "0")}</span>
+            <p><strong>{d.title}:</strong> {d.text}</p>
+          </li>
+        ))}
+      </ol>
+      <p><a href="/audit/" class="more">More about the audit</a></p>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="how">
+    <div class="wrap">
+      <SectionHeading eyebrow="03" title="How it works" id="how" />
+      <ol class="steps">
+        {steps.map((s, i) => (
+          <li>
+            <span class="step-n">{String(i + 1).padStart(2, "0")}</span>
+            <span class="step-t">{s}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="behind">
+    <div class="wrap">
+      <SectionHeading eyebrow="04" title="Who's behind it" id="behind" />
+      <div class="card founder">
+        <Image src={photo} alt="Karthik, the founder of kardata" width={160} height={160} class="photo" />
+        <div>
+          <p class="name">Karthik <a href={SITE.linkedin} rel="me noopener">LinkedIn</a></p>
+          <p class="placeholder">Placeholder: one short paragraph, written by the owner (website.md, section 5).</p>
+          <p class="motto">AI only where it pays for itself.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {latest.length > 0 && (
+    <section class="section" aria-labelledby="blog">
+      <div class="wrap">
+        <SectionHeading eyebrow="05" title="From the blog" id="blog" />
+        <div class="narrow">
+          {latest.map((p) => (
+            <PostCard id={p.id} title={p.data.title} summary={p.data.summary} date={p.data.date} draft={p.data.draft} />
+          ))}
+        </div>
+        <p><a href="/blog/" class="more">All posts</a></p>
+      </div>
+    </section>
+  )}
+
+  <section class="section" aria-labelledby="faq">
+    <div class="wrap">
+      <SectionHeading eyebrow={latest.length > 0 ? "06" : "05"} title="FAQ" id="faq" />
+      <div class="faq narrow">
+        {faq.map((f) => (
+          <details>
+            <summary>{f.q}</summary>
+            <p class="muted">{f.a}</p>
+          </details>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="final">
+    <div class="glow" aria-hidden="true"></div>
+    <div class="wrap final-inner">
+      <BookButton label="Book a 20-minute call" size="lg" />
+    </div>
+  </section>
 </Base>
+
+<style>
+  .hero,
+  .final {
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+  }
+  .glow {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 70% 55% at 50% -5%, rgba(79, 156, 249, 0.16), transparent 65%),
+      radial-gradient(ellipse 40% 35% at 85% 20%, rgba(79, 156, 249, 0.07), transparent 70%);
+  }
+  .hero-inner {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding-top: 7rem;
+    padding-bottom: 6rem;
+  }
+  h1 {
+    max-width: 52rem;
+    font-size: clamp(2.4rem, 6.5vw, 4.25rem);
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+  }
+  .grad {
+    background: linear-gradient(90deg, var(--accent), var(--accent-bright));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .hero .lead {
+    margin: 1.75rem auto 0;
+    max-width: 40rem;
+  }
+  .hero-cta {
+    margin-top: 2.25rem;
+  }
+  .card h3 {
+    font-size: 1.1rem;
+  }
+  .card p.muted {
+    margin: 0.75rem 0 0;
+  }
+
+  .deliverables {
+    list-style: none;
+    padding: 0;
+    margin: 2.5rem 0 1.5rem;
+    display: grid;
+    gap: 0.75rem;
+  }
+  @media (min-width: 720px) {
+    .deliverables {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  .deliverables li {
+    display: flex;
+    gap: 1rem;
+    align-items: baseline;
+    padding: 1.1rem 1.25rem;
+  }
+  .deliverables p {
+    margin: 0;
+    color: var(--muted);
+  }
+  .deliverables strong {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .num,
+  .step-n {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--accent-bright);
+  }
+  .more {
+    font-size: 0.9375rem;
+    text-decoration: none;
+  }
+  .more::after {
+    content: " \2192";
+  }
+
+  .steps {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 1rem;
+  }
+  @media (min-width: 720px) {
+    .steps {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+  .steps li {
+    position: relative;
+    border-top: 1px solid var(--border-strong);
+    padding-top: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .steps li::before {
+    content: "";
+    position: absolute;
+    top: -1px;
+    left: 0;
+    width: 3rem;
+    height: 1px;
+    background: var(--accent);
+  }
+  .step-t {
+    font-size: 1.35rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .founder {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 1.75rem;
+  }
+  @media (min-width: 640px) {
+    .founder {
+      flex-direction: row;
+      align-items: flex-start;
+    }
+  }
+  .founder :global(.photo) {
+    width: 8rem;
+    height: 8rem;
+    border-radius: var(--radius-xl);
+    object-fit: cover;
+    flex: none;
+    border: 1px solid var(--border-strong);
+  }
+  .name {
+    margin: 0 0 1rem;
+    font-weight: 600;
+    display: flex;
+    gap: 0.75rem;
+    align-items: baseline;
+  }
+  .name a {
+    font-weight: 400;
+    font-size: 0.875rem;
+  }
+  .motto {
+    margin: 1rem 0 0;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--accent-bright);
+  }
+
+  .faq details {
+    border-top: 1px solid var(--border);
+    padding: 0.25rem 0;
+  }
+  .faq details:last-child {
+    border-bottom: 1px solid var(--border);
+  }
+  .faq summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 1rem 2rem 1rem 0;
+    font-weight: 500;
+    font-size: 1.05rem;
+    position: relative;
+  }
+  .faq summary::-webkit-details-marker {
+    display: none;
+  }
+  .faq summary::after {
+    content: "+";
+    position: absolute;
+    right: 0.25rem;
+    top: 0.9rem;
+    color: var(--accent-bright);
+    font-family: var(--font-mono);
+  }
+  .faq details[open] summary::after {
+    content: "\2212";
+  }
+  .faq details p {
+    margin: 0 0 1.1rem;
+  }
+
+  .final-inner {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    padding-top: 5rem;
+    padding-bottom: 5rem;
+  }
+</style>
