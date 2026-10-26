@@ -1,6 +1,13 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { Db } from "../db/client.js";
-import { companies, companyVerdicts, factsCurrent, sectorCompanies, sources } from "../db/schema.js";
+import {
+  companies,
+  companyVerdicts,
+  factsCurrent,
+  revenueConfirmations,
+  sectorCompanies,
+  sources,
+} from "../db/schema.js";
 import { DomainError } from "./errors.js";
 import { addFacts } from "./research/facts.js";
 
@@ -60,6 +67,39 @@ const VENDOR_BACKSTOP = [
   "company check",
   "celebslifereel",
   "directory aggregator",
+  "datanyze",
+  "grips",
+  "signalhire",
+  "clearvalue",
+  "endole",
+  "globaldatabase",
+  "buzzfile",
+  "crowdlustro",
+  "accio",
+  "couponupto",
+  "sharktankblog",
+  "bold.pro",
+];
+
+/** Known editorial outlets. Anything else fails closed to vendor_estimate. */
+const PRESS_BACKSTOP = [
+  "wwd",
+  "women's wear daily",
+  "beautymatter",
+  "beauty independent",
+  "glossy",
+  "forbes",
+  "businesscloud",
+  "happi",
+  "fast company",
+  "premium beauty",
+  "cosmeticsbusiness",
+  "cosmetics business",
+  "fierce biotech",
+  "stocktitan",
+  "little pink book",
+  "body+soul",
+  "acuity",
 ];
 
 export function classifyRevenueSourceKind(
@@ -82,7 +122,13 @@ export function classifyRevenueSourceKind(
     return "filing";
   }
   if (name.includes("podcast") || name.includes("interview")) return "interview";
-  return "press";
+  if (PRESS_BACKSTOP.some((v) => name.includes(v))) return "press";
+  if (name.includes("investor page") || name.includes("investor relations")) {
+    return "company_statement";
+  }
+  // Fail closed: a source is press only if a journalist or the company
+  // itself states the figure. Unknown or unclassified means a vendor guess.
+  return "vendor_estimate";
 }
 
 export function isPublicKind(kind: RevenueSourceKind): boolean {
@@ -98,7 +144,13 @@ export interface StaffCount {
 }
 
 export interface RevenueTruthInput {
-  publicRevenue: { amount: number; sourceName: string; kind?: RevenueSourceKind } | null;
+  publicRevenue: {
+    amount: number;
+    sourceName: string;
+    kind?: RevenueSourceKind;
+    confirmed?: boolean;
+    confirmationReason?: string | null;
+  } | null;
   vendorRevenue: { amount: number; sourceName: string } | null;
   staff: StaffCount | null;
   score: number | null;
@@ -112,6 +164,7 @@ export interface RevenueTruth {
   revenueSource: RevenueSource;
   revenueKind: RevenueSourceKind | null;
   publicSourceName: string | null;
+  flaggedFigure: { amount: number; sourceName: string; reason: string } | null;
   rejected: { amount: number; source: string; reason: string } | null;
   staff: StaffCount | null;
   tier: Tier;
@@ -156,16 +209,47 @@ export function computeRevenueTruth(input: RevenueTruthInput): RevenueTruth {
   let revenueKind: RevenueSourceKind | null = null;
   let publicSourceName: string | null = null;
   let rejected: RevenueTruth["rejected"] = null;
+  let flaggedFigure: RevenueTruth["flaggedFigure"] = null;
+  let used = false;
 
   if (input.publicRevenue && input.publicRevenue.amount > 0) {
-    revenueUsed = input.publicRevenue.amount;
-    revenueSource = "public";
-    revenueKind = input.publicRevenue.kind ?? classifyRevenueSourceKind(input.publicRevenue.sourceName);
-    publicSourceName = input.publicRevenue.sourceName;
-    if (staff && staff.count > 0 && revenueUsed / staff.count > PUBLIC_CHECK_PER_STAFF) {
-      flags.push("check: public figure over $1M per staff");
+    const pub = input.publicRevenue;
+    const perStaff = staff && staff.count > 0 ? pub.amount / staff.count : null;
+    const flagged = perStaff !== null && perStaff > PUBLIC_CHECK_PER_STAFF;
+    if (!flagged) {
+      revenueUsed = pub.amount;
+      revenueSource = "public";
+      revenueKind = pub.kind ?? classifyRevenueSourceKind(pub.sourceName);
+      publicSourceName = pub.sourceName;
+      used = true;
+    } else {
+      // A flagged figure is usually a parent or group number. It stays
+      // visible, but it does not set the tier until a human confirms it is
+      // the brand's own figure (company_revenue_confirm).
+      flaggedFigure = {
+        amount: pub.amount,
+        sourceName: pub.sourceName,
+        reason:
+          pub.confirmed === false && pub.confirmationReason
+            ? pub.confirmationReason
+            : "over $1M per staff: not confirmed as the brand's own figure",
+      };
+      flags.push(
+        `check: public figure over $1M per staff (${pub.sourceName})` +
+          (pub.confirmed
+            ? ": confirmed as the brand's own figure"
+            : `: not used for tier (${flaggedFigure.reason})`),
+      );
+      if (pub.confirmed) {
+        revenueUsed = pub.amount;
+        revenueSource = "public";
+        revenueKind = pub.kind ?? classifyRevenueSourceKind(pub.sourceName);
+        publicSourceName = pub.sourceName;
+        used = true;
+      }
     }
-  } else if (input.vendorRevenue !== null && input.vendorRevenue.amount > 0) {
+  }
+  if (!used && input.vendorRevenue !== null && input.vendorRevenue.amount > 0) {
     const perStaff =
       staff && staff.count > 0 ? input.vendorRevenue.amount / staff.count : null;
     if (perStaff !== null && perStaff >= APOLLO_MIN_PER_STAFF) {
@@ -186,7 +270,8 @@ export function computeRevenueTruth(input: RevenueTruthInput): RevenueTruth {
         revenueSource = "staff_estimate";
       }
     }
-  } else if (staff && staff.count > 0) {
+  }
+  if (!used && revenueUsed === null && staff && staff.count > 0) {
     revenueUsed = staff.count * STAFF_ESTIMATE_PER_HEAD;
     revenueSource = "staff_estimate";
   }
@@ -221,6 +306,7 @@ export function computeRevenueTruth(input: RevenueTruthInput): RevenueTruth {
     revenueSource,
     revenueKind,
     publicSourceName,
+    flaggedFigure,
     rejected,
     staff,
     tier,
@@ -310,16 +396,21 @@ export async function sectorRevenueReclassify(
       continue;
     }
     const qualifiers = (row.qualifiers ?? {}) as Record<string, unknown>;
-    if (typeof qualifiers["source_kind"] === "string") {
-      alreadyStamped += 1;
-      continue;
-    }
     const source = typeof qualifiers["source"] === "string" ? (qualifiers["source"] as string) : "";
     if (source === "") {
       noRevenueFact += 1;
       continue;
     }
     const kind = classifyRevenueSourceKind(source);
+    if (typeof qualifiers["source_kind"] === "string") {
+      // Extractor-stamped kinds are judgement and stay. Kinds we stamped
+      // ourselves are recomputed, so a stricter classifier re-stamps them.
+      const ours = row.createdBy === "reclassify:stage-5.3";
+      if (!ours || qualifiers["source_kind"] === kind) {
+        alreadyStamped += 1;
+        continue;
+      }
+    }
     byKind[kind] = (byKind[kind] ?? 0) + 1;
     const amount = factAmount(row);
     const citedIds = row.sourceIds ?? [];
@@ -354,6 +445,26 @@ export async function sectorRevenueReclassify(
     if (results[0]?.ok) stamped += 1;
   }
   return { stamped, alreadyStamped, noRevenueFact, byKind };
+}
+
+/** Record the human verdict on a flagged public figure for one company. */
+export async function recordRevenueConfirmation(
+  db: Db,
+  input: { companyId: string; decision: "confirm" | "reject"; reason: string },
+): Promise<{ companyId: string; decision: string; reason: string }> {
+  const [company] = await db
+    .select({ id: companies.id })
+    .from(companies)
+    .where(eq(companies.id, input.companyId));
+  if (!company) throw new DomainError("not_found", `company not found: ${input.companyId}`);
+  await db
+    .insert(revenueConfirmations)
+    .values({ companyId: input.companyId, decision: input.decision, reason: input.reason })
+    .onConflictDoUpdate({
+      target: revenueConfirmations.companyId,
+      set: { decision: input.decision, reason: input.reason, updatedAt: new Date() },
+    });
+  return { companyId: input.companyId, decision: input.decision, reason: input.reason };
 }
 
 // ---- Reading the stored facts for one company ----
@@ -430,6 +541,18 @@ export async function companyRevenueTruth(db: Db, companyId: string): Promise<Re
     .select()
     .from(companyVerdicts)
     .where(eq(companyVerdicts.companyId, companyId));
+
+  const [confirmation] = await db
+    .select()
+    .from(revenueConfirmations)
+    .where(eq(revenueConfirmations.companyId, companyId));
+  if (publicRevenue && confirmation) {
+    publicRevenue = {
+      ...publicRevenue,
+      confirmed: confirmation.decision === "confirm",
+      confirmationReason: confirmation.reason || null,
+    };
+  }
 
   const truth = computeRevenueTruth({
     publicRevenue,

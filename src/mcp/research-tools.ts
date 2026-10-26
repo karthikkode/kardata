@@ -33,6 +33,7 @@ import {
 import { preflightReportSchema, savePreflightReportForRun } from "../domain/company-jobs/preflight.js";
 import {
   companyRevenueTruth,
+  recordRevenueConfirmation,
   recordVerdicts,
   sectorRevenueReclassify,
   sectorSheetRows,
@@ -1497,6 +1498,24 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const result = await recordVerdicts(db, verdicts);
         return { summary: `${result.recorded} verdict(s) recorded`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_revenue_confirm",
+    {
+      description:
+        "Operator: confirm or reject a flagged public revenue figure (over $1M per staff) for one company, with a reason. Only a confirmed figure may set the tier; a rejected figure stays visible and the next source down is used.",
+      inputSchema: {
+        companyId: z.string().describe("Company UUID"),
+        decision: z.enum(["confirm", "reject"]).describe("confirm = the brand's own figure; reject = parent/group or wrong"),
+        reason: z.string().min(1).describe("Why, in plain words"),
+      },
+    },
+    async ({ companyId, decision, reason }) =>
+      wrap(async () => {
+        const result = await recordRevenueConfirmation(db, { companyId, decision, reason });
+        return { summary: `${decision}: ${reason}`, data: result };
       }),
   );
 

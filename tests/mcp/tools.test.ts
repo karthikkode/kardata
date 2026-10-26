@@ -99,6 +99,7 @@ const EXPECTED_TOOLS = [
   "company_jobs_list",
   "jobs_for_company",
   "company_revenue_truth",
+  "company_revenue_confirm",
   "company_verdict_record",
   "company_sheet_export",
   "sector_tier_summary",

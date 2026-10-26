@@ -43,7 +43,7 @@ describe("D-55 revenue truth (pure)", () => {
 
   it("public figure wins, flagged check over $1M per staff", () => {
     const r = computeRevenueTruth({
-      publicRevenue: { amount: 30000000, sourceName: "trade press interview" },
+      publicRevenue: { amount: 30000000, sourceName: "trade press interview", confirmed: true },
       vendorRevenue: { amount: 607000, sourceName: "Apollo" },
       staff: { count: 20, source: "companies_house" },
       score: 6,
@@ -53,7 +53,7 @@ describe("D-55 revenue truth (pure)", () => {
     expect(r.revenueSource).toBe("public");
     expect(r.tier).toBe("A");
     expect(r.layer).toBe(1);
-    expect(r.flags).toContain("check: public figure over $1M per staff");
+    expect(r.flags.some((f) => f.includes("over $1M per staff"))).toBe(true);
   });
 
   it("score 0-1 is watchlist and below $500k is not contacted", () => {
@@ -123,7 +123,12 @@ describe("D-55 revenue truth (pure)", () => {
 
   it("an award entry counts as a company statement and keeps the check flag", () => {
     const r = computeRevenueTruth({
-      publicRevenue: { amount: 33000000, sourceName: "Gold award entry (brand-submitted)", kind: "award_entry" },
+      publicRevenue: {
+        amount: 33000000,
+        sourceName: "Gold award entry (brand-submitted)",
+        kind: "award_entry",
+        confirmed: true,
+      },
       vendorRevenue: null,
       staff: { count: 10, source: "apollo" },
       score: 5,
@@ -131,7 +136,7 @@ describe("D-55 revenue truth (pure)", () => {
     });
     expect(r.revenueSource).toBe("public");
     expect(r.tier).toBe("A");
-    expect(r.flags).toContain("check: public figure over $1M per staff");
+    expect(r.flags.some((f) => f.includes("over $1M per staff"))).toBe(true);
   });
 
   it("classifies source kinds with the vendor backstop", () => {
@@ -145,6 +150,67 @@ describe("D-55 revenue truth (pure)", () => {
     expect(classifyRevenueSourceKind("WWD")).toBe("press");
     expect(classifyRevenueSourceKind("Anything", "vendor_estimate")).toBe("vendor_estimate");
     expect(classifyRevenueSourceKind("ZoomInfo", "press")).toBe("press");
+  });
+
+  it("fails closed: unknown sources are vendor estimates, not press", () => {
+    expect(classifyRevenueSourceKind("Some Obscure Site")).toBe("vendor_estimate");
+    expect(classifyRevenueSourceKind("Datanyze")).toBe("vendor_estimate");
+    expect(classifyRevenueSourceKind("Grips Intelligence")).toBe("vendor_estimate");
+    expect(classifyRevenueSourceKind("SignalHire")).toBe("vendor_estimate");
+    expect(classifyRevenueSourceKind("Endole")).toBe("vendor_estimate");
+    expect(classifyRevenueSourceKind("GlobalDatabase")).toBe("vendor_estimate");
+    expect(classifyRevenueSourceKind("Buzzfile")).toBe("vendor_estimate");
+    expect(classifyRevenueSourceKind("Bold.pro CV")).toBe("vendor_estimate");
+    // Known editorial names still read as press.
+    expect(classifyRevenueSourceKind("BeautyMatter")).toBe("press");
+    expect(classifyRevenueSourceKind("Glossy (founder statement)")).toBe("press");
+    expect(classifyRevenueSourceKind("Forbes Asia")).toBe("press");
+  });
+
+  it("a flagged public figure does not set the tier until confirmed", () => {
+    const unconfirmed = computeRevenueTruth({
+      publicRevenue: { amount: 364000000, sourceName: "Wikipedia", kind: "press" },
+      vendorRevenue: null,
+      staff: { count: 24, source: "apollo" },
+      score: 4,
+      verdictStatus: "contactable",
+    });
+    // Falls to the staff estimate; the figure and flag stay visible.
+    expect(unconfirmed.revenueSource).toBe("staff_estimate");
+    expect(unconfirmed.tier).toBe("B");
+    expect(unconfirmed.flaggedFigure).toEqual({
+      amount: 364000000,
+      sourceName: "Wikipedia",
+      reason: "over $1M per staff: not confirmed as the brand's own figure",
+    });
+    expect(unconfirmed.flags.some((f) => f.includes("over $1M per staff"))).toBe(true);
+
+    const confirmed = computeRevenueTruth({
+      publicRevenue: { amount: 364000000, sourceName: "Wikipedia", kind: "press", confirmed: true },
+      vendorRevenue: null,
+      staff: { count: 24, source: "apollo" },
+      score: 4,
+      verdictStatus: "contactable",
+    });
+    expect(confirmed.revenueSource).toBe("public");
+    expect(confirmed.tier).toBe("A");
+    expect(confirmed.flaggedFigure).not.toBeNull();
+
+    const rejected = computeRevenueTruth({
+      publicRevenue: {
+        amount: 364000000,
+        sourceName: "Wikipedia",
+        kind: "press",
+        confirmed: false,
+        confirmationReason: "parent-company figure",
+      },
+      vendorRevenue: { amount: 3000000, sourceName: "ZoomInfo" },
+      staff: { count: 24, source: "apollo" },
+      score: 4,
+      verdictStatus: "contactable",
+    });
+    expect(rejected.revenueSource).toBe("vendor");
+    expect(rejected.flags.some((f) => f.includes("parent-company figure"))).toBe(true);
   });
 
   it("pickStaff prefers the most recent dated count, Companies House first", () => {

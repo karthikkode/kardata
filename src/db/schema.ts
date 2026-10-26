@@ -1022,3 +1022,17 @@ export const companyVerdicts = pgTable("company_verdicts", {
     .$onUpdate(() => new Date()),
 });
 export type CompanyVerdict = typeof companyVerdicts.$inferSelect;
+
+// Human verdict on a flagged (over $1M per staff) public revenue figure.
+export const revenueConfirmations = pgTable("revenue_confirmations", {
+  companyId: uuid("company_id")
+    .primaryKey()
+    .references(() => companies.id, { onDelete: "cascade" }),
+  decision: text("decision").notNull(),
+  reason: text("reason").notNull().default(""),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+export type RevenueConfirmation = typeof revenueConfirmations.$inferSelect;
