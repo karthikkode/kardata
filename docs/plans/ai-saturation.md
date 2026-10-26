@@ -1,4 +1,12 @@
+Status: superseded by docs/plans/stage-5.2-worker-pools.md · Date: 2026-10-26
+
 # AI saturation: no idle slot, no wasted quota
+
+**Step states (2026-10-26):** Step 0 done (merged, PR #60). Steps 1–2 replaced by
+`docs/plans/stage-5.2-worker-pools.md` (the interim extraction pool shipped separately, PR #61).
+Steps 3–5 still open: no `research_stall_stats` tool, no extraction-half quota-trip test, and no
+`pipeline_status` metrics block exist in `src/` yet; Stage 5.2 Step 5 specifies `pools_status`
+to cover the reporting part when built.
 
 Goal: while quota is available, all 64 agent slots stay busy on research;
 when quota is tight, only deterministic work runs. One work item, six steps.

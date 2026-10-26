@@ -1,3 +1,5 @@
+Status: done · Date: 2026-10-26
+
 # Stage 1 — Backend core: sectors, companies, MCP server
 
 **Goal:** a long-running `kardata-server` that the owner drives entirely through MCP:

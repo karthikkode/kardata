@@ -1,3 +1,5 @@
+Status: done · Date: 2026-10-26
+
 # Stage 4 — Research playbook v1, screening, and evaluation
 
 **Goal:** agent runs produce **structured, cited data** (facts, records, ingested reviews, findings) plus

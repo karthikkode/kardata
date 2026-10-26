@@ -1,3 +1,5 @@
+Status: done · Date: 2026-10-26
+
 # Stage 5.1 — Sector preflight (eligibility pass)
 
 **Owner decision (2026-10-21):** before any company job runs, a **sector-level preflight pass** classifies

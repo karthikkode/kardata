@@ -1,3 +1,5 @@
+Status: done · Date: 2026-10-26
+
 # Research data model and the standard ingest toolset
 
 This is the **one way** research data enters the database, whether it comes from a collector (code) or an

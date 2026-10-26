@@ -1,3 +1,5 @@
+Status: done · Date: 2026-10-26
+
 # Stage 3a — Muse harness spike
 
 **Goal:** prove, with evidence, how `kardata-server` can launch and control Muse as a research agent before
