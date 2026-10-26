@@ -386,8 +386,21 @@ describe("companies_house collector", () => {
     seenAuth = undefined;
     site.routes.set("/search/companies", (req, res) => {
       seenAuth = req.headers.authorization;
-      sendJson(res, { items: [{ company_number: "12345678", title: "FAKE SKIN LTD" }] });
+      sendJson(res, {
+        items: [
+          { company_number: "11111111", title: "FAKE SKIN CARE LTD" },
+          { company_number: "22222222", title: "FAKE SKINNY LTD" },
+          { company_number: "33333333", title: "FAKE SKIN CLINIC LTD" },
+          { company_number: "44444444", title: "FAKE SKIN LABS LTD" },
+          { company_number: "12345678", title: "FAKE SKIN LTD" },
+        ],
+      });
     });
+    for (const n of ["11111111", "22222222", "33333333", "44444444"]) {
+      site.routes.set(`/company/${n}`, (_req, res) => {
+        sendJson(res, { company_number: n, company_name: "SOME OTHER LTD" });
+      });
+    }
     site.routes.set("/company/12345678", (_req, res) => {
       sendJson(res, {
         company_number: "12345678",
@@ -400,7 +413,30 @@ describe("companies_house collector", () => {
     });
     site.routes.set("/company/12345678/officers", (_req, res) => sendJson(res, { total_results: 3 }));
     site.routes.set("/company/12345678/filing-history", (_req, res) => {
-      sendJson(res, { items: [{ category: "accounts", date: "2024-12-31", type: "AA" }] });
+      sendJson(res, {
+        items: [
+          {
+            category: "accounts",
+            date: "2025-06-30",
+            type: "AA",
+            links: { document_metadata: "/document/meta-1" },
+          },
+        ],
+      });
+    });
+    site.routes.set("/document/meta-1", (_req, res) => {
+      sendJson(res, { links: { document: "/document/doc-1/content" } });
+    });
+    site.routes.set("/document/doc-1/content", (_req, res) => {
+      res.setHeader("content-type", "application/xhtml+xml");
+      res.end(
+        `<html><body>` +
+          `<ix:nonFraction name="uk-core:TotalAssetsLessCurrentLiabilities" scale="0">1990000</ix:nonFraction>` +
+          `<ix:nonFraction name="uk-core:CashBankInHand" scale="0">796000</ix:nonFraction>` +
+          `<ix:nonFraction name="uk-core:NetAssetsLiabilitiesIncludingPensionAssetLiability" scale="0">480000</ix:nonFraction>` +
+          `<ix:nonFraction name="uk-core:AverageNumberEmployeesDuringPeriod" scale="0">17</ix:nonFraction>` +
+          `</body></html>`,
+      );
     });
   }
 
@@ -416,12 +452,47 @@ describe("companies_house collector", () => {
     const docs = await docsForRun(handle.db, runId);
     expect(docs).toHaveLength(1);
     expect(docs[0]?.contentMd).toContain("Officers: 3");
-    expect(docs[0]?.contentMd).toContain("Latest accounts: 2024-12-31 (AA)");
+    expect(docs[0]?.contentMd).toContain("Latest accounts: 2025-06-30 (AA)");
 
     const factRows = await factsForRun(handle.db, runId);
     const byKey = new Map(factRows.map((f) => [f.key, f]));
     expect(byKey.get("financials.accounts_type")?.valueText).toBe("AA");
     expect(byKey.get("company.founded_year")?.valueNum).toBe("2019");
+    // Latest accounts as dated facts (filing date 2025-06-30).
+    expect(byKey.get("financials.total_assets")?.valueJson).toEqual({ amount: 1990000 });
+    expect(byKey.get("financials.total_assets")?.currency).toBe("GBP");
+    expect(String(byKey.get("financials.total_assets")?.asOf).slice(0, 10)).toBe("2025-06-30");
+    expect(byKey.get("financials.cash")?.valueJson).toEqual({ amount: 796000 });
+    expect(byKey.get("financials.net_assets")?.valueJson).toEqual({ amount: 480000 });
+    expect(byKey.get("financials.employees")?.valueNum).toBe("17");
+    expect(byKey.get("financials.employees")?.qualifiers).toEqual({ source: "companies_house" });
+  });
+
+  it("refuses to guess between tied candidates", async () => {
+    site.routes.set("/search/companies", (_req, res) => {
+      sendJson(res, {
+        items: [
+          { company_number: "55555555", title: "FAKE SKIN LTD" },
+          { company_number: "66666666", title: "FAKE SKIN LTD" },
+        ],
+      });
+    });
+    for (const n of ["55555555", "66666666"]) {
+      site.routes.set(`/company/${n}`, (_req, res) => {
+        sendJson(res, { company_number: n, company_name: "FAKE SKIN LTD" });
+      });
+    }
+    const companyId = await seedCompany(handle.db, { name: "Fake Skin Ltd", country: "United Kingdom" });
+    const runId = await seedRun(handle.db, companyId);
+    const ctx = await collectorCtx(handle.db, site, companyId, runId);
+    const result = await companiesHouseCollector.run(ctx);
+    expect(result.outcomes).toEqual([
+      { area: "financials", status: "not_found", reason: "no confident match" },
+    ]);
+    const docs = await docsForRun(handle.db, runId);
+    expect(docs[0]?.contentMd).toContain("55555555");
+    expect(docs[0]?.contentMd).toContain("66666666");
+    expect(await factsForRun(handle.db, runId)).toHaveLength(0);
   });
 
   it("skips without a key and reports no confident match", async () => {
