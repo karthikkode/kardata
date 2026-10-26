@@ -1,3 +1,5 @@
+Status: done · Date: 2026-10-26
+
 # Stage 5.1 — Sector preflight (eligibility pass)
 
 **Owner decision (2026-10-21):** before any company job runs, a **sector-level preflight pass** classifies
@@ -51,6 +53,11 @@ Report the counts.
   - **ineligible:** everything else.
 - **Eligibility is derived** from the rubric plus the classification, and can be **re-derived instantly**
   when the owner edits the rubric, with no new LLM calls.
+- This rubric decides **sector scope for research** (which companies get jobs). It is not the
+  sales ICP. Who we contact is decided only by the two filters in `docs/business/icp.md`
+  (a D2C brand selling its own products, with enough revenue to pay; any store platform counts).
+  No plan uses "Shopify-only" or a 100-staff cap as a filter; those were the old Apollo pull
+  settings and are retired (decisions D-23 and D-24 in `docs/business/decisions.md`).
 - **Owner overrides** per company (`include` / `exclude`, with a note) always win over the rubric.
 - `sector_companies` gets `eligibility` (`pending | eligible | review | ineligible`), `eligibility_source`
   (`rule | override`) and `eligibility_reason`.

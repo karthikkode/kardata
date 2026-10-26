@@ -1,3 +1,6 @@
+Status: done · Date: 2026-10-26
+Banner (2026-10-26): in this old review, "Layer 1/2" means research wave and "core/adjacent" is retired (see docs/business/icp.md, Terms). Company names below predate the no-names rule in AGENTS.md.
+
 # Stage 4.1 review — Extraction, reviews, fence, bulk jobs (Steps 1–5)
 
 ## Step 1 — Extraction (`64c2813`)

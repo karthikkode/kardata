@@ -1,94 +1,83 @@
+Status: done · Date: 2026-10-26
+
 # Roadmap (context only: build just the current stage's plan)
 
-Kardata v2 is a backend service, `kardata-server`, driven entirely through MCP. Each stage ends with a
-review, then STOP. The frontend comes last.
+Kardata is a solo data-engineering practice. The software in this repo exists to serve the business
+in `docs/business/`: read `docs/business/strategy.md` and `docs/business/offer.md` first.
 
-## Stage 1 — Core: sectors, companies, MCP server
-See `stage-1-sectors-and-companies.md`.
+## The product
 
-## Stage 2 — Research store and collectors (no LLM)
+- The paid entry is a **diagnostic** (priced by tier, `docs/business/offer.md`), which leads to a
+  **build or a monthly retainer**.
+- The call sells the meeting. The meeting sells the diagnostic. The diagnostic earns the retainer.
+- `kardata-server` does outside-in research on every company in a sector so each conversation can
+  open on one specific, evidenced problem. Sector research is **private prospecting input**.
+  Nothing about a named company is ever published.
+- Business rules (ICP, tiers, layers, evidence, outreach, open decisions) live in `docs/business/`
+  and are the owner's. This roadmap never overrides them.
 
-**Tables:**
-- `research_runs`, `run_events`;
-- `sources`: url, fetched_at, http status, content snapshot, sha256;
-- `documents`: every agent- or collector-created file, with full-text index, area, run and creator;
-- `findings`: area, claim, source ids, confidence, `supported | conflicting | unverified`;
-- `area_status`: `done | not_found | blocked` with the exact reason.
+## How to read the stages
 
-**Seven research areas:** reviews, marketing, financials, business model, hiring, product, decisions/ad-hoc.
+Exactly one plan in `docs/plans/` has `Status: current` as its first line; that is the spec.
+Every other plan and every file in `docs/reviews/` is history. Build just the current stage.
 
-**Deterministic collectors.** Every one respects robots.txt, is rate-limited, never bypasses a bot wall,
-and stores a snapshot:
+## Stage 1 — Core: sectors, companies, MCP server (done)
 
-| Collector | What it reads |
-|---|---|
-| Site | homepage, about, press, careers, sitemap |
-| Shopify | `/products.json`, `/collections.json` |
-| Job boards | Greenhouse, Lever, Ashby and Workable public JSON |
-| On-site reviews | Judge.me, Yotpo and Okendo widgets on the company's own site |
-| Own feeds, GDELT news, SEC Form D, Wayback | the company's RSS, free news, US fundraises, site history |
-| UK Companies House | the official API, UK companies only |
-| Tech-stack inference | from Apollo technologies (subscriptions, loyalty, email/SMS) |
+See `stage-1-sectors-and-companies.md`. MCP is the only operating surface.
 
-**MCP:** read tools (`company_dossier`, `document_get`, `document_search`), plus `collect_run(company_id)`.
+## Stage 2 — Research store and collectors, no LLM (done)
 
-## Stage 3 — Muse spike (3a: `stage-3a-muse-spike.md`), then the orchestrator (3b: `stage-3b-orchestrator.md`)
+See `stage-2-research-store-and-collectors.md` and `research-data-model.md`.
 
-**Spike first.** With Muse Spark 1.3 in contributor mode, prove that Muse can:
-- run headless from a prompt plus an MCP config;
-- report a session id;
-- stream progress;
-- be killed cleanly.
+## Stage 3 — Muse spike, then the orchestrator (done)
 
-Also measure how well Muse's built-in search works on 10 companies. If the spike fails, STOP and report.
+See `stage-3a-muse-spike.md` and `stage-3b-orchestrator.md`. App-owned Muse in Docker;
+research agents store data only through kardata MCP.
 
-**Browser use.** Muse Code 1.4.10 has `web_search` and `web_fetch` but **no built-in browser**. It does load
-MCP servers (stdio and streamable-http), so the browser is Microsoft's official **Playwright MCP**
-(`@playwright/mcp`, headless Chromium) attached per research agent. The spike proves:
-- Muse `exec` can load kardata MCP and Playwright MCP together, per run, from config;
-- the memory per browser instance, to set `MAX_CONCURRENT_AGENTS`.
+## Stage 4 — Research playbook, extraction and grounding (done)
 
-Browser rules:
-- a fresh isolated profile per run: **no logins, no saved cookies**;
-- no CAPTCHA solving and no bot-wall workarounds: a challenge → `area_status blocked`;
-- at most `BROWSER_PAGES_PER_RUN` (default 40) pages per run;
-- everything read in the browser is stored with `source_capture(via: browser)`.
+See `stage-4-research-playbook.md`, `stage-4.1-extraction.md` and `stage-4.3-quote-grounding.md`.
+Research agents write cited notes; a separate extraction step structures them and grounding
+checks each value against its quoted source.
 
-Use it for JS-rendered pages: review widgets, careers pages, store locators.
+## Stage 5 — Company pipeline (current stage family)
 
-**Orchestrator:**
-- `research_start(company_ids[])` creates a batch;
-- **one active main agent per company**, enforced by a partial unique index; the agent may spawn subagents;
-- parallel up to `MAX_CONCURRENT_AGENTS`;
-- heartbeat and idle reap → `stalled`;
-- cancel, and a sweep of the run's working folder into `documents`;
-- the harness sits behind an adapter interface, so another harness can replace Muse later.
+A job is one company. It runs preflight, collect, research and extraction as stages, and is
+complete only when all of them are complete.
 
-**Agent toolset:** the ingest tools from `research-data-model.md`, scoped by a per-run token to one company, plus
-`heartbeat` and `run_finish`. Research agents get **no shell or file-write tools** where Muse can restrict
-that (check it in the spike). They store data only through kardata MCP.
+- **5.1 — Sector preflight (done).** One sector-level eligibility pass before company jobs.
+  See `stage-5.1-sector-preflight.md`. Who qualifies is decided by the filters in
+  `docs/business/icp.md` (a D2C brand with enough revenue to pay; any store platform).
+- **5.2 — Worker pools (current).** Work runs per stage from queues: an AI pool (preflight,
+  research, extraction) and a deterministic pool (collect, grounding), so Muse quota never
+  sits idle behind deterministic work. See `stage-5.2-worker-pools.md`.
 
-## Stage 4 — Research playbook (`stage-4-research-playbook.md`)
-- The main agent's instructions and one subagent per area.
-- A checking step: no finding without a source; conflicts are marked.
-- A per-company summary document.
-- Pilot on 5 companies, then a 25-company batch.
+## Stage 6 — Analysis and RAG (planned later)
 
-## Stage 6 — Analysis, RAG and the sector product (planned later, with the owner learning RAG hands-on)
-- **Structured analysis in SQL** over facts and records: sector benchmarks, percentiles, segments.
-- **RAG over the unstructured data** (documents, reviews, sources):
-  - pgvector in the same Postgres (switch the image to `pgvector/pgvector:pg16`);
-  - chunking;
-  - embeddings (a local model on the Spark, or an API);
-  - hybrid retrieval: full-text + vector, fused, then reranked;
-  - answers that cite our stored sources;
-  - a retrieval/answer eval set.
-- **Sector product:** the private benchmark report, plus a per-company one-pager for outreach.
-- **Business inputs:** the ICP scoring, the 8 problem dimensions, the evidence rules and the offer in
-  `docs/business/` define what the analysis looks for. Plan Stage 6 against them.
+Analysis serves `docs/business/`; it does not define its own product. Plan it against the ICP
+scoring, the 8 problem dimensions in `docs/business/problem-bar.md`, the citation rules in
+`docs/business/evidence-rules.md`, and the offer in `docs/business/offer.md`.
 
-## Stage 5 — Frontend
-Next.js on top of the same service, porting v1's design system from `v1-final`.
+- Structured analysis in SQL over facts and records (sector patterns, per-company signals).
+- RAG over the unstructured data (documents, reviews, sources) with answers that cite stored
+  sources, when SQL cannot answer the question.
+- Output is prospecting input for outreach and material for the diagnostic. There is no
+  benchmark-report product and no per-company one-pager product.
+
+## Frontend (parked, unnumbered)
+
+Parked until the first paid client. No frontend is planned, staged or built before then.
+The service stays backend-only and MCP-driven.
 
 ## Later (not planned yet; do not build)
+
 - Social content: YouTube and Instagram through official APIs. TikTok has no legitimate API.
+- Meta/Google/TikTok ad-library data. (Business decision D-10 in `docs/business/decisions.md`.)
+
+## Where the technical truth lives
+
+- **Tools:** `src/mcp/` (`src/mcp/server.ts` registers every tool; thin wrappers only).
+- **Schema:** `src/db/schema.ts` (Drizzle; migrations in `src/db/migrations/`).
+- **Domain logic:** `src/domain/`. Collectors: `src/collect/`. Runs and pools: `src/runs/`.
+- Live concurrency and quota values are MCP settings, not file values. See
+  `stage-5.2-worker-pools.md`.

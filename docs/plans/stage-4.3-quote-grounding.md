@@ -1,3 +1,5 @@
+Status: done · Date: 2026-10-26
+
 # Stage 4.3 — Quote grounding
 
 **Why:** 4.2's value-matching check marks 58% of extractor items `unverified`, which mixes two things:

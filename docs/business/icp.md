@@ -21,7 +21,7 @@ The structure is the same for every sector:
   goes up as the score goes down. "Tier B, Layer 1" means a mid-revenue company with the strongest signals.
 - **Watchlist:** score 0–1. Not in any layer and never contacted.
 - **Research wave:** which group of companies gets researched first (wave 1: skincare, body and bath, men's
-  grooming; wave 2: about 151 more, recount pending). Older plans and reviews call this "Layer 1/Layer 2". That old use is retired.
+  grooming; wave 2: 156 more, counted 2026-10-26 from sector preflight). Older plans and reviews call this "Layer 1/Layer 2". That old use is retired.
 - **Older docs and the 2026-10-26 ICP check** used "Tier A/B" for the signal score. That old use is retired too. Read
   old "Tier A" as score 3+ and old "Tier B" as score 2.
 

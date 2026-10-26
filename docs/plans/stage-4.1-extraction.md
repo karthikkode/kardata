@@ -1,3 +1,5 @@
+Status: done · Date: 2026-10-26
+
 # Stage 4.1 — Extraction step, on-site reviews collector, browser fence
 
 **Why:** the Stage 4 pilot showed that agents research well but write **documents only**:

@@ -1,3 +1,6 @@
+Status: done · Date: 2026-10-26
+Banner (2026-10-26): in this old review, "Layer 1/2" means research wave and "core/adjacent" is retired (see docs/business/icp.md, Terms). Company names below predate the no-names rule in AGENTS.md.
+
 # Job control review (branch `job-control`)
 
 Owner decisions (asked, both recommended options taken): pause stops the

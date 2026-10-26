@@ -1,3 +1,5 @@
+Status: done · Date: 2026-10-26
+
 # Stage 2 — Research store and collectors (no LLM)
 
 **Read `docs/plans/research-data-model.md` first. It is part of this spec** (the registry, facts, records,

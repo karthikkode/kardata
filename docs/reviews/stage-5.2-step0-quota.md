@@ -1,3 +1,6 @@
+Status: done · Date: 2026-10-26
+Banner (2026-10-26): in this old review, "Layer 1/2" means research wave and "core/adjacent" is retired (see docs/business/icp.md, Terms). Company names below predate the no-names rule in AGENTS.md.
+
 # Stage 5.2 Step 0 — real quota numbers: findings
 
 Question: does the app's Muse expose live 5h/weekly usage % + resets?

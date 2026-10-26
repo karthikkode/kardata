@@ -1,3 +1,5 @@
+Status: done · Date: 2026-10-26
+
 # Research data model and the standard ingest toolset
 
 This is the **one way** research data enters the database, whether it comes from a collector (code) or an
@@ -112,6 +114,9 @@ Reviews are the highest-volume unstructured data, so they get a dedicated tool. 
 - **No reviewer identity.** Names, handles, avatars, emails and locations finer than country are dropped by
   the server, even if sent.
 - Dedupe key: `platform` + normalized `text` + `date`. Re-ingesting the same reviews is a no-op.
+  Dateless reviews are stored with `date_missing: true`; they dedupe on the same key with the date
+  empty, so a rerun is still a no-op, and each ingest recomputes a `reviews.dateless_count` fact
+  (`src/domain/research/reviews.ts:200-208`, count at `src/domain/research/reviews.ts:251-252`).
 - Up to 5,000 reviews per company per platform; beyond that, the server keeps the most recent.
 - After each call, the server **recomputes these facts automatically** for that platform:
   `reviews.ingested_count`, `reviews.avg_rating` (normalized to 5) and `reviews.rating_distribution` (json),
@@ -172,23 +177,14 @@ that matters**. Follow what is interesting about *this* company, even if it fits
 
 ## MCP tools
 
-Operator token in Stage 2; a per-run token for agents in Stage 3 (scoped to one company, and `created_by`
-set by the server, never by the caller).
+The tool list is not kept in this file. The live list is registered in code: `src/mcp/server.ts:9-10`
+registers the operator tools from `src/mcp/tools.ts:35` and the research tools from
+`src/mcp/research-tools.ts:159`. Read those functions for names, schemas and limits.
 
-| Tool | Purpose |
-|---|---|
-| `registry_list(area?)` | the vocabulary: keys and types, with descriptions and use counts. Agents check it to reuse names, but are never required to |
-| `registry_describe(name, description, fields?)` | add a description or fields to a key or type the agent created |
-| `registry_curate(name, approve? \| rename_to? \| merge_into?)` | operator only: tidy up provisional names later |
-| `source_fetch(url)` | the server fetches it through the Stage 2 fetcher (robots, rate limit, SSRF guard, snapshot) and returns the source id plus extracted text, paged. **Agents read plain pages this way,** so every page is stored |
-| `source_capture(url, title, text, via)` | stores content the agent already saw some other way: `via: search` (a hit's snippet), `browser` (a rendered page's text), `muse_fetch`. Returns the source id |
-| `fact_add(facts[] ≤ 200)` | key, value, qualifiers?, as_of?, source_ids, confidence?, note?, tags? |
-| `record_upsert(records[] ≤ 500)` | type, data, source_ids, natural_key?, tags? |
-| `reviews_ingest` | see "Reviews" |
-| `document_save`, `document_list`, `document_get`, `document_history` | see "Documents" |
-| `company_export(companyId)` | operator only: the current documents as real `.md` files, plus `facts.csv` and `records-<type>.csv`, under `var/exports/<company-slug>/` |
-| `finding_add(area, claim, detail, source_ids, fact_ids?, record_ids?, confidence, status, tags?)` | |
-| `area_status_set(area, status, reason)` | |
-| `company_context(companyId)` | everything already known, compact: current facts, record counts per type, the document tree, findings, area statuses. **Agents call this before researching** |
-| `facts_get(companyId, keys?, history?)`, `records_list(companyId, type, query?, limit)` | |
-| `search(query, companyId?, kinds?, area?, tags?, limit)` | one ranked full-text search across documents, records, facts and sources |
+Auth shape (unchanged): an operator token for the owner, and a per-run token for agents in Stage 3
+(scoped to one company, with `created_by` set by the server, never by the caller).
+
+**Current prompts:** research `v1.4` (`prompts/research-v1.4/`) and extraction `v2`
+(`prompts/extract-v2/`). The research version is chosen by `latestPromptVersion()`
+(`src/runs/prompt.ts:60-65`), which returns the highest `research-v*` prompt present; the extract
+prompt path is fixed at `src/runs/extract.ts:41`.

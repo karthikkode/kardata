@@ -1,3 +1,5 @@
+Status: done · Date: 2026-10-26
+
 # Stage 3b — Research orchestrator
 
 **Goal:**

@@ -1,3 +1,6 @@
+Status: done · Date: 2026-10-26
+Banner (2026-10-26): in this old review, "Layer 1/2" means research wave and "core/adjacent" is retired (see docs/business/icp.md, Terms). Company names below predate the no-names rule in AGENTS.md.
+
 # Stage 3b review: agent orchestrator
 
 Commits: 6237939, b84d5e2, 16914a3 (Step 0) · 7f0d92a (Step 1) · 87e370b, 1954bd3 (Step 2+2.1) · 5bed995 (Step 3) · 0717753 (Step 4). Suite: 269 passed + 1 skipped; `test:live` green (20 s).
