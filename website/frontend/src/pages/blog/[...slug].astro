@@ -1,4 +1,5 @@
 ---
+import { CALL_LABEL } from "../../config";
 import { render } from "astro:content";
 import Base from "../../layouts/Base.astro";
 import BookButton from "../../components/BookButton.astro";
@@ -39,7 +40,7 @@ const { title, summary, date, synthetic, draft, image } = post.data;
 
     <footer class="post-end narrow">
       <p>This is what I look for in an audit.</p>
-      <BookButton label="Book a 20-minute call" size="lg" />
+      <BookButton label={CALL_LABEL} size="lg" />
     </footer>
   </article>
 </Base>

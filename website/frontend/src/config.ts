@@ -13,8 +13,10 @@ export const SITE = {
 export const BOOKING = {
   url: "https://cal.com/karthik-kardata-iaygkj/30min",
   calLink: "karthik-kardata-iaygkj/30min",
-  minutes: 20,
+  minutes: 30, // D-60
 };
+
+export const CALL_LABEL = `Book a ${BOOKING.minutes}-minute call`;
 
 // Analytics tool: the owner chooses (plan, "Analytics tool"). Empty means no script is loaded.
 export const ANALYTICS = {

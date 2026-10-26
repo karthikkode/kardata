@@ -1,6 +1,6 @@
 # Website (kardata.co)
 
-The public site: the weekly blog, a way to book a 20-minute call, and later the brainstorming agent (D-51). It is a
+The public site: the weekly blog, a way to book a 30-minute call, and later the brainstorming agent (D-51). It is a
 separate project from `kardata-server` and shares no code, database or secrets with it.
 
 - `frontend/`: the site itself (blog and pages).

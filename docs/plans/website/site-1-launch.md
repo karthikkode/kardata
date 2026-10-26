@@ -37,7 +37,7 @@ matter and no image is built or pulled. A server arrives only with the agent (D-
 | `/blog` | Posts newest first: date, title, summary | Owner |
 | `/blog/<slug>` | One post | Owner |
 | `/about` | Real photo (v1's `karthik.web.jpg`), background, insurtech work, LinkedIn link | **Placeholder** until the owner writes it (D-44) |
-| `/book` | The 20-minute call, the booking embed, a "open in a new tab" fallback, the email | Short, from `website.md` |
+| `/book` | The 30-minute call (D-60), the booking embed, a "open in a new tab" fallback, the email | Short, from `website.md` |
 | `/contact` | The contact email and LinkedIn | Plain |
 | `/privacy` | What is collected (booking details, analytics), by whom, how long, how to ask for deletion | Draft from the actual tools, for the owner to approve |
 | `404` | Links home and to the blog | Plain |
@@ -86,7 +86,7 @@ a layout that works from 360px wide with no horizontal scroll, and the menu work
 
 ## Booking tool (owner chooses)
 
-Needs: 20 minutes; asks name, email, company website, where they sell (own site, Amazon, retailers, other) and one
+Needs: 30 minutes (D-60); asks name, email, company website, where they sell (own site, Amazon, retailers, other) and one
 optional line; shows times and sends confirmations in the visitor's time zone; can tell our analytics a booking
 happened.
 
@@ -96,8 +96,7 @@ happened.
 | **Calendly** (current account, free plan) | Already set up (v1 uses it). Inline embed with a "scheduled" event. Times in the visitor's zone | One event type on the free plan; the current one is 30 minutes. Whether the free plan allows all 4 custom questions needs checking |
 | Google Calendar appointment schedules | No new vendor | Custom booking questions need paid Workspace; no event for analytics |
 
-**Recommendation: Cal.com,** because it covers every question and the booking event on the free plan. Until the
-owner chooses, `/book` uses the Calendly link from v1 in a config file (one line to change).
+**Chosen: Cal.com** (D-61).
 
 ## Analytics tool (owner chooses)
 
@@ -170,7 +169,7 @@ Steps (A):
   and the v1 Calendly link until then.
 - **About text and photo**: the page ships with a marked placeholder. Is v1's photo still the one to use?
 - **Mission line**: website.md asks whether to keep it off the home page or drop it. I leave it out.
-- **15 or 20 minutes**: I use 20 everywhere, as website.md says.
+- **Call length**: settled at 30 minutes everywhere (D-60).
 - **Deploy A or B**, and whether any v1 `/p/...` prospect links were sent that still matter.
 - **Copy to check** (I won't rewrite it):
   - home line 1 ends "and fix the ones worth fixing", while D-53/D-58 say the site sells the audit, never the

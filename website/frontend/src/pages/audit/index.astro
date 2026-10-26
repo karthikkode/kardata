@@ -1,6 +1,7 @@
 ---
 // Copy from docs/business/offer.md (the audit section), in "I" voice. Draft until the owner signs it off.
 // Never add prices, guarantee figures, retainers or builds here (D-58).
+import { BOOKING, CALL_LABEL } from "../../config";
 import Base from "../../layouts/Base.astro";
 import BookButton from "../../components/BookButton.astro";
 import "../../styles/page.css";
@@ -65,7 +66,7 @@ const types = [
 
     <h2>How it runs</h2>
     <ol>
-      <li><strong>A 20-minute call.</strong> We find the one question worth answering.</li>
+      <li><strong>A {BOOKING.minutes}-minute call.</strong> We find the one question worth answering.</li>
       <li><strong>A 30-minute kickoff,</strong> once you've decided to go ahead.</li>
       <li><strong>Read-only exports</strong> from the systems that hold the answer.</li>
       <li><strong>The report and a 45-minute readout call.</strong></li>
@@ -86,7 +87,7 @@ const types = [
       <li>I don't build dashboards, change your tools, or do anything that needs write access during the audit.</li>
     </ul>
 
-    <div class="cta-row"><BookButton label="Book a 20-minute call" size="lg" /></div>
+    <div class="cta-row"><BookButton label={CALL_LABEL} size="lg" /></div>
   </article>
 </Base>
 

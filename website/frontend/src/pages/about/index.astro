@@ -1,5 +1,6 @@
 ---
 // The owner's own words from the v1 site ("Who I am"), with the 2026 photo.
+import { CALL_LABEL } from "../../config";
 import { Image } from "astro:assets";
 import Base from "../../layouts/Base.astro";
 import BookButton from "../../components/BookButton.astro";
@@ -35,7 +36,7 @@ const pillars = [
       ))}
     </div>
 
-    <div class="cta-row"><BookButton label="Book a 20-minute call" size="lg" /></div>
+    <div class="cta-row"><BookButton label={CALL_LABEL} size="lg" /></div>
   </article>
 </Base>
 

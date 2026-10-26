@@ -1,7 +1,7 @@
 ---
-// Home copy is docs/business/website.md ("Home, top to bottom"), word for word, except the owner's
-// 2026-10-27 change ("five systems" -> "multiple systems", see tests/home-copy.test.ts). Don't edit it here;
+// Home copy is docs/business/website.md ("Home, top to bottom"), word for word. Don't edit it here;
 // change website.md first. The 5 audit deliverables are offer.md's, as website.md says.
+import { BOOKING, CALL_LABEL } from "../config";
 import Base from "../layouts/Base.astro";
 import BookButton from "../components/BookButton.astro";
 import SectionHeading from "../components/SectionHeading.astro";
@@ -34,7 +34,7 @@ const deliverables = [
   { title: "Readout call", text: "45 minutes." },
 ];
 
-const steps = ["A 20-minute call", "Read-only exports", "The readout"];
+const steps = [`A ${BOOKING.minutes}-minute call`, "Read-only exports", "The readout"];
 
 const faq = [
   {
@@ -65,7 +65,7 @@ const faq = [
         your own data, show you what the gaps are costing, and fix the ones worth fixing.
       </p>
       <div class="hero-cta">
-        <BookButton label="Book a 20-minute call" size="lg" />
+        <BookButton label={CALL_LABEL} size="lg" />
       </div>
     </div>
   </section>
@@ -157,7 +157,7 @@ const faq = [
   <section class="final">
     <div class="glow" aria-hidden="true"></div>
     <div class="wrap final-inner">
-      <BookButton label="Book a 20-minute call" size="lg" />
+      <BookButton label={CALL_LABEL} size="lg" />
     </div>
   </section>
 </Base>

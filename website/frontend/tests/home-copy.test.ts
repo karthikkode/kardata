@@ -9,13 +9,6 @@ const mdPath = process.env.WEBSITE_MD ?? resolve(__dirname, "../../../docs/busin
 const htmlPath = resolve(__dirname, "../dist/index.html");
 const ready = existsSync(mdPath) && existsSync(htmlPath);
 
-// Changes the owner asked for in chat, until website.md is updated to match.
-const OWNER_CHANGES: Record<string, string> = {
-  // 2026-10-27: "why five? make it general like multiple"
-  "Your brand runs on five systems. The time and money leak between them.":
-    "Your brand runs on multiple systems. The time and money leak between them.",
-};
-
 describe("homeCopy", () => {
   it("extracts quoted lines and FAQ pairs", () => {
     const md = [
@@ -48,7 +41,7 @@ describe.skipIf(!ready)("built home page", () => {
     const { lines, faq } = homeCopy(readFileSync(mdPath, "utf8"));
     const text = htmlText(readFileSync(htmlPath, "utf8"));
     expect(lines.length).toBeGreaterThan(5);
-    for (const line of lines) expect(text).toContain(OWNER_CHANGES[line] ?? line);
+    for (const line of lines) expect(text).toContain(line);
     for (const { q, a } of faq) {
       expect(text).toContain(q);
       expect(text).toContain(a);

@@ -40,7 +40,7 @@ export function homeCopy(markdown) {
     faq.push({ q: m[1].trim(), a: m[2].trim() });
   }
 
-  // "[Book a 20-minute call]" is the button, checked as its label.
+  // "[Book a 30-minute call]" is the button, checked as its label.
   return {
     lines: quotes.map((q) => q.replace(/^\[(.+)\]$/, "$1")).filter(Boolean),
     faq,

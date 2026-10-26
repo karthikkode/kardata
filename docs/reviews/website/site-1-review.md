@@ -42,8 +42,7 @@ Full run at the end: `npm run check`: astro check 0 errors, 8 pages, check-dist 
 ## Owner feedback, 2026-10-27 (applied)
 
 - New photo (`~/Downloads/my_pics/karthik.png`): a face crop for the round avatar, the full portrait on `/about`.
-- Headline "five systems" → "multiple systems". `tests/home-copy.test.ts` holds this as an owner change
-  until website.md says the same.
+- Headline "five systems" → "multiple systems", now also in website.md (D-61).
 - v1's founder card is back (`src/components/FounderCard.astro`) with v1's own text. `/about` uses v1's "Who I am" text
   and its four pillars.
 - No placeholders left except the empty blog. The audit page has no data-handling placeholder now. Privacy says Calendly,
@@ -51,12 +50,12 @@ Full run at the end: `npm run check`: astro check 0 errors, 8 pages, check-dist 
 
 ## Open (owner)
 
-1. **Booking is Cal.com** (owner, 2026-10-27; `src/config.ts`, official inline embed, dark theme, site blue). The
-   event `karthik-kardata-iaygkj/30min` is 30 minutes: set it to 20 and add website.md's questions in Cal.com.
+1. **Booking is Cal.com, 30 minutes** (D-60, D-61): `src/config.ts` drives every "Book a 30-minute call" label.
+   Add website.md's questions to the Cal.com event.
 2. **Analytics:** none on the site. Choosing one (Plausible or Umami Cloud) also means updating `/privacy`.
 3. **Copy flags (not rewritten):** home "fix the ones worth fixing" against D-53/D-58; content.md "No call to action"
    against website.md's post button; strategy.md "one case study live" against website.md "later".
-4. **Deploy A or B**, and whether any v1 `/p/...` links still matter. website.md needs the "multiple systems" edit.
+4. **Deploy A or B**, and whether any v1 `/p/...` links still matter.
 
 ## Blocked
 
