@@ -84,6 +84,8 @@ that (check it in the spike). They store data only through kardata MCP.
   - answers that cite our stored sources;
   - a retrieval/answer eval set.
 - **Sector product:** the private benchmark report, plus a per-company one-pager for outreach.
+- **Business inputs:** the ICP scoring, the 8 problem dimensions, the evidence rules and the offer in
+  `docs/business/` define what the analysis looks for. Plan Stage 6 against them.
 
 ## Stage 5 — Frontend
 Next.js on top of the same service, porting v1's design system from `v1-final`.

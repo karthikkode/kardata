@@ -1,6 +1,9 @@
 # kardata-server (v2)
 Backend-only MCP service. No frontend.
 
+Docs: stage plans in `docs/plans/`, reviews in `docs/reviews/`, code how-tos in `docs/sources/`, and the business
+side (strategy, offer, ICP, outreach) in [`docs/business/`](docs/business/README.md). Agent rules: `AGENTS.md`.
+
 ## Run
 
 Requires Node 22 (`nvm use 22`) and Docker.
