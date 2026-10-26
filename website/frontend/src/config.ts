@@ -9,10 +9,10 @@ export const SITE = {
   linkedin: "https://www.linkedin.com/in/sai-karthik-804833154",
 };
 
-// Booking tool: the owner chooses (plan, "Booking tool"). Until then this is v1's Calendly link.
+// Booking: Cal.com (owner's choice, 2026-10-27; free plan). `calLink` is the URL path after cal.com/.
 export const BOOKING = {
-  provider: "calendly" as "calendly" | "calcom",
-  url: "https://calendly.com/karthik-kardata/new-meeting",
+  url: "https://cal.com/karthik-kardata-iaygkj/30min",
+  calLink: "karthik-kardata-iaygkj/30min",
   minutes: 20,
 };
 

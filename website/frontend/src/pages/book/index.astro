@@ -2,11 +2,6 @@
 import Base from "../../layouts/Base.astro";
 import { BOOKING, SITE } from "../../config";
 import "../../styles/page.css";
-
-const embed =
-  BOOKING.provider === "calendly"
-    ? `${BOOKING.url}?embed_domain=kardata.co&embed_type=Inline&hide_gdpr_banner=1`
-    : `${BOOKING.url}?embed=true`;
 ---
 <Base title="Book a call" description={`Book a ${BOOKING.minutes}-minute call about your brand's data.`}>
   <section class="wrap page">
@@ -14,9 +9,7 @@ const embed =
     <h1>Book a {BOOKING.minutes}-minute call</h1>
     <p class="lead">Times show in your own time zone.</p>
 
-    <div class="frame">
-      <iframe src={embed} title="Booking calendar" loading="lazy"></iframe>
-    </div>
+    <div id="cal-inline" class="frame"></div>
     <p class="fallback faint">
       Calendar not showing? <a href={BOOKING.url} rel="noopener" target="_blank">Open it in a new tab</a>, or write
       to <a href={`mailto:${SITE.email}`}>{SITE.email}</a>.
@@ -24,37 +17,67 @@ const embed =
   </section>
 </Base>
 
-<script is:inline define:vars={{ provider: BOOKING.provider }}>
-  (function () {
-    // `from` is one of our own page paths. Anything else is dropped, so no personal data reaches analytics.
-    var raw = new URLSearchParams(location.search).get("from") || "";
-    var from = /^\/[a-z0-9\-\/]*$/.test(raw) ? raw : "direct";
-    window.addEventListener("message", function (e) {
-      var booked =
-        (provider === "calendly" &&
-          e.origin === "https://calendly.com" &&
-          e.data && e.data.event === "calendly.event_scheduled") ||
-        (provider === "calcom" &&
-          /(^|\.)cal\.com$/.test(new URL(e.origin).hostname) &&
-          e.data && e.data.type === "bookingSuccessful");
-      if (booked && window.kdTrack) window.kdTrack("Booking", { from: from });
-    });
-  })();
+<script is:inline define:vars={{ calLink: BOOKING.calLink }}>
+  // Cal.com's own inline embed loader (https://cal.com/docs, "Embed").
+  (function (C, A, L) {
+    var p = function (a, ar) { a.q.push(ar); };
+    var d = C.document;
+    C.Cal = C.Cal || function () {
+      var cal = C.Cal;
+      var ar = arguments;
+      if (!cal.loaded) {
+        cal.ns = {};
+        cal.q = cal.q || [];
+        d.head.appendChild(d.createElement("script")).src = A;
+        cal.loaded = true;
+      }
+      if (ar[0] === L) {
+        var api = function () { p(api, arguments); };
+        var namespace = ar[1];
+        api.q = api.q || [];
+        if (typeof namespace === "string") {
+          cal.ns[namespace] = cal.ns[namespace] || api;
+          p(cal.ns[namespace], ar);
+          p(cal, ["initNamespace", namespace]);
+        } else p(cal, ar);
+        return;
+      }
+      p(cal, ar);
+    };
+  })(window, "https://app.cal.com/embed/embed.js", "init");
+
+  Cal("init", "book", { origin: "https://app.cal.com" });
+  Cal.ns.book("inline", {
+    elementOrSelector: "#cal-inline",
+    calLink: calLink,
+    config: { layout: "month_view", theme: "dark" },
+  });
+  Cal.ns.book("ui", {
+    theme: "dark",
+    layout: "month_view",
+    cssVarsPerTheme: { dark: { "cal-brand": "#4f9cf9" } },
+  });
+
+  // Count a booking by the page it came from. `from` is one of our own paths; anything else is dropped,
+  // so no personal data reaches analytics.
+  var raw = new URLSearchParams(location.search).get("from") || "";
+  var from = /^\/[a-z0-9\-\/]*$/.test(raw) ? raw : "direct";
+  Cal.ns.book("on", {
+    action: "bookingSuccessful",
+    callback: function () {
+      if (window.kdTrack) window.kdTrack("Booking", { from: from });
+    },
+  });
 </script>
 
 <style>
   .frame {
     margin-top: 2.5rem;
+    min-height: 640px;
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-xl);
     overflow: hidden;
     background: var(--surface);
-  }
-  iframe {
-    display: block;
-    width: 100%;
-    height: 720px;
-    border: 0;
   }
   .fallback {
     margin-top: 1rem;

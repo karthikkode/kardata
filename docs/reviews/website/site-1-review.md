@@ -51,8 +51,8 @@ Full run at the end: `npm run check`: astro check 0 errors, 8 pages, check-dist 
 
 ## Open (owner)
 
-1. **Calendly event:** `/book` embeds `calendly.com/karthik-kardata/new-meeting`, which v1 called 30 minutes. Set it to
-   20 minutes and add website.md's questions (website, where you sell, optional note) in Calendly.
+1. **Booking is Cal.com** (owner, 2026-10-27; `src/config.ts`, official inline embed, dark theme, site blue). The
+   event `karthik-kardata-iaygkj/30min` is 30 minutes: set it to 20 and add website.md's questions in Cal.com.
 2. **Analytics:** none on the site. Choosing one (Plausible or Umami Cloud) also means updating `/privacy`.
 3. **Copy flags (not rewritten):** home "fix the ones worth fixing" against D-53/D-58; content.md "No call to action"
    against website.md's post button; strategy.md "one case study live" against website.md "later".
