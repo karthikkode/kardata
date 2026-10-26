@@ -1,7 +1,8 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { Db } from "../db/client.js";
-import { companies, companyVerdicts, factsCurrent, sectorCompanies } from "../db/schema.js";
+import { companies, companyVerdicts, factsCurrent, sectorCompanies, sources } from "../db/schema.js";
 import { DomainError } from "./errors.js";
+import { addFacts } from "./research/facts.js";
 
 /**
  * D-55 revenue truth and tier/layer (Stage 5.3 Step 4).
@@ -17,7 +18,76 @@ export const APOLLO_MIN_PER_STAFF = 75_000;
 export const STAFF_ESTIMATE_PER_HEAD = 175_000;
 export const PUBLIC_CHECK_PER_STAFF = 1_000_000;
 
-export type RevenueSource = "public" | "apollo" | "staff_estimate" | null;
+export type RevenueSource = "public" | "vendor" | "apollo" | "staff_estimate" | null;
+
+export type RevenueSourceKind =
+  | "filing"
+  | "press"
+  | "interview"
+  | "company_statement"
+  | "vendor_estimate"
+  | "award_entry";
+
+const SOURCE_KINDS: RevenueSourceKind[] = [
+  "filing",
+  "press",
+  "interview",
+  "company_statement",
+  "vendor_estimate",
+  "award_entry",
+];
+
+/**
+ * Backstop only. The extract prompt picks the kind with judgement; this seed
+ * list catches stored figures and extractor slips. Vendor agreement does not
+ * promote a guess: several vendors saying the same number is still a vendor
+ * estimate.
+ */
+const VENDOR_BACKSTOP = [
+  "zoominfo",
+  "apollo",
+  "prospeo",
+  "rocketreach",
+  "rocket reach",
+  "owler",
+  "kona equity",
+  "manta",
+  "growjo",
+  "zippia",
+  "dun & bradstreet",
+  "d&b",
+  "companycheck",
+  "company check",
+  "celebslifereel",
+  "directory aggregator",
+];
+
+export function classifyRevenueSourceKind(
+  sourceName: string,
+  storedKind?: string | null,
+): RevenueSourceKind {
+  if (storedKind && (SOURCE_KINDS as string[]).includes(storedKind)) {
+    return storedKind as RevenueSourceKind;
+  }
+  const name = sourceName.toLowerCase();
+  if (VENDOR_BACKSTOP.some((v) => name.includes(v))) return "vendor_estimate";
+  if (name.includes("brand-submitted") || name.includes("award entry")) return "award_entry";
+  if (
+    name.includes("companies house") ||
+    name.includes("filing") ||
+    name.includes("accounts") ||
+    name.includes("sec filing") ||
+    name.includes("form d")
+  ) {
+    return "filing";
+  }
+  if (name.includes("podcast") || name.includes("interview")) return "interview";
+  return "press";
+}
+
+export function isPublicKind(kind: RevenueSourceKind): boolean {
+  return kind !== "vendor_estimate";
+}
 export type Tier = "A" | "B" | "C" | null;
 export type ContactStatus = "contactable" | "watchlist" | "excluded" | "research_incomplete";
 
@@ -28,8 +98,8 @@ export interface StaffCount {
 }
 
 export interface RevenueTruthInput {
-  publicRevenue: { amount: number; sourceName: string } | null;
-  apolloRevenue: number | null;
+  publicRevenue: { amount: number; sourceName: string; kind?: RevenueSourceKind } | null;
+  vendorRevenue: { amount: number; sourceName: string } | null;
   staff: StaffCount | null;
   score: number | null;
   verdictStatus: ContactStatus | null;
@@ -40,8 +110,9 @@ export interface RevenueTruthInput {
 export interface RevenueTruth {
   revenueUsed: number | null;
   revenueSource: RevenueSource;
+  revenueKind: RevenueSourceKind | null;
   publicSourceName: string | null;
-  rejected: { amount: number; source: "apollo"; reason: string } | null;
+  rejected: { amount: number; source: string; reason: string } | null;
   staff: StaffCount | null;
   tier: Tier;
   score: number | null;
@@ -82,26 +153,32 @@ export function computeRevenueTruth(input: RevenueTruthInput): RevenueTruth {
   const staff = input.staff;
   let revenueUsed: number | null = null;
   let revenueSource: RevenueSource = null;
+  let revenueKind: RevenueSourceKind | null = null;
   let publicSourceName: string | null = null;
   let rejected: RevenueTruth["rejected"] = null;
 
   if (input.publicRevenue && input.publicRevenue.amount > 0) {
     revenueUsed = input.publicRevenue.amount;
     revenueSource = "public";
+    revenueKind = input.publicRevenue.kind ?? classifyRevenueSourceKind(input.publicRevenue.sourceName);
     publicSourceName = input.publicRevenue.sourceName;
     if (staff && staff.count > 0 && revenueUsed / staff.count > PUBLIC_CHECK_PER_STAFF) {
       flags.push("check: public figure over $1M per staff");
     }
-  } else if (input.apolloRevenue !== null && input.apolloRevenue > 0) {
+  } else if (input.vendorRevenue !== null && input.vendorRevenue.amount > 0) {
     const perStaff =
-      staff && staff.count > 0 ? input.apolloRevenue / staff.count : null;
+      staff && staff.count > 0 ? input.vendorRevenue.amount / staff.count : null;
     if (perStaff !== null && perStaff >= APOLLO_MIN_PER_STAFF) {
-      revenueUsed = input.apolloRevenue;
-      revenueSource = "apollo";
+      revenueUsed = input.vendorRevenue.amount;
+      revenueSource = input.vendorRevenue.sourceName.toLowerCase().startsWith("apollo")
+        ? "apollo"
+        : "vendor";
+      revenueKind = "vendor_estimate";
+      publicSourceName = input.vendorRevenue.sourceName;
     } else {
       rejected = {
-        amount: input.apolloRevenue,
-        source: "apollo",
+        amount: input.vendorRevenue.amount,
+        source: input.vendorRevenue.sourceName,
         reason: "rejected: below $75k per staff",
       };
       if (staff && staff.count > 0) {
@@ -142,6 +219,7 @@ export function computeRevenueTruth(input: RevenueTruthInput): RevenueTruth {
   return {
     revenueUsed,
     revenueSource,
+    revenueKind,
     publicSourceName,
     rejected,
     staff,
@@ -199,6 +277,85 @@ export async function recordVerdicts(db: Db, verdicts: VerdictInput[]): Promise<
   return { recorded };
 }
 
+/**
+ * Stamp the source kind onto stored revenue figures that lack one, writing a
+ * superseding fact through the standard fact path. The kind comes from the
+ * backstop classifier; the extractor's judgement (source_kind) always wins
+ * where it is already stored.
+ */
+export async function sectorRevenueReclassify(
+  db: Db,
+  sectorId: string,
+): Promise<{ stamped: number; alreadyStamped: number; noRevenueFact: number; byKind: Record<string, number> }> {
+  const members = await db
+    .select({ companyId: sectorCompanies.companyId })
+    .from(sectorCompanies)
+    .where(eq(sectorCompanies.sectorId, sectorId));
+  let stamped = 0;
+  let alreadyStamped = 0;
+  let noRevenueFact = 0;
+  const byKind: Record<string, number> = {};
+  for (const m of members) {
+    const [row] = await db
+      .select()
+      .from(factsCurrent)
+      .where(
+        and(
+          eq(factsCurrent.companyId, m.companyId),
+          eq(factsCurrent.key, "financials.revenue_estimate"),
+        ),
+      );
+    if (!row) {
+      noRevenueFact += 1;
+      continue;
+    }
+    const qualifiers = (row.qualifiers ?? {}) as Record<string, unknown>;
+    if (typeof qualifiers["source_kind"] === "string") {
+      alreadyStamped += 1;
+      continue;
+    }
+    const source = typeof qualifiers["source"] === "string" ? (qualifiers["source"] as string) : "";
+    if (source === "") {
+      noRevenueFact += 1;
+      continue;
+    }
+    const kind = classifyRevenueSourceKind(source);
+    byKind[kind] = (byKind[kind] ?? 0) + 1;
+    const amount = factAmount(row);
+    const citedIds = row.sourceIds ?? [];
+    const existingSources =
+      citedIds.length > 0
+        ? await db
+            .select({ id: sources.id })
+            .from(sources)
+            .where(inArray(sources.id, citedIds))
+        : [];
+    const validSourceIds = existingSources.map((s) => s.id);
+    const results = await addFacts(db, {
+      companyId: m.companyId,
+      createdBy: "reclassify:stage-5.3",
+      facts: [
+        {
+          key: "financials.revenue_estimate",
+          value:
+            amount !== null
+              ? { amount, currency: row.currency ?? "USD" }
+              : (row.valueJson ?? row.valueText ?? row.valueNum),
+          qualifiers: {
+            ...qualifiers,
+            source_kind: kind,
+            ...(kind === "vendor_estimate" ? { estimate_kind: "vendor" } : {}),
+          },
+          sourceIds: validSourceIds,
+          confidence: row.confidence ?? "medium",
+        },
+      ],
+    });
+    if (results[0]?.ok) stamped += 1;
+  }
+  return { stamped, alreadyStamped, noRevenueFact, byKind };
+}
+
 // ---- Reading the stored facts for one company ----
 
 function factAmount(row: { valueNum: unknown; valueJson: unknown }): number | null {
@@ -231,7 +388,7 @@ export async function companyRevenueTruth(db: Db, companyId: string): Promise<Re
     );
 
   let publicRevenue: RevenueTruthInput["publicRevenue"] = null;
-  let apolloRevenue: number | null = null;
+  let vendorRevenue: RevenueTruthInput["vendorRevenue"] = null;
   const staffCandidates: StaffCount[] = [];
   let plausibility: string | null = null;
 
@@ -241,12 +398,17 @@ export async function companyRevenueTruth(db: Db, companyId: string): Promise<Re
       const amount = factAmount(row);
       if (amount === null) continue;
       const source = typeof qualifiers["source"] === "string" ? (qualifiers["source"] as string) : "";
-      if (source === "apollo") {
-        apolloRevenue = amount;
-      } else if (source !== "") {
-        publicRevenue = { amount, sourceName: source };
+      const storedKind =
+        typeof qualifiers["source_kind"] === "string" ? (qualifiers["source_kind"] as string) : null;
+      if (source !== "") {
+        const kind = classifyRevenueSourceKind(source, storedKind);
+        if (isPublicKind(kind)) {
+          publicRevenue = { amount, sourceName: source, kind };
+        } else {
+          vendorRevenue = { amount, sourceName: source };
+        }
       } else if (row.createdBy.startsWith("collector:apollo")) {
-        apolloRevenue = amount;
+        vendorRevenue = { amount, sourceName: "Apollo" };
       }
     } else if (row.key === "financials.employees") {
       const n = factAmount(row);
@@ -271,7 +433,7 @@ export async function companyRevenueTruth(db: Db, companyId: string): Promise<Re
 
   const truth = computeRevenueTruth({
     publicRevenue,
-    apolloRevenue,
+    vendorRevenue,
     staff: pickStaff(staffCandidates),
     score: verdict ? verdict.score : null,
     verdictStatus: verdict ? (verdict.status as ContactStatus) : null,
@@ -325,9 +487,11 @@ export async function sectorSheetRows(db: Db, sectorId: string): Promise<SheetRo
       revenueSource:
         truth.revenueSource === "public"
           ? `public (${truth.publicSourceName ?? "named source"})`
-          : truth.revenueSource === "staff_estimate"
-            ? "estimated from staff"
-            : (truth.revenueSource ?? ""),
+          : truth.revenueSource === "vendor"
+            ? `vendor (${truth.publicSourceName ?? "vendor"})`
+            : truth.revenueSource === "staff_estimate"
+              ? "estimated from staff"
+              : (truth.revenueSource ?? ""),
       flags: truth.flags.join("; "),
     });
   }

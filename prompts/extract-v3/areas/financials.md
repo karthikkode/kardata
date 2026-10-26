@@ -15,6 +15,15 @@ You turn research notes into structured data. Output MUST be one JSON object wit
   dates as stated.
 - Revenue estimates ONLY as stated with a named source; put the source name in the
   note. Never compute or annualize figures yourself.
+- Every revenue figure also carries a `source_kind` qualifier, picked with your
+  judgement (never from a fixed name list): `filing` (a regulator or registry
+  filing), `press` or `interview` (editorial coverage or a named interview),
+  `company_statement` (the company's own site, release or investor page),
+  `vendor_estimate` (a data vendor or aggregator that estimates figures, such
+  as a company-database or directory site), or `award_entry` (a figure the
+  brand itself submitted to an awards programme). When in doubt between press
+  and vendor, ask: did a journalist report this, or does the site sell
+  estimated company data? Several vendors agreeing is still a vendor estimate.
 
 ## Rules
 - Extract only what the notes and sources state. Never infer numbers, dates or names.

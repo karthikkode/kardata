@@ -34,6 +34,7 @@ import { preflightReportSchema, savePreflightReportForRun } from "../domain/comp
 import {
   companyRevenueTruth,
   recordVerdicts,
+  sectorRevenueReclassify,
   sectorSheetRows,
   sectorTierSummary,
   sheetCsv,
@@ -1496,6 +1497,22 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const result = await recordVerdicts(db, verdicts);
         return { summary: `${result.recorded} verdict(s) recorded`, data: result };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_revenue_reclassify",
+    {
+      description:
+        "Operator: stamp source_kind onto stored revenue figures that lack one (filing, press, interview, company_statement, vendor_estimate, award_entry), so vendor estimates stop counting as public. Writes superseding facts through the standard fact path.",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+      },
+    },
+    async ({ sectorId }) =>
+      wrap(async () => {
+        const result = await sectorRevenueReclassify(db, sectorId);
+        return { summary: `${result.stamped} revenue figures stamped`, data: result };
       }),
   );
 

@@ -102,6 +102,7 @@ const EXPECTED_TOOLS = [
   "company_verdict_record",
   "company_sheet_export",
   "sector_tier_summary",
+  "sector_revenue_reclassify",
   "company_job_pause",
   "company_jobs_pause_all",
   "company_job_resume",

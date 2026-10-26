@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { computeRevenueTruth, pickStaff } from "../../src/domain/tiering.js";
+import {
+  classifyRevenueSourceKind,
+  computeRevenueTruth,
+  pickStaff,
+} from "../../src/domain/tiering.js";
 
 describe("D-55 revenue truth (pure)", () => {
   it("rejects Apollo below $75k per staff and falls back to staff x $175k", () => {
     const r = computeRevenueTruth({
       publicRevenue: null,
-      apolloRevenue: 607000,
+      vendorRevenue: { amount: 607000, sourceName: "Apollo" },
       staff: { count: 20, source: "apollo" },
       score: 2,
       verdictStatus: "contactable",
@@ -14,7 +18,7 @@ describe("D-55 revenue truth (pure)", () => {
     expect(r.revenueSource).toBe("staff_estimate");
     expect(r.rejected).toEqual({
       amount: 607000,
-      source: "apollo",
+      source: "Apollo",
       reason: "rejected: below $75k per staff",
     });
     expect(r.tier).toBe("B");
@@ -25,7 +29,7 @@ describe("D-55 revenue truth (pure)", () => {
   it("accepts Apollo at or above $75k per staff", () => {
     const r = computeRevenueTruth({
       publicRevenue: null,
-      apolloRevenue: 4000000,
+      vendorRevenue: { amount: 4000000, sourceName: "Apollo" },
       staff: { count: 20, source: "apollo" },
       score: 3,
       verdictStatus: "contactable",
@@ -40,7 +44,7 @@ describe("D-55 revenue truth (pure)", () => {
   it("public figure wins, flagged check over $1M per staff", () => {
     const r = computeRevenueTruth({
       publicRevenue: { amount: 30000000, sourceName: "trade press interview" },
-      apolloRevenue: 607000,
+      vendorRevenue: { amount: 607000, sourceName: "Apollo" },
       staff: { count: 20, source: "companies_house" },
       score: 6,
       verdictStatus: "contactable",
@@ -55,7 +59,7 @@ describe("D-55 revenue truth (pure)", () => {
   it("score 0-1 is watchlist and below $500k is not contacted", () => {
     const w = computeRevenueTruth({
       publicRevenue: null,
-      apolloRevenue: null,
+      vendorRevenue: null,
       staff: { count: 10, source: "apollo" },
       score: 1,
       verdictStatus: "contactable",
@@ -64,7 +68,7 @@ describe("D-55 revenue truth (pure)", () => {
     expect(w.layer).toBeNull();
     const small = computeRevenueTruth({
       publicRevenue: null,
-      apolloRevenue: 400000,
+      vendorRevenue: { amount: 400000, sourceName: "Apollo" },
       staff: { count: 4, source: "apollo" },
       score: 4,
       verdictStatus: "contactable",
@@ -79,7 +83,7 @@ describe("D-55 revenue truth (pure)", () => {
   it("exclusions stay exclusions and disputed figures are flagged", () => {
     const r = computeRevenueTruth({
       publicRevenue: null,
-      apolloRevenue: 5000000,
+      vendorRevenue: { amount: 5000000, sourceName: "Apollo" },
       staff: { count: 20, source: "apollo" },
       score: 5,
       verdictStatus: "excluded",
@@ -89,6 +93,58 @@ describe("D-55 revenue truth (pure)", () => {
     expect(r.status).toBe("excluded");
     expect(r.exclusionReason).toBe("has data team");
     expect(r.flags.some((f) => f.startsWith("disputed"))).toBe(true);
+  });
+
+  it("vendor estimates from any vendor go through the $75k check, not just Apollo", () => {
+    const low = computeRevenueTruth({
+      publicRevenue: null,
+      vendorRevenue: { amount: 900000, sourceName: "ZoomInfo" },
+      staff: { count: 20, source: "apollo" },
+      score: 2,
+      verdictStatus: "contactable",
+    });
+    expect(low.revenueSource).toBe("staff_estimate");
+    expect(low.rejected).toEqual({
+      amount: 900000,
+      source: "ZoomInfo",
+      reason: "rejected: below $75k per staff",
+    });
+    const high = computeRevenueTruth({
+      publicRevenue: null,
+      vendorRevenue: { amount: 3000000, sourceName: "RocketReach" },
+      staff: { count: 20, source: "apollo" },
+      score: 2,
+      verdictStatus: "contactable",
+    });
+    expect(high.revenueUsed).toBe(3000000);
+    expect(high.revenueSource).toBe("vendor");
+    expect(high.tier).toBe("B");
+  });
+
+  it("an award entry counts as a company statement and keeps the check flag", () => {
+    const r = computeRevenueTruth({
+      publicRevenue: { amount: 33000000, sourceName: "Gold award entry (brand-submitted)", kind: "award_entry" },
+      vendorRevenue: null,
+      staff: { count: 10, source: "apollo" },
+      score: 5,
+      verdictStatus: "contactable",
+    });
+    expect(r.revenueSource).toBe("public");
+    expect(r.tier).toBe("A");
+    expect(r.flags).toContain("check: public figure over $1M per staff");
+  });
+
+  it("classifies source kinds with the vendor backstop", () => {
+    expect(classifyRevenueSourceKind("ZoomInfo")).toBe("vendor_estimate");
+    expect(classifyRevenueSourceKind("RocketReach")).toBe("vendor_estimate");
+    expect(classifyRevenueSourceKind("The Company Check")).toBe("vendor_estimate");
+    expect(classifyRevenueSourceKind("directory aggregator (example)")).toBe("vendor_estimate");
+    expect(classifyRevenueSourceKind("Apollo.io")).toBe("vendor_estimate");
+    expect(classifyRevenueSourceKind("Gold award entry (brand-submitted)")).toBe("award_entry");
+    expect(classifyRevenueSourceKind("Companies House accounts 2025")).toBe("filing");
+    expect(classifyRevenueSourceKind("WWD")).toBe("press");
+    expect(classifyRevenueSourceKind("Anything", "vendor_estimate")).toBe("vendor_estimate");
+    expect(classifyRevenueSourceKind("ZoomInfo", "press")).toBe("press");
   });
 
   it("pickStaff prefers the most recent dated count, Companies House first", () => {
