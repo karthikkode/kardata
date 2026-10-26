@@ -88,7 +88,8 @@ They keep the report and the working sheet whatever happens next.
   audit fee per year** in recoverable value, the full fee comes back. That's $25,000 a year at $2,500 and $15,000 at
   $1,500. **It must be claimed in writing within 7 days of the readout call.**
 
-**The first 2 audits** go to **Tier B, Layer 1** companies only, and never to Tier C (D-35). They are free, or $500
+**The first 2 audits** go to **Tier B, Layer 1** companies only, and never to Tier C (D-35). **Open:** no company
+reached Layer 1 in wave 1 (the best is Layer 2), so this rule needs an owner decision before it can be used. They are free, or $500
 (the owner decides on the day), in exchange for:
 - a testimonial;
 - a logo;

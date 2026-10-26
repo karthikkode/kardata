@@ -21,7 +21,7 @@ The structure is the same for every sector:
   goes up as the score goes down. "Tier B, Layer 1" means a mid-revenue company with the strongest signals.
 - **Watchlist:** score 0–1. Not in any layer and never contacted.
 - **Research wave:** which group of companies gets researched first (wave 1: skincare, body and bath, men's
-  grooming; wave 2: the next 151). Older plans and reviews call this "Layer 1/Layer 2". That old use is retired.
+  grooming; wave 2: about 151 more, recount pending). Older plans and reviews call this "Layer 1/Layer 2". That old use is retired.
 - **Older docs and the 2026-10-26 ICP check** used "Tier A/B" for the signal score. That old use is retired too. Read
   old "Tier A" as score 3+ and old "Tier B" as score 2.
 
@@ -122,20 +122,33 @@ Each signal adds 1 point, up to 6. Every point needs the evidence standard in `e
 
 **A verdict needs 2+ independent signals, and at least one must not be hiring** (see `problem-bar.md`).
 
-## Snapshot (DB, 2026-10-26, research wave 1, after the ICP check under D-24 and D-28)
+## Snapshot (DB, 2026-10-26, research wave 1, after the ICP check and the tier split)
 
 | Group | Companies |
 |---|---|
-| Rows checked (753 finished, plus 61 failed, stopped or orphaned runs) | 814 |
-| **Score 3+ (Layers 1–4)** | **149** |
-| **Score 2 (Layer 5)** | **254** (1 not contactable until its research is rerun) |
-| **Can be contacted now** | **402** |
-| Watchlist (score 0–1, or no second system) | 349 |
-| Excluded | 62 |
-| Research incomplete (zero facts; rerun after the quota reset) | 82 |
-| Small enough for Tier C (5–10 staff, before the revenue check) | 10 |
-| Split by tier (A / B / C) and layer | not counted yet (the agent's sheet run counts it) |
-| On Shopify (for information only, not a filter since D-23) | 752 of 753 |
+| Rows checked | 814 |
+| **Can be contacted now (Layers 1-5)** | **378** |
+| Watchlist (score 0-1) | 262 |
+| Research incomplete (zero facts; rerun pending) | 82 |
+| Excluded (incl. 52 under $500k) | 92 |
+
+Contactable by tier and layer (no company reached Layer 1):
+
+| | Layer 2 | Layer 3 | Layer 4 | Layer 5 | Total |
+|---|---|---|---|---|---|
+| Tier A | 0 | 10 | 34 | 46 | 90 |
+| Tier B | 2 | 11 | 70 | 169 | 252 |
+| Tier C | 0 | 3 | 10 | 23 | 36 |
+
+**Where the revenue came from:** a public figure 51, Apollo 382, staff estimate 381. So about half the tiers are
+guesses.
+
+**Still to do (revenue re-check):**
+- 52 companies were excluded as under $500k on Apollo's figure alone, despite 11+ staff. Many are probably wrong.
+- 12 companies have a public figure above $1M per staff member. Check the figure and the parent.
+- Run after the AI quota allows; results update the tiers above.
+
+The working list lives in the owner's Google Sheet (one tab per tier, contactable companies only), not in git.
 
 **What the check changed:** strict evidence moved many companies down, and the new group rule brought many back. 24
 companies had no second system holding data and went to the watchlist. All the spa- and salon-named companies left
@@ -143,7 +156,7 @@ among the contactable ones sell their own products.
 
 **The Apollo pull is narrower than the ICP now.** It required Shopify and capped staff at 100, so brands on other
 platforms or above 100 staff were never imported. The next pull uses only: D2C, US/UK/CA/AU, and 11+ staff. A
-separate pull of smaller brands (about $500k–2M revenue, or 5–10 staff where revenue is missing) feeds the Tier C batch, since we have only 10.
+separate pull of smaller brands (about $500k–2M revenue, or 5–10 staff where revenue is missing) feeds the Tier C batch, since only 36 Tier C companies are contactable now.
 
 Contacts: 753 companies × 2 buyers ≈ 1,500 contacts. That is enough for the funnel in `funnel.md` without a second
 sector.

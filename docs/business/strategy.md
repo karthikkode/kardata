@@ -40,7 +40,7 @@ Status: locked (sector order is open, see decisions.md) · Last updated: 2026-10
     The store platform doesn't matter.
   - **Tiers** group companies by annual revenue and set the offer (A $10M+, B $2–10M, C $500k–2M). **Layers** set priority inside
     a tier by signal score (Layer 1 = highest). Full rules are in `icp.md`.
-  - We have deep research on 753 companies (research wave 1) and 151 more in wave 2.
+  - We have deep research on 753 companies (research wave 1) and about 151 more in wave 2 (recount pending).
 - **Sector rule:** research one sector deeply, prove the method, then move to the next. Research stays **one sector
   ahead of sending, never more.**
 - **Known risk for D2C:** margins are thinner than in software. A $3k retainer is about 18% of a $2M brand's profit
