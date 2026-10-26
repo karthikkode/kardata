@@ -47,17 +47,21 @@ none were touched.
    an id before writing a claim (`prompts/research-v1.5/main.md:54`). No code
    change was needed.
 
-## Deviations and what is left
+## Refresh run (2026-10-26, after the build)
 
-- Verdict loading and the live dry run wait for deploy. The tools are the only
-  write path, and the live server (8787) predates them; starting a second
-  server on the prod DB would double-run every runner (`src/server.ts:238-249`
-  starts all runners on boot). After this branch is deployed: load the
-  2026-10-26 verdicts through `company_verdict_record`, run
-  `sector_tier_summary`, then `company_sheet_export`. No AI reruns were run.
-- The refresh the owner asked for is therefore a recompute from stored data
-  once deployed, plus Companies House re-collection where accounts are
-  missing. AI research stays after review, as planned.
+- Migrations 0025-0027 applied to the prod database after a fresh backup
+  (`~/kardata-backups/kardata_2026-10-27_0205.dump`).
+- The 2026-10-26 ICP verdicts were loaded through `company_verdict_record`
+  (the only write path): 813 of 814 recorded. One sheet row has no domain
+  and could not be matched to a company; it is a US watchlist row.
+- The tools ran through an MCP-only instance of this branch (no runners
+  started; a second full server on the prod DB would double-run jobs).
+  No AI reruns were run.
+- Companies House re-collection is the one piece left for deploy: 124 UK
+  companies in the checked set still take staff from Apollo, not from filed
+  accounts. Queuing them now would execute the live server's old collector
+  (3 candidates, no accounts facts), so the pull runs after this branch is
+  deployed: `collect_start` with the companies_house adapter.
 - Drizzle snapshots for data-only migrations 0025/0026 were dropped (copied
   snapshots broke drizzle-kit generation); the SQL migrations and journal are
   the source of truth and the suite migrates cleanly.
@@ -67,11 +71,17 @@ none were touched.
 Full suite once after the final edit: 63 files passed, 1 skipped; 635 tests
 passed, 1 skipped. Focused tiering, providers, prompt and MCP tests pass.
 
-Dry run of the new domain function over the 2026-10-26 sheet inputs (814 rows;
-the function's first run against today's data, before the prod load):
-99 companies change tier (B to A 21, C to B 19, C to A 4, below floor to B 49,
-below floor to A 4, below floor to no tier 2). New contactable counts
-(408, was 378): A/L3 10, A/L4 40, A/L5 57, B/L2 2, B/L3 15, B/L4 75,
-B/L5 182, C/L3 1, C/L4 7, C/L5 19. Revenue sources after D-55: public 51,
-Apollo 280, estimated from staff 483. These counts repeat from the tools
-themselves after deploy.
+Live recompute from today's stored data (`sector_tier_summary`, 813
+companies with verdicts): 130 companies change tier against the sheet
+(A to B 14, A to C 1, B to A 38, B to C 3, C to B 15, C to A 3, below floor
+to B 42, to A 8, to C 2, to no tier 3, C to no tier 1). New contactable
+counts (406, was 378): A/L2 1, A/L3 11, A/L4 38, A/L5 54 (Tier A 104);
+B/L2 1, B/L3 13, B/L4 76, B/L5 179 (Tier B 269); C/L3 1, C/L4 8, C/L5 24
+(Tier C 33). Statuses: contactable 406, watchlist 232, excluded 93,
+research incomplete 82. Revenue used, by source: public 209, Apollo 158,
+estimated from staff 446. Note public is larger than the sheet's 51: stored
+facts carry named sources the sheet did not use.
+The case company now reads Tier B, Layer 5: Apollo $607k rejected (below
+$75k per staff), staff estimate used. It moves to 17 staff when the accounts
+pull lands; the tier does not change. The exported sheet is
+`var/analysis/companies-2026-10-26.csv` (406 contactable rows).
