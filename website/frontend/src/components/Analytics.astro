@@ -1,0 +1,19 @@
+---
+// Cookieless analytics, chosen by the owner (config ANALYTICS). Until then, window.kdTrack does nothing.
+import { ANALYTICS } from "../config";
+const { provider, domain } = ANALYTICS;
+---
+{provider === "plausible" && (
+  <script is:inline defer data-domain={domain} src="https://plausible.io/js/script.js"></script>
+)}
+{provider === "umami" && (
+  <script is:inline defer data-domain={domain} src="https://cloud.umami.is/script.js"></script>
+)}
+<script is:inline>
+  window.kdTrack = function (name, props) {
+    try {
+      if (window.plausible) window.plausible(name, { props: props });
+      else if (window.umami) window.umami.track(name, props);
+    } catch (e) {}
+  };
+</script>
