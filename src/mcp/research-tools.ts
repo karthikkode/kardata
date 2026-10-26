@@ -31,6 +31,11 @@ import {
   searchAll,
 } from "../domain/research/reads.js";
 import { preflightReportSchema, savePreflightReportForRun } from "../domain/company-jobs/preflight.js";
+import {
+  companyRevenueTruth,
+  recordVerdicts,
+  sectorTierSummary,
+} from "../domain/tiering.js";
 import { companyJobLive } from "../domain/company-jobs/live.js";
 import {
   estimateInflightBurn,
@@ -1422,6 +1427,73 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
           summary: `${view.jobs.length} jobs, ${view.runs.length} runs for "${view.company.name}"`,
           data: view,
         };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_revenue_truth",
+    {
+      description:
+        "Operator (read-only): D-55 revenue truth for one company: revenue used, its source, any rejected figure and why, staff and its source, tier, score, layer or watchlist/excluded, and flags.",
+      inputSchema: {
+        companyId: z.string().describe("Company UUID"),
+      },
+    },
+    async ({ companyId }) =>
+      wrap(async () => {
+        const truth = await companyRevenueTruth(db, companyId);
+        return {
+          summary: `tier ${truth.tier ?? "-"} layer ${truth.layer ?? "-"} (${truth.status})`,
+          data: truth,
+        };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "sector_tier_summary",
+    {
+      description:
+        "Operator (read-only): sector counts by tier x layer (contactable), by revenue source, and by contact status, computed from stored facts and verdicts (D-55).",
+      inputSchema: {
+        sectorId: z.string().describe("Sector UUID"),
+      },
+    },
+    async ({ sectorId }) =>
+      wrap(async () => {
+        const summary = await sectorTierSummary(db, sectorId);
+        return {
+          summary: `${summary.companiesWithVerdicts} companies with verdicts`,
+          data: summary,
+        };
+      }),
+  );
+
+  registerTool(server, db, auth,
+    "company_verdict_record",
+    {
+      description:
+        "Operator: record ICP verdicts (signal score, signals, contact status) for up to 200 companies. This is the only write path for verdicts.",
+      inputSchema: {
+        verdicts: z
+          .array(
+            z.object({
+              companyId: z.string(),
+              sectorId: z.string(),
+              score: z.number().int().min(0).max(6),
+              signals: z.record(z.boolean()).default({}),
+              status: z.enum(["contactable", "watchlist", "excluded", "research_incomplete"]),
+              exclusionReason: z.string().nullable().optional(),
+              source: z.string().min(1),
+            }),
+          )
+          .min(1)
+          .max(200),
+      },
+    },
+    async ({ verdicts }) =>
+      wrap(async () => {
+        const result = await recordVerdicts(db, verdicts);
+        return { summary: `${result.recorded} verdict(s) recorded`, data: result };
       }),
   );
 
