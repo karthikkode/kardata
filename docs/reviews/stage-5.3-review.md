@@ -36,11 +36,8 @@ the owner's unrelated edits (docs/business, website/); none were touched.
   (the only write path): 813 of 814 recorded. One sheet row has no domain
   and could not be matched to a company; it is a US watchlist row.
 - Tools ran through an MCP-only instance of this branch (no runners, no AI reruns).
-- Companies House re-collection is the one piece left for deploy: 124 UK
-  companies in the checked set still take staff from Apollo, not from filed
-  accounts. Queuing them now would execute the live server's old collector
-  (3 candidates, no accounts facts), so the pull runs after this branch is
-  deployed: `collect_start` with the companies_house adapter.
+- Companies House re-collection waits for deploy: 124 UK companies still
+  take staff from Apollo. After deploy: `collect_start` (companies_house).
 - Drizzle snapshots for data-only migrations 0025/0026 were dropped (copied
   snapshots broke drizzle-kit generation); the SQL migrations and journal are
   the source of truth and the suite migrates cleanly.
@@ -49,32 +46,34 @@ the owner's unrelated edits (docs/business, website/); none were touched.
 
 Full suite after the final edit: 635 tests passed, 1 skipped.
 
-Live recompute from today's stored data (`sector_tier_summary`, 813
-companies with verdicts): 130 companies changed tier against the sheet on
-the first run. The case company reads Tier B Layer 5, Apollo rejected.
+Live recompute (`sector_tier_summary`, 813 verdicts): 130 companies
+changed tier against the sheet. The case company reads Tier B, Apollo rejected.
 
 ## Bugfix (after review): vendor estimates are not public
 
-"Named public source" was matching vendor guesses (ZoomInfo, RocketReach,
-Prospeo, Owler and similar). Fix: revenue facts carry a `source_kind`
-qualifier (filing, press, interview, company_statement, vendor_estimate,
-award_entry; migration 0028), picked with judgement in the extract prompt
-(`prompts/extract-v3/areas/financials.md`), with a seed vendor list as the
-read-time backstop (`classifyRevenueSourceKind`, src/domain/tiering.ts).
-Public now means filing, press/interview or company statement only; an
-award entry counts as a company statement and keeps the check flag. Vendor
-figures go through the $75k-per-staff check like Apollo, reason kept.
-Stored figures were reclassified through `sector_revenue_reclassify`:
-439 stamped (379 vendor, 59 press, 1 interview). No scripts, no AI reruns.
-After the fix: 125 companies change tier against the sheet; contactable
-407 (Tier A 109: L3 10, L4 41, L5 58; Tier B 263: L2 1, L3 13,
-L4 72, L5 177; Tier C 35: L2 1, L3 3, L4 9, L5 22). Revenue used in the
-export, by source: public 70, vendor 9, Apollo 110, estimated from staff
-218. Sector-wide revenue by source: public 123, vendor 10, Apollo 221,
-estimated from staff 459. 85 vendor figures were rejected below $75k per
-staff; for 82 of them the tier differs from treating the figure as public.
-The 27 "over $1M per staff" check flags (owner expected 22 from the old
-export; live data has 27) are listed by name with source in
-`var/analysis/revenue-check-flags-2026-10-27.csv`, not in git. Tests:
-tests/domain/tiering.test.ts, tests/db/tiering.test.ts (reclassify case).
-New sheet: `var/analysis/companies-2026-10-26.csv` (407 contactable rows).
+"Named public source" was matching vendor guesses. Fix: revenue facts carry
+a `source_kind` qualifier (migration 0028), picked with judgement in the
+extract prompt (`prompts/extract-v3/areas/financials.md`), with vendor and
+press seed lists as backstop (`classifyRevenueSourceKind`,
+src/domain/tiering.ts). Public means filing, press/interview or company
+statement only; an award entry counts as a company statement and keeps the
+check flag. Vendor figures go through the $75k-per-staff check like Apollo.
+Reclassified through `sector_revenue_reclassify`: 439 stamped (379 vendor,
+59 press, 1 interview). Export by source: public 70, vendor 9, Apollo 110,
+estimated from staff 218.
+
+## Fix 2 (fail closed, flagged figures)
+
+Unknown sources now default to vendor_estimate, never press (Datanyze,
+Grips, SignalHire, Endole and 8 more added to the backstop; a source is
+press only if a journalist or the company states the figure). Re-stamp
+recomputes our own earlier stamps. A public figure over $1M per staff no
+longer sets the tier: the next source down is used, the figure and flag
+stay visible, and `company_revenue_confirm` records a human confirm/reject
+with a reason (table `revenue_confirmations`, migration 0029). Tests:
+tests/domain/tiering.test.ts, tests/db/tiering.test.ts.
+Live rerun waits for deploy: the live server predates these tools, and no
+second server was started against prod. After deploy: run
+`sector_revenue_reclassify`, then `sector_tier_summary` and
+`company_sheet_export`, and re-report tier changes, the source split and
+the flagged list (var/analysis only).
