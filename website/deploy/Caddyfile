@@ -1,0 +1,29 @@
+# Inner Caddy for the kardata-site container. Plain HTTP on :80; TLS stays with kathawin's Caddy.
+{
+	auto_https off
+}
+
+:80 {
+	root * /srv/current
+
+	# v1 pages that links may still point at.
+	@v1 path /how-it-works /how-it-works/ /ai-layer /ai-layer/ /case-studies /case-studies/
+	redir @v1 / permanent
+
+	@hashed path /_astro/*
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+	@pages not path /_astro/*
+	header @pages Cache-Control "public, max-age=300"
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	file_server
+
+	handle_errors 404 {
+		rewrite * /404.html
+		file_server
+	}
+}

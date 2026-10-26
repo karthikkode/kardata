@@ -23,15 +23,24 @@ is `Status: current`.
   the rest of v1 is shut down is the owner's call.
 - **Disk:** 28 of 30 GB used (94%). Don't build images on the VM until space is cleared.
 
-## Deploying (to be settled in the first website plan)
+## Deploying (plan: `docs/plans/website/site-1-launch.md`)
 
-The switch to the new site is one edit to the `kardata.co` block in the Caddyfile, then a Caddy reload. The old site
-stays up until then.
-- **Static site (recommended for the blog):** build to files locally, copy them to a folder on the VM that the Caddy
-  container can read, and serve them with `file_server`.
-- **Server app (if a page needs one):** build an `linux/arm64` image locally or in CI, push it to
-  `ghcr.io/karthikkode/`, pull and run it on the VM on `kathawin-edge` under a new alias (not `kardata-web`), and
-  point the block at it.
+kathawin's Caddy mounts only its Caddyfile, so it can't serve a host folder without re-creating a kathawin
+container. Instead a small container of our own, `kardata-site` (`deploy/compose.yml`, the `caddy:2-alpine` image
+already on the VM), serves `/home/opc/kardata-site/current` on `kathawin-edge`. kathawin's Caddy keeps TLS and
+proxies kardata.co to it.
+
+- **Build and check:** `cd frontend && npm run check`. Never build on the VM.
+- **Deploy:** `npm run deploy` refuses a dirty `website/`, builds, uploads a release to
+  `~/kardata-site/releases/<date>-<commit>`, switches `current` atomically and keeps 5. `npm run rollback` goes back
+  one. `DEPLOY_HOST=local DEPLOY_ROOT=<dir>` runs both on this machine for testing.
+- **First time on the VM:** copy `deploy/compose.yml` to `~/kardata-site/` and run
+  `docker compose -p kardata-site up -d` there.
+- **Switch kardata.co** (only on the owner's word): back up the Caddyfile, change `reverse_proxy kardata-web:3000`
+  to `reverse_proxy kardata-site:80` in the `kardata.co` block, validate the new file inside the container, write it
+  over the Caddyfile in place (`cat new > Caddyfile`; it is a single-file bind mount, so `sed -i` would leave Caddy on
+  the old copy), then `docker exec kathawin-caddy-1 caddy reload --config /etc/caddy/Caddyfile`. Roll back the
+  same way from the backup.
 
 ## Rules for the VM
 

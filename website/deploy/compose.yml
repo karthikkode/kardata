@@ -1,0 +1,19 @@
+# kardata.co static site. Its own compose project (`docker compose -p kardata-site up -d`), never
+# kathawin's. kathawin's Caddy keeps TLS and proxies kardata.co to this container on kathawin-edge.
+services:
+  kardata-site:
+    image: caddy:2-alpine # already on the VM, so nothing is pulled
+    container_name: kardata-site
+    command: ["caddy", "run", "--config", "/srv/Caddyfile", "--adapter", "caddyfile"]
+    restart: unless-stopped
+    mem_limit: 64m
+    volumes:
+      - ${SITE_ROOT:-/home/opc/kardata-site}:/srv:ro,z
+    networks:
+      edge:
+        aliases: [kardata-site]
+
+networks:
+  edge:
+    name: ${EDGE_NETWORK:-kathawin-edge}
+    external: true
