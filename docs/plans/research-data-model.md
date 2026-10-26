@@ -184,7 +184,7 @@ registers the operator tools from `src/mcp/tools.ts:35` and the research tools f
 Auth shape (unchanged): an operator token for the owner, and a per-run token for agents in Stage 3
 (scoped to one company, with `created_by` set by the server, never by the caller).
 
-**Current prompts:** research `v1.4` (`prompts/research-v1.4/`) and extraction `v2`
-(`prompts/extract-v2/`). The research version is chosen by `latestPromptVersion()`
+**Current prompts:** research `v1.5` (`prompts/research-v1.5/`) and extraction `v3`
+(`prompts/extract-v3/`). The research version is chosen by `latestPromptVersion()`
 (`src/runs/prompt.ts:60-65`), which returns the highest `research-v*` prompt present; the extract
 prompt path is fixed at `src/runs/extract.ts:41`.
