@@ -12,8 +12,11 @@ The owner reviews every stage. Plans live in `docs/plans/`, and the current stag
 | `docs/sources/` | How-tos for the code (for example, onboarding a source adapter) | You, when the plan says so |
 | `docs/business/` | **Business context:** strategy, offer, ICP, problem bar, evidence rules, outreach, funnel, decisions. Start at `docs/business/README.md` | **Owner / Claude only.** You read it, never edit it |
 
+**Finding the current stage:** exactly one file in `docs/plans/` has `Status: current` as its first line.
+That file is the spec. All other plans and all of `docs/reviews/` are history.
+
 **Analysis, briefs, screens or outreach work on company data must follow `docs/business/`.**
-- Use the ICP in `icp.md` and its terms:
+- Use the ICP in `icp.md` and its terms ([docs/business/icp.md](docs/business/icp.md), Terms):
   - a **tier** groups companies by annual revenue and sets the offer (A high, B mid, C low);
   - a **layer** is priority inside a tier by signal score (Layer 1 = highest score);
   - a **research wave** is research order. Older plans call it "Layer 1/2"; that use is retired.
