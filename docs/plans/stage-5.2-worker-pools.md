@@ -1,6 +1,9 @@
-Status: current · Date: 2026-10-26
+Status: superseded by docs/plans/stage-5.3-revenue-truth.md · Date: 2026-10-26
 
 # Stage 5.2 — Worker pools (AI pool + deterministic pool)
+
+**Actual status (2026-10-26):** Step 0 done (`docs/reviews/stage-5.2-step0-quota.md`).
+Steps 1–5 not built. Paused behind Stage 5.3; this file is kept as the design.
 
 **Owner requirement (2026-10-23):** Muse quota is the scarce resource. While quota is available, it must
 never sit idle because the pipeline is busy with deterministic work. Work runs **per stage, from queues**,
