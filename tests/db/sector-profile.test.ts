@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { DbHandle } from "../../src/db/client.js";
 import { eq } from "drizzle-orm";
-import { sectorCompanies, sectors } from "../../src/db/schema.js";
+import { companies, sectorCompanies, sectorPreflight, sectors } from "../../src/db/schema.js";
 import { PRIMARY_CATEGORIES } from "../../src/domain/sector-preflight/classify.js";
 import { DEFAULT_SKINCARE_RUBRIC } from "../../src/domain/sector-preflight/eligibility.js";
 import {
@@ -58,6 +58,49 @@ describe("sector profile storage", () => {
     expect(categoryKeys(result.profile)).toEqual(["growing", "tools_watering", "other"]);
     const stored = await getProfile(handle.db, sectorId);
     expect(stored).toEqual(result.profile);
+  });
+
+  it("refuses a category change after classifications, reclassify marks them pending", async () => {
+    const sectorId = await makeSector("skincare-refusal");
+    await setProfile(handle.db, sectorId, SKINCARE_PROFILE);
+    const [company] = await handle.db
+      .insert(companies)
+      .values({ id: randomUUID(), source: "manual", name: "Synthetic Brand" })
+      .returning({ id: companies.id });
+    if (!company) throw new Error("no company");
+    await handle.db
+      .insert(sectorCompanies)
+      .values({ sectorId, companyId: company.id, addedVia: "manual", eligibility: "eligible" });
+    await handle.db.insert(sectorPreflight).values({
+      id: randomUUID(),
+      sectorId,
+      companyId: company.id,
+      businessType: "dtc_brand",
+      primaryCategory: "skincare",
+      sellsOwnProducts: true,
+      hasOnlineStore: true,
+      shipsTo: [],
+      confidence: "high",
+      reason: "synthetic",
+    });
+    const renamed = {
+      ...SKINCARE_PROFILE,
+      categories: SKINCARE_PROFILE.categories.map((c) =>
+        c.key === "skincare" ? { ...c, key: "skin_care" } : c,
+      ),
+      scope: {
+        ...SKINCARE_PROFILE.scope,
+        coreCategories: ["skin_care", "body_bath", "mens_grooming"],
+      },
+    };
+    await expect(setProfile(handle.db, sectorId, renamed)).rejects.toThrowError(/reclassify: true/);
+    const result = await setProfile(handle.db, sectorId, renamed, { reclassify: true });
+    expect(result.reclassifyPending).toBe(1);
+    const [membership] = await handle.db
+      .select()
+      .from(sectorCompanies)
+      .where(eq(sectorCompanies.companyId, company.id));
+    expect(membership?.eligibility).toBe("pending");
   });
 
   it("stores the skincare seed unchanged (same categories as the old enum)", async () => {

@@ -179,6 +179,22 @@ export async function getProfileOrNull(db: Db, sectorId: string): Promise<Sector
   return sector.profile ? parseSectorProfile(sector.profile) : null;
 }
 
+/**
+ * Profile for reading paths (scope, pipeline): the stored profile, or the
+ * skincare seed for the sector named skincare (migration 0030 seeds it in
+ * real data; this keeps older rows and tests working). Any other sector
+ * without a profile is refused in plain words.
+ */
+export async function resolveProfileForSector(db: Db, sectorId: string): Promise<SectorProfile> {
+  const sector = await loadSectorRow(db, sectorId);
+  if (sector.profile) return parseSectorProfile(sector.profile);
+  if (sector.name.trim().toLowerCase() === "skincare") return SKINCARE_PROFILE;
+  throw new DomainError(
+    "invalid_input",
+    `sector "${sector.name}" has no profile; set one with sector_profile_set before running the preflight`,
+  );
+}
+
 export interface SetProfileResult {
   profile: SectorProfile;
   before: EligibilityCounts;

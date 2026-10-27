@@ -9,6 +9,13 @@ import {
   sectors,
 } from "../../db/schema.js";
 import { DomainError } from "../errors.js";
+import {
+  SKINCARE_PROFILE,
+  getProfileOrNull,
+  resolveProfileForSector,
+  validateRubricAgainstProfile,
+  type SectorProfile,
+} from "./profile.js";
 
 /**
  * Eligibility = rules over the classification (Stage 5.1 Step 2). No LLM:
@@ -166,22 +173,25 @@ export interface ScopeInput {
   apolloKeywords: string[];
 }
 
-function firstHit(haystack: string): string | null {
+function firstHit(haystack: string, keywords: string[] = SKIN_KEYWORDS): string | null {
   const lower = haystack.toLowerCase();
-  for (const keyword of SKIN_KEYWORDS) {
+  for (const keyword of keywords) {
     if (lower.includes(keyword)) return keyword;
   }
   return null;
 }
 
-/** First skin keyword hit in classifier-read evidence (reason, quote, name). */
-export function siteKeywordHit(input: Pick<ScopeInput, "reason" | "quote" | "companyName">): string | null {
-  return firstHit([input.reason, input.quote ?? "", input.companyName].join("\n"));
+/** First scope keyword hit in classifier-read evidence (reason, quote, name). */
+export function siteKeywordHit(
+  input: Pick<ScopeInput, "reason" | "quote" | "companyName">,
+  keywords?: string[],
+): string | null {
+  return firstHit([input.reason, input.quote ?? "", input.companyName].join("\n"), keywords);
 }
 
-/** First skin keyword hit in Apollo keywords (noisy 40-keyword soup). */
-export function apolloKeywordHit(input: Pick<ScopeInput, "apolloKeywords">): string | null {
-  return firstHit(input.apolloKeywords.join(" "));
+/** First scope keyword hit in Apollo keywords (noisy 40-keyword soup). */
+export function apolloKeywordHit(input: Pick<ScopeInput, "apolloKeywords">, keywords?: string[]): string | null {
+  return firstHit(input.apolloKeywords.join(" "), keywords);
 }
 
 /**
@@ -190,22 +200,26 @@ export function apolloKeywordHit(input: Pick<ScopeInput, "apolloKeywords">): str
  * site was unreadable (low confidence), exactly the blocked-site case they
  * exist for. A readable site selling skincare would show it.
  */
-export function evaluateSectorScope(input: ScopeInput): { eligible: boolean; reason: string } {
+export function evaluateSectorScope(
+  input: ScopeInput,
+  profile: SectorProfile = SKINCARE_PROFILE,
+): { eligible: boolean; reason: string } {
+  const keywords = profile.scope.scopeKeywords;
   if (input.businessType !== "dtc_brand") {
     return { eligible: false, reason: `sector scope: not D2C (${input.businessType})` };
   }
   if (!input.sellsOwnProducts) return { eligible: false, reason: "sector scope: no own products" };
   if (!input.hasOnlineStore) return { eligible: false, reason: "sector scope: no online store" };
-  if (SCOPE_CORE_CATEGORIES.includes(input.primaryCategory)) {
+  if (profile.scope.coreCategories.includes(input.primaryCategory)) {
     return { eligible: true, reason: `sector scope: D2C ${input.primaryCategory}` };
   }
-  if (SCOPE_ADJACENT_CATEGORIES.includes(input.primaryCategory)) {
-    const siteHit = siteKeywordHit(input);
+  if (profile.scope.adjacentCategories.includes(input.primaryCategory)) {
+    const siteHit = siteKeywordHit(input, keywords);
     if (siteHit) {
       return { eligible: true, reason: `sector scope: D2C ${input.primaryCategory}, skin-related (${siteHit})` };
     }
     if (input.confidence === "low") {
-      const apolloHit = apolloKeywordHit(input);
+      const apolloHit = apolloKeywordHit(input, keywords);
       if (apolloHit) {
         return {
           eligible: true,
@@ -326,6 +340,7 @@ export interface ScopeApplyResult {
  */
 export async function applySectorScope(db: Db, sectorId: string): Promise<ScopeApplyResult> {
   await loadSector(db, sectorId);
+  const profile = await resolveProfileForSector(db, sectorId);
   const rows = await db
     .select({
       companyId: sectorCompanies.companyId,
@@ -364,17 +379,20 @@ export async function applySectorScope(db: Db, sectorId: string): Promise<ScopeA
       result.skippedPending += 1;
       continue;
     }
-    const verdict = evaluateSectorScope({
-      businessType: row.businessType,
+    const verdict = evaluateSectorScope(
+      {
+        businessType: row.businessType,
       primaryCategory: row.primaryCategory,
       sellsOwnProducts: row.sellsOwnProducts ?? false,
       hasOnlineStore: row.hasOnlineStore ?? false,
       confidence: row.confidence ?? "",
       reason: row.reason,
       quote: row.quote,
-      companyName: row.name ?? "",
-      apolloKeywords: row.keywords ?? [],
-    });
+        companyName: row.name ?? "",
+        apolloKeywords: row.keywords ?? [],
+      },
+      profile,
+    );
     await db
       .update(sectorCompanies)
       .set({
@@ -402,6 +420,8 @@ export async function setRubric(
     const where = first && first.path.length > 0 ? `${first.path.join(".")}: ` : "";
     throw new DomainError("invalid_input", `invalid rubric: ${where}${first?.message ?? "rejected"}`);
   }
+  const profile = await getProfileOrNull(db, sectorId);
+  if (profile) validateRubricAgainstProfile(parsed.data, profile);
   const before = await eligibilityCounts(db, sectorId);
   await db
     .update(sectors)
