@@ -11,6 +11,7 @@ import {
   sources,
 } from "../../src/db/schema.js";
 import {
+  CLASSIFY_WEB_STALL_MS,
   classifyCompany,
   readableChars,
   type ClassifierCall,
@@ -245,6 +246,8 @@ describe("classifyCompany", () => {
     expect(outcome.webFallback).toBe(true);
     expect(seen).toEqual([true]);
     expect(readableChars([{ text: "<div></div>  \n" }])).toBe(0);
+    // Muse's own fetches can sit silent for minutes: the web run gets room.
+    expect(CLASSIFY_WEB_STALL_MS).toBeGreaterThanOrEqual(300_000);
   });
 
   it("classifies a company without any website from Apollo only and requires low confidence", async () => {
