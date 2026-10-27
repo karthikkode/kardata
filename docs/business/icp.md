@@ -20,8 +20,7 @@ The structure is the same for every sector:
 - **Layer** = priority inside a tier, set by the signal score. **Layer 1 has the highest score**, and the layer number
   goes up as the score goes down. "Tier B, Layer 1" means a mid-revenue company with the strongest signals.
 - **Watchlist:** score 0. Not in any layer and never contacted. Score 1 is Layer 6 (D-64).
-- **Research wave:** which group of companies gets researched first (wave 1: skincare, body and bath, men's
-  grooming; wave 2: 156 more, counted 2026-10-26 from sector preflight). Older plans and reviews call this "Layer 1/Layer 2". That old use is retired.
+- **Research wave:** which group of companies gets researched first. Older plans and reviews call this "Layer 1/Layer 2". That old use is retired. See docs/sectors/skincare/ for this sector's waves.
 - **Older docs and the 2026-10-26 ICP check** used "Tier A/B" for the signal score. That old use is retired too. Read
   old "Tier A" as score 3+ and old "Tier B" as score 2.
 
@@ -54,7 +53,7 @@ exports and APIs are standard.
 - **Has a tech team** (engineers, but no data roles): contact them last within their layer.
 - **Owned by a PE fund or a small holding company:** kept.
 
-**Owned by a listed or multi-brand company** (for example Unilever, L'Oréal, Amorepacific, Shiseido): excluded,
+**Owned by a listed or multi-brand company**: excluded,
 unless a source shows the brand has its own founder, CEO or GM who makes decisions (D-28). Its country arms don't make
 their own data decisions, and the parent has data teams.
 
