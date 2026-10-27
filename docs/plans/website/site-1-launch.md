@@ -1,4 +1,4 @@
-Status: draft · Date: 2026-10-27
+Status: done (live 2026-10-27) · Date: 2026-10-27
 
 # Site 1: launch kardata.co
 

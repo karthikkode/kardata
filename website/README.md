@@ -3,19 +3,26 @@
 The public site: the weekly blog, a way to book a 30-minute call, and later the brainstorming agent (D-51). It is a
 separate project from `kardata-server` and shares no code, database or secrets with it.
 
-- `frontend/`: the site itself (blog and pages).
-- `backend/`: empty until a server-side feature needs it (the agent, D-51).
+**Status (2026-10-27): live at https://kardata.co.** Astro 7 static site, Node 22. Plan:
+`docs/plans/website/site-1-launch.md`; review: `docs/reviews/website/site-1-review.md`.
 
-What the site says and sells comes from `docs/business/content.md` (audience, the shape of a blog piece, writing
-rules) and `docs/business/offer.md`. The current website plan is the file in `docs/plans/website/` whose first line
-is `Status: current`.
-
-## Hosting (checked 2026-10-27, read-only)
+- `frontend/`: the site itself (blog and pages). `npm run dev` (port 4321), `npm run check` (types, build, link and
+  banned-word scan, tests; set `WEBSITE_MD` to `docs/business/website.md` for the ho## Hosting (as of 2026-10-27)
 
 - **VM:** Oracle Cloud free tier, `kathawin-prod`, VM.Standard.A1.Flex (**ARM64**), Oracle Linux 9.7, region
-  `ap-hyderabad-1`. SSH as `opc` with `~/.ssh/kathawin_ci_vm`. The OCI CLI is set up locally (`~/.oci/config`).
-- **DNS:** kardata.co and www.kardata.co point at the VM's public IP.
+  `ap-hyderabad-1`, IP 140.245.214.119. SSH as `opc` with `~/.ssh/kathawin_ci_vm`. The OCI CLI is set up locally.
+- **DNS:** kardata.co and www.kardata.co point at the VM.
 - **HTTPS and routing:** one Caddy container, `kathawin-caddy-1`, owned by the kathawin project, serves every site on
+  the VM. Its config is `~/kathawin/deploy/Caddyfile`. Its `kardata.co` block proxies to `kardata-site:80` over
+  `kathawin-edge`; `www.kardata.co` redirects to the apex. There is no `mm.kardata.co` any more.
+- **What of Kardata runs there:** only `kardata-site` (`~/kardata-site`: `releases/`, `current`, `compose.yml`,
+  `Caddyfile`). Everything else on the VM is kathawin's: leave it alone.
+- **Removed 2026-10-27:** the v1 stack (`~/kardata`: web, api, db, mail-watchdog, review-supervisor, its cron jobs and
+  dumps) and Mattermost (`mm.kardata.co`). Both were backed up first to the owner's machine
+  (`~/backups/kardata-v1-vm-2026-10-27/`, `~/backups/mattermost-2026-10-27/`), never into the repo.
+- **Disk:** about 51% used after cleanup. Still never build images on the VM; the site is built locally.
+
+
   the VM. Its config is `~/kathawin/deploy/Caddyfile`. The `kardata.co` block currently proxies to `kardata-web:3000`
   over the Docker network `kathawin-edge`; `www.kardata.co` redirects to the apex.
 - **What runs there today:** the old v1 Kardata stack in `~/kardata` (web, api, db, mail-watchdog,
