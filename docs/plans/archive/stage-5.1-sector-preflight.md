@@ -83,8 +83,7 @@ Report the counts.
   - `pipeline_start` only takes eligible companies;
   - the cancel/supersede of queued jobs;
   - job controls.
-- **Live on 20 companies first:** include the 4 completed ones, plus the known noise (Cosmetic Surgery
-  Associates, Pinski Dermatology, Hammam Spa by Céla, The Mane Attraction). Report the classifications.
+- **Live on 20 companies first:** include the 4 completed ones, plus the known noise ([company], [company], [company], [company]). Report the classifications.
   Then run the full sector.
 
 ## Review and stop

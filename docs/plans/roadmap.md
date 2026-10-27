@@ -1,4 +1,4 @@
-Status: done · Date: 2026-10-26
+Status: reference · Date: 2026-10-26
 
 # Roadmap (context only: build just the current stage's plan)
 
@@ -23,20 +23,20 @@ Every other plan and every file in `docs/reviews/` is history. Build just the cu
 
 ## Stage 1 — Core: sectors, companies, MCP server (done)
 
-See `stage-1-sectors-and-companies.md`. MCP is the only operating surface.
+See `archive/stage-1-sectors-and-companies.md`. MCP is the only operating surface.
 
 ## Stage 2 — Research store and collectors, no LLM (done)
 
-See `stage-2-research-store-and-collectors.md` and `research-data-model.md`.
+See `archive/stage-2-research-store-and-collectors.md` and `reference/research-data-model.md`.
 
 ## Stage 3 — Muse spike, then the orchestrator (done)
 
-See `stage-3a-muse-spike.md` and `stage-3b-orchestrator.md`. App-owned Muse in Docker;
+See `archive/stage-3a-muse-spike.md` and `archive/stage-3b-orchestrator.md`. App-owned Muse in Docker;
 research agents store data only through kardata MCP.
 
 ## Stage 4 — Research playbook, extraction and grounding (done)
 
-See `stage-4-research-playbook.md`, `stage-4.1-extraction.md` and `stage-4.3-quote-grounding.md`.
+See `archive/stage-4-research-playbook.md`, `archive/stage-4.1-extraction.md` and `archive/stage-4.3-quote-grounding.md`.
 Research agents write cited notes; a separate extraction step structures them and grounding
 checks each value against its quoted source.
 
@@ -46,16 +46,19 @@ A job is one company. It runs preflight, collect, research and extraction as sta
 complete only when all of them are complete.
 
 - **5.1 — Sector preflight (done).** One sector-level eligibility pass before company jobs.
-  See `stage-5.1-sector-preflight.md`. Who qualifies is decided by the filters in
+  See `archive/stage-5.1-sector-preflight.md`. Who qualifies is decided by the filters in
   `docs/business/icp.md` (a D2C brand with enough revenue to pay; any store platform).
-- **5.2 — Worker pools (done).** Work runs per stage from queues: an AI pool (preflight,
+- **5.2 — Worker pools (design, not built).** Work runs per stage from queues: an AI pool (preflight,
   research, extraction) and a deterministic pool (collect, grounding), so Muse quota never
-  sits idle behind deterministic work. See `stage-5.2-worker-pools.md`.
+  sits idle behind deterministic work. See `archive/stage-5.2-worker-pools.md`.
 - **5.3 — Revenue truth (done)** and **5.4 — Sector profiles (done):** D-55 tiers; preflight
   for any sector. See their stage plans.
-- **5.5 — ICP check and outreach sheet (current).** The ICP check (6 signals, exclusions)
+- **5.5 — ICP check and outreach sheet (done).** The ICP check (6 signals, exclusions)
   becomes a stage of each company job, stores its observations for every company, and the
-  sheet export gains tracking columns. See `stage-5.5-icp-check.md`.
+  sheet export gains tracking columns. See `archive/stage-5.5-icp-check.md`.
+- **5.6 — Sector-agnostic server (current).** No sector-specific content in code, prompts or
+  shared docs; each sector's settings live in `docs/sectors/<slug>/profile.json`.
+  See `stage-5.6-sector-agnostic.md`.
 
 **The order of operations for a sector is in `pipeline.md`** (every step is an MCP tool).
 
@@ -93,4 +96,4 @@ deploy facts: `website/README.md`.
 - **Schema:** `src/db/schema.ts` (Drizzle; migrations in `src/db/migrations/`).
 - **Domain logic:** `src/domain/`. Collectors: `src/collect/`. Runs and pools: `src/runs/`.
 - Live concurrency and quota values are MCP settings, not file values. See
-  `stage-5.2-worker-pools.md`.
+  `archive/stage-5.2-worker-pools.md`.

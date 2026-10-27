@@ -190,7 +190,7 @@ If the owner hasn't yet done the one-time login when you reach this point, STOP 
 
 ## Step 5 — Live pilot
 
-- `@live` test: one run on C3 (Mishmash Naturals) end to end.
+- `@live` test: one run on C3 ([company]) end to end.
 - Then a pilot batch of **3 companies at once** (C1, C2, C4) with the v0 prompt.
 - **Report:**
   - per company: status, minutes, tokens (in/out/cached), and facts/records/documents/findings per area;

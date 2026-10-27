@@ -9,7 +9,7 @@ Banner (2026-10-26): in this old review, "Layer 1/2" means research wave and "co
 
 ## Step 2 — On-site reviews (`28e6895`)
 - `reviews_onsite` collector (`src/collect/collectors/reviews-onsite.ts`, Chromium job in `harness/reviews.mjs`): Judge.me/Yotpo/Stamped/Okendo/Loox/Junip/Reviews.io + JSON-LD + accessible-cards fallback; robots pre-check, ≤10 pages, 300 cap; identity never emitted. Tests: `tests/collect/reviews-*.test.ts` (fake pages per vendor + JSON-LD).
-- Live on the 2 widget pilots: Forte 74, Nature's Care 3. Current review totals: Forte 74, ROWSE 56, Wander 38, Lust 34, Cheekbone 15, Wolf 5, Nature's Care 3, Cloré 1 (all distinct, no dupes).
+- Live on the 2 widget pilots: [company] 74, [company] 3. Current review totals: [company] 74, [company] 56, [company] 38, [company] 34, [company] 15, [company] 5, [company] 3, [company] 1 (all distinct, no dupes).
 
 ## Step 3 — Fence, v1.2 prompt, PII (`ce79ca9`)
 - Per-company `--allowed-origins` (apex/www/shop/website/myshopify); mechanical proof: amazon.com `ERR_BLOCKED_BY_CLIENT`, example.com ok. All 10 v1.2 runs: forbidden 0 (`src/runs/agent-runner.ts`, `tests/harness/docker.test.ts`).

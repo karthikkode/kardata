@@ -16,11 +16,11 @@ Banner (2026-10-26): in this old review, "Layer 1/2" means research wave and "co
 ## Step 2 — Scorecard
 - `src/domain/research/scorecard.ts` + `npm run eval:research -- <batch|runs>` + `batch_scorecard(batchId)`: per run/area facts, records by type, reviews, docs, findings (+well-cited), primary share, new provisional names, statuses, tokens, minutes, MCP calls, forbidden. Tests: `tests/db/scorecard.test.ts`, `tests/mcp/scorecard.test.ts`.
 
-## Step 3 — Pilot (4 new companies: 47 Skin UK/24, Forte Series US/14, Tai Beauty CA/19, Nature's Care AU/97)
+## Step 3 — Pilot (4 new companies: [company], [company], [company], [company])
 - v1 batch `f9d49b38`: 4/4 STALLED, 0 findings. Forensics: every parent delegated via the Workflow tool (maxParallelAgents 2), whose background completion never produces run activity → 300s silence. 60 forbidden (company_dossier 17, document_search 14, …). 106 min, 36.4M in (95% cached) / 313K out.
 - v1.1 (`prompts/research-v1.1`, one iteration per plan): bans Workflow, incremental per-area findings + progressive summary.md, exact do-not-call list, MUST-ingest reviews when `reviews.app` names a widget, finish-over-stall discipline.
 - v1.1 batch `779485a6`: 4/4 SUCCEEDED, 0 forbidden, 0 Workflow calls, 10–13 min each. Totals: 156 facts, 255 records, 37 docs, 0 reviews, 0 findings; 22.6M in (97% cached) / 97K out.
-- Scorecard split added in Step 3 (`agent.*` by `createdBy`): the collect phase runs under the agent run id, so run totals credit collectors. Agent output is 0 facts / 0 records / 0 reviews / 0 findings in BOTH batches — agents wrote docs only (v1.1: exactly 7 area docs + `summary.md` each; 47 Skin's solo parent even faked per-area labels, usage proves no subagents ran).
+- Scorecard split added in Step 3 (`agent.*` by `createdBy`): the collect phase runs under the agent run id, so run totals credit collectors. Agent output is 0 facts / 0 records / 0 reviews / 0 findings in BOTH batches — agents wrote docs only (v1.1: exactly 7 area docs + `summary.md` each; [company]'s solo parent even faked per-area labels, usage proves no subagents ran).
 - Gates per succeeded run: agent facts ≥25 ❌ (0), agent records ≥30 ❌ (0), reviews where widget ❌ (Forte/Nature's have Judge.me/Stamped/Yotpo, 0 ingested), findings ≥5 citing ≥2 ❌ (0), all 7 statuses ✓ (hollow — done without deliverables), `summary.md` ✓ 4/4, 0 forbidden ✓, ≤30 min ✓.
 - Cost/company (v1.1): ~153K fresh + 5.5M cached in, ~24K out, ~12 min. ×150: ~23M fresh / ~825M cached / ~3.6M out, ~29 agent-hours (~7.5 wall-hours at 4-way).
 - Exports: `var/exports/lume-deodorant-7a903174` (C2: 15 docs, 24 facts, 16 job_posting), `var/exports/47-skin-1575d95e` (25 docs, 40 facts, 30 product). `var/` is gitignored.

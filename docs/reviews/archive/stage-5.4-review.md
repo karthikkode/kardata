@@ -14,7 +14,7 @@ whole like the rubric; `0031` adds `prompt_version`/`profile_hash` to rows.
    (`profile.ts:131`, migration `0030`); existing suites pass unchanged
    (`sector-preflight-scope`, `sector-preflight-rules`, `sector-eligibility`,
    `sector-preflight` tests); fix 5 pins the seed exactly; no DB rows touched.
-2. Garden end to end — owner's profile is `docs/plans/stage-5.4-garden-profile.json`
+2. Garden end to end — owner's profile is `docs/sectors/garden/profile.json`
    ("garden-outdoor", 8 categories, all core; not the test profile).
    `tests/runs/sector-garden-e2e.test.ts` drives a separate synthetic profile
    kept in the test file over 12 companies, per-company outcomes (fix 4).
