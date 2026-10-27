@@ -466,7 +466,10 @@ describe("stage machine", () => {
     expect(parked.errorStreak).toBe(2);
   });
 
-  it("auto-retries a research run with all areas blocked once", async () => {
+  it.each([
+    ["all areas blocked: tool outputs redacted", "all_blocked"],
+    ["no area notes: 7 of 7 done areas have no agent note", "no_notes"],
+  ])("auto-retries a research run that wrote nothing extractable once (%s)", async (error, errorClass) => {
     const companyId = await makeCompany("Blocked Co");
     const { jobId } = await startCompanyJob(handle.db, { companyId });
     const world = fakeWorld();
@@ -474,10 +477,10 @@ describe("stage machine", () => {
     await runner.tick();
     const first = await latestSubjob(jobId, "preflight");
     if (!first) throw new Error("no preflight subjob");
-    await flipRun(first.id, "failed", "all areas blocked: tool outputs redacted");
+    await flipRun(first.id, "failed", error);
     await runner.tick();
     expect((await jobRow(jobId)).status).toBe("scheduled");
-    expect((await jobRow(jobId)).errorClass).toBe("all_blocked");
+    expect((await jobRow(jobId)).errorClass).toBe(errorClass);
     expect((await latestSubjob(jobId, "preflight"))?.id).not.toBe(first.id);
   });
 
