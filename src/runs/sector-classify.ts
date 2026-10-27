@@ -17,11 +17,12 @@ import { extractText } from "../domain/research/reads.js";
 import { verifyQuote } from "../domain/research/grounding.js";
 import {
   buildClassifierPrompt,
-  classifierSchema,
+  classifierSchemaFor,
   parseClassification,
   type Classification,
   type ClassifierPage,
 } from "../domain/sector-preflight/classify.js";
+import { getProfile, profileHash } from "../domain/sector-preflight/profile.js";
 import { toEffectiveCompany } from "../domain/companies.js";
 import { classifyRunArgs, prepareClassifyInput } from "../harness/classify.js";
 import { MuseHandle } from "../harness/muse.js";
@@ -48,10 +49,14 @@ export interface ClassifierCallResult {
 }
 
 /** One tool-less schema call; injectable for tests. */
-export type ClassifierCall = (input: { runId: string; prompt: string }) => Promise<ClassifierCallResult>;
+export type ClassifierCall = (input: {
+  runId: string;
+  prompt: string;
+  schema: string;
+}) => Promise<ClassifierCallResult>;
 
-export const dockerClassifierCall: ClassifierCall = async ({ runId, prompt }) => {
-  const input = await prepareClassifyInput(prompt, classifierSchema());
+export const dockerClassifierCall: ClassifierCall = async ({ runId, prompt, schema }) => {
+  const input = await prepareClassifyInput(prompt, schema);
   try {
     const child = spawn("docker", classifyRunArgs({ runId, inputDir: input.dir }), {
       stdio: ["ignore", "pipe", "pipe"],
@@ -261,25 +266,29 @@ export async function classifyCompany(db: Db, input: ClassifyCompanyInput): Prom
       .where(eq(researchRuns.id, runId));
     throw new DomainError("invalid_input", error);
   };
+  const profile = await getProfile(db, input.sectorId);
   const fetched = await fetchInputs(db, runId, company, input.fetchOptions ?? {});
-  const prompt = buildClassifierPrompt({
-    company,
-    description: apolloDescription(company),
-    pages: fetched.pages,
-    shopify: fetched.shopify,
-    apolloOnly: fetched.apolloOnly,
-  });
+  const prompt = buildClassifierPrompt(
+    {
+      company,
+      description: apolloDescription(company),
+      pages: fetched.pages,
+      shopify: fetched.shopify,
+      apolloOnly: fetched.apolloOnly,
+    },
+    profile,
+  );
   let result: ClassifierCallResult;
   const started = Date.now();
   try {
-    result = await call({ runId, prompt });
+    result = await call({ runId, prompt, schema: classifierSchemaFor(profile) });
   } catch (err) {
     return fail(`classifier call failed: ${err instanceof Error ? err.message : String(err)}`);
   }
   const durationMs = Date.now() - started;
   let classification: Classification;
   try {
-    classification = parseClassification(result.json);
+    classification = parseClassification(result.json, profile);
   } catch (err) {
     return fail(err instanceof Error ? err.message : "invalid classification");
   }
@@ -338,6 +347,8 @@ export async function classifyCompany(db: Db, input: ClassifyCompanyInput): Prom
       quote: classification.quote,
       quoteSourceId: classification.quote_source_id,
       verification,
+      promptVersion: "v2",
+      profileHash: profileHash(profile),
     })
     .onConflictDoUpdate({
       target: [sectorPreflight.sectorId, sectorPreflight.companyId],
@@ -353,6 +364,8 @@ export async function classifyCompany(db: Db, input: ClassifyCompanyInput): Prom
         quote: classification.quote,
         quoteSourceId: classification.quote_source_id,
         verification,
+        promptVersion: "v2",
+        profileHash: profileHash(profile),
         updatedAt: new Date(),
       },
     });

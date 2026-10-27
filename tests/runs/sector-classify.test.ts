@@ -14,6 +14,7 @@ import {
   classifyCompany,
   type ClassifierCall,
 } from "../../src/runs/sector-classify.js";
+import { SKINCARE_PROFILE, setProfile } from "../../src/domain/sector-preflight/profile.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 import { restoreHostDelay, shrinkHostDelay } from "../collect/helpers.js";
 import { sendJson, sendText, startFakeSite, type FakeSite } from "../collect/fake-site.js";
@@ -49,6 +50,7 @@ async function makeSector(name: string): Promise<string> {
     .values({ id: randomUUID(), name })
     .returning({ id: sectors.id });
   if (!row) throw new Error("no sector row");
+  await setProfile(handle.db, row.id, SKINCARE_PROFILE);
   return row.id;
 }
 

@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { Company } from "../../db/schema.js";
 import { toEffectiveCompany } from "../companies.js";
 import { DomainError } from "../errors.js";
+import { categoryKeys, type SectorProfile } from "./profile.js";
 
 /** Sector-preflight classifier I/O (Stage 5.1 Step 1). */
 
@@ -48,8 +49,23 @@ export const classificationSchema = z.object({
 
 export type Classification = z.infer<typeof classificationSchema>;
 
-export function parseClassification(value: unknown): Classification {
-  const parsed = classificationSchema.safeParse(value);
+function schemaForCategories(categories: readonly string[]) {
+  return z.object({
+    business_type: z.enum(BUSINESS_TYPES),
+    primary_category: z.enum(categories as [string, ...string[]]),
+    sells_own_products: z.boolean(),
+    has_online_store: z.boolean(),
+    ships_to: z.array(z.string().min(1).max(120)).max(50),
+    confidence: z.enum(["low", "medium", "high"]),
+    reason: z.string().min(1).max(500),
+    quote: z.string().max(2000).nullable(),
+    quote_source_id: z.string().uuid().nullable(),
+  });
+}
+
+export function parseClassification(value: unknown, profile?: SectorProfile): Classification {
+  const schema = profile ? schemaForCategories(categoryKeys(profile)) : classificationSchema;
+  const parsed = schema.safeParse(value);
   if (!parsed.success) {
     const first = parsed.error.issues[0];
     const where = first && first.path.length > 0 ? `${first.path.join(".")}: ` : "";
@@ -58,16 +74,47 @@ export function parseClassification(value: unknown): Classification {
   if ((parsed.data.quote ?? null) === null && parsed.data.quote_source_id !== null) {
     throw new DomainError("invalid_input", "invalid classification: quote_source_id without a quote");
   }
-  return parsed.data;
+  return parsed.data as Classification;
 }
 
-function promptsDir(): string {
+function promptsDir(version = "sector-preflight-v2"): string {
   const here = dirname(fileURLToPath(import.meta.url));
-  return join(here, "..", "..", "..", "prompts", "sector-preflight-v1");
+  return join(here, "..", "..", "..", "prompts", version);
 }
 
 export function classifierSchema(): string {
-  return readFileSync(join(promptsDir(), "schema.json"), "utf8");
+  return readFileSync(join(promptsDir("sector-preflight-v1"), "schema.json"), "utf8");
+}
+
+/** Output schema as a string, generated from the profile at runtime. */
+export function classifierSchemaFor(profile: SectorProfile): string {
+  const schema = {
+    additionalProperties: false,
+    properties: {
+      business_type: { enum: [...BUSINESS_TYPES].sort(), type: "string" },
+      confidence: { enum: ["high", "low", "medium"], type: "string" },
+      has_online_store: { type: "boolean" },
+      primary_category: { enum: [...categoryKeys(profile)].sort(), type: "string" },
+      quote: { type: ["string", "null"] },
+      quote_source_id: { type: ["string", "null"] },
+      reason: { type: "string" },
+      sells_own_products: { type: "boolean" },
+      ships_to: { type: "array", items: { type: "string" } },
+    },
+    required: [
+      "business_type",
+      "primary_category",
+      "sells_own_products",
+      "has_online_store",
+      "ships_to",
+      "confidence",
+      "reason",
+      "quote",
+      "quote_source_id",
+    ],
+    type: "object",
+  };
+  return JSON.stringify(schema);
 }
 
 export interface ClassifierPage {
@@ -105,14 +152,29 @@ export function apolloBlock(company: Company, description: string | null): strin
   return lines.join("\n");
 }
 
-export function buildClassifierPrompt(input: ClassifierInput): string {
+export function buildClassifierPrompt(input: ClassifierInput, profile?: SectorProfile): string {
   const template = readFileSync(join(promptsDir(), "prompt.md"), "utf8");
+  const rendered = profile
+    ? template
+        .split("{{categories}}")
+        .join(
+          profile.categories
+            .map((c) => `- \`${c.key}\` (${c.label}): ${c.description}`)
+            .join("\n"),
+        )
+        .split("{{serviceExamples}}")
+        .join(profile.classifierHints.serviceExamples)
+        .split("{{retailerExamples}}")
+        .join(profile.classifierHints.retailerExamples)
+        .split("{{supplierExamples}}")
+        .join(profile.classifierHints.supplierExamples)
+    : template;
   const sourceList = input.pages.length > 0 ? input.pages.map((p) => p.sourceId).join(", ") : "none (Apollo-only)";
   const pages =
     input.pages.length > 0
       ? input.pages.map((p) => `### ${p.sourceId}\n${p.url}\n${p.text}`).join("\n\n")
       : "(no pages fetched — classify from the Apollo record only, with low confidence)";
-  return template
+  return rendered
     .split("{{apollo}}")
     .join(apolloBlock(input.company, input.description))
     .split("{{shopify}}")

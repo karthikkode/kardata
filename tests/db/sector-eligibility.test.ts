@@ -13,6 +13,8 @@ import {
   setOverride,
   setRubric,
 } from "../../src/domain/sector-preflight/eligibility.js";
+import { setProfile } from "../../src/domain/sector-preflight/profile.js";
+import { startSectorPreflight } from "../../src/runs/sector.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 
 let handle: DbHandle;
@@ -149,6 +151,32 @@ describe("sector eligibility", () => {
     expect(result.after).toMatchObject({ eligible: 1 });
     expect((await membership(sectorId, companyId))?.eligibility).toBe("eligible");
     await expect(setRubric(handle.db, sectorId, { nope: true })).rejects.toThrow(/invalid rubric/);
+  });
+
+  it("refuses a rubric-less sector that is not legacy skincare, plainly", async () => {
+    const sectorId = await makeSector("garden-test");
+    const companyId = await addCompany(sectorId, "A Co");
+    await expect(getRubric(handle.db, sectorId)).rejects.toThrow(
+      /has no eligibility rubric; set one with sector_rules_set/,
+    );
+    await expect(deriveCompany(handle.db, sectorId, companyId)).rejects.toThrow(/has no eligibility rubric/);
+    await expect(rederiveSector(handle.db, sectorId)).rejects.toThrow(/has no eligibility rubric/);
+  });
+
+  it("preflight start refuses a profiled sector with no rubric", async () => {
+    const sectorId = await makeSector("garden-test");
+    await setProfile(handle.db, sectorId, {
+      categories: [{ key: "growing", label: "Growing", description: "Seeds and plants." }],
+      scope: { coreCategories: ["growing"], adjacentCategories: [], scopeKeywords: [] },
+      classifierHints: {
+        serviceExamples: "landscaping",
+        retailerExamples: "garden centres",
+        supplierExamples: "trade growers",
+      },
+    });
+    await expect(startSectorPreflight(handle.db, { sectorId })).rejects.toThrow(
+      /has no eligibility rubric; set one with sector_rules_set/,
+    );
   });
 
   it("rederiveSector covers every membership", async () => {

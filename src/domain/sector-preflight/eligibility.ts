@@ -9,6 +9,13 @@ import {
   sectors,
 } from "../../db/schema.js";
 import { DomainError } from "../errors.js";
+import {
+  SKINCARE_PROFILE,
+  getProfileOrNull,
+  resolveProfileForSector,
+  validateRubricAgainstProfile,
+  type SectorProfile,
+} from "./profile.js";
 
 /**
  * Eligibility = rules over the classification (Stage 5.1 Step 2). No LLM:
@@ -102,10 +109,10 @@ export interface DerivedTriple {
 // its own store, and the products are skincare-related. Hair, makeup,
 // fragrance and supplements count only when skin-related; everything else
 // (including low-confidence rows without skin evidence) is out.
-const SCOPE_CORE_CATEGORIES = ["skincare", "body_bath", "mens_grooming"];
-const SCOPE_ADJACENT_CATEGORIES = ["haircare", "cosmetics_makeup", "fragrance", "supplements_wellness"];
+export const SCOPE_CORE_CATEGORIES = ["skincare", "body_bath", "mens_grooming"];
+export const SCOPE_ADJACENT_CATEGORIES = ["haircare", "cosmetics_makeup", "fragrance", "supplements_wellness"];
 
-const SKIN_KEYWORDS = [
+export const SKIN_KEYWORDS = [
   "skin",
   "derma",
   "dermat",
@@ -166,22 +173,25 @@ export interface ScopeInput {
   apolloKeywords: string[];
 }
 
-function firstHit(haystack: string): string | null {
+function firstHit(haystack: string, keywords: string[] = SKIN_KEYWORDS): string | null {
   const lower = haystack.toLowerCase();
-  for (const keyword of SKIN_KEYWORDS) {
+  for (const keyword of keywords) {
     if (lower.includes(keyword)) return keyword;
   }
   return null;
 }
 
-/** First skin keyword hit in classifier-read evidence (reason, quote, name). */
-export function siteKeywordHit(input: Pick<ScopeInput, "reason" | "quote" | "companyName">): string | null {
-  return firstHit([input.reason, input.quote ?? "", input.companyName].join("\n"));
+/** First scope keyword hit in classifier-read evidence (reason, quote, name). */
+export function siteKeywordHit(
+  input: Pick<ScopeInput, "reason" | "quote" | "companyName">,
+  keywords?: string[],
+): string | null {
+  return firstHit([input.reason, input.quote ?? "", input.companyName].join("\n"), keywords);
 }
 
-/** First skin keyword hit in Apollo keywords (noisy 40-keyword soup). */
-export function apolloKeywordHit(input: Pick<ScopeInput, "apolloKeywords">): string | null {
-  return firstHit(input.apolloKeywords.join(" "));
+/** First scope keyword hit in Apollo keywords (noisy 40-keyword soup). */
+export function apolloKeywordHit(input: Pick<ScopeInput, "apolloKeywords">, keywords?: string[]): string | null {
+  return firstHit(input.apolloKeywords.join(" "), keywords);
 }
 
 /**
@@ -190,22 +200,26 @@ export function apolloKeywordHit(input: Pick<ScopeInput, "apolloKeywords">): str
  * site was unreadable (low confidence), exactly the blocked-site case they
  * exist for. A readable site selling skincare would show it.
  */
-export function evaluateSectorScope(input: ScopeInput): { eligible: boolean; reason: string } {
+export function evaluateSectorScope(
+  input: ScopeInput,
+  profile: SectorProfile = SKINCARE_PROFILE,
+): { eligible: boolean; reason: string } {
+  const keywords = profile.scope.scopeKeywords;
   if (input.businessType !== "dtc_brand") {
     return { eligible: false, reason: `sector scope: not D2C (${input.businessType})` };
   }
   if (!input.sellsOwnProducts) return { eligible: false, reason: "sector scope: no own products" };
   if (!input.hasOnlineStore) return { eligible: false, reason: "sector scope: no online store" };
-  if (SCOPE_CORE_CATEGORIES.includes(input.primaryCategory)) {
+  if (profile.scope.coreCategories.includes(input.primaryCategory)) {
     return { eligible: true, reason: `sector scope: D2C ${input.primaryCategory}` };
   }
-  if (SCOPE_ADJACENT_CATEGORIES.includes(input.primaryCategory)) {
-    const siteHit = siteKeywordHit(input);
+  if (profile.scope.adjacentCategories.includes(input.primaryCategory)) {
+    const siteHit = siteKeywordHit(input, keywords);
     if (siteHit) {
       return { eligible: true, reason: `sector scope: D2C ${input.primaryCategory}, skin-related (${siteHit})` };
     }
     if (input.confidence === "low") {
-      const apolloHit = apolloKeywordHit(input);
+      const apolloHit = apolloKeywordHit(input, keywords);
       if (apolloHit) {
         return {
           eligible: true,
@@ -239,11 +253,26 @@ async function loadSector(db: Db, sectorId: string): Promise<void> {
   if (!sector) throw new DomainError("not_found", `sector not found: ${sectorId}`);
 }
 
-/** Stored rubric, or the skincare default when the sector has none. */
+/**
+ * Stored rubric. Only the legacy sector named "skincare" may fall back to
+ * the skincare default (matching the profile fallback); any other sector
+ * without a stored rubric is refused in plain words.
+ */
 export async function getRubric(db: Db, sectorId: string): Promise<{ rubric: EligibilityRubric; isDefault: boolean }> {
-  await loadSector(db, sectorId);
-  const [row] = await db.select({ rules: sectors.eligibilityRules }).from(sectors).where(eq(sectors.id, sectorId));
-  if (!row?.rules) return { rubric: DEFAULT_SKINCARE_RUBRIC, isDefault: true };
+  const [row] = await db
+    .select({ rules: sectors.eligibilityRules, name: sectors.name })
+    .from(sectors)
+    .where(eq(sectors.id, sectorId));
+  if (!row) throw new DomainError("not_found", `sector not found: ${sectorId}`);
+  if (!row.rules) {
+    if (row.name.trim().toLowerCase() === "skincare") {
+      return { rubric: DEFAULT_SKINCARE_RUBRIC, isDefault: true };
+    }
+    throw new DomainError(
+      "invalid_input",
+      `sector "${row.name}" has no eligibility rubric; set one with sector_rules_set`,
+    );
+  }
   const parsed = eligibilityRubricSchema.safeParse(row.rules);
   if (!parsed.success) throw new DomainError("invalid_input", "stored rubric is invalid; set it again");
   return { rubric: parsed.data, isDefault: false };
@@ -303,6 +332,7 @@ export async function deriveCompany(db: Db, sectorId: string, companyId: string)
 /** Re-derive every membership row of a sector (rubric edits). Returns fresh counts. */
 export async function rederiveSector(db: Db, sectorId: string): Promise<EligibilityCounts> {
   await loadSector(db, sectorId);
+  await getRubric(db, sectorId);
   const members = await db
     .select({ companyId: sectorCompanies.companyId })
     .from(sectorCompanies)
@@ -326,6 +356,7 @@ export interface ScopeApplyResult {
  */
 export async function applySectorScope(db: Db, sectorId: string): Promise<ScopeApplyResult> {
   await loadSector(db, sectorId);
+  const profile = await resolveProfileForSector(db, sectorId);
   const rows = await db
     .select({
       companyId: sectorCompanies.companyId,
@@ -364,17 +395,20 @@ export async function applySectorScope(db: Db, sectorId: string): Promise<ScopeA
       result.skippedPending += 1;
       continue;
     }
-    const verdict = evaluateSectorScope({
-      businessType: row.businessType,
+    const verdict = evaluateSectorScope(
+      {
+        businessType: row.businessType,
       primaryCategory: row.primaryCategory,
       sellsOwnProducts: row.sellsOwnProducts ?? false,
       hasOnlineStore: row.hasOnlineStore ?? false,
       confidence: row.confidence ?? "",
       reason: row.reason,
       quote: row.quote,
-      companyName: row.name ?? "",
-      apolloKeywords: row.keywords ?? [],
-    });
+        companyName: row.name ?? "",
+        apolloKeywords: row.keywords ?? [],
+      },
+      profile,
+    );
     await db
       .update(sectorCompanies)
       .set({
@@ -389,6 +423,18 @@ export async function applySectorScope(db: Db, sectorId: string): Promise<ScopeA
   return result;
 }
 
+/** The one validated rubric path: schema, then profile category check. */
+export function parseEligibilityRubric(rules: unknown, profile?: SectorProfile | null): EligibilityRubric {
+  const parsed = eligibilityRubricSchema.safeParse(rules);
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    const where = first && first.path.length > 0 ? `${first.path.join(".")}: ` : "";
+    throw new DomainError("invalid_input", `invalid rubric: ${where}${first?.message ?? "rejected"}`);
+  }
+  if (profile) validateRubricAgainstProfile(parsed.data, profile);
+  return parsed.data;
+}
+
 /** Validate, store, and re-derive; returns before→after counts. */
 export async function setRubric(
   db: Db,
@@ -396,19 +442,15 @@ export async function setRubric(
   rules: unknown,
 ): Promise<{ rubric: EligibilityRubric; before: EligibilityCounts; after: EligibilityCounts }> {
   await loadSector(db, sectorId);
-  const parsed = eligibilityRubricSchema.safeParse(rules);
-  if (!parsed.success) {
-    const first = parsed.error.issues[0];
-    const where = first && first.path.length > 0 ? `${first.path.join(".")}: ` : "";
-    throw new DomainError("invalid_input", `invalid rubric: ${where}${first?.message ?? "rejected"}`);
-  }
+  const profile = await getProfileOrNull(db, sectorId);
+  const rubric = parseEligibilityRubric(rules, profile);
   const before = await eligibilityCounts(db, sectorId);
   await db
     .update(sectors)
-    .set({ eligibilityRules: parsed.data as Record<string, unknown> })
+    .set({ eligibilityRules: rubric as Record<string, unknown> })
     .where(eq(sectors.id, sectorId));
   const after = await rederiveSector(db, sectorId);
-  return { rubric: parsed.data, before, after };
+  return { rubric, before, after };
 }
 
 export type OverrideDecision = "include" | "exclude" | "clear";

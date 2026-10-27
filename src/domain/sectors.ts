@@ -4,6 +4,8 @@ import { imports, sectorCompanies, sectors, type Import } from "../db/schema.js"
 import type { Db, DbLike } from "../db/client.js";
 import { getImportDirs } from "../lib/env.js";
 import { DomainError, isUniqueViolation } from "./errors.js";
+import { parseEligibilityRubric } from "./sector-preflight/eligibility.js";
+import { parseSectorProfile } from "./sector-preflight/profile.js";
 import { checkImportPaths, importOneFile, MAX_FILES, type FileImportResult } from "./imports.js";
 
 export interface SectorSummary {
@@ -65,7 +67,7 @@ async function existingByName(db: DbLike, name: string) {
 
 export async function createSector(
   db: Db,
-  input: { name: string; description?: string; csvPaths?: string[] },
+  input: { name: string; description?: string; csvPaths?: string[]; profile?: unknown },
   opts: { importDirs?: string[] } = {},
 ): Promise<{ sector: SectorDetail; imports: FileImportResult[] }> {
   const name = input.name?.trim() ?? "";
@@ -76,6 +78,11 @@ export async function createSector(
     throw new DomainError("invalid_input", `at most ${MAX_FILES} files per import`);
   }
   await checkImportPaths(paths, opts.importDirs ?? getImportDirs());
+  const profile = input.profile !== undefined ? parseSectorProfile(input.profile) : null;
+  // A rubric included in the profile is stored through the same validated
+  // path as sector_rules_set (checked against the profile up front).
+  const rubric =
+    profile && profile.rubric !== undefined ? parseEligibilityRubric(profile.rubric, profile) : null;
   return db.transaction(async (tx) => {
     if (await existingByName(tx, name)) {
       throw new DomainError("conflict", `sector already exists: ${name}`);
@@ -84,7 +91,13 @@ export async function createSector(
     try {
       const [row] = await tx
         .insert(sectors)
-        .values({ id: randomUUID(), name, description })
+        .values({
+          id: randomUUID(),
+          name,
+          description,
+          profile: profile as Record<string, unknown> | null,
+          eligibilityRules: rubric as Record<string, unknown> | null,
+        })
         .returning({ id: sectors.id });
       if (!row) throw new Error("insert returned no row");
       sectorId = row.id;

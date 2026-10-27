@@ -14,7 +14,8 @@ import {
   type SectorPreflightJob,
 } from "../db/schema.js";
 import { DomainError } from "../domain/errors.js";
-import { deriveCompany } from "../domain/sector-preflight/eligibility.js";
+import { deriveCompany, getRubric } from "../domain/sector-preflight/eligibility.js";
+import { categoryKeys, resolveProfileForSector } from "../domain/sector-preflight/profile.js";
 import {
   JOB_SAME_ERROR_PAUSE,
   checkBudget,
@@ -61,6 +62,10 @@ export async function startSectorPreflight(
   db: Db,
   input: SectorPreflightStartInput,
 ): Promise<{ jobId: string; companies: number }> {
+  // No profile, no preflight (plain refusal, no fallback prompt).
+  await resolveProfileForSector(db, input.sectorId);
+  // No rubric, no preflight either (only legacy skincare may use defaults).
+  await getRubric(db, input.sectorId);
   const onlyPending = input.onlyPending ?? true;
   const members = await db
     .select({ companyId: sectorCompanies.companyId })
@@ -326,6 +331,17 @@ export async function startPipeline(
   sectorId: string,
   options: { categories?: string[] } = {},
 ): Promise<{ created: number; skipped: number; eligible: number }> {
+  if (options.categories && options.categories.length > 0) {
+    const profile = await resolveProfileForSector(db, sectorId);
+    const valid = categoryKeys(profile);
+    const unknown = options.categories.filter((c) => !valid.includes(c));
+    if (unknown.length > 0) {
+      throw new DomainError(
+        "invalid_input",
+        `unknown categories for this sector: ${unknown.join(", ")}; valid categories: ${valid.join(", ")}`,
+      );
+    }
+  }
   const eligibleScope = and(eq(sectorCompanies.sectorId, sectorId), eq(sectorCompanies.eligibility, "eligible"));
   const members =
     options.categories && options.categories.length > 0

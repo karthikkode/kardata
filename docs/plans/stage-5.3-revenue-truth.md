@@ -1,4 +1,4 @@
-Status: current · Date: 2026-10-26
+Status: done · Date: 2026-10-26
 
 # Stage 5.3 — Revenue truth
 
