@@ -48,9 +48,16 @@ complete only when all of them are complete.
 - **5.1 — Sector preflight (done).** One sector-level eligibility pass before company jobs.
   See `stage-5.1-sector-preflight.md`. Who qualifies is decided by the filters in
   `docs/business/icp.md` (a D2C brand with enough revenue to pay; any store platform).
-- **5.2 — Worker pools (current).** Work runs per stage from queues: an AI pool (preflight,
+- **5.2 — Worker pools (done).** Work runs per stage from queues: an AI pool (preflight,
   research, extraction) and a deterministic pool (collect, grounding), so Muse quota never
   sits idle behind deterministic work. See `stage-5.2-worker-pools.md`.
+- **5.3 — Revenue truth (done)** and **5.4 — Sector profiles (done):** D-55 tiers; preflight
+  for any sector. See their stage plans.
+- **5.5 — ICP check and outreach sheet (current).** The ICP check (6 signals, exclusions)
+  becomes a stage of each company job, stores its observations for every company, and the
+  sheet export gains tracking columns. See `stage-5.5-icp-check.md`.
+
+**The order of operations for a sector is in `pipeline.md`** (every step is an MCP tool).
 
 ## Stage 6 — Analysis and RAG (planned later)
 
