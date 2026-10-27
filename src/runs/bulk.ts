@@ -483,6 +483,7 @@ export function classifyRunError(run: ResearchRun): { errorClass: string; error:
   if (USAGE_LIMIT.test(text)) return { errorClass: "usage_limit", error: text };
   if (/time limit/i.test(text)) return { errorClass: "time_limit", error: text };
   if (/server stopped/i.test(text)) return { errorClass: "server_stopped", error: text };
+  if (/^all areas blocked/i.test(text)) return { errorClass: "all_blocked", error: text };
   return { errorClass: "failed", error: text };
 }
 

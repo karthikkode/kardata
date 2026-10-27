@@ -224,6 +224,17 @@ async function areasWithoutStatus(db: Db, runId: string): Promise<string[]> {
     .filter((a) => !have.has(a as never));
 }
 
+/** The first blocked reason when every research area of the run is blocked, else null. */
+async function allAreasBlocked(db: Db, runId: string): Promise<string | null> {
+  const rows = await db
+    .select({ area: areaStatuses.area, status: areaStatuses.status, reason: areaStatuses.reason })
+    .from(areaStatuses)
+    .where(eq(areaStatuses.runId, runId));
+  const research = rows.filter((r) => r.area !== "other");
+  if (research.length === 0 || research.some((r) => r.status !== "blocked")) return null;
+  return research[0]?.reason ?? "blocked";
+}
+
 const FORENSIC_HARNESS_MAX = 10;
 const FORENSIC_MCP_MAX = 5;
 
@@ -541,6 +552,13 @@ export function createAgentRunner(db: Db, deps: AgentRunnerDeps): AgentRunner {
         return;
       }
       const missing = await areasWithoutStatus(db, runId);
+      const blocked = missing.length === 0 ? await allAreasBlocked(db, runId) : null;
+      if (blocked !== null) {
+        // Nothing citable was written (for example the session could not
+        // read Kardata tool results): a retry, not a success.
+        await finalize(runId, "failed", `all areas blocked: ${blocked}`.slice(0, 500), outcome);
+        return;
+      }
       if (missing.length > 0) {
         await finalize(runId, "partial", `areas without status: ${missing.join(", ")}`, outcome);
         return;

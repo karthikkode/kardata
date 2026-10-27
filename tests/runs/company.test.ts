@@ -466,6 +466,21 @@ describe("stage machine", () => {
     expect(parked.errorStreak).toBe(2);
   });
 
+  it("auto-retries a research run with all areas blocked once", async () => {
+    const companyId = await makeCompany("Blocked Co");
+    const { jobId } = await startCompanyJob(handle.db, { companyId });
+    const world = fakeWorld();
+    const runner = createCompanyRunner(handle.db, world.deps());
+    await runner.tick();
+    const first = await latestSubjob(jobId, "preflight");
+    if (!first) throw new Error("no preflight subjob");
+    await flipRun(first.id, "failed", "all areas blocked: tool outputs redacted");
+    await runner.tick();
+    expect((await jobRow(jobId)).status).toBe("scheduled");
+    expect((await jobRow(jobId)).errorClass).toBe("all_blocked");
+    expect((await latestSubjob(jobId, "preflight"))?.id).not.toBe(first.id);
+  });
+
   it("auto-retries usage_limit once but never server_stopped", async () => {
     const companyId = await makeCompany("Acme");
     const { jobId } = await startCompanyJob(handle.db, { companyId });
