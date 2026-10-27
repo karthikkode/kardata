@@ -41,6 +41,7 @@ export const sectors = pgTable(
     name: text("name").notNull(),
     description: text("description").notNull().default(""),
     eligibilityRules: jsonb("eligibility_rules").$type<Record<string, unknown> | null>(),
+    profile: jsonb("profile").$type<Record<string, unknown> | null>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
