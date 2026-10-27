@@ -9,6 +9,7 @@ import {
   type ExtractorCall,
   extractRun,
   gatherAreaNotes,
+  assertExtractionComplete,
   runExtraction,
   validateExtractionJson,
   writeExtraction,
@@ -426,6 +427,24 @@ describe("runExtraction with a fake harness", () => {
     const outcome = await runExtraction(handle.db, run, { call: failing });
     expect(outcome.areas.find((a) => a.area === "marketing")?.error).toContain("container exploded");
     expect(outcome.areas.find((a) => a.area === "product")?.error).toBeNull();
+    expect(() => assertExtractionComplete(outcome)).toThrow(/extraction incomplete: 1 of \d+ area calls failed \(marketing\)/);
+  });
+
+  it("retries a stalled call once and keeps the second answer", async () => {
+    const companyId = await makeCompany();
+    const run = await makeAgentRun(companyId);
+    const sourceId = await makeSource(companyId, run.id, "https://example.com/");
+    await seedNotes(companyId, run.id, sourceId);
+    const tries: Record<string, number> = {};
+    const flaky: ExtractorCall = async (input) => {
+      tries[input.area] = (tries[input.area] ?? 0) + 1;
+      if (tries[input.area] === 1) throw new Error("extraction container exited 143: (stall)");
+      return { json: { facts: [], records: [], findings: [] }, usage: undefined };
+    };
+    const outcome = await runExtraction(handle.db, run, { call: flaky });
+    expect(outcome.areas.every((a) => a.error === null)).toBe(true);
+    expect(Object.values(tries).every((n) => n === 2)).toBe(true);
+    expect(() => assertExtractionComplete(outcome)).not.toThrow();
   });
 });
 

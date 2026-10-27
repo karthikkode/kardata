@@ -42,7 +42,7 @@ import {
   usageInputTokens,
   type JobBudget,
 } from "./bulk.js";
-import { extractRun } from "./extract.js";
+import { assertExtractionComplete, extractRun } from "./extract.js";
 import { runIcpCheck } from "./icp.js";
 import { latestPromptVersion } from "./prompt.js";
 import { cancelRun, startCollect } from "./queue.js";
@@ -775,7 +775,7 @@ export interface CompanyRunner {
 export function realCompanyDeps(db: Db): Pick<CompanyRunnerDeps, "beginStage" | "runExtraction"> {
   return {
     beginStage: (job, stage) => beginStageReal(db, job, stage),
-    runExtraction: (_job, researchRunId) => extractRun(db, researchRunId).then(() => undefined),
+    runExtraction: (_job, researchRunId) => extractRun(db, researchRunId).then(assertExtractionComplete),
   };
 }
 
@@ -828,7 +828,7 @@ export function createCompanyRunner(db: Db, deps: CompanyRunnerDeps): CompanyRun
   const pollMs = deps.pollMs ?? COMPANY_POLL_MS;
   const clock = deps.clock ?? Date.now;
   const beginStage = deps.beginStage ?? ((job, stage) => beginStageReal(db, job, stage));
-  const runExtraction = deps.runExtraction ?? ((_job, researchRunId) => extractRun(db, researchRunId).then(() => undefined));
+  const runExtraction = deps.runExtraction ?? ((_job, researchRunId) => extractRun(db, researchRunId).then(assertExtractionComplete));
   const icpCheck = deps.icpCheck ?? ((job: CompanyJob) => runJobIcp(db, job));
   const agentLoad =
     deps.agentLoad ??
