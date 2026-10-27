@@ -1,0 +1,18 @@
+---
+// Every booking path goes through /book, which counts the booking by the referring page.
+interface Props {
+  label?: string;
+  size?: "md" | "lg";
+  variant?: "primary" | "outline";
+  class?: string;
+}
+const { label = "Book a call", size = "md", variant = "primary", class: extra = "" } = Astro.props;
+const href = "/book/";
+---
+<a
+  href={href}
+  class:list={["btn", variant === "primary" ? "btn-primary" : "btn-outline", size === "lg" && "btn-lg", extra]}
+>
+  {label}
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"></path></svg>
+</a>

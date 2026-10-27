@@ -1,0 +1,135 @@
+---
+// Hero picture of the headline: the systems a brand runs on, joined by lines that drip where the gaps are.
+// Decorative only (the headline says it in words), so it is hidden from screen readers.
+const systems = ["Your store", "Amazon", "Retailers", "Warehouse", "Accounts"];
+---
+<div class="map" aria-hidden="true">
+  {systems.map((s, i) => (
+    <>
+      {i > 0 && (
+        <span class="link" style={`--d: ${i * 0.45}s`}>
+          <span class="pulse"></span>
+          <span class="drip"></span>
+        </span>
+      )}
+      <span class="node">
+        <span class="dot"></span>
+        {s}
+      </span>
+    </>
+  ))}
+</div>
+
+<style>
+  .map {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 4rem;
+    width: 100%;
+    max-width: 60rem;
+  }
+  .node {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.95rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent), var(--card);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    color: var(--fg);
+    white-space: nowrap;
+  }
+  .dot {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 999px;
+    background: var(--accent-bright);
+    box-shadow: 0 0 10px var(--accent);
+  }
+  .link {
+    display: none;
+  }
+  @media (min-width: 820px) {
+    .map {
+      flex-wrap: nowrap;
+      gap: 0;
+    }
+    .link {
+      display: block;
+      position: relative;
+      flex: 1;
+      min-width: 2rem;
+      height: 1px;
+      background: repeating-linear-gradient(90deg, var(--border-strong) 0 6px, transparent 6px 11px);
+    }
+  }
+  /* A light travelling along each line, and an amber drop falling out of its middle: the leak. */
+  .pulse {
+    position: absolute;
+    top: -1px;
+    left: 0;
+    width: 28%;
+    height: 3px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, transparent, var(--accent-bright), transparent);
+    animation: travel 3.2s var(--d) ease-in-out infinite;
+    opacity: 0;
+  }
+  .drip {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 5px;
+    height: 5px;
+    margin-left: -2.5px;
+    border-radius: 999px;
+    background: var(--warn);
+    box-shadow: 0 0 8px rgba(251, 191, 36, 0.8);
+    animation: drip 3.2s calc(var(--d) + 1.2s) ease-in infinite;
+    opacity: 0;
+  }
+  @keyframes travel {
+    0% {
+      left: 0;
+      opacity: 0;
+    }
+    15%,
+    85% {
+      opacity: 1;
+    }
+    100% {
+      left: 72%;
+      opacity: 0;
+    }
+  }
+  @keyframes drip {
+    0% {
+      transform: translateY(0) scale(0.6);
+      opacity: 0;
+    }
+    15% {
+      opacity: 1;
+      transform: translateY(2px) scale(1);
+    }
+    70% {
+      opacity: 0.9;
+    }
+    100% {
+      transform: translateY(34px) scale(0.8);
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .drip {
+      opacity: 1;
+      transform: translateY(10px);
+    }
+  }
+</style>

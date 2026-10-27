@@ -1,0 +1,10 @@
+---
+import Base from "../layouts/Base.astro";
+import PageHeader from "../components/PageHeader.astro";
+import "../styles/page.css";
+---
+<Base title="Page not found" noindex>
+  <PageHeader eyebrow="404" title="This page doesn't exist">
+    <p class="lead">Try the <a href="/">home page</a> or the <a href="/blog/">blog</a>.</p>
+  </PageHeader>
+</Base>

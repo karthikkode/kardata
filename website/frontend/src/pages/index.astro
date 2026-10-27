@@ -1,0 +1,509 @@
+---
+// Home copy is docs/business/website.md ("Home, top to bottom"), word for word. Don't edit it here;
+// change website.md first. The 5 audit deliverables are offer.md's, as website.md says.
+import { BOOKING, CALL_LABEL } from "../config";
+import Base from "../layouts/Base.astro";
+import BookButton from "../components/BookButton.astro";
+import SectionHeading from "../components/SectionHeading.astro";
+import PostCard from "../components/PostCard.astro";
+import { getPosts } from "../lib/collection";
+import { readingMinutes } from "../lib/posts";
+import FounderCard from "../components/FounderCard.astro";
+import SystemsMap from "../components/SystemsMap.astro";
+
+const latest = (await getPosts()).slice(0, 3);
+
+const familiar = [
+  {
+    title: "Numbers that don't add up.",
+    text: "Your site says one thing, Amazon another, and retailer reports arrive in a different format every time.",
+  },
+  {
+    title: "Work that shouldn't be manual.",
+    text: "Purchase orders typed in by hand, stock checked in spreadsheets, a monthly report someone builds over two days.",
+  },
+  {
+    title: "Decisions you can't check.",
+    text: "You added a retailer or launched a product, and you still don't know whether it paid off.",
+  },
+];
+
+const deliverables = [
+  { title: "What repeats", text: "the 3–5 patterns going unnoticed, with counts." },
+  { title: "What it costs", text: "recoverable value per month, with the method shown." },
+  { title: "What to fix first", text: "the two fixes I'd do first, each with its expected effect and effort." },
+  { title: "What's ready for AI", text: "which patterns could be automated now, and which need cleanup first." },
+  { title: "Readout call", text: "45 minutes." },
+];
+
+// Titles from website.md; the one-line details are the audit page's own wording (offer.md).
+const steps = [
+  { title: `A ${BOOKING.minutes}-minute call`, text: "We find the one question worth answering." },
+  { title: "Read-only exports", text: "From the systems that hold the answer. Nothing changed." },
+  { title: "The readout", text: "The report and a 45-minute readout call." },
+];
+
+const faq = [
+  {
+    q: "We already have Klaviyo or a dashboard.",
+    a: "Those show one part well. A decision needs the whole business.",
+  },
+  {
+    q: "What access do you need, and is our data safe?",
+    a: "Read-only exports, nothing changed in your systems.",
+  },
+  {
+    q: "How much does it cost?",
+    a: "A fixed price, quoted on the call once we know the question.",
+  },
+  {
+    q: "What if you find nothing worth fixing?",
+    a: "It's a fixed price, paid upfront, and the report is yours either way. If the gaps are small, it says so, with the numbers.",
+  },
+];
+---
+<Base>
+  <section class="hero">
+    <div class="grid-bg" aria-hidden="true"></div>
+    <div class="glow" aria-hidden="true"></div>
+    <div class="wrap hero-inner">
+      <h1>Your brand runs on multiple systems. <span class="grad">The time and money leak between them.</span></h1>
+      <p class="lead">
+        Your store, Amazon, your retailers, your warehouse and your accounts each hold part of the picture. I audit
+        your own data, show you what the gaps are costing, and fix the ones worth fixing.
+      </p>
+      <div class="hero-cta">
+        <BookButton label={CALL_LABEL} size="lg" />
+      </div>
+      <SystemsMap />
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="familiar">
+    <div class="wrap">
+      <SectionHeading eyebrow="01" title="Sound familiar?" id="familiar" />
+      <div class="grid grid-3">
+        {familiar.map((f) => (
+          <div class="card">
+            <h3>{f.title}</h3>
+            <p class="muted">{f.text}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="audit">
+    <div class="wrap">
+      <SectionHeading eyebrow="02" title="The audit" id="audit" />
+      <p class="lead">
+        Whatever the problem, it starts the same way: one business question, answered from your own data, at a fixed
+        price. You keep the report, whatever happens next.
+      </p>
+      <ol class="deliverables">
+        {deliverables.map((d, i) => (
+          <li class="card">
+            <span class="num">{String(i + 1).padStart(2, "0")}</span>
+            <p><strong>{d.title}:</strong> {d.text}</p>
+          </li>
+        ))}
+      </ol>
+      <p><a href="/audit/" class="more">More about the audit</a></p>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="how">
+    <div class="wrap">
+      <SectionHeading eyebrow="03" title="How it works" id="how" />
+      <div class="timeline">
+        <div class="track" aria-hidden="true"><span class="fill"></span><span class="spark"></span></div>
+        <ol class="steps">
+          {steps.map((s, i) => (
+            <li style={`--i: ${i}`}>
+              <span class="node">{String(i + 1).padStart(2, "0")}</span>
+              <span class="step-t">{s.title}</span>
+              <span class="step-d">{s.text}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="behind">
+    <div class="wrap">
+      <SectionHeading eyebrow="04" title="Who's behind it" id="behind" />
+      <FounderCard>
+        <p class="motto">AI only where it pays for itself.</p>
+      </FounderCard>
+    </div>
+  </section>
+
+  {latest.length > 0 && (
+    <section class="section" aria-labelledby="blog">
+      <div class="wrap">
+        <SectionHeading eyebrow="05" title="From the blog" id="blog" />
+        <div class="posts">
+          {latest.map((p) => (
+            <PostCard id={p.id} title={p.data.title} summary={p.data.summary} date={p.data.date} minutes={readingMinutes(p.body)} draft={p.data.draft} />
+          ))}
+        </div>
+        <p><a href="/blog/" class="more">All posts</a></p>
+      </div>
+    </section>
+  )}
+
+  <section class="section" aria-labelledby="faq">
+    <div class="wrap">
+      <SectionHeading eyebrow={latest.length > 0 ? "06" : "05"} title="FAQ" id="faq" />
+      <div class="faq narrow">
+        {faq.map((f) => (
+          <details>
+            <summary>{f.q}</summary>
+            <p class="muted">{f.a}</p>
+          </details>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="final">
+    <div class="glow" aria-hidden="true"></div>
+    <div class="wrap final-inner">
+      <BookButton label={CALL_LABEL} size="lg" />
+    </div>
+  </section>
+</Base>
+
+<style>
+  .hero,
+  .final {
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+  }
+  .glow {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 70% 55% at 50% -5%, rgba(79, 156, 249, 0.16), transparent 65%),
+      radial-gradient(ellipse 40% 35% at 85% 20%, rgba(79, 156, 249, 0.07), transparent 70%);
+  }
+  /* Faint graph-paper grid behind the hero, fading out towards the edges. */
+  .grid-bg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(121, 184, 255, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(121, 184, 255, 0.06) 1px, transparent 1px);
+    background-size: 48px 48px;
+    background-position: center top;
+    -webkit-mask-image: radial-gradient(ellipse 70% 75% at 50% 30%, #000 30%, transparent 75%);
+    mask-image: radial-gradient(ellipse 70% 75% at 50% 30%, #000 30%, transparent 75%);
+  }
+  .hero-inner {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding-top: 7rem;
+    padding-bottom: 6rem;
+  }
+  h1 {
+    max-width: 52rem;
+    font-size: clamp(2.4rem, 6.5vw, 4.25rem);
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+  }
+  .grad {
+    background: linear-gradient(90deg, var(--accent), var(--accent-bright), var(--accent));
+    background-size: 200% 100%;
+    animation: sheen 8s ease-in-out infinite;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  @keyframes sheen {
+    50% {
+      background-position: 100% 0;
+    }
+  }
+  .hero .lead {
+    margin: 1.75rem auto 0;
+    max-width: 40rem;
+  }
+  .hero-cta {
+    margin-top: 2.25rem;
+  }
+  .card h3 {
+    font-size: 1.1rem;
+  }
+  .card p.muted {
+    margin: 0.75rem 0 0;
+  }
+
+  .deliverables {
+    list-style: none;
+    padding: 0;
+    margin: 2.5rem 0 1.5rem;
+    display: grid;
+    gap: 0.75rem;
+  }
+  @media (min-width: 720px) {
+    .deliverables {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  .deliverables li {
+    display: flex;
+    gap: 1rem;
+    align-items: baseline;
+    padding: 1.1rem 1.25rem;
+  }
+  .deliverables p {
+    margin: 0;
+    color: var(--muted);
+  }
+  .deliverables strong {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .num {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--accent-bright);
+  }
+  .posts {
+    display: grid;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .more {
+    font-size: 0.9375rem;
+    text-decoration: none;
+  }
+  .more::after {
+    content: " \2192";
+  }
+
+  /* How it works: one line through three numbered nodes. With motion on, the line fills left to right
+     when the section comes into view, each node lights as the fill reaches it, then a light keeps
+     travelling along it. Without motion or JavaScript it simply shows filled. */
+  .timeline {
+    --node: 3rem;
+    --gap: 1.5rem;
+    --run: 1.6s;
+    position: relative;
+  }
+  .steps {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 2rem;
+  }
+  .steps li {
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--node) 1fr;
+    column-gap: 1.25rem;
+    row-gap: 0.35rem;
+    align-items: center;
+  }
+  .node {
+    grid-row: span 2;
+    align-self: start;
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: var(--node);
+    height: var(--node);
+    border-radius: 999px;
+    border: 1px solid var(--accent);
+    background: radial-gradient(circle at 50% 35%, rgba(79, 156, 249, 0.28), rgba(79, 156, 249, 0.08)), var(--bg);
+    box-shadow: 0 0 0 6px var(--bg), 0 0 22px rgba(79, 156, 249, 0.45);
+    color: var(--fg);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    transition: all 0.5s var(--ease) calc(0.3s + var(--run) * var(--i) / 2);
+  }
+  .node::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    border: 1px solid var(--accent-bright);
+    opacity: 0;
+    animation: ring 3s ease-out calc(2.2s + var(--i) * 1s) infinite;
+  }
+  @keyframes ring {
+    0% {
+      transform: scale(1);
+      opacity: 0.6;
+    }
+    70%,
+    100% {
+      transform: scale(1.7);
+      opacity: 0;
+    }
+  }
+  .step-t {
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .step-d {
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+
+  /* The line: vertical down the node column on phones, horizontal between node centres from 720px. */
+  .track {
+    position: absolute;
+    left: calc(var(--node) / 2 - 1px);
+    top: calc(var(--node) / 2);
+    bottom: 3rem;
+    width: 2px;
+    background: var(--border-strong);
+    border-radius: 2px;
+  }
+  .fill {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(180deg, var(--accent), var(--accent-bright));
+    box-shadow: 0 0 12px rgba(79, 156, 249, 0.6);
+    transform-origin: top;
+    transition: transform var(--run) cubic-bezier(0.45, 0, 0.25, 1) 0.3s;
+  }
+  .spark {
+    display: none;
+  }
+  @media (min-width: 720px) {
+    .steps {
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--gap);
+    }
+    .steps li {
+      grid-template-columns: 1fr;
+      justify-items: center;
+      text-align: center;
+      row-gap: 0.5rem;
+    }
+    .node {
+      grid-row: auto;
+      margin-bottom: 1rem;
+    }
+    .step-d {
+      max-width: 17rem;
+    }
+    .track {
+      left: calc((100% - 2 * var(--gap)) / 6);
+      right: calc((100% - 2 * var(--gap)) / 6);
+      top: calc(var(--node) / 2 - 1px);
+      bottom: auto;
+      width: auto;
+      height: 2px;
+    }
+    .fill {
+      background: linear-gradient(90deg, var(--accent), var(--accent-bright));
+      transform-origin: left;
+    }
+    .spark {
+      display: block;
+      position: absolute;
+      top: -1px;
+      left: 0;
+      width: 14%;
+      height: 4px;
+      border-radius: 4px;
+      background: linear-gradient(90deg, transparent, #fff, transparent);
+      opacity: 0;
+      animation: spark 4s ease-in-out 2.4s infinite;
+    }
+  }
+  @keyframes spark {
+    0% {
+      left: 0;
+      opacity: 0;
+    }
+    15%,
+    85% {
+      opacity: 0.9;
+    }
+    100% {
+      left: 86%;
+      opacity: 0;
+    }
+  }
+  /* Before the section is in view: line empty, nodes unlit. */
+  @media (min-width: 720px) {
+    :global(.js) .timeline:not(.in) .fill {
+      transform: scaleX(0);
+    }
+  }
+  @media (max-width: 719px) {
+    :global(.js) .timeline:not(.in) .fill {
+      transform: scaleY(0);
+    }
+  }
+  :global(.js) .timeline:not(.in) .node {
+    border-color: var(--border-strong);
+    background: var(--card);
+    box-shadow: 0 0 0 6px var(--bg);
+    color: var(--faint);
+  }
+
+  .motto {
+    margin: 1.1rem 0 0;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--accent-bright);
+  }
+
+  .faq details {
+    border-top: 1px solid var(--border);
+    padding: 0.25rem 0;
+  }
+  .faq details:last-child {
+    border-bottom: 1px solid var(--border);
+  }
+  .faq summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 1rem 2rem 1rem 0;
+    font-weight: 500;
+    font-size: 1.05rem;
+    position: relative;
+  }
+  .faq summary::-webkit-details-marker {
+    display: none;
+  }
+  .faq summary::after {
+    content: "+";
+    position: absolute;
+    right: 0.25rem;
+    top: 0.9rem;
+    color: var(--accent-bright);
+    font-family: var(--font-mono);
+  }
+  .faq details[open] summary::after {
+    content: "\2212";
+  }
+  .faq details p {
+    margin: 0 0 1.1rem;
+  }
+
+  .final-inner {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    padding-top: 5rem;
+    padding-bottom: 5rem;
+  }
+</style>

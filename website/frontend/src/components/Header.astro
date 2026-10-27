@@ -1,0 +1,147 @@
+---
+import { NAV } from "../config";
+import LogoMark from "./LogoMark.astro";
+import BookButton from "./BookButton.astro";
+
+const path = Astro.url.pathname;
+const isCurrent = (href: string) => path === href || (href !== "/" && path.startsWith(href));
+---
+<header class="site-header">
+  <div class="wrap bar">
+    <a href="/" class="brand" aria-label="kardata, home">
+      <LogoMark size={28} />
+      <span>kardata</span>
+    </a>
+
+    <nav class="links" aria-label="Main">
+      {NAV.map((l) => (
+        <a href={l.href} aria-current={isCurrent(l.href) ? "page" : undefined}>{l.label}</a>
+      ))}
+    </nav>
+
+    <div class="cta">
+      <BookButton variant="outline" />
+    </div>
+
+    <details class="menu">
+      <summary aria-label="Menu">
+        <svg class="open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+        <svg class="close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+      </summary>
+      <nav class="sheet" aria-label="Mobile">
+        {NAV.map((l) => (
+          <a href={l.href} aria-current={isCurrent(l.href) ? "page" : undefined}>{l.label}</a>
+        ))}
+        <BookButton class="sheet-cta" />
+      </nav>
+    </details>
+  </div>
+</header>
+
+<style>
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    border-bottom: 1px solid rgba(31, 39, 51, 0.6);
+    background: rgba(10, 12, 16, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 4rem;
+    position: relative;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: var(--fg);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.95rem;
+    letter-spacing: -0.01em;
+  }
+  .links {
+    display: none;
+    gap: 2rem;
+    font-size: 0.875rem;
+  }
+  .links a,
+  .sheet a:not(.btn) {
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .links a:hover,
+  .links a[aria-current="page"] {
+    color: var(--fg);
+  }
+  .cta {
+    display: none;
+  }
+  .menu summary {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    color: var(--muted);
+    cursor: pointer;
+    border-radius: var(--radius);
+  }
+  .menu summary::-webkit-details-marker {
+    display: none;
+  }
+  .menu summary svg {
+    width: 1.35rem;
+    height: 1.35rem;
+  }
+  .menu .close,
+  .menu[open] .open {
+    display: none;
+  }
+  .menu[open] .close {
+    display: block;
+  }
+  .sheet {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 1rem var(--gutter) 1.25rem;
+    background: var(--bg);
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
+    border-bottom: 1px solid var(--border);
+  }
+  .sheet a:not(.btn) {
+    padding: 0.75rem;
+    border-radius: var(--radius);
+    font-size: 0.95rem;
+  }
+  .sheet a:not(.btn):hover,
+  .sheet a[aria-current="page"] {
+    background: var(--card);
+    color: var(--fg);
+  }
+  .sheet :global(.sheet-cta) {
+    margin-top: 0.5rem;
+    width: 100%;
+  }
+  @media (min-width: 768px) {
+    .links,
+    .cta {
+      display: flex;
+    }
+    .menu {
+      display: none;
+    }
+  }
+</style>

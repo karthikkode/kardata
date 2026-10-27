@@ -1,0 +1,53 @@
+---
+// Built from the tools the site actually uses. Update it when the analytics or booking tool changes.
+import Base from "../../layouts/Base.astro";
+import PageHeader from "../../components/PageHeader.astro";
+import { SITE } from "../../config";
+import "../../styles/page.css";
+---
+<Base title="Privacy" description="What this site collects, and what happens to it.">
+  <PageHeader eyebrow="Privacy" title="Privacy policy" lead="What this site collects, who holds it, and how to have it deleted." />
+  <article class="wrap page-body">
+    <section class="doc">
+      <h2>Who I am</h2>
+      <div>
+        <p>kardata.co is run by Sai Karthik. Questions about your data go to <a href={`mailto:${SITE.email}`}>{SITE.email}</a>.</p>
+      </div>
+    </section>
+    <section class="doc">
+      <h2>Reading this site</h2>
+      <div>
+        <p>This site's own pages set no cookies, run no analytics and have no ad pixels.</p>
+      </div>
+    </section>
+    <section class="doc">
+      <h2>Booking a call</h2>
+      <div>
+        <p>
+      The booking calendar on the booking page is run by Cal.com, under <a href="https://cal.com/privacy" rel="noopener">their privacy policy</a>, and it
+      may set its own cookies. When you book, you give your
+      name, email, company website, where you sell, and an optional note. I use these only to prepare for the call
+      and to reply to you.
+    </p>
+      </div>
+    </section>
+    <section class="doc">
+      <h2>Email</h2>
+      <div>
+        <p>If you write to me, I keep the conversation to reply and to follow up on what we discussed.</p>
+      </div>
+    </section>
+    <section class="doc">
+      <h2>How long I keep it</h2>
+      <div>
+        <p>Only as long as it is needed for our conversation and any work that follows. Ask, and I delete it.</p>
+      </div>
+    </section>
+    <section class="doc">
+      <h2>Your rights</h2>
+      <div>
+        <p>You can ask for a copy of what I hold about you, or for it to be deleted, by writing to {SITE.email}.</p>
+      </div>
+    </section>
+  </article>
+</Base>

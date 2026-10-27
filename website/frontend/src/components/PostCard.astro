@@ -1,0 +1,88 @@
+---
+import { formatDate } from "../lib/posts";
+interface Props {
+  id: string;
+  title: string;
+  summary: string;
+  date: Date;
+  minutes: number;
+  draft: boolean;
+}
+const { id, title, summary, date, minutes, draft } = Astro.props;
+---
+<a class="post-card" href={`/blog/${id}/`}>
+  <div class="meta">
+    <time datetime={date.toISOString()}>{formatDate(date)}</time>
+    <span>{minutes} min read</span>
+    {draft && <span class="badge badge-warn">Draft</span>}
+  </div>
+  <div class="body">
+    <h3>{title}</h3>
+    <p>{summary}</p>
+    <span class="read">Read the piece <span aria-hidden="true">→</span></span>
+  </div>
+</a>
+
+<style>
+  .post-card {
+    display: grid;
+    gap: 1rem 2.5rem;
+    padding: 1.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: var(--card);
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.15s, background-color 0.15s;
+  }
+  .post-card:hover {
+    border-color: var(--border-strong);
+    background: #171d29;
+  }
+  @media (min-width: 760px) {
+    .post-card {
+      grid-template-columns: 11rem minmax(0, 1fr);
+      padding: 2rem;
+    }
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 0.5rem 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--faint);
+  }
+  @media (min-width: 760px) {
+    .meta {
+      flex-direction: column;
+      padding-top: 0.35rem;
+    }
+    .meta .badge {
+      align-self: flex-start;
+    }
+  }
+  h3 {
+    font-size: 1.4rem;
+    color: var(--fg);
+    margin: 0;
+  }
+  .body p {
+    margin: 0.6rem 0 0;
+    color: var(--muted);
+    line-height: 1.65;
+    max-width: 40rem;
+  }
+  .read {
+    display: inline-block;
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    color: var(--accent-bright);
+  }
+  .post-card:hover .read {
+    color: var(--fg);
+  }
+</style>
