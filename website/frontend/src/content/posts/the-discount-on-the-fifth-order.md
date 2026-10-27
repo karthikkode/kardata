@@ -3,7 +3,7 @@ title: "The discount on the fifth order"
 date: 2026-10-27
 summary: "When a customer who already loves your product gets a discount on their fifth order, what is that discount actually buying?"
 synthetic: false
-# Numbers marked † are to be recounted before publishing (owner's draft note). Keep draft: true until then.
+# Recount before publishing (owner's draft note): 443 of 637 sign-up discounts, 15% most common, 278 of 348 subscription discounts, 129 of 532 year-round sales, 208 of 369 at 30% or more, 96 at 50% or more. Keep draft: true until then.
 draft: true
 ---
 I'm studying how companies make decisions, starting with D2C skincare. Over the last few weeks my research has
@@ -17,7 +17,7 @@ run a D2C brand, the last part is the one you can use this week.
 
 ## What I saw
 
-Of the 637 brands my research covers, 443 offer a discount the moment you sign up.† The most common offer is 15%.†
+Of the 637 brands my research covers, 443 offer a discount the moment you sign up. The most common offer is 15%.
 Some go to 20% or more.
 
 It makes sense. The first order is the hardest one to win. A stranger has never tried your product, doesn't know if it
@@ -27,11 +27,11 @@ I think that's a fair call. If it brings in customers who stay, it pays for itse
 
 The signup discount is not the part I keep thinking about. It's what comes after.
 
-Of the brands that sell a subscription, 278 out of 348 discount the subscription too.† That discount is not a one-time
+Of the brands that sell a subscription, 278 out of 348 discount the subscription too. That discount is not a one-time
 welcome. It applies to every order the subscriber ever places. Many brands run bundles on top of that. Some run a sale
-that never really ends; in my research, 129 out of 532 brands had a sale running all year round.† And when brands
+that never really ends; in my research, 129 out of 532 brands had a sale running all year round. And when brands
 do run a sale, they often go deep: 208 out of 369 brands had offered 30% or more at some point, and 96 of them 50%
-or more.†
+or more.
 
 Put these together and a picture forms. A customer gets 15% on their first order. They subscribe and get another
 discount on every refill. They see a bundle that's cheaper again. Then Black Friday comes and the whole store is 30%
