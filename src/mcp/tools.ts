@@ -47,7 +47,7 @@ export function registerTools(server: McpServer, db: Db, auth: AuthContext): voi
         profile: z
           .unknown()
           .optional()
-          .describe("Sector profile JSON (categories, scope, classifierHints); required before preflight"),
+          .describe("Sector profile JSON (categories, scope, classifierHints); an included rubric is stored via the sector_rules_set validation; required before preflight"),
       },
     },
     async ({ name, description, csvPaths, profile }) =>

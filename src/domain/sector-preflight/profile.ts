@@ -203,6 +203,7 @@ export interface SetProfileResult {
   before: EligibilityCounts;
   after: EligibilityCounts;
   reclassifyPending: number;
+  rubricApplied: boolean;
 }
 
 /**
@@ -218,18 +219,22 @@ export async function setProfile(
 ): Promise<SetProfileResult> {
   const sector = await loadSectorRow(db, sectorId);
   const profile = parseSectorProfile(value);
-  // The stored rubric (or the skincare default, for back-compat) must
-  // still make sense against the new categories.
-  const { eligibilityRubricSchema } = await import("./eligibility.js");
+  // A rubric included in the profile goes through the same validated path
+  // as sector_rules_set, checked against the new categories up front so a
+  // bad rubric stores nothing.
+  const { eligibilityRubricSchema, parseEligibilityRubric, setRubric } = await import("./eligibility.js");
+  const includedRubric =
+    profile.rubric !== undefined ? parseEligibilityRubric(profile.rubric, profile) : null;
   const rubricParsed = sector.eligibilityRules
     ? eligibilityRubricSchema.safeParse(sector.eligibilityRules)
     : null;
   if (rubricParsed && !rubricParsed.success) {
     throw new DomainError("invalid_input", "stored rubric is invalid; set it again");
   }
-  // Only a stored rubric constrains the new profile; a sector without one
-  // gets its rubric validated when the rubric itself is set.
-  if (rubricParsed?.data) validateRubricAgainstProfile(rubricParsed.data, profile);
+  // Only a stored rubric constrains the new profile (and only when the call
+  // does not replace it in the same step); a sector without one gets its
+  // rubric validated when the rubric itself is set.
+  if (rubricParsed?.data && !includedRubric) validateRubricAgainstProfile(rubricParsed.data, profile);
 
   const before = await eligibilityCounts(db, sectorId);
   const existing = sector.profile ? parseSectorProfile(sector.profile) : null;
@@ -237,44 +242,42 @@ export async function setProfile(
     existing !== null &&
     JSON.stringify([...categoryKeys(existing)].sort()) !== JSON.stringify([...categoryKeys(profile)].sort());
   let reclassifyPending = 0;
-  if (keysChanged) {
-    const classified = await db
-      .select({ companyId: sectorPreflight.companyId })
-      .from(sectorPreflight)
-      .where(eq(sectorPreflight.sectorId, sectorId));
-    if (classified.length > 0 && !options.reclassify) {
+  const classified = await db
+    .select({ companyId: sectorPreflight.companyId })
+    .from(sectorPreflight)
+    .where(eq(sectorPreflight.sectorId, sectorId));
+  if (keysChanged && classified.length > 0) {
+    if (!options.reclassify) {
       throw new DomainError(
         "conflict",
         "category keys changed after classifications exist; pass reclassify: true to mark them pending and re-run the preflight",
       );
     }
-    if (classified.length > 0 && options.reclassify) {
-      reclassifyPending = classified.length;
-      await db
-        .update(sectorCompanies)
-        .set({
-          eligibility: "pending",
-          eligibilitySource: null,
-          eligibilityReason: "profile categories changed; reclassification pending",
-        })
-        .where(eq(sectorCompanies.sectorId, sectorId));
-    }
+    reclassifyPending = classified.length;
   }
   await db
     .update(sectors)
     .set({ profile: profile as unknown as Record<string, unknown> })
     .where(eq(sectors.id, sectorId));
-  // Scope edits re-derive instantly (no LLM), like rubric edits.
-  const { applySectorScope } = await import("./eligibility.js");
-  if (!keysChanged || reclassifyPending === 0) {
-    const hasClassified = await db
-      .select({ companyId: sectorPreflight.companyId })
-      .from(sectorPreflight)
-      .where(eq(sectorPreflight.sectorId, sectorId));
-    if (hasClassified.length > 0) await applySectorScope(db, sectorId);
+  if (includedRubric) await setRubric(db, sectorId, includedRubric);
+  if (reclassifyPending > 0) {
+    // Pending marking wins over any re-derivation above: the stored
+    // classifications were made with the old category keys.
+    await db
+      .update(sectorCompanies)
+      .set({
+        eligibility: "pending",
+        eligibilitySource: null,
+        eligibilityReason: "profile categories changed; reclassification pending",
+      })
+      .where(eq(sectorCompanies.sectorId, sectorId));
+  } else if (classified.length > 0) {
+    // Scope edits re-derive instantly (no LLM), like rubric edits.
+    const { applySectorScope } = await import("./eligibility.js");
+    await applySectorScope(db, sectorId);
   }
   const after = await eligibilityCounts(db, sectorId);
-  return { profile, before, after, reclassifyPending };
+  return { profile, before, after, reclassifyPending, rubricApplied: includedRubric !== null };
 }
 
 export { PRIMARY_CATEGORIES };

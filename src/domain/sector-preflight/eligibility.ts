@@ -423,6 +423,18 @@ export async function applySectorScope(db: Db, sectorId: string): Promise<ScopeA
   return result;
 }
 
+/** The one validated rubric path: schema, then profile category check. */
+export function parseEligibilityRubric(rules: unknown, profile?: SectorProfile | null): EligibilityRubric {
+  const parsed = eligibilityRubricSchema.safeParse(rules);
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    const where = first && first.path.length > 0 ? `${first.path.join(".")}: ` : "";
+    throw new DomainError("invalid_input", `invalid rubric: ${where}${first?.message ?? "rejected"}`);
+  }
+  if (profile) validateRubricAgainstProfile(parsed.data, profile);
+  return parsed.data;
+}
+
 /** Validate, store, and re-derive; returns before→after counts. */
 export async function setRubric(
   db: Db,
@@ -430,21 +442,15 @@ export async function setRubric(
   rules: unknown,
 ): Promise<{ rubric: EligibilityRubric; before: EligibilityCounts; after: EligibilityCounts }> {
   await loadSector(db, sectorId);
-  const parsed = eligibilityRubricSchema.safeParse(rules);
-  if (!parsed.success) {
-    const first = parsed.error.issues[0];
-    const where = first && first.path.length > 0 ? `${first.path.join(".")}: ` : "";
-    throw new DomainError("invalid_input", `invalid rubric: ${where}${first?.message ?? "rejected"}`);
-  }
   const profile = await getProfileOrNull(db, sectorId);
-  if (profile) validateRubricAgainstProfile(parsed.data, profile);
+  const rubric = parseEligibilityRubric(rules, profile);
   const before = await eligibilityCounts(db, sectorId);
   await db
     .update(sectors)
-    .set({ eligibilityRules: parsed.data as Record<string, unknown> })
+    .set({ eligibilityRules: rubric as Record<string, unknown> })
     .where(eq(sectors.id, sectorId));
   const after = await rederiveSector(db, sectorId);
-  return { rubric: parsed.data, before, after };
+  return { rubric, before, after };
 }
 
 export type OverrideDecision = "include" | "exclude" | "clear";

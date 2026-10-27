@@ -1935,7 +1935,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     "sector_profile_set",
     {
       description:
-        "Operator: validate and store a sector's preflight profile. Changing category keys after classifications exist is refused unless reclassify is true (marks them pending).",
+        "Operator: validate and store a sector's preflight profile. If the profile includes a rubric, it is stored through the same validated path as sector_rules_set. Changing category keys after classifications exist is refused unless reclassify is true (marks them pending).",
       inputSchema: {
         sectorId: z.string().describe("Sector UUID"),
         profile: z.unknown().describe("Full profile JSON (see the sector profile schema)"),
@@ -1946,7 +1946,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const result = await setProfile(db, sectorId, profile, { reclassify: reclassify ?? false });
         return {
-          summary: `profile stored (${result.profile.categories.length} categories, ${result.reclassifyPending} pending)`,
+          summary: `profile stored (${result.profile.categories.length} categories, ${result.reclassifyPending} pending${result.rubricApplied ? ", rubric applied" : ""})`,
           data: result,
         };
       }),
