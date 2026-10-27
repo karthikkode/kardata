@@ -40,6 +40,8 @@ const SECTOR_COLLECTOR = "sector_preflight";
 const PAGE_TEXT_BUDGET = 30_000;
 const SUBPAGE_MAX = 2;
 const CLASSIFY_STALL_MS = 120_000;
+/** Muse's own web fetches can sit silent for minutes; give the web fallback room. */
+export const CLASSIFY_WEB_STALL_MS = 300_000;
 const APOLLO_DESCRIPTION_MAX = 500;
 /** Below this much readable text across all pages, the site counts as unread. */
 export const THIN_PAGES_MIN_CHARS = 400;
@@ -74,16 +76,18 @@ export const dockerClassifierCall: ClassifierCall = async ({ runId, prompt, sche
     child.stderr?.on("data", (chunk: Buffer) => {
       stderr = `${stderr}${chunk.toString("utf8")}`.slice(-2000);
     });
-    const handle = new MuseHandle(child, CLASSIFY_STALL_MS);
+    const handle = new MuseHandle(child, web ? CLASSIFY_WEB_STALL_MS : CLASSIFY_STALL_MS);
+    let stall: string | null = null;
     const consume = (async () => {
       for await (const event of handle.events) {
-        void event;
+        if (event.type === "error" && event.message.includes("(stall)")) stall = event.message;
       }
     })();
     const result = await handle.wait();
     await consume;
     if (result.exitCode !== 0) {
-      const detail = stderr.trim() === "" ? "no stderr" : stderr.trim().split("\n").slice(-3).join(" | ");
+      const tail = stderr.trim() === "" ? "no stderr" : stderr.trim().split("\n").slice(-3).join(" | ");
+      const detail = stall ? `${stall}: ${tail}` : tail;
       throw new Error(`classifier container exited ${result.exitCode}: ${detail}`);
     }
     let json: unknown;
