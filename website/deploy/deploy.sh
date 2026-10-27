@@ -20,8 +20,9 @@ copy() {
 }
 
 cd "$front"
-if [[ -z "${ALLOW_DIRTY:-}" && -n "$(git status --porcelain -- ..)" ]]; then
-  echo "deploy: website/ has uncommitted changes. Commit them first." >&2
+# Only what gets built or shipped must be committed: frontend/ (pages, posts) and deploy/. website/drafts/ can stay loose.
+if [[ -z "${ALLOW_DIRTY:-}" && -n "$(git status --porcelain -- . ../deploy)" ]]; then
+  echo "deploy: website/frontend or website/deploy has uncommitted changes. Commit them first." >&2
   exit 1
 fi
 

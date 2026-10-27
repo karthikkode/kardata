@@ -43,7 +43,7 @@ kardata.co is a static site served by one small container, `kardata-site` (`depl
 npm run deploy
 ```
 
-It refuses a dirty `website/`, runs the full check, uploads `~/kardata-site/releases/<date>-<commit>`, syncs
+It refuses uncommitted changes in `frontend/` or `deploy/`, runs the full check, uploads `~/kardata-site/releases/<date>-<commit>`, syncs
 `compose.yml` and the inner `Caddyfile`, starts or updates the container, switches `current` atomically, keeps 5
 releases, and fails unless https://kardata.co/release.txt shows the new release.
 
@@ -56,9 +56,17 @@ releases, and fails unless https://kardata.co/release.txt shows the new release.
 `kathawin-caddy-1`, write it in place (`cat new > Caddyfile`; it is a single-file bind mount, so `sed -i` leaves Caddy
 on the old copy), then `docker exec kathawin-caddy-1 caddy reload --config /etc/caddy/Caddyfile`.
 
+## Pushing and deploying are separate
+
+- **Push** (`git push`) sends commits to GitHub. It never changes the live site: there is no CI deploy.
+- **Deploy** (`npm run deploy`) builds the commit checked out on this machine and puts it on the VM, pushed or not.
+- Each needs the owner's explicit go for that action. A go to deploy is not a go to push, and the other way round.
+- After a deploy, report the release it printed (`<date>-<commit>`). `kardata-server` is never deployed to the VM.
+
 ## Rules for the VM
 
 - kathawin.com runs on the same VM and Caddy. Never restart, rebuild or stop kathawin containers.
 - Back up the Caddyfile before editing it, and validate it before reloading.
 - No secrets in this folder or in the repo. No prospect data on the site (D-09).
-- Every change on the VM needs the owner's explicit go.
+- Every change on the VM needs the owner's explicit go. Never touch anything of kathawin.com: containers, images,
+  volumes, or its blocks in the Caddyfile.
