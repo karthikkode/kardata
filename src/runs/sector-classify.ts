@@ -66,12 +66,14 @@ export type ClassifierCall = (input: {
   web?: boolean;
   /** Silence allowed before the call is killed (default: by web mode). */
   stallMs?: number;
+  /** Distinct per parallel call of one run; part of the container name. */
+  callKey?: string;
 }) => Promise<ClassifierCallResult>;
 
-export const dockerClassifierCall: ClassifierCall = async ({ runId, prompt, schema, web, stallMs }) => {
+export const dockerClassifierCall: ClassifierCall = async ({ runId, prompt, schema, web, stallMs, callKey }) => {
   const input = await prepareClassifyInput(prompt, schema);
   try {
-    const child = spawn("docker", classifyRunArgs({ runId, inputDir: input.dir, web }), {
+    const child = spawn("docker", classifyRunArgs({ runId, inputDir: input.dir, web, callKey }), {
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stderr = "";

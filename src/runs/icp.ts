@@ -118,7 +118,7 @@ export async function runIcpCheck(db: Db, input: RunIcpInput): Promise<RunIcpOut
       const started = Date.now();
       for (let attempt = 0; ; attempt += 1) {
         try {
-          const result = await call({ runId, prompt, schema: icpSchema(), stallMs: ICP_STALL_MS });
+          const result = await call({ runId, prompt, schema: icpSchema(), stallMs: ICP_STALL_MS, callKey: `v${seq}-a${attempt}` });
           await logIcpCall(db, { ...run, status: "running" } as ResearchRun, {
             seq,
             prompt,
