@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "../../db/client.js";
 import { sectorCompanies, sectorPreflight, sectors } from "../../db/schema.js";
