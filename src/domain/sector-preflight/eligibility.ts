@@ -253,11 +253,26 @@ async function loadSector(db: Db, sectorId: string): Promise<void> {
   if (!sector) throw new DomainError("not_found", `sector not found: ${sectorId}`);
 }
 
-/** Stored rubric, or the skincare default when the sector has none. */
+/**
+ * Stored rubric. Only the legacy sector named "skincare" may fall back to
+ * the skincare default (matching the profile fallback); any other sector
+ * without a stored rubric is refused in plain words.
+ */
 export async function getRubric(db: Db, sectorId: string): Promise<{ rubric: EligibilityRubric; isDefault: boolean }> {
-  await loadSector(db, sectorId);
-  const [row] = await db.select({ rules: sectors.eligibilityRules }).from(sectors).where(eq(sectors.id, sectorId));
-  if (!row?.rules) return { rubric: DEFAULT_SKINCARE_RUBRIC, isDefault: true };
+  const [row] = await db
+    .select({ rules: sectors.eligibilityRules, name: sectors.name })
+    .from(sectors)
+    .where(eq(sectors.id, sectorId));
+  if (!row) throw new DomainError("not_found", `sector not found: ${sectorId}`);
+  if (!row.rules) {
+    if (row.name.trim().toLowerCase() === "skincare") {
+      return { rubric: DEFAULT_SKINCARE_RUBRIC, isDefault: true };
+    }
+    throw new DomainError(
+      "invalid_input",
+      `sector "${row.name}" has no eligibility rubric; set one with sector_rules_set`,
+    );
+  }
   const parsed = eligibilityRubricSchema.safeParse(row.rules);
   if (!parsed.success) throw new DomainError("invalid_input", "stored rubric is invalid; set it again");
   return { rubric: parsed.data, isDefault: false };
@@ -317,6 +332,7 @@ export async function deriveCompany(db: Db, sectorId: string, companyId: string)
 /** Re-derive every membership row of a sector (rubric edits). Returns fresh counts. */
 export async function rederiveSector(db: Db, sectorId: string): Promise<EligibilityCounts> {
   await loadSector(db, sectorId);
+  await getRubric(db, sectorId);
   const members = await db
     .select({ companyId: sectorCompanies.companyId })
     .from(sectorCompanies)

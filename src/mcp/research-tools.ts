@@ -1962,7 +1962,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
       wrap(async () => {
         const result = await getRubric(db, sectorId);
         return {
-          summary: result.isDefault ? "no rubric stored for this sector" : "sector rubric",
+          summary: result.isDefault ? "legacy skincare default rubric (nothing stored)" : "sector rubric",
           data: result,
         };
       }),

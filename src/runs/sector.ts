@@ -14,7 +14,7 @@ import {
   type SectorPreflightJob,
 } from "../db/schema.js";
 import { DomainError } from "../domain/errors.js";
-import { deriveCompany } from "../domain/sector-preflight/eligibility.js";
+import { deriveCompany, getRubric } from "../domain/sector-preflight/eligibility.js";
 import { categoryKeys, resolveProfileForSector } from "../domain/sector-preflight/profile.js";
 import {
   JOB_SAME_ERROR_PAUSE,
@@ -64,6 +64,8 @@ export async function startSectorPreflight(
 ): Promise<{ jobId: string; companies: number }> {
   // No profile, no preflight (plain refusal, no fallback prompt).
   await resolveProfileForSector(db, input.sectorId);
+  // No rubric, no preflight either (only legacy skincare may use defaults).
+  await getRubric(db, input.sectorId);
   const onlyPending = input.onlyPending ?? true;
   const members = await db
     .select({ companyId: sectorCompanies.companyId })
