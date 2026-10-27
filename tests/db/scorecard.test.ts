@@ -2,7 +2,18 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import type { DbHandle } from "../../src/db/client.js";
-import { companies, facts, records, researchRuns, sources, webSearches } from "../../src/db/schema.js";
+import {
+  companies,
+  companyIcpChecks,
+  companyJobs,
+  facts,
+  providerCalls,
+  records,
+  researchRuns,
+  sectors,
+  sources,
+  webSearches,
+} from "../../src/db/schema.js";
 import { recordEvent } from "../../src/collect/db.js";
 import { addFacts } from "../../src/domain/research/facts.js";
 import { upsertRecords } from "../../src/domain/research/records.js";
@@ -389,6 +400,36 @@ describe("scorecard", () => {
     await expect(scorecard(db(), { batchId: randomUUID() })).rejects.toBeInstanceOf(DomainError);
     await expect(scorecard(db(), { runIds: [randomUUID()] })).rejects.toBeInstanceOf(DomainError);
     await expect(scorecard(db(), { runIds: [] })).rejects.toBeInstanceOf(DomainError);
+  });
+
+  it("scores a set of company jobs and reports ICP outcomes", async () => {
+    const companyId = await makeCompany();
+    const jobId = randomUUID();
+    await handle.db.insert(companyJobs).values({ id: jobId, companyId, status: "completed" });
+    const run = await makeAgentRun(companyId, randomUUID());
+    await handle.db.update(researchRuns).set({ companyJobId: jobId }).where(eq(researchRuns.id, run));
+    const icpRun = randomUUID();
+    await handle.db.insert(researchRuns).values({ id: icpRun, companyId, kind: "icp", stage: "icp", status: "succeeded", companyJobId: jobId });
+    await handle.db.insert(providerCalls).values([
+      { companyJobId: jobId, runId: run, stage: "research", seq: 1, inputTokens: 40_000, cachedTokens: 10_000, outputTokens: 1, reasoningTokens: 0, durationMs: 1 },
+      { companyJobId: jobId, runId: icpRun, stage: "icp", seq: 1, inputTokens: 8_000, cachedTokens: 2_000, outputTokens: 1, reasoningTokens: 0, durationMs: 1 },
+    ]);
+    const sectorId = randomUUID();
+    await handle.db.insert(sectors).values({ id: sectorId, name: "score-sector" });
+    await handle.db.insert(companyIcpChecks).values({
+      id: randomUUID(), companyId, sectorId, runId: icpRun, promptVersion: "icp-v1", packHash: "x", score: 3, status: "contactable", results: {},
+    });
+    const result = await scorecard(db(), { companyJobIds: [jobId] });
+    expect(result.runs.map((r) => r.runId).sort()).toEqual([run, icpRun].sort());
+    expect(result.icp).toEqual({
+      companies: 1,
+      checked: 1,
+      byStatus: { contactable: 1 },
+      byScore: { "3": 1 },
+      museTokensPerCompany: 60_000,
+      icpTokensPerCheck: 10_000,
+    });
+    await expect(scorecard(db(), { companyJobIds: [randomUUID()] })).rejects.toBeInstanceOf(DomainError);
   });
 
   function db() {

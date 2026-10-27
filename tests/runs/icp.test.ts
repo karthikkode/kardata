@@ -18,7 +18,8 @@ import {
 } from "../../src/db/schema.js";
 import { recordVerdicts } from "../../src/domain/tiering.js";
 import type { ClassifierCall } from "../../src/runs/sector-classify.js";
-import { latestIcpCheck, runIcpCheck } from "../../src/runs/icp.js";
+import { latestIcpCheck } from "../../src/domain/icp/reads.js";
+import { runIcpCheck } from "../../src/runs/icp.js";
 import { ensureMigrated, getTestDb, resetTestDb } from "../db.js";
 
 let handle: DbHandle;

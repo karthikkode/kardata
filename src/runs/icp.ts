@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import {
   companyIcpChecks,
@@ -179,15 +179,4 @@ export async function runIcpCheck(db: Db, input: RunIcpInput): Promise<RunIcpOut
     .set({ status: "succeeded", finishedAt: new Date(), agentUsage: usage })
     .where(eq(researchRuns.id, runId));
   return { checkId, runId, decision, verdictWritten };
-}
-
-/** The latest check for a company, or null. */
-export async function latestIcpCheck(db: Db, companyId: string) {
-  const [row] = await db
-    .select()
-    .from(companyIcpChecks)
-    .where(eq(companyIcpChecks.companyId, companyId))
-    .orderBy(desc(companyIcpChecks.createdAt))
-    .limit(1);
-  return row ?? null;
 }

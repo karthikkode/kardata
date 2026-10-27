@@ -3,6 +3,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import {
   companies,
+  companyIcpChecks,
   companyJobs,
   researchRuns,
   sectorCompanies,
@@ -25,6 +26,7 @@ import {
 } from "./bulk.js";
 import { startCompanyJob } from "./company.js";
 import { cancelRun } from "./queue.js";
+import { createIcpRun, runIcpCheck } from "./icp.js";
 import { classifyCompany, createSectorRun } from "./sector-classify.js";
 import { effectiveSectorPreflight, systemMemAvailableMB } from "./settings.js";
 
@@ -131,6 +133,75 @@ export async function startSectorPreflight(
     sectorId: input.sectorId,
     onlyPending,
     forceWeb: input.forceWeb ?? false,
+    maxCompanies: cap,
+    maxInputTokens: maxTokens,
+    maxHours,
+  });
+  for (let i = 0; i < companyIds.length; i += 500) {
+    const chunk = companyIds.slice(i, i + 500);
+    await db.insert(sectorPreflightItems).values(
+      chunk.map((companyId, index) => ({ id: randomUUID(), jobId, companyId, position: i + index })),
+    );
+  }
+  return { jobId, companies: companyIds.length };
+}
+
+export interface SectorIcpStartInput {
+  sectorId: string;
+  /** Check exactly these sector members, researched or not (default: members whose research is complete). */
+  companyIds?: string[];
+  /** Skip companies that already have an ICP check in this sector (default true). */
+  onlyMissing?: boolean;
+  maxCompanies?: number;
+  budget?: JobBudget;
+}
+
+/**
+ * The ICP check as a sector job (Stage 5.5 Step 4): backfill and re-checks
+ * after a rule change. Runs on the sector-job runner, so status, pause,
+ * resume, cancel, retry and auto-pause work as for a preflight job.
+ */
+export async function startSectorIcp(db: Db, input: SectorIcpStartInput): Promise<{ jobId: string; companies: number }> {
+  const [sector] = await db.select({ id: sectors.id }).from(sectors).where(eq(sectors.id, input.sectorId));
+  if (!sector) throw new DomainError("not_found", `sector not found: ${input.sectorId}`);
+  const members = await db
+    .select({ companyId: sectorCompanies.companyId })
+    .from(sectorCompanies)
+    .innerJoin(companies, eq(companies.id, sectorCompanies.companyId))
+    .where(eq(sectorCompanies.sectorId, input.sectorId))
+    .orderBy(asc(companies.name));
+  const memberSet = new Set(members.map((m) => m.companyId));
+  let companyIds: string[];
+  if (input.companyIds !== undefined) {
+    const outside = input.companyIds.filter((id) => !memberSet.has(id));
+    if (outside.length > 0) throw new DomainError("invalid_input", `${outside.length} companies are not in this sector`);
+    const wanted = new Set(input.companyIds);
+    companyIds = members.map((m) => m.companyId).filter((id) => wanted.has(id));
+  } else {
+    const done = await db
+      .select({ companyId: companyJobs.companyId })
+      .from(companyJobs)
+      .where(eq(companyJobs.status, "completed"));
+    const doneSet = new Set(done.map((r) => r.companyId));
+    companyIds = members.map((m) => m.companyId).filter((id) => doneSet.has(id));
+  }
+  if (input.onlyMissing ?? true) {
+    const checked = await db
+      .select({ companyId: companyIcpChecks.companyId })
+      .from(companyIcpChecks)
+      .where(eq(companyIcpChecks.sectorId, input.sectorId));
+    const checkedSet = new Set(checked.map((r) => r.companyId));
+    companyIds = companyIds.filter((id) => !checkedSet.has(id));
+  }
+  const cap = checkMaxCompanies(input.maxCompanies);
+  if (cap !== null) companyIds = companyIds.slice(0, cap);
+  const { maxTokens, maxHours } = checkBudget(input.budget);
+  const jobId = randomUUID();
+  await db.insert(sectorPreflightJobs).values({
+    id: jobId,
+    sectorId: input.sectorId,
+    kind: "icp",
+    onlyPending: input.onlyMissing ?? true,
     maxCompanies: cap,
     maxInputTokens: maxTokens,
     maxHours,
@@ -442,6 +513,8 @@ export interface SectorRunnerDeps {
   memAvailableMB?: () => number | null;
   /** Create the classify run row (default: createSectorRun). */
   createRun?: (db: Db, companyId: string) => Promise<string>;
+  /** ICP check for one company (kind = icp jobs; default: runIcpCheck). */
+  icp?: (input: { sectorId: string; companyId: string; runId: string }) => Promise<unknown>;
 }
 
 export interface SectorRunner {
@@ -524,6 +597,8 @@ export function createSectorRunner(db: Db, deps: SectorRunnerDeps): SectorRunner
         runId: input.runId,
         forceWeb: input.forceWeb,
       }));
+  const icpDrive =
+    deps.icp ?? ((input) => runIcpCheck(db, { sectorId: input.sectorId, companyId: input.companyId, runId: input.runId }));
   const actives = new Set<string>();
   let timer: ReturnType<typeof setInterval> | null = null;
   let ticking = false;
@@ -590,7 +665,7 @@ export function createSectorRunner(db: Db, deps: SectorRunnerDeps): SectorRunner
       .update(sectorPreflightItems)
       .set({ status: "succeeded", finishedAt, durationMs })
       .where(eq(sectorPreflightItems.id, itemId));
-    if (job.sectorId) await deriveCompany(db, job.sectorId, item.companyId);
+    if (job.sectorId && job.kind !== "icp") await deriveCompany(db, job.sectorId, item.companyId);
     await spendTokens(job.id, spend);
     return loadJob(job.id);
   }
@@ -598,7 +673,8 @@ export function createSectorRunner(db: Db, deps: SectorRunnerDeps): SectorRunner
   async function launch(job: SectorPreflightJob, itemId: string, companyId: string): Promise<void> {
     if (!job.sectorId) return;
     const sectorId = job.sectorId;
-    const runId = await (deps.createRun ?? createSectorRun)(db, companyId);
+    const runId =
+      job.kind === "icp" ? await createIcpRun(db, companyId) : await (deps.createRun ?? createSectorRun)(db, companyId);
     await db
       .update(sectorPreflightItems)
       .set({ status: "running", runId, startedAt: new Date(), attempts: sql`${sectorPreflightItems.attempts} + 1` })
@@ -609,7 +685,9 @@ export function createSectorRunner(db: Db, deps: SectorRunnerDeps): SectorRunner
       .where(eq(sectorPreflightJobs.id, job.id));
     actives.add(itemId);
     void Promise.resolve()
-      .then(() => drive({ sectorId, companyId, runId, forceWeb: job.forceWeb }))
+      .then(() =>
+        job.kind === "icp" ? icpDrive({ sectorId, companyId, runId }) : drive({ sectorId, companyId, runId, forceWeb: job.forceWeb }),
+      )
       .catch(() => undefined)
       .finally(() => {
         actives.delete(itemId);
