@@ -1481,7 +1481,7 @@ export function registerResearchTools(server: McpServer, db: Db, auth: AuthConte
     "company_verdict_record",
     {
       description:
-        "Operator: record ICP verdicts (signal score, signals, contact status) for up to 200 companies. This is the only write path for verdicts.",
+        "Operator: record ICP verdicts by hand (signal score, signals, contact status) for up to 200 companies. The ICP check (sector_icp_start) writes verdicts itself; a verdict whose source starts with \"override:\" is the owner's call and is never overwritten by a check.",
       inputSchema: {
         verdicts: z
           .array(

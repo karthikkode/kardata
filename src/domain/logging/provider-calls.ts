@@ -183,7 +183,7 @@ export interface ExtractorCallLog {
 async function insertToollessCall(
   db: Db,
   run: ResearchRun,
-  stage: "extraction" | "sector_preflight",
+  stage: "extraction" | "sector_preflight" | "icp",
   log: ExtractorCallLog,
 ): Promise<void> {
   const promptSha = await storeBlob(db, "text/plain", Buffer.from(log.prompt, "utf8"));
@@ -215,4 +215,9 @@ export async function logExtractorCall(db: Db, run: ResearchRun, log: ExtractorC
 /** One sector-preflight classifier call, logged the same way. */
 export async function logClassifierCall(db: Db, run: ResearchRun, log: ExtractorCallLog): Promise<void> {
   await insertToollessCall(db, run, "sector_preflight", log);
+}
+
+/** One ICP judge call (Stage 5.5), logged the same way so quota windows count it. */
+export async function logIcpCall(db: Db, run: ResearchRun, log: ExtractorCallLog): Promise<void> {
+  await insertToollessCall(db, run, "icp", log);
 }
